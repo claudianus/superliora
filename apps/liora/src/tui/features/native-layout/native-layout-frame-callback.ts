@@ -8,10 +8,12 @@ import {
   ambientAnimationActive,
   getActiveAppearancePreferences,
   setAppearanceRenderQuality,
+  setAppearanceTransportStability,
 } from '#/tui/features/appearance/appearance-effects';
 
 import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../../controllers/appearance/index';
-import { tickArmedStreamReveal } from '../../controllers/streaming-ui/reveal';
+import { isStreamRevealArmed, tickArmedStreamReveal } from '../../controllers/streaming-ui/reveal';
+import { shapeAmbientFrameClockMs } from '../appearance/ambient-calm';
 import { resolveStageLayout } from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
 import { recordScrollHangSample } from '../../utils/render/scroll-hang-probe';
@@ -80,7 +82,25 @@ export function createTUIStateNativeRenderCallback(
       // was pushed for; drop drag/hover state so the cursor cannot get stuck.
       resetStageResizePointerShape(state.terminal);
     }
-    advanceAppearanceAnimationClock(frame.timestamp);
+    // Publish the transport classification so appearance effect resolution can
+    // clamp decorative modes on unstable transports (classic ConPTY).
+    setAppearanceTransportStability(runtime.transportStability);
+    // On unstable transports (classic ConPTY) an idle full-rate clock turns
+    // every ambient tick into a visible repaint; snap the clock onto the calm
+    // quantum grid so idle frames stay byte-identical and write nothing.
+    const calmSignals = {
+      streamingPhase: state.appState.streamingPhase,
+      compacting: state.appState.isCompacting,
+      liveGoal: isLiveGoalChromeActive(state.appState.goal),
+      fullscreenTakeover: isNativeFullscreenTakeover(state),
+      streamRevealArmed: isStreamRevealArmed(),
+    };
+    const shapedClockMs = shapeAmbientFrameClockMs(
+      frame.timestamp,
+      runtime.transportStability,
+      calmSignals,
+    );
+    advanceAppearanceAnimationClock(shapedClockMs);
     // Advance smooth stream reveal on the shared clock before layout so type-on
     // catch-up paints in this frame (no private setTimeout chain).
     tickArmedStreamReveal();

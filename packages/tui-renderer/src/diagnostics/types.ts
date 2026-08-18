@@ -13,6 +13,7 @@ import type {
 } from '../render/overlay';
 import type { RendererQualitySnapshot } from '../frame/quality';
 import type { NativeTerminalSynchronizedOutputProbeResult } from '../terminal/probe';
+import type { RendererTransportStability } from '../terminal/transport-stability';
 import type { RendererTheme } from '../theme';
 
 export type RendererDiagnosticsSeverity = 'ok' | 'watch' | 'degraded';
@@ -49,6 +50,7 @@ export interface RendererDiagnosticsOptions {
   readonly lineCacheHitWatchBelow?: number;
   readonly synchronizedOutputProbeResult?: NativeTerminalSynchronizedOutputProbeResult;
   readonly synchronizedOutputEnabled?: boolean;
+  readonly transportStability?: RendererTransportStability;
 }
 
 export interface RendererDiagnosticsSnapshot {
@@ -109,6 +111,7 @@ export interface RendererDiagnosticsSnapshot {
   readonly synchronizedOutputProbeTimedOut?: boolean;
   readonly synchronizedOutputProbeAborted?: boolean;
   readonly synchronizedOutputEnabled?: boolean;
+  readonly transportStability?: RendererTransportStability;
   readonly frameTimeSparkline: string;
   readonly issues: readonly RendererDiagnosticsIssue[];
 }

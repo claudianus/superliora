@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import chalk from 'chalk';
 
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
@@ -103,8 +103,18 @@ async function flushAutocomplete(): Promise<void> {
   await Promise.resolve();
 }
 
+beforeEach(() => {
+  // Many cases drive the native renderer through a fake scheduler and assert
+  // exact frame cadence or appearance-clock advancement. On win32 the renderer
+  // would otherwise classify the transport as unstable — applying the
+  // frame-rate floor and freezing the idle ambient clock — so pin synchronized
+  // for a platform-independent schedule.
+  process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = 'synchronized';
+});
+
 afterEach(() => {
   vi.useRealTimers();
+  delete process.env['TUI_RENDERER_TRANSPORT_STABILITY'];
 });
 
 function providerReturning(items: AutocompleteItem[]): AutocompleteProvider {

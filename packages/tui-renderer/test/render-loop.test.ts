@@ -308,6 +308,104 @@ describe('NativeRenderLoop', () => {
 
     expect(scheduler.activeTimers()[0]?.unrefCalls).toBe(1);
   });
+
+  it('rate-limits non-interactive frames to the stability floor', () => {
+    // On an unstable transport every write repaints, so a 60fps invalidation
+    // drip must collapse into the floor cadence instead of strobing.
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      targetFps: 100, // 10ms nominal interval
+      stabilityFrameIntervalMs: 80,
+      render: (frame) => frames.push(frame),
+    });
+
+    loop.start();
+    loop.requestRender();
+    scheduler.advance(0); // frame 0 at t=0; floor re-anchors next frame to t=80
+    expect(frames).toHaveLength(1);
+
+    scheduler.advance(10); // t=10
+    loop.requestRender(); // non-interactive: paced to the floor, not the 10ms target
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(80);
+
+    scheduler.advance(69); // t=79 — floor not yet reached
+    expect(frames).toHaveLength(1);
+    scheduler.advance(1); // t=80 — floor reached, frame fires
+    expect(frames).toHaveLength(2);
+    expect(frames[1]).toMatchObject({ timestamp: 80, causes: ['request'] });
+  });
+
+  it('keeps input frames immediate under the stability floor', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      targetFps: 100,
+      stabilityFrameIntervalMs: 80,
+      render: (frame) => frames.push(frame),
+    });
+
+    loop.start();
+    loop.requestRender();
+    scheduler.advance(0); // frame 0 at t=0; floor next frame at t=80
+    scheduler.advance(10); // t=10
+    loop.requestRender('input');
+
+    // Input bypasses the floor and renders now, never waiting ~70ms.
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(10);
+    scheduler.advance(0);
+    expect(frames).toHaveLength(2);
+    expect(frames[1]?.causes).toEqual(['input']);
+  });
+
+  it('applies an updated stability floor to subsequent pacing', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      targetFps: 100, // 10ms drift-free interval
+      render: (frame) => frames.push(frame),
+    });
+
+    expect(loop.stabilityIntervalMs).toBeUndefined();
+    loop.start();
+    loop.requestRender();
+    scheduler.advance(0); // frame 0 at t=0; drift-free next frame at t=10
+    scheduler.advance(9);
+    loop.requestRender();
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(10); // uncapped target pacing
+
+    // The probe resolves unstable mid-run: the floor takes over.
+    loop.setStabilityFrameIntervalMs(80);
+    expect(loop.stabilityIntervalMs).toBe(80);
+    scheduler.advance(1); // t=10 — pending frame fires; floor re-anchors to t=90
+    expect(frames).toHaveLength(2);
+
+    scheduler.advance(10); // t=20
+    loop.requestRender();
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(90); // floor, not t=20+10
+  });
+
+  it('normalizes the stability floor, treating non-positive values as uncapped', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const loop = new NativeRenderLoop({
+      scheduler,
+      stabilityFrameIntervalMs: 0,
+      render: () => {},
+    });
+
+    expect(loop.stabilityIntervalMs).toBeUndefined();
+    loop.setStabilityFrameIntervalMs(-10);
+    expect(loop.stabilityIntervalMs).toBeUndefined();
+    loop.setStabilityFrameIntervalMs(Number.NaN);
+    expect(loop.stabilityIntervalMs).toBeUndefined();
+    loop.setStabilityFrameIntervalMs(120);
+    expect(loop.stabilityIntervalMs).toBe(120);
+    loop.setStabilityFrameIntervalMs(undefined);
+    expect(loop.stabilityIntervalMs).toBeUndefined();
+  });
 });
 
 describe('RendererTicker', () => {

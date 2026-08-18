@@ -8,7 +8,9 @@ import type { AppearancePreferences } from '#/tui/config';
 import { mixHexColor } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceDecorativeFrozenByTransport,
   motionEffectsAllowed,
+  resolveAmbientEffectMode,
   resolveQualityAdjustedAmbientEffectMode,
 } from '#/tui/features/appearance/appearance-effects';
 import { hash2, STAR_GLYPHS } from '#/tui/features/stage/night-sky';
@@ -114,10 +116,15 @@ export function paintStageLetterboxSky(input: {
   if (bands.length === 0 || cols <= 0 || rows <= 0) return [];
   if (!motionEffectsAllowed()) return [];
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
-  if (mode === 'off') return [];
+  // On an unstable transport the mode is clamped to 'off' to stop per-frame
+  // repaints, but the sky stays as a fully static backdrop (fixed-brightness
+  // stars, no meteors) so the letterbox keeps its depth instead of going blank.
+  const frozenByTransport = appearanceDecorativeFrozenByTransport(appearance);
+  if (mode === 'off' && !frozenByTransport) return [];
 
-  const premium = mode === 'premium';
-  const freeze = input.freeze === true;
+  const premium =
+    (frozenByTransport ? resolveAmbientEffectMode(appearance) : mode) === 'premium';
+  const freeze = input.freeze === true || frozenByTransport;
   const area = letterboxArea(bands);
   if (area < 24) return [];
 
@@ -144,9 +151,13 @@ export function paintStageLetterboxSky(input: {
   // rewrote nearly every star cell every ambient tick (shared rows with the
   // stage content), which read as center-panel flicker in kitty.
   const twinkleStepMs = premium ? 90 : 140;
-  const twinkleClock = freeze
-    ? Math.floor(nowMs / 4000) * 4000
-    : Math.floor(nowMs / twinkleStepMs) * twinkleStepMs;
+  // frozenByTransport pins the clock at 0 so every star holds one brightness
+  // for the whole session — a static backdrop, not a slow twinkle.
+  const twinkleClock = frozenByTransport
+    ? 0
+    : freeze
+      ? Math.floor(nowMs / 4000) * 4000
+      : Math.floor(nowMs / twinkleStepMs) * twinkleStepMs;
   for (let i = 0; i < starCount; i++) {
     const seed = hash2(i * 17 + 3, 91);
     const band = bands[seed % bands.length]!;

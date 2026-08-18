@@ -34,6 +34,15 @@ export interface NativeRenderLoopOptions {
   readonly renderOnStart?: boolean;
   readonly unrefTimers?: boolean;
   readonly scheduler?: NativeRenderLoopScheduler;
+  /**
+   * Optional floor (ms) on the interval between non-interactive frames.
+   * Unstable transports (classic Windows ConPTY) turn every write into a
+   * visible repaint, so chasing 60fps only multiplies flicker. When set, the
+   * loop rate-limits paced frames to this interval; `input`/`resize` causes
+   * still render immediately so typing never lags. `undefined` keeps the
+   * drift-free `targetFps` schedule untouched.
+   */
+  readonly stabilityFrameIntervalMs?: number;
 }
 
 const DEFAULT_TARGET_FPS = 60;
@@ -43,6 +52,7 @@ const MAX_TARGET_FPS = 240;
 export class NativeRenderLoop {
   private readonly scheduler: NativeRenderLoopScheduler;
   private readonly targetFrameIntervalMs: number;
+  private stabilityFrameIntervalMs: number | undefined;
   private started = false;
   private scheduledTimer: NativeRenderTimer | undefined;
   private scheduledDelayMs = 0;
@@ -69,6 +79,9 @@ export class NativeRenderLoop {
   constructor(private readonly options: NativeRenderLoopOptions) {
     this.scheduler = options.scheduler ?? defaultRenderLoopScheduler;
     this.targetFrameIntervalMs = 1000 / normalizeTargetFps(options.targetFps);
+    this.stabilityFrameIntervalMs = normalizeStabilityFrameIntervalMs(
+      options.stabilityFrameIntervalMs,
+    );
   }
 
   get isStarted(): boolean {
@@ -79,8 +92,40 @@ export class NativeRenderLoop {
     return this.renderedFrames;
   }
 
+  /**
+   * Nominal per-frame budget used for frame metrics. Always the `targetFps`
+   * interval — the stability floor paces *how often* frames fire, not how long
+   * one may take, so the budget ratio must keep measuring against the target.
+   */
   get frameIntervalMs(): number {
     return this.targetFrameIntervalMs;
+  }
+
+  /** Current stability floor (ms), or `undefined` when uncapped. */
+  get stabilityIntervalMs(): number | undefined {
+    return this.stabilityFrameIntervalMs;
+  }
+
+  /**
+   * Pacing interval: the `targetFps` interval raised to the stability floor.
+   * This is the spacing applied between non-interactive frames.
+   */
+  private get pacedFrameIntervalMs(): number {
+    const floor = this.stabilityFrameIntervalMs;
+    return floor === undefined
+      ? this.targetFrameIntervalMs
+      : Math.max(this.targetFrameIntervalMs, floor);
+  }
+
+  /**
+   * Update the stability floor at runtime (e.g. once the sync probe classifies
+   * the transport). Re-anchors pacing so the new cadence applies immediately.
+   */
+  setStabilityFrameIntervalMs(intervalMs: number | undefined): void {
+    const next = normalizeStabilityFrameIntervalMs(intervalMs);
+    if (next === this.stabilityFrameIntervalMs) return;
+    this.stabilityFrameIntervalMs = next;
+    this.nextTargetTime = undefined;
   }
 
   get hasPendingFrame(): boolean {
@@ -226,19 +271,31 @@ export class NativeRenderLoop {
       this.runningFrame = false;
       this.lastFrameAt = timestamp;
       this.renderedFrames++;
-      // Advance the ideal target by exactly one interval (drift-free).
-      // If the target has fallen more than one full interval behind
-      // wall-clock (long GC, tab suspend, heavy render), re-anchor to
-      // avoid a burst of catch-up frames.
-      if (this.nextTargetTime === undefined) {
-        this.nextTargetTime = timestamp + this.targetFrameIntervalMs;
-      } else {
-        this.nextTargetTime += this.targetFrameIntervalMs;
-        if (this.nextTargetTime < timestamp - this.targetFrameIntervalMs) {
-          this.nextTargetTime = timestamp + this.targetFrameIntervalMs;
-        }
-      }
+      this.advanceTargetTime(timestamp);
       this.scheduleNextFrame();
+    }
+  }
+
+  private advanceTargetTime(timestamp: number): void {
+    const interval = this.pacedFrameIntervalMs;
+    if (this.stabilityFrameIntervalMs !== undefined) {
+      // Stability floor: pure rate-limit. The next paced frame sits a full
+      // interval after whatever frame just ran — including immediate input
+      // frames — so bursts of invalidation coalesce instead of cascading.
+      this.nextTargetTime = timestamp + interval;
+      return;
+    }
+    // Drift-free pacing: advance the ideal target by exactly one interval.
+    // If the target has fallen more than one full interval behind wall-clock
+    // (long GC, tab suspend, heavy render), re-anchor to avoid a burst of
+    // catch-up frames.
+    if (this.nextTargetTime === undefined) {
+      this.nextTargetTime = timestamp + interval;
+    } else {
+      this.nextTargetTime += interval;
+      if (this.nextTargetTime < timestamp - interval) {
+        this.nextTargetTime = timestamp + interval;
+      }
     }
   }
 
@@ -262,6 +319,12 @@ const defaultRenderLoopScheduler: NativeRenderLoopScheduler = {
 function normalizeTargetFps(targetFps: number | undefined): number {
   if (targetFps === undefined || !Number.isFinite(targetFps)) return DEFAULT_TARGET_FPS;
   return Math.min(MAX_TARGET_FPS, Math.max(MIN_TARGET_FPS, targetFps));
+}
+
+function normalizeStabilityFrameIntervalMs(intervalMs: number | undefined): number | undefined {
+  if (intervalMs === undefined || !Number.isFinite(intervalMs)) return undefined;
+  if (intervalMs <= 0) return undefined;
+  return intervalMs;
 }
 
 function onlyPendingCause(causes: ReadonlySet<NativeRenderCause>, cause: NativeRenderCause): boolean {

@@ -100,6 +100,7 @@ export function diagnoseNativeRendererStats(
     synchronizedOutputProbeTimedOut: options.synchronizedOutputProbeResult?.timedOut,
     synchronizedOutputProbeAborted: options.synchronizedOutputProbeResult?.aborted,
     synchronizedOutputEnabled: options.synchronizedOutputEnabled,
+    transportStability: options.transportStability,
     frameTimeSparkline: formatFrameBudgetSparkline(stats.frameBudgetRatioSamples),
     issues,
   };

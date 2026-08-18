@@ -148,7 +148,15 @@ class FakeRenderLoopScheduler implements NativeRenderLoopScheduler {
 }
 
 describe('scroll hang host storm', () => {
+  let previousTransportStability: string | undefined;
+
   beforeEach(() => {
+    previousTransportStability = process.env['TUI_RENDERER_TRANSPORT_STABILITY'];
+    // The host-storm case drives frames through a fake scheduler and asserts
+    // exact paint cadence. On win32 the renderer would otherwise apply the
+    // unstable-transport frame floor and delay the driven frames, so pin the
+    // transport to synchronized for a platform-independent schedule.
+    process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = 'synchronized';
     resetScrollHangProbeForTest();
     resetTranscriptScrollActivityForTest();
     resetTranscriptMeasureModeForTest();
@@ -161,6 +169,11 @@ describe('scroll hang host storm', () => {
   });
 
   afterEach(() => {
+    if (previousTransportStability === undefined) {
+      delete process.env['TUI_RENDERER_TRANSPORT_STABILITY'];
+    } else {
+      process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = previousTransportStability;
+    }
     resetScrollHangProbeForTest();
     resetTranscriptScrollActivityForTest();
     resetTranscriptMeasureModeForTest();

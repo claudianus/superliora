@@ -4,6 +4,7 @@ import {
   type RendererAmbientScheduleOptions,
   type RendererQualityLevel,
   type RendererTerminalHost,
+  type RendererTransportStability,
 } from '#/tui/renderer';
 
 import type { AppearancePreferences } from '#/tui/config';
@@ -20,6 +21,7 @@ import {
   resolveAmbientEffectMode,
   setActiveAppearancePreferences,
 } from '#/tui/features/appearance/appearance-effects';
+import { capAmbientIntervalForCalmTransport } from '#/tui/features/appearance/ambient-calm';
 
 export interface AppearanceControllerOptions {
   readonly terminal: RendererTerminalHost;
@@ -37,6 +39,10 @@ export interface AppearanceControllerOptions {
   readonly shouldRenderAnimation?: () => boolean;
   /** When true, force schedule enabled (splash) even if shouldRenderAnimation is false. */
   readonly forceAmbientSchedule?: () => boolean;
+  /** Transport stability from the renderer; unstable + idle caps tick cadence. */
+  readonly getTransportStability?: () => RendererTransportStability | undefined;
+  /** True when no activity needs full-rate motion (see ambient-calm). */
+  readonly isAmbientIdle?: () => boolean;
 }
 
 export class AppearanceController {
@@ -47,6 +53,10 @@ export class AppearanceController {
   ) => void;
   private readonly shouldRenderAnimation: (() => boolean) | undefined;
   private readonly forceAmbientSchedule: (() => boolean) | undefined;
+  private readonly getTransportStability:
+    | (() => RendererTransportStability | undefined)
+    | undefined;
+  private readonly isAmbientIdle: (() => boolean) | undefined;
   private readonly onAppearanceApplied: (() => void) | undefined;
   private terminalMutated = false;
   private lastPalettePayload: string | undefined;
@@ -57,6 +67,8 @@ export class AppearanceController {
     this.setAmbientSchedule = options.setAmbientSchedule;
     this.shouldRenderAnimation = options.shouldRenderAnimation;
     this.forceAmbientSchedule = options.forceAmbientSchedule;
+    this.getTransportStability = options.getTransportStability;
+    this.isAmbientIdle = options.isAmbientIdle;
     this.onAppearanceApplied = options.onAppearanceApplied;
     this.apply(options.getAppearance());
   }
@@ -135,7 +147,7 @@ export class AppearanceController {
           // Match MOON_SPINNER_INTERVAL_MS without importing chrome constants here.
           return 120;
         }
-        return rendererAmbientIntervalMs({
+        const baseIntervalMs = rendererAmbientIntervalMs({
           requested: resolveAmbientEffectMode(appearance),
           quality: ctx.quality === 'minimal' ? 'balanced' : ctx.quality,
           // Pass real health: soft-degrade keys off degraded/minimal/backpressure.
@@ -144,6 +156,14 @@ export class AppearanceController {
           premiumMs,
           subtleMs: 100,
         });
+        // Unstable transport + idle: ticking faster than the calm quantum only
+        // rebuilds byte-identical frames (the clock is quantized), so cap the
+        // cadence to the quantum and save the CPU.
+        return capAmbientIntervalForCalmTransport(
+          baseIntervalMs,
+          ctx.transportStability ?? this.getTransportStability?.(),
+          this.isAmbientIdle?.() === true,
+        );
       },
     });
   }

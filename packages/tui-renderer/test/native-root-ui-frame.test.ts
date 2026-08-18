@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   NativeRootUI,
@@ -11,6 +11,24 @@ import {
 } from '../src';
 
 describe('NativeRootUI frame invalidation', () => {
+  const TRANSPORT_STABILITY_ENV = 'TUI_RENDERER_TRANSPORT_STABILITY';
+  let previousTransportStability: string | undefined;
+  beforeEach(() => {
+    previousTransportStability = process.env[TRANSPORT_STABILITY_ENV];
+    // These cases drive frames through a fake scheduler and assert exact
+    // coalescing/cadence. On win32 the renderer would otherwise apply the
+    // unstable-transport frame floor and delay the driven frames, so pin the
+    // transport to synchronized for a platform-independent schedule.
+    process.env[TRANSPORT_STABILITY_ENV] = 'synchronized';
+  });
+  afterEach(() => {
+    if (previousTransportStability === undefined) {
+      delete process.env[TRANSPORT_STABILITY_ENV];
+    } else {
+      process.env[TRANSPORT_STABILITY_ENV] = previousTransportStability;
+    }
+  });
+
   it('coalesces same-turn render requests into one native frame', () => {
     const { component, onFrame, scheduler, ui } = createRoot();
 
