@@ -24,8 +24,9 @@ export type FooterTranscriptViewportSnapshot = Pick<
 function posixPath(value: string): string {
   let normalized = value.replace(/\\/g, '/');
   const msys = /^\/([a-zA-Z])(\/|$)/.exec(normalized);
-  if (msys) {
-    normalized = `${msys[1].toUpperCase()}:${normalized.slice(2)}`;
+  const drive = msys?.[1];
+  if (drive !== undefined) {
+    normalized = `${drive.toUpperCase()}:${normalized.slice(2)}`;
   }
   if (/^[a-z]:/.test(normalized)) {
     normalized = `${normalized[0]!.toUpperCase()}${normalized.slice(1)}`;

@@ -35,12 +35,12 @@ describe('debug-session', () => {
       SUPERLIORA_HOME: '/tmp/debug-home',
     };
     applyDebugCliFlag(env);
-    expect(env.CI).toBeUndefined();
-    expect(env.NO_COLOR).toBeUndefined();
-    expect(env.SUPERLIORA_DEBUG).toBe('1');
-    expect(env.SUPERLIORA_LOG_LEVEL).toBe('info');
-    expect(env.TERM).toBe('xterm-256color');
-    expect(env.SUPERLIORA_DEBUG_LOG?.replaceAll('\\', '/')).toBe(
+    expect(env['CI']).toBeUndefined();
+    expect(env['NO_COLOR']).toBeUndefined();
+    expect(env['SUPERLIORA_DEBUG']).toBe('1');
+    expect(env['SUPERLIORA_LOG_LEVEL']).toBe('info');
+    expect(env['TERM']).toBe('xterm-256color');
+    expect(env['SUPERLIORA_DEBUG_LOG']?.replaceAll('\\', '/')).toBe(
       '/tmp/debug-home/logs/debug-local.ndjson',
     );
   });

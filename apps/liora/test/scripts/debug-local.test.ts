@@ -22,13 +22,13 @@ describe('debug-local env', () => {
       },
       { repoRoot: '/tmp/superliora-repo' },
     );
-    expect(built.env.CI).toBeUndefined();
-    expect(built.env.NO_COLOR).toBeUndefined();
-    expect(built.env.TERM).toBe(FALLBACK_TERM);
-    expect(built.env.SUPERLIORA_DEBUG).toBe('1');
-    expect(built.env.SUPERLIORA_LOG_LEVEL).toBe('info');
+    expect(built.env['CI']).toBeUndefined();
+    expect(built.env['NO_COLOR']).toBeUndefined();
+    expect(built.env['TERM']).toBe(FALLBACK_TERM);
+    expect(built.env['SUPERLIORA_DEBUG']).toBe('1');
+    expect(built.env['SUPERLIORA_LOG_LEVEL']).toBe('info');
     expect(built.home.replaceAll('\\', '/')).toBe('/tmp/superliora-repo/.superliora-debug');
-    expect(built.env.OPENAI_API_KEY).toBe('sk-test');
+    expect(built.env['OPENAI_API_KEY']).toBe('sk-test');
     expect(formatDebugEnvReport(built).some((line) => line === 'CI (unset)')).toBe(true);
   });
 

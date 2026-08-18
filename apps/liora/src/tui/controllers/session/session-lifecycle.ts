@@ -395,8 +395,8 @@ export class SessionLifecycleController {
       options.additionalDirs = [...host.state.appState.additionalDirs];
     }
     // Prefer startup sessionMetadata (CLI --sandbox / worktree seed) when present.
-    const startupMeta = (host as { options?: { sessionMetadata?: Record<string, unknown> } }).options
-      ?.sessionMetadata;
+    const startupMeta = (host as { options?: { sessionMetadata?: CreateSessionOptions['metadata'] } })
+      .options?.sessionMetadata;
     if (startupMeta !== undefined) {
       options.metadata = {
         ...(options.metadata ?? {}),
