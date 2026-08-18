@@ -17,7 +17,10 @@ import { AppStateController } from './app-state';
 import { AuthFlowController } from '../auth/auth-flow';
 import { AutocompleteController } from '../shell/autocomplete';
 import { AppearanceController, shouldRenderAmbientAnimationFrame } from '../appearance/index';
-import { isAmbientCalmIdle } from '../../features/appearance/ambient-calm';
+import {
+  hasRunningConductorWorkers,
+  isAmbientCalmIdle,
+} from '../../features/appearance/ambient-calm';
 import { isStreamRevealArmed } from '../streaming-ui/reveal';
 import { isLiveGoalChromeActive } from '../../features/native-layout/native-frame-policy';
 import { isNativeFullscreenTakeover } from '../../features/native-layout/native-layout-frame-build';
@@ -162,6 +165,11 @@ export function wireLioraTUIControllers(
         liveGoal: isLiveGoalChromeActive(tui.state.appState.goal),
         fullscreenTakeover: isNativeFullscreenTakeover(tui.state),
         streamRevealArmed: isStreamRevealArmed(),
+        // Mirror forceAmbientSchedule's background-work terms so live Conductor
+        // jobs and Mission Control workers keep the shared clock advancing.
+        backgroundWork:
+          hasRunningConductorWorkers(tui.state.appState.conductorJobs) ||
+          tui.missionControl.hasLiveWorkers(),
       }),
   });
   {

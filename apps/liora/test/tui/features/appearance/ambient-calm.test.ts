@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   calmAmbientClockMs,
   capAmbientIntervalForCalmTransport,
+  hasRunningConductorWorkers,
   isAmbientCalmIdle,
   resolveUnstableIdleClockGridMs,
   shapeAmbientFrameClockMs,
@@ -18,6 +19,7 @@ function idleSignals(overrides: Partial<AmbientCalmSignals> = {}): AmbientCalmSi
     liveGoal: false,
     fullscreenTakeover: false,
     streamRevealArmed: false,
+    backgroundWork: false,
     ...overrides,
   };
 }
@@ -34,6 +36,9 @@ describe('isAmbientCalmIdle', () => {
     expect(isAmbientCalmIdle(idleSignals({ liveGoal: true }))).toBe(false);
     expect(isAmbientCalmIdle(idleSignals({ fullscreenTakeover: true }))).toBe(false);
     expect(isAmbientCalmIdle(idleSignals({ streamRevealArmed: true }))).toBe(false);
+    // Background Conductor/Mission Control work reads the shared clock, so it
+    // must block calm (freezing it would stall worker elapsed labels/linger).
+    expect(isAmbientCalmIdle(idleSignals({ backgroundWork: true }))).toBe(false);
   });
 
   it('treats a missing streaming phase as idle', () => {
@@ -68,6 +73,12 @@ describe('shapeAmbientFrameClockMs', () => {
     ).toBe(1123);
   });
 
+  it('keeps the raw clock for background work, even when unstable and idle', () => {
+    expect(shapeAmbientFrameClockMs(1123, 'unstable', idleSignals({ backgroundWork: true }))).toBe(
+      1123,
+    );
+  });
+
   it('freezes the clock on unstable transports while idle', () => {
     // The freeze grid is one hour, so any in-session timestamp snaps to the
     // same value and idle frames stay byte-identical (no ConPTY repaint).
@@ -79,6 +90,20 @@ describe('shapeAmbientFrameClockMs', () => {
 
   it('keeps the raw clock when stability is unknown', () => {
     expect(shapeAmbientFrameClockMs(1123, undefined, idleSignals())).toBe(1123);
+  });
+});
+
+describe('hasRunningConductorWorkers', () => {
+  it('is true only for a running card with a live worker', () => {
+    expect(hasRunningConductorWorkers(undefined)).toBe(false);
+    expect(hasRunningConductorWorkers(null)).toBe(false);
+    expect(hasRunningConductorWorkers({ jobs: [] })).toBe(false);
+    expect(hasRunningConductorWorkers({ jobs: [{ status: 'ok' }] })).toBe(false);
+    // Running but no worker attached (e.g. queued) does not need the clock.
+    expect(hasRunningConductorWorkers({ jobs: [{ status: 'running' }] })).toBe(false);
+    expect(
+      hasRunningConductorWorkers({ jobs: [{ status: 'running', workerAgentId: 'agent-1' }] }),
+    ).toBe(true);
   });
 });
 

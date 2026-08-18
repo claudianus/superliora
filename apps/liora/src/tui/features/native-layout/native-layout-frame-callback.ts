@@ -94,6 +94,9 @@ export function createTUIStateNativeRenderCallback(
       liveGoal: isLiveGoalChromeActive(state.appState.goal),
       fullscreenTakeover: isNativeFullscreenTakeover(state),
       streamRevealArmed: isStreamRevealArmed(),
+      // Background Conductor/Mission Control work reads the shared clock, so it
+      // must keep advancing even when the main turn is idle on a calm transport.
+      backgroundWork: options.hasBackgroundWork?.() === true,
     };
     const shapedClockMs = shapeAmbientFrameClockMs(
       frame.timestamp,

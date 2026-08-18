@@ -10,7 +10,8 @@ import type { RendererTransportStability } from '#/tui/renderer';
  * animation clock so gradient/pulse/twinkle output repeats exactly, the cell
  * diff stays empty, and nothing reaches the terminal. Activity (streaming/
  * thinking/composing phase, compacting, live goal, splash/takeover, armed
- * stream reveal) restores the full-rate clock.
+ * stream reveal, background Conductor/Mission Control work) restores the
+ * full-rate clock.
  *
  * Note: `appState.thinking` is deliberately NOT a signal — it mirrors the
  * model's thinking-level preference (`thinkingLevel !== 'off'`), not live
@@ -38,6 +39,12 @@ export interface AmbientCalmSignals {
   readonly liveGoal: boolean;
   readonly fullscreenTakeover: boolean;
   readonly streamRevealArmed: boolean;
+  /**
+   * Background agent work (a running Conductor job, or live/lingering Mission
+   * Control workers) keeps the shared clock advancing even while the main turn
+   * idles — their elapsed labels, spinners, and linger expiry all read it.
+   */
+  readonly backgroundWork: boolean;
 }
 
 export function isAmbientCalmIdle(signals: AmbientCalmSignals): boolean {
@@ -46,7 +53,26 @@ export function isAmbientCalmIdle(signals: AmbientCalmSignals): boolean {
     !signals.compacting &&
     !signals.liveGoal &&
     !signals.fullscreenTakeover &&
-    !signals.streamRevealArmed
+    !signals.streamRevealArmed &&
+    !signals.backgroundWork
+  );
+}
+
+/**
+ * Conductor Job Deck cards actively running a worker. Structural so the calm
+ * policy stays decoupled from the job-store module.
+ */
+export function hasRunningConductorWorkers(
+  snapshot: {
+    readonly jobs: readonly {
+      readonly status: string;
+      readonly workerAgentId?: string | undefined;
+    }[];
+  } | null | undefined,
+): boolean {
+  return (
+    snapshot?.jobs.some((card) => card.status === 'running' && card.workerAgentId !== undefined) ===
+    true
   );
 }
 
