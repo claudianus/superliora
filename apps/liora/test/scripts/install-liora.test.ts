@@ -1,10 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
+
+import { renderWindowsSeaCmd } from '../../../../scripts/install/wrappers.mjs';
 
 const execFileAsync = promisify(execFile);
 const repoRoot = resolve(import.meta.dirname, '../../../..');
@@ -72,6 +74,30 @@ describe('scripts/install-liora.mjs', () => {
 
     const wrapper = await readFile(join(home, 'liora'), 'utf-8');
     expect(wrapper).toContain('Managed by superliora scripts/install-liora.mjs');
+  });
+
+  it('replaces the prebuilt wrapper when a native install switches to source', async () => {
+    const home = await makeHome();
+    const binDir = join(home, 'bin');
+    await mkdir(binDir, { recursive: true });
+    await writeFile(join(binDir, 'liora.cmd'), renderWindowsSeaCmd('liora.exe'), 'utf8');
+
+    await runInstall(home, ['--windows', '--bin-dir', binDir, '--no-shell-rc']);
+
+    const wrapper = await readFile(join(binDir, 'liora.cmd'), 'utf-8');
+    expect(wrapper).toContain('Managed by superliora scripts/install-liora.mjs');
+    expect(wrapper).not.toContain('liora.exe');
+  });
+
+  it('still refuses to replace a Windows command it does not manage', async () => {
+    const home = await makeHome();
+    const binDir = join(home, 'bin');
+    await mkdir(binDir, { recursive: true });
+    await writeFile(join(binDir, 'liora.cmd'), '@echo off\r\nrem user file\r\n', 'utf8');
+
+    await expect(
+      runInstall(home, ['--windows', '--bin-dir', binDir, '--no-shell-rc']),
+    ).rejects.toThrow(/already exists/);
   });
 
   it('keeps source install entrypoints on the SuperLiora GitHub repository', async () => {

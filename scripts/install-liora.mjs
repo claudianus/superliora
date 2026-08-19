@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { ensureBinOnPath } from './install/path.mjs';
 import {
   DEFAULT_NODE_VERSION,
+  SEA_WRAPPER_MARKER,
   WRAPPER_MARKER,
   renderPosixSeaShim,
   renderPosixWrapper,
@@ -105,7 +106,9 @@ async function installWindowsWrappers(appDir, outDir, name) {
 async function isManagedWrapper(filePath) {
   try {
     const text = await readFile(filePath, 'utf-8');
-    return text.includes(WRAPPER_MARKER);
+    // Prebuilt installs stamp a marker of their own, so switching a native
+    // install to a source install must still recognize its own wrapper.
+    return text.includes(WRAPPER_MARKER) || text.includes(SEA_WRAPPER_MARKER);
   } catch {
     return false;
   }
