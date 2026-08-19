@@ -9,7 +9,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
-import { defaultHome } from './platform.mjs';
+import { defaultHome, hostPathExists } from './platform.mjs';
 
 export const WINGET_RELEASE = 'v1.29.280';
 export const WINGET_BUNDLE_URL =
@@ -40,7 +40,7 @@ export function findWinget(options = {}) {
   const platform = options.platform ?? process.platform;
   if (platform !== 'win32') return null;
   const env = options.env ?? process.env;
-  const isFile = options.isFile ?? ((p) => existsSync(p));
+  const isFile = options.isFile ?? hostPathExists;
   const which = options.which ?? defaultWhich;
 
   const fromPath = which('winget', env) ?? which('winget.exe', env);

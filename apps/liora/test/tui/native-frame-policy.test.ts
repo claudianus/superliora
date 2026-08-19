@@ -8,6 +8,7 @@ import {
   isPureInputFrame,
   isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,
+  shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
   shouldReuseTUIChromeCache,
   shouldReuseTranscriptLineCache,
@@ -85,6 +86,14 @@ describe('isPureInputFrame', () => {
 
   it('rejects mixed causes', () => {
     expect(isPureInputFrame(['input', 'manual'], false, false)).toBe(false);
+  });
+});
+
+describe('shouldForceNativeCursor', () => {
+  it('keeps CUP on for every cause so IME stays on the caret', () => {
+    expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(true);
+    expect(shouldForceNativeCursor({ causes: ['quality'] })).toBe(true);
+    expect(shouldForceNativeCursor({ causes: ['input'] })).toBe(true);
   });
 });
 

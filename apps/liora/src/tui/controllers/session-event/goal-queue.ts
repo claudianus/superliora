@@ -90,14 +90,16 @@ export class SessionEventGoalQueue {
       patch.goalEvidenceCount = 0;
     }
     if (shouldGoalXpPulse(prevGoal, event.snapshot)) {
-      const nowMs = appearanceAnimationNow();
-      patch.goalXpPulse = { atMs: nowMs };
+      // Two clocks on purpose: the footer badge belongs to the wall-clock TTL
+      // family it is compared against (fleet flourish, ops combo), while the
+      // motion beat is measured against the shared animation clock.
+      patch.goalXpPulse = { atMs: Date.now() };
       patch.goalEvidenceCount = (this.host.state.appState.goalEvidenceCount ?? 0) + 1;
       this.host.motionBeats.play({
         name: 'status_open',
         seed: 'goal-xp',
         title: 'Goal progress',
-        nowMs,
+        nowMs: appearanceAnimationNow(),
       });
     }
     this.host.setAppState(patch);

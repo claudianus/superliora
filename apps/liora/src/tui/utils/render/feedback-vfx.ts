@@ -1,11 +1,16 @@
 /**
  * Feedback micro-interaction controller.
  *
- * Records the wall-clock time of discrete interaction events (error, success,
- * focus gain, selection change) and exposes gated intensity getters backed by
- * the renderer's pure micro-interaction curves. Typing reuses the prompt-input
- * interaction clock (`lastTUIInputInteractionAtMs`) so pure-input frames keep a
- * single hot-path clock and never trigger structural recompute here.
+ * Records discrete interaction events (error, success, focus gain, selection
+ * change) and exposes gated intensity getters backed by the renderer's pure
+ * micro-interaction curves. Typing reuses the prompt-input interaction clock
+ * (`lastTUIInputInteractionAtMs`) so pure-input frames keep a single hot-path
+ * clock and never trigger structural recompute here.
+ *
+ * Stamps and phase reads share the one motion time base (PREMIUM.md §7.1):
+ * events stamp `monotonicMotionNowMs()` and getters default to
+ * `appearanceAnimationNow()`. Mixing in `Date.now()` makes every elapsed
+ * negative by ~1.8e12 ms, which silently pins all of these at 0.
  *
  * Every getter degrades to a neutral value (0 intensity / 0 offset) when motion
  * effects are disallowed or the ambient effect mode resolves to `'off'`, so
@@ -22,7 +27,9 @@ import {
   typingRippleIntensity,
 } from '#/tui/renderer';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
+  monotonicMotionNowMs,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 import { lastTUIInputInteractionAtMs } from '#/tui/utils/input/input-interaction';
@@ -32,19 +39,19 @@ let lastSuccessAtMs = 0;
 let lastFocusGainedAtMs = 0;
 let lastSelectionChangedAtMs = 0;
 
-export function noteErrorFeedback(nowMs: number = Date.now()): void {
+export function noteErrorFeedback(nowMs: number = monotonicMotionNowMs()): void {
   lastErrorAtMs = Math.max(0, nowMs);
 }
 
-export function noteSuccessFeedback(nowMs: number = Date.now()): void {
+export function noteSuccessFeedback(nowMs: number = monotonicMotionNowMs()): void {
   lastSuccessAtMs = Math.max(0, nowMs);
 }
 
-export function noteFocusFeedback(nowMs: number = Date.now()): void {
+export function noteFocusFeedback(nowMs: number = monotonicMotionNowMs()): void {
   lastFocusGainedAtMs = Math.max(0, nowMs);
 }
 
-export function noteSelectionFeedback(nowMs: number = Date.now()): void {
+export function noteSelectionFeedback(nowMs: number = monotonicMotionNowMs()): void {
   lastSelectionChangedAtMs = Math.max(0, nowMs);
 }
 
@@ -57,7 +64,7 @@ export function feedbackEffectsActive(): boolean {
 }
 
 /** Typing ripple intensity (0..~0.3). Drives a short border flash on keystroke. */
-export function typingRippleFeedback(nowMs: number = Date.now()): number {
+export function typingRippleFeedback(nowMs: number = appearanceAnimationNow()): number {
   if (!feedbackEffectsActive()) return 0;
   const keystrokeAt = lastTUIInputInteractionAtMs();
   if (keystrokeAt <= 0) return 0;
@@ -65,25 +72,25 @@ export function typingRippleFeedback(nowMs: number = Date.now()): number {
 }
 
 /** Horizontal error-shake offset in (fractional) columns; 0 when idle/off. */
-export function errorShakeFeedback(nowMs: number = Date.now()): number {
+export function errorShakeFeedback(nowMs: number = appearanceAnimationNow()): number {
   if (!feedbackEffectsActive() || lastErrorAtMs <= 0) return 0;
   return errorShakeOffset(nowMs, lastErrorAtMs);
 }
 
 /** Success/completion flash intensity (0..1); 0 when idle/off. */
-export function successFlashFeedback(nowMs: number = Date.now()): number {
+export function successFlashFeedback(nowMs: number = appearanceAnimationNow()): number {
   if (!feedbackEffectsActive() || lastSuccessAtMs <= 0) return 0;
   return successFlashIntensity(nowMs, lastSuccessAtMs);
 }
 
 /** Focus-gain glow intensity (0..1); 0 when no focus event recorded or off. */
-export function focusGlowFeedback(nowMs: number = Date.now()): number {
+export function focusGlowFeedback(nowMs: number = appearanceAnimationNow()): number {
   if (!feedbackEffectsActive() || lastFocusGainedAtMs <= 0) return 0;
   return focusGlowIntensity(nowMs, lastFocusGainedAtMs);
 }
 
 /** Selection-change pulse intensity (0..1); 0 when idle/off. */
-export function selectionPulseFeedback(nowMs: number = Date.now()): number {
+export function selectionPulseFeedback(nowMs: number = appearanceAnimationNow()): number {
   if (!feedbackEffectsActive() || lastSelectionChangedAtMs <= 0) return 0;
   return selectionPulseIntensity(nowMs, lastSelectionChangedAtMs);
 }
@@ -98,7 +105,7 @@ export function selectionPulseFeedback(nowMs: number = Date.now()): number {
 export function feedbackBorderGlowHex(
   baseHex: string,
   accentHex: string,
-  nowMs: number = Date.now(),
+  nowMs: number = appearanceAnimationNow(),
 ): string {
   const ripple = typingRippleFeedback(nowMs);
   const glow = focusGlowFeedback(nowMs);

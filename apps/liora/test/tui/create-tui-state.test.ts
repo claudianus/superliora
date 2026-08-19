@@ -17,7 +17,6 @@ import {
   ANSI_HIDE_CURSOR,
   ANSI_QUERY_SYNCHRONIZED_OUTPUT_SUPPORT,
   ANSI_SHOW_CURSOR,
-  ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
   CURSOR_MARKER,
   encodeTerminalClearBelowRow,
   type AutocompleteItem,
@@ -1433,29 +1432,32 @@ describe('createTUIState', () => {
       adaptiveQuality: { degradeAfterFrames: 1 },
     });
 
-    renderer.start();
-    scheduler.advance(0);
-    expect(renderer.quality.level).toBe('high');
-    expect(renderer.stats.health).toBe('degraded');
-    expect(getAppearanceRenderHealth()).toBe('degraded');
-    expect(getAppearanceRenderQuality()).toBe('full');
+    try {
+      renderer.start();
+      scheduler.advance(0);
+      expect(renderer.quality.level).toBe('high');
+      expect(renderer.stats.health).toBe('degraded');
+      expect(getAppearanceRenderHealth()).toBe('degraded');
+      expect(getAppearanceRenderQuality()).toBe('full');
 
-    renderer.requestRender('manual');
-    scheduler.advance(12);
+      renderer.requestRender('manual');
+      scheduler.advance(12);
 
-    // Appearance quality is applied while rendering, so it trails the
-    // controller by one frame: frame 2 renders at the post-frame-1 level.
-    expect(getAppearanceRenderQuality()).toBe('high');
-    expect(appearanceAnimationNow()).toBe(12);
+      // Appearance quality is applied while rendering, so it trails the
+      // controller by one frame: frame 2 renders at the post-frame-1 level.
+      expect(getAppearanceRenderQuality()).toBe('high');
+      expect(appearanceAnimationNow()).toBe(12);
 
-    renderer.requestRender('manual');
-    scheduler.advance(12);
+      renderer.requestRender('manual');
+      scheduler.advance(12);
 
-    expect(getAppearanceRenderQuality()).toBe('balanced');
-    expect(appearanceAnimationNow()).toBe(24);
-    renderer.stop();
-    setAppearanceRenderQuality('full');
-    setAppearanceRenderHealth('healthy');
+      expect(getAppearanceRenderQuality()).toBe('balanced');
+      expect(appearanceAnimationNow()).toBe(24);
+    } finally {
+      renderer.stop();
+      setAppearanceRenderQuality('full');
+      setAppearanceRenderHealth('healthy');
+    }
   });
 
   it('can map native input routing onto the current editor target', () => {
@@ -1979,7 +1981,7 @@ describe('createTUIState', () => {
     expect(legacyInputs).toEqual([]);
   });
 
-  it('keeps empty-prompt navigation on the legacy editor path', () => {
+  it('consumes empty-prompt up as native history navigation', () => {
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
       startup: {
@@ -2012,7 +2014,7 @@ describe('createTUIState', () => {
       targetId: 'editor',
     });
 
-    expect(legacyInputs).toEqual(['\u001B[A']);
+    expect(legacyInputs).toEqual([]);
     expect(requestRender).toHaveBeenCalledTimes(1);
   });
 
@@ -2302,6 +2304,7 @@ describe('createTUIState', () => {
     // Drive the real createTUIStateNativeRenderCallback path so the chromeStatic
     // gate (not a mocked policy) decides reuse.
     process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = 'unstable';
+    setAppearanceRenderQuality('full');
     const width = 24;
     const height = 10;
     const state = createTUIState({
@@ -2344,6 +2347,14 @@ describe('createTUIState', () => {
       scheduler.advance(120);
       const afterIdleTick = missionRender.mock.calls.length;
       expect(afterIdleTick).toBe(afterStart);
+
+      // thinking is a preference, not live activity. It must not pin chrome
+      // live on ConPTY or every ambient tick rebuilds and wipes the header.
+      state.appState.thinking = true;
+      state.appState.thinkingLevel = 'on';
+      renderer.requestRender('animation');
+      scheduler.advance(120);
+      expect(missionRender.mock.calls.length).toBe(afterIdleTick);
 
       // Background Conductor/Mission Control work: chrome must rebuild so the
       // worker elapsed labels repaint instead of freezing on the cached band.

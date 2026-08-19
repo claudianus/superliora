@@ -1,5 +1,6 @@
 import { shouldAnimate } from '#/tui/controllers/appearance/index';
 import type { AppearancePreferences } from '#/tui/config';
+import type { RendererTransportStability } from '#/tui/renderer';
 import { SPLASH_MORPH_MS } from '#/tui/utils/splash/splash-iris';
 
 export { SPLASH_MORPH_MS };
@@ -33,7 +34,14 @@ export function clampSplashDurationMs(durationMs: number): number {
 }
 
 /** True when startup should run the animated splash. */
-export function shouldPlaySplash(appearance: AppearancePreferences): boolean {
+export function shouldPlaySplash(
+  appearance: AppearancePreferences,
+  transportStability?: RendererTransportStability,
+): boolean {
+  // ConPTY — including Windows Terminal on Windows 10 — cannot paint a
+  // 60fps cinematic atomically. Playing it is the startup flicker / torn
+  // first frame.
+  if (transportStability === 'unstable') return false;
   return shouldAnimate(appearance);
 }
 

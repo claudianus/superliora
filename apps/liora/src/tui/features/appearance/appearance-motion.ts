@@ -1,4 +1,6 @@
-import { stripAnsiControls } from '#/tui/renderer';
+import chalk from 'chalk';
+
+import { mixHexColor, stripAnsiControls } from '#/tui/renderer';
 import type { AppearancePreferences } from '#/tui/config';
 import type { ColorToken } from '#/tui/theme';
 import { currentTheme } from '#/tui/theme';
@@ -25,6 +27,8 @@ export const ENTER_BEAT_MS = 720;
 export const EXIT_BEAT_MS = 640;
 export const TYPEWRITER_MS = 900;
 export const TYPEWRITER_CURSOR = '▌';
+/** Steps in the danger breathe cycle (see `renderDangerBreathe`). */
+const DANGER_BREATHE_STEPS = 8;
 
 /** Enter-beat TTL matching `renderEnterBeat` (subtle stretches ×1.2). */
 export function enterBeatDurationMs(
@@ -306,9 +310,14 @@ export function renderDangerBreathe(
   if (!motionEffectsAllowed() || mode === 'off') {
     return currentTheme.boldFg('error', plain);
   }
-  // Alternate error / primary — stay on brand+danger, never warning yellow
+  // Continuous breathe across DANGER_BREATHE_STEPS between the danger and brand
+  // tones — stays on brand+danger (never warning yellow) while clearing the
+  // "more than a 2-frame blink" bar in PREMIUM.md §7.3. The raised cosine dwells
+  // at both ends, so it reads as breathing rather than stepping.
   const interval = mode === 'premium' ? 220 : 400;
-  const tick = Math.floor(appearanceAnimationNow() / interval) % 4;
-  const token = tick % 2 === 0 ? 'error' : 'primary';
-  return currentTheme.boldFg(token, plain);
+  const tick =
+    Math.floor(appearanceAnimationNow() / interval) % DANGER_BREATHE_STEPS;
+  const phase = (1 - Math.cos((tick / DANGER_BREATHE_STEPS) * Math.PI * 2)) / 2;
+  const palette = currentTheme.palette;
+  return chalk.bold.hex(mixHexColor(palette.error, palette.primary, phase * 0.75))(plain);
 }

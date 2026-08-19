@@ -169,9 +169,9 @@ export class NativeTerminalRenderer {
         getCurrentSynchronized: () => this.currentSynchronized,
         setSynchronizedOutput: (synchronized) =>{  this.setSynchronizedOutput(synchronized); },
         onSynchronizedOutputProbe: (result) => {
-          // The probe answer is the ground truth for transport stability; once
-          // it lands, re-resolve the frame-rate floor (Windows Terminal upgrades
-          // to synchronized, classic ConPTY stays unstable).
+          // Re-resolve the frame-rate floor after the probe. A supported
+          // answer upgrades POSIX hosts and Windows Terminal to
+          // synchronized; legacy conhost stays unstable.
           this.syncStabilityFrameInterval();
           this.options.onSynchronizedOutputProbe?.(result);
         },
@@ -334,7 +334,12 @@ export class NativeTerminalRenderer {
   start(): void {
     if (this.started) return;
     this.started = true;
-    this.session.start();
+    // ConPTY paints every write(). Flushing alt-screen + clear here, then
+    // the first pixels 1s later, is a blank flash. Queue the startup
+    // sequences onto the first present so modes and cells share one write.
+    const deferStartup = this.transportStability === 'unstable';
+    const startup = this.session.start({ flush: !deferStartup });
+    if (deferStartup && startup.length > 0) this.frameRenderer.queueTerminalPrefix(startup);
     this.syncProbe.start();
     this.frameRenderer.resize(this.size.columns, this.size.rows);
     this.loop.start();
@@ -350,6 +355,7 @@ export class NativeTerminalRenderer {
     // Drop any bare-ESC timer so a stopped renderer cannot emit late Escape.
     this.inputDecoder.dispose();
     this.loop.stop();
+    this.frameRenderer.flushTerminalPrefix();
     this.session.stop();
   }
 

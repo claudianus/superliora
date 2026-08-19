@@ -6,6 +6,7 @@ import type {
   NativeTerminalMouseTracking,
   NativeTerminalScreenMode,
 } from './session';
+import { isTrustedWindowsSynchronizedHost } from './transport-stability';
 
 export type NativeTerminalFeatureProfile = 'minimal' | 'inline-app' | 'fullscreen-app';
 
@@ -100,6 +101,7 @@ export function nativeTerminalFeatureProfile(
 
 export function detectNativeTerminalCapabilities(
   environment: NativeTerminalEnvironment = {},
+  options: { readonly platform?: string } = {},
 ): NativeTerminalCapabilities {
   const term = lowerEnv(environment, 'TERM');
   const termProgram = lowerEnv(environment, 'TERM_PROGRAM');
@@ -116,22 +118,8 @@ export function detectNativeTerminalCapabilities(
   const interactive =
     term !== 'dumb' &&
     !truthyEnv(environment, 'CI');
-  const knownModernTerminal =
-    term.includes('kitty') ||
-    term.includes('wezterm') ||
-    term.includes('ghostty') ||
-    term.includes('rio') ||
-    term.includes('foot') ||
-    termProgram.includes('kitty') ||
-    termProgram.includes('wezterm') ||
-    termProgram.includes('ghostty') ||
-    termProgram.includes('rio') ||
-    termProgram.includes('iterm') ||
-    hasEnv(environment, 'KITTY_WINDOW_ID') ||
-    hasEnv(environment, 'WEZTERM_PANE') ||
-    hasEnv(environment, 'GHOSTTY_RESOURCES_DIR') ||
-    hasEnv(environment, 'ALACRITTY_WINDOW_ID') ||
-    hasEnv(environment, 'WT_SESSION');
+  const kittyKeyboardTerminal = isKittyKeyboardTerminal(environment);
+  const knownModernTerminal = isKnownModernXtermHost(environment);
   const inMultiplexer = hasEnv(environment, 'TMUX') || term.startsWith('screen');
   const xtermLike =
     term.includes('xterm') ||
@@ -142,17 +130,30 @@ export function detectNativeTerminalCapabilities(
   const knownBrokenSynchronizedOutput =
     termProgram === 'waveterm' ||
     truthyEnv(environment, 'WAVETERM');
+  const platform = options.platform ?? defaultDetectPlatform();
+  let synchronized =
+    synchronizedOverride ??
+    (interactive && !knownBrokenSynchronizedOutput && (knownModernTerminal || xtermLike));
+  // An xterm-like TERM alone would turn sync on and start the 2026 probe.
+  // Legacy Windows conhost reports xterm through ConPTY without any
+  // synchronized-output support, so keep sync off there unless an explicit
+  // override asked for it. Windows Terminal is trusted.
+  if (
+    synchronized &&
+    synchronizedOverride === undefined &&
+    !isTrustedWindowsSynchronizedHost(environment, platform)
+  ) {
+    synchronized = false;
+  }
 
   return {
     interactive,
     keyboardProtocol:
-      (keyboardProtocolOverride ?? (interactive && knownModernTerminal && !inMultiplexer)),
+      keyboardProtocolOverride ?? (interactive && kittyKeyboardTerminal && !inMultiplexer),
     mouseTracking: interactive && (knownModernTerminal || xtermLike),
     bracketedPaste: interactive && (knownModernTerminal || xtermLike),
     focusEvents: interactive && (knownModernTerminal || xtermLike),
-    synchronized:
-      synchronizedOverride ??
-      (interactive && !knownBrokenSynchronizedOutput && (knownModernTerminal || xtermLike)),
+    synchronized,
     colorMode,
     imageProtocol,
   };
@@ -286,16 +287,22 @@ export function parseNativeSynchronizedOutputSupport(
 export function nativeTerminalAdaptiveFeatureProfile(
   profile: 'inline-app' | 'fullscreen-app',
   environment: NativeTerminalEnvironment = {},
+  options: { readonly platform?: string } = {},
 ): NativeTerminalFeatureOptions {
   const base = nativeTerminalFeatureProfile(profile);
-  const capabilities = detectNativeTerminalCapabilities(environment);
+  const capabilities = detectNativeTerminalCapabilities(environment, options);
+  const platform = options.platform ?? defaultDetectPlatform();
   const features: NativeTerminalFeatureOptions = {
     ...base,
     screenMode: capabilities.interactive ? base.screenMode : undefined,
     rawMode: capabilities.interactive ? base.rawMode : undefined,
     bracketedPaste: capabilities.bracketedPaste ? base.bracketedPaste : undefined,
     focusEvents: capabilities.focusEvents ? base.focusEvents : undefined,
-    clearOnStart: capabilities.interactive ? base.clearOnStart : undefined,
+    // 1049h already opens a blank alt buffer. A following 2J is a second
+    // full-screen clear; ConPTY often paints that clear before the cells
+    // that share the same write.
+    clearOnStart:
+      capabilities.interactive && platform !== 'win32' ? base.clearOnStart : undefined,
     autoWrap: capabilities.interactive ? base.autoWrap : undefined,
     keyboardProtocol: capabilities.keyboardProtocol ? base.keyboardProtocol : undefined,
     mouseTracking: capabilities.mouseTracking ? base.mouseTracking : undefined,
@@ -324,6 +331,7 @@ export interface NativePremiumRendererDefaultsOptions {
   readonly outputPolicy?: RendererFrameOutputPolicyProfile;
   readonly regionVfxFrames?: NativeTerminalRegionVfxFramePolicy;
   readonly environment?: NativeTerminalEnvironment;
+  readonly platform?: string;
 }
 
 export interface NativePremiumRendererDefaults {
@@ -340,7 +348,9 @@ export function resolveNativePremiumRendererDefaults(
   }
 
   const resolved = resolveNativeTerminalFeatures(options.features ?? 'inline-app');
-  const capabilities = detectNativeTerminalCapabilities(options.environment ?? {});
+  const capabilities = detectNativeTerminalCapabilities(options.environment ?? {}, {
+    platform: options.platform,
+  });
   const premiumCapable =
     options.synchronized === true ||
     (resolved.synchronized !== false && capabilities.synchronized);
@@ -377,6 +387,47 @@ export function mergeNativeTerminalFeatureOptions<T extends NativeTerminalFeatur
     colorMode: options.colorMode ?? resolved.colorMode,
     imageProtocol: options.imageProtocol ?? resolved.imageProtocol,
   };
+}
+
+/**
+ * Kitty keyboard (`CSI >5u`) is a distinct protocol. Windows Terminal,
+ * iTerm, Alacritty, and foot are modern xterm hosts but they do not speak
+ * it — enabling the push sequence prints garbage (`5u` / `u`) into the
+ * first frame.
+ */
+function isKittyKeyboardTerminal(environment: NativeTerminalEnvironment): boolean {
+  const term = lowerEnv(environment, 'TERM');
+  const termProgram = lowerEnv(environment, 'TERM_PROGRAM');
+  return (
+    term.includes('kitty') ||
+    term.includes('wezterm') ||
+    term.includes('ghostty') ||
+    term.includes('rio') ||
+    termProgram.includes('kitty') ||
+    termProgram.includes('wezterm') ||
+    termProgram.includes('ghostty') ||
+    termProgram.includes('rio') ||
+    hasEnv(environment, 'KITTY_WINDOW_ID') ||
+    hasEnv(environment, 'WEZTERM_PANE') ||
+    hasEnv(environment, 'GHOSTTY_RESOURCES_DIR')
+  );
+}
+
+function isKnownModernXtermHost(environment: NativeTerminalEnvironment): boolean {
+  const term = lowerEnv(environment, 'TERM');
+  const termProgram = lowerEnv(environment, 'TERM_PROGRAM');
+  return (
+    isKittyKeyboardTerminal(environment) ||
+    term.includes('foot') ||
+    termProgram.includes('iterm') ||
+    termProgram.includes('alacritty') ||
+    hasEnv(environment, 'ALACRITTY_WINDOW_ID') ||
+    hasEnv(environment, 'WT_SESSION')
+  );
+}
+
+function defaultDetectPlatform(): string {
+  return typeof process !== 'undefined' ? process.platform : 'linux';
 }
 
 function hasEnv(environment: NativeTerminalEnvironment, name: string): boolean {

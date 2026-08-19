@@ -27,6 +27,7 @@ import {
 import { PULSE_ACTIVE_FRAMES, SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderParticleRail,
   renderPremiumHeadline,
@@ -488,10 +489,12 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       card.status === 'running'
         ? renderPulseGlyph(PULSE_ACTIVE_FRAMES, `job-deck:${card.id}`, meta.glyph, meta.token)
         : theme.fg(meta.token, meta.glyph);
+    // `now` is wall clock for jobElapsedMs (epoch createdAtMs); the settle window
+    // is motion, so it measures against the clock the flash itself renders on.
     const changedRecently =
       card.statusChangedAtMs !== undefined &&
       card.previousStatus !== undefined &&
-      now - card.statusChangedAtMs < DECK_SETTLE_MS;
+      appearanceAnimationNow() - card.statusChangedAtMs < DECK_SETTLE_MS;
 
     const elapsed = jobElapsedMs(card, now);
     const rightParts: string[] = [card.kind, `p${String(card.priority)}`];

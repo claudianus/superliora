@@ -4,6 +4,7 @@ import {
   commandFileName,
   DEFAULT_PNPM_VERSION,
   githubArchiveUrl,
+  hostPathExists,
   manifestUrlForVersion,
   nodeDistUrl,
   pnpmRuntimeBin,
@@ -25,6 +26,7 @@ import {
   installBinaryAtomically,
   restoreBinaryBackup,
 } from '../../../../scripts/install/prebuilt.mjs';
+import { existsSync, symlinkSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -55,6 +57,22 @@ describe('scripts/install/platform', () => {
     expect(versionGte('24.15.0', '24.15.0')).toBe(true);
     expect(versionGte('24.15.1', '24.15.0')).toBe(true);
     expect(versionGte('24.14.0', '24.15.0')).toBe(false);
+  });
+
+  it('sees a link whose target stat fails, like a Windows app execution alias', async () => {
+    // winget.exe / wt.exe under WindowsApps are APPEXECLINK reparse points:
+    // stat throws, so existsSync says false for a command the shell runs.
+    // A dangling symlink is the same shape — lstat resolves, stat does not.
+    const dir = await mkdtemp(join(tmpdir(), 'liora-host-path-'));
+    const real = join(dir, 'real.exe');
+    const alias = join(dir, 'alias.exe');
+    await writeFile(real, 'x', 'utf8');
+    expect(hostPathExists(real)).toBe(true);
+    expect(hostPathExists(join(dir, 'absent.exe'))).toBe(false);
+
+    symlinkSync(join(dir, 'no-such-target.exe'), alias);
+    expect(existsSync(alias)).toBe(false);
+    expect(hostPathExists(alias)).toBe(true);
   });
 
   it('derives GitHub archive URLs', () => {

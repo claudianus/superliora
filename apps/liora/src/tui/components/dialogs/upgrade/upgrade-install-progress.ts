@@ -7,7 +7,7 @@ import type { InstallSource } from '#/cli/update/types';
 import type { UpgradeInstallStage } from '#/cli/update/install-stages';
 import {
   appearanceAnimationNow,
-  motionEffectsAllowed,
+  progressMotionActive,
 } from '#/tui/features/appearance/appearance-effects';
 import { currentTheme } from '#/tui/theme';
 import { stripAnsiControls, truncateToWidth, visibleWidth } from '#/tui/renderer';
@@ -111,7 +111,7 @@ function markerGlyph(marker: UpgradeChecklistMarker, nowMs: number): string {
 }
 
 function renderActiveSpinner(nowMs: number): string {
-  if (!motionEffectsAllowed()) {
+  if (!progressMotionActive()) {
     return currentTheme.fg('primary', '●');
   }
   const frame = SPINNER[Math.floor(nowMs / SPINNER_MS) % SPINNER.length] ?? '⠋';

@@ -9,6 +9,7 @@ import {
   BRAILLE_SPINNER_FRAMES,
   BRAILLE_SPINNER_INTERVAL_MS,
 } from '#/tui/constant/rendering';
+import { progressMotionFrame } from '#/tui/features/appearance/appearance-effects';
 import { getActiveNeatMode } from '#/tui/features/transcript/transcript-density';
 import { currentTheme } from '#/tui/theme';
 import type { ToolResultBlockData } from '#/tui/types';
@@ -111,8 +112,7 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
         ? () => {
             const frame =
               BRAILLE_SPINNER_FRAMES[
-                Math.floor(Date.now() / BRAILLE_SPINNER_INTERVAL_MS) %
-                  BRAILLE_SPINNER_FRAMES.length
+                progressMotionFrame(BRAILLE_SPINNER_INTERVAL_MS, BRAILLE_SPINNER_FRAMES.length)
               ] ?? '⠋';
             // Combined with overflow count by TruncatedOutput ("· N more").
             return `${frame} formatting`;

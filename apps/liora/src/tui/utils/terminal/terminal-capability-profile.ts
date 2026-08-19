@@ -169,7 +169,7 @@ function identifyTerminal(identity: TerminalIdentity): string | null {
   if (term.includes('alacritty') || process.env['ALACRITTY_WINDOW_ID']) return 'alacritty';
   if (term.includes('foot')) return 'foot';
   if (term.includes('rio') || program.includes('rio')) return 'rio';
-  if (program.includes('vscode')) return 'vscode';
+  if (program.includes('vscode') || program.includes('cursor')) return 'vscode';
   if (program.includes('windowsterminal')) return 'windowsterminal';
   return null;
 }

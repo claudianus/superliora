@@ -12,6 +12,7 @@ import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
   motionEffectsAllowed,
+  progressMotionFrame,
   renderPulseText,
   renderSpectacularText,
   resolveQualityAdjustedAmbientEffectMode,
@@ -114,10 +115,17 @@ export class MoonLoader extends Text {
   renderGlyph(): string {
     if (this.style === 'comet') return this.renderCometGlyph();
     if (this.style === 'moon') return this.renderMoonGlyph();
-    const frameIndex =
-      Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
-    const frame = this.frames[frameIndex]!;
+    const frame = this.frames[this.spinnerFrameIndex()]!;
     return this.colorFn ? this.colorFn(frame) : frame;
+  }
+
+  /**
+   * Spinner rotation is functional, not decorative — it stays alive when the
+   * appearance profile or the quality budget turns motion off, and freezes only
+   * for the plain-text sinks (see progressMotionFrame).
+   */
+  private spinnerFrameIndex(): number {
+    return progressMotionFrame(this.interval, this.frames.length);
   }
 
   /** Brand moon phases (◐◓◑◒) with a theme-color gradient pulse.
@@ -125,9 +133,7 @@ export class MoonLoader extends Text {
    *  braille); the color wave is ambient decoration and downgrades through
    *  the renderer effect level. */
   private renderMoonGlyph(): string {
-    const frameIndex =
-      Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
-    const frame = this.frames[frameIndex]!;
+    const frame = this.frames[this.spinnerFrameIndex()]!;
     const appearance = getActiveAppearancePreferences();
     const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
     // mode === 'off' (reduced-motion / low-color terminals): static themed
@@ -157,9 +163,7 @@ export class MoonLoader extends Text {
         : this.style === 'moon'
           ? this.renderMoonGlyph()
           : (() => {
-              const frameIndex =
-                Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
-              const frame = this.frames[frameIndex]!;
+              const frame = this.frames[this.spinnerFrameIndex()]!;
               return this.colorFn ? this.colorFn(frame) : frame;
             })();
     const nowMs = appearanceAnimationNow();
@@ -201,7 +205,7 @@ export class MoonLoader extends Text {
     // Short comet trail at ~30fps — cinematic without densify thrash.
     const trail = ['·', '•', '◦'] as const;
     const head = '●';
-    const phase = Math.floor(appearanceAnimationNow() / this.interval) % (trail.length + 1);
+    const phase = progressMotionFrame(this.interval, trail.length + 1);
     const dim = (s: string) => currentTheme.fg('textDim', s);
     const mid = (s: string) => currentTheme.fg('text', s);
     const hot = this.colorFn ?? ((s: string) => currentTheme.fg('primary', s));

@@ -404,6 +404,15 @@ describe('AppearanceController', () => {
         backpressure: true,
       }),
     ).toBe(33);
+    // Unstable ConPTY must not run the cinematic at premium fps.
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+        transportStability: 'unstable',
+      }),
+    ).toBe(80);
     controller.dispose();
   });
 

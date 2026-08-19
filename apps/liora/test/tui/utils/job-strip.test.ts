@@ -20,6 +20,7 @@ import {
   type ConductorJobCard,
 } from '#/tui/utils/job/job-strip';
 import { labelConductorJobs } from '#/tui/components/chrome/footer/footer-labels';
+import { advanceAppearanceAnimationClock } from '#/tui/features/appearance/appearance-effects';
 
 describe('job-strip', () => {
   it('parses formatJobStripLine style output', () => {
@@ -279,6 +280,9 @@ describe('job-strip', () => {
 
   it('upsert preserves createdAtMs and stamps statusChangedAtMs on lane moves', () => {
     const created = '2026-01-01T00:00:00.000Z';
+    // statusChangedAtMs rides the shared animation clock, not the epoch `nowMs`
+    // param — the settle flash it arms measures elapsed against that clock.
+    advanceAppearanceAnimationClock(100);
     let cards = upsertConductorJobCard(
       [],
       {
@@ -291,19 +295,39 @@ describe('job-strip', () => {
         updatedAt: created,
       },
       undefined,
-      100,
+      Date.parse(created),
     );
     expect(cards[0]?.createdAtMs).toBe(parseIsoMs(created));
     expect(cards[0]?.statusChangedAtMs).toBe(100);
     // Follow-up event without createdAt keeps the original ledger birth time.
+    advanceAppearanceAnimationClock(500);
     cards = upsertConductorJobCard(
       cards,
       { id: 'job_x', title: 'work', status: 'running', kind: 'task', priority: 1 },
       { previousStatus: 'queued' },
-      500,
+      Date.parse(created),
     );
     expect(cards[0]?.createdAtMs).toBe(parseIsoMs(created));
     expect(cards[0]?.statusChangedAtMs).toBe(500);
     expect(cards[0]?.previousStatus).toBe('queued');
+  });
+
+  it('keeps statusChangedAtMs put across a plain refresh', () => {
+    advanceAppearanceAnimationClock(1_000);
+    let cards = upsertConductorJobCard(
+      [],
+      { id: 'job_y', title: 'work', status: 'running', kind: 'task', priority: 1 },
+      undefined,
+      0,
+    );
+    advanceAppearanceAnimationClock(9_000);
+    cards = upsertConductorJobCard(
+      cards,
+      { id: 'job_y', title: 'work', status: 'running', kind: 'task', priority: 1 },
+      undefined,
+      0,
+    );
+
+    expect(cards[0]?.statusChangedAtMs).toBe(1_000);
   });
 });

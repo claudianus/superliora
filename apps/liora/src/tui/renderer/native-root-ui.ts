@@ -53,11 +53,16 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
   private pendingInvalidationFlush: (() => void) | undefined;
   private pendingRequestedCauseMask = 0;
   private lastFrameInvalidationValue: FrameInvalidation | undefined;
+  private readonly rendererFill: NativeRootUIOptions['fill'];
+  // autoBeginFrame is off (see constructor), so whoever renders owns beginFrame.
+  // The child-tree fallback has no layout frame to do it.
   private renderCallback: NativeTerminalRendererRender = ({ renderer, size }) => {
+    renderer.beginFrame({ fill: this.rendererFill });
     renderNativeRootChildren(renderer.frame, this.children, size.columns, size.rows);
   };
 
   constructor(options: LioraNativeRootUIOptions) {
+    this.rendererFill = options.fill;
     this.terminal = new NativeRendererTerminalHost(options.output, options.input);
     const premiumDefaults = resolveNativePremiumRendererDefaults({
       features: options.features,
@@ -88,6 +93,12 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
     });
     this.renderer = new NativeTerminalRenderer({
       ...options,
+      // The render callback owns beginFrame. An extra pipeline beginFrame wipes
+      // the back buffer to EMPTY (no canvas fill), and a following clear:false
+      // frame whose rows are all reused by the composition cache then composes
+      // nothing — the whole surface presents as a bare canvas fill, so the UI
+      // strobes between itself and a flat rectangle.
+      autoBeginFrame: false,
       // Adaptive quality must stay on so frame pressure softens VFX before
       // ambient freezes; health feeds appearance soft-degrade via onFrame.
       adaptiveQuality: options.adaptiveQuality ?? true,

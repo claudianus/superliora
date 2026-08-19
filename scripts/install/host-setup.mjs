@@ -25,6 +25,7 @@ import {
   windowsTerminalSettingsPath,
 } from './ensure-terminal.mjs';
 import { findWinget } from './ensure-winget.mjs';
+import { hostPathExists } from './platform.mjs';
 
 export function skipHostSetupRequested(env = process.env, options = {}) {
   if (options.skip === true) return true;
@@ -85,7 +86,7 @@ function fileStatus(path, isFile) {
 export function planHostSetup(options = {}) {
   const platform = options.platform ?? process.platform;
   const env = options.env ?? process.env;
-  const isFile = options.isFile ?? ((p) => existsSync(p));
+  const isFile = options.isFile ?? hostPathExists;
   const readText = options.readText ?? defaultReadText;
   const items = [];
 

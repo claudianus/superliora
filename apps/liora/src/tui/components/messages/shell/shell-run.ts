@@ -4,6 +4,7 @@ import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
+  monotonicMotionNowMs,
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
@@ -49,7 +50,8 @@ export class ShellRunComponent extends Container {
   private finalStdout = '';
   private finalStderr = '';
   private finalIsError?: boolean;
-  private readonly startedAt = Date.now();
+  /** Same base render reads the clock from — an epoch stamp here renders `(-1.7e9s)`. */
+  private readonly startedAt = monotonicMotionNowMs();
   /** Cached pretty body for the running tail (rebuilt only when stdout changes). */
   private formattedBody = '';
   private formattedSourceKey = '';

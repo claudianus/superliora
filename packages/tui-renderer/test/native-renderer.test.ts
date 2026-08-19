@@ -126,12 +126,12 @@ describe('NativeTerminalRenderer', () => {
     scheduler.advance(0);
 
     expect(input.rawModeCalls).toEqual([true]);
-    expect(output.writes.slice(0, 4)).toEqual([
-      ANSI_ENTER_ALTERNATE_SCREEN,
-      ANSI_CLEAR_SCREEN,
-      ANSI_HIDE_CURSOR,
-      ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
-    ]);
+    expect(output.writes[0]).toBe(
+      ANSI_ENTER_ALTERNATE_SCREEN +
+        ANSI_CLEAR_SCREEN +
+        ANSI_HIDE_CURSOR +
+        ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
+    );
     expect(output.writes.at(-1)).toMatch(/^\u001B\[1;1H80x24/);
     expect(renderer.lastFrame?.frame.causes).toEqual(['start']);
     expect(renderer.lastFrame?.present?.diff.totalCells).toBe(80 * 24);
@@ -140,11 +140,9 @@ describe('NativeTerminalRenderer', () => {
 
     renderer.stop();
 
-    expect(output.writes.slice(-3)).toEqual([
-      ANSI_POP_KITTY_KEYBOARD_PROTOCOL,
-      ANSI_SHOW_CURSOR,
-      ANSI_EXIT_ALTERNATE_SCREEN,
-    ]);
+    expect(output.writes.at(-1)).toBe(
+      ANSI_POP_KITTY_KEYBOARD_PROTOCOL + ANSI_SHOW_CURSOR + ANSI_EXIT_ALTERNATE_SCREEN,
+    );
     expect(input.rawModeCalls).toEqual([true, false]);
   });
 
@@ -660,14 +658,14 @@ describe('NativeTerminalRenderer', () => {
     renderer.stop();
 
     expect(output.writes).toEqual([
-      ANSI_ENABLE_MOUSE_TRACKING,
-      ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING,
-      ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING,
-      ANSI_ENABLE_SGR_MOUSE_MODE,
-      ANSI_DISABLE_SGR_MOUSE_MODE,
-      ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING,
-      ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING,
-      ANSI_DISABLE_MOUSE_TRACKING,
+      ANSI_ENABLE_MOUSE_TRACKING +
+        ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING +
+        ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING +
+        ANSI_ENABLE_SGR_MOUSE_MODE,
+      ANSI_DISABLE_SGR_MOUSE_MODE +
+        ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING +
+        ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING +
+        ANSI_DISABLE_MOUSE_TRACKING,
     ]);
   });
 
@@ -688,19 +686,19 @@ describe('NativeTerminalRenderer', () => {
     renderer.start();
     scheduler.advance(0);
 
-    expect(output.writes.slice(0, 11)).toEqual([
-      ANSI_ENTER_ALTERNATE_SCREEN,
-      ANSI_CLEAR_SCREEN,
-      ANSI_DISABLE_AUTO_WRAP,
-      ANSI_HIDE_CURSOR,
-      ANSI_ENABLE_BRACKETED_PASTE,
-      ANSI_ENABLE_FOCUS_EVENTS,
-      ANSI_ENABLE_MOUSE_TRACKING,
-      ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING,
-      ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING,
-      ANSI_ENABLE_SGR_MOUSE_MODE,
-      ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
-    ]);
+    expect(output.writes[0]).toBe(
+      ANSI_ENTER_ALTERNATE_SCREEN +
+        ANSI_CLEAR_SCREEN +
+        ANSI_DISABLE_AUTO_WRAP +
+        ANSI_HIDE_CURSOR +
+        ANSI_ENABLE_BRACKETED_PASTE +
+        ANSI_ENABLE_FOCUS_EVENTS +
+        ANSI_ENABLE_MOUSE_TRACKING +
+        ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING +
+        ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING +
+        ANSI_ENABLE_SGR_MOUSE_MODE +
+        ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
+    );
     const frameOutput = output.writes.at(-1);
     expect(frameOutput?.startsWith(ANSI_BEGIN_SYNCHRONIZED_UPDATE)).toBe(true);
     expect(frameOutput).toContain('profile');

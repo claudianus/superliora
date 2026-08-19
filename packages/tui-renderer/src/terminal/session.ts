@@ -146,72 +146,70 @@ export class NativeTerminalSession {
     return { ...this.options };
   }
 
-  start(): void {
-    if (this.started) return;
+  start(options: { readonly flush?: boolean } = {}): string {
+    if (this.started) return '';
     this.started = true;
 
     const { input, output } = this.options;
+    const flush = options.flush !== false;
+    // One write for the whole startup (and one for restore). ConPTY — which
+    // sits under every Windows console host, including Windows Terminal —
+    // turns each write() into its own visible console repaint. Twelve
+    // separate mode sequences at start are twelve flashes before the first
+    // frame. Order of enable / disable matches the previous per-sequence
+    // writes; only the flush count changes.
+    const startup: string[] = [];
+    const restore: string[] = [];
     if (this.options.screenMode === 'alternate') {
-      output.write(ANSI_ENTER_ALTERNATE_SCREEN);
-      this.cleanup.push(() => {
-        output.write(ANSI_EXIT_ALTERNATE_SCREEN);
-      });
+      startup.push(ANSI_ENTER_ALTERNATE_SCREEN);
+      restore.push(ANSI_EXIT_ALTERNATE_SCREEN);
     }
-    if (this.options.clearOnStart === true) output.write(ANSI_CLEAR_SCREEN);
+    if (this.options.clearOnStart === true) startup.push(ANSI_CLEAR_SCREEN);
     if (this.options.autoWrap === false) {
-      output.write(ANSI_DISABLE_AUTO_WRAP);
-      this.cleanup.push(() => {
-        output.write(ANSI_ENABLE_AUTO_WRAP);
-      });
+      startup.push(ANSI_DISABLE_AUTO_WRAP);
+      restore.push(ANSI_ENABLE_AUTO_WRAP);
     }
     const inlineImageClear = encodeRendererClearInlineImages(this.options.imageProtocol ?? 'none');
-    if (inlineImageClear.length > 0) output.write(inlineImageClear);
+    if (inlineImageClear.length > 0) startup.push(inlineImageClear);
     if (this.options.hideCursor === true) {
-      output.write(ANSI_HIDE_CURSOR);
-      this.cleanup.push(() => {
-        output.write(ANSI_SHOW_CURSOR);
-      });
+      startup.push(ANSI_HIDE_CURSOR);
+      restore.push(ANSI_SHOW_CURSOR);
     }
     if (this.options.bracketedPaste === true) {
-      output.write(ANSI_ENABLE_BRACKETED_PASTE);
-      this.cleanup.push(() => {
-        output.write(ANSI_DISABLE_BRACKETED_PASTE);
-      });
+      startup.push(ANSI_ENABLE_BRACKETED_PASTE);
+      restore.push(ANSI_DISABLE_BRACKETED_PASTE);
     }
     if (this.options.focusEvents === true) {
-      output.write(ANSI_ENABLE_FOCUS_EVENTS);
-      this.cleanup.push(() => {
-        output.write(ANSI_DISABLE_FOCUS_EVENTS);
-      });
+      startup.push(ANSI_ENABLE_FOCUS_EVENTS);
+      restore.push(ANSI_DISABLE_FOCUS_EVENTS);
     }
     if (this.options.mouseTracking === 'sgr') {
-      output.write(ANSI_ENABLE_MOUSE_TRACKING);
-      this.cleanup.push(() => {
-        output.write(ANSI_DISABLE_MOUSE_TRACKING);
-      });
-      output.write(ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING);
-      this.cleanup.push(() => {
-        output.write(ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING);
-      });
+      startup.push(ANSI_ENABLE_MOUSE_TRACKING);
+      restore.push(ANSI_DISABLE_MOUSE_TRACKING);
+      startup.push(ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING);
+      restore.push(ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING);
       // Hover grips need motion without a held button (stage resize affordance).
-      output.write(ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING);
-      this.cleanup.push(() => {
-        output.write(ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING);
-      });
-      output.write(ANSI_ENABLE_SGR_MOUSE_MODE);
-      this.cleanup.push(() => {
-        output.write(ANSI_DISABLE_SGR_MOUSE_MODE);
-      });
+      startup.push(ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING);
+      restore.push(ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING);
+      startup.push(ANSI_ENABLE_SGR_MOUSE_MODE);
+      restore.push(ANSI_DISABLE_SGR_MOUSE_MODE);
     }
     if (this.options.keyboardProtocol === 'kitty') {
-      output.write(ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL);
+      startup.push(ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL);
+      restore.push(ANSI_POP_KITTY_KEYBOARD_PROTOCOL);
+    }
+    const sequence = startup.join('');
+    if (flush && sequence.length > 0) output.write(sequence);
+    if (restore.length > 0) {
+      const restoreSequence = restore.toReversed().join('');
       this.cleanup.push(() => {
-        output.write(ANSI_POP_KITTY_KEYBOARD_PROTOCOL);
+        output.write(restoreSequence);
       });
     }
 
     if (input !== undefined) this.startInput(input);
     this.startResize(output);
+    return sequence;
   }
 
   stop(): void {

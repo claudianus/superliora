@@ -19,10 +19,12 @@ import {
 } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
+import type { ColorToken } from '#/tui/theme';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
-  motionEffectsAllowed,
+  progressMotionActive,
+  progressMotionFrame,
   renderPremiumHeadline,
   renderShimmerPrefix,
   shouldRenderAmbientEffects,
@@ -63,6 +65,15 @@ const COMET = ['·', '˙', '˚', '•', '∙', '●', '∙', '•', '˚', '˙'] 
 const ORBIT = ['✦', '·', '✧', '·', '⋆', '·', '✧', '·'] as const;
 const JEWEL = ['◆', '◇', '◈', '❖'] as const;
 const SCENE_WIDTH = 32;
+/** Progress-bar head cycle: glyph weight + tone lift, six steps. */
+const BAR_HEAD_CYCLE: readonly { readonly glyph: string; readonly token: ColorToken }[] = [
+  { glyph: '░', token: 'primary' },
+  { glyph: '▒', token: 'primary' },
+  { glyph: '▓', token: 'glow' },
+  { glyph: '█', token: 'glow' },
+  { glyph: '▓', token: 'glow' },
+  { glyph: '▒', token: 'primary' },
+];
 
 export class SessionLoadingOverlayComponent extends Container implements Focusable {
   focused = false;
@@ -126,10 +137,13 @@ export class SessionLoadingOverlayComponent extends Container implements Focusab
       this.detail === undefined || this.detail.length === 0
         ? ttui('tui.sessionLoading.hint')
         : this.detail;
-    const scene = this.renderMiniScene(Math.min(SCENE_WIDTH, Math.max(16, safeWidth - 10)));
+    // The kinetic strip is pure decoration: it follows the ambient gate like the
+    // shimmer above, instead of orbiting on regardless of profile / quality.
+    const scene = shouldRenderAmbientEffects(appearance)
+      ? this.renderMiniScene(Math.min(SCENE_WIDTH, Math.max(16, safeWidth - 10)))
+      : [];
     const content = [
-      ...scene,
-      '',
+      ...(scene.length === 0 ? [] : [...scene, '']),
       `${spinner} ${shimmer}${currentTheme.fg('text', phaseLabel)}`,
       '',
       `${bar} ${currentTheme.boldFg('primary', pct)}`,
@@ -172,12 +186,11 @@ export class SessionLoadingOverlayComponent extends Container implements Focusab
   }
 
   private renderSpinner(): string {
-    if (!motionEffectsAllowed()) {
+    if (!progressMotionActive()) {
       return currentTheme.fg('primary', '●');
     }
-    const now = appearanceAnimationNow();
-    const frame = SPINNER[Math.floor(now / SPINNER_MS) % SPINNER.length] ?? '⠋';
-    const comet = COMET[Math.floor(now / 90) % COMET.length] ?? '·';
+    const frame = SPINNER[progressMotionFrame(SPINNER_MS, SPINNER.length)] ?? '⠋';
+    const comet = COMET[progressMotionFrame(90, COMET.length)] ?? '·';
     return `${currentTheme.fg('primary', frame)}${currentTheme.fg('glow', comet)}`;
   }
 
@@ -243,12 +256,14 @@ export function renderSessionLoadingBar(
   const filled = Math.round(safeWidth * pct);
   const empty = Math.max(0, safeWidth - filled);
   const head = filled > 0 && filled < safeWidth;
-  const pulse = head && motionEffectsAllowed() ? Math.floor(nowMs / 120) % 2 === 0 : false;
+  // Six-step travelling head rather than an on/off blink (PREMIUM.md §7.3): the
+  // glyph thickens and the tone lifts across the cycle, so the bar reads as
+  // moving even when the fraction is stuck.
+  const headPhase = head ? progressMotionFrame(110, BAR_HEAD_CYCLE.length) : 0;
+  const headStep = BAR_HEAD_CYCLE[headPhase] ?? BAR_HEAD_CYCLE[0]!;
   const bodyLen = head ? Math.max(0, filled - 1) : filled;
   const body = currentTheme.fg('primary', '█'.repeat(bodyLen));
-  const tip = head
-    ? currentTheme.boldFg(pulse ? 'glow' : 'primary', '▓')
-    : '';
+  const tip = head ? currentTheme.boldFg(headStep.token, headStep.glyph) : '';
   const rest = currentTheme.dim('░'.repeat(empty));
   return `[${body}${tip}${rest}]`;
 }

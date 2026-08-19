@@ -9,6 +9,7 @@
 
 import type { Event } from '@superliora/sdk';
 
+import { monotonicMotionNowMs } from '../../features/appearance/appearance-effects';
 import { resolveSubagentToolTarget } from '../../utils/tools/subagent-tool-detail';
 
 /**
@@ -181,7 +182,14 @@ export class MissionControlRegistry {
   private readonly ops: MissionOpsEntry[] = [];
   private version = 0;
 
-  constructor(private readonly now: () => number = Date.now) {}
+  /**
+   * Roster timestamps share the motion time base (PREMIUM.md §7.1), because the
+   * panel reads them against `appearanceAnimationNow()` — for the linger window,
+   * the live elapsed clock, and the terminal settle flash. A wall-clock stamp
+   * here makes every one of those differences ~-1.8e12 ms: elapsed pins at 0,
+   * the flash never leaves progress 0, and terminal workers never expire.
+   */
+  constructor(private readonly now: () => number = monotonicMotionNowMs) {}
 
   reset(): void {
     this.workers.clear();
@@ -715,7 +723,9 @@ export class MissionControlRegistry {
     if (worker.status === 'failed') {
       worker.error = info.stopReason ?? info.status;
     }
-    worker.terminalAtMs = info.endedAt ?? this.now();
+    // `info.endedAt` is an SDK wall-clock stamp; the roster clock is local and
+    // monotonic, so take the local reading instead of mixing bases.
+    worker.terminalAtMs = this.now();
     worker.lastActivityAtMs = worker.terminalAtMs;
     this.pruneLingered();
     return this.bump();

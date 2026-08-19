@@ -30,21 +30,41 @@ export interface RendererTransportStabilityOptions {
 }
 
 /**
- * Classify the transport. The DECRQM probe result is the ground truth: a
- * terminal that answers "supported" keeps frames atomic, one that answers
- * "unsupported" does not. When the probe has no answer (timeout, or no probe
- * at all), Windows is presumed unstable because classic ConPTY never answers
- * and always re-serializes; POSIX terminals ignore unknown private modes
- * harmlessly and never re-serialize, so they stay `synchronized`.
+ * True when a DECRQM 2026 "supported" answer can be trusted to mean the
+ * bytes between the renderer and the screen stay atomic. Windows Terminal
+ * implements 2026 and holds frames, so it is trusted. Legacy conhost has no
+ * synchronized-output support at all and re-serializes every write into its
+ * own console repaint, so a "supported" answer there can only have come from
+ * something in between and cannot be trusted.
+ */
+export function isTrustedWindowsSynchronizedHost(
+  environment: NativeTerminalEnvironment = defaultEnvironment(),
+  platform: string = defaultPlatform(),
+): boolean {
+  if (platform !== 'win32') return true;
+  return (environment['WT_SESSION'] ?? '').trim().length > 0;
+}
+
+/**
+ * Classify the transport. The DECRQM probe result is the ground truth only
+ * when the host actually delivers atomic frames. On Windows, ConPTY can
+ * answer "supported" from the outer emulator (Windows Terminal, xterm.js)
+ * while still tearing every write — those stay `unstable`. When the probe
+ * has no answer, Windows is presumed unstable; POSIX stays `synchronized`.
  */
 export function resolveRendererTransportStability(
   options: RendererTransportStabilityOptions = {},
 ): RendererTransportStability {
-  const override = transportStabilityOverride(options.environment ?? defaultEnvironment());
+  const environment = options.environment ?? defaultEnvironment();
+  const override = transportStabilityOverride(environment);
   if (override !== undefined) return override;
   if (options.synchronizedOutputSupport === 'unsupported') return 'unstable';
-  if (options.synchronizedOutputSupport === 'supported') return 'synchronized';
   const platform = options.platform ?? defaultPlatform();
+  if (options.synchronizedOutputSupport === 'supported') {
+    return isTrustedWindowsSynchronizedHost(environment, platform)
+      ? 'synchronized'
+      : 'unstable';
+  }
   return platform === 'win32' ? 'unstable' : 'synchronized';
 }
 

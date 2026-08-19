@@ -42,6 +42,7 @@ import { currentTheme } from '#/tui/theme';
 import { mixHexColorStops } from '#/tui/theme/colors';
 import {
   advanceAppearanceAnimationClock,
+  monotonicMotionNowMs,
   motionEffectsAllowed,
   renderMeteorField,
   renderParticleRail,
@@ -154,9 +155,12 @@ export class SplashComponent implements Component {
     );
     this.getMorphScene = options.getMorphScene;
     this.forcePlay = options.forcePlay;
-    // Wall clock only. appearanceAnimationNow() is driven by the native frame
-    // loop (performance.now) and freezes/regresses splash elapsed when mixed in.
-    this.nowFn = options.now ?? (() => Date.now());
+    // Same monotonic base the native frame loop stamps frames with. The splash
+    // publishes its own ticks into the shared animation clock (see play /
+    // tickWhilePlaying), so a wall-clock reading here would hand every effect
+    // armed during boot an epoch timestamp that the first post-splash frame then
+    // rewinds by ~1.8e12 ms — leaving those effects pinned at progress 0.
+    this.nowFn = options.now ?? monotonicMotionNowMs;
     this.onSplashActiveChange = options.onSplashActiveChange;
   }
 
@@ -248,8 +252,8 @@ export class SplashComponent implements Component {
   }
 
   /**
-   * Advance ambient clock + wall-clock finish check on every host paint.
-   * Elapsed duration stays on nowFn (not appearanceAnimationNow).
+   * Advance the shared animation clock + check for finish on every host paint.
+   * Elapsed duration stays on nowFn so a test can inject a deterministic clock.
    */
   private tickWhilePlaying(): void {
     if (this.disposed || this.finished || this.playResolve === undefined) return;

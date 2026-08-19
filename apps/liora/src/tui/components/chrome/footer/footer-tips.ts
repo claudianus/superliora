@@ -1,4 +1,5 @@
 import { ALL_TIPS, type ToolbarTip } from '#/tui/constant/tips';
+import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 import { shortcutHint } from '#/tui/utils/os-shortcuts';
 
 // Toolbar tips — rotates every 10s. Most tips are short and pair up (two
@@ -38,8 +39,23 @@ export function buildWeightedTips(tips: readonly ToolbarTip[]): readonly Toolbar
 
 const ROTATION: readonly ToolbarTip[] = buildWeightedTips(ALL_TIPS);
 
-function currentTipIndex(): number {
-  return Math.floor(Date.now() / TIP_ROTATE_INTERVAL_MS);
+/**
+ * Per-session starting offset so two sessions do not open on the same tip.
+ * Picked once at module load; the wall clock seeds variety here and never
+ * advances the rotation itself (see `tipRotationIndex`).
+ */
+const ROTATION_SEED = Math.floor(Date.now() / TIP_ROTATE_INTERVAL_MS);
+
+/**
+ * Rotation counter for the shared motion clock (PREMIUM.md §7.1).
+ *
+ * Rotating on `Date.now()` gave the tips their own clock: it kept advancing
+ * while the render loop was paused and ignored the calm-idle freeze, so an
+ * otherwise byte-identical idle frame changed every 10s and forced a repaint
+ * on unstable transports.
+ */
+export function tipRotationIndex(nowMs: number = appearanceAnimationNow()): number {
+  return ROTATION_SEED + Math.floor(Math.max(0, nowMs) / TIP_ROTATE_INTERVAL_MS);
 }
 
 /**
@@ -63,7 +79,7 @@ export function tipsForIndex(index: number): { primary: string; pair: string | n
   return { primary: currentText, pair: currentText + TIP_SEPARATOR + nextText };
 }
 
-/** Current toolbar tip rotation index (10s cadence). */
+/** Current toolbar tip rotation index (10s cadence on the shared motion clock). */
 export function footerCurrentTipIndex(): number {
-  return currentTipIndex();
+  return tipRotationIndex();
 }
