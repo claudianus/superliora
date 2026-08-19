@@ -1701,6 +1701,46 @@ describe('upgrade install stages', () => {
     expect(failed?.detail).toContain('EACCES');
   });
 
+  it('keeps the pnpm diagnosis over the git chatter that surrounds it', async () => {
+    const events: Array<{ stage: string; detail?: string }> = [];
+    const child = createPipedChild();
+    const spawn = vi.fn(() => child);
+
+    await startObservedUpgradeInstall(
+      {
+        currentVersion: '0.12.5',
+        targetVersion: 'origin/main',
+        source: 'native',
+        platform: 'win32',
+        fromMain: true,
+        onStage: (stage, detail) => { events.push({ stage, detail }); },
+      },
+      {
+        spawn: spawn as unknown as typeof import('node:child_process').spawn,
+        tryAcquireUpdateInstallLock: async () => ({
+          filePath: '/tmp/liora-update-install.lock',
+          release: vi.fn().mockResolvedValue(undefined),
+        }),
+        readUpdateInstallState: async () => emptyUpdateInstallState(),
+        writeUpdateInstallState: vi.fn().mockResolvedValue(undefined),
+      },
+    );
+
+    child.stderr.emit('data', Buffer.from("Reset branch 'main'\n"));
+    child.stdout.emit('data', Buffer.from(
+      ' ERR_PNPM_UNSUPPORTED_ENGINE  Unsupported environment (bad pnpm and/or Node.js version)\n',
+    ));
+    child.stdout.emit('data', Buffer.from('Expected version: >=24.15.0\n'));
+    child.stdout.emit('data', Buffer.from('Got: v20.11.1\n'));
+    child.stderr.emit('data', Buffer.from('error: pnpm install --frozen-lockfile failed with code 1\n'));
+    child.emit('exit', 1, null);
+    await flushBackgroundInstall();
+
+    const failed = events.find((event) => event.stage === 'failed');
+    expect(failed?.detail).toContain('ERR_PNPM_UNSUPPORTED_ENGINE');
+    expect(failed?.detail).not.toContain("Reset branch 'main'");
+  });
+
   it('spawns native Windows upgrades without cmd.exe so | iex stays in PowerShell', async () => {
     const child = createPipedChild();
     const spawn = vi.fn(() => {

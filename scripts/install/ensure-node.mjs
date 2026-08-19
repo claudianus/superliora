@@ -18,14 +18,19 @@ import {
 } from './platform.mjs';
 
 /**
- * @returns {Promise<{ nodePath: string, version: string, bootstrapped: boolean }>}
+ * @returns {Promise<{ nodePath: string, version: string, binDir: string, bootstrapped: boolean }>}
  */
 export async function ensureNode(options = {}) {
   const min = options.nodeMin ?? DEFAULT_NODE_MIN;
   const runtimeRoot = options.runtimeDir ?? defaultRuntimeNodeDir();
   const existing = resolveWorkingNode(min);
   if (existing) {
-    return { nodePath: existing.path, version: existing.version, bootstrapped: false };
+    return {
+      nodePath: existing.path,
+      version: existing.version,
+      binDir: prependNodePath(dirname(existing.path)),
+      bootstrapped: false,
+    };
   }
 
   await mkdir(runtimeRoot, { recursive: true });
@@ -67,11 +72,40 @@ export async function ensureNode(options = {}) {
     throw new Error(`Bootstrapped Node ${versionGot} is below required ${min}`);
   }
 
-  // Prepend for this process + children.
-  const binDir = process.platform === 'win32' ? destRoot : join(destRoot, 'bin');
-  process.env.PATH = `${binDir}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH ?? ''}`;
+  const binDir = prependNodePath(
+    process.platform === 'win32' ? destRoot : join(destRoot, 'bin'),
+  );
 
-  return { nodePath: marker, version: versionGot, bootstrapped: true };
+  return { nodePath: marker, version: versionGot, binDir, bootstrapped: true };
+}
+
+/**
+ * Publish the resolved Node to PATH for this process and every child.
+ *
+ * install.ps1 / install.sh launch the orchestrator by absolute path, so a Node
+ * that satisfies the minimum can still be invisible to child processes. Two
+ * things then break: `corepack` only resolves next to the node that ships it,
+ * and the standalone pnpm binary falls back to its own bundled (older) Node
+ * when no `node` is on PATH — which fails the repo's `engines.node` check.
+ *
+ * @returns {string} the directory that now leads PATH
+ */
+function prependNodePath(binDir) {
+  const sep = process.platform === 'win32' ? ';' : ':';
+  const current = process.env.PATH ?? '';
+  if (!current.split(sep).some((entry) => samePath(entry, binDir))) {
+    process.env.PATH = current.length > 0 ? `${binDir}${sep}${current}` : binDir;
+  }
+  return binDir;
+}
+
+function samePath(a, b) {
+  const norm = (value) => {
+    const trimmed = value.trim().replace(/[\\/]+$/, '');
+    return process.platform === 'win32' ? trimmed.toLowerCase() : trimmed;
+  };
+  const left = norm(a);
+  return left.length > 0 && left === norm(b);
 }
 
 function resolveWorkingNode(min) {

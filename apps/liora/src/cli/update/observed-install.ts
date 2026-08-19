@@ -31,6 +31,9 @@ export interface StartObservedUpgradeInstallDeps {
   readonly writeUpdateInstallState?: typeof writeUpdateInstallState;
 }
 
+/** Lines that name a failure rather than merely trailing one. */
+const DIAGNOSIS_LINE = /\bERR_[A-Z][A-Z0-9_]+\b|^(?:error|fatal)\b/i;
+
 function initialObservedStage(source: InstallSource): UpgradeInstallStage {
   return source === 'github-checkout' ? 'fetching' : 'downloading';
 }
@@ -122,6 +125,7 @@ export async function startObservedUpgradeInstall(
     let lastDetailEmitMs = 0;
     const stderrLines: string[] = [];
     const stdoutLines: string[] = [];
+    const diagnosisLines: string[] = [];
 
     const rememberOutputLine = (line: string, fromStderr: boolean): void => {
       const trimmed = line.trim();
@@ -129,12 +133,21 @@ export async function startObservedUpgradeInstall(
       const buf = fromStderr ? stderrLines : stdoutLines;
       buf.push(trimmed);
       if (buf.length > 8) buf.shift();
+      if (DIAGNOSIS_LINE.test(trimmed)) {
+        diagnosisLines.push(trimmed);
+        if (diagnosisLines.length > 4) diagnosisLines.shift();
+      }
     };
 
     const failureDetail = (): string | undefined => {
-      const lines = stderrLines.length > 0 ? stderrLines : stdoutLines;
-      if (lines.length === 0) return undefined;
-      const summary = lines.slice(-2).join(' · ');
+      // pnpm prints its diagnosis (ERR_PNPM_UNSUPPORTED_ENGINE, …) on stdout and
+      // several lines before the generic "failed with code 1" tail, while git
+      // chatter lands on stderr. Tailing one stream drops the only actionable
+      // line, so prefer whatever named an error across both.
+      const tail = stderrLines.length > 0 ? stderrLines : stdoutLines;
+      const picked = diagnosisLines.length > 0 ? diagnosisLines : tail;
+      if (picked.length === 0) return undefined;
+      const summary = picked.slice(-2).join(' · ');
       return summary.length > 160 ? `${summary.slice(0, 157)}…` : summary;
     };
 
@@ -246,8 +259,7 @@ export async function startObservedUpgradeInstall(
     attachStageLineReader(child.stderr, (line) => { handleOutputLine(line, true); });
     child.once('error', (err: Error) => {
       if (typeof err.message === 'string' && err.message.length > 0) {
-        stderrLines.push(err.message);
-        if (stderrLines.length > 8) stderrLines.shift();
+        rememberOutputLine(err.message, true);
       }
       finish(false);
     });
