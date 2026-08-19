@@ -123,8 +123,11 @@ export function createTUIStateNativeRenderCallback(
       layoutTracking,
       height,
     );
+    // Effective prefs, not the stored ones: the performance-mode overlay lives
+    // only in the active snapshot (see AppearanceController.apply), so reading
+    // `appState.appearance` here would keep motion on under `/performance on`.
     const ambientAnimationAllowed =
-      shouldAnimate(state.appState.appearance ?? getActiveAppearancePreferences()) &&
+      shouldAnimate(getActiveAppearancePreferences()) &&
       (isNativeFullscreenTakeover(state) ||
         shouldRenderAmbientAnimationFrame(
           size.rows,
@@ -202,17 +205,23 @@ export function createTUIStateNativeRenderCallback(
     // and linger expiry, so reusing cached chrome would freeze them. chromeEpoch
     // still invalidates on activity / live-goal transitions so stale chrome is
     // never reused across modes.
+    //
+    // `appState.thinking` is the thinking-level preference, not live activity
+    // (see ambient-calm). Treating it as live made chromeStatic false forever
+    // whenever thinking is on, so every ConPTY animation tick rebuilt chrome
+    // and canvas-sealed the header brand. Live thinking is `streamingPhase`.
     const liveGoal = isLiveGoalChromeActive(state.appState.goal);
-    const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
+    const appearance = getActiveAppearancePreferences();
+    const ambientActive = ambientAnimationActive(appearance);
     const chromeStatic =
       state.appState.streamingPhase === 'idle' &&
-      !state.appState.thinking &&
+      !state.appState.isCompacting &&
       !liveGoal &&
       !backgroundWork &&
-      !ambientAnimationActive(appearance);
+      !ambientActive;
     const chromeEpoch = tuiChromeEpoch({
       streamingPhase: state.appState.streamingPhase,
-      thinking: state.appState.thinking,
+      thinking: state.appState.streamingPhase === 'thinking',
       liveGoalId: liveGoal ? state.appState.goal!.goalId : undefined,
       liveGoalStatus: liveGoal ? state.appState.goal!.status : undefined,
     });
@@ -321,7 +330,8 @@ export function createTUIStateNativeRenderCallback(
       transcriptLineCacheSelectionKey = selectionKey;
     }
     // force/clear come from policy (pure input stays incremental). forceCursor
-    // is independent and always on for IME caret stickiness — see shouldForceNativeCursor.
+    // stays on for IME caret stickiness except idle ConPTY frames — see
+    // shouldForceNativeCursor.
     const forceCursor = shouldForceNativeCursor({
       causes: frame.causes,
       structuralShift: layoutShift.structuralShift,

@@ -31,7 +31,7 @@ import { ThinkingComponent } from '../../components/messages/thinking';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import { UserMessageComponent } from '../../components/messages/user-message';
 import type { ShowNoticeOptions } from '../../commands/hub/dispatch';
-import { DEFAULT_APPEARANCE_PREFERENCES } from '../../config';
+import { getActiveAppearancePreferences } from '../../features/appearance/appearance-effects';
 import type { AppearanceController } from '../appearance/index';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { SessionEventHandler } from '../session-event/handler';
@@ -313,7 +313,9 @@ export class TranscriptRenderController {
     const { host } = this;
     this.disposeStartupSplash();
     const splash = new SplashComponent({
-      appearance: host.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
+      // Effective prefs so `/performance on` (Off pack) skips the cinematic
+      // instead of playing it off the untouched stored prefs.
+      appearance: getActiveAppearancePreferences(),
       getRows: () => Math.max(8, host.state.terminal.rows),
       requestRender: () => {
         // Layout invalidation so the native frame path repaints the takeover.
@@ -348,7 +350,12 @@ export class TranscriptRenderController {
       },
     });
     // Fast path: do not steal the UI tree when motion is off.
-    if (!shouldPlaySplash(host.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES)) {
+    if (
+      !shouldPlaySplash(
+        getActiveAppearancePreferences(),
+        host.state.renderer.nativeRuntime.transportStability,
+      )
+    ) {
       splash.dispose();
       return;
     }

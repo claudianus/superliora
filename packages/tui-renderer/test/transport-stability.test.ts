@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   UNSTABLE_TRANSPORT_FRAME_INTERVAL_MS,
+  isTrustedWindowsSynchronizedHost,
   resolveRendererTransportStability,
   resolveUnstableTransportFrameIntervalMs,
 } from '../src/terminal/transport-stability';
@@ -22,11 +23,11 @@ describe('resolveRendererTransportStability', () => {
     );
   });
 
-  it('trusts an explicit probe answer over the platform heuristic', () => {
+  it('trusts a 2026 answer from Windows Terminal', () => {
     expect(
       resolveRendererTransportStability({
         platform: 'win32',
-        environment: {},
+        environment: { WT_SESSION: 'abc' },
         synchronizedOutputSupport: 'supported',
       }),
     ).toBe('synchronized');
@@ -35,6 +36,23 @@ describe('resolveRendererTransportStability', () => {
         platform: 'linux',
         environment: {},
         synchronizedOutputSupport: 'unsupported',
+      }),
+    ).toBe('unstable');
+  });
+
+  it('keeps legacy conhost unstable even when something answers 2026', () => {
+    expect(
+      resolveRendererTransportStability({
+        platform: 'win32',
+        environment: { TERM: 'xterm-256color', TERM_PROGRAM: 'vscode' },
+        synchronizedOutputSupport: 'supported',
+      }),
+    ).toBe('unstable');
+    expect(
+      resolveRendererTransportStability({
+        platform: 'win32',
+        environment: {},
+        synchronizedOutputSupport: 'supported',
       }),
     ).toBe('unstable');
   });
@@ -62,6 +80,25 @@ describe('resolveRendererTransportStability', () => {
         environment: { TUI_RENDERER_TRANSPORT_STABILITY: 'maybe' },
       }),
     ).toBe('unstable');
+  });
+});
+
+describe('isTrustedWindowsSynchronizedHost', () => {
+  it('treats non-Windows hosts as trusted', () => {
+    expect(isTrustedWindowsSynchronizedHost({}, 'linux')).toBe(true);
+    expect(isTrustedWindowsSynchronizedHost({}, 'darwin')).toBe(true);
+  });
+
+  it('trusts Windows Terminal, which implements 2026 and holds frames', () => {
+    expect(isTrustedWindowsSynchronizedHost({ WT_SESSION: '1' }, 'win32')).toBe(true);
+  });
+
+  it('does not trust a Windows host outside Windows Terminal', () => {
+    expect(
+      isTrustedWindowsSynchronizedHost({ TERM: 'xterm-256color', TERM_PROGRAM: 'vscode' }, 'win32'),
+    ).toBe(false);
+    expect(isTrustedWindowsSynchronizedHost({ TERM: 'xterm-256color' }, 'win32')).toBe(false);
+    expect(isTrustedWindowsSynchronizedHost({ WT_SESSION: '  ' }, 'win32')).toBe(false);
   });
 });
 

@@ -1,13 +1,14 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import type {
-  NativeRenderCause,
-  NativeTerminalInput,
-  NativeTerminalOutput,
-  NativeTerminalRenderer,
-  RendererRootUI,
-  RendererTerminalHost,
+import {
+  nativeTerminalAdaptiveFeatureProfile,
+  type NativeRenderCause,
+  type NativeTerminalInput,
+  type NativeTerminalOutput,
+  type NativeTerminalRenderer,
+  type RendererRootUI,
+  type RendererTerminalHost,
 } from '@harness-kit/tui-renderer';
 
 import { LioraNativeRootUI } from './native-root-ui';
@@ -82,17 +83,18 @@ function createRendererTerminalOutput(ttyWrite: TuiStdioGuard['ttyWrite']): Nati
 
 export function createTerminalRenderer(): TerminalRenderer {
   const stdio = ensureMountedTuiStdioGuard();
+  const features = nativeTerminalAdaptiveFeatureProfile('fullscreen-app', process.env, {
+    platform: process.platform,
+  });
   const ui = new LioraNativeRootUI({
     input: process.stdin as NativeTerminalInput,
     output: createRendererTerminalOutput(stdio.ttyWrite),
-    // Full-screen alternate-screen takeover: isolates the TUI from the
-    // terminal's pre-session scrollback (so scrolling up never escapes into
-    // earlier shell output) and enables the advanced input features the
-    // renderer-owned virtual scroll depends on (kitty keyboard, SGR mouse,
-    // synchronized output, bracketed paste, focus events). Restores the
-    // forced full-screen occupation that the inline/main-screen rendering
-    // had lost.
-    features: 'fullscreen-app',
+    // Full-screen alternate-screen takeover, but only the protocols this
+    // host can actually deliver. Windows Terminal looks modern (WT_SESSION)
+    // and would otherwise get kitty keyboard + DEC 2026 sync; WT does not
+    // speak kitty, and Win10 ConPTY still tears 2026 frames. Those
+    // sequences print garbage or strobe the first paint.
+    features,
   });
   return createNativeTerminalRenderer({ ui });
 }

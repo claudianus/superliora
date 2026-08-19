@@ -1,17 +1,16 @@
 import { WORKING_TIPS, type ToolbarTip } from '#/tui/constant/tips';
 import { shortcutHint } from '#/tui/utils/os-shortcuts';
 
-import { buildWeightedTips } from './footer/footer-tips';
+import { buildWeightedTips, tipRotationIndex } from './footer/footer-tips';
 
 export { WORKING_TIPS };
 
-const TIP_ROTATE_INTERVAL_MS = 10_000;
-
 const WORKING_TIP_ROTATION = buildWeightedTips(WORKING_TIPS);
 
-export function currentWorkingTip(now = Date.now()): ToolbarTip | undefined {
+/** Rotates on the shared motion clock, in step with the footer tips. */
+export function currentWorkingTip(now?: number): ToolbarTip | undefined {
   if (WORKING_TIP_ROTATION.length === 0) return undefined;
-  const index = Math.floor(now / TIP_ROTATE_INTERVAL_MS) % WORKING_TIP_ROTATION.length;
+  const index = tipRotationIndex(now) % WORKING_TIP_ROTATION.length;
   return WORKING_TIP_ROTATION[index];
 }
 

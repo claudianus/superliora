@@ -18,7 +18,7 @@ import {
   getAppearanceRenderQuality,
   getActiveAppearancePreferences,
   motionEffectsAllowed,
-  resolveAmbientEffectMode,
+  resolveQualityAdjustedAmbientEffectMode,
 } from '#/tui/features/appearance/appearance-effects';
 
 import type { TUIState } from '../../tui-state';
@@ -166,12 +166,17 @@ export function createTUIStateNativeRegionVfx(
   // Region VFX keeps running while the transcript is scrolled back; ambient
   // motion only pauses for an active transcript selection (frame hold).
   if (!motionEffectsAllowed()) return undefined;
-  const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
+  const appearance = getActiveAppearancePreferences();
+  // Quality-adjusted, so an unstable transport clamps region VFX off exactly
+  // like the letterbox sky and the particle rails instead of asking the renderer
+  // to animate and relying on its own internal degradation.
+  const requested = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (requested === 'off') return undefined;
   // Premium spectacle pins full quality so the glow does not freeze under load.
-  const premiumPinned = resolveAmbientEffectMode(appearance) === 'premium';
+  const premiumPinned = requested === 'premium';
   return createRendererRegionVfx({
     preset,
-    requested: resolveAmbientEffectMode(appearance),
+    requested,
     quality: premiumPinned ? 'full' : getAppearanceRenderQuality(),
     health: premiumPinned ? 'healthy' : getAppearanceRenderHealth(),
     nowMs: appearanceAnimationNow(),

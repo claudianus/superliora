@@ -14,7 +14,7 @@ import { ensureOhMyPosh, findOhMyPosh, ohMyPoshRuntimeDir } from './ensure-oh-my
 import { findWinget } from './ensure-winget.mjs';
 import { hostJoin } from './host-path.mjs';
 import { applyUserPathWin } from './path.mjs';
-import { archId, defaultHome } from './platform.mjs';
+import { archId, defaultHome, hostPathExists } from './platform.mjs';
 
 export const ZOXIDE_WINGET_ID = 'ajeetdsouza.zoxide';
 export const FZF_WINGET_ID = 'junegunn.fzf';
@@ -72,7 +72,7 @@ export function defaultUnixProfilePaths(env = process.env) {
 export function findToolExe(name, options = {}) {
   const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
-  const isFile = options.isFile ?? ((p) => existsSync(p));
+  const isFile = options.isFile ?? hostPathExists;
   const which = options.which ?? defaultWhich;
   const fromPath = which(name, env) ?? which(`${name}.exe`, env);
   if (fromPath && isFile(fromPath)) return { path: fromPath, source: 'path' };

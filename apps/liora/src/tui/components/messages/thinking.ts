@@ -26,6 +26,7 @@ import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
+  progressMotionFrame,
   renderPulseText,
   renderSpectacularText,
   shouldRenderAmbientEffects,
@@ -201,9 +202,10 @@ export class ThinkingComponent implements Component {
           const streamedBody = caretOn
             ? appendStreamingCaret(visibleLines.map((line) => MESSAGE_INDENT + line))
             : visibleLines.map((line) => MESSAGE_INDENT + line);
-          const spinnerFrame =
-            Math.floor(appearanceAnimationNow() / BRAILLE_SPINNER_INTERVAL_MS) %
-            BRAILLE_SPINNER_FRAMES.length;
+          const spinnerFrame = progressMotionFrame(
+            BRAILLE_SPINNER_INTERVAL_MS,
+            BRAILLE_SPINNER_FRAMES.length,
+          );
           const spinnerGlyph = BRAILLE_SPINNER_FRAMES[spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0];
           const spinner = shouldRenderAmbientEffects(appearance)
             ? renderSpectacularText(`${spinnerGlyph} `, `thinking:spin:${spinnerGlyph}`, appearance, {

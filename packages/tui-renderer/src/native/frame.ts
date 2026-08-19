@@ -140,6 +140,13 @@ export class NativeFrameRenderer {
     this.pendingTerminalPrefix += prefix;
   }
 
+  /** Flush a queued prefix that never made it into a present (e.g. stop). */
+  flushTerminalPrefix(): void {
+    if (this.pendingTerminalPrefix.length === 0) return;
+    this.options.output.write(this.pendingTerminalPrefix);
+    this.pendingTerminalPrefix = '';
+  }
+
   present(
     options: {
       readonly force?: boolean;

@@ -56,4 +56,18 @@ describe('terminal focus tracking', () => {
     expect(state.terminal.write).toHaveBeenCalledWith(DISABLE_TERMINAL_FOCUS_REPORTING);
     expect(state.terminalState.focused).toBe(true);
   });
+
+  it('skips the enable write when the native session already owns DEC 1004', () => {
+    const state = {
+      terminalState: { focused: false },
+      terminal: { write: vi.fn() },
+      ui: { addInputListener: vi.fn(() => vi.fn()) },
+    } as unknown as TUIState;
+
+    const dispose = installTerminalFocusTracking(state, { writeEnable: false });
+
+    expect(state.terminal.write).not.toHaveBeenCalled();
+    dispose();
+    expect(state.terminal.write).not.toHaveBeenCalled();
+  });
 });

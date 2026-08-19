@@ -6,10 +6,14 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationFrameIntervalMs,
+  appearanceAnimationNow,
   appearanceDecorativeFrozenByTransport,
   BRAND_MOTION_TOKENS,
   SPECTACULAR_TOKENS,
   isStatusFlashActive,
+  monotonicMotionNowMs,
+  progressMotionFrame,
+  shouldRenderAmbientEffects,
   renderAmbientDrift,
   renderCrossfadeLine,
   renderDangerBreathe,
@@ -35,12 +39,117 @@ import {
   statusFlashDurationMs,
   TYPEWRITER_MS,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  focusGlowFeedback,
+  noteFocusFeedback,
+  noteSuccessFeedback,
+  resetFeedbackVfxForTests,
+  successFlashFeedback,
+} from '#/tui/utils/render/feedback-vfx';
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
+
+describe('shared animation clock', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    for (const key of ['TERM', 'CI', 'NO_COLOR', 'SSH_TTY', 'SSH_CONNECTION', 'SSH_CLIENT'] as const) {
+      delete process.env[key];
+    }
+    process.env['TERM'] = 'xterm-256color';
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    resetFeedbackVfxForTests();
+    // The native frame loop stamps every frame off this base, so mimic a live
+    // loop: the defaults under test must see the clock they see in production.
+    advanceAppearanceAnimationClock(monotonicMotionNowMs());
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    resetFeedbackVfxForTests();
+    advanceAppearanceAnimationClock(monotonicMotionNowMs());
+  });
+
+  it('lets an effect armed with default arguments actually run', () => {
+    // The renderer advances the clock from performance.now(). A state stamp
+    // taken from Date.now() lands ~1.8e12 ms in the future, so the effect reads
+    // negative elapsed and sits at intensity 0 forever. Both halves of this
+    // handoff use the defaults on purpose — that mismatch is what silently
+    // killed the editor glow and the worker-dock linger.
+    noteSuccessFeedback();
+    advanceAppearanceAnimationClock(monotonicMotionNowMs() + 40);
+
+    expect(successFlashFeedback()).toBeGreaterThan(0);
+  });
+
+  it('advances an armed effect toward its settle instead of freezing', () => {
+    noteFocusFeedback();
+    const nextFrameAt = monotonicMotionNowMs();
+
+    advanceAppearanceAnimationClock(nextFrameAt + 30);
+    const early = focusGlowFeedback();
+    advanceAppearanceAnimationClock(nextFrameAt + 10_000);
+    const settled = focusGlowFeedback();
+
+    expect(early).toBeGreaterThan(0);
+    expect(settled).toBeLessThan(early);
+  });
+});
+
+describe('functional progress motion', () => {
+  const off = {
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'off' as const,
+    particles: 'off' as const,
+  };
+
+  afterEach(() => {
+    setAppearanceTransportStability('synchronized');
+    setAppearanceRenderQuality('full');
+    advanceAppearanceAnimationClock(monotonicMotionNowMs());
+  });
+
+  it('keeps spinners rotating after decorative motion is gated off', () => {
+    // A frozen spinner reads as a hung agent, so functional motion must outlive
+    // every gate that silences decoration: profile, quality budget, transport.
+    setAppearanceTransportStability('unstable');
+    setAppearanceRenderQuality('minimal');
+    expect(shouldRenderAmbientEffects(off)).toBe(false);
+
+    advanceAppearanceAnimationClock(0);
+    const first = progressMotionFrame(80, 10);
+    advanceAppearanceAnimationClock(80);
+    const second = progressMotionFrame(80, 10);
+
+    expect(second).not.toBe(first);
+  });
+
+  it('walks the frame table in order and wraps', () => {
+    advanceAppearanceAnimationClock(0);
+    const walked = [0, 80, 160, 240].map((at) => {
+      advanceAppearanceAnimationClock(at);
+      return progressMotionFrame(80, 3);
+    });
+
+    expect(walked).toEqual([0, 1, 2, 0]);
+  });
+
+  it('rests on frame 0 for degenerate frame tables and intervals', () => {
+    advanceAppearanceAnimationClock(400);
+    expect(progressMotionFrame(80, 0)).toBe(0);
+    expect(progressMotionFrame(0, 10)).toBe(0);
+    expect(progressMotionFrame(Number.NaN, 10)).toBe(0);
+  });
+});
 
 describe('transport stability clamp', () => {
   const premium = {

@@ -220,6 +220,13 @@ describe('shouldPlaySplash skip matrix', () => {
       expect(shouldPlaySplash(premium)).toBe(false);
     });
   });
+
+  it('skips on an unstable transport (classic ConPTY / Cursor)', () => {
+    withSafeTerminalEnv(() => {
+      expect(shouldPlaySplash(premium, 'unstable')).toBe(false);
+      expect(shouldPlaySplash(premium, 'synchronized')).toBe(true);
+    });
+  });
 });
 
 describe('SplashComponent full-screen cinematic', () => {

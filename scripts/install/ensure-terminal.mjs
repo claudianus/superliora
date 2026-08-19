@@ -16,7 +16,7 @@ import { CASKAYDIA_FONT_FACE, ensureNerdFont, findNerdFont } from './ensure-nerd
 import { findOhMyPosh } from './ensure-oh-my-posh.mjs';
 import { ensureShellVibe } from './ensure-shell-vibe.mjs';
 import { ensureWinget, findWinget } from './ensure-winget.mjs';
-import { defaultHome } from './platform.mjs';
+import { defaultHome, hostPathExists } from './platform.mjs';
 
 export const SUPERLIORA_WT_PROFILE_NAME = 'SuperLiora';
 export const SUPERLIORA_SHELL_PROFILE_NAME = 'SuperLiora Shell';
@@ -241,7 +241,7 @@ export function findWindowsTerminal(options = {}) {
   const platform = options.platform ?? process.platform;
   if (platform !== 'win32') return null;
   const env = options.env ?? process.env;
-  const isFile = options.isFile ?? ((p) => existsSync(p));
+  const isFile = options.isFile ?? hostPathExists;
   const which = options.which ?? defaultWhich;
 
   const fromPath = which('wt', env) ?? which('wt.exe', env);

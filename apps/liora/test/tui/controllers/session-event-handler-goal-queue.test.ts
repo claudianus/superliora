@@ -3,6 +3,10 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { SessionEventHandler } from '#/tui/controllers/session-event/handler';
 import { getBuiltInPalette } from '#/tui/theme';
 import { readGoalQueue, removeGoalQueueItem, restoreGoalQueueItem } from '#/tui/goal-queue-store';
+import {
+  formatGoalXpPulseFooterBadge,
+  GOAL_XP_PULSE_BADGE_TTL_MS,
+} from '#/tui/utils/goal/goal-xp-pulse';
 
 vi.mock('#/tui/goal-queue-store', () => ({
   readGoalQueue: vi.fn(async () => ({
@@ -136,6 +140,15 @@ function completionEvent() {
   } as const;
 }
 
+function goalProgressEvent(turnsUsed: number, tokensUsed: number) {
+  return {
+    type: 'goal.updated',
+    sessionId: 's1',
+    agentId: 'main',
+    snapshot: { ...fakeGoalSnapshot('Current goal', 'active'), turnsUsed, tokensUsed },
+  } as const;
+}
+
 function clearedEvent() {
   return {
     type: 'goal.updated',
@@ -189,6 +202,37 @@ describe('SessionEventHandler goal queue promotion', () => {
       }),
     );
     expect(host.motionBeats.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('stamps the goal-xp pulse on the clock the footer badge reads', () => {
+    // The badge is a wall-clock TTL like its fleet-flourish / ops-combo siblings.
+    // Stamping it from the animation clock instead left it ~1.8e12 ms in the
+    // future, so the badge silently never rendered.
+    const { host } = makeHost();
+    const handler = new SessionEventHandler(host);
+
+    handler.handleEvent(goalProgressEvent(1, 10), vi.fn());
+    handler.handleEvent(goalProgressEvent(2, 40), vi.fn());
+
+    expect(
+      formatGoalXpPulseFooterBadge(host.state.appState.goalXpPulse, Date.now(), 'compact'),
+    ).toEqual({ text: 'xp', severity: 'info' });
+  });
+
+  it('expires the goal-xp pulse once its TTL elapses', () => {
+    const { host } = makeHost();
+    const handler = new SessionEventHandler(host);
+
+    handler.handleEvent(goalProgressEvent(1, 10), vi.fn());
+    handler.handleEvent(goalProgressEvent(2, 40), vi.fn());
+
+    expect(
+      formatGoalXpPulseFooterBadge(
+        host.state.appState.goalXpPulse,
+        Date.now() + GOAL_XP_PULSE_BADGE_TTL_MS,
+        'compact',
+      ),
+    ).toBeNull();
   });
 
   it('starts the next queued goal after the completion turn ends', async () => {

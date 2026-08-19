@@ -2,6 +2,7 @@
  * Platform / arch helpers for the SuperLiora installer.
  */
 
+import { existsSync, lstatSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -52,6 +53,24 @@ export function releaseTarget(platform = process.platform, arch = process.arch) 
 
 export function defaultHome() {
   return process.env.HOME ?? process.env.USERPROFILE ?? homedir();
+}
+
+/**
+ * Existence check that also sees Windows app execution aliases. The entries
+ * App Installer drops in `WindowsApps` (winget.exe, wt.exe, …) are
+ * APPEXECLINK reparse points: `stat` fails on them with EACCES, so
+ * `existsSync` reports false for a command the shell resolves fine, and a
+ * detector built on it re-reports the tool as missing forever. `lstat` does
+ * not follow the reparse tag, so it succeeds.
+ */
+export function hostPathExists(path) {
+  if (existsSync(path)) return true;
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function defaultInstallDir() {

@@ -9,9 +9,12 @@ import { IdleStageComponent } from '#/tui/components/chrome/idle-stage';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { resolveStageLayout } from '#/tui/controllers/layout/stage-layout';
 import type { AppearancePreferences } from '#/tui/config';
-import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+} from '#/tui/features/appearance/appearance-effects';
 import { padOrTrim } from '#/tui/features/stage/night-sky';
 import {
   noteStageFrameBundle,
@@ -59,9 +62,8 @@ export function buildSplashMorphScene(options: {
     userStageSize: options.userStageSize,
   });
   const stage = layout.stage;
-  const appearance: AppearancePreferences =
-    options.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
-  const nowMs = options.nowMs ?? Date.now();
+  const appearance: AppearancePreferences = getActiveAppearancePreferences();
+  const nowMs = options.nowMs ?? appearanceAnimationNow();
 
   const canvas: string[] = Array.from({ length: rows }, () => ' '.repeat(width));
 

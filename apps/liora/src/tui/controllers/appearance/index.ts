@@ -5,6 +5,7 @@ import {
   type RendererQualityLevel,
   type RendererTerminalHost,
   type RendererTransportStability,
+  UNSTABLE_TRANSPORT_FRAME_INTERVAL_MS,
 } from '#/tui/renderer';
 
 import type { AppearancePreferences } from '#/tui/config';
@@ -136,9 +137,14 @@ export class AppearanceController {
         const appearance = this.getAppearance();
         const premiumMs = premiumAmbientIntervalMs(appearance.animationFps);
         // Splash forces the ambient schedule — keep premium cadence so the
-        // cinematic does not soft-degrade to 24–100ms stutter.
+        // cinematic does not soft-degrade to 24–100ms stutter. On an
+        // unstable transport (classic ConPTY) that cadence is the startup
+        // flicker; stay at the transport floor instead.
         if (this.forceAmbientSchedule?.() === true && shouldAnimate(appearance)) {
-          return premiumMs;
+          const stability = ctx.transportStability ?? this.getTransportStability?.();
+          return stability === 'unstable'
+            ? Math.max(premiumMs, UNSTABLE_TRANSPORT_FRAME_INTERVAL_MS)
+            : premiumMs;
         }
         // Busy-only force (streaming without decorative animation): keep the
         // moon/braille spinner cadence so waiting glyphs do not freeze at 1fps

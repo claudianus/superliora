@@ -16,6 +16,8 @@ import type {
   JobVerifyVerdictSnapshot,
 } from '@superliora/protocol';
 
+import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
+
 /** Per-job card for the Job board, sourced from `job.updated` events or JobList output. */
 export interface ConductorJobCard {
   readonly id: string;
@@ -39,7 +41,12 @@ export interface ConductorJobCard {
   readonly previousStatus?: JobEventStatus;
   /** Ledger creation time (epoch ms) from `job.updated` v2 `createdAt`. */
   readonly createdAtMs?: number;
-  /** When the status last changed — drives lane-move settle flashes. */
+  /**
+   * When the status last changed, on the shared animation clock — not epoch like
+   * its `createdAtMs` / `updatedAtMs` siblings. Every consumer (lane-move settle
+   * flashes, the deck freshness label) measures elapsed against that clock, and
+   * an epoch stamp there reads ~1.8e12 ms in the future.
+   */
   readonly statusChangedAtMs?: number;
   /**
    * Last-known worker token usage (from progress heartbeat or Job Deck
@@ -169,7 +176,10 @@ export function upsertConductorJobCard(
     previousStatus: change?.previousStatus ?? (statusChanged ? existing.status : undefined),
     createdAtMs,
     // Preserve the original change time on plain refreshes; re-arm on a move.
-    statusChangedAtMs: statusChanged || existing === undefined ? nowMs : existing.statusChangedAtMs,
+    statusChangedAtMs:
+      statusChanged || existing === undefined
+        ? appearanceAnimationNow()
+        : existing.statusChangedAtMs,
     ...(existing?.liveActivity === undefined ? {} : { liveActivity: existing.liveActivity }),
     ...(existing?.workerName === undefined ? {} : { workerName: existing.workerName }),
     ...(existing?.liveTokens === undefined ? {} : { liveTokens: existing.liveTokens }),

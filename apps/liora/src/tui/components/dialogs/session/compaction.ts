@@ -31,6 +31,7 @@ import {
   renderEnterBeat,
   renderExitBeat,
   renderPremiumHeadline,
+  renderPulseText,
   renderShimmerPrefix,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
@@ -546,9 +547,12 @@ export class CompactionComponent extends Container {
         : currentTheme.boldFg('warning', ttui('tui.dialog.compaction.cancelled'));
       return `${bullet}${label}`;
     }
-    // Derive the blink phase from the animation clock — no private timer.
-    const blinkOn = Math.floor(appearanceAnimationNow() / BLINK_INTERVAL) % 2 === 0;
-    const bullet = blinkOn ? currentTheme.fg('text', STATUS_BULLET) : '  ';
+    // Pulse the in-flight bullet instead of blanking it every other tick: the
+    // marker ↔ blank swap was a 2-frame blink that also made the header jitter
+    // (PREMIUM.md §7.3). Matches the live tool-call header treatment.
+    const bullet = animated
+      ? renderPulseText(STATUS_BULLET, 'compaction:active-bullet', 'text')
+      : currentTheme.fg('text', STATUS_BULLET);
     const activeLabel = this.background
       ? ttui('tui.dialog.compaction.titleProgressBg')
       : ttui('tui.dialog.compaction.titleProgress');

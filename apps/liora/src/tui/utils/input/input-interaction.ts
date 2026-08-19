@@ -6,11 +6,21 @@
  * frames skip decorative work without permanently disabling motion.
  */
 
+import {
+  appearanceAnimationNow,
+  monotonicMotionNowMs,
+} from '#/tui/features/appearance/appearance-effects';
+
 const DEFAULT_TYPING_HOLDOFF_MS = 200;
 
 let lastInputInteractionAtMs = 0;
 
-export function noteTUIInputInteraction(nowMs: number = Date.now()): void {
+/**
+ * Stamp a keystroke on the shared motion time base (PREMIUM.md §7.1), not the
+ * wall clock: consumers compare this against `appearanceAnimationNow()`, which
+ * counts from process start.
+ */
+export function noteTUIInputInteraction(nowMs: number = monotonicMotionNowMs()): void {
   lastInputInteractionAtMs = Math.max(0, nowMs);
 }
 
@@ -19,7 +29,7 @@ export function lastTUIInputInteractionAtMs(): number {
 }
 
 export function isTUIInputInteractionActive(
-  nowMs: number = Date.now(),
+  nowMs: number = appearanceAnimationNow(),
   holdoffMs: number = DEFAULT_TYPING_HOLDOFF_MS,
 ): boolean {
   if (lastInputInteractionAtMs <= 0) return false;

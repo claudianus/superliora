@@ -4378,7 +4378,7 @@ describe('NativeTerminalSession', () => {
     expect(detectNativeTerminalCapabilities({
       TERM: 'xterm-kitty',
       KITTY_WINDOW_ID: '1',
-    })).toMatchObject({
+    }, { platform: 'linux' })).toMatchObject({
       interactive: true,
       keyboardProtocol: true,
       mouseTracking: true,
@@ -4391,7 +4391,7 @@ describe('NativeTerminalSession', () => {
     expect(detectNativeTerminalCapabilities({
       TERM: 'screen-256color',
       TMUX: '/tmp/tmux-501/default,1,0',
-    })).toMatchObject({
+    }, { platform: 'linux' })).toMatchObject({
       interactive: true,
       keyboardProtocol: false,
       mouseTracking: true,
@@ -4404,7 +4404,7 @@ describe('NativeTerminalSession', () => {
       TERM: 'xterm-256color',
       TERM_PROGRAM: 'waveterm',
       WAVETERM: '1',
-    })).toMatchObject({
+    }, { platform: 'linux' })).toMatchObject({
       interactive: true,
       mouseTracking: true,
       bracketedPaste: true,
@@ -4417,15 +4417,15 @@ describe('NativeTerminalSession', () => {
       TERM_PROGRAM: 'waveterm',
       WAVETERM: '1',
       HARNESS_TUI_SYNCHRONIZED_OUTPUT: '1',
-    }).synchronized).toBe(true);
+    }, { platform: 'linux' }).synchronized).toBe(true);
 
     expect(detectNativeTerminalCapabilities({
       TERM: 'xterm-kitty',
       KITTY_WINDOW_ID: '1',
       TUI_RENDERER_SYNCHRONIZED_OUTPUT: '0',
-    }).synchronized).toBe(false);
+    }, { platform: 'linux' }).synchronized).toBe(false);
 
-    expect(detectNativeTerminalCapabilities({ TERM: 'dumb' })).toEqual({
+    expect(detectNativeTerminalCapabilities({ TERM: 'dumb' }, { platform: 'linux' })).toEqual({
       interactive: false,
       keyboardProtocol: false,
       mouseTracking: false,
@@ -4435,6 +4435,52 @@ describe('NativeTerminalSession', () => {
       colorMode: 'none',
       imageProtocol: 'none',
     });
+
+    expect(
+      detectNativeTerminalCapabilities(
+        { TERM: 'xterm-256color', TERM_PROGRAM: 'vscode' },
+        { platform: 'win32' },
+      ),
+    ).toMatchObject({
+      interactive: true,
+      keyboardProtocol: false,
+      mouseTracking: true,
+      synchronized: false,
+    });
+
+    // Windows Terminal is an xterm host that implements 2026 but not kitty
+    // keyboard: sync stays on, the kitty push stays off.
+    expect(
+      detectNativeTerminalCapabilities(
+        { TERM: 'xterm-256color', WT_SESSION: '1' },
+        { platform: 'win32' },
+      ),
+    ).toMatchObject({
+      interactive: true,
+      keyboardProtocol: false,
+      mouseTracking: true,
+      synchronized: true,
+      colorMode: 'truecolor',
+    });
+
+    expect(
+      detectNativeTerminalCapabilities(
+        { TERM: 'xterm-256color', TERM_PROGRAM: 'iTerm.app' },
+        { platform: 'darwin' },
+      ).keyboardProtocol,
+    ).toBe(false);
+    expect(
+      detectNativeTerminalCapabilities(
+        { TERM: 'alacritty', ALACRITTY_WINDOW_ID: '1' },
+        { platform: 'linux' },
+      ).keyboardProtocol,
+    ).toBe(false);
+    expect(
+      detectNativeTerminalCapabilities(
+        { TERM: 'xterm-256color', TERM_PROGRAM: 'WezTerm', WEZTERM_PANE: '1' },
+        { platform: 'linux' },
+      ).keyboardProtocol,
+    ).toBe(true);
   });
 
   it('parses DEC mode reports for query-based synchronized-output detection', () => {
@@ -4762,7 +4808,7 @@ describe('NativeTerminalSession', () => {
     expect(nativeTerminalAdaptiveFeatureProfile('inline-app', {
       TERM: 'xterm-kitty',
       KITTY_WINDOW_ID: '1',
-    })).toMatchObject({
+    }, { platform: 'linux' })).toMatchObject({
       rawMode: true,
       keyboardProtocol: 'kitty',
       mouseTracking: 'sgr',
@@ -4776,7 +4822,7 @@ describe('NativeTerminalSession', () => {
     const tmux = nativeTerminalAdaptiveFeatureProfile('inline-app', {
       TERM: 'screen-256color',
       TMUX: '/tmp/tmux-501/default,1,0',
-    });
+    }, { platform: 'linux' });
     expect(tmux.keyboardProtocol).toBeUndefined();
     expect(tmux.mouseTracking).toBe('sgr');
     expect(tmux.bracketedPaste).toBe(true);
@@ -4787,11 +4833,11 @@ describe('NativeTerminalSession', () => {
       TERM: 'xterm-256color',
       TERM_PROGRAM: 'waveterm',
       WAVETERM: '1',
-    });
+    }, { platform: 'linux' });
     expect(wave.mouseTracking).toBe('sgr');
     expect(wave.synchronized).toBeUndefined();
 
-    expect(nativeTerminalAdaptiveFeatureProfile('fullscreen-app', { TERM: 'dumb' })).toEqual({
+    expect(nativeTerminalAdaptiveFeatureProfile('fullscreen-app', { TERM: 'dumb' }, { platform: 'linux' })).toEqual({
       screenMode: undefined,
       clearOnStart: undefined,
       autoWrap: undefined,
@@ -4806,12 +4852,37 @@ describe('NativeTerminalSession', () => {
       colorMode: 'none',
       imageProtocol: 'none',
     });
+
+    const cursorWin = nativeTerminalAdaptiveFeatureProfile(
+      'fullscreen-app',
+      { TERM: 'xterm-256color', TERM_PROGRAM: 'vscode' },
+      { platform: 'win32' },
+    );
+    expect(cursorWin.screenMode).toBe('alternate');
+    expect(cursorWin.keyboardProtocol).toBeUndefined();
+    expect(cursorWin.synchronized).toBeUndefined();
+    expect(cursorWin.mouseTracking).toBe('sgr');
+
+    const windowsTerminal = nativeTerminalAdaptiveFeatureProfile(
+      'fullscreen-app',
+      { TERM: 'xterm-256color', WT_SESSION: '1' },
+      { platform: 'win32' },
+    );
+    expect(windowsTerminal.screenMode).toBe('alternate');
+    expect(windowsTerminal.keyboardProtocol).toBeUndefined();
+    expect(windowsTerminal.synchronized).toBe(true);
+    // 1049h already opens a blank alt buffer; a following 2J is a second
+    // full-screen clear ConPTY can paint ahead of the cells beside it.
+    expect(windowsTerminal.clearOnStart).toBeUndefined();
+    expect(windowsTerminal.mouseTracking).toBe('sgr');
+    expect(windowsTerminal.colorMode).toBe('truecolor');
   });
 
   it('resolves premium renderer defaults from synchronized terminal capabilities', () => {
     expect(resolveNativePremiumRendererDefaults({
       features: 'inline-app',
       environment: { TERM: 'xterm-kitty', KITTY_WINDOW_ID: '1' },
+      platform: 'linux',
     })).toEqual({
       outputPolicy: 'premium',
       regionVfxFrames: 'auto',
@@ -4820,6 +4891,7 @@ describe('NativeTerminalSession', () => {
     expect(resolveNativePremiumRendererDefaults({
       features: 'inline-app',
       environment: { TERM: 'dumb' },
+      platform: 'linux',
     })).toEqual({
       outputPolicy: 'balanced',
       regionVfxFrames: 'auto',
@@ -4853,12 +4925,12 @@ describe('NativeTerminalSession', () => {
     session.start();
 
     expect(output.writes).toEqual([
-      ANSI_ENTER_ALTERNATE_SCREEN,
-      ANSI_CLEAR_SCREEN,
-      ANSI_HIDE_CURSOR,
-      ANSI_ENABLE_BRACKETED_PASTE,
-      ANSI_ENABLE_FOCUS_EVENTS,
-      ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
+      ANSI_ENTER_ALTERNATE_SCREEN +
+        ANSI_CLEAR_SCREEN +
+        ANSI_HIDE_CURSOR +
+        ANSI_ENABLE_BRACKETED_PASTE +
+        ANSI_ENABLE_FOCUS_EVENTS +
+        ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
     ]);
     expect(input.rawModeCalls).toEqual([true]);
     expect(input.resumed).toBe(1);
@@ -4866,15 +4938,34 @@ describe('NativeTerminalSession', () => {
     session.stop();
     session.stop();
 
-    expect(output.writes.slice(6)).toEqual([
-      ANSI_POP_KITTY_KEYBOARD_PROTOCOL,
-      ANSI_DISABLE_FOCUS_EVENTS,
-      ANSI_DISABLE_BRACKETED_PASTE,
-      ANSI_SHOW_CURSOR,
-      ANSI_EXIT_ALTERNATE_SCREEN,
+    expect(output.writes.slice(1)).toEqual([
+      ANSI_POP_KITTY_KEYBOARD_PROTOCOL +
+        ANSI_DISABLE_FOCUS_EVENTS +
+        ANSI_DISABLE_BRACKETED_PASTE +
+        ANSI_SHOW_CURSOR +
+        ANSI_EXIT_ALTERNATE_SCREEN,
     ]);
     expect(input.rawModeCalls).toEqual([true, false]);
     expect(input.paused).toBe(1);
+  });
+
+  it('can return the startup sequence without flushing it', () => {
+    const output = new FakeOutput();
+    const session = new NativeTerminalSession({
+      input: new FakeInput(),
+      output,
+      screenMode: 'alternate',
+      hideCursor: true,
+      clearOnStart: true,
+    });
+
+    const sequence = session.start({ flush: false });
+    expect(sequence).toBe(ANSI_ENTER_ALTERNATE_SCREEN + ANSI_CLEAR_SCREEN + ANSI_HIDE_CURSOR);
+    expect(output.writes).toEqual([]);
+    session.stop();
+    expect(output.writes).toEqual([
+      ANSI_SHOW_CURSOR + ANSI_EXIT_ALTERNATE_SCREEN,
+    ]);
   });
 
   it('clears inline images on start when imageProtocol is kitty', () => {
@@ -4889,9 +4980,11 @@ describe('NativeTerminalSession', () => {
 
     session.start();
 
-    const clearIndex = output.writes.indexOf(encodeRendererClearInlineImages('kitty'));
+    const started = output.writes[0] ?? '';
+    const clearIndex = started.indexOf(encodeRendererClearInlineImages('kitty'));
     expect(clearIndex).toBeGreaterThan(-1);
-    expect(clearIndex).toBeGreaterThan(output.writes.indexOf(ANSI_ENTER_ALTERNATE_SCREEN));
+    expect(clearIndex).toBeGreaterThan(started.indexOf(ANSI_ENTER_ALTERNATE_SCREEN));
+    expect(output.writes).toHaveLength(1);
   });
 
   it('does not clear inline images on start when imageProtocol is none', () => {
@@ -4906,7 +4999,7 @@ describe('NativeTerminalSession', () => {
 
     session.start();
 
-    expect(output.writes).not.toContain(encodeRendererClearInlineImages('kitty'));
+    expect(output.writes.join('')).not.toContain(encodeRendererClearInlineImages('kitty'));
   });
 
   it('can start terminal features from a fullscreen app profile', () => {
@@ -4923,34 +5016,34 @@ describe('NativeTerminalSession', () => {
     session.start();
 
     expect(output.writes).toEqual([
-      ANSI_ENTER_ALTERNATE_SCREEN,
-      ANSI_CLEAR_SCREEN,
-      ANSI_DISABLE_AUTO_WRAP,
-      ANSI_HIDE_CURSOR,
-      ANSI_ENABLE_BRACKETED_PASTE,
-      ANSI_ENABLE_FOCUS_EVENTS,
-      ANSI_ENABLE_MOUSE_TRACKING,
-      ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING,
-      ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING,
-      ANSI_ENABLE_SGR_MOUSE_MODE,
-      ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
+      ANSI_ENTER_ALTERNATE_SCREEN +
+        ANSI_CLEAR_SCREEN +
+        ANSI_DISABLE_AUTO_WRAP +
+        ANSI_HIDE_CURSOR +
+        ANSI_ENABLE_BRACKETED_PASTE +
+        ANSI_ENABLE_FOCUS_EVENTS +
+        ANSI_ENABLE_MOUSE_TRACKING +
+        ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING +
+        ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING +
+        ANSI_ENABLE_SGR_MOUSE_MODE +
+        ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
     ]);
     expect(input.rawModeCalls).toEqual([]);
     expect(input.resumed).toBe(1);
 
     session.stop();
 
-    expect(output.writes.slice(11)).toEqual([
-      ANSI_POP_KITTY_KEYBOARD_PROTOCOL,
-      ANSI_DISABLE_SGR_MOUSE_MODE,
-      ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING,
-      ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING,
-      ANSI_DISABLE_MOUSE_TRACKING,
-      ANSI_DISABLE_FOCUS_EVENTS,
-      ANSI_DISABLE_BRACKETED_PASTE,
-      ANSI_SHOW_CURSOR,
-      ANSI_ENABLE_AUTO_WRAP,
-      ANSI_EXIT_ALTERNATE_SCREEN,
+    expect(output.writes.slice(1)).toEqual([
+      ANSI_POP_KITTY_KEYBOARD_PROTOCOL +
+        ANSI_DISABLE_SGR_MOUSE_MODE +
+        ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING +
+        ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING +
+        ANSI_DISABLE_MOUSE_TRACKING +
+        ANSI_DISABLE_FOCUS_EVENTS +
+        ANSI_DISABLE_BRACKETED_PASTE +
+        ANSI_SHOW_CURSOR +
+        ANSI_ENABLE_AUTO_WRAP +
+        ANSI_EXIT_ALTERNATE_SCREEN,
     ]);
     expect(input.paused).toBe(1);
   });
@@ -4969,29 +5062,29 @@ describe('NativeTerminalSession', () => {
     session.start();
 
     expect(output.writes).toEqual([
-      ANSI_DISABLE_AUTO_WRAP,
-      ANSI_HIDE_CURSOR,
-      ANSI_ENABLE_BRACKETED_PASTE,
-      ANSI_ENABLE_FOCUS_EVENTS,
-      ANSI_ENABLE_MOUSE_TRACKING,
-      ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING,
-      ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING,
-      ANSI_ENABLE_SGR_MOUSE_MODE,
-      ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
+      ANSI_DISABLE_AUTO_WRAP +
+        ANSI_HIDE_CURSOR +
+        ANSI_ENABLE_BRACKETED_PASTE +
+        ANSI_ENABLE_FOCUS_EVENTS +
+        ANSI_ENABLE_MOUSE_TRACKING +
+        ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING +
+        ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING +
+        ANSI_ENABLE_SGR_MOUSE_MODE +
+        ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
     ]);
 
     session.stop();
 
-    expect(output.writes.slice(9)).toEqual([
-      ANSI_POP_KITTY_KEYBOARD_PROTOCOL,
-      ANSI_DISABLE_SGR_MOUSE_MODE,
-      ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING,
-      ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING,
-      ANSI_DISABLE_MOUSE_TRACKING,
-      ANSI_DISABLE_FOCUS_EVENTS,
-      ANSI_DISABLE_BRACKETED_PASTE,
-      ANSI_SHOW_CURSOR,
-      ANSI_ENABLE_AUTO_WRAP,
+    expect(output.writes.slice(1)).toEqual([
+      ANSI_POP_KITTY_KEYBOARD_PROTOCOL +
+        ANSI_DISABLE_SGR_MOUSE_MODE +
+        ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING +
+        ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING +
+        ANSI_DISABLE_MOUSE_TRACKING +
+        ANSI_DISABLE_FOCUS_EVENTS +
+        ANSI_DISABLE_BRACKETED_PASTE +
+        ANSI_SHOW_CURSOR +
+        ANSI_ENABLE_AUTO_WRAP,
     ]);
   });
 
@@ -5005,8 +5098,8 @@ describe('NativeTerminalSession', () => {
     session.start();
     session.stop();
 
-    expect(output.writes).not.toContain(ANSI_DISABLE_AUTO_WRAP);
-    expect(output.writes).not.toContain(ANSI_ENABLE_AUTO_WRAP);
+    expect(output.writes.join('')).not.toContain(ANSI_DISABLE_AUTO_WRAP);
+    expect(output.writes.join('')).not.toContain(ANSI_ENABLE_AUTO_WRAP);
   });
 
   it('forwards input and resize events while started, then detaches listeners', () => {

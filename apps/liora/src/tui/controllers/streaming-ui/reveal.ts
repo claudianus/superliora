@@ -3,6 +3,7 @@ import { shouldAnimate } from '../appearance/index';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
+  shouldRenderAmbientEffects,
   streamingRevealSnapByTransport,
 } from '../../features/appearance/appearance-effects';
 import {
@@ -69,7 +70,12 @@ export function shouldSmoothStreamReveal(isReplaying: boolean): boolean {
   // Unstable transports repaint on every write, so the per-tick type-on reads
   // as flicker. Snap to the full draft and let the governed frame show it.
   if (streamingRevealSnapByTransport()) return false;
-  return shouldAnimate(getActiveAppearancePreferences());
+  const appearance = getActiveAppearancePreferences();
+  // Peer transcript motion (streaming caret, entrance washes) rides the
+  // quality-adjusted gate, so type-on degrades with them rather than animating
+  // alone while the renderer is already behind. The text still arrives in full
+  // on the next governed frame — only the smoothing is dropped.
+  return shouldAnimate(appearance) && shouldRenderAmbientEffects(appearance);
 }
 
 export function resetRevealChannels(

@@ -285,7 +285,7 @@ export function buildTUIStateNativeFrame(
     }),
   );
   const regions: RendererFrameRegion[] = [...stackRegions];
-  const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
+  const appearance = getActiveAppearancePreferences();
   // Keep letterbox sky + frame chase alive while typing; only editor VFX skips.
   regions.push(
     ...createStageFrameOverlayRegions({

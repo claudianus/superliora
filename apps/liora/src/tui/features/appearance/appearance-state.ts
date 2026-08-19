@@ -26,8 +26,24 @@ export function premiumAmbientIntervalMs(animationFps: number): number {
   return Math.max(PREMIUM_AMBIENT_MIN_MS, Math.floor(1000 / Math.min(60, fps)));
 }
 
+/**
+ * The one time base every motion timestamp shares.
+ *
+ * The renderer's frame loop stamps `frame.timestamp` from `performance.now()`,
+ * so the shared animation clock counts milliseconds since process start — not
+ * Unix epoch. Any stamp taken with `Date.now()` and compared against
+ * `appearanceAnimationNow()` is off by ~1.8e12 ms, which silently pins every
+ * elapsed-based effect at 0 (see PREMIUM.md §7.1). Producers of motion
+ * timestamps must read this, never `Date.now()`.
+ */
+export function monotonicMotionNowMs(): number {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+}
+
 let activeAppearance: AppearancePreferences = DEFAULT_APPEARANCE_PREFERENCES;
-let animationClockMs = Date.now();
+let animationClockMs = monotonicMotionNowMs();
 let appearanceRenderQuality: RendererQualityLevel = 'full';
 let appearanceRenderHealth: NativeFrameStatsHealth = 'healthy';
 // Set from the render callback each frame. Defaults optimistic so POSIX and
@@ -42,7 +58,9 @@ export function getActiveAppearancePreferences(): AppearancePreferences {
   return activeAppearance;
 }
 
-export function advanceAppearanceAnimationClock(nowMs: number = Date.now()): void {
+export function advanceAppearanceAnimationClock(
+  nowMs: number = monotonicMotionNowMs(),
+): void {
   animationClockMs = nowMs;
 }
 
@@ -159,10 +177,11 @@ export function appearanceAnimationFrameIntervalMs(
   });
 }
 
+/** Alias of {@link shouldRenderAmbientEffects} for frame-policy call sites. */
 export function ambientAnimationActive(
   appearance: AppearancePreferences = activeAppearance,
 ): boolean {
-  return motionEffectsAllowed() && resolveQualityAdjustedAmbientEffectMode(appearance) !== 'off';
+  return shouldRenderAmbientEffects(appearance);
 }
 
 export function ambientAnimationRenderTick(
@@ -183,8 +202,44 @@ export function motionEffectsAllowed(): boolean {
   return !isRemoteSession();
 }
 
+/**
+ * Decorative motion gate: ambient particles, gradients, pulses, glows, settle
+ * flashes, entrance washes. Everything that is pure polish and must vanish when
+ * the user, the frame budget, or the transport says no.
+ */
 export function shouldRenderAmbientEffects(appearance: AppearancePreferences): boolean {
   return motionEffectsAllowed() && resolveQualityAdjustedAmbientEffectMode(appearance) !== 'off';
+}
+
+/**
+ * Functional motion gate: spinner frames, progress heads, and the other glyphs
+ * whose whole job is to prove the process is still alive. A frozen spinner
+ * reads as a hung agent, so these ignore the appearance profile, the quality
+ * budget, and the transport — everything {@link shouldRenderAmbientEffects}
+ * answers to.
+ *
+ * They also ignore the CI and SSH clauses of {@link motionEffectsAllowed}: a
+ * remote session is exactly where a live spinner earns its keep. Only output
+ * that cannot repaint a cell in place stops them, which leaves the plain-text
+ * sinks — `TERM=dumb` and `NO_COLOR` — where a rotating glyph would just append
+ * a new line per tick.
+ */
+export function progressMotionActive(): boolean {
+  if (process.env['TERM'] === 'dumb') return false;
+  const noColor = process.env['NO_COLOR'];
+  return noColor === undefined || noColor === '';
+}
+
+/**
+ * Frame index for a functional spinner on the shared clock. Returns 0 (the
+ * resting frame) when functional motion is off, so callers can index a frame
+ * table unconditionally.
+ */
+export function progressMotionFrame(intervalMs: number, frameCount: number): number {
+  if (frameCount <= 0) return 0;
+  if (!progressMotionActive()) return 0;
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) return 0;
+  return Math.floor(appearanceAnimationNow() / intervalMs) % frameCount;
 }
 
 function isRemoteSession(): boolean {

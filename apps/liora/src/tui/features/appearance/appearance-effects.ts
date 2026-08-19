@@ -4,6 +4,7 @@ export {
   premiumAmbientIntervalMs,
   setActiveAppearancePreferences,
   getActiveAppearancePreferences,
+  monotonicMotionNowMs,
   advanceAppearanceAnimationClock,
   appearanceAnimationNow,
   setAppearanceRenderQuality,
@@ -21,6 +22,8 @@ export {
   ambientAnimationRenderTick,
   motionEffectsAllowed,
   shouldRenderAmbientEffects,
+  progressMotionActive,
+  progressMotionFrame,
   motionProgress,
 } from '#/tui/features/appearance/appearance-state';
 

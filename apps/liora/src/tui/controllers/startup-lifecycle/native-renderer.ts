@@ -198,15 +198,19 @@ export function startStartupEventLoop(
       });
     },
   });
+  ensureStartupNativeInputRouter(host, callbacks);
+  attachStartupNativeRendererCallback(host);
   host.state.renderer.start();
   setKittyGraphicsChannel((sequence) => {
     host.state.terminal.write(sequence);
   });
   host.eventLoopStarted = true;
-  ensureStartupNativeInputRouter(host, callbacks);
-  attachStartupNativeRendererCallback(host);
   startStartupClipboardImageHintController(host);
-  host.terminalFocusTrackingDispose = installTerminalFocusTracking(host.state);
+  host.terminalFocusTrackingDispose = installTerminalFocusTracking(host.state, {
+    // Session startup already enables DEC 1004. A second write is its own
+    // ConPTY repaint on Windows Terminal.
+    writeEnable: host.state.renderer.nativeRuntime.session.features.focusEvents !== true,
+  });
   host.refreshTerminalThemeTracking();
 }
 
