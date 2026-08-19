@@ -1,5 +1,12 @@
 # @superliora/liora
 
+## 0.12.6
+
+### Patch Changes
+
+- Fix the TUI flickering as soon as it opens in Windows Terminal, and stop the host-setup sheet from reappearing after it has already run.
+- Put TUI animations on one clock so editor glow, worker dock linger, shell elapsed time, and footer pulses actually run.
+
 ## 0.12.5
 
 ### Patch Changes
