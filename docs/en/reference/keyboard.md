@@ -9,6 +9,7 @@ SuperLiora CLI's TUI interactive mode keeps a small main-prompt keymap and route
 | `Ctrl-K` | Open the Command Hub menu (`Ctrl-Space` also works) |
 | `Enter` | Submit the current input |
 | `Shift-Enter` / `Ctrl-J` | Insert a newline |
+| `Shift-Tab` | Switch Ask / Build mode |
 | `Esc` | Close a popup / cancel completion / interrupt streaming; press twice while idle for **session undo** |
 | `Ctrl-C` | Stop the current turn, or clear input / confirm exit when idle |
 
@@ -25,14 +26,13 @@ Pressing `Ctrl-C` **during streaming** cancels immediately — no second confirm
 | `Ctrl-F` | Search the transcript |
 | `Ctrl-X` | Stash or restore the draft prompt |
 | `Ctrl-G` | Edit the current input in an external editor |
-| `Shift-Tab` | Toggle Mission mode |
 | `↑` / `↓` | Browse input history (empty prompt) |
 | `PgUp` / `PgDn` | Scroll the transcript (empty prompt) |
 | `!` | Enter shell mode (empty prompt) |
 
 If a gated key cannot run (for example Hub while a turn is streaming, or `Ctrl-R` with a non-empty prompt), the TUI shows a short toast instead of doing nothing.
 
-Press `Shift-Tab` to enable or disable Mission mode. When enabled, the next normal prompt is routed through a read-only research prelude first, then Plan interview, a verifiable goal, Swarm decision, integration, verification, and learning. Plain prompts do not enter this workflow unless Mission mode is on or the prompt explicitly asks for Mission.
+Press `Shift-Tab` (or `/ask`) to switch Ask and Build. Ask mode reads, searches, and answers without editing or starting new jobs. Switch back to Build to delegate work. Plan mode is `/plan`, not Shift-Tab.
 
 Type `!` in an empty input box to enter shell mode and run terminal commands directly; while a command is running, press `Ctrl-B` to move it to a background task. See [Interaction and input](../guides/interaction.md#shell-mode).
 
@@ -100,4 +100,4 @@ After opening help with `/help` or the Command Hub shortcuts panel, use:
 ## Next steps
 
 - [Slash Commands](./slash-commands.md) — Quick reference for built-in TUI control commands
-- [`kimi` Command](./liora-command.md) — Complete reference for startup flags and subcommands
+- [`liora` Command](./liora-command.md) — Complete reference for startup flags and subcommands

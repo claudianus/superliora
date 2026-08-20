@@ -14,7 +14,7 @@ The CLI is written in TypeScript, distributed via npm, and runs on Node.js.
 
 ## Installation
 
-Two installation options are available: the official install script (recommended, no pre-installed Node.js required) and a global npm install.
+Install with the official script. It does not require a pre-installed Node.js.
 
 ::: tip Before you install
 SuperLiora CLI is a fully interactive TUI application. On macOS / Linux use a true-color terminal such as [Kitty](https://sw.kovidgoyal.net/kitty/) or [Ghostty](https://ghostty.org/). On Windows, use [Windows Terminal](https://aka.ms/terminal) — the classic `cmd.exe` / Windows PowerShell console host cannot render the TUI well.
@@ -40,7 +40,7 @@ irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | i
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"
 ```
 
-> SuperLiora uses Git Bash as its Windows shell. The install and `liora upgrade` flows download [Portable Git](https://gitforwindows.org/) into `~/.superliora/runtime/git` when Git Bash is missing (user-local, no admin). If Git Bash is already installed in a custom location, set `LIORA_SHELL_PATH` (legacy: `KIMI_SHELL_PATH`) to the absolute path of `bash.exe`. Pass `--no-git` to skip the bootstrap.
+> SuperLiora uses Git Bash as its Windows shell. The install and `liora upgrade` flows download [Portable Git](https://gitforwindows.org/) into `~/.superliora/runtime/git` when Git Bash is missing (user-local, no admin). If Git Bash is already installed in a custom location, set `LIORA_SHELL_PATH` to the absolute path of `bash.exe`. Pass `--no-git` to skip the bootstrap.
 >
 > The installer prints a host-setup plan, then applies it: Nerd Font, Oh My Posh (Neon Noir), zoxide, fzf, and a managed shell profile. On Windows it also bootstraps `winget` when missing, installs Windows Terminal, writes a SuperLiora fragment, and adds Start Menu and Desktop shortcuts that open Windows Terminal and start `liora`. On macOS and Linux it writes a Desktop launcher that opens a terminal and starts `liora`. Failures never block the CLI. Pass `--no-host-setup` / `SUPERLIORA_NO_HOST_SETUP=1` to skip the whole sidecar, or `--no-terminal` / `SUPERLIORA_NO_TERMINAL=1` to skip Windows Terminal only. In the TUI, `/host-setup` (aliases `/windows-setup`, `/macos-setup`, `/linux-setup`) shows the same list and asks before applying. Startup prompts when pieces are missing; it does not apply silently.
 
@@ -98,18 +98,13 @@ To resume the previous session, add `-c`:
 liora -c
 ```
 
-On first launch you need to configure an API source. In the interactive UI, enter `/login` to begin the login flow:
+On first launch you need to connect a model. In the interactive UI, enter `/login`:
 
 ```
 /login
 ```
 
-`/login` opens a platform selector supporting two options:
-
-- **SuperLiora (OAuth)** — device-code flow; open the link on any device, sign in, and enter the code to authorize
-- **Kimi Platform API key** — enter an API key from `platform.kimi.com` or `platform.kimi.ai`
-
-To sign out, enter `/logout` to clear the current credentials.
+`/login` connects OAuth, a catalog provider, or a custom endpoint. To sign out, enter `/logout` to clear the current credentials.
 
 ::: tip Using other AI providers
 If you want to connect Anthropic, OpenAI, Google, or other providers, use `/login` in the TUI or `liora provider catalog add` / `liora provider custom add` from the shell. For teams with multiple accounts or API keys, `liora provider key add`, `liora provider oauth add`, and `liora provider route auto` can create quota-aware fallback routes without exposing secrets. See [Providers and models](../configuration/providers.md) for details.
@@ -157,7 +152,7 @@ For a first-time user, the following is all you need to know:
 | --- | --- |
 | `Esc` | Interrupt streaming output / close a popup |
 | `Ctrl-C` | Interrupt output; press twice while idle to exit |
-| `Shift-Tab` | Toggle Mission mode |
+| `Shift-Tab` | Switch Ask / Build mode |
 | `Ctrl-S` | Inject a message mid-stream without waiting for the current response to finish |
 | `Ctrl-O` | Collapse / expand tool output |
 

@@ -4,7 +4,7 @@ This page collects typical SuperLiora CLI scenarios along with ready-to-use prom
 
 ## Understanding an unfamiliar project
 
-When taking over an unfamiliar repository, a good first step is to use `kimi --plan` for a read-only research plan. In the TUI, press `Shift-Tab` only when you want Mission mode to interview first, set a verifiable goal, and carry the work through verification.
+When taking over an unfamiliar repository, a good first step is `liora --plan` for a read-only research plan. In the TUI, press `Shift-Tab` for Ask mode (answers only, no new jobs), or `/plan` to write a plan before edits.
 
 ```
 Give me an overview of this repository's architecture. Specifically:
@@ -121,7 +121,7 @@ Check the production health endpoint every hour and let me know if anything look
 Come back in about 10 minutes and check whether the build has finished.
 ```
 
-Scheduled tasks are bound to their session — closing the terminal is fine, and they are reloaded and continue firing when you run `kimi resume` on the same session. They are not carried into brand-new sessions. Recurring tasks expire after 7 days — the agent receives a `stale` signal on the final trigger and decides whether to stop or renew based on your original instructions.
+Scheduled tasks are bound to their session — closing the terminal is fine, and they are reloaded and continue firing when you run `liora --continue` on the same session. They are not carried into brand-new sessions. Recurring tasks expire after 7 days — the agent receives a `stale` signal on the final trigger and decides whether to stop or renew based on your original instructions.
 
 To see what tasks are currently pending, just ask the agent (it calls the read-only `CronList` tool). To cancel a task, tell the agent to remove it or reference its 8-character ID. For the full tool reference, see [Scheduled tasks](../reference/tools.md#scheduled-tasks). The global kill switch is `KIMI_DISABLE_CRON=1`.
 
