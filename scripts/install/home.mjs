@@ -283,7 +283,7 @@ export async function planAndApplyInstallHome(options = {}) {
   process.env.SUPERLIORA_HOME = plan.home;
   if (plan.relocated) {
     writeHomeRedirect(plan.home, osHome);
-    if (options.noShellRc !== true && platform === 'win32') {
+    if (options.noShellRc !== true && platform === 'win32' && process.env.VITEST !== 'true') {
       try {
         writeUserEnvWin(plan.home, { envName: 'SUPERLIORA_HOME' });
       } catch {

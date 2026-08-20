@@ -442,6 +442,7 @@ describe('CLI options parsing', () => {
         'server',
         'login',
         'doctor',
+        'gc',
         'worktree',
         'upgrade',
         'update',

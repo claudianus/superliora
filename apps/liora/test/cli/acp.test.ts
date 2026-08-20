@@ -7,6 +7,10 @@
  * actually take over stdio).
  */
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -95,7 +99,12 @@ describe('liora acp', () => {
 
   it('omits terminalAuthEnv when SUPERLIORA_HOME is unset', async () => {
     const previous = process.env['SUPERLIORA_HOME'];
+    const previousProfile = process.env['USERPROFILE'];
+    const previousHome = process.env['HOME'];
+    const isolatedHome = mkdtempSync(join(tmpdir(), 'liora-acp-home-'));
     delete process.env['SUPERLIORA_HOME'];
+    process.env['USERPROFILE'] = isolatedHome;
+    process.env['HOME'] = isolatedHome;
     try {
       const program = new Command('kimi').exitOverride();
       registerAcpCommand(program);
@@ -107,9 +116,22 @@ describe('liora acp', () => {
       };
       expect(optsArg.terminalAuthEnv).toBeUndefined();
     } finally {
-      if (previous !== undefined) {
+      if (previous === undefined) {
+        delete process.env['SUPERLIORA_HOME'];
+      } else {
         process.env['SUPERLIORA_HOME'] = previous;
       }
+      if (previousProfile === undefined) {
+        delete process.env['USERPROFILE'];
+      } else {
+        process.env['USERPROFILE'] = previousProfile;
+      }
+      if (previousHome === undefined) {
+        delete process.env['HOME'];
+      } else {
+        process.env['HOME'] = previousHome;
+      }
+      rmSync(isolatedHome, { recursive: true, force: true });
     }
   });
 

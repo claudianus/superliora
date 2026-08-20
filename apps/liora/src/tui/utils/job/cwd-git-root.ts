@@ -3,7 +3,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { ttui } from '#/tui/utils/tui-i18n';
 
@@ -35,11 +35,9 @@ export function detectCwdBelowGitRoot(
   const resolvedCwd = resolve(cwd);
   const resolvedRoot = resolve(root);
   if (resolvedCwd === resolvedRoot) return undefined;
-  // cwd must be under root (nested open), not a sibling path.
-  const prefix = resolvedRoot.endsWith('/') ? resolvedRoot : `${resolvedRoot}/`;
-  if (!resolvedCwd.startsWith(prefix) && resolvedCwd !== resolvedRoot) {
-    // Still surface when git reports a different toplevel (submodule / weird mounts).
-    if (!resolvedCwd.startsWith(resolvedRoot)) return undefined;
+  const rel = relative(resolvedRoot, resolvedCwd);
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel) || rel.split(sep).includes('..')) {
+    return undefined;
   }
   return { cwd: resolvedCwd, gitRoot: resolvedRoot };
 }

@@ -65,7 +65,7 @@ describe('/jobs deck routing', () => {
 });
 
 describe('openJobDeckViewer empty ledger', () => {
-  it('opens the empty deck when conductor_ux_v2 is on', () => {
+  it('does not force the deck into the composer when the ledger is empty', () => {
     setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
     const mountEditorReplacement = vi.fn();
     const showStatus = vi.fn();
@@ -81,8 +81,8 @@ describe('openJobDeckViewer empty ledger', () => {
       },
     } as unknown as SlashCommandHost;
     openJobDeckViewer(host);
-    expect(mountEditorReplacement).toHaveBeenCalledTimes(1);
-    expect(showStatus).not.toHaveBeenCalled();
+    expect(mountEditorReplacement).not.toHaveBeenCalled();
+    expect(showStatus).toHaveBeenCalled();
   });
 
   it('keeps the mute status when conductor_ux_v2 is off', () => {

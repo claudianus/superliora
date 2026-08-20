@@ -157,8 +157,8 @@ export function renderSuperLioraFragment(options = {}) {
     guid: SUPERLIORA_WT_PROFILE_GUID,
     name: SUPERLIORA_WT_PROFILE_NAME,
     ...chrome,
+    ...(commandline ? { commandline } : {}),
   };
-  if (commandline) profile.commandline = commandline;
   const shell = {
     guid: SUPERLIORA_SHELL_PROFILE_GUID,
     name: SUPERLIORA_SHELL_PROFILE_NAME,

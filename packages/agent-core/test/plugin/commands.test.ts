@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { expandCommandArguments, parseCommandText } from '../../src/plugin/commands';
@@ -15,7 +17,7 @@ describe('parseCommandText', () => {
       name: 'deploy',
       description: 'Deploy to production',
       body: 'Deploy this. Args: $ARGUMENTS',
-      path: '/p/commands/deploy.md',
+      path: path.resolve('/p/commands/deploy.md'),
     });
   });
 

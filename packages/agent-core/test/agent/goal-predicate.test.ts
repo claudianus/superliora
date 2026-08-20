@@ -1,3 +1,6 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
@@ -119,8 +122,8 @@ describe('parseGoalPredicateCriterion', () => {
 
 describe('evaluateGoalPredicate', () => {
   it('fails missing required paths and passes when injected exists', async () => {
-    const root = '/tmp/goal-predicate-ws';
-    const existing = new Set([`${root}/ok.ts`]);
+    const root = join(tmpdir(), 'goal-predicate-ws');
+    const existing = new Set([join(root, 'ok.ts')]);
     const fail = await evaluateGoalPredicate({
       spec: { version: 1, requiredPaths: ['missing.ts'] },
       workspaceRoot: root,

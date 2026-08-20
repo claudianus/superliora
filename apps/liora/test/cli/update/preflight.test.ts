@@ -549,19 +549,25 @@ describe('runUpdatePreflight', () => {
     mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.detectInstallSource.mockResolvedValue('homebrew');
-    const { options } = captureOutput();
-    const result = await runUpdatePreflight('0.4.0', options);
-    expect(result).toEqual(
-      expect.objectContaining({
-        action: 'continue',
-        updateNotice: expect.objectContaining({
-          // No Homebrew formula yet — homebrew source maps to the native installer.
-          installCommand: expect.stringMatching(/install\.sh.*--version 0\.5\.0/),
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'darwin' });
+    try {
+      const { options } = captureOutput();
+      const result = await runUpdatePreflight('0.4.0', options);
+      expect(result).toEqual(
+        expect.objectContaining({
+          action: 'continue',
+          updateNotice: expect.objectContaining({
+            // No Homebrew formula yet — homebrew source maps to the native installer.
+            installCommand: expect.stringMatching(/install\.sh.*--version 0\.5\.0/),
+          }),
         }),
-      }),
-    );
-    expect(promptForInstallChoice).not.toHaveBeenCalled();
-    expect(mocks.spawn).not.toHaveBeenCalled();
+      );
+      expect(promptForInstallChoice).not.toHaveBeenCalled();
+      expect(mocks.spawn).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
   });
 
   it('native on darwin: spawns bash -c with pipefail-guarded curl|bash', async () => {
@@ -624,6 +630,9 @@ describe('runUpdatePreflight', () => {
       target: { version: 'origin/main@abcdef123456', repoRoot: '/repo/superliora', upstream: 'origin/main' },
     });
     mockSpawnExit(0);
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    try {
     const { options } = captureOutput();
 
     await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
@@ -651,6 +660,9 @@ describe('runUpdatePreflight', () => {
         notifiedAt: null,
       }),
     }));
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
   });
 
   it('github-checkout: rebuilds when HEAD is current but lastFailure matches that HEAD', async () => {
@@ -678,6 +690,9 @@ describe('runUpdatePreflight', () => {
       upstream: 'origin/main',
     });
     mockSpawnExit(0);
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    try {
     const { options } = captureOutput();
 
     await expectPreflightContinue(runUpdatePreflight('0.20.1', options));
@@ -693,6 +708,9 @@ describe('runUpdatePreflight', () => {
         source: 'github-checkout',
       }),
     }));
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
   });
 
   it('github-checkout: prompts for foreground install when auto install is disabled', async () => {
@@ -706,27 +724,33 @@ describe('runUpdatePreflight', () => {
     });
     mocks.promptForInstallChoice.mockResolvedValue('install');
     mockSpawnExit(0);
-    const { stdout, options } = captureOutput();
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    try {
+      const { stdout, options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('exit');
+      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('exit');
 
-    expect(mocks.promptForInstallChoice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        installCommand: expect.stringContaining('git -C'),
-        installSource: 'github-checkout',
-        target: {
-          version: 'origin/main@abcdef123456',
-          repoRoot: '/repo/superliora',
-          upstream: 'origin/main',
-        },
-      }),
-    );
-    expect(mocks.spawn).toHaveBeenCalledWith(
-      'bash',
-      ['-lc', expect.stringContaining('git -C')],
-      { stdio: 'inherit' },
-    );
-    expect(stdout.join('')).toContain('Updated SuperLiora from GitHub');
+      expect(mocks.promptForInstallChoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          installCommand: expect.stringContaining('git -C'),
+          installSource: 'github-checkout',
+          target: {
+            version: 'origin/main@abcdef123456',
+            repoRoot: '/repo/superliora',
+            upstream: 'origin/main',
+          },
+        }),
+      );
+      expect(mocks.spawn).toHaveBeenCalledWith(
+        'bash',
+        ['-lc', expect.stringContaining('git -C')],
+        { stdio: 'inherit' },
+      );
+      expect(stdout.join('')).toContain('Updated SuperLiora from GitHub');
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
   });
 
   it('github-checkout: prints the manual update command on win32 without Git Bash', async () => {

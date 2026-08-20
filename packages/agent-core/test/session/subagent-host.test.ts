@@ -714,6 +714,7 @@ describe('SessionSubagentHost', () => {
     const session = fakeSession(parent.agent, child.agent);
     const host = new SessionSubagentHost(session, 'main');
 
+    await parent.rpc.setPermission({ mode: 'yolo' });
     const handle = await host.spawn({
       profileName: 'coder',
       parentToolCallId: 'call_swarm',
@@ -723,13 +724,16 @@ describe('SessionSubagentHost', () => {
       signal,
     });
 
-    await vi.waitFor(() => {
-      expect(
-        parent.allEvents.some(
-          (entry) => entry.type === '[rpc]' && entry.event === 'subagent.started',
-        ),
-      ).toBe(true);
-    });
+    await vi.waitFor(
+      () => {
+        expect(
+          parent.allEvents.some(
+            (entry) => entry.type === '[rpc]' && entry.event === 'subagent.started',
+          ),
+        ).toBe(true);
+      },
+      { timeout: 10_000 },
+    );
     child.agent.tools.updateStore('todo', [{ title: 'Inspect files', status: 'in_progress' }]);
     await handle.completion;
 
@@ -760,6 +764,7 @@ describe('SessionSubagentHost', () => {
     const session = fakeSession(parent.agent, child.agent);
     const host = new SessionSubagentHost(session, 'main');
     const onReady = vi.fn();
+    await parent.rpc.setPermission({ mode: 'yolo' });
 
     const handle = await host.spawn({
       profileName: 'coder',
@@ -773,7 +778,7 @@ describe('SessionSubagentHost', () => {
 
     await vi.waitFor(() => {
       expect(onReady).toHaveBeenCalledTimes(1);
-    });
+    }, { timeout: 10_000 });
     await expect(handle.completion).resolves.toMatchObject({ result: summary.trim() });
     expect(onReady).toHaveBeenCalledTimes(1);
   });

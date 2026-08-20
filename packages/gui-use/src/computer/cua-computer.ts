@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type SpawnSyncOptions, type SpawnSyncReturns } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -451,11 +451,31 @@ type DriverStatus =
       readonly error: string;
     };
 
-function checkDriver(driverCmd: string): DriverStatus {
-  const version = spawnSync(driverCmd, ['--version'], {
+function driverSpawnOpts(extra: SpawnSyncOptions): SpawnSyncOptions {
+  return {
     encoding: 'utf8',
-    timeout: 5000,
-  });
+    windowsHide: true,
+    ...extra,
+  };
+}
+
+function spawnDriver(
+  driverCmd: string,
+  args: readonly string[],
+  extra: SpawnSyncOptions,
+): SpawnSyncReturns<string> {
+  const opts = { ...driverSpawnOpts(extra), encoding: 'utf8' as const };
+  if (process.platform === 'win32') {
+    return spawnSync(process.env['ComSpec'] ?? 'cmd.exe', ['/d', '/s', '/c', driverCmd, ...args], {
+      ...opts,
+      windowsVerbatimArguments: true,
+    });
+  }
+  return spawnSync(driverCmd, args, opts);
+}
+
+function checkDriver(driverCmd: string): DriverStatus {
+  const version = spawnDriver(driverCmd, ['--version'], { timeout: 5000 });
   if (version.error !== undefined) {
     return { ok: false, error: version.error.message };
   }
@@ -470,8 +490,7 @@ function checkDriver(driverCmd: string): DriverStatus {
 
 function resolveMcpInvocation(driverCmd: string): { readonly command: string; readonly args: readonly string[] } {
   const fallback = { command: driverCmd, args: ['mcp'] };
-  const result = spawnSync(driverCmd, ['manifest'], {
-    encoding: 'utf8',
+  const result = spawnDriver(driverCmd, ['manifest'], {
     timeout: 6000,
     stdio: ['ignore', 'pipe', 'pipe'],
   });

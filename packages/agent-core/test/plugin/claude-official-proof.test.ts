@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { access, constants, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -31,6 +32,24 @@ async function makeHome(): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), 'claude-official-proof-'));
   tempDirs.push(dir);
   return dir;
+}
+
+/** POSIX `bash`, or Git Bash on Windows. Live .sh hook proof needs a real shell. */
+function resolveBashExecutable(): string | undefined {
+  if (process.platform !== 'win32') return 'bash';
+  const localAppData = process.env['LOCALAPPDATA']?.trim();
+  const candidates = [
+    process.env['LIORA_SHELL_PATH'],
+    process.env['KIMI_SHELL_PATH'],
+    'C:\\Program Files\\Git\\bin\\bash.exe',
+    'C:\\Program Files\\Git\\usr\\bin\\bash.exe',
+    'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
+    'C:\\Program Files (x86)\\Git\\usr\\bin\\bash.exe',
+    localAppData !== undefined && localAppData.length > 0
+      ? path.join(localAppData, 'Programs', 'Git', 'bin', 'bash.exe')
+      : undefined,
+  ];
+  return candidates.find((candidate) => candidate !== undefined && existsSync(candidate));
 }
 
 describe('Claude official plugin proof (anthropics/claude-plugins-official)', () => {
@@ -112,13 +131,17 @@ describe('Claude official plugin proof (anthropics/claude-plugins-official)', ()
     expect(Array.isArray(matched)).toBe(true);
   });
 
-  it('runs security-guidance wrapper once with synthetic PostToolUse JSON (live)', async () => {
+  it.skipIf(resolveBashExecutable() === undefined)(
+    'runs security-guidance wrapper once with synthetic PostToolUse JSON (live)',
+    async () => {
     const parsed = await parseManifest(path.join(OFFICIAL, 'security-guidance'));
     expect(parsed.manifest).toBeDefined();
     const root = path.join(OFFICIAL, 'security-guidance');
     const wrapper = path.join(root, 'hooks', 'sg-python.sh');
     const hookPy = path.join(root, 'hooks', 'security_reminder_hook.py');
     await access(wrapper, constants.R_OK);
+    const bash = resolveBashExecutable();
+    expect(bash).toBeDefined();
 
     const input = JSON.stringify({
       hook_event_name: 'PostToolUse',
@@ -128,7 +151,7 @@ describe('Claude official plugin proof (anthropics/claude-plugins-official)', ()
     });
 
     const result = await runCommand(
-      'bash',
+      bash!,
       [wrapper, hookPy],
       {
         cwd: root,

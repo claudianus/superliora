@@ -141,7 +141,7 @@ describe('memory readiness slash command builders', () => {
 
       const evidence = loadMemoryReadinessEvidence(workDir);
 
-      expect(seed.root).toContain('.superliora/evidence/');
+      expect(seed.root.replaceAll('\\', '/')).toContain('.superliora/evidence/');
       expect(evidence.llmWiki.ready).toBe(true);
       expect(evidence.knowledgeMap.ready).toBe(true);
       expect(evidence.browserUse.ready).toBe(false);
@@ -150,7 +150,7 @@ describe('memory readiness slash command builders', () => {
       expect(evidence.knowledgeMap.verified).toBe(false);
       expect(evidence.llmWiki.tier).toBe('seed');
       expect(evidence.knowledgeMap.tier).toBe('seed');
-      expect(evidence.llmWiki.sourcePath).toContain('.superliora/wiki/index.md');
+      expect(evidence.llmWiki.sourcePath?.replaceAll('\\', '/')).toContain('.superliora/wiki/index.md');
       expect(evidence.knowledgeMap.sourcePath).toContain('liora-knowledge-map.json');
     } finally {
       rmSync(workDir, { recursive: true, force: true });
@@ -167,7 +167,7 @@ describe('memory readiness slash command builders', () => {
 
       expect(seed.wikiIndexPath).toBe('.superliora/wiki/index.md');
       expect(evidence.llmWiki.ready).toBe(true);
-      expect(evidence.llmWiki.sourcePath).toContain('.superliora/wiki/index.md');
+      expect(evidence.llmWiki.sourcePath?.replaceAll('\\', '/')).toContain('.superliora/wiki/index.md');
       expect(evidence.knowledgeMap.ready).toBe(false);
       expect(evidence.warnings.join('\n')).not.toContain('Malformed');
     } finally {
@@ -192,7 +192,7 @@ describe('memory readiness slash command builders', () => {
       );
       expect(host.showNotice).toHaveBeenCalledWith(
         'LLM Wiki',
-        expect.stringContaining('.superliora/wiki/index.md'),
+        expect.stringMatching(/\.superliora[/\\]wiki[/\\]index\.md/),
       );
     } finally {
       rmSync(workDir, { recursive: true, force: true });

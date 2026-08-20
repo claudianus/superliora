@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { isAbsolute, join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
-import { join } from 'pathe';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -71,7 +71,9 @@ describe('subagent checkpoint store', () => {
     writeSubagentCheckpoint('../escape', { toolCount: 1, tokens: 1, elapsedMs: 1 }, home);
     const path = subagentCheckpointPath('../escape', home);
     expect(path).not.toContain('..');
-    expect(path.startsWith(join(home, 'subagent-checkpoints'))).toBe(true);
+    const root = join(home, 'subagent-checkpoints');
+    const rel = relative(root, path);
+    expect(rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))).toBe(true);
     expect(readSubagentCheckpoint('../escape', home)).toBeDefined();
     clearSubagentCheckpoint('../escape', home);
     expect(readSubagentCheckpoint('../escape', home)).toBeUndefined();

@@ -31,6 +31,8 @@ function makeKaos(
       shellName: 'bash',
       shellPath: options.shellPath ?? RUNTIME_BASH,
     },
+    pathClass: () => (options.osKind === 'Darwin' || options.osKind === 'Linux' ? 'posix' : 'win32'),
+    gethome: () => '/home/user',
     readText: vi.fn(async (path: string) => {
       const hit = files[path];
       if (hit === undefined) throw new Error(`ENOENT: ${path}`);
@@ -64,6 +66,7 @@ function makeAgent(
   return {
     type: options.type ?? 'main',
     config: { cwd: '/work' },
+    getAdditionalDirs: () => [],
     tools: {
       loopTools: (options.toolNames ?? ['Write']).map((name) => ({ name })),
       getStore: () => ({
@@ -124,7 +127,7 @@ describe('ScriptTool', () => {
 
   it('reads and writes files through kaos with cwd-relative paths', async () => {
     const files = { '/work/a.txt': 'alpha', '/work/b.txt': 'beta' };
-    const kaos = makeKaos(files);
+    const kaos = makeKaos(files, { osKind: 'Linux' });
     const tool = new ScriptTool(makeAgent(), kaos);
 
     const result = await runScript(

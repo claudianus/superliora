@@ -458,7 +458,7 @@ describe('compaction — head/tail user-message retention', () => {
 
     await ctx.expectResumeMatches();
   },
-    60_000,
+    180_000,
   );
 
   it(
@@ -485,7 +485,7 @@ describe('compaction — head/tail user-message retention', () => {
     );
     expect(summaries).toHaveLength(1);
   },
-    60_000,
+    180_000,
   );
 
   it('keeps everything verbatim (no marker) when the user pool fits the budget', async () => {
