@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   buildToolResultPreview,
   budgetToolResultForModel,
+  MAX_TOOL_RESULT_SPILL_FILES,
+  pruneToolResultSpills,
   TOOL_RESULT_MAX_CHARS,
 } from '../../../src/agent/turn/tool-result-budget';
 import type { ExecutableToolResult } from '../../../src/loop';
@@ -129,5 +131,29 @@ describe('turn/tool-result-budget — budgetToolResultForModel', () => {
     const path = /^output_path: (.+)$/m.exec(body)?.[1];
     expect(path).toBeDefined();
     expect(await readFile(path as string, 'utf8')).toBe(big);
+  });
+});
+
+describe('turn/tool-result-budget — pruneToolResultSpills', () => {
+  it('drops oldest spill files past the file cap and leaves cleared receipts alone', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tool-spill-prune-'));
+    try {
+      await mkdir(dir, { recursive: true });
+      for (let i = 0; i < MAX_TOOL_RESULT_SPILL_FILES + 3; i++) {
+        const path = join(dir, `spill-${String(i).padStart(3, '0')}.txt`);
+        await writeFile(path, `body-${String(i)}`, 'utf8');
+        const at = new Date(1_700_000_000_000 + i * 1000);
+        await utimes(path, at, at);
+      }
+      await writeFile(join(dir, 'cleared-keep.txt'), 'cleared', 'utf8');
+      await pruneToolResultSpills(dir);
+      const names = (await readdir(dir)).toSorted();
+      expect(names).toContain('cleared-keep.txt');
+      expect(names.filter((name) => name.startsWith('spill-'))).toHaveLength(MAX_TOOL_RESULT_SPILL_FILES);
+      expect(names).toContain(`spill-${String(MAX_TOOL_RESULT_SPILL_FILES + 2).padStart(3, '0')}.txt`);
+      expect(names).not.toContain('spill-000.txt');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

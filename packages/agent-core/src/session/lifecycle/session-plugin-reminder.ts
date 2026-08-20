@@ -5,18 +5,16 @@
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { renderPluginSessionStartReminder } from '../../agent/injection/plugin-session-start';
 import type { Agent } from '../../agent';
-import { DEFAULT_INIT_PROMPT, loadAgentsMd } from '../../profile';
+import { DEFAULT_INIT_PROMPT, prepareSystemPromptContext } from '../../profile';
 
 export function initCompletionReminder(agentsMd: string): string {
-  const latest =
-    agentsMd.trim().length === 0
-      ? 'No AGENTS.md content was found after `/init` completed.'
-      : agentsMd;
+  const found = agentsMd.trim().length > 0;
   return [
     'The user ran `/init`. The codebase was analyzed and `AGENTS.md` was generated.',
     '',
-    'Latest AGENTS.md file content:',
-    latest,
+    found
+      ? 'Latest AGENTS.md is on disk and now in the system prompt. Read AGENTS.md if you need the full file; this reminder does not repeat it.'
+      : 'No AGENTS.md content was found after `/init` completed.',
   ].join('\n');
 }
 
@@ -70,8 +68,11 @@ export async function runGenerateAgentsMd(
     });
     await handle.completion;
 
-    const agentsMd = await loadAgentsMd(mainAgent.kaos, kimiHomeDir);
-    mainAgent.context.appendSystemReminder(initCompletionReminder(agentsMd), {
+    const prepared = await prepareSystemPromptContext(mainAgent.kaos, kimiHomeDir, {
+      additionalDirs: mainAgent.getAdditionalDirs(),
+    });
+    mainAgent.refreshSystemPromptContext(prepared);
+    mainAgent.context.appendSystemReminder(initCompletionReminder(prepared.agentsMd ?? ''), {
       kind: 'injection',
       variant: 'init',
     });

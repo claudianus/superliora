@@ -8,7 +8,7 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 
 import type { ContentPart } from '@superliora/kosong';
 import { join } from 'pathe';
@@ -25,6 +25,10 @@ const TOOL_OUTPUT_SUMMARY1_LIMIT = 120;
 const PREVIEW_HEAD_CHARS = 2_400;
 /** Characters kept from the end of a spilled result in the model-visible body. */
 const PREVIEW_TAIL_CHARS = 800;
+/** Max spilled (non-cleared) tool-result files kept under `<homedir>/tool-results`. */
+export const MAX_TOOL_RESULT_SPILL_FILES = 64;
+/** Max total bytes of spilled (non-cleared) tool-result files. Newest file is always kept. */
+const MAX_TOOL_RESULT_SPILL_BYTES = 64 * 1024 * 1024;
 
 interface BudgetToolResultOptions {
   readonly homedir?: string;
@@ -99,9 +103,48 @@ async function saveToolResult(
       `${safeToolResultFileStem(options.toolName, options.toolCallId)}-${randomUUID()}.txt`,
     );
     await writeFile(outputPath, text, { encoding: 'utf8', flag: 'wx' });
+    await pruneToolResultSpills(dir);
     return outputPath;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * LRU + byte-budget prune for spilled tool-result files. `cleared-*` receipts
+ * have their own cap in micro-compaction; skip them here.
+ */
+export async function pruneToolResultSpills(dir: string): Promise<void> {
+  try {
+    const names = await readdir(dir);
+    const entries: Array<{ name: string; mtimeMs: number; size: number }> = [];
+    for (const name of names) {
+      if (name.startsWith('cleared-')) continue;
+      try {
+        const info = await stat(join(dir, name));
+        if (!info.isFile()) continue;
+        entries.push({ name, mtimeMs: info.mtimeMs, size: info.size });
+      } catch {
+        // Skip entries that disappear mid-scan.
+      }
+    }
+    entries.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    let bytes = 0;
+    const drop: string[] = [];
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (entry === undefined) continue;
+      const overCount = i >= MAX_TOOL_RESULT_SPILL_FILES;
+      const overBytes = i > 0 && bytes + entry.size > MAX_TOOL_RESULT_SPILL_BYTES;
+      if (overCount || overBytes) {
+        drop.push(entry.name);
+        continue;
+      }
+      bytes += entry.size;
+    }
+    await Promise.all(drop.map((name) => rm(join(dir, name), { force: true })));
+  } catch {
+    // Pruning is best-effort; never let it break tool-result spill.
   }
 }
 
