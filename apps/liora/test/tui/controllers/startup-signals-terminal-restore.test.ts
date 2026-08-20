@@ -4,6 +4,7 @@ import { NativeTerminalSession } from '../../../src/tui/renderer';
 import {
   emergencyStartupTerminalExit,
   registerStartupSignalHandlers,
+  shouldSwallowUncaught,
   unregisterStartupSignalHandlers,
 } from '../../../src/tui/controllers/startup-lifecycle/signals';
 import type { StartupLifecycleHost } from '../../../src/tui/controllers/startup-lifecycle/types';
@@ -12,7 +13,7 @@ function makeHost(): StartupLifecycleHost {
   return {
     signalCleanupHandlers: [],
     isShuttingDown: false,
-    harness: { emergencyFlushSync: vi.fn() },
+    harness: { emergencyFlushSync: vi.fn(), broadcastRuntimeDegraded: vi.fn() },
   } as unknown as StartupLifecycleHost;
 }
 
@@ -87,6 +88,38 @@ describe('startup signal terminal restore', () => {
       expect(() => crashHandler?.(boom, 'uncaughtException')).toThrow('boom');
       expect(restore).toHaveBeenCalledWith(process.stdout, process.stdin);
       expect(host.isShuttingDown).toBe(true);
+    } finally {
+      unregisterStartupSignalHandlers(host);
+    }
+  });
+
+  it('swallows disk-full uncaught errors without restoring or exiting', () => {
+    expect(shouldSwallowUncaught(Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' }))).toBe(
+      true,
+    );
+    expect(shouldSwallowUncaught(new Error('SQLITE_FULL: database or disk is full'))).toBe(true);
+    expect(shouldSwallowUncaught(new Error('boom'))).toBe(false);
+
+    const host = makeHost();
+    const restore = vi
+      .spyOn(NativeTerminalSession, 'writeRestoreSequencesSync')
+      .mockImplementation(() => {});
+
+    registerStartupSignalHandlers(host, {
+      emergencyTerminalExit: (() => {
+        throw new Error('unused');
+      }) as never,
+      stop: async () => {},
+    });
+
+    try {
+      const full = Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' });
+      const handlers = process.listeners('uncaughtException');
+      const crashHandler = handlers.at(-1);
+      expect(crashHandler).toBeDefined();
+      expect(() => crashHandler?.(full, 'uncaughtException')).not.toThrow();
+      expect(restore).not.toHaveBeenCalled();
+      expect(host.isShuttingDown).toBe(false);
     } finally {
       unregisterStartupSignalHandlers(host);
     }

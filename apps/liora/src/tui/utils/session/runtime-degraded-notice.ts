@@ -21,6 +21,7 @@ const SCOPE_LABEL_KEY: Record<string, string> = {
   mcp: 'tui.notice.runtimeDegraded.scope.mcp',
   permission: 'tui.notice.runtimeDegraded.scope.permission',
   network: 'tui.notice.runtimeDegraded.scope.network',
+  storage: 'tui.notice.runtimeDegraded.scope.storage',
   other: 'tui.notice.runtimeDegraded.scope.other',
 };
 

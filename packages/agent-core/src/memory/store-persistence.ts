@@ -25,6 +25,7 @@ import {
 import { dirname, join } from 'pathe';
 
 import { log } from '../logging/logger';
+import { isDiskFullError, reportDiskPressure } from '#/runtime/disk-pressure';
 import {
   memoryRecordFileStem,
   readMarkdownRecord,
@@ -34,6 +35,7 @@ import {
   corruptionErrorMessage,
   isCountRow,
   isDatabaseCorruptionError,
+  isDatabaseFullError,
   isMemoryRow,
   openDatabase,
   rowToMemory,
@@ -120,6 +122,7 @@ export class MemoryPersistence {
       if (problem === undefined) return db;
       this.quarantineCorruptDatabase(db, problem);
     } catch (error) {
+      if (isDatabaseFullError(error)) throw error;
       if (!isDatabaseCorruptionError(error)) throw error;
       this.quarantineCorruptDatabase(undefined, corruptionErrorMessage(error));
     }
@@ -354,6 +357,17 @@ export class MemoryPersistence {
   }
 
   upsertRecord(record: MemoryRecord): void {
+    try {
+      this.upsertRecordInner(record);
+    } catch (error) {
+      if (isDatabaseFullError(error)) {
+        void reportDiskPressure(error);
+      }
+      throw error;
+    }
+  }
+
+  private upsertRecordInner(record: MemoryRecord): void {
     const tagsJson = JSON.stringify(record.tags);
     this.db
       .prepare(`
@@ -661,6 +675,9 @@ export class MemoryPersistence {
       renameSync(tmp, target);
     } catch (error) {
       rmSync(tmp, { force: true });
+      if (isDiskFullError(error)) {
+        void reportDiskPressure(error);
+      }
       throw error;
     }
   }

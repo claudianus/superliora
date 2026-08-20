@@ -11,6 +11,7 @@ export type RuntimeDegradedScope =
   | 'mcp'
   | 'permission'
   | 'network'
+  | 'storage'
   | 'other';
 
 export interface RuntimeDegradedEvent {
@@ -29,6 +30,7 @@ export const runtimeDegradedScopeSchema = z.enum([
   'mcp',
   'permission',
   'network',
+  'storage',
   'other',
 ]) satisfies z.ZodType<RuntimeDegradedScope>;
 

@@ -20,6 +20,7 @@ import {
   resolveWirePath,
 } from '#/session/store/wire-gzip';
 
+import { isDiskFullError } from '#/runtime/disk-pressure';
 import { syncDir, syncDirSync } from '../../utils/fs';
 import type { BlobStore } from './blobref';
 import { type AgentRecord, type AgentRecordPersistence } from './types';
@@ -74,6 +75,14 @@ export interface FileSystemAgentRecordPersistenceOptions {
  * avoid an infinite retry loop.
  */
 const DEFAULT_MAX_CONSECUTIVE_DRAIN_FAILURES = 5;
+
+export function shouldLatchDrainFailure(
+  error: unknown,
+  consecutiveFailures: number,
+  threshold: number,
+): boolean {
+  return isDiskFullError(error) || consecutiveFailures >= threshold;
+}
 
 export interface InMemoryAgentRecordPersistenceOptions {
   readonly onRecord?: ((record: AgentRecord) => void) | undefined;
@@ -409,7 +418,7 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
         // a long enough failure streak do we latch, to avoid retrying
         // forever against a genuinely broken sink (read-only mount, deleted
         // directory, exhausted quota).
-        if (this.consecutiveFailures >= this.failureThreshold) {
+        if (shouldLatchDrainFailure(error, this.consecutiveFailures, this.failureThreshold)) {
           this.error = error;
         }
         // oxlint-disable-next-line typescript-eslint/only-throw-error

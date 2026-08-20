@@ -11,6 +11,7 @@ import {
   FileSystemAgentRecordPersistence,
   InMemoryAgentRecordPersistence,
   MAX_WIRE_LINE_BYTES,
+  shouldLatchDrainFailure,
   type AgentRecord,
 } from '../../../src/agent/records';
 
@@ -261,6 +262,13 @@ describe('FileSystemAgentRecordPersistence', () => {
       ]);
     }).toThrow();
     await expect(persistence.flush()).rejects.toBeInstanceOf(Error);
+  });
+
+  it('latches immediately on ENOSPC without waiting for the streak', () => {
+    const enospc = Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' });
+    expect(shouldLatchDrainFailure(enospc, 1, 5)).toBe(true);
+    expect(shouldLatchDrainFailure(new Error('EIO'), 1, 5)).toBe(false);
+    expect(shouldLatchDrainFailure(new Error('EIO'), 5, 5)).toBe(true);
   });
 
   it('offloads large data URIs to blobsDir during append', async () => {

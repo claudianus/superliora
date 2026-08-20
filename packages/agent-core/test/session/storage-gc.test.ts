@@ -8,6 +8,7 @@ import {
   collectStorageGarbage,
   formatBytes,
   measureStorageBytes,
+  reclaimIdleSessions,
 } from '#/session/storage-gc';
 import { compressWireJsonl, resolveWirePath, WIRE_JSONL, WIRE_JSONL_GZ } from '#/session/store/wire-gzip';
 import { FileSystemAgentRecordPersistence } from '#/agent/records/persistence';
@@ -286,5 +287,64 @@ describe('collectStorageGarbage', () => {
     );
     await expect(stat(wire)).resolves.toBeTruthy();
     await expect(stat(join(agentDir, WIRE_JSONL_GZ))).rejects.toThrow();
+  });
+
+  it('emergency GC deletes fresh cache and logs but keeps active session wires', async () => {
+    const home = await tempDir('gc-emerg-');
+    const now = Date.now();
+    const sessionDir = join(home, 'sessions', 'wd_test', 'session_active');
+    const agentDir = join(sessionDir, 'agents', 'agent-1');
+    await mkdir(agentDir, { recursive: true });
+    const wire = join(agentDir, WIRE_JSONL);
+    await writeFile(wire, '{"type":"message"}\n', 'utf-8');
+    await writeFile(join(sessionDir, 'state.json'), '{}', 'utf-8');
+    await utimes(wire, now / 1000, now / 1000);
+    await utimes(join(sessionDir, 'state.json'), now / 1000, now / 1000);
+
+    const cacheDir = join(home, 'cache', 'fresh-extract');
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(join(cacheDir, 'blob'), 'cache-bytes', 'utf-8');
+
+    const logFile = join(home, 'logs', 'liora.log');
+    await mkdir(join(home, 'logs'), { recursive: true });
+    await writeFile(logFile, 'log-bytes', 'utf-8');
+
+    const report = await collectStorageGarbage({
+      homeDir: home,
+      emergency: true,
+      now,
+    });
+    expect(report.items.some((i) => i.kind === 'cache' && i.action === 'delete')).toBe(true);
+    expect(report.items.some((i) => i.kind === 'logs' && i.action === 'delete')).toBe(true);
+    await expect(stat(wire)).resolves.toBeTruthy();
+    await expect(stat(cacheDir)).rejects.toThrow();
+    await expect(stat(logFile)).rejects.toThrow();
+  });
+});
+
+describe('reclaimIdleSessions', () => {
+  it('deletes idle sessions and skips active ones', async () => {
+    const home = await tempDir('gc-idle-ses-');
+    const now = Date.now();
+    const active = join(home, 'sessions', 'wd_test', 'session_active');
+    const idle = join(home, 'sessions', 'wd_test', 'session_idle');
+    await mkdir(join(active, 'agents', 'a'), { recursive: true });
+    await mkdir(join(idle, 'agents', 'a'), { recursive: true });
+    await writeFile(join(active, 'state.json'), '{}', 'utf-8');
+    await writeFile(join(idle, 'state.json'), '{}', 'utf-8');
+    await writeFile(join(idle, 'agents', 'a', 'keep.txt'), 'old', 'utf-8');
+    const old = (now - 10 * 24 * 60 * 60 * 1000) / 1000;
+    await utimes(join(active, 'state.json'), now / 1000, now / 1000);
+    await utimes(join(idle, 'state.json'), old, old);
+
+    const report = await reclaimIdleSessions({
+      homeDir: home,
+      idleMs: 7 * 24 * 60 * 60 * 1000,
+      now,
+    });
+    expect(report.items.some((i) => i.kind === 'idle-session' && i.path === idle)).toBe(true);
+    expect(report.items.some((i) => i.kind === 'skipped-active' && i.path === active)).toBe(true);
+    await expect(stat(active)).resolves.toBeTruthy();
+    await expect(stat(idle)).rejects.toThrow();
   });
 });

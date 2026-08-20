@@ -1,8 +1,14 @@
 /**
- * Settings → Storage — read-only home + session retention tips (SSOT §9.2).
+ * Settings → Storage — home paths, volume pressure, and safe GC (SSOT §9.2).
  */
 
-import { resolveConfigPath } from '@superliora/sdk';
+import {
+  collectStorageGarbage,
+  formatBytes,
+  getDiskPressureSnapshot,
+  probeVolumeSpace,
+  resolveConfigPath,
+} from '@superliora/sdk';
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
@@ -46,12 +52,20 @@ async function loadStorageGlance(host: SlashCommandHost): Promise<StorageGlanceI
     /* optional */
   }
 
+  const volume = await probeVolumeSpace(homeDir).catch(() => undefined);
+  const pressure = getDiskPressureSnapshot();
+
   return {
     ...resolveStoragePaths({ homeDir, configPath, sessionDir }),
     homeFromEnv,
     logDir,
     workDir,
     sessionCount,
+    ...(volume !== undefined
+      ? { volumeFreeBytes: volume.freeBytes, volumeTotalBytes: volume.totalBytes }
+      : {}),
+    ...(pressure.level !== 'ok' ? { pressureLevel: pressure.level } : {}),
+    ...(pressure.lastGc !== undefined ? { lastGcFreedBytes: pressure.lastGc.freedBytes } : {}),
   };
 }
 
@@ -67,9 +81,13 @@ export function showStorageSettings(host: SlashCommandHost): void {
           value: 'status',
           label: 'Storage status',
           description:
-            'Live home paths · session dir · journal · tool-results · log dir · retention count.',
+            'Live home paths · volume free · session dir · journal · tool-results · log dir.',
         },
-
+        {
+          value: 'gc',
+          label: 'Run storage GC',
+          description: 'Reclaim cache, idle wires, worktree tmp, and old logs. Never deletes active sessions.',
+        },
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -77,7 +95,9 @@ export function showStorageSettings(host: SlashCommandHost): void {
           void showStorageSettingsPanel(host);
           return;
         }
-
+        if (value === 'gc') {
+          void runStorageGcFromSettings(host);
+        }
       },
       onCancel: () => {
         dismissPickerDialog(host);
@@ -102,4 +122,18 @@ async function showStorageSettingsPanel(host: SlashCommandHost): Promise<void> {
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
+}
+
+async function runStorageGcFromSettings(host: SlashCommandHost): Promise<void> {
+  const homeDir = host.harness.homeDir ?? getDataDir();
+  try {
+    const report = await collectStorageGarbage({ homeDir });
+    host.showStatus(
+      `GC: compressed=${String(report.compressed)} deleted=${String(report.deleted)} freed=${formatBytes(report.freedBytes)}`,
+      'info',
+    );
+    await showStorageSettingsPanel(host);
+  } catch (error) {
+    host.showStatus(error instanceof Error ? error.message : String(error), 'error');
+  }
 }

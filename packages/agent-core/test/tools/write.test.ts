@@ -1,8 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { type WriteInput, WriteInputSchema, WriteTool } from '../../src/tools/builtin/file/write';
+import { resetDiskPressureForTests } from '../../src/runtime/disk-pressure';
 import { createFakeKaos, PERMISSIVE_WORKSPACE, toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+
+afterEach(() => {
+  resetDiskPressureForTests();
+});
 
 const signal = new AbortController().signal;
 
@@ -272,6 +277,23 @@ describe('WriteTool', () => {
     expect(writeAtomic).toHaveBeenCalledWith('/tmp/exists/file.txt', 'data');
   });
 
+  it('rewrites ENOSPC as a structured disk-full tool error', async () => {
+    const tool = new WriteTool(
+      createFakeKaos({
+        stat: DIR_STAT,
+        writeAtomic: vi.fn().mockRejectedValue(Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' })),
+      }),
+      PERMISSIVE_WORKSPACE,
+    );
+
+    const result = await executeTool(tool, context({ path: '/some/file.txt', content: 'data' }));
+
+    expect(result.isError).toBe(true);
+    expect(String(result.output)).toContain('storage.disk_full');
+    expect(String(result.output)).toContain('do not retry');
+    expect(String(result.output)).toContain('YOU MUST NOT');
+  });
+
   it('surfaces kaos write failures as tool errors', async () => {
     const tool = new WriteTool(
       createFakeKaos({
@@ -283,7 +305,8 @@ describe('WriteTool', () => {
 
     const result = await executeTool(tool, context({ path: '/some/file.txt', content: 'data' }));
 
-    expect(result).toMatchObject({ isError: true, output: 'disk full' });
+    expect(result.isError).toBe(true);
+    expect(result.output).toBe('disk full');
   });
 
   it('allows explicit absolute writes outside the workspace', async () => {

@@ -16,6 +16,17 @@ describe('formatRuntimeDegradedNotice', () => {
     expect(notice.coalesceKey).toBe('runtime-degraded-llm');
   });
 
+  it('labels storage scope', () => {
+    const notice = formatRuntimeDegradedNotice({
+      scope: 'storage',
+      reason: 'disk_full:enospc',
+      hint: 'run liora gc',
+    });
+    expect(notice.title).toMatch(/Storage degraded|저장소/);
+    expect(notice.coalesceKey).toBe('runtime-degraded-storage');
+    expect(notice.detail).toContain('disk_full:enospc');
+  });
+
   it('falls back for unknown scopes', () => {
     const notice = formatRuntimeDegradedNotice({
       scope: 'custom-bus',
