@@ -101,7 +101,7 @@ export async function resolvePromptSession(
     additionalDirs: opts.addDirs?.length ? opts.addDirs : undefined,
     drainAgentTasksOnStop: true,
     metadata: {
-      ...(sessionMetadata ?? {}),
+      ...sessionMetadata,
       ...sandboxSessionMetadata(opts),
     },
   });

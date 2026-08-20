@@ -147,7 +147,7 @@ export function matchesKey(data: string, keyId: KeyId): boolean {
   return legacyFallbackMatches(data, expected);
 }
 
-export type PrimaryModPlatform = 'darwin' | 'linux' | 'win32' | string;
+export type PrimaryModPlatform = NodeJS.Platform;
 
 /**
  * OS primary-modifier label for help/footer. Darwin uses Cmd; Linux/Windows

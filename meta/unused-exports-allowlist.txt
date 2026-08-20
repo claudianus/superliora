@@ -379,6 +379,7 @@ packages/agent-core/src/agent/goal/predicate.ts:GoalPredicateFailureCode
 packages/agent-core/src/agent/goal/predicate.ts:GoalPredicateParseResult
 packages/agent-core/src/agent/goal/types.ts:GoalChangeKind
 packages/agent-core/src/agent/goal/types.ts:GoalExecutionLane
+packages/agent-core/src/agent/injection/disk-pressure.ts:DISK_PRESSURE_VARIANT
 packages/agent-core/src/agent/injection/fleet-model-catalog.ts:FLEET_MODEL_CATALOG_MAX_CHARS
 packages/agent-core/src/agent/injection/fleet-model-catalog.ts:FLEET_MODEL_CATALOG_MAX_ROWS
 packages/agent-core/src/agent/injection/fleet-model-catalog.ts:FLEET_MODEL_CATALOG_VARIANT
@@ -467,6 +468,8 @@ packages/agent-core/src/codemap/extract.ts:ExtractResult
 packages/agent-core/src/codemap/indexer.ts:CodeIndexerOptions
 packages/agent-core/src/codemap/indexer.ts:hashSource
 packages/agent-core/src/config/model.ts:effectiveModelAliases
+packages/agent-core/src/config/path.ts:LIORA_DATA_DIR_NAME
+packages/agent-core/src/config/path.ts:ResolveLioraHomeOptions
 packages/agent-core/src/config/resolve.ts:ResolveConfigValueInput
 packages/agent-core/src/config/sandbox-enforcement.ts:isSandboxEnforcement
 packages/agent-core/src/config/sandbox-enforcement.ts:parseSandboxEnforcement
@@ -694,6 +697,16 @@ packages/agent-core/src/rpc/session-lifecycle.ts:SessionLifecycleContext
 packages/agent-core/src/runtime/circuit-breaker.ts:CircuitBreakerOptions
 packages/agent-core/src/runtime/circuit-breaker.ts:CircuitBreakerRegistryOptions
 packages/agent-core/src/runtime/circuit-breaker.ts:CircuitBreakerSnapshot
+packages/agent-core/src/runtime/disk-pressure.ts:DiskPressureConfig
+packages/agent-core/src/runtime/disk-pressure.ts:EMERGENCY_GC_THROTTLE_MS
+packages/agent-core/src/runtime/disk-pressure.ts:formatGcLine
+packages/agent-core/src/runtime/disk-pressure.ts:formatHomeLine
+packages/agent-core/src/runtime/disk-pressure.ts:formatVolumeLine
+packages/agent-core/src/runtime/disk-pressure.ts:GZIP_MIN_FREE_BYTES
+packages/agent-core/src/runtime/disk-pressure.ts:IDLE_SESSION_RECLAIM_MS
+packages/agent-core/src/runtime/disk-pressure.ts:RECLAIM_QUESTION_COOLDOWN_MS
+packages/agent-core/src/runtime/disk-pressure.ts:RECOVERED_FREE_RATIO
+packages/agent-core/src/runtime/disk-pressure.ts:WARN_FREE_RATIO
 packages/agent-core/src/runtime/never-halt-chaos.ts:NeverHaltChaosSequencePhase
 packages/agent-core/src/runtime/never-halt-chaos.ts:NeverHaltChaosSequenceResult
 packages/agent-core/src/runtime/never-halt-chaos.ts:NeverHaltChaosTickResult

@@ -271,7 +271,7 @@ export abstract class SessionCore {
     const resume = this.getResumeState();
     if (resume?.sessionMetadata !== undefined) {
       const custom = {
-        ...(resume.sessionMetadata.custom ?? {}),
+        ...resume.sessionMetadata.custom,
         sandboxProfile: profile,
       };
       (resume.sessionMetadata as { custom?: Record<string, unknown> }).custom = custom;
@@ -297,7 +297,7 @@ export abstract class SessionCore {
     const resume = this.getResumeState();
     if (resume?.sessionMetadata !== undefined) {
       const custom = {
-        ...(resume.sessionMetadata.custom ?? {}),
+        ...resume.sessionMetadata.custom,
         sandboxEnforcement: enforcement,
       };
       (resume.sessionMetadata as { custom?: Record<string, unknown> }).custom = custom;
