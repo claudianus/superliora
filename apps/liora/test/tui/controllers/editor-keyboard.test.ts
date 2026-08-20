@@ -155,6 +155,18 @@ function pressShiftTab(editor: Harness['editor']): void {
   (handler as () => void)();
 }
 
+function pressUpArrowEmpty(editor: Harness['editor']): boolean {
+  const handler = editor['onUpArrowEmpty'];
+  if (typeof handler !== 'function') throw new Error('onUpArrowEmpty handler not installed');
+  return (handler as () => boolean)();
+}
+
+function editorText(editor: Harness['editor']): string {
+  const getText = editor['getText'];
+  if (typeof getText !== 'function') throw new Error('getText is not installed');
+  return (getText as () => string)();
+}
+
 describe('Shift-Tab Build/Ask cycle', () => {
   it('cycles Build → Ask → Build', () => {
     expect(nextShiftTabMode(false)).toBe('ask');
@@ -487,39 +499,37 @@ describe('EditorKeyboardController clipboard image paste feedback', () => {
 describe('editor-keyboard queue recall vs worker dock', () => {
   it('recalls a queued prompt on empty-editor ↑ before the dock or BTW panel', () => {
     const { editor, host } = createHarness();
-    const scroll = vi.fn(() => true);
-    host.btwPanelController = { scroll } as never;
+    const scroll = host.btwPanelController.scroll as ReturnType<typeof vi.fn>;
     host.messageDispatch.recallLastQueued = vi.fn(() => ({
       text: 'queued prompt',
       displayText: 'queued prompt',
-      mode: 'prompt',
+      mode: 'prompt' as const,
     }));
 
-    expect(editor.onUpArrowEmpty?.()).toBe(true);
-    expect(editor.getText()).toBe('queued prompt');
+    expect(pressUpArrowEmpty(editor)).toBe(true);
+    expect(editorText(editor)).toBe('queued prompt');
     expect(scroll).not.toHaveBeenCalled();
   });
 
   it('does not scroll the BTW/dock path when idle and the queue is empty', () => {
     const { editor, host } = createHarness();
-    const scroll = vi.fn(() => true);
-    host.btwPanelController = { scroll } as never;
+    const scroll = host.btwPanelController.scroll as ReturnType<typeof vi.fn>;
     host.messageDispatch.recallLastQueued = vi.fn(() => undefined);
     host.state.appState.streamingPhase = 'idle';
     host.state.appState.isCompacting = false;
 
-    expect(editor.onUpArrowEmpty?.()).toBe(false);
+    expect(pressUpArrowEmpty(editor)).toBe(false);
     expect(scroll).not.toHaveBeenCalled();
   });
 
   it('lets BTW scroll only after queue recall misses during a live turn', () => {
     const { editor, host } = createHarness();
-    const scroll = vi.fn(() => true);
-    host.btwPanelController = { scroll } as never;
+    const scroll = host.btwPanelController.scroll as ReturnType<typeof vi.fn>;
+    scroll.mockImplementation(() => true);
     host.messageDispatch.recallLastQueued = vi.fn(() => undefined);
-    host.state.appState.streamingPhase = 'streaming';
+    host.state.appState.streamingPhase = 'thinking';
 
-    expect(editor.onUpArrowEmpty?.()).toBe(true);
+    expect(pressUpArrowEmpty(editor)).toBe(true);
     expect(scroll).toHaveBeenCalledWith('up');
   });
 });

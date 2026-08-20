@@ -1771,7 +1771,7 @@ describe('upgrade install stages', () => {
       expect.arrayContaining(['-Command']),
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
-    const args = spawn.mock.calls[0]?.[1] as string[];
+    const args = spawn.mock.calls[0]?.[1] as unknown as string[];
     expect(args.join(' ')).toContain('| iex');
   });
 

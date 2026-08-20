@@ -140,7 +140,7 @@ describe('Oh My Posh inbox PSReadLine guard', () => {
   });
 
   it('clears OnRemove before inbox Get-PSReadLineKeyHandler can throw', () => {
-    const root = process.env.SystemRoot ?? 'C:\\Windows';
+    const root = process.env['SystemRoot'] ?? 'C:\\Windows';
     const exe = join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
     if (process.platform !== 'win32' || !existsSync(exe)) return;
 
