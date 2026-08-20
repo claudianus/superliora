@@ -28,6 +28,8 @@ import {
 import { spawnInstall } from './install/spawn.mjs';
 import { installSidecars } from './install/sidecars.mjs';
 import { buildSource, fetchSource } from './install/source.mjs';
+import { detectInstallLocale } from './install/locale.mjs';
+import { t } from './install/strings.mjs';
 import { createTheatre } from './install/theatre.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -38,37 +40,44 @@ const fromMain = args.fromMain === true;
 const preferSource = fromMain || args.preferSource === true;
 const sourceRef = fromMain ? 'main' : args.ref;
 
+const installLocale = detectInstallLocale();
 const theatre = createTheatre({
   mode: preferSource ? 'source' : 'prebuilt',
-  title: 'Installing SuperLiora',
+  title: t('install.title', undefined, installLocale),
+  locale: installLocale,
 });
 
 let exitCode = 0;
+let desktopShortcutWritten = false;
 try {
   theatre.startPulse();
-  theatre.setStage('checking', 'Probing environment');
+  theatre.setStage('checking', t('install.probing', undefined, installLocale));
 
-  theatre.setStage('bootstrapping', 'Ensuring Node.js runtime');
+  theatre.setStage('bootstrapping', t('install.ensuringNode', undefined, installLocale));
   const nodeInfo = await ensureNode({ nodeMin: args.nodeMin });
   theatre.setDetail(
     nodeInfo.bootstrapped
-      ? `Installed Node ${nodeInfo.version} → ~/.superliora/runtime/node`
-      : `Using Node ${nodeInfo.version}`,
+      ? t('install.nodeInstalled', { version: nodeInfo.version }, installLocale)
+      : t('install.nodeUsing', { version: nodeInfo.version }, installLocale),
   );
 
-  theatre.setStage('bootstrapping', 'Ensuring Git');
+  theatre.setStage('bootstrapping', t('install.ensuringGit', undefined, installLocale));
   try {
     const gitInfo = await ensureGit({ skip: args.noGit, noShellRc: args.noShellRc });
     if (gitInfo.message) {
       theatre.note(gitInfo.message);
     } else if (gitInfo.bootstrapped) {
-      theatre.setDetail(`Installed Git -> ${gitInfo.root ?? '~/.superliora/runtime/git'}`);
+      theatre.setDetail(t('install.gitInstalled', {
+        root: gitInfo.root ?? '~/.superliora/runtime/git',
+      }, installLocale));
     } else if (!gitInfo.skipped) {
-      theatre.setDetail(gitInfo.bashPath ? `Using Git Bash ${gitInfo.bashPath}` : 'Using Git on PATH');
+      theatre.setDetail(gitInfo.bashPath
+        ? t('install.gitBash', { path: gitInfo.bashPath }, installLocale)
+        : t('install.gitPath', undefined, installLocale));
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    theatre.note(`Git bootstrap failed (${message}); continuing. Install Git later if the agent needs a shell.`);
+    theatre.note(t('install.gitFailed', { message }, installLocale));
   }
 
   const binDir = resolveHome(args.binDir ?? defaultBinDir());
@@ -83,7 +92,7 @@ try {
   } else {
     // Default: published GitHub Release prebuilt only — no silent main tip fallback.
     theatre.setMode('prebuilt');
-    theatre.setStage('downloading', 'Fetching release manifest');
+    theatre.setStage('downloading', t('install.fetchingManifest', undefined, installLocale));
     const expectedVersion = normalizeVersion(args.version);
     const manifestUrl =
       args.manifestUrl !== DEFAULT_MANIFEST_URL || expectedVersion === null
@@ -102,14 +111,19 @@ try {
           'or --prefer-source --ref <ref> for another checkout.',
       );
     }
-    theatre.setDetail(`Placed SEA ${pre.result.version || ''} (${pre.result.target})`);
+    theatre.setDetail(t('install.placedSea', {
+      version: pre.result.version || '',
+      target: pre.result.target,
+    }, installLocale));
     await ensureBinOnPath(binDir, { noShellRc: args.noShellRc });
-    theatre.setStage('installing', `Installed ${commandName} binary`);
+    theatre.setStage('installing', t('install.installedBinary', { command: commandName }, installLocale));
   }
 
   if (mode === 'source') {
     theatre.setMode('source');
-    theatre.setStage('fetching', fromMain ? 'Fetching tip of main' : 'Fetching SuperLiora source');
+    theatre.setStage('fetching', fromMain
+      ? t('install.fetchingMain', undefined, installLocale)
+      : t('install.fetchingSource', undefined, installLocale));
     const fetched = await fetchSource({
       repoUrl: args.repoUrl,
       ref: sourceRef,
@@ -117,9 +131,12 @@ try {
       force: args.force,
     });
     sourceTree = fetched.installDir;
-    theatre.setDetail(`Source via ${fetched.method} → ${fetched.installDir}`);
+    theatre.setDetail(t('install.sourceVia', {
+      method: fetched.method,
+      dir: fetched.installDir,
+    }, installLocale));
 
-    theatre.setStage('bootstrapping', 'Ensuring pnpm');
+    theatre.setStage('bootstrapping', t('install.ensuringPnpm', undefined, installLocale));
     const pnpmInfo = await ensurePnpm({
       cwd: fetched.installDir,
       noShellRc: args.noShellRc,
@@ -129,21 +146,21 @@ try {
     }
     theatre.setDetail(
       pnpmInfo.bootstrapped
-        ? `Installed pnpm ${pnpmInfo.version ?? ''} → ~/.superliora/runtime/pnpm`
-        : `Using pnpm ${pnpmInfo.version ?? pnpmInfo.source ?? ''}`,
+        ? t('install.pnpmInstalled', { version: pnpmInfo.version ?? '' }, installLocale)
+        : t('install.pnpmUsing', { version: pnpmInfo.version ?? pnpmInfo.source ?? '' }, installLocale),
     );
 
     if (!args.noBuild) {
-      theatre.setStage('building', 'Installing dependencies and building CLI');
+      theatre.setStage('building', t('install.buildingCli', undefined, installLocale));
       await buildSource(fetched.installDir, pnpmInfo);
     }
 
-    theatre.setStage('installing', `Installing ${commandName} wrapper`);
+    theatre.setStage('installing', t('install.installingWrapper', { command: commandName }, installLocale));
     await installSourceWrapper(fetched.installDir, binDir, commandName, args);
     await ensureBinOnPath(binDir, { noShellRc: args.noShellRc });
   }
 
-  theatre.setStage('sidecars', 'Installing browser / computer / retrieval');
+  theatre.setStage('sidecars', t('install.sidecars', undefined, installLocale));
   await installSidecars({
     installDir: sourceTree,
     commandName,
@@ -152,17 +169,19 @@ try {
     noRetrieval: args.noRetrieval,
     onDetail: (msg) => theatre.setDetail(msg),
     onWarn: (msg) => theatre.note(msg),
+    locale: installLocale,
   });
 
-  theatre.setStage('sidecars', 'Ensuring host setup');
+  theatre.setStage('sidecars', t('install.hostSetup', undefined, installLocale));
   try {
     const plan = planHostSetup({
       skip: args.noHostSetup,
       skipTerminal: args.noTerminal,
       noShellRc: args.noShellRc,
+      locale: installLocale,
     });
     if (plan.applicable && !args.noHostSetup) {
-      theatre.setDetail(formatHostSetupPlan(plan).split('\n')[0] ?? 'Host setup');
+      theatre.setDetail(formatHostSetupPlan(plan).split('\n')[0] ?? t('install.hostSetup', undefined, installLocale));
       for (const line of formatHostSetupPlan(plan).split('\n').slice(1)) {
         if (line.trim()) theatre.note(line);
       }
@@ -180,31 +199,35 @@ try {
     } else if (termInfo.skipped) {
       // --no-host-setup or unsupported platform: stay quiet.
     } else if (termInfo.installed) {
-      theatre.setDetail('Installed Windows Terminal + SuperLiora profile');
+      theatre.setDetail(t('install.wtInstalled', undefined, installLocale));
     } else {
-      theatre.setDetail('Host setup ready');
+      theatre.setDetail(t('install.hostSetupReady', undefined, installLocale));
     }
     if (termInfo.nerdFontInstalled) {
-      theatre.setDetail('Installed CaskaydiaCove Nerd Font');
+      theatre.setDetail(t('install.nerdFontInstalled', undefined, installLocale));
     }
     if (termInfo.ohMyPoshInstalled) {
-      theatre.setDetail('Installed Oh My Posh (Neon Noir prompt)');
+      theatre.setDetail(t('install.ompInstalled', undefined, installLocale));
     }
     if (termInfo.zoxideInstalled) {
-      theatre.setDetail('Installed zoxide');
+      theatre.setDetail(t('install.zoxideInstalled', undefined, installLocale));
     }
     if (termInfo.fzfInstalled) {
-      theatre.setDetail('Installed fzf');
+      theatre.setDetail(t('install.fzfInstalled', undefined, installLocale));
     }
     if (termInfo.profilePatched) {
-      theatre.setDetail('Wrote SuperLiora shell profile');
+      theatre.setDetail(t('install.profilePatched', undefined, installLocale));
     }
     if (termInfo.wingetBootstrapped) {
-      theatre.setDetail('Bootstrapped winget');
+      theatre.setDetail(t('install.wingetBootstrapped', undefined, installLocale));
     }
+    if (termInfo.desktopShortcutWritten) {
+      theatre.setDetail(t('install.desktopShortcut', undefined, installLocale));
+    }
+    desktopShortcutWritten = termInfo.desktopShortcutWritten === true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    theatre.note(`Host setup failed (${message}); continuing. Re-run /host-setup or pass --no-host-setup.`);
+    theatre.note(t('install.hostSetupFailed', { message }, installLocale));
   }
 
   // Warm --version when possible (prebuilt path already verified when expected).
@@ -213,13 +236,16 @@ try {
     spawnInstall(warm, ['--version'], { encoding: 'utf8', stdio: 'ignore' });
   }
 
-  theatre.finish(true, `${commandName} is ready`);
+  theatre.finish(true, t('install.readyCommand', { command: commandName }, installLocale));
   process.stdout.write('\n');
-  process.stdout.write(`Command: ${commandName}\n`);
-  process.stdout.write(`Bin dir: ${binDir}\n`);
-  if (sourceTree) process.stdout.write(`Source:  ${sourceTree}\n`);
-  process.stdout.write(`Mode:    ${mode}\n`);
-  process.stdout.write(`Next:    ${commandName}   ·  ${commandName} upgrade\n`);
+  process.stdout.write(`${t('install.summary.command', { command: commandName }, installLocale)}\n`);
+  process.stdout.write(`${t('install.summary.binDir', { dir: binDir }, installLocale)}\n`);
+  if (sourceTree) process.stdout.write(`${t('install.summary.source', { dir: sourceTree }, installLocale)}\n`);
+  process.stdout.write(`${t('install.summary.mode', { mode }, installLocale)}\n`);
+  process.stdout.write(`${t('install.summary.next', { command: commandName }, installLocale)}\n`);
+  if (desktopShortcutWritten) {
+    process.stdout.write(`${t('install.summary.desktop', undefined, installLocale)}\n`);
+  }
 } catch (error) {
   exitCode = 1;
   const message = error instanceof Error ? error.message : String(error);

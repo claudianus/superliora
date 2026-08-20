@@ -5,6 +5,7 @@
 import { ChoicePickerComponent } from '../../components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import { dismissPickerDialog, mountPickerDialog } from '../ui/mount-picker';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 import {
   findSettingPreset,
@@ -25,7 +26,7 @@ export function showSettingPresetsPicker<TId extends string, TPatch>(
     host,
     new ChoicePickerComponent({
       title: options.title,
-      hint: '↑↓←→ · Enter apply · Esc',
+      hint: ttui('tui.settings.presets.hint'),
       searchable: true,
       layout: 'grid',
       currentValue: options.currentId,
@@ -45,8 +46,15 @@ export function showSettingPresetsPicker<TId extends string, TPatch>(
 }
 
 /** Standard top-row option for Settings panes. */
-export const SETTINGS_PRESETS_ROW = {
-  value: 'presets',
-  label: 'Presets…',
-  description: 'Named packs — apply one, then fine-tune below.',
-} as const;
+export function settingsPresetsRow(): {
+  readonly value: 'presets';
+  readonly label: string;
+  readonly description: string;
+} {
+  return {
+    value: 'presets',
+    label: ttui('tui.settings.presets.label'),
+    description: ttui('tui.settings.presets.desc'),
+  };
+}
+

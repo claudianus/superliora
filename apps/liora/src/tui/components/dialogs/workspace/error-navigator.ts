@@ -24,6 +24,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { isPrintableChar, printableChar } from '#/tui/utils/printable-key';
 import { ttui } from '#/tui/utils/tui-i18n';
@@ -164,7 +165,7 @@ export class ErrorNavigatorComponent extends Container implements Focusable {
     while (lines.length < innerHeight) lines.push('');
 
     return renderRendererFrameRows({
-      title: ' Errors ',
+      title: ttui('tui.panel.errors'),
       content: lines,
       width,
       height,
@@ -185,7 +186,7 @@ export class ErrorNavigatorComponent extends Container implements Focusable {
     const lines: string[] = [currentTheme.dimFg('textMuted', message)];
     while (lines.length < innerHeight) lines.push('');
     return renderRendererFrameRows({
-      title: ' Errors ',
+      title: ttui('tui.panel.errors'),
       content: lines,
       width,
       height,

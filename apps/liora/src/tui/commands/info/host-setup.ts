@@ -5,7 +5,7 @@ import {
   formatHostSetupStatus,
   loadHostSetupModule,
 } from '#/tui/utils/terminal/host-setup-runtime';
-import { ttui } from '#/tui/utils/tui-i18n';
+import { getTuiLocale, ttui } from '#/tui/utils/tui-i18n';
 
 import type { SlashCommandHost } from '../hub/dispatch';
 
@@ -46,7 +46,7 @@ export async function handleHostSetupCommand(
     return;
   }
 
-  const plan = mod.planHostSetup();
+  const plan = mod.planHostSetup({ locale: getTuiLocale() });
   if (!plan.applicable) {
     host.showNotice(ttui('tui.notice.hostSetup.title'), ttui('tui.hostSetup.notSupported'));
     return;

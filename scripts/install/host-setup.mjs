@@ -17,6 +17,10 @@ import {
   findToolExe,
 } from './ensure-shell-vibe.mjs';
 import {
+  desktopLauncherPath,
+  ensureDesktopLauncher,
+} from './ensure-desktop-launcher.mjs';
+import {
   ensureTerminal,
   findWindowsTerminal,
   fragmentPath,
@@ -25,7 +29,9 @@ import {
   windowsTerminalSettingsPath,
 } from './ensure-terminal.mjs';
 import { findWinget } from './ensure-winget.mjs';
+import { detectInstallLocale } from './locale.mjs';
 import { hostPathExists } from './platform.mjs';
+import { t } from './strings.mjs';
 
 export function skipHostSetupRequested(env = process.env, options = {}) {
   if (options.skip === true) return true;
@@ -86,12 +92,14 @@ function fileStatus(path, isFile) {
 export function planHostSetup(options = {}) {
   const platform = options.platform ?? process.platform;
   const env = options.env ?? process.env;
+  const locale = options.locale ?? detectInstallLocale(env);
   const isFile = options.isFile ?? hostPathExists;
   const readText = options.readText ?? defaultReadText;
   const items = [];
+  const tr = (key, params) => t(key, params, locale);
 
   if (platform !== 'win32' && platform !== 'darwin' && platform !== 'linux') {
-    return { platform, applicable: false, needsApply: false, items };
+    return { platform, applicable: false, needsApply: false, items, locale };
   }
 
   const skipTerminal = skipTerminalRequested(env, { ...options, skip: options.skipTerminal === true });
@@ -195,8 +203,8 @@ export function planHostSetup(options = {}) {
       'shell-profile',
       'write',
       platform === 'win32'
-        ? 'PowerShell profile (5.1 + 7) managed block'
-        : 'Shell profile managed block (~/.zshrc, ~/.bashrc)',
+        ? tr('install.host.item.shellProfileWin')
+        : tr('install.host.item.shellProfileUnix'),
       profiles.join(', '),
       profileStatus(profiles, readText),
     ));
@@ -207,7 +215,7 @@ export function planHostSetup(options = {}) {
     items.push(item(
       'wt-fragment',
       'write',
-      'Windows Terminal SuperLiora fragment',
+      tr('install.host.item.wtFragment'),
       fragment,
       fileStatus(fragment, isFile),
     ));
@@ -215,7 +223,7 @@ export function planHostSetup(options = {}) {
     items.push(item(
       'start-menu',
       'write',
-      'Start Menu shortcut',
+      tr('install.host.item.startMenu'),
       shortcut,
       fileStatus(shortcut, isFile),
     ));
@@ -223,16 +231,29 @@ export function planHostSetup(options = {}) {
     items.push(item(
       'wt-settings',
       'change',
-      'Windows Terminal defaults',
+      tr('install.host.item.wtSettings'),
       'Neon Noir scheme, CaskaydiaCove NF, acrylic, SuperLiora Shell default, Win+` quake if missing',
       isFile(settings) ? 'refresh' : 'needed',
     ));
     items.push(item(
       'default-terminal',
       'change',
-      'Windows default terminal',
+      tr('install.host.item.defaultTerminal'),
       'Promote Windows Terminal only when empty or Console Host',
       'refresh',
+    ));
+  }
+
+  if (platform !== 'win32' || !skipTerminal) {
+    const launcher = desktopLauncherPath({ ...options, env, platform });
+    items.push(item(
+      'desktop-shortcut',
+      'write',
+      tr('install.host.item.desktopShortcut'),
+      platform === 'win32'
+        ? tr('install.host.detail.desktopWt', { path: launcher })
+        : tr('install.host.detail.desktopTerm', { path: launcher }),
+      fileStatus(launcher, isFile),
     ));
   }
 
@@ -257,20 +278,21 @@ export function planHostSetup(options = {}) {
   }
 
   const needsApply = items.some((entry) => entry.status === 'needed');
-  return { platform, applicable: true, needsApply, items };
+  return { platform, applicable: true, needsApply, items, locale };
 }
 
 export function formatHostSetupPlan(plan) {
+  const locale = plan.locale ?? detectInstallLocale();
   const lines = [
-    `Host setup (${plan.platform})`,
+    t('install.host.heading', { platform: plan.platform }, locale),
     plan.needsApply
-      ? 'Missing pieces will be installed or written.'
-      : 'Managed files can be refreshed; packages are already present.',
+      ? t('install.host.needed', undefined, locale)
+      : t('install.host.refresh', undefined, locale),
   ];
   const groups = [
-    ['install', 'Install'],
-    ['write', 'Write'],
-    ['change', 'Change'],
+    ['install', t('install.host.group.install', undefined, locale)],
+    ['write', t('install.host.group.write', undefined, locale)],
+    ['change', t('install.host.group.change', undefined, locale)],
   ];
   for (const [kind, label] of groups) {
     const rows = plan.items.filter((entry) => entry.kind === kind);
@@ -300,6 +322,7 @@ export function formatHostSetupPlan(plan) {
  *   themeWritten?: boolean,
  *   fragmentWritten?: boolean,
  *   shortcutWritten?: boolean,
+ *   desktopShortcutWritten?: boolean,
  *   settingsMerged?: boolean,
  *   promotedDefault?: boolean,
  *   wingetBootstrapped?: boolean,
@@ -325,7 +348,8 @@ export async function ensureHostSetup(options = {}) {
       skipPackages,
       noShellRc,
     });
-    return { ...result, platform, plan };
+    const desktop = await writeDesktopLauncher(options, result.wtPath);
+    return { ...result, platform, plan, desktopShortcutWritten: desktop.written === true };
   }
 
   let nerdFontInstalled = false;
@@ -347,6 +371,7 @@ export async function ensureHostSetup(options = {}) {
     }
   }
 
+  const desktop = await writeDesktopLauncher(options);
   return {
     skipped: false,
     ok: vibe.ok !== false,
@@ -358,6 +383,23 @@ export async function ensureHostSetup(options = {}) {
     fzfInstalled: vibe.fzfInstalled === true,
     profilePatched: vibe.profilePatched === true,
     themeWritten: vibe.themeWritten === true,
+    desktopShortcutWritten: desktop.written === true,
     message: vibe.message,
   };
+}
+
+async function writeDesktopLauncher(options, wtPath) {
+  try {
+    return await ensureDesktopLauncher({
+      ...options,
+      wtPath,
+    });
+  } catch (error) {
+    return {
+      skipped: false,
+      written: false,
+      ok: true,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
 }

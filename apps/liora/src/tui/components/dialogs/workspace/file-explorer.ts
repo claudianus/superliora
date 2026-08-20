@@ -27,6 +27,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { printableChar, isPrintableChar } from '#/tui/utils/printable-key';
 import {
@@ -330,12 +331,12 @@ export class FileExplorerComponent extends Container implements Focusable {
     const titleStyle = (text: string): string => currentTheme.boldFg('textStrong', text);
 
     if (this.rows.length === 0) {
-      const message = this.filterQuery.length > 0 ? 'No matches' : 'No files found';
+      const message = this.filterQuery.length > 0 ? ttui('tui.common.noMatches') : ttui('tui.files.empty');
       const empty = currentTheme.fg('textMuted', message);
       const lines: string[] = [empty];
       while (lines.length < innerHeight) lines.push('');
       return renderRendererFrameRows({
-        title: ' Files ',
+        title: ttui('tui.panel.files'),
         content: lines,
         width,
         height,
@@ -352,7 +353,7 @@ export class FileExplorerComponent extends Container implements Focusable {
     while (lines.length < innerHeight) lines.push('');
 
     return renderRendererFrameRows({
-      title: ' Files ',
+      title: ttui('tui.panel.files'),
       content: lines,
       width,
       height,

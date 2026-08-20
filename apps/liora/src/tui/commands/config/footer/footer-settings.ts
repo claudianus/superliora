@@ -24,7 +24,7 @@ import {
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { currentFooter, tuiConfigFromHost } from '../appearance/tui-persist';
 import { FOOTER_PRESETS } from '#/tui/utils/settings/footer-presets';
-import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { settingsPresetsRow, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { ttui } from '../../../utils/tui-i18n';
 
 export function footerStatusTip(): string {
@@ -38,7 +38,7 @@ export function showFooterSettings(host: SlashCommandHost): void {
 function openFooterSettingsPicker(host: SlashCommandHost): void {
   const footer = currentFooter(host);
   const options = [
-    SETTINGS_PRESETS_ROW,
+    settingsPresetsRow(),
     {
       value: 'status',
       label: ttui('tui.footer.overview'),

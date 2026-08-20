@@ -5,6 +5,7 @@ import {
   mountPickerDialog,
   type PickerMountHost,
 } from '../ui/mount-picker';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export type ConfirmHostSetupHost = PickerMountHost & {
   requestRender?(): void;
@@ -36,7 +37,7 @@ export function confirmHostSetup(
           host.requestRender?.();
         },
       }),
-      { label: 'Host setup' },
+      { label: ttui('tui.hostSetup.mountLabel') },
     );
   });
 }

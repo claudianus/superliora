@@ -13,6 +13,7 @@ import {
   updateCompactionProgress as updateCompactionProgressHelper,
 } from './compaction';
 import type { StreamingUIHost } from './host-types';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { AssistantMessageComponent } from '../../components/messages/assistant-message';
 import { settleActiveChainSummary, type ChainSummaryState } from './chain-summary';
 
@@ -56,7 +57,7 @@ export function finalizeStreamingTurn(args: {
   args.host.setAppState({ streamingPhase: 'idle' });
   args.host.resetLivePane();
   notifyUserAttentionOnce(state, `turn-complete:${completedTurnKey}`, {
-    title: 'SuperLiora task complete',
+    title: ttui('tui.notice.taskComplete'),
     body: state.appState.sessionTitle ?? undefined,
   });
 }

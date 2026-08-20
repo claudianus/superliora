@@ -6,6 +6,7 @@
 import type { JobInboxEvent, JobLandReceiptSnapshot } from '@superliora/protocol';
 
 import { formatTrustReasonForUser } from './trust-copy';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export interface LandResultNotice {
   readonly title: string;
@@ -55,7 +56,7 @@ export function formatLandResultNotice(input: {
     const trust = formatTrustReasonForUser(summary.length > 0 ? summary : input.title);
     const fix = trust.fix === undefined ? '' : `\n${trust.fix}`;
     return {
-      title: 'Land held',
+      title: ttui('tui.notice.landHeld'),
       detail: `${trust.headline}${fix}`,
     };
   }
@@ -64,9 +65,9 @@ export function formatLandResultNotice(input: {
   const shaPart = sha === undefined ? '' : ` · ${sha}`;
   const hints = formatLandActionHints(input.actionHints);
   const gcLine =
-    input.landReceipt?.gcRemoved === true ? 'GC: worktree removed' : undefined;
+    input.landReceipt?.gcRemoved === true ? ttui('tui.notice.gcRemoved') : undefined;
   const detailParts = [
-    `Landed on local main — not pushed to remote${shaPart}`,
+    ttui('tui.notice.landedLocal', { sha: shaPart }),
     gcLine,
     hints,
   ].filter((part): part is string => part !== undefined && part.length > 0);

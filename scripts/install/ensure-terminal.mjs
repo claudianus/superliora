@@ -420,13 +420,14 @@ export async function ensureTerminal(options = {}) {
 
     if (found.wtPath) {
       const dest = options.shortcutPath ?? startMenuShortcutPath(env);
-      const writeShortcut = options.writeShortcut ?? defaultWriteShortcut;
+      const writeShortcut = options.writeShortcut ?? writeWindowsShortcut;
       shortcutWritten = await writeShortcut({
         dest,
         target: found.wtPath,
         arguments: `-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
         workingDirectory: env.USERPROFILE ?? defaultHomeFrom(env),
         description: SUPERLIORA_WT_PROFILE_NAME,
+        icon: commandline ?? found.wtPath,
       });
     }
 
@@ -664,17 +665,29 @@ async function defaultWriteUtf8(dest, text) {
   await writeFile(dest, text, 'utf8');
 }
 
-async function defaultWriteShortcut({ dest, target, arguments: args, workingDirectory, description }) {
+export async function writeWindowsShortcut({
+  dest,
+  target,
+  arguments: args,
+  workingDirectory,
+  description,
+  icon,
+}) {
   if (process.platform !== 'win32') return false;
+  const parent = dirname(dest);
   const script = [
+    `New-Item -ItemType Directory -Force -Path '${escapePs(parent)}' | Out-Null`,
     `$ws = New-Object -ComObject WScript.Shell`,
     `$s = $ws.CreateShortcut('${escapePs(dest)}')`,
     `$s.TargetPath = '${escapePs(target)}'`,
     `$s.Arguments = '${escapePs(args)}'`,
     `$s.WorkingDirectory = '${escapePs(workingDirectory ?? '')}'`,
     `$s.Description = '${escapePs(description ?? '')}'`,
+    icon
+      ? `$s.IconLocation = '${escapePs(icon)},0'`
+      : '',
     `$s.Save()`,
-  ].join('; ');
+  ].filter(Boolean).join('; ');
   const ps = spawnSync('powershell', ['-NoProfile', '-Command', script], {
     encoding: 'utf8',
     windowsHide: true,

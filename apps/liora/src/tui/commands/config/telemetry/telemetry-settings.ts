@@ -17,7 +17,7 @@ import {
   TELEMETRY_OPT_OUT_TIP,
 } from '../../../utils/telemetry/telemetry-glance';
 import { TELEMETRY_PRESETS } from '#/tui/utils/settings/telemetry-presets';
-import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { settingsPresetsRow, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { ttui } from '../../../utils/tui-i18n';
@@ -52,7 +52,7 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
-        SETTINGS_PRESETS_ROW,
+        settingsPresetsRow(),
         {
           value: 'status',
           label: 'Telemetry status',

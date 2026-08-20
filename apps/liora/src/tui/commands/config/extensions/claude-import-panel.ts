@@ -36,16 +36,16 @@ export async function showClaudeImportPanel(host: SlashCommandHost): Promise<voi
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Import from Claude Code',
-      hint: '↑↓ · Enter · Esc · ~/.claude if present',
+      title: ttui('tui.claude.import.title'),
+      hint: ttui('tui.claude.import.hint'),
       searchable: true,
       options: [
         ...(hasSkills || hasMcp
           ? [
               {
                 value: 'all',
-                label: 'Import skills + MCP',
-                description: preview.split('\n')[1]?.trim() ?? 'Copy into ~/.superliora',
+                label: ttui('tui.claude.import.all'),
+                description: preview.split('\n')[1]?.trim() ?? ttui('tui.claude.import.allFallback'),
               },
             ]
           : []),
@@ -53,8 +53,8 @@ export async function showClaudeImportPanel(host: SlashCommandHost): Promise<voi
           ? [
               {
                 value: 'skills',
-                label: 'Import skills only',
-                description: `${String(plan.skillSources.length)} from .claude/skills → ~/.superliora/skills`,
+                label: ttui('tui.claude.import.skills'),
+                description: ttui('tui.claude.import.skillsDesc', { count: String(plan.skillSources.length) }),
               },
             ]
           : []),
@@ -62,15 +62,17 @@ export async function showClaudeImportPanel(host: SlashCommandHost): Promise<voi
           ? [
               {
                 value: 'mcp',
-                label: 'Import MCP only',
-                description: `Merge ${String(Object.keys(plan.mcpSource!.servers).length)} servers into ~/.superliora/mcp.json`,
+                label: ttui('tui.claude.import.mcp'),
+                description: ttui('tui.claude.import.mcpDesc', {
+                  count: String(Object.keys(plan.mcpSource!.servers).length),
+                }),
               },
             ]
           : []),
         {
           value: 'guidance',
-          label: 'Symlink / manual guidance',
-          description: 'Soft link or manual setup without copying.',
+          label: ttui('tui.claude.import.guidance'),
+          description: ttui('tui.claude.import.guidanceDesc'),
         },
       ],
       onSelect: (value) => {

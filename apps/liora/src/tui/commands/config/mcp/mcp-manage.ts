@@ -39,44 +39,44 @@ export async function showMcpManagePanel(host: SlashCommandHost): Promise<void> 
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'MCP servers',
-      hint: '↑↓ · Enter · Esc · Claude-compatible mcp.json',
+      title: ttui('tui.settings.pane.mcp.title'),
+      hint: ttui('tui.mcp.manage.hint'),
       searchable: true,
       options: [
         {
           value: 'status',
-          label: 'Status',
-          description: 'Live connection status for configured servers.',
+          label: ttui('tui.mcp.manage.status'),
+          description: ttui('tui.mcp.manage.statusDesc'),
         },
         {
           value: 'toggle',
-          label: 'Enable / disable',
-          description: 'Toggle a server without editing JSON by hand.',
+          label: ttui('tui.mcp.manage.toggle'),
+          description: ttui('tui.mcp.manage.toggleDesc'),
         },
         {
           value: 'add-stdio',
-          label: 'Install (stdio)',
-          description: 'Add a local command server to user mcp.json.',
+          label: ttui('tui.mcp.manage.addStdio'),
+          description: ttui('tui.mcp.manage.addStdioDesc'),
         },
         {
           value: 'add-http',
-          label: 'Install (HTTP URL)',
-          description: 'Add a remote MCP endpoint to user mcp.json.',
+          label: ttui('tui.mcp.manage.addHttp'),
+          description: ttui('tui.mcp.manage.addHttpDesc'),
         },
         {
           value: 'remove',
-          label: 'Remove',
-          description: 'Delete a server entry from its config scope.',
+          label: ttui('tui.mcp.manage.remove'),
+          description: ttui('tui.mcp.manage.removeDesc'),
         },
         {
           value: 'plugins',
-          label: 'Plugin MCP…',
-          description: 'Manage MCP servers declared by installed plugins.',
+          label: ttui('tui.mcp.manage.plugins'),
+          description: ttui('tui.mcp.manage.pluginsDesc'),
         },
         {
           value: 'reload',
-          label: 'Reload session',
-          description: 'Apply mcp.json changes to the current session.',
+          label: ttui('tui.mcp.manage.reload'),
+          description: ttui('tui.mcp.manage.reloadDesc'),
         },
       ] satisfies ChoiceOption[],
       onSelect: (value) => {
@@ -84,7 +84,7 @@ export async function showMcpManagePanel(host: SlashCommandHost): Promise<void> 
       },
       onCancel: () =>{  dismissPickerDialog(host); },
     }),
-    { label: 'MCP' },
+    { label: ttui('tui.extensions.tab.mcp') },
   );
 }
 
@@ -162,7 +162,7 @@ async function showServerPicker(host: SlashCommandHost, mode: 'toggle' | 'remove
       },
       onCancel: () =>{  dismissPickerDialog(host); },
     }),
-    { label: 'MCP' },
+    { label: ttui('tui.extensions.tab.mcp') },
   );
 }
 
@@ -211,7 +211,7 @@ function confirmRemove(host: SlashCommandHost, name: string): void {
       },
       onCancel: () =>{  dismissPickerDialog(host); },
     }),
-    { label: 'MCP' },
+    { label: ttui('tui.extensions.tab.mcp') },
   );
 }
 

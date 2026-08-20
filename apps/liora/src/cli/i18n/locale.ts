@@ -1,15 +1,11 @@
 import { STRINGS_EN, STRINGS_KO, type CliLocale } from './strings';
 
-const LOCALE_ENV_NAMES = [
-  'SUPERLIORA_LOCALE',
-  'LANGUAGE',
-  'LC_ALL',
-  'LC_MESSAGES',
-  'LANG',
-] as const;
+const POSIX_ENV_NAMES = ['LANGUAGE', 'LC_ALL', 'LC_MESSAGES', 'LANG'] as const;
 
 /** Persisted UI language preference (`tui.toml` `locale`). */
 export type LocalePreference = 'auto' | CliLocale;
+
+export type LanguageTagKind = 'ko' | 'en' | 'neutral' | 'other';
 
 /**
  * Active CLI locale. Defaults to `'en'` so importing the module (e.g. in
@@ -21,31 +17,92 @@ export type LocalePreference = 'auto' | CliLocale;
 let activeLocale: CliLocale = 'en';
 
 /**
- * Resolves the CLI locale from the process environment. Checks an explicit
- * `SUPERLIORA_LOCALE` override first, then the standard POSIX locale
- * variables (`LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`). `LANGUAGE` is
- * colon-separated and only its first entry is considered. Any Korean locale
- * (`ko`, `ko_*`, `ko-*`) selects Korean; everything else falls back to
- * English.
+ * Classify a locale tag. `LANGUAGE` is colon-separated (first entry wins).
+ * Codeset (`.UTF-8`) and modifier (`@latin`) are stripped. `C` / `POSIX`
+ * are CI/neutral English, not an OS UI signal.
+ */
+export function parseLanguageTag(raw: string | undefined): LanguageTagKind {
+  if (typeof raw !== 'string' || raw.length === 0) return 'other';
+  const first = raw.split(':')[0]!.toLowerCase().trim();
+  const localePart = first.split('.')[0]!.split('@')[0]!;
+  if (localePart === 'c' || localePart === 'posix') return 'neutral';
+  if (localePart === 'ko' || localePart.startsWith('ko_') || localePart.startsWith('ko-')) {
+    return 'ko';
+  }
+  if (localePart === 'en' || localePart.startsWith('en_') || localePart.startsWith('en-')) {
+    return 'en';
+  }
+  return 'other';
+}
+
+function firstPosixLanguage(env: Record<string, string | undefined>): CliLocale | 'neutral' | null {
+  for (const name of POSIX_ENV_NAMES) {
+    const kind = parseLanguageTag(env[name]);
+    if (kind === 'ko' || kind === 'en' || kind === 'neutral') return kind === 'neutral' ? 'neutral' : kind;
+  }
+  return null;
+}
+
+function readIntlLocale(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().locale ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** True for Git Bash / MSYS / Cygwin, which often set LANG=en_US on Korean Windows. */
+export function isPosixOnWindows(env: Record<string, string | undefined>): boolean {
+  return Boolean(env.MSYSTEM || env.CYGWIN);
+}
+
+export interface DetectCliLocaleOptions {
+  readonly intl?: boolean;
+  readonly platform?: NodeJS.Platform;
+  /** Injected OS UI locale (e.g. `ko-KR`) so tests do not call Intl. */
+  readonly osLocale?: string;
+}
+
+/**
+ * Resolves the CLI locale from the process environment and OS UI language.
+ *
+ * Order:
+ * 1. `SUPERLIORA_LOCALE`
+ * 2. Korean POSIX (`LANGUAGE` / `LC_*` / `LANG`)
+ * 3. `C` / `POSIX` → English (CI)
+ * 4. Windows + Git Bash/Cygwin: OS UI Korean wins over LANG=en_US
+ * 5. Explicit POSIX English
+ * 6. OS UI locale (`Intl`, or `osLocale` in tests)
+ * 7. English
  */
 export function detectCliLocale(
   env: Record<string, string | undefined> = {},
+  options: DetectCliLocaleOptions = {},
 ): CliLocale {
-  for (const name of LOCALE_ENV_NAMES) {
-    const raw = env[name];
-    if (typeof raw !== 'string' || raw.length === 0) continue;
-    // LANGUAGE is colon-separated; only the first entry matters. Strip the
-    // codeset (after '.') and the modifier (after '@') so forms like
-    // `ko_KR.UTF-8`, `ko.UTF-8`, and `ko_KR@latin` all match the language.
-    const first = raw.split(':')[0]!.toLowerCase();
-    const localePart = first.split('.')[0]!.split('@')[0]!;
-    if (localePart === 'ko' || localePart.startsWith('ko_') || localePart.startsWith('ko-')) {
-      return 'ko';
-    }
-    if (localePart === 'en' || localePart.startsWith('en_') || localePart.startsWith('en-')) {
-      return 'en';
-    }
+  const explicit = parseLanguageTag(env.SUPERLIORA_LOCALE);
+  if (explicit === 'ko' || explicit === 'en') return explicit;
+
+  const posix = firstPosixLanguage(env);
+  if (posix === 'ko') return 'ko';
+  if (posix === 'neutral') return 'en';
+
+  const platform = options.platform ?? process.platform;
+  const allowOs = options.osLocale !== undefined
+    || options.intl === true
+    || (options.intl !== false && env === process.env);
+  let os: CliLocale | null = null;
+  if (allowOs) {
+    const tag = options.osLocale ?? readIntlLocale();
+    const kind = parseLanguageTag(tag);
+    if (kind === 'ko' || kind === 'en') os = kind;
   }
+
+  if (os === 'ko' && platform === 'win32' && (isPosixOnWindows(env) || posix !== 'en')) {
+    return 'ko';
+  }
+
+  if (posix === 'en') return 'en';
+  if (os === 'ko' || os === 'en') return os;
   return 'en';
 }
 
@@ -56,10 +113,15 @@ export function detectCliLocale(
 export function resolveCliLocale(options: {
   readonly preference?: LocalePreference | null;
   readonly env?: Record<string, string | undefined>;
+  readonly platform?: NodeJS.Platform;
+  readonly osLocale?: string;
 }): CliLocale {
   const preference = options.preference ?? 'auto';
   if (preference === 'en' || preference === 'ko') return preference;
-  return detectCliLocale(options.env ?? {});
+  return detectCliLocale(options.env ?? {}, {
+    platform: options.platform,
+    osLocale: options.osLocale,
+  });
 }
 
 export function getCliLocale(): CliLocale {
@@ -90,3 +152,4 @@ export function t(key: string, params?: Record<string, string | number>): string
 export function tln(key: string, params?: Record<string, string | number>): string {
   return `${t(key, params)}\n`;
 }
+

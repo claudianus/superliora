@@ -235,7 +235,7 @@ export class UpgradeStudioComponent extends Container implements Focusable {
   private renderChecking(inner: number): readonly string[] {
     const source = this.plan?.source ?? 'npm-global';
     return [
-      padLine(centerAnsi(currentTheme.fg('textMuted', 'Checking for updates…'), inner), inner),
+      padLine(centerAnsi(currentTheme.fg('textMuted', ttui('tui.dialog.upgradeStudio.checking')), inner), inner),
       '',
       ...renderUpgradeProgressBlock({
         width: inner,
@@ -254,7 +254,7 @@ export class UpgradeStudioComponent extends Container implements Focusable {
   ): readonly string[] {
     const plan = this.plan;
     if (plan === null) {
-      return [padLine(currentTheme.fg('textMuted', ' No plan resolved.'), inner)];
+      return [padLine(currentTheme.fg('textMuted', ttui('tui.dialog.upgradeStudio.noPlan')), inner)];
     }
     const lines: string[] = [];
     for (const line of statusLines(plan)) {
@@ -267,22 +267,22 @@ export class UpgradeStudioComponent extends Container implements Focusable {
       lines.push(padLine(centerAnsi(text, inner), inner));
     }
     lines.push('');
-    lines.push(fieldRow('Current', plan.currentVersion, inner, 'text'));
+    lines.push(fieldRow(ttui('tui.dialog.upgradeStudio.field.current'), plan.currentVersion, inner, 'text'));
     if (plan.target !== null) {
-      lines.push(fieldRow('Target', plan.target.version, inner, 'success', true));
+      lines.push(fieldRow(ttui('tui.dialog.upgradeStudio.field.target'), plan.target.version, inner, 'success', true));
     }
-    lines.push(fieldRow('Source', plan.source, inner, 'primary'));
+    lines.push(fieldRow(ttui('tui.dialog.upgradeStudio.field.source'), plan.source, inner, 'primary'));
     if (shouldShowManualCommand(plan)) {
-      lines.push(fieldRow('Command', plan.installCommand, inner, 'primary'));
+      lines.push(fieldRow(ttui('tui.dialog.upgradeStudio.field.command'), plan.installCommand, inner, 'primary'));
     }
     if (plan.changelogUrl.length > 0 && plan.reason === 'update-available') {
-      lines.push(fieldRow('Notes', plan.changelogUrl, inner, 'accent'));
+      lines.push(fieldRow(ttui('tui.dialog.upgradeStudio.field.notes'), plan.changelogUrl, inner, 'accent'));
     }
     if (plan.dirty && plan.reason === 'update-available') {
       lines.push('');
       const warn = plan.canAutoInstall
-        ? 'Dirty tree — Install force-resets HEAD and discards uncommitted local changes.'
-        : 'Dirty tree — commit, stash, or re-run install.sh to recover.';
+        ? ttui('tui.dialog.upgradeStudio.dirty.forceReset')
+        : ttui('tui.dialog.upgradeStudio.dirty.manual');
       lines.push(padLine(currentTheme.fg('warning', ` ⚠ ${warn}`), inner));
     }
     if (plan.errorMessage !== undefined && plan.errorMessage.length > 0) {
@@ -297,10 +297,8 @@ export class UpgradeStudioComponent extends Container implements Focusable {
     const target = this.plan?.target?.version;
     const head =
       target === undefined
-        ? currentTheme.fg('text', 'Installing update…')
-        : currentTheme.fg('text', 'Installing ')
-          + currentTheme.boldFg('success', target)
-          + currentTheme.fg('text', '…');
+        ? currentTheme.fg('text', ttui('tui.dialog.upgradeStudio.installing'))
+        : currentTheme.fg('text', ttui('tui.dialog.upgradeStudio.installingVersion', { version: target }));
     return [
       padLine(centerAnsi(head, inner), inner),
       '',
@@ -315,7 +313,7 @@ export class UpgradeStudioComponent extends Container implements Focusable {
       '',
       padLine(
         centerAnsi(
-          currentTheme.fg('glow', 'Install in progress — leave this window open.'),
+          currentTheme.fg('glow', ttui('tui.dialog.upgradeStudio.installInProgress')),
           inner,
         ),
         inner,
@@ -330,16 +328,16 @@ export class UpgradeStudioComponent extends Container implements Focusable {
   ): readonly string[] {
     const version = this.plan?.target?.version ?? 'latest';
     const title = ambient
-      ? renderSpectacularText('Upgrade complete', 'upgrade-studio:success', appearance, {
+      ? renderSpectacularText(ttui('tui.dialog.upgradeStudio.complete'), 'upgrade-studio:success', appearance, {
           intense: true,
         })
-      : currentTheme.boldFg('success', 'Upgrade complete');
+      : currentTheme.boldFg('success', ttui('tui.dialog.upgradeStudio.complete'));
     return [
       padLine(centerAnsi(title, inner), inner),
       '',
-      padLine(centerAnsi(currentTheme.fg('text', `SuperLiora is now at ${version}.`), inner), inner),
+      padLine(centerAnsi(currentTheme.fg('text', ttui('tui.dialog.upgradeStudio.nowAt', { version })), inner), inner),
       padLine(
-        centerAnsi(currentTheme.fg('textMuted', 'Restart SuperLiora to load the new binary.'), inner),
+        centerAnsi(currentTheme.fg('textMuted', ttui('tui.dialog.upgradeStudio.restart')), inner),
         inner,
       ),
       ...(this.plan?.changelogUrl
@@ -349,15 +347,15 @@ export class UpgradeStudioComponent extends Container implements Focusable {
   }
 
   private renderFailed(inner: number): readonly string[] {
-    const reason = this.detail?.trim() || 'install failed';
+    const reason = this.detail?.trim() || ttui('tui.dialog.upgradeStudio.installFailed');
     const lines = [
-      padLine(centerAnsi(currentTheme.boldFg('error', 'Upgrade failed'), inner), inner),
+      padLine(centerAnsi(currentTheme.boldFg('error', ttui('tui.dialog.upgradeStudio.failed')), inner), inner),
       '',
       padLine(centerAnsi(currentTheme.fg('error', truncate(reason, Math.max(12, inner - 4))), inner), inner),
     ];
     if (this.plan !== null) {
       lines.push('');
-      lines.push(fieldRow('Recover', this.plan.installCommand, inner, 'primary'));
+      lines.push(fieldRow(ttui('tui.dialog.upgradeStudio.field.recover'), this.plan.installCommand, inner, 'primary'));
     }
     return lines;
   }
@@ -493,19 +491,19 @@ function heroStatus(
   const raw = (() => {
     switch (mode) {
       case 'checking':
-        return 'Scanning releases…';
+        return ttui('tui.dialog.upgradeStudio.hero.scanning');
       case 'installing':
-        return 'Installing…';
+        return ttui('tui.dialog.upgradeStudio.hero.installing');
       case 'success':
-        return 'Ready to restart';
+        return ttui('tui.dialog.upgradeStudio.hero.readyRestart');
       case 'failed':
-        return 'Install failed';
+        return ttui('tui.dialog.upgradeStudio.hero.failed');
       case 'plan':
         if (plan?.reason === 'update-available' && plan.target !== null) {
           return `${plan.currentVersion}  →  ${plan.target.version}`;
         }
-        if (plan?.reason === 'up-to-date') return 'You are up to date';
-        return 'Update status';
+        if (plan?.reason === 'up-to-date') return ttui('tui.dialog.upgradeStudio.hero.upToDate');
+        return ttui('tui.dialog.upgradeStudio.hero.status');
     }
   })();
   if (ambient && (mode === 'plan' || mode === 'success')) {
@@ -520,15 +518,15 @@ function heroStatus(
 function modeChipLabel(mode: UpgradeStudioMode): string {
   switch (mode) {
     case 'checking':
-      return 'checking';
+      return ttui('tui.dialog.upgradeStudio.chip.checking');
     case 'plan':
-      return 'ready';
+      return ttui('tui.dialog.upgradeStudio.chip.ready');
     case 'installing':
-      return 'installing';
+      return ttui('tui.dialog.upgradeStudio.chip.installing');
     case 'success':
-      return 'done';
+      return ttui('tui.dialog.upgradeStudio.chip.done');
     case 'failed':
-      return 'failed';
+      return ttui('tui.dialog.upgradeStudio.chip.failed');
   }
 }
 
@@ -609,11 +607,13 @@ function statusLines(
 ): readonly { readonly text: string; readonly tone: 'text' | 'success' | 'warning' | 'error' | 'textMuted' }[] {
   switch (plan.reason) {
     case 'up-to-date':
-      return [{ text: `${PRODUCT_NAME} is up to date.`, tone: 'success' }];
+      return [{ text: ttui('tui.dialog.upgradeStudio.status.upToDate', { product: PRODUCT_NAME }), tone: 'success' }];
     case 'already-installing':
       return [
         {
-          text: `An upgrade to ${plan.target?.version ?? 'a newer version'} is already in progress.`,
+          text: ttui('tui.dialog.upgradeStudio.status.alreadyInstalling', {
+            version: plan.target?.version ?? '',
+          }),
           tone: 'warning',
         },
       ];
@@ -621,22 +621,22 @@ function statusLines(
       if (plan.fromMain) {
         return [
           {
-            text: 'Tip of origin/main (not a published release).',
+            text: ttui('tui.dialog.upgradeStudio.status.tipOfMain'),
             tone: 'warning',
           },
         ];
       }
       return plan.canAutoInstall
-        ? [{ text: 'A newer published release is available.', tone: 'text' }]
-        : [{ text: 'A newer published release is available. Use the command below if needed.', tone: 'text' }];
+        ? [{ text: ttui('tui.dialog.upgradeStudio.status.updateAvailable'), tone: 'text' }]
+        : [{ text: ttui('tui.dialog.upgradeStudio.status.updateAvailableManual'), tone: 'text' }];
     case 'diverged':
-      return [{ text: 'Git checkout has diverged from upstream.', tone: 'error' }];
+      return [{ text: ttui('tui.dialog.upgradeStudio.status.diverged'), tone: 'error' }];
     case 'check-failed':
-      return [{ text: 'Could not check for updates.', tone: 'error' }];
+      return [{ text: ttui('tui.dialog.upgradeStudio.status.checkFailed'), tone: 'error' }];
     case 'unsupported':
-      return [{ text: 'Automatic upgrades are not supported for this install source.', tone: 'warning' }];
+      return [{ text: ttui('tui.dialog.upgradeStudio.status.unsupported'), tone: 'warning' }];
     default:
-      return [{ text: 'Upgrade status unknown.', tone: 'textMuted' }];
+      return [{ text: ttui('tui.dialog.upgradeStudio.status.unknown'), tone: 'textMuted' }];
   }
 }
 

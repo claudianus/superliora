@@ -9,7 +9,9 @@ import { join } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
 import { ensurePnpm, runPnpm } from './ensure-pnpm.mjs';
+import { detectInstallLocale } from './locale.mjs';
 import { defaultHome } from './platform.mjs';
+import { t } from './strings.mjs';
 
 /**
  * @param {{
@@ -25,6 +27,7 @@ import { defaultHome } from './platform.mjs';
 export async function installSidecars(options = {}) {
   const commandName = options.commandName ?? 'liora';
   const installDir = options.installDir;
+  const locale = options.locale ?? detectInstallLocale();
   const warn = options.onWarn ?? (() => {});
   const detail = options.onDetail ?? (() => {});
 
@@ -41,17 +44,17 @@ export async function installSidecars(options = {}) {
   }
 
   if (!options.noBrowserUse && process.env.SUPERLIORA_SKIP_BROWSER_USE !== '1') {
-    detail('Installing browser-use runtimes');
+    detail(t('install.sidecar.browserUse', undefined, locale));
     await installBrowserSidecars(installDir, commandName, warn);
   }
 
   if (!options.noComputerUse && process.env.SUPERLIORA_SKIP_COMPUTER_USE !== '1') {
-    detail('Installing cua-driver');
+    detail(t('install.sidecar.cua', undefined, locale));
     installCuaDriver(commandName, warn);
   }
 
   if (!options.noRetrieval && process.env.SUPERLIORA_SKIP_RETRIEVAL !== '1') {
-    detail('Bootstrapping local retrieval embedder');
+    detail(t('install.sidecar.retrieval', undefined, locale));
     if (installDir && existsSync(join(installDir, 'packages/agent-core'))) {
       bootstrapRetrieval(installDir, warn);
     } else {

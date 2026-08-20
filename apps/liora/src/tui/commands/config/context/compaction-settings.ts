@@ -22,7 +22,7 @@ import {
 } from '#/tui/utils/compaction/compaction-glance';
 
 import { COMPACTION_PRESETS } from '#/tui/utils/settings/compaction-presets';
-import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { settingsPresetsRow, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { formatErrorMessage } from '#/tui/utils/event-payload';
 import { handleCompactCommand } from '../plan/plan';
 import { showContextWorkingSetPicker } from './context';
@@ -43,7 +43,7 @@ export function showCompactionSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
-        SETTINGS_PRESETS_ROW,
+        settingsPresetsRow(),
         {
           value: 'status',
           label: 'Compaction status',

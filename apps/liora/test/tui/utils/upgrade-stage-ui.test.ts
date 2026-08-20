@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { setCliLocale } from '#/cli/i18n';
 
 import {
   formatStageChecklist,
@@ -8,6 +10,10 @@ import {
 } from '#/tui/utils/upgrade/upgrade-stage-ui';
 
 describe('upgrade-stage-ui', () => {
+  afterEach(() => {
+    setCliLocale('en');
+  });
+
   it('keeps stage fractions monotonic for pipeline stages', () => {
     const pipeline = orderedStagesForSource('github-checkout');
     let prev = -1;
@@ -28,6 +34,9 @@ describe('upgrade-stage-ui', () => {
   it('labels stages for display', () => {
     expect(stageLabel('building')).toBe('Building');
     expect(stageLabel('downloading')).toBe('Downloading');
+    setCliLocale('ko');
+    expect(stageLabel('building')).toBe('빌드');
+    expect(stageLabel('downloading')).toBe('다운로드');
   });
 
   it('builds github checklist with active spinner marker', () => {

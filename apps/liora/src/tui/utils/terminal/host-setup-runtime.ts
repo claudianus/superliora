@@ -17,6 +17,7 @@ export type EnsureHostSetupResult = {
   readonly installed?: boolean;
   readonly fragmentWritten?: boolean;
   readonly shortcutWritten?: boolean;
+  readonly desktopShortcutWritten?: boolean;
   readonly promotedDefault?: boolean;
   readonly wingetBootstrapped?: boolean;
   readonly nerdFontInstalled?: boolean;
@@ -89,6 +90,7 @@ export function formatHostSetupApply(result: EnsureHostSetupResult): string {
     result.themeWritten ? 'omp-theme' : undefined,
     result.fragmentWritten ? 'profile' : undefined,
     result.shortcutWritten ? 'shortcut' : undefined,
+    result.desktopShortcutWritten ? 'desktop-shortcut' : undefined,
     result.promotedDefault ? 'default-terminal' : undefined,
     result.settingsMerged ? 'wt-defaults' : undefined,
   ].filter((bit): bit is string => bit !== undefined);

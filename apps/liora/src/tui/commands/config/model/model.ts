@@ -130,16 +130,15 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Model routing',
-      hint: '↑↓ navigate · Enter select · Esc cancel',
-      notice: 'Overrides apply on next worker spawn / role resolution. Unset roles use smart auto.',
+      title: ttui('tui.model.routing.title'),
+      hint: ttui('tui.model.routing.hint'),
+      notice: ttui('tui.model.routing.notice'),
       noticeTone: 'warning',
       options: [
         {
           value: autoRoutingValue,
-          label: 'Smart auto routing',
-          description:
-            'Clear role overrides, live-probe each role chain, and pin only models that respond.',
+          label: ttui('tui.model.routing.smartAuto'),
+          description: ttui('tui.model.routing.smartAutoDesc'),
         },
         ...rows.map((row) => ({
           value: row.key,
@@ -375,16 +374,15 @@ export function showModelSettingsReset(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Reset model settings',
-      hint: '↑↓ navigate · Enter select · Esc cancel',
-      notice: 'Provider credentials and discovered model catalog are kept.',
+      title: ttui('tui.model.reset.title'),
+      hint: ttui('tui.model.reset.hint'),
+      notice: ttui('tui.model.reset.notice'),
       noticeTone: 'warning',
       options: [
         {
           value: 'reset',
-          label: 'Reset all model settings',
-          description:
-            'Restore model defaults, thinking, role routing, and fallback chains to automatic behavior.',
+          label: ttui('tui.model.reset.confirm'),
+          description: ttui('tui.model.reset.confirmDesc'),
           tone: 'danger',
         },
         {

@@ -23,23 +23,23 @@ export function showMediaFallbackPicker(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Media fallback (text-only model)',
-      hint: '↑↓ · Enter · Esc',
+      title: ttui('tui.media.fallback.title'),
+      hint: ttui('tui.media.fallback.hint'),
       options: [
         {
           value: 'analyze',
-          label: mark('analyze', 'Analyze with a vision model'),
-          description: 'Render attached media to text with a vision-capable catalog model.',
+          label: mark('analyze', ttui('tui.media.fallback.analyze')),
+          description: ttui('tui.media.fallback.analyzeDesc'),
         },
         {
           value: 'path',
-          label: mark('path', 'Attach path note'),
-          description: 'Replace media with a pointer so a vision tool can read it later.',
+          label: mark('path', ttui('tui.media.fallback.path')),
+          description: ttui('tui.media.fallback.pathDesc'),
         },
         {
           value: 'block',
-          label: mark('block', 'Block the send'),
-          description: 'Refuse prompts with media while the current model is text-only.',
+          label: mark('block', ttui('tui.media.fallback.block')),
+          description: ttui('tui.media.fallback.blockDesc'),
         },
       ],
       onSelect: (value) => {

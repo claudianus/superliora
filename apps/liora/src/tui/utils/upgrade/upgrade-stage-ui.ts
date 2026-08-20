@@ -2,6 +2,7 @@
  * Pure Upgrade Studio stage → label/fraction map (no theme / no I/O).
  */
 
+import { t } from '#/cli/i18n';
 import type { InstallSource } from '#/cli/update/types';
 import type { UpgradeInstallStage } from '#/cli/update/install-stages';
 
@@ -24,16 +25,16 @@ const STAGE_FRACTION: Record<Exclude<UpgradeInstallStage, 'failed'>, number> = {
   done: 1,
 };
 
-const STAGE_LABEL: Record<UpgradeInstallStage, string> = {
-  checking: 'Checking',
-  bootstrapping: 'Bootstrapping',
-  fetching: 'Fetching',
-  downloading: 'Downloading',
-  building: 'Building',
-  installing: 'Installing',
-  sidecars: 'Sidecars',
-  done: 'Done',
-  failed: 'Failed',
+const STAGE_KEYS: Record<UpgradeInstallStage, string> = {
+  checking: 'cli.runtime.upgrade.stage.checking',
+  bootstrapping: 'cli.runtime.upgrade.stage.bootstrapping',
+  fetching: 'cli.runtime.upgrade.stage.fetching',
+  downloading: 'cli.runtime.upgrade.stage.downloading',
+  building: 'cli.runtime.upgrade.stage.building',
+  installing: 'cli.runtime.upgrade.stage.installing',
+  sidecars: 'cli.runtime.upgrade.stage.sidecars',
+  done: 'cli.runtime.upgrade.stage.done',
+  failed: 'cli.runtime.upgrade.stage.failed',
 };
 
 /** Pipeline stages shown in the checklist (excludes terminal failed). */
@@ -64,7 +65,7 @@ const NATIVE_PIPELINE: readonly UpgradeInstallStage[] = [
 ];
 
 export function stageLabel(stage: UpgradeInstallStage): string {
-  return STAGE_LABEL[stage];
+  return t(STAGE_KEYS[stage]);
 }
 
 export function stageFraction(

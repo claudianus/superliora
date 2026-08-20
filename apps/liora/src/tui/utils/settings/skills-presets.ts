@@ -30,6 +30,9 @@ export const SKILLS_PRESETS: readonly SettingPreset<SkillsPresetId, SkillsPreset
     id: 'minimal',
     label: 'Minimal',
     badge: 'few slash skills',
+    labelKey: 'tui.preset.skills.minimal.label',
+    badgeKey: 'tui.preset.skills.minimal.badge',
+    descriptionKey: 'tui.preset.skills.minimal.desc',
     description: 'Disable noisy builtins; keep core config helpers.',
     patch: {
       enable: [BUILTIN.update, BUILTIN.mcp],
@@ -47,6 +50,9 @@ export const SKILLS_PRESETS: readonly SettingPreset<SkillsPresetId, SkillsPreset
     id: 'coding',
     label: 'Coding',
     badge: 'ship',
+    labelKey: 'tui.preset.skills.coding.label',
+    badgeKey: 'tui.preset.skills.coding.badge',
+    descriptionKey: 'tui.preset.skills.coding.desc',
     description: 'Mission + recursive improve + avoid AI slop.',
     patch: {
       enable: [BUILTIN.mission, BUILTIN.recursive, BUILTIN.avoidAi, BUILTIN.writeGoal],
@@ -57,6 +63,9 @@ export const SKILLS_PRESETS: readonly SettingPreset<SkillsPresetId, SkillsPreset
     id: 'writing',
     label: 'Writing',
     badge: 'prose',
+    labelKey: 'tui.preset.skills.writing.label',
+    badgeKey: 'tui.preset.skills.writing.badge',
+    descriptionKey: 'tui.preset.skills.writing.desc',
     description: 'Avoid AI writing + goal framing.',
     patch: {
       enable: [BUILTIN.avoidAi, BUILTIN.writeGoal],
@@ -67,6 +76,9 @@ export const SKILLS_PRESETS: readonly SettingPreset<SkillsPresetId, SkillsPreset
     id: 'research',
     label: 'Research',
     badge: 'explore',
+    labelKey: 'tui.preset.skills.research.label',
+    badgeKey: 'tui.preset.skills.research.badge',
+    descriptionKey: 'tui.preset.skills.research.desc',
     description: 'Goals + recursive improve; leave MCP helpers on.',
     patch: {
       enable: [BUILTIN.writeGoal, BUILTIN.recursive, BUILTIN.mcp],

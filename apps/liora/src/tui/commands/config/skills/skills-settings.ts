@@ -17,7 +17,7 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 import { getDataDir } from '#/utils/paths';
 import { loadSkillsState, saveSkillsState } from '#/utils/skills/skills-state';
 import { SKILLS_PRESETS } from '#/tui/utils/settings/skills-presets';
-import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { settingsPresetsRow, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { formatErrorMessage } from '#/tui/utils/event-payload';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
@@ -60,7 +60,7 @@ export function showSkillsSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
-        SETTINGS_PRESETS_ROW,
+        settingsPresetsRow(),
         {
           value: 'status',
           label: 'Skills status',

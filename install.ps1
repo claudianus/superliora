@@ -75,6 +75,9 @@ $InstallModules = @(
   'spawn.mjs',
   'wrappers.mjs',
   'ensure-terminal.mjs',
+  'ensure-desktop-launcher.mjs',
+  'locale.mjs',
+  'strings.mjs',
   'ensure-winget.mjs',
   'ensure-nerd-font.mjs',
   'ensure-oh-my-posh.mjs',
@@ -152,6 +155,7 @@ function Show-Usage {
   Write-Host '  -NoGit / --no-git'
   Write-Host '  -NoTerminal / --no-terminal'
   Write-Host '  -NoHostSetup / --no-host-setup'
+  Write-Host '  SUPERLIORA_LOCALE=en|ko'
   Write-Host '  -NoPath / -NoShellRc / --no-shell-rc'
   Write-Host '  -PreferSource / --prefer-source'
   Write-Host '  -Main / --main'
@@ -432,6 +436,20 @@ if ($noHostSetupEnv -eq '1') { $opt.NoHostSetup = $true }
 if ($noShellEnv -eq '1') { $opt.NoPath = $true; $opt.NoShellRc = $true }
 if ($fromMainEnv -eq '1') { $opt.Main = $true }
 
+function Resolve-InstallLocale {
+  $explicit = [Environment]::GetEnvironmentVariable('SUPERLIORA_LOCALE', 'Process')
+  if (-not [string]::IsNullOrWhiteSpace($explicit)) { return $explicit.Trim().ToLowerInvariant() }
+  try {
+    $name = [System.Globalization.CultureInfo]::CurrentUICulture.TwoLetterISOLanguageName
+    if ($name -eq 'ko') { return 'ko' }
+  } catch {
+  }
+  return 'en'
+}
+if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('SUPERLIORA_LOCALE', 'Process'))) {
+  $env:SUPERLIORA_LOCALE = Resolve-InstallLocale
+}
+
 if ($opt.CommandName -notmatch '^[A-Za-z0-9._-]+$') {
   Fail '-CommandName must be a simple command name'
 }
@@ -535,6 +553,9 @@ try {
   Add-SessionPnpmRuntime $homeDir
   if ($FancyOutput) {
     Write-Host ('  Try it now: ' + $opt.CommandName + ' --version') -ForegroundColor DarkGray
+    if (-not $opt.NoHostSetup -and -not $opt.NoTerminal) {
+      Write-Host '  Or double-click SuperLiora on the Desktop.' -ForegroundColor DarkGray
+    }
   } else {
     Write-Host ('This session: ' + $opt.CommandName + ' --version')
   }

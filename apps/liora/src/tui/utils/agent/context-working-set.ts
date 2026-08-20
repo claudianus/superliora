@@ -12,6 +12,7 @@
  */
 
 import { applyXaiPricingSafeWorkingSet } from '@superliora/oauth';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export type ContextWorkingSetPresetId =
   | 'balanced'
@@ -164,7 +165,7 @@ export function previewContextWorkingSet(input: {
   const asyncRatio = input.asyncRatio ?? 0.7;
   const window = input.maxContextTokens;
   const windowLabel =
-    window !== undefined && window > 0 ? formatTokenCount(window) : 'unknown';
+    window !== undefined && window > 0 ? formatTokenCount(window) : ttui('tui.context.unknownWindow');
 
   const softCap = input.preset.loop.maxWorkingSetTokens;
   const asyncCap = input.preset.loop.asyncWorkingSetTokens;
@@ -173,8 +174,12 @@ export function previewContextWorkingSet(input: {
     return {
       softTokens: softCap > 0 ? softCap : null,
       asyncTokens: asyncCap > 0 ? asyncCap : null,
-      softLabel: softCap > 0 ? `~${formatTokenCount(softCap)} soft` : 'ratio only',
-      asyncLabel: asyncCap > 0 ? `~${formatTokenCount(asyncCap)} async` : 'ratio only',
+      softLabel: softCap > 0
+        ? ttui('tui.context.softCap', { value: formatTokenCount(softCap) })
+        : ttui('tui.context.ratioOnly'),
+      asyncLabel: asyncCap > 0
+        ? ttui('tui.context.asyncCap', { value: formatTokenCount(asyncCap) })
+        : ttui('tui.context.ratioOnly'),
       windowLabel,
     };
   }
@@ -191,8 +196,8 @@ export function previewContextWorkingSet(input: {
   return {
     softTokens,
     asyncTokens,
-    softLabel: `soft @ ${formatTokenCount(softTokens)}`,
-    asyncLabel: `async @ ${formatTokenCount(asyncTokens)}`,
+    softLabel: ttui('tui.context.softAt', { value: formatTokenCount(softTokens) }),
+    asyncLabel: ttui('tui.context.asyncAt', { value: formatTokenCount(asyncTokens) }),
     windowLabel,
   };
 }

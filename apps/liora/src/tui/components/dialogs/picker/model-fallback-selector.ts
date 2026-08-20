@@ -4,6 +4,7 @@ import { currentTheme } from '#/tui/theme/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export interface ModelFallbackItem {
   readonly alias: string;
@@ -168,7 +169,7 @@ export class ModelFallbackSelectorComponent extends Container implements Focusab
 
     return renderRendererPanelChromeRows({
       width,
-      title: 'Model Fallback',
+      title: ttui('tui.model.fallback.title'),
       body: lines,
     });
   }

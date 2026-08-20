@@ -22,19 +22,19 @@ export async function showSkillsManagePanel(host: SlashCommandHost): Promise<voi
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Skills',
-      hint: '↑↓ · Enter · Esc · Claude-compatible dirs',
+      title: ttui('tui.skills.manage.title'),
+      hint: ttui('tui.skills.manage.hint'),
       searchable: true,
       options: [
         {
           value: 'toggle',
-          label: 'Enable / disable',
-          description: 'Toggle slash activation (skills-state.json).',
+          label: ttui('tui.skills.manage.toggle'),
+          description: ttui('tui.skills.manage.toggleDesc'),
         },
         {
           value: 'install',
-          label: 'Install from path',
-          description: 'Copy a SKILL.md directory into ~/.superliora/skills.',
+          label: ttui('tui.skills.manage.install'),
+          description: ttui('tui.skills.manage.installDesc'),
         },
       ],
       onSelect: (value) => {
@@ -44,7 +44,7 @@ export async function showSkillsManagePanel(host: SlashCommandHost): Promise<voi
       },
       onCancel: () =>{  dismissPickerDialog(host); },
     }),
-    { label: 'Skills' },
+    { label: ttui('tui.skills.manage.title') },
   );
 }
 
@@ -70,15 +70,15 @@ async function showToggleList(host: SlashCommandHost): Promise<void> {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Toggle skills',
-      hint: 'Enter toggles enable/disable · Esc',
+      title: ttui('tui.skills.toggleTitle'),
+      hint: ttui('tui.skills.toggleHint'),
       searchable: true,
       options: summaries.map((skill) => {
         const disabled = isSkillDisabled(state, skill.name);
         return {
           value: skill.name,
           label: skill.name,
-          description: `${disabled ? 'disabled' : 'enabled'}${skill.description ? ` · ${skill.description}` : ''}`,
+          description: `${disabled ? ttui('tui.skills.disabledState') : ttui('tui.skills.enabledState')}${skill.description ? ` · ${skill.description}` : ''}`,
         };
       }),
       onSelect: (name) => {
@@ -98,7 +98,7 @@ async function showToggleList(host: SlashCommandHost): Promise<void> {
       },
       onCancel: () =>{  dismissPickerDialog(host); },
     }),
-    { label: 'Skills' },
+    { label: ttui('tui.skills.manage.title') },
   );
 }
 
@@ -106,14 +106,14 @@ function promptInstall(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new PlainTextInputDialogComponent({
-      title: 'Install skill path',
-      subtitleLines: ['Directory containing SKILL.md', 'e.g. ./my-skill or ~/.claude/skills/foo'],
+      title: ttui('tui.skills.installPathTitle'),
+      subtitleLines: [ttui('tui.skills.installPathSubtitle'), ttui('tui.skills.installPathExample')],
       onDone: (result) => {
         dismissPickerDialog(host);
         if (result.kind === 'ok') void runInstall(host, result.value);
       },
     }),
-    { label: 'Skills' },
+    { label: ttui('tui.skills.manage.title') },
   );
 }
 

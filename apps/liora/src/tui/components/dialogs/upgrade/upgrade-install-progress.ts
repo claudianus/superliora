@@ -3,6 +3,7 @@
  * When fillWidth is set, every line is padded to the same interior width.
  */
 
+import { t } from '#/cli/i18n';
 import type { InstallSource } from '#/cli/update/types';
 import type { UpgradeInstallStage } from '#/cli/update/install-stages';
 import {
@@ -58,7 +59,7 @@ export function renderUpgradeProgressBlock(options: {
     '',
     phaseLine,
     barLine,
-    currentTheme.dim(`elapsed ${elapsedSec.toFixed(1)}s`),
+    currentTheme.dim(t('cli.runtime.upgrade.progress.elapsed', { seconds: elapsedSec.toFixed(1) })),
   ];
 
   if (options.detail !== undefined && options.detail.trim().length > 0) {

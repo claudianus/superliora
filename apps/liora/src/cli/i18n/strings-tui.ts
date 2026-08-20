@@ -332,7 +332,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.locale.applied': 'Language set to {value}.',
   'tui.locale.saveFailed': 'Failed to save language: {message}',
   'tui.locale.option.auto': 'Auto',
-  'tui.locale.option.autoDesc': 'Follow SUPERLIORA_LOCALE / LANG (Korean when ko*).',
+  'tui.locale.option.autoDesc': 'Follow SUPERLIORA_LOCALE, then OS language (Korean Windows/macOS/Linux).',
   'tui.locale.option.en': 'English',
   'tui.locale.option.enDesc': 'Always use English UI copy.',
   'tui.locale.option.ko': '한국어',
@@ -500,11 +500,11 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   // ── Empty-transcript idle stage ──────────────────────────────────────────
   'tui.idle.title': 'aquarium',
   'tui.idle.tipPrefix': '팁 · ',
-  'tui.idle.mood.bubbles': 'idle',
-  'tui.idle.mood.swim': 'listening',
-  'tui.idle.mood.ready': 'ready',
-  'tui.idle.mood.tank': 'waiting',
-  'tui.idle.mood.quiet': 'idle',
+  'tui.idle.mood.bubbles': '대기',
+  'tui.idle.mood.swim': '듣는 중',
+  'tui.idle.mood.ready': '준비됨',
+  'tui.idle.mood.tank': '기다리는 중',
+  'tui.idle.mood.quiet': '대기',
 
   // ── Footer hints / next-actions ──────────────────────────────────────────
   'tui.footer.next.login': '다음: /login으로 프로바이더 추가, 그리고 /model',
@@ -538,7 +538,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.sessionLoading.searching': '프로젝트 검색 중…',
   'tui.sessionLoading.extensions': '확장 목록 불러오는 중…',
   'tui.sessionLoading.exporting': '세션 내보내는 중…',
-  'tui.footer.premium': '시각 품질 ON — 모션/밀도, 안티 슬롭, 스크린샷 증명',
+  'tui.footer.premium': 'Visual Quality ON — 모션/밀도, anti-slop, 스크린샷 증명',
   'tui.footer.exitConfirmCtrlC': '종료하려면 {chord}를 다시 누르세요',
   'tui.footer.exitConfirmCtrlD': '종료하려면 {chord}를 다시 누르세요',
   'tui.footer.exitConfirmPrimaryC': '종료하려면 {chord}를 다시 누르세요',
@@ -573,20 +573,20 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.permission.setFailed': '권한 모드 설정 실패: {message}',
 
   // ── Premium ────────────────────────────────────────────────────
-  'tui.premium.alreadyOn': '시각 품질 모드가 이미 켜져 있습니다',
-  'tui.premium.alreadyOff': '시각 품질 모드가 이미 꺼져 있습니다',
-  'tui.premium.on.title': '시각 품질 모드: ON',
-  'tui.premium.off.title': '시각 품질 모드: OFF',
+  'tui.premium.alreadyOn': 'Visual Quality 모드가 이미 켜져 있습니다',
+  'tui.premium.alreadyOff': 'Visual Quality 모드가 이미 꺼져 있습니다',
+  'tui.premium.on.title': 'Visual Quality 모드: ON',
+  'tui.premium.off.title': 'Visual Quality 모드: OFF',
   'tui.premium.on.detail':
-    '시각 품질 모드 활성 — 아트 디렉션, 안티 슬롭, 스킬 라우팅, 스크린샷 증명.',
+    'Visual Quality 활성 — art direction, anti-slop, 스킬 라우팅, 스크린샷 증명.',
   'tui.premium.on.detail.apply':
-    '시각 품질 모드 활성 — 아트 디렉션, 스킬 라우팅, 루브릭, 스크린샷 검증.',
+    'Visual Quality 활성 — art direction, 스킬 라우팅, rubric, 스크린샷 검증.',
   'tui.premium.usage': '사용법: /premium [on|off|status]',
-  'tui.premium.setFailed': '시각 품질 모드 설정 실패: {message}',
-  'tui.premium.enableFailed': '시각 품질 모드 활성화 실패: {message}',
+  'tui.premium.setFailed': 'Visual Quality 모드 설정 실패: {message}',
+  'tui.premium.enableFailed': 'Visual Quality 모드 활성화 실패: {message}',
   'tui.aquarium.restored':
     'Jewel Tank 오버레이 — 클릭으로 밥 주기, 메시지를 보내면 채팅으로 돌아갑니다.',
-  'tui.aquarium.replaying': '세션 기록 재생 중에는 어항을 표시할 수 없습니다.',
+  'tui.aquarium.replaying': '세션 기록 재생 중에는 aquarium을 표시할 수 없습니다.',
   'tui.feed.noTank': '보이는 Jewel Tank가 없습니다 — /aquarium을 열거나 대기 화면을 기다리세요.',
   'tui.feed.full': '이미 먹이가 가득합니다.',
   'tui.feed.dropped': '먹이를 넣었습니다 — 물고기를 지켜보세요.',
@@ -629,7 +629,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.help.shortcut.ctrlO': '트랜스크립트 밀도 순환 (minimal → compact → standard → full)',
   'tui.help.shortcut.ctrlB': '현재 작업을 백그라운드로',
   'tui.help.shortcut.ctrlT': '할 일 목록 펼치기/접기',
-  'tui.help.shortcut.ctrlS': '턴 실행 중 스티어',
+  'tui.help.shortcut.ctrlS': '턴 실행 중 Steer',
   'tui.help.shortcut.ctrlX': '프롬프트 초안 보관 또는 복원',
   'tui.help.shortcut.newline': '줄바꿈 삽입 (Ctrl-J도 가능)',
   'tui.help.shortcut.ctrlC': '현재 턴 중단 (유휴 시 종료 확인)',
@@ -668,16 +668,16 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.provider.authorizing': '{name}(으)로 인증 중',
   'tui.provider.connected': '연결됨: {name}',
   'tui.provider.alreadyLoggedIn': '이미 로그인되어 있습니다. 모델 설정을 새로고침했습니다.',
-  'tui.provider.addAccountTitle': '관리 SuperLiora 계정',
+  'tui.provider.addAccountTitle': 'Managed SuperLiora 계정',
   'tui.provider.addAccountProviderTitle': '{name} 계정',
   'tui.provider.addAccountRefresh': '현재 계정 새로고침',
   'tui.provider.addAccountRefreshDesc':
     '현재 primary 계정을 다시 인증하고 모델을 새로고침합니다.',
   'tui.provider.addAccountAdd': '다른 계정 추가',
   'tui.provider.addAccountAddDesc':
-    '쿼타/레이트리밋 자동 폴백을 위해 다른 계정으로 로그인합니다.',
+    '쿼터/rate limit 자동 폴백을 위해 다른 계정으로 로그인합니다.',
   'tui.provider.accountAdded':
-    'OAuth 계정을 추가했습니다(슬롯 {fingerprint}). 쿼타 실패 시 계정 풀에서 자동 전환됩니다.',
+    'OAuth 계정을 추가했습니다(슬롯 {fingerprint}). 쿼터 실패 시 계정 풀에서 자동 전환됩니다.',
   'tui.provider.loggedOut': '로그아웃됨.',
   'tui.provider.defaultModelSet': '기본 모델이 {model}(으)로 설정됨 (사고 {state}).',
   'tui.provider.customEndpointAdded': '커스텀 엔드포인트 추가됨: {model}',
@@ -730,7 +730,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.locale.applied': '언어를 {value}(으)로 설정했습니다.',
   'tui.locale.saveFailed': '언어 저장 실패: {message}',
   'tui.locale.option.auto': '자동',
-  'tui.locale.option.autoDesc': 'SUPERLIORA_LOCALE / LANG을 따릅니다 (ko*면 한국어).',
+  'tui.locale.option.autoDesc': 'SUPERLIORA_LOCALE, 그다음 OS 언어를 따릅니다 (한국어 Windows/macOS/Linux).',
   'tui.locale.option.en': 'English',
   'tui.locale.option.enDesc': '항상 영어 UI를 사용합니다.',
   'tui.locale.option.ko': '한국어',
@@ -792,14 +792,14 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.contextBar':
     'footer context bar는 10칸 + 1/8 부분 채움 — 더 조밀한 압력 표시',
   'tui.tip.particleRails':
-    '프리미엄 레일은 부드러운 혜성 + 조용한 별먼지 — 마퀴 thrash 없음',
+    'Premium 레일은 부드러운 혜성 + 조용한 별먼지 — marquee thrash 없음',
   'tui.tip.toolDescs':
     '도구 설명은 조밀하게 — shell rg 대신 Grep; Read는 다중 파일 병렬',
   'tui.tip.autoDream':
     '/status Memory는 reflection on/×N (기본 on, ≥4h/8 candidates) — 장기 기억 위생',
   'tui.tip.microBadges': 'footer μ 배지는 설정 없이 micro clear(cache-miss/swarm)를 표시',
   'tui.tip.mediaZeroConfig':
-    'media: OPENAI/GOOGLE 키가 있으면 GenerateImage/Video 제로컨피그',
+    'media: OPENAI/GOOGLE 키가 있으면 GenerateImage/Video zero-config',
   'tui.tip.mediaFooter':
     'media: OPENAI/GOOGLE 키가 GenerateImage/Video를 준비할 때만 footer img/vid 배지',
   'tui.tip.backgroundAgent':

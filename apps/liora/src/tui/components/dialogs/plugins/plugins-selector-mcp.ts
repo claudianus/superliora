@@ -6,6 +6,7 @@ import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';
 import {currentTheme} from '#/tui/theme';
 import {printableChar} from '#/tui/utils/printable-key';
 
+import { ttui } from '#/tui/utils/tui-i18n';
 import {
   ELLIPSIS,
   MCP_SERVER_PREFIX,
@@ -152,14 +153,14 @@ function buildMcpItems(info: PluginInfo): PluginsOverviewItem[] {
   items.push({
     value: 'back',
     kind: 'action',
-    label: 'Back to installed plugins',
-    description: 'Return to the local plugin manager.',
+    label: ttui('tui.plugins.mcp.back'),
+    description: ttui('tui.plugins.mcp.backDesc'),
   });
   return items;
 }
 
 function mcpServerDescription(server: PluginMcpServerInfo): string {
-  const action = server.enabled ? 'Enter/Space disable' : 'Enter/Space enable';
+  const action = server.enabled ? ttui('tui.plugins.mcp.disable') : ttui('tui.plugins.mcp.enable');
   if (server.transport === 'http' || server.transport === 'sse') {
     return `${action} · ${server.transport.toUpperCase()} · ${server.url ?? server.runtimeName}`;
   }

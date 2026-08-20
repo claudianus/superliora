@@ -26,7 +26,7 @@ import { showExperimentsSettings } from './experiments/experiments-settings';
 import { showToolsInventory } from './harness/harness-tools';
 import { handleProfileCommand } from './harness/agent-profile';
 import { AGENT_PROFILE_PRESETS } from '#/tui/utils/settings/profile-presets';
-import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { settingsPresetsRow, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { showEyesSettings } from './eyes/eyes-settings';
 import { showExtensionsSettings } from './extensions/extensions-settings';
 import { showMcpSettings } from './mcp/mcp-settings';
@@ -123,46 +123,45 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
 export function showHarnessPanel(host: SlashCommandHost): void {
   mountPickerDialog(host,
     new ChoicePickerComponent({
-      title: 'Harness',
-      hint: '↑↓ · Enter · Esc',
+      title: ttui('tui.harness.panel.title'),
+      hint: ttui('tui.harness.panel.hint'),
       searchable: true,
       options: [
-        SETTINGS_PRESETS_ROW,
+        settingsPresetsRow(),
         {
           value: 'agent-profile',
-          label: 'Agent profile',
-          description: 'Core waist · agent · superliora-full — same as /profile',
+          label: ttui('tui.harness.panel.agentProfile'),
+          description: ttui('tui.harness.panel.agentProfileDesc'),
         },
         {
           value: 'tools',
-          label: 'Tools inventory',
-          description:
-            'Active tools · Core≤12 waist (ApplyPatch+RepoQuery) · DeepResearch: agent/full · /profile core',
+          label: ttui('tui.harness.panel.tools'),
+          description: ttui('tui.harness.panel.toolsDesc'),
         },
         {
           value: 'eyes',
-          label: 'Eyes readiness',
-          description: 'Browser-use / computer-use runtime status.',
+          label: ttui('tui.harness.panel.eyes'),
+          description: ttui('tui.harness.panel.eyesDesc'),
         },
         {
           value: 'premium',
-          label: 'Visual Quality',
-          description: 'Toggle Visual Quality mode (motion, density, anti-slop).',
+          label: ttui('tui.harness.panel.premium'),
+          description: ttui('tui.harness.panel.premiumDesc'),
         },
         {
           value: 'experiments',
-          label: 'Experiments',
-          description: 'Feature flags (micro compaction, codegraph, …).',
+          label: ttui('tui.harness.panel.experiments'),
+          description: ttui('tui.harness.panel.experimentsDesc'),
         },
         {
           value: 'context',
-          label: 'Context working set',
-          description: 'Auto-compaction / working-set presets.',
+          label: ttui('tui.harness.panel.context'),
+          description: ttui('tui.harness.panel.contextDesc'),
         },
         {
           value: 'settings-audit',
-          label: 'Settings inventory',
-          description: 'Audit aid: list all Settings → entries (SSOT §9).',
+          label: ttui('tui.harness.panel.audit'),
+          description: ttui('tui.harness.panel.auditDesc'),
         },
       ],
       onSelect: (value) => {
@@ -171,7 +170,7 @@ export function showHarnessPanel(host: SlashCommandHost): void {
           case 'presets':
           case 'agent-profile':
             showSettingPresetsPicker(host, {
-              title: 'Agent profile presets',
+              title: ttui('tui.harness.panel.presetsTitle'),
               catalog: AGENT_PROFILE_PRESETS,
               onApply: async (preset) => {
                 await handleProfileCommand(host, preset.patch.profile);

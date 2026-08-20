@@ -10,6 +10,7 @@
 
 import chalk from 'chalk';
 
+import { t } from '#/cli/i18n';
 import { darkColors } from '#/tui/theme/colors';
 import { mixHexColor } from '#/tui/renderer';
 import type { InstallSource } from './types';
@@ -80,8 +81,8 @@ export function renderCliUpgradeProgressLines(
   const elapsed = Math.max(0, (now - frame.startedAtMs) / 1000).toFixed(1);
   const checklist = formatStageChecklist(frame.source, frame.stage);
   const lines: string[] = [
-    `${chalk.hex(darkColors.accent)('◆')} ${gradientText(`Upgrading SuperLiora → ${frame.targetVersion}`, darkColors.primary, darkColors.accent)}`,
-    chalk.hex(darkColors.textMuted)(`Source: ${frame.source}`),
+    `${chalk.hex(darkColors.accent)('◆')} ${gradientText(t('cli.runtime.upgrade.progress.title', { version: frame.targetVersion }), darkColors.primary, darkColors.accent)}`,
+    chalk.hex(darkColors.textMuted)(t('cli.runtime.upgrade.progress.source', { source: frame.source })),
     '',
   ];
   for (const row of checklist) {
@@ -107,7 +108,7 @@ export function renderCliUpgradeProgressLines(
   lines.push(
     `${chalk.hex(darkColors.text).bold(stageLabel(frame.stage))}  ${bar} ${chalk.hex(darkColors.primary).bold(pct)}`,
   );
-  lines.push(chalk.hex(darkColors.textMuted)(`elapsed ${elapsed}s`));
+  lines.push(chalk.hex(darkColors.textMuted)(t('cli.runtime.upgrade.progress.elapsed', { seconds: elapsed })));
   if (frame.detail !== undefined && frame.detail.trim().length > 0) {
     const detail = frame.detail.trim().replaceAll(/\s+/g, ' ');
     lines.push(

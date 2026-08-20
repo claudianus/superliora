@@ -14,6 +14,7 @@ import {
   type ContextWorkingSetPresetId,
 } from '#/tui/utils/agent/context-working-set';
 import { currentTheme } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export interface ContextWorkingSetSelectorOptions {
   readonly currentPresetId?: ContextWorkingSetPresetId | undefined;
@@ -34,12 +35,12 @@ function buildOptions(maxContextTokens: number | undefined): ChoiceOption[] {
     });
     const capLabel =
       preset.loop.maxWorkingSetTokens > 0
-        ? `cap ${formatTokenCount(preset.loop.maxWorkingSetTokens)}`
-        : 'cap off';
+        ? ttui('tui.context.capOn', { value: formatTokenCount(preset.loop.maxWorkingSetTokens) })
+        : ttui('tui.context.capOff');
     return {
       value: preset.id,
-      label: `${preset.label}  ·  ${preset.badge}`,
-      description: `${preset.description} ${preview.softLabel} · ${preview.asyncLabel} · window ${preview.windowLabel} · ${capLabel}`,
+      label: `${ttui(`tui.context.preset.${preset.id}.label`)}  ·  ${ttui(`tui.context.preset.${preset.id}.badge`)}`,
+      description: `${ttui(`tui.context.preset.${preset.id}.desc`)} ${preview.softLabel} · ${preview.asyncLabel} · ${ttui('tui.context.window', { value: preview.windowLabel })} · ${capLabel}`,
       descriptionTone: preset.id === 'full_window' ? 'warning' : undefined,
     };
   });
@@ -101,12 +102,14 @@ function truncateLine(text: string, width: number): string {
 export class ContextWorkingSetSelectorComponent extends ChoicePickerComponent {
   constructor(opts: ContextWorkingSetSelectorOptions) {
     super({
-      title: ' Context working set',
-      hint: ' ↑↓ navigate · Enter apply · Esc cancel',
+      title: ttui('tui.context.picker.title'),
+      hint: ttui('tui.context.picker.hint'),
       notice:
         opts.maxContextTokens !== undefined && opts.maxContextTokens > 0
-          ? `Active model window ≈ ${formatTokenCount(opts.maxContextTokens)}. Caps only matter when the window is larger than the cap.`
-          : 'Pick how early auto-compaction should reclaim context on large windows.',
+          ? ttui('tui.context.picker.windowNotice', {
+              window: formatTokenCount(opts.maxContextTokens),
+            })
+          : ttui('tui.context.picker.pickNotice'),
       noticeTone: 'success',
       options: buildOptions(opts.maxContextTokens),
       currentValue: opts.currentPresetId,

@@ -58,7 +58,7 @@ export function openInbox(host: SlashCommandHost): void {
       const snap = host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
       const card = resolveConductorJobCard(snap.jobs, item.jobId);
       if (card === undefined || !canOpenPushPreview(card)) {
-        host.showStatus('Push Preview needs a done or blocked job.', 'textMuted');
+        host.showStatus(ttui('tui.conductor.pushNeedsJob'), 'textMuted');
         return;
       }
       openPushPreview(host, card);
