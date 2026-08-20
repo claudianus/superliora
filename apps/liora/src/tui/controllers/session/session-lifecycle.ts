@@ -399,7 +399,7 @@ export class SessionLifecycleController {
       .options?.sessionMetadata;
     if (startupMeta !== undefined) {
       options.metadata = {
-        ...(options.metadata ?? {}),
+        ...options.metadata,
         ...startupMeta,
       };
     }
