@@ -9,7 +9,7 @@ Before configuring your IDE, make sure SuperLiora CLI is installed and you have 
 The ACP adapter is exposed as the `liora acp` subcommand. The IDE launches it as a child process and communicates over stdin/stdout using JSON-RPC. Each time the IDE creates a session, the CLI reuses its existing authentication state — no need to log in again.
 
 ::: tip Path note
-Child processes launched from an IDE GUI on macOS typically do **not** inherit the terminal shell's `PATH`. If `kimi` is not in a system directory like `/usr/local/bin`, use the absolute path in your IDE configuration. Run `which kimi` in a terminal to find the active path.
+Child processes launched from an IDE GUI on macOS typically do **not** inherit the terminal shell's `PATH`. If `liora` is not in a system directory like `/usr/local/bin`, use the absolute path in your IDE configuration. Run `which liora` in a terminal to find the active path.
 :::
 
 ## Using SuperLiora CLI in Zed
@@ -23,7 +23,7 @@ Add the following to Zed's config file at `~/.config/zed/settings.json`:
   "agent_servers": {
     "SuperLiora CLI": {
       "type": "custom",
-      "command": "kimi",
+      "command": "liora",
       "args": ["acp"],
       "env": {}
     }
@@ -34,11 +34,11 @@ Add the following to Zed's config file at `~/.config/zed/settings.json`:
 Configuration fields:
 
 - `type`: fixed value `"custom"`
-- `command`: path to the SuperLiora CLI executable. If `kimi` is not on `PATH`, use the full path (e.g. `/Users/you/.local/bin/kimi`).
+- `command`: path to the SuperLiora CLI executable. If `liora` is not on `PATH`, use the full path (e.g. `/Users/you/.local/bin/liora`).
 - `args`: startup arguments. The `acp` subcommand switches the CLI into ACP mode.
 - `env`: additional environment variables; usually leave this empty. Zed injects a default environment automatically.
 
-After saving, open a new conversation in Zed's Agent panel and it will launch a `SuperLiora CLI` ACP subprocess using the configuration above. MCP servers declared in Zed's `agent_servers` section are also forwarded to the kimi side via the ACP protocol.
+After saving, open a new conversation in Zed's Agent panel and it will launch a `SuperLiora CLI` ACP subprocess using the configuration above. MCP servers declared in Zed's `agent_servers` section are also forwarded to SuperLiora via the ACP protocol.
 
 ## Using SuperLiora CLI in JetBrains IDEs
 
@@ -52,7 +52,7 @@ In the AI chat panel menu, click **Configure ACP agents** and add the following 
 {
   "agent_servers": {
     "SuperLiora CLI": {
-      "command": "~/.local/bin/kimi",
+      "command": "~/.local/bin/liora",
       "args": ["acp"],
       "env": {}
     }
@@ -60,7 +60,7 @@ In the AI chat panel menu, click **Configure ACP agents** and add the following 
 }
 ```
 
-JetBrains is strict about the `command` field — always use an **absolute path**, which you can get by running `which kimi` in a terminal. After saving, `SuperLiora CLI` will appear in the AI chat's agent selector.
+JetBrains is strict about the `command` field — always use an **absolute path**, which you can get by running `which liora` in a terminal. After saving, `SuperLiora CLI` will appear in the AI chat's agent selector.
 
 ## Using SuperLiora CLI in Paseo
 
@@ -72,10 +72,10 @@ Pick **SuperLiora CLI** from Paseo's built-in ACP provider catalog, or add a cus
 {
   "agents": {
     "providers": {
-      "kimi": {
+      "liora": {
         "extends": "acp",
         "label": "SuperLiora CLI",
-        "command": ["kimi", "acp"]
+        "command": ["liora", "acp"]
       }
     }
   }
@@ -87,10 +87,10 @@ Paseo's generic ACP adapter does not drive the login flow, so complete the termi
 ## Troubleshooting
 
 - **Session disconnects immediately / IDE shows "agent exited"**: usually a wrong `command` path or a missing login. Run `liora acp` in a terminal first to verify — if it blocks waiting for stdin, the CLI itself is fine and the problem is in the IDE configuration; if it exits immediately with an error, follow the error message (most commonly you need to run `/login`).
-- **IDE shows "auth required"**: the CLI has no usable authentication token. Exit the IDE, run `kimi` in a terminal to complete login, then restart the IDE.
+- **IDE shows "auth required"**: the CLI has no usable authentication token. Exit the IDE, run `liora` in a terminal to complete login, then restart the IDE.
 - **MCP tools not visible**: check the [`liora acp` reference](../reference/liora-acp.md) capability table to confirm that the MCP transport type configured in your IDE is supported. The SuperLiora CLI ACP adapter currently supports `http`, `stdio`, and `sse` transports; `acp` transport MCP servers are silently dropped and a warning is written to the log.
 
 ## Next steps
 
 - [liora acp reference](../reference/liora-acp.md) — ACP capability matrix and method coverage details
-- [kimi command reference](../reference/liora-command.md) — full subcommand list
+- [liora command reference](../reference/liora-command.md) — full subcommand list

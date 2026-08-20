@@ -90,7 +90,7 @@ Inside each session directory:
 - **`agents/agent-0/` etc.**: sub-Agent instance directories, each containing their own `wire.jsonl`.
 - **`logs/liora.log`**: diagnostic log for this session; only present when a diagnostic event occurs.
 - **`tasks/`**: background task persistence — `tasks/<task_id>.json` stores status/pid/exit code; `tasks/<task_id>/output.log` stores output.
-- **`cron/`**: scheduled task persistence; reloaded into the scheduler when `kimi resume` runs. See [Scheduled tasks](../reference/tools.md#scheduled-tasks).
+- **`cron/`**: scheduled task persistence; reloaded into the scheduler when `liora --continue` runs. See [Scheduled tasks](../reference/tools.md#scheduled-tasks).
 
 ## Built-in tool cache
 
@@ -101,7 +101,7 @@ The first time the `Grep` tool needs ripgrep, the CLI can automatically download
 - **`logs/liora.log`** (global): records startup, login, export, and other cross-session events.
 - **`<sessionDir>/logs/liora.log`** (session-level): records diagnostic events within a single session.
 
-When reporting a bug, prefer exporting the relevant session with `liora export` (see [kimi command](../reference/liora-command.md)); the session log is included in the export by default. Add `--no-include-global-log` if you do not want to share the global log.
+When reporting a bug, prefer exporting the relevant session with `liora export` (see [liora command](../reference/liora-command.md)); the session log is included in the export by default. Add `--no-include-global-log` if you do not want to share the global log.
 
 The files under `updates/` (`latest.json`, `install.json`, `install.lock`, `rollout.log`) are maintained automatically by the auto-update mechanism and normally do not need manual editing. `rollout.log` records which staged-rollout case each update check hit, which helps explain when a device will receive a new release.
 

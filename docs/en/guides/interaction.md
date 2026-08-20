@@ -1,6 +1,6 @@
 # Interaction and input
 
-SuperLiora CLI runs as an interactive TUI (terminal user interface) built around three components: the input box, the conversation view, and the status bar. This page covers how to enter text, paste media, navigate the approval flow, and switch between modes.
+SuperLiora CLI runs as an interactive TUI (terminal user interface) built around three components: the input box, the conversation view, and the status bar. This page covers how to enter text, paste media, use the approval flow, and switch between modes.
 
 ## Input box basics
 
@@ -23,7 +23,7 @@ After pasting, the input box shows a placeholder that you can edit like normal t
 
 ## Slash commands
 
-Everyday actions belong in the **Command Hub** (`Ctrl-K` / `?` / `/help`): Job ops, Memory (via Settings), goal queue, dashboard, and more. When swarm mode is on, Hub also shows **Fleet → War Room…**. Context OS is under Settings → Bench/Diagnostics; Files explorer `b` opens blame. Typing `/` still opens autocomplete for power-user shortcuts and commands that need typed arguments — the primary list demotes redundant toggles (prefer Hub / Settings).
+Everyday actions belong in the **Command Hub** (`Ctrl-K` / `?` / `/help`): Job ops, Memory (via Settings), goal queue, dashboard, and more. Context OS is under Settings → Bench/Diagnostics; Files explorer `b` opens blame. Typing `/` still opens autocomplete for power-user shortcuts and commands that need typed arguments — the primary list demotes redundant toggles (prefer Hub / Settings).
 
 Anything starting with `/` is treated as a slash command. Typing `/` opens a completion menu that filters in real time as you keep typing; press `Esc` to close the menu. If nothing matches, the input is sent to the agent as a regular message.
 
@@ -47,11 +47,15 @@ The panel typically includes an **Approve for this session** option; selecting i
 
 ## Mode switching
 
+### Ask / Build
+
+`Shift-Tab` (or `/ask`) switches Ask and Build. Ask mode reads, searches, and answers without editing or starting new jobs. Switch back to Build to delegate work.
+
 ### Plan mode
 
 In Plan mode the agent first outputs an action plan and waits for your approval before modifying any files — useful for complex or high-risk tasks.
 
-- Toggle: `Shift-Tab` or `/plan`
+- Toggle: `/plan`
 - Clear the current plan: `/plan clear` (only while idle)
 
 After producing a plan the agent pauses for your review — you can approve it, reject it, or ask for revisions. Exiting Plan mode always requires your confirmation, even if YOLO mode is also active.
@@ -74,7 +78,7 @@ Shell mode lets you run terminal commands without leaving the conversation. The 
 - Exit: press `Backspace` or `Esc` in an empty input box; submitting a command also returns you to normal mode automatically.
 - Run in background: while a command is running, press `Ctrl+B` to move it to a background task.
 
-In shell mode the input box shows a `!` prompt on the left and the border turns violet. For example, you can run `!gh auth login` to sign in to the GitHub CLI without opening a new terminal, so Kimi can use `gh` afterward.
+In shell mode the input box shows a `!` prompt on the left and the border turns violet. For example, you can run `!gh auth login` to sign in to the GitHub CLI without opening a new terminal, so the agent can use `gh` afterward.
 
 ## During streaming output
 
