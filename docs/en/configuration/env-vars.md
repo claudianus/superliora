@@ -20,7 +20,7 @@ Overrides the data root directory; the default is `~/.superliora`. Once set, the
 export SUPERLIORA_HOME="/path/to/custom/kimi-code"
 ```
 
-> Make sure the directory is writable. Multiple `kimi` instances sharing the same `SUPERLIORA_HOME` will share config and credential files.
+> Make sure the directory is writable. Multiple `liora` instances sharing the same `SUPERLIORA_HOME` will share config and credential files.
 
 For the complete data directory structure, see [Data locations](./data-locations.md).
 
@@ -103,7 +103,7 @@ export KIMI_MODEL_API_KEY="YOUR_API_KEY"
 export KIMI_MODEL_BASE_URL="https://api.example.com/v1"
 export KIMI_MODEL_MAX_CONTEXT_SIZE="262144"
 export KIMI_MODEL_CAPABILITIES="image_in,thinking"
-kimi
+liora
 ```
 
 Complete variable list:
@@ -135,7 +135,7 @@ Switches that control the behavior of subsystems such as telemetry, background t
 | `KIMI_DISABLE_TELEMETRY` | Disable anonymous telemetry reporting | `1`, `true`, `yes`, `y` (case-insensitive) |
 | `SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT` | Whether to keep background tasks when the session closes; takes higher priority than `config.toml`. The default is to stop them on exit | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
 | `SUPERLIORA_PLUGIN_MARKETPLACE_URL` | Override the plugin marketplace JSON loaded by `/plugins`; useful for dev loopback servers, staging CDN files, or alternate marketplace directories | `https://raw.githubusercontent.com/claudianus/superliora/main/plugins/marketplace.json`; also accepts `http://`, `file://` URLs, and local paths |
-| `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY` | Cap how many AgentSwarm subagents run concurrently during the initial ramp; leave unset for no cap | Positive integer; invalid values fail fast |
+| `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY` | Cap how many subagents run concurrently during the initial ramp; leave unset for the default cap | Positive integer; invalid values fail fast |
 | `SUPERLIORA_EXPERIMENTAL_FLAG` | Enable all registered experimental features for this process | Truthy: `1`/`true`/`yes`/`on` |
 | `LIORA_SHELL_PATH` | Override the Git Bash path on Windows when auto-detection fails. Legacy alias: `KIMI_SHELL_PATH` | Absolute path to `bash.exe` |
 | `KIMI_MODEL_MAX_COMPLETION_TOKENS` | Hard cap on `max_completion_tokens` per LLM step; applies to the `kimi` provider only | Positive integer; `0` or negative disables clamping |

@@ -2,11 +2,13 @@
 
 `docs/` is an unpublished reference/archive, not the public site. GitHub Pages ships
 `apps/site/dist` through `.github/workflows/pages.yml`; nothing under `docs/` is
-deployed.
+deployed. `apps/site/` is the live manual.
 
-`docs/en/` is the only maintained user-facing reference locale. `docs/specs/` and
-`docs/research/` are internal notes and historical design material. Keep this tree
-low priority: update it only when documentation work is explicitly in scope.
+`docs/en/` is the only maintained user-facing reference locale. Treat it as an
+archive: do not document Mission mode or Swarm as live product (removed in 0.3.0).
+Shift-Tab is Ask/Build. `docs/specs/` and `docs/research/` are internal notes and
+historical design material. Keep this tree low priority: update it only when
+documentation work is explicitly in scope.
 
 ## Rules
 
