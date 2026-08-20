@@ -126,8 +126,8 @@ describe('transcriptArgumentCompletions', () => {
     const byValue = Object.fromEntries(
       transcriptArgumentCompletions('').map((item) => [item.value, item.description ?? '']),
     );
-    expect(byValue.compact).toMatch(/default/i);
-    expect(byValue.standard).not.toMatch(/default/i);
+    expect(byValue['compact']).toMatch(/default/i);
+    expect(byValue['standard']).not.toMatch(/default/i);
   });
 
   it('filters by prefix', () => {

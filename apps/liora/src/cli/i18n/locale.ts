@@ -53,7 +53,7 @@ function readIntlLocale(): string {
 
 /** True for Git Bash / MSYS / Cygwin, which often set LANG=en_US on Korean Windows. */
 export function isPosixOnWindows(env: Record<string, string | undefined>): boolean {
-  return Boolean(env.MSYSTEM || env.CYGWIN);
+  return Boolean(env['MSYSTEM'] || env['CYGWIN']);
 }
 
 export interface DetectCliLocaleOptions {
@@ -79,7 +79,7 @@ export function detectCliLocale(
   env: Record<string, string | undefined> = {},
   options: DetectCliLocaleOptions = {},
 ): CliLocale {
-  const explicit = parseLanguageTag(env.SUPERLIORA_LOCALE);
+  const explicit = parseLanguageTag(env['SUPERLIORA_LOCALE']);
   if (explicit === 'ko' || explicit === 'en') return explicit;
 
   const posix = firstPosixLanguage(env);

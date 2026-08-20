@@ -276,8 +276,8 @@ describe('doctor --storage', () => {
     await mkdir(join(home, 'cache'), { recursive: true });
     await mkdir(join(home, 'logs'), { recursive: true });
     await writeFile(join(home, 'sessions', 'a'), '12345', 'utf-8');
-    const prevHome = process.env.SUPERLIORA_HOME;
-    process.env.SUPERLIORA_HOME = home;
+    const prevHome = process.env['SUPERLIORA_HOME'];
+    process.env['SUPERLIORA_HOME'] = home;
     try {
       const lines: string[] = [];
       const program = new Command();
@@ -309,8 +309,8 @@ describe('doctor --storage', () => {
       expect(out).toMatch(/logs:/i);
       expect(out).toMatch(/worktrees:/i);
     } finally {
-      if (prevHome === undefined) delete process.env.SUPERLIORA_HOME;
-      else process.env.SUPERLIORA_HOME = prevHome;
+      if (prevHome === undefined) delete process.env['SUPERLIORA_HOME'];
+      else process.env['SUPERLIORA_HOME'] = prevHome;
       await rm(home, { recursive: true, force: true });
     }
   });

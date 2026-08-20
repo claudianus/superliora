@@ -15,3 +15,18 @@
 - Open the new CLI once with the same `SUPERLIORA_HOME`. It migrates `kimi-recall.sqlite`, `liora-recall.sqlite`, legacy Markdown record markers, and JSON episodes into the canonical store.
 - Replace `kind` with `type` (`fact`, `event`, `procedure`, `task`, or `rule`) and use the five Liora Memory operations.
 - Treat `memory/records/` as a human-readable recovery mirror, not as a second write authority. Use `inspect` to verify integrity and audit events after migration.
+
+## 0.3.0 (2026-08-09)
+
+### Mission, Swarm, and legacy CLI paths
+
+**Affected**
+
+- Mission mode and Swarm mode surfaces (`/mission`, `/swarm`, `/fleet`, and related settings) are removed.
+- Diagnostic slash commands (`/bench`, `/renderer`, `/term`, `/export-debug-zip`, `/improve-harness`, `/preflight`) and `/feedback` are removed.
+- Remaining Kimi-era CLI migration and cache compatibility paths are dropped.
+
+**Migration**
+
+- Use `/plan`, `/goal`, the agent dock, and the job strip instead of Mission or Swarm.
+- Use the `liora` command and `.superliora` paths only.
