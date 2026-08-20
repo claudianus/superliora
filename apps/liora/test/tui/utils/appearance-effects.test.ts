@@ -111,11 +111,26 @@ describe('functional progress motion', () => {
     profile: 'off' as const,
     particles: 'off' as const,
   };
+  const previousEnv = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+  };
+
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+  });
 
   afterEach(() => {
     setAppearanceTransportStability('synchronized');
     setAppearanceRenderQuality('full');
     advanceAppearanceAnimationClock(monotonicMotionNowMs());
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
 
   it('keeps spinners rotating after decorative motion is gated off', () => {
