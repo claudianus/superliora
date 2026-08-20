@@ -7,7 +7,7 @@
  * session logs under ~/.superliora/logs. Never throw into a product path.
  */
 
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import {
@@ -24,6 +24,14 @@ const FALLBACK_TERM = 'xterm-256color';
 
 const SECRET_KEY = /key|token|secret|password|authorization|cookie|api[_-]?key/i;
 const MAX_STRING = 4000;
+/** Reset debug-local.ndjson once it grows past this so `--debug` cannot fill the disk. */
+export const DEBUG_LOG_MAX_BYTES = 1024 * 1024;
+
+let debugLogMaxBytes = DEBUG_LOG_MAX_BYTES;
+
+export function setDebugLogMaxBytesForTest(bytes: number | undefined): void {
+  debugLogMaxBytes = bytes ?? DEBUG_LOG_MAX_BYTES;
+}
 
 export interface DebugLogEntry {
   readonly location: string;
@@ -88,20 +96,32 @@ export function writeDebugLog(entry: DebugLogEntry): void {
   if (logPath === undefined) return;
   try {
     mkdirSync(dirname(logPath), { recursive: true });
-    appendFileSync(
-      logPath,
-      `${JSON.stringify(
-        {
-          t: Date.now(),
-          location: entry.location,
-          message: entry.message,
-          data: entry.data,
-        },
-        redactJson,
-      )}\n`,
-      'utf8',
-    );
+    const line = `${JSON.stringify(
+      {
+        t: Date.now(),
+        location: entry.location,
+        message: entry.message,
+        data: entry.data,
+      },
+      redactJson,
+    )}\n`;
+    appendRotated(logPath, line, debugLogMaxBytes);
   } catch {
     // Diagnostics must never break the TUI or harness.
   }
+}
+
+function appendRotated(path: string, line: string, maxBytes: number): void {
+  let size = 0;
+  try {
+    size = statSync(path).size;
+  } catch {
+    size = 0;
+  }
+  const next = size + Buffer.byteLength(line, 'utf8');
+  if (size > 0 && next > maxBytes) {
+    writeFileSync(path, line, 'utf8');
+    return;
+  }
+  appendFileSync(path, line, 'utf8');
 }

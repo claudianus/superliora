@@ -16,6 +16,7 @@ curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.
 irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex
 # C: 여유가 부족하면 D:\SuperLiora 처럼 데이터 홈을 자동으로 고릅니다.
 # 직접 지정: $env:SUPERLIORA_HOME='D:\SuperLiora'  후 위 설치, 또는 install.ps1 --home D:\SuperLiora
+# 설치 후 바탕 화면의 SuperLiora를 더블클릭하면 실제 터미널에서 TUI가 열립니다.
 
 # Windows cmd
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"
