@@ -80,6 +80,15 @@ describe('swarm-file-lease', () => {
     expect(registry.listQueue('a.ts')).toHaveLength(0);
   });
 
+  it('treats Windows drive-letter paths as the same lease regardless of case', () => {
+    const registry = createSwarmFileLeaseRegistry();
+    expect(registry.claim('C:\\Users\\me\\src\\A.ts', 'expert-a', 'run-1').ok).toBe(true);
+    const conflict = registry.claim('c:/users/me/src/a.ts', 'expert-b', 'run-1');
+    expect(conflict.ok).toBe(false);
+    if (conflict.ok) return;
+    expect(conflict.conflict.holder.ownerId).toBe('expert-a');
+  });
+
   it('checkSwarmFileLease returns message on conflict and skips without context', () => {
     const registry = createSwarmFileLeaseRegistry({ baseDir: '/work' });
     expect(checkSwarmFileLease('a.ts', undefined, 'run-1', registry)).toBeUndefined();

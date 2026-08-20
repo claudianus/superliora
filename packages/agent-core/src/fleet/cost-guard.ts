@@ -1,12 +1,9 @@
 /**
- * Fleet Cost Guard soft runtime — session $ cap for the fleet tools.
+ * Fleet Cost Guard — session $ cap for fleet fan-out.
  *
- * Emits non-blocking tips when SUPERLIORA_FLEET_BUDGET_USD is set.
- *
- * S3-R6 interim home (moved from swarm-cost-guard.ts). The fan-out tool
- * consumer retired with S3-R5 (f04ac07c3); remaining consumers are the liora
- * TUI glances. S3-R7 verdict: RETAIN — the body folds into Job pool
- * back-pressure / cost visibility later; retired swarm branding removed.
+ * When SUPERLIORA_FLEET_BUDGET_USD is set and session spend can be estimated,
+ * new fleet/subagent workers are blocked once spend reaches the cap.
+ * When spend cannot be estimated, a warning tip is appended instead.
  */
 
 import type { TokenUsage } from '@superliora/kosong';
@@ -16,9 +13,29 @@ import type { Agent } from '../agent';
 /** W4 soft: session $ cap env (fleet fan-out — opt-in). */
 export const FLEET_BUDGET_USD_ENV = 'SUPERLIORA_FLEET_BUDGET_USD';
 
-/** Runtime soft tip prefix — appended to swarm tool results (no kill). */
+/** Warning prefix when the cap is set but spend cannot be estimated. */
 export const SWARM_COST_GUARD_SOFT_TIP =
-  'Cost Guard (soft): SUPERLIORA_FLEET_BUDGET_USD caps session spend — soft-stop + summary before kill (not swarm-budget rounds).';
+  'Cost Guard: SUPERLIORA_FLEET_BUDGET_USD is set — session spend tracking is unavailable, so the cap cannot be enforced yet.';
+
+/** Prefix when the cap is set and spend is over budget. */
+export const FLEET_COST_GUARD_HARD_TIP =
+  'Cost Guard: SUPERLIORA_FLEET_BUDGET_USD blocks new fleet workers once session spend reaches the cap.';
+
+export class FleetBudgetExceededError extends Error {
+  readonly spentUsd: number;
+  readonly budgetUsd: number;
+
+  constructor(spentUsd: number, budgetUsd: number) {
+    const spent = formatFleetBudgetUsd(spentUsd);
+    const cap = formatFleetBudgetUsd(budgetUsd);
+    super(
+      `${FLEET_COST_GUARD_HARD_TIP} Spent ${spent} / ${cap}. Raise the cap or wait until spend is under it before spawning more workers.`,
+    );
+    this.name = 'FleetBudgetExceededError';
+    this.spentUsd = spentUsd;
+    this.budgetUsd = budgetUsd;
+  }
+}
 
 export interface FleetBudgetGlance {
   readonly budgetUsd: number | null;
@@ -129,7 +146,7 @@ export function formatFleetCostGuardSoftTip(input: {
     const spent = formatFleetBudgetUsd(check.spentUsd);
     const cap = formatFleetBudgetUsd(check.budgetUsd);
     const over = formatFleetBudgetUsd(check.spentUsd - check.budgetUsd);
-    return `${SWARM_COST_GUARD_SOFT_TIP} Spent ${spent} / ${cap} cap — over ${over} · pause + summary (no kill).`;
+    return `${FLEET_COST_GUARD_HARD_TIP} Spent ${spent} / ${cap} — over ${over}. New workers are blocked.`;
   }
 
   if (!spentTrackingAvailable) {
@@ -162,24 +179,62 @@ export function fleetCostGuardSoftTipFromAgent(
   workerCount: number,
   env: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
-  const alias = agent.config.modelAlias;
-  const pricing =
-    alias !== undefined ? (agent.runtimeConfig ?? agent.kimiConfig)?.models?.[alias]?.cost : undefined;
   return fleetCostGuardSoftTipFromUsage({
     env,
     usage: agent.usage.data(),
-    pricing,
+    pricing: sessionCostPricingFromAgent(agent),
     workerCount,
+  });
+}
+
+function sessionCostPricingFromAgent(agent: Agent): SessionCostPricing | undefined {
+  const alias = agent.config.modelAlias;
+  return alias !== undefined
+    ? (agent.runtimeConfig ?? agent.kimiConfig)?.models?.[alias]?.cost
+    : undefined;
+}
+
+/** Throw when spend is known and already at or above the fleet budget. */
+export function assertFleetBudgetAllowsSpawn(input: {
+  readonly env?: NodeJS.ProcessEnv;
+  readonly usage?: UsageStatus;
+  readonly pricing?: SessionCostPricing;
+}): void {
+  const glance = loadFleetBudgetGlance(input.env);
+  const spentUsd = estimateSessionCostUsd(input.usage?.total, input.pricing);
+  const check = evaluateFleetCostGuardSoft(glance, spentUsd);
+  if (check.overBudget && check.spentUsd !== null && check.budgetUsd !== null) {
+    throw new FleetBudgetExceededError(check.spentUsd, check.budgetUsd);
+  }
+}
+
+export function assertFleetBudgetAllowsSpawnFromAgent(
+  agent: Agent | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (agent === undefined) return;
+  assertFleetBudgetAllowsSpawn({
+    env,
+    usage: agent.usage.data(),
+    pricing: sessionCostPricingFromAgent(agent),
   });
 }
 
 /** Best-effort parse of a Cost Guard tip block from swarm tool output. */
 export function fleetCostGuardSoftTipFromSwarmOutput(output: string): string | undefined {
-  if (!output.includes(SWARM_COST_GUARD_SOFT_TIP)) return undefined;
+  if (
+    !output.includes(SWARM_COST_GUARD_SOFT_TIP) &&
+    !output.includes(FLEET_COST_GUARD_HARD_TIP)
+  ) {
+    return undefined;
+  }
   const blocks = output.split('\n\n');
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
     const block = blocks[index]?.trim();
-    if (block !== undefined && block.includes(SWARM_COST_GUARD_SOFT_TIP)) {
+    if (
+      block !== undefined &&
+      (block.includes(SWARM_COST_GUARD_SOFT_TIP) || block.includes(FLEET_COST_GUARD_HARD_TIP))
+    ) {
       return block;
     }
   }

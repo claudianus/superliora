@@ -129,6 +129,7 @@ export async function runTurnStepLoop(
         maxSteps: loopControl?.maxStepsPerTurn,
         maxRetryAttempts: loopControl?.maxRetriesPerStep,
         toolParallelStatus: agent.toolParallelStatus,
+        guards: agent.toolGuards,
         recordStepUsage: async (usage, info?: RecordStepUsageInfo) => {
           stepUsageModel = info?.model ?? model;
           try {

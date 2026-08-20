@@ -38,7 +38,7 @@ What it does:
 3. Delete orphan local `liora/*` branches (no registry entry)
    - Merged tips → delete
    - Unmerged tips → annotated tag `archive/tips/<slug>`, then delete
-4. Optional: `--stale-remotes` deletes remote heads already in `origin/main` (never `main`)
+4. Optional: `--stale-remotes` deletes remote `liora/*` heads already in `origin/main` (never `main` or other remote branches)
 
 Flags:
 
@@ -47,7 +47,7 @@ Flags:
 | `--dry-run` | Plan only |
 | `--max-age-days N` | GC age (default 14) |
 | `--no-archive` | Skip archive tags (do **not** use unless tips are disposable) |
-| `--stale-remotes` | Also delete merged remote branches |
+| `--stale-remotes` | Also delete merged remote `liora/*` branches |
 | `--repo` | Require current cwd to be a git repo |
 
 Also available: `liora worktree list|rm|gc`.

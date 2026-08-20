@@ -23,6 +23,9 @@
     "check:settings-inventory": "node scripts/check-settings-inventory.mjs",
     "check:settings-inventory:strict": "node scripts/check-settings-inventory.mjs --fail",
     "check:unused-exports": "node scripts/report-unused-exports.mjs",
+    "check:nix-workspace": "node scripts/check-nix-workspace.mjs",
+    "check:agent-core-test-types": "node scripts/check-agent-core-test-types.mjs",
+    "check:changeset-inventory": "node scripts/changeset-inventory.mjs",
     "check:layering:strict": "node scripts/check-agent-core-layering.mjs --fail",
     "check:loc:strict": "node scripts/check-loc-budget.mjs --fail",
     "check:dir:strict": "node scripts/check-dir-budget.mjs --fail",
@@ -66,7 +69,9 @@
     "typescript": "6.0.2",
     "vitest": "4.1.4"
   },
-  "simple-git-hooks": {},
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged"
+  },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}": [
       "oxlint --fix --quiet",

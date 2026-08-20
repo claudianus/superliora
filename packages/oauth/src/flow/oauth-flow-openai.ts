@@ -243,7 +243,7 @@ export async function runOpenAiBrowserFlow(
   const pkce = generatePkcePair();
   const state = generateState();
   const port = flow.callbackPort ?? 1455;
-  const server = await startCallbackServer(port, flow.callbackHost);
+  const server = await startCallbackServer(port, flow.callbackHost, { expectedState: state });
   try {
     const authorizeUrl = buildOpenAiAuthorizeUrl(flow, pkce, state, server.redirectUri);
     await options.onAuthorizeUrl?.(authorizeUrl);

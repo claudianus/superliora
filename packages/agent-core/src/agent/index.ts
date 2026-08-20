@@ -45,6 +45,7 @@ import { recoverJobsAfterResume } from '../tools/builtin/job/job-recovery';
 import { ConductorIdlePulse } from '../session/job/conductor-idle-pulse';
 import { BackgroundManager, BackgroundTaskPersistence } from './background';
 import { CacheFreezeGuard } from './cache';
+import { ToolGuardState } from '../loop/tool-call-guards';
 import { ToolParallelStatus } from '../loop/tool-parallel-status';
 import {
   FullCompaction,
@@ -213,6 +214,12 @@ export class Agent {
   readonly microCompaction: MicroCompaction;
   readonly cacheFreezeGuard: CacheFreezeGuard;
   readonly toolParallelStatus: ToolParallelStatus;
+  /**
+   * Tool failure / circuit-breaker / idempotency guards for this agent only.
+   * Subagents and concurrent server sessions each get their own, so one
+   * agent's doom-loop counters cannot trip or reset another's.
+   */
+  readonly toolGuards: ToolGuardState;
   readonly contextOS: ContextOSManager;
   readonly context: ContextMemory;
   readonly config: ConfigState;
@@ -336,6 +343,7 @@ export class Agent {
     this.microCompaction = new MicroCompaction(this, options.microCompaction);
     this.cacheFreezeGuard = new CacheFreezeGuard();
     this.toolParallelStatus = new ToolParallelStatus();
+    this.toolGuards = new ToolGuardState();
     this.contextOS = new ContextOSManager(this);
     this.context = new ContextMemory(this);
     this.config = new ConfigState(this);

@@ -50,50 +50,71 @@ const regexes = BLACKLIST.map(word => {
   };
 });
 
+function gitNameOnly(args) {
+  try {
+    return execSync(`git ${args}`, { encoding: 'utf8' })
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 function getFilesToCheck() {
   const files = [];
 
-  // 1. Scan .changeset/*.md (except README.md)
-  const changesetDir = path.resolve('.changeset');
-  if (fs.existsSync(changesetDir)) {
-    const changesetFiles = fs.readdirSync(changesetDir)
-      .filter(f => f.endsWith('.md') && f !== 'README.md')
-      .map(f => path.join(changesetDir, f));
-    files.push(...changesetFiles);
+  // Staged markdown, plus markdown changed vs origin/main (or main).
+  // Do not scan the whole pending changeset inventory — that is historical
+  // release notes, not this PR's prose.
+  const names = new Set([
+    ...gitNameOnly('diff --name-only --cached'),
+    ...gitNameOnly('diff --name-only origin/main...HEAD'),
+    ...gitNameOnly('diff --name-only main...HEAD'),
+  ]);
+
+  for (const name of names) {
+    if (!name.endsWith('.md')) continue;
+    if (name === '.changeset/README.md') continue;
+    if (fs.existsSync(name)) files.push(path.resolve(name));
   }
 
-  // 2. Scan modified/staged markdown files in git
-  try {
-    const gitDiff = execSync('git diff --name-only --cached', { encoding: 'utf8' });
-    const stagedMd = gitDiff.split('\n')
-      .map(f => f.trim())
-      .filter(f => f.endsWith('.md') && fs.existsSync(f));
-    files.push(...stagedMd);
-  } catch {
-    // Git command might fail if not inside a git repo or no staged changes
-  }
-
-  // Remove duplicates
   return Array.from(new Set(files));
+}
+
+function proseLines(filePath, content) {
+  const lines = content.split('\n');
+  const posixPath = filePath.replaceAll('\\', '/');
+  const isChangeset = posixPath.includes('/.changeset/') || posixPath.includes('.changeset/');
+  if (!isChangeset) {
+    return lines.map((line, index) => ({ line, lineNum: index + 1 }));
+  }
+  // Changeset frontmatter lists package names (`@harness-kit/tui-renderer`).
+  // Those are identifiers, not prose.
+  if (lines[0]?.trim() !== '---') {
+    return lines.map((line, index) => ({ line, lineNum: index + 1 }));
+  }
+  const end = lines.indexOf('---', 1);
+  if (end < 0) return lines.map((line, index) => ({ line, lineNum: index + 1 }));
+  return lines.slice(end + 1).map((line, index) => ({ line, lineNum: end + index + 2 }));
 }
 
 function checkFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
-  const lines = content.split('\n');
   const violations = [];
 
-  lines.forEach((line, index) => {
+  for (const { line, lineNum } of proseLines(filePath, content)) {
     regexes.forEach(({ word, regex }) => {
       const match = line.match(regex);
       if (match) {
         violations.push({
-          lineNum: index + 1,
+          lineNum,
           word,
           snippet: line.trim()
         });
       }
     });
-  });
+  }
 
   return violations;
 }

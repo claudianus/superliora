@@ -19,7 +19,7 @@ import {
 } from './errors';
 import type { LoopInterruptReason, LoopEventDispatcher, LoopTurnInterruptedEvent } from './events';
 import type { LLM } from './llm';
-import { resetIdempotencyTracker, resetToolFailureTracker } from './tool-call-guards';
+import { ToolGuardState } from './tool-call-guards';
 import { executeLoopStep } from './turn-step';
 import type { ToolParallelStatus } from './tool-parallel-status';
 import type {
@@ -46,6 +46,12 @@ export interface RunTurnInput {
   readonly maxSteps?: number | undefined;
   readonly maxRetryAttempts?: number;
   readonly toolParallelStatus?: ToolParallelStatus | undefined;
+  /**
+   * Guard state for the agent running this turn. Hosts pass their own instance
+   * so circuit breakers survive across the agent's turns; omitting it gives
+   * this turn a private, fully isolated set.
+   */
+  readonly guards?: ToolGuardState | undefined;
   readonly recordStepUsage?:
     | ((
         usage: TokenUsage,
@@ -70,9 +76,9 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
     recordStepUsage: hostRecordStepUsage,
     toolParallelStatus,
   } = input;
+  const guards = input.guards ?? new ToolGuardState();
   // Reset tool failure + mutation idempotency at turn boundary (no cross-turn leaks).
-  resetToolFailureTracker();
-  resetIdempotencyTracker();
+  guards.resetForTurn();
   const turnStartMs = Date.now();
   let usage: TokenUsage = emptyUsage();
   let steps = 0;
@@ -111,6 +117,7 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
         maxRetryAttempts,
         recordUsage: recordStepUsage,
         toolParallelStatus,
+        guards,
       });
       activeStep = undefined;
 

@@ -51,7 +51,7 @@ function expandGlobsSafe(globs) {
       if (!existsSync(basePath)) continue;
       for (const entry of readdirSync(basePath, { withFileTypes: true })) {
         if (entry.isDirectory()) {
-          dirs.push(join(base, entry.name));
+          dirs.push(`${base}/${entry.name}`.replaceAll('\\', '/'));
         }
       }
     } else {
@@ -74,7 +74,7 @@ function buildWorkspaceMap(dirs) {
     if (!existsSync(pkgPath)) continue;
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
     if (pkg.name) {
-      map.set(pkg.name, dir);
+      map.set(pkg.name, dir.replaceAll('\\', '/'));
     }
   }
   return map;

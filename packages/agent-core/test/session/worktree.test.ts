@@ -13,12 +13,14 @@ import {
   gcSessionWorktrees,
   generateWorktreeName,
   hygieneSessionWorktrees,
+  isHygieneStaleRemoteName,
   isSessionWorktreeMeta,
   listSessionWorktrees,
   normalizeWorktreeName,
   removeSessionWorktree,
   resolveGitRepoRoot,
   sessionWorktreeFromCustom,
+  sessionWorktreePathsEqual,
   worktreesRoot,
 } from '#/session/worktree';
 import { ErrorCodes, LioraError } from '#/errors/index';
@@ -58,6 +60,17 @@ async function initGitRepo(kaos: LocalKaos, root: string): Promise<void> {
 }
 
 describe('session worktree helpers', () => {
+  it('folds Windows worktree paths and keeps hygiene remotes on liora/*', () => {
+    expect(isHygieneStaleRemoteName('liora/audit-hardening')).toBe(true);
+    expect(isHygieneStaleRemoteName('feat/user-branch')).toBe(false);
+    expect(isHygieneStaleRemoteName('main')).toBe(false);
+    expect(isHygieneStaleRemoteName('master')).toBe(false);
+    expect(sessionWorktreePathsEqual('/tmp/wt', '/tmp/wt')).toBe(true);
+    if (process.platform === 'win32') {
+      expect(sessionWorktreePathsEqual('C:\\Repo\\Wt', 'c:\\repo\\wt')).toBe(true);
+    }
+  });
+
   it('normalizes and rejects invalid names', () => {
     expect(normalizeWorktreeName('Fix Auth')).toBe('fix-auth');
     expect(() => normalizeWorktreeName('../escape')).toThrow(LioraError);

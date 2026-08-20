@@ -1,17 +1,12 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   DOOM_LOOP_WARN_PREFIX,
   REPETITION_HARD_STOP_THRESHOLD,
   REPETITION_WARN_THRESHOLD,
+  ToolGuardState,
   formatDoomLoopWarnTip,
-  getToolCallPatternCount,
-  resetIdempotencyTracker,
-  trackToolCallPattern,
 } from '../../src/loop/tool-call-guards';
-
-// trackToolCallPattern uses module-level state; clear via hard-stop path +
-// re-import isolation is imperfect — we only assert pure tip + threshold math.
 
 describe('formatDoomLoopWarnTip', () => {
   it('names the tool, count, and hard-stop ceiling', () => {
@@ -24,18 +19,18 @@ describe('formatDoomLoopWarnTip', () => {
 });
 
 describe('trackToolCallPattern soft-warn threshold', () => {
-  afterEach(() => {
-    // Pattern map is not fully public-reset; burn remaining calls to hard-stop
-    // then leave module state as-is for the next case (each case uses unique args).
-    resetIdempotencyTracker();
+  let guards: ToolGuardState;
+
+  beforeEach(() => {
+    guards = new ToolGuardState();
   });
 
   it('returns warn exactly once at REPETITION_WARN_THRESHOLD', () => {
-    const args = { path: `soft-warn-${String(Date.now())}` };
+    const args = { path: 'soft-warn' };
     let warnHits = 0;
     let hardHits = 0;
     for (let i = 1; i <= REPETITION_HARD_STOP_THRESHOLD; i++) {
-      const verdict = trackToolCallPattern('Read', args);
+      const verdict = guards.trackToolCallPattern('Read', args);
       if (verdict.action === 'warn') {
         warnHits += 1;
         expect(verdict.count).toBe(REPETITION_WARN_THRESHOLD);
@@ -47,6 +42,14 @@ describe('trackToolCallPattern soft-warn threshold', () => {
     }
     expect(warnHits).toBe(1);
     expect(hardHits).toBe(1);
-    expect(getToolCallPatternCount('Read', args)).toBe(REPETITION_HARD_STOP_THRESHOLD);
+    expect(guards.getToolCallPatternCount('Read', args)).toBe(REPETITION_HARD_STOP_THRESHOLD);
+  });
+
+  it('counts per agent, so a subagent cannot trip the parent doom-loop stop', () => {
+    const args = { path: 'shared' };
+    for (let i = 0; i < REPETITION_HARD_STOP_THRESHOLD; i++) {
+      guards.trackToolCallPattern('Read', args);
+    }
+    expect(new ToolGuardState().getToolCallPatternCount('Read', args)).toBe(0);
   });
 });

@@ -7,7 +7,7 @@ on:
   pull_request:
   push:
     branches:
-      - main
+    - main
 
 permissions:
   contents: read
@@ -17,11 +17,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -33,29 +33,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test
+      - run: pnpm run check:test-baseline
 
   test-windows:
     runs-on: windows-latest
-    # Temporarily disabled while Windows tests are being stabilized.
-    if: false
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -70,11 +69,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -86,7 +87,11 @@ jobs:
       - run: pnpm run check:layering -- --fail
       - run: pnpm run check:loc -- --fail
       - run: pnpm run check:dir -- --fail
-      - run: pnpm run check:unused-exports
+      - run: pnpm run check:unused-exports -- --fail
+      - run: pnpm run check:changeset
+      - run: pnpm run check:await-scan
+      - run: pnpm run check:slop
+      - run: pnpm run check:nix-workspace
       - run: pnpm run sherif
       - run: pnpm run check:branding:strict
       - run: pnpm run check:cdn-latest
@@ -95,14 +100,13 @@ jobs:
 
   soft-checks:
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -121,28 +125,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
       - name: Typecheck
+        env:
+          TSGO_PKG: '@typescript/native-preview@7.0.0-dev.20260707.2'
         run: |
-          pnpm dlx --package @typescript/native-preview@beta tsgo --version
+          pnpm dlx --package "${TSGO_PKG}" tsgo --version
           for config in packages/*/tsconfig.json apps/liora/tsconfig.json; do
             if [ "${config}" = "packages/agent-core/tsconfig.json" ]; then
               continue
             fi
             echo "Typechecking ${config}"
-            pnpm dlx --package @typescript/native-preview@beta tsgo -p "${config}" --noEmit
+            pnpm dlx --package "${TSGO_PKG}" tsgo -p "${config}" --noEmit
           done
           echo "Typechecking packages/agent-core/tsconfig.src.json"
-          pnpm dlx --package @typescript/native-preview@beta tsgo -p packages/agent-core/tsconfig.src.json --noEmit
+          pnpm dlx --package "${TSGO_PKG}" tsgo -p packages/agent-core/tsconfig.src.json --noEmit
+      - name: Agent-core test typecheck ratchet
+        run: pnpm run check:agent-core-test-types
       - name: Typecheck vis-server
         run: pnpm --filter @superliora/vis-server run typecheck
       - name: Typecheck vis-web

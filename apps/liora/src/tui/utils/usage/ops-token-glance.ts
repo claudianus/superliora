@@ -21,7 +21,7 @@ export interface OpsTokenGlanceInput {
   readonly cacheHitRate?: number;
   /** Best-effort session cost when already tracked on app state. */
   readonly costUsd?: number;
-  /** Runtime Fleet Cost Guard cap from SUPERLIORA_FLEET_BUDGET_USD (soft). */
+  /** Runtime Fleet Cost Guard cap from SUPERLIORA_FLEET_BUDGET_USD. */
   readonly budgetUsd?: number;
 }
 

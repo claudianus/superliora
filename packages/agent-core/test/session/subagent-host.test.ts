@@ -2718,6 +2718,14 @@ function fakeSession(
     },
     writeMetadata: vi.fn(async () => {}),
     systemContextKaos: vi.fn((cwd: string) => parent.kaos.withCwd(cwd)),
+    getKaos: vi.fn(() => parent.kaos),
+    log: {
+      warn: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      debug: vi.fn(),
+      createChild: vi.fn(),
+    },
     getReadyAgent: vi.fn((id: string) => agents.get(id)),
     ensureAgentResumed: vi.fn(async (id: string) => {
       const agent = agents.get(id);

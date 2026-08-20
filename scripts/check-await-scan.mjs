@@ -98,7 +98,7 @@ let sinkTotal = 0;
 let mergeSinkTotal = 0;
 
 for (const file of files) {
-  const rel = relative(repoRoot, file);
+  const rel = relative(repoRoot, file).replaceAll('\\', '/');
   const content = await readFile(file, 'utf8');
   for (const [pattern, lane] of [
     [WORKER_PATTERN, 'worker'],
