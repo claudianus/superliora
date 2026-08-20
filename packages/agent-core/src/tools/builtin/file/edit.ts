@@ -26,6 +26,7 @@ import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-m
 import type { WorkspaceConfig } from '../../support/workspace';
 import { materializeModelText, toModelTextView } from './line-endings';
 import EDIT_DESCRIPTION from './edit.md?raw';
+import { diskFullToolError } from '#/runtime/disk-pressure';
 
 // `old_string` must be non-empty: the non-replace_all branch walks
 // occurrences with `content.indexOf("", pos)`, which would loop forever
@@ -390,6 +391,8 @@ export class EditTool implements BuiltinTool<EditInput> {
         ),
       };
     } catch (error) {
+      const disk = await diskFullToolError(error);
+      if (disk !== undefined) return { isError: true, output: disk };
       const code = (error as { code?: unknown } | null)?.code;
       if (code === 'EISDIR') {
         return { isError: true, output: `${args.path} is not a file.` };

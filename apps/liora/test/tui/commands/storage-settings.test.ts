@@ -90,9 +90,7 @@ describe('storage settings', () => {
     expect(picker).toBeDefined();
     const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
       .options;
-    expect(options.map((o) => o.value)).toEqual([
-      'status',
-    ]);
+    expect(options.map((o) => o.value)).toEqual(['status', 'gc']);
     expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
@@ -120,7 +118,8 @@ describe('storage settings', () => {
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');
-    expect(lines).toContain('Storage (read-only)');
+    expect(lines).toContain('── Storage');
+    expect(lines).toMatch(/Volume:/);
     expect(lines).toContain(`Home: ${home}`);
     expect(lines).toContain(`Config: ${configPath}`);
     expect(lines).toContain(`Sessions: ${join(home, 'sessions')}/`);

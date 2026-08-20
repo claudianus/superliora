@@ -18,6 +18,7 @@ import type { WorkspaceConfig } from '../../support/workspace';
 import { materializeModelText, toModelTextView } from './line-endings';
 import { applyHunksToContent, parseOpenCodePatch } from './apply-patch-core';
 import APPLY_PATCH_DESCRIPTION from './apply-patch.md?raw';
+import { diskFullToolError } from '#/runtime/disk-pressure';
 
 export const ApplyPatchInputSchema = z.object({
   patch: z
@@ -187,9 +188,10 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
         const base = `${item.kind === 'add' ? 'Created' : 'Updated'} ${item.shownPath}`;
         summaries.push(await this.withMutationDiagnostics(item.safePath, written, base));
       } catch (error) {
+        const disk = await diskFullToolError(error);
         return {
           isError: true,
-          output: error instanceof Error ? error.message : String(error),
+          output: disk ?? (error instanceof Error ? error.message : String(error)),
         };
       }
     }

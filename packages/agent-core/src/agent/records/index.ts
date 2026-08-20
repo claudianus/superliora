@@ -23,6 +23,7 @@ export {
   FileSystemAgentRecordPersistence,
   InMemoryAgentRecordPersistence,
   MAX_WIRE_LINE_BYTES,
+  shouldLatchDrainFailure,
 } from './persistence';
 export type {
   FileSystemAgentRecordPersistenceOptions,

@@ -3,6 +3,7 @@ import { mkdir, open, readFile } from 'node:fs/promises';
 import { join } from 'pathe';
 import type { ContentPart } from '@superliora/kosong';
 import type { AgentRecord } from './types';
+import { isStorageWriteDegraded } from '#/runtime/disk-pressure';
 
 const DEFAULT_THRESHOLD = 4096;
 const DEFAULT_MAX_CACHE_SIZE = 50 * 1024 * 1024;
@@ -35,6 +36,7 @@ export class BlobStore {
   }
 
   async offload(record: AgentRecord): Promise<AgentRecord> {
+    if (isStorageWriteDegraded()) return record;
     switch (record.type) {
       case 'turn.prompt':
       case 'turn.steer': {

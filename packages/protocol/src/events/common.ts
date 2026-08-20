@@ -127,6 +127,7 @@ export type LioraErrorCode =
   | 'skill.type_unsupported'
   | 'skill.name_empty'
   | 'records.write_failed'
+  | 'storage.disk_full'
   | 'compaction.failed'
   | 'compaction.unable'
   | 'background.task_id_empty'
@@ -291,6 +292,7 @@ export const kimiErrorCodeSchema = z.enum([
   'skill.type_unsupported',
   'skill.name_empty',
   'records.write_failed',
+  'storage.disk_full',
   'compaction.failed',
   'compaction.unable',
   'background.task_id_empty',

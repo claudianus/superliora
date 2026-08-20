@@ -102,6 +102,18 @@ import { createGenerateProxy, buildLLMRoute as buildLLMRouteImpl } from './gener
 import { CircuitBreakerRegistry } from '../runtime/circuit-breaker';
 import { buildCircuitBreakerDegradedEvent } from '../runtime/circuit-breaker-degraded';
 import { buildOAuthRefreshDegradedEvent } from '../runtime/oauth-refresh-degraded';
+import {
+  applyDiskPressureReclaimAnswer,
+  buildDiskPressureDegradedEvent,
+  buildDiskPressureReclaimQuestion,
+  configureDiskPressure,
+  isDiskFullError,
+  markReclaimQuestionAsked,
+  reportDiskPressure,
+  shouldRequestReclaimQuestion,
+  subscribeDiskPressure,
+  type DiskPressureSnapshot,
+} from '../runtime/disk-pressure';
 import { attachResearchSearchCircuitBreakers } from '../tools/providers/research-search-circuit-breaker';
 import { attachLlmProviderCircuitBreakers } from './llm-provider-circuit-breaker';
 import { mapCircuitBreakerRegistrySnapshot } from '../runtime/circuit-breaker-status';
@@ -284,6 +296,7 @@ export class Agent {
   printDrainAgentTasksOnStop = false;
   /** Absolute deadline (ms epoch) bounding print-mode drain waits for this agent. */
   printDrainDeadlineMs = Number.POSITIVE_INFINITY;
+  private reclaimQuestionInFlight = false;
 
   private additionalDirs: readonly string[];
 
@@ -347,6 +360,13 @@ export class Agent {
     this.contextOS = new ContextOSManager(this);
     this.context = new ContextMemory(this);
     this.config = new ConfigState(this);
+    configureDiskPressure({
+      homeDir: this.homedir,
+      workDir: this.config.cwd,
+    });
+    subscribeDiskPressure((snap) => {
+      this.onDiskPressureChange(snap);
+    });
     void this.refreshProcessSandbox();
     this.turn = new TurnFlow(this);
     this.injection = new InjectionManager(this);
@@ -633,5 +653,36 @@ export class Agent {
       error,
     });
     this.emitEvent(buildRecordsWriteErrorEvent(error, record));
+    if (isDiskFullError(error)) {
+      void reportDiskPressure(error);
+    }
+  }
+
+  private onDiskPressureChange(snap: DiskPressureSnapshot): void {
+    if (this.records.restoring) return;
+    if (snap.level === 'warn' || snap.level === 'critical') {
+      this.emitEvent(buildDiskPressureDegradedEvent(snap));
+    }
+    if (this.type === 'main' && shouldRequestReclaimQuestion()) {
+      void this.requestDiskPressureReclaim();
+    }
+  }
+
+  private async requestDiskPressureReclaim(): Promise<void> {
+    if (this.reclaimQuestionInFlight) return;
+    if (this.rpc?.requestQuestion === undefined) return;
+    this.reclaimQuestionInFlight = true;
+    markReclaimQuestionAsked();
+    try {
+      const result = await this.rpc.requestQuestion({
+        toolCallId: 'disk-pressure-reclaim',
+        questions: [buildDiskPressureReclaimQuestion()],
+      });
+      await applyDiskPressureReclaimAnswer(result);
+    } catch {
+      // Injector still tells the model; do not crash the turn.
+    } finally {
+      this.reclaimQuestionInFlight = false;
+    }
   }
 }

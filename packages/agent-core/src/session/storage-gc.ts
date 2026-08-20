@@ -26,6 +26,17 @@ export interface StorageGcOptions {
   readonly pruneCache?: boolean;
   /** Prune worktree tmp debris. Default true. */
   readonly pruneWorktreeTmp?: boolean;
+  /** Prune files under home/logs. Default true. */
+  readonly pruneLogs?: boolean;
+  /**
+   * Emergency reclaim: cache/tmp/logs ignore idle age. Session activity
+   * still uses idleMs so live wires are never treated as idle.
+   */
+  readonly emergency?: boolean;
+  /** Skip wire gzip when free bytes are below this (emergency only). */
+  readonly skipCompressBelowFreeBytes?: number;
+  /** Pre-probed free bytes (avoids a storage-gc → disk-pressure import). */
+  readonly availableFreeBytes?: number;
   /** Now override for tests. */
   readonly now?: number;
   /** Lock probe override for tests (seam: isPathLocked). */
@@ -34,7 +45,15 @@ export interface StorageGcOptions {
 
 export interface StorageGcItem {
   readonly path: string;
-  readonly kind: 'wire-gzip' | 'cache' | 'worktree-tmp' | 'skipped-active' | 'skipped-locked';
+  readonly kind:
+    | 'wire-gzip'
+    | 'cache'
+    | 'worktree-tmp'
+    | 'logs'
+    | 'idle-session'
+    | 'skipped-active'
+    | 'skipped-locked'
+    | 'skipped-compress';
   readonly bytes?: number;
   readonly action: 'delete' | 'compress' | 'skip';
 }
@@ -179,20 +198,25 @@ async function* walkSessionDirs(sessionsRoot: string): AsyncGenerator<string> {
 export async function collectStorageGarbage(options: StorageGcOptions): Promise<StorageGcReport> {
   const homeDir = options.homeDir;
   const dryRun = options.dryRun === true;
-  const idleMs = options.idleMs ?? DEFAULT_IDLE_MS;
+  const sessionIdleMs = options.idleMs ?? DEFAULT_IDLE_MS;
+  const debrisIdleMs = options.emergency === true ? 0 : sessionIdleMs;
   const now = options.now ?? Date.now();
   const items: StorageGcItem[] = [];
   let freedBytes = 0;
   let compressed = 0;
   let deleted = 0;
   let skipped = 0;
+  const skipCompress =
+    options.emergency === true &&
+    options.availableFreeBytes !== undefined &&
+    options.availableFreeBytes < (options.skipCompressBelowFreeBytes ?? 1024 * 1024);
 
   const sessionsRoot = join(homeDir, 'sessions');
 
   // Mark active sessions so we never touch their wires.
   const activeSessions = new Set<string>();
   for await (const sessionDir of walkSessionDirs(sessionsRoot)) {
-    if (await sessionIsActive(sessionDir, idleMs, now)) {
+    if (await sessionIsActive(sessionDir, sessionIdleMs, now)) {
       activeSessions.add(sessionDir);
       items.push({ path: sessionDir, kind: 'skipped-active', action: 'skip' });
       skipped += 1;
@@ -210,7 +234,12 @@ export async function collectStorageGarbage(options: StorageGcOptions): Promise<
       const plain = join(agentDir, WIRE_JSONL);
       const plainM = await mtimeMs(plain);
       if (plainM === undefined) continue;
-      if (now - plainM < idleMs) continue;
+      if (now - plainM < sessionIdleMs) continue;
+      if (skipCompress) {
+        items.push({ path: plain, kind: 'skipped-compress', action: 'skip' });
+        skipped += 1;
+        continue;
+      }
 
       if (await checkLocked(plain)) {
         items.push({ path: plain, kind: 'skipped-locked', action: 'skip' });
@@ -246,7 +275,7 @@ export async function collectStorageGarbage(options: StorageGcOptions): Promise<
       const full = join(cacheRoot, entry.name);
       if (!entry.isDirectory()) continue;
       const m = await mtimeMs(full);
-      if (m === undefined || now - m < idleMs) continue;
+      if (m === undefined || (debrisIdleMs > 0 && now - m < debrisIdleMs)) continue;
       const bytes = await dirBytes(full);
       items.push({ path: full, kind: 'cache', bytes, action: 'delete' });
       if (!dryRun) {
@@ -276,11 +305,39 @@ export async function collectStorageGarbage(options: StorageGcOptions): Promise<
         entry.name.startsWith('.tmp');
       if (!looksTmp) continue;
       const m = await mtimeMs(full);
-      if (m === undefined || now - m < idleMs) continue;
+      if (m === undefined || (debrisIdleMs > 0 && now - m < debrisIdleMs)) continue;
       const bytes = await dirBytes(full);
       items.push({ path: full, kind: 'worktree-tmp', bytes, action: 'delete' });
       if (!dryRun) {
         await rm(full, { recursive: true, force: true });
+        deleted += 1;
+        freedBytes += bytes;
+      }
+    }
+  }
+
+  if (options.pruneLogs !== false) {
+    const logsRoot = join(homeDir, 'logs');
+    let logEntries: Dirent[] = [];
+    try {
+      logEntries = await readdir(logsRoot, { withFileTypes: true });
+    } catch {
+      logEntries = [];
+    }
+    for (const entry of logEntries) {
+      if (!entry.isFile()) continue;
+      const full = join(logsRoot, entry.name);
+      const m = await mtimeMs(full);
+      if (m === undefined || (debrisIdleMs > 0 && now - m < debrisIdleMs)) continue;
+      if (await checkLocked(full)) {
+        items.push({ path: full, kind: 'skipped-locked', action: 'skip' });
+        skipped += 1;
+        continue;
+      }
+      const bytes = (await stat(full).catch(() => undefined))?.size ?? 0;
+      items.push({ path: full, kind: 'logs', bytes, action: 'delete' });
+      if (!dryRun) {
+        await rm(full, { force: true });
         deleted += 1;
         freedBytes += bytes;
       }
@@ -319,4 +376,58 @@ export function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+export interface ReclaimIdleSessionsOptions {
+  readonly homeDir: string;
+  readonly idleMs?: number;
+  readonly dryRun?: boolean;
+  readonly now?: number;
+  readonly isPathLocked?: (path: string) => Promise<boolean>;
+}
+
+/** Phase B only — delete idle session dirs after the operator confirms. */
+export async function reclaimIdleSessions(
+  options: ReclaimIdleSessionsOptions,
+): Promise<StorageGcReport> {
+  const homeDir = options.homeDir;
+  const dryRun = options.dryRun === true;
+  const idleMs = options.idleMs ?? DEFAULT_IDLE_MS;
+  const now = options.now ?? Date.now();
+  const checkLocked = options.isPathLocked ?? isPathLocked;
+  const items: StorageGcItem[] = [];
+  let freedBytes = 0;
+  let deleted = 0;
+  let skipped = 0;
+
+  const sessionsRoot = join(homeDir, 'sessions');
+  for await (const sessionDir of walkSessionDirs(sessionsRoot)) {
+    if (await sessionIsActive(sessionDir, idleMs, now)) {
+      items.push({ path: sessionDir, kind: 'skipped-active', action: 'skip' });
+      skipped += 1;
+      continue;
+    }
+    if (await checkLocked(sessionDir)) {
+      items.push({ path: sessionDir, kind: 'skipped-locked', action: 'skip' });
+      skipped += 1;
+      continue;
+    }
+    const bytes = await dirBytes(sessionDir);
+    items.push({ path: sessionDir, kind: 'idle-session', bytes, action: 'delete' });
+    if (!dryRun) {
+      await rm(sessionDir, { recursive: true, force: true });
+      deleted += 1;
+      freedBytes += bytes;
+    }
+  }
+
+  return {
+    homeDir,
+    dryRun,
+    items,
+    freedBytes,
+    compressed: 0,
+    deleted,
+    skipped,
+  };
 }

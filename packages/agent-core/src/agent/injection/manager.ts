@@ -17,6 +17,7 @@ import { JobDeskInjector } from './job-desk';
 import { FleetModelCatalogInjector } from './fleet-model-catalog';
 import { MediaReadinessInjector } from './media-readiness';
 import { WindowsTerminalReadinessInjector } from './windows-terminal-readiness';
+import { DiskPressureInjector } from './disk-pressure';
 import { TASK_GRAPH_STORE_KEY } from '../../tools/builtin/state/task-graph-store-key';
 
 const ACTIVE_BACKGROUND_TASK_GUIDANCE =
@@ -90,6 +91,7 @@ export class InjectionManager {
       new FleetModelCatalogInjector(agent),
       new MediaReadinessInjector(agent),
       new WindowsTerminalReadinessInjector(agent),
+      new DiskPressureInjector(agent),
       new AskModeInjector(agent),
       new PlanModeInjector(agent),
       new PremiumQualityInjector(agent),

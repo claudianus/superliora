@@ -34,6 +34,10 @@ export interface StorageGlanceInput extends StoragePaths {
   readonly logDir: string;
   readonly workDir?: string;
   readonly sessionCount?: number;
+  readonly volumeFreeBytes?: number;
+  readonly volumeTotalBytes?: number;
+  readonly pressureLevel?: string;
+  readonly lastGcFreedBytes?: number;
 }
 
 export function resolveStoragePaths(input: {
@@ -77,12 +81,23 @@ export function buildStorageSettingsLines(input: StorageGlanceInput): readonly s
       ? `Current session dir: ${input.sessionDir}`
       : 'Current session dir: (none — resume or start a session for live paths).';
 
+  const volumeLine =
+    input.volumeFreeBytes !== undefined && input.volumeTotalBytes !== undefined
+      ? `Volume: ${formatGlanceBytes(input.volumeFreeBytes)} free / ${formatGlanceBytes(input.volumeTotalBytes)} total${input.pressureLevel !== undefined ? ` (${input.pressureLevel})` : ''}.`
+      : 'Volume: (probe unavailable).';
+  const gcLine =
+    input.lastGcFreedBytes !== undefined
+      ? `Last emergency GC freed ${formatGlanceBytes(input.lastGcFreedBytes)}.`
+      : 'Last emergency GC: none this process.';
+
   return [
-    '── Storage (read-only) ───────────────────────',
+    '── Storage ──────────────────────────────────',
     'Local data layout — Sovereign Reform §9.2.',
     '',
     '── Status ───────────────────────────────────',
     homeLine,
+    volumeLine,
+    gcLine,
     `Config: ${input.configPath}`,
     `Sessions: ${input.sessionsDir}/`,
     `Journal: ${input.journalPath}`,
@@ -102,13 +117,21 @@ export function buildStorageSettingsLines(input: StorageGlanceInput): readonly s
     '· Durable turn journal: agents/*/wire.jsonl (replay + export source)',
     '· Cleared tool output receipts: agents/main/tool-results/',
     '· Resume via session picker · export via `liora export`',
-    '· No automatic purge in Settings yet — manual cleanup by deleting dirs',
+    '· Emergency GC (cache/tmp/logs) runs on disk-full; idle sessions need confirm',
     '· Goal queue artifacts: <sessionDir>/ui/goals.json when Mission active',
     '',
     '── Log level ────────────────────────────────',
     '· Interactive TUI: stderr + ~/.superliora/logs (when enabled)',
     '· Server daemon: `liora server run --log-level info|debug|silent`',
     '',
-    'No retention policy or log-level toggles here until storage slice lands.',
+    'Run GC from this pane to reclaim cache, idle wires, worktree tmp, and old logs.',
+    'Active sessions, credentials, and memory are never deleted by GC.',
   ];
+}
+
+function formatGlanceBytes(n: number): string {
+  if (n < 1024) return `${String(n)} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }

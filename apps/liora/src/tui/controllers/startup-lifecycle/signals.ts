@@ -1,3 +1,9 @@
+import {
+  buildDiskPressureDegradedEvent,
+  isDiskFullError,
+  reportDiskPressure,
+} from '@superliora/sdk';
+
 import { NativeTerminalSession } from '#/tui/renderer';
 
 import { isDeadTerminalError } from '../../utils/terminal/dead-terminal';
@@ -20,6 +26,10 @@ function restoreTerminalSync(): void {
   }
 }
 
+export function shouldSwallowUncaught(error: unknown): boolean {
+  return isDiskFullError(error);
+}
+
 export function registerStartupSignalHandlers(
   host: StartupLifecycleHost,
   callbacks: StartupSignalCallbacks,
@@ -35,7 +45,18 @@ export function registerStartupSignalHandlers(
   // prints the trace straight into the alternate screen before exiting — the
   // user is left with a terminal that does not echo. Restore first, then let
   // the default behavior print and exit.
-  const crashHandler = (error: unknown): never => {
+  const crashHandler = (error: unknown): void => {
+    if (shouldSwallowUncaught(error)) {
+      void (async () => {
+        try {
+          const snap = await reportDiskPressure(error);
+          host.harness.broadcastRuntimeDegraded(buildDiskPressureDegradedEvent(snap));
+        } catch {
+          /* never crash the TUI on the pressure path */
+        }
+      })();
+      return;
+    }
     restoreTerminalSync();
     host.isShuttingDown = true;
     process.off('uncaughtException', crashHandler);

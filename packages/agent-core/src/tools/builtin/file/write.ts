@@ -24,6 +24,7 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
 import WRITE_DESCRIPTION from './write.md?raw';
+import { diskFullToolError } from '#/runtime/disk-pressure';
 
 /** Mask isolating the file-type bits of a stat mode. */
 const S_IFMT = 0o170000;
@@ -154,6 +155,8 @@ export class WriteTool implements BuiltinTool<WriteInput> {
           extra !== undefined && extra.trim() !== '' ? `${base}\n\n${extra.trim()}` : base,
       };
     } catch (error) {
+      const disk = await diskFullToolError(error);
+      if (disk !== undefined) return { isError: true, output: disk };
       const code = (error as { code?: unknown } | null)?.code;
       if (code === 'ENOENT') {
         return {
@@ -195,7 +198,8 @@ export class WriteTool implements BuiltinTool<WriteInput> {
           await this.kaos.mkdir(parent, { parents: true, existOk: true });
           return undefined;
         } catch (mkdirError) {
-          return mkdirError instanceof Error ? mkdirError.message : String(mkdirError);
+          const disk = await diskFullToolError(mkdirError);
+          return disk ?? (mkdirError instanceof Error ? mkdirError.message : String(mkdirError));
         }
       }
       return undefined;

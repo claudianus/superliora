@@ -66,6 +66,7 @@ export const ErrorCodes = {
   SKILL_NAME_EMPTY: 'skill.name_empty',
 
   RECORDS_WRITE_FAILED: 'records.write_failed',
+  STORAGE_DISK_FULL: 'storage.disk_full',
   COMPACTION_FAILED: 'compaction.failed',
   COMPACTION_UNABLE: 'compaction.unable',
 
@@ -403,6 +404,12 @@ export const KIMI_ERROR_INFO = {
     retryable: true,
     public: true,
     action: 'Check disk space and permissions on the session directory.',
+  },
+  'storage.disk_full': {
+    title: 'Disk is full',
+    retryable: true,
+    public: true,
+    action: 'Stop large writes. The harness will reclaim cache/tmp/logs, then ask before deleting idle sessions.',
   },
   'compaction.failed': {
     title: 'Compaction failed',

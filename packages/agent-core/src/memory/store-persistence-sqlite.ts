@@ -88,12 +88,19 @@ export function openDatabase(path: string): SqliteDatabase {
  */
 export function isDatabaseCorruptionError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
+  if (isDatabaseFullError(error)) return false;
   return (
     /database disk image is malformed/iu.test(error.message) ||
     /file is not a database/iu.test(error.message) ||
     /SQLITE_CORRUPT\b/iu.test(error.message) ||
     /SQLITE_NOTADB\b/iu.test(error.message)
   );
+}
+
+/** SQLITE_FULL is space exhaustion — never quarantine the database. */
+export function isDatabaseFullError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /SQLITE_FULL\b/iu.test(error.message) || /database or disk is full/iu.test(error.message);
 }
 
 export function corruptionErrorMessage(error: unknown): string {
