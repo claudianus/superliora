@@ -2,6 +2,7 @@ export * from './types';
 export * from './builtin';
 export * from './parser';
 export * from './registry';
+export * from './injection-budget';
 export * from './scanner';
 export { resolveSkillCatalogDir } from './catalog-loader';
 export * from './skill-composition';
