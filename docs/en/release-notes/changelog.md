@@ -4,704 +4,393 @@ outline: 2
 
 # Changelog
 
-This page documents the changes in each SuperLiora CLI release.
+This page documents SuperLiora CLI releases. It is SuperLiora’s own release line, not upstream Kimi Code history.
 
-## 0.20.1 (2026-06-26)
+The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
-### Features
-
-- Plugins now support declaring lifecycle hooks in `kimi.plugin.json` to run scripts at specific stages. See [Hooks in Plugins](../customization/plugins.md#hooks-in-plugins).
-- `/feedback` now supports attaching diagnostic logs and codebase context.
-- Add the `kimi update` command, equivalent to `liora upgrade`, for upgrading to the latest version.
-- `kimi web` adds the `--allowed-host <host>` option to add a specified Host to the DNS-rebinding allowlist; 403 errors now explain how to allow it via `--allowed-host` or `SUPERLIORA_ALLOWED_HOSTS`, e.g. `kimi web --allowed-host example.com`.
-
-### Bug Fixes
-
-- Fix liora server failing to start on Windows after the first run.
-- Fix the Web UI opened by the `/web` command not signing in automatically; the terminal now prints the access token.
-- Cap chat-completions providers' `max_tokens` to the remaining context window, avoiding context overflow and invalid parameter errors.
-
-### Polish
-
-- Optimize the default system prompt and built-in tool descriptions to stop the agent from blocking background tasks, unify tool guidance across profiles, and surface previously missing tool-result details (fetched-page mode, Grep match totals).
-- Cache rendered message lines to keep the terminal responsive in long conversations.
-- Retain only recent turns in the transcript and collapse older steps within each turn to keep long sessions responsive.
-- Make the web chat input grow with its content and add an expandable editor for longer messages.
-- Show the done / in progress / pending breakdown of hidden todos in the collapsed todo panel.
-
-## 0.20.0 (2026-06-26)
+## 0.12.8 (2026-08-20)
 
 ### Features
 
-- Add shell mode to the TUI. Type `!` in the input box to enable it. For long-running commands, press Ctrl+B to move them to the background. For example, you can run `!gh auth login` to sign in to the GitHub CLI without opening a new terminal.
-- Add a `--host` CLI option so `kimi web --host` can expose the server to the internet, with hardened token authentication, rate limiting, and other security measures.
-- Render LaTeX display math (`$$…$$`) in the web UI.
+- Pick a roomy drive for the SuperLiora data home (~100 GB free). On Windows, use another drive when the profile disk is tight, and set `SUPERLIORA_HOME` to keep it there.
 
 ### Bug Fixes
 
-- Fix a startup crash on Linux caused by an unhandled native clipboard error.
-- Fix `kimi web` and `/web` failing to start the background server daemon on Windows with `spawn EFTYPE` when the CLI is installed via npm/pnpm or run from source. The official single-binary install script was not affected.
-- Fix the terminal window repeatedly losing focus on Linux Wayland, which broke IME input.
-- Stop auto-dismissing questions in the web UI after 60 seconds so they wait for the user's answer.
-- Fix explore subagents silently losing git context when git commands time out or the directory is not a repository.
-- Fix Ctrl-C during compaction so it clears a pending editor draft first instead of cancelling immediately.
-- Fix MCP server working directories when sessions are hosted by the web server.
-- Fix duplicate session snapshot reloads in the bundled web UI during resync.
-- Fix truncated skill descriptions missing an ellipsis in the model's skill listing.
+- Recover a broken or hollow source checkout on `liora upgrade --main`, including Windows longpaths and atomic replace.
+- Keep the resolved Node on PATH for source upgrades, and recognize the prebuilt wrapper marker so native can switch to source.
+- Survive a full disk without crashing (`ENOSPC` / `SQLITE_FULL`) and reclaim cache, tmp, and logs.
+- Close permission gaps: unwrap env secrets, tighten OAuth state and Windows secret paths, and do not auto `git add -A` of `.env`.
 
-### Polish
-
-- Redesign `/plugins` as a single tabbed panel: **Installed** (manage installed plugins — toggle, remove, MCP, details, reload), **Official** (Kimi-maintained marketplace plugins), **Third-party** (marketplace plugins from other publishers), and **Custom** (install straight from a GitHub URL, zip URL, or local path). Use `Tab` / `Shift-Tab` to switch tabs.
-- Show a line-by-line diff when the agent edits or writes a file in the web chat.
-- Show the plan body and approach choices in the plan review card when exiting plan mode in the web UI.
-- Show the full accumulated progress of a subagent in its detail panel, with concise tool-call summaries instead of raw JSON.
-- `/reload` now refreshes the assistant's view of plugin skills, so plugin changes take effect in the current session instead of requiring a new one.
-- Replace silent AGENTS.md truncation with a visible warning in the TUI status bar and web UI.
-- Add a confirmation prompt before installing third-party plugins.
-- Show update badges on the `/plugins` Installed tab, where Enter now installs the available update and I opens plugin details.
-- Add a copy button to user messages in the web chat.
-- Preserve full tool output logs when previews are truncated and link background task completion notifications to saved output.
-- Sync session title changes across all connected clients in server mode.
-- Add Ctrl+U and Ctrl+D as page up and page down shortcuts in the task output viewer.
-- Add a hint to the per-turn step limit error pointing users to the `loop_control.max_steps_per_turn` config option.
-- Reduce streaming redraw cost for long assistant messages with code blocks.
-- Page the web session list per workspace so the first screen no longer fetches every session up front.
-- Keep the web session sidebar from re-rendering on every streaming token to improve rendering performance.
-- Create missing parent directories automatically when writing a file.
-- Improve the image paste hint.
-
-## 0.19.2 (2026-06-24)
+## 0.12.7 (2026-08-20)
 
 ### Features
 
-- Keep drag-and-drop workspace reordering in the web sidebar, with sort order persisted locally; sessions now also float to the top of their group as soon as a new message arrives.
-- Add an Alt+S shortcut in the model picker to switch the model for the current session only, without saving it as the default.
-- Add a Ctrl+T shortcut to expand and collapse a truncated todo list.
-- Add `-c` as a shorthand for `--continue`.
+- Add a SuperLiora desktop shortcut that opens the TUI in a real terminal. After install, double-click SuperLiora on the Desktop.
+- Localize the installer, upgrade screens, and TUI in Korean and English, keep product names in English, and pick OS language more reliably (including Korean Windows under Git Bash). Set `SUPERLIORA_LOCALE=ko|en` or Settings → Language.
+
+## 0.12.6 (2026-08-19)
 
 ### Bug Fixes
 
-- Fix yolo mode in the web app auto-approving plan reviews and sensitive file access.
-- Fix resume not realigning a tool call that was interrupted mid-history.
-- Fix the composer's ↑/↓ input-history recall doing nothing right after the first message of a new session.
-- Fix stale rows occasionally leaving duplicate input boxes after tall content shrinks.
-- Fix inline images being rendered as broken escape sequences in the transcript.
-- Fix code blocks nested inside list items rendering blank in the web chat after a turn finishes generating.
-- Fix the Tab key unexpectedly opening the file completion list.
-- Fix clipboard copy actions in the web UI when served over plain HTTP.
-- Fix the web question prompt missing the free-text Other option.
-- Fix web chat stop actions so stale prompt ids fall back to cancelling the active session.
+- Fix the TUI flickering as soon as it opens in Windows Terminal, and stop the host-setup sheet from reappearing after it has already run.
 
 ### Polish
 
-- Read large text files in bounded memory and read tail lines without scanning whole files.
-- Show the command in running Bash tool cards and allow expanding it with Ctrl+O before the result arrives.
-- Allow the web sidebar and detail panel to be resized up to the available viewport width, keeping their resize handles reachable on narrow windows.
-- Show subcommand suggestions after Tab-completing a slash command name.
-- Show a transient footer hint when an image is detected in the clipboard, displaying the platform-appropriate paste shortcut.
-- Persist the collapsed state of workspace groups in the web sidebar across page reloads.
-- Add a development-mode indicator to the web sidebar for local development.
-- Optimize the loading tips display.
+- Put TUI animations on one clock so editor glow, worker dock linger, shell elapsed time, and footer pulses actually run.
 
-### Refactors
-
-- Reorganize the web app's components into area subdirectories (chat/settings/dialogs/mobile) and refresh the component path comments.
-- Extract several composer pieces into reusable composables.
-- Extract pure turn-rendering helpers out of the chat pane into their own module.
-- Extract the beta conversation outline (table of contents) into its own component.
-- Extract the workspace group rendering out of the sidebar into its own component.
-
-## 0.19.1 (2026-06-23)
+## 0.12.5 (2026-08-18)
 
 ### Bug Fixes
 
-- Fix ACP editors such as Zed failing to start a new thread.
-- Fix the web sidebar's unread dots getting out of sync across browser tabs.
-- Clear all per-session state when a session is archived or removed, so archived sessions no longer leave orphaned data behind.
+- Stop the footer from saying a session is replaying during file scans, shorten Windows cwd paths, restore typed prompts when send is rejected, and tell the operator why Command Hub stays closed over `/files`.
 
-### Refactors
+### Polish
 
-- Consolidate web client localStorage access and split the root state store and app shell into focused composables.
+- Keep hidden diagnostic dumps off by default. `--debug` writes a thinner set under `~/.superliora/logs`: info-level session logs, no per-frame hang files, no duplicate start breadcrumbs.
+- Keep session files in a tighter layout. New sessions write the index under `sessions/`, TUI draft/goals/prefs live in `ui/`, metadata writes are crash-safe, agent folders stay relative, and the session index stays compact. Existing sessions still open.
 
-## 0.19.0 (2026-06-22)
+## 0.12.4 (2026-08-18)
 
 ### Features
 
-- Added the ability to add extra workspace directories:
-  - Use the `/add-dir <path>` command to add extra working directories to the current session, or remember them for the project.
-  - Use `liora --add-dir <path>` to add them on startup.
-  - Project-level local config is now managed in `.superliora/local.toml`; we recommend adding it to your `.gitignore`.
-- Allow long-running foreground commands and subagents to be moved into background tasks with `Ctrl+B`, and inspect them via the `/tasks` panel.
+- `liora upgrade` now auto-installs updates for GitHub checkout installs on Windows. The updater locates Git for Windows' `bash.exe` (never the System32 WSL launcher), runs the checkout update script through it, and passes the running Node directory on PATH so the script can rebuild. When Git Bash is not installed, the manual update command is still shown.
 
 ### Bug Fixes
 
-- Surface provider safety-policy blocks instead of silently treating them as completed turns, and prevent the context token count from dropping to zero after a filtered response.
-- Fix provider requests failing when restored conversation history contains empty text content blocks.
-- Detect the real image format from file contents when reading media, so a mismatched filename extension no longer produces a data URL the model API rejects.
-- Fix commands flashing an empty console window on Windows.
-- Stop showing unread dots on cancelled or failed sessions in the web sidebar.
+- Stop heavy TUI flickering on Windows while the agent is streaming or working: pace frame updates on terminals that cannot repaint atomically, batch streaming text instead of redrawing on every chunk, and snap the type-on reveal into place instead of animating it.
+- Fix TUI startup flicker and the provider picker opening on a black screen on Windows: palette colors are no longer re-sent on every splash frame, and the screen repaints fully after the splash ends or the terminal resizes.
+
+## 0.12.3 (2026-08-18)
+
+### Bug Fixes
+
+- Fix stale lines piling up in the `liora upgrade` prompt and progress display when output wraps, repainting frames safely at any terminal width.
 
 ### Polish
 
-- Speed up session snapshot loading with a direct disk reader and a request timeout safeguard, keeping the previous path as a legacy fallback.
-- Show longer branch names in the web chat header and expose the full name on hover.
-- Keep the web page title fixed instead of changing with the session or workspace name.
-- Polish file mention UX.
+- Restyle the upgrade prompt, upgrade progress, and install scripts with animated spinners, gradient progress bars, and styled status output; raw stage markers now only appear in piped or CI output.
 
-### Refactors
+## 0.12.2 (2026-08-17)
 
-- Unify image format detection when sniffing fails.
-- Consolidate web client localStorage access and decouple appearance/notification state into dedicated modules.
+### Bug Fixes
 
-## 0.18.0 (2026-06-18)
+- Stop Oh My Posh from erroring on Windows PowerShell 5.1 with the inbox PSReadLine. Run `/host-setup` to refresh the profile.
+
+## 0.12.1 (2026-08-17)
+
+### Bug Fixes
+
+- Stop the blank flickering transcript on first launch so Welcome and the idle scene paint instead of an empty pane.
+
+## 0.12.0 (2026-08-17)
 
 ### Features
 
-- Add session filtering to the web sidebar, filtering by title and the last user prompt.
-- Add scroll-up lazy loading for older messages in the web chat session view.
-- Add an environment variable to cap AgentSwarm concurrency during the initial ramp, so large swarms do not trip provider rate limits as easily.
+- Add host setup for Windows, macOS, and Linux (Windows Terminal on Windows, CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf) and show a confirm list before applying. Run `/host-setup`.
+
+## 0.11.7 (2026-08-17)
 
 ### Bug Fixes
 
-- Fix the web app only loading the 20 most recent sessions.
-- Fix web slash skill selection sending immediately and allow slash search to match skill names by substring.
-- Fix the highlighted web slash command not staying visible while navigating a long slash menu.
-- Fix incorrect display after archiving the last session.
-- Fix the web login slash command description to match the browser authorization flow.
+- Failed upgrades no longer block the next `liora upgrade` with a stale in-progress lock.
 
-### Polish
-
-- Redesign the web OAuth login dialog so the order of steps is unambiguous.
-- Show the current version in web settings.
-- Allow long web slash command names and descriptions to wrap without overflowing the slash menu.
-- Add `/reload` suggestion in plugin-change hints.
-
-## 0.17.1 (2026-06-17)
-
-### Bug Fixes
-
-- Fix the `kimi web` command failing to start in the background.
-- Stop the background local server from locking the directory it was started in.
-- Prevent the web login dialog from closing when clicking the backdrop.
-
-### Polish
-
-- Group the default model dropdown in web settings by provider.
-
-## 0.17.0 (2026-06-17)
+## 0.11.6 (2026-08-17)
 
 ### Features
 
-- Add SuperLiora Web mode, which you can start with `kimi web` or `/web` in the CLI, and continue sessions in a browser chat interface.
+- Source installs and `liora upgrade --main` now download pnpm when Corepack is missing or broken.
 
-### Bug Fixes
-
-- Show the underlying connection error when OAuth token refresh fails after internal retries, instead of prompting for login. Token refresh failures are no longer re-retried at the agent loop level.
-- Restore the turn counter from persisted loop events on resume so post-resume turns no longer reuse turn ids that already appear in history.
-
-### Polish
-
-- Skip debug TPS when the output stream is too short to measure reliably.
-
-## 0.16.0 (2026-06-16)
+## 0.11.5 (2026-08-17)
 
 ### Features
 
-- Add a built-in `liora vis` command that launches the session visualizer in your browser, pointed at your local sessions. Supports `--port`/`--host`, `--no-open`, and `liora vis <sessionId>` deep-links.
+- Cap long-context models at their cheap price bands so default sessions stay off whole-request cliffs (Seed/Qwen Coder 128k, Grok/Gemini Pro 200k, Qwen Plus/Flash 256k, GPT-5.4/5.5/5.6 and Fugu Ultra 272k, MiniMax M3 512k). Claude 4.6+, Gemini Flash, Qwen Max, MiMo V2.5, and DeepSeek V4 stay uncapped.
 
-### Bug Fixes
-
-- Stop Anthropic-compatible providers from reading ambient Anthropic shell credentials and custom headers.
-- Fix repeated compaction handling when context remains over the blocking threshold.
-- Prevent session shutdown from resuming the agent when stopping background tasks.
-- Project session replay ranges over rendered replay records instead of raw persisted records.
-- Close wrapped output streams when buffered readers are destroyed.
-
-### Polish
-
-- Reduce the maximum height of the `/btw` side panel from half to one-third of the terminal.
-- Polish queue pane styling.
-- Add configurable banner display frequencies with local display state.
-
-### Refactors
-
-- Remove redundant LLM request logging context plumbing.
-
-## 0.15.0 (2026-06-15)
+## 0.11.4 (2026-08-17)
 
 ### Features
 
-- Add an all-sessions picker view with name search, paginated browsing, and clipboard-ready resume commands for sessions in other working directories.
-- Add support for legacy SSE MCP servers alongside stdio and streamable HTTP transports.
+- Cap Grok sessions at 200k context so prompts stay off xAI long-context (2×) rates. Auto-compaction and the working-set ceiling follow that window.
 
 ### Bug Fixes
 
-- Recover resumed sessions when an interrupted tool call result was not recorded.
-- Stop writing resume version markers into persisted agent metadata.
-- Do not carry obsolete legacy loop, background, plan, yolo, or unknown experimental flags into migrated config files.
-- Repair mismatched JSON Schema types emitted by Xcode 26.5 MCP server for Moonshot compatibility.
+- Stop treating a finished native `liora upgrade` as a failed npm install when the binary has no nearby `package.json`.
 
-### Polish
-
-- Keep TUI components within narrow terminal widths by wrapping, compacting, or truncating lines that could exceed the render width.
-- Prompt the CLI to show one brief same-language status sentence before non-trivial tool calls.
-- Extend the same-language rule to the model's reasoning, so thinking follows the user's language while keeping code and technical terms in their original form.
-- Read media files using header-detected types before falling back to media extensions.
-- Prioritize clearing draft editor text before Ctrl-C cancels an active stream.
-- Collapse hidden directories in the workspace prompt and explain how to inspect them.
-- Include the skill's directory on the loaded-skill context block so the agent can locate a skill's bundled resources (scripts, templates) after it is invoked.
-- Show the all-sessions toggle hint when the current working directory has no sessions.
-- Clarify that compaction summaries must be emitted in the final answer.
-- Clarify AGENTS.md prompt guidance and mark truncated instruction files.
-
-### Refactors
-
-- Resolve model capabilities through a static lookup instead of instantiating a temporary provider.
-- Decouple agent skill access from session-specific registry implementations.
-- Optimize the npm packaging system.
-
-## 0.14.3 (2026-06-14)
-
-### Polish
-
-- Refresh provider model metadata before opening the model picker.
-
-## 0.14.2 (2026-06-12)
+## 0.11.3 (2026-08-17)
 
 ### Bug Fixes
 
-- Fix endless desktop notifications in iTerm2 by only sending terminal progress sequences to terminals that support them.
-- Show completed and cancelled compaction records correctly when resuming a session.
-- Drop invalid config.toml sections with a warning instead of failing to start.
+- Stop TUI black-line flicker by giving every screen cell an explicit canvas background and never erasing a line to the terminal default color.
 
-### Polish
-
-- Stream foreground Bash stdout and stderr while commands are still running.
-- Allow `--auto`, `--yolo`, and `--plan` to be combined with `--session` or `--continue` by applying the requested mode to the resumed session.
-- Qualify sub-skill names with their parent prefix and expose sub-skills as dotted slash commands in the TUI.
-- Sync custom registry provider additions, removals, and rotated registry keys during startup refresh.
-
-## 0.14.1 (2026-06-12)
-
-### Bug Fixes
-
-- Cancel active turns during session shutdown so foreground shell commands do not outlive prompt-mode exits.
-- Stop background tasks by default when sessions close.
-- Prevent overlapping interactive agent requests from using the wrong active agent.
-- Fix premature stream close errors when shell processes time out or are killed.
-- Degrade unsupported audio/video to placeholder text and reattach tool result media instead of silently dropping them.
-- Send OpenAI Responses system prompts as request instructions.
-- Propagate configured execution environment overrides across spawned processes.
-- Fix ACP file reads and edits for Windows workspaces opened through IDE clients.
-- Require AgentSwarm tool calls to run alone in a model response.
-
-### Polish
-
-- Add runtime support for dynamic MCP server updates, reference skills, replay timestamps, and Node file uploads.
-- Add a YOLO choice when starting swarm tasks from Manual mode.
-- Polish builtin skills.
-- Find slash commands by their aliases in autocomplete — typing `/clear` now suggests `new (clear)`.
-- Wrap long command and skill descriptions in the autocomplete menu onto a second line instead of cutting them off.
-- Display a tips banner below the welcome panel on startup.
-
-## 0.14.0 (2026-06-10)
+## 0.11.2 (2026-08-17)
 
 ### Features
 
-- Add an `Interrupt` hook event that fires when the user interrupts a turn (e.g. pressing Esc), letting hooks observe the turn stopping instead of getting stuck on a working state.
+- Judge Conductor Job isolation, Premium density, and publish targets from the finish-line effect, not prompt keywords. Set `task_track`, `surface_kind`, `debug_fixer`, and `remote_ref` on the Job when you already know the contract.
+- Group Conductor jobs on the Job Deck by session outcome, with blocked and remaining first. Open Job Deck with Alt+J.
+- Show why Conductor isolated a job, stayed on this checkout, or routed a search — on Job Deck, the create ACK, inspect, Push Preview, and WebSearch glances. Open Job Deck (Alt+J) or run `/job inspect`.
 
 ### Bug Fixes
 
-- Preserve image outputs from tools when using OpenAI-compatible chat completions.
-
-## 0.13.1 (2026-06-10)
-
-### Bug Fixes
-
-- Prevent forking sessions during active turns and consolidate wire protocol definitions into a shared internal package.
-- Fix Kimi Datasource to use the matching OAuth credentials and service endpoint for the active SuperLiora environment.
-- Fix goal marker text overflowing terminal width.
+- Conductor merge and push stay on the job's own git checkout. Opening SuperLiora in another repo no longer sends those jobs to the live session cwd.
 
 ### Polish
 
-- Add Claude Fable 5 support to the Anthropic provider.
-- Add an interactive undo selector and clearer undo-limit messages.
-- YOLO mode no longer asks before writing or editing files outside the working directory.
-- Clarify active skill prompts so loaded skills are no longer represented as system reminders.
-- Tighten file tool guidance to route incremental edits through Edit.
+- Show the thinking level next to the model name in the TUI header.
 
-## 0.13.0 (2026-06-10)
+## 0.11.1
 
 ### Features
 
-- Add custom color themes. Define your own palette as a JSON file in `~/.superliora/themes/`, or generate one with the built-in `/custom-theme` skill command.
-- Add `/import-from-cc-codex` to import selected Claude Code and Codex instructions, Skills, and MCP settings.
-- Show available plugin updates in the marketplace.
+- Split `greenfield_chain` JobCreate contracts so skeleton gates on scaffold/type/lint/unit/build only, fill keeps product AC and web visual checks, and delete-pass cleans placeholders without rebuilding. Queued chain children show a parent-phase wait label.
+- When Jobs are running and the main chat lane stays idle for N minutes (default 4; `SUPERLIORA_CONDUCTOR_IDLE_PULSE_MINUTES`), fire a short JobList-only status report with spam guards.
 
 ### Bug Fixes
 
-- Fix Windows builds and development launches that could fail when package binaries resolve to command shims.
-- Fix device login to keep the URL and code visible when the browser cannot be opened.
+- Do not treat missing job kind as merge-green; keep merge trust honest when kind is absent.
+
+## 0.11.0 (2026-08-16)
+
+### Features
+
+- Add Settings path sandbox modes (`off` | `workspace` | `read-only`) and mark the current Security sandbox choice in the picker.
+- Auto-classify Conductor Jobs onto coding vs general tracks from the request text.
+- Compress session wire history with gzip, and add `liora gc` plus `doctor --storage` for local storage hygiene.
+- Set up Windows Terminal during install so new Windows installs land in a usable terminal profile.
+
+### Bug Fixes
+
+- Pin Inspect diagnostics and mask push stderr noise in agent-core handoffs.
+- Preserve gzip wire history on resume append and fork; teach vis to read gzip-only session wires.
+- Skip verify fan-out for mission/none/desktop jobs so non-code tracks stay lean.
+- Resolve vis fixture paths on Windows and include vis-server in local tests.
+
+## 0.10.2 (2026-08-16)
+
+### Bug Fixes
+
+- Keep question dialogs from freezing TUI input when an interview sits unanswered.
+- Stop ambient letterbox and prompt black-band wipes on Windows ConPTY.
+- Keep Conductor off auto-compaction dumps and cut merge-verify-wake loops.
 
 ### Polish
 
-- Clarify grouped subagent progress with active status breakdowns and elapsed time.
-- Truncate queued message display to a single line with ellipsis when it exceeds terminal width.
+- Show Worker Dock as Workers, count only interview replies, paint each row as role · job title, and keep resume ghosts on the job title instead of Resuming.
+- Recall prompt history with Up/Down on an empty draft instead of ghost autocomplete.
+- Let Conductor open a session Goal via CreateGoal.
 
-## 0.12.1 (2026-06-09)
+## 0.10.1 (2026-08-15)
 
 ### Bug Fixes
 
-- Allow obsolete experimental config entries to remain without blocking startup.
-- Pass through xhigh reasoning effort for OpenAI-compatible chat completions requests.
+- Keep compiler stacks and stray stdout/stderr out of the TUI prompt. Diagnostic dumps stay in the session log instead of overwriting the draft.
 
-## 0.12.0 (2026-06-09)
+## 0.10.0 (2026-08-15)
 
 ### Features
 
-- Add the `/swarm` command for running agent swarms with live progress and rate-limit-aware retries.
-- Make goals, background questions, and sub-skill discovery available without experimental opt-ins.
-- Honor the standard `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` / `NO_PROXY` environment variables, including SOCKS proxies, for all outbound traffic.
-- Support Homebrew installations.
-- Enable micro compaction by default. Disable via `/experiments`.
+- Add opt-in Performance mode (`off` | `auto` | `on`, default `off`) that overlays the Appearance Off pack and tighter transcript caps on low-spec machines without rewriting saved `[appearance]` prefs. Settings → Appearance and `/performance` control it.
+- Recognize macOS Cmd as the TUI primary modifier (same chords as Ctrl on Linux/Windows), and show Cmd instead of hardcoded Ctrl in shortcut hints.
+- Show Windows native OS toast notifications via PowerShell WinRT.
 
 ### Bug Fixes
 
-- Fix ACP slash skill routing, bootstrap context reads, file and permission edge cases, subagent event handling, and stale-file edit messaging.
-- Fix goal resume behavior by restoring goal state from agent records.
-- Fix thinking text and tool output display for subagents.
-- Fix session workdir mismatch on Windows caused by inconsistent path separators.
-- Fix the `/mcp` status panel border being broken by multi-line MCP server errors, which are now folded onto a single row.
-- Detect Git Bash installed through Scoop and other Git shims on Windows.
-- Show the underlying error when migration fails.
-- Allow the startup session picker to exit with repeated Ctrl-C or Ctrl-D.
+- Retry image paste when the first attach fails, and snap external carets forward so Hangul/emoji inserts are not eaten.
+- Fix prompt-box image paste races on Windows/WSL and stop Hangul/cluster inserts from dropping characters.
+- Keep long session resume/replay from freezing the TUI by capping the transcript window during hydrate.
+- Fill leftover and newly exposed TUI rows with the theme background on resize instead of flashing default-black erase bars.
+- Fix AUTO role routing so quality roles prefer XHIGH when available, and cheap/compaction roles pick a recent thinking-off model.
+- On Windows, put SuperLiora runtime git/bin and node ahead of PATH and run Script shell/git/node via absolute paths instead of bare `bash -lc`.
+- In auto permission mode, land-to-main no longer opens a confirm dialog for size/danger holds.
 
 ### Polish
 
-- Remove the per-turn auto-compaction limit so long conversations can keep compacting instead of failing early.
-- Improve goal mode outcome handling with follow-up messages, safer error pauses, and clearer TUI transcript display.
-- Show full plan cards directly and remove the Plan card keyboard shortcut.
-- Wrap long single-line shell commands in approval prompts so the full command remains visible.
-- Rework file reference completion in the TUI.
-- Load Kimi-specific user Skills and global agent instructions from `SUPERLIORA_HOME` when it is set.
+- Default transcript density to compact for new sessions and unset config; label compact as the default in the Settings `/transcript` picker. Change with `/transcript` or Ctrl+O.
+- Default mouse wheel always scrolls the transcript; use Alt+wheel over a tool output to scroll that nested view only.
+- Plan Desk / mission jobs use a 45m wall-clock; post-spawn stalls mark blocked; spent remaining no longer disables the deadline.
 
-## 0.11.0 (2026-06-05)
-
-### Features
-
-- Add experimental sub-skill discovery gated by the `SUPERLIORA_EXPERIMENTAL_SUB_SKILL` environment variable. Ships the `sub-skill` builtin bundle (`sub-skill.review`, `sub-skill.consolidate`) for inventorying and consolidating skills into hierarchical groups.
-- Add the following environment variables:
-
-  - `KIMI_MODEL_TEMPERATURE`, `KIMI_MODEL_TOP_P` — sampling parameters applied globally to any `kimi` provider (not tied to `KIMI_MODEL_NAME`).
-  - `KIMI_MODEL_THINKING_KEEP` — Moonshot preserved-thinking passthrough (`thinking.keep`), injected only while Thinking is on.
-  - `SUPERLIORA_NO_AUTO_UPDATE` (legacy alias `KIMI_CLI_NO_AUTO_UPDATE`) — fully disables the update preflight (no check, background install, or prompt).
-- Show built-in skills as direct slash commands and group them ahead of external skill commands.
+## 0.9.6 (2026-08-14)
 
 ### Bug Fixes
 
-- Fix slash command autocomplete so goal text can be submitted when the cursor is before existing text.
-- Fix queued goals so failed promotion attempts do not lose or duplicate queued work.
-- Fix upcoming-goal queue handling while editing or pasting queued goals.
-- Ask before starting goals in YOLO mode so users can switch to Auto for unattended work.
-- Show concise provider filtering errors when responses are blocked before visible output.
-- Show "unknown command" instead of "too many arguments" when an invalid subcommand is entered.
-- Clamp OpenAI Chat Completions `xhigh` and `max` thinking effort to `high` unless the model supports `xhigh` on `v1/chat/completions`.
-- Preserve thinking effort when compacting long conversations.
-- Refresh provider model metadata when capabilities change without model ID changes.
+- Fix `liora upgrade` on Windows failing with `'iex' is not recognized`.
+
+## 0.9.5 (2026-08-14)
+
+### Bug Fixes
+
+- Stop the TUI from full-clearing on terminal resize, editor panel replace, and transcript shrink; keep the last streaming line revealing instead of snapping.
+- Fix Windows install so `liora` works in the same PowerShell window after `irm | iex`, and find PortableGit under `~/.superliora/runtime/git`.
+- Stop session resume from crashing when a Conductor job worktree is missing; remount the branch or hold the job instead.
+- Fix Conductor affinity reuse under blocked parents so continue_from children schedule instead of staying queued.
+- Prefer newer same-family models at equal price in smart role routing; stop stale prompt ghost text from covering typed input.
+
+## 0.9.4 (2026-08-13)
+
+### Bug Fixes
+
+- Fix Windows Grok / OAuth login opening a page without `client_id` when `cmd start` split the authorize URL on `&`.
+
+## 0.9.3 (2026-08-13)
+
+### Bug Fixes
+
+- Fix Windows install so `irm | iex` works on PowerShell 5.1, and the same command runs from cmd.exe.
+
+## 0.9.2 (2026-08-13)
+
+### Bug Fixes
+
+- Fix Windows install and first launch: PowerShell 5.1 can parse the installer, `.cmd` shims start, `LIORA_SHELL_PATH` is honored, and Portable Git is downloaded when Git Bash is missing.
+
+## 0.9.1 (2026-08-12)
+
+### Bug Fixes
+
+- Fix Conductor fleet reliability and Job/Worker surfaces: stall detection, non-blocking resume, Goal Desk pool capacity, web explore caps, merge/push off the spawn queue, cheaper dock heartbeats, and clearer Jobs vs Workers UI under load.
+
+## 0.9.0 (2026-08-12)
+
+### Features
+
+- Trim the public CLI to essentials: drop `liora vis` from help, keep day-to-day job ops in the TUI (`/jobs`), and document the keep-list in `liora -h` / reference docs.
+
+## 0.8.2 (2026-08-11)
+
+### Features
+
+- Keep Cursor Auto, Grok 4.5, and Composer 2.5 usable when API-lane models hit quota; JobCreate points at those included-lane aliases first.
+
+## 0.8.1 (2026-08-11)
+
+### Bug Fixes
+
+- Fix `/goal` blocking when cheap coding-chain models fail live probe: escalate to max/parent (e.g. the Conductor model), mark spawn as resumable `blocked`, and show `/model` + `/goal resume` on the Goal Monitor.
+- Stop Goal Desk from showing eternal "spinning up" after workers finish; the monitor reports awaiting Conductor / missing worker, and finish criteria no longer look already met.
+- Fix Conductor fleets stuck forever at queued after resume: Goal Desk drivers schedule under the umbrella, verify Jobs still run when merge trust blocks the parent, and session resume always pumps already-queued work.
+- Fix verify Jobs failing with `verdict=missing` after a real dual-axis pass by parsing the full worker result before the summary size cap.
+- Resume and MergeJob heal verify Jobs that already have dual-axis JSON in the summary but never stamped `verifyVerdict`.
+- Conductor verify Jobs that finish without dual-axis JSON fail, get one automatic structured re-verify, and skip Debug; MergeJob tells you to requeue verify for JSON instead of opening Debug.
+- Fix MergeJob held on `Checks not green` for greenfield apps: root packages run the completion gate, `build` counts as typecheck, missing scripts are `not_applicable`, and a passed verify child can witness green when the gate left slots `not_run`.
 
 ### Polish
 
-- Show the upcoming-goal confirmation with the same accent treatment as goal lifecycle messages.
-- Start upcoming goals immediately when there is no active goal to wait for.
-  Support multiline edits when managing upcoming goals.
-- Use a fixed 30-minute timeout for subagents and show concise resume instructions when they time out.
-- Highlight goal queue subcommands while typing slash commands.
+- Conductor `/goal` lights Goal Monitor and the footer desk badge immediately, with live worker activity on the monitor.
 
-## 0.10.1 (2026-06-05)
-
-### Bug Fixes
-
-- Fix a crash when starting a goal in the TUI.
-
-## 0.10.0 (2026-06-04)
+## 0.8.0 (2026-08-11)
 
 ### Features
 
-- Users now can prepare several goals for the agent to work on sequentially. The agent will pick up the next goal from the queue once the current goal is completed. Use `/goal next <objective>` to queue a goal and `/goal next manage` to review and change the queue interactively.
-- Add the built-in `update-config` skill — you can now have Kimi edit its own config files.
-- Add persistent experimental feature toggles and a TUI panel that applies confirmed changes by reloading the current session.
-- Add `/reload` to reload the current session and apply updated config files, plus `/reload-tui` to reload only TUI preferences.
-- Add a doctor command for validating SuperLiora configuration files.
+- Conductor JobCreate can keep same-context follow-ups on an existing worker: pass `continue_from_job_id` (or `affinity=auto` with `ownership_paths`) to steer/fold a live or queued Job, or reuse its worktree and resume checkpoint after it finishes. ACK lines may include `affinity_hint` when a cold create overlaps a live owner.
 
 ### Bug Fixes
 
-- Normalize malformed Responses stream rate limit errors as provider rate limit failures.
-- Keep managed OAuth credentials scoped to their configured authentication and API endpoints.
-- Stop carrying active and queued goals into forked sessions.
-- Fail early when Git Bash is missing on Windows before starting CLI sessions.
-- Refresh the update target before showing foreground update prompts so the displayed version matches the install.
-- Point session error diagnostics to the `/export-debug-zip` command.
-- Set terminal tab titles without renaming the running process.
+- Fix tool transcript rows leaving a black bar after the text when phase tint pads the line.
 
 ### Polish
 
-- Start automatic background updates as soon as startup's fresh update check finds a newer version.
-- Set the CLI process title to kimi-code during startup.
-- Lowercase the stale file content message in edit tool errors.
+- Smart auto routing prefers bench-backed flagships (e.g. grok-4.5) over dated heuristic SKUs and shows per-role pick reasons after probing. Open Settings → Model routing → Smart auto routing.
 
-### Refactors
-
-- Ensure Nix-packaged CLI builds can find ripgrep and fd.
-
-### Other
-
-- Document the Git Bash prerequisite for Windows installs.
-
-## 0.9.0 (2026-06-03)
-
-### Features
-
-- Add the `liora acp` subcommand: kimi-code now speaks [Agent Client Protocol 0.23](https://agentclientprotocol.com/) over stdio so IDEs (Zed, JetBrains AI Chat, custom clients) can drive sessions directly — coverage matrix, Zed configuration and breaking pre-release notes are in [liora acp Subcommand Page](https://moonshotai.github.io/kimi-code/en/reference/kimi-acp.html).
-- Add `/btw` for side-channel conversations without steering the active main turn, and allow `/btw` to open the side-channel panel before entering a question.
+## 0.7.1 (2026-08-11)
 
 ### Bug Fixes
 
-- Fix external editor (Ctrl+G) on Windows by removing `/bin/sh` dependency and using platform-aware shell quoting for temp file paths.
-- Use the OpenAI completion token field required by newer Chat Completions models.
-- Use configured model output limits for completion token caps.
-- Fix goal budget tool schemas for OpenAI-compatible providers.
-- Resume saved subagents lazily when they are accessed.
+- Fix Conductor jobs stuck at "Queued after resume" after a session restart by publishing the main agent before fleet autopilot spawns and waiting for the schedule pump to promote workers.
+- Stop letting stale model capability lists hide models.dev vision/tool flags, and skip vision picks that just failed a live probe.
+
+## 0.7.0 (2026-08-11)
+
+### Features
+
+- Auto-resume safe Conductor jobs after a hard exit, keep a crash-durable job ledger mirror, and show Worker Dock recovery ghosts until workers relaunch. Opt out with `/job autoresume off`.
+- Settings → Model routing → Smart auto routing now live-probes each role chain and pins only models that respond. Open Settings → Model routing to run it.
+
+### Bug Fixes
+
+- Fix Smart Auto sessions rejecting the first prompt with `model.not_configured` before a concrete model is pinned.
+- Reject Conductor JobCreate/spawn when the worker model fails a live probe instead of queueing a doomed worker.
+- GenerateImage/GenerateVideo fall back to auto when a forced provider is not ready.
+- Stop the Worker Dock from stealing Enter so `/exit` and prompt submit still work while workers are visible.
+- Fix Upgrade Studio broken frame layout and stalled-looking install progress during `/upgrade`.
 
 ### Polish
 
-- Unify the interaction and visuals across TUI dialogs and selectors.
-- Log enabled experimental flags at startup.
+- Conductor now sees media key readiness and briefs game/media assets with GenerateImage/GenerateVideo success criteria when keys are present.
+- Show live role and model progress while Smart auto routing probes chains.
+- Show a short Model failover notice when a worker retries on a fallback model.
+- Replace poetic idle aquarium mood lines with short status labels (idle, listening, ready, waiting).
+- Drop the extra Todo Board / Worker Dock side indent so chrome bands use the full stage width.
 
-### Refactors
-
-- Allow SDK runtime creation to use a separate RPC client while preserving local CLI startup.
-
-## 0.8.0 (2026-06-02)
+## 0.6.0 (2026-08-10)
 
 ### Features
 
-- Add experimental goal mode for longer tasks that need more than one turn. Turn it on with `SUPERLIORA_EXPERIMENTAL_GOAL_COMMAND=1` before you start Kimi.
-
-  Use `/goal <objective>` in the TUI when you want Kimi to keep working on one task across turns. For example:
-
-  ```text
-  /goal Fix the failing checkout test
-  ```
-
-  Kimi shows the goal in the TUI and keeps progress visible while it works. Use `/goal status`, `/goal pause`, `/goal resume`, `/goal cancel`, and `/goal replace <objective>` to manage the goal. This feature is still experimental. Try it and tell us what would make it more useful.
-- Add `liora provider` CLI subcommand with `add`, `remove`, `list`, and `catalog list` / `catalog add` actions, so providers from a custom registry (api.json) or the public models.dev catalog can be imported and managed without launching the TUI.
-- Add background structured questions so agents can continue while waiting for user answers.
-- Add background automatic upgrades, which can be disabled in tui.toml.
-- Add `/undo` slash command to withdraw the last prompt from conversation history, and keep replay records in sync when a prompt is undone.
-- Add a `liora upgrade` command for manually checking and upgrade SuperLiora CLI.
-- Add approval lifecycle hook events for observing pending and completed permission prompts.
-- Allow subagents to use custom tools registered on their parent agent.
-- Allow glob searches to target explicit absolute paths outside the workspace.
-
-### Bug Fixes
-
-- Fix cross-provider replay failures from incompatible tool call IDs and unsigned Claude thinking history.
-- Fix custom registry provider handling during re-import. Prevent loss of multi-provider entries and remove stale providers along with their model aliases and default model references.
-- Fix tool output preview rendering: trim trailing empty lines, append ellipsis to multi-line Bash command headers, and truncate long single-line output by visual wrapped lines instead of raw newline count.
-- Fix slash-activated skills not being recognized by the model due to missing system reminder wrapper.
-- Fix a crash in the `/sessions` picker on very narrow terminals by clamping every rendered line to the terminal width.
-- Normalize glob patterns before brace expansion to prevent incorrect path matching.
-- Prevent modified keyboard release sequences from appearing after exiting the CLI.
-- Fix Git Bash path detection on Windows by also searching `usr\bin\bash.exe` locations, which is where bash lives in many Git for Windows installations where `bin\bash.exe` does not exist.
+- Conductor Jobs declare `surface_kind` (none/web/tui/mixed) and stamp `verifyVerdict` for merge proof. Path regex no longer invents VerifySurface gates. Set `surface_kind` on JobCreate; JobSteer can patch it when MergeJob holds.
+- Smart Auto on the Conductor lane picks a coding-class orchestrator from models.dev scores. Conductor can set JobCreate.model_alias from the fleet catalog when role models are auto. Use `/model auto` with the Conductor profile.
 
 ### Polish
 
-- Show MCP server summary in the welcome panel and add configuration hints in the /mcp command output.
-- Point users to `/provider` instead of the removed `/connect` command in the welcome screen and the no-models-configured hint.
-- Append the current todo list as markdown to compaction summaries before writing them to history.
-- Show the full model name in the footer status bar instead of truncating the provider prefix.
-- Remind the model to refresh TodoList during long-running tasks and strengthen TodoList progress-tracking guidance.
-- Replace chalk named color with theme-aware hex in session-directory warning.
+- Replace the GitHub Pages ANSI museum hero with a brand-first landing and curated HTML product frame; add feature-cluster TUI visuals and a bento motion grid.
 
-### Refactors
-
-- Consolidate background task management under the agent background runtime.
-
-## 0.7.0 (2026-06-02)
-
-### Features
-
-- Add `/provider` command for managing AI providers, support custom registry imports, and introduce a tabbed model selector. It replaces the deprecated `/connect` command — use `/provider` instead.
-- Render scheduled reminders distinctly in the TUI, expose cron fired events to SDK clients, and report cron fire times with local timezone offsets.
-- Add `KIMI_MODEL_ADAPTIVE_THINKING` (and a matching `adaptive_thinking` model-alias field) to force adaptive thinking (`thinking: { type: 'adaptive' }`) on or off, overriding the Anthropic model-name version inference. This lets custom-named compatible endpoints that back an adaptive-capable model opt in even when the model name does not encode a parseable Claude version.
+## 0.5.1 (2026-08-10)
 
 ### Bug Fixes
 
-- Report truncated compaction summaries clearly and apply valid completion token budgets across supported providers.
-- Fix glob pattern backslash escaping and include match count in truncation messages.
+- Fix upgrade/install version skew: pin native installs to the GitHub Release they advertise, sync CDN tip files with the CLI version, and harden SEA binary replace with backup rollback.
 
 ### Polish
 
-- Clarify Kimi Platform API key login labels and prompt details.
-- Polish a small TUI visual interaction.
+- Polish the GitHub Pages museum landing: column-scoped hero veil, clearer Stage captions, tighter CTA hierarchy, and bilingual theme labels.
 
-## 0.6.0 (2026-05-29)
-
-### Features
-
-- Add a `KIMI_MODEL_*` environment-variable channel that lets you run SuperLiora against a specific model (provider type, base URL, API key, context size, capabilities, and thinking settings) without editing `config.toml`.
-- Install plugins directly from GitHub repository URLs, and surface each install's origin and trust level (kimi-official, curated, third-party) in the plugin manager.
-
-### Bug Fixes
-
-- Show the real terminal status of background agents in the transcript so lost, failed, and killed ones no longer appear as completed, and include the resume agent id and recovery instructions in the failure notification so the model can resume reliably.
-- Recover from provider model token limit errors during long conversations.
-- Automatically retry when a model response stream is dropped mid-flight (a `terminated` error) instead of failing the turn.
-- Handle context overflow errors consistently across provider responses.
-- Back off failed compaction retries by a fixed slice of the model context window.
-- Fix the native self-updater reporting a successful update when the install command actually failed.
-- Project persisted hook and blocked prompt messages into model context.
-- Keep blocked prompt hook conversations available to subsequent model turns.
-- Fix footer leaking onto the terminal when resuming a non-existent session.
-- Fix automatic ripgrep installation when temporary files are on another filesystem.
-
-### Polish
-
-- Remove the default per-turn step limit of 1000. Users can still set `max_steps_per_turn` in config to enforce a custom limit.
-- Support querying sessions by sessionId or workDir in listSessions, and show a helpful cd command when resuming a session from a different working directory.
-- Expand the footer's rotating tips to surface more commands and shortcuts, featuring newer and important ones more prominently.
-- Improve the usage information display in the TUI.
-- Restrict plugin trust badges to Kimi-hosted plugin CDN URL patterns.
-- Clarify subagent and background task stop messages as user-initiated.
-- Align the datasource plugin with the generic two-tool workflow.
-
-### Refactors
-
-- Introduce `ModelProvider` interface and `SingleModelProvider` to decouple `Agent` from `ProviderManager`.
-- Split `RuntimeConfig` into `Kaos` and `ToolServices` and update all references accordingly.
-- Slim the LLM diagnostic logs with fewer, more compact fields.
-- Relocate shared tool service typing to the tool support layer.
-
-## 0.5.0 (2026-05-28)
+## 0.5.0 (2026-08-10)
 
 ### Features
 
-- Add scheduled tasks:
+- Conductor Jobs drop UltraSwarm-style `expertRole` and use Job kinds instead: `research` for web/docs investigation and `verify` for Maker≠Checker checks after implement. Merge waits on a passed verify child.
+- Conductor Jobs carry Matt-style quality contracts: `test_seams` / `tdd_mode`, debug `repro_command`, dual-axis Standards∥Spec verify children, Plan Desk frontier grilling, `blocked_by_job_ids` scheduling, and SkillCreate writing-for-agents gates. Merge conflicts enqueue a resolve Job.
+- Add opt-in Aside MCP sidecar wiring for private browser evidence. Run `liora browser-use aside enable`.
 
-  You can now ask the agent to remind you at a specific time, run a task on a recurring cron schedule (for example, check a deploy every 5 minutes or run a daily report every weekday at 9am), or come back on its own in a few minutes to continue what it was doing.
-
-  Schedules use the standard 5-field cron syntax.
-
-- Add `/auto` slash command and `--auto` CLI flag for auto permission mode.
-- Show file content and diff in Write and Edit approval prompts, and open them in a dedicated full-screen viewer on ctrl+e instead of expanding inline.
-
-### Bug Fixes
-
-- Fix compaction to handle edge cases where no messages are compactable and improve retry logic.
-- Fix official datasource tools to preserve complete responses and write returned result files.
-- Fix migration mapping the legacy `default_yolo` key to the dead `yolo` field instead of `default_permission_mode`.
-
-### Polish
-
-- Add a clickable changelog link to the update prompt.
-- Show the full Bash command when expanding a Bash tool card with `ctrl+o`. The header still truncates long commands at 60 chars, but the expanded view now reveals the complete multi-line command above the output.
-- Shorten the session title written to the terminal window/tab from 80 to 32 characters so long first messages and pasted content no longer stretch the tab bar past readable width.
-- Cap the inline todo panel at five rows and show a `+N more` indicator so long task lists no longer fill the screen.
-- Clarify plugin manager keyboard shortcuts and show plugin state changes inline.
-- Report discovered plugin skills in plugin manager summaries.
-- Offload large base64 media payloads from `wire.jsonl` into external blob files to reduce wire size and memory pressure during session replay. Includes an in-memory read-through cache on `BlobStore` so repeated rehydration avoids redundant disk reads.
-- Wrap long question, body, and option text in the AskUserQuestion dialog instead of truncating with an ellipsis. The question prompt, body description, option label, option description, and submit-tab review entries now flow onto multiple lines with a hanging indent.
-
-### Refactors
-
-- Refactor TUI code structure.
-
-## 0.4.0 (2026-05-27)
+## 0.4.0 (2026-08-10)
 
 ### Features
 
-- Add user-global plugin installation, interactive plugin management, plugin-provided skills, and plugin-owned MCP servers.
-- Expand folded paste markers on second paste.
-- Rework tool permissions: reads outside cwd no longer prompt, session approvals match the exact call, and path-based rules are case-insensitive.
-- Add `/export-debug-zip` slash command to export the current session as a debug ZIP archive directly from the TUI.
-- Add `/export-md` slash command to export the current session as a Markdown file.
+- Smart Auto skips retired or probe-failed model aliases, fails over on model-not-found errors, and ranks fresher models using models.dev data. Pin the session model to `auto` to use it.
+- Worker Dock: open transcripts with hover chrome that uses a distinct pad (·) so selection keeps a single ❯ cursor; densemode reserves a fixed gutter so columns stay aligned.
 
 ### Bug Fixes
 
-- Prevent the TUI from crashing when pull request lookup fails during startup.
-- Fix thinking spinner leaking past turn end when an empty thinking delta creates an orphaned thinking component.
-- Show the original session resume command after forking a session.
-- Restrict plugin zip installs to manifests at the archive root or a single wrapper directory.
-- Route session-tagged log entries exclusively to the session sink instead of duplicating them to the global sink. Consistently omit stable main-agent context keys from all session log lines that carry `agentId=main`.
+- Skip exhausted Qwen/Alibaba token-plan providers in worker model routing and when pinning Smart Auto loop roles.
+- Stop interactive `/exit` from hanging when MCP or background cleanup stalls.
+- Start the TUI on Neon Noir at module load so upgrades no longer flash or stick on bare dark before preferences apply.
+- Stop background compaction from cancelling on Conductor inject/steer append-only churn; scale the worker deadline with context size; stop compaction progress from resizing the transcript on every stream tick.
 
-### Refactors
+## 0.3.1 (2026-08-09)
 
-- Refactor TUI resume replay logic.
-- Use one retry classification for transient LLM failures across regular turns and compaction.
+### Bug Fixes
 
-### Other
-
-- Enhance `liora export` to include more diagnostic information in the manifest.
-
-## 0.3.0 (2026-05-26)
+- Skip Smart Auto picks when a provider has no usable API key or OAuth token, and fall back from unhealthy role overrides.
+- Fix the native SEA build by exporting `/locale` argument completions.
 
 ### Features
 
-- `/logout` now opens a picker so you can choose which provider to log out of, instead of always logging out the one tied to the current model. The current provider is highlighted by default, so pressing Enter matches the previous behavior. The command is also available as `/disconnect`.
-- The `openai` provider now works out of the box for OpenAI-compatible reasoner models: it auto-detects thinking fields in responses (`reasoning_content` / `reasoning_details` / `reasoning`) and auto-injects `reasoning_effort` when history contains prior thinking. DeepSeek, Qwen, One API and other gateway-fronted services no longer need a hand-set `reasoning_key`, which remains available as an explicit override for non-standard gateways.
+- Push jobs infer `gh-pages` from Pages deploy briefs and enable GitHub Pages after a successful push when possible.
 
-### Bug Fixes
-
-- Prevent running the `/model` and `/sessions` slash commands while streaming or compacting context.
-- Preserve catalog-declared interleaved reasoning fields for OpenAI-compatible models configured through `/connect`.
-- Fix API key input dialog showing a masked dot in empty state.
-- Fix user skills in `~/.agents/` not being loaded.
-- Restore real-time token display for running subagents in the TUI.
-- Hide the todo panel on resume when all todos are already completed.
-- Always emit a paired tool result when a tool returns a malformed or missing result, preventing the next request from failing with a missing tool_call_id error.
-- Fix Plan mode session resets so new sessions no longer fail after plan review rejection and continue receiving events after setup errors.
-- Exit promptly when the controlling terminal goes away. The TUI now handles `SIGHUP` / `SIGTERM` and stdout/stderr `EIO` / `EPIPE` / `ENOTCONN` errors, preventing leftover `kimi` processes that pin a CPU core after the parent shell or multiplexer dies unexpectedly.
-- Avoid overly small local completion caps that can truncate reasoning before summaries are produced.
-
-### Refactors
-
-- Make `AgentRecords` hold the `Agent` instance directly and inline the restore dispatch logic.
-
-### Other
-
-- Improve the Write tool UX.
-
-## 0.2.0 (2026-05-26)
+## 0.3.0 (2026-08-09)
 
 ### Features
 
-- Add a `/connect` command that configures a provider and model from a model catalog.
-- The `/connect` provider and model pickers now support type-to-search filtering, and long lists are paginated. The `/model` picker is also paginated when many models are configured.
-- Add `Ctrl-J` as an additional shortcut for inserting new lines in the TUI prompt.
-- Add wire record migration handling during session replay.
-- Migrate user skills from `~/.kimi/skills/` to `~/.superliora/skills/` during the first-launch migration; existing target skills are kept.
-- Emit session resume hint as a structured meta message in stream-json output format.
+- Restore richer premium transcript streaming motion: faster type-on catch-up, stronger live ink glow/caret, steadier ambient cadence under light load, and more concurrent tool-card live rebuilds. Set Visual Quality to Premium to feel it.
+- Unify Todo Board and Worker Dock chrome-band live motion.
+- Add `--main` / `/upgrade --main` to install tip of `main` past published releases.
+- Add turn-level Smart Auto model routing and PushJob remote publish gating.
+- Localize the interactive TUI (EN/KO) via Settings language.
 
-### Bug Fixes
+### Breaking Changes
 
-- Report the macOS product version in OAuth device information instead of the Darwin kernel version.
-- Correct the `X-Msh-Platform` header value to `kimi_code_cli`.
-- Clarify the prompt-mode error when no model is configured by pointing users to the login flow.
-- Hide the empty current session from the sessions picker while keeping other empty sessions visible.
-- Stop mentioning OAuth credentials in the migration UI — they are never migrated, so the previous "needs /login" notice misread as a failure. OAuth-only installs no longer trigger the migration screen.
-- Surface API-provided error messages during feedback, usage, login, and model setup failures.
-- Persist model selections from the terminal UI to the default configuration, and honor the configured default thinking state for new sessions.
-- Retry compaction responses that do not contain a summary before updating conversation history.
-- Avoid CPU spikes from large streamed tool arguments and coalesce high-frequency streaming UI updates.
-- Resume sessions with a newer wire protocol version instead of failing. A warning is now shown in the TUI and records are replayed without migration.
-- Warn tmux users when extended key settings may prevent modified Enter shortcuts from working.
-- Let Kimi requests use the remaining context window for completion tokens by default while keeping explicit environment limits as hard caps.
+- Remove Mission mode and Swarm mode surfaces (`/mission`, `/swarm`, `/fleet`, related settings). Use `/plan`, `/goal`, the agent dock, and the job strip instead.
+- Remove beginner-hostile diagnostic slash commands (`/bench`, `/renderer`, `/term`, `/export-debug-zip`, `/improve-harness`, `/preflight`) and `/feedback`.
+- Drop remaining Kimi-era CLI migration / cache compatibility paths; use `liora` and `.superliora` only.
 
-### Refactors
+## 0.20.1 (2026-08-08)
 
-- Flatten tool call data by inlining tool names and arguments at the top level, and limit legacy record migration so it only rewrites matching tool call payloads.
-- Move wire metadata handling into the record layer and keep persistence backends limited to storage operations.
-
-### Other
-
-- When no models are configured, `/model` and the welcome panel now point users to `/login` (for Kimi) and `/connect` (for other providers).
+SuperLiora 0.20.1 was the first GitHub Release with native SEA installers (`install.sh` / `install.ps1`).
