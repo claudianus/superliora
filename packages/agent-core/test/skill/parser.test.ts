@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   discoverSkills,
   expandSkillParameters,
+  SKILL_INJECTION_MAX_CHARS,
   type SkillDefinition,
   SessionSkillRegistry,
   type SkillRoot,
@@ -266,6 +267,19 @@ describe('SkillRegistry.renderSkillPrompt', () => {
         'Use AskUserQuestion for clarifying questions.\n' +
         '</kimi-plugin-instructions>\n\nBrainstorm body.',
     );
+  });
+
+  it('caps oversized skill bodies and points at the skill path', async () => {
+    const rendered = await new SessionSkillRegistry().renderSkillPrompt(
+      testSkill({ content: `HEAD${'x'.repeat(SKILL_INJECTION_MAX_CHARS)}TAIL` }),
+      '',
+    );
+
+    expect(rendered.length).toBe(SKILL_INJECTION_MAX_CHARS);
+    expect(rendered.startsWith('HEAD')).toBe(true);
+    expect(rendered).toContain('truncated to');
+    expect(rendered).toContain('/skills/review/SKILL.md');
+    expect(rendered).not.toContain('TAIL');
   });
 });
 

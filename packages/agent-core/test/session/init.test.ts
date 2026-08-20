@@ -47,6 +47,8 @@ describe('Session.init', () => {
 
     const events: Array<Record<string, unknown>> = [];
     const scripted = createScriptedGenerate();
+    let promptBuilds = 0;
+    let capturedAgentsMd: string | undefined;
     const session = new Session({
       id: 'test-init',
       kaos: testKaos.withCwd(workDir),
@@ -57,7 +59,17 @@ describe('Session.init', () => {
     });
     const { agent: mainAgent } = await session.createAgent(
       { type: 'main', generate: scripted.generate },
-      { profile: testProfile() },
+      {
+        profile: {
+          name: 'test',
+          systemPrompt: (ctx) => {
+            promptBuilds += 1;
+            capturedAgentsMd = ctx.agentsMd;
+            return '<system-prompt>';
+          },
+          tools: [],
+        },
+      },
     );
     mainAgent.config.update({
       modelAlias: 'mock-model',
@@ -113,9 +125,12 @@ describe('Session.init', () => {
       .map((part) => (part.type === 'text' ? part.text : ''))
       .join('\n');
     expect(contextText).toContain('<system-reminder>');
-    expect(contextText).toContain('Latest AGENTS.md file content:');
-    expect(contextText).toContain('latest project instructions');
+    expect(contextText).toContain('Latest AGENTS.md is on disk and now in the system prompt');
+    expect(contextText).not.toContain('Latest AGENTS.md file content:');
+    expect(contextText).not.toContain('latest project instructions');
     expect(contextText).not.toContain('Task requirements:');
+    expect(promptBuilds).toBeGreaterThan(1);
+    expect(capturedAgentsMd).toContain('latest project instructions');
   });
 
   it('loads AGENTS.md via the persistence kaos when the tool kaos rejects readText (Zed ACP "Internal error" regression)', async () => {
