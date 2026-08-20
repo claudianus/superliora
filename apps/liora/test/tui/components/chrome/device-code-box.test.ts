@@ -14,6 +14,12 @@ function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
+const TL = '\u256D';
+const TR = '\u256E';
+const BL = '\u2570';
+const BR = '\u256F';
+const ELLIPSIS = '\u2026';
+
 const url = 'https://www.kimi.com/code/authorize_device?user_code=N32D-W3YD';
 const code = 'N32D-W3YD';
 const title = 'Sign in to SuperLiora';
@@ -61,13 +67,13 @@ describe('DeviceCodeBoxComponent', () => {
 
     const lines = component.render(80).map(strip);
     const joined = lines.join('\n');
-    const top = lines.find((line) => line.startsWith('?'));
-    const bottom = [...lines].reverse().find((line) => line.startsWith('?'));
+    const top = lines.find((line) => line.startsWith(TL));
+    const bottom = lines.findLast((line) => line.startsWith(BL));
 
-    expect(top?.startsWith('?')).toBe(true);
-    expect(top?.endsWith('?')).toBe(true);
-    expect(bottom?.startsWith('?')).toBe(true);
-    expect(bottom?.endsWith('?')).toBe(true);
+    expect(top?.startsWith(TL)).toBe(true);
+    expect(top?.endsWith(TR)).toBe(true);
+    expect(bottom?.startsWith(BL)).toBe(true);
+    expect(bottom?.endsWith(BR)).toBe(true);
     expect(top).toContain(title);
 
     expect(joined).toContain(title);
@@ -88,7 +94,7 @@ describe('DeviceCodeBoxComponent', () => {
     const bottom = component
       .render(80)
       .map(strip)
-      .find((line) => line.startsWith('?'));
+      .find((line) => line.startsWith(BL));
     expect(bottom).toContain(hint);
   });
 
@@ -102,7 +108,7 @@ describe('DeviceCodeBoxComponent', () => {
     const lines = component.render(40).map(strip);
     const urlLine = lines.find((line) => line.includes('https://'));
     expect(urlLine).toBeDefined();
-    expect(urlLine).toContain('…');
+    expect(urlLine).toContain(ELLIPSIS);
     expect(urlLine?.length).toBeLessThanOrEqual(40);
   });
 
@@ -146,7 +152,7 @@ describe('DeviceCodeBoxComponent', () => {
       hint,
     });
     const lines = component.render(80);
-    const top = lines.find((line) => strip(line).startsWith('?'));
+    const top = lines.find((line) => strip(line).startsWith(TL));
     expect(top).toBeDefined();
     const codes = new Set(top!.match(/\u001B\[[0-9;]*m/g) ?? []);
     // Static frame: one border hue, not a comet trail of many.
@@ -165,7 +171,7 @@ describe('DeviceCodeBoxComponent', () => {
       hint,
     });
     const first = component.render(80);
-    const top = first.find((line) => strip(line).startsWith('?'));
+    const top = first.find((line) => strip(line).startsWith(TL));
     expect(top).toBeDefined();
     const codes = new Set(top!.match(/\u001B\[[0-9;]*m/g) ?? []);
     expect(codes.size).toBeGreaterThan(2);
@@ -173,7 +179,7 @@ describe('DeviceCodeBoxComponent', () => {
     vi.setSystemTime(new Date('2026-08-20T00:00:02Z'));
     advanceAppearanceAnimationClock(Date.now());
     const second = component.render(80);
-    expect(second.find((line) => strip(line).startsWith('?'))).not.toBe(top);
+    expect(second.find((line) => strip(line).startsWith(TL))).not.toBe(top);
     for (const line of second) expect(visibleWidth(line)).toBeLessThanOrEqual(80);
   });
 });
