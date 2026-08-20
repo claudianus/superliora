@@ -212,6 +212,7 @@ export function projectNativeEditorRegion(
   // Pad to the layout rect height so compositor never sees lines.length <
   // rect.height on the editor region (clear:false + short content → black gap).
   const targetRows = Math.max(0, Math.floor(rect.height));
+  // Fresh surface cells — fallbackLines are already chased and never reach here.
   const chased = applyEditorChromeChase(surface.lines);
   const painted =
     chased.length >= targetRows
