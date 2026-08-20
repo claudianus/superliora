@@ -45,7 +45,7 @@ interface Harness {
 
 function createHarness(
   options: {
-    streamingPhase?: string;
+    streamingPhase?: 'idle' | 'waiting' | 'thinking' | 'composing' | 'shell';
     isCompacting?: boolean;
     planMode?: boolean;
     askMode?: boolean;

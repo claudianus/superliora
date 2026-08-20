@@ -10,6 +10,7 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
+  setAppearanceTransportStability,
 } from '#/tui/features/appearance/appearance-effects';
 
 const appState: AppState = {
@@ -67,13 +68,15 @@ describe('FooterComponent', () => {
   it('does not surface transcript density on the status bar', () => {
     const footer = new FooterComponent({
       ...appState,
+      // Hide rotating tips so idle copy cannot false-positive the chip check.
+      streamingPhase: 'thinking',
       appearance: {
         ...DEFAULT_APPEARANCE_PREFERENCES,
         profile: 'off',
         transcriptDetail: 'minimal',
       },
     });
-    const rendered = footer.render(120).join('\n');
+    const rendered = footer.render(120).join('\n').replaceAll(/\u001B\[[0-9;]*m/g, '');
     // Density lives in appearance prefs only — never a status-bar chip.
     // Avoid bare "minimal" substring checks: footer presets also use that id.
     expect(rendered).not.toContain('tx:');
@@ -296,14 +299,20 @@ describe('FooterComponent tip crossfade', () => {
     TERM: process.env['TERM'],
     CI: process.env['CI'],
     NO_COLOR: process.env['NO_COLOR'],
+    GITHUB_ACTIONS: process.env['GITHUB_ACTIONS'],
   };
 
   beforeEach(() => {
     process.env['TERM'] = 'xterm-256color';
     delete process.env['CI'];
     delete process.env['NO_COLOR'];
+    delete process.env['GITHUB_ACTIONS'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
     setAppearanceRenderHealth('healthy');
     setAppearanceRenderQuality('full');
+    setAppearanceTransportStability('synchronized');
     setActiveAppearancePreferences({
       ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium',

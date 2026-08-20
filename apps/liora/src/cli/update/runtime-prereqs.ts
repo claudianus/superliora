@@ -99,6 +99,8 @@ async function ensureRuntimePrereqsAt(
           skipPackages?: boolean;
           runWinget?: () => { status: number; message?: string };
           fetchLatestRelease?: () => Promise<unknown>;
+          writeShortcut?: () => Promise<boolean>;
+          listAppx?: () => string | undefined;
         }) => Promise<{
           ok?: boolean;
           skipped?: boolean;
@@ -109,6 +111,8 @@ async function ensureRuntimePrereqsAt(
           skipPackages?: boolean;
           runWinget?: () => { status: number; message?: string };
           fetchLatestRelease?: () => Promise<unknown>;
+          writeShortcut?: () => Promise<boolean>;
+          listAppx?: () => string | undefined;
         }) => Promise<{
           ok?: boolean;
           skipped?: boolean;
@@ -122,6 +126,10 @@ async function ensureRuntimePrereqsAt(
         skipPackages: true,
         runWinget: () => ({ status: 1, message: 'skipped during upgrade' }),
         fetchLatestRelease: async () => undefined,
+        // Start-menu COM and Get-AppxPackage have no useful upgrade work and
+        // can block a Windows test/upgrade process until the runner times out.
+        writeShortcut: async () => false,
+        listAppx: () => undefined,
       });
       if (result?.ok === false) {
         terminalOk = false;

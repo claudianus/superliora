@@ -47,6 +47,7 @@ export default defineConfig({
     name: 'kimi-sdk',
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    setupFiles: [fileURLToPath(new URL('../agent-core/test/setup-windows-fs.ts', import.meta.url))],
     env: {
       KIMI_LOG_LEVEL: 'off',
     },

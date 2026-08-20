@@ -149,7 +149,7 @@ describe('conductor delegation-only tool surface', () => {
     expect(prompt).toContain('do **not** open a multi-step RepoQuery/Grep/Read marathon');
     expect(prompt).toContain('Anti-pattern');
     expect(prompt).toContain('parallelizing 5+ RepoQuery/Grep/Read');
-    expect(prompt).toContain('≤3 quick facts');
+    expect(prompt).toContain('1–3 quick facts');
     // Desk wake: web/docs → research; codebase → explore; implement auto-verifies.
     expect(prompt).toContain('JobCreate(kind=research)');
     expect(prompt).toContain('kind=verify');

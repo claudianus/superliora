@@ -491,8 +491,9 @@ export class ConductorDirectWorkGuard {
         `exceeded the conductor wall-clock hard budget (${String(this.hardBudgetMs)}ms) and was force-stopped. Delegate long-running work via JobCreate instead of running it on the Conductor lane.`,
       );
     }, this.hardBudgetMs);
-    // Never keep the process alive for a budget timer.
-    timer.unref?.();
+    // Keep this timer referenced while the call is in-flight. An AbortSignal
+    // waiter (tests, in-process tools) is not a libuv handle; unref'ing here
+    // lets the event loop idle forever and the tripwire never fires.
     entry.hardTimer = timer;
     this.budgets.set(toolCallId, entry);
     return controller.signal;

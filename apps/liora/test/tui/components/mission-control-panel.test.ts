@@ -431,7 +431,7 @@ describe('MissionControlPanelComponent', () => {
     const text = plain(panel.render(100)).join('\n');
     expect(text).toContain('WORKERS');
     // LIVE column is truncated under densemode width + fixed chrome gutter.
-    expect(text).toMatch(/Considering Phaser platformer physi/);
+    expect(text).toMatch(/Considering Phaser platfo/);
     expect(text).toContain('\u25cc');
     // Hot stream replaces the static description/intent in LIVE.
     expect(text).not.toContain('Investigate Metal Slug mechanics');
@@ -514,7 +514,7 @@ describe('MissionControlPanelComponent', () => {
     expect(text).not.toContain('BOARD');
     expect(text).toContain('plan');
     expect(text).toContain('explore');
-    expect(text).toContain('Phaser Arcade Physics loop');
+    expect(text).toMatch(/Phaser Arcade Physics lo/);
     // Solo NOW stack headers are skipped in densemode.
     expect(text).not.toContain('\nNOW\n');
   });

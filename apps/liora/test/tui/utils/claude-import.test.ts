@@ -1,4 +1,4 @@
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -11,7 +11,7 @@ import {
   validateClaudeImportPath,
 } from '#/tui/utils/claude-import';
 
-const WORK = '/tmp/superliora-project';
+const WORK = join(tmpdir(), 'superliora-project');
 
 describe('resolveClaudeImportRoots', () => {
   it('allowlists only project .claude and ~/.claude', () => {

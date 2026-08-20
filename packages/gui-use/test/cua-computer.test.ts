@@ -287,6 +287,11 @@ function stopAfterLaunchBrowser(): Browser {
 async function createFakeCuaDriver(): Promise<string> {
   const dir = await mkdtemp(join(process.cwd(), '.tmp-cua-driver-'));
   tempDirs.push(dir);
+  if (process.platform === 'win32') {
+    const driverPath = join(dir, 'cua-driver.cmd');
+    await writeFakeCuaDriver(driverPath);
+    return driverPath;
+  }
   const driverPath = join(dir, 'fake-cua-driver.mjs');
   await writeFakeCuaDriver(driverPath);
   return driverPath;

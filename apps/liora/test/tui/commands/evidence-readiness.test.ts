@@ -17,7 +17,7 @@ describe('evidence readiness evaluator', () => {
       const evidence = loadMemoryReadinessEvidence(workDir);
 
       expect(evidence.llmWiki.ready).toBe(true);
-      expect(evidence.llmWiki.sourcePath).toContain('.superliora/wiki/index.md');
+      expect(evidence.llmWiki.sourcePath?.replaceAll('\\', '/')).toContain('.superliora/wiki/index.md');
       expect(evidence.llmWiki.tier).toBe('seed');
       expect(evidence.llmWiki.verified).toBe(false);
     } finally {

@@ -15,7 +15,7 @@ interface HookResult {
 type RunHook = (
   command: string,
   input: Record<string, unknown>,
-  options: { timeout: number; cwd?: string },
+  options: { timeout: number; cwd?: string; args?: readonly string[] },
 ) => Promise<HookResult>;
 
 async function importRunHook(): Promise<RunHook> {
@@ -76,7 +76,11 @@ describe('runHook process runner', () => {
 
   it('returns allow with timedOut=true when the command exceeds the timeout', async () => {
     const runHook = await importRunHook();
-    const result = await runHook('sleep 10', { tool_name: 'Shell' }, { timeout: 1 });
+    const result = await runHook(
+      process.execPath,
+      { tool_name: 'Shell' },
+      { timeout: 1, args: ['-e', 'setTimeout(() => {}, 20_000)'] },
+    );
     expect(result.action).toBe('allow');
     expect(result.timedOut).toBe(true);
   });

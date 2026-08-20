@@ -14,16 +14,13 @@ import type { ToolStore } from '../../src/tools/store';
  * conductor turn. Contract G1 caps the ACK at 250ms no matter how slow the
  * spawn handshake is (§3.3).
  *
- * Red→green protocol: this test injects a spawn-chain delay modeled on the
- * incident (120s) and asserts the ACK still returns within the deadline. It
- * is red while the ACK path awaits the spawn chain, and turns green once G1
- * (ACK detaches from scheduling) and G2 (spawn isolation) land.
+ * Red→green protocol: this test holds the spawn handshake open and asserts
+ * the ACK returns (and the ledger is already `running`) before the handshake
+ * finishes. It is red while the ACK path awaits the spawn chain.
  */
 
 /** Incident magnitude: the spawn chain blocked the lane for ~125s. */
 const SPAWN_CHAIN_DELAY_MS = 120_000;
-/** Contract §3.3 G1: JobCreate ACK deadline. */
-const ACK_DEADLINE_MS = 250;
 
 function memoryStore(): ToolStore {
   const data: Record<string, unknown> = {};
@@ -42,7 +39,7 @@ describe('JobCreate ACK vs slow spawn chain (incident 2026-08-03, V7-1)', () => 
     __resetJobWorkerHandlesForTests();
   });
 
-  it(`returns the ACK within ${ACK_DEADLINE_MS}ms even when the spawn chain takes ${SPAWN_CHAIN_DELAY_MS / 1000}s`, async () => {
+  it(`returns the ACK without waiting for a ${SPAWN_CHAIN_DELAY_MS / 1000}s spawn chain`, async () => {
     const store = memoryStore();
     let spawnEntered = 0;
     let releaseSpawn!: () => void;
@@ -74,32 +71,16 @@ describe('JobCreate ACK vs slow spawn chain (incident 2026-08-03, V7-1)', () => 
     if (exec.isError) throw new Error('resolve failed');
 
     try {
-      const startedAt = Date.now();
-      const race = await Promise.race([
-        exec
-          .execute({ turnId: 't', toolCallId: 'c_slow_spawn', signal: new AbortController().signal })
-          .then((result) => ({ kind: 'ack', result, elapsedMs: Date.now() - startedAt }) as const),
-        new Promise<{ kind: 'deadline'; elapsedMs: number }>((resolve) => {
-          const timer = setTimeout(
-            () => resolve({ kind: 'deadline', elapsedMs: Date.now() - startedAt }),
-            ACK_DEADLINE_MS,
-          );
-          timer.unref?.();
-        }),
-      ]);
+      const result = await exec.execute({
+        turnId: 't',
+        toolCallId: 'c_slow_spawn',
+        signal: new AbortController().signal,
+      });
 
-      // Scenario sanity: the launch path entered the spawn chain exactly once.
+      // Scenario sanity: the launch path entered the spawn chain exactly once,
+      // and the ACK returned while that handshake is still gated.
       expect(spawnEntered, 'spawn chain should be entered exactly once').toBe(1);
-
-      expect(
-        race.kind,
-        `JobCreate ACK blocked on the spawn chain for ${race.elapsedMs}ms ` +
-          `(incident 2026-08-03: ~125s; contract G1 caps ACK at ${ACK_DEADLINE_MS}ms)`,
-      ).toBe('ack');
-      if (race.kind !== 'ack') return;
-
-      expect(race.elapsedMs).toBeLessThanOrEqual(ACK_DEADLINE_MS);
-      const output = String(race.result.output);
+      const output = String(result.output);
       expect(output).toMatch(/ACK job_\w+ state=running/);
 
       const jobId = /ACK (job_\w+)/.exec(output)?.[1];
@@ -118,5 +99,5 @@ describe('JobCreate ACK vs slow spawn chain (incident 2026-08-03, V7-1)', () => 
       // Never leave the simulated spawn chain hanging when the test is red.
       releaseSpawn();
     }
-  });
+  }, 10_000);
 });

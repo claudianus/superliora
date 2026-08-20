@@ -30,7 +30,7 @@ describe('await-scan gate (V2-4)', () => {
     // offloaded the merge lane (both worker and merge lanes clean).
     expect(stdout).toMatch(/^await-scan: violations=\d+ baseline=0 status=OK$/m);
     // (d) both scan roots are covered (tool family + session offload lane).
-    expect(stdout).toMatch(/^await-scan: roots=.*session\/job/m);
+    expect(stdout).toMatch(/^await-scan: roots=.*session[/\\]job/m);
     // (e) worker lane ratcheted to zero: the interactive lane never awaits
     // worker spawn/schedule results (V2-1 ACK offload + V2-2 WorkerSpawner).
     expect(stdout).toMatch(/^await-scan: worker-lane violations=0 cap=0 status=OK$/m);

@@ -13,10 +13,13 @@ import {
 
 describe('scripts/install/ensure-oh-my-posh', () => {
   it('lists user-local Oh My Posh paths', () => {
-    const list = wellKnownOhMyPoshCandidates({
-      LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
-      USERPROFILE: 'E:\\Users\\dev',
-    });
+    const list = wellKnownOhMyPoshCandidates(
+      {
+        LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
+        USERPROFILE: 'E:\\Users\\dev',
+      },
+      'win32',
+    );
     expect(list.some((p) => p.replaceAll('/', '\\').includes('\\oh-my-posh.exe'))).toBe(true);
     expect(list.some((p) => p.replaceAll('/', '\\').includes('\\runtime\\oh-my-posh\\'))).toBe(true);
   });

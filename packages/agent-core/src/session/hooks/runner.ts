@@ -299,17 +299,18 @@ function tryKillProcess(child: ChildProcessWithoutNullStreams, signal: NodeJS.Si
   }
 }
 
-function killProcessTreeWindows(child: ChildProcessWithoutNullStreams, force: boolean): void {
+function killProcessTreeWindows(child: ChildProcessWithoutNullStreams, _force: boolean): void {
   if (child.pid === undefined) return;
-  const args = force
-    ? ['/T', '/F', '/PID', String(child.pid)]
-    : ['/T', '/PID', String(child.pid)];
+  // Unforced `taskkill /T` sends WM_CLOSE, which node.exe with a live
+  // interval/timeout ignores. Always `/F` so hook timeout and session-close
+  // actually reap the process tree on Windows.
+  const args = ['/T', '/F', '/PID', String(child.pid)];
   try {
     const killer = spawn('taskkill', args, { stdio: 'ignore', windowsHide: true });
     killer.once('error', () => {});
   } catch {
     try {
-      child.kill('SIGTERM');
+      child.kill('SIGKILL');
     } catch {}
   }
 }

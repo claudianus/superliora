@@ -33,7 +33,7 @@ describe('buildOAuthRefreshDegradedEventFromOutcome', () => {
 
 describe('buildOAuthRefreshDegradedEventFromError', () => {
   it('normalizes error messages', () => {
-    const event = buildOAuthRefreshDegradedEventFromError(new Error('token  expired'));
-    expect(event).toEqual(buildOAuthRefreshDegradedEvent('token expired'));
+    const event = buildOAuthRefreshDegradedEventFromError(new Error('token  expired'), 1_700);
+    expect(event).toEqual(buildOAuthRefreshDegradedEvent('token expired', 1_700));
   });
 });

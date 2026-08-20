@@ -16,6 +16,7 @@ class StubComponent implements Component {
 function makeViewport(): TranscriptViewportComponent {
   const viewport = {
     sync: () => ({ start: 0, end: 0, hasOverflow: false }),
+    scroll: vi.fn(),
   } as unknown as TranscriptViewportState;
   return new TranscriptViewportComponent(0, 1, viewport, () => 20);
 }

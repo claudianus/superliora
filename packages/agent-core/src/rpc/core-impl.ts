@@ -173,6 +173,13 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   renameSession = delegateContextMethod(sessionLifecycle.renameSession);
   exportSession = delegateContextMethod(sessionLifecycle.exportSession);
 
+  close(): void {
+    if (this.uncaughtListener !== undefined) {
+      process.removeListener('uncaughtExceptionMonitor', this.uncaughtListener);
+    }
+    this.memory.close();
+  }
+
   getCoreInfo(): CoreInfo {
     return { version: getCoreVersion() };
   }

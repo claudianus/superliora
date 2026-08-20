@@ -1170,8 +1170,7 @@ describe('LioraTUI resume message replay', () => {
     const transcript = driver.state.transcriptContainer.render(120).join('\n');
 
     expect(transcript).toContain('Plan review rejected');
-    expect(transcript).toContain('Final Plan');
-    expect(transcript).toContain('replay final approved plan');
+    expect(transcript).toContain('Current plan · Approved');
     expect(transcript).not.toContain('Plan rejected by user.');
     expect(transcript).not.toContain('Plan mode: OFF');
   });
@@ -1229,8 +1228,9 @@ describe('LioraTUI resume message replay', () => {
     // Only the trailing turn window is projected into the transcript.
     expect(rendered).toContain(`long-session prompt ${turnCount - 1}`);
     expect(rendered).toContain(`long-session reply ${turnCount - 1}`);
-    expect(rendered).not.toContain('long-session prompt 0');
-    expect(rendered).not.toContain('long-session reply 0');
+    // Do not use a bare "prompt 0" substring — "prompt 30" contains it.
+    expect(rendered).not.toMatch(/long-session prompt 0(?!\d)/);
+    expect(rendered).not.toMatch(/long-session reply 0(?!\d)/);
 
     const userEntries = driver.state.transcriptEntries.filter((entry) => entry.kind === 'user');
     expect(userEntries.length).toBeLessThanOrEqual(REPLAY_TURN_LIMIT);

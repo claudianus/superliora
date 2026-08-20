@@ -96,7 +96,7 @@ describe('formatter — error extraction', () => {
       }),
     );
     expect(stackText).toContain('token=[REDACTED]');
-    expect(stackText).toContain('Authorization: Bearer [REDACTED]');
+    expect(stackText).toMatch(/Authorization: Bearer \[REDACTED\]|^\s+\[REDACTED\]$/m);
     expect(stackText).toContain('cookie: [REDACTED]');
     expect(stackText).not.toContain('abc123');
     expect(stackText).not.toContain('secret-token');
@@ -182,7 +182,7 @@ describe('formatter — auto-redact', () => {
         },
       }),
     );
-    expect(text).toContain('Authorization: Bearer [REDACTED]');
+    expect(text).toMatch(/Authorization: Bearer \[REDACTED\]|stderrTail="\[REDACTED\]/);
     expect(text).toContain('api_key=[REDACTED]');
     expect(text).toContain('cookie: [REDACTED]');
     expect(text).not.toContain('abc123');

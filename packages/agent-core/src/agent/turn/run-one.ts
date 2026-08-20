@@ -107,7 +107,10 @@ export async function runOneTurnFlow(
       };
     }
   } catch (error) {
-    if (isAbortError(error)) {
+    // Session-close / ESC abort must stay `cancelled` even when the thrown
+    // value is a platform kill error (Windows EPERM after taskkill) rather
+    // than a named AbortError.
+    if (isAbortError(error) || signal.aborted) {
       ended = {
         type: 'turn.ended',
         turnId,
