@@ -28,7 +28,7 @@ const PREVIEW_TAIL_CHARS = 800;
 /** Max spilled (non-cleared) tool-result files kept under `<homedir>/tool-results`. */
 export const MAX_TOOL_RESULT_SPILL_FILES = 64;
 /** Max total bytes of spilled (non-cleared) tool-result files. Newest file is always kept. */
-export const MAX_TOOL_RESULT_SPILL_BYTES = 64 * 1024 * 1024;
+const MAX_TOOL_RESULT_SPILL_BYTES = 64 * 1024 * 1024;
 
 interface BudgetToolResultOptions {
   readonly homedir?: string;
