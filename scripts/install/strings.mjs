@@ -20,6 +20,11 @@ export const INSTALL_STRINGS_EN = {
   'install.failed': 'Failed',
   'install.warning': 'warning: {message}',
   'install.probing': 'Probing environment',
+  'install.homePicked':
+    'Profile disk is tight. Data home is {path} ({free} free). SuperLiora needs ~100 GB free.',
+  'install.homeTight':
+    'Data home {path} has {free} free. SuperLiora needs ~100 GB; sessions and worktrees will fill a small disk.',
+  'install.summary.home': 'Data:    {dir}',
   'install.ensuringNode': 'Ensuring Node.js runtime',
   'install.nodeInstalled': 'Installed Node {version} → ~/.superliora/runtime/node',
   'install.nodeUsing': 'Using Node {version}',
@@ -96,6 +101,11 @@ export const INSTALL_STRINGS_KO = {
   'install.failed': '실패',
   'install.warning': '경고: {message}',
   'install.probing': '환경 확인 중',
+  'install.homePicked':
+    '프로필 디스크 여유가 부족합니다. 데이터 홈은 {path} ({free} 남음). SuperLiora는 여유 약 100GB가 필요합니다.',
+  'install.homeTight':
+    '데이터 홈 {path} 여유 {free}. SuperLiora는 약 100GB가 필요하며, 세션·worktree가 작은 디스크를 금방 채웁니다.',
+  'install.summary.home': '데이터:  {dir}',
   'install.ensuringNode': 'Node.js 런타임 확인 중',
   'install.nodeInstalled': 'Node {version} 설치됨 → ~/.superliora/runtime/node',
   'install.nodeUsing': 'Node {version} 사용',

@@ -150,6 +150,7 @@ export {
   isDiskFullError,
   isStorageWriteDegraded,
   probeVolumeSpace,
+  listVolumeSpaces,
   renderDiskPressureInjection,
   renderDiskPressureRecoveredInjection,
   reportDiskPressure,
@@ -211,6 +212,11 @@ export {
   resolveConfigPath,
   resolveLioraHome,
   writeConfigFile,
+  LIORA_HOME_COMFORT_FREE_BYTES,
+  LIORA_HOME_REDIRECT_FILE,
+  defaultLioraHomePointerDir,
+  writeLioraHomeRedirect,
+  sameHomePath,
 } from './config';
 export type {
   PersonaPresetDefinition,

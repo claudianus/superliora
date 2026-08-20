@@ -148,7 +148,7 @@ describe('scripts/install/wrappers', () => {
     expect(posix).toContain(WRAPPER_MARKER);
     expect(posix).toContain('dist/main.mjs');
     expect(posix).toContain('pnpm -C "$app_root" run dev:cli-only');
-    expect(posix).toContain('$HOME/.superliora/runtime/pnpm/pnpm');
+    expect(posix).toContain('runtime/pnpm/pnpm');
     expect(posix).not.toMatch(/SUPERLIORA_NO_AUTO_UPDATE=.*:-1/);
 
     const cmd = renderWindowsCmdWrapper('C:\\repo\\apps\\liora', {

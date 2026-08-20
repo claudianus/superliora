@@ -13,6 +13,7 @@ import { ensureGit } from './install/ensure-git.mjs';
 import { ensureNode } from './install/ensure-node.mjs';
 import { ensurePnpm } from './install/ensure-pnpm.mjs';
 import { ensureHostSetup, formatHostSetupPlan, planHostSetup } from './install/host-setup.mjs';
+import { formatGiB, planAndApplyInstallHome, sameHomePath } from './install/home.mjs';
 import { ensureBinOnPath } from './install/path.mjs';
 import { tryInstallPrebuilt } from './install/prebuilt.mjs';
 import {
@@ -53,6 +54,26 @@ try {
   theatre.startPulse();
   theatre.setStage('checking', t('install.probing', undefined, installLocale));
 
+  const homePlan = await planAndApplyInstallHome({
+    explicitHome: args.home,
+    noShellRc: args.noShellRc,
+  });
+  if (homePlan.relocated) {
+    theatre.note(
+      t('install.homePicked', {
+        path: homePlan.home,
+        free: homePlan.freeBytes !== undefined ? formatGiB(homePlan.freeBytes) : '?',
+      }, installLocale),
+    );
+  } else if (homePlan.tight) {
+    theatre.note(
+      t('install.homeTight', {
+        path: homePlan.home,
+        free: homePlan.freeBytes !== undefined ? formatGiB(homePlan.freeBytes) : '?',
+      }, installLocale),
+    );
+  }
+
   theatre.setStage('bootstrapping', t('install.ensuringNode', undefined, installLocale));
   const nodeInfo = await ensureNode({ nodeMin: args.nodeMin });
   theatre.setDetail(
@@ -81,7 +102,14 @@ try {
   }
 
   const binDir = resolveHome(args.binDir ?? defaultBinDir());
-  const installDir = resolveHome(args.installDir ?? defaultInstallDir());
+  const osHome = process.env.HOME ?? process.env.USERPROFILE ?? '';
+  const legacySource = join(osHome, '.superliora', 'source');
+  const installDirRaw = args.installDir;
+  const installDir = resolveHome(
+    installDirRaw && !sameHomePath(resolveHome(installDirRaw), legacySource)
+      ? installDirRaw
+      : defaultInstallDir(),
+  );
   const commandName = args.commandName ?? 'liora';
 
   let mode = 'prebuilt';
@@ -239,6 +267,7 @@ try {
   theatre.finish(true, t('install.readyCommand', { command: commandName }, installLocale));
   process.stdout.write('\n');
   process.stdout.write(`${t('install.summary.command', { command: commandName }, installLocale)}\n`);
+  process.stdout.write(`${t('install.summary.home', { dir: homePlan.home }, installLocale)}\n`);
   process.stdout.write(`${t('install.summary.binDir', { dir: binDir }, installLocale)}\n`);
   if (sourceTree) process.stdout.write(`${t('install.summary.source', { dir: sourceTree }, installLocale)}\n`);
   process.stdout.write(`${t('install.summary.mode', { mode }, installLocale)}\n`);
@@ -298,6 +327,7 @@ function parseArgs(argv) {
     repoUrl: process.env.SUPERLIORA_REPO_URL ?? DEFAULT_REPO,
     ref: process.env.SUPERLIORA_REF ?? DEFAULT_REF,
     installDir: process.env.SUPERLIORA_INSTALL_DIR,
+    home: process.env.SUPERLIORA_HOME,
     binDir: process.env.SUPERLIORA_BIN_DIR,
     commandName: process.env.SUPERLIORA_COMMAND,
     nodeMin: process.env.SUPERLIORA_NODE_MIN ?? DEFAULT_NODE_MIN,
@@ -334,6 +364,9 @@ function parseArgs(argv) {
         break;
       case '--install-dir':
         out.installDir = take();
+        break;
+      case '--home':
+        out.home = take();
         break;
       case '--bin-dir':
         out.binDir = take();
@@ -396,6 +429,7 @@ function parseArgs(argv) {
         if (arg.startsWith('--repo=')) out.repoUrl = arg.slice(7);
         else if (arg.startsWith('--ref=')) out.ref = arg.slice(6);
         else if (arg.startsWith('--install-dir=')) out.installDir = arg.slice(14);
+        else if (arg.startsWith('--home=')) out.home = arg.slice(7);
         else if (arg.startsWith('--bin-dir=')) out.binDir = arg.slice(10);
         else if (arg.startsWith('--command=')) out.commandName = arg.slice(10);
         else if (arg.startsWith('--node-min=')) out.nodeMin = arg.slice(11);
@@ -424,6 +458,7 @@ Options:
   --repo <url>          Git repository URL
   --ref <ref>           Branch or tag (source mode; ignored with --main)
   --install-dir <path>  Source checkout directory
+  --home <path>         Data home (sessions, cache, worktrees). Default: auto
   --bin-dir <path>      Command install directory
   --command <name>      Command name (default: liora)
   --node-min <version>  Minimum Node.js version

@@ -14,6 +14,8 @@ curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.
 
 # Windows PowerShell
 irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex
+# If C: is tight, data lands on a roomier drive (about 100 GB free).
+# Override: $env:SUPERLIORA_HOME='D:\SuperLiora' then the command above, or install.ps1 --home D:\SuperLiora
 
 # Windows cmd
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"

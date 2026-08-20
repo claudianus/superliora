@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { resolveLioraHome } from '@superliora/sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -26,7 +26,7 @@ afterEach(() => {
 
 describe('getDataDir', () => {
   it('returns ~/.superliora when SUPERLIORA_HOME is not set', () => {
-    expect(getDataDir()).toBe(join(homedir(), '.superliora'));
+    expect(getDataDir()).toBe(resolveLioraHome());
   });
 
   it('returns SUPERLIORA_HOME when set', () => {
@@ -42,7 +42,7 @@ describe('getDataDir', () => {
 
 describe('getLogDir', () => {
   it('returns <dataDir>/logs', () => {
-    expect(getLogDir()).toBe(join(homedir(), '.superliora', 'logs'));
+    expect(getLogDir()).toBe(join(resolveLioraHome(), 'logs'));
   });
 
   it('respects SUPERLIORA_HOME', () => {
@@ -53,7 +53,7 @@ describe('getLogDir', () => {
 
 describe('getSourceInstallDir', () => {
   it('returns <dataDir>/source', () => {
-    expect(getSourceInstallDir()).toBe(join(homedir(), '.superliora', 'source'));
+    expect(getSourceInstallDir()).toBe(join(resolveLioraHome(), 'source'));
   });
 
   it('respects SUPERLIORA_HOME', () => {
@@ -64,7 +64,7 @@ describe('getSourceInstallDir', () => {
 
 describe('getBinDir', () => {
   it('returns <dataDir>/bin', () => {
-    expect(getBinDir()).toBe(join(homedir(), '.superliora', 'bin'));
+    expect(getBinDir()).toBe(join(resolveLioraHome(), 'bin'));
   });
 
   it('respects SUPERLIORA_HOME', () => {
@@ -75,7 +75,7 @@ describe('getBinDir', () => {
 
 describe('getUpdateStateFile', () => {
   it('returns <dataDir>/updates/latest.json', () => {
-    expect(getUpdateStateFile()).toBe(join(homedir(), '.superliora', 'updates', 'latest.json'));
+    expect(getUpdateStateFile()).toBe(join(resolveLioraHome(), 'updates', 'latest.json'));
   });
 
   it('respects SUPERLIORA_HOME', () => {
@@ -87,7 +87,7 @@ describe('getUpdateStateFile', () => {
 describe('getUpdateInstallStateFile', () => {
   it('returns <dataDir>/updates/install.json', () => {
     expect(getUpdateInstallStateFile()).toBe(
-      join(homedir(), '.superliora', 'updates', 'install.json'),
+      join(resolveLioraHome(), 'updates', 'install.json'),
     );
   });
 
@@ -102,7 +102,7 @@ describe('getInputHistoryFile', () => {
     const workDir = '/home/user/project';
     const hash = createHash('md5').update(workDir, 'utf-8').digest('hex');
     expect(getInputHistoryFile(workDir)).toBe(
-      join(homedir(), '.superliora', 'user-history', `${hash}.jsonl`),
+      join(resolveLioraHome(), 'user-history', `${hash}.jsonl`),
     );
   });
 

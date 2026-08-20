@@ -63,6 +63,7 @@ function Write-FancyInfo {
 
 $InstallModules = @(
   'platform.mjs',
+  'home.mjs',
   'ensure-node.mjs',
   'ensure-git.mjs',
   'ensure-pnpm.mjs',
@@ -90,6 +91,7 @@ $opt = @{
   RepoUrl = ''
   Ref = ''
   InstallDir = ''
+  Home = ''
   BinDir = ''
   CommandName = ''
   NodeMin = ''
@@ -142,6 +144,7 @@ function Show-Usage {
   Write-Host '  -RepoUrl / --repo <url>'
   Write-Host '  -Ref / --ref <ref>'
   Write-Host '  -InstallDir / --install-dir <path>'
+  Write-Host '  -Home / --home <path>   Data home (sessions, cache, worktrees). Default: auto, ~100 GB'
   Write-Host '  -BinDir / --bin-dir <path>'
   Write-Host '  -CommandName / --command <name>'
   Write-Host '  -NodeMin / --node-min <version>'
@@ -182,7 +185,7 @@ function Apply-Flags {
     }
     $key = Get-FlagKey $flag
     $needsValue = @(
-      'repo', 'repourl', 'ref', 'installdir', 'bindir', 'command', 'commandname',
+      'repo', 'repourl', 'ref', 'installdir', 'home', 'bindir', 'command', 'commandname',
       'nodemin', 'manifest', 'manifesturl', 'version', 'rawbase'
     ) -contains $key
     if ($needsValue -and $null -eq $value) {
@@ -196,6 +199,7 @@ function Apply-Flags {
       { $_ -eq 'repo' -or $_ -eq 'repourl' } { $Options.RepoUrl = $value }
       'ref' { $Options.Ref = $value }
       'installdir' { $Options.InstallDir = $value }
+      'home' { $Options.Home = $value }
       'bindir' { $Options.BinDir = $value }
       { $_ -eq 'command' -or $_ -eq 'commandname' } { $Options.CommandName = $value }
       'nodemin' { $Options.NodeMin = $value }
@@ -246,7 +250,7 @@ function Add-SessionPath {
 
 function Add-SessionGitRuntime {
   param([string]$HomeDir)
-  $gitRoot = Join-Path $HomeDir '.superliora\runtime\git'
+  $gitRoot = Join-Path $HomeDir 'runtime\git'
   $bash = Join-Path $gitRoot 'bin\bash.exe'
   if (-not (Test-Path -LiteralPath $bash)) { return }
   if ([string]::IsNullOrWhiteSpace($env:LIORA_SHELL_PATH)) {
@@ -258,7 +262,7 @@ function Add-SessionGitRuntime {
 
 function Add-SessionPnpmRuntime {
   param([string]$HomeDir)
-  $pnpmDir = Join-Path $HomeDir '.superliora\runtime\pnpm'
+  $pnpmDir = Join-Path $HomeDir 'runtime\pnpm'
   $exe = Join-Path $pnpmDir 'pnpm.exe'
   if (-not (Test-Path -LiteralPath $exe)) { return }
   Add-SessionPath $pnpmDir
@@ -288,7 +292,7 @@ function Find-Node {
       return $source
     }
   }
-  $runtimeRoot = Join-Path $HomeDir '.superliora\runtime\node'
+  $runtimeRoot = Join-Path $HomeDir 'runtime\node'
   if (Test-Path -LiteralPath $runtimeRoot) {
     $dirs = @(Get-ChildItem -LiteralPath $runtimeRoot -Directory -ErrorAction SilentlyContinue)
     foreach ($dir in $dirs) {
@@ -344,7 +348,7 @@ function Install-LocalNode {
   $nodeArch = Get-WindowsNodeArch
   $slug = 'node-v' + $Version + '-win-' + $nodeArch
   $url = 'https://nodejs.org/dist/v' + $Version + '/' + $slug + '.zip'
-  $runtime = Join-Path $HomeDir '.superliora\runtime\node'
+  $runtime = Join-Path $HomeDir 'runtime\node'
   $archive = Join-Path $runtime ($slug + '.zip')
   $dest = Join-Path $runtime $slug
   New-Item -ItemType Directory -Force -Path $runtime | Out-Null
@@ -377,6 +381,165 @@ function Expand-HomePath {
   return $Value
 }
 
+function Get-LioraPathRoot {
+  param([string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
+  try {
+    return [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($Path))
+  } catch {
+    return ''
+  }
+}
+
+function Test-LioraHomePopulated {
+  param([string]$Dir)
+  if ([string]::IsNullOrWhiteSpace($Dir)) { return $false }
+  if (Test-Path -LiteralPath (Join-Path $Dir 'config.toml')) { return $true }
+  if (Test-Path -LiteralPath (Join-Path $Dir 'tui.toml')) { return $true }
+  if (Test-Path -LiteralPath (Join-Path $Dir 'credentials')) { return $true }
+  $memory = Join-Path $Dir 'memory\liora-memory.sqlite'
+  if (Test-Path -LiteralPath $memory) { return $true }
+  $sessions = Join-Path $Dir 'sessions'
+  if (Test-Path -LiteralPath $sessions) {
+    $kids = @(Get-ChildItem -LiteralPath $sessions -ErrorAction SilentlyContinue)
+    if ($kids.Count -gt 0) { return $true }
+  }
+  return $false
+}
+
+function Get-LioraLocalVolumes {
+  $out = @()
+  try {
+    $disks = @(Get-CimInstance -ClassName Win32_LogicalDisk -Filter 'DriveType=3' -ErrorAction Stop)
+    foreach ($disk in $disks) {
+      $id = [string]$disk.DeviceID
+      if ([string]::IsNullOrWhiteSpace($id)) { continue }
+      $root = $id.TrimEnd('\') + '\'
+      $free = 0
+      $total = 0
+      try { $free = [int64]$disk.FreeSpace } catch { continue }
+      try { $total = [int64]$disk.Size } catch { continue }
+      if ($total -lt 1GB) { continue }
+      $out += [pscustomobject]@{ Root = $root; Free = $free; Total = $total }
+    }
+  } catch {
+    foreach ($d in @(Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue)) {
+      if ($d.Name -notmatch '^[A-Za-z]$') { continue }
+      if ($null -eq $d.Free) { continue }
+      $total = 0
+      try { $total = [int64]$d.Free + [int64]$d.Used } catch { continue }
+      if ($total -lt 1GB) { continue }
+      $out += [pscustomobject]@{ Root = ($d.Name.ToUpperInvariant() + ':\'); Free = [int64]$d.Free; Total = $total }
+    }
+  }
+  return $out
+}
+
+function Resolve-SuperLioraDataHome {
+  param(
+    [string]$OsHome,
+    [string]$Explicit,
+    [string]$Cwd
+  )
+  $comfort = [int64]100 * [int64]1024 * [int64]1024 * [int64]1024
+  $extra = [int64]20 * [int64]1024 * [int64]1024 * [int64]1024
+  $pointer = Join-Path $OsHome '.superliora'
+  if (-not [string]::IsNullOrWhiteSpace($Explicit)) {
+    return (Expand-HomePath $Explicit $OsHome)
+  }
+  $existing = [Environment]::GetEnvironmentVariable('SUPERLIORA_HOME', 'User')
+  if (-not [string]::IsNullOrWhiteSpace($existing)) {
+    return $existing
+  }
+  $redirect = Join-Path $pointer 'home.redirect'
+  if (Test-Path -LiteralPath $redirect) {
+    $lines = @(Get-Content -LiteralPath $redirect -ErrorAction SilentlyContinue)
+    foreach ($line in $lines) {
+      $trim = ([string]$line).Trim()
+      if ($trim.Length -eq 0 -or $trim.StartsWith('#')) { continue }
+      return $trim
+    }
+  }
+  if (Test-LioraHomePopulated $pointer) { return $pointer }
+
+  $volumes = @(Get-LioraLocalVolumes)
+  $pointerRoot = Get-LioraPathRoot $pointer
+  $defaultVol = $null
+  foreach ($v in $volumes) {
+    if ([string]::Equals($v.Root, $pointerRoot, [StringComparison]::OrdinalIgnoreCase)) {
+      $defaultVol = $v
+      break
+    }
+  }
+  $defaultFree = [int64]0
+  if ($null -ne $defaultVol) { $defaultFree = [int64]$defaultVol.Free }
+  if ($defaultFree -ge $comfort) { return $pointer }
+
+  $cwdRoot = Get-LioraPathRoot $Cwd
+  $best = $null
+  foreach ($v in $volumes) {
+    if ([int64]$v.Free -lt $comfort) { continue }
+    if ([string]::Equals($v.Root, $pointerRoot, [StringComparison]::OrdinalIgnoreCase)) { continue }
+    if ($null -eq $best -or [int64]$v.Free -gt [int64]$best.Free) { $best = $v }
+  }
+  if ($cwdRoot -and -not [string]::Equals($cwdRoot, $pointerRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    foreach ($v in $volumes) {
+      if ([string]::Equals($v.Root, $cwdRoot, [StringComparison]::OrdinalIgnoreCase) -and [int64]$v.Free -ge $comfort) {
+        $best = $v
+        break
+      }
+    }
+  }
+  if ($null -eq $best) {
+    foreach ($v in $volumes) {
+      if ([string]::Equals($v.Root, $pointerRoot, [StringComparison]::OrdinalIgnoreCase)) { continue }
+      if ([int64]$v.Free -ge ($defaultFree + $extra)) {
+        if ($null -eq $best -or [int64]$v.Free -gt [int64]$best.Free) { $best = $v }
+      }
+    }
+  }
+  if ($null -eq $best) { return $pointer }
+  return (Join-Path $best.Root.TrimEnd('\') 'SuperLiora')
+}
+
+function Write-LioraHomeRedirect {
+  param([string]$OsHome, [string]$DataHome)
+  $pointer = Join-Path $OsHome '.superliora'
+  if ([string]::Equals(
+      [IO.Path]::GetFullPath($pointer).TrimEnd('\'),
+      [IO.Path]::GetFullPath($DataHome).TrimEnd('\'),
+      [StringComparison]::OrdinalIgnoreCase
+    )) {
+    return
+  }
+  New-Item -ItemType Directory -Force -Path $pointer | Out-Null
+  $file = Join-Path $pointer 'home.redirect'
+  $utf8 = New-Object System.Text.UTF8Encoding $false
+  $body = '# SuperLiora data home.' + [char]10 + $DataHome + [char]10
+  [IO.File]::WriteAllText($file, $body, $utf8)
+}
+
+function Save-LioraHomeEnv {
+  param([string]$OsHome, [string]$DataHome)
+  $env:SUPERLIORA_HOME = $DataHome
+  $pointer = Join-Path $OsHome '.superliora'
+  $same = $false
+  try {
+    $same = [string]::Equals(
+      [IO.Path]::GetFullPath($pointer).TrimEnd('\'),
+      [IO.Path]::GetFullPath($DataHome).TrimEnd('\'),
+      [StringComparison]::OrdinalIgnoreCase
+    )
+  } catch {
+    $same = $false
+  }
+  if ($same) { return }
+  try {
+    [Environment]::SetEnvironmentVariable('SUPERLIORA_HOME', $DataHome, 'User')
+  } catch {
+  }
+}
+
 function Write-Dump {
   param([object]$Options)
   Write-Host ('DUMP binDir=' + $Options.BinDir)
@@ -405,6 +568,7 @@ if ($opt.Help -or $helpEnv -eq '1') {
 $opt.RepoUrl = Get-ValueOrDefault $opt.RepoUrl 'SUPERLIORA_REPO_URL' $DefaultRepoUrl
 $opt.Ref = Get-ValueOrDefault $opt.Ref 'SUPERLIORA_REF' $DefaultRef
 $opt.InstallDir = Get-ValueOrDefault $opt.InstallDir 'SUPERLIORA_INSTALL_DIR' $DefaultInstallDir
+$opt.Home = Get-ValueOrDefault $opt.Home 'SUPERLIORA_HOME' ''
 $opt.BinDir = Get-ValueOrDefault $opt.BinDir 'SUPERLIORA_BIN_DIR' $DefaultBinDir
 $opt.CommandName = Get-ValueOrDefault $opt.CommandName 'SUPERLIORA_COMMAND' $DefaultCommandName
 $opt.NodeMin = Get-ValueOrDefault $opt.NodeMin 'SUPERLIORA_NODE_MIN' $DefaultNodeMin
@@ -412,7 +576,21 @@ $opt.ManifestUrl = Get-ValueOrDefault $opt.ManifestUrl 'SUPERLIORA_MANIFEST_URL'
 $opt.Version = Get-ValueOrDefault $opt.Version 'SUPERLIORA_VERSION' ''
 $opt.RawBase = Get-ValueOrDefault $opt.RawBase 'SUPERLIORA_RAW_BASE' $DefaultRawBase
 $opt.InstallDir = Expand-HomePath $opt.InstallDir $homeDir
+$opt.Home = Expand-HomePath $opt.Home $homeDir
 $opt.BinDir = Expand-HomePath $opt.BinDir $homeDir
+
+$dataHome = Resolve-SuperLioraDataHome -OsHome $homeDir -Explicit $opt.Home -Cwd (Get-Location).Path
+Save-LioraHomeEnv -OsHome $homeDir -DataHome $dataHome
+Write-LioraHomeRedirect -OsHome $homeDir -DataHome $dataHome
+$legacySource = Join-Path $homeDir '.superliora\source'
+if ([string]::IsNullOrWhiteSpace($opt.InstallDir) -or [string]::Equals(
+    [IO.Path]::GetFullPath($opt.InstallDir).TrimEnd('\'),
+    [IO.Path]::GetFullPath($legacySource).TrimEnd('\'),
+    [StringComparison]::OrdinalIgnoreCase
+  )) {
+  $opt.InstallDir = Join-Path $dataHome 'source'
+}
+$opt.Home = $dataHome
 
 $skipBrowser = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_BROWSER_USE', 'Process')
 $skipComputer = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_COMPUTER_USE', 'Process')
@@ -460,8 +638,8 @@ if (-not [string]::IsNullOrWhiteSpace($opt.Version) -and $opt.Main) {
 $dumpEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_INSTALL_DUMP', 'Process')
 if ($dumpEnv -eq '1') {
   Add-SessionPath $opt.BinDir
-  Add-SessionGitRuntime $homeDir
-  Add-SessionPnpmRuntime $homeDir
+  Add-SessionGitRuntime $dataHome
+  Add-SessionPnpmRuntime $dataHome
   Write-Dump $opt
   return
 }
@@ -474,9 +652,9 @@ if ($FancyOutput) {
   Write-Host '    Preparing Node.js runtime ...' -ForegroundColor DarkGray
 }
 
-$nodeBin = Find-Node $opt.NodeMin $homeDir
+$nodeBin = Find-Node $opt.NodeMin $dataHome
 if (-not $nodeBin) {
-  $nodeBin = Install-LocalNode $opt.NodeMin $homeDir
+  $nodeBin = Install-LocalNode $opt.NodeMin $dataHome
 }
 
 # Prefer local checkout when this file lives in a clone. Use PSScriptRoot /
@@ -521,6 +699,7 @@ $orchArgs = @(
   '--repo', $opt.RepoUrl,
   '--ref', $opt.Ref,
   '--install-dir', $opt.InstallDir,
+  '--home', $opt.Home,
   '--bin-dir', $opt.BinDir,
   '--command', $opt.CommandName,
   '--node-min', $opt.NodeMin,
@@ -549,8 +728,8 @@ try {
     Fail ('installer exited with code ' + $code)
   }
   Add-SessionPath $opt.BinDir
-  Add-SessionGitRuntime $homeDir
-  Add-SessionPnpmRuntime $homeDir
+  Add-SessionGitRuntime $dataHome
+  Add-SessionPnpmRuntime $dataHome
   if ($FancyOutput) {
     Write-Host ('  Try it now: ' + $opt.CommandName + ' --version') -ForegroundColor DarkGray
     if (-not $opt.NoHostSetup -and -not $opt.NoTerminal) {

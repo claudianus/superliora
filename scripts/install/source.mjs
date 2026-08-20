@@ -19,6 +19,7 @@ import {
   DEFAULT_REPO,
   githubArchiveUrl,
   githubArchiveZipUrl,
+  resolveInstallHome,
 } from './platform.mjs';
 
 const MIN_FREE_BYTES = 512 * 1024 * 1024;
@@ -178,7 +179,7 @@ async function fetchArchive(repoUrl, ref, installDir, force) {
     await rm(installDir, { recursive: true, force: true });
   }
   await mkdir(dirname(installDir), { recursive: true });
-  const cache = join(defaultHomeSafe(), '.superliora', 'cache', 'source');
+  const cache = join(resolveInstallHome(), 'cache', 'source');
   await mkdir(cache, { recursive: true });
 
   if (process.platform === 'win32') {
@@ -226,6 +227,4 @@ async function promoteSingleChild(extractTmp, installDir) {
   await rename(join(extractTmp, kids[0]), installDir);
 }
 
-function defaultHomeSafe() {
-  return process.env.HOME ?? process.env.USERPROFILE ?? '.';
-}
+

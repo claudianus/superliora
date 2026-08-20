@@ -33,7 +33,9 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.gc.option.idleDays': 'Treat sessions newer than this many days as active (default 7).',
 
   // doctor
-  'cli.sub.doctor.option.storage': 'Print home/sessions/cache/logs byte usage.',
+  'cli.sub.doctor.option.storage': 'Print home/sessions/cache/logs/worktrees byte usage.',
+  'cli.sub.doctor.option.relocateHome':
+    'Copy the data home to this path, then persist SUPERLIORA_HOME. Restart liora after.',
   'cli.sub.doctor.cmd.config.desc': 'Validate config.toml.',
   'cli.sub.doctor.cmd.tui.desc': 'Validate tui.toml.',
   'cli.sub.doctor.arg.configPath':
@@ -303,7 +305,9 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.gc.option.idleDays': '이 일수보다 최근 세션은 활성으로 취급합니다(기본 7).',
 
   // doctor
-  'cli.sub.doctor.option.storage': '홈/세션/캐시/로그 바이트 사용량을 출력합니다.',
+  'cli.sub.doctor.option.storage': '홈/세션/캐시/로그/worktree 바이트 사용량을 출력합니다.',
+  'cli.sub.doctor.option.relocateHome':
+    '데이터 홈을 이 경로로 복사한 뒤 SUPERLIORA_HOME을 고정합니다. 이후 liora를 다시 시작하세요.',
   'cli.sub.doctor.cmd.config.desc': 'config.toml을 검사합니다.',
   'cli.sub.doctor.cmd.tui.desc': 'tui.toml을 검사합니다.',
   'cli.sub.doctor.arg.configPath':

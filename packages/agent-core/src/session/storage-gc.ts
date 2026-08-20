@@ -361,6 +361,7 @@ export interface StorageBytesReport {
   readonly sessionsBytes: number;
   readonly cacheBytes: number;
   readonly logsBytes: number;
+  readonly worktreesBytes: number;
 }
 
 export async function measureStorageBytes(homeDir: string): Promise<StorageBytesReport> {
@@ -368,7 +369,8 @@ export async function measureStorageBytes(homeDir: string): Promise<StorageBytes
   const sessionsBytes = await dirBytes(join(homeDir, 'sessions'));
   const cacheBytes = await dirBytes(join(homeDir, 'cache'));
   const logsBytes = await dirBytes(join(homeDir, 'logs'));
-  return { homeDir, homeBytes, sessionsBytes, cacheBytes, logsBytes };
+  const worktreesBytes = await dirBytes(join(homeDir, 'worktrees'));
+  return { homeDir, homeBytes, sessionsBytes, cacheBytes, logsBytes, worktreesBytes };
 }
 
 export function formatBytes(n: number): string {

@@ -79,7 +79,7 @@ export const SETTINGS_SEARCH_KEYWORDS = {
   'never-halt': ['resilience', 'circuit-breaker', 'oauth-refresh', 'degraded'],
   telemetry: ['analytics', 'local-only', 'tracking'],
   network: ['proxy', 'https_proxy', 'no_proxy'],
-  storage: ['home', 'retention', 'logs', 'superliora-home', 'disk', 'gc'],
+  storage: ['home', 'retention', 'logs', 'superliora-home', 'disk', 'gc', 'drive', 'move', '100gb'],
   theme: ['dark', 'light', 'palette', 'skin'],
   appearance: [
     'motion',

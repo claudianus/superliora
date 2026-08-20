@@ -4,13 +4,15 @@
 
 import { join } from 'node:path';
 
+import { LIORA_HOME_COMFORT_FREE_BYTES } from '@superliora/sdk';
+
 import { SUPERLIORA_HOME_ENV } from '#/constant/app';
 
 export const MAIN_AGENT_ID = 'main';
 
 /** Home override — entire data tree relocates before first harness init. */
 export const STORAGE_HOME_TIP =
-  `${SUPERLIORA_HOME_ENV} — override default ~/.superliora before launch. Relocates config, sessions, cache, logs, credentials, and managed tools. Status panel shows whether the override is active.`;
+  `${SUPERLIORA_HOME_ENV} — data root (config, sessions, cache, logs, worktrees). Installer picks a drive with ~100 GB free when the profile disk is tight. Settings → Storage can copy the home to another path.`;
 
 /** Session retention — transcripts, journal, tool-results; no auto-purge yet. */
 export const STORAGE_RETENTION_TIP =
@@ -38,6 +40,7 @@ export interface StorageGlanceInput extends StoragePaths {
   readonly volumeTotalBytes?: number;
   readonly pressureLevel?: string;
   readonly lastGcFreedBytes?: number;
+  readonly worktreesBytes?: number;
 }
 
 export function resolveStoragePaths(input: {
@@ -81,10 +84,17 @@ export function buildStorageSettingsLines(input: StorageGlanceInput): readonly s
       ? `Current session dir: ${input.sessionDir}`
       : 'Current session dir: (none — resume or start a session for live paths).';
 
+  const volumeTight =
+    input.volumeFreeBytes !== undefined &&
+    input.volumeFreeBytes < LIORA_HOME_COMFORT_FREE_BYTES;
   const volumeLine =
     input.volumeFreeBytes !== undefined && input.volumeTotalBytes !== undefined
-      ? `Volume: ${formatGlanceBytes(input.volumeFreeBytes)} free / ${formatGlanceBytes(input.volumeTotalBytes)} total${input.pressureLevel !== undefined ? ` (${input.pressureLevel})` : ''}.`
+      ? `Volume: ${formatGlanceBytes(input.volumeFreeBytes)} free / ${formatGlanceBytes(input.volumeTotalBytes)} total${input.pressureLevel !== undefined ? ` (${input.pressureLevel})` : ''}${volumeTight ? ' — SuperLiora wants ~100 GB free.' : ''}.`
       : 'Volume: (probe unavailable).';
+  const worktreesLine =
+    input.worktreesBytes !== undefined
+      ? `Worktrees: ${formatGlanceBytes(input.worktreesBytes)}`
+      : undefined;
   const gcLine =
     input.lastGcFreedBytes !== undefined
       ? `Last emergency GC freed ${formatGlanceBytes(input.lastGcFreedBytes)}.`
@@ -97,6 +107,7 @@ export function buildStorageSettingsLines(input: StorageGlanceInput): readonly s
     '── Status ───────────────────────────────────',
     homeLine,
     volumeLine,
+    ...(worktreesLine !== undefined ? [worktreesLine] : []),
     gcLine,
     `Config: ${input.configPath}`,
     `Sessions: ${input.sessionsDir}/`,
@@ -110,7 +121,8 @@ export function buildStorageSettingsLines(input: StorageGlanceInput): readonly s
     '· skills/ · skills-state.json · cache/ · logs/ · user-history/',
     '· memory/liora-memory.sqlite + records/ · episodes/ (migration input only) · credentials/ · mcp.json',
     '· updates/ (CLI auto-update state) · bin/ (managed tools)',
-    '· Override entire tree: export SUPERLIORA_HOME before launch',
+    '· Override entire tree: SUPERLIORA_HOME, or Settings → Storage → Move data home',
+    '· SuperLiora wants ~100 GB free on the data-home volume',
     '',
     '── Session retention ──────────────────────────',
     '· Transcripts + agent state under <home>/sessions/<workdir-bucket>/<id>/',

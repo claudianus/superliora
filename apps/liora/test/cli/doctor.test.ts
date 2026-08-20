@@ -307,6 +307,7 @@ describe('doctor --storage', () => {
       expect(out).toMatch(/sessions:/i);
       expect(out).toMatch(/cache:/i);
       expect(out).toMatch(/logs:/i);
+      expect(out).toMatch(/worktrees:/i);
     } finally {
       if (prevHome === undefined) delete process.env.SUPERLIORA_HOME;
       else process.env.SUPERLIORA_HOME = prevHome;

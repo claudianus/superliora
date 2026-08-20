@@ -14,6 +14,8 @@ curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.
 
 # Windows PowerShell
 irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex
+# C: 여유가 부족하면 D:\SuperLiora 처럼 데이터 홈을 자동으로 고릅니다.
+# 직접 지정: $env:SUPERLIORA_HOME='D:\SuperLiora'  후 위 설치, 또는 install.ps1 --home D:\SuperLiora
 
 # Windows cmd
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"

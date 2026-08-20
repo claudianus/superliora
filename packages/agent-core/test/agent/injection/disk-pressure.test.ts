@@ -28,6 +28,7 @@ describe('DiskPressureInjector', () => {
         sessionsBytes: 0,
         cacheBytes: 0,
         logsBytes: 0,
+        worktreesBytes: 0,
       }),
       collect: async () => ({
         homeDir: '/tmp/home',

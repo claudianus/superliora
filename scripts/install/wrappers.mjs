@@ -45,8 +45,9 @@ fi
 if command -v pnpm >/dev/null 2>&1; then
   exec pnpm -C "$app_root" run dev:cli-only -- "$@"
 fi
-if [ -x "$HOME/.superliora/runtime/pnpm/pnpm" ]; then
-  exec "$HOME/.superliora/runtime/pnpm/pnpm" -C "$app_root" run dev:cli-only -- "$@"
+runtime_home="\${SUPERLIORA_HOME:-$HOME/.superliora}"
+if [ -x "$runtime_home/runtime/pnpm/pnpm" ]; then
+  exec "$runtime_home/runtime/pnpm/pnpm" -C "$app_root" run dev:cli-only -- "$@"
 fi
 echo "error: SuperLiora CLI bundle is missing: $main_file" >&2
 echo "Build the CLI or re-run the installer with Node.js 24.15 or newer." >&2
@@ -82,8 +83,13 @@ export function renderWindowsCmdWrapper(appDir, options = {}) {
     '  corepack pnpm -C "%LIORA_APP%" run dev:cli-only -- %*',
     '  exit /b %ERRORLEVEL%',
     ')',
-    'if exist "%USERPROFILE%\\.superliora\\runtime\\pnpm\\pnpm.exe" (',
-    '  "%USERPROFILE%\\.superliora\\runtime\\pnpm\\pnpm.exe" -C "%LIORA_APP%" run dev:cli-only -- %*',
+    'if defined SUPERLIORA_HOME (',
+    '  set "LIORA_PNPM=%SUPERLIORA_HOME%\\runtime\\pnpm\\pnpm.exe"',
+    ') else (',
+    '  set "LIORA_PNPM=%USERPROFILE%\\.superliora\\runtime\\pnpm\\pnpm.exe"',
+    ')',
+    'if exist "%LIORA_PNPM%" (',
+    '  "%LIORA_PNPM%" -C "%LIORA_APP%" run dev:cli-only -- %*',
     '  exit /b %ERRORLEVEL%',
     ')',
     'where pnpm >nul 2>&1',
@@ -123,7 +129,8 @@ if ($null -ne $corepack) {
   & corepack pnpm -C $app run dev:cli-only -- @args
   exit $LASTEXITCODE
 }
-$runtimePnpm = Join-Path $env:USERPROFILE '.superliora\\runtime\\pnpm\\pnpm.exe'
+$runtimeHome = if ($env:SUPERLIORA_HOME) { $env:SUPERLIORA_HOME } else { Join-Path $env:USERPROFILE '.superliora' }
+$runtimePnpm = Join-Path $runtimeHome 'runtime\\pnpm\\pnpm.exe'
 if (Test-Path -LiteralPath $runtimePnpm) {
   & $runtimePnpm -C $app run dev:cli-only -- @args
   exit $LASTEXITCODE

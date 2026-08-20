@@ -6,6 +6,8 @@ import {
   collectStorageGarbage,
   formatBytes,
   getDiskPressureSnapshot,
+  listVolumeSpaces,
+  measureStorageBytes,
   probeVolumeSpace,
   resolveConfigPath,
 } from '@superliora/sdk';
@@ -22,6 +24,7 @@ import {
   type StorageGlanceInput,
 } from '../../../utils/storage/storage-glance';
 import { SUPERLIORA_HOME_ENV } from '#/constant/app';
+import { relocateLioraHome, suggestedHomeOnVolume } from '#/utils/liora-home';
 import { getDataDir, getLogDir } from '#/utils/paths';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
@@ -54,6 +57,7 @@ async function loadStorageGlance(host: SlashCommandHost): Promise<StorageGlanceI
 
   const volume = await probeVolumeSpace(homeDir).catch(() => undefined);
   const pressure = getDiskPressureSnapshot();
+  const usage = await measureStorageBytes(homeDir).catch(() => undefined);
 
   return {
     ...resolveStoragePaths({ homeDir, configPath, sessionDir }),
@@ -61,6 +65,7 @@ async function loadStorageGlance(host: SlashCommandHost): Promise<StorageGlanceI
     logDir,
     workDir,
     sessionCount,
+    ...(usage !== undefined ? { worktreesBytes: usage.worktreesBytes } : {}),
     ...(volume !== undefined
       ? { volumeFreeBytes: volume.freeBytes, volumeTotalBytes: volume.totalBytes }
       : {}),
@@ -88,6 +93,11 @@ export function showStorageSettings(host: SlashCommandHost): void {
           label: 'Run storage GC',
           description: 'Reclaim cache, idle wires, worktree tmp, and old logs. Never deletes active sessions.',
         },
+        {
+          value: 'move',
+          label: ttui('tui.settings.pane.storage.move'),
+          description: ttui('tui.settings.pane.storage.moveDesc'),
+        },
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -97,6 +107,10 @@ export function showStorageSettings(host: SlashCommandHost): void {
         }
         if (value === 'gc') {
           void runStorageGcFromSettings(host);
+          return;
+        }
+        if (value === 'move') {
+          void showMoveDataHomePicker(host);
         }
       },
       onCancel: () => {
@@ -122,6 +136,50 @@ async function showStorageSettingsPanel(host: SlashCommandHost): Promise<void> {
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
+}
+
+async function showMoveDataHomePicker(host: SlashCommandHost): Promise<void> {
+  const homeDir = host.harness.homeDir ?? getDataDir();
+  const volumes = await listVolumeSpaces().catch(() => []);
+  const options = volumes.map((volume) => {
+    const dest = suggestedHomeOnVolume(volume.path);
+    return {
+      value: dest,
+      label: dest,
+      description: `${formatBytes(volume.freeBytes)} free / ${formatBytes(volume.totalBytes)} total`,
+    };
+  });
+  if (options.length === 0) {
+    host.showStatus(ttui('tui.settings.pane.storage.moveNone'), 'warning');
+    return;
+  }
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: ttui('tui.settings.pane.storage.move'),
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options,
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        void (async () => {
+          try {
+            const result = await relocateLioraHome({ from: homeDir, to: value });
+            host.showStatus(
+              ttui('tui.settings.pane.storage.moveDone', { path: result.to }),
+              'success',
+            );
+          } catch (error) {
+            host.showStatus(error instanceof Error ? error.message : String(error), 'error');
+          }
+        })();
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: ttui('tui.settings.pane.storage.move') },
+  );
 }
 
 async function runStorageGcFromSettings(host: SlashCommandHost): Promise<void> {

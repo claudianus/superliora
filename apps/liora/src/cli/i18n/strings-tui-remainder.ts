@@ -107,6 +107,14 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.settings.pane.index.panelTitle': ' Index ',
   'tui.settings.pane.storage.title': 'Storage',
   'tui.settings.pane.storage.panelTitle': ' Storage ',
+  'tui.settings.pane.storage.move': 'Move data home',
+  'tui.settings.pane.storage.moveDesc':
+    'Copy sessions, cache, and worktrees to another drive (~100 GB free recommended). Restart liora after.',
+  'tui.settings.pane.storage.moveNone': 'No other volumes found. Set SUPERLIORA_HOME and restart.',
+  'tui.settings.pane.storage.moveDone':
+    'Data home copied to {path}. Restart liora. Old files were left in place.',
+  'tui.storage.homeTight':
+    'Data home has {free} free (wants ~100 GB). Settings → Storage → Move data home.',
   'tui.settings.pane.pickerHint': '↑↓ · Enter · Esc',
 
   // ── Footer preferences ───────────────────────────────────────────────────
@@ -1234,6 +1242,15 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.settings.pane.index.panelTitle': ' 인덱스 ',
   'tui.settings.pane.storage.title': '저장소',
   'tui.settings.pane.storage.panelTitle': ' 저장소 ',
+  'tui.settings.pane.storage.move': '데이터 홈 이동',
+  'tui.settings.pane.storage.moveDesc':
+    '세션·캐시·worktree를 다른 드라이브로 복사합니다 (여유 약 100GB 권장). 이후 liora를 다시 시작하세요.',
+  'tui.settings.pane.storage.moveNone':
+    '다른 볼륨을 찾지 못했습니다. SUPERLIORA_HOME을 설정한 뒤 다시 시작하세요.',
+  'tui.settings.pane.storage.moveDone':
+    '데이터 홈을 {path}로 복사했습니다. liora를 다시 시작하세요. 이전 파일은 그대로 둡니다.',
+  'tui.storage.homeTight':
+    '데이터 홈 여유 {free} (권장 약 100GB). 설정 → 저장소 → 데이터 홈 이동.',
   'tui.settings.pane.pickerHint': '↑↓ 이동 · Enter · Esc',
 
   'tui.footer.pref.slot.auto': '자동',

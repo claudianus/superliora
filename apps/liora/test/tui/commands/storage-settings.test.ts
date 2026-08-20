@@ -90,7 +90,7 @@ describe('storage settings', () => {
     expect(picker).toBeDefined();
     const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
       .options;
-    expect(options.map((o) => o.value)).toEqual(['status', 'gc']);
+    expect(options.map((o) => o.value)).toEqual(['status', 'gc', 'move']);
     expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 

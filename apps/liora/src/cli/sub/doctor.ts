@@ -7,10 +7,13 @@ import {
   type LioraConfigRpc,
   type LioraConfigValidationIssue,
   formatBytes,
+  LIORA_HOME_COMFORT_FREE_BYTES,
   measureStorageBytes,
+  probeVolumeSpace,
 } from '@superliora/sdk';
 import type { Command } from 'commander';
 import { t } from '#/cli/i18n';
+import { relocateLioraHome } from '#/utils/liora-home';
 import { getDataDir } from '#/utils/paths';
 import { z } from 'zod';
 
@@ -87,18 +90,39 @@ export function registerDoctorCommand(parent: Command, deps?: Partial<DoctorDeps
     .command('doctor')
     .description(t('cli.sub.doctor.description'))
     .option('--storage', t('cli.sub.doctor.option.storage'), false)
-    .action(async (opts: { storage?: boolean }) => {
+    .option('--relocate-home <path>', t('cli.sub.doctor.option.relocateHome'))
+    .action(async (opts: { storage?: boolean; relocateHome?: string }) => {
+      const resolved = resolveDeps(deps ?? {});
+      if (opts.relocateHome !== undefined && opts.relocateHome.trim().length > 0) {
+        const from = getDataDir();
+        const result = await relocateLioraHome({ from, to: opts.relocateHome.trim() });
+        resolved.stdout.write(
+          `data home copied ${from} -> ${result.to} (${String(result.copied)} entries)\nrestart liora to use the new home\n`,
+        );
+        return;
+      }
       if (opts.storage) {
-        const resolved = resolveDeps(deps ?? {});
         const homeDir = getDataDir();
         const report = await measureStorageBytes(homeDir);
+        const volume = await probeVolumeSpace(homeDir).catch(() => undefined);
         const lines = [
           `home: ${report.homeDir}`,
-          `  total:    ${formatBytes(report.homeBytes)}`,
-          `  sessions: ${formatBytes(report.sessionsBytes)}`,
-          `  cache:    ${formatBytes(report.cacheBytes)}`,
-          `  logs:     ${formatBytes(report.logsBytes)}`,
+          `  total:     ${formatBytes(report.homeBytes)}`,
+          `  sessions:  ${formatBytes(report.sessionsBytes)}`,
+          `  cache:     ${formatBytes(report.cacheBytes)}`,
+          `  logs:      ${formatBytes(report.logsBytes)}`,
+          `  worktrees: ${formatBytes(report.worktreesBytes)}`,
         ];
+        if (volume !== undefined) {
+          lines.push(
+            `  volume:    ${formatBytes(volume.freeBytes)} free / ${formatBytes(volume.totalBytes)} total`,
+          );
+          if (volume.freeBytes < LIORA_HOME_COMFORT_FREE_BYTES) {
+            lines.push(
+              '  warning:   SuperLiora needs ~100 GB free. Move with Settings → Storage or `liora doctor --relocate-home <path>`.',
+            );
+          }
+        }
         resolved.stdout.write(`${lines.join('\n')}\n`);
         return;
       }

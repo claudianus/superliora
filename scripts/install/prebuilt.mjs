@@ -11,7 +11,7 @@ import { downloadToFile, fetchJson } from './download.mjs';
 import {
   DEFAULT_MANIFEST_URL,
   commandFileName,
-  defaultHome,
+  resolveInstallHome,
   manifestUrlForVersion,
   releaseTarget,
   seaBinaryName,
@@ -33,7 +33,7 @@ export async function installPrebuilt(options) {
   const target = options.target ?? releaseTarget();
   const binDir = options.binDir;
   const commandName = options.commandName ?? 'liora';
-  const cacheDir = options.cacheDir ?? join(defaultHome(), '.superliora', 'cache', 'releases');
+  const cacheDir = options.cacheDir ?? join(resolveInstallHome(), 'cache', 'releases');
   const skipVerify = options.skipVerify === true;
 
   const manifest = await fetchJson(manifestUrl);

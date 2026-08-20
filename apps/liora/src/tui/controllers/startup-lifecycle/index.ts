@@ -25,6 +25,7 @@ import {
 } from './native-renderer';
 import {
   maybeStartOnboarding,
+  maybeWarnTightDataHome,
   prepareStartupExperimentalFeatures,
   refreshProviderModelsInBackground,
 } from './onboarding';
@@ -77,6 +78,7 @@ export class StartupLifecycleController {
         await host.transcriptRender.playStartupSplash();
         startupTrace('lifecycle:after-splash');
         void maybeStartOnboarding(host).catch(() => {});
+        void maybeWarnTightDataHome(host).catch(() => {});
         void this.loadBanner();
         this.startBackgroundFdAutocomplete();
         await this.finishStartup(shouldReplayHistory);

@@ -87,6 +87,7 @@ describe('disk pressure render', () => {
         sessionsBytes: 4,
         cacheBytes: 3,
         logsBytes: 2,
+        worktreesBytes: 0,
       }),
       collect: async () => ({
         homeDir: '/tmp/home',
@@ -124,6 +125,7 @@ describe('disk pressure render', () => {
         sessionsBytes: 1,
         cacheBytes: 0,
         logsBytes: 0,
+        worktreesBytes: 0,
       }),
       collect: async () => ({
         homeDir: '/tmp/home',
@@ -159,6 +161,7 @@ describe('disk pressure render', () => {
         sessionsBytes: 0,
         cacheBytes: 0,
         logsBytes: 0,
+        worktreesBytes: 0,
       }),
     });
     const snap = await applyDiskPressureReclaimAnswer({
@@ -180,6 +183,7 @@ describe('disk pressure render', () => {
         sessionsBytes: 0,
         cacheBytes: 0,
         logsBytes: 0,
+        worktreesBytes: 0,
       }),
       collect: async () => ({
         homeDir: '/tmp/home',

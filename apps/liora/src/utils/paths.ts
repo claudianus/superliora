@@ -6,16 +6,15 @@
  */
 
 import { createHash } from 'node:crypto';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+
+import { resolveLioraHome } from '@superliora/sdk';
 
 import {
   SUPERLIORA_BANNER_DIR_NAME,
   SUPERLIORA_BANNER_STATE_FILE_NAME,
   SUPERLIORA_BIN_DIR_NAME,
   SUPERLIORA_CACHE_DIR_NAME,
-  SUPERLIORA_DATA_DIR_NAME,
-  SUPERLIORA_HOME_ENV,
   SUPERLIORA_INPUT_HISTORY_DIR_NAME,
   SUPERLIORA_LOG_DIR_NAME,
   SUPERLIORA_UPDATE_INSTALL_LOCK_FILE_NAME,
@@ -28,14 +27,10 @@ import {
 /**
  * Return the root data directory for SuperLiora.
  *
- * Priority: `SUPERLIORA_HOME` env var > `~/.superliora`.
+ * Priority: `SUPERLIORA_HOME` env var > `~/.superliora/home.redirect` > `~/.superliora`.
  */
 export function getDataDir(): string {
-  const envDir = process.env[SUPERLIORA_HOME_ENV];
-  if (envDir) {
-    return envDir;
-  }
-  return join(homedir(), SUPERLIORA_DATA_DIR_NAME);
+  return resolveLioraHome();
 }
 
 /**

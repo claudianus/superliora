@@ -1,8 +1,31 @@
+import { formatBytes, LIORA_HOME_COMFORT_FREE_BYTES, probeVolumeSpace } from '@superliora/sdk';
+
+import { getDataDir } from '#/utils/paths';
+
 import { setExperimentalFeatures } from '../../commands';
 import * as slashCommands from '../../commands/hub/dispatch';
 import { ttui } from '../../utils/tui-i18n';
 import { formatModelRefreshFailureNotice } from '../../utils/session/model-refresh-notice';
 import type { StartupLifecycleHost } from './types';
+
+export async function maybeWarnTightDataHome(host: StartupLifecycleHost): Promise<void> {
+  try {
+    const homeDir = host.harness.homeDir ?? getDataDir();
+    const volume = await probeVolumeSpace(homeDir);
+    if (volume === undefined || volume.freeBytes >= LIORA_HOME_COMFORT_FREE_BYTES) return;
+    host.showNotice(
+      ttui('tui.settings.pane.storage.title'),
+      ttui('tui.storage.homeTight', { free: formatBytes(volume.freeBytes) }),
+      { coalesceKey: 'storage.homeTight' },
+    );
+    host.showStatus(
+      ttui('tui.storage.homeTight', { free: formatBytes(volume.freeBytes) }),
+      'warning',
+    );
+  } catch {
+    // Probe failure must not block startup.
+  }
+}
 
 export async function maybeStartOnboarding(host: StartupLifecycleHost): Promise<void> {
   const config = await host.harness.getConfig({ reload: true });

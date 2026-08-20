@@ -4,6 +4,7 @@
  *
  * No Session coupling. Agent and tools share this module's snapshot.
  */
+import { homedir } from 'node:os';
 import { statfs } from 'node:fs/promises';
 
 import { ErrorCodes } from '#/errors/codes';
@@ -159,6 +160,39 @@ export async function probeVolumeSpace(path: string): Promise<VolumeSpace | unde
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Probe fixed-drive roots (Windows A–Z) or the OS home volume (POSIX).
+ */
+export async function listVolumeSpaces(
+  options: {
+    readonly platform?: NodeJS.Platform;
+    readonly probe?: (path: string) => Promise<VolumeSpace | undefined>;
+    readonly osHome?: string;
+  } = {},
+): Promise<VolumeSpace[]> {
+  const platform = options.platform ?? process.platform;
+  const probe = options.probe ?? probeVolumeSpace;
+  if (platform === 'win32') {
+    const volumes: VolumeSpace[] = [];
+    for (const letter of 'CDEFGHIJKLMNOPQRSTUVWXYZ') {
+      const root = `${letter}:\\`;
+      const space = await probe(root);
+      if (space === undefined || space.totalBytes < 1024 * 1024 * 1024) continue;
+      volumes.push({ ...space, path: root });
+    }
+    return volumes;
+  }
+  const home = options.osHome ?? homedir();
+  const found: VolumeSpace[] = [];
+  for (const path of [home, '/']) {
+    const space = await probe(path);
+    if (space === undefined) continue;
+    if (found.some((item) => item.path === space.path)) continue;
+    found.push(space);
+  }
+  return found;
 }
 
 export function classifyPressureLevel(
@@ -341,7 +375,7 @@ export async function reportDiskPressure(error?: unknown): Promise<DiskPressureS
 
 export function formatHomeLine(home: StorageBytesReport | undefined): string {
   if (home === undefined) return 'home: (unknown)';
-  return `home: sessions=${formatBytes(home.sessionsBytes)} cache=${formatBytes(home.cacheBytes)} logs=${formatBytes(home.logsBytes)}`;
+  return `home: sessions=${formatBytes(home.sessionsBytes)} cache=${formatBytes(home.cacheBytes)} logs=${formatBytes(home.logsBytes)} worktrees=${formatBytes(home.worktreesBytes)}`;
 }
 
 export function formatVolumeLine(volume: VolumeSpace | undefined): string {
@@ -445,7 +479,8 @@ export function buildDiskPressureReclaimQuestion(): QuestionItem {
       },
       {
         label: DISK_RECLAIM_WAIT,
-        description: 'Keep waiting. SUPERLIORA_HOME can only move before relaunch.',
+        description:
+          'Keep waiting. Move the data home from Settings → Storage, or restart after setting SUPERLIORA_HOME.',
       },
     ],
   };

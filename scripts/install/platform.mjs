@@ -2,9 +2,9 @@
  * Platform / arch helpers for the SuperLiora installer.
  */
 
-import { existsSync, lstatSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, normalize } from 'node:path';
 
 export const DEFAULT_NODE_MIN = '24.15.0';
 /** Matches root package.json `packageManager`. */
@@ -55,6 +55,32 @@ export function defaultHome() {
   return process.env.HOME ?? process.env.USERPROFILE ?? homedir();
 }
 
+function parseHomeRedirect(text) {
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.length === 0 || line.startsWith('#')) continue;
+    if (!isAbsolute(line)) return undefined;
+    return normalize(line);
+  }
+  return undefined;
+}
+
+/** Data root: SUPERLIORA_HOME, then ~/.superliora/home.redirect, then ~/.superliora. */
+export function resolveInstallHome() {
+  const override = process.env.SUPERLIORA_HOME?.trim();
+  if (override) return override;
+  const pointer = join(defaultHome(), '.superliora');
+  try {
+    const redirected = parseHomeRedirect(
+      readFileSync(join(pointer, 'home.redirect'), 'utf8'),
+    );
+    if (redirected && normalize(redirected) !== normalize(pointer)) return redirected;
+  } catch {
+    // No redirect.
+  }
+  return pointer;
+}
+
 /**
  * Existence check that also sees Windows app execution aliases. The entries
  * App Installer drops in `WindowsApps` (winget.exe, wt.exe, …) are
@@ -74,9 +100,7 @@ export function hostPathExists(path) {
 }
 
 export function defaultInstallDir() {
-  const override = process.env.SUPERLIORA_HOME?.trim();
-  if (override) return join(override, 'source');
-  return join(defaultHome(), '.superliora', 'source');
+  return join(resolveInstallHome(), 'source');
 }
 
 export function defaultBinDir(platform = process.platform) {
@@ -88,15 +112,15 @@ export function defaultBinDir(platform = process.platform) {
 }
 
 export function defaultRuntimeNodeDir() {
-  return join(defaultHome(), '.superliora', 'runtime', 'node');
+  return join(resolveInstallHome(), 'runtime', 'node');
 }
 
 export function defaultRuntimeGitDir() {
-  return join(defaultHome(), '.superliora', 'runtime', 'git');
+  return join(resolveInstallHome(), 'runtime', 'git');
 }
 
 export function defaultRuntimePnpmDir() {
-  return join(defaultHome(), '.superliora', 'runtime', 'pnpm');
+  return join(resolveInstallHome(), 'runtime', 'pnpm');
 }
 
 /** Standalone GitHub-release asset name (`pnpm-win-x64.exe`, `pnpm-linux-arm64`, …). */

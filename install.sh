@@ -81,6 +81,7 @@ origin/main 최신으로 빌드하려면 --main 을 쓰세요.
   --repo <url>          Git 저장소 URL. 기본값: ${DEFAULT_REPO_URL}
   --ref <ref>           브랜치 또는 태그 (소스 모드; --main 과 함께면 무시). 기본값: ${DEFAULT_REF}
   --install-dir <path>  소스 checkout 디렉터리. 기본값: ~/.superliora/source
+  --home <path>         데이터 홈 (세션·캐시·worktree). 기본값: ~/.superliora
   --bin-dir <path>      명령 설치 디렉터리. 기본값: ~/.local/bin
   --command <name>      명령 이름. 기본값: liora
   --node-min <version>  최소 Node.js 버전. 기본값: ${DEFAULT_NODE_MIN}
@@ -121,6 +122,7 @@ Options:
   --repo <url>          Git repository URL. Default: ${DEFAULT_REPO_URL}
   --ref <ref>           Branch, tag, or ref (source mode; ignored with --main). Default: ${DEFAULT_REF}
   --install-dir <path>  Source checkout directory. Default: ~/.superliora/source
+  --home <path>         Data home (sessions, cache, worktrees). Default: ~/.superliora
   --bin-dir <path>      Command install directory. Default: ~/.local/bin
   --command <name>      Command name. Default: liora
   --node-min <version>  Minimum Node.js version. Default: ${DEFAULT_NODE_MIN}
@@ -185,6 +187,8 @@ while [ "$#" -gt 0 ]; do
     --ref=*) REF="${1#--ref=}"; shift ;;
     --install-dir) INSTALL_DIR="$2"; shift 2 ;;
     --install-dir=*) INSTALL_DIR="${1#--install-dir=}"; shift ;;
+    --home) SUPERLIORA_HOME="$2"; export SUPERLIORA_HOME; shift 2 ;;
+    --home=*) SUPERLIORA_HOME="${1#--home=}"; export SUPERLIORA_HOME; shift ;;
     --bin-dir) BIN_DIR="$2"; shift 2 ;;
     --bin-dir=*) BIN_DIR="${1#--bin-dir=}"; shift ;;
     --command) COMMAND_NAME="$2"; shift 2 ;;
@@ -290,7 +294,7 @@ bootstrap_node() {
   esac
   slug="node-v${NODE_MIN}-${os}-${arch}"
   url="https://nodejs.org/dist/v${NODE_MIN}/${slug}.tar.gz"
-  runtime="${HOME}/.superliora/runtime/node"
+  runtime="${SUPERLIORA_HOME:-$HOME/.superliora}/runtime/node"
   archive="${runtime}/${slug}.tar.gz"
   mkdir -p "$runtime"
   if [ ! -x "${runtime}/${slug}/bin/node" ]; then
@@ -335,7 +339,7 @@ else
   }
   fetch_raw "scripts/install-superliora.mjs" "$BUNDLE_DIR/scripts/install-superliora.mjs"
   fetch_raw "scripts/install-liora.mjs" "$BUNDLE_DIR/scripts/install-liora.mjs"
-  for f in platform.mjs ensure-node.mjs ensure-git.mjs ensure-pnpm.mjs theatre.mjs download.mjs prebuilt.mjs source.mjs sidecars.mjs path.mjs spawn.mjs wrappers.mjs ensure-terminal.mjs ensure-desktop-launcher.mjs locale.mjs strings.mjs ensure-winget.mjs ensure-nerd-font.mjs ensure-oh-my-posh.mjs ensure-shell-vibe.mjs host-setup.mjs host-path.mjs; do
+  for f in platform.mjs home.mjs ensure-node.mjs ensure-git.mjs ensure-pnpm.mjs theatre.mjs download.mjs prebuilt.mjs source.mjs sidecars.mjs path.mjs spawn.mjs wrappers.mjs ensure-terminal.mjs ensure-desktop-launcher.mjs locale.mjs strings.mjs ensure-winget.mjs ensure-nerd-font.mjs ensure-oh-my-posh.mjs ensure-shell-vibe.mjs host-setup.mjs host-path.mjs; do
     fetch_raw "scripts/install/$f" "$BUNDLE_DIR/scripts/install/$f"
   done
   ORCH="$BUNDLE_DIR/scripts/install-superliora.mjs"
@@ -356,6 +360,7 @@ orch_args=(
   --node-min "$NODE_MIN"
   --manifest "$MANIFEST_URL"
 )
+[ -n "${SUPERLIORA_HOME:-}" ] && orch_args+=(--home "$SUPERLIORA_HOME")
 [ -n "$VERSION" ] && orch_args+=(--version "$VERSION")
 [ "$FORCE" -eq 1 ] && orch_args+=(--force)
 [ "$NO_BUILD" -eq 1 ] && orch_args+=(--no-build)
