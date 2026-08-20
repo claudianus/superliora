@@ -451,85 +451,79 @@ describe('createTUIState', () => {
   });
 
   it('preserves transcript foreground colors across animation and layout-shift frames', () => {
-    const envKeys = ['CI', 'NO_COLOR'] as const;
-    const saved = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
     const previousChalkLevel = chalk.level;
     chalk.level = 3;
-    for (const key of envKeys) delete process.env[key];
     try {
-    const width = 80;
-    const height = 24;
-    const state = createTUIState({
-      initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
-    });
-    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
-    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
-    currentTheme.setCanvasBackgroundEnabled(true);
-    state.transcriptContainer.addChild(new UserMessageComponent('start work now'));
-    state.transcriptContainer.addChild(new ThinkingComponent('researching game frameworks', true, 'live'));
-    state.transcriptContainer.addChild(
-      new ToolCallComponent({
-        id: 'call_websearch',
-        name: 'WebSearch',
-        args: { query: 'Phaser 3 browser game' },
-      }, undefined),
-    );
-    state.editorContainer.addChild(state.editor);
-    state.footerContainer.addChild(fixedLines(['footer']));
+      withMotionEffectsAllowedEnv(() => {
+        const width = 80;
+        const height = 24;
+        const state = createTUIState({
+          initialAppState: fakeInitialAppState(),
+          startup: { continueLast: false, yolo: false, auto: false, plan: false },
+        });
+        Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
+        Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
+        currentTheme.setCanvasBackgroundEnabled(true);
+        state.transcriptContainer.addChild(new UserMessageComponent('start work now'));
+        state.transcriptContainer.addChild(new ThinkingComponent('researching game frameworks', true, 'live'));
+        state.transcriptContainer.addChild(
+          new ToolCallComponent({
+            id: 'call_websearch',
+            name: 'WebSearch',
+            args: { query: 'Phaser 3 browser game' },
+          }, undefined),
+        );
+        state.editorContainer.addChild(state.editor);
+        state.footerContainer.addChild(fixedLines(['footer']));
 
-    const hasColorOutput = (output: string) => /\u001B\[[0-9;]*m/.test(output);
+        const hasColorOutput = (output: string) => /\u001B\[[0-9;]*m/.test(output);
 
-    const initial = renderTUIStateNativeFrame(state, { width, height, force: true });
-    expect(hasColorOutput(initial.output)).toBe(true);
-    expect(countVisibleTranscriptCellsWithForeground(initial.renderer.frame)).toBeGreaterThan(0);
+        const initial = renderTUIStateNativeFrame(state, { width, height, force: true });
+        expect(hasColorOutput(initial.output)).toBe(true);
+        expect(countVisibleTranscriptCellsWithForeground(initial.renderer.frame)).toBeGreaterThan(0);
 
-    const animationPolicy = resolveTUIStateNativeFramePolicy({
-      causes: ['animation'],
-      viewportScrolled: false,
-      structuralShift: false,
-      nextTranscriptStart: state.transcriptViewport.start(),
-      ambientAnimationAllowed: true,
-    });
-    // Ambient ticks stay incremental — no force scan and no OSC palette spam.
-    expect(animationPolicy.force).toBe(false);
-    expect(animationPolicy.refreshTerminalPalette).toBe(false);
+        const animationPolicy = resolveTUIStateNativeFramePolicy({
+          causes: ['animation'],
+          viewportScrolled: false,
+          structuralShift: false,
+          nextTranscriptStart: state.transcriptViewport.start(),
+          ambientAnimationAllowed: true,
+        });
+        // Ambient ticks stay incremental — no force scan and no OSC palette spam.
+        expect(animationPolicy.force).toBe(false);
+        expect(animationPolicy.refreshTerminalPalette).toBe(false);
 
-    advanceAppearanceAnimationClock(appearanceAnimationNow() + 120);
-    const animated = renderTUIStateNativeFrame(state, {
-      renderer: initial.renderer,
-      width,
-      height,
-      force: animationPolicy.force,
-    });
-    expect(hasColorOutput(animated.output)).toBe(true);
-    expect(countVisibleTranscriptCellsWithForeground(animated.renderer.frame)).toBeGreaterThan(0);
+        advanceAppearanceAnimationClock(appearanceAnimationNow() + 120);
+        const animated = renderTUIStateNativeFrame(state, {
+          renderer: initial.renderer,
+          width,
+          height,
+          force: animationPolicy.force,
+        });
+        expect(hasColorOutput(animated.output)).toBe(true);
+        expect(countVisibleTranscriptCellsWithForeground(animated.renderer.frame)).toBeGreaterThan(0);
 
-    state.transcriptContainer.addChild(
-      new NoticeMessageComponent('Mission mode: ON', 'Shift-Tab routes the next task.'),
-    );
-    const grown = renderTUIStateNativeFrame(state, {
-      renderer: animated.renderer,
-      width,
-      height,
-      force: true,
-    });
-    expect(hasColorOutput(grown.output)).toBe(true);
-    expect(countVisibleTranscriptCellsWithForeground(grown.renderer.frame)).toBeGreaterThan(0);
+        state.transcriptContainer.addChild(
+          new NoticeMessageComponent('Mission mode: ON', 'Shift-Tab routes the next task.'),
+        );
+        const grown = renderTUIStateNativeFrame(state, {
+          renderer: animated.renderer,
+          width,
+          height,
+          force: true,
+        });
+        expect(hasColorOutput(grown.output)).toBe(true);
+        expect(countVisibleTranscriptCellsWithForeground(grown.renderer.frame)).toBeGreaterThan(0);
 
-    const incremental = renderTUIStateNativeFrame(state, {
-      renderer: grown.renderer,
-      width,
-      height,
-    });
-    expect(countVisibleTranscriptCellsWithForeground(incremental.renderer.frame)).toBeGreaterThan(0);
+        const incremental = renderTUIStateNativeFrame(state, {
+          renderer: grown.renderer,
+          width,
+          height,
+        });
+        expect(countVisibleTranscriptCellsWithForeground(incremental.renderer.frame)).toBeGreaterThan(0);
+      });
     } finally {
       chalk.level = previousChalkLevel;
-      for (const key of envKeys) {
-        const value = saved[key];
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
     }
   });
 
