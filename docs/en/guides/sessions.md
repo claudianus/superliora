@@ -35,24 +35,24 @@ Do not manually edit files inside the `sessions/` directory — doing so may pre
 
 ## Starting and resuming sessions
 
-Every time you run `kimi` directly it creates a new session. To resume a previous session, use one of the following:
+Every time you run `liora` directly it creates a new session. To resume a previous session, use one of the following:
 
 **Resume the most recent session in the current directory:**
 
 ```sh
-kimi --continue
+liora --continue
 ```
 
 **Resume a specific session by ID:**
 
 ```sh
-kimi --session abc123
+liora --session abc123
 ```
 
 **Interactively browse session history and choose one:**
 
 ```sh
-kimi --session
+liora --session
 ```
 
 ::: warning
@@ -120,4 +120,4 @@ Exported files may contain code, command output, and file paths that are sensiti
 ## Next steps
 
 - [Data locations](../configuration/data-locations.md) — full directory layout for session files
-- [kimi command reference](../reference/liora-command.md) — complete parameter reference for `--continue`, `--session`, `export`, and other commands
+- [liora command reference](../reference/liora-command.md) — complete parameter reference for `--continue`, `--session`, `export`, and other commands
