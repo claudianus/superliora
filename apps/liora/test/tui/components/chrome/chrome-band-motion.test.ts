@@ -57,6 +57,41 @@ describe('chrome-band-motion', () => {
     expect(strip(a)).toMatch(/^[▓░]+$/);
   });
 
+  it('sweeps a multi-cell gradient that moves on the shared clock', () => {
+    const first = renderLiveRatioBar(0.6, 10, {
+      animated: true,
+      now: 200,
+      seed: 'todo:kpi:bar',
+    });
+    const second = renderLiveRatioBar(0.6, 10, {
+      animated: true,
+      now: 200 + 550,
+      seed: 'todo:kpi:bar',
+    });
+    expect(strip(first)).toMatch(/^[▓░]{10}$/);
+    expect(strip(second)).toMatch(/^[▓░]{10}$/);
+    expect(strip(first)).toBe(strip(second));
+    expect(first).not.toBe(second);
+    expect(new Set(first.match(/38;2;\d+;\d+;\d+/g) ?? []).size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('phase-offsets sibling bars from seed so they do not lock-step', () => {
+    const a = renderLiveRatioBar(0.5, 8, { animated: true, now: 400, seed: 'todo:kpi:bar' });
+    const b = renderLiveRatioBar(0.5, 8, { animated: true, now: 400, seed: 'mc-bar:w1' });
+    expect(strip(a)).toBe(strip(b));
+    expect(a).not.toBe(b);
+  });
+
+  it('keeps footer eighths glyphs while the sweep is live', () => {
+    const bar = renderLiveRatioBar(0.5, 10, {
+      animated: true,
+      now: 100,
+      seed: 'footer:ctx',
+      eighths: true,
+    });
+    expect(strip(bar)).toBe('█████░░░░░');
+  });
+
   it('falls back pulse chips to plain fg when ambient is off', () => {
     expect(strip(renderPulseCountChip('wip 1/1', 'todo:wip', 'primary', off))).toBe('wip 1/1');
   });

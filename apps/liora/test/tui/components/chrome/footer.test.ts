@@ -380,4 +380,25 @@ describe('FooterComponent tip crossfade', () => {
     expect(tipLen(settled)).toBeGreaterThan(tipLen(early));
     expect(strip(settled)).not.toBe(strip(settledFirst));
   });
+
+  it('sweeps the context meter colors without changing the eighths glyphs', () => {
+    const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+    const footer = new FooterComponent({
+      ...appState,
+      contextUsage: 0.5,
+      appearance,
+    });
+    advanceAppearanceAnimationClock(200);
+    const first = footer.render(160)[1] ?? '';
+    advanceAppearanceAnimationClock(750);
+    const second = footer.render(160)[1] ?? '';
+    expect(strip(first)).toMatch(/Context █████░░░░░ 50\.0%/);
+    expect(strip(second)).toMatch(/Context █████░░░░░ 50\.0%/);
+    expect(first).not.toBe(second);
+  });
 });
