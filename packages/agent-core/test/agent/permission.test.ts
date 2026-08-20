@@ -2505,8 +2505,10 @@ describe('Approval telemetry', () => {
       },
     );
 
-    await expect(manager.beforeToolCall(hookContext({ id: 'call_no_approval_rpc' }))).resolves
-      .toBeUndefined();
+    // No approval channel means the `ask` is denied, not silently approved.
+    await expect(
+      manager.beforeToolCall(hookContext({ id: 'call_no_approval_rpc' })),
+    ).resolves.toMatchObject({ block: true });
 
     expect(requestApproval).not.toHaveBeenCalled();
     expect(fireAndForgetTrigger).not.toHaveBeenCalledWith(
@@ -2517,6 +2519,47 @@ describe('Approval telemetry', () => {
       'PermissionResult',
       expect.anything(),
     );
+  });
+
+  it('denies ask policies when no approval channel is connected', async () => {
+    const { manager, telemetryTrack, requestApproval } = makePermissionManager(
+      async () => ({ decision: 'approved' }),
+      { approvalRpc: false },
+    );
+
+    await expect(
+      manager.beforeToolCall(hookContext({ id: 'call_no_channel' })),
+    ).resolves.toMatchObject({
+      block: true,
+      reason: expect.stringContaining('no approval channel connected'),
+    });
+
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(telemetryTrack).toHaveBeenCalledWith(
+      'permission_approval_result',
+      expect.objectContaining({ result: 'auto_denied_no_rpc' }),
+    );
+  });
+
+  it('approves without an approval channel only when explicitly opted in', async () => {
+    vi.stubEnv('SUPERLIORA_PERMISSION_ALLOW_WITHOUT_APPROVAL', '1');
+    try {
+      const { manager, telemetryTrack } = makePermissionManager(
+        async () => ({ decision: 'approved' }),
+        { approvalRpc: false },
+      );
+
+      await expect(
+        manager.beforeToolCall(hookContext({ id: 'call_opt_in' })),
+      ).resolves.toBeUndefined();
+
+      expect(telemetryTrack).toHaveBeenCalledWith(
+        'permission_approval_result',
+        expect.objectContaining({ result: 'auto_approved_no_rpc' }),
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('tracks cancelled approval requests', async () => {

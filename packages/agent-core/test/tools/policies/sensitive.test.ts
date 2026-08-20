@@ -97,6 +97,29 @@ describe('isSensitiveFile', () => {
     }
   });
 
+  it('flags windows-separator paths the same as posix ones', () => {
+    for (const path of [
+      'C:\\Users\\me\\.ssh\\config',
+      'C:\\Users\\me\\.ssh\\known_hosts',
+      'C:\\Users\\me\\.kube\\config',
+      'C:\\Users\\me\\.docker\\config.json',
+      'C:\\Users\\me\\.aws\\credentials',
+      'C:\\Users\\me\\.gnupg\\pubring.kbx',
+      '.ssh\\config',
+      '.kube\\config',
+      '\\\\?\\C:\\Users\\me\\.ssh\\config',
+      'C:\\app\\.env.production',
+    ]) {
+      expect(isSensitiveFile(path), path).toBe(true);
+    }
+  });
+
+  it('does not false-positive on windows paths with sensitive-looking substrings', () => {
+    for (const path of ['C:\\src\\myapp.ssh\\config', 'C:\\docs\\.gnupg-readme.md']) {
+      expect(isSensitiveFile(path), path).toBe(false);
+    }
+  });
+
   it('matches sensitive patterns case-insensitively on posix paths', () => {
     for (const path of [
       '.ENV',

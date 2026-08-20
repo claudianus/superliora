@@ -9,9 +9,10 @@
  * a local repository automatically:
  *
  *   1. `git init` (default branch `main` when the local git supports `-b`)
- *   2. baseline commit of the current tree (`git add -A` + commit, falling
- *      back to `--allow-empty` for completely empty folders) so
- *      `git worktree add` has a base ref and workers start from real files
+ *   2. baseline commit of the current tree (`git add -A`, minus any staged
+ *      credential file, then commit — falling back to `--allow-empty` for
+ *      completely empty folders) so `git worktree add` has a base ref and
+ *      workers start from real files
  *
  * The same path repairs an existing repo that never received a commit
  * (unborn HEAD): it adds only the missing baseline commit, never `init`.
@@ -25,6 +26,7 @@
 import type { Kaos } from '@superliora/kaos';
 
 import { runGit } from '#/autopilot/git';
+import { isSensitiveFile } from '#/tools/policies/sensitive';
 
 /** Env switch: set to `0`/`false`/`no`/`off` to forbid automatic bootstrap. */
 export const AUTO_GIT_INIT_ENV = 'SUPERLIORA_AUTO_GIT_INIT';
@@ -162,6 +164,11 @@ async function runBootstrap(
  * Guarantee at least one commit exists. Completely empty folders have
  * nothing to stage, so a plain commit reports "nothing to commit" — retry
  * with `--allow-empty` so even a bare directory yields a valid base ref.
+ *
+ * The tree is staged so workers see real files, but secrets are unstaged
+ * again before the commit: this runs in folders the user never chose to put
+ * under version control, and a `.env` or private key committed here would
+ * stay in history.
  */
 async function ensureBaselineCommit(
   kaos: Kaos,
@@ -180,26 +187,25 @@ async function ensureBaselineCommit(
     };
   }
 
+  const staged = await stageBaseline(kaos, repoPath);
+  if (staged.error !== undefined) {
+    return { ok: false, error: `${staged.error} ${GIT_BOOTSTRAP_SETUP_HINT}` };
+  }
+
   const identity = await commitIdentityArgs(kaos, repoPath);
-  let commit = await runGit(kaos, repoPath, [
+  // An empty folder — or one holding nothing but credential files — has
+  // nothing to commit, and `git commit` refuses without `--allow-empty`. Decide
+  // from the index rather than from git's wording, which differs between
+  // "nothing to commit" and "nothing added to commit but untracked files".
+  const commitArgs = staged.hasStagedChanges ? [] : ['--allow-empty'];
+  const commit = await runGit(kaos, repoPath, [
     ...identity,
     'commit',
+    ...commitArgs,
     '--no-gpg-sign',
     '-m',
     GIT_BOOTSTRAP_BASELINE_MESSAGE,
   ]);
-  const nothingToCommit =
-    !commit.ok && `${commit.stderr} ${commit.stdout}`.toLowerCase().includes('nothing to commit');
-  if (nothingToCommit) {
-    commit = await runGit(kaos, repoPath, [
-      ...identity,
-      'commit',
-      '--allow-empty',
-      '--no-gpg-sign',
-      '-m',
-      GIT_BOOTSTRAP_BASELINE_MESSAGE,
-    ]);
-  }
 
   const recheck = await runGit(kaos, repoPath, ['rev-parse', '--verify', '--quiet', 'HEAD']);
   if (!commit.ok || !recheck.ok) {
@@ -209,6 +215,55 @@ async function ensureBaselineCommit(
     };
   }
   return { ok: true, root: repoPath, bootstrapped: false, baselineCommit: true };
+}
+
+interface BaselineStageResult {
+  /** False when the index is empty, so the commit needs `--allow-empty`. */
+  readonly hasStagedChanges: boolean;
+  /** Credential paths dropped from the baseline. */
+  readonly skipped: readonly string[];
+  readonly error?: string;
+}
+
+/**
+ * Drop credential files from the staged baseline and report whether anything
+ * is left to commit. An unstage failure is fatal: committing anyway would put
+ * the secret in history, which is the thing this guard exists to prevent.
+ */
+async function stageBaseline(kaos: Kaos, repoPath: string): Promise<BaselineStageResult> {
+  const listStaged = async (): Promise<readonly string[] | undefined> => {
+    const staged = await runGit(kaos, repoPath, ['diff', '--cached', '--name-only', '-z']);
+    if (!staged.ok) return undefined;
+    return staged.stdout.split('\0').filter((path) => path.length > 0);
+  };
+
+  const initial = await listStaged();
+  if (initial === undefined) {
+    return {
+      hasStagedChanges: false,
+      skipped: [],
+      error: `git diff --cached failed in ${repoPath}.`,
+    };
+  }
+
+  const sensitive = initial.filter((path) => isSensitiveFile(path));
+  if (sensitive.length === 0) {
+    return { hasStagedChanges: initial.length > 0, skipped: [] };
+  }
+
+  // `--` keeps a path that looks like a flag from being parsed as one.
+  const reset = await runGit(kaos, repoPath, ['reset', '--quiet', '--', ...sensitive]);
+  if (!reset.ok) {
+    return {
+      hasStagedChanges: false,
+      skipped: [],
+      error: `refusing to create a baseline commit in ${repoPath}: it would include ${String(sensitive.length)} credential file(s) and unstaging them failed.`,
+    };
+  }
+  return {
+    hasStagedChanges: initial.length > sensitive.length,
+    skipped: sensitive,
+  };
 }
 
 /**

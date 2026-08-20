@@ -220,14 +220,30 @@ export class NativeTerminalSession {
   }
 
   /**
-   * Synchronously writes the full set of terminal disable/restore sequences
-   * to the given output, swallowing any write errors. Intended for use from a
-   * `process.on('exit')` handler so the user's terminal is restored even when
-   * the normal `stop()` path is skipped (SIGHUP, dead-terminal EIO, mid-stop
-   * throw). Writes are best-effort: an EIO on a dead pty is ignored so we never
-   * enter a throw loop at process exit.
+   * Synchronously restores the terminal: writes the full set of disable/restore
+   * sequences and, when `input` is given, drops raw mode. Intended for exit
+   * paths that skip the normal `stop()` cleanup (SIGHUP, dead-terminal EIO,
+   * uncaught throw, mid-stop failure).
+   *
+   * Pass `input` whenever the caller may be exiting for good — leaving stdin in
+   * raw mode hands the user a shell that does not echo and ignores Ctrl-C.
+   *
+   * Every step is best-effort and independently guarded: an EIO on a dead pty
+   * must not stop the raw-mode reset, and neither may throw from a
+   * `process.on('exit')` handler.
    */
-  static writeRestoreSequencesSync(output: { write(chunk: string): unknown }): void {
+  static writeRestoreSequencesSync(
+    output: { write(chunk: string): unknown },
+    input?: { isTTY?: boolean; isRaw?: boolean; setRawMode?: (mode: boolean) => unknown },
+  ): void {
+    if (input?.isTTY === true && input.setRawMode !== undefined) {
+      try {
+        input.setRawMode(false);
+      } catch {
+        // Best-effort: the tty may already be gone.
+      }
+    }
+
     const sequence =
       ANSI_SHOW_CURSOR +
       ANSI_POP_KITTY_KEYBOARD_PROTOCOL +

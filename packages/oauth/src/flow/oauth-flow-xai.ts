@@ -137,7 +137,7 @@ export async function runXaiBrowserFlow(
   const state = generateState();
   const nonce = generateNonce();
   const port = flow.callbackPort ?? 56121;
-  const server = await startCallbackServer(port, flow.callbackHost);
+  const server = await startCallbackServer(port, flow.callbackHost, { expectedState: state });
   try {
     const url = buildXaiAuthorizeUrl(flow, pkce, state, nonce, server.redirectUri, authorizeUrl);
     await options.onAuthorizeUrl?.(url);

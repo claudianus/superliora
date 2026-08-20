@@ -14,7 +14,21 @@ import type {
   PermissionPolicyResult,
   PermissionRule,
 } from './types';
-import { PERMISSION_AUTO_EXPIRE_ENV, STALE_INTERVENTION_AGE_MS } from './types';
+import {
+  PERMISSION_ALLOW_WITHOUT_APPROVAL_ENV,
+  PERMISSION_AUTO_EXPIRE_ENV,
+  STALE_INTERVENTION_AGE_MS,
+} from './types';
+
+/** Model-visible reason when an `ask` policy has nowhere to ask. */
+function formatMissingApprovalChannelMessage(toolName: string): string {
+  return (
+    `Tool "${toolName}" was not run: this host has no approval channel connected, so tools that ` +
+    `need confirmation cannot run here. Pick an approach that does not require approval, or tell the ` +
+    `user to run this from an interactive session — setting ` +
+    `${PERMISSION_ALLOW_WITHOUT_APPROVAL_ENV}=1 allows unattended approval when that is acceptable.`
+  );
+}
 
 export * from './types';
 export { NonBlockingPermissionQueue } from './non-blocking-queue';
@@ -172,6 +186,7 @@ export class PermissionManager {
 
     let response: ApprovalResponse;
     let requestedApproval = false;
+    let missingApprovalChannel = false;
     const queued = this.interventionQueue.enqueue({
       toolName: name,
       rule: context.execution.approvalRule ?? `${name}(*)`,
@@ -235,11 +250,9 @@ export class PermissionManager {
           ? Promise.reject(error)
           : this.permissionPolicyResolutionToPrepare(resolved, context, policyName);
       }
-    } else {
-      // No RPC approval channel is wired (e.g. a non-interactive host). The
-      // safest default is to allow the call so the agent isn't deadlocked,
-      // but surface it via telemetry + a debug log so a misconfigured host
-      // doesn't silently run in yolo for every `ask` policy.
+    } else if (allowApprovalWithoutRpc()) {
+      // Explicit opt-in for hosts that accept running gated tools unattended
+      // (scripted / CI runs that cannot render an approval prompt).
       this.resolveIntervention(queued.id, 'approved');
       this.agent.telemetry.track('permission_approval_result', {
         policy_name: policyName ?? null,
@@ -257,6 +270,30 @@ export class PermissionManager {
       );
       response = {
         decision: 'approved',
+      };
+    } else {
+      // No RPC approval channel is wired. Fail closed: the policy asked for a
+      // human because the call is not safe to run unattended, and approving it
+      // anyway turns a misconfigured host into yolo mode for every gated tool.
+      // The model gets a normal rejection, so it re-plans instead of hanging.
+      missingApprovalChannel = true;
+      this.resolveIntervention(queued.id, 'denied');
+      this.agent.telemetry.track('permission_approval_result', {
+        policy_name: policyName ?? null,
+        tool_name: name,
+        permission_mode: this.mode,
+        result: 'auto_denied_no_rpc',
+        approval_surface: display.kind,
+        duration_ms: Date.now() - startedAt,
+        session_cache_written: false,
+        has_feedback: false,
+      });
+      this.agent.log?.warn(
+        'permission ask auto-denied: no approval RPC channel is connected',
+        { toolName: name, policyName: policyName ?? null, permissionMode: this.mode },
+      );
+      response = {
+        decision: 'rejected',
       };
     }
 
@@ -326,7 +363,9 @@ export class PermissionManager {
 
     return {
       block: true,
-      reason: this.formatApprovalRejectionMessage(name, response),
+      reason: missingApprovalChannel
+        ? formatMissingApprovalChannelMessage(name)
+        : this.formatApprovalRejectionMessage(name, response),
     };
   }
 
@@ -419,6 +458,11 @@ export class PermissionManager {
     }
     return prefix;
   }
+}
+
+function allowApprovalWithoutRpc(): boolean {
+  const raw = process.env[PERMISSION_ALLOW_WITHOUT_APPROVAL_ENV]?.trim().toLowerCase();
+  return raw === '1' || raw === 'true';
 }
 
 function parsePermissionAutoExpireMs(): number | undefined {

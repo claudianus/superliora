@@ -6,7 +6,7 @@
  * loopback callback server for browser-based authorization-code exchange.
  */
 
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 
@@ -157,6 +157,16 @@ export function generateState(): string {
   return base64url(randomBytes(32));
 }
 
+/**
+ * Constant-time string compare. Both sides are hashed first so the comparison
+ * is fixed-width and the input length is not observable.
+ */
+export function timingSafeEqualString(a: string, b: string): boolean {
+  const left = createHash('sha256').update(a, 'utf8').digest();
+  const right = createHash('sha256').update(b, 'utf8').digest();
+  return timingSafeEqual(left, right);
+}
+
 export function generateNonce(): string {
   return randomUUID().replaceAll('-', '');
 }
@@ -193,11 +203,18 @@ export interface CallbackServer {
  * match redirect URIs by exact string, so `localhost` and `127.0.0.1` are not
  * interchangeable — xAI registers `127.0.0.1`, while others register
  * `localhost`.
+ *
+ * Pass `expectedState` so a callback whose `state` does not belong to this
+ * login attempt is rejected. Any page the user has open can issue a GET to a
+ * loopback port; without the check, an attacker-supplied `code` would be
+ * exchanged and bind this CLI to the attacker's account.
  */
 export async function startCallbackServer(
   preferredPort: number,
   redirectHost: string = 'localhost',
+  options: { readonly expectedState?: string } = {},
 ): Promise<CallbackServer> {
+  const { expectedState } = options;
   const server: Server = createServer((req, res) => {
     if (req.url === undefined) {
       res.writeHead(404);
@@ -208,7 +225,17 @@ export async function startCallbackServer(
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
-    if (code !== null && state !== null) {
+    if (
+      code !== null &&
+      state !== null &&
+      expectedState !== undefined &&
+      !timingSafeEqualString(state, expectedState)
+    ) {
+      // Keep waiting for the real callback instead of failing the login: a
+      // forged request must not be able to cancel a legitimate attempt.
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Unexpected OAuth state.');
+    } else if (code !== null && state !== null) {
       pendingResolve?.({ code, state });
       pendingResolve = undefined;
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -302,7 +329,7 @@ export function parseOAuthCallbackInput(
         'Pasted OAuth callback is missing state. Paste the full callback URL.',
       );
     }
-    if (expectedState !== undefined && state !== expectedState) {
+    if (expectedState !== undefined && !timingSafeEqualString(state, expectedState)) {
       throw new OAuthError('Pasted OAuth callback state does not match this login attempt.');
     }
     const error = params.get('error');
@@ -494,7 +521,7 @@ export async function runPkceBrowserFlow(
   const state = generateState();
   const nonce = generateNonce();
   const port = config.callbackPort ?? 0;
-  const server = await startCallbackServer(port);
+  const server = await startCallbackServer(port, 'localhost', { expectedState: state });
   try {
     const redirectUri = config.redirectPath
       ? `http://localhost:${getPort(server.redirectUri)}${config.redirectPath}`

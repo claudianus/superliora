@@ -93,8 +93,14 @@ export const SENSITIVE_DOT_VARIANT_SUFFIXES = [
 ] as const;
 const SENSITIVE_DOT_VARIANT_SUFFIX_SET = new Set<string>(SENSITIVE_DOT_VARIANT_SUFFIXES);
 
+/**
+ * Lowercase and switch to `/` separators. Windows callers pass
+ * `C:\Users\me\.ssh\config` (occasionally in the extended-length `\\?\` form),
+ * and the segment checks below split on `/` — without this a backslash path
+ * collapses into one segment and skips every directory rule.
+ */
 function comparable(path: string): string {
-  return path.toLowerCase();
+  return path.replaceAll('\\', '/').toLowerCase();
 }
 
 export function isSensitiveFile(path: string): boolean {

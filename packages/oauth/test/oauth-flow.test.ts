@@ -290,6 +290,45 @@ describe('parseOAuthCallbackInput', () => {
   });
 });
 
+describe('startCallbackServer state validation', () => {
+  const callbackUrl = (server: { redirectUri: string }, query: string): string => {
+    const { port } = new URL(server.redirectUri);
+    return `http://127.0.0.1:${port}/callback?${query}`;
+  };
+
+  it('resolves only for a callback whose state matches the login attempt', async () => {
+    const server = await startCallbackServer(0, '127.0.0.1', { expectedState: 'real-state' });
+    try {
+      const pending = server.waitForCallback();
+
+      // A page the user has open can hit the loopback port with any code.
+      const forged = await fetch(
+        callbackUrl(server, 'code=attacker-code&state=attacker-state'),
+      );
+      expect(forged.status).toBe(400);
+
+      const genuine = await fetch(callbackUrl(server, 'code=real-code&state=real-state'));
+      expect(genuine.status).toBe(200);
+
+      await expect(pending).resolves.toEqual({ code: 'real-code', state: 'real-state' });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('accepts any state when no expected state is configured', async () => {
+    const server = await startCallbackServer(0, '127.0.0.1');
+    try {
+      const pending = server.waitForCallback();
+      const response = await fetch(callbackUrl(server, 'code=c&state=whatever'));
+      expect(response.status).toBe(200);
+      await expect(pending).resolves.toEqual({ code: 'c', state: 'whatever' });
+    } finally {
+      await server.close();
+    }
+  });
+});
+
 describe('waitForCallbackOrManual', () => {
   it('accepts a manually pasted callback while the loopback server is waiting', async () => {
     const server = await startCallbackServer(0, '127.0.0.1');

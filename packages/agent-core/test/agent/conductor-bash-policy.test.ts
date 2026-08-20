@@ -137,6 +137,54 @@ describe('isConductorBashCommandReadOnly', () => {
     }
   });
 
+  it('classifies the command `env` wraps instead of the wrapper', () => {
+    for (const command of [
+      'env rm -rf /tmp/x',
+      'env git push origin main',
+      'env bash -c "rm -rf /"',
+      'env FOO=bar pnpm install',
+      'env node scripts/migrate.mjs',
+      'env env env rm x',
+      'env -i rm x',
+      'env -S rm x',
+      'env -u PATH rm x',
+      'env --chdir=/tmp rm x',
+    ]) {
+      expect(isConductorBashCommandReadOnly(command), command).toBe(false);
+    }
+
+    for (const command of ['env', 'env FOO=bar', 'env git status', 'env FOO=bar ls -la']) {
+      expect(isConductorBashCommandReadOnly(command), command).toBe(true);
+    }
+  });
+
+  it('denies read-only commands that write through an output flag', () => {
+    for (const command of [
+      'sort -o out.txt in.txt',
+      'sort --output=out.txt in.txt',
+      'sort -oout.txt in.txt',
+      'tree -o out.txt',
+      'date -s "2020-01-01"',
+      'date --set "2020-01-01"',
+      'rg --pre /bin/sh pattern',
+      'rg --pre=/bin/sh pattern',
+    ]) {
+      expect(isConductorBashCommandReadOnly(command), command).toBe(false);
+    }
+
+    for (const command of ['sort in.txt', 'sort -r in.txt', 'tree packages', 'date', 'rg TODO src']) {
+      expect(isConductorBashCommandReadOnly(command), command).toBe(true);
+    }
+  });
+
+  it('denies read-only commands that write through an extra operand', () => {
+    expect(isConductorBashCommandReadOnly('uniq in.txt out.txt')).toBe(false);
+    expect(isConductorBashCommandReadOnly('hostname new-name')).toBe(false);
+    expect(isConductorBashCommandReadOnly('uniq in.txt')).toBe(true);
+    expect(isConductorBashCommandReadOnly('uniq -c in.txt')).toBe(true);
+    expect(isConductorBashCommandReadOnly('hostname')).toBe(true);
+  });
+
   it('allows read-only pipelines where every segment is known-safe', () => {
     expect(isConductorBashCommandReadOnly('git log --oneline | head -5')).toBe(true);
     expect(isConductorBashCommandReadOnly('ls -la | grep src')).toBe(true);

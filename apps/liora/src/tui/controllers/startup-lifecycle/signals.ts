@@ -8,22 +8,45 @@ export interface StartupSignalCallbacks {
   stop(exitCode?: number): Promise<void>;
 }
 
+/**
+ * Put the terminal back the way we found it: leave the alternate screen, stop
+ * mouse/paste reporting, and drop raw mode. Safe to call more than once.
+ */
+function restoreTerminalSync(): void {
+  try {
+    NativeTerminalSession.writeRestoreSequencesSync(process.stdout, process.stdin);
+  } catch {
+    // Swallow — this runs on exit paths that must never throw.
+  }
+}
+
 export function registerStartupSignalHandlers(
   host: StartupLifecycleHost,
   callbacks: StartupSignalCallbacks,
 ): void {
   unregisterStartupSignalHandlers(host);
 
-  const exitHandler = (): void => {
-    try {
-      NativeTerminalSession.writeRestoreSequencesSync(process.stdout);
-    } catch {
-      // Swallow — must never throw at process exit.
-    }
-  };
-  process.on('exit', exitHandler);
+  process.on('exit', restoreTerminalSync);
   host.signalCleanupHandlers.push(() => {
-    process.off('exit', exitHandler);
+    process.off('exit', restoreTerminalSync);
+  });
+
+  // A throw that escapes the TUI skips `stop()`, and Node's default handler
+  // prints the trace straight into the alternate screen before exiting — the
+  // user is left with a terminal that does not echo. Restore first, then let
+  // the default behavior print and exit.
+  const crashHandler = (error: unknown): never => {
+    restoreTerminalSync();
+    host.isShuttingDown = true;
+    process.off('uncaughtException', crashHandler);
+    process.off('unhandledRejection', crashHandler);
+    throw error;
+  };
+  process.on('uncaughtException', crashHandler);
+  process.on('unhandledRejection', crashHandler);
+  host.signalCleanupHandlers.push(() => {
+    process.off('uncaughtException', crashHandler);
+    process.off('unhandledRejection', crashHandler);
   });
 
   const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT'];
@@ -80,6 +103,10 @@ export function emergencyStartupTerminalExit(
   exitCode = 129,
 ): never {
   host.isShuttingDown = true;
+  // Restore before unregistering: the `exit` handler that would otherwise do
+  // it is one of the handlers being torn down here, so dropping it first would
+  // exit with the alternate screen, mouse reporting, and raw mode still on.
+  restoreTerminalSync();
   unregisterStartupSignalHandlers(host);
   try {
     host.harness.emergencyFlushSync();

@@ -110,6 +110,37 @@ describe('ensureGitRepoForWorktrees', () => {
     expect(subject).toBe(GIT_BOOTSTRAP_BASELINE_MESSAGE);
   });
 
+  it('keeps credential files out of the baseline commit', async () => {
+    const repo = await makeTempDir('liora-gitsecret-');
+    await writeFile(join(repo, 'app.js'), 'console.log(1);\n', 'utf-8');
+    await writeFile(join(repo, '.env'), 'API_KEY=super-secret\n', 'utf-8');
+    await writeFile(join(repo, '.env.production'), 'TOKEN=also-secret\n', 'utf-8');
+    await writeFile(join(repo, '.env.example'), 'API_KEY=\n', 'utf-8');
+
+    const result = await ensureGitRepoForWorktrees(kaos, repo, {});
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.baselineCommit).toBe(true);
+
+    const tracked = (await git(kaos, repo, 'ls-tree', '-r', '--name-only', 'HEAD')).split('\n');
+    expect(tracked).toContain('app.js');
+    // The exemplar is not a secret and stays useful to workers.
+    expect(tracked).toContain('.env.example');
+    expect(tracked).not.toContain('.env');
+    expect(tracked).not.toContain('.env.production');
+  });
+
+  it('still produces a base ref when every file in the folder is a secret', async () => {
+    const repo = await makeTempDir('liora-gitallsecret-');
+    await writeFile(join(repo, '.env'), 'API_KEY=super-secret\n', 'utf-8');
+
+    const result = await ensureGitRepoForWorktrees(kaos, repo, {});
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    await expect(git(kaos, repo, 'rev-parse', '--verify', 'HEAD')).resolves.toBeDefined();
+    expect(await git(kaos, repo, 'ls-tree', '-r', '--name-only', 'HEAD')).toBe('');
+  });
+
   it('adds a baseline commit to an initialized repo with no commits (unborn HEAD)', async () => {
     const repo = await makeTempDir('liora-gitunborn-');
     await git(kaos, repo, 'init');

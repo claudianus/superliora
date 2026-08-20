@@ -62,6 +62,15 @@ export const STALE_INTERVENTION_AGE_MS = 120_000;
 /** Opt-in: drop orphaned queue entries older than this ms (env-only). */
 export const PERMISSION_AUTO_EXPIRE_ENV = 'SUPERLIORA_PERMISSION_AUTO_EXPIRE_MS';
 
+/**
+ * Opt-in: approve `ask` policies when no approval RPC channel is connected.
+ * Without it such calls are denied — an `ask` policy exists because a human is
+ * meant to see the call, so a host that cannot show one must not silently run
+ * every gated tool.
+ */
+export const PERMISSION_ALLOW_WITHOUT_APPROVAL_ENV =
+  'SUPERLIORA_PERMISSION_ALLOW_WITHOUT_APPROVAL';
+
 export interface PermissionData {
   mode: PermissionMode;
   rules: PermissionRule[];
