@@ -14,6 +14,7 @@ import {
 
 import { currentTheme } from '#/tui/theme';
 
+import { applyEditorChromeChase } from './editor-chrome-motion';
 import type { TUIEditorInputMode } from './editor-contract';
 
 export interface NativeTUIEditorRenderHost {
@@ -109,7 +110,7 @@ export function buildNativeTUIEditorSurface(host: NativeTUIEditorRenderHost, wid
     overlays: overlayLines,
     overlayPlacement,
   });
-  return renderRendererEditorSurface({
+  const surface = renderRendererEditorSurface({
     width: safeWidth,
     frameRows: surfaceLayout.frameRows,
     content,
@@ -131,6 +132,10 @@ export function buildNativeTUIEditorSurface(host: NativeTUIEditorRenderHost, wid
     surfaceStyle: editorStyles.surfaceStyle,
     slashTokenStyle: host.inputMode === 'bash' ? undefined : editorStyles.slashTokenStyle,
   });
+  return {
+    ...surface,
+    lines: applyEditorChromeChase(surface.lines),
+  };
 }
 
 export function measureNativeTUIEditorLayoutRowCount(
