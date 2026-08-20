@@ -1223,14 +1223,16 @@ describe('LioraTUI resume message replay', () => {
     }
 
     const driver = await replayIntoDriver(records);
-    const rendered = stripAnsi(driver.state.transcriptContainer.render(140).join('\n'));
+    // Assert the entry list, not transcriptContainer.render() — that is a
+    // viewport slice and can sit mid-window on Windows after hydrate.
+    const listed = driver.state.transcriptEntries.map((entry) => entry.content).join('\n');
 
     // Only the trailing turn window is projected into the transcript.
-    expect(rendered).toContain(`long-session prompt ${turnCount - 1}`);
-    expect(rendered).toContain(`long-session reply ${turnCount - 1}`);
+    expect(listed).toContain(`long-session prompt ${turnCount - 1}`);
+    expect(listed).toContain(`long-session reply ${turnCount - 1}`);
     // Do not use a bare "prompt 0" substring — "prompt 30" contains it.
-    expect(rendered).not.toMatch(/long-session prompt 0(?!\d)/);
-    expect(rendered).not.toMatch(/long-session reply 0(?!\d)/);
+    expect(listed).not.toMatch(/long-session prompt 0(?!\d)/);
+    expect(listed).not.toMatch(/long-session reply 0(?!\d)/);
 
     const userEntries = driver.state.transcriptEntries.filter((entry) => entry.kind === 'user');
     expect(userEntries.length).toBeLessThanOrEqual(REPLAY_TURN_LIMIT);
