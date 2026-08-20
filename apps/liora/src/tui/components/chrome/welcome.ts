@@ -1,11 +1,12 @@
 /**
  * Welcome panel shown at the top of the TUI.
- * Renders a round-bordered box with a figlet banner, session, model, and version.
+ * Renders the figlet hero inside the same live rounded frame as Command Hub
+ * (breath + comet chase; static borderFocus when motion is off).
  */
 
 import type { ModelAlias } from '@superliora/sdk';
 import type { Component } from '#/tui/renderer';
-import { renderRendererFrameRows, truncateToWidth } from '#/tui/renderer';
+import { truncateToWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
@@ -14,8 +15,10 @@ import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-lay
 import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
   renderMeteorField,
   renderParticleRail,
+  renderPremiumBoxFrame,
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
@@ -34,6 +37,8 @@ function formatWelcomeModelLabel(state: AppState, activeModel: ModelAlias | unde
 
 export class WelcomeComponent implements Component {
   private state: AppState;
+  /** First boxed paint — entry bloom for the live frame, then idle chase. */
+  private openedAtMs: number | undefined;
 
   constructor(state: AppState) {
     this.state = state;
@@ -43,7 +48,6 @@ export class WelcomeComponent implements Component {
 
   render(width: number): string[] {
     const safeWidth = Math.max(0, width);
-    const primary = (s: string): string => chalk.hex(currentTheme.palette.primary)(s);
     const isLoggedOut = !this.state.model;
     const activeModel = this.state.availableModels[this.state.model];
     const layout = resolveResponsiveLayout({ width: safeWidth });
@@ -122,21 +126,21 @@ export class WelcomeComponent implements Component {
           )
         : [];
 
-    return [
-      '',
-      ...renderRendererFrameRows({
-        content: [
-          renderParticleRail(safeWidth - 2, appearance, 'welcome-top'),
-          ...contentLines.map((content) => `  ${truncateToWidth(content, innerWidth, '…')}`),
-          ...(meteorField.length > 0 ? ['', ...meteorField] : []),
-        ],
+    this.openedAtMs ??= appearanceAnimationNow();
+    const frame = renderPremiumBoxFrame(
+      [
+        renderParticleRail(safeWidth - 2, appearance, 'welcome-top'),
+        ...contentLines.map((content) => `  ${truncateToWidth(content, innerWidth, '…')}`),
+        ...(meteorField.length > 0 ? ['', ...meteorField] : []),
+        '',
+      ],
+      {
         width: safeWidth,
-        height: contentLines.length + 4 + (meteorField.length > 0 ? meteorField.length + 1 : 0),
-        borderKind: 'rounded',
-        borderStyle: primary,
-        ellipsis: '…',
-      }),
-      '',
-    ];
+        appearance,
+        openedAtMs: this.openedAtMs,
+      },
+    );
+
+    return ['', ...frame, ''];
   }
 }
