@@ -194,10 +194,10 @@ export function mergeWindowsTerminalSettings(current, options = {}) {
     ? next.profiles.defaults
     : {};
   next.profiles.defaults.font = {
-    ...(next.profiles.defaults.font ?? {}),
+    ...next.profiles.defaults.font,
     face: fontFace,
     size: next.profiles.defaults.font?.size ?? 13,
-    features: { calt: 1, liga: 1, ...(next.profiles.defaults.font?.features ?? {}) },
+    features: { calt: 1, liga: 1, ...next.profiles.defaults.font?.features },
   };
   next.profiles.defaults.colorScheme = SUPERLIORA_WT_SCHEME_NAME;
   next.profiles.defaults.useAcrylic = true;

@@ -157,8 +157,8 @@ describe('showTranscriptDetailPicker', () => {
     const byValue = Object.fromEntries(
       picker.opts.options.map((option) => [option.value, option.description ?? '']),
     );
-    expect(byValue.compact).toMatch(/default/i);
-    expect(byValue.standard).not.toMatch(/default/i);
-    expect(byValue.standard).toMatch(/preview cards/i);
+    expect(byValue['compact']).toMatch(/default/i);
+    expect(byValue['standard']).not.toMatch(/default/i);
+    expect(byValue['standard']).toMatch(/preview cards/i);
   });
 });

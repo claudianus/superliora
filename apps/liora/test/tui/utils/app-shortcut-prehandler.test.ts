@@ -215,10 +215,10 @@ describe('OS primary-modifier app shortcuts', () => {
   function bindAppChords(state: ReturnType<typeof createState>) {
     const copySelectedTranscript = vi.fn();
     const showCommandHub = vi.fn();
-    const pasteMedia = vi.fn();
+    const pasteMedia = vi.fn(async () => true);
     state.editor.onCtrlC = copySelectedTranscript;
     state.editor.onCommandHub = showCommandHub;
-    state.editor.onPasteMedia = pasteMedia;
+    state.editor.onPasteImage = pasteMedia;
     return { state, copySelectedTranscript, showCommandHub, pasteMedia };
   }
 
