@@ -101,3 +101,56 @@ describe('scripts/install/ensure-git', () => {
     }
   });
 });
+
+describe('scripts/install source checkout recovery', () => {
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
+  it('replaces a hollow install dir instead of fetching into it', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const { existsSync, mkdirSync, mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { fetchSource } = await import('../../../../scripts/install/source.mjs');
+    const { hasUsableGitObjectStore } = await import('../../../../scripts/install/checkout-health.mjs');
+
+    const upstream = mkdtempSync(join(tmpdir(), 'liora-src-up-'));
+    tempDirs.push(upstream);
+    const run = (dir: string, args: readonly string[]): string =>
+      execFileSync('git', ['-C', dir, ...args], { encoding: 'utf-8' }).trim();
+    run(upstream, ['init', '--initial-branch=main']);
+    run(upstream, ['config', 'user.email', 'test@example.com']);
+    run(upstream, ['config', 'user.name', 'Test']);
+    writeFileSync(join(upstream, 'package.json'), '{"name":"superliora-fixture","private":true}\n');
+    run(upstream, ['add', 'package.json']);
+    run(upstream, ['commit', '-m', 'init']);
+
+    const parent = mkdtempSync(join(tmpdir(), 'liora-src-dest-'));
+    tempDirs.push(parent);
+    const installDir = join(parent, 'source');
+    mkdirSync(join(installDir, '.git', 'refs', 'heads'), { recursive: true });
+    writeFileSync(join(installDir, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    writeFileSync(
+      join(installDir, '.git', 'refs', 'heads', 'main'),
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n',
+    );
+    writeFileSync(
+      join(installDir, '.git', 'config'),
+      '[remote "origin"]\n\turl = https://github.com/claudianus/superliora.git\n',
+    );
+    expect(hasUsableGitObjectStore(installDir)).toBe(false);
+
+    const result = await fetchSource({
+      repoUrl: upstream,
+      ref: 'main',
+      installDir,
+      force: true,
+    });
+    expect(result.installDir).toBe(installDir);
+    expect(existsSync(join(installDir, 'package.json'))).toBe(true);
+    expect(hasUsableGitObjectStore(installDir)).toBe(true);
+    expect(existsSync(`${installDir}.partial`)).toBe(false);
+  });
+});
+

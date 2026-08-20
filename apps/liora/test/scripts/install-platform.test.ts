@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   commandFileName,
   DEFAULT_PNPM_VERSION,
+  defaultInstallDir,
   githubArchiveUrl,
   hostPathExists,
   manifestUrlForVersion,
@@ -73,6 +74,17 @@ describe('scripts/install/platform', () => {
     symlinkSync(join(dir, 'no-such-target.exe'), alias);
     expect(existsSync(alias)).toBe(false);
     expect(hostPathExists(alias)).toBe(true);
+  });
+
+  it('points defaultInstallDir at SUPERLIORA_HOME/source when set', () => {
+    const previous = process.env['SUPERLIORA_HOME'];
+    process.env['SUPERLIORA_HOME'] = '/tmp/sl-home';
+    try {
+      expect(defaultInstallDir().replaceAll('\\', '/')).toBe('/tmp/sl-home/source');
+    } finally {
+      if (previous === undefined) delete process.env['SUPERLIORA_HOME'];
+      else process.env['SUPERLIORA_HOME'] = previous;
+    }
   });
 
   it('derives GitHub archive URLs', () => {

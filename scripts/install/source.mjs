@@ -1,12 +1,16 @@
 /**
  * Source checkout / archive + pnpm build fallback.
+ *
+ * The managed install dir (~/.superliora/source) is replaced atomically.
+ * A failed clone must never remain at that path as a detectible checkout.
  */
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rename, rm, statfs } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import { hasUsableGitObjectStore, isHealthySourceCheckout, summarizeGitFailure } from './checkout-health.mjs';
 import { downloadToFile } from './download.mjs';
 import { ensurePnpm } from './ensure-pnpm.mjs';
 import { spawnInstall } from './spawn.mjs';
@@ -17,6 +21,8 @@ import {
   githubArchiveZipUrl,
 } from './platform.mjs';
 
+const MIN_FREE_BYTES = 512 * 1024 * 1024;
+
 /**
  * @returns {Promise<{ installDir: string, method: 'git'|'archive' }>}
  */
@@ -25,21 +31,48 @@ export async function fetchSource(options) {
   const ref = options.ref ?? DEFAULT_REF;
   const installDir = options.installDir;
   const force = Boolean(options.force);
+  const stagingDir = `${installDir}.partial`;
 
-  if (existsSync(installDir) && !existsSync(join(installDir, '.git')) && !existsSync(join(installDir, 'package.json'))) {
+  await rm(stagingDir, { recursive: true, force: true });
+  await mkdir(dirname(installDir), { recursive: true });
+  await assertEnoughDisk(dirname(installDir));
+
+  if (
+    existsSync(installDir)
+    && existsSync(join(installDir, '.git'))
+    && !hasUsableGitObjectStore(installDir)
+  ) {
+    await rm(installDir, { recursive: true, force: true });
+  } else if (
+    existsSync(installDir)
+    && !existsSync(join(installDir, '.git'))
+    && !existsSync(join(installDir, 'package.json'))
+  ) {
     if (!force) {
       throw new Error(`${installDir} exists but is not a SuperLiora checkout; pass --force`);
     }
     await rm(installDir, { recursive: true, force: true });
   }
 
-  if (hasGit() && (existsSync(join(installDir, '.git')) || !existsSync(installDir))) {
-    await syncGit(repoUrl, ref, installDir, force);
-    return { installDir, method: 'git' };
+  let gitError = null;
+  if (hasGit() && (hasUsableGitObjectStore(installDir) || !existsSync(installDir))) {
+    try {
+      await syncGit(repoUrl, ref, installDir, stagingDir, force);
+      return { installDir, method: 'git' };
+    } catch (error) {
+      gitError = error;
+      await rm(stagingDir, { recursive: true, force: true });
+    }
   }
 
-  await fetchArchive(repoUrl, ref, installDir, force);
-  return { installDir, method: 'archive' };
+  try {
+    await fetchArchive(repoUrl, ref, installDir, force);
+    return { installDir, method: 'archive' };
+  } catch (archiveError) {
+    const gitDetail = gitError instanceof Error ? summarizeGitFailure(gitError.message) : '';
+    const archiveDetail = archiveError instanceof Error ? archiveError.message : String(archiveError);
+    throw new Error(gitDetail ? `${gitDetail} · ${archiveDetail}` : archiveDetail);
+  }
 }
 
 export async function buildSource(installDir, resolved) {
@@ -67,28 +100,73 @@ function hasGit() {
   return r.status === 0;
 }
 
-async function syncGit(repoUrl, ref, installDir, force) {
-  if (existsSync(join(installDir, '.git'))) {
+function withLongpaths(args) {
+  if (args[0] === '-C') {
+    return [args[0], args[1], '-c', 'core.longpaths=true', ...args.slice(2)];
+  }
+  return ['-c', 'core.longpaths=true', ...args];
+}
+
+async function syncGit(repoUrl, ref, installDir, stagingDir, force) {
+  if (hasUsableGitObjectStore(installDir)) {
     runGit(['-C', installDir, 'remote', 'set-url', 'origin', repoUrl]);
     runGit(['-C', installDir, 'fetch', '--depth', '1', 'origin', ref]);
     runGit(['-C', installDir, '-c', 'advice.detachedHead=false', 'checkout', '--force', '-B', ref, 'FETCH_HEAD']);
     runGit(['-C', installDir, 'reset', '--hard', 'FETCH_HEAD']);
+    runGit(['-C', installDir, 'config', 'core.longpaths', 'true']);
+    if (!isHealthySourceCheckout(installDir)) {
+      throw new Error('source checkout is incomplete after fetch');
+    }
     return;
   }
   if (existsSync(installDir)) {
-    if (!force) throw new Error(`${installDir} exists; pass --force`);
+    if (!force && existsSync(join(installDir, 'package.json'))) {
+      throw new Error(`${installDir} exists; pass --force`);
+    }
     await rm(installDir, { recursive: true, force: true });
   }
   await mkdir(dirname(installDir), { recursive: true });
-  runGit(['clone', '--depth', '1', repoUrl, installDir]);
-  runGit(['-C', installDir, 'fetch', '--depth', '1', 'origin', ref]);
-  runGit(['-C', installDir, '-c', 'advice.detachedHead=false', 'checkout', '--force', '-B', ref, 'FETCH_HEAD']);
+  await rm(stagingDir, { recursive: true, force: true });
+  try {
+    runGit(['clone', '--depth', '1', repoUrl, stagingDir]);
+    runGit(['-C', stagingDir, 'fetch', '--depth', '1', 'origin', ref]);
+    runGit(['-C', stagingDir, '-c', 'advice.detachedHead=false', 'checkout', '--force', '-B', ref, 'FETCH_HEAD']);
+    runGit(['-C', stagingDir, 'config', 'core.longpaths', 'true']);
+    if (!isHealthySourceCheckout(stagingDir)) {
+      throw new Error('source checkout is incomplete after clone');
+    }
+    await rm(installDir, { recursive: true, force: true });
+    await rename(stagingDir, installDir);
+  } catch (error) {
+    await rm(stagingDir, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function runGit(args) {
-  const result = spawnSync('git', args, { encoding: 'utf8', stdio: 'inherit' });
+  const argv = withLongpaths(args);
+  const result = spawnSync('git', argv, { encoding: 'utf8' });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
   if (result.status !== 0) {
-    throw new Error(`git ${args.join(' ')} failed`);
+    const detail = summarizeGitFailure(`${result.stderr ?? ''}\n${result.stdout ?? ''}`);
+    throw new Error(detail || `git ${args.join(' ')} failed`);
+  }
+}
+
+async function assertEnoughDisk(dir) {
+  try {
+    const stats = await statfs(dir);
+    const free = Number(stats.bavail) * Number(stats.bsize);
+    if (Number.isFinite(free) && free >= 0 && free < MIN_FREE_BYTES) {
+      throw new Error(
+        `not enough free disk space to install from source (${Math.floor(free / 1024 / 1024)} MiB free; need at least 512 MiB)`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('not enough free disk')) {
+      throw error;
+    }
   }
 }
 
@@ -138,7 +216,7 @@ async function fetchArchive(repoUrl, ref, installDir, force) {
 }
 
 async function promoteSingleChild(extractTmp, installDir) {
-  const { readdir, rename } = await import('node:fs/promises');
+  const { readdir } = await import('node:fs/promises');
   const kids = await readdir(extractTmp);
   if (kids.length !== 1) {
     throw new Error(`Unexpected archive layout under ${extractTmp}`);

@@ -9,6 +9,7 @@ import {
 import { spawnForSource, spawnOptionsForSource } from './install-spawn';
 import {
   parseUpgradeStageLine,
+  summarizeGitFailure,
   type UpgradeInstallStage,
 } from './install-stages';
 import { emptyUpdateInstallState, readUpdateInstallState, writeUpdateInstallState } from './install-state';
@@ -128,14 +129,14 @@ export async function startObservedUpgradeInstall(
       if (trimmed.length === 0 || parseUpgradeStageLine(trimmed) !== null) return;
       const buf = fromStderr ? stderrLines : stdoutLines;
       buf.push(trimmed);
-      if (buf.length > 8) buf.shift();
+      if (buf.length > 24) buf.shift();
     };
 
     const failureDetail = (): string | undefined => {
       const lines = stderrLines.length > 0 ? stderrLines : stdoutLines;
       if (lines.length === 0) return undefined;
-      const summary = lines.slice(-2).join(' · ');
-      return summary.length > 160 ? `${summary.slice(0, 157)}…` : summary;
+      const summary = summarizeGitFailure(lines.join('\n'), 200);
+      return summary.length > 0 ? summary : undefined;
     };
 
     const finish = (succeeded: boolean): void => {

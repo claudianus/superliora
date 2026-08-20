@@ -74,6 +74,8 @@ export function hostPathExists(path) {
 }
 
 export function defaultInstallDir() {
+  const override = process.env.SUPERLIORA_HOME?.trim();
+  if (override) return join(override, 'source');
   return join(defaultHome(), '.superliora', 'source');
 }
 

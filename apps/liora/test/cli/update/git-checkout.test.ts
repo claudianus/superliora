@@ -1,12 +1,16 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  detectSuperLioraGithubCheckout,
+  discardUnhealthyManagedCheckout,
+  findGitCheckoutRoot,
   gitCheckoutUpdateScript,
+  hasUsableGitObjectStore,
   isGitCheckoutDirty,
   refreshGitCheckoutUpdateTarget,
 } from '#/cli/update/git-checkout';
@@ -15,7 +19,7 @@ const tempDirs: string[] = [];
 
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
-    execFileSync('rm', ['-rf', dir]);
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 
@@ -68,6 +72,7 @@ describe('gitCheckoutUpdateScript', () => {
     expect(script).toContain('rev-parse --verify origin/main');
     expect(script).toContain("upstream='origin/master'");
     expect(script).toContain('fetch --depth 1 origin "$ref"');
+    expect(script).toContain('-c core.longpaths=true fetch --depth 1 origin "$ref"');
     // Align with install.sh: force-checkout, no dirty pre-check that traps upgrades.
     expect(script).not.toContain('diff --quiet');
     expect(script).toContain('checkout --force -B "$ref" FETCH_HEAD');
@@ -164,5 +169,72 @@ describe('refreshGitCheckoutUpdateTarget', () => {
     runGit(sibling, ['push', '-f']);
     const result = await refreshGitCheckoutUpdateTarget(repoRoot);
     expect(result.status).toBe('diverged');
+  });
+
+  it('rejects a checkout whose HEAD object is missing', async () => {
+    const { remoteUrl } = initBareRemote();
+    const repoRoot = initCheckout(remoteUrl);
+    await expect(refreshGitCheckoutUpdateTarget(repoRoot)).resolves.toMatchObject({
+      status: 'up-to-date',
+    });
+    rmSync(join(repoRoot, '.git', 'objects'), { recursive: true, force: true });
+    mkdirSync(join(repoRoot, '.git', 'objects'));
+    await expect(refreshGitCheckoutUpdateTarget(repoRoot)).rejects.toThrow(
+      'source checkout is missing git objects',
+    );
+  });
+});
+
+function writeHollowCheckout(repoRoot: string): void {
+  mkdirSync(join(repoRoot, '.git', 'refs', 'heads'), { recursive: true });
+  writeFileSync(join(repoRoot, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+  writeFileSync(
+    join(repoRoot, '.git', 'refs', 'heads', 'main'),
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n',
+  );
+  writeFileSync(
+    join(repoRoot, '.git', 'config'),
+    '[remote "origin"]\n\turl = https://github.com/claudianus/superliora.git\n',
+  );
+}
+
+describe('detectSuperLioraGithubCheckout', () => {
+  it('returns null for a hollow clone that still has origin set', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'liora-hollow-'));
+    tempDirs.push(repoRoot);
+    writeHollowCheckout(repoRoot);
+    await expect(hasUsableGitObjectStore(repoRoot)).resolves.toBe(false);
+    await expect(detectSuperLioraGithubCheckout(repoRoot, { walkParents: false })).resolves.toBeNull();
+  });
+
+  it('does not walk above an explicit managed path', async () => {
+    const parent = mkdtempSync(join(tmpdir(), 'liora-managed-parent-'));
+    tempDirs.push(parent);
+    const nested = join(parent, 'source');
+    mkdirSync(nested, { recursive: true });
+    runGit(parent, ['init']);
+    runGit(parent, ['config', 'user.email', 'test@example.com']);
+    runGit(parent, ['config', 'user.name', 'Test']);
+    writeFileSync(join(parent, 'README.md'), 'parent\n');
+    runGit(parent, ['add', 'README.md']);
+    runGit(parent, ['commit', '-m', 'parent']);
+    runGit(parent, ['remote', 'add', 'origin', 'https://github.com/claudianus/superliora.git']);
+    expect(findGitCheckoutRoot(nested, { walkParents: false })).toBeNull();
+    await expect(detectSuperLioraGithubCheckout(nested, { walkParents: false })).resolves.toBeNull();
+  });
+});
+
+describe('discardUnhealthyManagedCheckout', () => {
+  it('removes a hollow managed tree and leaves a healthy one', async () => {
+    const hollow = mkdtempSync(join(tmpdir(), 'liora-discard-hollow-'));
+    tempDirs.push(hollow);
+    writeHollowCheckout(hollow);
+    await expect(discardUnhealthyManagedCheckout(hollow)).resolves.toBe(true);
+    expect(findGitCheckoutRoot(hollow, { walkParents: false })).toBeNull();
+
+    const { remoteUrl } = initBareRemote();
+    const healthy = initCheckout(remoteUrl);
+    await expect(discardUnhealthyManagedCheckout(healthy)).resolves.toBe(false);
+    await expect(hasUsableGitObjectStore(healthy)).resolves.toBe(true);
   });
 });

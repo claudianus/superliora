@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   getBinDir,
   getDataDir,
+  getSourceInstallDir,
   getInputHistoryFile,
   getLogDir,
   getUpdateInstallStateFile,
@@ -47,6 +48,17 @@ describe('getLogDir', () => {
   it('respects SUPERLIORA_HOME', () => {
     process.env['SUPERLIORA_HOME'] = '/z';
     expect(getLogDir()).toBe(join('/z', 'logs'));
+  });
+});
+
+describe('getSourceInstallDir', () => {
+  it('returns <dataDir>/source', () => {
+    expect(getSourceInstallDir()).toBe(join(homedir(), '.superliora', 'source'));
+  });
+
+  it('respects SUPERLIORA_HOME', () => {
+    process.env['SUPERLIORA_HOME'] = '/custom-source-home';
+    expect(getSourceInstallDir()).toBe(join('/custom-source-home', 'source'));
   });
 });
 
