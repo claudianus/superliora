@@ -1,6 +1,7 @@
-import { visibleWidth, type RendererRootUI } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import chalk from 'chalk';
 
+import { visibleWidth, type RendererRootUI } from '#/tui/renderer';
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { advanceAppearanceAnimationClock } from '#/tui/features/appearance/appearance-effects';
@@ -11,6 +12,19 @@ function strip(text: string): string {
 }
 
 const longThinking = ['line1', 'line2', 'line3', 'line4', 'line5', 'line6', 'line7'].join('\n');
+const previousChalkLevel = chalk.level;
+const previousEnv = {
+  TERM: process.env['TERM'],
+  CI: process.env['CI'],
+  NO_COLOR: process.env['NO_COLOR'],
+};
+
+function enableLiveMotion(): void {
+  process.env['TERM'] = 'xterm-256color';
+  delete process.env['CI'];
+  delete process.env['NO_COLOR'];
+  chalk.level = 3;
+}
 
 describe('ThinkingComponent', () => {
   beforeEach(() => {
@@ -19,6 +33,11 @@ describe('ThinkingComponent', () => {
 
   afterEach(() => {
     setActiveTranscriptDetail('standard');
+    chalk.level = previousChalkLevel;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
 
   it('shows the live spinner header and a short content glance while streaming', () => {
@@ -62,6 +81,7 @@ describe('ThinkingComponent', () => {
   });
 
   it('advances the live spinner frame with the animation clock and stops on finalize', () => {
+    enableLiveMotion();
     advanceAppearanceAnimationClock(0);
     const component = new ThinkingComponent('step', true, 'live', {
       requestRender: vi.fn(),
