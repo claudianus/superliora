@@ -66,7 +66,10 @@ jobs:
       # Windows runners are slower and run the whole suite (including
       # in-process e2e tests) under more contention, so the default 5s test
       # timeout causes flaky failures. Give it more headroom.
-      - run: pnpm run test -- --testTimeout=30000
+      # Default forks use cpus-1 workers; that OOMs windows-latest and
+      # fails the job with "Worker exited unexpectedly" after every
+      # reported test passed. Cap the pool (also set in vitest.config.ts).
+      - run: pnpm run test -- --testTimeout=30000 --maxWorkers=2
 
   lint:
     runs-on: ubuntu-latest
