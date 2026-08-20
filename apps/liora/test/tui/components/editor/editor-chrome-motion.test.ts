@@ -9,9 +9,12 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
+  setAppearanceTransportStability,
 } from '#/tui/features/appearance/appearance-effects';
 import { currentTheme, darkColors } from '#/tui/theme';
 import type { RendererCell, RendererRegionLine } from '#/tui/renderer';
+
+const MOTION_ENV_KEYS = ['TERM', 'NO_COLOR', 'SSH_TTY', 'SSH_CONNECTION', 'SSH_CLIENT'] as const;
 
 const off = { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' as const };
 const premium = {
@@ -71,28 +74,29 @@ function borderHexes(lines: readonly RendererRegionLine[]): string[] {
   return hexes;
 }
 
-const previousEnv = {
-  TERM: process.env['TERM'],
-  CI: process.env['CI'],
-  NO_COLOR: process.env['NO_COLOR'],
-};
+function restoreRunnerMotionEnv(): void {
+  // Do not snapshot process.env at module load. A sibling file in this worker
+  // may already have leaked TERM=dumb / NO_COLOR; restoring that snapshot would
+  // hand the leak to later files (thinking / progress / chrome-band).
+  for (const key of MOTION_ENV_KEYS) delete process.env[key];
+  process.env['CI'] = process.env['GITHUB_ACTIONS'] ?? process.env['CI'] ?? 'true';
+}
 
-function restoreEnv(): void {
-  for (const [key, value] of Object.entries(previousEnv)) {
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
-  }
+function resetAppearanceForTests(): void {
+  currentTheme.setPalette(darkColors);
+  setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  setAppearanceRenderHealth('healthy');
+  setAppearanceRenderQuality('full');
+  setAppearanceTransportStability('synchronized');
 }
 
 beforeEach(() => {
-  currentTheme.setPalette(darkColors);
-  setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  resetAppearanceForTests();
 });
 
 afterEach(() => {
-  currentTheme.setPalette(darkColors);
-  setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
-  restoreEnv();
+  resetAppearanceForTests();
+  restoreRunnerMotionEnv();
 });
 
 describe('editorChromePerimeterIndex', () => {
