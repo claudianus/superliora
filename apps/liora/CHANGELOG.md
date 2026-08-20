@@ -1,5 +1,15 @@
 # @superliora/liora
 
+## 0.12.8
+
+### Patch Changes
+
+- Pick a roomy drive for the SuperLiora data home (~100 GB free). On Windows, use another drive when the profile disk is tight, and set SUPERLIORA_HOME to keep it there.
+- Recover a broken or hollow source checkout on `liora upgrade --main`, including Windows longpaths and atomic replace.
+- Keep the resolved Node on PATH for source upgrades, and recognize the prebuilt wrapper marker so native can switch to source.
+- Survive a full disk without crashing (ENOSPC / SQLITE_FULL) and reclaim cache, tmp, and logs.
+- Close permission gaps: unwrap env secrets, tighten OAuth state and Windows secret paths, and do not auto `git add -A` of `.env`.
+
 ## 0.12.7
 
 ### Patch Changes
