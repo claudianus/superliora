@@ -100,6 +100,31 @@ describe('scripts/install/host-setup', () => {
     expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain('Exec=/home/dev/.local/bin/liora');
   });
 
+  it('skipPackages does not probe the Windows desktop folder', async () => {
+    const result = await ensureHostSetup({
+      platform: 'win32',
+      skipPackages: true,
+      noShellRc: true,
+      env: {
+        USERPROFILE: 'E:\\Users\\dev',
+        LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
+        SUPERLIORA_NO_NERD_FONT: '1',
+        SUPERLIORA_NO_SHELL_VIBE: '1',
+      },
+      isFile: () => false,
+      which: () => undefined,
+      listAppx: () => undefined,
+      resolveWindowsDesktop: () => {
+        throw new Error('should not resolve Desktop during upgrade refresh');
+      },
+      writeShortcut: async () => {
+        throw new Error('should not write desktop shortcut');
+      },
+      readText: () => '',
+    });
+    expect(result.desktopShortcutWritten).toBe(false);
+  });
+
   it('does not write a Windows desktop shortcut when skipTerminal is set', async () => {
     const result = await ensureHostSetup({
       platform: 'win32',

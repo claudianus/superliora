@@ -291,7 +291,7 @@ function defaultWindowsKnownDesktop() {
   const ps = spawnSync(
     'powershell',
     ['-NoProfile', '-Command', '[Environment]::GetFolderPath("Desktop")'],
-    { encoding: 'utf8', windowsHide: true },
+    { encoding: 'utf8', windowsHide: true, timeout: 8_000 },
   );
   if (ps.status !== 0) return undefined;
   const dir = (ps.stdout ?? '').trim();
