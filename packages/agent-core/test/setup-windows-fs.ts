@@ -12,6 +12,9 @@ import { closeTrackedSqliteHandlesUnder } from '../src/runtime/sqlite-handles';
 
 const fs = createRequire(import.meta.url)('node:fs') as typeof import('node:fs');
 
+const MAX_RM_ATTEMPTS = 24;
+const RM_RETRY_BASE_MS = 50;
+
 function isLockError(error: unknown): boolean {
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
   return code === 'EPERM' || code === 'EBUSY' || code === 'ENOTEMPTY' || code === 'EACCES';
@@ -28,14 +31,14 @@ function wrapSyncRm(
     const target = String(path);
     closeTrackedSqliteHandlesUnder(target);
     let last: unknown;
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    for (let attempt = 0; attempt < MAX_RM_ATTEMPTS; attempt += 1) {
       try {
         orig(path, options);
         return;
       } catch (error) {
         last = error;
-        if (!isLockError(error) || attempt === 11) throw error;
-        syncSleep(25 * (attempt + 1));
+        if (!isLockError(error) || attempt === MAX_RM_ATTEMPTS - 1) throw error;
+        syncSleep(RM_RETRY_BASE_MS * (attempt + 1));
         closeTrackedSqliteHandlesUnder(target);
       }
     }
@@ -48,14 +51,14 @@ function wrapSyncUnlink(orig: (path: fs.PathLike) => void): (path: fs.PathLike) 
     const target = String(path);
     closeTrackedSqliteHandlesUnder(target);
     let last: unknown;
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    for (let attempt = 0; attempt < MAX_RM_ATTEMPTS; attempt += 1) {
       try {
         orig(path);
         return;
       } catch (error) {
         last = error;
-        if (!isLockError(error) || attempt === 11) throw error;
-        syncSleep(25 * (attempt + 1));
+        if (!isLockError(error) || attempt === MAX_RM_ATTEMPTS - 1) throw error;
+        syncSleep(RM_RETRY_BASE_MS * (attempt + 1));
         closeTrackedSqliteHandlesUnder(target);
       }
     }
@@ -70,14 +73,14 @@ function wrapAsyncRm(
     const target = String(path);
     closeTrackedSqliteHandlesUnder(target);
     let last: unknown;
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    for (let attempt = 0; attempt < MAX_RM_ATTEMPTS; attempt += 1) {
       try {
         await orig(path, options);
         return;
       } catch (error) {
         last = error;
-        if (!isLockError(error) || attempt === 11) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+        if (!isLockError(error) || attempt === MAX_RM_ATTEMPTS - 1) throw error;
+        await new Promise((resolve) => setTimeout(resolve, RM_RETRY_BASE_MS * (attempt + 1)));
         closeTrackedSqliteHandlesUnder(target);
       }
     }
@@ -90,14 +93,14 @@ function wrapAsyncUnlink(orig: (path: fs.PathLike) => Promise<void>): (path: fs.
     const target = String(path);
     closeTrackedSqliteHandlesUnder(target);
     let last: unknown;
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    for (let attempt = 0; attempt < MAX_RM_ATTEMPTS; attempt += 1) {
       try {
         await orig(path);
         return;
       } catch (error) {
         last = error;
-        if (!isLockError(error) || attempt === 11) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+        if (!isLockError(error) || attempt === MAX_RM_ATTEMPTS - 1) throw error;
+        await new Promise((resolve) => setTimeout(resolve, RM_RETRY_BASE_MS * (attempt + 1)));
         closeTrackedSqliteHandlesUnder(target);
       }
     }

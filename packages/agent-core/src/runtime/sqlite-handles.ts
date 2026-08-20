@@ -52,12 +52,16 @@ export function closeTrackedSqliteHandlesUnder(target: string): void {
   }
 }
 
+function stripExtendedWinPath(path: string): string {
+  return path.replace(/^\\\\\?\\/, '');
+}
+
 function handleCoversPath(handlePath: string, target: string): boolean {
   if (handlePath === ':memory:' || target === ':memory:') {
     return handlePath === target;
   }
-  const handle = resolve(handlePath);
-  const dest = resolve(target);
+  const handle = resolve(stripExtendedWinPath(handlePath));
+  const dest = resolve(stripExtendedWinPath(target));
   if (pathsEqual(handle, dest)) return true;
   if (dest.startsWith(`${handle}-`)) return true;
   const rel = relative(dest, handle);

@@ -71,6 +71,11 @@ describe('session worktree helpers', () => {
     }
   });
 
+  it('treats 8.3 short names and realpath as the same worktree root', async () => {
+    const dir = await makeTempDir('liora-wt-canon-');
+    expect(sessionWorktreePathsEqual(dir, await realpath(dir))).toBe(true);
+  });
+
   it('normalizes and rejects invalid names', () => {
     expect(normalizeWorktreeName('Fix Auth')).toBe('fix-auth');
     expect(() => normalizeWorktreeName('../escape')).toThrow(LioraError);

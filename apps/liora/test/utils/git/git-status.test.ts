@@ -40,6 +40,9 @@ describe('git status cache', () => {
       if (args.includes('rev-parse')) {
         return { status: 0, stdout: 'true\n' };
       }
+      if (args.at(-1) === 'remote') {
+        return { status: 0, stdout: 'origin\n' };
+      }
       if (args.includes('branch')) {
         return { status: 0, stdout: 'main\n' };
       }
@@ -79,19 +82,19 @@ describe('git status cache', () => {
       changedFiles: ['M src/app.ts'],
       pullRequest: null,
     });
-    expect(mocks.spawnSync).toHaveBeenCalledTimes(4);
+    expect(mocks.spawnSync).toHaveBeenCalledTimes(5);
     expect(mocks.execFile).toHaveBeenCalledTimes(1);
 
     await Promise.resolve();
 
     vi.setSystemTime(new Date('2026-04-24T00:00:06Z'));
     cache.getStatus();
-    expect(mocks.spawnSync).toHaveBeenCalledTimes(5);
+    expect(mocks.spawnSync).toHaveBeenCalledTimes(6);
     expect(mocks.execFile).toHaveBeenCalledTimes(1);
 
     vi.setSystemTime(new Date('2026-04-24T00:00:16Z'));
     cache.getStatus();
-    expect(mocks.spawnSync).toHaveBeenCalledTimes(8);
+    expect(mocks.spawnSync).toHaveBeenCalledTimes(9);
     expect(mocks.execFile).toHaveBeenCalledTimes(1);
   });
 
@@ -110,6 +113,9 @@ describe('git status cache', () => {
     mocks.spawnSync.mockImplementation((_cmd: string, args: string[]) => {
       if (args.includes('rev-parse')) {
         return { status: 0, stdout: 'true\n' };
+      }
+      if (args.at(-1) === 'remote') {
+        return { status: 0, stdout: 'origin\n' };
       }
       if (args.includes('branch')) {
         return { status: 0, stdout: 'feature/footer\n' };
@@ -171,6 +177,9 @@ describe('git status cache', () => {
       if (args.includes('rev-parse')) {
         return { status: 0, stdout: 'true\n' };
       }
+      if (args.at(-1) === 'remote') {
+        return { status: 0, stdout: 'origin\n' };
+      }
       if (args.includes('branch')) {
         return { status: 0, stdout: 'main\n' };
       }
@@ -214,6 +223,43 @@ describe('git status cache', () => {
       changedFiles: ['M src/app.ts'],
       pullRequest: null,
     });
+  });
+
+  it('skips pull-request lookup when the repo has no remotes', async () => {
+    mocks.execFile.mockImplementation(
+      (
+        _cmd: string,
+        _args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        callback(null, '{"number":1,"url":"https://github.com/acme/repo/pull/1"}\n', '');
+      },
+    );
+    mocks.spawnSync.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('rev-parse')) {
+        return { status: 0, stdout: 'true\n' };
+      }
+      if (args.at(-1) === 'remote') {
+        return { status: 0, stdout: '\n' };
+      }
+      if (args.includes('branch')) {
+        return { status: 0, stdout: 'main\n' };
+      }
+      if (args.includes('status')) {
+        return { status: 0, stdout: '## main\n M a.ts\n' };
+      }
+      if (args.includes('diff')) {
+        return { status: 0, stdout: '1\t0\ta.ts\n' };
+      }
+      return { status: 1, stdout: '' };
+    });
+
+    const cache = createGitStatusCache('/tmp/repo');
+    expect(cache.getStatus()?.dirty).toBe(true);
+    await Promise.resolve();
+    expect(mocks.execFile).not.toHaveBeenCalled();
+    expect(cache.getStatus()?.pullRequest).toBeNull();
   });
 
   it('returns null when the working directory is not a git repo and formats badges', () => {
@@ -261,6 +307,9 @@ describe('git status cache', () => {
     mocks.spawnSync.mockImplementation((_cmd: string, args: string[]) => {
       if (args.includes('rev-parse')) {
         return { status: 0, stdout: 'true\n' };
+      }
+      if (args.at(-1) === 'remote') {
+        return { status: 0, stdout: 'origin\n' };
       }
       if (args.includes('branch')) {
         return { status: 0, stdout: 'main\n' };

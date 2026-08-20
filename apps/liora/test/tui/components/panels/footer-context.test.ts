@@ -217,7 +217,11 @@ describe('FooterComponent — context NaN resilience', () => {
       expect(strip(line2 ?? '')).toContain('next: review changes');
       expect(strip(line2 ?? '')).not.toContain('next: describe task');
     } finally {
-      rmSync(workDir, { recursive: true, force: true });
+      try {
+        rmSync(workDir, { recursive: true, force: true });
+      } catch {
+        // Windows can keep a git/gh handle on the temp worktree after spawnSync.
+      }
     }
   });
 

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
+import { mkdir, readFile, readdir, realpath, rm, stat } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'pathe';
 import { LocalKaos, type Kaos } from '@superliora/kaos';
 
@@ -130,10 +131,20 @@ function foldWorktreePath(path: string): string {
   return process.platform === 'win32' ? unified.toLowerCase() : unified;
 }
 
-/** Compare paths allowing macOS /var vs /private/var and Windows drive-letter case. */
+/** Expand 8.3 short names and symlinks; fall back to resolve when the path is gone. */
+function canonicalizeWorktreePath(path: string): string {
+  const resolved = resolve(path);
+  try {
+    return foldWorktreePath(realpathSync(resolved));
+  } catch {
+    return foldWorktreePath(resolved);
+  }
+}
+
+/** Compare paths allowing macOS /var vs /private/var and Windows 8.3 / drive-letter case. */
 function pathEquals(a: string, b: string): boolean {
-  const ra = foldWorktreePath(resolve(a));
-  const rb = foldWorktreePath(resolve(b));
+  const ra = canonicalizeWorktreePath(a);
+  const rb = canonicalizeWorktreePath(b);
   if (ra === rb) return true;
   const strip = (p: string) => (p.startsWith('/private/') ? p.slice('/private'.length) : p);
   return strip(ra) === strip(rb);
@@ -228,7 +239,12 @@ export async function resolveGitRepoRoot(kaos: Kaos, cwd: string): Promise<strin
       details: { cwd },
     });
   }
-  return resolve(root);
+  const resolved = resolve(root);
+  try {
+    return await realpath(resolved);
+  } catch {
+    return resolved;
+  }
 }
 
 export function repoSlugForRoot(repoRoot: string): string {
