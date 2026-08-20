@@ -44,7 +44,7 @@ export class SessionReplayRenderer {
     this.host.state.transcriptContainer.beginBatchMount();
     this.host.motionBeats.play({
       name: 'session_resume',
-      title: 'Resuming session',
+      title: ttui('tui.notice.resuming'),
       seed: 'resume',
       nowMs: appearanceAnimationNow(),
     });

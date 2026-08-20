@@ -98,7 +98,7 @@ export class SessionEventGoalQueue {
       this.host.motionBeats.play({
         name: 'status_open',
         seed: 'goal-xp',
-        title: 'Goal progress',
+        title: ttui('tui.notice.goalProgress'),
         nowMs: appearanceAnimationNow(),
       });
     }
@@ -131,7 +131,7 @@ export class SessionEventGoalQueue {
       this.host.motionBeats.play({
         name: 'goal_complete',
         seed: `goal:${event.snapshot.goalId}`,
-        title: 'Goal complete',
+        title: ttui('tui.notice.goalComplete'),
         nowMs: appearanceAnimationNow(),
       });
       this.host.appendTranscriptEntry({

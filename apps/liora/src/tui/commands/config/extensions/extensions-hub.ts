@@ -6,6 +6,7 @@ import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 import { showClaudeImportPanel } from './claude-import-panel';
 import { showMcpManagePanel } from '../mcp/mcp-manage';
 import { showSkillsManagePanel } from '../skills/skills-manage';
@@ -14,34 +15,34 @@ export function showExtensionsHub(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Extensions',
-      hint: '↑↓ · Enter · Esc · install/toggle hot-reloads session',
+      title: ttui('tui.extensions.modal.title'),
+      hint: ttui('tui.extensions.hub.hint'),
       searchable: true,
       options: [
         {
           value: 'plugins',
-          label: 'Plugins',
-          description: 'Install, enable, disable, remove, marketplace.',
+          label: ttui('tui.extensions.tab.plugins'),
+          description: ttui('tui.extensions.hub.pluginsDesc'),
         },
         {
           value: 'skills',
-          label: 'Skills',
-          description: 'Enable/disable skills for slash activation.',
+          label: ttui('tui.extensions.tab.skills'),
+          description: ttui('tui.extensions.hub.skillsDesc'),
         },
         {
           value: 'mcp',
-          label: 'MCP servers',
-          description: 'Install, toggle, remove, reload (mcp.json).',
+          label: ttui('tui.extensions.hub.mcp'),
+          description: ttui('tui.extensions.hub.mcpManageDesc'),
         },
         {
           value: 'import-claude',
-          label: 'Import from Claude Code',
-          description: 'Skills + MCP from ~/.claude; plugins via .claude-plugin/plugin.json.',
+          label: ttui('tui.extensions.hub.claude'),
+          description: ttui('tui.extensions.hub.claudeDesc'),
         },
         {
           value: 'core-waist',
-          label: 'Core waist (≤12 tools)',
-          description: 'Mission/Fleet surface — /profile core, then /new.',
+          label: ttui('tui.extensions.hub.coreWaist'),
+          description: ttui('tui.extensions.hub.coreWaistDesc'),
         },
       ],
       onSelect: (value) => {
@@ -70,6 +71,6 @@ export function showExtensionsHub(host: SlashCommandHost): void {
       },
       onCancel: () =>{  dismissPickerDialog(host); },
     }),
-    { label: 'Extensions' },
+    { label: ttui('tui.extensions.modal.title') },
   );
 }

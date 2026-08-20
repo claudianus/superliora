@@ -9,6 +9,8 @@
  */
 
 import { STAGE_MARKER_PREFIX } from './platform.mjs';
+import { detectInstallLocale } from './locale.mjs';
+import { t } from './strings.mjs';
 
 /** @typedef {'checking'|'bootstrapping'|'fetching'|'downloading'|'building'|'installing'|'sidecars'|'done'|'failed'} InstallStage */
 
@@ -23,17 +25,9 @@ const STAGE_FRACTION = {
   done: 1,
 };
 
-const STAGE_LABEL = {
-  checking: 'Checking',
-  bootstrapping: 'Bootstrapping',
-  fetching: 'Fetching',
-  downloading: 'Downloading',
-  building: 'Building',
-  installing: 'Installing',
-  sidecars: 'Sidecars',
-  done: 'Done',
-  failed: 'Failed',
-};
+function stageLabel(stage, locale) {
+  return t(`install.stage.${stage}`, undefined, locale);
+}
 
 const PREBUILT_PIPELINE = [
   'checking',
@@ -198,7 +192,8 @@ function fgTruecolor(rgb) {
 }
 
 export function createTheatre(options = {}) {
-  const title = options.title ?? 'Installing SuperLiora';
+  const locale = options.locale ?? detectInstallLocale(options.env ?? process.env);
+  const title = options.title ?? t('install.title', undefined, locale);
   const startedAtMs = Date.now();
   let stage = /** @type {InstallStage} */ ('checking');
   let detail = '';
@@ -232,10 +227,11 @@ export function createTheatre(options = {}) {
 
   function paint() {
     if (!useColor()) {
+      const label = stageLabel(stage, locale);
       if (detail) {
-        process.stdout.write(`==> ${STAGE_LABEL[stage] ?? stage}: ${detail}\n`);
+        process.stdout.write(`==> ${label}: ${detail}\n`);
       } else {
-        process.stdout.write(`==> ${STAGE_LABEL[stage] ?? stage}\n`);
+        process.stdout.write(`==> ${label}\n`);
       }
       return;
     }
@@ -247,6 +243,7 @@ export function createTheatre(options = {}) {
       stage,
       detail,
       startedAtMs,
+      locale,
       pipeline: currentMode() === 'source' ? SOURCE_PIPELINE : PREBUILT_PIPELINE,
     }).map((line) => clipAnsiLine(line, maxWidth));
 
@@ -283,7 +280,7 @@ export function createTheatre(options = {}) {
   function finish(ok, message) {
     stopPulse();
     stage = ok ? 'done' : 'failed';
-    detail = message ?? (ok ? 'Ready' : 'Failed');
+    detail = message ?? (ok ? t('install.ready', undefined, locale) : t('install.failed', undefined, locale));
     emitMarker(stage);
     if (useColor()) {
       paint();
@@ -301,7 +298,7 @@ export function createTheatre(options = {}) {
       process.stdout.write(`${clipped}\n`);
       paint();
     } else {
-      process.stdout.write(`warning: ${message}\n`);
+      process.stdout.write(`${t('install.warning', { message }, locale)}\n`);
     }
   }
 
@@ -325,7 +322,8 @@ export function renderLines(frame) {
   const pct = `${String(Math.round(fraction * 100)).padStart(3, ' ')}%`;
   const bar = renderBar(fraction, BAR_WIDTH, now, frame.stage !== 'done' && frame.stage !== 'failed');
   const elapsed = Math.max(0, (now - frame.startedAtMs) / 1000).toFixed(1);
-  const checklist = formatChecklist(frame.pipeline, frame.stage);
+  const locale = frame.locale ?? 'en';
+  const checklist = formatChecklist(frame.pipeline, frame.stage, locale);
   const cyan = (s) => `${CSI}36m${s}${RESET}`;
   const bold = (s) => `${CSI}1m${s}${RESET}`;
   const dim = (s) => `${CSI}2m${s}${RESET}`;
@@ -334,7 +332,7 @@ export function renderLines(frame) {
   const spinner = SPINNER_FRAMES[Math.floor(now / 80) % SPINNER_FRAMES.length];
   const lines = [
     `${cyan('◆')} ${renderTitle(frame.title)}`,
-    dim(`Mode: ${frame.mode}  ·  ${elapsed}s`),
+    dim(t('install.modeLine', { mode: frame.mode, elapsed }, locale)),
     '',
   ];
   for (const row of checklist) {
@@ -383,7 +381,7 @@ function stageFraction(stage) {
   return STAGE_FRACTION[stage] ?? 0;
 }
 
-function formatChecklist(pipeline, active) {
+function formatChecklist(pipeline, active, locale = 'en') {
   const failed = active === 'failed';
   let activeIndex = pipeline.indexOf(active);
   if (activeIndex < 0) {
@@ -403,7 +401,7 @@ function formatChecklist(pipeline, active) {
     } else if (index === activeIndex) {
       marker = active === 'done' ? 'done' : 'active';
     }
-    return { stage, label: STAGE_LABEL[stage] ?? stage, marker };
+    return { stage, label: stageLabel(stage, locale), marker };
   });
 }
 

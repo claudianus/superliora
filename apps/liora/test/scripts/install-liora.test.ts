@@ -111,6 +111,9 @@ describe('scripts/install-liora.mjs', () => {
     expect(sh).toContain('ensure-git.mjs');
     expect(sh).toContain('ensure-pnpm.mjs');
     expect(sh).toContain('ensure-terminal.mjs');
+    expect(sh).toContain('ensure-desktop-launcher.mjs');
+    expect(sh).toContain('locale.mjs');
+    expect(sh).toContain('strings.mjs');
     expect(sh).toContain('ensure-winget.mjs');
     expect(sh).toContain('ensure-nerd-font.mjs');
     expect(sh).toContain('ensure-oh-my-posh.mjs');
@@ -125,6 +128,9 @@ describe('scripts/install-liora.mjs', () => {
     expect(ps1).toContain('ensure-git.mjs');
     expect(ps1).toContain('ensure-pnpm.mjs');
     expect(ps1).toContain('ensure-terminal.mjs');
+    expect(ps1).toContain('ensure-desktop-launcher.mjs');
+    expect(ps1).toContain('locale.mjs');
+    expect(ps1).toContain('strings.mjs');
     expect(ps1).toContain('ensure-winget.mjs');
     expect(ps1).toContain('ensure-nerd-font.mjs');
     expect(ps1).toContain('ensure-oh-my-posh.mjs');
@@ -137,9 +143,9 @@ describe('scripts/install-liora.mjs', () => {
     expect(ps1).toContain('NoHostSetup');
     const orch = await readFile(resolve(repoRoot, 'scripts/install-superliora.mjs'), 'utf-8');
     expect(orch).toContain("SUPERLIORA_NO_SHELL_RC === '1'");
-    expect(orch).toContain('Git bootstrap failed');
+    expect(orch).toContain('install.gitFailed');
     expect(orch).toContain('ensurePnpm');
-    expect(orch).toContain('Ensuring pnpm');
+    expect(orch).toContain('install.ensuringPnpm');
     expect(sh).toContain('SUPERLIORA_NO_SHELL_RC');
   });
 

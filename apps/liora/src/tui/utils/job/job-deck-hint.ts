@@ -3,6 +3,8 @@
  * Pure helpers — host wires persist via onboarding.jobDeckHintSeen.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export function shouldShowJobDeckHint(input: {
   readonly conductorUxV2: boolean;
   readonly jobDeckHintSeen: boolean;
@@ -13,7 +15,7 @@ export function shouldShowJobDeckHint(input: {
 
 export function jobDeckHintNotice(): { readonly title: string; readonly detail: string } {
   return {
-    title: 'Job running — open the Deck',
-    detail: 'Alt+J watches workers live · Hub → Job Deck',
+    title: ttui('tui.notice.jobDeckHint'),
+    detail: ttui('tui.notice.jobDeckHintDetail'),
   };
 }

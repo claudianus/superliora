@@ -96,7 +96,7 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines,
     borderToken: 'primary',
-    title: ' Usage ',
+    title: ttui('tui.panel.usage'),
     enterBeatSeed: 'usage',
     phase: managedProvider ? 'loading' : 'ready',
     requestRender: () =>{  requestTUILayoutRender(host.state); },
@@ -148,7 +148,7 @@ export async function showQuota(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines,
     borderToken: 'primary',
-    title: ' Provider Quotas ',
+    title: ttui('tui.panel.quotas'),
     enterBeatSeed: 'quota',
     requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
@@ -218,7 +218,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: () => buildStatusReportLines(reportArgs),
     borderToken: 'primary',
-    title: ' Status ',
+    title: ttui('tui.panel.status'),
     enterBeatSeed: 'status',
     requestRender: () => {
       requestTUILayoutRender(host.state);

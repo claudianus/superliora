@@ -26,20 +26,20 @@ export async function handleAddDirCommand(host: SlashCommandHost, args: string):
 
   host.mountEditorReplacement(
     new ChoicePickerComponent({
-      title: `Add directory to workspace: ${input}`,
-      hint: '↑↓ navigate · Enter confirm · Esc cancel',
+      title: ttui('tui.addDir.title', { path: input }),
+      hint: ttui('tui.addDir.hint'),
       options: [
         {
           value: 'session',
-          label: 'Yes, for this session',
+          label: ttui('tui.addDir.session'),
         },
         {
           value: 'remember',
-          label: 'Yes, and remember this directory',
+          label: ttui('tui.addDir.remember'),
         },
         {
           value: 'cancel',
-          label: 'No',
+          label: ttui('tui.addDir.no'),
         },
       ],
       onSelect: (value) => {
@@ -54,7 +54,7 @@ export async function handleAddDirCommand(host: SlashCommandHost, args: string):
 }
 
 function formatAdditionalDirsStatus(additionalDirs: readonly string[]): string {
-  return ['Additional directories:', ...additionalDirs.map((dir) => `  ${dir}`)].join('\n');
+  return [ttui('tui.addDir.listTitle'), ...additionalDirs.map((dir) => `  ${dir}`)].join('\n');
 }
 
 async function handleAddDirChoice(

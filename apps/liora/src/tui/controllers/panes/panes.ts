@@ -12,6 +12,7 @@ import { pickRandomWorkingTip, tipText } from '../../components/chrome/working-t
 import { ShellRunComponent } from '../../components/messages/shell/shell-run';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import {  NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { AppearanceController } from '../appearance/index';
 import type { SessionEventHandler } from '../session-event/handler';
 import { currentTheme, getBuiltInPalette, getColorPalette, isBuiltInTheme } from '../../theme';
@@ -159,7 +160,7 @@ export class PanesController {
         host.motionBeats.play({
           name: 'thinking_enter',
           seed: 'thinking',
-          title: 'Thinking',
+          title: ttui('tui.notice.thinking'),
           nowMs: appearanceAnimationNow(),
         });
         break;

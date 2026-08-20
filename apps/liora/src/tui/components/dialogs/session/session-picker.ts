@@ -13,6 +13,7 @@ import {
 } from '#/tui/features/appearance/appearance-effects';
 import {SearchableList} from '#/tui/utils/ui/searchable-list';
 import {isPrintableChar, printableChar} from '#/tui/utils/printable-key';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export interface SessionRow {
   readonly id: string;
@@ -30,13 +31,13 @@ function formatRelativeTime(ts: number): string {
   // so they use the same millisecond unit as `Date.now()`.
   if (!Number.isFinite(ts) || ts <= 0) return '';
   const diffSec = Math.floor(Math.max(0, Date.now() - ts) / 1000);
-  if (diffSec < 60) return 'just now';
+  if (diffSec < 60) return ttui('tui.session.picker.justNow');
   const minutes = Math.floor(diffSec / 60);
-  if (minutes < 60) return `${String(minutes)}m ago`;
+  if (minutes < 60) return ttui('tui.session.picker.minutesAgo', { n: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${String(hours)}h ago`;
+  if (hours < 24) return ttui('tui.session.picker.hoursAgo', { n: hours });
   const days = Math.floor(hours / 24);
-  return `${String(days)}d ago`;
+  return ttui('tui.session.picker.daysAgo', { n: days });
 }
 
 function homeAlias(path: string): string {
@@ -296,13 +297,13 @@ export class SessionPickerComponent extends Container implements Focusable {
   // the clamp in `render()` is what guarantees the renderer's invariant and
   // prevents the "Rendered line exceeds terminal width" crash (issue #240).
   private renderLines(width: number): string[] {
-    const title = this.scope === 'all' ? 'All sessions' : 'Sessions';
+    const title = this.scope === 'all' ? ttui('tui.session.picker.all') : ttui('tui.session.picker.title');
     const scopeHint =
       this.onToggleScope === undefined
         ? undefined
         : this.scope === 'all'
-          ? 'Ctrl+A current cwd'
-          : 'Ctrl+A all';
+          ? ttui('tui.session.picker.scopeCurrent')
+          : ttui('tui.session.picker.scopeAll');
 
     if (this.loading) {
       return this.renderChromeRows(width, {
@@ -318,38 +319,38 @@ export class SessionPickerComponent extends Container implements Focusable {
     }
 
     if (this.sessions.length === 0) {
-      const hintParts = [scopeHint, 'Esc cancel'].filter(
+      const hintParts = [scopeHint, ttui('tui.session.picker.hint.cancel')].filter(
         (item): item is string => item !== undefined,
       );
       return this.renderChromeRows(width, {
         title,
         hint: hintParts.join(' · '),
-        body: [currentTheme.fg('textMuted', 'No sessions found.')],
+        body: [currentTheme.fg('textMuted', ttui('tui.session.picker.none'))],
         footerTopGap: false,
       });
     }
 
     const view = this.list.view();
     const titleSuffix =
-      view.query.length === 0 ? currentTheme.fg('textMuted', '  (type to search)') : '';
+      view.query.length === 0 ? currentTheme.fg('textMuted', ttui('tui.common.typeToSearch')) : '';
     const hintParts = [
-      ...(view.query.length > 0 ? ['Backspace clear'] : []),
-      '↑↓ navigate',
+      ...(view.query.length > 0 ? [ttui('tui.session.picker.hint.clear')] : []),
+      ttui('tui.session.picker.hint.nav'),
       scopeHint,
-      ...(this.onRename !== undefined ? ['Ctrl+R rename'] : []),
-      'Enter select',
-      'Esc cancel',
+      ...(this.onRename !== undefined ? [ttui('tui.session.picker.hint.rename')] : []),
+      ttui('tui.session.picker.hint.select'),
+      ttui('tui.session.picker.hint.cancel'),
     ].filter((item): item is string => item !== undefined);
 
     const body: string[] = [];
 
     if (view.query.length > 0) {
-      body.push(currentTheme.fg('primary', 'Search: ') + currentTheme.fg('text', view.query));
+      body.push(currentTheme.fg('primary', ttui('tui.common.searchLabel')) + currentTheme.fg('text', view.query));
     }
 
     const loadedSessions = this.loadedSessions(view.items);
     if (loadedSessions.length === 0) {
-      body.push(currentTheme.fg('textMuted', 'No matches'));
+      body.push(currentTheme.fg('textMuted', ttui('tui.common.noMatches')));
       return this.renderChromeRows(width, {
         title,
         titleSuffix,
@@ -385,11 +386,21 @@ export class SessionPickerComponent extends Container implements Focusable {
     if (loadedSessions.length > visibleSessions.length || view.query.length > 0) {
       const totalSuffix =
         view.query.length > 0
-          ? `${String(loadedSessions.length)} loaded / ${String(filteredCount)} matches`
+          ? ttui('tui.session.picker.loadedMatches', {
+              loaded: String(loadedSessions.length),
+              matches: String(filteredCount),
+            })
           : loadedSessions.length === this.sessions.length
-            ? `${String(loadedSessions.length)} sessions`
-            : `${String(loadedSessions.length)} loaded / ${String(this.sessions.length)} sessions`;
-      const footer = `Showing ${String(visibleStart + 1)}-${String(visibleStart + visibleSessions.length)} of ${totalSuffix}`;
+            ? ttui('tui.session.picker.count', { n: String(loadedSessions.length) })
+            : ttui('tui.session.picker.loadedOf', {
+                loaded: String(loadedSessions.length),
+                total: String(this.sessions.length),
+              });
+      const footer = ttui('tui.session.picker.showing', {
+        from: String(visibleStart + 1),
+        to: String(visibleStart + visibleSessions.length),
+        total: totalSuffix,
+      });
       footerRows.push(currentTheme.fg('textMuted', footer));
     }
 
@@ -414,16 +425,16 @@ export class SessionPickerComponent extends Container implements Focusable {
     const draftPart =
       renaming.draft.length > 0
         ? currentTheme.fg('text', renaming.draft)
-        : currentTheme.fg('textDim', 'new title');
+        : currentTheme.fg('textDim', ttui('tui.session.picker.newTitle'));
     const body: string[] = [
-      currentTheme.fg('primary', 'Rename: ') + draftPart + currentTheme.fg('primary', '▌'),
+      currentTheme.fg('primary', ttui('tui.session.picker.rename')) + draftPart + currentTheme.fg('primary', '▌'),
     ];
     if (session !== undefined) {
       body.push(currentTheme.fg('textMuted', `id ${session.id}`));
     }
     return this.renderChromeRows(width, {
       title,
-      hint: 'Enter save · Esc cancel · Backspace edit',
+      hint: ttui('tui.session.picker.renameHint'),
       body,
       footerTopGap: false,
     });
@@ -435,7 +446,7 @@ export class SessionPickerComponent extends Container implements Focusable {
    * (off / SSH / NO_COLOR / CI), leaving the exact static hint bytes.
    */
   private loadingHint(): string {
-    return `${renderShimmerPrefix(getActiveAppearancePreferences())}Loading sessions...`;
+    return `${renderShimmerPrefix(getActiveAppearancePreferences())}${ttui('tui.session.picker.loading')}`;
   }
 
   private renderChromeRows(

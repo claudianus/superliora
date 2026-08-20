@@ -23,6 +23,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { ColorToken } from '#/tui/theme';
 import { renderClusteredDiffBody } from '#/tui/components/media/diff-preview';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
@@ -207,7 +208,7 @@ export class DiffReviewComponent extends Container implements Focusable {
       const lines: string[] = [message];
       while (lines.length < innerHeight) lines.push('');
       return renderRendererFrameRows({
-        title: ' Diff ',
+        title: ttui('tui.panel.diff'),
         content: lines,
         width,
         height,
@@ -229,7 +230,7 @@ export class DiffReviewComponent extends Container implements Focusable {
     while (lines.length < innerHeight) lines.push('');
 
     return renderRendererFrameRows({
-      title: ' Diff ',
+      title: ttui('tui.panel.diff'),
       content: lines,
       width,
       height,

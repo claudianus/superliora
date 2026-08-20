@@ -235,6 +235,18 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
     'Warning: dirty checkout — install force-resets and discards local changes.',
   'cli.runtime.update.prompt.installHint': 'Install update now',
   'cli.runtime.update.prompt.skipHint': 'Continue with current version',
+  'cli.runtime.upgrade.stage.checking': 'Checking',
+  'cli.runtime.upgrade.stage.bootstrapping': 'Bootstrapping',
+  'cli.runtime.upgrade.stage.fetching': 'Fetching',
+  'cli.runtime.upgrade.stage.downloading': 'Downloading',
+  'cli.runtime.upgrade.stage.building': 'Building',
+  'cli.runtime.upgrade.stage.installing': 'Installing',
+  'cli.runtime.upgrade.stage.sidecars': 'Sidecars',
+  'cli.runtime.upgrade.stage.done': 'Done',
+  'cli.runtime.upgrade.stage.failed': 'Failed',
+  'cli.runtime.upgrade.progress.title': 'Upgrading SuperLiora → {version}',
+  'cli.runtime.upgrade.progress.source': 'Source: {source}',
+  'cli.runtime.upgrade.progress.elapsed': 'elapsed {seconds}s',
 
   // run-prompt / run-shell
   'cli.runtime.prompt.noSessionsContinue':
@@ -314,7 +326,7 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.login.addingAccount':
     'OAuth 계정 슬롯 {fingerprint}을(를) 추가합니다. 기존 계정은 폴백으로 유지됩니다.',
   'cli.runtime.login.accountPoolHint':
-    '계정 풀이 갱신되었습니다(primary 슬롯 fingerprint {fingerprint}). 쿼타/레이트리밋 실패 시 다른 계정으로 자동 전환됩니다.',
+    '계정 풀이 갱신되었습니다(primary 슬롯 fingerprint {fingerprint}). 쿼터/rate limit 실패 시 다른 계정으로 자동 전환됩니다.',
   'cli.runtime.login.addWithOAuthKeyConflict':
     '--add와 --oauth-key는 함께 사용할 수 없습니다.',
   'cli.runtime.login.cancelled': '로그인을 취소했습니다.',
@@ -470,6 +482,18 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
     '경고: dirty checkout — 설치 시 force-reset으로 로컬 변경이 사라집니다.',
   'cli.runtime.update.prompt.installHint': '지금 업데이트 설치',
   'cli.runtime.update.prompt.skipHint': '현재 버전으로 계속',
+  'cli.runtime.upgrade.stage.checking': '확인',
+  'cli.runtime.upgrade.stage.bootstrapping': '준비',
+  'cli.runtime.upgrade.stage.fetching': '가져오는 중',
+  'cli.runtime.upgrade.stage.downloading': '다운로드',
+  'cli.runtime.upgrade.stage.building': '빌드',
+  'cli.runtime.upgrade.stage.installing': '설치',
+  'cli.runtime.upgrade.stage.sidecars': 'Sidecars',
+  'cli.runtime.upgrade.stage.done': '완료',
+  'cli.runtime.upgrade.stage.failed': '실패',
+  'cli.runtime.upgrade.progress.title': 'SuperLiora 업그레이드 → {version}',
+  'cli.runtime.upgrade.progress.source': '소스: {source}',
+  'cli.runtime.upgrade.progress.elapsed': '경과 {seconds}s',
 
   'cli.runtime.prompt.noSessionsContinue':
     '"{workDir}" 아래에 이어갈 세션이 없습니다. 새 세션을 시작합니다.',

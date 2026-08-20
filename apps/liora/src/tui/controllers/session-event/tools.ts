@@ -18,6 +18,7 @@ import {
   isTodoItemShape,
   serializeToolResultOutput,
 } from '../../utils/event-payload';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
@@ -188,7 +189,7 @@ export class SessionEventTools {
         this.host.motionBeats?.play({
           name: 'tool_settle',
           seed: 'research-cascade',
-          title: 'Research cascade',
+          title: ttui('tui.notice.researchCascade'),
           nowMs: appearanceAnimationNow(),
           streamThrottle: true,
         });
@@ -232,7 +233,7 @@ export class SessionEventTools {
           this.host.motionBeats?.play({
             name: 'tool_settle',
             seed: 'conductor-job',
-            title: 'Job desk',
+            title: ttui('tui.notice.jobDesk'),
             nowMs: appearanceAnimationNow(),
             streamThrottle: true,
           });

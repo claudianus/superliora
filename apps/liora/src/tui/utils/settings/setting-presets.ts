@@ -2,11 +2,16 @@
  * Generic named-preset helpers for Settings panes (context-working-set pattern).
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export interface SettingPreset<TId extends string, TPatch> {
   readonly id: TId;
   readonly label: string;
   readonly description: string;
   readonly badge?: string;
+  readonly labelKey?: string;
+  readonly descriptionKey?: string;
+  readonly badgeKey?: string;
   readonly patch: TPatch;
 }
 
@@ -36,9 +41,15 @@ export function settingPresetChoiceOptions<TId extends string, TPatch>(
   readonly label: string;
   readonly description: string;
 }[] {
-  return catalog.map((preset) => ({
-    value: preset.id,
-    label: preset.badge !== undefined ? `${preset.label} · ${preset.badge}` : preset.label,
-    description: preset.description,
-  }));
+  return catalog.map((preset) => {
+    const label = preset.labelKey !== undefined ? ttui(preset.labelKey) : preset.label;
+    const description =
+      preset.descriptionKey !== undefined ? ttui(preset.descriptionKey) : preset.description;
+    const badge = preset.badgeKey !== undefined ? ttui(preset.badgeKey) : preset.badge;
+    return {
+      value: preset.id,
+      label: badge !== undefined ? `${label} · ${badge}` : label,
+      description,
+    };
+  });
 }

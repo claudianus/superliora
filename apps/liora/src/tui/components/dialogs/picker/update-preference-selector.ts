@@ -1,17 +1,20 @@
+import { ttui } from '../../../utils/tui-i18n';
 import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
 
-const UPDATE_PREFERENCE_OPTIONS: readonly ChoiceOption[] = [
-  {
-    value: 'on',
-    label: 'On',
-    description: 'Install new versions in the background.',
-  },
-  {
-    value: 'off',
-    label: 'Off',
-    description: 'Show the install prompt instead.',
-  },
-];
+function updatePreferenceOptions(): ChoiceOption[] {
+  return [
+    {
+      value: 'on',
+      label: ttui('tui.picker.update.on'),
+      description: ttui('tui.picker.update.onDesc'),
+    },
+    {
+      value: 'off',
+      label: ttui('tui.picker.update.off'),
+      description: ttui('tui.picker.update.offDesc'),
+    },
+  ];
+}
 
 export interface UpdatePreferenceSelectorOptions {
   readonly currentValue: boolean;
@@ -22,8 +25,8 @@ export interface UpdatePreferenceSelectorOptions {
 export class UpdatePreferenceSelectorComponent extends ChoicePickerComponent {
   constructor(opts: UpdatePreferenceSelectorOptions) {
     super({
-      title: 'Automatic updates',
-      options: [...UPDATE_PREFERENCE_OPTIONS],
+      title: ttui('tui.picker.update.title'),
+      options: updatePreferenceOptions(),
       currentValue: opts.currentValue ? 'on' : 'off',
       onSelect: (value) => {
         opts.onSelect(value === 'on');

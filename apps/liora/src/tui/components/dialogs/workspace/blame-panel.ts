@@ -22,6 +22,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme, type ColorPalette } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { isUncommittedBlameHash, type BlameLine } from '#/utils/git/git-blame';
@@ -171,7 +172,7 @@ export class BlamePanelComponent extends Container implements Focusable {
       const lines: string[] = [currentTheme.dimFg('textMuted', 'No blame data')];
       while (lines.length < innerHeight) lines.push('');
       return renderRendererFrameRows({
-        title: ' Blame ',
+        title: ttui('tui.panel.blame'),
         content: lines,
         width,
         height,
@@ -188,7 +189,7 @@ export class BlamePanelComponent extends Container implements Focusable {
     while (lines.length < innerHeight) lines.push('');
 
     return renderRendererFrameRows({
-      title: ' Blame ',
+      title: ttui('tui.panel.blame'),
       content: lines,
       width,
       height,

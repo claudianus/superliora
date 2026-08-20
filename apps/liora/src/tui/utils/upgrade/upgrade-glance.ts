@@ -4,6 +4,7 @@
 
 import { getTuiConfigPath } from '#/tui/config';
 import { isRolloutBypassedByExperimentalEnv } from '#/cli/update/rollout';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export const AUTO_UPDATE_DISABLE_ENV = 'SUPERLIORA_NO_AUTO_UPDATE';
 export const AUTO_UPDATE_DISABLE_ENV_LEGACY = 'KIMI_CLI_NO_AUTO_UPDATE';
@@ -80,67 +81,72 @@ export function loadUpgradeGlance(input: {
 
 export function formatAutoInstallConfigLine(glance: UpgradeGlanceInput): string {
   return glance.autoInstall
-    ? 'tui.toml auto_install: ON — background install when preflight finds update'
-    : 'tui.toml auto_install: OFF — show install prompt instead';
+    ? ttui('tui.upgrade.settings.autoOn')
+    : ttui('tui.upgrade.settings.autoOff');
 }
 
 export function formatEffectiveAutoUpdateLine(glance: UpgradeGlanceInput): string {
   if (glance.envDisabled) {
-    return 'Effective: OFF — env disables all update preflight work';
+    return ttui('tui.upgrade.settings.effectiveEnvOff');
   }
   if (glance.effectiveAutoInstall) {
-    return 'Effective: ON — passive check + background install when eligible';
+    return ttui('tui.upgrade.settings.effectiveOn');
   }
-  return 'Effective: OFF — checks may run; installs require prompt (/upgrade)';
+  return ttui('tui.upgrade.settings.effectiveOff');
 }
 
 export function formatUpdateNoticeLine(notice: UpgradeNoticeLike | null | undefined): string | undefined {
   if (notice === null || notice === undefined) return undefined;
-  return `Pending update: ${notice.currentVersion} → ${notice.targetVersion}`;
+  return ttui('tui.upgrade.settings.pending', {
+    current: notice.currentVersion,
+    target: notice.targetVersion,
+  });
 }
 
 export function buildUpgradeSettingsLines(glance: UpgradeGlanceInput): readonly string[] {
   const noticeLine = formatUpdateNoticeLine(glance.updateNotice);
   const envLine = glance.envDisabled
-    ? `Env: ${glance.envDisableValue ?? `${AUTO_UPDATE_DISABLE_ENV}=1`} — no check, install, or prompt`
-    : `Env: ${AUTO_UPDATE_DISABLE_ENV} unset — tui.toml controls auto-install`;
+    ? ttui('tui.upgrade.settings.envDisabled', {
+      value: glance.envDisableValue ?? `${AUTO_UPDATE_DISABLE_ENV}=1`,
+    })
+    : ttui('tui.upgrade.settings.envUnset', { name: AUTO_UPDATE_DISABLE_ENV });
 
   const rolloutLine = glance.rolloutBypass
-    ? `Env: ${ROLLOUT_BYPASS_ENV} set — staged rollout bypass (newest always visible)`
-    : `Env: ${ROLLOUT_BYPASS_ENV} unset — normal staged rollout`;
+    ? ttui('tui.upgrade.settings.rolloutBypass', { name: ROLLOUT_BYPASS_ENV })
+    : ttui('tui.upgrade.settings.rolloutNormal', { name: ROLLOUT_BYPASS_ENV });
 
   return [
-    '── Automatic updates (read-only) ────────────',
-    'CLI background upgrade posture — Sovereign Reform §9.2.',
+    ttui('tui.upgrade.settings.headerAuto'),
+    ttui('tui.upgrade.settings.posture'),
     '',
-    '── Status (live) ────────────────────────────',
-    `Running version: ${glance.version}`,
+    ttui('tui.upgrade.settings.headerStatus'),
+    ttui('tui.upgrade.settings.runningVersion', { version: glance.version }),
     formatAutoInstallConfigLine(glance),
     formatEffectiveAutoUpdateLine(glance),
-    `Config: ${glance.configPath}`,
+    ttui('tui.upgrade.settings.config', { path: glance.configPath }),
     envLine,
     rolloutLine,
     ...(noticeLine !== undefined ? [noticeLine] : []),
     ...(glance.updateNotice !== null && glance.updateNotice !== undefined
-      ? [`Install: ${glance.updateNotice.installCommand}`]
+      ? [ttui('tui.upgrade.settings.install', { command: glance.updateNotice.installCommand })]
       : []),
     '',
-    '── Change auto-install ──────────────────────',
-    '  tui.toml [upgrade] auto_install = true | false',
-    '  /reload tui                    apply after manual edit',
+    ttui('tui.upgrade.settings.headerChange'),
+    ttui('tui.upgrade.settings.editToml'),
+    ttui('tui.upgrade.settings.reload'),
     '',
-    '── Manual update ────────────────────────────',
-    '  /update · /upgrade [--main]    Upgrade Studio (release default; --main = tip of main)',
-    '  liora update · liora upgrade   Same flow from the CLI (--main supported)',
-    '  Settings → Updates             Open Upgrade Studio',
-    '  Header badge                   pending update when preflight finds one',
+    ttui('tui.upgrade.settings.headerManual'),
+    ttui('tui.upgrade.settings.slash'),
+    ttui('tui.upgrade.settings.cli'),
+    ttui('tui.upgrade.settings.settings'),
+    ttui('tui.upgrade.settings.badge'),
     '',
-    '── Tips ─────────────────────────────────────',
-    `· ${AUTO_UPDATE_DISABLE_ENV}=1 blocks all update preflight — unset for auto-install`,
-    '· Managed source installs respect tui.toml auto_install (wrapper no longer forces off)',
-    '· GitHub checkout / npm / native installs differ in canAutoInstall',
-    '· Auto-update success: toast + header ✓ + transcript notice on next launch',
-    '· Auto-update start: stdout + installing badge; failures surface after retries',
-    '· Dev CLI (apps/liora/scripts/dev.mjs) sets NO_AUTO_UPDATE for local worktrees only',
+    ttui('tui.upgrade.settings.headerTips'),
+    ttui('tui.upgrade.settings.tipEnv', { name: AUTO_UPDATE_DISABLE_ENV }),
+    ttui('tui.upgrade.settings.tipManaged'),
+    ttui('tui.upgrade.settings.tipSources'),
+    ttui('tui.upgrade.settings.tipSuccess'),
+    ttui('tui.upgrade.settings.tipStart'),
+    ttui('tui.upgrade.settings.tipDev'),
   ];
 }

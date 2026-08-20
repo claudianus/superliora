@@ -15,7 +15,7 @@ import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import { saveTuiConfig } from '#/tui/config';
 import { EDITOR_PRESETS } from '#/tui/utils/settings/editor-presets';
-import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { settingsPresetsRow, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { formatErrorMessage } from '#/tui/utils/event-payload';
 import { showEditorPicker } from '../appearance/editor-theme';
 import { tuiConfigFromHost } from '../appearance/tui-persist';
@@ -38,7 +38,7 @@ export function showEditorSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
-        SETTINGS_PRESETS_ROW,
+        settingsPresetsRow(),
         {
           value: 'status',
           label: 'Editor status',

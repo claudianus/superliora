@@ -18,6 +18,7 @@ import type { AppState, LivePaneState, PlanTranscriptData } from '../../types';
 import { shouldPermissionApproveFlourish } from '../../utils/never-halt/permission-approve-flourish';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { notifyUserAttentionOnce } from '../../utils/terminal/terminal-notification';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 /** Host surface for SDK approval and question panel mounting. */
 export interface ReverseRpcPanelsHost {
@@ -91,7 +92,7 @@ export class ReverseRpcPanelsController {
     }
     this.host.patchLivePane({ pendingApproval: { data: payload } });
     notifyUserAttentionOnce(this.host.state, `approval:${payload.id}`, {
-      title: 'SuperLiora approval required',
+      title: ttui('tui.notice.approvalRequired'),
       body: payload.tool_name,
     });
     const panel = new ApprovalPanelComponent(
@@ -152,7 +153,7 @@ export class ReverseRpcPanelsController {
     this.questionPanelActive = true;
     this.host.patchLivePane({ pendingQuestion: { data: payload } });
     notifyUserAttentionOnce(this.host.state, `question:${payload.id}`, {
-      title: 'SuperLiora needs your answer',
+      title: ttui('tui.notice.needsAnswer'),
       body: payload.questions[0]?.question,
     });
     const dialog = new QuestionDialogComponent(

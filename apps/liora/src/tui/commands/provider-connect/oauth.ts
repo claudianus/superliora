@@ -89,7 +89,7 @@ export async function connectKimiManaged(host: SlashCommandHost): Promise<void> 
         spinner = host.showLoginAuthorizationPrompt(data);
       },
     });
-    spinner?.stop({ ok: true, label: 'Logged in.' });
+    spinner?.stop({ ok: true, label: ttui('tui.auth.loggedIn') });
     spinner = undefined;
     try {
       await host.authFlow.refreshConfigAfterLogin();
@@ -247,7 +247,7 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
       },
       { signal: controller.signal, storageKey },
     );
-    spinner?.stop({ ok: true, label: 'Logged in.' });
+    spinner?.stop({ ok: true, label: ttui('tui.auth.loggedIn') });
     spinner = undefined;
 
     // Persist a provider config that references the OAuth token via an

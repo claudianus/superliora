@@ -17,6 +17,7 @@ import {
   type ProviderCatalogSelection,
 } from '#/tui/utils/model/provider-catalog-options';
 import type { SlashCommandHost } from '../hub/dispatch';
+import { ttui } from '../../utils/tui-i18n';
 
 /**
  * Opens the unified provider picker built from the models.dev catalog and the
@@ -54,7 +55,7 @@ export function promptLogoutProviderSelection(
 ): Promise<string | undefined> {
   return new Promise((resolve) => {
     const picker = new ChoicePickerComponent({
-      title: 'Select a provider to log out',
+      title: ttui('tui.auth.logout.title'),
       options,
       currentValue,
       onSelect: (value) => {

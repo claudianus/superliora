@@ -2,6 +2,7 @@ import type { ApprovalRequest, ApprovalResponse } from '@superliora/sdk';
 import type { DeviceAuthorization } from '@superliora/oauth';
 
 import { openUrl } from '#/utils/open-url';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 import type { Component } from '../../renderer';
 import { encodeRendererClearInlineImages, Spacer } from '../../renderer';
@@ -512,13 +513,13 @@ export class TranscriptRenderController {
     openUrl(auth.verificationUriComplete);
     host.state.transcriptContainer.addChild(
       new DeviceCodeBoxComponent({
-        title: 'Sign in to SuperLiora',
+        title: ttui('tui.notice.signIn'),
         url: auth.verificationUriComplete,
         code: auth.userCode,
-        hint: 'Press Ctrl-C to cancel',
+        hint: ttui('tui.notice.signInHint'),
       }),
     );
     requestTUIContentRender(host.state);
-    return this.showLoginProgressSpinner('Waiting for authorization…');
+    return this.showLoginProgressSpinner(ttui('tui.notice.waitingAuth'));
   }
 }

@@ -34,7 +34,7 @@ import {
 } from './search-status';
 
 import { SEARCH_PRESETS } from '#/tui/utils/settings/search-presets';
-import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { settingsPresetsRow, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { ttui } from '../../../utils/tui-i18n';
 
 export function showSearchSettings(host: SlashCommandHost): void {
@@ -45,7 +45,7 @@ export function showSearchSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
-        SETTINGS_PRESETS_ROW,
+        settingsPresetsRow(),
         {
           value: 'status',
           label: 'Channel status',

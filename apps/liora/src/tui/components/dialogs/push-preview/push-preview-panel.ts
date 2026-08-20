@@ -12,6 +12,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
 import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
@@ -152,18 +153,18 @@ export class PushPreviewPanelComponent extends Container implements Focusable {
     body.push('');
     const approve =
       this.selected === 0
-        ? theme.boldFg('success', '[ Approve ]')
-        : theme.fg('textMuted', '  Approve  ');
+        ? theme.boldFg('success', ttui('tui.panel.pushApproveOn'))
+        : theme.fg('textMuted', ttui('tui.panel.pushApprove'));
     const reject =
       this.selected === 1
-        ? theme.boldFg('error', '[ Reject ]')
-        : theme.fg('textMuted', '  Reject  ');
+        ? theme.boldFg('error', ttui('tui.panel.pushRejectOn'))
+        : theme.fg('textMuted', ttui('tui.panel.pushReject'));
     body.push(`  ${approve}   ${reject}`);
 
     return renderRendererPanelChromeRows({
       width,
-      title: ' Push Preview',
-      hint: ' ←→ · Y approve · N reject · Esc',
+      title: ttui('tui.panel.pushPreview'),
+      hint: ttui('tui.panel.pushPreviewHint'),
       body,
       dividerStyle: (text) => theme.fg('primary', text),
       titleStyle: (text) => renderPremiumHeadline(text.trim(), 'push-preview:title'),

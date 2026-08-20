@@ -27,7 +27,7 @@ import {
   APPEARANCE_PRESETS,
   matchAppearancePresetId,
 } from '#/tui/utils/settings/appearance-presets';
-import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { settingsPresetsRow, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { formatErrorMessage } from '#/tui/utils/event-payload';
 import { handleAppearanceCommand } from './appearance';
 import { showPerformanceSettings, currentPerformanceMode } from './performance';
@@ -61,7 +61,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
-        SETTINGS_PRESETS_ROW,
+        settingsPresetsRow(),
         {
           value: 'status',
           label: 'Appearance status',

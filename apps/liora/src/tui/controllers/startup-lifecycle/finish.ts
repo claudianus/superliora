@@ -17,7 +17,7 @@ import { formatHostSetupHintNotice } from '../../utils/session/windows-setup-not
 import { detectTmuxKeyboardWarning } from '../../utils/terminal/tmux-keyboard';
 import { loadHostSetupModule } from '../../utils/terminal/host-setup-runtime';
 import { isCiLike, shouldPromptHostSetup, windowsTuiHostDegraded } from '../../utils/terminal/windows-host';
-import { ttui } from '../../utils/tui-i18n';
+import { getTuiLocale, ttui } from '../../utils/tui-i18n';
 import type { StartupLifecycleHost } from './types';
 
 export async function finishStartupSession(
@@ -148,7 +148,7 @@ async function promptHostSetupIfNeeded(host: StartupLifecycleHost): Promise<void
     }
     const mod = await loadHostSetupModule();
     if (mod === undefined || host.aborted) return;
-    const plan = mod.planHostSetup();
+    const plan = mod.planHostSetup({ locale: getTuiLocale() });
     if (!plan.applicable || !plan.needsApply) return;
     const notice = formatHostSetupHintNotice();
     host.showNotice(notice.title, notice.detail, {

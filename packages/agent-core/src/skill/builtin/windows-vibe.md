@@ -47,6 +47,7 @@ Does (all platforms, user-local):
 - Install zoxide and fzf when missing
 - Upsert a marked SuperLiora block in shell profiles
   (Windows: PowerShell 5.1 + 7; macOS/Linux: `~/.zshrc` + `~/.bashrc`)
+- Write a Desktop shortcut that opens a terminal and starts liora
 - Refresh `fc-cache` on Linux after a font install
 
 Does (Windows only):
@@ -56,6 +57,7 @@ Does (Windows only):
 - Install Terminal-Icons when PSGallery is reachable
 - Set CurrentUser execution policy to RemoteSigned when it is Restricted
 - Write the Windows Terminal SuperLiora fragment + Start Menu shortcut
+  (Desktop shortcut opens Windows Terminal then liora)
 - Merge WT defaults (Neon Noir, Nerd Font, acrylic, Win+` quake) when settings parse
 - Promote Windows Terminal as the default console when empty or Console Host
 

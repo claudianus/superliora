@@ -19,6 +19,7 @@ describe('detectCliLocale', () => {
     expect(detectCliLocale({ LANG: 'en_US.UTF-8' })).toBe('en');
     expect(detectCliLocale({ LANG: 'C' })).toBe('en');
     expect(detectCliLocale({})).toBe('en');
+    expect(detectCliLocale({}, { intl: false })).toBe('en');
   });
 
   it('honors SUPERLIORA_LOCALE over the standard locale variables', () => {
@@ -31,6 +32,38 @@ describe('detectCliLocale', () => {
     expect(detectCliLocale({ LANGUAGE: 'ko', LANG: 'en_US.UTF-8' })).toBe('ko');
     // LC_ALL outranks LC_MESSAGES and LANG.
     expect(detectCliLocale({ LC_ALL: 'ko_KR.UTF-8', LANG: 'en_US.UTF-8' })).toBe('ko');
+  });
+
+  it('treats C/POSIX as English so CI stays English', () => {
+    expect(detectCliLocale({ LANG: 'C.UTF-8' }, { osLocale: 'ko-KR' })).toBe('en');
+    expect(detectCliLocale({ LC_ALL: 'POSIX' }, { osLocale: 'ko-KR' })).toBe('en');
+  });
+
+  it('prefers Korean OS UI on Windows Git Bash even when LANG is en_US', () => {
+    expect(detectCliLocale(
+      { LANG: 'en_US.UTF-8', MSYSTEM: 'MINGW64' },
+      { platform: 'win32', osLocale: 'ko-KR' },
+    )).toBe('ko');
+  });
+
+  it('keeps explicit LANG=en on Windows PowerShell (no Git Bash)', () => {
+    expect(detectCliLocale(
+      { LANG: 'en_US.UTF-8' },
+      { platform: 'win32', osLocale: 'ko-KR' },
+    )).toBe('en');
+  });
+
+  it('uses OS UI Korean when POSIX locale is unset', () => {
+    expect(detectCliLocale({}, { platform: 'win32', osLocale: 'ko-KR', intl: true })).toBe('ko');
+    expect(detectCliLocale({}, { platform: 'darwin', osLocale: 'ko-KR', intl: true })).toBe('ko');
+    expect(detectCliLocale({}, { platform: 'linux', osLocale: 'ko-KR', intl: true })).toBe('ko');
+  });
+
+  it('lets Unix LANG=en win over a Korean OS UI locale', () => {
+    expect(detectCliLocale(
+      { LANG: 'en_US.UTF-8' },
+      { platform: 'darwin', osLocale: 'ko-KR' },
+    )).toBe('en');
   });
 });
 

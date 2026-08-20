@@ -13,6 +13,7 @@ import {
   type ThemeListEntry,
 } from '#/tui/theme/custom-theme-loader';
 import type { ThemeName } from '#/tui/theme/index';
+import { ttui } from '../../../utils/tui-i18n';
 import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
 
 interface ThemeChoiceOption extends ChoiceOption {
@@ -32,7 +33,7 @@ export class ThemeSelectorComponent extends ChoicePickerComponent {
   constructor(opts: ThemeSelectorOptions) {
     const options = buildThemeOptions(currentTheme.palette);
     super({
-      title: 'Select theme',
+      title: ttui('tui.picker.theme.title'),
       options,
       currentValue: opts.currentValue,
       searchable: true,
@@ -73,14 +74,14 @@ function buildThemeOptions(autoPalette: ColorPalette): ThemeChoiceOption[] {
   return [
     {
       value: 'auto',
-      label: 'Auto (match terminal)',
-      description: 'Follows the detected terminal background.',
+      label: ttui('tui.picker.theme.auto'),
+      description: ttui('tui.picker.theme.autoDesc'),
       previewPalette: autoPalette,
     },
     {
       value: 'dark',
-      label: 'Dark',
-      description: 'Built-in dark theme.',
+      label: ttui('tui.picker.theme.dark'),
+      description: ttui('tui.picker.theme.darkDesc'),
       previewPalette: getBuiltInPalette('dark'),
       base: 'dark',
     },
@@ -89,8 +90,8 @@ function buildThemeOptions(autoPalette: ColorPalette): ThemeChoiceOption[] {
     ...plugin,
     {
       value: 'light',
-      label: 'Light',
-      description: 'Built-in light theme.',
+      label: ttui('tui.picker.theme.light'),
+      description: ttui('tui.picker.theme.lightDesc'),
       previewPalette: getBuiltInPalette('light'),
       base: 'light',
     },
@@ -108,7 +109,7 @@ function themeEntryToOption(entry: ThemeListEntry): ThemeChoiceOption {
     return {
       value: entry.name,
       label,
-      description: `${baseDescription} · Bundled SuperLiora preset.`,
+      description: ttui('tui.picker.theme.bundled', { base: baseDescription }),
       previewPalette,
       base: entry.base,
       source: entry.source,
@@ -118,7 +119,7 @@ function themeEntryToOption(entry: ThemeListEntry): ThemeChoiceOption {
     return {
       value: entry.name,
       label,
-      description: `${baseDescription} · Bundled external terminal theme.`,
+      description: ttui('tui.picker.theme.bundledExternal', { base: baseDescription }),
       previewPalette,
       base: entry.base,
       source: entry.source,
@@ -129,7 +130,10 @@ function themeEntryToOption(entry: ThemeListEntry): ThemeChoiceOption {
     return {
       value: entry.name,
       label: formatThemeLabel(entry),
-      description: `${baseDescription} · Plugin theme (${entry.pack ?? 'plugin'}).`,
+      description: ttui('tui.picker.theme.plugin', {
+        base: baseDescription,
+        pack: entry.pack ?? 'plugin',
+      }),
       previewPalette,
       base: entry.base,
       source: entry.source,
@@ -138,9 +142,9 @@ function themeEntryToOption(entry: ThemeListEntry): ThemeChoiceOption {
   return {
     value: entry.name,
     label: entry.overridesBundled === true
-      ? `Custom: ${entry.name} (overrides bundled)`
-      : `Custom: ${entry.name}`,
-    description: 'Loaded from ~/.superliora/themes.',
+      ? ttui('tui.picker.theme.customOverride', { name: entry.name })
+      : ttui('tui.picker.theme.custom', { name: entry.name }),
+    description: ttui('tui.picker.theme.fromHome'),
     previewPalette,
     base: entry.base,
     source: entry.source,
@@ -150,21 +154,21 @@ function themeEntryToOption(entry: ThemeListEntry): ThemeChoiceOption {
 function formatThemeLabel(entry: ThemeListEntry): string {
   const name =
     entry.displayName ?? (entry.source === 'bundled' ? `SuperLiora: ${entry.name}` : entry.name);
-  if (entry.base === 'dark') return `Dark · ${name}`;
-  if (entry.base === 'light') return `Light · ${name}`;
+  if (entry.base === 'dark') return ttui('tui.picker.theme.labelDark', { name });
+  if (entry.base === 'light') return ttui('tui.picker.theme.labelLight', { name });
   return name;
 }
 
 function themeBaseDescription(entry: ThemeListEntry): string {
-  if (entry.base === 'light') return 'Light theme';
-  return 'Dark theme';
+  if (entry.base === 'light') return ttui('tui.picker.theme.baseLight');
+  return ttui('tui.picker.theme.baseDark');
 }
 
 function renderThemePreview(option: ChoiceOption, width: number): readonly string[] {
   const previewTheme = new Theme((option as ThemeChoiceOption).previewPalette ?? currentTheme.palette);
   const innerWidth = Math.max(1, width - 4);
   const rows = [
-    previewTheme.boldFg('primary', ` Preview · ${option.label}`),
+    previewTheme.boldFg('primary', ttui('tui.picker.theme.preview', { label: option.label })),
     swatches(previewTheme, innerWidth),
     previewTheme.fg('text', ' ● Assistant reply ') +
       previewTheme.fg('textDim', 'with ') +

@@ -84,12 +84,14 @@ describe('host-setup slash + host probe', () => {
       zoxideInstalled: true,
       fragmentWritten: true,
       shortcutWritten: true,
+      desktopShortcutWritten: true,
     });
     expect(text).toContain('terminal');
     expect(text).toContain('nerd-font');
     expect(text).toContain('oh-my-posh');
     expect(text).toContain('zoxide');
     expect(text).toContain('profile');
+    expect(text).toContain('desktop-shortcut');
   });
 
   it('renders the confirm sheet with install and write sections', () => {

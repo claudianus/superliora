@@ -10,6 +10,7 @@ import type { QueuedMessage } from '../../types';
 import { MoonLoader } from '../../components/chrome/moon-loader';
 import { McpOAuthAuthorizationUrlOpener } from '../../utils/mcp/mcp-oauth';
 import { openUrl } from '#/utils/open-url';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { ColorToken } from '#/tui/theme';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { searchCascadePatchFromDegraded } from '../../utils/search/search-cascade';
@@ -253,7 +254,7 @@ export class SessionEventHandler {
           this.host.motionBeats.play({
             name: 'tool_settle',
             seed: 'research-cascade',
-            title: 'Research cascade',
+            title: ttui('tui.notice.researchCascade'),
             nowMs: appearanceAnimationNow(),
             streamThrottle: true,
           });

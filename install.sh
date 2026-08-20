@@ -56,7 +56,61 @@ say_info() {
   fi
 }
 
+install_locale() {
+  raw="${SUPERLIORA_LOCALE:-${LANGUAGE:-${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}}}"
+  first="$(printf '%s' "$raw" | cut -d: -f1 | tr 'A-Z' 'a-z')"
+  first="${first%%.*}"
+  first="${first%%@*}"
+  case "$first" in
+    ko|ko_*|ko-*) printf 'ko\n' ;;
+    *) printf 'en\n' ;;
+  esac
+}
+
+INSTALL_LOCALE="$(install_locale)"
+
 usage() {
+  if [ "$INSTALL_LOCALE" = "ko" ]; then
+    cat <<EOF
+사용법: install.sh [옵션]
+
+최신 GitHub Release prebuilt(SEA)로 SuperLiora를 설치하고 liora 명령을 만듭니다.
+origin/main 최신으로 빌드하려면 --main 을 쓰세요.
+
+옵션:
+  --repo <url>          Git 저장소 URL. 기본값: ${DEFAULT_REPO_URL}
+  --ref <ref>           브랜치 또는 태그 (소스 모드; --main 과 함께면 무시). 기본값: ${DEFAULT_REF}
+  --install-dir <path>  소스 checkout 디렉터리. 기본값: ~/.superliora/source
+  --bin-dir <path>      명령 설치 디렉터리. 기본값: ~/.local/bin
+  --command <name>      명령 이름. 기본값: liora
+  --node-min <version>  최소 Node.js 버전. 기본값: ${DEFAULT_NODE_MIN}
+  --manifest <url>      릴리스 manifest.json URL
+  --version <semver>    prebuilt 설치를 릴리스 태그에 고정 (예: 0.5.0)
+  --force               기존 checkout/래퍼를 필요할 때 교체
+  --no-build            checkout 후 pnpm install/build 건너뛰기
+  --no-browser-use      browser-use sidecar 설치 건너뛰기
+  --no-computer-use     cua-driver computer-use 설치 건너뛰기
+  --no-retrieval        로컬 Granite-97M 임베더 + passage 인덱스 건너뛰기
+  --no-git              Git / Git Bash 준비 건너뛰기
+  --no-terminal         Windows Terminal만 건너뛰기 (글꼴 / 프롬프트 / 셸은 유지)
+  --no-host-setup       호스트 설정 건너뛰기 (터미널, 글꼴, Oh My Posh, 셸)
+  --no-shell-rc         셸 시작 파일을 수정하지 않음
+  --main                릴리스를 무시하고 origin/main 최신을 소스에서 빌드
+  --prefer-source       prebuilt를 건너뛰고 소스에서 빌드 (--ref)
+  --force-prebuilt      prebuilt를 쓸 수 없으면 실패 (--main/--prefer-source 없는 기본값)
+  -h, --help            이 도움말 표시
+
+환경 변수:
+  SUPERLIORA_LOCALE (en|ko), SUPERLIORA_REPO_URL, SUPERLIORA_REF, SUPERLIORA_INSTALL_DIR,
+  SUPERLIORA_BIN_DIR, SUPERLIORA_COMMAND, SUPERLIORA_NODE_MIN,
+  SUPERLIORA_MANIFEST_URL, SUPERLIORA_VERSION, SUPERLIORA_RAW_BASE,
+  SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE,
+  SUPERLIORA_SKIP_RETRIEVAL, SUPERLIORA_SKIP_GIT, SUPERLIORA_NO_TERMINAL,
+  SUPERLIORA_SKIP_TERMINAL, SUPERLIORA_NO_HOST_SETUP, SUPERLIORA_PREFER_SOURCE,
+  SUPERLIORA_FROM_MAIN, SUPERLIORA_FORCE_PREBUILT, SUPERLIORA_NO_SHELL_RC
+EOF
+    return
+  fi
   cat <<EOF
 Usage: install.sh [options]
 
@@ -92,13 +146,21 @@ Environment variables:
   SUPERLIORA_MANIFEST_URL, SUPERLIORA_VERSION, SUPERLIORA_RAW_BASE,
   SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE,
   SUPERLIORA_SKIP_RETRIEVAL, SUPERLIORA_SKIP_GIT, SUPERLIORA_NO_TERMINAL,
-  SUPERLIORA_SKIP_TERMINAL, SUPERLIORA_NO_HOST_SETUP, SUPERLIORA_PREFER_SOURCE,
-  SUPERLIORA_FROM_MAIN, SUPERLIORA_FORCE_PREBUILT, SUPERLIORA_NO_SHELL_RC
+  SUPERLIORA_LOCALE (en|ko), SUPERLIORA_SKIP_TERMINAL, SUPERLIORA_NO_HOST_SETUP,
+  SUPERLIORA_PREFER_SOURCE, SUPERLIORA_FROM_MAIN, SUPERLIORA_FORCE_PREBUILT,
+  SUPERLIORA_NO_SHELL_RC
 EOF
 }
 
 die() {
-  if [ "$FANCY_OUTPUT" = "1" ]; then
+  if [ "$INSTALL_LOCALE" = "ko" ]; then
+    if [ "$FANCY_OUTPUT" = "1" ]; then
+      printf '  \033[31mx 오류:\033[0m %s\n' "$*" >&2
+    else
+      printf '%sfailed\n' "$STAGE_MARKER_PREFIX" >&2
+      printf '오류: %s\n' "$*" >&2
+    fi
+  elif [ "$FANCY_OUTPUT" = "1" ]; then
     printf '  \033[31mx error:\033[0m %s\n' "$*" >&2
   else
     printf '%sfailed\n' "$STAGE_MARKER_PREFIX" >&2
@@ -179,8 +241,13 @@ esac
 
 emit_stage bootstrapping
 if [ "$FANCY_OUTPUT" = "1" ]; then
-  printf '\n  \033[36m*\033[0m \033[1mSuperLiora installer\033[0m\n'
-  printf '    \033[2mPreparing Node.js runtime ...\033[0m\n'
+  if [ "$INSTALL_LOCALE" = "ko" ]; then
+    printf '\n  \033[36m*\033[0m \033[1mSuperLiora 설치 프로그램\033[0m\n'
+    printf '    \033[2mNode.js 런타임 준비 중 ...\033[0m\n'
+  else
+    printf '\n  \033[36m*\033[0m \033[1mSuperLiora installer\033[0m\n'
+    printf '    \033[2mPreparing Node.js runtime ...\033[0m\n'
+  fi
 fi
 
 version_gte() {
@@ -227,7 +294,11 @@ bootstrap_node() {
   archive="${runtime}/${slug}.tar.gz"
   mkdir -p "$runtime"
   if [ ! -x "${runtime}/${slug}/bin/node" ]; then
-    say_info "Downloading Node.js ${NODE_MIN} ..."
+    if [ "$INSTALL_LOCALE" = "ko" ]; then
+      say_info "Node.js ${NODE_MIN} 다운로드 중 ..."
+    else
+      say_info "Downloading Node.js ${NODE_MIN} ..."
+    fi
     curl -fsSL "$url" -o "$archive" || die "failed to download Node from $url"
     tar -xzf "$archive" -C "$runtime"
     rm -f "$archive"
@@ -264,7 +335,7 @@ else
   }
   fetch_raw "scripts/install-superliora.mjs" "$BUNDLE_DIR/scripts/install-superliora.mjs"
   fetch_raw "scripts/install-liora.mjs" "$BUNDLE_DIR/scripts/install-liora.mjs"
-  for f in platform.mjs ensure-node.mjs ensure-git.mjs ensure-pnpm.mjs theatre.mjs download.mjs prebuilt.mjs source.mjs sidecars.mjs path.mjs spawn.mjs wrappers.mjs ensure-terminal.mjs ensure-winget.mjs ensure-nerd-font.mjs ensure-oh-my-posh.mjs ensure-shell-vibe.mjs host-setup.mjs host-path.mjs; do
+  for f in platform.mjs ensure-node.mjs ensure-git.mjs ensure-pnpm.mjs theatre.mjs download.mjs prebuilt.mjs source.mjs sidecars.mjs path.mjs spawn.mjs wrappers.mjs ensure-terminal.mjs ensure-desktop-launcher.mjs locale.mjs strings.mjs ensure-winget.mjs ensure-nerd-font.mjs ensure-oh-my-posh.mjs ensure-shell-vibe.mjs host-setup.mjs host-path.mjs; do
     fetch_raw "scripts/install/$f" "$BUNDLE_DIR/scripts/install/$f"
   done
   ORCH="$BUNDLE_DIR/scripts/install-superliora.mjs"

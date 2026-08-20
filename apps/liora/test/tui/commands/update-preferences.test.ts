@@ -59,6 +59,7 @@ describe('update preference commands', () => {
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
       conductor: DEFAULT_CONDUCTOR_PREFERENCES,
       locale: 'auto',
+      performanceMode: 'off',
     });
     expect(setAppState).toHaveBeenCalledWith({ upgrade: { autoInstall: false } });
     expect(track).toHaveBeenCalledWith('upgrade_preference_changed', { auto_install: false });

@@ -11,6 +11,7 @@ import {
   inferPublishRemoteRefFromJobCard,
 } from '../../utils/job/push-publish-target';
 import { shortJobId } from '../../components/job-board/job-board-helpers';
+import { ttui } from '../../utils/tui-i18n';
 
 export function canOpenPushPreview(card: ConductorJobCard): boolean {
   return card.status === 'done' || card.status === 'blocked';
@@ -26,16 +27,16 @@ export function openPushPreview(
   },
 ): void {
   if (!isConductorUxV2Enabled()) {
-    host.showStatus('Push Preview needs conductor_ux_v2.', 'textMuted');
+    host.showStatus(ttui('tui.conductor.pushNeedsUx'), 'textMuted');
     return;
   }
   if (!canOpenPushPreview(card)) {
-    host.showStatus('Push Preview needs a done or blocked job.', 'textMuted');
+    host.showStatus(ttui('tui.conductor.pushNeedsJob'), 'textMuted');
     return;
   }
   const session = host.session;
   if (session === undefined) {
-    host.showError('No active session — Push Preview needs a live session.');
+    host.showError(ttui('tui.conductor.pushNoSession'));
     return;
   }
 
@@ -70,8 +71,8 @@ export function openPushPreview(
         .then((result) => {
           host.showStatus(
             result.ok
-              ? `Push approved for ${shortJobId(card.id)}`
-              : `Push held: ${result.error ?? result.text}`,
+              ? ttui('tui.conductor.pushApproved', { jobId: shortJobId(card.id) })
+              : ttui('tui.conductor.pushHeld', { reason: result.error ?? result.text }),
             result.ok ? 'success' : 'warning',
           );
         })
@@ -88,7 +89,7 @@ export function openPushPreview(
           summary: summary.length > 0 ? summary : 'rejected from Push Preview',
         })
         .then(() => {
-          host.showStatus(`Push rejected for ${shortJobId(card.id)}`, 'info');
+          host.showStatus(ttui('tui.conductor.pushRejected', { jobId: shortJobId(card.id) }), 'info');
         })
         .catch((error: unknown) => {
           host.showError(error instanceof Error ? error.message : String(error));
