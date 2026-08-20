@@ -68,6 +68,7 @@ describe('resolveUpgradePlan', () => {
         refreshUpdateCache,
         refreshGitCheckoutUpdateTarget,
         detectGithubCheckout: async () => null,
+        discardUnhealthyManagedCheckout: async () => false,
         readUpdateInstallState: async () => ({ active: null, lastFailure: null, lastSuccess: null }),
         platform: 'darwin',
       },
@@ -175,6 +176,7 @@ describe('resolveUpgradePlan', () => {
         refreshUpdateCache: vi.fn(),
         refreshGitCheckoutUpdateTarget: vi.fn(),
         detectGithubCheckout: async () => null,
+        discardUnhealthyManagedCheckout: async () => false,
         readUpdateInstallState: async () => ({
           active: {
             version: 'origin/main',
@@ -251,5 +253,67 @@ describe('resolveUpgradePlan', () => {
     });
     expect(plan.reason).toBe('up-to-date');
     expect(plan.target).toBeNull();
+  });
+
+  it('--main discards an undetectable managed leftover and plans native', async () => {
+    const discardUnhealthyManagedCheckout = vi.fn().mockResolvedValue(true);
+    const plan = await resolveUpgradePlan(
+      '0.12.7',
+      {
+        detectInstallSource: async () => 'native',
+        refreshUpdateCache: vi.fn(),
+        refreshGitCheckoutUpdateTarget: vi.fn(),
+        detectGithubCheckout: async () => null,
+        defaultSourceInstallDir: () => '/tmp/.superliora/source',
+        discardUnhealthyManagedCheckout,
+        readUpdateInstallState: async () => ({ active: null, lastFailure: null, lastSuccess: null }),
+        platform: 'win32',
+      },
+      { fromMain: true },
+    );
+    expect(discardUnhealthyManagedCheckout).toHaveBeenCalledWith('/tmp/.superliora/source');
+    expect(plan.source).toBe('native');
+    expect(plan.reason).toBe('update-available');
+    expect(plan.target).toEqual({ version: MAIN_TIP_UPSTREAM, upstream: MAIN_TIP_UPSTREAM });
+  });
+
+  it('--main falls back to native when checkout refresh cannot open FETCH_HEAD', async () => {
+    const discardUnhealthyManagedCheckout = vi.fn().mockResolvedValue(true);
+    const plan = await resolveUpgradePlan(
+      '0.12.7',
+      {
+        detectInstallSource: async () => 'native',
+        refreshUpdateCache: vi.fn(),
+        refreshGitCheckoutUpdateTarget: async () => {
+          throw new Error("error: cannot open '.git/FETCH_HEAD': Invalid argument");
+        },
+        detectGithubCheckout: async () => '/tmp/.superliora/source',
+        defaultSourceInstallDir: () => '/tmp/.superliora/source',
+        discardUnhealthyManagedCheckout,
+        readUpdateInstallState: async () => ({ active: null, lastFailure: null, lastSuccess: null }),
+        platform: 'win32',
+      },
+      { fromMain: true },
+    );
+    expect(plan.reason).toBe('update-available');
+    expect(plan.source).toBe('native');
+    expect(plan.fromMain).toBe(true);
+    expect(discardUnhealthyManagedCheckout).toHaveBeenCalledWith('/tmp/.superliora/source');
+    expect(plan.installCommand).toMatch(/--main|SUPERLIORA_FROM_MAIN/);
+  });
+
+  it('github-checkout still reports check-failed when refresh fails without --main', async () => {
+    const plan = await resolveUpgradePlan('0.12.7', {
+      detectInstallSource: async () => 'github-checkout',
+      refreshUpdateCache: vi.fn(),
+      refreshGitCheckoutUpdateTarget: async () => {
+        throw new Error("error: cannot open '.git/FETCH_HEAD': Invalid argument");
+      },
+      readUpdateInstallState: async () => ({ active: null, lastFailure: null, lastSuccess: null }),
+      platform: 'win32',
+    });
+    expect(plan.reason).toBe('check-failed');
+    expect(plan.source).toBe('github-checkout');
+    expect(plan.errorMessage).toContain('FETCH_HEAD');
   });
 });

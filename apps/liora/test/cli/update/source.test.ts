@@ -197,3 +197,23 @@ describe('detectInstallSource', () => {
     ).resolves.toBe('unsupported');
   });
 });
+
+describe('summarizeGitFailure', () => {
+  it('keeps invalid-path / FETCH_HEAD lines and drops git restore advice', async () => {
+    const { isUnusableCheckoutError, summarizeGitFailure } = await import('#/cli/update/install-stages');
+    const output = [
+      "error: invalid path 'packages/agent-core/src/skill/catalog/foo:bar'",
+      'fatal: unable to checkout working tree',
+      'warning: Clone succeeded, but checkout failed.',
+      "You can inspect what was checked out with 'git status'",
+      "and retry with 'git restore --source=HEAD :/'",
+      'error: git clone --depth 1 https://github.com/claudianus/superliora.git C:\\Users\\Administrator\\.superliora\\source',
+    ].join('\n');
+    expect(summarizeGitFailure(output)).toContain('invalid path');
+    expect(summarizeGitFailure(output)).not.toContain('git restore');
+    expect(isUnusableCheckoutError("error: cannot open '.git/FETCH_HEAD': Invalid argument")).toBe(true);
+    expect(isUnusableCheckoutError('source checkout is missing git objects; it will be replaced')).toBe(true);
+    expect(isUnusableCheckoutError('fatal: unable to access https://github.com/example/repo.git/')).toBe(false);
+  });
+});
+

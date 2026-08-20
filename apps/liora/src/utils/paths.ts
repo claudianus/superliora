@@ -60,6 +60,14 @@ export function getBinDir(): string {
 }
 
 /**
+ * Managed source-install checkout: `<dataDir>/source`.
+ * The installer may replace this tree; it is not an operator worktree.
+ */
+export function getSourceInstallDir(): string {
+  return join(getDataDir(), 'source');
+}
+
+/**
  * Return the update cache file: `<dataDir>/updates/latest.json`.
  */
 export function getUpdateStateFile(): string {

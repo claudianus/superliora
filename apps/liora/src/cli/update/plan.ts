@@ -1,14 +1,16 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { getSourceInstallDir } from '#/utils/paths';
 
 import { SUPERLIORA_CHANGELOG_URL } from './changelog';
 import type { GitCheckoutRefreshResult, GitCheckoutUpdateOptions } from './git-checkout';
 import {
   detectSuperLioraGithubCheckout,
+  discardUnhealthyManagedCheckout,
   findGitCheckoutRoot,
   gitCheckoutVersionLabel,
   refreshGitCheckoutUpdateTarget,
+  sameCheckoutPath,
 } from './git-checkout';
+import { isUnusableCheckoutError } from './install-stages';
 import { hasLiveActiveInstall } from './install-runtime';
 import { emptyUpdateInstallState, readUpdateInstallState, writeUpdateInstallState } from './install-state';
 import { canAutoInstall, installCommandFor } from './preflight';
@@ -70,8 +72,12 @@ export interface ResolveUpgradePlanDeps {
   readonly fetchReleaseManifest: () => Promise<FetchReleaseManifestResult>;
   readonly readUpdateInstallState: () => Promise<UpdateInstallState>;
   readonly writeUpdateInstallState: (state: UpdateInstallState) => Promise<void>;
-  readonly detectGithubCheckout: (startPath?: string) => Promise<string | null>;
+  readonly detectGithubCheckout: (
+    startPath?: string,
+    options?: { readonly walkParents?: boolean },
+  ) => Promise<string | null>;
   readonly defaultSourceInstallDir: () => string;
+  readonly discardUnhealthyManagedCheckout: (managedRoot: string) => Promise<boolean>;
   readonly platform: NodeJS.Platform;
   readonly now?: () => Date;
 }
@@ -103,9 +109,11 @@ function resolveDeps(overrides: Partial<ResolveUpgradePlanDeps>): ResolveUpgrade
     writeUpdateInstallState:
       overrides.writeUpdateInstallState ?? ((state) => writeUpdateInstallState(state)),
     detectGithubCheckout:
-      overrides.detectGithubCheckout ?? ((startPath) => detectSuperLioraGithubCheckout(startPath)),
-    defaultSourceInstallDir:
-      overrides.defaultSourceInstallDir ?? (() => join(homedir(), '.superliora', 'source')),
+      overrides.detectGithubCheckout ?? ((startPath, options) =>
+        detectSuperLioraGithubCheckout(startPath, options)),
+    defaultSourceInstallDir: overrides.defaultSourceInstallDir ?? getSourceInstallDir,
+    discardUnhealthyManagedCheckout:
+      overrides.discardUnhealthyManagedCheckout ?? discardUnhealthyManagedCheckout,
     platform: overrides.platform ?? process.platform,
     now: overrides.now ?? (() => new Date()),
   };
@@ -134,7 +142,11 @@ function basePlan(input: BasePlanInput): UpgradePlan {
 async function resolveMainCheckoutRoot(deps: ResolveUpgradePlanDeps): Promise<string | null> {
   const fromPackage = await deps.detectGithubCheckout().catch(() => null);
   if (fromPackage !== null) return fromPackage;
-  return deps.detectGithubCheckout(deps.defaultSourceInstallDir()).catch(() => null);
+  const managed = deps.defaultSourceInstallDir();
+  const fromManaged = await deps.detectGithubCheckout(managed, { walkParents: false }).catch(() => null);
+  if (fromManaged !== null) return fromManaged;
+  await deps.discardUnhealthyManagedCheckout(managed).catch(() => false);
+  return null;
 }
 
 async function planGithubCheckout(
@@ -215,6 +227,14 @@ async function planGithubCheckout(
       checkoutRoot: checkoutRoot ?? result.target.repoRoot,
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (options.fromMain && isUnusableCheckoutError(errorMessage)) {
+      const managed = deps.defaultSourceInstallDir();
+      if (checkoutRoot === undefined || sameCheckoutPath(checkoutRoot, managed)) {
+        await deps.discardUnhealthyManagedCheckout(managed).catch(() => false);
+      }
+      return planNativeFromMain(currentVersion, deps.platform);
+    }
     return basePlan({
       source,
       currentVersion,
@@ -222,7 +242,7 @@ async function planGithubCheckout(
       reason: 'check-failed',
       dirty: false,
       canAutoInstall: false,
-      errorMessage: error instanceof Error ? error.message : String(error),
+      errorMessage,
       platform: deps.platform,
       fromMain: options.fromMain,
       checkoutRoot,

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
 import { tryGetHostPackageRoot } from '#/cli/version';
@@ -28,9 +29,16 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
+function gitArgv(repoRoot: string, args: readonly string[]): string[] {
+  if (process.platform === 'win32') {
+    return ['-C', repoRoot, '-c', 'core.longpaths=true', ...args];
+  }
+  return ['-C', repoRoot, ...args];
+}
+
 function execGit(repoRoot: string, args: readonly string[]): Promise<string> {
   return new Promise((resolveOutput, reject) => {
-    execFile('git', ['-C', repoRoot, ...args], { encoding: 'utf-8' }, (error, stdout, stderr) => {
+    execFile('git', gitArgv(repoRoot, args), { encoding: 'utf-8' }, (error, stdout, stderr) => {
       if (error) {
         reject(new Error((stderr.trim() || error.message)));
         return;
@@ -40,17 +48,53 @@ function execGit(repoRoot: string, args: readonly string[]): Promise<string> {
   });
 }
 
-export function findGitCheckoutRoot(startPath?: string): string | null {
+export function findGitCheckoutRoot(
+  startPath?: string,
+  options: { readonly walkParents?: boolean } = {},
+): string | null {
   const resolved = startPath ?? tryGetHostPackageRoot();
   if (resolved === undefined) return null;
   let dir = resolve(resolved);
+  const walkParents = options.walkParents ?? true;
   for (let i = 0; i < 12; i++) {
     if (existsSync(resolve(dir, '.git'))) return dir;
+    if (!walkParents) return null;
     const parent = dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
   return null;
+}
+
+/** True when HEAD exists in the object store (rejects hollow failed clones). */
+export async function hasUsableGitObjectStore(repoRoot: string): Promise<boolean> {
+  if (!existsSync(resolve(repoRoot, '.git'))) return false;
+  try {
+    const head = await execGit(repoRoot, ['rev-parse', '--verify', 'HEAD']);
+    if (head.length === 0) return false;
+    await execGit(repoRoot, ['cat-file', '-e', `${head}^{commit}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function sameCheckoutPath(left: string, right: string): boolean {
+  const a = resolve(left);
+  const b = resolve(right);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+/**
+ * Remove a managed `~/.superliora/source` tree that cannot be fetched.
+ * Never deletes an operator worktree outside `managedRoot`.
+ */
+export async function discardUnhealthyManagedCheckout(managedRoot: string): Promise<boolean> {
+  const root = resolve(managedRoot);
+  if (!existsSync(root) || !existsSync(resolve(root, '.git'))) return false;
+  if (await hasUsableGitObjectStore(root)) return false;
+  await rm(root, { recursive: true, force: true });
+  return true;
 }
 
 export function isSuperLioraGithubRemote(remoteUrl: string): boolean {
@@ -59,11 +103,14 @@ export function isSuperLioraGithubRemote(remoteUrl: string): boolean {
 
 export async function detectSuperLioraGithubCheckout(
   startPath?: string,
+  options: { readonly walkParents?: boolean } = {},
 ): Promise<string | null> {
-  const repoRoot = findGitCheckoutRoot(startPath);
+  const repoRoot = findGitCheckoutRoot(startPath, options);
   if (repoRoot === null) return null;
   const origin = await execGit(repoRoot, ['config', '--get', 'remote.origin.url']).catch(() => '');
-  return isSuperLioraGithubRemote(origin) ? repoRoot : null;
+  if (!isSuperLioraGithubRemote(origin)) return null;
+  if (!(await hasUsableGitObjectStore(repoRoot))) return null;
+  return repoRoot;
 }
 
 export async function isGitCheckoutDirty(repoRoot: string): Promise<boolean> {
@@ -97,11 +144,11 @@ function buildGitCheckoutUpdateShellLines(
     `echo '__LIORA_UPGRADE_STAGE__=fetching'`,
     ...resolveUpstream,
     'ref="${upstream#origin/}"',
-    `git -C ${repoExpr} fetch --depth 1 origin "$ref"`,
+    `git -C ${repoExpr} -c core.longpaths=true fetch --depth 1 origin "$ref"`,
     // Stay on the tracking branch — bare FETCH_HEAD checkout leaves detached HEAD
     // and surfaces git's "git branch <new-branch-name>" advice as a false failure.
-    `git -C ${repoExpr} -c advice.detachedHead=false checkout --force -B "$ref" FETCH_HEAD`,
-    `git -C ${repoExpr} reset --hard FETCH_HEAD`,
+    `git -C ${repoExpr} -c core.longpaths=true -c advice.detachedHead=false checkout --force -B "$ref" FETCH_HEAD`,
+    `git -C ${repoExpr} -c core.longpaths=true reset --hard FETCH_HEAD`,
     `echo '__LIORA_UPGRADE_STAGE__=building'`,
     'export PATH="${HOME}/.superliora/runtime/pnpm:${PATH}"',
     'if [ -n "${USERPROFILE:-}" ]; then export PATH="${USERPROFILE}/.superliora/runtime/pnpm:${PATH}"; fi',
@@ -150,6 +197,9 @@ export async function refreshGitCheckoutUpdateTarget(
 ): Promise<GitCheckoutRefreshResult> {
   if (repoRoot.length === 0) {
     throw new Error('Git checkout root not found');
+  }
+  if (!(await hasUsableGitObjectStore(repoRoot))) {
+    throw new Error('source checkout is missing git objects; it will be replaced');
   }
   const dirty = await isGitCheckoutDirty(repoRoot);
   const preferred = options.preferredUpstream?.trim();
