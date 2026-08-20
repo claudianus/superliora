@@ -14,7 +14,7 @@ export default defineConfig({
     name: 'cli',
     testTimeout: 30_000,
     hookTimeout: 30_000,
-    setupFiles: ['test/i18n-setup.ts'],
+    setupFiles: ['test/i18n-setup.ts', resolve(appRoot, '../../packages/agent-core/test/setup-windows-fs.ts')],
     env: {
       KIMI_LOG_LEVEL: 'off',
     },

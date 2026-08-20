@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 
 import type { IndexedSymbol, IndexedSymbolKind } from '#/codemap/extract';
+import { trackSqliteDatabase } from '#/runtime/sqlite-handles';
 
 interface SqliteRunResult {
   readonly changes: number;
@@ -72,7 +73,7 @@ export class SymbolIndexStore {
     if (dbPath !== ':memory:') {
       mkdirSync(dirname(dbPath), { recursive: true });
     }
-    this.db = new (loadSqlite().DatabaseSync)(dbPath);
+    this.db = trackSqliteDatabase(dbPath, new (loadSqlite().DatabaseSync)(dbPath));
     this.db.exec(SCHEMA);
     // WAL keeps concurrent-session readers smooth while one indexer writes;
     // busy_timeout avoids SQLITE_BUSY snaps on overlapping access. Both are

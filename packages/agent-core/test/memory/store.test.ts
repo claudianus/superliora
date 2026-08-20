@@ -22,6 +22,12 @@ afterEach(() => {
 });
 
 describe('LioraMemoryStore', () => {
+  it('releases the sqlite lock so the home dir can be deleted', () => {
+    const { root, store } = makeRuntime('s1', '/repo');
+    store.close();
+    expect(() => rmSync(root, { recursive: true, force: true })).not.toThrow();
+  });
+
   it('persists memories across session runtimes and ranks relevant results', async () => {
     const { store, runtime } = makeRuntime('s1', '/repo');
     const saved = await runtime.remember({

@@ -14,6 +14,7 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 
 import { resolveLioraHome } from '#/config/path';
 import type { MemoryLink } from '#/memory';
+import { trackSqliteDatabase } from '#/runtime/sqlite-handles';
 
 interface SqliteRunResult {
   readonly changes: number;
@@ -160,7 +161,7 @@ export class ContentIndexStore {
     if (dbPath !== ':memory:') {
       mkdirSync(dirname(dbPath), { recursive: true });
     }
-    this.db = new (loadSqliteModule().DatabaseSync)(dbPath);
+    this.db = trackSqliteDatabase(dbPath, new (loadSqliteModule().DatabaseSync)(dbPath));
     this.db.exec(FTS_SCHEMA);
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA busy_timeout = 2000');

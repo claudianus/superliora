@@ -115,6 +115,7 @@ export class SDKRpcClient extends SDKRpcClientBase {
   }
 
   async close(): Promise<void> {
+    this.core.close();
     try {
       await getRootLogger().flush();
     } catch {

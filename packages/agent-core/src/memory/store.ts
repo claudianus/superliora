@@ -116,6 +116,10 @@ export class LioraMemoryStore {
     return this.persistence.dbPath;
   }
 
+  close(): void {
+    this.persistence.close();
+  }
+
   isEnabled(): boolean {
     return this.config?.()?.enabled !== false;
   }
