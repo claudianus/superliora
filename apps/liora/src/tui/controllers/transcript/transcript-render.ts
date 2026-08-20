@@ -52,7 +52,6 @@ import { resolveStageLayout } from '../layout/stage-layout';
 import { buildSplashMorphScene } from '../../utils/splash/splash-reveal-preview';
 import { hasDispose } from '../../utils/component-capabilities';
 import { noteErrorFeedback } from '../../utils/render/feedback-vfx';
-import { ttui } from '../../utils/tui-i18n';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
   getTranscriptComponentEntry,
