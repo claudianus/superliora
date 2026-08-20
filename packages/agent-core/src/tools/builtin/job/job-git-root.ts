@@ -215,13 +215,17 @@ function firstOwnershipGitRoot(
   ownershipPaths: readonly string[] | undefined,
 ): string | undefined {
   if (ownershipPaths === undefined) return undefined;
+  let offDisk: string | undefined;
   for (const raw of ownershipPaths) {
     const path = raw.trim();
     if (path.length === 0 || !isAbsoluteRepoPath(path)) continue;
     const root = mainCheckoutFromPath(path);
     if (root !== undefined) return root;
+    // Off-disk Windows drive paths on POSIX (and missing fixtures) still
+    // count as explicit identity — do not fall through to session cwd.
+    offDisk ??= path.replace(/[/\\]+$/, '');
   }
-  return undefined;
+  return offDisk;
 }
 
 function resolveRelativeOwnershipUnderSession(
