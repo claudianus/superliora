@@ -1,4 +1,3 @@
-import { trackToolCallPattern } from './tool-call-guards';
 import type {
   PreflightedToolCall,
   ToolCallDisplayFields,
@@ -21,7 +20,7 @@ export async function dispatchToolCall(
 ): Promise<void> {
   const { toolCall, toolName } = call;
   // Track call patterns for loop stagnation detection.
-  trackToolCallPattern(toolName, args, step.log);
+  step.guards.trackToolCallPattern(toolName, args, step.log);
   await step.dispatchEvent({
     type: 'tool.call',
     uuid: toolCall.id,

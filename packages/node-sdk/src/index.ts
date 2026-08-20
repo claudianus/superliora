@@ -333,19 +333,6 @@ export {
   type SearchNeverEmptyTelemetry,
 } from '@superliora/agent-core/tools/providers/search-never-empty-telemetry';
 
-export {
-  simulateNeverHaltChaosSequence,
-  simulateNeverHaltDegradedChaos,
-  simulateNeverHaltOAuthChaosSequence,
-  type NeverHaltChaosSequencePhase,
-  type NeverHaltChaosSequenceResult,
-  type NeverHaltChaosTickResult,
-  type NeverHaltOAuthChaosSequencePhase,
-  type NeverHaltOAuthChaosSequenceResult,
-} from '@superliora/agent-core/runtime/never-halt-chaos';
-
-
-
 // Browser-use runtime for in-app browser
 export {
   createBrowserUseRuntime,

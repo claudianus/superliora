@@ -214,6 +214,10 @@ export class Session {
     this.resources.refreshAgentBuiltinTools();
   }
 
+  getKaos(): Kaos {
+    return this.toolKaos;
+  }
+
   getAdditionalDirs(): readonly string[] {
     return this.additionalDirs;
   }
@@ -327,6 +331,9 @@ export class Session {
       await Promise.allSettled(
         Array.from(this.readyAgents(), async (agent) => { await agent.cron?.stop(); agent.idlePulse?.stop(); }),
       );
+      // Reload keeps the agents, so an open circuit from before the reload
+      // would silently block that tool for the rest of the process.
+      for (const agent of this.readyAgents()) agent.toolGuards.resetCircuitBreakers();
       await this.flushMetadata();
       await this.pluginLspRuntime?.dispose();
       this.pluginLspRuntime = undefined;

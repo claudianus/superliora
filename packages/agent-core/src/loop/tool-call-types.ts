@@ -1,5 +1,6 @@
 import type { LoopEventDispatcher, LoopToolCallEvent } from './events';
 import type { LLM } from './llm';
+import type { ToolGuardState } from './tool-call-guards';
 import type { ToolCallTask } from './tool-scheduler';
 import type { ToolParallelStatus } from './tool-parallel-status';
 import type { Logger } from '#/logging/types';
@@ -21,6 +22,8 @@ export interface ToolCallStepContext {
   readonly currentStep: number;
   readonly stepUuid: string;
   readonly toolParallelStatus?: ToolParallelStatus | undefined;
+  /** Failure / circuit-breaker / idempotency state for the owning agent. */
+  readonly guards: ToolGuardState;
 }
 
 export interface ToolCallBatchContext extends ToolCallStepContext {

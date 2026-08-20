@@ -2,10 +2,14 @@
  * Tool-call guardrails: failure tracking, circuit breakers, idempotency,
  * repetition detection, and side-effect helpers.
  *
- * Extracted from `tool-call.ts` to isolate stateful guard logic from the
- * tool-call execution lifecycle. All trackers are module-level singletons
- * scoped to a single turn/session and must be reset at boundaries.
+ * All mutable state lives on {@link ToolGuardState}, which the host owns and
+ * threads through the loop. It must never be module-level: a single process
+ * runs the main agent, its subagents, and (in the server) several sessions at
+ * once, and they would otherwise share doom-loop counts, mutation idempotency,
+ * and circuit state — one turn's reset wiping another's guards mid-flight.
  */
+
+import { createHash } from 'node:crypto';
 
 import type { Logger } from '#/logging/types';
 import type { ToolArgsValidator } from '../tools/args-validator';
@@ -21,35 +25,6 @@ import type { ExecutableTool } from './types';
  * not a transient issue. Without tracking, the loop may retry indefinitely.
  */
 const CONSECUTIVE_FAILURE_WARN_THRESHOLD = 3;
-
-/**
- * Tracks consecutive tool failures within a turn. Reset on success.
- * Module-level state is intentional: the tracker is scoped to a single
- * turn's tool-call batch sequence and does not leak across turns.
- */
-const consecutiveFailures = new Map<string, number>();
-
-export function trackToolFailure(toolName: string, log?: Logger): void {
-  const count = (consecutiveFailures.get(toolName) ?? 0) + 1;
-  consecutiveFailures.set(toolName, count);
-  if (count === CONSECUTIVE_FAILURE_WARN_THRESHOLD) {
-    log?.warn('tool failing repeatedly; possible systematic issue', {
-      toolName,
-      consecutiveFailures: count,
-    });
-  }
-}
-
-export function resetToolFailure(toolName: string): void {
-  consecutiveFailures.delete(toolName);
-}
-
-/** Reset all failure tracking state. Call at turn boundaries. */
-export function resetToolFailureTracker(): void {
-  consecutiveFailures.clear();
-  recentToolCalls.clear();
-  executedToolCalls.clear();
-}
 
 /**
  * Circuit breaker states. Based on the standard circuit breaker pattern
@@ -73,174 +48,20 @@ interface CircuitBreakerEntry {
 }
 
 /**
- * Per-tool circuit breaker state. Tracks error rates over a sliding window
- * and implements closed → open → half-open state transitions.
- */
-const circuitBreakers = new Map<string, CircuitBreakerEntry>();
-
-/**
- * Record a tool failure and update circuit breaker state.
- * Returns true if the circuit is open (tool should be blocked).
- */
-export function recordToolFailureForCircuitBreaker(toolName: string): boolean {
-  const now = Date.now();
-  let entry = circuitBreakers.get(toolName);
-  if (entry === undefined) {
-    entry = { state: 'closed', failures: [], lastStateChange: now, cooldownUntil: 0 };
-    circuitBreakers.set(toolName, entry);
-  }
-
-  // Handle state transitions based on cooldown.
-  if (entry.state === 'open' && now >= entry.cooldownUntil) {
-    entry.state = 'half-open';
-    entry.lastStateChange = now;
-  }
-
-  // Add failure timestamp and prune old entries outside the window.
-  entry.failures.push(now);
-  entry.failures = entry.failures.filter((t) => now - t < CIRCUIT_BREAKER_WINDOW_MS);
-
-  // Check if we should trip the breaker.
-  if (entry.state === 'closed' && entry.failures.length >= CIRCUIT_BREAKER_FAILURE_THRESHOLD) {
-    entry.state = 'open';
-    entry.lastStateChange = now;
-    entry.cooldownUntil = now + CIRCUIT_BREAKER_COOLDOWN_MS;
-    return true;
-  }
-
-  // In half-open state, any failure re-opens the circuit.
-  if (entry.state === 'half-open') {
-    entry.state = 'open';
-    entry.lastStateChange = now;
-    entry.cooldownUntil = now + CIRCUIT_BREAKER_COOLDOWN_MS;
-    return true;
-  }
-
-  return entry.state === 'open';
-}
-
-/**
- * Record a tool success. Resets the circuit breaker to closed state.
- * Returns the prior non-closed state when a recovery transition happened
- * (Loop29a: half-open/open → closed visibility).
- */
-export function recordToolSuccessForCircuitBreaker(
-  toolName: string,
-): CircuitBreakerState | undefined {
-  const entry = circuitBreakers.get(toolName);
-  if (entry !== undefined && entry.state !== 'closed') {
-    const prior = entry.state;
-    entry.state = 'closed';
-    entry.failures = [];
-    entry.lastStateChange = Date.now();
-    return prior;
-  }
-  return undefined;
-}
-
-/**
- * Check if a tool's circuit breaker is open (tool should be blocked).
- */
-export function isToolCircuitOpen(toolName: string): boolean {
-  const entry = circuitBreakers.get(toolName);
-  if (entry === undefined) return false;
-  const now = Date.now();
-  // Transition to half-open if cooldown has passed.
-  if (entry.state === 'open' && now >= entry.cooldownUntil) {
-    entry.state = 'half-open';
-    entry.lastStateChange = now;
-    return false; // Allow one test request in half-open state.
-  }
-  return entry.state === 'open';
-}
-
-/**
- * Get the current circuit breaker state for a tool.
- */
-export function getCircuitBreakerState(toolName: string): CircuitBreakerState {
-  return circuitBreakers.get(toolName)?.state ?? 'closed';
-}
-
-/** Reset all circuit breaker state. Call at session boundaries. */
-export function resetCircuitBreakers(): void {
-  circuitBreakers.clear();
-}
-
-// ---------------------------------------------------------------------------
-// Tool call idempotency tracking (duplicate side-effect prevention)
-// ---------------------------------------------------------------------------
-
-/**
  * Idempotency key for tool calls. Based on the pattern:
  * (run_id, step_index, action_type) to deduplicate write operations.
  * For our purposes, we use (toolName, argsHash) as the key.
  */
-interface IdempotencyEntry {
+export interface IdempotencyEntry {
   readonly toolName: string;
   readonly argsHash: string;
   readonly executedAt: number;
   readonly result?: string;
 }
 
-/**
- * Tracks executed tool calls to prevent duplicate side effects on retry.
- * Keyed by composite idempotency key (toolName:argsHash).
- */
-const executedToolCalls = new Map<string, IdempotencyEntry>();
-
 /** Maximum entries before LRU eviction. */
 const MAX_IDEMPOTENCY_ENTRIES = 100;
 
-/**
- * Generate an idempotency key for a tool call.
- */
-export function toolCallIdempotencyKey(toolName: string, args: unknown): string {
-  const argsHash = safeStringifyArgs(args);
-  return `${toolName}:${argsHash}`;
-}
-
-/**
- * Check if a tool call has already been executed (idempotent duplicate).
- * Returns the cached result if available.
- */
-export function checkToolCallIdempotency(key: string): IdempotencyEntry | undefined {
-  return executedToolCalls.get(key);
-}
-
-/**
- * Record a tool call execution for idempotency tracking.
- */
-export function recordToolCallExecution(
-  key: string,
-  toolName: string,
-  args: unknown,
-  result?: string,
-): void {
-  // LRU eviction if at capacity.
-  if (executedToolCalls.size >= MAX_IDEMPOTENCY_ENTRIES) {
-    const firstKey = executedToolCalls.keys().next().value;
-    if (firstKey !== undefined) executedToolCalls.delete(firstKey);
-  }
-  executedToolCalls.set(key, {
-    toolName,
-    argsHash: safeStringifyArgs(args),
-    executedAt: Date.now(),
-    result,
-  });
-}
-
-/** Reset idempotency tracking. Call at turn boundaries. */
-export function resetIdempotencyTracker(): void {
-  executedToolCalls.clear();
-}
-
-/**
- * Loop repetition detection threshold. When the same tool is called with
- * identical arguments this many times within a turn, log a warning about
- * potential loop stagnation. Based on the self-healing framework insight:
- * "failure detection identifies abnormal agent behavior based on execution
- * patterns and output consistency" (Jeong & Shin, 2026).
- */
 /** Soft warn once when identical (tool,args) hits this count within a turn. */
 export const REPETITION_WARN_THRESHOLD = 4;
 /** Intra-turn identical (tool,args) hard-stop (doom_loop), separate from circuit breaker. */
@@ -257,61 +78,203 @@ export function formatDoomLoopWarnTip(toolName: string, count: number): string {
   );
 }
 
-/**
- * Tracks recent tool call signatures (name + args hash) within a turn.
- * Used to detect repetitive patterns that indicate the loop is stuck.
- */
-const recentToolCalls = new Map<string, number>();
-
 export type ToolCallPatternVerdict =
   | { readonly action: 'allow' }
   | { readonly action: 'warn'; readonly count: number }
   | { readonly action: 'hard_stop'; readonly count: number; readonly code: 'DOOM_LOOP_HARD_STOP' };
 
 /**
- * Record a tool call signature. Returns hard_stop when the same tool+args
- * repeats past the doom threshold within a turn (execution must be blocked).
+ * Guard state for one agent. Failure / repetition / idempotency tracking is
+ * turn-scoped ({@link resetForTurn}); circuit breakers deliberately outlive a
+ * turn and clear at session boundaries ({@link resetCircuitBreakers}).
  */
-export function trackToolCallPattern(
-  toolName: string,
-  args: unknown,
-  log?: Logger,
-): ToolCallPatternVerdict {
-  const argsKey = safeStringifyArgs(args);
-  const signature = `${toolName}:${argsKey}`;
-  const count = (recentToolCalls.get(signature) ?? 0) + 1;
-  recentToolCalls.set(signature, count);
-  if (count >= REPETITION_HARD_STOP_THRESHOLD) {
-    log?.warn('doom_loop hard stop: repetitive tool call pattern', {
-      toolName,
-      repetitionCount: count,
-      code: 'DOOM_LOOP_HARD_STOP',
-    });
-    return { action: 'hard_stop', count, code: 'DOOM_LOOP_HARD_STOP' };
+export class ToolGuardState {
+  /** Consecutive failures per tool within a turn. Reset on success. */
+  private readonly consecutiveFailures = new Map<string, number>();
+  /** Per-tool circuit breaker: error rate over a sliding window. */
+  private readonly circuitBreakers = new Map<string, CircuitBreakerEntry>();
+  /** Executed tool calls, keyed by `toolName:argsHash`, for replay dedupe. */
+  private readonly executedToolCalls = new Map<string, IdempotencyEntry>();
+  /** Call signatures seen this turn, for loop-stagnation detection. */
+  private readonly recentToolCalls = new Map<string, number>();
+
+  /** Clear the turn-scoped trackers. Circuit breakers survive on purpose. */
+  resetForTurn(): void {
+    this.consecutiveFailures.clear();
+    this.recentToolCalls.clear();
+    this.executedToolCalls.clear();
   }
-  if (count === REPETITION_WARN_THRESHOLD) {
-    log?.warn('repetitive tool call pattern detected; possible loop stagnation', {
-      toolName,
-      repetitionCount: count,
-    });
-    return { action: 'warn', count };
+
+  /** Clear circuit breaker state. Call at session boundaries. */
+  resetCircuitBreakers(): void {
+    this.circuitBreakers.clear();
   }
-  return { action: 'allow' };
+
+  trackToolFailure(toolName: string, log?: Logger): void {
+    const count = (this.consecutiveFailures.get(toolName) ?? 0) + 1;
+    this.consecutiveFailures.set(toolName, count);
+    if (count === CONSECUTIVE_FAILURE_WARN_THRESHOLD) {
+      log?.warn('tool failing repeatedly; possible systematic issue', {
+        toolName,
+        consecutiveFailures: count,
+      });
+    }
+  }
+
+  resetToolFailure(toolName: string): void {
+    this.consecutiveFailures.delete(toolName);
+  }
+
+  /**
+   * Record a tool failure and update circuit breaker state.
+   * Returns true if the circuit is open (tool should be blocked).
+   */
+  recordToolFailureForCircuitBreaker(toolName: string): boolean {
+    const now = Date.now();
+    let entry = this.circuitBreakers.get(toolName);
+    if (entry === undefined) {
+      entry = { state: 'closed', failures: [], lastStateChange: now, cooldownUntil: 0 };
+      this.circuitBreakers.set(toolName, entry);
+    }
+
+    // Handle state transitions based on cooldown.
+    if (entry.state === 'open' && now >= entry.cooldownUntil) {
+      entry.state = 'half-open';
+      entry.lastStateChange = now;
+    }
+
+    // Add failure timestamp and prune old entries outside the window.
+    entry.failures.push(now);
+    entry.failures = entry.failures.filter((t) => now - t < CIRCUIT_BREAKER_WINDOW_MS);
+
+    // Check if we should trip the breaker.
+    if (entry.state === 'closed' && entry.failures.length >= CIRCUIT_BREAKER_FAILURE_THRESHOLD) {
+      entry.state = 'open';
+      entry.lastStateChange = now;
+      entry.cooldownUntil = now + CIRCUIT_BREAKER_COOLDOWN_MS;
+      return true;
+    }
+
+    // In half-open state, any failure re-opens the circuit.
+    if (entry.state === 'half-open') {
+      entry.state = 'open';
+      entry.lastStateChange = now;
+      entry.cooldownUntil = now + CIRCUIT_BREAKER_COOLDOWN_MS;
+      return true;
+    }
+
+    return entry.state === 'open';
+  }
+
+  /**
+   * Record a tool success. Resets the circuit breaker to closed state.
+   * Returns the prior non-closed state when a recovery transition happened
+   * (Loop29a: half-open/open → closed visibility).
+   */
+  recordToolSuccessForCircuitBreaker(toolName: string): CircuitBreakerState | undefined {
+    const entry = this.circuitBreakers.get(toolName);
+    if (entry !== undefined && entry.state !== 'closed') {
+      const prior = entry.state;
+      entry.state = 'closed';
+      entry.failures = [];
+      entry.lastStateChange = Date.now();
+      return prior;
+    }
+    return undefined;
+  }
+
+  /** Check if a tool's circuit breaker is open (tool should be blocked). */
+  isToolCircuitOpen(toolName: string): boolean {
+    const entry = this.circuitBreakers.get(toolName);
+    if (entry === undefined) return false;
+    const now = Date.now();
+    // Transition to half-open if cooldown has passed.
+    if (entry.state === 'open' && now >= entry.cooldownUntil) {
+      entry.state = 'half-open';
+      entry.lastStateChange = now;
+      return false; // Allow one test request in half-open state.
+    }
+    return entry.state === 'open';
+  }
+
+  getCircuitBreakerState(toolName: string): CircuitBreakerState {
+    return this.circuitBreakers.get(toolName)?.state ?? 'closed';
+  }
+
+  /** Generate an idempotency key for a tool call. */
+  toolCallIdempotencyKey(toolName: string, args: unknown): string {
+    return `${toolName}:${hashToolArgs(args)}`;
+  }
+
+  /**
+   * Check if a tool call has already been executed (idempotent duplicate).
+   * Returns the cached result if available.
+   */
+  checkToolCallIdempotency(key: string): IdempotencyEntry | undefined {
+    return this.executedToolCalls.get(key);
+  }
+
+  /** Record a tool call execution for idempotency tracking. */
+  recordToolCallExecution(key: string, toolName: string, args: unknown, result?: string): void {
+    // LRU eviction if at capacity.
+    if (this.executedToolCalls.size >= MAX_IDEMPOTENCY_ENTRIES) {
+      const firstKey = this.executedToolCalls.keys().next().value;
+      if (firstKey !== undefined) this.executedToolCalls.delete(firstKey);
+    }
+    this.executedToolCalls.set(key, {
+      toolName,
+      argsHash: hashToolArgs(args),
+      executedAt: Date.now(),
+      result,
+    });
+  }
+
+  /**
+   * Record a tool call signature. Returns hard_stop when the same tool+args
+   * repeats past the doom threshold within a turn (execution must be blocked).
+   */
+  trackToolCallPattern(toolName: string, args: unknown, log?: Logger): ToolCallPatternVerdict {
+    const signature = `${toolName}:${hashToolArgs(args)}`;
+    const count = (this.recentToolCalls.get(signature) ?? 0) + 1;
+    this.recentToolCalls.set(signature, count);
+    if (count >= REPETITION_HARD_STOP_THRESHOLD) {
+      log?.warn('doom_loop hard stop: repetitive tool call pattern', {
+        toolName,
+        repetitionCount: count,
+        code: 'DOOM_LOOP_HARD_STOP',
+      });
+      return { action: 'hard_stop', count, code: 'DOOM_LOOP_HARD_STOP' };
+    }
+    if (count === REPETITION_WARN_THRESHOLD) {
+      log?.warn('repetitive tool call pattern detected; possible loop stagnation', {
+        toolName,
+        repetitionCount: count,
+      });
+      return { action: 'warn', count };
+    }
+    return { action: 'allow' };
+  }
+
+  getToolCallPatternCount(toolName: string, args: unknown): number {
+    return this.recentToolCalls.get(`${toolName}:${hashToolArgs(args)}`) ?? 0;
+  }
 }
 
-export function getToolCallPatternCount(toolName: string, args: unknown): number {
-  const signature = `${toolName}:${safeStringifyArgs(args)}`;
-  return recentToolCalls.get(signature) ?? 0;
-}
-
-function safeStringifyArgs(args: unknown): string {
+/**
+ * Stable digest of a tool call's arguments.
+ *
+ * Hash the whole payload: truncating the JSON made two different Edit/Write
+ * calls that shared a long prefix collide, and the second one was then skipped
+ * as an already-executed duplicate.
+ */
+function hashToolArgs(args: unknown): string {
+  let json: string;
   try {
-    const json = JSON.stringify(args);
-    // Truncate long args to avoid memory issues.
-    return json.length > 200 ? `${json.slice(0, 200)}...` : json;
+    json = JSON.stringify(args) ?? 'undefined';
   } catch {
     return '[unserializable]';
   }
+  return createHash('sha256').update(json).digest('hex');
 }
 
 /**

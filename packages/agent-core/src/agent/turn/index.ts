@@ -41,10 +41,19 @@ interface BufferedSteer {
   readonly origin: PromptOrigin;
 }
 
+/**
+ * How long a new turn waits for a cancelled turn's worker to stop writing to
+ * the context. The loop already caps aborted tool calls with a 2s grace
+ * timeout, so this only has to cover the teardown that follows.
+ */
+const CANCELLED_WORKER_DRAIN_MS = 5_000;
+
 export class TurnFlow {
   private steerBuffer: BufferedSteer[] = [];
   private turnId = -1;
   private activeTurn: 'resuming' | ActiveTurn | null = null;
+  /** Workers of cancelled turns that may still be appending to the context. */
+  private cancelledWorker: Promise<unknown> | null = null;
   /** Suppress leaked `<think>`/`<reasoning>` tags in assistant text deltas. */
   private readonly assistantThinkScrubber = new StreamingThinkScrubber();
   private readonly turnTelemetry: TurnTelemetry;
@@ -215,8 +224,45 @@ export class TurnFlow {
   private abortTurn(reason: unknown) {
     if (this.activeTurn !== 'resuming') {
       this.activeTurn?.controller.abort(reason);
+      // Freeing the slot here keeps cancel instant, but the aborted worker is
+      // still draining: it has to pair every open `tool.call` with a result and
+      // close abandoned exchanges. Hand the promise to the next turn so its
+      // first user message is not appended in the middle of that. Cancelling
+      // twice before the next turn starts must not drop the earlier worker.
+      const aborted = this.activeTurn?.promise;
+      if (aborted !== undefined) {
+        const pending = this.cancelledWorker;
+        this.cancelledWorker =
+          pending === null ? aborted : Promise.allSettled([pending, aborted]);
+      }
     }
     this.activeTurn = null;
+  }
+
+  /**
+   * Wait for a cancelled turn's worker to finish writing to the shared context.
+   * Bounded: a tool that ignores its abort signal must delay the next turn, not
+   * wedge the session.
+   */
+  private async awaitCancelledWorker(): Promise<void> {
+    const pending = this.cancelledWorker;
+    if (pending === null) return;
+    this.cancelledWorker = null;
+    const timer = createControlledPromise<'timeout'>();
+    const handle = setTimeout(() => { timer.resolve('timeout'); }, CANCELLED_WORKER_DRAIN_MS);
+    try {
+      const outcome = await Promise.race([
+        pending.then(() => 'settled' as const, () => 'settled' as const),
+        timer,
+      ]);
+      if (outcome === 'timeout') {
+        this.agent.log?.warn('previous turn still draining; starting the next turn anyway', {
+          drainMs: CANCELLED_WORKER_DRAIN_MS,
+        });
+      }
+    } finally {
+      clearTimeout(handle);
+    }
   }
 
   /**
@@ -282,6 +328,7 @@ export class TurnFlow {
     origin: PromptOrigin,
     signal: AbortSignal,
   ): Promise<TurnEndResult> {
+    await this.awaitCancelledWorker();
     const ownsActiveTurn = (): boolean =>
       this.activeTurn !== null &&
       this.activeTurn !== 'resuming' &&

@@ -15,7 +15,12 @@ const TIMEOUT_RE = /timed?\s*out|timeout|deadline/i;
 export function convertGoogleGenAIError(error: unknown): ChatProviderError {
   // Google SDK's exported ApiError carries an HTTP status code
   if (error instanceof GoogleApiError) {
-    return normalizeAPIStatusError(error.status, error.message);
+    return normalizeAPIStatusError(
+      error.status,
+      error.message,
+      undefined,
+      (error as { headers?: unknown }).headers,
+    );
   }
   if (error instanceof Error) {
     const msg = error.message;
@@ -30,7 +35,7 @@ export function convertGoogleGenAIError(error: unknown): ChatProviderError {
     // Try to extract status code from unknown error shapes
     const statusCode = (error as { code?: number }).code;
     if (typeof statusCode === 'number') {
-      return normalizeAPIStatusError(statusCode, msg);
+      return normalizeAPIStatusError(statusCode, msg, undefined, (error as { headers?: unknown }).headers);
     }
     return new ChatProviderError(`GoogleGenAI error: ${msg}`);
   }

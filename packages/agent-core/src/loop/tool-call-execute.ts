@@ -14,17 +14,7 @@ import {
   REPETITION_HARD_STOP_THRESHOLD,
   REPETITION_WARN_THRESHOLD,
   abortedToolOutput,
-  checkToolCallIdempotency,
   formatDoomLoopWarnTip,
-  getCircuitBreakerState,
-  getToolCallPatternCount,
-  isToolCircuitOpen,
-  recordToolCallExecution,
-  recordToolFailureForCircuitBreaker,
-  recordToolSuccessForCircuitBreaker,
-  resetToolFailure,
-  toolCallIdempotencyKey,
-  trackToolFailure,
 } from './tool-call-guards';
 import type { ExecutableToolResult, RunnableToolExecution, ToolCall } from './types';
 import type { Logger } from '#/logging/types';
@@ -109,8 +99,8 @@ export async function runRunnableToolCall(
   }
 
   // Circuit breaker check: block tools with open circuits.
-  if (isToolCircuitOpen(toolName)) {
-    const state = getCircuitBreakerState(toolName);
+  if (step.guards.isToolCircuitOpen(toolName)) {
+    const state = step.guards.getCircuitBreakerState(toolName);
     step.log?.warn('tool circuit breaker open; blocking execution', {
       toolName,
       toolCallId: toolCall.id,
@@ -127,12 +117,12 @@ export async function runRunnableToolCall(
 
   // Loop29a: after cooldown, isToolCircuitOpen may have flipped open→half-open.
   // This allowed call is the single probe; success closes, failure re-opens.
-  const isHalfOpenProbe = getCircuitBreakerState(toolName) === 'half-open';
+  const isHalfOpenProbe = step.guards.getCircuitBreakerState(toolName) === 'half-open';
 
   // Doom-loop hard stop: identical tool+args repeated past threshold in this turn.
   // trackToolCallPattern is also called from dispatchToolCall; use count check here
   // so execution is blocked even if dispatch already recorded the signature.
-  const patternCount = getToolCallPatternCount(toolName, effectiveArgs);
+  const patternCount = step.guards.getToolCallPatternCount(toolName, effectiveArgs);
   if (patternCount >= REPETITION_HARD_STOP_THRESHOLD) {
     step.log?.warn('doom_loop hard stop; blocking tool execution', {
       toolName,
@@ -150,10 +140,10 @@ export async function runRunnableToolCall(
   // Loop26a: short-window idempotency for mutation tools — replay prior result
   // instead of re-applying the same write (guards double-apply after retry).
   const idempotencyKey = isIdempotentMutationTool(toolName)
-    ? toolCallIdempotencyKey(toolName, effectiveArgs)
+    ? step.guards.toolCallIdempotencyKey(toolName, effectiveArgs)
     : undefined;
   if (idempotencyKey !== undefined) {
-    const prior = checkToolCallIdempotency(idempotencyKey);
+    const prior = step.guards.checkToolCallIdempotency(idempotencyKey);
     if (prior !== undefined && prior.result !== undefined) {
       step.log?.info('idempotent mutation replay; skipping re-execution', {
         toolName,
@@ -186,8 +176,8 @@ export async function runRunnableToolCall(
         toolCallId: toolCall.id,
         error,
       });
-      trackToolFailure(toolName, step.log);
-      recordToolFailureForCircuitBreaker(toolName);
+      step.guards.trackToolFailure(toolName, step.log);
+      step.guards.recordToolFailureForCircuitBreaker(toolName);
     }
     let output = aborted
       ? abortedToolOutput(toolName, effectiveSignal)
@@ -223,8 +213,8 @@ export async function runRunnableToolCall(
 
   // Track failure patterns for isError results (e.g. grace timeout, coercion).
   if (toolResult.isError === true) {
-    trackToolFailure(toolName, step.log);
-    recordToolFailureForCircuitBreaker(toolName);
+    step.guards.trackToolFailure(toolName, step.log);
+    step.guards.recordToolFailureForCircuitBreaker(toolName);
     // Loop29a: half-open probe failure re-opens — mark so TUI reuses open notice.
     if (isHalfOpenProbe) {
       const tip = formatCircuitBreakerProbeFailedTip(toolName);
@@ -240,8 +230,8 @@ export async function runRunnableToolCall(
       });
     }
   } else {
-    resetToolFailure(toolName);
-    const recoveredFrom = recordToolSuccessForCircuitBreaker(toolName);
+    step.guards.resetToolFailure(toolName);
+    const recoveredFrom = step.guards.recordToolSuccessForCircuitBreaker(toolName);
     // Loop29a: successful probe (or any non-closed → closed) is operator-visible.
     if (recoveredFrom !== undefined) {
       const tip = formatCircuitBreakerRecoveredTip(toolName, recoveredFrom);
@@ -264,7 +254,7 @@ export async function runRunnableToolCall(
         typeof toolResult.output === 'string'
           ? toolResult.output
           : String(toolResult.output ?? '');
-      recordToolCallExecution(idempotencyKey, toolName, effectiveArgs, out);
+      step.guards.recordToolCallExecution(idempotencyKey, toolName, effectiveArgs, out);
     }
   }
 

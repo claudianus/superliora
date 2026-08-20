@@ -8,11 +8,7 @@ import {
   createConversationLoop,
   MIN_LOOP_INTERVAL_MS,
 } from '../../src/agent/conversation-loop';
-import {
-  getToolCallPatternCount,
-  resetToolFailureTracker,
-  trackToolCallPattern,
-} from '../../src/loop/tool-call-guards';
+import { ToolGuardState } from '../../src/loop/tool-call-guards';
 import { ToolCallDeduplicator, __testing } from '../../src/agent/turn/tool-dedup';
 import { TaskOutputInputSchema } from '../../src/tools/background/task-output';
 
@@ -108,18 +104,17 @@ describe('ops harness (unit-ops-harness)', () => {
 
   describe('doom_loop hard stop', () => {
     it('trackToolCallPattern hard-stops after threshold', () => {
-      resetToolFailureTracker();
+      const guards = new ToolGuardState();
       const args = { path: '/same' };
-      let last = trackToolCallPattern('Read', args);
+      let last = guards.trackToolCallPattern('Read', args);
       for (let i = 0; i < 10; i += 1) {
-        last = trackToolCallPattern('Read', args);
+        last = guards.trackToolCallPattern('Read', args);
       }
       expect(last.action).toBe('hard_stop');
       if (last.action === 'hard_stop') {
         expect(last.code).toBe('DOOM_LOOP_HARD_STOP');
       }
-      expect(getToolCallPatternCount('Read', args)).toBeGreaterThanOrEqual(8);
-      resetToolFailureTracker();
+      expect(guards.getToolCallPatternCount('Read', args)).toBeGreaterThanOrEqual(8);
     });
 
     it('ToolCallDeduplicator force-stops with DOOM_LOOP_HARD_STOP text', async () => {

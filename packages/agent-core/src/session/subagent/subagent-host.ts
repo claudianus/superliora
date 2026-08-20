@@ -9,6 +9,13 @@ import {
   resolveCompactionBlockRatio,
 } from '../../agent/compaction';
 import { userCancellationReason } from '../../utils/abort';
+import {
+  applyFleetWorktreeToSpawnTasks,
+  assertFleetBudgetAllowsSpawnFromAgent,
+  FleetBudgetExceededError,
+  isFleetWorktreeEnvEnabled,
+  resolveFleetWorkerWorktreeDir,
+} from '#/fleet';
 import type { Session } from '../index';
 import {
   SubagentBatch,
@@ -149,6 +156,8 @@ export class SessionSubagentHost {
     options.signal.throwIfAborted();
 
     const parent = await this.session.ensureAgentResumed(this.ownerAgentId);
+    assertFleetBudgetAllowsSpawnFromAgent(parent);
+    options = await this.withFleetWorktree(options);
     await assertContractCompiles(parent, options);
     const profile = resolveSubagentProfile(parent, options.profileName, options.profileBaseName);
     /** Subagent windows compact earlier than parent (MapReduce-style handoff). */
@@ -292,8 +301,51 @@ export class SessionSubagentHost {
   }
 
   async runQueued<T>(tasks: readonly QueuedSubagentTask<T>[]): Promise<Array<SubagentResult<T>>> {
+    const parent = this.session.getReadyAgent(this.ownerAgentId);
+    try {
+      assertFleetBudgetAllowsSpawnFromAgent(parent);
+    } catch (error) {
+      if (error instanceof FleetBudgetExceededError) {
+        return tasks.map((task) => ({
+          task,
+          status: 'failed' as const,
+          error: error.message,
+          failureReason: 'other' as const,
+        }));
+      }
+      throw error;
+    }
+
+    const applied = await applyFleetWorktreeToSpawnTasks(tasks, {
+      kaos: this.session.getKaos(),
+      repoPath: this.session.getKaos().getcwd(),
+      parentToolCallId: tasks[0]?.parentToolCallId ?? 'fleet',
+      log: this.session.log,
+    });
+    for (const tip of applied.tips) {
+      this.session.log.warn(tip);
+    }
+
     const maxConcurrency = resolveSwarmMaxConcurrency();
-    return new SubagentBatch(this, tasks, { maxConcurrency }).run();
+    return new SubagentBatch(this, applied.tasks, { maxConcurrency }).run();
+  }
+
+  private async withFleetWorktree(
+    options: SpawnSubagentOptions,
+  ): Promise<SpawnSubagentOptions> {
+    if (options.worktreeDir !== undefined || !isFleetWorktreeEnvEnabled()) {
+      return options;
+    }
+    const kaos = this.session.getKaos();
+    const resolved = await resolveFleetWorkerWorktreeDir({
+      kaos,
+      repoPath: kaos.getcwd(),
+      workerKey: `fleet-${options.parentToolCallId.slice(0, 8)}-${String(options.swarmIndex ?? options.description)}`,
+      log: this.session.log,
+    });
+    return resolved.worktreeDir === undefined
+      ? options
+      : { ...options, worktreeDir: resolved.worktreeDir };
   }
 
   suspended(event: SubagentSuspendedEvent): void {

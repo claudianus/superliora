@@ -50,13 +50,21 @@ export interface SwarmFileLeaseRegistry {
  * Normalize path for lease identity. Absolute paths stay absolute;
  * relative paths resolve against optional baseDir (or process cwd).
  */
+function foldLeasePath(path: string): string {
+  const unified = path.replaceAll('\\', '/');
+  if (process.platform === 'win32' || /^[A-Za-z]:\//.test(unified)) {
+    return unified.toLowerCase();
+  }
+  return unified;
+}
+
 export function normalizeLeasePath(path: string, baseDir?: string): string {
   const trimmed = path.trim();
   if (trimmed.length === 0) return trimmed;
-  if (trimmed.startsWith('/')) return normalize(trimmed);
+  if (trimmed.startsWith('/')) return foldLeasePath(normalize(trimmed));
   // Windows drive letter
-  if (/^[A-Za-z]:[\\/]/.test(trimmed)) return normalize(trimmed);
-  return normalize(resolve(baseDir ?? process.cwd(), trimmed));
+  if (/^[A-Za-z]:[\\/]/.test(trimmed)) return foldLeasePath(normalize(trimmed));
+  return foldLeasePath(normalize(resolve(baseDir ?? process.cwd(), trimmed)));
 }
 
 export function createSwarmFileLeaseRegistry(options?: {

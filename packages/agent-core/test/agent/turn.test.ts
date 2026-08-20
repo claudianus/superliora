@@ -1618,6 +1618,34 @@ describe('Agent turn flow', () => {
     await ctx.expectResumeMatches();
   });
 
+  it('keeps a re-prompt after cancel out of the aborted turn tool exchange', async () => {
+    const ctx = testAgent({ kaos: createCommandKaos('should-not-run') });
+    ctx.configure({ tools: ['Bash'] });
+
+    ctx.mockNextResponse({ type: 'text', text: 'I will run Bash.' }, bashCall());
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Run a command' }] });
+    await ctx.untilApprovalRequest();
+
+    // Cancel, then immediately prompt again. The aborted worker is still
+    // pairing `tool.call` with a result; the new user message must not land in
+    // between, which would leave an orphan tool_call the provider rejects.
+    await ctx.rpc.cancel({ turnId: 0 });
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Second prompt' }] });
+    await ctx.untilTurnEnd();
+    await ctx.untilTurnEnd();
+
+    const roles = ctx.agent.context.messages.map((message) => message.role);
+    const texts = ctx.agent.context.messages.map((message) =>
+      JSON.stringify(message.content ?? ''),
+    );
+    const secondPrompt = texts.findIndex((text) => text.includes('Second prompt'));
+    const toolResult = roles.lastIndexOf('tool');
+    expect(secondPrompt).toBeGreaterThan(-1);
+    expect(toolResult).toBeGreaterThan(-1);
+    expect(secondPrompt).toBeGreaterThan(toolResult);
+  });
+
   it('buffers steer input and includes it in the same turn after approval', async () => {
     const bashCall: ToolCall = {
       type: 'function',

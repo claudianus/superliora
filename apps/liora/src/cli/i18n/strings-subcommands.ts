@@ -262,7 +262,7 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.worktree.opt.noArchive':
     'Do not archive unmerged orphan liora/* tips before deleting them',
   'cli.sub.worktree.opt.staleRemotes':
-    'Also delete remote branches whose tip is already in origin/main',
+    'Also delete remote liora/* branches whose tip is already in origin/main',
   'cli.sub.worktree.arg.nameOrPath': 'Worktree name or absolute path',
   'cli.sub.worktree.list.empty': 'No session worktrees registered.',
   'cli.sub.worktree.rm.ok': 'Removed worktree {{name}} ({{path}})',
@@ -535,7 +535,7 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.worktree.opt.maxAgeDays': 'GC 최대 보관 일수 (기본 14)',
   'cli.sub.worktree.opt.dryRun': '삭제 없이 대상만 표시',
   'cli.sub.worktree.opt.noArchive': '머지되지 않은 고아 liora/* tip을 아카이브 태그 없이 삭제',
-  'cli.sub.worktree.opt.staleRemotes': 'origin/main에 이미 포함된 원격 브랜치도 삭제',
+  'cli.sub.worktree.opt.staleRemotes': 'origin/main에 이미 포함된 원격 liora/* 브랜치도 삭제',
   'cli.sub.worktree.arg.nameOrPath': 'worktree 이름 또는 절대 경로',
   'cli.sub.worktree.list.empty': '등록된 세션 worktree가 없습니다.',
   'cli.sub.worktree.rm.ok': 'worktree {{name}} 삭제됨 ({{path}})',

@@ -33,15 +33,47 @@ export class APITimeoutError extends ChatProviderError {
 /**
  * HTTP status error from the API.
  */
+export type ApiStatusHeaders = Readonly<Record<string, string>>;
+
+export function asApiStatusHeaders(headers: unknown): ApiStatusHeaders | undefined {
+  if (headers === undefined || headers === null) return undefined;
+  const out: Record<string, string> = {};
+  if (typeof (headers as { forEach?: unknown }).forEach === 'function') {
+    (headers as { forEach(cb: (value: string, key: string) => void): void }).forEach(
+      (value, key) => {
+        if (typeof value === 'string' && value.length > 0) {
+          out[key.toLowerCase()] = value;
+        }
+      },
+    );
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+  if (typeof headers !== 'object') return undefined;
+  for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
+    if (typeof value === 'string' && value.length > 0) out[key.toLowerCase()] = value;
+    else if (typeof value === 'number' && Number.isFinite(value)) {
+      out[key.toLowerCase()] = String(value);
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export class APIStatusError extends ChatProviderError {
   readonly statusCode: number;
   readonly requestId: string | null;
+  readonly headers: ApiStatusHeaders | undefined;
 
-  constructor(statusCode: number, message: string, requestId?: string | null) {
+  constructor(
+    statusCode: number,
+    message: string,
+    requestId?: string | null,
+    headers?: unknown,
+  ) {
     super(message);
     this.name = 'APIStatusError';
     this.statusCode = statusCode;
     this.requestId = requestId ?? null;
+    this.headers = asApiStatusHeaders(headers);
   }
 }
 
@@ -61,8 +93,8 @@ export class APIContextOverflowError extends APIStatusError {
  * request.
  */
 export class APIProviderRateLimitError extends APIStatusError {
-  constructor(message: string, requestId?: string | null) {
-    super(429, message, requestId);
+  constructor(message: string, requestId?: string | null, headers?: unknown) {
+    super(429, message, requestId, headers);
     this.name = 'APIProviderRateLimitError';
   }
 }
@@ -354,14 +386,15 @@ export function normalizeAPIStatusError(
   statusCode: number,
   message: string,
   requestId?: string | null,
+  headers?: unknown,
 ): APIStatusError {
   if (statusCode === 429) {
-    return new APIProviderRateLimitError(message, requestId);
+    return new APIProviderRateLimitError(message, requestId, headers);
   }
   if (isContextOverflowStatusError(statusCode, message)) {
     return new APIContextOverflowError(statusCode, message, requestId);
   }
-  return new APIStatusError(statusCode, message, requestId);
+  return new APIStatusError(statusCode, message, requestId, headers);
 }
 
 export function isContextOverflowStatusError(statusCode: number, message: string): boolean {

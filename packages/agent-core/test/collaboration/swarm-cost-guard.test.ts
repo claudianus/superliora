@@ -4,6 +4,9 @@ import {
   evaluateFleetCostGuardSoft,
   estimateSessionCostUsd,
   FLEET_BUDGET_USD_ENV,
+  assertFleetBudgetAllowsSpawn,
+  FLEET_COST_GUARD_HARD_TIP,
+  FleetBudgetExceededError,
   fleetCostGuardSoftTipFromSwarmOutput,
   fleetCostGuardSoftTipFromUsage,
   formatFleetCostGuardSoftTip,
@@ -54,9 +57,9 @@ describe('swarm-cost-guard.ts — runtime soft tips', () => {
       pricing: { input: 3, output: 15 },
       workerCount: 4,
     });
-    expect(tip).toContain(SWARM_COST_GUARD_SOFT_TIP);
+    expect(tip).toContain(FLEET_COST_GUARD_HARD_TIP);
     expect(tip).toContain('over $1.00');
-    expect(tip).toMatch(/no kill/i);
+    expect(tip).toMatch(/blocked/i);
   });
 
   it('does not tip when under cap with spend tracking', () => {
@@ -151,5 +154,35 @@ describe('swarm-cost-guard.ts — retro guard (S3-R7)', () => {
         { input: 3, output: 15 },
       ),
     ).toBeUndefined();
+  });
+
+  it('blocks spawn when spend is over the cap and allows it when under', () => {
+    expect(() =>
+      assertFleetBudgetAllowsSpawn({
+        env: { [FLEET_BUDGET_USD_ENV]: '5' },
+        usage: {
+          total: { inputOther: 2_000_000, output: 0, inputCacheRead: 0, inputCacheCreation: 0 },
+        },
+        pricing: { input: 3, output: 15 },
+      }),
+    ).toThrow(FleetBudgetExceededError);
+
+    expect(() =>
+      assertFleetBudgetAllowsSpawn({
+        env: { [FLEET_BUDGET_USD_ENV]: '5' },
+        usage: {
+          total: { inputOther: 100_000, output: 0, inputCacheRead: 0, inputCacheCreation: 0 },
+        },
+        pricing: { input: 3, output: 15 },
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      assertFleetBudgetAllowsSpawn({
+        env: { [FLEET_BUDGET_USD_ENV]: '5' },
+        usage: undefined,
+        pricing: undefined,
+      }),
+    ).not.toThrow();
   });
 });

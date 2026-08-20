@@ -13,7 +13,7 @@ Session host: conversation persistence, provider management, subagent spawn, swa
 ## Ownership
 
 - Subagent public surface: `subagent/subagent-host.ts` + `subagent-errors.ts` / `subagent-progress-preview.ts` / `subagent-run-lifecycle.ts`.
-- Swarm coordination lives under `src/collaboration/` — import from there, not deprecated `session/swarm-*` shims (removed).
+- Swarm / fleet coordination lives under `src/fleet/` (`#/fleet` or `#/collaboration` alias) — import from there, not deprecated `session/swarm-*` shims (removed). The `src/collaboration/` folder no longer exists.
 
 ## Imports
 

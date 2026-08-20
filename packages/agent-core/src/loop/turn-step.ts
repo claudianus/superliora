@@ -17,6 +17,7 @@ import { errorMessage } from './errors';
 import type { LLM, LLMChatParams, LLMChatResponse } from './llm';
 import { chatWithRetry } from './retry';
 import { runToolCallBatch, type ToolCallStepContext } from './tool-call';
+import type { ToolGuardState } from './tool-call-guards';
 import type { ToolParallelStatus } from './tool-parallel-status';
 import type {
   ExecutableTool,
@@ -45,6 +46,7 @@ export interface ExecuteLoopStepDeps {
   readonly currentStep: number;
   readonly maxRetryAttempts?: number;
   readonly toolParallelStatus?: ToolParallelStatus | undefined;
+  readonly guards: ToolGuardState;
   readonly recordUsage: (
     usage: TokenUsage,
     info?: RecordStepUsageInfo | undefined,
@@ -69,6 +71,7 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
     maxRetryAttempts,
     recordUsage,
     toolParallelStatus,
+    guards,
   } = deps;
 
   if (hooks?.beforeStep !== undefined) {
@@ -101,6 +104,7 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
     currentStep,
     stepUuid,
     toolParallelStatus,
+    guards,
   };
 
   await dispatchEvent({

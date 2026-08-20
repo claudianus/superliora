@@ -390,6 +390,19 @@ describe('normalizeAPIStatusError', () => {
     expect(error).toBeInstanceOf(APIProviderRateLimitError);
     expect(error.statusCode).toBe(429);
     expect(error.requestId).toBe('req-rate');
+    expect(error.headers).toBeUndefined();
+  });
+
+  it('keeps Retry-After headers on a 429', () => {
+    const error = normalizeAPIStatusError(429, 'Too many requests', 'req-rate', {
+      'Retry-After': '12',
+      'x-request-id': 'abc',
+    });
+    expect(error).toBeInstanceOf(APIProviderRateLimitError);
+    expect(error.headers).toEqual({
+      'retry-after': '12',
+      'x-request-id': 'abc',
+    });
   });
 
   it.each([

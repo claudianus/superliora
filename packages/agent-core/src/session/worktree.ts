@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'pathe';
 import { LocalKaos, type Kaos } from '@superliora/kaos';
 
@@ -7,6 +7,7 @@ import { attachWorktree, createWorktree, removeWorktree, runGit } from '#/autopi
 import { resolveLioraHome } from '#/config/path';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { slugifyWorkDirName } from '#/utils/workdir-slug';
+import { writeFileAtomicDurable } from '#/utils/fs';
 import { ensureGitRepoForWorktrees } from './git-bootstrap';
 
 export const SESSION_WORKTREE_CUSTOM_KEY = 'worktree' as const;
@@ -98,8 +99,9 @@ export interface HygieneWorktreesOptions {
    */
   readonly archive?: boolean | undefined;
   /**
-   * Delete remote heads whose tip is an ancestor of origin/main (or main).
-   * Never deletes `main`. Default false.
+   * Delete remote `liora/*` heads whose tip is an ancestor of origin/main
+   * (or main). Never deletes `main`, `master`, or branches outside `liora/`.
+   * Default false.
    */
   readonly staleRemotes?: boolean | undefined;
 }
@@ -123,13 +125,28 @@ const DEFAULT_MAX_AGE_DAYS = 14;
 const LIORA_BRANCH_PREFIX = 'liora/';
 const ARCHIVE_TIPS_PREFIX = 'archive/tips/';
 
-/** Compare paths allowing macOS /var vs /private/var divergence. */
+function foldWorktreePath(path: string): string {
+  const unified = path.replaceAll('\\', '/');
+  return process.platform === 'win32' ? unified.toLowerCase() : unified;
+}
+
+/** Compare paths allowing macOS /var vs /private/var and Windows drive-letter case. */
 function pathEquals(a: string, b: string): boolean {
-  const ra = resolve(a);
-  const rb = resolve(b);
+  const ra = foldWorktreePath(resolve(a));
+  const rb = foldWorktreePath(resolve(b));
   if (ra === rb) return true;
   const strip = (p: string) => (p.startsWith('/private/') ? p.slice('/private'.length) : p);
   return strip(ra) === strip(rb);
+}
+
+export function sessionWorktreePathsEqual(a: string, b: string): boolean {
+  return pathEquals(a, b);
+}
+
+/** Remote heads hygiene may delete — `liora/*` only, never main/master. */
+export function isHygieneStaleRemoteName(name: string): boolean {
+  if (name === 'main' || name === 'master') return false;
+  return name.startsWith(LIORA_BRANCH_PREFIX);
 }
 
 
@@ -425,7 +442,7 @@ export async function removeSessionWorktree(
 
   const next: WorktreeRegistryFile = {
     version: REGISTRY_VERSION,
-    entries: registry.entries.filter((entry) => entry.path !== match.path),
+    entries: registry.entries.filter((entry) => !pathEquals(entry.path, match.path)),
   };
   await writeRegistry(options.homeDir, next);
 
@@ -488,7 +505,7 @@ export async function touchWorktreeAccess(
   let changed = false;
   const entries = registry.entries.map((entry) => {
     if (
-      entry.path === pathOrName ||
+      pathEquals(entry.path, pathOrName) ||
       entry.name === pathOrName ||
       pathEquals(entry.path, key)
     ) {
@@ -599,7 +616,9 @@ async function upsertRegistryEntry(
 ): Promise<void> {
   const registry = await readRegistry(homeDir);
   const entries = registry.entries.filter(
-    (entry) => entry.path !== record.path && !(entry.repoRoot === record.repoRoot && entry.name === record.name),
+    (entry) =>
+      !pathEquals(entry.path, record.path) &&
+      !(pathEquals(entry.repoRoot, record.repoRoot) && entry.name === record.name),
   );
   entries.push(record);
   await writeRegistry(homeDir, { version: REGISTRY_VERSION, entries });
@@ -655,7 +674,7 @@ async function writeRegistry(
 ): Promise<void> {
   const path = worktreeRegistryPath(homeDir);
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  await writeFile(path, `${JSON.stringify(registry, null, 2)}\n`, 'utf-8');
+  await writeFileAtomicDurable(path, `${JSON.stringify(registry, null, 2)}\n`);
 }
 
 function isWorktreeRecord(value: unknown): value is WorktreeRecord {
@@ -741,11 +760,13 @@ function collectRepoRoots(
   if (repoRoot !== undefined) {
     return [resolve(repoRoot)];
   }
-  const roots = new Set<string>();
+  const roots: string[] = [];
   for (const entry of entries) {
-    roots.add(resolve(entry.repoRoot));
+    const resolved = resolve(entry.repoRoot);
+    if (roots.some((existing) => pathEquals(existing, resolved))) continue;
+    roots.push(resolved);
   }
-  return [...roots];
+  return roots;
 }
 
 async function resolveMergeBaseRef(kaos: Kaos, repoRoot: string): Promise<string> {
@@ -875,7 +896,7 @@ async function sweepStaleRemoteBranches(
     const ref = parts[1];
     if (ref === undefined || !ref.startsWith('refs/heads/')) continue;
     const name = ref.slice('refs/heads/'.length);
-    if (name === 'main' || name === 'master') continue;
+    if (!isHygieneStaleRemoteName(name)) continue;
     names.push(name);
   }
 
