@@ -28,7 +28,7 @@ Prefer not to edit TOML by hand? Type `/login` in the TUI to add a provider inte
 
 Once signed in, use `/model` to switch between the models you just configured.
 
-The same operations are also available in non-interactive environments via the shell command: [`liora provider`](../reference/liora-command.md#liora-provider).
+The same operations are also available in non-interactive environments via the shell command: [`liora provider`](../reference/liora-command.md#kimi-provider).
 
 ## `kimi`
 

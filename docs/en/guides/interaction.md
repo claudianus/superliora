@@ -1,6 +1,6 @@
 # Interaction and input
 
-SuperLiora CLI runs as an interactive TUI (terminal user interface) built around three components: the input box, the conversation view, and the status bar. This page covers how to enter text, paste media, navigate the approval flow, and switch between modes.
+SuperLiora CLI runs as an interactive TUI (terminal user interface) built around three components: the input box, the conversation view, and the status bar. This page covers how to enter text, paste media, use the approval flow, and switch between modes.
 
 ## Input box basics
 

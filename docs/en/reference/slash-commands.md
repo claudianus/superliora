@@ -145,7 +145,7 @@ SuperLiora CLI ships with a set of built-in Skills that appear directly as `/<na
 
 All built-in Skill commands are only available in the idle state.
 
-## Skill Dynamic Commands
+## Extra Skill commands
 
 Activated external Skills are automatically registered as slash commands. Ordinary external Skills use the `skill:` namespace prefix:
 
