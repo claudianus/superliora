@@ -6,6 +6,7 @@ import {
   rerankSkillHitsForHarnessRouting,
 } from './harness-skill-routing';
 import { composeSkillInstructions, enrichSkillForSearch } from './skill-composition';
+import { budgetSkillContentForInjection } from './injection-budget';
 import { registerCatalogSkills } from './catalog-loader';
 import type { SkillDefinition, SkillRoot, SkillSearchHit, SkillSource, SkippedSkill } from './types';
 import { isInlineSkillType, normalizeSkillName, skillRisk } from './types';
@@ -164,14 +165,15 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
       skill,
     );
     const plugin = skill.plugin;
-    if (plugin === undefined) return content;
-    const instructions = plugin.instructions;
-    if (instructions === undefined || instructions.trim().length === 0) return content;
-    return (
-      `<kimi-plugin-instructions plugin="${escapeXmlAttr(plugin.id)}">\n` +
-      `${instructions}\n` +
-      `</kimi-plugin-instructions>\n\n${content}`
-    );
+    const composed =
+      plugin === undefined ||
+      plugin.instructions === undefined ||
+      plugin.instructions.trim().length === 0
+        ? content
+        : `<kimi-plugin-instructions plugin="${escapeXmlAttr(plugin.id)}">\n` +
+          `${plugin.instructions}\n` +
+          `</kimi-plugin-instructions>\n\n${content}`;
+    return budgetSkillContentForInjection(composed, skill.path);
   }
 
   listSkills(): readonly SkillDefinition[] {

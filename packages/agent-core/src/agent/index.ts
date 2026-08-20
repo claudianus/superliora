@@ -299,6 +299,8 @@ export class Agent {
   private reclaimQuestionInFlight = false;
 
   private additionalDirs: readonly string[];
+  /** Last profile applied via {@link useProfile}; used to refresh AGENTS.md after `/init`. */
+  private activeProfile: ResolvedAgentProfile | undefined;
 
   /** Runtime config may be reloaded while a session remains active. */
   get runtimeConfig(): LioraConfig | undefined {
@@ -517,6 +519,7 @@ export class Agent {
   }
 
   useProfile(profile: ResolvedAgentProfile, context?: PreparedSystemPromptContext): void {
+    this.activeProfile = profile;
     const skillsListing =
       profile.tools.includes('Skill')
         ? (this.skills?.registry?.getModelSkillListing?.() ?? '')
@@ -548,6 +551,16 @@ export class Agent {
       additionalDirsTokens: estimateTokens(context?.additionalDirsInfo ?? ''),
     });
     this.tools.setActiveTools(profile.tools);
+  }
+
+  /**
+   * Re-render the system prompt with a freshly prepared context (cwd listing,
+   * AGENTS.md) while keeping the active profile. Used after `/init` so the
+   * new file is not also stuffed into conversation history.
+   */
+  refreshSystemPromptContext(context: PreparedSystemPromptContext): void {
+    if (this.activeProfile === undefined) return;
+    this.useProfile(this.activeProfile, context);
   }
 
   async resume(options?: AgentRecordsReplayOptions): Promise<{ warning?: string }> {

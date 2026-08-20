@@ -1,4 +1,5 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -9,6 +10,7 @@ import {
   applyDebugCliFlag,
   isDebugSession,
   resolveDebugLogPath,
+  setDebugLogMaxBytesForTest,
   writeDebugLog,
 } from '#/utils/debug-session';
 
@@ -72,5 +74,25 @@ describe('debug-session', () => {
     expect(parsed.message).toBe('probe');
     expect(parsed.data.apiKey).toBe('***');
     expect(parsed.data.text).toBe('ok');
+  });
+
+  it('resets the debug log when it would grow past the byte cap', () => {
+    const home = mkdtempSync(join(tmpdir(), 'debug-session-'));
+    homes.push(home);
+    process.env[SUPERLIORA_HOME_ENV] = home;
+    process.env[SUPERLIORA_DEBUG_ENV] = '1';
+    const logPath = resolveDebugLogPath();
+    expect(logPath).toBeDefined();
+    mkdirSync(dirname(logPath!), { recursive: true });
+    writeFileSync(logPath!, `${'x'.repeat(200)}\n`, 'utf8');
+    setDebugLogMaxBytesForTest(80);
+    try {
+      writeDebugLog({ location: 'test.ts:2', message: 'rotated' });
+    } finally {
+      setDebugLogMaxBytesForTest(undefined);
+    }
+    const body = readFileSync(logPath!, 'utf8');
+    expect(body).toContain('rotated');
+    expect(body).not.toContain('xxx');
   });
 });
