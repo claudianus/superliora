@@ -211,4 +211,60 @@ describe('WelcomeComponent', () => {
       }
     }
   });
+
+  it('frames the hero in a rounded box that stays static when motion is off', () => {
+    const off = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off' as const,
+      particles: 'off' as const,
+    };
+    setActiveAppearancePreferences(off);
+    const lines = new WelcomeComponent({ ...appState, appearance: off }).render(80);
+    const top = strip(lines.find((line) => line.includes('╭')) ?? '');
+    const bottom = strip(lines.find((line) => line.includes('╰')) ?? '');
+    expect(top).toMatch(/^╭─+╮$/);
+    expect(bottom).toMatch(/^╰─+╯$/);
+    expect(visibleWidth(top)).toBe(80);
+    expect(visibleWidth(bottom)).toBe(80);
+  });
+
+  it('moves the welcome frame colors across the shared animation clock', () => {
+    const previousEnv = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+      SSH_TTY: process.env['SSH_TTY'],
+      SSH_CONNECTION: process.env['SSH_CONNECTION'],
+      SSH_CLIENT: process.env['SSH_CLIENT'],
+    };
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+
+    try {
+      const welcome = new WelcomeComponent(appState);
+      advanceAppearanceAnimationClock(1_000);
+      const first = welcome.render(80).find((line) => line.includes('╭')) ?? '';
+      advanceAppearanceAnimationClock(1_000 + 900);
+      const second = welcome.render(80).find((line) => line.includes('╭')) ?? '';
+      expect(strip(first)).toMatch(/^╭─+╮$/);
+      expect(strip(second)).toMatch(/^╭─+╮$/);
+      expect(first).not.toBe(second);
+    } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
 });
