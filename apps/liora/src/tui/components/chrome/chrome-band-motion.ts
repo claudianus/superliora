@@ -116,8 +116,7 @@ function chromeBandSweepWash(
   dist = Math.min(dist, width - dist);
   const t = 1 - dist / trail;
   if (t <= 0) return 0;
-  const x = t >= 1 ? 1 : t;
-  return 0.5 - 0.5 * Math.cos(Math.PI * x);
+  return 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, t));
 }
 
 function ratioBarCells(

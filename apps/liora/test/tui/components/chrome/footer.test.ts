@@ -399,6 +399,9 @@ describe('FooterComponent tip crossfade', () => {
     const second = footer.render(160)[1] ?? '';
     expect(strip(first)).toMatch(/Context █████░░░░░ 50\.0%/);
     expect(strip(second)).toMatch(/Context █████░░░░░ 50\.0%/);
-    expect(first).not.toBe(second);
+    const firstBar = first.match(/█[\s\S]*?░/)?.[0] ?? first;
+    const secondBar = second.match(/█[\s\S]*?░/)?.[0] ?? second;
+    expect(firstBar).not.toBe(secondBar);
+    expect(new Set(firstBar.match(/38;2;\d+;\d+;\d+/g) ?? []).size).toBeGreaterThanOrEqual(4);
   });
 });
