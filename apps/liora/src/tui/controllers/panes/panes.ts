@@ -35,7 +35,6 @@ import {
   setActiveTranscriptDetail,
 } from '../../features/transcript/transcript-density';
 import { TRANSCRIPT_EXPAND_TURNS } from '../../features/transcript/transcript-window';
-import { ttui } from '../../utils/tui-i18n';
 import { persistTuiSessionState } from '../../utils/tui-session-state';
 
 /** How long the one-shot "moved to background" footer hint stays visible. */
