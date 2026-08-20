@@ -56,8 +56,7 @@ describe('chrome-band-motion', () => {
   });
 
   it('prefixes a live dot when ambient motion is on', () => {
-    process.env['TERM'] = 'xterm-256color';
-    delete process.env['CI'];
+    enableSweepColor();
     setAppearanceRenderHealth('healthy');
     setAppearanceRenderQuality('full');
     setActiveAppearancePreferences({
