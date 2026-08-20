@@ -240,6 +240,7 @@ reveals, and quality-gated ambient that still reads under SSH/`off`.
 | Entrance highlights (tool headers, turn boundaries) | `features/transcript/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |
 | Soft fade-in wash (assistant/user/status/markers) | `polishTranscriptLines` / `applyTranscriptEntrance` — quint ease, cascade + ink lead |
 | Live stream tail glow | `applyStreamTailGlow` — smoothstep trail + gentle breath on newest clusters |
+| Live thinking thought-orb | `components/messages/thinking.ts` → `renderThinkingMascot` |
 | Smooth type-on catch-up | `utils/streaming/streaming-text-reveal.ts` + `constant/streaming.ts` — ease-in-out CPS curve |
 | Staged line reveal (Write/Edit previews) | `utils/streaming-text-reveal.ts` → `computeStagedLineReveal` |
 | Adaptive streaming flush schedule | `utils/streaming-flush-schedule.ts` → `nextStreamingFlushDelay` |
@@ -395,6 +396,9 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
 
 - Mascots: ≥ 4 animation frames with easing, gradient color cycling, or shape
   morphing. A single glyph toggling between `✦` and `✧` is not premium.
+- Live thinking: cosine thought-orb morph (`· ∘ ○ ◎ ●`, five frames) plus a
+  gradient pulse on the shared clock. Compact live `Thinking…` uses the same
+  orb. `off` / SSH / `NO_COLOR` keep a static `○`.
 - Loaders: smooth frame cycling at the configured FPS, with pulse-color label
   and elapsed time.
 - Gradient text: per-grapheme color interpolation with phase animation.
@@ -453,7 +457,7 @@ Levels:
   (`Reading foo.ts`) plus an optional **dim metrics** line (`42 lines`,
   `+12 −3`). No Used/Using verbs, no ▌ gutter, no work-block tint.
   File/symbol names sit in a surface pill; diffs are green/red.
-  Thinking collapses to `Thought briefly` / `Thinking…`.
+  Thinking collapses to `Thought briefly` / a live thought-orb + `Thinking…`.
   A dim chain metrics line stays clickable for expand-all.
   Click a card to expand locally.
 - `standard`: **chain phase bar** + preview tool cards + soft phase

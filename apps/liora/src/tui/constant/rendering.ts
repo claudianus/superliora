@@ -24,3 +24,8 @@ export const BRAILLE_SPINNER_INTERVAL_MS = 80;
 // VS16 on many fonts and broke alignment in dense status lines.
 export const MOON_SPINNER_FRAMES = ['◐', '◓', '◑', '◒'];
 export const MOON_SPINNER_INTERVAL_MS = 120;
+
+// Live thinking thought-orb. Cosine ping-pong over five one-cell glyphs
+// (dust → filled orb → dust). Not a braille spinner and not a 2-frame blink.
+export const THINKING_MASCOT_FRAMES = ['·', '∘', '○', '◎', '●'] as const;
+export const THINKING_MASCOT_PERIOD_MS = 1120;
