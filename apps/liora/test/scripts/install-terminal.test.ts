@@ -134,7 +134,8 @@ describe('scripts/install/ensure-terminal', () => {
     expect(fragment.profiles[0]?.useAcrylic).toBe(true);
     expect(fragment.profiles[0]?.opacity).toBe(82);
     expect(fragment.profiles[0]?.colorScheme).toBe(SUPERLIORA_WT_SCHEME_NAME);
-    expect(fragment.profiles[0]?.commandline).toBe('C:\\Apps\\SuperLiora\\bin\\liora.exe');
+    expect((fragment.profiles[0] as { commandline?: string }).commandline)
+      .toBe('C:\\Apps\\SuperLiora\\bin\\liora.exe');
     expect(fragment.profiles[1]?.name).toBe(SUPERLIORA_SHELL_PROFILE_NAME);
     expect(fragment.profiles[1]?.guid).toBe(SUPERLIORA_SHELL_PROFILE_GUID);
     expect(fragment.schemes[0]?.name).toBe(SUPERLIORA_NEON_NOIR_SCHEME.name);
@@ -187,10 +188,10 @@ describe('scripts/install/ensure-terminal', () => {
 
   it('prefers liora.exe over liora.cmd when both exist', () => {
     const binDir = 'C:\\Apps\\SuperLiora\\bin';
-    const line = resolveCommandLine(binDir, 'liora', (p: string) =>
-      p.replaceAll('/', '\\') === `${binDir}\\liora.exe`
-      || p.replaceAll('/', '\\') === `${binDir}\\liora.cmd`,
-    );
+    const line = resolveCommandLine(binDir, 'liora', (p) => {
+      const path = String(p).replaceAll('/', '\\');
+      return path === `${binDir}\\liora.exe` || path === `${binDir}\\liora.cmd`;
+    });
     expect(line?.replaceAll('/', '\\')).toBe(`${binDir}\\liora.exe`);
   });
 

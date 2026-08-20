@@ -7,7 +7,7 @@
 import { primaryModLabel } from '#/tui/renderer';
 import { ttui } from '#/tui/utils/tui-i18n';
 
-export type PrimaryHintPlatform = NodeJS.Platform | string;
+export type PrimaryHintPlatform = NodeJS.Platform;
 
 /** Display chord for the OS primary modifier — same label the matcher documents. */
 export function formatPrimaryChord(

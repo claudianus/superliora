@@ -97,12 +97,19 @@ async function ensureRuntimePrereqsAt(
         ensureHostSetup?: (opts?: {
           noShellRc?: boolean;
           skipPackages?: boolean;
+          runWinget?: () => { status: number; message?: string };
+          fetchLatestRelease?: () => Promise<unknown>;
         }) => Promise<{
           ok?: boolean;
           skipped?: boolean;
           message?: string;
         }>;
-        ensureTerminal?: (opts?: { noShellRc?: boolean; skipPackages?: boolean }) => Promise<{
+        ensureTerminal?: (opts?: {
+          noShellRc?: boolean;
+          skipPackages?: boolean;
+          runWinget?: () => { status: number; message?: string };
+          fetchLatestRelease?: () => Promise<unknown>;
+        }) => Promise<{
           ok?: boolean;
           skipped?: boolean;
           message?: string;
