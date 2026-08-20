@@ -78,7 +78,7 @@ Mutual exclusion rules (startup fails if violated):
 **Isolated test environment** — use a separate data directory to avoid polluting the main config and sessions:
 
 ```sh
-SUPERLIORA_HOME="$PWD/.kimi-sandbox" kimi
+SUPERLIORA_HOME="$PWD/.superliora-sandbox" liora
 ```
 
 **One-off test key** — since provider credentials are read only from the config file, write a test key into the `env` sub-table:
@@ -91,13 +91,13 @@ KIMI_API_KEY = "sk-test"
 **Skip approval for batch tasks**:
 
 ```sh
-kimi --yolo -p "Batch rename the following files..."
+liora --yolo -p "Batch rename the following files..."
 ```
 
 **Enter Plan mode temporarily** (to make it permanent, set `default_plan_mode = true` in the config file):
 
 ```sh
-kimi --plan
+liora --plan
 ```
 
 ## Next steps

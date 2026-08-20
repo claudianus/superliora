@@ -16,7 +16,7 @@ Some commands are only available in the idle state. Executing these commands whi
 
 | Command | Alias | Description | Always available |
 | --- | --- | --- | --- |
-| `/login` | — | Select an account or platform and log in: SuperLiora uses OAuth device-code flow; Kimi Platform uses API key login | No |
+| `/login` | — | Connect OAuth, a catalog provider, or a custom endpoint | No |
 | `/logout` | — | Clear credentials for the currently selected account | No |
 | `/model` | — | Switch the LLM model used in the current session | Yes |
 | `/upgrade` | `/update` | Open Upgrade Studio — check for SuperLiora CLI updates and install with live progress | Yes |
@@ -67,6 +67,7 @@ Some commands are only available in the idle state. Executing these commands whi
 | `/yolo [on\|off]` | `/yes` | Toggle YOLO mode. Without arguments, flips the current state; explicitly passing `on`/`off` forces the setting. When enabled, skips approval for regular tool calls; Plan mode exit approval is not affected | Yes |
 | `/auto [on\|off]` | — | Toggle auto permission mode. When enabled, tool approvals are handled automatically and the Agent will not ask the user questions | Yes |
 | `/plan [on\|off]` | — | Toggle Plan mode. Without arguments, flips the current state; explicitly passing `on`/`off` forces the setting. Simply toggling does not create an empty plan file | Yes |
+| `/ask [on\|off]` | — | Toggle Ask mode (Shift-Tab). Ask mode investigates and answers without editing or delegating | Yes |
 | `/plan clear` | — | Clear the current plan | No |
 | `/goal [...]` | — | Start or manage an autonomous goal | See below |
 
