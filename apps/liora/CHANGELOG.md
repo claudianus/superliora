@@ -1,5 +1,12 @@
 # @superliora/liora
 
+## 0.12.7
+
+### Patch Changes
+
+- Add a SuperLiora desktop shortcut that opens the TUI in a real terminal. After install, double-click SuperLiora on the Desktop.
+- Localize the installer, upgrade screens, and TUI in Korean and English, keep product names in English, and pick OS language more reliably (including Korean Windows under Git Bash). Set SUPERLIORA_LOCALE=ko|en or Settings → Language.
+
 ## 0.12.6
 
 ### Patch Changes
