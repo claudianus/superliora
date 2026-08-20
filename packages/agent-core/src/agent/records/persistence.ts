@@ -175,41 +175,56 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
 
     // Binary chunks + Buffer.indexOf avoid V8 string rope flatten/OOM on
     // large sessions (`line += chunk` + StringIndexOf was a common crash).
-    let buffer = Buffer.alloc(0);
+    // Unterminated oversize input must not Buffer.concat per 64 KiB read —
+    // that is quadratic and exceeds the Windows test budget at 64 MiB.
+    const parts: Buffer[] = [];
+    let partsBytes = 0;
     let lineNumber = 0;
     let yielded = 0;
     const resolved = await this.resolveReadablePath();
     if (!resolved) return;
     const stream = this.openReadStream(resolved);
+    const oversizeError = (line: number): Error =>
+      new Error(`wire.jsonl: line ${line} in ${this.filePath} exceeds ${MAX_WIRE_LINE_BYTES} bytes`);
+    const takeLine = (): Buffer => {
+      if (parts.length === 1) return parts[0]!;
+      return Buffer.concat(parts, partsBytes);
+    };
     try {
       for await (const chunk of stream) {
         const piece = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        buffer = buffer.length === 0 ? piece : Buffer.concat([buffer, piece]);
-        let newlineIndex = buffer.indexOf(0x0a);
-        while (newlineIndex !== -1) {
-          const lineBuf = buffer.subarray(0, newlineIndex);
-          buffer = Buffer.from(buffer.subarray(newlineIndex + 1));
-          lineNumber++;
-          if (lineBuf.length > MAX_WIRE_LINE_BYTES) {
-            throw new Error(
-              `wire.jsonl: line ${lineNumber} in ${this.filePath} exceeds ${MAX_WIRE_LINE_BYTES} bytes`,
-            );
+        let offset = 0;
+        while (offset < piece.length) {
+          const newlineIndex = piece.indexOf(0x0a, offset);
+          if (newlineIndex === -1) {
+            const rest = piece.subarray(offset);
+            if (partsBytes + rest.length > MAX_WIRE_LINE_BYTES) {
+              throw oversizeError(lineNumber + 1);
+            }
+            parts.push(rest);
+            partsBytes += rest.length;
+            break;
           }
+          const segment = piece.subarray(offset, newlineIndex);
+          if (partsBytes + segment.length > MAX_WIRE_LINE_BYTES) {
+            throw oversizeError(lineNumber + 1);
+          }
+          if (segment.length > 0) {
+            parts.push(segment);
+            partsBytes += segment.length;
+          }
+          const lineBuf = takeLine();
+          parts.length = 0;
+          partsBytes = 0;
+          lineNumber++;
           let rawLine = lineBuf.toString('utf8');
           if (rawLine.endsWith('\r')) rawLine = rawLine.slice(0, -1);
-
           const record = parseRecordLine(rawLine, lineNumber, this.filePath, false);
           if (record !== undefined) {
             yielded++;
             yield record;
           }
-
-          newlineIndex = buffer.indexOf(0x0a);
-        }
-        if (buffer.length > MAX_WIRE_LINE_BYTES) {
-          throw new Error(
-            `wire.jsonl: line ${lineNumber + 1} in ${this.filePath} exceeds ${MAX_WIRE_LINE_BYTES} bytes`,
-          );
+          offset = newlineIndex + 1;
         }
       }
     } catch (error) {
@@ -218,9 +233,12 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
       throw error;
     }
 
-    if (buffer.length > 0) {
+    if (partsBytes > 0) {
       lineNumber++;
-      const rawLine = buffer.toString('utf8');
+      if (partsBytes > MAX_WIRE_LINE_BYTES) {
+        throw oversizeError(lineNumber);
+      }
+      const rawLine = takeLine().toString('utf8');
       const record = parseRecordLine(rawLine, lineNumber, this.filePath, true);
       if (record !== undefined) {
         yielded++;

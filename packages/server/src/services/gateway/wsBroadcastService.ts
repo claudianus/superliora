@@ -215,17 +215,56 @@ export class WSBroadcastService extends Disposable implements IWSBroadcastServic
     return state;
   }
 
+  async flushAndClose(): Promise<void> {
+    await this.closeSessionStates(Array.from(this._sessions.values()));
+  }
+
   override dispose(): void {
     if (this._store.isDisposed) return;
-    for (const state of this._sessions.values()) {
-      const journal = state.journal;
-      if (journal) {
-        void journal.close().catch(() => {});
-      }
-    }
+    const states = Array.from(this._sessions.values());
     this._sessions.clear();
     super.dispose();
+    void this.closeSessionStates(states).catch(() => {
+      /* best-effort durability */
+    });
   }
+
+  private async closeSessionStates(states: readonly SessionState[]): Promise<void> {
+    await Promise.all(
+      states.map(async (state) => {
+        try {
+          await withTimeout(state.queue, 2_000);
+        } catch {
+          /* dispatch already logged */
+        }
+        try {
+          const journal = state.journal ?? (await withTimeout(state.ready, 1_000));
+          if (journal !== undefined) {
+            await journal.close();
+          }
+        } catch {
+          /* best-effort durability */
+        }
+      }),
+    );
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | undefined> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve(undefined), ms);
+    timer.unref?.();
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 function extractSessionId(event: Event): string | undefined {

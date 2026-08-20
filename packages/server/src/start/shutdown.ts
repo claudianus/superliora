@@ -5,6 +5,7 @@ import type { TokenStore } from '#/services/auth/tokenStore';
 import {
   IConnectionRegistry,
   IServerShutdownService,
+  IWSBroadcastService,
   IWSGateway,
 } from '#/services/gateway';
 import type { AcquireLockResult } from '../lock';
@@ -42,6 +43,12 @@ export function createServerCloser(opts: CreateServerCloserOptions): () => Promi
 
     try {
       await opts.app.close();
+    } catch {
+      // ignore
+    }
+
+    try {
+      await opts.ix.invokeFunction((a) => a.get(IWSBroadcastService).flushAndClose());
     } catch {
       // ignore
     }

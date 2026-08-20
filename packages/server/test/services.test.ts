@@ -353,10 +353,9 @@ describe('WSBroadcastService (WS transport pump)', () => {
     }
     const before = await b1.getCursor('sid_p');
     expect(before.seq).toBe(3);
+    await b1.flushAndClose();
     b1.dispose();
     bus1.dispose();
-    // Let the write-behind flush settle.
-    await new Promise((r) => setTimeout(r, 50));
 
     const bus2 = new EventService();
     const b2 = new WSBroadcastService(bus2, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv());

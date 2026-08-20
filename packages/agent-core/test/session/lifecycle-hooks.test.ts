@@ -293,17 +293,6 @@ describe('Session lifecycle hooks', () => {
   it('records session-close cancellation during UserPromptSubmit hooks as cancelled', async () => {
     const { sessionDir, workDir } = await hookFixture();
     const hookStartedPath = join(workDir, 'hook-started');
-    const hookScriptPath = join(workDir, 'blocking-user-prompt-hook.cjs');
-    await writeFile(
-      hookScriptPath,
-      [
-        "const { writeFileSync } = require('node:fs');",
-        "writeFileSync(process.argv[2], 'started');",
-        'setInterval(() => {}, 1000);',
-        '',
-      ].join('\n'),
-      'utf-8',
-    );
     const emitEvent = vi.fn<SDKSessionRPC['emitEvent']>(async () => {});
     const session = new Session({
       kaos: testKaos.withCwd(workDir),
@@ -314,14 +303,19 @@ describe('Session lifecycle hooks', () => {
       hooks: [
         {
           event: 'UserPromptSubmit',
-          command: `node ${JSON.stringify(hookScriptPath)} ${JSON.stringify(hookStartedPath)}`,
+          command: process.execPath,
+          args: [
+            '-e',
+            `require('node:fs').writeFileSync(${JSON.stringify(hookStartedPath)}, 'started'); setTimeout(() => process.exit(0), 15_000);`,
+          ],
           timeout: 30,
         },
       ],
     });
     const agent = await session.createMain();
 
-    agent.turn.prompt([{ type: 'text', text: 'run the hook' }]);
+    const turnId = agent.turn.prompt([{ type: 'text', text: 'run the hook' }]);
+    expect(turnId).not.toBeNull();
     await waitForFile(hookStartedPath);
     await session.close();
 
@@ -440,13 +434,13 @@ function createSessionRpc(overrides: Partial<SDKSessionRPC> = {}): SDKSessionRPC
 
 async function waitForFile(path: string): Promise<void> {
   let lastError: unknown;
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
     try {
       await readFile(path, 'utf-8');
       return;
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 25));
     }
   }
   throw lastError;
