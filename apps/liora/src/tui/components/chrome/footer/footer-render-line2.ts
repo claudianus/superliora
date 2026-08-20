@@ -39,15 +39,23 @@ export function renderFooterLine2(input: RenderFooterLine2Input): string {
 
   const contextParts: string[] = [];
   if (footerSlotVisible(prefs.context, true)) {
-    const contextBase = formatContextStatus(
-      state.contextUsage,
-      state.contextTokens,
-      state.maxContextTokens,
-      labels,
-    );
     const usageSeverity = contextUsageSeverity(state.contextUsage);
+    const filledToken =
+      usageSeverity === 'danger'
+        ? 'error'
+        : usageSeverity === 'warning'
+          ? 'warning'
+          : usageSeverity === 'info'
+            ? 'primary'
+            : 'textMuted';
     contextParts.push(
-      styleFooterBadge({ text: contextBase, severity: usageSeverity }, appearance),
+      formatContextStatus(
+        state.contextUsage,
+        state.contextTokens,
+        state.maxContextTokens,
+        labels,
+        { appearance, filledToken },
+      ),
     );
   }
 

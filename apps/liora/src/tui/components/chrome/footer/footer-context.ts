@@ -1,5 +1,12 @@
-import type { FooterLabels } from '#/tui/config';
+import type { AppearancePreferences, FooterLabels } from '#/tui/config';
+import type { ColorToken } from '#/tui/theme';
+import { currentTheme } from '#/tui/theme/theme';
 import { formatTokenCount, safeUsageRatio } from '#/utils/usage/usage-format';
+import {
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/features/appearance/appearance-effects';
+import { renderLiveRatioBar } from '#/tui/components/chrome/chrome-band-motion';
 import { labelContextPrefix } from '#/tui/components/chrome/footer/footer-labels';
 
 export function safeContextUsage(usage: number): number {
@@ -11,25 +18,36 @@ export function formatContextStatus(
   tokens?: number,
   maxTokens?: number,
   labels: FooterLabels = 'plain',
+  options: {
+    readonly appearance?: AppearancePreferences;
+    readonly filledToken?: ColorToken;
+  } = {},
 ): string {
   const ratio = safeContextUsage(usage);
   const pct = `${(ratio * 100).toFixed(1)}%`;
-  const bar = renderContextUsageBar(ratio);
-  const prefix = labelContextPrefix(labels);
-  if (maxTokens && maxTokens > 0 && tokens !== undefined) {
-    return `${prefix} ${bar} ${pct} (${formatTokenCount(tokens)}/${formatTokenCount(maxTokens)})`;
-  }
-  return `${prefix} ${bar} ${pct}`;
+  const filledToken = options.filledToken ?? 'textMuted';
+  const bar = renderLiveRatioBar(ratio, 10, {
+    seed: 'footer:ctx',
+    filledToken,
+    eighths: true,
+    appearance: options.appearance,
+  });
+  const suffix =
+    maxTokens && maxTokens > 0 && tokens !== undefined
+      ? `${pct} (${formatTokenCount(tokens)}/${formatTokenCount(maxTokens)})`
+      : pct;
+  const prefix = styleContextCopy(labelContextPrefix(labels), filledToken, options.appearance);
+  const rest = styleContextCopy(suffix, filledToken, options.appearance);
+  return `${prefix} ${bar} ${rest}`;
 }
 
-function renderContextUsageBar(ratio: number): string {
-  // 10-cell high-res bar with eighths partial fill for demo-grade pressure glance.
-  const width = 10;
-  const totalEighths = Math.max(0, Math.min(width * 8, Math.round(ratio * width * 8)));
-  const fullCells = Math.floor(totalEighths / 8);
-  const rem = totalEighths % 8;
-  const PARTIAL = ['', '▏', '▎', '▍', '▌', '▋', '▊', '▉'] as const;
-  const partial = PARTIAL[rem] ?? '';
-  const usedCells = fullCells + (partial.length > 0 ? 1 : 0);
-  return `${'█'.repeat(fullCells)}${partial}${'░'.repeat(Math.max(0, width - usedCells))}`;
+function styleContextCopy(
+  text: string,
+  token: ColorToken,
+  appearance: AppearancePreferences | undefined,
+): string {
+  if (token === 'error' && appearance !== undefined && shouldRenderAmbientEffects(appearance)) {
+    return renderPulseText(text, `footer:ctx:${text}`, 'error', appearance);
+  }
+  return currentTheme.boldFg(token, text);
 }

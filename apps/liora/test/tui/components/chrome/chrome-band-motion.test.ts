@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import chalk from 'chalk';
 
 import {
   chromeBandAnimating,
@@ -19,6 +20,19 @@ function strip(text: string): string {
 }
 
 const off = { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' as const };
+const previousChalkLevel = chalk.level;
+const previousEnv = {
+  TERM: process.env['TERM'],
+  CI: process.env['CI'],
+  NO_COLOR: process.env['NO_COLOR'],
+};
+
+function enableSweepColor(): void {
+  process.env['TERM'] = 'xterm-256color';
+  delete process.env['CI'];
+  delete process.env['NO_COLOR'];
+  chalk.level = 3;
+}
 
 beforeEach(() => {
   currentTheme.setPalette(darkColors);
@@ -28,6 +42,11 @@ beforeEach(() => {
 afterEach(() => {
   currentTheme.setPalette(darkColors);
   setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  chalk.level = previousChalkLevel;
+  for (const [key, value] of Object.entries(previousEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
 });
 
 describe('chrome-band-motion', () => {
@@ -55,6 +74,43 @@ describe('chrome-band-motion', () => {
     const b = renderLiveRatioBar(0.5, 8, { animated: false, now: 9_000 });
     expect(a).toBe(b);
     expect(strip(a)).toMatch(/^[▓░]+$/);
+  });
+
+  it('sweeps a multi-cell gradient that moves on the shared clock', () => {
+    enableSweepColor();
+    const first = renderLiveRatioBar(0.6, 10, {
+      animated: true,
+      now: 200,
+      seed: 'todo:kpi:bar',
+    });
+    const second = renderLiveRatioBar(0.6, 10, {
+      animated: true,
+      now: 200 + 550,
+      seed: 'todo:kpi:bar',
+    });
+    expect(strip(first)).toMatch(/^[▓░]{10}$/);
+    expect(strip(second)).toMatch(/^[▓░]{10}$/);
+    expect(strip(first)).toBe(strip(second));
+    expect(first).not.toBe(second);
+    expect(new Set(first.match(/38;2;\d+;\d+;\d+/g) ?? []).size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('phase-offsets sibling bars from seed so they do not lock-step', () => {
+    enableSweepColor();
+    const a = renderLiveRatioBar(0.5, 8, { animated: true, now: 400, seed: 'todo:kpi:bar' });
+    const b = renderLiveRatioBar(0.5, 8, { animated: true, now: 400, seed: 'mc-bar:w1' });
+    expect(strip(a)).toBe(strip(b));
+    expect(a).not.toBe(b);
+  });
+
+  it('keeps footer eighths glyphs while the sweep is live', () => {
+    const bar = renderLiveRatioBar(0.5, 10, {
+      animated: true,
+      now: 100,
+      seed: 'footer:ctx',
+      eighths: true,
+    });
+    expect(strip(bar)).toBe('█████░░░░░');
   });
 
   it('falls back pulse chips to plain fg when ambient is off', () => {
