@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { realpathSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rm, stat } from 'node:fs/promises';
+import { win32 as win32Path } from 'node:path';
 import { basename, dirname, join, resolve } from 'pathe';
 import { LocalKaos, type Kaos } from '@superliora/kaos';
 
@@ -126,14 +127,40 @@ const DEFAULT_MAX_AGE_DAYS = 14;
 const LIORA_BRANCH_PREFIX = 'liora/';
 const ARCHIVE_TIPS_PREFIX = 'archive/tips/';
 
+/** Drop Win32 `\\?\` / `//?/` prefixes. realpath of an 8.3 name often returns one. */
+function stripWinNamespacePrefix(path: string): string {
+  if (/^\\\\\?\\unc\\/i.test(path)) return `\\\\${path.slice(8)}`;
+  if (/^\/\/\?\/unc\//i.test(path)) return `//${path.slice(8)}`;
+  if (path.startsWith('\\\\?\\')) return path.slice(4);
+  if (path.startsWith('//?/')) return path.slice(4);
+  return path;
+}
+
+function isWinAbsolutePath(path: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('\\\\');
+}
+
 function foldWorktreePath(path: string): string {
-  const unified = path.replaceAll('\\', '/');
-  return process.platform === 'win32' ? unified.toLowerCase() : unified;
+  const unified = stripWinNamespacePrefix(path).replaceAll('\\', '/');
+  if (process.platform === 'win32' || /^[a-zA-Z]:\//.test(unified)) {
+    return unified.toLowerCase();
+  }
+  return unified;
+}
+
+function resolveNativeWorktreePath(path: string): string {
+  const stripped = stripWinNamespacePrefix(path);
+  if (process.platform === 'win32') {
+    // node:path, not pathe: forward slashes + \\?\ stop 8.3 expansion.
+    return win32Path.resolve(stripped.replaceAll('/', '\\'));
+  }
+  if (isWinAbsolutePath(stripped)) return stripped;
+  return resolve(stripped);
 }
 
 /** Expand 8.3 short names and symlinks; fall back to resolve when the path is gone. */
 function canonicalizeWorktreePath(path: string): string {
-  const resolved = resolve(path);
+  const resolved = resolveNativeWorktreePath(path);
   try {
     return foldWorktreePath(realpathSync(resolved));
   } catch {
@@ -141,8 +168,27 @@ function canonicalizeWorktreePath(path: string): string {
   }
 }
 
+function sameExistingWorktreePath(a: string, b: string): boolean {
+  const left = worktreeFileId(a);
+  const right = worktreeFileId(b);
+  return left !== undefined && right !== undefined && left.ino === right.ino && left.dev === right.dev;
+}
+
+function worktreeFileId(path: string): { readonly ino: bigint; readonly dev: bigint } | undefined {
+  for (const candidate of [path, resolveNativeWorktreePath(path)]) {
+    try {
+      const info = statSync(candidate, { bigint: true });
+      if (info.ino !== 0n) return { ino: info.ino, dev: info.dev };
+    } catch {
+      // try the next spelling
+    }
+  }
+  return undefined;
+}
+
 /** Compare paths allowing macOS /var vs /private/var and Windows 8.3 / drive-letter case. */
 function pathEquals(a: string, b: string): boolean {
+  if (sameExistingWorktreePath(a, b)) return true;
   const ra = canonicalizeWorktreePath(a);
   const rb = canonicalizeWorktreePath(b);
   if (ra === rb) return true;
@@ -239,9 +285,9 @@ export async function resolveGitRepoRoot(kaos: Kaos, cwd: string): Promise<strin
       details: { cwd },
     });
   }
-  const resolved = resolve(root);
+  const resolved = resolveNativeWorktreePath(root);
   try {
-    return await realpath(resolved);
+    return stripWinNamespacePrefix(await realpath(resolved));
   } catch {
     return resolved;
   }

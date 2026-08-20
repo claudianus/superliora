@@ -73,7 +73,21 @@ describe('session worktree helpers', () => {
 
   it('treats 8.3 short names and realpath as the same worktree root', async () => {
     const dir = await makeTempDir('liora-wt-canon-');
-    expect(sessionWorktreePathsEqual(dir, await realpath(dir))).toBe(true);
+    const real = await realpath(dir);
+    expect(sessionWorktreePathsEqual(dir, real)).toBe(true);
+    expect(sessionWorktreePathsEqual(real, dir)).toBe(true);
+  });
+
+  it('treats Windows extended-length prefixes as the same worktree root', () => {
+    const long = 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\liora-wt-repo';
+    const prefixed = '\\\\?\\C:\\Users\\runneradmin\\AppData\\Local\\Temp\\liora-wt-repo';
+    const slashed = '//?/C:/Users/runneradmin/AppData/Local/Temp/liora-wt-repo';
+    const forward = 'C:/Users/runneradmin/AppData/Local/Temp/liora-wt-repo';
+    expect(sessionWorktreePathsEqual(prefixed, long)).toBe(true);
+    expect(sessionWorktreePathsEqual(slashed, long)).toBe(true);
+    expect(sessionWorktreePathsEqual(prefixed, slashed)).toBe(true);
+    expect(sessionWorktreePathsEqual(forward, long)).toBe(true);
+    expect(sessionWorktreePathsEqual(prefixed, forward)).toBe(true);
   });
 
   it('normalizes and rejects invalid names', () => {
@@ -138,6 +152,11 @@ describe('session worktree lifecycle', () => {
 
     const listed = await listSessionWorktrees({ homeDir, repoRoot: repo });
     expect(listed.map((e) => e.name).toSorted()).toEqual(['feature-a', 'feature-b']);
+    const listedViaReal = await listSessionWorktrees({
+      homeDir,
+      repoRoot: await realpath(repo),
+    });
+    expect(listedViaReal.map((e) => e.name).toSorted()).toEqual(['feature-a', 'feature-b']);
 
     const removed = await removeSessionWorktree(kaos, {
       homeDir,
