@@ -133,7 +133,10 @@ export async function startObservedUpgradeInstall(
     };
 
     const failureDetail = (): string | undefined => {
-      const lines = stderrLines.length > 0 ? stderrLines : stdoutLines;
+      // pnpm prints ERR_* on stdout while git chatter is on stderr. Prefer the
+      // named error across both streams so a generic "failed with code 1" tail
+      // does not hide the diagnosis.
+      const lines = [...stdoutLines, ...stderrLines];
       if (lines.length === 0) return undefined;
       const summary = summarizeGitFailure(lines.join('\n'), 200);
       return summary.length > 0 ? summary : undefined;

@@ -40,6 +40,7 @@ const GIT_WRAPPER_LINE = /^error: git (?:clone|fetch|checkout|reset)\b/i;
 const UNUSABLE_CHECKOUT = /cannot open ['"]?\.git\/FETCH_HEAD|not a git repository|bad object|missing (?:blob|tree|commit)|corrupt|unable to checkout working tree|invalid path|Filename too long|source checkout is missing git objects/i;
 
 function gitFailureScore(line: string): number {
+  if (/\bERR_[A-Z][A-Z0-9_]+\b/u.test(line)) return 4;
   if (/invalid path|Filename too long|FETCH_HEAD|no space left|ENOSPC|unable to create file|fsync/i.test(line)) {
     return 3;
   }
