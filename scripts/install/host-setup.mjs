@@ -348,7 +348,11 @@ export async function ensureHostSetup(options = {}) {
       skipPackages,
       noShellRc,
     });
-    const desktop = await writeDesktopLauncher(options, result.wtPath);
+    // Upgrade refresh (skipPackages) must not probe Desktop via PowerShell —
+    // GetFolderPath / COM can sit until the Windows runner times out.
+    const desktop = skipPackages
+      ? { written: false }
+      : await writeDesktopLauncher(options, result.wtPath);
     return { ...result, platform, plan, desktopShortcutWritten: desktop.written === true };
   }
 

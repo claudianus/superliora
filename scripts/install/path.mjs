@@ -92,7 +92,11 @@ function assertWinEnvOptions(options = {}) {
 }
 
 function runPowerShellUtf8(script) {
-  const ps = spawnSync('powershell', ['-NoProfile', '-Command', script], { encoding: 'utf8' });
+  const ps = spawnSync('powershell', ['-NoProfile', '-Command', script], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 8_000,
+  });
   if (ps.status !== 0) {
     throw new Error(`PowerShell User env failed: ${ps.stderr || ps.stdout || ps.status}`);
   }
