@@ -299,8 +299,14 @@ export async function reportDiskPressure(error?: unknown): Promise<DiskPressureS
   let volume = await probePreferredVolume();
   const measure = config.measure ?? measureStorageBytes;
   const homeDir = config.homeDir?.trim();
-  let home =
-    homeDir !== undefined && homeDir.length > 0 ? await measure(homeDir).catch(() => undefined) : undefined;
+  let home: Awaited<ReturnType<typeof measure>> | undefined;
+  if (homeDir !== undefined && homeDir.length > 0) {
+    try {
+      home = await measure(homeDir);
+    } catch {
+      home = undefined;
+    }
+  }
 
   let level = classifyPressureLevel(volume, writeFailed, previous);
   let lastGc = snapshot.lastGc;
@@ -308,7 +314,11 @@ export async function reportDiskPressure(error?: unknown): Promise<DiskPressureS
     lastGc = (await runEmergencyGc(volume)) ?? lastGc;
     volume = await probePreferredVolume();
     if (homeDir !== undefined && homeDir.length > 0) {
-      home = await measure(homeDir).catch(() => home);
+      try {
+        home = await measure(homeDir);
+      } catch {
+        // Keep the pre-GC measurement when the remeasurement fails.
+      }
     }
     level = classifyPressureLevel(volume, writeFailed, 'critical');
   }

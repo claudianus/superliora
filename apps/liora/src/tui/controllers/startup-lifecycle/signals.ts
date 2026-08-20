@@ -47,13 +47,14 @@ export function registerStartupSignalHandlers(
   // the default behavior print and exit.
   const crashHandler = (error: unknown): void => {
     if (shouldSwallowUncaught(error)) {
-      void reportDiskPressure(error)
-        .then((snap) => {
+      void (async () => {
+        try {
+          const snap = await reportDiskPressure(error);
           host.harness.broadcastRuntimeDegraded(buildDiskPressureDegradedEvent(snap));
-        })
-        .catch(() => {
+        } catch {
           /* never crash the TUI on the pressure path */
-        });
+        }
+      })();
       return;
     }
     restoreTerminalSync();
