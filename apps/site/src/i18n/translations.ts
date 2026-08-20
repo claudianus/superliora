@@ -706,7 +706,7 @@ export const translations: Record<Lang, Translation> = {
     install: {
       kicker: '설치법',
       title: '한 줄이면 설치됩니다.',
-      body: '그다음 프로젝트에서 liora를 켜고 /login과 /model로 연결하세요.',
+      body: '그다음 프로젝트에서 liora를 켜고 /login과 /model로 연결하세요. Windows는 여유 있는 드라이브를 고를 수 있고, 설치 후 바탕 화면 바로가기가 생기며, 터미널이 얇으면 /host-setup을 쓰세요.',
       requirements: NODE_REQUIREMENT,
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
@@ -748,13 +748,17 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: '설치법',
-            body: `${NODE_REQUIREMENT}. 운영체제에 맞는 한 줄을 실행합니다.`,
+            body: `${NODE_REQUIREMENT}. 운영체제에 맞는 한 줄을 실행합니다. Windows에서 프로필 디스크가 빠듯하면 여유 있는 드라이브(약 100 GB)를 데이터 홈으로 고릅니다. 고정하려면 SUPERLIORA_HOME을 쓰거나 install.ps1 --home D:\\SuperLiora를 지정하세요.`,
             code: `${INSTALL_SH}\n${INSTALL_PS}\n${INSTALL_CMD}`,
+          },
+          {
+            heading: '설치 후',
+            body: '설치가 끝나면 바탕 화면의 SuperLiora를 더블클릭해 실제 터미널에서 TUI를 엽니다. /host-setup은 확인 목록을 보여 준 뒤 Windows Terminal(Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf를 적용합니다. UI 언어는 SUPERLIORA_LOCALE=ko|en 또는 Settings → Language.',
           },
           {
             heading: '사용법',
             body: '프로젝트 폴더에서 세션을 열고 /login과 /model로 모델을 연결한 뒤, 원하는 결과를 적습니다.',
-            code: 'liora\nliora --continue\nliora --plan\n/login\n/model',
+            code: 'liora\nliora --continue\nliora --plan\n/login\n/model\n/host-setup',
           },
           {
             heading: '워크플로우',
@@ -844,7 +848,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '슬래시',
-            body: '/login · /model · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help',
+            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help',
           },
           {
             heading: 'Ask 모드',
@@ -1023,7 +1027,7 @@ export const translations: Record<Lang, Translation> = {
     install: {
       kicker: 'Install',
       title: 'One line to install.',
-      body: 'Then run liora in a project and connect a model with /login and /model.',
+      body: 'Then run liora in a project and connect a model with /login and /model. Windows may pick a roomier drive; after install, a Desktop shortcut opens the TUI; run /host-setup if the terminal is thin.',
       requirements: NODE_REQUIREMENT,
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
@@ -1065,13 +1069,17 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: 'Install',
-            body: `${NODE_REQUIREMENT}. Run the one-liner for your OS.`,
+            body: `${NODE_REQUIREMENT}. Run the one-liner for your OS. On Windows, a tight profile disk picks a roomier drive (~100 GB free) for the SuperLiora data home. Pin it with SUPERLIORA_HOME, or install.ps1 --home D:\\SuperLiora.`,
             code: `${INSTALL_SH}\n${INSTALL_PS}\n${INSTALL_CMD}`,
+          },
+          {
+            heading: 'After install',
+            body: 'After install, double-click SuperLiora on the Desktop to open the TUI in a real terminal. Run /host-setup to see a confirm list, then apply Windows Terminal (Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, and fzf. UI language: SUPERLIORA_LOCALE=ko|en or Settings → Language.',
           },
           {
             heading: 'Usage',
             body: 'Open a session in a project folder, connect a model with /login and /model, then write the outcome.',
-            code: 'liora\nliora --continue\nliora --plan\n/login\n/model',
+            code: 'liora\nliora --continue\nliora --plan\n/login\n/model\n/host-setup',
           },
           {
             heading: 'Workflow',
@@ -1161,7 +1169,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Slash',
-            body: '/login · /model · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help',
+            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help',
           },
           {
             heading: 'Ask mode',
