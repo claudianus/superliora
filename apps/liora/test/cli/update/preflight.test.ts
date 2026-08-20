@@ -1742,7 +1742,7 @@ describe('upgrade install stages', () => {
 
   it('spawns native Windows upgrades without cmd.exe so | iex stays in PowerShell', async () => {
     const child = createPipedChild();
-    const spawn = vi.fn(() => {
+    const spawn = vi.fn((_cmd?: string, _args?: string[], _opts?: object) => {
       queueMicrotask(() => { child.emit('exit', 0, null); });
       return child;
     });
@@ -1771,7 +1771,7 @@ describe('upgrade install stages', () => {
       expect.arrayContaining(['-Command']),
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
-    const args = spawn.mock.calls[0]?.[1] as unknown as string[];
+    const args = spawn.mock.calls[0]?.[1] ?? [];
     expect(args.join(' ')).toContain('| iex');
   });
 
