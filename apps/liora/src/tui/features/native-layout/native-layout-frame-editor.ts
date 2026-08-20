@@ -16,6 +16,7 @@ import {
   type RendererRegionLine,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { applyEditorChromeChase } from '#/tui/components/editor/editor-chrome-motion';
 import { feedbackBorderGlowHex } from '#/tui/utils/render/feedback-vfx';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 
@@ -211,10 +212,12 @@ export function projectNativeEditorRegion(
   // Pad to the layout rect height so compositor never sees lines.length <
   // rect.height on the editor region (clear:false + short content → black gap).
   const targetRows = Math.max(0, Math.floor(rect.height));
+  // Fresh surface cells — fallbackLines are already chased and never reach here.
+  const chased = applyEditorChromeChase(surface.lines);
   const painted =
-    surface.lines.length >= targetRows
-      ? surface.lines
-      : padEditorRegionLines(surface.lines, targetRows, Math.floor(rect.width), editorStyles.surfaceStyle);
+    chased.length >= targetRows
+      ? chased
+      : padEditorRegionLines(chased, targetRows, Math.floor(rect.width), editorStyles.surfaceStyle);
   // Hash-equal present skip (transcript already does this). Fresh array
   // identities every ambient tick used to recompose the whole editor rect and
   // flash blank/black rows under ConPTY when clear raced the rewrite.
