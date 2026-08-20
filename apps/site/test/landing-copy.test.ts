@@ -115,6 +115,31 @@ describe('shipped landing copy', () => {
     }
   });
 
+  it('teaches 0.12.7–0.12.8 install facts on landing and getting-started', () => {
+    for (const lang of ['ko', 'en'] as const) {
+      const t = translations[lang];
+      const page = t.docs['getting-started'];
+      const docsBlob = page.sections.map((section) => `${section.heading}\n${section.body}\n${section.code ?? ''}`).join('\n');
+      expect(t.install.body).toMatch(/\/host-setup/);
+      expect(t.install.body).toMatch(/Desktop|바탕/);
+      expect(docsBlob).toContain('SUPERLIORA_HOME');
+      expect(docsBlob).toContain('install.ps1 --home');
+      expect(docsBlob).toContain('/host-setup');
+      expect(docsBlob).toContain('SUPERLIORA_LOCALE');
+      expect(docsBlob).toContain('CaskaydiaCove');
+      expect(docsBlob).toContain('Oh My Posh');
+      expect(docsBlob).toContain('zoxide');
+      expect(docsBlob).toContain('fzf');
+      expect(docsBlob).toMatch(/Desktop|바탕/);
+      expect(docsBlob).toContain(INSTALL_SH);
+      expect(docsBlob).toContain(INSTALL_PS);
+      expect(docsBlob).toContain(INSTALL_CMD);
+      expect(page.sections.map((section) => section.heading)).toEqual(
+        lang === 'ko' ? ['설치법', '설치 후', '사용법', '워크플로우'] : ['Install', 'After install', 'Usage', 'Workflow'],
+      );
+    }
+  });
+
   it('keeps retired product language out of shipped translations', () => {
     const hits: string[] = [];
     for (const lang of ['ko', 'en'] as const) {
