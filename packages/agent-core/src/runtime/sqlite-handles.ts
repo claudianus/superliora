@@ -52,17 +52,6 @@ export function closeTrackedSqliteHandlesUnder(target: string): void {
   }
 }
 
-export function closeAllTrackedSqliteHandles(): void {
-  const snapshot = Array.from(OPEN);
-  for (const handle of snapshot) {
-    try {
-      handle.close();
-    } catch {
-      // Best-effort shutdown.
-    }
-  }
-}
-
 function handleCoversPath(handlePath: string, target: string): boolean {
   if (handlePath === ':memory:' || target === ':memory:') {
     return handlePath === target;
