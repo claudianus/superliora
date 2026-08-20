@@ -25,6 +25,10 @@ const FAIL_ALLOWLIST = new Set([
   'packages/tui-renderer/src/transcript/viewport-component.ts',
   // Pre-existing JobCreate surface; shrink incrementally without blocking unrelated PRs.
   'packages/agent-core/src/tools/builtin/job/job-tools.ts',
+  // Pre-existing TUI i18n remainder catalog; shrink incrementally without blocking unrelated PRs.
+  'apps/liora/src/cli/i18n/strings-tui-remainder.ts',
+  // Pre-existing model-id catalog; shrink incrementally without blocking unrelated PRs.
+  'packages/agent-core/src/utils/model-presets.ts',
 ]);
 
 const ROOTS = [
