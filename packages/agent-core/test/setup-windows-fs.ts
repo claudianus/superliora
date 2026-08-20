@@ -24,9 +24,7 @@ function syncSleep(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-function wrapSyncRm(
-  orig: (path: fs.PathLike, options?: fs.RmOptions) => void,
-): (path: fs.PathLike, options?: fs.RmOptions) => void {
+function wrapSyncRm(orig: typeof fs.rmSync): typeof fs.rmSync {
   return (path, options) => {
     const target = String(path);
     closeTrackedSqliteHandlesUnder(target);
@@ -46,7 +44,7 @@ function wrapSyncRm(
   };
 }
 
-function wrapSyncUnlink(orig: (path: fs.PathLike) => void): (path: fs.PathLike) => void {
+function wrapSyncUnlink(orig: typeof fs.unlinkSync): typeof fs.unlinkSync {
   return (path) => {
     const target = String(path);
     closeTrackedSqliteHandlesUnder(target);
@@ -66,9 +64,7 @@ function wrapSyncUnlink(orig: (path: fs.PathLike) => void): (path: fs.PathLike) 
   };
 }
 
-function wrapAsyncRm(
-  orig: (path: fs.PathLike, options?: fs.RmOptions) => Promise<void>,
-): (path: fs.PathLike, options?: fs.RmOptions) => Promise<void> {
+function wrapAsyncRm(orig: typeof fs.promises.rm): typeof fs.promises.rm {
   return async (path, options) => {
     const target = String(path);
     closeTrackedSqliteHandlesUnder(target);
@@ -88,7 +84,7 @@ function wrapAsyncRm(
   };
 }
 
-function wrapAsyncUnlink(orig: (path: fs.PathLike) => Promise<void>): (path: fs.PathLike) => Promise<void> {
+function wrapAsyncUnlink(orig: typeof fs.promises.unlink): typeof fs.promises.unlink {
   return async (path) => {
     const target = String(path);
     closeTrackedSqliteHandlesUnder(target);
