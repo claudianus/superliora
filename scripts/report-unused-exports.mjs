@@ -9,11 +9,13 @@
  *
  * Exits 0 in warn mode. With --fail, exits 1 when candidates remain after allowlist.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
 const repoRoot = resolve(import.meta.dirname, '..');
 const failOnViolation = process.argv.includes('--fail');
+const updateAllowlist = process.argv.includes('--update');
+const ALLOWLIST_PATH = join(repoRoot, 'meta', 'unused-exports-allowlist.txt');
 
 const SCAN_ROOTS = ['packages/agent-core/src', 'apps/liora/src/tui/utils'];
 const SEARCH_ROOTS = [
@@ -34,10 +36,18 @@ const IGNORED_DIR_NAMES = new Set([
   'coverage',
 ]);
 
-/** Known entrypoints / intentionally unused public surface. */
-const ALLOWLIST = new Set([
-  // Add symbol names here as needed when --fail is enabled.
-]);
+/** Known unused exports, as `file:symbol` lines. */
+function loadAllowlist() {
+  if (!existsSync(ALLOWLIST_PATH)) return new Set();
+  return new Set(
+    readFileSync(ALLOWLIST_PATH, 'utf8')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#')),
+  );
+}
+
+const ALLOWLIST = loadAllowlist();
 
 const EXPORT_RE =
   /^export\s+(?:async\s+)?(?:function|class|const|let|type|interface|enum)\s+([A-Za-z_][\w]*)/gm;
@@ -102,6 +112,7 @@ for (const file of collectFiles(SCAN_ROOTS)) {
   // Skip barrels and index re-export hubs — too noisy for this heuristic.
   if (rel.endsWith('/index.ts') || rel.endsWith('/index.tsx')) continue;
   const content = readFileSync(file, 'utf8');
+  /** @type {Set<string>} */
   const symbols = new Set();
 
   EXPORT_RE.lastIndex = 0;
@@ -118,12 +129,33 @@ for (const file of collectFiles(SCAN_ROOTS)) {
   }
 
   for (const symbol of symbols) {
-    if (ALLOWLIST.has(symbol)) continue;
     if (symbol.startsWith('_')) continue;
     if (!isReferenced(symbol, file)) {
+      const key = `${rel}:${symbol}`;
+      if (!updateAllowlist && (ALLOWLIST.has(key) || ALLOWLIST.has(symbol))) continue;
       candidates.push(`${String(rel)}: unused export candidate \`${String(symbol)}\``);
     }
   }
+}
+
+if (updateAllowlist) {
+  const keys = candidates
+    .map((line) => {
+      const match = line.match(/^(.+): unused export candidate `([^`]+)`$/);
+      return match === null ? undefined : `${match[1]}:${match[2]}`;
+    })
+    .filter((key) => key !== undefined)
+    .toSorted((a, b) => a.localeCompare(b));
+  writeFileSync(
+    ALLOWLIST_PATH,
+    [
+      '# Unused-export ratchet. Refresh with: node scripts/report-unused-exports.mjs --update',
+      ...keys,
+      '',
+    ].join('\n'),
+  );
+  console.log(`unused-export allowlist updated: ${keys.length} symbol(s)`);
+  process.exit(0);
 }
 
 if (candidates.length === 0) {
