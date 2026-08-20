@@ -1,18 +1,19 @@
 /**
  * OAuth device-code panel rendered inside the transcript.
  *
- * Borrows the rounded-border layout from `WelcomeComponent` so the login
- * prompt matches the rest of the chrome. All colors flow through the
- * active palette so theme switches take effect on the next render.
+ * Same live rounded frame as Command Hub (breath + comet + jewel corners).
+ * Motion off / SSH / NO_COLOR / CI fall back to a static borderFocus box.
  */
 
 import type { Component } from '#/tui/renderer';
-import { renderRendererFrameRows, truncateToWidth } from '#/tui/renderer';
+import { stripAnsiControls, truncateToWidth, visibleWidth } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderParticleRail,
+  renderPremiumBoxFrame,
   renderPremiumHeadline,
   renderSpectacularText,
   shouldRenderAmbientEffects,
@@ -26,8 +27,14 @@ export interface DeviceCodeBoxParams {
   readonly hint?: string;
 }
 
+/** Frame minimum from renderPremiumBoxFrame; narrower terminals stay unframed. */
+const PREMIUM_FRAME_MIN_WIDTH = 8;
+const BODY_PAD = '  ';
+
 export class DeviceCodeBoxComponent implements Component {
   private readonly params: DeviceCodeBoxParams;
+  /** Entry bloom start — shared animation clock (PREMIUM §7.1). */
+  private readonly openedAtMs = appearanceAnimationNow();
 
   constructor(params: DeviceCodeBoxParams) {
     this.params = params;
@@ -37,61 +44,56 @@ export class DeviceCodeBoxComponent implements Component {
 
   render(width: number): string[] {
     const { title, url, code, hint } = this.params;
-    const border = (s: string): string => currentTheme.fg('primary', s);
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
-    const innerWidth = Math.max(1, safeWidth - 4);
 
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
-    const titleLine = truncateToWidth(
-      animated
-        ? renderPremiumHeadline(title, 'device-code:title', appearance)
-        : currentTheme.boldFg('textStrong', title),
-      innerWidth,
-      '…',
-    );
-    const promptLine = truncateToWidth(
-      currentTheme.fg('textDim', ttui('tui.device.visitUrl')),
-      innerWidth,
-      '…',
-    );
-    const urlLine = truncateToWidth(currentTheme.fg('primary', url), innerWidth, '…');
-
+    const titleStyled = animated
+      ? renderPremiumHeadline(title, 'device-code:title', appearance)
+      : currentTheme.boldFg('textStrong', title);
+    const promptLine = currentTheme.fg('textDim', ttui('tui.device.visitUrl'));
+    const urlLine = currentTheme.fg('primary', url);
     const codeLabel = currentTheme.boldFg('textDim', ttui('tui.device.codeLabel'));
     const codeValue = animated
       ? renderSpectacularText(code, 'device-code:code', appearance, { intense: true })
       : currentTheme.boldFg('accent', code);
-    const codeLine = truncateToWidth(`${codeLabel}${codeValue}`, innerWidth, '…');
+    const codeLine = `${codeLabel}${codeValue}`;
+    const hintText = hint !== undefined && hint.length > 0 ? hint : '';
 
-    const contentLines: string[] = [titleLine, '', promptLine, urlLine, '', codeLine];
-    if (hint !== undefined && hint.length > 0) {
-      contentLines.push('');
-      contentLines.push(truncateToWidth(currentTheme.fg('textDim', hint), innerWidth, '…'));
+    if (safeWidth < PREMIUM_FRAME_MIN_WIDTH) {
+      const lines = [titleStyled, '', promptLine, urlLine, '', codeLine];
+      if (hintText.length > 0) {
+        lines.push('');
+        lines.push(currentTheme.fg('textDim', hintText));
+      }
+      return ['', ...lines.map((line) => truncateToWidth(line, safeWidth, '…'))];
     }
 
-    if (safeWidth < 4) {
-      return ['', ...contentLines.map((line) => truncateToWidth(line, safeWidth, '…'))];
-    }
-
-    return [
-      '',
-      ...renderRendererFrameRows({
-        content: [
-          renderParticleRail(safeWidth - 2, appearance, 'device-code-top'),
-          '',
-          ...contentLines,
-          '',
-        ],
-        width: safeWidth,
-        height: contentLines.length + 4,
-        borderKind: 'rounded',
-        paddingLeft: 2,
-        paddingRight: 0,
-        borderStyle: border,
-        ellipsis: '…',
-      }),
+    const inner = safeWidth - 2;
+    const titlePlain = stripAnsiControls(titleStyled);
+    const titleFits = visibleWidth(titlePlain) + 4 <= inner;
+    const pad = (line: string): string => truncateToWidth(`${BODY_PAD}${line}`, inner, '…');
+    const body: string[] = [
+      renderParticleRail(inner, appearance, 'device-code-top'),
       '',
     ];
+    if (!titleFits) {
+      body.push(pad(titleStyled), '');
+    }
+    body.push(pad(promptLine), pad(urlLine), '', pad(codeLine));
+
+    const frame = renderPremiumBoxFrame(body, {
+      width: safeWidth,
+      title: titleFits ? titleStyled : undefined,
+      titlePlain: titleFits ? titlePlain : undefined,
+      footerLeft:
+        hintText.length > 0 ? currentTheme.fg('textDim', hintText) : undefined,
+      footerLeftPlain: hintText.length > 0 ? hintText : undefined,
+      appearance,
+      openedAtMs: this.openedAtMs,
+    });
+
+    return ['', ...frame, ''];
   }
 }
