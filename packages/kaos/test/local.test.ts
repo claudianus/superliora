@@ -209,7 +209,9 @@ describe('LocalKaos', () => {
       const entries: string[] = [];
       for await (const entry of kaos.iterdir(tempDir)) entries.push(entry);
       // Only the target file should remain — no `.tmp.*` staging file.
-      expect(entries).toEqual([filePath]);
+      expect(entries.map((entry) => entry.replaceAll('\\', '/'))).toEqual([
+        filePath.replaceAll('\\', '/'),
+      ]);
     });
   });
 

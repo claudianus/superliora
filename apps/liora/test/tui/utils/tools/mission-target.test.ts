@@ -42,7 +42,7 @@ describe('mission-target', () => {
 
   it('relativizes against workspace when possible', () => {
     expect(
-      formatMissionPath('/repo/apps/liora/src/a.ts', '/repo', 40),
+      formatMissionPath('/repo/apps/liora/src/a.ts', '/repo', 40).replaceAll('\\', '/'),
     ).toBe('apps/liora/src/a.ts');
   });
 

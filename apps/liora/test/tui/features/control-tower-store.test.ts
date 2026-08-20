@@ -367,7 +367,7 @@ describe('V5-3 single-source guard (static)', () => {
   it('appState.conductorJobs writes stay inside features/control-tower', () => {
     const offenders: string[] = [];
     for (const file of walkTypeScriptFiles(SRC_ROOT)) {
-      const rel = relative(SRC_ROOT, file);
+      const rel = relative(SRC_ROOT, file).replaceAll('\\', '/');
       if (rel.startsWith('tui/features/control-tower/')) continue;
       const source = readFileSync(file, 'utf8');
       if (/conductorJobs\s*:/.test(source)) {
@@ -380,7 +380,7 @@ describe('V5-3 single-source guard (static)', () => {
   it('no surviving references to the old delta path or direct strip parsers', () => {
     const offenders: string[] = [];
     for (const file of walkTypeScriptFiles(SRC_ROOT)) {
-      const rel = relative(SRC_ROOT, file);
+      const rel = relative(SRC_ROOT, file).replaceAll('\\', '/');
       if (rel.startsWith('tui/features/control-tower/')) continue;
       if (rel === 'tui/utils/job/job-strip.ts') continue;
       const source = readFileSync(file, 'utf8');

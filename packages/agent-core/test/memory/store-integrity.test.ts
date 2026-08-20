@@ -7,6 +7,7 @@ import { join } from 'pathe';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
 import { LioraMemoryStore } from '../../src/memory/store';
+import { trackSqliteDatabase } from '../../src/runtime/sqlite-handles';
 
 interface SqliteHandle {
   prepare(sql: string): { run(...params: unknown[]): unknown };
@@ -17,7 +18,7 @@ interface SqliteHandle {
 const openSqlite = (path: string): SqliteHandle => {
   const require = createRequire(import.meta.url);
   const sqlite = require('node:sqlite') as { DatabaseSync: new (path: string) => SqliteHandle };
-  return new sqlite.DatabaseSync(path);
+  return trackSqliteDatabase(path, new sqlite.DatabaseSync(path));
 };
 
 describe('LioraMemoryStore — integrity checking', () => {

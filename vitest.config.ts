@@ -5,6 +5,7 @@ export default defineConfig({
     projects: ['packages/*', 'apps/liora', 'apps/site', 'apps/vis/server', 'apps/vis/web'],
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    teardownTimeout: 15_000,
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],

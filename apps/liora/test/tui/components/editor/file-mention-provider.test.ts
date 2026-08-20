@@ -541,7 +541,7 @@ describe('FileMentionProvider', () => {
       writeFileSync(join(workDir, 'normal.txt'), '');
 
       const provider = new FileMentionProvider([], workDir, NO_FD, [], undefined, () => 'bash');
-      const text = `cd ${workDir}/`;
+      const text = 'cd ./';
       const result = await provider.getSuggestions([text], 0, text.length, {
         signal: ctrl(),
         force: true,
@@ -560,7 +560,7 @@ describe('FileMentionProvider', () => {
       writeFileSync(join(workDir, '.dotfile'), '');
 
       const provider = new FileMentionProvider([], workDir, NO_FD);
-      const text = `cd ${workDir}/`;
+      const text = 'cd ./';
       const result = await provider.getSuggestions([text], 0, text.length, {
         signal: ctrl(),
         force: true,

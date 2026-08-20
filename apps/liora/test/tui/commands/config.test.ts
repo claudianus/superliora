@@ -323,10 +323,10 @@ describe('handleAppearanceCommand', () => {
   it('sets transcript detail, persists it, and applies it live', async () => {
     await withTempHome(async () => {
       const host = makeThemeHost();
-      await handleAppearanceCommand(host, 'transcript-detail compact');
-      expect(host.state.appState.appearance.transcriptDetail).toBe('compact');
-      expect((await loadTuiConfig()).appearance?.transcriptDetail).toBe('compact');
-      expect(host.setTranscriptDetail).toHaveBeenCalledWith('compact');
+      await handleAppearanceCommand(host, 'transcript-detail full');
+      expect(host.state.appState.appearance.transcriptDetail).toBe('full');
+      expect((await loadTuiConfig()).appearance?.transcriptDetail).toBe('full');
+      expect(host.setTranscriptDetail).toHaveBeenCalledWith('full');
     });
   });
 

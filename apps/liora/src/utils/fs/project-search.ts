@@ -127,20 +127,17 @@ function parseRipgrepOutput(
   const matches: SearchMatch[] = [];
   const files = new Set<string>();
   let truncated = false;
-  const prefix = workDir.endsWith('/') ? workDir : `${workDir}/`;
 
   for (const raw of stdout.split('\n')) {
     if (raw.length === 0) continue;
-    const first = raw.indexOf(':');
-    if (first === -1) continue;
-    const second = raw.indexOf(':', first + 1);
-    if (second === -1) continue;
-    const line = Number.parseInt(raw.slice(first + 1, second), 10);
+    // Greedy path + `:line:` so `C:\foo\bar.ts:3:text` is not split on the drive colon.
+    const parsed = /^(.*):(\d+):(.*)$/.exec(raw);
+    if (parsed === null) continue;
+    const line = Number.parseInt(parsed[2] ?? '', 10);
     if (!Number.isFinite(line)) continue;
 
-    let path = raw.slice(0, first);
-    if (path.startsWith(prefix)) path = path.slice(prefix.length);
-    matches.push({ path, line, text: clipText(raw.slice(second + 1)) });
+    const path = stripWorkDirPrefix(parsed[1] ?? '', workDir);
+    matches.push({ path, line, text: clipText(parsed[3] ?? '') });
     files.add(path);
 
     if (matches.length >= maxMatches) {
@@ -150,6 +147,16 @@ function parseRipgrepOutput(
   }
 
   return { pattern, matches, fileCount: files.size, truncated, engine: 'ripgrep' };
+}
+
+function stripWorkDirPrefix(filePath: string, workDir: string): string {
+  const normalizedFile = filePath.replaceAll('\\', '/');
+  const normalizedDir = workDir.replaceAll('\\', '/').replace(/\/$/u, '');
+  if (normalizedFile === normalizedDir) return '';
+  if (normalizedFile.startsWith(`${normalizedDir}/`)) {
+    return normalizedFile.slice(normalizedDir.length + 1);
+  }
+  return filePath;
 }
 
 // ---------------------------------------------------------------------------

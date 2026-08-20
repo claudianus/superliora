@@ -59,6 +59,7 @@ describe('LioraMemoryStore — corruption recovery', () => {
       content: 'User edits in Neovim.',
     });
 
+    store.close();
     // Smash the SQLite header so the next open sees "file is not a database".
     corruptDatabase(Buffer.from('this is definitely not a sqlite database file'));
 
@@ -82,6 +83,7 @@ describe('LioraMemoryStore — corruption recovery', () => {
   it('rejects a database that keeps the magic header but loses its pages', async () => {
     const store = new LioraMemoryStore({ homeDir });
     await store.remember({ type: 'procedure', subject: 'Deploy', content: 'Deploy via pnpm release.' });
+    store.close();
 
     // Magic header intact, every page garbage: the probe must refuse the file
     // instead of trusting a database that only looks plausible.

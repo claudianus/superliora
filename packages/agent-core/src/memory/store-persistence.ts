@@ -71,6 +71,7 @@ export class MemoryPersistence {
   private readonly now: () => number;
   private readonly db: SqliteDatabase;
   private ftsEnabled = false;
+  private closed = false;
 
   constructor(dbPath: string, now: () => number) {
     this.dbPath = dbPath;
@@ -349,6 +350,12 @@ export class MemoryPersistence {
     const row = this.db.prepare('SELECT * FROM memories WHERE id = ?').get(id);
     if (!isMemoryRow(row)) return undefined;
     return rowToMemory(row);
+  }
+
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.db.close();
   }
 
   hasRecord(id: string): boolean {

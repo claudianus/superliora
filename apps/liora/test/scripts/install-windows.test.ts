@@ -239,7 +239,7 @@ describe('Windows install wrappers and spawn', () => {
       expect(line).toContain('-UseBasicParsing');
     }
     expect(ps1).toContain('$ProgressPreference = \'SilentlyContinue\'');
-    expect(ps1).toContain('.superliora\\runtime\\node');
+    expect(ps1).toContain('runtime\\node');
   });
 
   it('does not read OSArchitecture as a PowerShell property under StrictMode', async () => {

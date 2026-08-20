@@ -13,10 +13,13 @@ import {
 
 describe('scripts/install/ensure-nerd-font', () => {
   it('lists user and system CaskaydiaCove files', () => {
-    const list = wellKnownNerdFontFiles({
-      LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
-      USERPROFILE: 'E:\\Users\\dev',
-    });
+    const list = wellKnownNerdFontFiles(
+      {
+        LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
+        USERPROFILE: 'E:\\Users\\dev',
+      },
+      'win32',
+    );
     expect(list.some((p) => p.includes('CaskaydiaCoveNerdFont-Regular.ttf'))).toBe(true);
     expect(list.some((p) => p.replaceAll('/', '\\').includes('\\Microsoft\\Windows\\Fonts\\'))).toBe(true);
   });

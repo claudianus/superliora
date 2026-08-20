@@ -4,6 +4,8 @@ import { dirname } from 'pathe';
 
 import type { WebSearchResult } from '../builtin/web/web-search';
 
+import { trackSqliteDatabase } from '#/runtime/sqlite-handles';
+
 import {
   asRecord,
   buildResult,
@@ -45,7 +47,7 @@ export class LocalResearchCache {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     const require = createRequire(import.meta.url);
     const sqlite = require('node:sqlite') as SqliteModule;
-    this.db = new sqlite.DatabaseSync(path);
+    this.db = trackSqliteDatabase(path, new sqlite.DatabaseSync(path));
     this.db.exec(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS local_research_search_cache (
@@ -100,6 +102,10 @@ export class LocalResearchCache {
           ttl_ms = excluded.ttl_ms
       `)
       .run(key, query, JSON.stringify(results), now, ttlMs);
+  }
+
+  close(): void {
+    this.db.close();
   }
 }
 

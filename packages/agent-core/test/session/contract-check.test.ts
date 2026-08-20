@@ -1,6 +1,6 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'pathe';
+import { join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 
 import type { Kaos, KaosProcess } from '@superliora/kaos';
@@ -52,7 +52,7 @@ describe('checkContractFile', () => {
     expect(calls[0]).toEqual([
       'pnpm',
       '-C',
-      dir,
+      resolve(dir),
       'exec',
       'tsc',
       '--noEmit',

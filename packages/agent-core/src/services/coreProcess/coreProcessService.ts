@@ -139,10 +139,7 @@ export class CoreProcessService extends Disposable implements ICoreProcessServic
 
   override dispose(): void {
     if (this._store.isDisposed) return;
-    // LioraCore does not currently expose a dispose() — when it does, we'll
-    // await/call it here BEFORE super.dispose(). For now, disposing the
-    // service flips _disposed, which makes future rpc.* invocations reject
-    // before they reach LioraCore.
+    this._core.close();
     super.dispose();
   }
 

@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync, type Stats } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, isAbsolute, join, relative } from 'node:path';
 
 import type { MemorySearchResult, MemoryStats } from '@superliora/sdk';
 
@@ -388,7 +388,9 @@ function hasEvidenceProof(text: string): boolean {
 }
 
 function isUnderRoot(path: string, root: string): boolean {
-  return path === root || path.startsWith(`${root}/`);
+  if (path === root) return true;
+  const rel = relative(root, path);
+  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
 function evidenceSourcePriority(path: string): number {

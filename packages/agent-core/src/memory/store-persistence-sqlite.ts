@@ -9,6 +9,8 @@
 
 import { createRequire } from 'node:module';
 
+import { trackSqliteDatabase } from '#/runtime/sqlite-handles';
+
 import {
   parseMemoryType,
   parseMemoryScope,
@@ -77,7 +79,7 @@ export interface MemoryRow {
 export function openDatabase(path: string): SqliteDatabase {
   const require = createRequire(import.meta.url);
   const sqlite = require('node:sqlite') as SqliteModule;
-  return new sqlite.DatabaseSync(path);
+  return trackSqliteDatabase(path, new sqlite.DatabaseSync(path));
 }
 
 /**

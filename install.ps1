@@ -579,6 +579,13 @@ $opt.InstallDir = Expand-HomePath $opt.InstallDir $homeDir
 $opt.Home = Expand-HomePath $opt.Home $homeDir
 $opt.BinDir = Expand-HomePath $opt.BinDir $homeDir
 
+$dumpEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_INSTALL_DUMP', 'Process')
+if ($dumpEnv -eq '1') {
+  Add-SessionPath $opt.BinDir
+  Write-Dump $opt
+  return
+}
+
 $dataHome = Resolve-SuperLioraDataHome -OsHome $homeDir -Explicit $opt.Home -Cwd (Get-Location).Path
 Save-LioraHomeEnv -OsHome $homeDir -DataHome $dataHome
 Write-LioraHomeRedirect -OsHome $homeDir -DataHome $dataHome
@@ -633,15 +640,6 @@ if ($opt.CommandName -notmatch '^[A-Za-z0-9._-]+$') {
 }
 if (-not [string]::IsNullOrWhiteSpace($opt.Version) -and $opt.Main) {
   Fail '-Version cannot be combined with -Main'
-}
-
-$dumpEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_INSTALL_DUMP', 'Process')
-if ($dumpEnv -eq '1') {
-  Add-SessionPath $opt.BinDir
-  Add-SessionGitRuntime $dataHome
-  Add-SessionPnpmRuntime $dataHome
-  Write-Dump $opt
-  return
 }
 
 Write-StageMarker 'bootstrapping'

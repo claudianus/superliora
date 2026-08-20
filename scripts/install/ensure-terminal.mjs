@@ -157,8 +157,8 @@ export function renderSuperLioraFragment(options = {}) {
     guid: SUPERLIORA_WT_PROFILE_GUID,
     name: SUPERLIORA_WT_PROFILE_NAME,
     ...chrome,
+    ...(commandline ? { commandline } : {}),
   };
-  if (commandline) profile.commandline = commandline;
   const shell = {
     guid: SUPERLIORA_SHELL_PROFILE_GUID,
     name: SUPERLIORA_SHELL_PROFILE_NAME,
@@ -573,6 +573,7 @@ function defaultWhich(name, env) {
     encoding: 'utf8',
     env,
     windowsHide: true,
+    timeout: 8_000,
   });
   if (result.status !== 0) return undefined;
   const line = (result.stdout ?? '').split(/\r?\n/).map((part) => part.trim()).find(Boolean);
@@ -588,7 +589,7 @@ function defaultListAppx() {
       '-Command',
       "(Get-AppxPackage -Name 'Microsoft.WindowsTerminal*' | Where-Object { $_.Name -notlike '*Preview*' } | Select-Object -First 1).InstallLocation",
     ],
-    { encoding: 'utf8', windowsHide: true },
+    { encoding: 'utf8', windowsHide: true, timeout: 8_000 },
   );
   if (ps.status !== 0) return undefined;
   const loc = (ps.stdout ?? '').trim();
@@ -691,6 +692,7 @@ export async function writeWindowsShortcut({
   const ps = spawnSync('powershell', ['-NoProfile', '-Command', script], {
     encoding: 'utf8',
     windowsHide: true,
+    timeout: 8_000,
   });
   return ps.status === 0;
 }
@@ -704,7 +706,7 @@ function defaultReadDelegation() {
       '-Command',
       "$p = 'HKCU:\\Console\\%%Startup'; if (-not (Test-Path -LiteralPath $p)) { '{}' } else { $i = Get-ItemProperty -LiteralPath $p; @{ DelegationConsole = $i.DelegationConsole; DelegationTerminal = $i.DelegationTerminal } | ConvertTo-Json -Compress }",
     ],
-    { encoding: 'utf8', windowsHide: true },
+    { encoding: 'utf8', windowsHide: true, timeout: 8_000 },
   );
   if (ps.status !== 0) return {};
   try {
@@ -727,6 +729,7 @@ function defaultWriteDelegation(values) {
   spawnSync('powershell', ['-NoProfile', '-Command', script], {
     encoding: 'utf8',
     windowsHide: true,
+    timeout: 8_000,
   });
 }
 

@@ -76,6 +76,7 @@ export function createGitStatusCache(
   options: GitStatusCacheOptions = {},
 ): GitStatusCache {
   const isRepo = detectGitRepo(workDir);
+  const canLookupPr = isRepo && hasGitRemote(workDir);
   let branch: BranchState = { value: null, fetchedAt: 0 };
   let status: StatusState = {
     dirty: false,
@@ -125,6 +126,7 @@ export function createGitStatusCache(
   };
 
   function refreshPullRequestIfNeeded(branchName: string, now: number): void {
+    if (!canLookupPr) return;
     if (pullRequest.pendingBranch === branchName) return;
     const fetchedAt = pullRequest.branch === branchName ? pullRequest.fetchedAt : 0;
     if (now - fetchedAt < PULL_REQUEST_TTL_MS) return;
@@ -162,6 +164,18 @@ function detectGitRepo(workDir: string): boolean {
       timeout: SPAWN_TIMEOUT_MS,
     });
     return result.status === 0 && result.stdout.trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function hasGitRemote(workDir: string): boolean {
+  try {
+    const result = spawnSync('git', ['-C', workDir, 'remote'], {
+      encoding: 'utf8',
+      timeout: SPAWN_TIMEOUT_MS,
+    });
+    return result.status === 0 && result.stdout.trim().length > 0;
   } catch {
     return false;
   }

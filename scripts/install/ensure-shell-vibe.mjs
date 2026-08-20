@@ -518,6 +518,7 @@ function defaultSetExecutionPolicy() {
   const ps = spawnSync('powershell', ['-NoProfile', '-Command', script], {
     encoding: 'utf8',
     windowsHide: true,
+    timeout: 8_000,
   });
   return ps.status === 0 && /CHANGED/i.test(ps.stdout ?? '');
 }

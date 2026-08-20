@@ -90,6 +90,13 @@ export interface IWSBroadcastService {
    * touched this run). Used by the WS abort ack `at_seq` path.
    */
   currentSeq(sessionId: string): number;
+
+  /**
+   * Drain per-session dispatch queues and flush journals to disk.
+   * Call on server shutdown (and in restart tests) before dispose so seq/epoch
+   * survive the next open.
+   */
+  flushAndClose(): Promise<void>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare

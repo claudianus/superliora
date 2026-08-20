@@ -29,6 +29,7 @@ describe('Liora Memory migrations', () => {
       subject: 'legacy preference',
       content: 'The old store record must remain searchable after migration.',
     });
+    legacy.close();
 
     const migrated = new LioraMemoryStore({ homeDir: root });
     const results = await migrated.recall({ query: 'legacy preference', scope: 'user', limit: 3 });

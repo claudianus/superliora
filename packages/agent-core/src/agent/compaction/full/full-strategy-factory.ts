@@ -23,7 +23,9 @@ function pricingSafeWorkingSetForAgent(
       ? modelAlias.slice(0, modelAlias.indexOf('/'))
       : undefined;
   return applyPricingSafeWorkingSet({
-    model: agent.config.provider?.modelName ?? modelAlias,
+    // `config.provider` throws when no model is logged in. UserPromptSubmit
+    // hooks must still run on that path (login, session-close cancel, …).
+    model: agent.config.hasProvider ? agent.config.provider.modelName : modelAlias,
     provider: providerFromAlias,
     maxWorkingSetTokens,
     asyncWorkingSetTokens,
