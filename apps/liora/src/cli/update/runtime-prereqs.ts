@@ -17,7 +17,7 @@ export interface RuntimePrereqResult {
  * After upgrade (or when the source tree is present), re-run the installer
  * Git bootstrap so a missing Git Bash is filled in on Windows.
  */
-function resolveInstallScript(packageRoot: string, fileName: string): string | undefined {
+export function resolveInstallScript(packageRoot: string, fileName: string): string | undefined {
   const candidates = [
     join(packageRoot, 'scripts/install', fileName),
     join(packageRoot, '..', 'scripts/install', fileName),
@@ -101,6 +101,11 @@ async function ensureRuntimePrereqsAt(
           fetchLatestRelease?: () => Promise<unknown>;
           writeShortcut?: () => Promise<boolean>;
           listAppx?: () => string | undefined;
+          readDelegation?: () => Record<string, unknown>;
+          writeDelegation?: () => void;
+          addUserPath?: () => void;
+          resolveWindowsDesktop?: () => string | undefined;
+          setExecutionPolicy?: () => boolean;
         }) => Promise<{
           ok?: boolean;
           skipped?: boolean;
@@ -113,6 +118,11 @@ async function ensureRuntimePrereqsAt(
           fetchLatestRelease?: () => Promise<unknown>;
           writeShortcut?: () => Promise<boolean>;
           listAppx?: () => string | undefined;
+          readDelegation?: () => Record<string, unknown>;
+          writeDelegation?: () => void;
+          addUserPath?: () => void;
+          resolveWindowsDesktop?: () => string | undefined;
+          setExecutionPolicy?: () => boolean;
         }) => Promise<{
           ok?: boolean;
           skipped?: boolean;
@@ -126,10 +136,16 @@ async function ensureRuntimePrereqsAt(
         skipPackages: true,
         runWinget: () => ({ status: 1, message: 'skipped during upgrade' }),
         fetchLatestRelease: async () => undefined,
-        // Start-menu COM and Get-AppxPackage have no useful upgrade work and
-        // can block a Windows test/upgrade process until the runner times out.
+        // Start-menu COM, Appx, Desktop, User PATH, and execution-policy
+        // PowerShell have no useful upgrade work and can sit until the
+        // Windows runner's 30s test budget expires.
         writeShortcut: async () => false,
         listAppx: () => undefined,
+        readDelegation: () => ({}),
+        writeDelegation: () => {},
+        addUserPath: () => {},
+        resolveWindowsDesktop: () => undefined,
+        setExecutionPolicy: () => false,
       });
       if (result?.ok === false) {
         terminalOk = false;

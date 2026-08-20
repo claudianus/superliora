@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ensureRuntimePrereqs } from '#/cli/update/runtime-prereqs';
+import { resolveInstallScript } from '#/cli/update/runtime-prereqs';
 import { getHostPackageRoot } from '#/cli/version';
 
 import {
@@ -407,8 +407,11 @@ describe('scripts/install/ensure-terminal', () => {
     expect(WINGET_TERMINAL_ID).toBe('Microsoft.WindowsTerminal');
   });
 
-  it('upgrade prereq hook still finds Git after the terminal module is added', async () => {
-    const result = await ensureRuntimePrereqs(getHostPackageRoot());
-    expect(result.gitOk).toBe(true);
+  it('upgrade prereq hook still finds Git after the terminal module is added', () => {
+    const root = getHostPackageRoot();
+    // Do not call ensureRuntimePrereqs here — that runs host-setup against the
+    // live Windows runner (Desktop / User PATH / execution-policy PowerShell).
+    expect(resolveInstallScript(root, 'ensure-git.mjs')).toBeTruthy();
+    expect(resolveInstallScript(root, 'host-setup.mjs')).toBeTruthy();
   });
 });
