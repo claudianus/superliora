@@ -219,6 +219,11 @@ Entry points: Settings → Appearance → Performance mode, `/performance
 "Premium" means **more than a 2-frame blink**: multi-frame pulses, staged
 reveals, and quality-gated ambient that still reads under SSH/`off`.
 
+Login / device-code wait panels use the same live rounded frame as Command
+Hub (`renderPremiumBoxFrame`): primary↔accent breath, clockwise comet, jewel
+corners, and a one-shot entry bloom. Reduced motion / SSH / `NO_COLOR` /
+Appearance Off keep a static `borderFocus` box with the same layout.
+
 ---
 
 ## 8. Shared Primitives (reuse, don't reinvent)
@@ -234,6 +239,7 @@ reveals, and quality-gated ambient that still reads under SSH/`off`.
 | Progress bars | `renderRendererSegmentedProgressBar` / `renderRendererRatioProgressBar` |
 | Gradient text | `features/appearance/appearance-gradient.ts` / `renderRendererGradientTextAnsi` |
 | Ambient effects | `features/appearance/appearance-effects.ts` → `renderPulseText` / `renderShimmerPrefix` / `renderParticleRail` |
+| Live rounded box (Command Hub, Upgrade Studio, device-code login) | `features/appearance/appearance-box-frame.ts` → `renderPremiumBoxFrame` |
 | Chrome-band live signals (Todo Board + Worker Dock) | `components/chrome/chrome-band-motion.ts` → `renderLiveSectionHeader` / `renderLiveRatioBar` / `renderPulseCountChip` |
 | Settle flashes (change → rest on a final tone) | `features/appearance/appearance-effects.ts` → `renderSettleFlash` / `renderToneSettleFlash` / `renderStatusFlashLine` |
 | Entrance highlights (tool headers, turn boundaries) | `features/transcript/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |
