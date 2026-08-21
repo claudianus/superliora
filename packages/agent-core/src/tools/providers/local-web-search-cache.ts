@@ -9,6 +9,7 @@ import { trackSqliteDatabase } from '#/runtime/sqlite-handles';
 import {
   asRecord,
   buildResult,
+  clampInt,
   hasUsableUrl,
   prefixedSnippet,
   stringValue,
@@ -40,14 +41,23 @@ interface SearchCacheRow {
   readonly ttl_ms: number;
 }
 
+/** Live-row ceiling after each write. Distinct queries otherwise grow unbounded. */
+const DEFAULT_LOCAL_RESEARCH_CACHE_MAX_ROWS = 256;
+
+interface LocalResearchCacheOptions {
+  readonly maxRows?: number;
+}
+
 export class LocalResearchCache {
   private readonly db: SqliteDatabase;
+  private readonly maxRows: number;
 
-  constructor(path: string) {
+  constructor(path: string, options: LocalResearchCacheOptions = {}) {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     const require = createRequire(import.meta.url);
     const sqlite = require('node:sqlite') as SqliteModule;
     this.db = trackSqliteDatabase(path, new sqlite.DatabaseSync(path));
+    this.maxRows = clampInt(options.maxRows ?? DEFAULT_LOCAL_RESEARCH_CACHE_MAX_ROWS, 1, 10_000);
     this.db.exec(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS local_research_search_cache (
@@ -102,11 +112,41 @@ export class LocalResearchCache {
           ttl_ms = excluded.ttl_ms
       `)
       .run(key, query, JSON.stringify(results), now, ttlMs);
+    // Prune only on write. get(allowStale:false) of an expired key
+    // must leave the row — search() then falls back to allowStale:true for the
+    // same key when the network returns nothing. Offline-always never writes,
+    // so stale rows stay until a later successful set().
+    this.prune(now);
   }
 
   close(): void {
     this.db.close();
   }
+
+  private prune(now: number): void {
+    this.db
+      .prepare('DELETE FROM local_research_search_cache WHERE created_at + ttl_ms < ?')
+      .run(now);
+    const overflow = countCacheRows(this.db) - this.maxRows;
+    if (overflow <= 0) return;
+    this.db
+      .prepare(`
+        DELETE FROM local_research_search_cache WHERE key IN (
+          SELECT key FROM local_research_search_cache
+          ORDER BY created_at ASC, key ASC
+          LIMIT ?
+        )
+      `)
+      .run(overflow);
+  }
+}
+
+function countCacheRows(db: SqliteDatabase): number {
+  const row = asRecord(db.prepare('SELECT COUNT(*) AS n FROM local_research_search_cache').get());
+  const n = row?.['n'];
+  if (typeof n === 'number' && Number.isFinite(n)) return n;
+  if (typeof n === 'bigint') return Number(n);
+  return 0;
 }
 
 function isSearchCacheRow(value: unknown): value is SearchCacheRow {
