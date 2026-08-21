@@ -8,6 +8,23 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
+## 0.12.9 (2026-08-21)
+
+### Features
+
+- Give the welcome hero, device-code login panel, and prompt editor live premium frames (comet chase + breath; static when motion is off).
+- Morph live thinking into a thought-orb (`· ∘ ○ ◎ ●`) instead of a generic spinner.
+
+### Bug Fixes
+
+- Fix one-liner installs (`irm | iex` / `curl | bash`) dying after Node download because the bootstrap bundle omitted `checkout-health.mjs`.
+- Fix Windows shutdown (close sqlite so the data home can be deleted), search/worktree path identity (8.3 and `\\?\`), install-terminal hangs, and gate hangs.
+
+### Polish
+
+- Sweep chrome-band ratio bars (Todo Board, Worker Dock, footer context) with a gradient wash.
+- Cap skill dumps and rotate spill files so full catalog bodies and `/init` dumps stay out of history.
+
 ## 0.12.8 (2026-08-20)
 
 ### Features
