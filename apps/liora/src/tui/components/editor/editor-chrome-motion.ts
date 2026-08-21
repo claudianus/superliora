@@ -8,7 +8,6 @@
 
 import {
   mixHexColor,
-  rendererPositiveModulo,
   type RendererCell,
   type RendererRegionLine,
 } from '#/tui/renderer';
@@ -24,6 +23,9 @@ import { currentTheme } from '#/tui/theme';
 
 const BORDER_GLYPHS = new Set(['╭', '╮', '╰', '╯', '├', '┤', '─', '│']);
 const HUE_BREATH_MS = 4200;
+/** Phase-offset vs Command Hub so neighboring live frames are not in lockstep. */
+const EDITOR_BREATH_PHASE_MS = 700;
+const EDITOR_CHASE_PHASE = 11.3;
 const PREMIUM_CHASE_MS = 28;
 const SUBTLE_CHASE_MS = 48;
 const PREMIUM_TRAIL = 10;
@@ -38,6 +40,12 @@ export interface EditorChromeChaseOptions {
 
 function isBorderGlyph(char: string): boolean {
   return BORDER_GLYPHS.has(char);
+}
+
+/** Float-preserving wrap so the chase eases between cells (rendererPositiveModulo truncates). */
+function liveModulo(value: number, modulo: number): number {
+  if (!Number.isFinite(modulo) || modulo <= 0) return 0;
+  return ((value % modulo) + modulo) % modulo;
 }
 
 function lineWidth(line: RendererRegionLine): number {
@@ -84,8 +92,9 @@ export function applyEditorChromeChase(
   const perimeter = 2 * width + 2 * height - 4;
   if (perimeter <= 0) return lines;
 
-  const head = rendererPositiveModulo(Math.floor(now / chaseMs), perimeter);
-  const breath = (Math.sin((2 * Math.PI * now) / HUE_BREATH_MS) + 1) / 2;
+  const head = liveModulo(now / chaseMs + EDITOR_CHASE_PHASE, perimeter);
+  const breath =
+    (Math.sin((2 * Math.PI * (now + EDITOR_BREATH_PHASE_MS)) / HUE_BREATH_MS) + 1) / 2;
   const glowHex = currentTheme.color('glow');
   const accentHex = currentTheme.color('accent');
   const fallbackBase = currentTheme.color('primary');
@@ -93,7 +102,7 @@ export function applyEditorChromeChase(
 
   const hexAt = (s: number, idleHex: string): string => {
     const base = mixHexColor(idleHex, accentHex, breath * breathAmt);
-    const dist = rendererPositiveModulo(head - s, perimeter);
+    const dist = liveModulo(head - s, perimeter);
     if (dist > trail) return base;
     if (dist <= 1) return glowHex;
     const t = dist / (trail + 1);
@@ -111,7 +120,7 @@ export function applyEditorChromeChase(
       if (s === undefined) return cell;
       const idleHex = cell.style?.fg ?? fallbackBase;
       const fg = hexAt(s, idleHex);
-      const bold = mode === 'premium' && rendererPositiveModulo(head - s, perimeter) <= 2;
+      const bold = mode === 'premium' && liveModulo(head - s, perimeter) <= 2;
       if (cell.style?.fg === fg && cell.style.bold === bold) return cell;
       rowDirty = true;
       return {

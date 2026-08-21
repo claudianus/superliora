@@ -140,6 +140,18 @@ describe('applyEditorChromeChase', () => {
     expect(glyphs(out)).toEqual(glyphs(box));
   });
 
+  it('keeps the chase moving on an unstable transport under premium prefs', () => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    setAppearanceTransportStability('unstable');
+    setActiveAppearancePreferences(premium);
+    const box = closedBox(16, 4);
+    const first = applyEditorChromeChase(box, { appearance: premium, nowMs: 200 });
+    const second = applyEditorChromeChase(box, { appearance: premium, nowMs: 200 + 280 });
+    expect(borderHexes(first).join(',')).not.toBe(borderHexes(second).join(','));
+  });
+
   it('paints a multi-cell trail that moves on the shared clock', () => {
     process.env['TERM'] = 'xterm-256color';
     delete process.env['CI'];

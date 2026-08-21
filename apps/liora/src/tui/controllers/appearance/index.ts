@@ -162,9 +162,8 @@ export class AppearanceController {
           premiumMs,
           subtleMs: 100,
         });
-        // Unstable transport + idle: ticking faster than the calm quantum only
-        // rebuilds byte-identical frames (the clock is quantized), so cap the
-        // cadence to the quantum and save the CPU.
+        // Unstable + idle: cap to the write-atomicity floor (~12fps) so chrome
+        // still moves without a 60fps ConPTY strobe.
         return capAmbientIntervalForCalmTransport(
           baseIntervalMs,
           ctx.transportStability ?? this.getTransportStability?.(),

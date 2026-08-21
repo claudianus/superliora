@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import chalk from 'chalk';
 
 import { visibleWidth } from '#/tui/renderer';
+import { thinkingMascotGlyph } from '#/tui/components/messages/thinking';
+import { THINKING_MASCOT_PERIOD_MS } from '#/tui/constant/rendering';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import {
+  shapeAmbientFrameClockMs,
+  type AmbientCalmSignals,
+} from '#/tui/features/appearance/ambient-calm';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationFrameIntervalMs,
@@ -164,6 +170,44 @@ describe('functional progress motion', () => {
     expect(progressMotionFrame(0, 10)).toBe(0);
     expect(progressMotionFrame(Number.NaN, 10)).toBe(0);
   });
+
+  it('advances appearanceAnimationNow through the idle-unstable frame handoff', () => {
+    // The orb reads appearanceAnimationNow() with no private clock. If
+    // shapeAmbientFrameClockMs pins the stamp onto the 1-hour idle grid,
+    // progressMotionActive stays true but every glyph freezes on one frame.
+    const idle: AmbientCalmSignals = {
+      streamingPhase: 'idle',
+      compacting: false,
+      liveGoal: false,
+      fullscreenTakeover: false,
+      streamRevealArmed: false,
+      backgroundWork: false,
+    };
+    setAppearanceTransportStability('unstable');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
+    expect(shouldRenderAmbientEffects({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    })).toBe(false);
+
+    advanceAppearanceAnimationClock(shapeAmbientFrameClockMs(0, 'unstable', idle));
+    const firstNow = appearanceAnimationNow();
+    const firstOrb = thinkingMascotGlyph();
+    const firstSpin = progressMotionFrame(80, 10);
+
+    advanceAppearanceAnimationClock(
+      shapeAmbientFrameClockMs(THINKING_MASCOT_PERIOD_MS / 2, 'unstable', idle),
+    );
+    expect(appearanceAnimationNow()).toBe(THINKING_MASCOT_PERIOD_MS / 2);
+    expect(appearanceAnimationNow()).toBeGreaterThan(firstNow);
+    expect(thinkingMascotGlyph()).not.toBe(firstOrb);
+    expect(progressMotionFrame(80, 10)).not.toBe(firstSpin);
+  });
 });
 
 describe('transport stability clamp', () => {
@@ -179,9 +223,9 @@ describe('transport stability clamp', () => {
     setAppearanceRenderQuality('full');
   });
 
-  it('clamps even a premium pin to off on an unstable transport', () => {
+  it('keeps a premium pin live on an unstable transport (chrome, not a mode clamp)', () => {
     setAppearanceTransportStability('unstable');
-    expect(resolveQualityAdjustedAmbientEffectMode(premium, 'full', 'healthy')).toBe('off');
+    expect(resolveQualityAdjustedAmbientEffectMode(premium, 'full', 'healthy')).toBe('premium');
   });
 
   it('resolves premium normally on a synchronized transport', () => {
@@ -199,6 +243,86 @@ describe('transport stability clamp', () => {
   it('never freezes decorative effects on a synchronized transport', () => {
     setAppearanceTransportStability('synchronized');
     expect(appearanceDecorativeFrozenByTransport(premium)).toBe(false);
+  });
+});
+
+describe('unstable transport chrome split', () => {
+  const premium = {
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'premium' as const,
+    particles: 'premium' as const,
+  };
+  const previousEnv = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+    SSH_TTY: process.env['SSH_TTY'],
+    SSH_CONNECTION: process.env['SSH_CONNECTION'],
+    SSH_CLIENT: process.env['SSH_CLIENT'],
+  };
+  const previousChalkLevel = chalk.level;
+
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    chalk.level = 3;
+    setAppearanceTransportStability('unstable');
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences(premium);
+    advanceAppearanceAnimationClock(1_000);
+  });
+
+  afterEach(() => {
+    chalk.level = previousChalkLevel;
+    setAppearanceTransportStability('synchronized');
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    advanceAppearanceAnimationClock(monotonicMotionNowMs());
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('keeps chrome frames time-varying on unstable + premium', () => {
+    expect(shouldRenderAmbientEffects(premium)).toBe(true);
+    const openedAt = 1_000;
+    const first = renderPremiumBoxFrame(['body'], {
+      width: 40,
+      appearance: premium,
+      openedAtMs: openedAt,
+    });
+    advanceAppearanceAnimationClock(1_000 + 400);
+    const second = renderPremiumBoxFrame(['body'], {
+      width: 40,
+      appearance: premium,
+      openedAtMs: openedAt,
+    });
+    expect(second[0]).not.toBe(first[0]);
+    advanceAppearanceAnimationClock(2_000);
+    const railA = renderParticleRail(32, premium, 'chrome-split');
+    advanceAppearanceAnimationClock(2_400);
+    const railB = renderParticleRail(32, premium, 'chrome-split');
+    expect(strip(railA)).not.toBe(strip(railB));
+  });
+
+  it('still paints full motion on synchronized + premium', () => {
+    setAppearanceTransportStability('synchronized');
+    expect(resolveQualityAdjustedAmbientEffectMode(premium)).toBe('premium');
+    expect(shouldRenderAmbientEffects(premium)).toBe(true);
+    expect(appearanceDecorativeFrozenByTransport(premium)).toBe(false);
+  });
+
+  it('stays static under NO_COLOR and TERM=dumb', () => {
+    process.env['NO_COLOR'] = '1';
+    expect(shouldRenderAmbientEffects(premium)).toBe(false);
+    delete process.env['NO_COLOR'];
+    process.env['TERM'] = 'dumb';
+    expect(shouldRenderAmbientEffects(premium)).toBe(false);
   });
 });
 

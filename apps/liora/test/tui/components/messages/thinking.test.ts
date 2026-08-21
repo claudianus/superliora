@@ -13,6 +13,7 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   advanceAppearanceAnimationClock,
   setActiveAppearancePreferences,
+  setAppearanceTransportStability,
 } from '#/tui/features/appearance/appearance-effects';
 import { setActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
 import { currentTheme } from '#/tui/theme';
@@ -267,6 +268,7 @@ describe('thinking thought-orb mascot', () => {
       else process.env[key] = savedEnv[key];
     }
     setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    setAppearanceTransportStability('synchronized');
   });
 
   it('uses five monospace-safe orb glyphs', () => {
@@ -292,6 +294,22 @@ describe('thinking thought-orb mascot', () => {
     setMotionEnv(false);
     expect(thinkingMascotGlyph(0)).toBe('○');
     expect(thinkingMascotGlyph(THINKING_MASCOT_PERIOD_MS / 2)).toBe('○');
+  });
+
+  it('keeps the orb pulse time-varying on an unstable transport', () => {
+    setMotionEnv(true);
+    setAppearanceTransportStability('unstable');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    advanceAppearanceAnimationClock(0);
+    const first = renderThinkingMascot();
+    advanceAppearanceAnimationClock(400);
+    const second = renderThinkingMascot();
+    expect(strip(first)).toMatch(/[·∘○◎●] /);
+    expect(first).not.toBe(second);
   });
 
   it('applies the brand gradient pulse when motion and premium are active', () => {

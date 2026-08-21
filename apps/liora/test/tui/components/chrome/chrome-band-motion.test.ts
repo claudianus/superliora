@@ -12,6 +12,7 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
+  setAppearanceTransportStability,
 } from '#/tui/features/appearance/appearance-effects';
 import { currentTheme, darkColors } from '#/tui/theme';
 
@@ -42,6 +43,7 @@ beforeEach(() => {
 afterEach(() => {
   currentTheme.setPalette(darkColors);
   setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  setAppearanceTransportStability('synchronized');
   chalk.level = previousChalkLevel;
   for (const [key, value] of Object.entries(previousEnv)) {
     if (value === undefined) delete process.env[key];
@@ -73,6 +75,27 @@ describe('chrome-band-motion', () => {
     const b = renderLiveRatioBar(0.5, 8, { animated: false, now: 9_000 });
     expect(a).toBe(b);
     expect(strip(a)).toMatch(/^[▓░]+$/);
+  });
+
+  it('keeps the sweep moving on an unstable transport under premium prefs', () => {
+    enableSweepColor();
+    setAppearanceTransportStability('unstable');
+    const premium = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+    const first = renderLiveRatioBar(0.6, 10, {
+      appearance: premium,
+      now: 200,
+      seed: 'todo:kpi:bar',
+    });
+    const second = renderLiveRatioBar(0.6, 10, {
+      appearance: premium,
+      now: 200 + 550,
+      seed: 'todo:kpi:bar',
+    });
+    expect(first).not.toBe(second);
   });
 
   it('sweeps a multi-cell gradient that moves on the shared clock', () => {

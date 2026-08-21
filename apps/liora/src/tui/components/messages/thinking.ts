@@ -365,6 +365,9 @@ function renderThinkingStatusLabel(label: string): string {
  * Five one-cell glyphs, dwells at dust (`·`) and the filled orb (`●`).
  * Functional rotation stays on when Appearance is off; only `NO_COLOR` /
  * `TERM=dumb` freeze at the rest `○`.
+ * Default `nowMs` is `appearanceAnimationNow()` — that stamp only moves when
+ * the frame loop advances it. Pinning the shared clock freezes this orb
+ * even though `progressMotionActive()` is true.
  */
 export function thinkingMascotGlyph(nowMs: number = appearanceAnimationNow()): string {
   const frames = THINKING_MASCOT_FRAMES;
@@ -383,7 +386,9 @@ export function renderThinkingMascot(
   const glyph = thinkingMascotGlyph();
   const padded = `${glyph} `;
   if (shouldRenderAmbientEffects(appearance)) {
-    return renderSpectacularText(padded, `thinking:mascot:${glyph}`, appearance, {
+    // Stable seed so the hue breath stays continuous across orb morphs
+    // instead of jumping when the glyph changes.
+    return renderSpectacularText(padded, 'thinking:mascot', appearance, {
       intense: true,
       pace: 'fast',
     });

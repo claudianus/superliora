@@ -5,7 +5,8 @@ import chalk from 'chalk';
 
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
 import { NoticeMessageComponent } from '#/tui/components/messages/status-message';
-import { ThinkingComponent } from '#/tui/components/messages/thinking';
+import { ThinkingComponent, thinkingMascotGlyph } from '#/tui/components/messages/thinking';
+import { THINKING_MASCOT_PERIOD_MS } from '#/tui/constant/rendering';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import { UserMessageComponent } from '#/tui/components/messages/user-message';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
@@ -43,6 +44,7 @@ import {
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
 } from '#/tui/features/native-layout/native-layout-frame';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { renderNativeLayoutFrame } from '#/tui/renderer';
 import {
   createNativeEditorTextInput,
@@ -57,6 +59,7 @@ import {
   getAppearanceRenderHealth,
   getAppearanceRenderQuality,
   getAppearanceTransportStability,
+  setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
   setAppearanceTransportStability,
@@ -107,9 +110,8 @@ async function flushAutocomplete(): Promise<void> {
 beforeEach(() => {
   // Many cases drive the native renderer through a fake scheduler and assert
   // exact frame cadence or appearance-clock advancement. On win32 the renderer
-  // would otherwise classify the transport as unstable — applying the
-  // frame-rate floor and freezing the idle ambient clock — so pin synchronized
-  // for a platform-independent schedule.
+  // would otherwise classify the transport as unstable and apply the
+  // frame-rate floor, so pin synchronized for a platform-independent schedule.
   process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = 'synchronized';
 });
 
@@ -2290,14 +2292,18 @@ describe('createTUIState', () => {
   });
 
   it('rebuilds mission chrome on animation ticks while background work runs on unstable transports', () => {
-    // Regression: on unstable transports (classic ConPTY) ambient motion is
-    // clamped off, which made `chromeStatic` true and let animation frames reuse
-    // cached chrome. The mission dock reads the shared clock for worker elapsed
-    // labels and linger expiry, so a reused cache froze them even though the
-    // clock kept advancing. Background work must force a chrome rebuild.
-    // Drive the real createTUIStateNativeRenderCallback path so the chromeStatic
-    // gate (not a mocked policy) decides reuse.
+    // Regression: when decorative ambient is off, `chromeStatic` is true and
+    // animation frames reuse cached chrome. The mission dock reads the shared
+    // clock for worker elapsed labels and linger expiry, so a reused cache
+    // froze them even though the clock kept advancing. Background work must
+    // force a chrome rebuild. Pin appearance off so this isolates that path
+    // (unstable no longer clamps premium chrome itself).
     process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = 'unstable';
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
     setAppearanceRenderQuality('full');
     const width = 24;
     const height = 10;
@@ -2359,6 +2365,62 @@ describe('createTUIState', () => {
 
       renderer.stop();
     } finally {
+      setAppearanceTransportStability('synchronized');
+      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    }
+  });
+
+  it('advances appearanceAnimationNow on idle unstable frames so the orb can tick', () => {
+    // appearanceAnimationNow() only moves when the frame callback calls
+    // advanceAppearanceAnimationClock(shapeAmbientFrameClockMs(...)). The old
+    // 1-hour idle grid pinned that stamp at 0, which froze the thought-orb
+    // even though progressMotionActive() stayed true.
+    process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = 'unstable';
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['NO_COLOR'];
+    const width = 24;
+    const height = 10;
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
+    state.transcriptContainer.addChild(fixedLines(['row']));
+    state.editorContainer.addChild(fixedLines(['ed']));
+    state.footerContainer.addChild(fixedLines(['ft']));
+    const output = new FakeNativeOutput(width, height);
+    const scheduler = new FakeRenderLoopScheduler();
+    const renderer = createTUIStateNativeRenderer(state, {
+      output,
+      scheduler,
+      renderOnStart: true,
+    });
+    try {
+      renderer.start();
+      scheduler.advance(0);
+      expect(getAppearanceTransportStability()).toBe('unstable');
+      expect(state.appState.streamingPhase).toBe('idle');
+      const firstNow = appearanceAnimationNow();
+      const firstOrb = thinkingMascotGlyph();
+
+      // Unstable presents sit on the ~80ms floor; keep requesting so the
+      // shared stamp crosses half an orb period instead of sticking at 0.
+      for (let i = 0; i < 8; i++) {
+        renderer.requestRender('animation');
+        scheduler.advance(80);
+      }
+      expect(appearanceAnimationNow()).toBeGreaterThan(firstNow);
+      expect(appearanceAnimationNow()).toBeGreaterThanOrEqual(THINKING_MASCOT_PERIOD_MS / 2);
+      expect(appearanceAnimationNow()).toBeLessThan(3_600_000);
+      expect(thinkingMascotGlyph()).not.toBe(firstOrb);
+    } finally {
+      renderer.stop();
       setAppearanceTransportStability('synchronized');
     }
   });

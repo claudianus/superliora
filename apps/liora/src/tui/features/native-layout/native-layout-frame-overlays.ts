@@ -14,6 +14,7 @@ import {
 import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
+  appearanceDecorativeFrozenByTransport,
   getAppearanceRenderHealth,
   getAppearanceRenderQuality,
   getActiveAppearancePreferences,
@@ -167,9 +168,9 @@ export function createTUIStateNativeRegionVfx(
   // motion only pauses for an active transcript selection (frame hold).
   if (!motionEffectsAllowed()) return undefined;
   const appearance = getActiveAppearancePreferences();
-  // Quality-adjusted, so an unstable transport clamps region VFX off exactly
-  // like the letterbox sky and the particle rails instead of asking the renderer
-  // to animate and relying on its own internal degradation.
+  // Large-area region VFX: freeze off on classic ConPTY (same tool as the
+  // letterbox starfield). Chrome elsewhere stays live.
+  if (appearanceDecorativeFrozenByTransport(appearance)) return undefined;
   const requested = resolveQualityAdjustedAmbientEffectMode(appearance);
   if (requested === 'off') return undefined;
   // Premium spectacle pins full quality so the glow does not freeze under load.

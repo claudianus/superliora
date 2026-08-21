@@ -1,25 +1,19 @@
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import {
-  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 
-const PREMIUM_POINTERS = ['❯', '❱', '❯', '➢'] as const;
-
 /**
  * Shared selected-row pointer for list pickers.
  * Pulses under ambient effects so every selector stays demo-grade without
  * re-implementing the same clock-driven styling in each dialog.
+ * Glyph stays SELECT_POINTER (PREMIUM.md §2) — motion is the color breath.
  */
 export function renderSelectPointer(seed: string): string {
   const appearance = getActiveAppearancePreferences();
+  // Hard-off: motionEffectsAllowed / profile / particles via shouldRenderAmbientEffects.
   if (!shouldRenderAmbientEffects(appearance)) return SELECT_POINTER;
-  const premium =
-    appearance.profile === 'premium' || appearance.particles === 'premium';
-  const glyph = premium
-    ? PREMIUM_POINTERS[Math.floor(appearanceAnimationNow() / 240) % PREMIUM_POINTERS.length]!
-    : SELECT_POINTER;
-  return renderPulseText(glyph, seed, 'primary');
+  return renderPulseText(SELECT_POINTER, seed, 'primary');
 }

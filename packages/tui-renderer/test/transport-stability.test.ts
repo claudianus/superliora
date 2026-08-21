@@ -23,6 +23,22 @@ describe('resolveRendererTransportStability', () => {
     );
   });
 
+  it('trusts Windows Terminal even when the 2026 probe has no answer', () => {
+    expect(
+      resolveRendererTransportStability({
+        platform: 'win32',
+        environment: { WT_SESSION: 'abc' },
+      }),
+    ).toBe('synchronized');
+    expect(
+      resolveRendererTransportStability({
+        platform: 'win32',
+        environment: { WT_SESSION: 'abc' },
+        synchronizedOutputProbeTimedOut: true,
+      }),
+    ).toBe('synchronized');
+  });
+
   it('trusts a 2026 answer from Windows Terminal', () => {
     expect(
       resolveRendererTransportStability({
@@ -35,6 +51,13 @@ describe('resolveRendererTransportStability', () => {
       resolveRendererTransportStability({
         platform: 'linux',
         environment: {},
+        synchronizedOutputSupport: 'unsupported',
+      }),
+    ).toBe('unstable');
+    expect(
+      resolveRendererTransportStability({
+        platform: 'win32',
+        environment: { WT_SESSION: 'abc' },
         synchronizedOutputSupport: 'unsupported',
       }),
     ).toBe('unstable');
