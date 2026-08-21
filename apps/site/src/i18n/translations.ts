@@ -471,7 +471,7 @@ const clustersKo: ClusterItem[] = [
     lead: '찾기·diff·연구·확장이 같은 화면 안에 있습니다.',
     features: [
       { id: 'in-tui-diff', title: '화면 안 diff', body: '파일·검색·변경을 터미널을 떠나지 않고 봅니다.' },
-      { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K로 설정·모드·세션·업그레이드를 찾습니다.' },
+      { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K로 설정·모드·세션·업그레이드·Quota를 찾습니다.' },
       { id: 'visual-quality', title: 'Visual Quality', body: '모션·밀도·글로우를 Neon Noir에 맞춥니다. Welcome·로그인·에디터 프레임은 살아 있고 thinking은 thought-orb입니다. 클래식 Windows 콘솔에서도 그 크롬은 움직이고, Windows Terminal은 스플래시까지 풀 클록입니다. 모션 off면 정지.' },
       { id: 'performance', title: 'Performance', body: '저사양에서는 Settings → Appearance 또는 /performance로 off · auto · on을 켭니다.' },
       { id: 'deep-research', title: 'Deep research', body: '긴 조사는 작업으로 돌려 두고 결과만 받습니다.' },
@@ -527,7 +527,7 @@ const clustersEn: ClusterItem[] = [
     lead: 'Search, diffs, research, and extensions live on the same stage.',
     features: [
       { id: 'in-tui-diff', title: 'In-TUI diff', body: 'Files, search, and changes without leaving the terminal.' },
-      { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K finds settings, modes, sessions, and upgrade.' },
+      { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K finds settings, modes, sessions, upgrade, and Quota.' },
       { id: 'visual-quality', title: 'Visual Quality', body: 'Tune motion, density, and glow for Neon Noir. Welcome, login, and editor frames stay live; thinking is a thought-orb. Classic Windows consoles keep that chrome moving; Windows Terminal still gets the full clock (including splash). Motion off is static.' },
       { id: 'performance', title: 'Performance', body: 'Opt-in for low-spec machines: off, auto, or on. Settings → Appearance or /performance.' },
       { id: 'deep-research', title: 'Deep research', body: 'Long investigations run as jobs; you get the result.' },
@@ -696,7 +696,7 @@ export const translations: Record<Lang, Translation> = {
         {
           keys: 'Ctrl+K',
           title: 'Command Hub',
-          body: '설정·모드·세션·업그레이드. macOS는 Cmd+K. Ctrl+Space나 ?로도 엽니다.',
+          body: '설정·모드·세션·업그레이드·Quota. macOS는 Cmd+K. Ctrl+Space나 ?로도 엽니다.',
         },
         {
           keys: 'Shift-Tab',
@@ -850,7 +850,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '슬래시',
-            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help · /upgrade · /resume · /locale · /permission. /resume는 /sessions의 별칭. /permission은 manual|auto|yolo. 저사양은 Settings → Appearance 또는 /performance.',
+            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /quota · /help · /upgrade · /resume · /locale · /permission. /resume는 /sessions의 별칭. /permission은 manual|auto|yolo. 저사양은 Settings → Appearance 또는 /performance. /quota는 실시간 남은 크레딧. 푸터 칩은 활성 프로바이더이고, 남은 양이 불명이면 숨깁니다.',
           },
           {
             heading: 'Ask 모드',
@@ -1017,7 +1017,7 @@ export const translations: Record<Lang, Translation> = {
         {
           keys: 'Ctrl+K',
           title: 'Command Hub',
-          body: 'Settings, modes, sessions, upgrade. Cmd+K on macOS. Also Ctrl+Space or ?.',
+          body: 'Settings, modes, sessions, upgrade, Quota. Cmd+K on macOS. Also Ctrl+Space or ?.',
         },
         {
           keys: 'Shift-Tab',
@@ -1171,7 +1171,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Slash',
-            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help · /upgrade · /resume · /locale · /permission. /resume is an alias of /sessions. /permission is manual|auto|yolo. For low-spec machines, Settings → Appearance or /performance.',
+            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /quota · /help · /upgrade · /resume · /locale · /permission. /resume is an alias of /sessions. /permission is manual|auto|yolo. For low-spec machines, Settings → Appearance or /performance. /quota shows live remaining credits; the footer chip is the active provider; unknown remaining stays hidden.',
           },
           {
             heading: 'Ask mode',
