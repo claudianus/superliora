@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ensureRuntimePrereqs } from '#/cli/update/runtime-prereqs';
+import { ensureRuntimePrereqs, resolveInstallScript } from '#/cli/update/runtime-prereqs';
 import { getHostPackageRoot } from '#/cli/version';
 
 import {
@@ -12,7 +12,12 @@ import {
   pnpmRuntimeBin,
   pnpmStandaloneUrl,
 } from '../../../../scripts/install/platform.mjs';
-import { ensurePnpm, resolvePnpm, runPnpm } from '../../../../scripts/install/ensure-pnpm.mjs';
+import {
+  PNPM_VERSION_PROBE_TIMEOUT_MS,
+  ensurePnpm,
+  resolvePnpm,
+  runPnpm,
+} from '../../../../scripts/install/ensure-pnpm.mjs';
 
 const tempDirs: string[] = [];
 
@@ -124,8 +129,37 @@ describe('scripts/install/ensure-pnpm', () => {
     }
   });
 
+  it('caps Corepack and PATH version probes so a hung shim cannot stall upgrade', () => {
+    const timeouts: Array<number | undefined> = [];
+    resolvePnpm({
+      spawnInstall: (_cmd: string, _args: readonly string[], options?: { timeout?: number }) => {
+        timeouts.push(options?.timeout);
+        return failingSpawn();
+      },
+    });
+    expect(timeouts.length).toBeGreaterThanOrEqual(2);
+    expect(timeouts.every((ms) => ms === PNPM_VERSION_PROBE_TIMEOUT_MS)).toBe(true);
+  });
+
   it('upgrade prereq hook finds shipped ensure-pnpm from the CLI package root', async () => {
-    const result = await ensureRuntimePrereqs(getHostPackageRoot());
+    expect(resolveInstallScript(getHostPackageRoot(), 'ensure-pnpm.mjs')).toBeTruthy();
+
+    const fakeRoot = await makeDir();
+    const installDir = join(fakeRoot, 'scripts', 'install');
+    await mkdir(installDir, { recursive: true });
+    await writeFile(
+      join(installDir, 'ensure-pnpm.mjs'),
+      [
+        'export async function ensurePnpm(opts = {}) {',
+        "  if (opts.noShellRc !== true) throw new Error('upgrade hook must pass noShellRc');",
+        "  return { cmd: 'pnpm', bootstrapped: false };",
+        '}',
+        '',
+      ].join('\n'),
+    );
+
+    const result = await ensureRuntimePrereqs(fakeRoot);
     expect(result.pnpmOk).toBe(true);
+    expect(result.pnpmBootstrapped).toBe(false);
   });
 });
