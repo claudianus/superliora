@@ -8,7 +8,11 @@ import { pipeline } from 'node:stream/promises';
 const FETCH_HEADERS = { 'User-Agent': 'superliora-installer' };
 
 export async function downloadToFile(url, dest, options = {}) {
-  const res = await fetch(url, { redirect: 'follow', headers: FETCH_HEADERS });
+  const signal = options.signal
+    ?? (typeof options.timeoutMs === 'number' && options.timeoutMs > 0
+      ? AbortSignal.timeout(options.timeoutMs)
+      : undefined);
+  const res = await fetch(url, { redirect: 'follow', headers: FETCH_HEADERS, signal });
   if (!res.ok || !res.body) {
     throw new Error(`Download failed ${url}: HTTP ${res.status}`);
   }

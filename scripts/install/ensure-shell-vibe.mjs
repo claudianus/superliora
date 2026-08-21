@@ -14,7 +14,7 @@ import { ensureOhMyPosh, findOhMyPosh, ohMyPoshRuntimeDir } from './ensure-oh-my
 import { findWinget } from './ensure-winget.mjs';
 import { hostJoin } from './host-path.mjs';
 import { applyUserPathWin } from './path.mjs';
-import { archId, defaultHome, hostPathExists } from './platform.mjs';
+import { OPTIONAL_INSTALL_TIMEOUT_MS, archId, defaultHome, hostPathExists } from './platform.mjs';
 
 export const ZOXIDE_WINGET_ID = 'ajeetdsouza.zoxide';
 export const FZF_WINGET_ID = 'junegunn.fzf';
@@ -460,7 +460,7 @@ function defaultRunWingetId(id) {
       '--scope',
       'user',
     ],
-    { encoding: 'utf8', windowsHide: true },
+    { encoding: 'utf8', windowsHide: true, timeout: OPTIONAL_INSTALL_TIMEOUT_MS },
   );
   return {
     status: result.error ? 1 : (result.status ?? 1),

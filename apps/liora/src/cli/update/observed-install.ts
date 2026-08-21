@@ -6,7 +6,7 @@ import {
   hasFreshActiveInstall,
   nowIso,
 } from './install-runtime';
-import { spawnForSource, spawnOptionsForSource } from './install-spawn';
+import { spawnForSource, spawnOptionsForSource, withObservedUpgradeEnv } from './install-spawn';
 import {
   parseUpgradeStageLine,
   summarizeGitFailure,
@@ -238,6 +238,7 @@ export async function startObservedUpgradeInstall(
 
     const child = spawnFn(cmd, [...args], spawnOptionsForSource(source, platform, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: withObservedUpgradeEnv(),
     })) as ChildProcess;
 
     if (source !== 'github-checkout') {

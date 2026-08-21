@@ -193,6 +193,8 @@ export function runPnpm(args, options = {}) {
     env: corepackEnv(options.env ?? process.env),
     encoding: options.encoding ?? 'utf8',
     stdio: options.stdio,
+    timeout: options.timeout,
+    windowsHide: options.windowsHide,
   });
 }
 

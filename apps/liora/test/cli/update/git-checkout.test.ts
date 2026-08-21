@@ -91,6 +91,7 @@ describe('gitCheckoutUpdateScript', () => {
     expect(script).toContain('run build:packages');
     expect(script).toContain('apps/liora run build');
     expect(script).toContain('retrieval:bootstrap');
+    expect(script).toContain('SUPERLIORA_OBSERVED_UPGRADE');
     expect(script).toContain("__LIORA_UPGRADE_STAGE__=installing");
     expect(script).toContain('command -v liora.cmd');
     expect(script).toContain('${command_name%.cmd}');

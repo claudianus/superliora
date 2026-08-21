@@ -46,6 +46,9 @@ export const INSTALL_STRINGS_EN = {
   'install.buildingCli': 'Installing dependencies and building CLI',
   'install.installingWrapper': 'Installing {command} wrapper',
   'install.sidecars': 'Installing browser / computer / retrieval',
+  'install.sidecarsDeferred': 'Deferring optional runtimes',
+  'install.sidecarsDeferredNote':
+    'Upgrade Studio closed stdin, so browser / computer / retrieval downloads wait until after restart.',
   'install.hostSetup': 'Ensuring host setup',
   'install.hostSetupReady': 'Host setup ready',
   'install.wtInstalled': 'Installed Windows Terminal + SuperLiora profile',
@@ -127,6 +130,9 @@ export const INSTALL_STRINGS_KO = {
   'install.buildingCli': '의존성 설치 및 CLI 빌드 중',
   'install.installingWrapper': '{command} 래퍼 설치 중',
   'install.sidecars': 'browser / computer / retrieval 설치 중',
+  'install.sidecarsDeferred': '선택 런타임은 나중에',
+  'install.sidecarsDeferredNote':
+    'Upgrade Studio는 확인 입력을 받을 수 없어 browser / computer / retrieval 다운로드는 재시작 후로 미룹니다.',
   'install.hostSetup': '호스트 설정 적용 중',
   'install.hostSetupReady': '호스트 설정 준비됨',
   'install.wtInstalled': 'Windows Terminal + SuperLiora 프로필 설치됨',

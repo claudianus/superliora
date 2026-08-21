@@ -54,6 +54,11 @@ export function spawnOutputText(result) {
   return `${stdout}${stderr}`;
 }
 
+/** True when spawnSync hit its `timeout` (Node sets `error.code = ETIMEDOUT`). */
+export function spawnTimedOut(result) {
+  return result?.error?.code === 'ETIMEDOUT';
+}
+
 export function spawnInstall(command, args = [], options = {}) {
   const platform = options.platform ?? process.platform;
   const { platform: _ignored, ...spawnOptions } = options;

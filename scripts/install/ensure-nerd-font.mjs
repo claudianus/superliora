@@ -12,7 +12,7 @@ import { basename, join } from 'node:path';
 import { downloadToFile } from './download.mjs';
 import { findWinget } from './ensure-winget.mjs';
 import { hostJoin } from './host-path.mjs';
-import { defaultHome } from './platform.mjs';
+import { OPTIONAL_INSTALL_TIMEOUT_MS, defaultHome } from './platform.mjs';
 
 export const CASKAYDIA_WINGET_ID = 'ryanoasis.CaskaydiaCove';
 export const CASKAYDIA_WINGET_SOURCE = 'winget-font';
@@ -183,7 +183,7 @@ function defaultRunWingetFont() {
       '--disable-interactivity',
       '--silent',
     ],
-    { encoding: 'utf8', windowsHide: true },
+    { encoding: 'utf8', windowsHide: true, timeout: OPTIONAL_INSTALL_TIMEOUT_MS },
   );
   return {
     status: result.error ? 1 : (result.status ?? 1),
@@ -260,6 +260,7 @@ function installUserFontsWin({ files, destDir }) {
   const ps = spawnSync('powershell', ['-NoProfile', '-Command', script], {
     encoding: 'utf8',
     windowsHide: true,
+    timeout: OPTIONAL_INSTALL_TIMEOUT_MS,
   });
   return {
     status: ps.error ? 1 : (ps.status ?? 1),

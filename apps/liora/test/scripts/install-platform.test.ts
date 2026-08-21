@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   commandFileName,
+  postInstallForObservedUpgrade,
   DEFAULT_PNPM_VERSION,
   defaultInstallDir,
   githubArchiveUrl,
@@ -58,6 +59,31 @@ describe('scripts/install/platform', () => {
     expect(versionGte('24.15.0', '24.15.0')).toBe(true);
     expect(versionGte('24.15.1', '24.15.0')).toBe(true);
     expect(versionGte('24.14.0', '24.15.0')).toBe(false);
+  });
+
+  it('keeps optional downloads off the Upgrade Studio critical path', () => {
+    const consoleIo = { stdin: { isTTY: true }, stdout: { isTTY: true } };
+    const studioIo = { stdin: { isTTY: false }, stdout: { isTTY: false } };
+    const curlPipeIo = { stdin: { isTTY: false }, stdout: { isTTY: true } };
+
+    expect(postInstallForObservedUpgrade({}, consoleIo)).toEqual({
+      runSidecars: true,
+      skipHostPackages: false,
+    });
+    // Console `curl | bash` keeps stdout as a TTY — still a real install.
+    expect(postInstallForObservedUpgrade({}, curlPipeIo)).toEqual({
+      runSidecars: true,
+      skipHostPackages: false,
+    });
+    // Newer CLI marks the child; older CLI only closes stdin and pipes stdout.
+    expect(postInstallForObservedUpgrade({ SUPERLIORA_OBSERVED_UPGRADE: '1' }, consoleIo)).toEqual({
+      runSidecars: false,
+      skipHostPackages: true,
+    });
+    expect(postInstallForObservedUpgrade({}, studioIo)).toEqual({
+      runSidecars: false,
+      skipHostPackages: true,
+    });
   });
 
   it('sees a link whose target stat fails, like a Windows app execution alias', async () => {

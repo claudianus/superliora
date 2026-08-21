@@ -11,7 +11,7 @@ import { dirname } from 'node:path';
 import { downloadToFile } from './download.mjs';
 import { findWinget } from './ensure-winget.mjs';
 import { hostJoin } from './host-path.mjs';
-import { archId, defaultHome } from './platform.mjs';
+import { OPTIONAL_INSTALL_TIMEOUT_MS, archId, defaultHome } from './platform.mjs';
 
 export const OMP_WINGET_ID = 'JanDeDobbeleer.OhMyPosh';
 export const OMP_EXE_URL =
@@ -301,7 +301,7 @@ function defaultRunWingetOmp() {
       '--scope',
       'user',
     ],
-    { encoding: 'utf8', windowsHide: true },
+    { encoding: 'utf8', windowsHide: true, timeout: OPTIONAL_INSTALL_TIMEOUT_MS },
   );
   return {
     status: result.error ? 1 : (result.status ?? 1),

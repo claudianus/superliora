@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, resolve, win32 } from 'node:path';
+import { dirname, posix, resolve, win32 } from 'node:path';
 
 import { tryGetHostPackageRoot } from '#/cli/version';
 import { getDataDir } from '#/utils/paths';
@@ -141,7 +141,7 @@ export function defaultCheckoutCommandBinDir(
       win32.join(env['USERPROFILE'] ?? env['HOME'] ?? homedir(), 'AppData', 'Local');
     return win32.join(base, 'SuperLiora', 'bin');
   }
-  return join(env['HOME'] ?? homedir(), '.local', 'bin');
+  return posix.join(env['HOME'] ?? homedir(), '.local', 'bin');
 }
 
 function toBashPath(value: string): string {
@@ -185,7 +185,7 @@ function buildGitCheckoutUpdateShellLines(
     `pnpm_invoke -C ${repoExpr} run build:packages`,
     `pnpm_invoke -C ${repoExpr}/apps/liora run build`,
     // Match install.sh: warm Granite-97M + passage indexes (soft-fail).
-    `if [ "\${SUPERLIORA_SKIP_RETRIEVAL:-0}" != "1" ]; then SUPERLIORA_RETRIEVAL_EMBEDDER=transformers pnpm_invoke -C ${repoExpr}/packages/agent-core run retrieval:bootstrap || echo "warning: retrieval bootstrap failed (hash fallback until online)"; fi`,
+    `if [ "\${SUPERLIORA_SKIP_RETRIEVAL:-0}" != "1" ] && [ "\${SUPERLIORA_OBSERVED_UPGRADE:-0}" != "1" ]; then SUPERLIORA_RETRIEVAL_EMBEDDER=transformers pnpm_invoke -C ${repoExpr}/packages/agent-core run retrieval:bootstrap || echo "warning: retrieval bootstrap failed (hash fallback until online)"; fi`,
     `echo '__LIORA_UPGRADE_STAGE__=installing'`,
     'liora_path="$(command -v liora 2>/dev/null || true)"',
     'if [ -z "$liora_path" ]; then liora_path="$(command -v liora.cmd 2>/dev/null || true)"; fi',
