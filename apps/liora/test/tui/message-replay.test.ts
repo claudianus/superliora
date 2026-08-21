@@ -22,6 +22,8 @@ import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ReadGroupComponent } from '#/tui/components/messages/read-group';
 import { SearchGroupComponent } from '#/tui/components/messages/search-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import {
   REPLAY_MAX_TOOL_MOUNTS_PER_TURN,
   REPLAY_TURN_LIMIT,
@@ -274,6 +276,14 @@ async function replayIntoDriver(
   const resumed = makeSession(replay, overrides);
   const driver = await makeDriver(initial);
   await driver.switchToSession(resumed, 'Resumed session (ses-replay).');
+  // init() reapplies default premium appearance. Pin off before callers
+  // assert painted substrings — leftover motion (CI/NO_COLOR leak, clock)
+  // replaces spaces with particle glyphs and breaks title checks.
+  setActiveAppearancePreferences({
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'off',
+    particles: 'off',
+  });
   return driver;
 }
 
