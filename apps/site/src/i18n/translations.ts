@@ -472,7 +472,7 @@ const clustersKo: ClusterItem[] = [
     features: [
       { id: 'in-tui-diff', title: '화면 안 diff', body: '파일·검색·변경을 터미널을 떠나지 않고 봅니다.' },
       { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K로 설정·모드·세션·업그레이드를 찾습니다.' },
-      { id: 'visual-quality', title: 'Visual Quality', body: '모션·밀도·글로우를 Neon Noir에 맞춥니다. Welcome·로그인·에디터 프레임은 살아 있고 thinking은 thought-orb입니다. 모션 off면 정지.' },
+      { id: 'visual-quality', title: 'Visual Quality', body: '모션·밀도·글로우를 Neon Noir에 맞춥니다. Welcome·로그인·에디터 프레임은 살아 있고 thinking은 thought-orb입니다. 클래식 Windows 콘솔에서도 그 크롬은 움직이고, Windows Terminal은 스플래시까지 풀 클록입니다. 모션 off면 정지.' },
       { id: 'performance', title: 'Performance', body: '저사양에서는 Settings → Appearance 또는 /performance로 off · auto · on을 켭니다.' },
       { id: 'deep-research', title: 'Deep research', body: '긴 조사는 작업으로 돌려 두고 결과만 받습니다.' },
       { id: 'extensions', title: 'Extensions', body: '스킬·MCP·훅을 허브에서 붙입니다.' },
@@ -528,7 +528,7 @@ const clustersEn: ClusterItem[] = [
     features: [
       { id: 'in-tui-diff', title: 'In-TUI diff', body: 'Files, search, and changes without leaving the terminal.' },
       { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K finds settings, modes, sessions, and upgrade.' },
-      { id: 'visual-quality', title: 'Visual Quality', body: 'Tune motion, density, and glow for Neon Noir. Welcome, login, and editor frames stay live; thinking is a thought-orb. Motion off is static.' },
+      { id: 'visual-quality', title: 'Visual Quality', body: 'Tune motion, density, and glow for Neon Noir. Welcome, login, and editor frames stay live; thinking is a thought-orb. Classic Windows consoles keep that chrome moving; Windows Terminal still gets the full clock (including splash). Motion off is static.' },
       { id: 'performance', title: 'Performance', body: 'Opt-in for low-spec machines: off, auto, or on. Settings → Appearance or /performance.' },
       { id: 'deep-research', title: 'Deep research', body: 'Long investigations run as jobs; you get the result.' },
       { id: 'extensions', title: 'Extensions', body: 'Skills, MCP, and hooks from one hub.' },
@@ -755,7 +755,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '설치 후',
-            body: '설치가 끝나면 바탕 화면의 SuperLiora를 더블클릭해 실제 터미널에서 TUI를 엽니다. /host-setup은 확인 목록을 보여 준 뒤 Windows Terminal(Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf를 적용합니다. GitHub Release가 나오면 liora upgrade 또는 /upgrade로 설치를 갱신합니다. 추적은 공개 Release이고, main 최신은 --main. UI 언어는 SUPERLIORA_LOCALE=ko|en, Settings → Language, 또는 /locale.',
+            body: '설치가 끝나면 바탕 화면의 SuperLiora를 더블클릭해 실제 터미널에서 TUI를 엽니다. /host-setup은 확인 목록을 보여 준 뒤 Windows Terminal(Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf를 적용합니다. Windows Terminal은 스플래시까지 풀 TUI 모션입니다. 클래식 콘솔은 시네마틱 스플래시 없이 에디터·orb·허브 크롬만 움직입니다. GitHub Release가 나오면 liora upgrade 또는 /upgrade로 설치를 갱신합니다. 추적은 공개 Release이고, main 최신은 --main. UI 언어는 SUPERLIORA_LOCALE=ko|en, Settings → Language, 또는 /locale.',
           },
           {
             heading: '사용법',
@@ -1076,7 +1076,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'After install',
-            body: 'After install, double-click SuperLiora on the Desktop to open the TUI in a real terminal. Run /host-setup to see a confirm list, then apply Windows Terminal (Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, and fzf. After a GitHub Release, liora upgrade or /upgrade updates the install. That tracks published releases, not arbitrary main commits. Use --main for tip of main. UI language: SUPERLIORA_LOCALE=ko|en, Settings → Language, or /locale.',
+            body: 'After install, double-click SuperLiora on the Desktop to open the TUI in a real terminal. Run /host-setup to see a confirm list, then apply Windows Terminal (Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, and fzf. Windows Terminal keeps full TUI motion (including splash). Classic consoles keep chrome (editor, orb, hub) moving without the cinematic splash. After a GitHub Release, liora upgrade or /upgrade updates the install. That tracks published releases, not arbitrary main commits. Use --main for tip of main. UI language: SUPERLIORA_LOCALE=ko|en, Settings → Language, or /locale.',
           },
           {
             heading: 'Usage',

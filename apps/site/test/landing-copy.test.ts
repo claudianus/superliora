@@ -150,7 +150,7 @@ describe('shipped landing copy', () => {
   });
 
   it('teaches 0.12.9 upgrade, hub, and hygiene commands in EN and KO', () => {
-    expect(PRODUCT_VERSION).toBe('0.12.9');
+    expect(PRODUCT_VERSION).toBe('0.12.10');
     const readmeTokens = [
       'liora upgrade',
       'liora doctor',
@@ -221,6 +221,25 @@ describe('shipped landing copy', () => {
       expect(clusterBlob).toMatch(/performance/i);
       expect(clusterBlob).toContain('/performance');
       expect(t.install.body).toContain('liora upgrade');
+    }
+  });
+
+  it('teaches 0.12.10 Windows chrome motion in EN and KO', () => {
+    expect(PRODUCT_VERSION).toBe('0.12.10');
+    for (const lang of ['ko', 'en'] as const) {
+      const t = translations[lang];
+      const visual = t.clusters.items
+        .flatMap((cluster) => cluster.features)
+        .find((feature) => feature.id === 'visual-quality');
+      expect(visual?.body).toContain('Windows Terminal');
+      expect(visual?.body).toMatch(/classic|클래식/i);
+      expect(visual?.body).toMatch(/console|콘솔/);
+
+      const afterInstall = t.docs['getting-started'].sections.find(
+        (section) => section.heading === (lang === 'ko' ? '설치 후' : 'After install'),
+      );
+      expect(afterInstall?.body).toContain('Windows Terminal');
+      expect(afterInstall?.body).toMatch(/splash|스플래시/);
     }
   });
 
