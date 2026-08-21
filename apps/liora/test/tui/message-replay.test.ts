@@ -11,11 +11,13 @@ import type {
   Session,
   ToolCall,
 } from '@superliora/sdk';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
 import type { SessionEventHandler } from '#/tui/controllers/session-event/handler';
 import type { StreamingUIController } from '#/tui/controllers/streaming-ui/index';
+import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ReadGroupComponent } from '#/tui/components/messages/read-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
@@ -352,6 +354,12 @@ describe('limitReplayRecordsByTurn', () => {
 });
 
 describe('LioraTUI resume message replay', () => {
+  beforeEach(() => {
+    // Other liora files delete CI/NO_COLOR to test motion. Pin off so
+    // substring asserts don't see entrance washes or interleaved SGR.
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+  });
+
   it('does not render legacy goal completion context reminders as transcript messages', async () => {
     const driver = await replayIntoDriver([
       message(
@@ -975,7 +983,7 @@ describe('LioraTUI resume message replay', () => {
     );
 
     const driver = await replayIntoDriver([activation, activation]);
-    const transcript = driver.state.transcriptContainer.render(120).join('\n');
+    const transcript = stripAnsi(driver.state.transcriptContainer.render(120).join('\n'));
 
     expect(transcript).toContain('review');
     expect(transcript).toContain('src/app.ts');
@@ -1000,7 +1008,7 @@ describe('LioraTUI resume message replay', () => {
     );
 
     const driver = await replayIntoDriver([activation, activation]);
-    const transcript = driver.state.transcriptContainer.render(120).join('\n');
+    const transcript = stripAnsi(driver.state.transcriptContainer.render(120).join('\n'));
 
     expect(transcript).toContain('/demo-plugin:deploy');
     expect(transcript).toContain('prod');
