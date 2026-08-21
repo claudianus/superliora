@@ -132,6 +132,7 @@ describe('scripts/install-liora.mjs', () => {
     expect(cmd).toContain('install.ps1');
     expect(cmd).toContain('cmd.exe');
     expect(cmd).toMatch(/powershell/i);
+    expect(sh).toContain('checkout-health.mjs');
     expect(sh).toContain('spawn.mjs');
     expect(sh).toContain('wrappers.mjs');
     expect(sh).toContain('ensure-git.mjs');
@@ -149,6 +150,7 @@ describe('scripts/install-liora.mjs', () => {
     expect(sh).toContain('--no-git');
     expect(sh).toContain('--no-terminal');
     expect(sh).toContain('--no-host-setup');
+    expect(ps1).toContain('checkout-health.mjs');
     expect(ps1).toContain('spawn.mjs');
     expect(ps1).toContain('wrappers.mjs');
     expect(ps1).toContain('ensure-git.mjs');

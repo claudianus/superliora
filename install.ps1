@@ -71,6 +71,7 @@ $InstallModules = @(
   'download.mjs',
   'prebuilt.mjs',
   'source.mjs',
+  'checkout-health.mjs',
   'sidecars.mjs',
   'path.mjs',
   'spawn.mjs',
