@@ -45,7 +45,7 @@ function stripAnsi(text: string): string {
 function paintedReplay(driver: ReplayDriver, width = 140): string {
   return stripAnsi(
     driver.state.transcriptContainer.children.flatMap((child) => child.render(width)).join('\n'),
-  ).replaceAll(/[·∙•◦*]/g, ' ');
+  );
 }
 
 interface ReplayDriver {
