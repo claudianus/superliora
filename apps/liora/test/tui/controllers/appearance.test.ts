@@ -335,14 +335,14 @@ describe('AppearanceController', () => {
       isAmbientIdle: () => idle,
     });
     const options = setAmbientSchedule.mock.calls.at(-1)?.[0];
-    // Idle + unstable: ticking at 16ms only rebuilds byte-identical frames.
+    // Idle + unstable: chrome still wakes at the ~12fps write floor.
     expect(
       options?.resolveIntervalMs({
         quality: 'full',
         health: 'healthy',
         backpressure: false,
       }),
-    ).toBe(250);
+    ).toBe(80);
     // Activity restores the full-rate cadence.
     idle = false;
     expect(

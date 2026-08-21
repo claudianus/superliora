@@ -43,6 +43,7 @@ import {
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
 } from '#/tui/features/native-layout/native-layout-frame';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { renderNativeLayoutFrame } from '#/tui/renderer';
 import {
   createNativeEditorTextInput,
@@ -57,6 +58,7 @@ import {
   getAppearanceRenderHealth,
   getAppearanceRenderQuality,
   getAppearanceTransportStability,
+  setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
   setAppearanceTransportStability,
@@ -107,9 +109,8 @@ async function flushAutocomplete(): Promise<void> {
 beforeEach(() => {
   // Many cases drive the native renderer through a fake scheduler and assert
   // exact frame cadence or appearance-clock advancement. On win32 the renderer
-  // would otherwise classify the transport as unstable — applying the
-  // frame-rate floor and freezing the idle ambient clock — so pin synchronized
-  // for a platform-independent schedule.
+  // would otherwise classify the transport as unstable and apply the
+  // frame-rate floor, so pin synchronized for a platform-independent schedule.
   process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = 'synchronized';
 });
 
@@ -2290,14 +2291,18 @@ describe('createTUIState', () => {
   });
 
   it('rebuilds mission chrome on animation ticks while background work runs on unstable transports', () => {
-    // Regression: on unstable transports (classic ConPTY) ambient motion is
-    // clamped off, which made `chromeStatic` true and let animation frames reuse
-    // cached chrome. The mission dock reads the shared clock for worker elapsed
-    // labels and linger expiry, so a reused cache froze them even though the
-    // clock kept advancing. Background work must force a chrome rebuild.
-    // Drive the real createTUIStateNativeRenderCallback path so the chromeStatic
-    // gate (not a mocked policy) decides reuse.
+    // Regression: when decorative ambient is off, `chromeStatic` is true and
+    // animation frames reuse cached chrome. The mission dock reads the shared
+    // clock for worker elapsed labels and linger expiry, so a reused cache
+    // froze them even though the clock kept advancing. Background work must
+    // force a chrome rebuild. Pin appearance off so this isolates that path
+    // (unstable no longer clamps premium chrome itself).
     process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = 'unstable';
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
     setAppearanceRenderQuality('full');
     const width = 24;
     const height = 10;
@@ -2360,6 +2365,7 @@ describe('createTUIState', () => {
       renderer.stop();
     } finally {
       setAppearanceTransportStability('synchronized');
+      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
     }
   });
 

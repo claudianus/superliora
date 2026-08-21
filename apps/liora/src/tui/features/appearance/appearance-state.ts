@@ -115,13 +115,12 @@ export function resolveQualityAdjustedAmbientEffectMode(
   health: NativeFrameStatsHealth = appearanceRenderHealth,
 ): AmbientEffectMode {
   const requested = resolveAmbientEffectMode(appearance);
-  // Unstable transports (classic ConPTY) turn every write into a visible
-  // repaint, so animated ambient effects read as constant flicker no matter
-  // the quality budget. Clamp them off; this overrides even a premium pin.
-  // Functional indicators are unaffected — spinner rotation and the stream
-  // reveal ride the raw mode/clock — and the starfield backdrop survives as a
-  // static frame via appearanceDecorativeFrozenByTransport.
-  if (requested !== 'off' && appearanceTransportStability === 'unstable') return 'off';
+  // Classic ConPTY stays `unstable` for write-atomicity (~12fps floor), but
+  // chrome motion (editor chase, hub frame, orb, band, pulses) must keep
+  // running at that floor. Do not clamp the quality-adjusted mode to `off` —
+  // large-area backdrops freeze separately via
+  // appearanceDecorativeFrozenByTransport. Hard-off sinks stay
+  // motionEffectsAllowed / profile / particles.
   if (pinsPremiumAppearanceEffects(appearance)) return 'premium';
   return resolveRendererEffectLevel({
     requested,
@@ -134,9 +133,10 @@ export function resolveQualityAdjustedAmbientEffectMode(
 }
 
 /**
- * True when the user asked for ambient effects but the transport cannot animate
- * them without flicker. Large-area backdrops (the letterbox starfield) use this
- * to paint one static frame instead of disappearing entirely.
+ * True when the user asked for ambient effects but the transport cannot
+ * animate a full-canvas field without flicker. Large-area backdrops (the
+ * letterbox starfield) paint one static frame. Chrome that is a small
+ * incremental cell update stays live via shouldRenderAmbientEffects.
  */
 export function appearanceDecorativeFrozenByTransport(
   appearance: AppearancePreferences,

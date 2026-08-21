@@ -49,8 +49,12 @@ export function isTrustedWindowsSynchronizedHost(
  * Classify the transport. The DECRQM probe result is the ground truth only
  * when the host actually delivers atomic frames. On Windows, ConPTY can
  * answer "supported" from the outer emulator (Windows Terminal, xterm.js)
- * while still tearing every write — those stay `unstable`. When the probe
- * has no answer, Windows is presumed unstable; POSIX stays `synchronized`.
+ * while still tearing every write — untrusted hosts stay `unstable` even
+ * on a "supported" answer. A trusted Windows Terminal host (`WT_SESSION`)
+ * implements 2026 and is `synchronized` even when the probe timed out or
+ * has no answer; only an explicit "unsupported" (or the env override)
+ * demotes it. Classic conhost / no `WT_SESSION` stays `unstable` when the
+ * probe is silent. POSIX without an answer stays `synchronized`.
  */
 export function resolveRendererTransportStability(
   options: RendererTransportStabilityOptions = {},
@@ -60,11 +64,12 @@ export function resolveRendererTransportStability(
   if (override !== undefined) return override;
   if (options.synchronizedOutputSupport === 'unsupported') return 'unstable';
   const platform = options.platform ?? defaultPlatform();
-  if (options.synchronizedOutputSupport === 'supported') {
-    return isTrustedWindowsSynchronizedHost(environment, platform)
-      ? 'synchronized'
-      : 'unstable';
-  }
+  // WT implements 2026. A probe timeout / no answer must not demote a
+  // trusted WT host to classic ConPTY — that froze the premium clock on
+  // the common Windows install. `isTrustedWindowsSynchronizedHost` is also
+  // true for every non-Windows platform.
+  if (isTrustedWindowsSynchronizedHost(environment, platform)) return 'synchronized';
+  if (options.synchronizedOutputSupport === 'supported') return 'unstable';
   return platform === 'win32' ? 'unstable' : 'synchronized';
 }
 

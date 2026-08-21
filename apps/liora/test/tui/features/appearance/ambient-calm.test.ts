@@ -79,13 +79,11 @@ describe('shapeAmbientFrameClockMs', () => {
     );
   });
 
-  it('freezes the clock on unstable transports while idle', () => {
-    // The freeze grid is one hour, so any in-session timestamp snaps to the
-    // same value and idle frames stay byte-identical (no ConPTY repaint).
-    const first = shapeAmbientFrameClockMs(1123, 'unstable', idleSignals());
-    const later = shapeAmbientFrameClockMs(59_999, 'unstable', idleSignals());
-    expect(first).toBe(0);
-    expect(later).toBe(0);
+  it('never pins the shared clock on unstable transports while idle', () => {
+    // Decorative freeze is isolated to the starfield. Chrome indexes
+    // appearanceAnimationNow(), so idle ConPTY must keep the raw stamp.
+    expect(shapeAmbientFrameClockMs(1123, 'unstable', idleSignals())).toBe(1123);
+    expect(shapeAmbientFrameClockMs(59_999, 'unstable', idleSignals())).toBe(59_999);
   });
 
   it('keeps the raw clock when stability is unknown', () => {
@@ -108,7 +106,8 @@ describe('hasRunningConductorWorkers', () => {
 });
 
 describe('capAmbientIntervalForCalmTransport', () => {
-  it('caps the cadence to the tick cap on unstable transports while idle', () => {
+  it('caps idle unstable ticks to the write-atomicity floor, not a freeze', () => {
+    expect(UNSTABLE_IDLE_TICK_CAP_MS).toBe(80);
     expect(capAmbientIntervalForCalmTransport(16, 'unstable', true)).toBe(
       UNSTABLE_IDLE_TICK_CAP_MS,
     );

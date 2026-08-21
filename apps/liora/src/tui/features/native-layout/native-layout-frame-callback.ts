@@ -91,9 +91,8 @@ export function createTUIStateNativeRenderCallback(
     // Background Conductor/Mission Control work reads the shared clock, so it
     // must keep advancing even when the main turn is idle on a calm transport.
     const backgroundWork = options.hasBackgroundWork?.() === true;
-    // On unstable transports (classic ConPTY) an idle full-rate clock turns
-    // every ambient tick into a visible repaint; snap the clock onto the calm
-    // quantum grid so idle frames stay byte-identical and write nothing.
+    // Shared clock always advances (PREMIUM.md §7.1). Classic ConPTY freezes
+    // large-area starfields on a decorative-only clock, not this stamp.
     const calmSignals = {
       streamingPhase: state.appState.streamingPhase,
       compacting: state.appState.isCompacting,

@@ -179,6 +179,17 @@ renderer ambient schedule / `RendererTicker`. **No raw `setInterval` /
 - `unref()` on all timers (no dangling handles).
 - No competing independent clocks.
 
+The shared stamp is `appearanceAnimationNow()`, advanced from the renderer's
+`performance.now()` frame timestamp. **Never compare a `Date.now()` stamp
+against that clock** — the epoch mismatch is ~1.8e12 ms and silently pins
+every elapsed effect at 0. Producers of motion timestamps must read
+`monotonicMotionNowMs()` / `appearanceAnimationNow()`, never `Date.now()`.
+
+Do not freeze this clock to hold a decorative frame still. If a large-area
+field must stay byte-identical (classic ConPTY starfield), freeze a
+**decorative-only** clock via `appearanceDecorativeFrozenByTransport` /
+`calmAmbientClockMs`. Chrome that indexes the shared clock must keep moving.
+
 ### 7.2 Quality levels
 
 Effects resolve through `resolveQualityAdjustedAmbientEffectMode`:
@@ -190,8 +201,18 @@ Effects resolve through `resolveQualityAdjustedAmbientEffectMode`:
 | `premium` | Multi-frame mascots, gradient text, pulse cycling, particle rails. |
 
 Quality auto-degrades based on frame health (`NativeFrameStatsHealth`) and
-renderer quality level. SSH / `NO_COLOR` / `CI` / `TERM=dumb` force `off` or
-static fallbacks.
+renderer quality level.
+
+Hard-off sinks (decorative motion vanishes; functional spinners may remain):
+
+- `TERM=dumb` and a non-empty `NO_COLOR` — `motionEffectsAllowed` /
+  `progressMotionActive` (plain-text sinks cannot repaint a cell in place).
+- `CI` and SSH — decorative only (`motionEffectsAllowed`); live spinners
+  still rotate so a remote session does not look hung.
+- User pin: Appearance profile / particles `off`.
+
+Unstable transport (classic ConPTY) is **not** a hard-off for chrome. See
+§7.2.2.
 
 ### 7.2.1 Performance mode overlay (`off` | `auto` | `on`)
 
@@ -213,6 +234,29 @@ Module defaults `TRANSCRIPT_MAX_TURNS` (50) and `TRANSCRIPT_KEEP_RECENT_STEPS`
 Entry points: Settings → Appearance → Performance mode, `/performance
 [off|auto|on]`, `tui.toml` `performance_mode`. Implementation:
 `features/appearance/performance-mode.ts`.
+
+### 7.2.2 Windows ConPTY vs Windows Terminal
+
+Split chrome motion from large-area ambient. Defaults stay premium
+(`profile=premium`, `particles=premium`, `animationFps=60`).
+
+| Host | Classification | Clock | Chrome | Large-area ambient |
+|---|---|---|---|---|
+| Windows Terminal (`WT_SESSION`) | `synchronized` even if the 2026 probe times out | Full premium | Live | Live |
+| Classic conhost / no `WT_SESSION` | `unstable` (write-atomicity, ~12fps floor) | Shared clock still advances | Live at the floor | One static frame (`appearanceDecorativeFrozenByTransport`) |
+| Explicit 2026 `unsupported` | `unstable` | Same as classic | Live at the floor | Static starfield |
+
+Chrome that is already a small incremental cell update must keep moving on
+classic ConPTY whenever `motionEffectsAllowed()` is true and the user did
+not pin profile/particles `off`: welcome hero / device-code login frames,
+prompt-editor chase, Command Hub comet box, chrome-band sweep, thought-orb,
+footer pulses, stream-tail glow, settle flashes, picker pointer.
+
+The startup splash is a full-canvas cinematic — it stays off on `unstable`
+so classic conhost does not strobe. WT is `synchronized` and still plays it.
+
+Type-on stream reveal may still snap on `unstable` (`streamingRevealSnapByTransport`):
+that is write-atomicity for code-point catch-up, not a chrome freeze.
 
 ### 7.3 Premium motion quality bar
 
@@ -383,6 +427,8 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
       ambient schedule / `RendererTicker`.
 - [ ] Premium effects have ≥ 4 frames or genuine motion (not a 2-frame blink).
 - [ ] SSH / `NO_COLOR` / `CI` / `TERM=dumb` gracefully degrade to static.
+- [ ] Classic ConPTY keeps chrome live at the ~12fps floor; only large-area
+      ambient (starfield / splash) may freeze. The shared clock never pins.
 
 ### Reuse
 - [ ] New list components reuse `SearchableList`.

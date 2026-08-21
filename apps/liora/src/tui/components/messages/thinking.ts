@@ -383,7 +383,9 @@ export function renderThinkingMascot(
   const glyph = thinkingMascotGlyph();
   const padded = `${glyph} `;
   if (shouldRenderAmbientEffects(appearance)) {
-    return renderSpectacularText(padded, `thinking:mascot:${glyph}`, appearance, {
+    // Stable seed so the hue breath stays continuous across orb morphs
+    // instead of jumping when the glyph changes.
+    return renderSpectacularText(padded, 'thinking:mascot', appearance, {
       intense: true,
       pace: 'fast',
     });

@@ -38,9 +38,9 @@ export function shouldPlaySplash(
   appearance: AppearancePreferences,
   transportStability?: RendererTransportStability,
 ): boolean {
-  // ConPTY — including Windows Terminal on Windows 10 — cannot paint a
-  // 60fps cinematic atomically. Playing it is the startup flicker / torn
-  // first frame.
+  // Large-area 60fps cinematic. Hard-off on classic ConPTY (unstable): every
+  // write strobes. Windows Terminal is classified synchronized (`WT_SESSION`)
+  // and still plays.
   if (transportStability === 'unstable') return false;
   return shouldAnimate(appearance);
 }

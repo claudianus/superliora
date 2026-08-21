@@ -1,6 +1,5 @@
 import {
   mixHexColor,
-  rendererPositiveModulo,
   renderRendererStyledTextRunsAnsi,
   stripAnsiControls,
   truncateToWidth,
@@ -51,7 +50,16 @@ export interface PremiumBoxFrameOptions {
   readonly openedAtMs?: number;
 }
 
+/** Float-preserving wrap so the comet eases between cells. */
+function liveModulo(value: number, modulo: number): number {
+  if (!Number.isFinite(modulo) || modulo <= 0) return 0;
+  return ((value % modulo) + modulo) % modulo;
+}
+
 const BOX_HUE_BREATH_MS = 4200;
+/** Phase-offset vs the prompt-editor chase so the two frames do not lockstep. */
+const BOX_BREATH_PHASE_MS = 1900;
+const BOX_CHASE_PHASE = 3.7;
 const BOX_CHASE_MS_PER_CELL = 30;
 const BOX_CHASE_TRAIL = 14;
 const BOX_BLOOM_MS = 560;
@@ -69,7 +77,8 @@ export function renderPremiumBoxFrame(
 
   const glowHex = currentTheme.color('glow');
   const borderHex = currentTheme.color('borderFocus');
-  const breath = (Math.sin((2 * Math.PI * now) / BOX_HUE_BREATH_MS) + 1) / 2;
+  const breath =
+    (Math.sin((2 * Math.PI * (now + BOX_BREATH_PHASE_MS)) / BOX_HUE_BREATH_MS) + 1) / 2;
   let baseHex = ambient
     ? mixHexColor(currentTheme.color('primary'), currentTheme.color('accent'), breath)
     : borderHex;
@@ -83,14 +92,14 @@ export function renderPremiumBoxFrame(
   const chaseNow = openedAt + (now - openedAt) * (1 + 0.9 * (1 - bloomP));
   const trail = BOX_CHASE_TRAIL + Math.round(8 * (1 - bloomP));
   const perimeter = 2 * width + 2 * height - 4;
-  const headIndex = rendererPositiveModulo(
-    Math.floor(chaseNow / BOX_CHASE_MS_PER_CELL),
+  const headIndex = liveModulo(
+    chaseNow / BOX_CHASE_MS_PER_CELL + BOX_CHASE_PHASE,
     perimeter,
   );
 
   const hexAt = (s: number): string => {
     if (!ambient) return borderHex;
-    const dist = rendererPositiveModulo(headIndex - s, perimeter);
+    const dist = liveModulo(headIndex - s, perimeter);
     if (dist > trail) return baseHex;
     if (dist <= 1) return glowHex;
     const t = dist / (trail + 1);
@@ -98,7 +107,7 @@ export function renderPremiumBoxFrame(
     return mixHexColor(glowHex, baseHex, ease);
   };
   const boldAt = (s: number): boolean =>
-    ambient && rendererPositiveModulo(headIndex - s, perimeter) <= 3;
+    ambient && liveModulo(headIndex - s, perimeter) <= 3;
   const cornerHex = ambient ? mixHexColor(baseHex, glowHex, 0.4) : borderHex;
 
   const dashRuns = (fromX: number, toX: number, pathAt: (x: number) => number): RendererStyledTextRun[] => {

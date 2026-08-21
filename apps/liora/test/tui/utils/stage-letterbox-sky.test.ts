@@ -102,9 +102,8 @@ describe('stage letterbox night sky', () => {
   });
 
   it('keeps a fully static starfield when the transport is unstable', () => {
-    // Classic ConPTY clamps the quality-adjusted mode to 'off', but the sky must
-    // survive as a static backdrop instead of disappearing — and hold one fixed
-    // brightness across time so it never repaints.
+    // Classic ConPTY: chrome stays live, but the sky must survive as one
+    // static backdrop (decorative-only freeze) instead of a twinkle strobe.
     setAppearanceTransportStability('unstable');
     const bands = ultrawideBands();
     const a = paintStageLetterboxSky({

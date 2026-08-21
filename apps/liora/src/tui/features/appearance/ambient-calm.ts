@@ -1,35 +1,37 @@
-import type { RendererTransportStability } from '#/tui/renderer';
+import {
+  UNSTABLE_TRANSPORT_FRAME_INTERVAL_MS,
+  type RendererTransportStability,
+} from '#/tui/renderer';
 
 /**
  * Calm-idle policy for unstable transports.
  *
- * On classic Windows ConPTY the 2026 synchronized-output markers are stripped
- * and every write becomes its own console repaint with a cursor strobe, so a
- * smooth ambient clock guarantees visible flicker while nothing is happening.
- * The stable posture is to make idle frames byte-identical: freeze the shared
- * animation clock so gradient/pulse/twinkle output repeats exactly, the cell
- * diff stays empty, and nothing reaches the terminal. Activity (streaming/
- * thinking/composing phase, compacting, live goal, splash/takeover, armed
- * stream reveal, background Conductor/Mission Control work) restores the
- * full-rate clock.
+ * Classic Windows ConPTY strips DEC 2026 and turns every write into its own
+ * console repaint, so a 60fps decorative field strobes. Chrome (editor chase,
+ * hub frame, thought-orb, band sweep, footer pulses) is a small incremental
+ * cell update and must keep moving at the transport floor (~12fps). The
+ * shared animation clock therefore always advances — PREMIUM.md §7.1. Large-
+ * area starfields freeze on a decorative-only clock via
+ * appearanceDecorativeFrozenByTransport, not by pinning appearanceAnimationNow().
  *
  * Note: `appState.thinking` is deliberately NOT a signal — it mirrors the
  * model's thinking-level preference (`thinkingLevel !== 'off'`), not live
- * agent activity, so it would block calm forever. Active thinking is already
- * covered by `streamingPhase === 'thinking'`.
+ * agent activity. Active thinking is `streamingPhase === 'thinking'`.
  */
 
 /**
- * Idle tick cadence cap on unstable transports. The ticker must keep waking
- * (it re-resolves its interval per tick, and busy phases need it back at full
- * rate within one wake), so this stays small even though the clock freezes.
+ * Idle tick cadence cap on unstable transports. Matches the write-atomicity
+ * floor so chrome still animates at ~12fps instead of waking at 60fps (or
+ * freezing). Busy phases restore the requested cadence; the render loop still
+ * applies the same floor to non-interactive presents.
  */
-export const UNSTABLE_IDLE_TICK_CAP_MS = 250;
+export const UNSTABLE_IDLE_TICK_CAP_MS = UNSTABLE_TRANSPORT_FRAME_INTERVAL_MS;
 
 /**
- * Idle clock grid on unstable transports. One hour: flooring the frame
- * timestamp onto this grid yields a constant for the whole session, so idle
- * ambient output is frozen (not merely slowed) and ConPTY repaints stop.
+ * Decorative-only idle clock grid on unstable transports. One hour: flooring
+ * a starfield timestamp onto this grid yields a constant for a typical
+ * session. Never apply this to appearanceAnimationNow() — that clock is the
+ * one time base for every chrome timestamp (PREMIUM.md §7.1).
  */
 export const UNSTABLE_IDLE_CLOCK_GRID_MS = 3_600_000;
 
@@ -83,23 +85,23 @@ export function calmAmbientClockMs(nowMs: number, gridMs: number): number {
 }
 
 /**
- * Shape the per-frame animation clock for the transport. Synchronized
- * transports (or any activity) keep the raw timestamp; unstable + idle snaps
- * onto the freeze grid so decorative motion halts instead of repainting.
+ * Shape the per-frame animation clock for the transport. The shared clock
+ * always advances — even idle classic ConPTY — so chrome that indexes
+ * appearanceAnimationNow() stays alive. Decorative freeze lives on
+ * appearanceDecorativeFrozenByTransport / calmAmbientClockMs, not here.
  */
 export function shapeAmbientFrameClockMs(
   nowMs: number,
-  stability: RendererTransportStability | undefined,
-  signals: AmbientCalmSignals,
+  _stability: RendererTransportStability | undefined,
+  _signals: AmbientCalmSignals,
 ): number {
-  if (stability !== 'unstable') return nowMs;
-  if (!isAmbientCalmIdle(signals)) return nowMs;
-  return calmAmbientClockMs(nowMs, resolveUnstableIdleClockGridMs());
+  return nowMs;
 }
 
 /**
- * Cap the ambient tick cadence on unstable transports while idle: ticking
- * faster than the cap only rebuilds byte-identical frames (CPU, no output).
+ * Cap the ambient tick cadence on unstable transports while idle to the
+ * write-atomicity floor. Faster ticks only rebuild frames the present path
+ * will drop; slower would freeze chrome.
  */
 export function capAmbientIntervalForCalmTransport(
   intervalMs: number,

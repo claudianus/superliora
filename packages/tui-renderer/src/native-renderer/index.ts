@@ -169,9 +169,9 @@ export class NativeTerminalRenderer {
         getCurrentSynchronized: () => this.currentSynchronized,
         setSynchronizedOutput: (synchronized) =>{  this.setSynchronizedOutput(synchronized); },
         onSynchronizedOutputProbe: (result) => {
-          // Re-resolve the frame-rate floor after the probe. A supported
-          // answer upgrades POSIX hosts and Windows Terminal to
-          // synchronized; legacy conhost stays unstable.
+          // Re-resolve the frame-rate floor after the probe. Windows Terminal
+          // is already synchronized from WT_SESSION; a supported answer
+          // upgrades other trusted hosts. Legacy conhost stays unstable.
           this.syncStabilityFrameInterval();
           this.options.onSynchronizedOutputProbe?.(result);
         },
@@ -247,9 +247,10 @@ export class NativeTerminalRenderer {
         transportStability: this.transportStability,
       }),
     });
-    // Apply the transport frame-rate floor immediately. Before the sync probe
-    // answers, Windows is already presumed unstable, so ConPTY gets the floor
-    // from the first frame instead of strobing through the probe window.
+    // Apply the transport frame-rate floor immediately. Classic conhost
+    // (win32, no WT_SESSION) is presumed unstable before the probe answers,
+    // so it gets the floor from the first frame. Windows Terminal is a
+    // trusted synchronized host even when the probe has not answered yet.
     this.syncStabilityFrameInterval();
   }
 

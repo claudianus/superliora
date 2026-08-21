@@ -13,6 +13,10 @@ import {
   resolveAmbientEffectMode,
   resolveQualityAdjustedAmbientEffectMode,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  calmAmbientClockMs,
+  resolveUnstableIdleClockGridMs,
+} from '#/tui/features/appearance/ambient-calm';
 import { hash2, STAR_GLYPHS } from '#/tui/features/stage/night-sky';
 import type { StageFrameBand } from '#/tui/features/stage/stage-frame';
 import {
@@ -116,9 +120,9 @@ export function paintStageLetterboxSky(input: {
   if (bands.length === 0 || cols <= 0 || rows <= 0) return [];
   if (!motionEffectsAllowed()) return [];
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
-  // On an unstable transport the mode is clamped to 'off' to stop per-frame
-  // repaints, but the sky stays as a fully static backdrop (fixed-brightness
-  // stars, no meteors) so the letterbox keeps its depth instead of going blank.
+  // Classic ConPTY: keep one static starfield frame (no meteors) so the
+  // letterbox keeps depth without a full-canvas twinkle strobe. Chrome
+  // elsewhere stays live; this freeze is decorative-only.
   const frozenByTransport = appearanceDecorativeFrozenByTransport(appearance);
   if (mode === 'off' && !frozenByTransport) return [];
 
@@ -151,10 +155,11 @@ export function paintStageLetterboxSky(input: {
   // rewrote nearly every star cell every ambient tick (shared rows with the
   // stage content), which read as center-panel flicker in kitty.
   const twinkleStepMs = premium ? 90 : 140;
-  // frozenByTransport pins the clock at 0 so every star holds one brightness
-  // for the whole session — a static backdrop, not a slow twinkle.
+  // Decorative-only freeze: do not touch appearanceAnimationNow(). Default
+  // grid is one hour (byte-identical for a typical session); the quantum
+  // env override still lets the sky twinkle slowly for debug.
   const twinkleClock = frozenByTransport
-    ? 0
+    ? calmAmbientClockMs(nowMs, resolveUnstableIdleClockGridMs())
     : freeze
       ? Math.floor(nowMs / 4000) * 4000
       : Math.floor(nowMs / twinkleStepMs) * twinkleStepMs;
