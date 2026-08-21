@@ -17,6 +17,7 @@ import {
   OPTIONAL_INSTALL_TIMEOUT_MS,
   SIDECAR_BUDGET_MS,
   defaultHome,
+  observedUpgradeRequested,
 } from './platform.mjs';
 import { spawnInstall, spawnTimedOut } from './spawn.mjs';
 import { t } from './strings.mjs';
@@ -55,6 +56,12 @@ export async function installSidecars(options = {}) {
   const env = options.env ?? process.env;
   const warn = options.onWarn ?? (() => {});
   const detail = options.onDetail ?? (() => {});
+  if (observedUpgradeRequested(env)) {
+    warn(
+      'sidecar downloads skipped (observed upgrade has no stdin); run browser-use / computer-use install after restart',
+    );
+    return;
+  }
   const startedAt = sidecarNow(options);
 
   const needsPnpm =

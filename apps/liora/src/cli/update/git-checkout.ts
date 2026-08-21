@@ -185,7 +185,7 @@ function buildGitCheckoutUpdateShellLines(
     `pnpm_invoke -C ${repoExpr} run build:packages`,
     `pnpm_invoke -C ${repoExpr}/apps/liora run build`,
     // Match install.sh: warm Granite-97M + passage indexes (soft-fail).
-    `if [ "\${SUPERLIORA_SKIP_RETRIEVAL:-0}" != "1" ]; then SUPERLIORA_RETRIEVAL_EMBEDDER=transformers pnpm_invoke -C ${repoExpr}/packages/agent-core run retrieval:bootstrap || echo "warning: retrieval bootstrap failed (hash fallback until online)"; fi`,
+    `if [ "\${SUPERLIORA_SKIP_RETRIEVAL:-0}" != "1" ] && [ "\${SUPERLIORA_OBSERVED_UPGRADE:-0}" != "1" ]; then SUPERLIORA_RETRIEVAL_EMBEDDER=transformers pnpm_invoke -C ${repoExpr}/packages/agent-core run retrieval:bootstrap || echo "warning: retrieval bootstrap failed (hash fallback until online)"; fi`,
     `echo '__LIORA_UPGRADE_STAGE__=installing'`,
     'liora_path="$(command -v liora 2>/dev/null || true)"',
     'if [ -z "$liora_path" ]; then liora_path="$(command -v liora.cmd 2>/dev/null || true)"; fi',

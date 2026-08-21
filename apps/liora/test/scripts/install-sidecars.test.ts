@@ -99,6 +99,37 @@ describe('scripts/install/sidecars', () => {
     expect(pnpmArgs.some((args) => args.includes('retrieval:bootstrap'))).toBe(true);
   });
 
+  it('does not download sidecars when Upgrade Studio closed stdin', async () => {
+    const installDir = await makeSourceTree();
+    let pnpmCalls = 0;
+    let spawnCalls = 0;
+    const warnings: string[] = [];
+
+    await installSidecars({
+      installDir,
+      platform: 'win32',
+      env: { SUPERLIORA_OBSERVED_UPGRADE: '1' },
+      ensurePnpm: async () => {
+        throw new Error('observed upgrade must not bootstrap pnpm for sidecars');
+      },
+      runPnpm: () => {
+        pnpmCalls += 1;
+        return { status: 0 };
+      },
+      spawnInstall: () => {
+        spawnCalls += 1;
+        return { status: 0 };
+      },
+      onWarn: (message: string) => {
+        warnings.push(message);
+      },
+    });
+
+    expect(pnpmCalls).toBe(0);
+    expect(spawnCalls).toBe(0);
+    expect(warnings.some((line) => line.includes('observed upgrade'))).toBe(true);
+  });
+
   it('skips remaining optional installs when the sidecar budget is already gone', async () => {
     const installDir = await makeSourceTree();
     let pnpmCalls = 0;

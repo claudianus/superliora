@@ -33,10 +33,38 @@ export function manifestUrlForVersion(version) {
 
 export const STAGE_MARKER_PREFIX = '__LIORA_UPGRADE_STAGE__=';
 
+/**
+ * Set by Upgrade Studio / `liora upgrade` when the installer is spawned with
+ * stdin ignored. Optional sidecars and winget package installs must not run on
+ * that path — they prompt or wait for UAC and the TUI cannot answer.
+ *
+ * Older CLIs do not set this. Those are detected via stdio: Studio pipes both
+ * stdin (closed) and stdout (stage markers). A console `curl | bash` has a
+ * script pipe on stdin but keeps stdout as a TTY, so sidecars still run.
+ */
+export const OBSERVED_UPGRADE_ENV = 'SUPERLIORA_OBSERVED_UPGRADE';
+
 /** Optional post-install work (sidecars, winget). Soft-fail if a step exceeds this. */
 export const OPTIONAL_INSTALL_TIMEOUT_MS = 180_000;
-/** Whole sidecar phase budget so Upgrade Studio cannot sit on Sidecars at 90% forever. */
+/** Whole sidecar phase budget so a TTY install cannot sit on Sidecars forever. */
 export const SIDECAR_BUDGET_MS = 8 * 60_000;
+
+export function observedUpgradeRequested(env = process.env) {
+  return env[OBSERVED_UPGRADE_ENV] === '1';
+}
+
+/** True when the installer has no console — Upgrade Studio or `liora upgrade`. */
+export function installerStdioIsPiped(io = process) {
+  return io.stdin?.isTTY !== true && io.stdout?.isTTY !== true;
+}
+
+/** Post-CLI-install work: observed upgrades skip blocking optional downloads. */
+export function postInstallForObservedUpgrade(env = process.env, io = process) {
+  if (observedUpgradeRequested(env) || installerStdioIsPiped(io)) {
+    return { runSidecars: false, skipHostPackages: true };
+  }
+  return { runSidecars: true, skipHostPackages: false };
+}
 
 /** @returns {'darwin'|'linux'|'win32'} */
 export function platformId(platform = process.platform) {

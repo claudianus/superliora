@@ -1547,7 +1547,10 @@ describe('upgrade install stages', () => {
     expect(spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^npm(\.cmd)?$/),
       ['install', '-g', '@superliora/liora@0.5.0'],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
+      expect.objectContaining({
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: expect.objectContaining({ SUPERLIORA_OBSERVED_UPGRADE: '1' }),
+      }),
     );
 
     await flushBackgroundInstall();
@@ -1793,7 +1796,10 @@ describe('upgrade install stages', () => {
     expect(spawn).toHaveBeenCalledWith(
       'powershell.exe',
       expect.arrayContaining(['-Command']),
-      { stdio: ['ignore', 'pipe', 'pipe'] },
+      expect.objectContaining({
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: expect.objectContaining({ SUPERLIORA_OBSERVED_UPGRADE: '1' }),
+      }),
     );
     const args = spawn.mock.calls[0]?.[1] ?? [];
     expect(args.join(' ')).toContain('| iex');
@@ -1827,7 +1833,11 @@ describe('upgrade install stages', () => {
     expect(spawn).toHaveBeenCalledWith(
       'npm.cmd',
       ['install', '-g', '@superliora/liora@0.5.0'],
-      { stdio: ['ignore', 'pipe', 'pipe'], shell: true },
+      expect.objectContaining({
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: true,
+        env: expect.objectContaining({ SUPERLIORA_OBSERVED_UPGRADE: '1' }),
+      }),
     );
   });
 });

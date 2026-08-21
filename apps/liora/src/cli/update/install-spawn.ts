@@ -13,6 +13,19 @@ import { gitCheckoutUpdateCommand, gitCheckoutUpdateScript } from './git-checkou
 import { NPM_PACKAGE_NAME, type InstallSource } from './types';
 import { findWindowsGitBash } from './windows-git-bash';
 
+/** Mirrors `OBSERVED_UPGRADE_ENV` in `scripts/install/platform.mjs`. */
+export const OBSERVED_UPGRADE_ENV = 'SUPERLIORA_OBSERVED_UPGRADE';
+
+export function withObservedUpgradeEnv(
+  base: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return {
+    ...base,
+    [OBSERVED_UPGRADE_ENV]: '1',
+    COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+  };
+}
+
 export interface InstallSpawnOptions {
   /** Skip releases; install tip of `main` from source. */
   readonly fromMain?: boolean;

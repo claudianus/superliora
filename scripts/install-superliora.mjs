@@ -25,6 +25,7 @@ import {
   defaultBinDir,
   defaultInstallDir,
   manifestUrlForVersion,
+  postInstallForObservedUpgrade,
 } from './install/platform.mjs';
 import { spawnInstall } from './install/spawn.mjs';
 import { installSidecars } from './install/sidecars.mjs';
@@ -33,7 +34,7 @@ import { detectInstallLocale } from './install/locale.mjs';
 import { t } from './install/strings.mjs';
 import { createTheatre } from './install/theatre.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = import.meta.dirname;
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -188,17 +189,23 @@ try {
     await ensureBinOnPath(binDir, { noShellRc: args.noShellRc });
   }
 
-  theatre.setStage('sidecars', t('install.sidecars', undefined, installLocale));
-  await installSidecars({
-    installDir: sourceTree,
-    commandName,
-    noBrowserUse: args.noBrowserUse,
-    noComputerUse: args.noComputerUse,
-    noRetrieval: args.noRetrieval,
-    onDetail: (msg) => theatre.setDetail(msg),
-    onWarn: (msg) => theatre.note(msg),
-    locale: installLocale,
-  });
+  const postInstall = postInstallForObservedUpgrade();
+  if (postInstall.runSidecars) {
+    theatre.setStage('sidecars', t('install.sidecars', undefined, installLocale));
+    await installSidecars({
+      installDir: sourceTree,
+      commandName,
+      noBrowserUse: args.noBrowserUse,
+      noComputerUse: args.noComputerUse,
+      noRetrieval: args.noRetrieval,
+      onDetail: (msg) => theatre.setDetail(msg),
+      onWarn: (msg) => theatre.note(msg),
+      locale: installLocale,
+    });
+  } else {
+    theatre.setStage('sidecars', t('install.sidecarsDeferred', undefined, installLocale));
+    theatre.note(t('install.sidecarsDeferredNote', undefined, installLocale));
+  }
 
   theatre.setStage('sidecars', t('install.hostSetup', undefined, installLocale));
   try {
@@ -218,6 +225,7 @@ try {
       skip: args.noHostSetup,
       skipTerminal: args.noTerminal,
       noShellRc: args.noShellRc,
+      skipPackages: postInstall.skipHostPackages,
       binDir,
       commandName,
       plan,

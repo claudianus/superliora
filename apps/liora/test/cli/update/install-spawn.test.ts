@@ -4,10 +4,12 @@ import { dirname } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  OBSERVED_UPGRADE_ENV,
   canAutoInstall,
   installCommandFor,
   spawnForSource,
   spawnOptionsForSource,
+  withObservedUpgradeEnv,
 } from '#/cli/update/install-spawn';
 
 describe('installCommandFor', () => {
@@ -91,7 +93,7 @@ describe('spawnForSource native', () => {
     'runs a PowerShell pipeline without cmd.exe stealing | iex',
     () => {
       const { cmd, args } = spawnForSource('native', '0.5.0', 'win32');
-      const command = args[args.length - 1] ?? '';
+      const command = args.at(-1) ?? '';
       expect(command).toContain('| iex');
       const probeArgs = [...args.slice(0, -1), '1 | Write-Output'];
 
@@ -225,6 +227,17 @@ describe('spawnOptionsForSource', () => {
     expect(spawnOptionsForSource('github-checkout', 'linux', { stdio: 'inherit' })).toEqual({
       stdio: 'inherit',
     });
+  });
+
+  it('marks observed upgrades so the installer skips prompt-bound sidecars', () => {
+    const env = withObservedUpgradeEnv({ PATH: '/bin' });
+    expect(env[OBSERVED_UPGRADE_ENV]).toBe('1');
+    expect(env.COREPACK_ENABLE_DOWNLOAD_PROMPT).toBe('0');
+    const winCheckout = spawnOptionsForSource('github-checkout', 'win32', {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env,
+    });
+    expect(winCheckout.env?.[OBSERVED_UPGRADE_ENV]).toBe('1');
   });
 });
 

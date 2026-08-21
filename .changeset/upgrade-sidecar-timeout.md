@@ -2,4 +2,4 @@
 "@superliora/liora": patch
 ---
 
-Stop `liora upgrade --main` from hanging on Sidecars: optional browser, computer-use, retrieval, and winget steps now time out and continue.
+Stop Upgrade Studio from installing optional sidecars and winget packages. Those steps need a console or UAC, and the studio has neither.
