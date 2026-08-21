@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  defaultCheckoutCommandBinDir,
   detectSuperLioraGithubCheckout,
   discardUnhealthyManagedCheckout,
   findGitCheckoutRoot,
@@ -80,16 +81,50 @@ describe('gitCheckoutUpdateScript', () => {
     expect(script).not.toContain('checkout --force FETCH_HEAD\n');
     expect(script).toContain("__LIORA_UPGRADE_STAGE__=building");
     expect(script).toContain('scripts/install/ensure-pnpm.mjs');
+    expect(script).toContain('$SUPERLIORA_HOME/runtime/pnpm');
     expect(script).toContain('runtime/pnpm/pnpm');
     expect(script).toContain('runtime/pnpm/pnpm.exe');
+    expect(script).not.toContain('${HOME}/.superliora/runtime/pnpm');
+    expect(script).not.toContain('${USERPROFILE}/.superliora/runtime/pnpm');
     expect(script).toContain('pnpm_invoke');
     expect(script).toContain('install --frozen-lockfile');
     expect(script).toContain('run build:packages');
     expect(script).toContain('apps/liora run build');
     expect(script).toContain('retrieval:bootstrap');
     expect(script).toContain("__LIORA_UPGRADE_STAGE__=installing");
+    expect(script).toContain('command -v liora.cmd');
+    expect(script).toContain('${command_name%.cmd}');
+    expect(script).not.toContain('bin_dir="${HOME}/.local/bin"');
     expect(script).toContain('scripts/install-liora.mjs --bin-dir "$bin_dir" --name "$command_name" --no-shell-rc --force');
     expect(script).toContain("__LIORA_UPGRADE_STAGE__=done");
+  });
+
+  it('bakes relocated SUPERLIORA_HOME and Windows SuperLiora bin fallback', () => {
+    const script = gitCheckoutUpdateScript('/tmp/superliora', {
+      dataHome: 'D:\\SuperLiora',
+      commandBinDir: 'C:\\Users\\me\\AppData\\Local\\SuperLiora\\bin',
+    });
+
+    expect(script).toContain("export SUPERLIORA_HOME='D:/SuperLiora'");
+    expect(script).toContain('$SUPERLIORA_HOME/runtime/pnpm/pnpm.exe');
+    expect(script).toContain("bin_dir='C:/Users/me/AppData/Local/SuperLiora/bin'");
+    expect(script).not.toContain('${HOME}/.local/bin');
+    expect(script).not.toContain('${HOME}/.superliora/runtime/pnpm');
+  });
+});
+
+describe('defaultCheckoutCommandBinDir', () => {
+  it('uses LOCALAPPDATA SuperLiora bin on Windows, ~/.local/bin elsewhere', () => {
+    expect(
+      defaultCheckoutCommandBinDir('win32', {
+        LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local',
+      }),
+    ).toBe('C:\\Users\\me\\AppData\\Local\\SuperLiora\\bin');
+    expect(
+      defaultCheckoutCommandBinDir('linux', {
+        HOME: '/home/me',
+      }),
+    ).toBe('/home/me/.local/bin');
   });
 });
 
