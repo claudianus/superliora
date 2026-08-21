@@ -78,6 +78,28 @@ describe('scripts/install/ensure-pnpm', () => {
     }
   });
 
+  it('runPnpm forwards timeout and windowsHide to the spawn', () => {
+    let forwarded: { timeout?: number; windowsHide?: boolean } | undefined;
+    runPnpm(['--version'], {
+      spawnInstall: (
+        cmd: string,
+        args: readonly string[],
+        options?: { timeout?: number; windowsHide?: boolean },
+      ) => {
+        if (options?.timeout === 12_000) {
+          forwarded = { timeout: options.timeout, windowsHide: options.windowsHide };
+        }
+        if (cmd === 'corepack' && args[0] === 'pnpm' && args[1] === '--version') {
+          return { status: 0, stdout: '10.33.0\n' };
+        }
+        return { status: 0, stdout: '' };
+      },
+      timeout: 12_000,
+      windowsHide: true,
+    });
+    expect(forwarded).toEqual({ timeout: 12_000, windowsHide: true });
+  });
+
   it('runPnpm prefixes corepack when that is the resolved command', () => {
     const calls: Array<{ cmd: string; args: readonly string[] }> = [];
     const result = runPnpm(['install', '--frozen-lockfile'], {

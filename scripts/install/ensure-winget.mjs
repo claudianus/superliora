@@ -9,7 +9,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
-import { defaultHome, hostPathExists } from './platform.mjs';
+import { OPTIONAL_INSTALL_TIMEOUT_MS, defaultHome, hostPathExists } from './platform.mjs';
 
 export const WINGET_RELEASE = 'v1.29.280';
 export const WINGET_BUNDLE_URL =
@@ -156,7 +156,7 @@ function defaultAddAppxPackage(appxPath) {
       '-Command',
       `Add-AppxPackage -Path '${escapePs(appxPath)}' -ErrorAction Continue`,
     ],
-    { encoding: 'utf8', windowsHide: true },
+    { encoding: 'utf8', windowsHide: true, timeout: OPTIONAL_INSTALL_TIMEOUT_MS },
   );
   return {
     status: ps.error ? 1 : (ps.status ?? 1),

@@ -18,31 +18,46 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 
+function retrievalBootstrapTimeoutMs(env = process.env) {
+  const raw = Number.parseInt(env.SUPERLIORA_RETRIEVAL_BOOTSTRAP_TIMEOUT_MS ?? '180000', 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 180_000;
+}
+
 async function main() {
   if (process.env.SUPERLIORA_SKIP_RETRIEVAL === '1') {
     console.log('retrieval-bootstrap: skipped (SUPERLIORA_SKIP_RETRIEVAL=1)');
     return;
   }
 
-  // Prefer real local ONNX even when CI=1 (install warm must not take the hash path).
-  process.env.SUPERLIORA_RETRIEVAL_EMBEDDER = 'transformers';
+  const timeoutMs = retrievalBootstrapTimeoutMs();
+  const timer = setTimeout(() => {
+    console.error(`retrieval-bootstrap: timed out after ${String(timeoutMs)}ms`);
+    process.exit(1);
+  }, timeoutMs);
 
-  const { createTransformersEmbedder, DEFAULT_LOCAL_EMBED_MODEL, resetEmbeddingProviderCacheForTests } =
-    await import(pathToFileURL(join(root, 'src/retrieval/index.ts')).href);
+  try {
+    // Prefer real local ONNX even when CI=1 (install warm must not take the hash path).
+    process.env.SUPERLIORA_RETRIEVAL_EMBEDDER = 'transformers';
 
-  resetEmbeddingProviderCacheForTests();
-  console.log(`retrieval-bootstrap: loading ${DEFAULT_LOCAL_EMBED_MODEL}…`);
-  const embedder = await createTransformersEmbedder();
-  if (embedder === undefined) {
-    throw new Error(
-      'Failed to load @huggingface/transformers / Granite-97M ONNX. Check network and onnxruntime-node native build.',
-    );
+    const { createTransformersEmbedder, DEFAULT_LOCAL_EMBED_MODEL, resetEmbeddingProviderCacheForTests } =
+      await import(pathToFileURL(join(root, 'src/retrieval/index.ts')).href);
+
+    resetEmbeddingProviderCacheForTests();
+    console.log(`retrieval-bootstrap: loading ${DEFAULT_LOCAL_EMBED_MODEL}…`);
+    const embedder = await createTransformersEmbedder();
+    if (embedder === undefined) {
+      throw new Error(
+        'Failed to load @huggingface/transformers / Granite-97M ONNX. Check network and onnxruntime-node native build.',
+      );
+    }
+    await embedder.embed(['superliora retrieval warmup']);
+    console.log(`retrieval-bootstrap: model ready (${embedder.modelId})`);
+
+    await runNode(['--import', 'tsx', join(__dirname, 'retrieval-build.mjs')]);
+    console.log('retrieval-bootstrap: passage indexes written');
+  } finally {
+    clearTimeout(timer);
   }
-  await embedder.embed(['superliora retrieval warmup']);
-  console.log(`retrieval-bootstrap: model ready (${embedder.modelId})`);
-
-  await runNode(['--import', 'tsx', join(__dirname, 'retrieval-build.mjs')]);
-  console.log('retrieval-bootstrap: passage indexes written');
 }
 
 function runNode(args) {

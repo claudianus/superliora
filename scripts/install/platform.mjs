@@ -33,6 +33,11 @@ export function manifestUrlForVersion(version) {
 
 export const STAGE_MARKER_PREFIX = '__LIORA_UPGRADE_STAGE__=';
 
+/** Optional post-install work (sidecars, winget). Soft-fail if a step exceeds this. */
+export const OPTIONAL_INSTALL_TIMEOUT_MS = 180_000;
+/** Whole sidecar phase budget so Upgrade Studio cannot sit on Sidecars at 90% forever. */
+export const SIDECAR_BUDGET_MS = 8 * 60_000;
+
 /** @returns {'darwin'|'linux'|'win32'} */
 export function platformId(platform = process.platform) {
   if (platform === 'darwin' || platform === 'linux' || platform === 'win32') return platform;

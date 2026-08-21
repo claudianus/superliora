@@ -16,7 +16,7 @@ import { CASKAYDIA_FONT_FACE, ensureNerdFont, findNerdFont } from './ensure-nerd
 import { findOhMyPosh } from './ensure-oh-my-posh.mjs';
 import { ensureShellVibe } from './ensure-shell-vibe.mjs';
 import { ensureWinget, findWinget } from './ensure-winget.mjs';
-import { defaultHome, hostPathExists } from './platform.mjs';
+import { OPTIONAL_INSTALL_TIMEOUT_MS, defaultHome, hostPathExists } from './platform.mjs';
 
 export const SUPERLIORA_WT_PROFILE_NAME = 'SuperLiora';
 export const SUPERLIORA_SHELL_PROFILE_NAME = 'SuperLiora Shell';
@@ -612,7 +612,11 @@ function defaultRunWinget({ scopeUser }) {
   if (scopeUser) args.push('--scope', 'user');
   // Fresh winget bootstrap is often missing from PATH in the same process.
   const cmd = findWinget()?.wingetPath ?? 'winget';
-  const result = spawnSync(cmd, args, { encoding: 'utf8', windowsHide: true });
+  const result = spawnSync(cmd, args, {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: OPTIONAL_INSTALL_TIMEOUT_MS,
+  });
   return {
     status: result.error ? 1 : (result.status ?? 1),
     message: result.stderr || result.stdout || result.error?.message,
@@ -645,7 +649,7 @@ function defaultAddAppxPackage(msixPath) {
       '-Command',
       `Add-AppxPackage -Path '${String(msixPath).replaceAll("'", "''")}'`,
     ],
-    { encoding: 'utf8', windowsHide: true },
+    { encoding: 'utf8', windowsHide: true, timeout: OPTIONAL_INSTALL_TIMEOUT_MS },
   );
   return {
     status: ps.error ? 1 : (ps.status ?? 1),
