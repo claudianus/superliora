@@ -45,7 +45,7 @@ liora --continue      # resume last session in this directory
 liora --plan          # start with Plan Desk steering
 ```
 
-Inside the TUI: `/login` and `/model` to connect a provider, `/host-setup` if the terminal is thin, then describe the outcome. Conductor creates a Job. Watch with `/jobs` or `Alt+J` (Job Deck). Answer prompts in Inbox (`Alt+I`). Command Hub is `Ctrl+K` (Cmd on macOS).
+Inside the TUI: `/login` and `/model` to connect a provider, `/quota` (or Command Hub → Quota) for live remaining credits (footer chip is the active provider), `/host-setup` if the terminal is thin, then describe the outcome. Conductor creates a Job. Watch with `/jobs` or `Alt+J` (Job Deck). Answer prompts in Inbox (`Alt+I`). Command Hub is `Ctrl+K` (Cmd on macOS).
 
 ## CLI
 

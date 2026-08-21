@@ -45,7 +45,7 @@ liora --continue      # 현재 디렉터리 최근 세션 이어하기
 liora --plan          # Plan Desk로 시작
 ```
 
-TUI에서 `/login` · `/model`로 프로바이더를 연결하고, 터미널이 얇으면 `/host-setup`을 쓴 뒤 원하는 결과를 적으세요. Conductor가 Job을 만듭니다. `/jobs` 또는 `Alt+J`(Job Deck)로 보고, Inbox(`Alt+I`)에서 질문에 답하세요. Command Hub는 `Ctrl+K`(macOS는 Cmd)입니다.
+TUI에서 `/login` · `/model`로 프로바이더를 연결한 뒤, `/quota`(또는 Command Hub → Quota)로 실시간 남은 크레딧을 봅니다(푸터 칩은 활성 프로바이더). 터미널이 얇으면 `/host-setup`을 쓴 뒤 원하는 결과를 적으세요. Conductor가 Job을 만듭니다. `/jobs` 또는 `Alt+J`(Job Deck)로 보고, Inbox(`Alt+I`)에서 질문에 답하세요. Command Hub는 `Ctrl+K`(macOS는 Cmd)입니다.
 
 ## CLI
 

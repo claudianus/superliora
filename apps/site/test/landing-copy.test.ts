@@ -243,6 +243,31 @@ describe('shipped landing copy', () => {
     }
   });
 
+  it('teaches live /quota and the footer remaining chip in EN and KO', () => {
+    for (const name of ['README.md', 'README.ko.md'] as const) {
+      const readme = readFileSync(resolve(repoRoot, name), 'utf8');
+      expect(readme, name).toContain('/quota');
+      expect(readme, name).not.toMatch(/\bliora quota\b/);
+    }
+
+    for (const lang of ['ko', 'en'] as const) {
+      const t = translations[lang];
+      const slash = t.docs.reference.sections.find((section) => section.heading === (lang === 'ko' ? '슬래시' : 'Slash'));
+      expect(slash?.body).toContain('/quota');
+      expect(slash?.body).toMatch(/footer|푸터/);
+      expect(slash?.body).toMatch(/hidden|숨깁/);
+
+      const reference = t.docs.reference;
+      const refBlob = reference.sections
+        .map((section) => `${section.heading}\n${section.body}\n${section.code ?? ''}`)
+        .join('\n');
+      expect(refBlob).toContain('liora upgrade');
+      expect(refBlob).toContain('liora doctor');
+      expect(refBlob).toContain('liora gc');
+      expect(refBlob).not.toMatch(/\bliora quota\b/);
+    }
+  });
+
   it('keeps retired product language out of shipped translations', () => {
     const hits: string[] = [];
     for (const lang of ['ko', 'en'] as const) {
