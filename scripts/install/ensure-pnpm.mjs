@@ -27,6 +27,10 @@ export function corepackEnv(env = process.env) {
   };
 }
 
+// Same budget as other install PowerShell / spawn probes. A hung Corepack
+// shim on Windows otherwise sits until the 30s vitest / upgrade budget dies.
+export const PNPM_VERSION_PROBE_TIMEOUT_MS = 8_000;
+
 /**
  * @returns {{ cmd: string, prefix: string[], version?: string, source: string } | null}
  */
@@ -34,7 +38,7 @@ export function resolvePnpm(options = {}) {
   const env = corepackEnv(options.env ?? process.env);
   const spawn = options.spawnInstall ?? spawnInstall;
   const cwd = options.cwd;
-  const probeOpts = { encoding: 'utf8', env, cwd };
+  const probeOpts = { encoding: 'utf8', env, cwd, timeout: PNPM_VERSION_PROBE_TIMEOUT_MS };
 
   const corepack = spawn('corepack', ['pnpm', '--version'], probeOpts);
   if (corepack.status === 0) {
@@ -108,7 +112,7 @@ function tryCorepackPrepare(options) {
   const spawn = options.spawnInstall ?? spawnInstall;
   const cwd = options.cwd;
   const version = options.version ?? DEFAULT_PNPM_VERSION;
-  const opts = { encoding: 'utf8', env, cwd };
+  const opts = { encoding: 'utf8', env, cwd, timeout: PNPM_VERSION_PROBE_TIMEOUT_MS };
   spawn('corepack', ['enable'], opts);
   spawn('corepack', ['enable', 'pnpm'], opts);
   spawn('corepack', ['prepare', `pnpm@${version}`, '--activate'], opts);
@@ -151,6 +155,7 @@ async function bootstrapStandalonePnpm(options) {
   const probe = spawn(dest, ['--version'], {
     encoding: 'utf8',
     env: corepackEnv(options.env ?? process.env),
+    timeout: PNPM_VERSION_PROBE_TIMEOUT_MS,
   });
   if (probe.status !== 0) {
     throw new Error(`pnpm bootstrap failed: ${dest} --version exited ${probe.status}`);

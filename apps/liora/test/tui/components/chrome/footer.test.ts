@@ -7,6 +7,7 @@ import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import type { AppState } from '#/tui/types';
 import {
   advanceAppearanceAnimationClock,
+  motionEffectsAllowed,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
@@ -356,6 +357,7 @@ describe('FooterComponent tip crossfade', () => {
   });
 
   it('types rotating tips in left-to-right instead of hard-swapping under premium', () => {
+    expect(motionEffectsAllowed()).toBe(true);
     const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
     // The footer line is padded to full width, so compare the tip portion only
     // by trimming the trailing fill spaces.
@@ -368,23 +370,22 @@ describe('FooterComponent tip crossfade', () => {
         particles: 'premium',
       },
     });
-    // Establish the first tip and its typewriter start time.
+    // Shared motion clock is ms since process start, not Unix epoch. Pin
+    // small values so typewriter elapsed and the 10s tip rotation stay aligned
+    // even when the runner set NO_COLOR and this test cleared it.
+    advanceAppearanceAnimationClock(0);
     footer.render(200);
-    // Let the first tip finish typing.
-    vi.setSystemTime(new Date('2026-07-01T00:00:02Z'));
-    advanceAppearanceAnimationClock(Date.now());
+    advanceAppearanceAnimationClock(2_000);
     const settledFirst = footer.render(200)[0] ?? '';
     // Advance past tip rotation interval (10s) so the tip index changes; the
     // new tip begins typing from a short prefix rather than hard-swapping in.
-    vi.setSystemTime(new Date('2026-07-01T00:00:12Z'));
-    advanceAppearanceAnimationClock(Date.now());
+    advanceAppearanceAnimationClock(12_000);
     const early = footer.render(200)[0] ?? '';
     expect(early.length).toBeGreaterThan(0);
     expect(strip(early)).not.toBe(strip(settledFirst));
     expect(tipLen(early)).toBeLessThan(tipLen(settledFirst));
     // After the TYPEWRITER window the new tip settles in full.
-    vi.setSystemTime(new Date('2026-07-01T00:00:14Z'));
-    advanceAppearanceAnimationClock(Date.now());
+    advanceAppearanceAnimationClock(14_000);
     const settled = footer.render(200)[0] ?? '';
     expect(tipLen(settled)).toBeGreaterThan(tipLen(early));
     expect(strip(settled)).not.toBe(strip(settledFirst));
