@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, resolve, win32 } from 'node:path';
+import { dirname, posix, resolve, win32 } from 'node:path';
 
 import { tryGetHostPackageRoot } from '#/cli/version';
 import { getDataDir } from '#/utils/paths';
@@ -141,7 +141,7 @@ export function defaultCheckoutCommandBinDir(
       win32.join(env['USERPROFILE'] ?? env['HOME'] ?? homedir(), 'AppData', 'Local');
     return win32.join(base, 'SuperLiora', 'bin');
   }
-  return join(env['HOME'] ?? homedir(), '.local', 'bin');
+  return posix.join(env['HOME'] ?? homedir(), '.local', 'bin');
 }
 
 function toBashPath(value: string): string {
