@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.12.11
+
+### Patch Changes
+
+- Show live remaining provider quota in the footer and a /quota glance. Run /quota to see every logged-in provider.
+- Delete expired local web-search cache rows and cap the table at 256.
+- Fix `liora upgrade --main` on Windows so a source checkout writes to `%LOCALAPPDATA%\SuperLiora\bin` and finds pnpm under SUPERLIORA_HOME.
+
 ## 0.12.10
 
 ### Patch Changes
