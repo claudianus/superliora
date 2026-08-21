@@ -1,7 +1,13 @@
 import type { ProviderRequestAuth } from '@superliora/kosong';
 import { APIStatusError } from '@superliora/kosong';
-import { sharedCredentialHealthStore } from '@superliora/oauth';
-import { effectiveModelAlias, type LioraConfig } from '../../config';
+import {
+  ensureGitHubCopilotSession,
+  githubCopilotRequestHeaders,
+  isGitHubCopilotProviderId,
+  readGitHubCopilotEnvToken,
+  sharedCredentialHealthStore,
+} from '@superliora/oauth';
+import { effectiveModelAlias, type LioraConfig, type ProviderConfig } from '../../config';
 import { ErrorCodes, isKimiError, LioraError } from '../../errors';
 
 import {
@@ -286,6 +292,10 @@ export class ProviderManager implements ModelProvider {
     const providerConfig = this.config.providers[providerName];
     if (providerConfig === undefined) return undefined;
 
+    if (isGitHubCopilotProviderId(providerName)) {
+      return this.resolveGitHubCopilotAuth(providerName, providerConfig, options);
+    }
+
     const oauthRef = providerOAuthRef(providerConfig, options?.credentialLabel);
     if (oauthRef === undefined) return undefined;
 
@@ -373,6 +383,76 @@ export class ProviderManager implements ModelProvider {
             );
           }
           auth = await fetchAuth(true);
+        }
+      }
+    };
+  }
+
+  /**
+   * GitHub Copilot stores a GitHub user token (oauth or apiKey/env). Chat
+   * needs the short-lived session token + identity headers, and the API host
+   * from the token response (enterprise vs individual).
+   */
+  private resolveGitHubCopilotAuth(
+    providerName: string,
+    providerConfig: ProviderConfig,
+    options?: ResolveAuthOptions,
+  ): AuthorizedRequest {
+    const oauthRef = providerOAuthRef(providerConfig, options?.credentialLabel);
+    const tokenProvider = this.options.resolveOAuthTokenProvider?.(providerName, oauthRef);
+    const loginRequired = (): LioraError =>
+      new LioraError(
+        ErrorCodes.AUTH_LOGIN_REQUIRED,
+        `OAuth provider "${providerName}" requires login before it can be used.`,
+        {
+          details: {
+            providerName,
+            credentialLabel: options?.credentialLabel,
+          },
+        },
+      );
+
+    const resolveUserToken = async (force: boolean): Promise<string> => {
+      // Do not use providerApiKey(): that falls back to OPENAI_API_KEY.
+      const configured = providerConfig.apiKey?.trim();
+      if (configured !== undefined && configured.length > 0) return configured;
+      const fromEnv = readGitHubCopilotEnvToken();
+      if (fromEnv !== undefined) return fromEnv;
+      if (tokenProvider !== undefined) {
+        const fromOauth = (await tokenProvider.getAccessToken(force ? { force: true } : undefined)).trim();
+        if (fromOauth.length > 0) return fromOauth;
+      }
+      throw loginRequired();
+    };
+
+    return async (request) => {
+      let userToken = await resolveUserToken(false);
+      for (let refreshed = false; ; refreshed = true) {
+        const session = await ensureGitHubCopilotSession(userToken, { force: refreshed });
+        const auth: ProviderRequestAuth = {
+          apiKey: session.token,
+          headers: githubCopilotRequestHeaders(),
+          baseUrl: session.apiBaseUrl,
+        };
+        try {
+          const result = await request(auth);
+          sharedCredentialHealthStore.markHealthy(providerName, options?.credentialLabel);
+          return result;
+        } catch (error) {
+          if (!(error instanceof APIStatusError) || error.statusCode !== 401) throw error;
+          if (refreshed) {
+            sharedCredentialHealthStore.markAuthRejected(providerName, {
+              credentialKey: options?.credentialLabel,
+              failureReason:
+                'OAuth provider credentials were rejected. Send /login to login.',
+            });
+            throw new LioraError(
+              ErrorCodes.AUTH_LOGIN_REQUIRED,
+              'OAuth provider credentials were rejected. Send /login to login.',
+              { cause: error, details: { providerName, statusCode: error.statusCode } },
+            );
+          }
+          userToken = await resolveUserToken(true);
         }
       }
     };

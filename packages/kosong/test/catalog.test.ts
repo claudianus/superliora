@@ -27,6 +27,11 @@ describe('inferWireType', () => {
     expect(inferWireType({ id: 'some-proxy' })).toBeUndefined();
     expect(inferWireType({ id: 'x', type: 'not-a-wire' })).toBeUndefined();
   });
+
+  it('infers openai for github-copilot even without an npm package', () => {
+    expect(inferWireType({ id: 'github-copilot' })).toBe('openai');
+    expect(inferWireType({ id: 'github-copilot', npm: '@ai-sdk/openai-compatible' })).toBe('openai');
+  });
 });
 
 describe('catalogBaseUrl', () => {

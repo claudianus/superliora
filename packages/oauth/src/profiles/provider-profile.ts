@@ -28,7 +28,12 @@ export type OAuthFlowKind =
   /** OAuth 2.0 PKCE authorization-code with a loopback browser callback. */
   | 'pkce_browser'
   /** Cursor deep-link PKCE: open login URL, poll `/auth/poll` (no loopback). */
-  | 'deep_link_poll';
+  | 'deep_link_poll'
+  /**
+   * No third-party OAuth app. Persist a user-pasted / env token, then exchange
+   * it at request time (GitHub Copilot session tokens).
+   */
+  | 'paste_token';
 
 /**
  * Configuration needed to run an OAuth flow. The base {@link OAuthFlowConfig}

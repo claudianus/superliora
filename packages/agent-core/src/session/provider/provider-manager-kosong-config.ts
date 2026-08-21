@@ -1,5 +1,7 @@
 import type { ProviderConfig as KosongProviderConfig } from '@superliora/kosong';
 import {
+  githubCopilotRequestHeaders,
+  isGitHubCopilotBaseUrl,
   isXaiGrokBuildBaseUrl,
   xaiGrokBuildRequestHeaders,
 } from '@superliora/oauth';
@@ -174,6 +176,12 @@ function openaiProviderHeaders(
   const baseUrl =
     firstCredentialBaseUrlWhenPrimary(provider) ??
     providerValue(provider.baseUrl, provider.env, 'OPENAI_BASE_URL', 'provider base_url');
+  if (isGitHubCopilotBaseUrl(baseUrl) || isGitHubCopilotBaseUrl(provider.baseUrl)) {
+    return {
+      ...githubCopilotRequestHeaders(),
+      ...provider.customHeaders,
+    };
+  }
   if (!isXaiGrokBuildBaseUrl(baseUrl) && !isXaiGrokBuildBaseUrl(provider.baseUrl)) {
     return provider.customHeaders;
   }

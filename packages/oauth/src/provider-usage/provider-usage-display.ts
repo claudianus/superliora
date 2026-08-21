@@ -23,6 +23,8 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   'alibaba-token-plan-cn': 'Alibaba Token Plan (China)',
   'zai-coding-plan': 'Z.AI (GLM Coding Plan)',
   zai: 'Z.AI',
+  'github-copilot': 'GitHub Copilot',
+  github_copilot: 'GitHub Copilot',
 };
 
 const PROVIDER_SHORT_NAMES: Readonly<Record<string, string>> = {
@@ -41,6 +43,8 @@ const PROVIDER_SHORT_NAMES: Readonly<Record<string, string>> = {
   'alibaba-token-plan-cn': 'Qwen',
   'zai-coding-plan': 'GLM',
   zai: 'Z.AI',
+  'github-copilot': 'Copilot',
+  github_copilot: 'Copilot',
 };
 
 const SUBSCRIPTION_KEYS = new Set([
@@ -50,6 +54,8 @@ const SUBSCRIPTION_KEYS = new Set([
   'xai-grok',
   'anthropic-oauth',
   'cursor-oauth',
+  'github-copilot',
+  'github_copilot',
 ]);
 
 const CREDITS_KEYS = new Set(['openrouter', 'deepseek', 'clinepass', 'zai', 'zai-coding-plan']);

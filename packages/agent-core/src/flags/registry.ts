@@ -33,6 +33,15 @@ export const FLAG_DEFINITIONS = [
     surface: 'core',
   },
   {
+    id: 'github_copilot',
+    title: 'GitHub Copilot login',
+    description:
+      'Show a GitHub Copilot token login in the provider picker. Paste or set GITHUB_TOKEN / GH_TOKEN / GITHUB_COPILOT_TOKEN; SuperLiora exchanges it for a Copilot session. Off by default. Enable with SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT=1.',
+    env: 'SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT',
+    default: false,
+    surface: 'core',
+  },
+  {
     id: 'micro_compaction',
     title: 'Micro compaction',
     description:

@@ -116,6 +116,8 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
     // Alibaba Token Plan entries are merged into the first-class Token Plan
     // rows below (same service, dedicated multimodal integration).
     if (isTokenPlanCatalogId(id)) continue;
+    // Copilot is experimental paste-token login, not a default catalog BYOK row.
+    if (id === 'github-copilot' || id === 'github_copilot') continue;
     const wire = inferWireType(entry);
     if (wire === undefined) continue;
     const models = catalogProviderModels(entry);

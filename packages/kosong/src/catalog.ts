@@ -139,6 +139,9 @@ export function inferWireType(entry: CatalogProviderEntry): ProviderType | undef
     return 'google-genai';
   }
   if (npm.includes('openai') || id.includes('openai')) return 'openai';
+  if (id.includes('github-copilot') || id.includes('github_copilot') || id.includes('githubcopilot')) {
+    return 'openai';
+  }
   return undefined;
 }
 

@@ -107,6 +107,11 @@ export interface ProviderRequestAuth {
   apiKey?: string;
   /** Request-scoped headers. These override constructor-level default headers. */
   headers?: Record<string, string>;
+  /**
+   * Per-request base URL. Used when a provider (GitHub Copilot) resolves the
+   * chat host from a session-token exchange instead of a static config value.
+   */
+  baseUrl?: string;
 }
 
 /**
