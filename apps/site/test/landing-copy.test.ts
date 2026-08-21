@@ -137,6 +137,15 @@ describe('shipped landing copy', () => {
       expect(page.sections.map((section) => section.heading)).toEqual(
         lang === 'ko' ? ['설치법', '설치 후', '사용법', '워크플로우'] : ['Install', 'After install', 'Usage', 'Workflow'],
       );
+      expect(t.install.body).toContain('24.15.0');
+      expect(t.install.body).toMatch(/download|받습/);
+      expect(t.install.body).toContain('liora upgrade');
+      expect(docsBlob).toContain('liora upgrade');
+      expect(docsBlob).toContain('/upgrade');
+      expect(docsBlob).toMatch(/irm \| iex/);
+      expect(docsBlob).toMatch(/ignores flags|플래그를 무시/);
+      expect(docsBlob).toMatch(/24\.15\.0/);
+      expect(docsBlob).toMatch(/data home|데이터 홈/);
     }
   });
 
@@ -148,50 +157,63 @@ describe('shipped landing copy', () => {
       'liora gc',
       '/host-setup',
       '/jobs',
+      '/locale',
       'Alt+J',
       'Alt+I',
       'Ctrl+K',
       'SUPERLIORA_LOCALE',
       'Command Hub',
+      'install.ps1 --home',
     ];
     for (const name of ['README.md', 'README.ko.md'] as const) {
       const readme = readFileSync(resolve(repoRoot, name), 'utf8');
       for (const token of readmeTokens) {
         expect(readme, name).toContain(token);
       }
+      expect(readme, name).toContain('24.15.0');
+      expect(readme, name).toMatch(/irm \| iex/);
+      expect(readme, name).toMatch(/ignores flags|플래그를 무시/);
+      expect(readme, name).toMatch(/download|받/);
+      expect(readme, name).not.toMatch(/# After install, double-click SuperLiora on the Desktop/);
+      expect(readme, name).not.toMatch(/# 설치 후 바탕 화면의 SuperLiora를 더블클릭/);
+      expect(readme, name).toMatch(/double-click SuperLiora on the Desktop|바탕 화면의 SuperLiora를 더블클릭/);
       expect(readme, name).not.toMatch(/\bliora vis\b/);
     }
 
     for (const lang of ['ko', 'en'] as const) {
       const t = translations[lang];
       const started = t.docs['getting-started'];
-      const startedBlob = started.sections
-        .map((section) => `${section.heading}\n${section.body}\n${section.code ?? ''}`)
-        .join('\n');
       const afterInstall = started.sections.find((section) => section.heading === (lang === 'ko' ? '설치 후' : 'After install'));
       expect(afterInstall?.body).toContain('liora upgrade');
       expect(afterInstall?.body).toContain('/upgrade');
       expect(afterInstall?.body).toContain('--main');
-      expect(startedBlob).toContain('liora doctor');
-      expect(startedBlob).toContain('liora gc');
+      expect(afterInstall?.body).toContain('/locale');
+
+      const slash = t.docs.reference.sections.find((section) => section.heading === (lang === 'ko' ? '슬래시' : 'Slash'));
+      expect(slash?.body).toContain('/upgrade');
+      expect(slash?.body).toContain('/resume');
+      expect(slash?.body).toMatch(/\/sessions/);
+      expect(slash?.body).toContain('/locale');
+      expect(slash?.body).toContain('/permission');
+      expect(slash?.body).toMatch(/manual\|auto\|yolo/);
+      expect(slash?.body).toContain('/performance');
+      expect(slash?.body).not.toMatch(/\/appearance/);
+      expect(slash?.body).not.toMatch(/\/transcript/);
 
       const reference = t.docs.reference;
       const refBlob = reference.sections
         .map((section) => `${section.heading}\n${section.body}\n${section.code ?? ''}`)
         .join('\n');
-      expect(refBlob).toContain('/upgrade');
-      expect(refBlob).toContain('/resume');
-      expect(refBlob).toContain('/performance');
-      expect(refBlob).toContain('/transcript');
       expect(refBlob).toContain('liora upgrade');
       expect(refBlob).toContain('liora doctor');
       expect(refBlob).toContain('liora gc');
       expect(refBlob).not.toMatch(/\bliora vis\b/);
 
-      const tower = t.docs['control-tower'].sections.map((section) => section.body).join('\n');
+      const tower = [t.tower.items.map((item) => item.body).join('\n'), t.docs['control-tower'].sections.map((section) => section.body).join('\n')].join('\n');
       expect(tower).toContain('Ctrl+Space');
       expect(tower).toMatch(/\?/);
       expect(tower).toContain('/help');
+      expect(tower).toMatch(/Cmd/);
 
       const clusterBlob = t.clusters.items
         .flatMap((cluster) => cluster.features.map((feature) => `${feature.id} ${feature.body}`))

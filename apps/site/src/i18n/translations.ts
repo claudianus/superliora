@@ -472,7 +472,7 @@ const clustersKo: ClusterItem[] = [
     features: [
       { id: 'in-tui-diff', title: '화면 안 diff', body: '파일·검색·변경을 터미널을 떠나지 않고 봅니다.' },
       { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K로 설정·모드·세션·업그레이드를 찾습니다.' },
-      { id: 'visual-quality', title: 'Visual Quality', body: '모션·밀도·글로우를 Neon Noir에 맞춰 조정합니다.' },
+      { id: 'visual-quality', title: 'Visual Quality', body: '모션·밀도·글로우를 Neon Noir에 맞춥니다. Welcome·로그인·에디터 프레임은 살아 있고 thinking은 thought-orb입니다. 모션 off면 정지.' },
       { id: 'performance', title: 'Performance', body: '저사양에서는 Settings → Appearance 또는 /performance로 off · auto · on을 켭니다.' },
       { id: 'deep-research', title: 'Deep research', body: '긴 조사는 작업으로 돌려 두고 결과만 받습니다.' },
       { id: 'extensions', title: 'Extensions', body: '스킬·MCP·훅을 허브에서 붙입니다.' },
@@ -528,7 +528,7 @@ const clustersEn: ClusterItem[] = [
     features: [
       { id: 'in-tui-diff', title: 'In-TUI diff', body: 'Files, search, and changes without leaving the terminal.' },
       { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K finds settings, modes, sessions, and upgrade.' },
-      { id: 'visual-quality', title: 'Visual Quality', body: 'Tune motion, density, and glow for Neon Noir.' },
+      { id: 'visual-quality', title: 'Visual Quality', body: 'Tune motion, density, and glow for Neon Noir. Welcome, login, and editor frames stay live; thinking is a thought-orb. Motion off is static.' },
       { id: 'performance', title: 'Performance', body: 'Opt-in for low-spec machines: off, auto, or on. Settings → Appearance or /performance.' },
       { id: 'deep-research', title: 'Deep research', body: 'Long investigations run as jobs; you get the result.' },
       { id: 'extensions', title: 'Extensions', body: 'Skills, MCP, and hooks from one hub.' },
@@ -696,7 +696,7 @@ export const translations: Record<Lang, Translation> = {
         {
           keys: 'Ctrl+K',
           title: 'Command Hub',
-          body: '설정·모드·세션·업그레이드. Ctrl+Space나 ?로도 엽니다.',
+          body: '설정·모드·세션·업그레이드. macOS는 Cmd+K. Ctrl+Space나 ?로도 엽니다.',
         },
         {
           keys: 'Shift-Tab',
@@ -708,7 +708,7 @@ export const translations: Record<Lang, Translation> = {
     install: {
       kicker: '설치법',
       title: '한 줄이면 설치됩니다.',
-      body: '그다음 프로젝트에서 liora를 켜고 /login과 /model로 연결하세요. Windows는 여유 있는 드라이브를 고를 수 있고, 설치 후 바탕 화면 바로가기가 생기며, 터미널이 얇으면 /host-setup을 쓰세요. GitHub Release가 나오면 liora upgrade 또는 /upgrade로 갱신합니다.',
+      body: '그다음 프로젝트에서 liora를 켜고 /login과 /model로 연결하세요. 호스트에 Node가 없으면 한 줄이 데이터 홈에 Node.js 24.15.0을 받습니다. Windows는 여유 있는 드라이브(약 100 GB)를 고를 수 있고, SUPERLIORA_HOME은 모든 OS에서 됩니다. 설치 후 바탕 화면 바로가기가 생기며, 터미널이 얇으면 /host-setup을 쓰세요. GitHub Release가 나오면 liora upgrade 또는 /upgrade로 갱신합니다.',
       requirements: NODE_REQUIREMENT,
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
@@ -750,16 +750,16 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: '설치법',
-            body: `${NODE_REQUIREMENT}. 운영체제에 맞는 한 줄을 실행합니다. Windows에서 프로필 디스크가 빠듯하면 여유 있는 드라이브(약 100 GB)를 데이터 홈으로 고릅니다. 고정하려면 SUPERLIORA_HOME을 쓰거나 install.ps1 --home D:\\SuperLiora를 지정하세요.`,
+            body: `${NODE_REQUIREMENT}. 운영체제에 맞는 한 줄을 실행합니다. 호스트에 Node가 없으면 데이터 홈에 Node.js 24.15.0을 받습니다. Windows에서 프로필 디스크가 빠듯하면 여유 있는 드라이브(약 100 GB)를 고릅니다. SUPERLIORA_HOME은 모든 OS에서 됩니다. 파이프된 irm | iex는 플래그를 무시합니다. 먼저 $env:SUPERLIORA_HOME을 두거나, 받아서 .\\install.ps1 --home D:\\SuperLiora를 실행하세요. Unix는 install.sh --home 또는 SUPERLIORA_HOME.`,
             code: `${INSTALL_SH}\n${INSTALL_PS}\n${INSTALL_CMD}`,
           },
           {
             heading: '설치 후',
-            body: '설치가 끝나면 바탕 화면의 SuperLiora를 더블클릭해 실제 터미널에서 TUI를 엽니다. /host-setup은 확인 목록을 보여 준 뒤 Windows Terminal(Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf를 적용합니다. GitHub Release가 나오면 liora upgrade 또는 /upgrade로 설치를 갱신합니다. 추적은 공개 Release이고, main 최신은 --main. UI 언어는 SUPERLIORA_LOCALE=ko|en 또는 Settings → Language.',
+            body: '설치가 끝나면 바탕 화면의 SuperLiora를 더블클릭해 실제 터미널에서 TUI를 엽니다. /host-setup은 확인 목록을 보여 준 뒤 Windows Terminal(Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf를 적용합니다. GitHub Release가 나오면 liora upgrade 또는 /upgrade로 설치를 갱신합니다. 추적은 공개 Release이고, main 최신은 --main. UI 언어는 SUPERLIORA_LOCALE=ko|en, Settings → Language, 또는 /locale.',
           },
           {
             heading: '사용법',
-            body: '프로젝트 폴더에서 세션을 열고 /login과 /model로 모델을 연결한 뒤, 원하는 결과를 적습니다. 점검은 liora doctor, 로컬 정리는 liora gc.',
+            body: '프로젝트 폴더에서 세션을 열고 /login과 /model로 모델을 연결한 뒤, 원하는 결과를 적습니다.',
             code: 'liora\nliora --continue\nliora --plan\n/login\n/model\n/host-setup',
           },
           {
@@ -824,7 +824,7 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: '기본',
-            body: 'Alt+J 진행 · Alt+I 질문함 · Alt+B 빠른 요청서 · Ctrl+K Command Hub. Hub는 Ctrl+Space, ?, /help로도 엽니다.',
+            body: 'Alt+J 진행 · Alt+I 질문함 · Alt+B 빠른 요청서 · Ctrl+K Command Hub (macOS는 Cmd). Hub는 Ctrl+Space, ?, /help로도 엽니다.',
           },
           {
             heading: '작업 분위기',
@@ -850,7 +850,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '슬래시',
-            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help · /upgrade · /resume · /performance · /transcript. /resume는 Command Hub → Sessions. /performance는 선택 Performance 모드(off|auto|on, Settings → Appearance). /transcript는 대화 밀도.',
+            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help · /upgrade · /resume · /locale · /permission. /resume는 /sessions의 별칭. /permission은 manual|auto|yolo. 저사양은 Settings → Appearance 또는 /performance.',
           },
           {
             heading: 'Ask 모드',
@@ -1017,7 +1017,7 @@ export const translations: Record<Lang, Translation> = {
         {
           keys: 'Ctrl+K',
           title: 'Command Hub',
-          body: 'Settings, modes, sessions, upgrade. Also Ctrl+Space or ?.',
+          body: 'Settings, modes, sessions, upgrade. Cmd+K on macOS. Also Ctrl+Space or ?.',
         },
         {
           keys: 'Shift-Tab',
@@ -1029,7 +1029,7 @@ export const translations: Record<Lang, Translation> = {
     install: {
       kicker: 'Install',
       title: 'One line to install.',
-      body: 'Then run liora in a project and connect a model with /login and /model. Windows may pick a roomier drive; after install, a Desktop shortcut opens the TUI; run /host-setup if the terminal is thin. After a GitHub Release, liora upgrade or /upgrade updates the install.',
+      body: 'Then run liora in a project and connect a model with /login and /model. If the host has no Node, the one-liner downloads Node.js 24.15.0 into the data home. Windows may pick a roomier drive (~100 GB); SUPERLIORA_HOME works on every OS. After install, a Desktop shortcut opens the TUI; run /host-setup if the terminal is thin. After a GitHub Release, liora upgrade or /upgrade updates the install.',
       requirements: NODE_REQUIREMENT,
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
@@ -1071,16 +1071,16 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: 'Install',
-            body: `${NODE_REQUIREMENT}. Run the one-liner for your OS. On Windows, a tight profile disk picks a roomier drive (~100 GB free) for the SuperLiora data home. Pin it with SUPERLIORA_HOME, or install.ps1 --home D:\\SuperLiora.`,
+            body: `${NODE_REQUIREMENT}. Run the one-liner for your OS. If the host has no Node, it downloads Node.js 24.15.0 into the data home. On Windows, a tight profile disk picks a roomier drive (~100 GB free). SUPERLIORA_HOME works on every OS. Piped irm | iex ignores flags — set $env:SUPERLIORA_HOME first, or download and run .\\install.ps1 --home D:\\SuperLiora. On Unix, install.sh --home or SUPERLIORA_HOME.`,
             code: `${INSTALL_SH}\n${INSTALL_PS}\n${INSTALL_CMD}`,
           },
           {
             heading: 'After install',
-            body: 'After install, double-click SuperLiora on the Desktop to open the TUI in a real terminal. Run /host-setup to see a confirm list, then apply Windows Terminal (Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, and fzf. After a GitHub Release, liora upgrade or /upgrade updates the install. That tracks published releases, not arbitrary main commits. Use --main for tip of main. UI language: SUPERLIORA_LOCALE=ko|en or Settings → Language.',
+            body: 'After install, double-click SuperLiora on the Desktop to open the TUI in a real terminal. Run /host-setup to see a confirm list, then apply Windows Terminal (Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, and fzf. After a GitHub Release, liora upgrade or /upgrade updates the install. That tracks published releases, not arbitrary main commits. Use --main for tip of main. UI language: SUPERLIORA_LOCALE=ko|en, Settings → Language, or /locale.',
           },
           {
             heading: 'Usage',
-            body: 'Open a session in a project folder, connect a model with /login and /model, then write the outcome. Check the machine with liora doctor. Reclaim idle storage with liora gc.',
+            body: 'Open a session in a project folder, connect a model with /login and /model, then write the outcome.',
             code: 'liora\nliora --continue\nliora --plan\n/login\n/model\n/host-setup',
           },
           {
@@ -1145,7 +1145,7 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: 'Basics',
-            body: 'Alt+J progress · Alt+I inbox · Alt+B quick brief · Ctrl+K hub. Command Hub also opens with Ctrl+Space, ?, or /help.',
+            body: 'Alt+J progress · Alt+I inbox · Alt+B quick brief · Ctrl+K hub (Cmd on macOS). Command Hub also opens with Ctrl+Space, ?, or /help.',
           },
           {
             heading: 'Modes',
@@ -1171,7 +1171,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Slash',
-            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help · /upgrade · /resume · /performance · /transcript. /resume opens Sessions in Command Hub. /performance is opt-in Performance mode (off|auto|on, Settings → Appearance). /transcript sets transcript density.',
+            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help · /upgrade · /resume · /locale · /permission. /resume is an alias of /sessions. /permission is manual|auto|yolo. For low-spec machines, Settings → Appearance or /performance.',
           },
           {
             heading: 'Ask mode',
