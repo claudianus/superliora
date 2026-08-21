@@ -21,6 +21,7 @@ export interface CompactionEventHost {
   setAppState(patch: Partial<AppState>): void;
   resetLivePane(): void;
   shiftQueuedMessage(): QueuedMessage | undefined;
+  takeNextQueuedBatch?(): QueuedMessage | undefined;
   /** Optional — overflow-recovery notice (Loop25b). */
   showNotice?(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   showStatus?(msg: string, color?: string): void;
@@ -151,7 +152,7 @@ export class SessionEventCompaction {
         streamingPhase: 'idle',
       });
       this.host.resetLivePane();
-      const next = this.host.shiftQueuedMessage();
+      const next = this.host.takeNextQueuedBatch?.() ?? this.host.shiftQueuedMessage();
       if (next !== undefined) {
         setTimeout(() => {
           sendQueued(next);

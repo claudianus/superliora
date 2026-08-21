@@ -1642,6 +1642,7 @@ describe('Agent turn flow', () => {
     const secondPrompt = texts.findIndex((text) => text.includes('Second prompt'));
     const toolResult = roles.lastIndexOf('tool');
     expect(secondPrompt).toBeGreaterThan(-1);
+    expect(texts[secondPrompt]).toContain('The user interrupted the previous turn');
     expect(toolResult).toBeGreaterThan(-1);
     expect(secondPrompt).toBeGreaterThan(toolResult);
   });
@@ -1708,7 +1709,7 @@ describe('Agent turn flow', () => {
       [emit] turn.step.completed                 { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 79, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
       [wire] usage.record                        { "model": "mock-model", "usage": { "inputOther": 79, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated                { "model": "mock-model", "contextTokens": 101, "maxContextTokens": 1000000, "contextUsage": 0.000101, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 79, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 79, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 79, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
-      [wire] context.append_message              { "message": { "role": "user", "content": [ { "type": "text", "text": "Also mention the steer." } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
+      [wire] context.append_message              { "message": { "role": "user", "content": [ { "type": "text", "text": "The user sent a message while you were working:\\n<user_query>\\nAlso mention the steer.\\n</user_query>\\nFinish any unfinished tasks from earlier in this turn before switching focus." } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_message              { "message": { "role": "user", "content": [ { "type": "text", "text": "<current-time-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "batch" } }, "time": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "step.begin", "uuid": "<uuid-3>", "turnId": "0", "step": 2 }, "time": "<time>" }
       [emit] turn.step.started                   { "turnId": 0, "step": 2, "stepId": "<uuid-3>" }
@@ -1725,7 +1726,7 @@ describe('Agent turn flow', () => {
         <last>
         assistant: text "I will ask first."  calls call_bash:Bash { "command": "printf approved", "timeout": 60 }
         tool[call_bash]: text "approved"
-        user: text "Also mention the steer."
+        user: text "The user sent a message while you were working:\\n<user_query>\\nAlso mention the steer.\\n</user_query>\\nFinish any unfinished tasks from earlier in this turn before switching focus."
         user: text <current-time-reminder>
     `);
     expect(ctx.llmCalls).toHaveLength(2);

@@ -33,6 +33,7 @@ export interface ShellInputHost {
   appendTranscriptEntry(entry: TranscriptEntry): void;
   showError(msg: string): void;
   shiftQueuedMessage(): QueuedMessage | undefined;
+  takeNextQueuedBatch?(): QueuedMessage | undefined;
   sendQueuedMessage(session: Session, item: QueuedMessage): void;
   updateQueueDisplay(): void;
 }
@@ -117,7 +118,7 @@ export class ShellInputController {
 
   drainOneQueuedMessage(): void {
     const { host } = this;
-    const item = host.shiftQueuedMessage();
+    const item = host.takeNextQueuedBatch?.() ?? host.shiftQueuedMessage();
     if (item === undefined) return;
     const session = host.session;
     if (session === undefined) return;

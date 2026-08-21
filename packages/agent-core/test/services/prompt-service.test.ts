@@ -566,6 +566,41 @@ describe('PromptService.submit', () => {
     expect(first.status).toBe('running');
   });
 
+  it('combines adjacent queued prompts into one dispatched turn', async () => {
+    const { bridge, record } = makeBridge();
+    const { bus, triggerSubscribers } = makeBus();
+    const impl = newSvc(bridge, bus);
+    await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'one' }] }));
+    const second = await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'two' }] }));
+    await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'three' }] }));
+
+    triggerSubscribers({
+      type: 'turn.started',
+      turnId: 7,
+      origin: { kind: 'user' },
+      sessionId: SID,
+      agentId: 'main',
+    } as unknown as Event);
+    triggerSubscribers({
+      type: 'turn.ended',
+      turnId: 7,
+      reason: 'completed',
+      sessionId: SID,
+      agentId: 'main',
+    } as unknown as Event);
+    await Promise.resolve();
+
+    expect(record.promptCalls).toHaveLength(2);
+    expect(record.promptCalls[1]).toEqual({
+      sessionId: SID,
+      agentId: 'main',
+      input: [{ type: 'text', text: 'two\n\nthree' }],
+    });
+    const listed = await impl.list(SID);
+    expect(listed.active?.prompt_id).toBe(second.prompt_id);
+    expect(listed.queued).toHaveLength(0);
+  });
+
   it('throws SessionNotFoundError on unknown session id', async () => {
     const { bridge } = makeBridge();
     const { bus } = makeBus();

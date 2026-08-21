@@ -21,6 +21,7 @@ export interface StreamingUIHost {
   requireSession(): Session;
   deferUserMessages: boolean;
   shiftQueuedMessage(): QueuedMessage | undefined;
+  takeNextQueuedBatch?(): QueuedMessage | undefined;
   pushTranscriptEntry(entry: TranscriptEntry): void;
   mergeCurrentTurnSteps(): void;
 }

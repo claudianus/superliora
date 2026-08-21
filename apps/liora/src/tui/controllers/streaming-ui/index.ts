@@ -212,6 +212,7 @@ export class StreamingUIController {
 
   removeActiveToolCall(id: string): void {
     removeStreamingActiveToolCall(this._activeToolCalls, id);
+    this.syncTurnActivity();
   }
 
   getToolComponent(id: string): ToolCallComponent | undefined {
@@ -283,7 +284,9 @@ export class StreamingUIController {
 
   /** Completes a tool call: delivers the result and removes tracking state. */
   completeToolResult(toolCallId: string, result: ToolResultBlockData): ToolCallBlockData | undefined {
-    return completeStreamingToolResult(this.toolRegistryState(), toolCallId, result);
+    const matched = completeStreamingToolResult(this.toolRegistryState(), toolCallId, result);
+    this.syncTurnActivity();
+    return matched;
   }
 
   /** Marks in-flight tool calls as truncated when a step hits max_tokens. */
@@ -428,6 +431,7 @@ export class StreamingUIController {
 
   resetToolCallState(): void {
     this._activeToolCalls.clear();
+    this.syncTurnActivity();
   }
 
   finalizeLiveTextBuffers(nextMode: LivePaneState['mode'] = 'idle'): void {
@@ -474,10 +478,24 @@ export class StreamingUIController {
 
   onToolCallStart(toolCall: ToolCallBlockData): void {
     streamingUiOnToolCallStart(this.toolRenderContext(), toolCall);
+    this.syncTurnActivity();
   }
 
   onToolCallEnd(toolCallId: string, result: ToolResultBlockData): void {
     streamingUiOnToolCallEnd(this.toolRenderContext(), toolCallId, result);
+  }
+
+  private syncTurnActivity(): void {
+    const running = [...this._activeToolCalls.values()].map((tool) => ({
+      name: tool.name,
+      running: true as const,
+    }));
+    const completed = (this._chainSummary.active?.getStats().toolNames ?? []).map((name) => ({
+      name,
+      running: false as const,
+    }));
+    this.host.state.turnActivity = { tools: [...completed, ...running] };
+    this.host.updateActivityPane();
   }
 
   setTodoList(todos: readonly TodoItem[]): void {

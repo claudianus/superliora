@@ -68,6 +68,20 @@ function capBatchParts(parts: readonly string[]): string[] {
   return capped;
 }
 
+export function formatRunningSubagentsReminder(
+  children: readonly { readonly agentId: string; readonly runInBackground: boolean }[],
+): string | undefined {
+  if (children.length === 0) return undefined;
+  const lines = children.map((child) => {
+    const lane = child.runInBackground ? 'background' : 'foreground';
+    return `- ${child.agentId} (${lane})`;
+  });
+  return [
+    'Context compacted; these subagents are still running. Do not spawn duplicates — wait, poll, or cancel them:',
+    ...lines,
+  ].join('\n');
+}
+
 export { capBatchParts as __testing__capBatchParts };
 
 export class InjectionManager {
@@ -142,6 +156,7 @@ export class InjectionManager {
   async injectAfterCompaction(): Promise<void> {
     await this.injectGoal();
     this.injectActiveBackgroundTasks();
+    this.injectRunningSubagents();
     this.injectTaskGraphStatus();
     this.jobDeskInjector.injectPostCompaction();
     await this.inject();
@@ -193,6 +208,15 @@ export class InjectionManager {
       `${ACTIVE_BACKGROUND_TASK_GUIDANCE}\n\n${formatTaskList(tasks, true)}`,
       { kind: 'injection', variant: 'background_task_status' },
     );
+  }
+
+  private injectRunningSubagents(): void {
+    const text = formatRunningSubagentsReminder(this.agent.subagentHost?.listActive() ?? []);
+    if (text === undefined) return;
+    this.agent.context.appendSystemReminder(text, {
+      kind: 'injection',
+      variant: 'running_subagents',
+    });
   }
 
   private injectTaskGraphStatus(): void {

@@ -148,6 +148,7 @@ export function onToolCallEnd(
           isError: result.is_error === true,
           errorText: result.is_error === true ? result.output : undefined,
           file,
+          name: matchedCall?.name,
         });
       }
     }

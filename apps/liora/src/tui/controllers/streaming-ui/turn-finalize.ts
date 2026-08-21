@@ -44,7 +44,7 @@ export function finalizeStreamingTurn(args: {
   args.resetToolCallState();
   args.setCurrentTurnId(undefined);
 
-  const next = args.host.shiftQueuedMessage();
+  const next = args.host.takeNextQueuedBatch?.() ?? args.host.shiftQueuedMessage();
   if (next !== undefined) {
     args.host.setAppState({ streamingPhase: 'idle' });
     args.host.resetLivePane();

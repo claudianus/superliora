@@ -27,6 +27,7 @@ import {
   driveGoalTurnLoop,
   endGoalTurnWithoutModel,
 } from './goal-loop';
+import { frameInterruptContent, frameSteerContent, shouldFrameSteer } from './interjection';
 import { runOneTurnFlow } from './run-one';
 import type { ActiveTurn, TurnEndResult } from './types';
 
@@ -52,6 +53,8 @@ export class TurnFlow {
   private steerBuffer: BufferedSteer[] = [];
   private turnId = -1;
   private activeTurn: 'resuming' | ActiveTurn | null = null;
+  /** Next real user prompt after a user cancel is framed as an interrupt. */
+  private pendingInterruptFrame = false;
   /** Workers of cancelled turns that may still be appending to the context. */
   private cancelledWorker: Promise<unknown> | null = null;
   /** Suppress leaked `<think>`/`<reasoning>` tags in assistant text deltas. */
@@ -122,7 +125,8 @@ export class TurnFlow {
 
     const turnId = this.allocateTurnId();
     const controller = new AbortController();
-    const promise = this.turnWorker(turnId, input, origin, controller.signal);
+    const framed = this.consumeInterruptFrame(input, origin);
+    const promise = this.turnWorker(turnId, framed, origin, controller.signal);
     const firstRequest = createControlledPromise<void>();
     this.activeTurn = {
       turnId,
@@ -178,6 +182,9 @@ export class TurnFlow {
       return;
     }
     const cancelReason = reason ?? userCancellationReason();
+    if (isUserCancellation(cancelReason)) {
+      this.pendingInterruptFrame = true;
+    }
     this.abortTurn(cancelReason);
     this.agent.subagentHost?.cancelAll(cancelReason);
     this.agent.telemetry.track('turn_cancel', {
@@ -295,11 +302,23 @@ export class TurnFlow {
     }
   }
 
+  private consumeInterruptFrame(
+    input: readonly ContentPart[],
+    origin: PromptOrigin,
+  ): readonly ContentPart[] {
+    if (!this.pendingInterruptFrame || !shouldFrameSteer(origin)) return input;
+    this.pendingInterruptFrame = false;
+    return frameInterruptContent(input, origin);
+  }
+
   private flushSteerBuffer(): boolean {
     const steers = this.steerBuffer;
     if (steers.length === 0) return false;
     for (const steer of steers) {
-      this.agent.context.appendUserMessage(steer.input, steer.origin);
+      this.agent.context.appendUserMessage(
+        frameSteerContent(steer.input, steer.origin),
+        steer.origin,
+      );
     }
     steers.length = 0;
     return true;

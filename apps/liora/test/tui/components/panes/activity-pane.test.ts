@@ -77,6 +77,41 @@ describe('ActivityPaneComponent', () => {
     const particleish = lines.filter((line) => /[·∙•◦*]/.test(line));
     expect(particleish.length).toBe(1);
   });
+
+  it('paints a live turn-status row when resolveStatus is set', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:12Z'));
+    try {
+      const pane = new ActivityPaneComponent({
+        mode: 'tool',
+        spinner: {
+          renderGlyph: () => '◐',
+          setTip() {},
+          setAvailableWidth() {},
+          render: () => ['loading'],
+          invalidate() {},
+        } as never,
+        resolveStatus: () => ({
+          phase: 'tool',
+          tools: [
+            { name: 'Read', running: true },
+            { name: 'Read', running: true },
+          ],
+          startedAt: Date.parse('2026-07-01T00:00:00Z'),
+          now: Date.now(),
+          contextTokens: 42_000,
+          queued: 2,
+        }),
+      });
+      const out = strip(pane.render(80).join('\n'));
+      expect(out).toContain('Reading 2 files');
+      expect(out).toContain('12s');
+      expect(out).toContain('42k');
+      expect(out).toContain('2 queued');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('ActivityPaneComponent thinking ambient', () => {

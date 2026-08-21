@@ -5,6 +5,7 @@ import {
   INJECTION_BATCH_MAX_CHARS,
   INJECTION_PART_MAX_CHARS,
   InjectionManager,
+  formatRunningSubagentsReminder,
   __testing__capBatchParts,
 } from '#/agent/injection/manager';
 
@@ -31,6 +32,24 @@ describe('agent/injection/manager — InjectionManager construction', () => {
       context: { history: [] },
     } as unknown as Agent;
     expect(() => new InjectionManager(agent)).not.toThrow();
+  });
+});
+
+describe('agent/injection/manager — running subagents reminder', () => {
+  it('lists active children after compaction and no-ops when none remain', () => {
+    expect(formatRunningSubagentsReminder([])).toBeUndefined();
+    expect(
+      formatRunningSubagentsReminder([
+        { agentId: 'agent_abc', runInBackground: true },
+        { agentId: 'agent_fg', runInBackground: false },
+      ]),
+    ).toBe(
+      [
+        'Context compacted; these subagents are still running. Do not spawn duplicates — wait, poll, or cancel them:',
+        '- agent_abc (background)',
+        '- agent_fg (foreground)',
+      ].join('\n'),
+    );
   });
 });
 

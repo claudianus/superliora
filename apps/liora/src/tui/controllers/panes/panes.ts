@@ -2,6 +2,8 @@ import type { BackgroundTaskInfo, Session } from '@superliora/sdk';
 
 import type { Component } from '../../renderer';
 import { ActivityPaneComponent, type ActivityPaneMode } from '../../components/panes/activity-pane';
+import type { TurnStatusInput, TurnStatusPhase } from '../../features/transcript/turn-status';
+import { turnActivityIdentity } from '../../features/transcript/verb-group';
 import {
   QueuePaneComponent,
   queuePaneSelectionIdentity,
@@ -75,6 +77,7 @@ export interface PanesHost {
  */
 export class PanesController {
   private lastActivityMode: string | undefined;
+  private lastActivityStatusIdentity: string | undefined;
   private currentLoadingTip:
     | { kind: LoadingTipKind; tip: string | undefined; tipKey?: string; pinned: boolean }
     | undefined = undefined;
@@ -121,14 +124,22 @@ export class PanesController {
       }
     }
     this.syncTerminalProgress(this.shouldShowTerminalProgress(effectiveMode));
-    if (
-      effectiveMode === this.lastActivityMode &&
-      (effectiveMode === 'waiting' || effectiveMode === 'thinking' || effectiveMode === 'tool')
-    ) {
+    const statusIdentity = `${turnActivityIdentity(host.state.turnActivity?.tools ?? [])}|${String(host.state.queuedMessages.length)}`;
+    const loading =
+      effectiveMode === 'waiting' ||
+      effectiveMode === 'thinking' ||
+      effectiveMode === 'tool' ||
+      effectiveMode === 'composing';
+    if (effectiveMode === this.lastActivityMode && loading) {
+      if (statusIdentity !== this.lastActivityStatusIdentity) {
+        this.lastActivityStatusIdentity = statusIdentity;
+        requestTUIContentRender(host.state);
+      }
       return;
     }
 
     this.lastActivityMode = effectiveMode;
+    this.lastActivityStatusIdentity = statusIdentity;
     host.state.activityContainer.clear();
 
     switch (effectiveMode) {
@@ -145,6 +156,7 @@ export class PanesController {
             mode: 'waiting',
             spinner,
             tip: this.currentLoadingTip?.tip,
+            resolveStatus: () => this.resolveTurnStatus(),
           }),
         );
         break;
@@ -154,6 +166,7 @@ export class PanesController {
         host.state.activityContainer.addChild(
           new ActivityPaneComponent({
             mode: 'thinking',
+            resolveStatus: () => this.resolveTurnStatus(),
           }),
         );
         host.motionBeats.play({
@@ -175,6 +188,7 @@ export class PanesController {
             mode: 'composing',
             spinner,
             tip: this.currentLoadingTip?.tip,
+            resolveStatus: () => this.resolveTurnStatus(),
           }),
         );
         break;
@@ -187,6 +201,7 @@ export class PanesController {
             mode: 'tool',
             spinner,
             tip: this.currentLoadingTip?.tip,
+            resolveStatus: () => this.resolveTurnStatus(),
           }),
         );
         break;
@@ -221,6 +236,31 @@ export class PanesController {
     }
 
     return host.state.livePane.mode;
+  }
+
+  private resolveTurnStatus(): TurnStatusInput | undefined {
+    const phase = this.turnStatusPhase();
+    if (phase === undefined) return undefined;
+    const { host } = this;
+    return {
+      phase,
+      tools: host.state.turnActivity?.tools ?? [],
+      startedAt: host.state.appState.streamingStartTime || Date.now(),
+      now: Date.now(),
+      contextTokens: host.state.appState.contextTokens,
+      queued: host.state.queuedMessages.length,
+      tip: this.currentLoadingTip?.tip,
+    };
+  }
+
+  private turnStatusPhase(): TurnStatusPhase | undefined {
+    const { host } = this;
+    if (host.state.appState.streamingPhase === 'shell') return 'shell';
+    const mode = this.resolveActivityPaneMode();
+    if (mode === 'waiting' || mode === 'thinking' || mode === 'composing' || mode === 'tool') {
+      return mode;
+    }
+    return undefined;
   }
 
   updateQueueDisplay(): void {

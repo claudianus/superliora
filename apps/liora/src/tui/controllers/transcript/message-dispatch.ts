@@ -15,6 +15,11 @@ import type { ImageAttachmentStore } from '../../utils/image/image-attachment-st
 import { extractMediaAttachments } from '../../utils/image/image-placeholder';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import {
+  combineQueuedPrefixLen,
+  joinQueuedTexts,
+  type CombineQueuedGate,
+} from '../../features/transcript/combine-queued';
+import {
   askUserQuestionTemplateForIncompleteBrief,
   attachStructuredBrief,
   intentBriefIncompleteForGreenfield,
@@ -90,6 +95,17 @@ export class MessageDispatchController {
     this.host.state.queuedMessages = rest;
     flushPromptInputState(this.host);
     return first;
+  }
+
+  takeNextQueuedBatch(): QueuedMessage | undefined {
+    const queue = this.host.state.queuedMessages;
+    if (queue.length === 0) return undefined;
+    const take = combineQueuedPrefixLen(queue.map(queuedMessageToCombineGate));
+    if (take <= 1) return this.shiftQueuedMessage();
+    const taken = queue.slice(0, take);
+    this.host.state.queuedMessages = queue.slice(take);
+    flushPromptInputState(this.host);
+    return joinQueuedMessages(taken);
   }
 
   setLastTurnFailed(failed: boolean): void {
@@ -462,4 +478,26 @@ export class MessageDispatchController {
     }
     return first;
   }
+}
+
+function queuedMessageToCombineGate(message: QueuedMessage): CombineQueuedGate {
+  const text = (message.displayText ?? message.text).trim();
+  const expanded =
+    message.displayText !== undefined && message.displayText.trim() !== message.text.trim();
+  return {
+    isPlainPrompt: message.mode !== 'bash' && !expanded,
+    isBash: message.mode === 'bash',
+    hasImages: (message.imageAttachmentIds?.length ?? 0) > 0,
+    isExpandedSkill: expanded,
+    text,
+  };
+}
+
+function joinQueuedMessages(messages: readonly QueuedMessage[]): QueuedMessage {
+  const first = messages[0]!;
+  return {
+    ...first,
+    text: joinQueuedTexts(messages.map((m) => m.text)),
+    displayText: joinQueuedTexts(messages.map((m) => m.displayText ?? m.text)),
+  };
 }

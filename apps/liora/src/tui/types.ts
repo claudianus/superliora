@@ -416,6 +416,18 @@ export interface LivePaneState {
   pendingQuestion: PendingQuestion | null;
 }
 
+/** Live tool names for the turn-status strip (activity pane). */
+export interface TurnActivityTool {
+  readonly name: string;
+  readonly running: boolean;
+}
+
+export interface TurnActivityState {
+  readonly tools: readonly TurnActivityTool[];
+}
+
+export const EMPTY_TURN_ACTIVITY: TurnActivityState = { tools: [] };
+
 export interface QueuedMessage {
   readonly text: string;
   readonly displayText?: string;

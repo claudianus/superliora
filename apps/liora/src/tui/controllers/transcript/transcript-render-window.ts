@@ -132,20 +132,24 @@ export function mergeCurrentTurnSteps(host: TranscriptRenderHost): boolean {
 
   let thinkingCount = 0;
   let toolCount = 0;
+  const toolNames: string[] = [];
   for (const idx of toMergeIndices) {
     const child = children[idx]!;
     if (child instanceof ThinkingComponent) thinkingCount++;
-    else if (child instanceof ToolCallComponent) toolCount++;
+    else if (child instanceof ToolCallComponent) {
+      toolCount++;
+      toolNames.push(child.toolCallView.name);
+    }
   }
   if (thinkingCount === 0 && toolCount === 0) return false;
 
   let summary: StepSummaryComponent;
   if (summaryIndex >= 0) {
     summary = children[summaryIndex] as StepSummaryComponent;
-    summary.addCounts(thinkingCount, toolCount);
+    summary.addCounts(thinkingCount, toolCount, toolNames);
   } else {
     summary = new StepSummaryComponent();
-    summary.addCounts(thinkingCount, toolCount);
+    summary.addCounts(thinkingCount, toolCount, toolNames);
   }
 
   const toMergeSet = new Set(toMergeIndices);
@@ -201,18 +205,22 @@ export function mergeAllTurnSteps(host: TranscriptRenderHost): void {
       const toMergeIndices = stepIndices.slice(0, mergeCount);
       let thinkingCount = 0;
       let toolCount = 0;
+      const toolNames: string[] = [];
       for (const idx of toMergeIndices) {
         const child = children[idx]!;
         if (child instanceof ThinkingComponent) thinkingCount++;
-        else if (child instanceof ToolCallComponent) toolCount++;
+        else if (child instanceof ToolCallComponent) {
+          toolCount++;
+          toolNames.push(child.toolCallView.name);
+        }
       }
       let summary: StepSummaryComponent;
       if (summaryIndex >= 0) {
         summary = children[summaryIndex] as StepSummaryComponent;
-        summary.addCounts(thinkingCount, toolCount);
+        summary.addCounts(thinkingCount, toolCount, toolNames);
       } else {
         summary = new StepSummaryComponent();
-        summary.addCounts(thinkingCount, toolCount);
+        summary.addCounts(thinkingCount, toolCount, toolNames);
       }
       newChildren.push(summary);
       for (const idx of toMergeIndices) toDispose.push(children[idx]!);

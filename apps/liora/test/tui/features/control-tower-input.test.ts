@@ -157,6 +157,38 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
     expect(host.state.queuedMessages.map((m) => m.text)).toEqual(['hold this for later']);
   });
 
+  it('combines adjacent plain queued prompts into one drain', () => {
+    const host = fakeDispatchHost({ streamingPhase: 'running' });
+    const dispatch = controllerFor(host);
+
+    dispatch.sendNormalUserInput('one');
+    dispatch.sendNormalUserInput('two');
+    dispatch.sendNormalUserInput('three');
+    host.state.queuedMessages.push({ text: 'ls', mode: 'bash' });
+
+    const combined = dispatch.takeNextQueuedBatch();
+    expect(combined?.text).toBe('one\n\ntwo\n\nthree');
+    expect(combined?.displayText).toBe('one\n\ntwo\n\nthree');
+    expect(dispatch.takeNextQueuedBatch()?.text).toBe('ls');
+    expect(dispatch.takeNextQueuedBatch()).toBeUndefined();
+  });
+
+  it('does not combine an image follower or an expanded skill payload', () => {
+    const host = fakeDispatchHost({ streamingPhase: 'running' });
+    const dispatch = controllerFor(host);
+    host.state.queuedMessages = [
+      { text: 'see this', imageAttachmentIds: [1] },
+      { text: 'and that' },
+      { text: 'expanded body', displayText: '/commit' },
+      { text: 'later' },
+    ];
+
+    const first = dispatch.takeNextQueuedBatch();
+    expect(first?.text).toBe('see this\n\nand that');
+    expect(dispatch.takeNextQueuedBatch()?.displayText).toBe('/commit');
+    expect(dispatch.takeNextQueuedBatch()?.text).toBe('later');
+  });
+
   it('drains the queue FIFO via shift and pops the tail on recall', () => {
     const host = fakeDispatchHost({ streamingPhase: 'running' });
     const dispatch = controllerFor(host);
