@@ -53,12 +53,23 @@ export function observedUpgradeRequested(env = process.env) {
   return env[OBSERVED_UPGRADE_ENV] === '1';
 }
 
-/** True when the installer has no console — Upgrade Studio or `liora upgrade`. */
+/**
+ * @typedef {{ stdin?: { isTTY?: boolean }, stdout?: { isTTY?: boolean } }} InstallerStdio
+ */
+
+/**
+ * True when the installer has no console — Upgrade Studio or `liora upgrade`.
+ * @param {InstallerStdio} [io]
+ */
 export function installerStdioIsPiped(io = process) {
   return io.stdin?.isTTY !== true && io.stdout?.isTTY !== true;
 }
 
-/** Post-CLI-install work: observed upgrades skip blocking optional downloads. */
+/**
+ * Post-CLI-install work: observed upgrades skip blocking optional downloads.
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {InstallerStdio} [io]
+ */
 export function postInstallForObservedUpgrade(env = process.env, io = process) {
   if (observedUpgradeRequested(env) || installerStdioIsPiped(io)) {
     return { runSidecars: false, skipHostPackages: true };

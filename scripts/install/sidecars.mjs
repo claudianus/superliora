@@ -43,7 +43,7 @@ const SIDECAR_STDIO = ['ignore', 'inherit', 'inherit'];
  *   stepTimeoutMs?: number,
  *   budgetMs?: number,
  *   now?: () => number,
- *   spawnInstall?: typeof spawnInstall,
+ *   spawnInstall?: (command?: string, args?: readonly string[], options?: object) => { status?: number | null, signal?: string | null, error?: Error },
  *   runPnpm?: typeof runPnpm,
  *   ensurePnpm?: typeof ensurePnpm,
  *   downloadToFile?: typeof downloadToFile,

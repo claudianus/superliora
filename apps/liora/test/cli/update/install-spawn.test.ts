@@ -232,7 +232,7 @@ describe('spawnOptionsForSource', () => {
   it('marks observed upgrades so the installer skips prompt-bound sidecars', () => {
     const env = withObservedUpgradeEnv({ PATH: '/bin' });
     expect(env[OBSERVED_UPGRADE_ENV]).toBe('1');
-    expect(env.COREPACK_ENABLE_DOWNLOAD_PROMPT).toBe('0');
+    expect(env['COREPACK_ENABLE_DOWNLOAD_PROMPT']).toBe('0');
     const winCheckout = spawnOptionsForSource('github-checkout', 'win32', {
       stdio: ['ignore', 'pipe', 'pipe'],
       env,

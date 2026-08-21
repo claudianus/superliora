@@ -52,7 +52,7 @@ describe('scripts/install/sidecars', () => {
         pnpmCalls.push({ args, timeout: options.timeout, stdio: options.stdio });
         return { status: 0 };
       },
-      spawnInstall: (_cmd: string, _args: readonly string[], options: { timeout?: number; stdio?: unknown } = {}) => {
+      spawnInstall: (_cmd?: string, _args?: readonly string[], options: { timeout?: number; stdio?: unknown } = {}) => {
         spawnCalls.push({ timeout: options.timeout, stdio: options.stdio });
         return { status: 0 };
       },
