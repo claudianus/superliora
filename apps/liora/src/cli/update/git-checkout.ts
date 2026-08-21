@@ -137,11 +137,11 @@ export function defaultCheckoutCommandBinDir(
 ): string {
   if (platform === 'win32') {
     const base =
-      env.LOCALAPPDATA?.trim() ||
-      win32.join(env.USERPROFILE ?? env.HOME ?? homedir(), 'AppData', 'Local');
+      env['LOCALAPPDATA']?.trim() ||
+      win32.join(env['USERPROFILE'] ?? env['HOME'] ?? homedir(), 'AppData', 'Local');
     return win32.join(base, 'SuperLiora', 'bin');
   }
-  return join(env.HOME ?? homedir(), '.local', 'bin');
+  return join(env['HOME'] ?? homedir(), '.local', 'bin');
 }
 
 function toBashPath(value: string): string {
