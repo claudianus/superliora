@@ -107,6 +107,7 @@ export function createTUIStateNativeRenderCallback(
       calmSignals,
     );
     advanceAppearanceAnimationClock(shapedClockMs);
+    options.onAmbientTick?.(Date.now());
     // Advance smooth stream reveal on the shared clock before layout so type-on
     // catch-up paints in this frame (no private setTimeout chain).
     tickArmedStreamReveal();

@@ -44,7 +44,7 @@ describe('formatProviderQuotaFooterBadge', () => {
     expect(badge?.severity).toBe('info');
   });
 
-  it('uses warn/critical from remaining, not used%', () => {
+  it('uses worstRatio severity (≥70 warn, ≥90 danger)', () => {
     expect(
       formatProviderQuotaFooterBadge(snapshot('Claude 20% · 1h', 80), 'plain', 'anthropic-oauth')
         ?.severity,

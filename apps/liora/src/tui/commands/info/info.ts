@@ -125,7 +125,7 @@ export async function showQuota(host: SlashCommandHost): Promise<void> {
   const sessionUsage = await loadSessionUsageReport(host);
   let quota: AllProvidersUsageSnapshot | null = host.state.appState.providerQuota ?? null;
   try {
-    quota = await host.harness.auth.getQuotaSnapshot({ refresh: true });
+    quota = await host.harness.auth.getAllProvidersUsage({ refresh: true });
     host.setAppState({ providerQuota: quota });
   } catch {
     // Keep the last snapshot; the panel still overlays last-response headers.

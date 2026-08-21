@@ -4,13 +4,13 @@ import { overlayRouteRateLimits } from '@superliora/sdk';
 export async function refreshProviderQuotaOnHost(host: {
   readonly harness: {
     readonly auth: {
-      getQuotaSnapshot(options?: { readonly refresh?: boolean }): Promise<AllProvidersUsageSnapshot>;
+      getAllProvidersUsage(options?: { readonly refresh?: boolean }): Promise<AllProvidersUsageSnapshot>;
     };
   };
   setAppState(patch: { providerQuota: AllProvidersUsageSnapshot | null }): void;
 }): Promise<void> {
   try {
-    const quota = await host.harness.auth.getQuotaSnapshot({ refresh: true });
+    const quota = await host.harness.auth.getAllProvidersUsage({ refresh: true });
     host.setAppState({ providerQuota: quota });
   } catch {
     /* ignore — footer hides when unknown */

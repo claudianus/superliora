@@ -1,6 +1,6 @@
 import type { ProviderUsageSnapshot } from './provider-usage-types';
 
-export const DEFAULT_USAGE_TTL_MS = 90_000;
+export const DEFAULT_USAGE_TTL_MS = 120_000;
 export const ANTHROPIC_USAGE_TTL_MS = 180_000;
 
 const cache = new Map<string, { readonly value: ProviderUsageSnapshot; readonly fetchedAt: number }>();

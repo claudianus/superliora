@@ -62,6 +62,8 @@ export {
   isSubstantiveStreamPart,
 } from './generate';
 export type { GenerateCallbacks, GenerateResult } from './generate';
+export { parseResponseRateLimits } from './rate-limit-headers';
+export type { ResponseRateLimit } from './rate-limit-headers';
 
 // Stream idle / open timeout guards
 export {

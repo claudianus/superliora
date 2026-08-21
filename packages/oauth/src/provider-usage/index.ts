@@ -5,11 +5,13 @@
  *
  *   - **Kimi managed** (`managed:kimi-api`): `/usages`
  *   - **OpenAI Codex** (`openai-codex`): ChatGPT `wham/usage`
- *   - **Anthropic** (`anthropic-oauth`): `GET /api/oauth/usage` (Claude Pro/Max)
+ *   - **Anthropic** (`anthropic-oauth`): `count_tokens` + headers
+ *     (`/api/oauth/usage` only when `anthropic_oauth` is on)
  *   - **OpenRouter** (`openrouter`): `GET /api/v1/key`
  *   - **DeepSeek** (`deepseek`): `GET /user/balance`
- *   - **xAI Grok** (`xai-grok`): billing probe, then rate-limit headers
- *   - **Cursor** (`cursor-oauth`): official-ish usage JSON, else headers
+ *   - **Groq** (`groq`): `GET /openai/v1/models` + `x-ratelimit-*` (RPD)
+ *   - **xAI Grok** (`xai-grok`): `GET /models` + `x-ratelimit-*`
+ *   - **Cursor** (`cursor-oauth`): usage JSON when OAuth login exists
  *   - **ClinePass / Qwen / Z.AI**: existing plan / header probes
  *
  * models.dev catalog limits are never treated as account quota.
@@ -31,6 +33,7 @@ import { fetchClinePassUsage } from './provider-usage-fetch-clinepass';
 import { fetchOpenAiCodexUsage } from './provider-usage-fetch-codex';
 import { fetchCursorUsage } from './provider-usage-fetch-cursor';
 import { fetchDeepSeekUsage } from './provider-usage-fetch-deepseek';
+import { fetchGroqUsage } from './provider-usage-fetch-groq';
 import { fetchKimiManagedUsage } from './provider-usage-fetch-kimi';
 import { fetchOpenRouterUsage } from './provider-usage-fetch-openrouter';
 import { fetchQwenTokenPlanUsage } from './provider-usage-fetch-qwen';
@@ -89,6 +92,7 @@ export {
 export { parseAnthropicOAuthUsage } from './provider-usage-fetch-anthropic';
 export { parseOpenRouterKeyPayload } from './provider-usage-fetch-openrouter';
 export { parseDeepSeekBalancePayload } from './provider-usage-fetch-deepseek';
+export { parseGroqRateLimitHeaders } from './provider-usage-fetch-groq';
 
 async function fetchProviderUsageUncached(
   providerKey: string,
@@ -117,6 +121,9 @@ async function fetchProviderUsageUncached(
   if (providerKey === 'deepseek') {
     return fetchDeepSeekUsage(providerKey, accessToken, baseUrl, opts);
   }
+  if (providerKey === 'groq') {
+    return fetchGroqUsage(providerKey, accessToken, baseUrl, opts);
+  }
   if (providerKey === 'clinepass') {
     return fetchClinePassUsage(providerKey, accessToken, baseUrl, opts);
   }
@@ -143,7 +150,7 @@ async function fetchProviderUsageUncached(
 }
 
 /**
- * Fetch usage for a single provider by key. Cached (TTL 90s, Anthropic 180s)
+ * Fetch usage for a single provider by key. Cached (TTL 120s, Anthropic 180s)
  * with in-flight dedupe and stale-while-revalidate.
  */
 export async function fetchProviderUsage(

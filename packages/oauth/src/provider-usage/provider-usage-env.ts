@@ -5,6 +5,7 @@ export const ENV_USAGE_PROVIDERS: readonly {
 }[] = [
   { key: 'openrouter', envs: ['OPENROUTER_API_KEY'] },
   { key: 'deepseek', envs: ['DEEPSEEK_API_KEY'] },
+  { key: 'groq', envs: ['GROQ_API_KEY'] },
 ];
 
 export function detectEnvUsageProviderKeys(

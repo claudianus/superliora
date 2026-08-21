@@ -1,7 +1,7 @@
 import { currentTheme, type ColorToken } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
 import type { AllProvidersUsageSnapshot, ProviderUsageSnapshot } from '@superliora/sdk';
-import { snapshotRemainingRatio } from '@superliora/sdk';
+import { snapshotWorstRatio } from '@superliora/sdk';
 import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
 import { workingSetPressure } from '#/tui/utils/agent/context-working-set';
 import type { FooterLabels } from '#/tui/config';
@@ -202,15 +202,15 @@ function pickActiveQuotaSnapshot(
   return quota.providers.find((p) => p.available && (p.remainingDisplay ?? '').length > 0);
 }
 
-function remainingSeverity(remainingRatio: number | undefined): FooterBadgeSeverity {
-  if (remainingRatio === undefined) return 'info';
-  if (remainingRatio < 0.1) return 'danger';
-  if (remainingRatio < 0.25) return 'warning';
+function worstRatioSeverity(ratio: number): FooterBadgeSeverity {
+  if (ratio >= 0.9) return 'danger';
+  if (ratio >= 0.7) return 'warning';
   return 'info';
 }
 
 /**
  * Footer chip for the ACTIVE provider remaining quota.
+ * Severity still uses worstRatio (≥90% danger, ≥70% warning).
  * Hidden when remaining is unknown — never a fabricated 0%/100%.
  */
 export function formatProviderQuotaFooterBadge(
@@ -221,13 +221,13 @@ export function formatProviderQuotaFooterBadge(
   if (quota === undefined || quota === null) return null;
   const snap = pickActiveQuotaSnapshot(quota, activeProviderKey);
   if (snap === undefined) return null;
+  if (!snap.available || snap.error !== undefined) return null;
   const text = (snap.remainingDisplay ?? '').trim();
   if (text.length === 0) return null;
-  const remaining = snapshotRemainingRatio(snap);
   const compact = !isPlainLabels(labels);
   return {
     text: compact && text.length > 18 ? text.replace(/\s·\s/, ' ') : text,
-    severity: remainingSeverity(remaining),
+    severity: worstRatioSeverity(snapshotWorstRatio(snap)),
   };
 }
 

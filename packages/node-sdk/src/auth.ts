@@ -307,7 +307,7 @@ export class LioraAuthFacade {
 
   /**
    * Unified quota snapshot for the TUI footer and `/quota`.
-   * Cached per provider (90s, Anthropic 180s). Pass `{ refresh: true }` to bypass.
+   * Cached per provider (120s, Anthropic 180s). Pass `{ refresh: true }` to bypass.
    */
   async getQuotaSnapshot(
     options: { readonly refresh?: boolean } = {},
