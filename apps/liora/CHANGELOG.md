@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.12.10
+
+### Patch Changes
+
+- Keep chrome motion (header, footer, thought-orb, editor frame) alive on classic ConPTY. Large-area starfields stay static; Windows Terminal with WT_SESSION stays synchronized.
+
 ## 0.12.9
 
 ### Patch Changes
