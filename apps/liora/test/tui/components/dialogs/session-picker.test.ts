@@ -1,7 +1,12 @@
 import { visibleWidth } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SessionPickerComponent, type SessionRow } from '#/tui/components/dialogs/session/session-picker';
+import {
+  SessionPickerComponent,
+  sessionCollapsedLabel,
+  sessionPickerWindowSize,
+  type SessionRow,
+} from '#/tui/components/dialogs/session/session-picker';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   advanceAppearanceAnimationClock,
@@ -190,8 +195,8 @@ describe('SessionPickerComponent', () => {
     const lines = component.render(120).map((line) => stripAnsi(line));
     const currentLine = lines.find((line) => line.includes('this is current'));
     const otherLine = lines.find((line) => line.includes('not current'));
-    expect(currentLine).toContain('← current');
-    expect(otherLine).not.toContain('← current');
+    expect(currentLine).toContain('↝ current');
+    expect(otherLine).not.toContain('↝ current');
   });
 
   it('places the relative time on the same line as the title, not right-aligned', () => {
@@ -986,5 +991,128 @@ describe('SessionPickerComponent search coverage and inline rename', () => {
     component.handleInput(CTRL_R);
     component.handleInput('\r');
     expect(onRename).not.toHaveBeenCalled();
+  });
+});
+
+describe('SessionPickerComponent scan list', () => {
+  it('sizes the window from the terminal when maxVisibleSessions is omitted', () => {
+    expect(
+      sessionPickerWindowSize({ terminalRows: 24, selectedCardLines: 3, maxVisible: 4 }),
+    ).toBe(4);
+    expect(sessionPickerWindowSize({ terminalRows: 24, selectedCardLines: 3 })).toBeGreaterThan(4);
+    expect(sessionPickerWindowSize({ terminalRows: 48, selectedCardLines: 3 })).toBe(18);
+    expect(sessionPickerWindowSize({ terminalRows: 8, selectedCardLines: 3 })).toBe(2);
+  });
+
+  it('uses the last prompt as the idle label when the session has no title', () => {
+    expect(
+      sessionCollapsedLabel({
+        id: 'ses_untitled',
+        title: null,
+        last_prompt: 'retry oauth after 401',
+        work_dir: '/tmp/project',
+        updated_at: 1,
+      }),
+    ).toBe('retry oauth after 401');
+    expect(
+      sessionCollapsedLabel({
+        id: 'ses_named',
+        title: 'Fix login',
+        last_prompt: 'retry oauth after 401',
+        work_dir: '/tmp/project',
+        updated_at: 1,
+      }),
+    ).toBe('Fix login');
+  });
+
+  it('collapses idle rows to one line and expands only the selected card', () => {
+    const now = new Date('2026-05-11T12:00:00.000Z').getTime();
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+    const component = new SessionPickerComponent({
+      sessions: [
+        {
+          id: 'ses_selected',
+          title: 'Selected session',
+          last_prompt: 'please redesign the picker UI',
+          work_dir: '/tmp/project-a',
+          updated_at: now - 60 * 1000,
+        },
+        {
+          id: 'ses_idle',
+          title: 'Idle session',
+          last_prompt: 'secret idle prompt text',
+          work_dir: '/tmp/project-b',
+          updated_at: now - 2 * 60 * 1000,
+        },
+      ],
+      loading: false,
+      currentSessionId: 'ses_other',
+      terminalRows: () => 24,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    const output = renderPlain(component);
+    expect(output).toContain('Selected session');
+    expect(output).toContain('ses_selected');
+    expect(output).toContain('/tmp/project-a');
+    expect(output).toContain('please redesign the picker UI');
+    expect(output).toContain('Idle session');
+    expect(output).not.toContain('ses_idle');
+    expect(output).not.toContain('secret idle prompt text');
+    expect(output).not.toContain('/tmp/project-b');
+  });
+
+  it('shows the directory tail on idle rows when listing all workspaces', () => {
+    const now = new Date('2026-05-11T12:00:00.000Z').getTime();
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+    const component = new SessionPickerComponent({
+      sessions: [
+        {
+          id: 'ses_here',
+          title: 'Here',
+          work_dir: '/tmp/here',
+          updated_at: now,
+        },
+        {
+          id: 'ses_there',
+          title: 'There',
+          work_dir: '/tmp/other-app',
+          updated_at: now - 60 * 1000,
+        },
+      ],
+      loading: false,
+      currentSessionId: '',
+      scope: 'all',
+      terminalRows: () => 24,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    const output = renderPlain(component);
+    expect(output).toContain('There');
+    expect(output).toContain('/tmp/other-app');
+  });
+
+  it('shows more than four sessions on a tall terminal', () => {
+    const now = new Date('2026-05-11T12:00:00.000Z').getTime();
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+    const component = new SessionPickerComponent({
+      sessions: Array.from({ length: 12 }, (_, index) => ({
+        id: `ses_${String(index).padStart(2, '0')}`,
+        title: `Session ${String(index).padStart(2, '0')}`,
+        work_dir: '/tmp/project',
+        updated_at: now - index * 1000,
+      })),
+      loading: false,
+      currentSessionId: '',
+      terminalRows: () => 40,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    const output = renderPlain(component);
+    expect(output).toContain('Session 00');
+    expect(output).toContain('Session 09');
   });
 });

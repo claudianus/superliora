@@ -361,6 +361,11 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
   and a staggered row reveal with a pointer slide-in. Reduced motion / SSH
   / `NO_COLOR` degrade to a static `borderFocus` frame with the same
   layout.
+- **Session picker.** `/resume` is a scan list, not a 4-card stack. Idle
+  rows stay one line (title + relative time; all-workspaces also keeps the
+  directory tail). The selected row expands to id, directory, and last
+  prompt. Untitled sessions use the last prompt as the idle label. Window
+  height follows the terminal.
 - **Input.** `pushLegacyModalTarget` with a dedicated stack (not the single
   editor-replacement dispose slot). Esc closes the top modal via the panel
   `onCancel` → `closeCenterModal()`.

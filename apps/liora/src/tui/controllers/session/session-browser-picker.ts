@@ -108,6 +108,7 @@ export function mountSessionPickerFlow(
       scope: host.state.sessionsScope,
       initialSelectedSessionId: options.initialSelectedSessionId,
       pageSize: 50,
+      terminalRows: () => host.state.terminal.rows,
       onSelect: (session: SessionRow) => {
         void handleSessionPickerSelect(session, options.applyStartupModes === true).catch((error) => {
           host.showError(ttui('tui.session.startupFlagsFailed', { message: formatErrorMessage(error) }));
