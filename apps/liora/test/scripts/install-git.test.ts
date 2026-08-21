@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ensureRuntimePrereqs } from '#/cli/update/runtime-prereqs';
+import { ensureRuntimePrereqs, resolveInstallScript } from '#/cli/update/runtime-prereqs';
 import { getHostPackageRoot } from '#/cli/version';
 
 import {
@@ -94,11 +94,25 @@ describe('scripts/install/ensure-git', () => {
   });
 
   it('upgrade prereq hook finds shipped ensure-git from the CLI package root', async () => {
-    const result = await ensureRuntimePrereqs(getHostPackageRoot());
+    expect(resolveInstallScript(getHostPackageRoot(), 'ensure-git.mjs')).toBeTruthy();
+
+    const fakeRoot = await makeDir();
+    const installDir = join(fakeRoot, 'scripts', 'install');
+    await mkdir(installDir, { recursive: true });
+    await writeFile(
+      join(installDir, 'ensure-git.mjs'),
+      [
+        'export async function ensureGit(opts = {}) {',
+        "  if (opts.noShellRc !== true) throw new Error('upgrade hook must pass noShellRc');",
+        '  return { bootstrapped: false };',
+        '}',
+        '',
+      ].join('\n'),
+    );
+
+    const result = await ensureRuntimePrereqs(fakeRoot);
     expect(result.gitOk).toBe(true);
-    if (process.platform === 'win32') {
-      expect(result.gitBootstrapped).toBe(false);
-    }
+    expect(result.gitBootstrapped).toBe(false);
   });
 });
 
