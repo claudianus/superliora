@@ -153,7 +153,14 @@ async function startInProcessHttpMcpServer(opts?: {
         return;
       }
     }
-    void transport.handleRequest(req, res);
+    void transport.handleRequest(req, res).catch((error: unknown) => {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'content-type': 'application/json' });
+      }
+      if (!res.writableEnded) {
+        res.end(error instanceof Error ? error.message : String(error));
+      }
+    });
   });
 
   await new Promise<void>((resolve) => {
@@ -164,6 +171,10 @@ async function startInProcessHttpMcpServer(opts?: {
   return {
     url: `http://127.0.0.1:${port}/mcp`,
     async close() {
+      // Streamable HTTP holds an SSE socket; on Windows `close()` waits
+      // forever unless the transport and leftover connections go first.
+      await transport.close();
+      httpServer.closeAllConnections();
       await new Promise<void>((resolve, reject) => {
         httpServer.close((err) => {
           if (err) {
