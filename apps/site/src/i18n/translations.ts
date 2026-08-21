@@ -224,7 +224,7 @@ export interface Translation {
 }
 
 export const defaultLang: Lang = 'ko';
-export const PRODUCT_VERSION = '0.12.11';
+export const PRODUCT_VERSION = '0.12.12';
 
 const visualsKo: SiteVisuals = {
   statusRoute: {
@@ -448,7 +448,7 @@ const clustersKo: ClusterItem[] = [
     lead: 'Job Deck·Worker Dock·보드가 같은 화면에서 같이 움직입니다.',
     features: [
       { id: 'worker-dock', title: 'Worker Dock', body: '누가 어떤 도구를 도는지 옆 밴드에서 실시간으로 봅니다.' },
-      { id: 'todo-board', title: 'To\u200bdo Board', body: '하는 중·다음·완료를 보드로 읽습니다.' },
+      { id: 'todo-board', title: 'To\u200Bdo Board', body: '하는 중·다음·완료를 보드로 읽습니다.' },
       { id: 'worktree', title: '작업별 브랜치', body: '작업마다 분리된 브랜치라 병렬로 맡겨도 트리가 안 섞입니다.' },
       { id: 'job-deck', title: 'Job Deck', body: 'Alt+J로 diff·테스트·진행을 엽니다.' },
       { id: 'inbox', title: 'Inbox', body: '질문이 뜨면 Alt+I에서 한 줄로 답하고 이어서 돌립니다.' },
@@ -504,7 +504,7 @@ const clustersEn: ClusterItem[] = [
     lead: 'Real TUI chrome is the hero — Dock, board, and branches move together.',
     features: [
       { id: 'worker-dock', title: 'Worker Dock', body: 'Watch who is running which tool in the side band.' },
-      { id: 'todo-board', title: 'To\u200bdo Board', body: 'Read doing / next / done as a board, not a wall of logs.' },
+      { id: 'todo-board', title: 'To\u200Bdo Board', body: 'Read doing / next / done as a board, not a wall of logs.' },
       { id: 'worktree', title: 'Per-job branches', body: 'Each job gets its own branch so parallel work does not collide.' },
       { id: 'job-deck', title: 'Job Deck', body: 'Alt+J opens diffs, tests, and progress.' },
       { id: 'inbox', title: 'Inbox', body: 'When it asks, answer in Alt+I and it continues.' },

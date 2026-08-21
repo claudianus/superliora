@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.12.12
+
+### Patch Changes
+
+- Stop Upgrade Studio from installing optional sidecars and winget packages. Those steps need a console or UAC, and the studio has neither.
+
 ## 0.12.11
 
 ### Patch Changes
