@@ -4,6 +4,7 @@ import type { AgentGroupComponent } from '../../components/messages/agent-group'
 import { AssistantMessageComponent } from '../../components/messages/assistant-message';
 import type { CompactionComponent } from '../../components/dialogs/session/compaction';
 import type { ReadGroupComponent } from '../../components/messages/read-group';
+import type { SearchGroupComponent } from '../../components/messages/search-group';
 import type { ThinkingComponent } from '../../components/messages/thinking';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import {
@@ -140,6 +141,7 @@ export class StreamingUIController {
   private _phaseBoundary: PhaseBoundaryState = createPhaseBoundaryState();
   private _pendingAgentGroup: PendingToolGroup<AgentGroupComponent> | null = null;
   private _pendingReadGroup: PendingToolGroup<ReadGroupComponent> | null = null;
+  private _pendingSearchGroup: PendingToolGroup<SearchGroupComponent> | null = null;
 
   constructor(private readonly host: StreamingUIHost) {}
 
@@ -231,6 +233,10 @@ export class StreamingUIController {
     return this._pendingReadGroup !== null;
   }
 
+  hasPendingSearchGroup(): boolean {
+    return this._pendingSearchGroup !== null;
+  }
+
   removeToolComponentIfInactive(toolCallId: string): void {
     removeStreamingToolComponentIfInactive(
       this._activeToolCalls,
@@ -311,6 +317,9 @@ export class StreamingUIController {
       },
       clearPendingReadGroup: () => {
         this._pendingReadGroup = null;
+      },
+      clearPendingSearchGroup: () => {
+        this._pendingSearchGroup = null;
       },
       completedToolCallIds,
       flushState: this._flushState,
@@ -427,6 +436,7 @@ export class StreamingUIController {
     this.disposeAndClearPendingToolComponents();
     this._pendingAgentGroup = null;
     this._pendingReadGroup = null;
+    this._pendingSearchGroup = null;
   }
 
   resetToolCallState(): void {
@@ -563,6 +573,7 @@ export class StreamingUIController {
       phaseBoundary: this._phaseBoundary,
       pendingAgentGroup: this._pendingAgentGroup,
       pendingReadGroup: this._pendingReadGroup,
+      pendingSearchGroup: this._pendingSearchGroup,
       setStreamingBlock: (block) => {
         this._streamingBlock = block;
       },
@@ -577,6 +588,9 @@ export class StreamingUIController {
       },
       setPendingReadGroup: (group) => {
         this._pendingReadGroup = group;
+      },
+      setPendingSearchGroup: (group) => {
+        this._pendingSearchGroup = group;
       },
       finalizeLiveTextBuffers: (mode) =>{  this.finalizeLiveTextBuffers(mode); },
       onToolCallStart: (toolCall) =>{  this.onToolCallStart(toolCall); },

@@ -15,6 +15,7 @@ import { BackgroundAgentStatusComponent } from '../../components/messages/backgr
 import { CronMessageComponent } from '../../components/messages/cron-message';
 import { PluginCommandComponent } from '../../components/messages/plugin-command';
 import { ReadGroupComponent } from '../../components/messages/read-group';
+import { SearchGroupComponent } from '../../components/messages/search-group';
 import { SkillActivationComponent } from '../../components/messages/skill-activation';
 import { ThinkingComponent } from '../../components/messages/thinking';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
@@ -485,6 +486,7 @@ function isUndoContextComponent(child: Component): boolean {
     child instanceof ToolCallComponent ||
     child instanceof AgentGroupComponent ||
     child instanceof ReadGroupComponent ||
+    child instanceof SearchGroupComponent ||
     child instanceof SkillActivationComponent ||
     child instanceof PluginCommandComponent ||
     child instanceof BackgroundAgentStatusComponent ||

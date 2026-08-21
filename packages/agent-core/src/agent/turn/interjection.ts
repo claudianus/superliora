@@ -15,11 +15,11 @@ export const UNFINISHED_PREVIOUS_TURNS_REMINDER =
   'Make sure to complete any unfinished tasks from previous turns.';
 export const LARGE_STEER_THRESHOLD = 25_000;
 
-export function userQueryEnvelope(text: string): string {
+function userQueryEnvelope(text: string): string {
   return `<user_query>\n${text}\n</user_query>`;
 }
 
-export function frameSteeredUserTurn(
+function frameSteeredUserTurn(
   note: string,
   assembled: string,
   reminder = UNFINISHED_TASKS_REMINDER,
@@ -27,7 +27,7 @@ export function frameSteeredUserTurn(
   return `${note}\n${assembled}\n${reminder}`;
 }
 
-export function truncateSteerText(text: string, limit = LARGE_STEER_THRESHOLD): string {
+function truncateSteerText(text: string, limit = LARGE_STEER_THRESHOLD): string {
   if (text.length <= limit) return text;
   let end = 0;
   for (const char of text) {

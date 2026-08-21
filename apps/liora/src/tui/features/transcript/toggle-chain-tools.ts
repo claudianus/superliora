@@ -10,6 +10,7 @@ import type { Component } from '#/tui/renderer';
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { AssistantMessageComponent } from '#/tui/components/messages/assistant-message';
 import { ReadGroupComponent } from '#/tui/components/messages/read-group';
+import { SearchGroupComponent } from '#/tui/components/messages/search-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import { UserMessageComponent } from '#/tui/components/messages/user-message';
 import { isOneLineToolLevel } from '#/tui/features/transcript/transcript-density';
@@ -36,12 +37,16 @@ function appendToolsFromChild(child: Component, tools: ToolCallComponent[]): voi
   }
   if (child instanceof ReadGroupComponent) {
     tools.push(...child.getToolComponents());
+    return;
+  }
+  if (child instanceof SearchGroupComponent) {
+    tools.push(...child.getToolComponents());
   }
 }
 
 /**
  * Collect tool cards after the chain bar until the next turn or answer phase.
- * Includes tools nested in Agent/Read groups.
+ * Includes tools nested in Agent/Read/Search groups.
  */
 export function collectToolsAfterChain(
   children: readonly Component[],

@@ -1,8 +1,10 @@
 import { AgentGroupComponent } from '../../components/messages/agent-group';
 import { ReadGroupComponent } from '../../components/messages/read-group';
+import { SearchGroupComponent } from '../../components/messages/search-group';
 import type { ToolCallComponent } from '../../components/messages/tool-call/index';
 import type { ToolCallBlockData } from '../../types';
 import type { TUIState } from '../../tui-state';
+import { isSearchFamilyTool } from '#/tui/features/transcript/verb-group';
 import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 
 /** Tracks the in-progress solo→group upgrade for a run of same-step tool calls. */
@@ -121,6 +123,64 @@ export function tryAttachReadToolCall(
 
 function upgradeSoloReadToGroup(state: TUIState, solo: ToolCallComponent): ReadGroupComponent {
   const group = new ReadGroupComponent(state.ui);
+  // Slot replace only — full invalidate() would wipe every sibling render cache.
+  if (!state.transcriptContainer.replaceChild(solo, group)) {
+    state.transcriptContainer.addChild(group);
+  }
+  group.attach(solo.toolCallView.id, solo);
+  return group;
+}
+
+/**
+ * Attempts to fold a consecutive search/dir-call run (Grep, Glob, LS, …)
+ * into a single `SearchGroupComponent`. Mixed search+dir members stay in
+ * one group; Read/Agent runs stay on their own attachers.
+ */
+export function tryAttachSearchToolCall(
+  state: TUIState,
+  toolCall: ToolCallBlockData,
+  tc: ToolCallComponent,
+  currentStep: number,
+  currentTurnId: string | undefined,
+  pending: PendingToolGroup<SearchGroupComponent> | null,
+): { handled: boolean; pending: PendingToolGroup<SearchGroupComponent> | null } {
+  if (!isSearchFamilyTool(toolCall.name)) {
+    return { handled: false, pending: null };
+  }
+
+  const step = toolCall.step ?? currentStep;
+  const turnId = toolCall.turnId ?? currentTurnId;
+  let cur = pending;
+
+  if (cur !== null && (cur.step !== step || cur.turnId !== turnId)) {
+    cur = null;
+  }
+
+  if (cur === null) {
+    state.transcriptContainer.addChild(tc);
+    requestTUILayoutRender(state);
+    return { handled: true, pending: { step, turnId, solo: tc } };
+  }
+
+  if (cur.group !== undefined) {
+    cur.group.attach(toolCall.id, tc);
+    return { handled: true, pending: cur };
+  }
+
+  const solo = cur.solo;
+  if (solo === undefined) {
+    state.transcriptContainer.addChild(tc);
+    requestTUILayoutRender(state);
+    return { handled: true, pending: { step, turnId, solo: tc } };
+  }
+  const group = upgradeSoloSearchToGroup(state, solo);
+  group.attach(toolCall.id, tc);
+  requestTUILayoutRender(state);
+  return { handled: true, pending: { step, turnId, group } };
+}
+
+function upgradeSoloSearchToGroup(state: TUIState, solo: ToolCallComponent): SearchGroupComponent {
+  const group = new SearchGroupComponent(state.ui);
   // Slot replace only — full invalidate() would wipe every sibling render cache.
   if (!state.transcriptContainer.replaceChild(solo, group)) {
     state.transcriptContainer.addChild(group);

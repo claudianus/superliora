@@ -20,6 +20,7 @@ import type { StreamingUIController } from '#/tui/controllers/streaming-ui/index
 import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ReadGroupComponent } from '#/tui/components/messages/read-group';
+import { SearchGroupComponent } from '#/tui/components/messages/search-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import {
   REPLAY_MAX_TOOL_MOUNTS_PER_TURN,
@@ -711,6 +712,38 @@ describe('LioraTUI resume message replay', () => {
     expect(driver.streamingUI.hasPendingReadGroup()).toBe(false);
     expect(driver.streamingUI.getToolComponent('call_read_1')).toBeUndefined();
     expect(driver.streamingUI.getToolComponent('call_read_2')).toBeUndefined();
+  });
+
+  it('groups replayed Grep and LS calls from one assistant message', async () => {
+    const replay: AgentReplayRecord[] = [
+      message('user', [{ type: 'text', text: 'search files' }]),
+      message('assistant', [], {
+        toolCalls: [
+          toolCall('call_grep_1', 'Grep', { pattern: 'TODO' }),
+          toolCall('call_ls_1', 'LS', { path: '/tmp/proj-a/src' }),
+        ],
+      }),
+      message('tool', [{ type: 'text', text: 'a.ts:1:TODO\n' }], {
+        toolCallId: 'call_grep_1',
+      }),
+      message('tool', [{ type: 'text', text: 'a.ts\nb.ts\n' }], {
+        toolCallId: 'call_ls_1',
+      }),
+    ];
+
+    const driver = await replayIntoDriver(replay);
+    const group = driver.state.transcriptContainer.children.find(
+      (child) => child instanceof SearchGroupComponent,
+    );
+
+    expect(group).toBeInstanceOf(SearchGroupComponent);
+    expect((group as SearchGroupComponent).size()).toBe(2);
+    const output = stripAnsi((group as SearchGroupComponent).render(120).join('\n'));
+    expect(output).toContain('Searched 1 pattern · Listed 1 dir');
+    expect(output).toContain('TODO');
+    expect(driver.streamingUI.hasPendingSearchGroup()).toBe(false);
+    expect(driver.streamingUI.getToolComponent('call_grep_1')).toBeUndefined();
+    expect(driver.streamingUI.getToolComponent('call_ls_1')).toBeUndefined();
   });
 
   it('hydrates todo and background snapshot state from resumed main agent', async () => {

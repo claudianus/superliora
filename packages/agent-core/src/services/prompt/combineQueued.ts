@@ -6,7 +6,7 @@ import type { PromptState } from './promptState';
 
 export const COMBINED_PROMPT_SEPARATOR = '\n\n';
 
-export interface CombinePromptGate {
+interface CombinePromptGate {
   readonly isPlainPrompt: boolean;
   readonly isBash: boolean;
   readonly hasImages: boolean;
@@ -47,7 +47,7 @@ export function promptStateToCombineGate(state: PromptState): CombinePromptGate 
   };
 }
 
-export function canMergePromptFront(gate: CombinePromptGate): boolean {
+function canMergePromptFront(gate: CombinePromptGate): boolean {
   return (
     gate.isPlainPrompt &&
     !gate.isBash &&
@@ -57,7 +57,7 @@ export function canMergePromptFront(gate: CombinePromptGate): boolean {
   );
 }
 
-export function canMergePromptFollower(gate: CombinePromptGate): boolean {
+function canMergePromptFollower(gate: CombinePromptGate): boolean {
   return canMergePromptFront(gate) && !gate.hasImages;
 }
 

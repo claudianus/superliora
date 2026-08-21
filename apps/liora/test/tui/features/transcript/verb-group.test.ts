@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyToolVerbKind,
   formatVerbGroupLabel,
+  isSearchFamilyTool,
   turnActivityIdentity,
 } from '#/tui/features/transcript/verb-group';
 
@@ -32,6 +33,18 @@ describe('formatVerbGroupLabel', () => {
     expect(
       formatVerbGroupLabel([{ name: 'Edit' }, { name: 'Write' }, { name: 'Bash' }]),
     ).toBe('Edited 1 file · Wrote 1 file · Ran 1 command');
+  });
+});
+
+describe('isSearchFamilyTool', () => {
+  it('includes search and directory tools only', () => {
+    expect(isSearchFamilyTool('Grep')).toBe(true);
+    expect(isSearchFamilyTool('Glob')).toBe(true);
+    expect(isSearchFamilyTool('LS')).toBe(true);
+    expect(isSearchFamilyTool('LioraTree')).toBe(true);
+    expect(isSearchFamilyTool('Read')).toBe(false);
+    expect(isSearchFamilyTool('Agent')).toBe(false);
+    expect(isSearchFamilyTool('Bash')).toBe(false);
   });
 });
 

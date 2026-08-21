@@ -84,6 +84,12 @@ export function classifyToolVerbKind(name: string): VerbGroupKind {
   return 'other';
 }
 
+/** Grep/Glob/LS and the same verb-family — fold into `SearchGroupComponent`. */
+export function isSearchFamilyTool(name: string): boolean {
+  const kind = classifyToolVerbKind(name);
+  return kind === 'search' || kind === 'dir';
+}
+
 export function formatVerbGroupLabel(
   items: readonly VerbGroupItem[],
   options?: { readonly running?: boolean },

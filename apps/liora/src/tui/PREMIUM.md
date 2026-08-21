@@ -573,7 +573,7 @@ Rules:
   text stays selectable). The **chain phase bar** (minimal + compact +
   standard mounts) bulk-toggles every one-line tool in the same turn —
   expand-all if any card is collapsed, else collapse-all. Includes tools
-  nested under Agent/Read groups. Standard/full cards are left alone
+  nested under Agent/Read/Search groups. Standard/full cards are left alone
   (no one-line collapse). Wheel, drag, and release pass through to
   selection and tool-output scrolling.
 
