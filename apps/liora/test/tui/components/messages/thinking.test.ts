@@ -2,10 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import chalk from 'chalk';
 
 import { visibleWidth, type RendererRootUI } from '#/tui/renderer';
-import { ThinkingComponent } from '#/tui/components/messages/thinking';
+import {
+  ThinkingComponent,
+  renderThinkingMascot,
+  thinkingMascotGlyph,
+} from '#/tui/components/messages/thinking';
+import { THINKING_MASCOT_FRAMES, THINKING_MASCOT_PERIOD_MS } from '#/tui/constant/rendering';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
-import { advanceAppearanceAnimationClock } from '#/tui/features/appearance/appearance-effects';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+} from '#/tui/features/appearance/appearance-effects';
 import { setActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
+import { currentTheme } from '#/tui/theme';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -45,9 +55,9 @@ describe('ThinkingComponent', () => {
     const component = new ThinkingComponent('working it out', true, 'live');
     const out = strip(component.render(80).join('\n'));
 
-    expect(out).toContain('⠋ thinking...');
-    expect(out).not.toContain('  ⠋ thinking...');
-    expect(out).not.toContain(`${STATUS_BULLET}⠋`);
+    expect(out).toMatch(/[·∘○◎●] thinking\.\.\./);
+    expect(out).not.toMatch(/  [·∘○◎●] thinking\.\.\./);
+    expect(out).not.toMatch(new RegExp(`${STATUS_BULLET}[·∘○◎●]`));
     // Live thinking surfaces a short tail glance so progress is transparent.
     expect(out).toContain('working it out');
   });
@@ -87,18 +97,18 @@ describe('ThinkingComponent', () => {
       requestRender: vi.fn(),
     } as unknown as RendererRootUI);
 
-    // Frame 0 at time 0.
-    expect(strip(component.render(80).join('\n'))).toContain('⠋ thinking...');
+    // Cosine start: dust glyph.
+    expect(strip(component.render(80).join('\n'))).toContain('· thinking...');
 
-    // Advance the animation clock by one spinner interval → frame 1.
-    advanceAppearanceAnimationClock(80);
-    expect(strip(component.render(80).join('\n'))).toContain('⠙ thinking...');
+    // Mid-period dwells on the filled orb.
+    advanceAppearanceAnimationClock(THINKING_MASCOT_PERIOD_MS / 2);
+    expect(strip(component.render(80).join('\n'))).toContain('● thinking...');
 
     // After finalize the spinner line is replaced by the "thinking complete"
-    // summary — no spinner glyph should appear.
+    // summary — no live "thinking..." row.
     component.finalize();
     const finalized = strip(component.render(80).join('\n'));
-    expect(finalized).not.toContain('⠙');
+    expect(finalized).not.toContain('thinking...');
     expect(finalized).toContain('thinking complete');
   });
 
@@ -218,7 +228,7 @@ describe('ThinkingComponent', () => {
     try {
       const live = new ThinkingComponent(longThinking, true, 'live');
       const liveOut = strip(live.render(80).join('\n'));
-      expect(liveOut).toContain('Thinking…');
+      expect(liveOut).toMatch(/[·∘○◎●] Thinking…/);
       expect(liveOut).not.toContain('thinking...');
       expect(liveOut).not.toContain('line7');
       expect(liveOut).not.toContain('ctrl+o to expand');
@@ -226,10 +236,77 @@ describe('ThinkingComponent', () => {
       live.finalize();
       const done = strip(live.render(80).join('\n'));
       expect(done).toContain('Thought briefly');
+      expect(done).not.toMatch(/[·∘○◎●] Thought/);
       expect(done).not.toContain('thinking complete');
       expect(done).not.toContain('line7');
     } finally {
       setActiveTranscriptDetail('standard');
+    }
+  });
+});
+
+describe('thinking thought-orb mascot', () => {
+  const EMOJI_OR_DINGBAT = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]|\u{FE0F}/u;
+  const ENV_KEYS = ['TERM', 'NO_COLOR', 'CI', 'SSH_CLIENT', 'SSH_CONNECTION', 'SSH_TTY'] as const;
+  const savedEnv: Record<string, string | undefined> = {};
+
+  function setMotionEnv(motionOn: boolean): void {
+    for (const key of ENV_KEYS) delete process.env[key];
+    process.env['TERM'] = 'xterm-256color';
+    if (!motionOn) process.env['NO_COLOR'] = '1';
+  }
+
+  beforeEach(() => {
+    for (const key of ENV_KEYS) savedEnv[key] = process.env[key];
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  });
+
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      if (savedEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = savedEnv[key];
+    }
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  });
+
+  it('uses five monospace-safe orb glyphs', () => {
+    expect([...THINKING_MASCOT_FRAMES]).toEqual(['·', '∘', '○', '◎', '●']);
+    for (const frame of THINKING_MASCOT_FRAMES) {
+      expect(frame).not.toMatch(EMOJI_OR_DINGBAT);
+      expect(visibleWidth(frame)).toBe(1);
+    }
+  });
+
+  it('morphs through every orb on a cosine period', () => {
+    setMotionEnv(true);
+    const seen = new Set<string>();
+    for (let step = 0; step < 32; step++) {
+      seen.add(thinkingMascotGlyph((step / 32) * THINKING_MASCOT_PERIOD_MS));
+    }
+    expect(seen).toEqual(new Set(THINKING_MASCOT_FRAMES));
+    expect(thinkingMascotGlyph(0)).toBe('·');
+    expect(thinkingMascotGlyph(THINKING_MASCOT_PERIOD_MS / 2)).toBe('●');
+  });
+
+  it('freezes on the rest orb when color motion is gated off', () => {
+    setMotionEnv(false);
+    expect(thinkingMascotGlyph(0)).toBe('○');
+    expect(thinkingMascotGlyph(THINKING_MASCOT_PERIOD_MS / 2)).toBe('○');
+  });
+
+  it('applies the brand gradient pulse when motion and premium are active', () => {
+    setMotionEnv(true);
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    advanceAppearanceAnimationClock(0);
+    const painted = renderThinkingMascot();
+    expect(strip(painted)).toBe('· ');
+    const plain = currentTheme.fg('textDim', '· ');
+    if (plain !== '· ') {
+      expect(painted).not.toBe(plain);
     }
   });
 });

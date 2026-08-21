@@ -16,9 +16,9 @@ import {
 } from '#/tui/renderer';
 
 import {
-  BRAILLE_SPINNER_FRAMES,
-  BRAILLE_SPINNER_INTERVAL_MS,
   MESSAGE_INDENT,
+  THINKING_MASCOT_FRAMES,
+  THINKING_MASCOT_PERIOD_MS,
   THINKING_PREVIEW_LINES,
 } from '#/tui/constant/rendering';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
@@ -26,7 +26,7 @@ import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
-  progressMotionFrame,
+  progressMotionActive,
   renderPulseText,
   renderSpectacularText,
   shouldRenderAmbientEffects,
@@ -202,17 +202,7 @@ export class ThinkingComponent implements Component {
           const streamedBody = caretOn
             ? appendStreamingCaret(visibleLines.map((line) => MESSAGE_INDENT + line))
             : visibleLines.map((line) => MESSAGE_INDENT + line);
-          const spinnerFrame = progressMotionFrame(
-            BRAILLE_SPINNER_INTERVAL_MS,
-            BRAILLE_SPINNER_FRAMES.length,
-          );
-          const spinnerGlyph = BRAILLE_SPINNER_FRAMES[spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0];
-          const spinner = shouldRenderAmbientEffects(appearance)
-            ? renderSpectacularText(`${spinnerGlyph} `, `thinking:spin:${spinnerGlyph}`, appearance, {
-                intense: true,
-                pace: 'fast',
-              })
-            : currentTheme.fg('textDim', `${spinnerGlyph} `);
+          const spinner = renderThinkingMascot(appearance);
           const elapsed = this.renderElapsedSuffix();
           const stall = this.renderStallSuffix();
           const charCount = this.text.length;
@@ -309,8 +299,10 @@ export class ThinkingComponent implements Component {
       elapsedMs: this.elapsedMs(),
       stalled: this.renderStallSuffix().length > 0,
     });
+    const compactLine =
+      this.mode === 'live' ? `${renderThinkingMascot(appearance)}${label}` : label;
     if (!this.expanded) {
-      return polishTranscriptLines(['', label], {
+      return polishTranscriptLines(['', compactLine], {
         startedAtMs: this.entranceStartedAtMs,
         kind: 'thinking',
         streaming: this.mode === 'live',
@@ -330,7 +322,7 @@ export class ThinkingComponent implements Component {
     const body = caretOn
       ? appendStreamingCaret(visible.map((line) => MESSAGE_INDENT + line))
       : visible.map((line) => MESSAGE_INDENT + line);
-    return polishTranscriptLines(['', label, ...body], {
+    return polishTranscriptLines(['', compactLine, ...body], {
       startedAtMs: this.entranceStartedAtMs,
       kind: 'thinking',
       streaming: this.mode === 'live',
@@ -366,4 +358,35 @@ function renderThinkingStatusLabel(label: string): string {
     });
   }
   return currentTheme.fg('textDim', label);
+}
+
+/**
+ * Cosine thought-orb morph on the shared animation clock (PREMIUM §7.3).
+ * Five one-cell glyphs, dwells at dust (`·`) and the filled orb (`●`).
+ * Functional rotation stays on when Appearance is off; only `NO_COLOR` /
+ * `TERM=dumb` freeze at the rest `○`.
+ */
+export function thinkingMascotGlyph(nowMs: number = appearanceAnimationNow()): string {
+  const frames = THINKING_MASCOT_FRAMES;
+  const last = frames.length - 1;
+  if (!progressMotionActive()) return frames[2] ?? '○';
+  const period = THINKING_MASCOT_PERIOD_MS;
+  const t = (((nowMs % period) + period) % period) / period;
+  const wave = 0.5 - 0.5 * Math.cos(2 * Math.PI * t);
+  const idx = Math.min(last, Math.round(wave * last));
+  return frames[idx] ?? '○';
+}
+
+export function renderThinkingMascot(
+  appearance: ReturnType<typeof getActiveAppearancePreferences> = getActiveAppearancePreferences(),
+): string {
+  const glyph = thinkingMascotGlyph();
+  const padded = `${glyph} `;
+  if (shouldRenderAmbientEffects(appearance)) {
+    return renderSpectacularText(padded, `thinking:mascot:${glyph}`, appearance, {
+      intense: true,
+      pace: 'fast',
+    });
+  }
+  return currentTheme.fg('textDim', padded);
 }
