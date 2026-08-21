@@ -4,6 +4,15 @@
 
 [Live site](https://claudianus.github.io/superliora/) · [한국어](./README.ko.md) · [Docs](https://claudianus.github.io/superliora/docs/getting-started.html)
 
+## Features
+
+- **Conductor** — write the outcome; implementation runs as isolated git worktree Jobs
+- **Job Deck + Inbox** — `Alt+J` watches progress, `Alt+I` answers questions, then Land locally what passed
+- **Smart Auto** — model fallback and login pools keep a turn alive when a model or account blips
+- **Command Hub** — `Ctrl+K` (also `Ctrl+Space` / `?`) for settings, modes, sessions, and upgrade
+- **Host setup** — `/host-setup` plus a Desktop shortcut; Windows can put `SUPERLIORA_HOME` on a roomier drive
+- **Locale** — Korean / English via `SUPERLIORA_LOCALE=ko|en` or Settings → Language
+
 ## Install
 
 Requires **Node.js ≥24.15.0**.
@@ -24,6 +33,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubus
 liora --version
 ```
 
+After a GitHub Release, `liora upgrade` (or `/upgrade` in the TUI) updates the install. That tracks published releases, not arbitrary `main` commits. Use `--main` for tip of main.
+
 ## Usage
 
 ```bash
@@ -32,7 +43,17 @@ liora --continue      # resume last session in this directory
 liora --plan          # start with Plan Desk steering
 ```
 
-Inside the TUI: `/login` and `/model` to connect a provider, then describe the outcome. Conductor creates a Job. Watch with `/jobs` or `Alt+J` (Job Deck). Answer prompts in Inbox (`Alt+I`).
+Inside the TUI: `/login` and `/model` to connect a provider, `/host-setup` if the terminal is thin, then describe the outcome. Conductor creates a Job. Watch with `/jobs` or `Alt+J` (Job Deck). Answer prompts in Inbox (`Alt+I`). Command Hub is `Ctrl+K`.
+
+## CLI
+
+Day-to-day argv:
+
+```bash
+liora upgrade         # update to the latest GitHub Release
+liora doctor          # check config; --storage reports local disk use
+liora gc              # reclaim idle local storage
+```
 
 ## Docs & develop
 

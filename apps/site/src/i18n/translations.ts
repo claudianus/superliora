@@ -471,8 +471,9 @@ const clustersKo: ClusterItem[] = [
     lead: '찾기·diff·연구·확장이 같은 화면 안에 있습니다.',
     features: [
       { id: 'in-tui-diff', title: '화면 안 diff', body: '파일·검색·변경을 터미널을 떠나지 않고 봅니다.' },
-      { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K로 설정·명령·모드를 한곳에서 찾습니다.' },
+      { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K로 설정·모드·세션·업그레이드를 찾습니다.' },
       { id: 'visual-quality', title: 'Visual Quality', body: '모션·밀도·글로우를 Neon Noir에 맞춰 조정합니다.' },
+      { id: 'performance', title: 'Performance', body: '저사양에서는 Settings → Appearance 또는 /performance로 off · auto · on을 켭니다.' },
       { id: 'deep-research', title: 'Deep research', body: '긴 조사는 작업으로 돌려 두고 결과만 받습니다.' },
       { id: 'extensions', title: 'Extensions', body: '스킬·MCP·훅을 허브에서 붙입니다.' },
       { id: 'locale', title: '한국어 / English', body: 'UI 언어를 바꿔도 흐름은 같습니다.' },
@@ -526,8 +527,9 @@ const clustersEn: ClusterItem[] = [
     lead: 'Search, diffs, research, and extensions live on the same stage.',
     features: [
       { id: 'in-tui-diff', title: 'In-TUI diff', body: 'Files, search, and changes without leaving the terminal.' },
-      { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K finds settings, commands, and modes.' },
+      { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K finds settings, modes, sessions, and upgrade.' },
       { id: 'visual-quality', title: 'Visual Quality', body: 'Tune motion, density, and glow for Neon Noir.' },
+      { id: 'performance', title: 'Performance', body: 'Opt-in for low-spec machines: off, auto, or on. Settings → Appearance or /performance.' },
       { id: 'deep-research', title: 'Deep research', body: 'Long investigations run as jobs; you get the result.' },
       { id: 'extensions', title: 'Extensions', body: 'Skills, MCP, and hooks from one hub.' },
       { id: 'locale', title: '한국어 / English', body: 'Same flow in either UI language.' },
@@ -693,8 +695,8 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           keys: 'Ctrl+K',
-          title: '전체 검색',
-          body: '설정·명령·모드를 한곳에서 찾습니다.',
+          title: 'Command Hub',
+          body: '설정·모드·세션·업그레이드. Ctrl+Space나 ?로도 엽니다.',
         },
         {
           keys: 'Shift-Tab',
@@ -706,7 +708,7 @@ export const translations: Record<Lang, Translation> = {
     install: {
       kicker: '설치법',
       title: '한 줄이면 설치됩니다.',
-      body: '그다음 프로젝트에서 liora를 켜고 /login과 /model로 연결하세요. Windows는 여유 있는 드라이브를 고를 수 있고, 설치 후 바탕 화면 바로가기가 생기며, 터미널이 얇으면 /host-setup을 쓰세요.',
+      body: '그다음 프로젝트에서 liora를 켜고 /login과 /model로 연결하세요. Windows는 여유 있는 드라이브를 고를 수 있고, 설치 후 바탕 화면 바로가기가 생기며, 터미널이 얇으면 /host-setup을 쓰세요. GitHub Release가 나오면 liora upgrade 또는 /upgrade로 갱신합니다.',
       requirements: NODE_REQUIREMENT,
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
@@ -753,11 +755,11 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '설치 후',
-            body: '설치가 끝나면 바탕 화면의 SuperLiora를 더블클릭해 실제 터미널에서 TUI를 엽니다. /host-setup은 확인 목록을 보여 준 뒤 Windows Terminal(Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf를 적용합니다. UI 언어는 SUPERLIORA_LOCALE=ko|en 또는 Settings → Language.',
+            body: '설치가 끝나면 바탕 화면의 SuperLiora를 더블클릭해 실제 터미널에서 TUI를 엽니다. /host-setup은 확인 목록을 보여 준 뒤 Windows Terminal(Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf를 적용합니다. GitHub Release가 나오면 liora upgrade 또는 /upgrade로 설치를 갱신합니다. 추적은 공개 Release이고, main 최신은 --main. UI 언어는 SUPERLIORA_LOCALE=ko|en 또는 Settings → Language.',
           },
           {
             heading: '사용법',
-            body: '프로젝트 폴더에서 세션을 열고 /login과 /model로 모델을 연결한 뒤, 원하는 결과를 적습니다.',
+            body: '프로젝트 폴더에서 세션을 열고 /login과 /model로 모델을 연결한 뒤, 원하는 결과를 적습니다. 점검은 liora doctor, 로컬 정리는 liora gc.',
             code: 'liora\nliora --continue\nliora --plan\n/login\n/model\n/host-setup',
           },
           {
@@ -822,7 +824,7 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: '기본',
-            body: 'Alt+J 진행 · Alt+I 질문함 · Alt+B 빠른 요청서 · Ctrl+K 전체 검색.',
+            body: 'Alt+J 진행 · Alt+I 질문함 · Alt+B 빠른 요청서 · Ctrl+K Command Hub. Hub는 Ctrl+Space, ?, /help로도 엽니다.',
           },
           {
             heading: '작업 분위기',
@@ -843,12 +845,12 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: '실행',
-            body: '세션을 여는 방법.',
-            code: 'liora\nliora --continue\nliora --plan\nliora --worktree [name]',
+            body: '세션을 열고, 갱신하고, 점검을 돌립니다.',
+            code: 'liora\nliora --continue\nliora --plan\nliora --worktree [name]\nliora upgrade\nliora doctor\nliora gc',
           },
           {
             heading: '슬래시',
-            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help',
+            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help · /upgrade · /resume · /performance · /transcript. /resume는 Command Hub → Sessions. /performance는 선택 Performance 모드(off|auto|on, Settings → Appearance). /transcript는 대화 밀도.',
           },
           {
             heading: 'Ask 모드',
@@ -1015,7 +1017,7 @@ export const translations: Record<Lang, Translation> = {
         {
           keys: 'Ctrl+K',
           title: 'Command Hub',
-          body: 'Find settings and commands in one place.',
+          body: 'Settings, modes, sessions, upgrade. Also Ctrl+Space or ?.',
         },
         {
           keys: 'Shift-Tab',
@@ -1027,7 +1029,7 @@ export const translations: Record<Lang, Translation> = {
     install: {
       kicker: 'Install',
       title: 'One line to install.',
-      body: 'Then run liora in a project and connect a model with /login and /model. Windows may pick a roomier drive; after install, a Desktop shortcut opens the TUI; run /host-setup if the terminal is thin.',
+      body: 'Then run liora in a project and connect a model with /login and /model. Windows may pick a roomier drive; after install, a Desktop shortcut opens the TUI; run /host-setup if the terminal is thin. After a GitHub Release, liora upgrade or /upgrade updates the install.',
       requirements: NODE_REQUIREMENT,
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
@@ -1074,11 +1076,11 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'After install',
-            body: 'After install, double-click SuperLiora on the Desktop to open the TUI in a real terminal. Run /host-setup to see a confirm list, then apply Windows Terminal (Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, and fzf. UI language: SUPERLIORA_LOCALE=ko|en or Settings → Language.',
+            body: 'After install, double-click SuperLiora on the Desktop to open the TUI in a real terminal. Run /host-setup to see a confirm list, then apply Windows Terminal (Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, and fzf. After a GitHub Release, liora upgrade or /upgrade updates the install. That tracks published releases, not arbitrary main commits. Use --main for tip of main. UI language: SUPERLIORA_LOCALE=ko|en or Settings → Language.',
           },
           {
             heading: 'Usage',
-            body: 'Open a session in a project folder, connect a model with /login and /model, then write the outcome.',
+            body: 'Open a session in a project folder, connect a model with /login and /model, then write the outcome. Check the machine with liora doctor. Reclaim idle storage with liora gc.',
             code: 'liora\nliora --continue\nliora --plan\n/login\n/model\n/host-setup',
           },
           {
@@ -1143,7 +1145,7 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: 'Basics',
-            body: 'Alt+J progress · Alt+I inbox · Alt+B quick brief · Ctrl+K hub.',
+            body: 'Alt+J progress · Alt+I inbox · Alt+B quick brief · Ctrl+K hub. Command Hub also opens with Ctrl+Space, ?, or /help.',
           },
           {
             heading: 'Modes',
@@ -1164,12 +1166,12 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: 'CLI',
-            body: 'Open a session.',
-            code: 'liora\nliora --continue\nliora --plan\nliora --worktree [name]',
+            body: 'Open a session, update the install, or check the machine.',
+            code: 'liora\nliora --continue\nliora --plan\nliora --worktree [name]\nliora upgrade\nliora doctor\nliora gc',
           },
           {
             heading: 'Slash',
-            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help',
+            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help · /upgrade · /resume · /performance · /transcript. /resume opens Sessions in Command Hub. /performance is opt-in Performance mode (off|auto|on, Settings → Appearance). /transcript sets transcript density.',
           },
           {
             heading: 'Ask mode',

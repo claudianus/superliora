@@ -12,7 +12,7 @@ import {
   USAGE_COMMANDS,
   WORKFLOW_KEYS,
 } from '../src/landing';
-import { translations, type Lang } from '../src/i18n/translations';
+import { PRODUCT_VERSION, translations, type Lang } from '../src/i18n/translations';
 
 const repoRoot = resolve(import.meta.dirname, '../../..');
 const siteSrc = resolve(import.meta.dirname, '../src');
@@ -137,6 +137,68 @@ describe('shipped landing copy', () => {
       expect(page.sections.map((section) => section.heading)).toEqual(
         lang === 'ko' ? ['설치법', '설치 후', '사용법', '워크플로우'] : ['Install', 'After install', 'Usage', 'Workflow'],
       );
+    }
+  });
+
+  it('teaches 0.12.9 upgrade, hub, and hygiene commands in EN and KO', () => {
+    expect(PRODUCT_VERSION).toBe('0.12.9');
+    const readmeTokens = [
+      'liora upgrade',
+      'liora doctor',
+      'liora gc',
+      '/host-setup',
+      '/jobs',
+      'Alt+J',
+      'Alt+I',
+      'Ctrl+K',
+      'SUPERLIORA_LOCALE',
+      'Command Hub',
+    ];
+    for (const name of ['README.md', 'README.ko.md'] as const) {
+      const readme = readFileSync(resolve(repoRoot, name), 'utf8');
+      for (const token of readmeTokens) {
+        expect(readme, name).toContain(token);
+      }
+      expect(readme, name).not.toMatch(/\bliora vis\b/);
+    }
+
+    for (const lang of ['ko', 'en'] as const) {
+      const t = translations[lang];
+      const started = t.docs['getting-started'];
+      const startedBlob = started.sections
+        .map((section) => `${section.heading}\n${section.body}\n${section.code ?? ''}`)
+        .join('\n');
+      const afterInstall = started.sections.find((section) => section.heading === (lang === 'ko' ? '설치 후' : 'After install'));
+      expect(afterInstall?.body).toContain('liora upgrade');
+      expect(afterInstall?.body).toContain('/upgrade');
+      expect(afterInstall?.body).toContain('--main');
+      expect(startedBlob).toContain('liora doctor');
+      expect(startedBlob).toContain('liora gc');
+
+      const reference = t.docs.reference;
+      const refBlob = reference.sections
+        .map((section) => `${section.heading}\n${section.body}\n${section.code ?? ''}`)
+        .join('\n');
+      expect(refBlob).toContain('/upgrade');
+      expect(refBlob).toContain('/resume');
+      expect(refBlob).toContain('/performance');
+      expect(refBlob).toContain('/transcript');
+      expect(refBlob).toContain('liora upgrade');
+      expect(refBlob).toContain('liora doctor');
+      expect(refBlob).toContain('liora gc');
+      expect(refBlob).not.toMatch(/\bliora vis\b/);
+
+      const tower = t.docs['control-tower'].sections.map((section) => section.body).join('\n');
+      expect(tower).toContain('Ctrl+Space');
+      expect(tower).toMatch(/\?/);
+      expect(tower).toContain('/help');
+
+      const clusterBlob = t.clusters.items
+        .flatMap((cluster) => cluster.features.map((feature) => `${feature.id} ${feature.body}`))
+        .join('\n');
+      expect(clusterBlob).toMatch(/performance/i);
+      expect(clusterBlob).toContain('/performance');
+      expect(t.install.body).toContain('liora upgrade');
     }
   });
 
