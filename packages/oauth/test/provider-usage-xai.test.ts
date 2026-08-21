@@ -25,7 +25,12 @@ describe('fetchXaiGrokUsage', () => {
 
     await fetchXaiGrokUsage('xai-grok', 'test-token');
 
-    const [url, init] = spy.mock.calls[0] as unknown as [string, RequestInit];
+    expect(spy.mock.calls.length).toBeGreaterThanOrEqual(1);
+    const modelsCall = spy.mock.calls.find((call) =>
+      String((call as unknown as [string])[0]).endsWith('/models'),
+    );
+    expect(modelsCall).toBeDefined();
+    const [url, init] = modelsCall as unknown as [string, RequestInit];
     expect(url).toBe(`${XAI_GROK_BUILD_BASE_URL}/models`);
     expect(init.headers).toMatchObject({
       Authorization: 'Bearer test-token',
@@ -42,7 +47,11 @@ describe('fetchXaiGrokUsage', () => {
 
     await fetchXaiGrokUsage('xai-grok', 'test-token', XAI_GROK_API_BASE_URL);
 
-    const [url, init] = spy.mock.calls[0] as unknown as [string, RequestInit];
+    const modelsCall = spy.mock.calls.find((call) =>
+      String((call as unknown as [string])[0]).endsWith('/models'),
+    );
+    expect(modelsCall).toBeDefined();
+    const [url, init] = modelsCall as unknown as [string, RequestInit];
     expect(url).toBe(`${XAI_GROK_API_BASE_URL}/models`);
     const headers = init.headers as Record<string, string>;
     expect(headers['Authorization']).toBe('Bearer test-token');

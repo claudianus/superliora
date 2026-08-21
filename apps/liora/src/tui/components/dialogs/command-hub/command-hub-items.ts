@@ -313,6 +313,13 @@ export function buildDefaultCommandHubItems(state: {
       'tui.hub.workspace.status.desc',
     ),
     hub(
+      'workspace.quota',
+      'tui.hub.section.workspace',
+      'tui.hub.workspace.quota.label',
+      'tui.hub.workspace.quota.desc',
+      { keywords: ['quota', 'usage', 'credits', 'remaining', 'rate-limit'] },
+    ),
+    hub(
       'extend.extensions',
       'tui.hub.section.extend',
       'tui.hub.extend.extensions.label',

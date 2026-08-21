@@ -1,18 +1,19 @@
 import { currentTheme, type ColorToken } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
-import type { AllProvidersUsageSnapshot } from '@superliora/sdk';
+import type { AllProvidersUsageSnapshot, ProviderUsageSnapshot } from '@superliora/sdk';
+import { snapshotRemainingRatio } from '@superliora/sdk';
 import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
 import { workingSetPressure } from '#/tui/utils/agent/context-working-set';
 import type { FooterLabels } from '#/tui/config';
 
 import { safeContextUsage } from '#/tui/components/chrome/footer/footer-context';
 import {
+  isPlainLabels,
   labelCacheRate,
   labelCacheWarm,
   labelExtensionsReload,
   labelMedia,
   labelMcp,
-  labelQuota,
   labelRuntimeDegraded,
   labelWorkingSet,
 } from '#/tui/components/chrome/footer/footer-labels';
@@ -187,28 +188,46 @@ export function formatWorkingSetFooterBadge(
   return { text, severity };
 }
 
+function pickActiveQuotaSnapshot(
+  quota: AllProvidersUsageSnapshot,
+  activeProviderKey: string | undefined,
+): ProviderUsageSnapshot | undefined {
+  if (activeProviderKey !== undefined && activeProviderKey.length > 0) {
+    const exact = quota.providers.find((p) => p.providerKey === activeProviderKey);
+    if (exact !== undefined) return exact;
+  }
+  if (quota.primaryProviderKey !== null) {
+    return quota.providers.find((p) => p.providerKey === quota.primaryProviderKey);
+  }
+  return quota.providers.find((p) => p.available && (p.remainingDisplay ?? '').length > 0);
+}
+
+function remainingSeverity(remainingRatio: number | undefined): FooterBadgeSeverity {
+  if (remainingRatio === undefined) return 'info';
+  if (remainingRatio < 0.1) return 'danger';
+  if (remainingRatio < 0.25) return 'warning';
+  return 'info';
+}
+
 /**
- * Provider quota badge for the footer. Shows the worst usage ratio across
- * all configured providers as a compact `[quota 72%]` badge. Only rendered
- * when at least one provider exposes a queryable usage API and the ratio
- * is above zero.
+ * Footer chip for the ACTIVE provider remaining quota.
+ * Hidden when remaining is unknown — never a fabricated 0%/100%.
  */
 export function formatProviderQuotaFooterBadge(
   quota: AllProvidersUsageSnapshot | null | undefined,
   labels: FooterLabels = 'plain',
+  activeProviderKey?: string,
 ): FooterBadge | null {
   if (quota === undefined || quota === null) return null;
-  // Only show when at least one provider has queryable usage data.
-  const hasQueryable = quota.providers.some((p) => p.available && p.error === undefined);
-  if (!hasQueryable) return null;
-  const ratio = quota.worstRatio;
-  if (ratio <= 0) return null;
-  const pct = Math.round(ratio * 100);
-  const severity: FooterBadgeSeverity =
-    ratio >= 0.90 ? 'danger' : ratio >= 0.70 ? 'warning' : 'info';
+  const snap = pickActiveQuotaSnapshot(quota, activeProviderKey);
+  if (snap === undefined) return null;
+  const text = (snap.remainingDisplay ?? '').trim();
+  if (text.length === 0) return null;
+  const remaining = snapshotRemainingRatio(snap);
+  const compact = !isPlainLabels(labels);
   return {
-    text: labelQuota(labels, pct),
-    severity,
+    text: compact && text.length > 18 ? text.replace(/\s·\s/, ' ') : text,
+    severity: remainingSeverity(remaining),
   };
 }
 

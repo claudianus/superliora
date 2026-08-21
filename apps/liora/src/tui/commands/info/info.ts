@@ -16,6 +16,7 @@ import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import { resolveLiveQuotaSnapshot } from '#/tui/utils/usage/quota-glance';
 import { createGitStatusCache } from '#/utils/git/git-status';
 import { getDataDir } from '#/utils/paths';
 import type { SlashCommandHost } from '../hub/dispatch';
@@ -121,27 +122,43 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
 }
 
 export async function showQuota(host: SlashCommandHost): Promise<void> {
+  const sessionUsage = await loadSessionUsageReport(host);
   let quota: AllProvidersUsageSnapshot | null = host.state.appState.providerQuota ?? null;
-  if (quota === null) {
-    try {
-      quota = await host.harness.auth.getAllProvidersUsage();
-      host.setAppState({ providerQuota: quota });
-    } catch {
-      // Leave quota null; the panel will show an appropriate message.
-    }
+  try {
+    quota = await host.harness.auth.getQuotaSnapshot({ refresh: true });
+    host.setAppState({ providerQuota: quota });
+  } catch {
+    // Keep the last snapshot; the panel still overlays last-response headers.
   }
+  const liveQuota = resolveLiveQuotaSnapshot(quota, host.state.appState.providerRouteStatus);
 
   const buildLines = () => {
-    if (quota === null || quota.providers.length === 0) {
-      return ['No provider quota data available.', '', 'Run /login to connect a provider.'];
+    const lines: string[] = [];
+    if (liveQuota === null || liveQuota.providers.length === 0) {
+      lines.push('No provider quota data available.', '', 'Run /login to connect a provider.');
+    } else {
+      lines.push(
+        ...buildUsageReportLines({
+          contextUsage: 0,
+          contextTokens: 0,
+          maxContextTokens: 0,
+          providerQuota: liveQuota,
+          providerQuotaOnly: true,
+        }),
+      );
     }
-    return buildUsageReportLines({
-      contextUsage: 0,
-      contextTokens: 0,
-      maxContextTokens: 0,
-      providerQuota: quota,
-      providerQuotaOnly: true,
-    });
+    const cost = host.state.appState.sessionCostUsd;
+    if (sessionUsage.usage !== undefined || (typeof cost === 'number' && cost > 0)) {
+      lines.push('');
+      lines.push('This session (estimate — not remaining quota)');
+      if (typeof cost === 'number' && cost > 0) {
+        lines.push(`  spend  $${cost.toFixed(2)}  (catalog pricing)`);
+      }
+      if (sessionUsage.error !== undefined) {
+        lines.push(`  ${sessionUsage.error}`);
+      }
+    }
+    return lines;
   };
 
   playStatusOpenBeat(host, 'Quota', 'quota');

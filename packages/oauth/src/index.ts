@@ -174,17 +174,37 @@ export type {
 } from './kimi/managed-usage';
 
 export {
+  ANTHROPIC_USAGE_TTL_MS,
   buildAllProvidersUsageSnapshot,
+  clearProviderUsageCache,
+  DEFAULT_USAGE_TTL_MS,
+  detectEnvUsageProviderKeys,
+  envUsageAccessToken,
   fetchProviderUsage,
+  finalizeUsageSnapshot,
+  formatRemainingDisplay,
+  overlayRouteRateLimits,
+  parseAnthropicOAuthUsage,
+  parseDeepSeekBalancePayload,
+  parseOpenRouterKeyPayload,
+  parseRateLimitHeaders,
   providerDisplayName,
+  providerShortName,
+  snapshotRemainingRatio,
   snapshotWorstRatio,
   usageRowRatio,
+  usageRowsFromRouteRateLimits,
 } from './provider-usage';
 export type {
   AllProvidersUsageSnapshot,
   FetchProviderUsageOptions,
+  OverlayRouteRateLimitsInput,
+  ProviderUsageKind,
   ProviderUsageRow,
   ProviderUsageSnapshot,
+  ProviderUsageSource,
+  ProviderUsageStatus,
+  RouteRateLimitInput,
 } from './provider-usage';
 
 export { fetchSubmitFeedback, kimiCodeFeedbackUrl } from './kimi/managed-feedback';

@@ -89,7 +89,7 @@ export class UsageMonitorController {
     if (this.disposed || this.fetching) return;
     this.fetching = true;
     try {
-      const snapshot = await this.harness.auth.getAllProvidersUsage();
+      const snapshot = await this.harness.auth.getQuotaSnapshot();
       if (this.disposed) return;
       this.lastSnapshot = snapshot;
       // Bridge quota → credential health so worker routing skips exhausted

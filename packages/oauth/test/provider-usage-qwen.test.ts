@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchProviderUsage } from '../src/provider-usage/index';
+import { clearProviderUsageCache } from '../src/provider-usage/provider-usage-cache';
 import { fetchQwenTokenPlanUsage } from '../src/provider-usage/provider-usage-fetch-qwen';
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  clearProviderUsageCache();
 });
 
 function modelsResponse(headers: Record<string, string>): Response {

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchZaiUsage } from '../src/provider-usage/provider-usage-fetch-zai';
 import { fetchProviderUsage } from '../src/provider-usage/index';
+import { clearProviderUsageCache } from '../src/provider-usage/provider-usage-cache';
 import { providerDisplayName } from '../src/provider-usage/provider-usage-display';
 
 const QUOTA_PAYLOAD = {
@@ -46,6 +47,7 @@ const QUOTA_PAYLOAD = {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  clearProviderUsageCache();
 });
 
 describe('fetchZaiUsage', () => {

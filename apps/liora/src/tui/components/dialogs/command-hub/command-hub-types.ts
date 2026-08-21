@@ -36,6 +36,7 @@ export type CommandHubActionId =
   | 'workspace.jobOps'
   | 'workspace.cron'
   | 'workspace.status'
+  | 'workspace.quota'
   | 'extend.extensions'
   | 'appearance.theme'
   | 'appearance.appearance'
