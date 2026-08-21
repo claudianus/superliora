@@ -8,6 +8,20 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
+## 0.12.11 (2026-08-21)
+
+### Features
+
+- Show live remaining provider quota in the footer and a `/quota` glance. Run `/quota` (or Command Hub → Quota) to see every logged-in provider. The footer chip is the active provider; unknown remaining stays hidden.
+
+### Bug Fixes
+
+- Fix `liora upgrade --main` on Windows so a source checkout writes the command to `%LOCALAPPDATA%\SuperLiora\bin` when Git Bash cannot see `liora`, and finds pnpm under `SUPERLIORA_HOME` instead of `~/.superliora`.
+
+### Polish
+
+- Delete expired local web-search cache rows and cap the table at 256 so the on-disk research cache cannot grow without bound.
+
 ## 0.12.10 (2026-08-21)
 
 ### Bug Fixes
