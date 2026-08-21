@@ -1,9 +1,11 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join, resolve, win32 } from 'node:path';
 
 import { tryGetHostPackageRoot } from '#/cli/version';
+import { getDataDir } from '#/utils/paths';
 
 import type { UpdateTarget } from './types';
 
@@ -122,6 +124,28 @@ export async function isGitCheckoutDirty(repoRoot: string): Promise<boolean> {
 export interface GitCheckoutUpdateOptions {
   /** Pin remote tip (e.g. `origin/main`) instead of the local tracking branch. */
   readonly preferredUpstream?: string;
+  /** Data home for runtime/pnpm. Defaults to SUPERLIORA_HOME / home.redirect. */
+  readonly dataHome?: string;
+  /** Fallback command bin dir when Git Bash cannot see `liora`. */
+  readonly commandBinDir?: string;
+}
+
+/** Windows command install dir — `%LOCALAPPDATA%\SuperLiora\bin`, not `~/.local/bin`. */
+export function defaultCheckoutCommandBinDir(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  if (platform === 'win32') {
+    const base =
+      env.LOCALAPPDATA?.trim() ||
+      win32.join(env.USERPROFILE ?? env.HOME ?? homedir(), 'AppData', 'Local');
+    return win32.join(base, 'SuperLiora', 'bin');
+  }
+  return join(env.HOME ?? homedir(), '.local', 'bin');
+}
+
+function toBashPath(value: string): string {
+  return value.replaceAll('\\', '/');
 }
 
 function buildGitCheckoutUpdateShellLines(
@@ -150,12 +174,11 @@ function buildGitCheckoutUpdateShellLines(
     `git -C ${repoExpr} -c core.longpaths=true -c advice.detachedHead=false checkout --force -B "$ref" FETCH_HEAD`,
     `git -C ${repoExpr} -c core.longpaths=true reset --hard FETCH_HEAD`,
     `echo '__LIORA_UPGRADE_STAGE__=building'`,
-    'export PATH="${HOME}/.superliora/runtime/pnpm:${PATH}"',
-    'if [ -n "${USERPROFILE:-}" ]; then export PATH="${USERPROFILE}/.superliora/runtime/pnpm:${PATH}"; fi',
+    'export PATH="$SUPERLIORA_HOME/runtime/pnpm:${PATH}"',
     `node ${repoExpr}/scripts/install/ensure-pnpm.mjs`,
     'if command -v pnpm >/dev/null 2>&1; then pnpm_invoke() { pnpm "$@"; }',
-    'elif [ -x "${HOME}/.superliora/runtime/pnpm/pnpm" ]; then pnpm_invoke() { "${HOME}/.superliora/runtime/pnpm/pnpm" "$@"; }',
-    'elif [ -n "${USERPROFILE:-}" ] && [ -x "${USERPROFILE}/.superliora/runtime/pnpm/pnpm.exe" ]; then pnpm_invoke() { "${USERPROFILE}/.superliora/runtime/pnpm/pnpm.exe" "$@"; }',
+    'elif [ -x "$SUPERLIORA_HOME/runtime/pnpm/pnpm" ]; then pnpm_invoke() { "$SUPERLIORA_HOME/runtime/pnpm/pnpm" "$@"; }',
+    'elif [ -x "$SUPERLIORA_HOME/runtime/pnpm/pnpm.exe" ]; then pnpm_invoke() { "$SUPERLIORA_HOME/runtime/pnpm/pnpm.exe" "$@"; }',
     'elif command -v corepack >/dev/null 2>&1; then pnpm_invoke() { corepack pnpm "$@"; }',
     'else echo "error: pnpm bootstrap failed" >&2; exit 1; fi',
     `pnpm_invoke -C ${repoExpr} install --frozen-lockfile`,
@@ -165,7 +188,9 @@ function buildGitCheckoutUpdateShellLines(
     `if [ "\${SUPERLIORA_SKIP_RETRIEVAL:-0}" != "1" ]; then SUPERLIORA_RETRIEVAL_EMBEDDER=transformers pnpm_invoke -C ${repoExpr}/packages/agent-core run retrieval:bootstrap || echo "warning: retrieval bootstrap failed (hash fallback until online)"; fi`,
     `echo '__LIORA_UPGRADE_STAGE__=installing'`,
     'liora_path="$(command -v liora 2>/dev/null || true)"',
-    'if [ -n "$liora_path" ]; then bin_dir="$(dirname "$liora_path")"; command_name="$(basename "$liora_path")"; else bin_dir="${HOME}/.local/bin"; command_name="liora"; fi',
+    'if [ -z "$liora_path" ]; then liora_path="$(command -v liora.cmd 2>/dev/null || true)"; fi',
+    'if [ -z "$liora_path" ]; then liora_path="$(command -v liora.exe 2>/dev/null || true)"; fi',
+    `if [ -n "$liora_path" ]; then bin_dir="$(dirname "$liora_path")"; command_name="$(basename "$liora_path")"; command_name="\${command_name%.exe}"; command_name="\${command_name%.cmd}"; command_name="\${command_name%.ps1}"; else bin_dir=${shellQuote(toBashPath(options.commandBinDir ?? defaultCheckoutCommandBinDir()))}; command_name="liora"; fi`,
     `node ${repoExpr}/scripts/install-liora.mjs --bin-dir "$bin_dir" --name "$command_name" --no-shell-rc --force`,
     `echo '__LIORA_UPGRADE_STAGE__=done'`,
   ];
@@ -183,9 +208,11 @@ export function gitCheckoutUpdateScript(
   options: GitCheckoutUpdateOptions = {},
 ): string {
   const quotedRoot = shellQuote(repoRoot ?? findGitCheckoutRoot() ?? '.');
+  const dataHome = shellQuote(toBashPath(options.dataHome ?? getDataDir()));
   return [
     'set -e',
     'export COREPACK_ENABLE_DOWNLOAD_PROMPT=0',
+    `if [ -z "\${SUPERLIORA_HOME:-}" ]; then export SUPERLIORA_HOME=${dataHome}; fi`,
     `repo=${quotedRoot}`,
     ...buildGitCheckoutUpdateShellLines('"$repo"', options),
   ].join('\n');
