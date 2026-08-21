@@ -1,6 +1,7 @@
 import { visibleWidth } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CURRENT_MARK } from '#/tui/constant/symbols';
 import {
   SessionPickerComponent,
   sessionCollapsedLabel,
@@ -195,8 +196,8 @@ describe('SessionPickerComponent', () => {
     const lines = component.render(120).map((line) => stripAnsi(line));
     const currentLine = lines.find((line) => line.includes('this is current'));
     const otherLine = lines.find((line) => line.includes('not current'));
-    expect(currentLine).toContain('↝ current');
-    expect(otherLine).not.toContain('↝ current');
+    expect(currentLine).toContain(CURRENT_MARK);
+    expect(otherLine).not.toContain(CURRENT_MARK);
   });
 
   it('places the relative time on the same line as the title, not right-aligned', () => {
