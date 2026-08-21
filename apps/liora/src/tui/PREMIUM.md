@@ -286,6 +286,7 @@ reveals, and quality-gated ambient that still reads under SSH/`off`.
 | Gradient text | `features/appearance/appearance-gradient.ts` / `renderRendererGradientTextAnsi` |
 | Ambient effects | `features/appearance/appearance-effects.ts` → `renderPulseText` / `renderShimmerPrefix` / `renderParticleRail` |
 | Chrome-band live signals (Todo Board + Worker Dock) | `components/chrome/chrome-band-motion.ts` → `renderLiveSectionHeader` / `renderLiveRatioBar` / `renderPulseCountChip` |
+| Footer live quota chip | `components/chrome/footer/footer-badges.ts` → `formatProviderQuotaFooterBadge` + `resolveLiveQuotaSnapshot` |
 | Live prompt-editor frame | `components/editor/editor-chrome-motion.ts` → `applyEditorChromeChase` |
 | Settle flashes (change → rest on a final tone) | `features/appearance/appearance-effects.ts` → `renderSettleFlash` / `renderToneSettleFlash` / `renderStatusFlashLine` |
 | Entrance highlights (tool headers, turn boundaries) | `features/transcript/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |
@@ -295,6 +296,18 @@ reveals, and quality-gated ambient that still reads under SSH/`off`.
 | Smooth type-on catch-up | `utils/streaming/streaming-text-reveal.ts` + `constant/streaming.ts` — ease-in-out CPS curve |
 | Staged line reveal (Write/Edit previews) | `utils/streaming-text-reveal.ts` → `computeStagedLineReveal` |
 | Adaptive streaming flush schedule | `utils/streaming-flush-schedule.ts` → `nextStreamingFlushDelay` |
+
+Footer chip: active provider remaining only (`Claude 42% · 3h`, `OR $12.40`).
+Hidden when remaining is unknown — never a fabricated 0%/100%. Danger
+severity pulses via `styleFooterBadge` / `renderPulseText`. Last-response
+headers overlay through `resolveLiveQuotaSnapshot`.
+
+`/quota` glance + Command Hub `workspace.quota`. Session spend is labeled
+an estimate, not remaining quota. Empty state: run `/login`.
+
+`UsageMonitor` ticks from the appearance/ambient frame callback
+(`onAmbientTick`), not `setInterval`. Wall-clock TTL for fetch cadence is
+fine; do not compare `Date.now()` against `appearanceAnimationNow()`.
 
 New list components **must reuse `SearchableList`** and manually align to
 §3–§6 of this document.
