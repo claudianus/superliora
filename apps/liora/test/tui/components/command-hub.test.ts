@@ -53,6 +53,7 @@ describe('buildDefaultCommandHubItems', () => {
       'workspace.jobOps',
       'workspace.jobInbox',
       'workspace.cron',
+      'workspace.quota',
       'chat.rewind',
       'chat.loops',
       'start.fork',
@@ -62,6 +63,7 @@ describe('buildDefaultCommandHubItems', () => {
       expect(ids.has(id)).toBe(true);
     }
     expect(commandHubActionToSlash('workspace.jobInbox')).toBe('/job inbox');
+    expect(commandHubActionToSlash('workspace.quota')).toBe('/quota');
     expect([...ids].some((id) => id.includes('dashboard'))).toBe(false);
     expect(items.find((item) => item.id === 'help.commands')?.description).toContain(
       'slash command',

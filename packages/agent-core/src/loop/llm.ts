@@ -11,6 +11,7 @@ import type {
   Message,
   ModelCapability,
   ResponseHeaders,
+  ResponseRateLimit,
   TextPart,
   ThinkPart,
   TokenUsage,
@@ -90,6 +91,7 @@ export interface LLMChatResponse {
   usageModel?: string;
   providerRouteSelection?: LLMProviderRouteSelection;
   responseHeaders?: ResponseHeaders;
+  rateLimits?: readonly ResponseRateLimit[];
   streamTiming?: LLMStreamTiming;
 }
 

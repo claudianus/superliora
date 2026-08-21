@@ -161,7 +161,10 @@ export class KosongLLM implements LLM {
             latencyMs,
             usage: response.usage,
           }) === true;
-        const rateLimits = providerRouteRateLimits(response.responseHeaders);
+        const rateLimits =
+          response.rateLimits !== undefined && response.rateLimits.length > 0
+            ? response.rateLimits
+            : providerRouteRateLimits(response.responseHeaders);
         const rateLimitsChanged =
           rateLimits.length > 0 &&
           this.routeState?.recordRateLimits(route, candidate, rateLimits) === true;
@@ -370,6 +373,9 @@ export class KosongLLM implements LLM {
       usage: result.usage ?? emptyUsage(),
       usageModel: candidate.modelAlias,
       responseHeaders: result.responseHeaders,
+      ...(result.rateLimits !== undefined && result.rateLimits.length > 0
+        ? { rateLimits: result.rateLimits }
+        : {}),
       providerRouteSelection: {
         modelAlias: candidate.modelAlias ?? candidate.provider.modelName,
         providerModel: candidate.provider.modelName,

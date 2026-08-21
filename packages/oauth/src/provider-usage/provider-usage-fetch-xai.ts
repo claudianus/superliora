@@ -17,7 +17,9 @@ export async function fetchXaiGrokUsage(
   // A lightweight GET /models call captures the current rate-limit state.
   const base = (baseUrl ?? XAI_GROK_BUILD_BASE_URL).replace(/\/+$/, '');
   const controller = new AbortController();
-  const timer = setTimeout(() =>{  controller.abort(); }, opts.timeoutMs ?? 8000);
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, opts.timeoutMs ?? 8000);
   try {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
@@ -42,7 +44,6 @@ export async function fetchXaiGrokUsage(
         fetchedAtMs: Date.now(),
       };
     }
-    // Parse rate-limit headers returned by the xAI API.
     const limits: ProviderUsageRow[] = [];
     const reqLimit = headerNum(res, 'x-ratelimit-limit-requests');
     const reqRemaining = headerNum(res, 'x-ratelimit-remaining-requests');
@@ -66,6 +67,7 @@ export async function fetchXaiGrokUsage(
       summary,
       limits: limits.slice(summary !== null ? 1 : 0),
       fetchedAtMs: Date.now(),
+      source: 'response-headers',
     };
   } catch (error) {
     return {
@@ -74,9 +76,12 @@ export async function fetchXaiGrokUsage(
       available: true,
       summary: null,
       limits: [],
-      error: error instanceof Error && error.name === 'AbortError'
-        ? 'Request timed out.'
-        : error instanceof Error ? error.message : String(error),
+      error:
+        error instanceof Error && error.name === 'AbortError'
+          ? 'Request timed out.'
+          : error instanceof Error
+            ? error.message
+            : String(error),
       fetchedAtMs: Date.now(),
     };
   } finally {

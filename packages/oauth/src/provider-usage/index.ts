@@ -1,34 +1,41 @@
 /**
  * Multi-provider usage / quota querying.
  *
- * Queries real usage data for every OAuth-capable provider SuperLiora supports:
+ * Queries real remaining quota for SuperLiora-logged-in providers:
  *
- *   - **Kimi managed** (`managed:kimi-api`): first-class `/usages` endpoint
- *     with weekly + rate-limit windows.
- *   - **OpenAI Codex** (`openai-codex`): ChatGPT's private wham/usage endpoint
- *     returns 5-hour and weekly quota windows with used_percent, reset_at,
- *     credits balance, and per-model additional_rate_limits.
- *   - **xAI Grok** (`xai-grok`): rate-limit headers (x-ratelimit-limit-requests,
- *     x-ratelimit-remaining-requests, x-ratelimit-limit-tokens, etc.) captured
- *     from a lightweight GET /models call.
- *   - **Anthropic** (`anthropic-oauth`): rate-limit headers
- *     (anthropic-ratelimit-*-limit/remaining/reset) captured from the
- *     lightweight /v1/messages/count_tokens endpoint.
- *   - **Qwen / Alibaba Token Plan** (`qwen-token-plan`, `alibaba-token-plan`,
- *     `alibaba-token-plan-cn`): rate-limit headers from GET /models
- *     (best-effort; Credits live in the Qwen Cloud console).
- *   - **Z.AI** (`zai`, `zai-coding-plan`): Coding Plan quota JSON endpoint.
+ *   - **Kimi managed** (`managed:kimi-api`): `/usages`
+ *   - **OpenAI Codex** (`openai-codex`): ChatGPT `wham/usage`
+ *   - **Anthropic** (`anthropic-oauth`): `count_tokens` + headers
+ *     (`/api/oauth/usage` only when `anthropic_oauth` is on)
+ *   - **OpenRouter** (`openrouter`): `GET /api/v1/key`
+ *   - **DeepSeek** (`deepseek`): `GET /user/balance`
+ *   - **Groq** (`groq`): `GET /openai/v1/models` + `x-ratelimit-*` (RPD)
+ *   - **xAI Grok** (`xai-grok`): `GET /models` + `x-ratelimit-*`
+ *   - **Cursor** (`cursor-oauth`): usage JSON when OAuth login exists
+ *   - **ClinePass / Qwen / Z.AI**: existing plan / header probes
  *
- * The unified {@link ProviderUsageSnapshot} shape lets the TUI render a
- * consistent quota dashboard regardless of which providers are configured.
+ * models.dev catalog limits are never treated as account quota.
  */
 
 import { isManagedKimiCode } from '../kimi/managed-usage';
-import { snapshotWorstRatio, providerDisplayName } from './provider-usage-display';
+import {
+  providerUsageTtlMs,
+  usageCacheKey,
+  withProviderUsageCache,
+} from './provider-usage-cache';
+import {
+  buildAllProvidersUsageSnapshot,
+  finalizeUsageSnapshot,
+  providerDisplayName,
+} from './provider-usage-display';
 import { fetchAnthropicUsage } from './provider-usage-fetch-anthropic';
 import { fetchClinePassUsage } from './provider-usage-fetch-clinepass';
 import { fetchOpenAiCodexUsage } from './provider-usage-fetch-codex';
+import { fetchCursorUsage } from './provider-usage-fetch-cursor';
+import { fetchDeepSeekUsage } from './provider-usage-fetch-deepseek';
+import { fetchGroqUsage } from './provider-usage-fetch-groq';
 import { fetchKimiManagedUsage } from './provider-usage-fetch-kimi';
+import { fetchOpenRouterUsage } from './provider-usage-fetch-openrouter';
 import { fetchQwenTokenPlanUsage } from './provider-usage-fetch-qwen';
 import { fetchXaiGrokUsage } from './provider-usage-fetch-xai';
 import { fetchZaiUsage } from './provider-usage-fetch-zai';
@@ -42,25 +49,57 @@ import type {
 export type {
   AllProvidersUsageSnapshot,
   FetchProviderUsageOptions,
+  OverlayRouteRateLimitsInput,
+  ProviderUsageKind,
   ProviderUsageRow,
   ProviderUsageSnapshot,
+  ProviderUsageSource,
+  ProviderUsageStatus,
+  RouteRateLimitInput,
 } from './provider-usage-types';
 
 export {
+  buildAllProvidersUsageSnapshot,
+  finalizeUsageSnapshot,
+  formatRemainingDisplay,
   providerDisplayName,
+  providerShortName,
+  snapshotRemainingRatio,
   snapshotWorstRatio,
   usageRowRatio,
 } from './provider-usage-display';
 
-/**
- * Fetch usage for a single provider by key. Routes to the appropriate
- * provider-specific fetcher based on the provider key prefix / id.
- */
-export async function fetchProviderUsage(
+export {
+  parseRateLimitHeaders,
+  usageRowsFromRouteRateLimits,
+} from './provider-usage-headers';
+export { overlayRouteRateLimits } from './provider-usage-merge';
+export { resolveUsageProviderKey } from './provider-usage-key';
+export {
+  ANTHROPIC_USAGE_TTL_MS,
+  clearProviderUsageCache,
+  DEFAULT_USAGE_TTL_MS,
+  peekProviderUsageCache,
+  providerUsageTtlMs,
+  usageCacheKey,
+  withProviderUsageCache,
+  writeProviderUsageCache,
+} from './provider-usage-cache';
+export {
+  detectEnvUsageProviderKeys,
+  envUsageAccessToken,
+  ENV_USAGE_PROVIDERS,
+} from './provider-usage-env';
+export { parseAnthropicOAuthUsage } from './provider-usage-fetch-anthropic';
+export { parseOpenRouterKeyPayload } from './provider-usage-fetch-openrouter';
+export { parseDeepSeekBalancePayload } from './provider-usage-fetch-deepseek';
+export { parseGroqRateLimitHeaders } from './provider-usage-fetch-groq';
+
+async function fetchProviderUsageUncached(
   providerKey: string,
   accessToken: string,
-  baseUrl?: string,
-  opts: FetchProviderUsageOptions = {},
+  baseUrl: string | undefined,
+  opts: FetchProviderUsageOptions,
 ): Promise<ProviderUsageSnapshot> {
   if (isManagedKimiCode(providerKey)) {
     return fetchKimiManagedUsage(providerKey, accessToken, baseUrl, opts);
@@ -73,6 +112,18 @@ export async function fetchProviderUsage(
   }
   if (providerKey === 'anthropic-oauth') {
     return fetchAnthropicUsage(providerKey, accessToken, baseUrl, opts);
+  }
+  if (providerKey === 'cursor-oauth') {
+    return fetchCursorUsage(providerKey, accessToken, baseUrl, opts);
+  }
+  if (providerKey === 'openrouter') {
+    return fetchOpenRouterUsage(providerKey, accessToken, baseUrl, opts);
+  }
+  if (providerKey === 'deepseek') {
+    return fetchDeepSeekUsage(providerKey, accessToken, baseUrl, opts);
+  }
+  if (providerKey === 'groq') {
+    return fetchGroqUsage(providerKey, accessToken, baseUrl, opts);
   }
   if (providerKey === 'clinepass') {
     return fetchClinePassUsage(providerKey, accessToken, baseUrl, opts);
@@ -87,7 +138,6 @@ export async function fetchProviderUsage(
   if (providerKey === 'zai-coding-plan' || providerKey === 'zai') {
     return fetchZaiUsage(providerKey, accessToken, baseUrl, opts);
   }
-  // Unknown provider — report as unavailable.
   return {
     providerKey,
     displayName: providerDisplayName(providerKey),
@@ -95,28 +145,27 @@ export async function fetchProviderUsage(
     summary: null,
     limits: [],
     fetchedAtMs: Date.now(),
+    status: 'unavailable',
+    remainingDisplay: '',
   };
 }
 
 /**
- * Build an aggregate snapshot from individual provider snapshots.
- * Computes the worst usage ratio for footer badge severity.
+ * Fetch usage for a single provider by key. Cached (TTL 120s, Anthropic 180s)
+ * with in-flight dedupe and stale-while-revalidate.
  */
-export function buildAllProvidersUsageSnapshot(
-  providers: readonly ProviderUsageSnapshot[],
-): AllProvidersUsageSnapshot {
-  let worst = 0;
-  let primaryProviderKey: string | null = null;
-  for (const snap of providers) {
-    if (snap.error === undefined && snap.available && primaryProviderKey === null) {
-      primaryProviderKey = snap.providerKey;
-    }
-    worst = Math.max(worst, snapshotWorstRatio(snap));
-  }
-  return {
-    providers,
-    primaryProviderKey,
-    worstRatio: worst,
-    fetchedAtMs: Date.now(),
-  };
+export async function fetchProviderUsage(
+  providerKey: string,
+  accessToken: string,
+  baseUrl?: string,
+  opts: FetchProviderUsageOptions = {},
+): Promise<ProviderUsageSnapshot> {
+  const key = usageCacheKey(providerKey, accessToken, baseUrl);
+  const snapshot = await withProviderUsageCache(
+    key,
+    providerUsageTtlMs(providerKey),
+    opts.refresh === true,
+    () => fetchProviderUsageUncached(providerKey, accessToken, baseUrl, opts),
+  );
+  return finalizeUsageSnapshot(snapshot);
 }

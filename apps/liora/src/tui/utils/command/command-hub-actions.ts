@@ -69,6 +69,8 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/job inbox';
     case 'workspace.status':
       return '/status';
+    case 'workspace.quota':
+      return '/quota';
     case 'extend.extensions':
       return undefined;
     case 'appearance.theme':

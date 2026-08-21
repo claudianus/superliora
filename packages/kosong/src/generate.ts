@@ -25,6 +25,8 @@ import type {
   StreamedMessage,
 } from './provider';
 import type { Tool } from './tool';
+import { parseResponseRateLimits } from './rate-limit-headers';
+import type { ResponseRateLimit } from './rate-limit-headers';
 import type { TokenUsage } from './usage';
 
 /**
@@ -71,6 +73,8 @@ export interface GenerateResult {
   readonly rawFinishReason: string | null;
   /** Provider response headers, when the transport exposes them. */
   readonly responseHeaders?: ResponseHeaders;
+  /** Parsed last-response rate-limit windows. Empty when unknown. */
+  readonly rateLimits?: readonly ResponseRateLimit[];
 }
 
 export interface GenerateCallbacks {
@@ -369,6 +373,7 @@ export async function generate(
       finishReason: stream.finishReason,
       rawFinishReason: stream.rawFinishReason,
       responseHeaders: stream.responseHeaders,
+      rateLimits: parseResponseRateLimits(stream.responseHeaders),
     };
   } catch (error) {
     // On idle/open timeout — or a caller abort that fired while the chunk wait

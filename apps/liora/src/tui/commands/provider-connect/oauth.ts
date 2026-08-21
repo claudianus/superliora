@@ -25,6 +25,7 @@ import {
 import { ChoicePickerComponent } from '../../components/dialogs/picker/choice-picker';
 import { DEFAULT_OAUTH_PROVIDER_NAME } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
+import { refreshProviderQuotaOnHost } from '#/tui/utils/usage/quota-glance';
 import type { LoginProgressSpinnerHandle } from '../../types';
 import { loadCatalog } from '#/utils/catalog-cache';
 import { openUrl } from '#/utils/open-url';
@@ -98,6 +99,7 @@ export async function connectKimiManaged(host: SlashCommandHost): Promise<void> 
       host.showError(ttui('tui.provider.refreshFailed', { message }));
       return;
     }
+    void refreshProviderQuotaOnHost(host);
     host.track('login', {
       provider: DEFAULT_OAUTH_PROVIDER_NAME,
       method: 'oauth',
@@ -326,6 +328,7 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
     });
 
     await host.authFlow.refreshConfigAfterLogin();
+    void refreshProviderQuotaOnHost(host);
     host.track('login', {
       provider: providerId,
       method: 'oauth',

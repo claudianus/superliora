@@ -85,6 +85,9 @@ describe('regression', () => {
       const result = await generate(provider, '', [], []);
 
       expect(result.responseHeaders).toBe(headers);
+      expect(result.rateLimits).toEqual([
+        expect.objectContaining({ name: 'requests', remaining: 0 }),
+      ]);
     });
   });
 

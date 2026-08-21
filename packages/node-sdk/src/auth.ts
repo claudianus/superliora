@@ -18,7 +18,10 @@ import {
   resolveKimiCodeLoginAuth,
   resolveKimiCodeRuntimeAuth,
   buildAllProvidersUsageSnapshot,
+  detectEnvUsageProviderKeys,
+  envUsageAccessToken,
   fetchProviderUsage,
+  finalizeUsageSnapshot,
   type AllProvidersUsageSnapshot,
   type AuthManagedUsageResult,
   type AuthStatus,
@@ -296,21 +299,35 @@ export class LioraAuthFacade {
    * {@link applyUsageSnapshotsToCredentialHealth} so smart routing / subagent
    * model selection skips exhausted Qwen plans without waiting for a failed call.
    */
-  async getAllProvidersUsage(): Promise<AllProvidersUsageSnapshot> {
+  async getAllProvidersUsage(
+    options: { readonly refresh?: boolean } = {},
+  ): Promise<AllProvidersUsageSnapshot> {
+    return this.getQuotaSnapshot(options);
+  }
+
+  /**
+   * Unified quota snapshot for the TUI footer and `/quota`.
+   * Cached per provider (120s, Anthropic 180s). Pass `{ refresh: true }` to bypass.
+   */
+  async getQuotaSnapshot(
+    options: { readonly refresh?: boolean } = {},
+  ): Promise<AllProvidersUsageSnapshot> {
     const config = loadRuntimeConfigSafe(this.options.configPath).config;
-    const providerKeys = Object.keys(config.providers ?? {});
+    const configured = Object.keys(config.providers ?? {});
+    const extra = detectEnvUsageProviderKeys().filter((key) => !configured.includes(key));
+    const providerKeys = [...configured, ...extra];
     if (providerKeys.length === 0) {
       return buildAllProvidersUsageSnapshot([]);
     }
 
     const snapshots = await Promise.all(
       providerKeys.map(async (key) => {
-        const provider = config.providers[key];
+        const provider = config.providers?.[key];
         const baseUrl = provider?.baseUrl;
         try {
           const accessToken = await this.resolveProviderAccessToken(key);
           if (accessToken === undefined) {
-            return {
+            return finalizeUsageSnapshot({
               providerKey: key,
               displayName: key,
               available: false,
@@ -318,11 +335,14 @@ export class LioraAuthFacade {
               limits: [],
               error: 'No token. Run /login.',
               fetchedAtMs: Date.now(),
-            } satisfies ProviderUsageSnapshot;
+              status: 'auth-required',
+            });
           }
-          return await fetchProviderUsage(key, accessToken, baseUrl);
+          return await fetchProviderUsage(key, accessToken, baseUrl, {
+            refresh: options.refresh === true,
+          });
         } catch (error) {
-          return {
+          return finalizeUsageSnapshot({
             providerKey: key,
             displayName: key,
             available: false,
@@ -330,13 +350,13 @@ export class LioraAuthFacade {
             limits: [],
             error: error instanceof Error ? error.message : String(error),
             fetchedAtMs: Date.now(),
-          } satisfies ProviderUsageSnapshot;
+            status: 'error',
+          });
         }
       }),
     );
 
     const aggregate = buildAllProvidersUsageSnapshot(snapshots);
-    // Best-effort: never fail the TUI quota path if health bridge throws.
     try {
       applyUsageSnapshotsToCredentialHealth(aggregate);
     } catch {
@@ -365,6 +385,8 @@ export class LioraAuthFacade {
     if (providerEntry?.apiKey !== undefined && providerEntry.apiKey.length > 0) {
       return providerEntry.apiKey;
     }
+    const envToken = envUsageAccessToken(providerKey);
+    if (envToken !== undefined) return envToken;
     // Kimi managed path.
     try {
       return await this.toolkit.ensureFresh(SUPERLIORA_PROVIDER_NAME, {

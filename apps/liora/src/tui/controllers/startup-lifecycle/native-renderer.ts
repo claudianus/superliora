@@ -65,6 +65,9 @@ export function attachStartupNativeRendererCallback(host: StartupLifecycleHost):
       hasBackgroundWork: () =>
         hasRunningConductorWorkers(host.state.appState.conductorJobs) ||
         host.missionControl?.hasLiveWorkers() === true,
+      onAmbientTick: () => {
+        host.usageMonitor.tick();
+      },
       onAuthoritativeFrame: (info) => {
         // Resync frames re-emit palette even when the payload is unchanged —
         // the terminal may have dropped OSC state along with the screen.

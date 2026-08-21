@@ -345,14 +345,30 @@ export type {
 export {
   buildAllProvidersUsageSnapshot,
   fetchProviderUsage,
+  finalizeUsageSnapshot,
+  formatRemainingDisplay,
+  overlayRouteRateLimits,
+  parseAnthropicOAuthUsage,
+  resolveUsageProviderKey,
+  parseDeepSeekBalancePayload,
+  parseOpenRouterKeyPayload,
+  parseRateLimitHeaders,
   providerDisplayName,
+  providerShortName,
+  snapshotRemainingRatio,
   snapshotWorstRatio,
   usageRowRatio,
+  usageRowsFromRouteRateLimits,
 } from '@superliora/oauth';
 export type {
   AllProvidersUsageSnapshot,
+  OverlayRouteRateLimitsInput,
+  ProviderUsageKind,
   ProviderUsageRow,
   ProviderUsageSnapshot,
+  ProviderUsageSource,
+  ProviderUsageStatus,
+  RouteRateLimitInput,
 } from '@superliora/oauth';
 
 export * from '#/session/events';

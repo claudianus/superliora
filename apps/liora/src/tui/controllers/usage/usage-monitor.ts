@@ -1,15 +1,11 @@
 /**
  * UsageMonitorController — background poller for provider quota / usage.
  *
- * Periodically fetches usage for all configured OAuth providers via the
- * SDK auth facade and pushes the aggregate snapshot into `AppState.providerQuota`.
- * The footer reads `providerQuota.worstRatio` for a live quota badge, and the
- * `/usage` panel reads the full snapshot for the multi-provider quota section.
+ * Fetches via `getAllProvidersUsage()` and writes `AppState.providerQuota`.
+ * The footer reads the cached snapshot only — never fetches during render.
  *
- * Polling cadence:
- *   - First fetch: 3 s after start (let the session settle).
- *   - Subsequent: every 90 s (aligns with typical rate-limit windows).
- *   - Skipped while the TUI is idle with no providers configured.
+ * Cadence is driven by the appearance/ambient frame clock (`tick`), not a
+ * raw `setInterval`. Wall-clock gap is 150s (cache TTL is ≥120s).
  */
 
 import { applyUsageSnapshotsToCredentialHealth } from '@superliora/oauth';
@@ -19,26 +15,21 @@ export interface UsageMonitorOptions {
   readonly harness: LioraHarness;
   readonly setAppState: (patch: { providerQuota: AllProvidersUsageSnapshot | null }) => void;
   readonly requestRender: () => void;
-  /** Override the poll interval (ms). Defaults to 90 000. */
+  /** Override the poll interval (ms). Defaults to 150 000. */
   readonly pollIntervalMs?: number;
-  /** Override the initial delay (ms). Defaults to 3 000. */
-  readonly initialDelayMs?: number;
 }
 
-const DEFAULT_POLL_INTERVAL_MS = 90_000;
-const DEFAULT_INITIAL_DELAY_MS = 3_000;
+const DEFAULT_POLL_INTERVAL_MS = 150_000;
 
 export class UsageMonitorController {
   private readonly harness: LioraHarness;
   private readonly setAppState: UsageMonitorOptions['setAppState'];
   private readonly requestRender: () => void;
   private readonly pollIntervalMs: number;
-  private readonly initialDelayMs: number;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private initialTimer: ReturnType<typeof setTimeout> | null = null;
+  private started = false;
   private disposed = false;
   private fetching = false;
-  /** Last snapshot for synchronous reads (footer badge between polls). */
+  private lastPollAt = 0;
   private lastSnapshot: AllProvidersUsageSnapshot | null = null;
 
   constructor(options: UsageMonitorOptions) {
@@ -46,56 +37,47 @@ export class UsageMonitorController {
     this.setAppState = options.setAppState;
     this.requestRender = options.requestRender;
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-    this.initialDelayMs = options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS;
   }
 
-  /** Start the background poller. Idempotent. */
+  /** Start: one background fetch. Later refreshes come from `tick`. */
   start(): void {
-    if (this.disposed || this.pollTimer !== null || this.initialTimer !== null) return;
-    this.initialTimer = setTimeout(() => {
-      this.initialTimer = null;
-      void this.poll();
-      this.pollTimer = setInterval(() => {
-        void this.poll();
-      }, this.pollIntervalMs);
-      this.pollTimer.unref?.();
-    }, this.initialDelayMs);
-    this.initialTimer.unref?.();
+    if (this.disposed || this.started) return;
+    this.started = true;
+    void this.poll();
   }
 
-  /** Force an immediate refresh (e.g. after /login or /usage). */
+  /**
+   * Appearance-clock hook. Call from the native frame callback.
+   * Fetches only when the wall-clock gap exceeds the poll interval.
+   */
+  tick(nowMs: number = Date.now()): void {
+    if (this.disposed || !this.started) return;
+    if (this.lastPollAt > 0 && nowMs - this.lastPollAt < this.pollIntervalMs) return;
+    void this.poll();
+  }
+
+  /** Force an immediate refresh (e.g. after /login or /quota). */
   async refresh(): Promise<void> {
     await this.poll();
   }
 
-  /** The most recent snapshot (may be null before the first poll completes). */
   get snapshot(): AllProvidersUsageSnapshot | null {
     return this.lastSnapshot;
   }
 
   dispose(): void {
     this.disposed = true;
-    if (this.initialTimer !== null) {
-      clearTimeout(this.initialTimer);
-      this.initialTimer = null;
-    }
-    if (this.pollTimer !== null) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
+    this.started = false;
   }
 
   private async poll(): Promise<void> {
     if (this.disposed || this.fetching) return;
     this.fetching = true;
+    this.lastPollAt = Date.now();
     try {
       const snapshot = await this.harness.auth.getAllProvidersUsage();
       if (this.disposed) return;
       this.lastSnapshot = snapshot;
-      // Bridge quota → credential health so worker routing skips exhausted
-      // token-plan providers without waiting for a failed API call. SDK path
-      // already applies this; keep a second apply for harness stubs / older
-      // facades that only return the snapshot.
       try {
         applyUsageSnapshotsToCredentialHealth(snapshot);
       } catch {

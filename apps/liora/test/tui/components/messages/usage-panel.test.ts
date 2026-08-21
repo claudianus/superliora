@@ -87,6 +87,39 @@ describe('UsagePanelComponent', () => {
     expect(body).toMatch(/soft\)/);
   });
 
+  it('renders provider remaining, source, and hides fake bars', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const lines = buildUsageReportLines({
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+      providerQuotaOnly: true,
+      providerQuota: {
+        providers: [
+          {
+            providerKey: 'anthropic-oauth',
+            displayName: 'Anthropic Claude',
+            available: true,
+            summary: { label: '5-hour limit', used: 58, limit: 100, resetHint: 'resets in 3h' },
+            limits: [],
+            fetchedAtMs: Date.now(),
+            remainingDisplay: 'Claude 42% · 3h',
+            source: 'oauth-api',
+            status: 'ok',
+            kind: 'subscription',
+          },
+        ],
+        primaryProviderKey: 'anthropic-oauth',
+        worstRatio: 0.58,
+        fetchedAtMs: Date.now(),
+      },
+    }).map(stripAnsi);
+    expect(lines).toContain('Provider quotas');
+    expect(lines.join('\n')).toContain('Claude 42% · 3h');
+    expect(lines.join('\n')).toContain('42% left');
+    expect(lines.join('\n')).toContain('usage API');
+  });
+
   it('shows a next action before token usage exists', () => {
     const lines = buildUsageReportLines({
       sessionUsage: undefined,

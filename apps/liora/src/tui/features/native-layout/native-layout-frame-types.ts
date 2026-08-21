@@ -58,6 +58,8 @@ export interface TUIStateNativeRenderCallbackOptions {
    * don't freeze.
    */
   readonly hasBackgroundWork?: () => boolean;
+  /** Appearance-clock hook for non-motion periodic work (quota poll). */
+  readonly onAmbientTick?: (nowMs: number) => void;
   /**
    * When true, the rendered UI height is capped to the actual content
    * height (transcript + chrome) instead of always occupying the full

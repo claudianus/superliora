@@ -16,6 +16,10 @@ import {
   formatWorkingSetFooterBadge,
   styleFooterBadge,
 } from '#/tui/components/chrome/footer/footer-badges';
+import {
+  activeProviderKeyFromState,
+  resolveLiveQuotaSnapshot,
+} from '#/tui/utils/usage/quota-glance';
 import { footerNextAction } from '#/tui/components/chrome/footer/footer-chrome';
 import { formatContextStatus } from '#/tui/components/chrome/footer/footer-context';
 import {
@@ -86,13 +90,14 @@ export function renderFooterLine2(input: RenderFooterLine2Input): string {
     }
   }
 
-  const quotaRatio = state.providerQuota?.worstRatio ?? 0;
-  const quotaAutoOk = quotaRatio >= 0.7;
-  if (footerSlotVisible(prefs.quota, true, quotaAutoOk)) {
-    const quotaBadge = formatProviderQuotaFooterBadge(state.providerQuota, labels);
-    if (quotaBadge !== null) {
-      contextParts.push(styleFooterBadge(quotaBadge, appearance));
-    }
+  const liveQuota = resolveLiveQuotaSnapshot(state.providerQuota, state.providerRouteStatus);
+  const quotaBadge = formatProviderQuotaFooterBadge(
+    liveQuota,
+    labels,
+    activeProviderKeyFromState(state),
+  );
+  if (footerSlotVisible(prefs.quota, quotaBadge !== null, quotaBadge !== null) && quotaBadge !== null) {
+    contextParts.push(styleFooterBadge(quotaBadge, appearance));
   }
 
   const contextText =
