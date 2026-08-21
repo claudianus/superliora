@@ -44,7 +44,7 @@ async function collectImportedInstallModules(entryRelPaths: readonly string[]): 
     }
   }
 
-  return [...installModules].sort();
+  return [...installModules];
 }
 
 describe('install bootstrap module allowlists', () => {
