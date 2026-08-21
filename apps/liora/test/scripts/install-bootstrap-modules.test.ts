@@ -11,7 +11,7 @@ function parseInstallPs1Modules(ps1: string): string[] {
   if (!block) {
     throw new Error('install.ps1 $InstallModules list not found');
   }
-  return [...block.matchAll(/'([^']+\.mjs)'/g)].map((match) => match[1]);
+  return [...block.matchAll(/'([^']+\.mjs)'/g)].map((match) => match[1]!);
 }
 
 function parseInstallShModules(sh: string): string[] {
