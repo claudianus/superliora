@@ -31,6 +31,84 @@ function connectRelay(port: number): Promise<Socket> {
   });
 }
 
+function reserveFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address();
+      if (address === null || typeof address === 'string') {
+        probe.close(() => reject(new Error('expected TCP address')));
+        return;
+      }
+      const { port } = address;
+      probe.close((error) => {
+        if (error !== undefined) reject(error);
+        else resolve(port);
+      });
+    });
+  });
+}
+
+function attachOutputBuffer(proc: ChildProcess): {
+  waitFor(needle: string, timeoutMs: number, label: string): Promise<void>;
+} {
+  let buf = '';
+  const append = (chunk: Buffer) => {
+    buf += chunk.toString();
+  };
+  proc.stdout?.on('data', append);
+  proc.stderr?.on('data', append);
+  return {
+    waitFor(needle, timeoutMs, label) {
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (fn: () => void) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          proc.stdout?.off('data', onData);
+          proc.stderr?.off('data', onData);
+          fn();
+        };
+        const onData = () => {
+          if (buf.includes(needle)) finish(() => resolve());
+        };
+        const timeout = setTimeout(() => {
+          finish(() => reject(new Error(`${label}\noutput:\n${buf}`)));
+        }, timeoutMs);
+        proc.stdout?.on('data', onData);
+        proc.stderr?.on('data', onData);
+        proc.once('error', (error) => {
+          finish(() => reject(error instanceof Error ? error : new Error(String(error))));
+        });
+        proc.once('exit', (code, signal) => {
+          finish(() => reject(new Error(`${label}: child exited ${code ?? signal}\noutput:\n${buf}`)));
+        });
+        onData();
+      });
+    },
+  };
+}
+
+async function stopChild(proc: ChildProcess | undefined): Promise<void> {
+  if (proc === undefined || proc.exitCode !== null || proc.signalCode !== null) return;
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    proc.once('exit', done);
+    proc.kill('SIGTERM');
+    setTimeout(() => {
+      if (!settled) proc.kill('SIGKILL');
+      setTimeout(done, 200);
+    }, 200);
+  });
+}
+
 describe('research-bridge extension relay', () => {
   it('forwards search to attached relay socket and resolves results', async () => {
     const relay = createExtensionRelayState({ timeoutMs: 2_000 });
@@ -107,20 +185,15 @@ describe('research-bridge --serve extension forward', () => {
   let child: ChildProcess | undefined;
 
   afterEach(async () => {
-    if (child !== undefined && !child.killed) {
-      child.kill('SIGTERM');
-      await new Promise<void>((resolve) => {
-        child?.once('exit', () => resolve());
-        setTimeout(resolve, 500);
-      });
-    }
+    const proc = child;
     child = undefined;
+    await stopChild(proc);
   });
 
   it('returns extension relay results when mock client is connected', async () => {
-    const port = 41_000 + Math.floor(Math.random() * 10_000);
+    const port = await reserveFreePort();
+    const relayPort = await reserveFreePort();
     const serveUrl = `http://127.0.0.1:${port}/search`;
-    const relayPort = port + 1;
 
     child = spawn(process.execPath, [nativeHostScript, '--serve'], {
       env: {
@@ -130,28 +203,13 @@ describe('research-bridge --serve extension forward', () => {
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    const output = attachOutputBuffer(child);
 
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('serve startup timeout')), 5_000);
-      child?.stdout?.on('data', (chunk: Buffer) => {
-        if (chunk.toString().includes('research-bridge serve ok')) {
-          clearTimeout(timeout);
-          resolve();
-        }
-      });
-      child?.once('error', reject);
-    });
+    await output.waitFor('research-bridge serve ok', 5_000, 'serve startup timeout');
 
+    // TCP accept is the attach signal. The host logs "extension relay connected"
+    // in the same accept callback, so waiting on that string after connect races.
     const relayClient = await connectRelay(relayPort);
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('relay connect timeout')), 2_000);
-      child?.stdout?.on('data', (chunk: Buffer) => {
-        if (chunk.toString().includes('extension relay connected')) {
-          clearTimeout(timeout);
-          resolve();
-        }
-      });
-    });
 
     const relayReady = (async () => {
       for (;;) {

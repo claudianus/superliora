@@ -77,7 +77,9 @@ async function ensureRuntimePrereqsAt(
           gitPath?: string;
         }>;
       };
-      const result = await mod.ensureGit();
+      // Session PATH is enough. User PATH / LIORA_SHELL_PATH PowerShell writes
+      // can hang upgrade (and Windows CI) when the registry env write blocks.
+      const result = await mod.ensureGit({ noShellRc: true });
       if (result.missing) {
         gitOk = false;
         if (result.message) warnings.push(result.message);
