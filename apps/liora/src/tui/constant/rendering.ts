@@ -29,3 +29,8 @@ export const MOON_SPINNER_INTERVAL_MS = 120;
 // (dust → filled orb → dust). Not a braille spinner and not a 2-frame blink.
 export const THINKING_MASCOT_FRAMES = ['·', '∘', '○', '◎', '●'] as const;
 export const THINKING_MASCOT_PERIOD_MS = 1120;
+
+// Idle watcher pulse (○ ◎ ◉ ◎). Slower than the busy moon spinner so leftover
+// background work reads as ambient, not as a live turn.
+export const WATCHER_PULSE_FRAMES = ['○', '◎', '◉', '◎'] as const;
+export const WATCHER_PULSE_INTERVAL_MS = 260;

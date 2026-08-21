@@ -112,6 +112,23 @@ describe('ActivityPaneComponent', () => {
       vi.useRealTimers();
     }
   });
+
+  it('paints a dim still-running cue for leftover watchers', () => {
+    const pane = new ActivityPaneComponent({
+      mode: 'watching',
+      resolveStatus: () => ({
+        phase: 'watching',
+        tools: [],
+        startedAt: Date.now(),
+        now: Date.now(),
+        watchers: { commands: 1, questions: 0, subagents: 2 },
+      }),
+    });
+    const out = strip(pane.render(80).join('\n'));
+    expect(out).toContain('1 command · 2 subagents still running');
+    expect(out).not.toContain('Waiting');
+    expect(out).not.toContain('Thinking');
+  });
 });
 
 describe('ActivityPaneComponent thinking ambient', () => {

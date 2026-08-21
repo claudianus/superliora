@@ -30,6 +30,16 @@ describe('formatTurnStatusLabel', () => {
       }),
     ).toBe('Reading 1 file');
   });
+
+  it('uses the still-running cue when leftover watchers keep the row up', () => {
+    expect(
+      formatTurnStatusLabel({
+        phase: 'watching',
+        tools: [],
+        watchers: { commands: 2, questions: 0, subagents: 1 },
+      }),
+    ).toBe('2 commands · 1 subagent still running');
+  });
 });
 
 describe('formatTokenChip', () => {
@@ -79,5 +89,19 @@ describe('buildTurnStatusParts', () => {
     });
     expect(parts.label).toBe('Reading 1 file · Searching 1 pattern');
     expect(parts.right).toBe('12s  12k  2 queued');
+  });
+
+  it('omits elapsed and tokens on the idle watcher cue', () => {
+    const parts = buildTurnStatusParts({
+      phase: 'watching',
+      tools: [],
+      startedAt: 1_000,
+      now: 13_000,
+      contextTokens: 12_000,
+      queued: 1,
+      watchers: { commands: 1, questions: 0, subagents: 0 },
+    });
+    expect(parts.label).toBe('1 command still running');
+    expect(parts.right).toBe('1 queued');
   });
 });

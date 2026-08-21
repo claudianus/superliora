@@ -1,9 +1,11 @@
 import { Container, Spacer, truncateToWidth, visibleWidth } from '#/tui/renderer';
 
 import type { MoonLoader } from '#/tui/components/chrome/moon-loader';
+import { WATCHER_PULSE_FRAMES, WATCHER_PULSE_INTERVAL_MS } from '#/tui/constant/rendering';
 import { currentTheme } from '#/tui/theme';
 import {
   getActiveAppearancePreferences,
+  progressMotionFrame,
   renderAmbientDrift,
   renderParticleRail,
   shouldRenderAmbientEffects,
@@ -14,7 +16,13 @@ import {
   type TurnStatusInput,
 } from '#/tui/features/transcript/turn-status';
 
-export type ActivityPaneMode = 'hidden' | 'waiting' | 'thinking' | 'composing' | 'tool';
+export type ActivityPaneMode =
+  | 'hidden'
+  | 'waiting'
+  | 'thinking'
+  | 'composing'
+  | 'tool'
+  | 'watching';
 
 export interface ActivityPaneOptions {
   readonly mode: ActivityPaneMode;
@@ -80,8 +88,9 @@ export class ActivityPaneComponent extends Container {
       ...snapshot,
       now: Date.now(),
     });
-    const glyph = this.spinnerRef?.renderGlyph() ?? '';
-    const label = currentTheme.fg('text', parts.label);
+    const watching = snapshot.phase === 'watching';
+    const glyph = watching ? renderWatcherPulseGlyph() : (this.spinnerRef?.renderGlyph() ?? '');
+    const label = currentTheme.fg(watching ? 'textDim' : 'text', parts.label);
     const right = currentTheme.fg('textDim', parts.right);
     return composeTurnStatusLine({
       width,
@@ -92,4 +101,12 @@ export class ActivityPaneComponent extends Container {
       pad: (text, budget) => truncateToWidth(text, budget),
     });
   }
+}
+
+function renderWatcherPulseGlyph(): string {
+  const frame =
+    WATCHER_PULSE_FRAMES[
+      progressMotionFrame(WATCHER_PULSE_INTERVAL_MS, WATCHER_PULSE_FRAMES.length)
+    ]!;
+  return currentTheme.fg('primary', frame);
 }

@@ -86,6 +86,7 @@ export class SessionReplayHydrator {
       }
     }
     state.footer.setBackgroundCounts(countActiveBackgroundTasks(sessionEventHandler.backgroundTasks));
+    this.host.updateActivityPane();
     requestTUILayoutRender(state);
   }
 }

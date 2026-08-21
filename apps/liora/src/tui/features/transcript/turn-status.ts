@@ -1,13 +1,21 @@
 /**
  * Grok-style turn-status row: spinner + live activity + elapsed + tokens/queue.
- * Hidden when idle (callers skip mount). Pure layout — no UI imports.
+ * Hidden when idle unless background watchers are still running.
+ * Pure layout — no UI imports.
  */
 
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 
 import { formatVerbGroupLabel, type VerbGroupItem } from './verb-group';
+import { stillRunningLabel, type Watchers } from './watchers';
 
-export type TurnStatusPhase = 'waiting' | 'thinking' | 'composing' | 'tool' | 'shell';
+export type TurnStatusPhase =
+  | 'waiting'
+  | 'thinking'
+  | 'composing'
+  | 'tool'
+  | 'shell'
+  | 'watching';
 
 export interface TurnStatusInput {
   readonly phase: TurnStatusPhase;
@@ -17,13 +25,18 @@ export interface TurnStatusInput {
   readonly contextTokens?: number;
   readonly queued?: number;
   readonly tip?: string;
+  readonly watchers?: Watchers;
 }
 
 export function formatTurnStatusLabel(input: {
   readonly phase: TurnStatusPhase;
   readonly tools: readonly VerbGroupItem[];
   readonly tip?: string;
+  readonly watchers?: Watchers;
 }): string {
+  if (input.phase === 'watching') {
+    return stillRunningLabel(input.watchers) ?? 'still running';
+  }
   const toolLabel = formatVerbGroupLabel(input.tools, {
     running: input.tools.some((item) => item.running === true),
   });
@@ -62,11 +75,12 @@ export function formatTokenChip(tokens: number | undefined): string | undefined 
 }
 
 export function formatTurnStatusRight(input: {
-  readonly elapsed: string;
+  readonly elapsed?: string;
   readonly tokens?: string;
   readonly queued?: number;
 }): string {
-  const parts = [input.elapsed];
+  const parts: string[] = [];
+  if (input.elapsed !== undefined && input.elapsed.length > 0) parts.push(input.elapsed);
   if (input.tokens !== undefined && input.tokens.length > 0) parts.push(input.tokens);
   if (input.queued !== undefined && input.queued > 0) {
     parts.push(input.queued === 1 ? '1 queued' : `${String(input.queued)} queued`);
@@ -97,8 +111,23 @@ export function buildTurnStatusParts(input: TurnStatusInput): {
   readonly label: string;
   readonly right: string;
 } {
+  if (input.phase === 'watching') {
+    return {
+      label: formatTurnStatusLabel({
+        phase: 'watching',
+        tools: input.tools,
+        watchers: input.watchers,
+      }),
+      right: formatTurnStatusRight({ queued: input.queued }),
+    };
+  }
   return {
-    label: formatTurnStatusLabel({ phase: input.phase, tools: input.tools, tip: input.tip }),
+    label: formatTurnStatusLabel({
+      phase: input.phase,
+      tools: input.tools,
+      tip: input.tip,
+      watchers: input.watchers,
+    }),
     right: formatTurnStatusRight({
       elapsed: formatElapsedTime(input.startedAt, input.now),
       tokens: formatTokenChip(input.contextTokens),

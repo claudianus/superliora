@@ -21,6 +21,7 @@ export interface BackgroundTaskEventHost {
   readonly streamingUI: StreamingUIController;
   readonly tasksBrowserController: TasksBrowserController;
   appendTranscriptEntry(entry: TranscriptEntry): void;
+  updateActivityPane(): void;
 }
 
 export class SessionEventBackgroundTasks {
@@ -121,6 +122,7 @@ export class SessionEventBackgroundTasks {
       }
     }
     state.footer.setBackgroundCounts({ bashTasks, agentTasks });
+    this.host.updateActivityPane();
     requestTUILayoutRender(state);
   }
 

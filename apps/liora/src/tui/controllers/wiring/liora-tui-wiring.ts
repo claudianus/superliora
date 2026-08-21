@@ -21,6 +21,7 @@ import {
   hasRunningConductorWorkers,
   isAmbientCalmIdle,
 } from '../../features/appearance/ambient-calm';
+import { hasLiveWatchers } from '../../features/transcript/watchers';
 import { isStreamRevealArmed } from '../streaming-ui/reveal';
 import { isLiveGoalChromeActive } from '../../features/native-layout/native-frame-policy';
 import { isNativeFullscreenTakeover } from '../../features/native-layout/native-layout-frame-build';
@@ -156,7 +157,8 @@ export function wireLioraTUIControllers(
       ) === true ||
       // Mission Control roster: live elapsed clocks + the completed-worker
       // linger expiry need 1s chrome ticks even while the main turn idles.
-      tui.missionControl.hasLiveWorkers(),
+      tui.missionControl.hasLiveWorkers() ||
+      hasLiveWatchers(tui.sessionEventHandler?.backgroundTasks),
     getTransportStability: () => tui.state.renderer.nativeRuntime?.transportStability,
     isAmbientIdle: () =>
       isAmbientCalmIdle({
@@ -166,10 +168,12 @@ export function wireLioraTUIControllers(
         fullscreenTakeover: isNativeFullscreenTakeover(tui.state),
         streamRevealArmed: isStreamRevealArmed(),
         // Mirror forceAmbientSchedule's background-work terms so live Conductor
-        // jobs and Mission Control workers keep the shared clock advancing.
+        // jobs, Mission Control workers, and idle-surviving watchers keep the
+        // shared clock advancing.
         backgroundWork:
           hasRunningConductorWorkers(tui.state.appState.conductorJobs) ||
-          tui.missionControl.hasLiveWorkers(),
+          tui.missionControl.hasLiveWorkers() ||
+          hasLiveWatchers(tui.sessionEventHandler?.backgroundTasks),
       }),
   });
   {

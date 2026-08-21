@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { BackgroundTaskInfo } from '@superliora/sdk';
+
 import { ActivityPaneComponent } from '#/tui/components/panes/activity-pane';
 import type { SessionEventHandler } from '#/tui/controllers/session-event/handler';
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
@@ -140,5 +142,51 @@ describe('updateActivityPane terminal progress', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+function runningProcess(taskId: string): BackgroundTaskInfo {
+  return {
+    kind: 'process',
+    taskId,
+    description: 'sleep',
+    status: 'running',
+    startedAt: 1,
+    endedAt: null,
+    command: 'sleep 30',
+    pid: 1,
+    exitCode: null,
+  };
+}
+
+describe('updateActivityPane idle watchers', () => {
+  it('keeps the status row up with leftover background commands and no terminal progress', () => {
+    const { driver, state, setProgress } = makeDriverWithTerminalProgress();
+    state.livePane = { ...state.livePane, mode: 'idle' };
+    driver.sessionEventHandler.backgroundTasks.set('bg-1', runningProcess('bg-1'));
+
+    driver.updateActivityPane();
+
+    expect(setProgress).not.toHaveBeenCalled();
+    expect(state.activitySpinner).toBeNull();
+    expect(state.activityContainer.children).toHaveLength(1);
+    expect(state.activityContainer.children[0]).toBeInstanceOf(ActivityPaneComponent);
+    const first = state.activityContainer.children[0];
+    const out = (first as ActivityPaneComponent)
+      .render(80)
+      .join('\n')
+      .replaceAll(/\u001B\[[0-9;]*m/g, '');
+    expect(out).toContain('1 command still running');
+
+    driver.updateActivityPane();
+    expect(state.activityContainer.children[0]).toBe(first);
+
+    driver.sessionEventHandler.backgroundTasks.set('bg-1', {
+      ...runningProcess('bg-1'),
+      status: 'completed',
+      endedAt: 2,
+    });
+    driver.updateActivityPane();
+    expect(state.activityContainer.children).toHaveLength(0);
   });
 });

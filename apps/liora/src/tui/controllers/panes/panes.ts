@@ -4,6 +4,7 @@ import type { Component } from '../../renderer';
 import { ActivityPaneComponent, type ActivityPaneMode } from '../../components/panes/activity-pane';
 import type { TurnStatusInput, TurnStatusPhase } from '../../features/transcript/turn-status';
 import { turnActivityIdentity } from '../../features/transcript/verb-group';
+import { countWatchers, hasLiveWatchers, watchersIdentity } from '../../features/transcript/watchers';
 import {
   QueuePaneComponent,
   queuePaneSelectionIdentity,
@@ -95,7 +96,12 @@ export class PanesController {
     // covers waiting/tool (both moon spinners) and any intermediate thinking
     // phase, so a continuous burst of tool calls does not flip tips. Clear the
     // cache only when there is no loading UI at all.
-    if (effectiveMode === 'idle' || effectiveMode === 'session' || effectiveMode === 'hidden') {
+    if (
+      effectiveMode === 'idle' ||
+      effectiveMode === 'session' ||
+      effectiveMode === 'hidden' ||
+      effectiveMode === 'watching'
+    ) {
       this.currentLoadingTip = undefined;
     } else if (tipKind !== undefined) {
       const pinnedTip = host.state.appState.activityTip ?? undefined;
@@ -124,13 +130,16 @@ export class PanesController {
       }
     }
     this.syncTerminalProgress(this.shouldShowTerminalProgress(effectiveMode));
-    const statusIdentity = `${turnActivityIdentity(host.state.turnActivity?.tools ?? [])}|${String(host.state.queuedMessages.length)}`;
-    const loading =
+    const watchers = countWatchers(host.sessionEventHandler.backgroundTasks.values());
+    const statusIdentity = `${turnActivityIdentity(host.state.turnActivity?.tools ?? [])}|${String(host.state.queuedMessages.length)}|${watchersIdentity(watchers)}`;
+    const persist =
       effectiveMode === 'waiting' ||
       effectiveMode === 'thinking' ||
       effectiveMode === 'tool' ||
-      effectiveMode === 'composing';
-    if (effectiveMode === this.lastActivityMode && loading) {
+      effectiveMode === 'composing' ||
+      effectiveMode === 'watching';
+    const wasWatching = this.lastActivityMode === 'watching';
+    if (effectiveMode === this.lastActivityMode && persist) {
       if (statusIdentity !== this.lastActivityStatusIdentity) {
         this.lastActivityStatusIdentity = statusIdentity;
         requestTUIContentRender(host.state);
@@ -206,11 +215,24 @@ export class PanesController {
         );
         break;
       }
+      case 'watching': {
+        this.stopActivitySpinner();
+        host.state.activityContainer.addChild(
+          new ActivityPaneComponent({
+            mode: 'watching',
+            resolveStatus: () => this.resolveTurnStatus(),
+          }),
+        );
+        break;
+      }
       case 'idle':
       case 'session': {
         this.stopActivitySpinner();
         break;
       }
+    }
+    if (effectiveMode === 'watching' || wasWatching) {
+      host.appearanceController.refreshAmbientSchedule();
     }
     requestTUIContentRender(host.state);
   }
@@ -235,7 +257,14 @@ export class PanesController {
       }
     }
 
-    return host.state.livePane.mode;
+    const mode = host.state.livePane.mode;
+    if (
+      (mode === 'idle' || mode === 'session') &&
+      hasLiveWatchers(host.sessionEventHandler.backgroundTasks)
+    ) {
+      return 'watching';
+    }
+    return mode;
   }
 
   private resolveTurnStatus(): TurnStatusInput | undefined {
@@ -250,6 +279,7 @@ export class PanesController {
       contextTokens: host.state.appState.contextTokens,
       queued: host.state.queuedMessages.length,
       tip: this.currentLoadingTip?.tip,
+      watchers: countWatchers(host.sessionEventHandler.backgroundTasks.values()),
     };
   }
 
@@ -257,7 +287,13 @@ export class PanesController {
     const { host } = this;
     if (host.state.appState.streamingPhase === 'shell') return 'shell';
     const mode = this.resolveActivityPaneMode();
-    if (mode === 'waiting' || mode === 'thinking' || mode === 'composing' || mode === 'tool') {
+    if (
+      mode === 'waiting' ||
+      mode === 'thinking' ||
+      mode === 'composing' ||
+      mode === 'tool' ||
+      mode === 'watching'
+    ) {
       return mode;
     }
     return undefined;
