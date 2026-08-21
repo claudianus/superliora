@@ -112,7 +112,7 @@ export class LocalResearchCache {
           ttl_ms = excluded.ttl_ms
       `)
       .run(key, query, JSON.stringify(results), now, ttlMs);
-    // ponytail: prune only on write. get(allowStale:false) of an expired key
+    // Prune only on write. get(allowStale:false) of an expired key
     // must leave the row — search() then falls back to allowStale:true for the
     // same key when the network returns nothing. Offline-always never writes,
     // so stale rows stay until a later successful set().
