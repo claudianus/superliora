@@ -1,5 +1,18 @@
 # @superliora/liora
 
+## 0.12.9
+
+### Patch Changes
+
+- Give the welcome hero a live premium frame (comet chase + breath; static when motion is off).
+- Sweep chrome-band ratio bars (Todo Board, Worker Dock, footer context) with a gradient wash.
+- Cap skill dumps and rotate spill files so full catalog bodies and /init dumps stay out of history.
+- Give the device-code login panel a live frame that matches the rest of the chrome.
+- Fix Windows shutdown (sqlite handles), search/worktree path identity (8.3 and `\\?\`), install-terminal hangs, and gate hangs.
+- Give the prompt editor a live frame on the shared clock.
+- Morph live thinking into a thought-orb (·∘○◎●) instead of a generic spinner.
+- Fix one-liner installs (`irm | iex` / `curl | bash`) dying after Node download because the bootstrap bundle omitted `checkout-health.mjs`.
+
 ## 0.12.8
 
 ### Patch Changes
