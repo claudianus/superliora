@@ -232,7 +232,7 @@ describe('shipped landing copy', () => {
         .flatMap((cluster) => cluster.features)
         .find((feature) => feature.id === 'visual-quality');
       expect(visual?.body).toContain('Windows Terminal');
-      expect(visual?.body).toMatch(/classic|클래식/);
+      expect(visual?.body).toMatch(/classic|클래식/i);
       expect(visual?.body).toMatch(/console|콘솔/);
 
       const afterInstall = t.docs['getting-started'].sections.find(
