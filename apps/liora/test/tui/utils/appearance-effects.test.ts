@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import chalk from 'chalk';
 
 import { visibleWidth } from '#/tui/renderer';
+import { thinkingMascotGlyph } from '#/tui/components/messages/thinking';
+import { THINKING_MASCOT_PERIOD_MS } from '#/tui/constant/rendering';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import {
+  shapeAmbientFrameClockMs,
+  type AmbientCalmSignals,
+} from '#/tui/features/appearance/ambient-calm';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationFrameIntervalMs,
@@ -163,6 +169,44 @@ describe('functional progress motion', () => {
     expect(progressMotionFrame(80, 0)).toBe(0);
     expect(progressMotionFrame(0, 10)).toBe(0);
     expect(progressMotionFrame(Number.NaN, 10)).toBe(0);
+  });
+
+  it('advances appearanceAnimationNow through the idle-unstable frame handoff', () => {
+    // The orb reads appearanceAnimationNow() with no private clock. If
+    // shapeAmbientFrameClockMs pins the stamp onto the 1-hour idle grid,
+    // progressMotionActive stays true but every glyph freezes on one frame.
+    const idle: AmbientCalmSignals = {
+      streamingPhase: 'idle',
+      compacting: false,
+      liveGoal: false,
+      fullscreenTakeover: false,
+      streamRevealArmed: false,
+      backgroundWork: false,
+    };
+    setAppearanceTransportStability('unstable');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
+    expect(shouldRenderAmbientEffects({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    })).toBe(false);
+
+    advanceAppearanceAnimationClock(shapeAmbientFrameClockMs(0, 'unstable', idle));
+    const firstNow = appearanceAnimationNow();
+    const firstOrb = thinkingMascotGlyph();
+    const firstSpin = progressMotionFrame(80, 10);
+
+    advanceAppearanceAnimationClock(
+      shapeAmbientFrameClockMs(THINKING_MASCOT_PERIOD_MS / 2, 'unstable', idle),
+    );
+    expect(appearanceAnimationNow()).toBe(THINKING_MASCOT_PERIOD_MS / 2);
+    expect(appearanceAnimationNow()).toBeGreaterThan(firstNow);
+    expect(thinkingMascotGlyph()).not.toBe(firstOrb);
+    expect(progressMotionFrame(80, 10)).not.toBe(firstSpin);
   });
 });
 

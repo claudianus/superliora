@@ -185,10 +185,17 @@ against that clock** — the epoch mismatch is ~1.8e12 ms and silently pins
 every elapsed effect at 0. Producers of motion timestamps must read
 `monotonicMotionNowMs()` / `appearanceAnimationNow()`, never `Date.now()`.
 
+That stamp **only moves** when the frame loop calls
+`advanceAppearanceAnimationClock()`. A dead ambient tick, or a pin inside
+`shapeAmbientFrameClockMs` (the old 1-hour idle ConPTY grid), freezes every
+clock-indexed effect — including the thought-orb — even when
+`progressMotionActive()` is true.
+
 Do not freeze this clock to hold a decorative frame still. If a large-area
 field must stay byte-identical (classic ConPTY starfield), freeze a
 **decorative-only** clock via `appearanceDecorativeFrozenByTransport` /
-`calmAmbientClockMs`. Chrome that indexes the shared clock must keep moving.
+`calmAmbientClockMs`. Chrome and the orb that index the shared clock must
+keep moving.
 
 ### 7.2 Quality levels
 

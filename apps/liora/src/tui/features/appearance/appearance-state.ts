@@ -64,6 +64,12 @@ export function advanceAppearanceAnimationClock(
   animationClockMs = nowMs;
 }
 
+/**
+ * Shared motion stamp. Only moves when the frame loop calls
+ * {@link advanceAppearanceAnimationClock}. A dead ambient tick or a pin
+ * inside `shapeAmbientFrameClockMs` freezes every clock-indexed effect —
+ * including the thought-orb — even when {@link progressMotionActive} is true.
+ */
 export function appearanceAnimationNow(): number {
   return animationClockMs;
 }

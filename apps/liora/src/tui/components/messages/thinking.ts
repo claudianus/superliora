@@ -365,6 +365,9 @@ function renderThinkingStatusLabel(label: string): string {
  * Five one-cell glyphs, dwells at dust (`·`) and the filled orb (`●`).
  * Functional rotation stays on when Appearance is off; only `NO_COLOR` /
  * `TERM=dumb` freeze at the rest `○`.
+ * Default `nowMs` is `appearanceAnimationNow()` — that stamp only moves when
+ * the frame loop advances it. Pinning the shared clock freezes this orb
+ * even though `progressMotionActive()` is true.
  */
 export function thinkingMascotGlyph(nowMs: number = appearanceAnimationNow()): string {
   const frames = THINKING_MASCOT_FRAMES;
