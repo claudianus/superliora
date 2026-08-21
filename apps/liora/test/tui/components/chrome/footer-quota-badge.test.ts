@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { formatProviderQuotaFooterBadge } from '#/tui/components/chrome/footer/footer-badges';
+import { activeProviderKeyFromState, resolveLiveQuotaSnapshot } from '#/tui/utils/usage/quota-glance';
 import type { AllProvidersUsageSnapshot } from '@superliora/sdk';
 
 function snapshot(
@@ -74,5 +75,34 @@ describe('formatProviderQuotaFooterBadge', () => {
       fetchedAtMs: Date.now(),
     };
     expect(formatProviderQuotaFooterBadge(empty, 'plain', 'openrouter')).toBeNull();
+  });
+
+  it('picks anthropic-oauth when the live alias catalog id is anthropic', () => {
+    const key = activeProviderKeyFromState({
+      model: 'claude-sonnet',
+      availableModels: { 'claude-sonnet': { provider: 'anthropic' } },
+    });
+    expect(key).toBe('anthropic-oauth');
+    const badge = formatProviderQuotaFooterBadge(snapshot('Claude 42% · 3h'), 'plain', key);
+    expect(badge?.text).toBe('Claude 42% · 3h');
+  });
+
+  it('does not add a /quota row when overlay uses catalog providerName', () => {
+    const live = resolveLiveQuotaSnapshot(snapshot('Claude 42% · 3h'), {
+      modelAlias: 'claude-sonnet',
+      strategy: 'auto',
+      candidates: [
+        {
+          modelAlias: 'claude-sonnet',
+          providerName: 'anthropic',
+          providerModel: 'claude-sonnet',
+          rateLimits: [{ name: 'requests', limit: 50, remaining: 10 }],
+        },
+      ],
+    });
+    expect(live?.providers.map((p) => p.providerKey)).toEqual(['anthropic-oauth']);
+    expect(
+      formatProviderQuotaFooterBadge(live, 'plain', 'anthropic')?.text,
+    ).toBe('Claude 42% · 3h');
   });
 });

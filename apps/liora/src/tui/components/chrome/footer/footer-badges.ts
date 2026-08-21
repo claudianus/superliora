@@ -1,7 +1,7 @@
 import { currentTheme, type ColorToken } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
 import type { AllProvidersUsageSnapshot, ProviderUsageSnapshot } from '@superliora/sdk';
-import { snapshotWorstRatio } from '@superliora/sdk';
+import { resolveUsageProviderKey, snapshotWorstRatio } from '@superliora/sdk';
 import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
 import { workingSetPressure } from '#/tui/utils/agent/context-working-set';
 import type { FooterLabels } from '#/tui/config';
@@ -193,7 +193,10 @@ function pickActiveQuotaSnapshot(
   activeProviderKey: string | undefined,
 ): ProviderUsageSnapshot | undefined {
   if (activeProviderKey !== undefined && activeProviderKey.length > 0) {
-    const exact = quota.providers.find((p) => p.providerKey === activeProviderKey);
+    const want = resolveUsageProviderKey(activeProviderKey);
+    const exact = quota.providers.find(
+      (p) => resolveUsageProviderKey(p.providerKey) === want,
+    );
     if (exact !== undefined) return exact;
   }
   if (quota.primaryProviderKey !== null) {

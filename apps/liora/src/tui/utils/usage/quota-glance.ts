@@ -1,5 +1,5 @@
 import type { AllProvidersUsageSnapshot, ProviderRouteStatus } from '@superliora/sdk';
-import { overlayRouteRateLimits } from '@superliora/sdk';
+import { overlayRouteRateLimits, resolveUsageProviderKey } from '@superliora/sdk';
 
 export async function refreshProviderQuotaOnHost(host: {
   readonly harness: {
@@ -35,5 +35,5 @@ export function activeProviderKeyFromState(state: {
 }): string | undefined {
   const alias = state.model;
   if (alias === undefined || alias.length === 0) return undefined;
-  return state.availableModels?.[alias]?.provider;
+  return resolveUsageProviderKey(state.availableModels?.[alias]?.provider);
 }

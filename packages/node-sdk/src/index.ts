@@ -349,6 +349,7 @@ export {
   formatRemainingDisplay,
   overlayRouteRateLimits,
   parseAnthropicOAuthUsage,
+  resolveUsageProviderKey,
   parseDeepSeekBalancePayload,
   parseOpenRouterKeyPayload,
   parseRateLimitHeaders,

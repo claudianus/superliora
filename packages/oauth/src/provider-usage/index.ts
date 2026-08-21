@@ -74,6 +74,7 @@ export {
   usageRowsFromRouteRateLimits,
 } from './provider-usage-headers';
 export { overlayRouteRateLimits } from './provider-usage-merge';
+export { resolveUsageProviderKey } from './provider-usage-key';
 export {
   ANTHROPIC_USAGE_TTL_MS,
   clearProviderUsageCache,

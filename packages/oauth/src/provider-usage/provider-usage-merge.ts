@@ -4,6 +4,7 @@ import {
   providerDisplayName,
 } from './provider-usage-display';
 import { usageRowsFromRouteRateLimits } from './provider-usage-headers';
+import { resolveUsageProviderKey } from './provider-usage-key';
 import type {
   AllProvidersUsageSnapshot,
   OverlayRouteRateLimitsInput,
@@ -48,18 +49,29 @@ export function overlayRouteRateLimits(
     return quota ?? null;
   }
   const byKey = new Map<string, ProviderUsageSnapshot>();
-  for (const snap of quota?.providers ?? []) {
-    byKey.set(snap.providerKey, snap);
-  }
   let changed = false;
+  for (const snap of quota?.providers ?? []) {
+    const key = resolveUsageProviderKey(snap.providerKey) ?? snap.providerKey;
+    const existing = byKey.get(key);
+    const normalized = key === snap.providerKey ? snap : { ...snap, providerKey: key };
+    if (existing === undefined) {
+      byKey.set(key, normalized);
+      if (key !== snap.providerKey) changed = true;
+      continue;
+    }
+    changed = true;
+    if (existing.source === 'oauth-api' || existing.source === 'catalog-pricing') continue;
+    byKey.set(key, normalized);
+  }
   for (const candidate of candidates) {
     const rows = usageRowsFromRouteRateLimits(candidate.rateLimits);
     if (rows.length === 0) continue;
-    const next = overlayOne(byKey.get(candidate.providerName), candidate.providerName, rows);
+    const key = resolveUsageProviderKey(candidate.providerName) ?? candidate.providerName;
+    const next = overlayOne(byKey.get(key), key, rows);
     if (next === undefined) continue;
-    const prev = byKey.get(candidate.providerName);
+    const prev = byKey.get(key);
     if (prev === next) continue;
-    byKey.set(candidate.providerName, next);
+    byKey.set(key, next);
     changed = true;
   }
   if (!changed) return quota ?? null;
