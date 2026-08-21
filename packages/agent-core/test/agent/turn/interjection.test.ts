@@ -51,7 +51,16 @@ describe('frameSteerContent', () => {
 
   it('leaves cron and injection origins unframed', () => {
     const input = [{ type: 'text', text: 'wake' }] as const;
-    expect(frameSteerContent(input, { kind: 'cron_job' })).toEqual(input);
+    expect(
+      frameSteerContent(input, {
+        kind: 'cron_job',
+        jobId: 'job_1',
+        cron: '0 * * * *',
+        recurring: true,
+        coalescedCount: 1,
+        stale: false,
+      }),
+    ).toEqual(input);
     expect(frameInterruptContent(input, { kind: 'injection', variant: 'system_reminder' })).toEqual(
       input,
     );
