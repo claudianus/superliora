@@ -169,6 +169,7 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
     const combined = dispatch.takeNextQueuedBatch();
     expect(combined?.text).toBe('one\n\ntwo\n\nthree');
     expect(combined?.displayText).toBe('one\n\ntwo\n\nthree');
+    expect(combined?.combinedDisplayTexts).toEqual(['one', 'two', 'three']);
     expect(dispatch.takeNextQueuedBatch()?.text).toBe('ls');
     expect(dispatch.takeNextQueuedBatch()).toBeUndefined();
   });
@@ -232,6 +233,28 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
     dispatch.sendQueuedMessage(session, { text: 'pnpm test', mode: 'bash' });
     expect(host.runShellCommandFromInput).toHaveBeenCalledWith('pnpm test');
     expect(host.session.prompt).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps combined follow-ups as one user entry with per-bubble texts', () => {
+    const host = fakeDispatchHost();
+    const dispatch = controllerFor(host);
+    const session = host.session as unknown as Session;
+
+    dispatch.sendQueuedMessage(session, {
+      text: 'one\n\ntwo',
+      displayText: 'one\n\ntwo',
+      combinedDisplayTexts: ['one', 'two'],
+    });
+
+    expect(host.session.prompt).toHaveBeenCalledWith('one\n\ntwo');
+    expect(host.appendTranscriptEntry).toHaveBeenCalledTimes(1);
+    expect(host.appendTranscriptEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'user',
+        content: 'one\n\ntwo',
+        combinedDisplayTexts: ['one', 'two'],
+      }),
+    );
   });
 
   it('steers mid-turn by appending to the transcript and calling session.steer once', () => {

@@ -4,6 +4,7 @@ import {
   COMBINED_QUEUE_SEPARATOR,
   combineQueuedPrefixLen,
   joinQueuedTexts,
+  stampCombinedDisplayTexts,
   type CombineQueuedGate,
 } from '#/tui/features/transcript/combine-queued';
 
@@ -45,5 +46,14 @@ describe('combineQueuedPrefixLen', () => {
 describe('joinQueuedTexts', () => {
   it('joins with a blank line and drops empties', () => {
     expect(joinQueuedTexts(['one', '', 'two'])).toBe(`one${COMBINED_QUEUE_SEPARATOR}two`);
+  });
+});
+
+describe('stampCombinedDisplayTexts', () => {
+  it('stamps only when at least two non-empty prompts were merged', () => {
+    expect(stampCombinedDisplayTexts(['one', 'two'])).toEqual(['one', 'two']);
+    expect(stampCombinedDisplayTexts(['one', '', 'two'])).toEqual(['one', 'two']);
+    expect(stampCombinedDisplayTexts(['one'])).toBeUndefined();
+    expect(stampCombinedDisplayTexts(['', ''])).toBeUndefined();
   });
 });

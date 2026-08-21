@@ -17,6 +17,7 @@ import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import {
   combineQueuedPrefixLen,
   joinQueuedTexts,
+  stampCombinedDisplayTexts,
   type CombineQueuedGate,
 } from '../../features/transcript/combine-queued';
 import {
@@ -34,6 +35,7 @@ interface SendMessageOptions {
   readonly parts?: readonly PromptPart[];
   readonly imageAttachmentIds?: readonly number[];
   readonly hasMedia?: boolean;
+  readonly combinedDisplayTexts?: readonly string[];
 }
 
 /** Host surface required by user-input / send / queue / steer dispatch. */
@@ -309,6 +311,7 @@ export class MessageDispatchController {
         displayText: item.displayText,
         parts: item.parts,
         imageAttachmentIds: item.imageAttachmentIds,
+        combinedDisplayTexts: item.combinedDisplayTexts,
       });
     });
   }
@@ -369,6 +372,7 @@ export class MessageDispatchController {
       content: displayInput,
       imageAttachmentIds,
       timestamp: Date.now(),
+      combinedDisplayTexts: options?.combinedDisplayTexts,
     });
 
     // Track the last user input for `/retry` / Hub → Chat → Retry.
@@ -495,9 +499,11 @@ function queuedMessageToCombineGate(message: QueuedMessage): CombineQueuedGate {
 
 function joinQueuedMessages(messages: readonly QueuedMessage[]): QueuedMessage {
   const first = messages[0]!;
+  const segs = messages.map((message) => message.displayText ?? message.text);
   return {
     ...first,
-    text: joinQueuedTexts(messages.map((m) => m.text)),
-    displayText: joinQueuedTexts(messages.map((m) => m.displayText ?? m.text)),
+    text: joinQueuedTexts(messages.map((message) => message.text)),
+    displayText: joinQueuedTexts(segs),
+    combinedDisplayTexts: stampCombinedDisplayTexts(segs),
   };
 }

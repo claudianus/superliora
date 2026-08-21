@@ -118,9 +118,16 @@ export class TranscriptRenderController {
         const images = entry.imageAttachmentIds
           ?.map((id) => host.imageStore.get(id))
           .filter((a): a is ImageAttachment => a?.kind === 'image');
-        return new UserMessageComponent(entry.content, images, entry.bullet, entry.timestamp, () => {
-          requestTUIContentRender(host.state);
-        });
+        return new UserMessageComponent(
+          entry.content,
+          images,
+          entry.bullet,
+          entry.timestamp,
+          () => {
+            requestTUIContentRender(host.state);
+          },
+          entry.combinedDisplayTexts,
+        );
       }
       case 'skill_activation':
         return new SkillActivationComponent(

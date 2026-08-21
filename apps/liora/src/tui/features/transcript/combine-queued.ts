@@ -46,3 +46,11 @@ export function combineQueuedPrefixLen(items: readonly CombineQueuedGate[]): num
 export function joinQueuedTexts(texts: readonly string[]): string {
   return texts.filter((text) => text.length > 0).join(COMBINED_QUEUE_SEPARATOR);
 }
+
+/** Original display strings when at least two prompts were merged. */
+export function stampCombinedDisplayTexts(
+  texts: readonly string[],
+): readonly string[] | undefined {
+  const segs = texts.filter((text) => text.length > 0);
+  return segs.length >= 2 ? segs : undefined;
+}
