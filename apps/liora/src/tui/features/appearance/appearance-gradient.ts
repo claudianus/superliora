@@ -1,7 +1,6 @@
 import {
   hashRendererEffectSeed,
   mixHexColor,
-  rendererPositiveModulo,
   renderRendererStyledTextRunsAnsi,
   splitDisplayClusters,
   stripAnsiControls,
@@ -18,7 +17,6 @@ import {
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-state';
-import { PARTICLE_TOKENS, PREMIUM_PARTICLES } from '#/tui/features/appearance/appearance-particles';
 import { renderShimmerPrefix } from '#/tui/features/appearance/appearance-shimmer';
 
 /** Smooth brand-family chain for headlines / figlet — no opposite-hue role jumps. */
@@ -33,7 +31,7 @@ export const SPECTACULAR_TOKENS: readonly ColorToken[] = [
 
 export interface SpectacularTextOptions {
   readonly rowIndex?: number;
-  /** Faster color cycling and space sparkles. */
+  /** Faster color cycling. */
   readonly intense?: boolean;
   /** Slower wave for secondary copy. */
   readonly pace?: 'fast' | 'slow';
@@ -74,7 +72,6 @@ export function renderSpectacularText(
   const cycleMs = resolveSpectacularTextCycleMs(appearance, pace, intense);
   const nowMs = appearanceAnimationNow();
   const tickFloat = nowMs / cycleMs;
-  const tick = Math.floor(tickFloat);
   const base = hashRendererEffectSeed(seed) + rowIndex * 37;
   const waveStride = resolveSpectacularWaveStride(intense, pace);
   const waveSpan = SPECTACULAR_TOKENS.length * 4;
@@ -83,29 +80,16 @@ export function renderSpectacularText(
 
   for (const cluster of splitDisplayClusters(plainText)) {
     const char = cluster.text;
-    if (char === ' ') {
-      if (
-        intense &&
-        rendererPositiveModulo(base + clusterIndex + tick * 3, 23) === 0
-      ) {
-        const glyph =
-          PREMIUM_PARTICLES[
-            rendererPositiveModulo(base + tick + clusterIndex, PREMIUM_PARTICLES.length)
-          ]!;
-        runs.push({
-          text: glyph,
-          style: withSpectacularCanvasBackground({
-            fg: currentTheme.color(
-              PARTICLE_TOKENS[
-                rendererPositiveModulo(base + tick + clusterIndex, PARTICLE_TOKENS.length)
-              ]!,
-            ),
-            bold: true,
-          }),
-        });
-        clusterIndex += cluster.width;
-        continue;
-      }
+    // Newlines must stay raw line breaks. Styling them inserts SGR around `\n`
+    // and can split wrap tokens.
+    if (char === '\n') {
+      runs.push({ text: '\n' });
+      continue;
+    }
+    // Spaces (and tabs) stay wrap points. Replacing them with particle glyphs
+    // moved break points every tick, so wrapping blocks (job inspect / inbox
+    // notices) jumped up and down in the transcript.
+    if (char === ' ' || char === '\t') {
       runs.push({ text: char, style: withSpectacularCanvasBackground(undefined) });
       clusterIndex += cluster.width;
       continue;

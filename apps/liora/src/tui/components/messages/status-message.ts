@@ -8,7 +8,6 @@ import {
   getActiveAppearancePreferences,
   renderPremiumHeadline,
   renderShimmerPrefix,
-  renderSpectacularText,
   renderStatusFlashLine,
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
@@ -176,12 +175,8 @@ function renderNoticeTitle(
 }
 
 function renderNoticeDetail(detail: string): string {
-  const appearance = getActiveAppearancePreferences();
-  if (shouldRenderAmbientEffects(appearance)) {
-    return renderSpectacularText(detail, `notice-detail:${detail}`, appearance, {
-      intense: true,
-      pace: 'slow',
-    });
-  }
-  return currentTheme.fg('textDim', detail);
+  // Body copy (JobInspect dumps, JobList tables, inbox summaries) must stay
+  // wrap-stable. Per-character waves plus space sparkles used to change wrap
+  // points every ambient tick so the block jumped in the transcript.
+  return currentTheme.fg('textDim', detail.replaceAll('\r', ''));
 }

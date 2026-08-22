@@ -1,4 +1,4 @@
-import { visibleWidth, type RendererTerminalHost } from '#/tui/renderer';
+import { visibleWidth, wrapAnsiDisplayText, type RendererTerminalHost } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
@@ -524,6 +524,30 @@ describe('AppearanceController', () => {
     const codes = new Set(rendered.match(/\u001B\[[0-9;]*m/g) ?? []);
     expect(codes.size).toBeGreaterThan(2);
     expect(strip(rendered)).toContain('/\\ ABC');
+  });
+
+  it('keeps wrapping spectacular text on a stable row count as the wave moves', () => {
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+    const text =
+      'Job inbox: - job.completed job_abc [done] Fix the transcript flicker — ' +
+      'summary with many spaces so wrap can jump if glyphs replace break points. '.repeat(6);
+    const width = 48;
+    const rowCounts = new Set<number>();
+    for (let t = 0; t < 2400; t += 80) {
+      advanceAppearanceAnimationClock(t);
+      const rendered = renderSpectacularText(text, 'job-inbox:wrap', appearance, {
+        intense: true,
+        pace: 'slow',
+      });
+      expect(strip(rendered)).toBe(text);
+      rowCounts.add(wrapAnsiDisplayText(rendered, width).length);
+    }
+    expect(rowCounts.size).toBe(1);
+    expect([...rowCounts][0]).toBeGreaterThan(1);
   });
 
   it('paints theme canvas background on spectacular whitespace when canvas background is enabled', () => {
