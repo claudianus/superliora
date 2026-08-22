@@ -150,7 +150,7 @@ describe('shipped landing copy', () => {
   });
 
   it('teaches 0.12.9 upgrade, hub, and hygiene commands in EN and KO', () => {
-    expect(PRODUCT_VERSION).toBe('0.12.11');
+    expect(PRODUCT_VERSION).toBe('0.12.12');
     const readmeTokens = [
       'liora upgrade',
       'liora doctor',
@@ -225,7 +225,7 @@ describe('shipped landing copy', () => {
   });
 
   it('teaches 0.12.10 Windows chrome motion in EN and KO', () => {
-    expect(PRODUCT_VERSION).toBe('0.12.11');
+    expect(PRODUCT_VERSION).toBe('0.12.12');
     for (const lang of ['ko', 'en'] as const) {
       const t = translations[lang];
       const visual = t.clusters.items
