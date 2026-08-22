@@ -8,6 +8,16 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
+## 0.12.16 (2026-08-22)
+
+### Bug Fixes
+
+- Stop compact transcript rows from jumping up and down while tools run.
+
+### Features
+
+- Default transcript detail to standard. Ctrl+O still cycles minimal → compact → standard → full.
+
 ## 0.12.15 (2026-08-22)
 
 ### Bug Fixes

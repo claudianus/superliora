@@ -1,5 +1,12 @@
 # @superliora/liora
 
+## 0.12.16
+
+### Patch Changes
+
+- Stop compact transcript rows from jumping up and down while tools run.
+- Default transcript detail to standard. Ctrl+O still cycles minimal → compact → standard → full.
+
 ## 0.12.15
 
 ### Patch Changes
