@@ -5,6 +5,7 @@
  * status bullets. Components own layout; this module is a pure projection.
  */
 
+import { truncateToWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import type { TranscriptDetailLevel } from '#/tui/types';
 
@@ -125,9 +126,18 @@ export function compactHeaderRowCount(header: string): number {
   if (header.length === 0) return 1;
   let rows = 1;
   for (let i = 0; i < header.length; i++) {
-    if (header.charCodeAt(i) === 10) rows++;
+    if (header.codePointAt(i) === 10) rows++;
   }
   return rows;
+}
+
+/**
+ * Compact chrome skips the full-width phase tint clip. Pin each painted row
+ * to `width` so ambient SGR cannot overflow the terminal and wrap extra.
+ */
+export function clipCompactTranscriptRows(lines: readonly string[], width: number): string[] {
+  const safeWidth = Math.max(1, width);
+  return lines.map((line) => (line.length === 0 ? line : truncateToWidth(line, safeWidth, '')));
 }
 
 export function formatCompactThinkingLabel(opts: {

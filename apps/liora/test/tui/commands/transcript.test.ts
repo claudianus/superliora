@@ -122,12 +122,12 @@ describe('transcriptArgumentCompletions', () => {
     ]);
   });
 
-  it('marks compact as the default in completion hints, not standard', () => {
+  it('marks standard as the default in completion hints, not compact', () => {
     const byValue = Object.fromEntries(
       transcriptArgumentCompletions('').map((item) => [item.value, item.description ?? '']),
     );
-    expect(byValue['compact']).toMatch(/default/i);
-    expect(byValue['standard']).not.toMatch(/default/i);
+    expect(byValue['standard']).toMatch(/default/i);
+    expect(byValue['compact']).not.toMatch(/default/i);
   });
 
   it('filters by prefix', () => {

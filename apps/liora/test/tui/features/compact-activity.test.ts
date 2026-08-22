@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { visibleWidth } from '#/tui/renderer';
 import {
+  clipCompactTranscriptRows,
   compactHeaderRowCount,
   compactToolVerb,
   composeCompactActivityHeader,
@@ -87,5 +89,13 @@ describe('compact activity language', () => {
     expect(isCompactQuietChrome('compact')).toBe(true);
     expect(isCompactQuietChrome('minimal')).toBe(false);
     expect(isCompactQuietChrome('standard')).toBe(false);
+  });
+
+  it('clips compact rows to display width and keeps blank spacers', () => {
+    const long = `${'word '.repeat(40)}end`;
+    const clipped = clipCompactTranscriptRows(['', long, 'ok'], 20);
+    expect(clipped[0]).toBe('');
+    expect(visibleWidth(clipped[1]!)).toBeLessThanOrEqual(20);
+    expect(clipped[2]).toBe('ok');
   });
 });

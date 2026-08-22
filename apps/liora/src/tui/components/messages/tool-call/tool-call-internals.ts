@@ -118,7 +118,10 @@ export function buildToolCallHeaderText(host: ToolCallInternalsHost): string {
     subagentSpinnerFrame: host.subagent.spinnerFrame,
     detail: host.detail,
   });
-  if (host.result === undefined) {
+  // Compact titles are wrap-sensitive two-line blocks (title + dim metrics).
+  // The header entrance wash flattens CR/LF via ansiTextToCells, so skip it
+  // on quiet chrome — motion belongs on standard/full cards.
+  if (host.result === undefined && host.detail !== 'compact') {
     const startedAtMs = toolHeaderEntranceStartedAt(host.toolCall.id);
     const entered = applyToolHeaderEntrance(header, startedAtMs);
     const spawnAtMs = host.subagent.spawnEntranceAtMs;

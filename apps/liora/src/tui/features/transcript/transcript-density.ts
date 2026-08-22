@@ -15,7 +15,7 @@ import { formatVerbGroupLabel } from './verb-group';
  * Product default for new sessions / unset `tui.toml` appearance.transcript_detail.
  * Persisted user overrides always win over this.
  */
-export const DEFAULT_TRANSCRIPT_DETAIL: TranscriptDetailLevel = 'compact';
+export const DEFAULT_TRANSCRIPT_DETAIL: TranscriptDetailLevel = 'standard';
 
 /** Session-active density for render-time reads (thinking / answer phase). */
 let activeTranscriptDetail: TranscriptDetailLevel = DEFAULT_TRANSCRIPT_DETAIL;

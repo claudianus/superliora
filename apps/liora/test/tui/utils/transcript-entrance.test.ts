@@ -1,8 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { wrapAnsiDisplayText } from '#/tui/renderer';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme } from '#/tui/theme';
 import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
+import {
+  compactHeaderRowCount,
+  composeCompactActivityHeader,
+} from '#/tui/features/transcript/compact-activity';
 import {
   applyStreamTailGlow,
   applyToolHeaderEntrance,
@@ -171,6 +176,26 @@ describe('transcript-entrance', () => {
       const line = currentTheme.fg('primary', 'Using Read');
       expect(applyToolHeaderEntrance(line, 1000, undefined, 1000)).toBe(line);
       expect(toolHeaderEntranceDurationMs()).toBe(0);
+    });
+
+    it('keeps compact two-line headers wrap-stable while the settle runs', () => {
+      const header = composeCompactActivityHeader({
+        toolName: 'Edit',
+        entity: 'windows-job.ts',
+        live: true,
+        metrics: ['12s'],
+      });
+      expect(compactHeaderRowCount(header)).toBe(2);
+      const width = 36;
+      const rowCounts = new Set<number>();
+      for (let t = 0; t < 800; t += 40) {
+        const painted = applyToolHeaderEntrance(header, 0, undefined, t);
+        expect(compactHeaderRowCount(painted)).toBe(2);
+        expect(painted.includes('\n')).toBe(true);
+        rowCounts.add(wrapAnsiDisplayText(painted, width).length);
+      }
+      expect(rowCounts.size).toBe(1);
+      expect([...rowCounts][0]).toBeGreaterThan(1);
     });
   });
 

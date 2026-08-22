@@ -144,7 +144,7 @@ describe('showTranscriptDetailPicker', () => {
     ]);
   });
 
-  it('labels compact as the product default, not standard', () => {
+  it('labels standard as the product default, not compact', () => {
     const host = makeHost();
     showTranscriptDetailPicker(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
@@ -153,12 +153,12 @@ describe('showTranscriptDetailPicker', () => {
         options: readonly { value: string; description?: string }[];
       };
     };
-    expect(picker.opts.currentValue).toBe('compact');
+    expect(picker.opts.currentValue).toBe('standard');
     const byValue = Object.fromEntries(
       picker.opts.options.map((option) => [option.value, option.description ?? '']),
     );
-    expect(byValue['compact']).toMatch(/default/i);
-    expect(byValue['standard']).not.toMatch(/default/i);
+    expect(byValue['standard']).toMatch(/default/i);
+    expect(byValue['compact']).not.toMatch(/default/i);
     expect(byValue['standard']).toMatch(/preview cards/i);
   });
 });

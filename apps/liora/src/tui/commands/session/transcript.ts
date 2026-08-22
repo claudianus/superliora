@@ -17,8 +17,8 @@ import {
 
 const LEVEL_HINTS: Record<(typeof TRANSCRIPT_DETAIL_LEVELS)[number], string> = {
   minimal: 'One-line tools + per-turn chain summary',
-  compact: 'Default — activity title + dim metrics; click a card to expand',
-  standard: 'Preview cards (up to 5 lines) with highlighting',
+  compact: 'Activity title + dim metrics; click a card to expand',
+  standard: 'Default — preview cards (up to 5 lines) with highlighting',
   full: 'Every tool card expanded',
 };
 

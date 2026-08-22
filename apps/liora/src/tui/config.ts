@@ -348,7 +348,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   terminalBackground: 'off',
   terminalPalette: false,
   showTimestamps: true,
-  transcriptDetail: 'compact',
+  transcriptDetail: 'standard',
   missionControl: 'auto',
   neat: true,
   syntaxTheme: 'auto',

@@ -134,6 +134,48 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain('Using Read');
   });
 
+  it('keeps live compact activity headers at a stable row count across entrance ticks', () => {
+    const previousEnv = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+    };
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    try {
+      const component = new ToolCallComponent(
+        {
+          id: 'call_read_compact_live',
+          name: 'Read',
+          args: { path: 'packages/agent-core/src/tools/builtin/job/windows-job.ts' },
+          streamingStartedAtMs: Date.now() - 12_000,
+        },
+        undefined,
+      );
+      component.setDetail('compact');
+      const rowCounts = new Set<number>();
+      for (let t = 0; t < 800; t += 40) {
+        advanceAppearanceAnimationClock(t);
+        component.invalidate();
+        rowCounts.add(component.render(40).length);
+      }
+      expect(rowCounts.size).toBe(1);
+      expect([...rowCounts][0]).toBeGreaterThan(1);
+    } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    }
+  });
+
   it('colors compact edit diffs on the metrics line', () => {
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
     const component = new ToolCallComponent(
