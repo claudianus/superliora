@@ -33,6 +33,8 @@ export interface StartupLifecycleHost extends PromptInputRuntimeHost {
   options: LioraTUIOptions;
   session: Session | undefined;
   state: TUIState;
+  readonly shellOutputStreams: { readonly size: number };
+  cancelRunningShellCommand(): void;
   aborted: boolean;
   lastUserInput: string | undefined;
   readonly promptStash: PromptStash;

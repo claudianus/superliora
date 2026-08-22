@@ -4,8 +4,11 @@ import {
   buildTurnStatusParts,
   composeTurnStatusLine,
   formatTokenChip,
+  formatTurnStatusActions,
   formatTurnStatusLabel,
   formatTurnStatusRight,
+  layoutTurnStatusActionHits,
+  resolveTurnStatusActions,
 } from '#/tui/features/transcript/turn-status';
 
 describe('formatTurnStatusLabel', () => {
@@ -93,6 +96,20 @@ describe('composeTurnStatusLine', () => {
     expect(line.endsWith('12s  ⇣42k')).toBe(true);
     expect(line.length).toBe(40);
   });
+
+  it('reserves the action chips on the right edge', () => {
+    const line = composeTurnStatusLine({
+      width: 48,
+      glyph: '◐',
+      label: 'Reading 2 files',
+      right: '12s',
+      actions: formatTurnStatusActions({ showStop: true, showBg: true }),
+      visibleWidth: (text) => text.length,
+      pad: (text) => text,
+    });
+    expect(line.endsWith('12s [↓] [stop]')).toBe(true);
+    expect(line.length).toBe(48);
+  });
 });
 
 describe('buildTurnStatusParts', () => {
@@ -137,5 +154,42 @@ describe('buildTurnStatusParts', () => {
     expect(parts.right).toBe('2 queued');
     expect(parts.right).not.toContain('12s');
     expect(parts.right).not.toContain('12k');
+    expect(parts.actions).toEqual({ showStop: false, showBg: false });
+  });
+
+  it('keeps stop/bg chips off parked and leftover-watcher rows', () => {
+    expect(
+      resolveTurnStatusActions({
+        phase: 'tool',
+        parked: true,
+        showStop: true,
+        showBg: true,
+      }),
+    ).toEqual({ showStop: false, showBg: false });
+    expect(
+      resolveTurnStatusActions({
+        phase: 'watching',
+        showStop: true,
+        showBg: true,
+      }),
+    ).toEqual({ showStop: false, showBg: false });
+    expect(
+      resolveTurnStatusActions({
+        phase: 'tool',
+        showStop: true,
+        showBg: true,
+      }),
+    ).toEqual({ showStop: true, showBg: true });
+  });
+});
+
+describe('layoutTurnStatusActionHits', () => {
+  it('places [stop] and [↓] from the right edge', () => {
+    const both = layoutTurnStatusActionHits({ rowWidth: 40, showStop: true, showBg: true });
+    expect(both.stop).toEqual({ start: 34, end: 40 });
+    expect(both.bg).toEqual({ start: 30, end: 33 });
+    const stopOnly = layoutTurnStatusActionHits({ rowWidth: 40, showStop: true });
+    expect(stopOnly.stop).toEqual({ start: 34, end: 40 });
+    expect(stopOnly.bg).toBeUndefined();
   });
 });

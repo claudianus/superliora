@@ -1,7 +1,11 @@
 import type { BackgroundTaskInfo } from '@superliora/sdk';
 import { describe, expect, it } from 'vitest';
 
-import { pickForegroundTask, pickForegroundTasks } from '@/tui/utils/foreground-task';
+import {
+  hasDetachableForeground,
+  pickForegroundTask,
+  pickForegroundTasks,
+} from '@/tui/utils/foreground-task';
 
 function task(overrides: Partial<BackgroundTaskInfo> = {}): BackgroundTaskInfo {
   return {
@@ -88,5 +92,13 @@ describe('pickForegroundTasks', () => {
 
   it('returns an empty array when nothing matches', () => {
     expect(pickForegroundTasks([task({ detached: true })])).toEqual([]);
+  });
+});
+
+describe('hasDetachableForeground', () => {
+  it('is true for a running shell even without agent tasks', () => {
+    expect(hasDetachableForeground(undefined, true)).toBe(true);
+    expect(hasDetachableForeground([], false)).toBe(false);
+    expect(hasDetachableForeground([task()], false)).toBe(true);
   });
 });

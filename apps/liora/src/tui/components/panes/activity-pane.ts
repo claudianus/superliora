@@ -13,6 +13,8 @@ import {
 import {
   buildTurnStatusParts,
   composeTurnStatusLine,
+  TURN_STATUS_BG_CHIP,
+  TURN_STATUS_STOP_CHIP,
   type TurnStatusInput,
 } from '#/tui/features/transcript/turn-status';
 
@@ -97,10 +99,21 @@ export class ActivityPaneComponent extends Container {
       glyph,
       label,
       right,
+      actions: styleTurnStatusActions(parts.actions),
       visibleWidth,
       pad: (text, budget) => truncateToWidth(text, budget),
     });
   }
+}
+
+function styleTurnStatusActions(actions: {
+  readonly showStop: boolean;
+  readonly showBg: boolean;
+}): string {
+  const chips: string[] = [];
+  if (actions.showBg) chips.push(currentTheme.fg('textDim', TURN_STATUS_BG_CHIP));
+  if (actions.showStop) chips.push(currentTheme.fg('error', TURN_STATUS_STOP_CHIP));
+  return chips.length === 0 ? '' : ` ${chips.join(' ')}`;
 }
 
 function renderWatcherPulseGlyph(): string {

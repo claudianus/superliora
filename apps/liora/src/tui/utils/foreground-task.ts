@@ -30,3 +30,13 @@ export function pickForegroundTask(
 ): BackgroundTaskInfo | undefined {
   return pickForegroundTasks(tasks)[0];
 }
+
+/** True when Ctrl+B / `[↓]` has a foreground shell or task to detach. */
+export function hasDetachableForeground(
+  tasks: Iterable<BackgroundTaskInfo> | undefined,
+  shellRunning = false,
+): boolean {
+  if (shellRunning) return true;
+  if (tasks === undefined) return false;
+  return pickForegroundTask([...tasks]) !== undefined;
+}

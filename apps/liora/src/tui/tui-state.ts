@@ -161,7 +161,7 @@ export interface TUIState {
   cachedMissionRect?: RendererRect;
   /**
    * Cached activity / turn-status row rect (same stage plan as todo/transcript).
-   * Clicking the still-running cue opens /tasks.
+   * `[stop]` cancels, `[↓]` detaches, and the leftover cue opens /tasks.
    */
   cachedActivityRect?: RendererRect;
   /**

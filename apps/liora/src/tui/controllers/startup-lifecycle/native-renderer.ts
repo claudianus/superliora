@@ -133,6 +133,14 @@ export function ensureStartupNativeInputRouter(
           openTasks: () => {
             void host.tasksBrowserController.show();
           },
+          shellRunning: host.shellOutputStreams.size > 0,
+          cancelTurn: () => {
+            host.cancelRunningShellCommand();
+            void host.session?.cancel({ source: 'esc' });
+          },
+          detachForeground: () => {
+            void host.panes.detachCurrentForegroundTask();
+          },
         },
         event,
       ),
