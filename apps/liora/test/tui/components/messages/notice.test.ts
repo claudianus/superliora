@@ -70,11 +70,69 @@ describe('NoticeComponent', () => {
       const rendered = component.render(120).join('\n');
       const codes = rendered.match(ANSI_SGR) ?? [];
       expect(codes.length).toBeGreaterThan(2);
-      // Premium ambient effects substitute some spaces with particle glyphs
-      // (· ∙ • ◦ *); normalize them back to spaces before checking the title.
+      // Title shimmer prefix may still use particle glyphs; details stay plain.
       const normalized = strip(rendered).replaceAll(/[·∙•◦*]/g, ' ');
       expect(normalized).toContain('Mission mode: ON');
       expect(normalized).toContain('Shift-Tab routes the next task through Plan');
+    } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it('keeps job inspect notice height stable across ambient ticks', () => {
+    const previousEnv = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+      SSH_TTY: process.env['SSH_TTY'],
+      SSH_CONNECTION: process.env['SSH_CONNECTION'],
+      SSH_CLIENT: process.env['SSH_CLIENT'],
+    };
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    setAppearanceRenderQuality('full');
+    setAppearanceRenderHealth('healthy');
+
+    try {
+      const detail = [
+        'job_abc  done  implement  p1  Fix the transcript flicker',
+        'created=2026-08-23T00:00:00.000Z updated=2026-08-23T00:01:00.000Z',
+        'effect: isolate on worktree',
+        'isolation: worktree',
+        'repo: D:\\superliora',
+        'worktree: D:\\superliora\\.superliora\\worktrees\\job_abc',
+        'brief:',
+        'Fix JobInspect / JobInbox output so wrapping lines do not bounce while ambient motion runs on the shared clock.',
+      ].join('\n');
+      const notice = new NoticeMessageComponent(
+        'Fix the transcript flicker',
+        detail,
+        'job-inspect:job_abc',
+      );
+      const width = 52;
+      const rowCounts = new Set<number>();
+      for (let t = 0; t < 2400; t += 80) {
+        advanceAppearanceAnimationClock(t);
+        notice.invalidate();
+        rowCounts.add(notice.render(width).length);
+      }
+      expect(rowCounts.size).toBe(1);
+      expect([...rowCounts][0]).toBeGreaterThan(6);
+      const plain = notice.render(width).map((line) => strip(line)).join('\n');
+      expect(plain).toContain('job_abc');
+      expect(plain).toContain('isolation: worktree');
     } finally {
       for (const [key, value] of Object.entries(previousEnv)) {
         if (value === undefined) delete process.env[key];
