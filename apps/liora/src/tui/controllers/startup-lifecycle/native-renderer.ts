@@ -22,6 +22,7 @@ import { hasRunningConductorWorkers } from '../../features/appearance/ambient-ca
 import { hasLiveWatchers } from '../../features/transcript/watchers';
 import { setAppearanceTransportStability } from '../../features/appearance/appearance-effects';
 import { handleFooterJobsStripMouse } from '../../features/control-tower/footer-jobs-mouse';
+import { handleActivityCueMouse } from '../../features/transcript/activity-cue-mouse';
 import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
 import { handleWorkerDockMouse } from '../../features/mission-control/worker-dock-mouse';
 import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
@@ -120,6 +121,21 @@ export function ensureStartupNativeInputRouter(
       if (legacy === undefined) return false;
       return host.state.editor.tryHandleAppShortcut?.(legacy) === true;
     },
+  });
+  // Still-running / parked cue click → /tasks.
+  host.nativeInputRouter.router.registerGlobalHandler({
+    id: 'activity-still-running-cue',
+    onInput: (event) =>
+      handleActivityCueMouse(
+        {
+          state: host.state,
+          backgroundTasks: host.sessionEventHandler?.backgroundTasks,
+          openTasks: () => {
+            void host.tasksBrowserController.show();
+          },
+        },
+        event,
+      ),
   });
   // F07: footer Conductor jobs strip click → Inbox (unread) or Job Deck.
   host.nativeInputRouter.router.registerGlobalHandler({

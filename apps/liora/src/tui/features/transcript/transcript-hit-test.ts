@@ -44,6 +44,7 @@ export function invalidateTranscriptHitTestCache(state: TUIState): void {
   state.cachedHitTestChromeSig = undefined;
   state.cachedTodoRect = undefined;
   state.cachedMissionRect = undefined;
+  state.cachedActivityRect = undefined;
 }
 
 /** Cheap chrome signature — mission/todo mount + content counts drive region height. */
@@ -104,6 +105,7 @@ export function resolveTranscriptLayoutContext(
     state.cachedHitTestChromeSig = chromeSig;
     state.cachedTodoRect = plan.layout.regions.find((region) => region.id === 'todo')?.rect;
     state.cachedMissionRect = plan.layout.regions.find((region) => region.id === 'mission')?.rect;
+    state.cachedActivityRect = plan.layout.regions.find((region) => region.id === 'activity')?.rect;
   }
   if (rect === undefined) return undefined;
 
@@ -169,6 +171,16 @@ export function getTUIStateNativeMissionRect(
 ): RendererRect | undefined {
   resolveTranscriptHitTestContext(state, width, height);
   return state.cachedMissionRect;
+}
+
+/** Rect of the turn-status / activity cue row (same stage plan as transcript). */
+export function getTUIStateNativeActivityRect(
+  state: TUIState,
+  width = state.terminal.columns,
+  height = state.terminal.rows,
+): RendererRect | undefined {
+  resolveTranscriptHitTestContext(state, width, height);
+  return state.cachedActivityRect;
 }
 
 export function transcriptPointForMouse(

@@ -13,7 +13,7 @@ export interface ParkedWaitTool {
 /** `TaskOutput` with `block: true` — the SuperLiora analog of grok's sendable wait. */
 export function isTaskOutputBlockingWait(tool: ParkedWaitTool): boolean {
   if (tool.name !== 'TaskOutput') return false;
-  const block = tool.args?.block;
+  const block = tool.args?.['block'];
   return block === true || block === 'true';
 }
 

@@ -106,7 +106,7 @@ describe('ActivityPaneComponent', () => {
       const out = strip(pane.render(80).join('\n'));
       expect(out).toContain('Reading 2 files');
       expect(out).toContain('12s');
-      expect(out).toContain('42k');
+      expect(out).toContain('⇣42k');
       expect(out).toContain('2 queued');
     } finally {
       vi.useRealTimers();

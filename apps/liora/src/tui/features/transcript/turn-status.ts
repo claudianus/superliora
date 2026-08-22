@@ -73,13 +73,13 @@ export function formatTurnStatusLabel(input: {
 
 export function formatTokenChip(tokens: number | undefined): string | undefined {
   if (tokens === undefined || tokens <= 0) return undefined;
-  if (tokens < 1000) return String(tokens);
+  if (tokens < 1000) return `\u21E3${String(tokens)}`;
   const thousands = tokens / 1000;
   if (tokens < 10_000) {
     const tenths = Math.round(thousands * 10) / 10;
-    return `${tenths % 1 === 0 ? String(tenths | 0) : String(tenths)}k`;
+    return `\u21E3${tenths % 1 === 0 ? String(tenths | 0) : String(tenths)}k`;
   }
-  return `${String(Math.round(thousands))}k`;
+  return `\u21E3${String(Math.round(thousands))}k`;
 }
 
 export function formatTurnStatusRight(input: {
