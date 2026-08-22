@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.12.15
+
+### Patch Changes
+
+- Stop JobInspect and JobInbox transcript notices from bouncing up and down while ambient motion is on.
+
 ## 0.12.14
 
 ### Patch Changes
