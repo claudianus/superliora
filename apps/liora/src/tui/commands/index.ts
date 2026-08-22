@@ -33,6 +33,7 @@ export {
 export { handlePluginsCommand, pluginsArgumentCompletions } from './plugins/plugins';
 export { handlePersonaCommand } from './persona';
 export { handleReloadCommand, handleReloadTuiCommand } from './session/reload';
+export { handleFolderCommand, showFolderPicker } from './session/folder';
 export {
   formatRendererDiagnosticsStatusReport,
   formatRendererTraceStatusReport,

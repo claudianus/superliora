@@ -56,6 +56,7 @@ import { showLog } from '../log';
 import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from '../info/info';
 import { handleHostSetupCommand } from '../info/host-setup';
 import { handleAddDirCommand } from '../session/add-dir';
+import { handleFolderCommand } from '../session/folder';
 import { handleAquariumCommand } from '../aquarium';
 import { handleFeedCommand } from '../feed';
 import { handleMemoryCommand } from '../memory/memory';
@@ -211,6 +212,7 @@ export interface SlashCommandHost {
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
   setNativeRendererTrace(command: RendererTraceCommand): void;
   createNewSession(): Promise<void>;
+  openWorkspace(dir: string, options?: { readonly resumeSessionId?: string }): Promise<void>;
   showSessionPicker(): Promise<void>;
   showExtensionsModal(args?: string): Promise<void>;
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
@@ -397,6 +399,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'add-dir':
       await handleAddDirCommand(host, args);
+      return;
+    case 'folder':
+      await handleFolderCommand(host, args);
       return;
     case 'experiments':
       await showExperimentsPanel(host);

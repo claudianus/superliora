@@ -4,6 +4,7 @@ export type CommandHubActionId =
   | 'now.undo'
   | 'now.compact'
   | 'start.new'
+  | 'start.folder'
   | 'start.sessions'
   | 'start.export'
   | 'start.fork'

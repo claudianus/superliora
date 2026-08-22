@@ -56,6 +56,7 @@ describe('buildDefaultCommandHubItems', () => {
       'workspace.quota',
       'chat.rewind',
       'chat.loops',
+      'start.folder',
       'start.fork',
       'account.logout',
       'modes.goals',
@@ -95,6 +96,7 @@ describe('buildDefaultCommandHubItems', () => {
 
 describe('commandHubActionToSlash', () => {
   it('maps hub actions to slash commands', () => {
+    expect(commandHubActionToSlash('start.folder')).toBe('/folder');
     expect(commandHubActionToSlash('chat.model')).toBe('/model');
     expect(commandHubActionToSlash('extend.extensions')).toBeUndefined();
     expect(commandHubActionToSlash('help.shortcuts')).toBeUndefined();

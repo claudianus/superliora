@@ -72,6 +72,13 @@ describe('scripts/install/ensure-desktop-launcher', () => {
     expect(entry).toContain('Terminal=true');
     expect(entry).toContain('Exec=/home/dev/.local/bin/liora');
     expect(entry).toContain('TryExec=/home/dev/.local/bin/liora');
+    expect(entry).not.toContain('Icon=');
+
+    const branded = renderLinuxDesktopEntry({
+      commandline: '/home/dev/.local/bin/liora',
+      icon: '/home/dev/.local/bin/superliora.png',
+    });
+    expect(branded).toContain('Icon=/home/dev/.local/bin/superliora.png');
   });
 
   it('renders a macOS app that opens Terminal.app (or Kitty/Ghostty) and runs liora', () => {
@@ -84,10 +91,14 @@ describe('scripts/install/ensure-desktop-launcher', () => {
     expect(script).toContain('/Applications/Ghostty.app');
     expect(renderMacosInfoPlist()).toContain(`<string>${DESKTOP_LAUNCHER_NAME}</string>`);
     expect(renderMacosInfoPlist()).toContain('dev.superliora.launcher');
+    expect(renderMacosInfoPlist()).not.toContain('CFBundleIconFile');
+    expect(renderMacosInfoPlist({ iconFile: 'AppIcon.png' })).toContain(
+      '<string>AppIcon.png</string>',
+    );
   });
 
   it('writes a Windows .lnk that launches Windows Terminal then liora', async () => {
-    const shortcuts: Array<{ dest: string; target: string; arguments: string; icon?: string }> = [];
+    const shortcuts: Array<{ dest: string; target: string; arguments: string; icon?: string; windowStyle?: number }> = [];
     const wt = 'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe';
     const liora = 'C:\\Apps\\SuperLiora\\bin\\liora.exe';
     const result = await ensureDesktopLauncher({
@@ -100,10 +111,11 @@ describe('scripts/install/ensure-desktop-launcher', () => {
       },
       isFile: (p: string) => p.replaceAll('/', '\\') === liora,
       wtPath: wt,
-      writeShortcut: async (spec: { dest: string; target: string; arguments: string; icon?: string }) => {
+      writeShortcut: async (spec: { dest: string; target: string; arguments: string; icon?: string; windowStyle?: number }) => {
         shortcuts.push(spec);
         return true;
       },
+      writeBrandIcon: async () => {},
       resolveWindowsDesktop: () => {
         throw new Error('should use desktopDir');
       },
@@ -111,10 +123,40 @@ describe('scripts/install/ensure-desktop-launcher', () => {
     expect(result.written).toBe(true);
     expect(result.path?.replaceAll('/', '\\')).toBe('E:\\Users\\dev\\Desktop\\SuperLiora.lnk');
     expect(shortcuts).toHaveLength(1);
-    expect(shortcuts[0]?.target).toBe(wt);
+    expect(shortcuts[0]?.target.replaceAll('/', '\\')).toBe('C:\\Windows\\System32\\cmd.exe');
+    expect(shortcuts[0]?.arguments).toMatch(/^\/d \/c start "" wt\.exe /);
     expect(shortcuts[0]?.arguments).toContain(`-p ${SUPERLIORA_WT_PROFILE_NAME}`);
     expect(shortcuts[0]?.arguments).toContain(liora);
-    expect(shortcuts[0]?.icon?.replaceAll('/', '\\')).toBe(liora);
+    expect(shortcuts[0]?.icon?.replaceAll('/', '\\')).toBe('C:\\Apps\\SuperLiora\\bin\\superliora.ico');
+    expect(shortcuts[0]?.windowStyle).toBe(7);
+  });
+
+  it('points an unpackaged Windows Terminal shortcut at wt.exe itself', async () => {
+    const shortcuts: Array<{ dest: string; target: string; arguments: string; icon?: string; windowStyle?: number }> = [];
+    const wt = 'D:\\Apps\\Windows Terminal\\wt.exe';
+    const liora = 'C:\\Apps\\SuperLiora\\bin\\liora.exe';
+    const result = await ensureDesktopLauncher({
+      platform: 'win32',
+      desktopDir: 'E:\\Users\\dev\\Desktop',
+      binDir: 'C:\\Apps\\SuperLiora\\bin',
+      env: {
+        USERPROFILE: 'E:\\Users\\dev',
+        LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
+      },
+      isFile: (p: string) => p.replaceAll('/', '\\') === liora,
+      wtPath: wt,
+      writeShortcut: async (spec: { dest: string; target: string; arguments: string; icon?: string; windowStyle?: number }) => {
+        shortcuts.push(spec);
+        return true;
+      },
+      writeBrandIcon: async () => {},
+    });
+    expect(result.written).toBe(true);
+    expect(shortcuts[0]?.target).toBe(wt);
+    expect(shortcuts[0]?.icon?.replaceAll('/', '\\')).toBe('C:\\Apps\\SuperLiora\\bin\\superliora.ico');
+    expect(shortcuts[0]?.arguments).toContain(`-p ${SUPERLIORA_WT_PROFILE_NAME}`);
+    expect(shortcuts[0]?.arguments).not.toMatch(/start ""/);
+    expect(shortcuts[0]?.windowStyle).toBeUndefined();
   });
 
   it('skips the Windows desktop shortcut when Terminal is missing or disabled', async () => {
@@ -176,6 +218,9 @@ describe('scripts/install/ensure-desktop-launcher', () => {
       writeFile: async (dest: string, text: string) => {
         files.set(dest, text);
       },
+      writeBrandIcon: async (dest: string) => {
+        files.set(dest, 'png');
+      },
       chmod: async (dest: string, mode: number) => {
         modes.set(dest, mode);
       },
@@ -186,6 +231,8 @@ describe('scripts/install/ensure-desktop-launcher', () => {
     const plist = [...files.entries()].find(([path]) => path.endsWith('/Contents/Info.plist'));
     expect(script?.[1]).toContain("BIN='/Users/dev/.local/bin/liora'");
     expect(plist?.[1]).toContain('CFBundleExecutable');
+    expect(plist?.[1]).toContain('CFBundleIconFile');
+    expect(files.get('/Users/dev/Desktop/SuperLiora.app/Contents/Resources/AppIcon.png')).toBe('png');
     expect(modes.get(script?.[0] ?? '')).toBe(0o755);
   });
 
@@ -201,6 +248,7 @@ describe('scripts/install/ensure-desktop-launcher', () => {
       writeFile: async (dest: string, text: string) => {
         files.set(dest, text);
       },
+      writeBrandIcon: async () => {},
       chmod: async () => {},
       markDesktopTrusted: async (dest: string) => {
         trusted = dest;
@@ -209,6 +257,9 @@ describe('scripts/install/ensure-desktop-launcher', () => {
     expect(result.written).toBe(true);
     expect(result.applicationWritten).toBe(true);
     expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain('Terminal=true');
+    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain(
+      'Icon=/home/dev/.local/bin/superliora.png',
+    );
     expect(files.get('/home/dev/.local/share/applications/superliora.desktop')).toContain('Exec=/home/dev/.local/bin/liora');
     expect(trusted).toBe('/home/dev/Desktop/SuperLiora.desktop');
   });

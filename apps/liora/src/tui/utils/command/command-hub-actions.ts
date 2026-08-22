@@ -11,6 +11,8 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
   switch (id as LiteralHubActionId) {
     case 'start.new':
       return '/new';
+    case 'start.folder':
+      return '/folder';
     case 'start.sessions':
       return '/sessions';
     case 'start.export':

@@ -11,6 +11,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import { materializeBrandShortcutIcon } from './brand-icon.mjs';
 import { downloadToFile } from './download.mjs';
 import { CASKAYDIA_FONT_FACE, ensureNerdFont, findNerdFont } from './ensure-nerd-font.mjs';
 import { findOhMyPosh } from './ensure-oh-my-posh.mjs';
@@ -40,6 +41,66 @@ export const WINGET_TERMINAL_ID = 'Microsoft.WindowsTerminal';
 export const TERMINAL_RELEASES_LATEST = 'https://github.com/microsoft/terminal/releases/latest';
 export const TERMINAL_INSTALL_HINT =
   'Install Windows Terminal from https://aka.ms/terminal then re-run, or pass --no-terminal.';
+export const WT_LAUNCH_EXE = 'wt.exe';
+export const WT_SHORTCUT_WINDOW_MINIMIZED = 7;
+
+/**
+ * True for Store / AppX aliases and package binaries. Explorer .lnk TargetPath
+ * on those files launches without package identity, so the first double-click
+ * shows "A license is required to run this application".
+ */
+export function isWindowsAppsLaunchPath(filePath) {
+  const n = String(filePath ?? '').replaceAll('/', '\\').toLowerCase();
+  return n.includes('\\windowsapps\\');
+}
+
+function resolveCmdExe(env = {}) {
+  const comspec = typeof env.ComSpec === 'string' ? env.ComSpec.trim() : '';
+  if (comspec) return comspec;
+  const root = typeof env.SystemRoot === 'string' && env.SystemRoot.trim()
+    ? env.SystemRoot.trim().replace(/[\\/]+$/, '')
+    : 'C:\\Windows';
+  return `${root}\\System32\\cmd.exe`;
+}
+
+function shortcutIconLocation(icon) {
+  if (!icon || isWindowsAppsLaunchPath(icon)) return undefined;
+  return icon;
+}
+
+/**
+ * Build .lnk fields that open Windows Terminal. Unpackaged wt.exe can be the
+ * target; packaged installs go through `cmd /c start wt.exe` so ShellExecute
+ * activates the alias with identity instead of CreateProcess on the stub.
+ */
+export function windowsTerminalShortcutLaunch(options = {}) {
+  const env = options.env ?? {};
+  const wtPath = options.wtPath;
+  const wtArgs = String(options.arguments ?? '').trim();
+  const workingDirectory = options.workingDirectory;
+  const description = options.description;
+  const icon = shortcutIconLocation(options.icon);
+
+  if (wtPath && !isWindowsAppsLaunchPath(wtPath)) {
+    return {
+      target: wtPath,
+      arguments: wtArgs,
+      workingDirectory,
+      description,
+      icon,
+    };
+  }
+
+  const startCmd = wtArgs ? `${WT_LAUNCH_EXE} ${wtArgs}` : WT_LAUNCH_EXE;
+  return {
+    target: resolveCmdExe(env),
+    arguments: `/d /c start "" ${startCmd}`,
+    workingDirectory,
+    description,
+    icon,
+    windowStyle: WT_SHORTCUT_WINDOW_MINIMIZED,
+  };
+}
 
 /** Copied from apps/liora/src/tui/theme/colors.ts `neonNoirColors` — do not import TUI from the installer. */
 export const SUPERLIORA_NEON_NOIR_SCHEME = {
@@ -158,6 +219,7 @@ export function renderSuperLioraFragment(options = {}) {
     name: SUPERLIORA_WT_PROFILE_NAME,
     ...chrome,
     ...(commandline ? { commandline } : {}),
+    ...(options.icon ? { icon: options.icon } : {}),
   };
   const shell = {
     guid: SUPERLIORA_SHELL_PROFILE_GUID,
@@ -177,9 +239,9 @@ export function parseJsonc(text) {
     return JSON.parse(text);
   } catch {
     const stripped = String(text)
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/^\s*\/\/.*$/gm, '')
-      .replace(/,\s*([}\]])/g, '$1');
+      .replaceAll(/\/\*[\s\S]*?\*\//g, '')
+      .replaceAll(/^\s*\/\/.*$/gm, '')
+      .replaceAll(/,\s*([}\]])/g, '$1');
     return JSON.parse(stripped);
   }
 }
@@ -406,12 +468,21 @@ export async function ensureTerminal(options = {}) {
       options.commandName ?? 'liora',
       isFile,
     );
+    const icon = typeof options.icon === 'string' && options.icon.trim()
+      ? options.icon.trim()
+      : await materializeBrandShortcutIcon({
+        platform,
+        binDir: options.binDir,
+        writeFile: options.writeBrandIcon,
+        iconPath: options.brandIconPath,
+      });
     const fragment = renderSuperLioraFragment({
       commandline,
       binDir: options.binDir,
       commandName: options.commandName,
       isFile,
       fontFace: resolveFragmentFontFace(options),
+      icon,
     });
     const fragmentDest = options.fragmentPath ?? fragmentPath(env);
     const writeJson = options.writeFile ?? defaultWriteUtf8;
@@ -421,13 +492,17 @@ export async function ensureTerminal(options = {}) {
     if (found.wtPath) {
       const dest = options.shortcutPath ?? startMenuShortcutPath(env);
       const writeShortcut = options.writeShortcut ?? writeWindowsShortcut;
-      shortcutWritten = await writeShortcut({
-        dest,
-        target: found.wtPath,
+      const launch = windowsTerminalShortcutLaunch({
+        wtPath: found.wtPath,
         arguments: `-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
         workingDirectory: env.USERPROFILE ?? defaultHomeFrom(env),
         description: SUPERLIORA_WT_PROFILE_NAME,
-        icon: commandline ?? found.wtPath,
+        icon: icon || commandline || found.wtPath,
+        env,
+      });
+      shortcutWritten = await writeShortcut({
+        dest,
+        ...launch,
       });
     }
 
@@ -677,9 +752,11 @@ export async function writeWindowsShortcut({
   workingDirectory,
   description,
   icon,
+  windowStyle,
 }) {
   if (process.platform !== 'win32') return false;
   const parent = dirname(dest);
+  const style = Number(windowStyle);
   const script = [
     `New-Item -ItemType Directory -Force -Path '${escapePs(parent)}' | Out-Null`,
     `$ws = New-Object -ComObject WScript.Shell`,
@@ -690,6 +767,9 @@ export async function writeWindowsShortcut({
     `$s.Description = '${escapePs(description ?? '')}'`,
     icon
       ? `$s.IconLocation = '${escapePs(icon)},0'`
+      : '',
+    style === 3 || style === 7
+      ? `$s.WindowStyle = ${style}`
       : '',
     `$s.Save()`,
   ].filter(Boolean).join('; ');

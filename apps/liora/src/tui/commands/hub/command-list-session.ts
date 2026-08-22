@@ -18,6 +18,7 @@ import {
   jobsArgumentCompletions,
   memoryArgumentCompletions,
   addDirArgumentCompletions,
+  folderArgumentCompletions,
   loopArgumentCompletions,
   goalArgumentCompletions,
   editorArgumentCompletions,
@@ -98,6 +99,15 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     aliases: ['resume'],
     description: slashDesc('sessions'),
     priority: 80,
+  },
+  {
+    name: 'folder',
+    aliases: ['workspace', 'open', 'cd'],
+    description: slashDesc('folder'),
+    priority: 90,
+    argumentHint: '[path]',
+    completeArgs: folderArgumentCompletions,
+    availability: 'idle-only',
   },
   {
     name: 'extensions',

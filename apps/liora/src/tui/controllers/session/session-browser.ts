@@ -1,6 +1,4 @@
 import type { Component, Focusable } from '#/tui/renderer';
-import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
-import { quoteShellArg } from '#/utils/shell-quote';
 import type { LioraHarness, Session } from '@superliora/sdk';
 
 import { ExtensionsModalComponent } from '../../components/dialogs/session/extensions-modal';
@@ -30,6 +28,12 @@ import {
 } from './session-browser-picker';
 import { sessionRowsForPicker } from '../../utils/session/session-picker-rows';
 import { ttui } from '../../utils/tui-i18n';
+import {
+  displayWorkspacePath,
+  resolveExistingWorkspaceDir,
+  sameWorkspaceDir,
+} from '../../utils/workspace';
+import { folderResolveErrorMessage, showFolderPicker } from '../../commands/session/folder';
 import type { EditorKeyboardController } from '../shell/editor-keyboard';
 import type { SessionEventHandler } from '../session-event/handler';
 
@@ -266,15 +270,119 @@ export class SessionBrowserController implements SessionPickerControllerState {
     hideSessionPickerFlow(this.host, this);
   }
 
-  private async showResumeOtherWorkDirHint(session: SessionRow): Promise<void> {
-    this.hideSessionPicker();
-    const command = `cd ${quoteShellArg(session.work_dir)} && liora --resume ${quoteShellArg(session.id)}`;
-    const message = `Current session is in a different working directory.\n  To resume, run: ${command}`;
+  async openWorkspace(
+    target: string,
+    options: { readonly resumeSessionId?: string } = {},
+  ): Promise<void> {
+    const { host } = this;
+    if (host.state.appState.streamingPhase !== 'idle') {
+      host.showError(ttui('tui.folder.busy'));
+      return;
+    }
+    if (host.state.appState.isReplaying || host.isSessionLoadingOverlayActive()) {
+      host.showError(ttui('tui.sessionLoading.busy'));
+      return;
+    }
+
+    const resolved = resolveExistingWorkspaceDir(target);
+    if (!resolved.ok) {
+      if (options.resumeSessionId === undefined) {
+        host.showError(folderResolveErrorMessage(resolved));
+        return;
+      }
+      // Resume a recorded session even when the folder is gone (history still opens).
+      const fallback = resolved.path;
+      host.setAppState({ workDir: fallback, additionalDirs: [] });
+      const switched = await this.resumeSession(options.resumeSessionId);
+      if (switched) {
+        host.showStatus(ttui('tui.folder.resumed', { path: displayWorkspacePath(fallback) }));
+      }
+      return;
+    }
+    const nextDir = resolved.path;
+    const current = host.state.appState.workDir;
+    const sameDir = sameWorkspaceDir(nextDir, current);
+    const display = displayWorkspacePath(nextDir);
+
+    if (!sameDir) {
+      try {
+        process.chdir(nextDir);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        host.showError(ttui('tui.folder.chdirFailed', { path: display, message }));
+        return;
+      }
+      host.setAppState({ workDir: nextDir, additionalDirs: [] });
+    } else if (options.resumeSessionId === undefined) {
+      host.showStatus(ttui('tui.folder.alreadyHere', { path: display }));
+      return;
+    }
+
+    const resumeId = options.resumeSessionId
+      ?? (await this.firstSessionIdForWorkDir(nextDir));
+    if (resumeId !== undefined) {
+      const switched = await this.resumeSession(resumeId);
+      if (switched && !sameDir) {
+        host.showStatus(ttui('tui.folder.resumed', { path: display }));
+      }
+      return;
+    }
+
     try {
-      await copyTextToClipboard(command);
-      this.host.showStatus(ttui('tui.session.clipboardCopied', { message }), 'warning');
+      const model = host.state.appState.model.trim();
+      const session = await host.harness.createSession({
+        workDir: nextDir,
+        ...(model.length > 0 ? { model } : {}),
+        permission: host.state.appState.permissionMode,
+        planMode: host.state.appState.planMode,
+      });
+      await host.switchToSession(session, ttui('tui.folder.opened', { path: display }));
+    } catch (error) {
+      host.showError(
+        ttui('tui.folder.openFailed', {
+          path: display,
+          message: formatErrorMessage(error),
+        }),
+      );
+    }
+  }
+
+  async showFolderPicker(options: { readonly startup?: boolean } = {}): Promise<void> {
+    if (this.host.state.appState.streamingPhase !== 'idle') {
+      this.host.showError(ttui('tui.folder.busy'));
+      return;
+    }
+    await showFolderPicker(
+      {
+        state: this.host.state,
+        harness: this.host.harness,
+        openWorkspace: (dir, opts) => this.openWorkspace(dir, opts),
+        showStatus: (msg) => {
+          this.host.showStatus(msg);
+        },
+        mountCenterModal: (panel, mountOptions) => {
+          this.host.mountCenterModal(panel, mountOptions);
+        },
+        closeCenterModal: () => {
+          this.host.closeAllCenterModals();
+        },
+        mountEditorReplacement: (panel) => {
+          this.host.mountEditorReplacement(panel);
+        },
+        restoreEditor: () => {
+          this.host.restoreEditor();
+        },
+      },
+      { startup: options.startup },
+    );
+  }
+
+  private async firstSessionIdForWorkDir(workDir: string): Promise<string | undefined> {
+    try {
+      const sessions = await this.host.harness.listSessions({ workDir });
+      return sessions[0]?.id;
     } catch {
-      this.host.showStatus(ttui('tui.session.clipboardCopyFailed', { message }), 'warning');
+      return undefined;
     }
   }
 
@@ -377,11 +485,15 @@ export class SessionBrowserController implements SessionPickerControllerState {
       this.host,
       session,
       applyStartupModes,
-      (row) => this.showResumeOtherWorkDirHint(row),
+      (dir, options) => this.openWorkspace(dir, options),
       (targetSessionId) => this.resumeSession(targetSessionId),
       (activeSession) => this.applyStartupModesToResumedSession(activeSession),
-      () =>{  this.applyStartupPermissionAndPlanToAppState(); },
-      () =>{  this.hideSessionPicker(); },
+      () => {
+        this.applyStartupPermissionAndPlanToAppState();
+      },
+      () => {
+        this.hideSessionPicker();
+      },
     );
   }
 

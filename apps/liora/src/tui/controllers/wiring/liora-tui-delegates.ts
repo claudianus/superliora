@@ -290,6 +290,9 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.createNewSession = function () {
     return this.sessionLifecycle.createNewSession();
   };
+  proto.openWorkspace = function (dir: string, options?: { readonly resumeSessionId?: string }) {
+    return this.sessionBrowser.openWorkspace(dir, options);
+  };
 
   proto.renderWelcome = function () {
     this.transcriptRender.renderWelcome();
