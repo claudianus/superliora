@@ -1,5 +1,15 @@
 # @superliora/liora
 
+## 0.12.13
+
+### Patch Changes
+
+- Show a live turn-status line above the prompt. Parked TaskOutput waits stay a calm cue; click the leftover row to open /tasks, [stop] to cancel, or [↓] to detach.
+- Send adjacent queued prompts as one turn and paint each as its own bubble. Consecutive search tools fold into one group.
+- Stream long assistant answers without re-parsing markdown that has already settled.
+- Make the session picker a scan list. Open it from Command Hub → Sessions or /resume.
+- Add experimental GitHub Copilot login. Enable with SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT=1, then /login.
+
 ## 0.12.12
 
 ### Patch Changes

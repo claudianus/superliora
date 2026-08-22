@@ -8,6 +8,16 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
+## 0.12.13 (2026-08-22)
+
+### Features
+
+- Show a live turn-status line above the prompt (activity, elapsed time, tokens, queued follow-ups). Parked TaskOutput waits stay a calm cue; click the leftover row to open `/tasks`, `[stop]` to cancel, or `[↓]` to detach.
+- Send adjacent queued prompts as one turn and paint each as its own transcript bubble. Consecutive search and directory tool calls fold into one group.
+- Stream long assistant answers without re-parsing markdown that has already settled.
+- Make the session picker a scan list. Open it from Command Hub → Sessions or `/resume`.
+- Add experimental GitHub Copilot login. Enable with `SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT=1`, then `/login` and paste a GitHub token (or set `GITHUB_TOKEN`).
+
 ## 0.12.12 (2026-08-22)
 
 ### Bug Fixes
