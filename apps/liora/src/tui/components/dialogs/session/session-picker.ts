@@ -82,6 +82,48 @@ function sessionSearchText(session: SessionRow): string {
   );
 }
 
+/**
+ * Idle-row label: a real title when one exists, otherwise the last prompt so
+ * untitled sessions stay scannable. Falls back to the raw id.
+ */
+export function sessionCollapsedLabel(session: SessionRow): string {
+  const title = (session.title ?? '').trim();
+  if (title.length > 0 && title !== session.id) return singleLine(title);
+  const prompt = session.last_prompt?.trim();
+  if (prompt !== undefined && prompt.length > 0) return singleLine(prompt);
+  return session.id;
+}
+
+/** Expanded card: header + id/dir. Prompt adds one more line. */
+export function sessionCardLineCount(session: SessionRow): number {
+  return session.last_prompt?.trim() ? 3 : 2;
+}
+
+/** Chrome + modal margin reserved above/below the session window. */
+export const SESSION_PICKER_CHROME_ROWS = 10;
+export const SESSION_PICKER_MAX_WINDOW = 18;
+
+/**
+ * How many sessions fit in the modal. An explicit `maxVisible` cap wins
+ * (tests / callers). Otherwise fill the terminal: 1 expanded card + as many
+ * one-line neighbors as the leftover body budget allows.
+ */
+export function sessionPickerWindowSize(options: {
+  readonly terminalRows: number;
+  readonly selectedCardLines: number;
+  readonly maxVisible?: number;
+}): number {
+  if (options.maxVisible !== undefined) return Math.max(1, options.maxVisible);
+  const rows =
+    Number.isFinite(options.terminalRows) && options.terminalRows > 0
+      ? Math.floor(options.terminalRows)
+      : 24;
+  const budget = Math.max(4, rows - SESSION_PICKER_CHROME_ROWS);
+  const selected = Math.max(1, options.selectedCardLines);
+  const fit = 1 + Math.max(0, budget - selected);
+  return Math.min(SESSION_PICKER_MAX_WINDOW, Math.max(2, fit));
+}
+
 /** Same cap as the `/title` command keeps server-side. */
 const MAX_TITLE_LENGTH = 200;
 
@@ -91,7 +133,8 @@ export class SessionPickerComponent extends Container implements Focusable {
   private onSelect: (session: SessionRow) => void;
   private onCancel: () => void;
   private onToggleScope?: (selectedSessionId: string) => void;
-  private maxVisibleSessions: number;
+  private maxVisibleSessions: number | undefined;
+  private readonly terminalRows: () => number;
   private pageSize: number;
   private visibleCount: number;
   private scope: 'cwd' | 'all';
@@ -122,7 +165,10 @@ export class SessionPickerComponent extends Container implements Focusable {
      * host already surfaced the error.
      */
     onRename?: (session: SessionRow, newTitle: string) => Promise<void> | void;
+    /** Hard window cap. Omit to size the list from the terminal height. */
     maxVisibleSessions?: number;
+    /** Terminal rows for the height-adaptive window. Defaults to stdout. */
+    terminalRows?: () => number;
   }) {
     super();
     this.sessions = opts.sessions;
@@ -133,7 +179,8 @@ export class SessionPickerComponent extends Container implements Focusable {
     this.onCancel = opts.onCancel;
     this.onToggleScope = opts.onToggleScope;
     this.onRename = opts.onRename;
-    this.maxVisibleSessions = opts.maxVisibleSessions ?? 4;
+    this.maxVisibleSessions = opts.maxVisibleSessions;
+    this.terminalRows = opts.terminalRows ?? (() => process.stdout.rows || 24);
     this.pageSize = Math.max(1, opts.pageSize ?? 50);
     const initialIndex = this.resolveInitialSelectedIndex(opts.initialSelectedSessionId);
     this.list = new SearchableList({
@@ -360,25 +407,31 @@ export class SessionPickerComponent extends Container implements Focusable {
       });
     }
     const selectedIndex = view.selectedIndex;
+    const selectedSession = loadedSessions[Math.min(selectedIndex, loadedSessions.length - 1)];
+    const windowSize = sessionPickerWindowSize({
+      terminalRows: this.terminalRows(),
+      selectedCardLines: selectedSession === undefined ? 2 : sessionCardLineCount(selectedSession),
+      maxVisible: this.maxVisibleSessions,
+    });
     const visibleStart = Math.max(
       0,
       Math.min(
-        selectedIndex - Math.floor(this.maxVisibleSessions / 2),
-        Math.max(0, loadedSessions.length - this.maxVisibleSessions),
+        selectedIndex - Math.floor(windowSize / 2),
+        Math.max(0, loadedSessions.length - windowSize),
       ),
     );
-    const visibleSessions = loadedSessions.slice(
-      visibleStart,
-      visibleStart + this.maxVisibleSessions,
-    );
+    const visibleSessions = loadedSessions.slice(visibleStart, visibleStart + windowSize);
 
     for (const [vi, session] of visibleSessions.entries()) {
       const index = visibleStart + vi;
       const isSelected = index === selectedIndex;
       const isCurrent = session.id === this.currentSessionId;
-      const card = this.renderSessionCard(width, session, isSelected, isCurrent);
-      body.push(...card);
-      if (vi < visibleSessions.length - 1) body.push('');
+      if (isSelected) {
+        body.push(...this.renderSessionCard(width, session, true, isCurrent));
+        if (vi < visibleSessions.length - 1) body.push('');
+      } else {
+        body.push(this.renderCollapsedRow(width, session, isCurrent));
+      }
     }
 
     const footerRows: string[] = [];
@@ -477,38 +530,72 @@ export class SessionPickerComponent extends Container implements Focusable {
     });
   }
 
+  /**
+   * One-line idle row. Title (or last prompt when untitled) + relative time.
+   * All-sessions scope also keeps the directory tail so projects stay distinct.
+   */
+  private renderCollapsedRow(width: number, session: SessionRow, isCurrent: boolean): string {
+    return this.renderHeaderLine(width, {
+      label: sessionCollapsedLabel(session),
+      selected: false,
+      current: isCurrent,
+      updatedAt: session.updated_at,
+      directory: this.scope === 'all' ? homeAlias(session.work_dir) : '',
+    });
+  }
+
+  private renderHeaderLine(
+    width: number,
+    options: {
+      readonly label: string;
+      readonly selected: boolean;
+      readonly current: boolean;
+      readonly updatedAt: number;
+      readonly directory?: string;
+    },
+  ): string {
+    const pointer = options.selected ? renderSelectPointer('session:pointer') : ' ';
+    const time = formatRelativeTime(options.updatedAt);
+    const badge = options.current ? CURRENT_MARK : '';
+    const dir = options.directory ?? '';
+    const trailingParts = [time, badge].filter((part) => part.length > 0);
+    const trailingText = trailingParts.length > 0 ? '  ' + trailingParts.join('  ') : '';
+    const headerPrefixWidth = visibleWidth(pointer) + 1;
+    const titleBudget = Math.max(8, width - headerPrefixWidth - visibleWidth(trailingText));
+    const shownTitle = truncateToWidth(singleLine(options.label), titleBudget, ELLIPSIS);
+    const titleColor: 'primary' | 'text' = options.selected ? 'primary' : 'text';
+    const titleStyle = (text: string) =>
+      options.selected ? currentTheme.boldFg(titleColor, text) : currentTheme.fg(titleColor, text);
+    const tone = options.selected ? 'primary' : 'textDim';
+    let header = pointer + currentTheme.fg(tone, ' ');
+    header += titleStyle(shownTitle);
+    if (time.length > 0) header += '  ' + currentTheme.fg('textDim', time);
+    if (badge.length > 0) header += '  ' + currentTheme.fg('success', badge);
+    if (dir.length > 0) {
+      const used = visibleWidth(header);
+      const dirBudget = Math.max(0, width - used - 2);
+      if (dirBudget >= 4) {
+        header += '  ' + currentTheme.fg('textMuted', truncatePathLeft(dir, dirBudget));
+      }
+    }
+    return header;
+  }
+
   private renderSessionCard(
     width: number,
     session: SessionRow,
     isSelected: boolean,
     isCurrent: boolean,
   ): string[] {
-    const pointer = isSelected ? renderSelectPointer('session:pointer') : ' ';
     const indent = '  ';
     const indentWidth = visibleWidth(indent);
-    const titleColor: 'primary' | 'text' = isSelected ? 'primary' : 'text';
-    const titleStyle = (text: string) =>
-      isSelected ? currentTheme.boldFg(titleColor, text) : currentTheme.fg(titleColor, text);
-
-    const time = formatRelativeTime(session.updated_at);
-    const badge = isCurrent ? CURRENT_MARK : '';
     const rawTitle = (session.title ?? session.id).trim() || session.id;
-    const titleSource = rawTitle;
-
-    // Inline trailing parts after the title: "<title>  <time>  ← current".
-    const trailingParts = [time, badge].filter((p) => p.length > 0);
-    const trailingText = trailingParts.length > 0 ? '  ' + trailingParts.join('  ') : '';
-    const trailingWidth = visibleWidth(trailingText);
-    const headerPrefixWidth = visibleWidth(pointer) + 1; // pointer + space
-    const titleBudget = Math.max(8, width - headerPrefixWidth - trailingWidth);
-    const shownTitle = truncateToWidth(singleLine(titleSource), titleBudget, ELLIPSIS);
-
-    const tone = isSelected ? 'primary' : 'textDim';
-    // Pointer is already ambient-styled; do not wrap it in chalk again.
-    let header = pointer + currentTheme.fg(tone, ' ');
-    header += titleStyle(shownTitle);
-    if (time.length > 0) header += '  ' + currentTheme.fg('textDim', time);
-    if (badge.length > 0) header += '  ' + currentTheme.fg('success', badge);
+    const header = this.renderHeaderLine(width, {
+      label: rawTitle,
+      selected: isSelected,
+      current: isCurrent,
+      updatedAt: session.updated_at,
+    });
     const card: string[] = [header];
 
     // Session id is rendered in full at normal widths (the final clamp in

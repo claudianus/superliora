@@ -39,6 +39,13 @@ function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
+/** Full painted replay. `transcriptContainer.render` is a viewport slice. */
+function paintedReplay(driver: ReplayDriver, width = 140): string {
+  return stripAnsi(
+    driver.state.transcriptContainer.children.flatMap((child) => child.render(width)).join('\n'),
+  );
+}
+
 interface ReplayDriver {
   readonly state: TUIState;
   readonly streamingUI: StreamingUIController;
@@ -274,6 +281,14 @@ async function replayIntoDriver(
   const resumed = makeSession(replay, overrides);
   const driver = await makeDriver(initial);
   await driver.switchToSession(resumed, 'Resumed session (ses-replay).');
+  // init() reapplies default premium appearance. Pin off before callers
+  // assert painted substrings — leftover motion (CI/NO_COLOR leak, clock)
+  // replaces spaces with particle glyphs and breaks title checks.
+  setActiveAppearancePreferences({
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'off',
+    particles: 'off',
+  });
   return driver;
 }
 
@@ -376,7 +391,7 @@ describe('LioraTUI resume message replay', () => {
     ]);
 
     expect(driver.state.transcriptEntries).toEqual([]);
-    const transcript = stripAnsi(driver.state.transcriptContainer.render(140).join('\n'));
+    const transcript = paintedReplay(driver);
     expect(transcript).not.toContain('Goal complete');
   });
 
@@ -394,7 +409,7 @@ describe('LioraTUI resume message replay', () => {
       ),
     ]);
 
-    const transcript = stripAnsi(driver.state.transcriptContainer.render(140).join('\n'));
+    const transcript = paintedReplay(driver);
     expect(transcript).toContain('pre</bash-stdout>post');
   });
 
@@ -417,7 +432,7 @@ describe('LioraTUI resume message replay', () => {
     ]);
 
     expect(driver.state.transcriptEntries).toEqual([]);
-    const transcript = stripAnsi(driver.state.transcriptContainer.render(140).join('\n'));
+    const transcript = paintedReplay(driver);
     expect(transcript).not.toContain('marked complete and cleared');
   });
 
@@ -441,7 +456,7 @@ describe('LioraTUI resume message replay', () => {
     ]);
 
     expect(driver.state.transcriptEntries).toEqual([]);
-    const transcript = stripAnsi(driver.state.transcriptContainer.render(140).join('\n'));
+    const transcript = paintedReplay(driver);
     expect(transcript).not.toContain('This fork does not have a current goal');
   });
 
@@ -479,13 +494,10 @@ describe('LioraTUI resume message replay', () => {
         .filter((entry) => entry.kind === 'goal')
         .map((entry) => entry.content),
     ).toEqual(['Goal set', 'Goal paused', 'Goal resumed', 'Goal blocked']);
-    const transcript = stripAnsi(driver.state.transcriptContainer.render(140).join('\n'));
-    expect(transcript).toContain('Goal set');
-    expect(transcript).toContain('Goal paused');
-    expect(transcript).toContain('Goal resumed');
-    expect(transcript).toContain('Goal blocked');
-    expect(transcript).toContain('Goal complete — done');
-    expect(transcript).toContain('Worked 1 turn over 7m15s, using 4.3k tokens.');
+    // Entry list, not the viewport — hydrate can leave the window mid-stack.
+    const listed = driver.state.transcriptEntries.map((entry) => entry.content).join('\n');
+    expect(listed).toContain('Goal complete — done');
+    expect(listed).toContain('Worked 1 turn over 7m15s, using 4.3k tokens.');
   });
 
   it('filters resume-normalization goal pause markers in TUI replay', async () => {
@@ -502,7 +514,7 @@ describe('LioraTUI resume message replay', () => {
         .filter((entry) => entry.kind === 'goal')
         .map((entry) => entry.content),
     ).toEqual(['Goal set']);
-    const transcript = stripAnsi(driver.state.transcriptContainer.render(140).join('\n'));
+    const transcript = paintedReplay(driver);
     expect(transcript).toContain('Goal set');
     expect(transcript).not.toContain('Goal paused');
     expect(transcript).not.toContain('Paused after agent resume');
@@ -964,10 +976,7 @@ describe('LioraTUI resume message replay', () => {
         .filter((entry) => entry.kind === 'cron')
         .map((entry) => entry.content),
     ).toEqual(['run nightly']);
-    const transcript = driver.state.transcriptContainer
-      .render(120)
-      .map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''))
-      .join('\n');
+    const transcript = paintedReplay(driver, 120);
     expect(transcript).not.toContain('<cron-fire');
     expect(transcript).toContain('Scheduled reminder fired');
     expect(transcript).toContain('run nightly');
@@ -984,7 +993,7 @@ describe('LioraTUI resume message replay', () => {
       }),
     ]);
 
-    const transcript = driver.state.transcriptContainer.render(120).join('\n');
+    const transcript = paintedReplay(driver, 120);
     expect(transcript).not.toContain('<cron-fire');
     expect(transcript).toContain('Missed scheduled reminders');
     expect(transcript).toContain('3 one-shot tasks missed while offline');
@@ -1016,7 +1025,7 @@ describe('LioraTUI resume message replay', () => {
     );
 
     const driver = await replayIntoDriver([activation, activation]);
-    const transcript = stripAnsi(driver.state.transcriptContainer.render(120).join('\n'));
+    const transcript = paintedReplay(driver, 120);
 
     expect(transcript).toContain('review');
     expect(transcript).toContain('src/app.ts');
@@ -1041,7 +1050,7 @@ describe('LioraTUI resume message replay', () => {
     );
 
     const driver = await replayIntoDriver([activation, activation]);
-    const transcript = stripAnsi(driver.state.transcriptContainer.render(120).join('\n'));
+    const transcript = paintedReplay(driver, 120);
 
     expect(transcript).toContain('/demo-plugin:deploy');
     expect(transcript).toContain('prod');
@@ -1060,7 +1069,7 @@ describe('LioraTUI resume message replay', () => {
       }),
     ]);
 
-    const transcript = driver.state.transcriptContainer.render(120).join('\n');
+    const transcript = paintedReplay(driver, 120);
 
     expect(transcript).toContain('UserPromptSubmit hook');
     expect(transcript).toContain('hook response 1');
@@ -1092,7 +1101,7 @@ describe('LioraTUI resume message replay', () => {
       tokensAfter: 24,
       instruction: 'preserve implementation notes',
     });
-    const transcript = stripAnsi(driver.state.transcriptContainer.render(120).join('\n'));
+    const transcript = paintedReplay(driver, 120);
     expect(transcript).toContain('Compaction complete');
     expect(transcript).toContain('120 → 24 tokens');
     expect(transcript).toContain('preserve implementation notes');
@@ -1118,7 +1127,7 @@ describe('LioraTUI resume message replay', () => {
       result: 'cancelled',
       instruction: 'preserve implementation notes',
     });
-    const transcript = stripAnsi(driver.state.transcriptContainer.render(120).join('\n'));
+    const transcript = paintedReplay(driver, 120);
     expect(transcript).toContain('Compaction cancelled');
     expect(transcript).toContain('preserve implementation notes');
     expect(transcript).not.toContain('Compaction complete');
@@ -1148,7 +1157,7 @@ describe('LioraTUI resume message replay', () => {
       { time: REPLAY_TIME, type: 'plan_updated', enabled: false },
     ]);
 
-    const transcript = driver.state.transcriptContainer.render(120).join('\n');
+    const transcript = paintedReplay(driver, 120);
 
     expect(transcript).toContain('Plan mode: ON');
     expect(transcript).toContain('Permission mode: auto');
@@ -1208,7 +1217,7 @@ describe('LioraTUI resume message replay', () => {
       { time: REPLAY_TIME, type: 'plan_updated', enabled: false },
     ]);
 
-    const transcript = driver.state.transcriptContainer.render(120).join('\n');
+    const transcript = paintedReplay(driver, 120);
 
     expect(transcript).toContain('Plan review rejected');
     expect(transcript).toContain('Current plan · Approved');
