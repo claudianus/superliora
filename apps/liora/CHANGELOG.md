@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.12.14
+
+### Patch Changes
+
+- Fix the Windows desktop shortcut that showed a wt.exe license error on first double-click.
+- Add /folder to switch the workspace at runtime. Run /folder, or pick Open folder in Command Hub. Desktop launches from the home folder prompt for a project.
+- Use the SuperLiora Neon Noir mark on desktop and Start Menu shortcuts instead of the Node.js icon.
+
 ## 0.12.13
 
 ### Patch Changes
