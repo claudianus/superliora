@@ -123,6 +123,22 @@ describe('UserMessageComponent', () => {
     expect(contentLine?.includes('$ ls')).toBe(true);
   });
 
+  it('paints each combined follow-up as its own bubble', () => {
+    stubTerminalImageProtocol('none');
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+
+    const out = stripAnsi(
+      new UserMessageComponent('one\n\ntwo', [], undefined, undefined, undefined, [
+        'one',
+        'two',
+      ]).render(80).join('\n'),
+    );
+    expect(out).toContain('one');
+    expect(out).toContain('two');
+    expect(out).not.toContain('one\n\ntwo');
+    expect(out.split('✨').length - 1).toBeGreaterThanOrEqual(2);
+  });
+
   describe('timestamps', () => {
     // 2023-11-14T22:13:20Z — the local HH:MM varies by timezone, so every
     // assertion compares against formatClockTime(fixedMs), not a literal.

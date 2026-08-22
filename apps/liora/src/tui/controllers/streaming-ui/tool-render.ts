@@ -1,5 +1,7 @@
 import type { AgentGroupComponent } from '../../components/messages/agent-group';
 import type { ReadGroupComponent } from '../../components/messages/read-group';
+import type { SearchGroupComponent } from '../../components/messages/search-group';
+import { isSearchFamilyTool } from '../../features/transcript/verb-group';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import { isGenericToolResult } from '../../components/messages/tool-renderers/registry';
 import {
@@ -20,6 +22,7 @@ import type { StreamingUIHost } from '.';
 import {
   tryAttachAgentToolCall as attachAgentToolCall,
   tryAttachReadToolCall as attachReadToolCall,
+  tryAttachSearchToolCall as attachSearchToolCall,
   type PendingToolGroup,
 } from './tool-groups';
 
@@ -42,6 +45,8 @@ export interface ToolRenderContext {
   setPendingAgentGroup(group: PendingToolGroup<AgentGroupComponent> | null): void;
   getPendingReadGroup(): PendingToolGroup<ReadGroupComponent> | null;
   setPendingReadGroup(group: PendingToolGroup<ReadGroupComponent> | null): void;
+  getPendingSearchGroup(): PendingToolGroup<SearchGroupComponent> | null;
+  setPendingSearchGroup(group: PendingToolGroup<SearchGroupComponent> | null): void;
   getThinkingDraftLength(): number;
   hasStreamingBlock(): boolean;
   finalizeLiveTextBuffers(nextMode: LivePaneState['mode']): void;
@@ -102,9 +107,11 @@ export function onToolCallStart(
 
   if (toolCall.name !== 'Agent') ctx.setPendingAgentGroup(null);
   if (toolCall.name !== 'Read') ctx.setPendingReadGroup(null);
+  if (!isSearchFamilyTool(toolCall.name)) ctx.setPendingSearchGroup(null);
 
   let handled = tryAttachAgentToolCall(ctx, toolCall, tc);
   if (!handled) handled = tryAttachReadToolCall(ctx, toolCall, tc);
+  if (!handled) handled = tryAttachSearchToolCall(ctx, toolCall, tc);
   if (!handled) {
     state.transcriptContainer.addChild(tc);
     requestTUILayoutRender(state);
@@ -148,6 +155,7 @@ export function onToolCallEnd(
           isError: result.is_error === true,
           errorText: result.is_error === true ? result.output : undefined,
           file,
+          name: matchedCall?.name,
         });
       }
     }
@@ -212,5 +220,22 @@ function tryAttachReadToolCall(
     ctx.getPendingReadGroup(),
   );
   ctx.setPendingReadGroup(result.pending);
+  return result.handled;
+}
+
+function tryAttachSearchToolCall(
+  ctx: ToolRenderContext,
+  toolCall: ToolCallBlockData,
+  tc: ToolCallComponent,
+): boolean {
+  const result = attachSearchToolCall(
+    ctx.host.state,
+    toolCall,
+    tc,
+    ctx.getCurrentStep(),
+    ctx.getCurrentTurnId(),
+    ctx.getPendingSearchGroup(),
+  );
+  ctx.setPendingSearchGroup(result.pending);
   return result.handled;
 }

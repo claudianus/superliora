@@ -41,6 +41,7 @@ import {
 import type { ToolOutputViewportState } from './utils/tool/tool-output-viewport';
 import { setTruncatedOutputFormatAppliedHandler } from './components/messages/tool-renderers/truncated';
 import {
+  EMPTY_TURN_ACTIVITY,
   INITIAL_LIVE_PANE,
   type AppState,
   type LioraTUIOptions,
@@ -48,6 +49,7 @@ import {
   type QueuedMessage,
   type TranscriptDetailLevel,
   type TranscriptEntry,
+  type TurnActivityState,
   type TUIStartupState,
 } from './types';
 import type { CenterModalEntry } from './utils/ui/center-modal';
@@ -83,6 +85,7 @@ export interface TUIState {
   appState: AppState;
   startupState: TUIStartupState;
   livePane: LivePaneState;
+  turnActivity: TurnActivityState;
   transcriptEntries: TranscriptEntry[];
   terminalState: TerminalState;
   activitySpinner: { instance: MoonLoader; style: SpinnerStyle } | null;
@@ -306,6 +309,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     appState: { ...initialAppState },
     startupState: 'pending',
     livePane: { ...INITIAL_LIVE_PANE },
+    turnActivity: { ...EMPTY_TURN_ACTIVITY },
     transcriptEntries: [],
     terminalState: createTerminalState(),
     activitySpinner: null,

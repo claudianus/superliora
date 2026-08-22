@@ -29,6 +29,7 @@ export interface SessionReplayHost {
   readonly sessionEventHandler: SessionEventHandler;
   readonly motionBeats: MotionBeatController;
   setAppState(patch: Partial<AppState>): void;
+  updateActivityPane(): void;
   showError(msg: string): void;
   showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;

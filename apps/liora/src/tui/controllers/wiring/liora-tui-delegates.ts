@@ -203,6 +203,9 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.shiftQueuedMessage = function () {
     return this.messageDispatch.shiftQueuedMessage();
   };
+  proto.takeNextQueuedBatch = function () {
+    return this.messageDispatch.takeNextQueuedBatch();
+  };
   proto.pushTranscriptEntry = function (entry: TranscriptEntry) {
     this.state.transcriptEntries.push(entry);
   };

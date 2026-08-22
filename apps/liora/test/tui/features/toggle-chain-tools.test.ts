@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { AssistantMessageComponent } from '#/tui/components/messages/assistant-message';
+import { SearchGroupComponent } from '#/tui/components/messages/search-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import { ToolChainSummaryComponent } from '#/tui/components/messages/tool-chain-summary';
 import { UserMessageComponent } from '#/tui/components/messages/user-message';
@@ -47,6 +48,20 @@ describe('toggle-chain-tools', () => {
     answer.updateContent('done');
     const t2 = makeTool('b');
     expect(collectToolsAfterChain([chain, t1, answer, t2], 0)).toEqual([t1]);
+  });
+
+  it('includes tools borrowed by SearchGroupComponent', () => {
+    const chain = new ToolChainSummaryComponent();
+    const solo = makeTool('solo');
+    const grouped = new ToolCallComponent(
+      { id: 'grouped', name: 'Grep', args: { pattern: 'TODO' } },
+      undefined,
+    );
+    grouped.setDetail('minimal');
+    const group = new SearchGroupComponent(undefined);
+    group.attach(grouped.toolCallId, grouped);
+    expect(collectToolsAfterChain([chain, solo, group], 0)).toEqual([solo, grouped]);
+    group.dispose();
   });
 
   it('includes tools borrowed by AgentGroupComponent', () => {

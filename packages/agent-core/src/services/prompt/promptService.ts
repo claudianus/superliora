@@ -39,6 +39,7 @@ import {
 } from './promptAgentStateDispatch';
 import { hasAnyAgentStateField, pickAgentStatePatch } from './promptAgentStatePatch';
 import { contentToCoreParts, steerContentToCoreParts } from './promptContent';
+import { combinePromptPrefixLen, mergePromptStates } from './combineQueued';
 import { handlePromptBusEvent } from './promptLifecycle';
 import {
   MAIN_AGENT_ID,
@@ -557,10 +558,13 @@ export class PromptService
     const active = this._active.get(key);
     if (active !== undefined && !active.completed && !active.aborted) return;
     const queue = this._queued.get(key);
-    const next = queue?.shift();
-    if (queue !== undefined && queue.length === 0) {
+    if (queue === undefined || queue.length === 0) return;
+    const take = combinePromptPrefixLen(queue);
+    const batch = queue.splice(0, Math.max(1, take));
+    if (queue.length === 0) {
       this._queued.delete(key);
     }
+    const next = mergePromptStates(batch);
     if (next === undefined) return;
     await this._startPrompt(sid, next).catch(() => {
       void this._startNextQueued(sid, agentId);

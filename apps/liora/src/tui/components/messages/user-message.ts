@@ -34,7 +34,7 @@ import {
 } from '#/tui/features/transcript/transcript-phase-tint';
 
 export class UserMessageComponent implements Component {
-  private text: string;
+  private readonly segments: readonly string[];
   private readonly bullet?: string;
   private readonly timestamp?: number;
   private spacerComponent: Spacer;
@@ -50,8 +50,9 @@ export class UserMessageComponent implements Component {
     bullet?: string,
     timestamp?: number,
     requestRender?: () => void,
+    segments?: readonly string[],
   ) {
-    this.text = text;
+    this.segments = resolveUserMessageSegments(text, segments);
     this.bullet = bullet;
     this.timestamp = timestamp;
     this.spacerComponent = new Spacer(1);
@@ -123,26 +124,24 @@ export class UserMessageComponent implements Component {
 
         const out: string[] = [];
 
-        // Spacer
-        for (const line of this.spacerComponent.render(safeWidth)) {
-          out.push(line);
+        for (const segment of this.segments) {
+          for (const line of this.spacerComponent.render(safeWidth)) {
+            out.push(line);
+          }
+          const coloredText = currentTheme.boldFg('roleUser', segment);
+          const textLines = new Text(coloredText, 0, 0).render(contentWidth);
+          out.push(
+            ...renderRendererTranscriptLineBlock({
+              width: safeWidth,
+              prefix: headerPrefix,
+              continuationPrefix,
+              lines: textLines,
+              truncateMark: '…',
+            }),
+          );
         }
 
-        // Text is re-dyed from the current theme; invalidate() (theme change)
-        // clears the render cache so the new colours are picked up.
-        const coloredText = currentTheme.boldFg('roleUser', this.text);
-        const textLines = new Text(coloredText, 0, 0).render(contentWidth);
-        out.push(
-          ...renderRendererTranscriptLineBlock({
-            width: safeWidth,
-            prefix: headerPrefix,
-            continuationPrefix,
-            lines: textLines,
-            truncateMark: '…',
-          }),
-        );
-
-        // Images — indented to align with text after the bullet
+        // Images — indented to align with text after the first bullet
         for (const thumbnail of this.imageThumbnails) {
           const imageLines = thumbnail.render(contentWidth);
           out.push(
@@ -190,6 +189,15 @@ export class UserMessageComponent implements Component {
     if (!getActiveAppearancePreferences().showTimestamps) return '';
     return currentTheme.fg('textMuted', formatClockTime(this.timestamp));
   }
+}
+
+function resolveUserMessageSegments(
+  text: string,
+  segments: readonly string[] | undefined,
+): readonly string[] {
+  const segs = segments?.filter((segment) => segment.length > 0);
+  if (segs !== undefined && segs.length >= 2) return segs;
+  return [text];
 }
 
 /** Formats epoch milliseconds as a zero-padded 24-hour local-time `HH:MM`. */

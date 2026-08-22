@@ -77,6 +77,58 @@ describe('ActivityPaneComponent', () => {
     const particleish = lines.filter((line) => /[·∙•◦*]/.test(line));
     expect(particleish.length).toBe(1);
   });
+
+  it('paints a live turn-status row when resolveStatus is set', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:12Z'));
+    try {
+      const pane = new ActivityPaneComponent({
+        mode: 'tool',
+        spinner: {
+          renderGlyph: () => '◐',
+          setTip() {},
+          setAvailableWidth() {},
+          render: () => ['loading'],
+          invalidate() {},
+        } as never,
+        resolveStatus: () => ({
+          phase: 'tool',
+          tools: [
+            { name: 'Read', running: true },
+            { name: 'Read', running: true },
+          ],
+          startedAt: Date.parse('2026-07-01T00:00:00Z'),
+          now: Date.now(),
+          contextTokens: 42_000,
+          queued: 2,
+        }),
+      });
+      const out = strip(pane.render(80).join('\n'));
+      expect(out).toContain('Reading 2 files');
+      expect(out).toContain('12s');
+      expect(out).toContain('42k');
+      expect(out).toContain('2 queued');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('paints a dim still-running cue for leftover watchers', () => {
+    const pane = new ActivityPaneComponent({
+      mode: 'watching',
+      resolveStatus: () => ({
+        phase: 'watching',
+        tools: [],
+        startedAt: Date.now(),
+        now: Date.now(),
+        watchers: { commands: 1, questions: 0, subagents: 2 },
+      }),
+    });
+    const out = strip(pane.render(80).join('\n'));
+    expect(out).toContain('1 command · 2 subagents still running');
+    expect(out).not.toContain('Waiting');
+    expect(out).not.toContain('Thinking');
+  });
 });
 
 describe('ActivityPaneComponent thinking ambient', () => {

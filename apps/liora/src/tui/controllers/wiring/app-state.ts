@@ -1,7 +1,7 @@
 import { collectFooterStaleAppStatePatches } from '../../components/chrome/footer/footer-badges';
 import type { CommandHubComponent } from '../../components/dialogs/command-hub/index';
 import type { AppState, LivePaneState } from '../../types';
-import { INITIAL_LIVE_PANE } from '../../types';
+import { EMPTY_TURN_ACTIVITY, INITIAL_LIVE_PANE } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { invalidateTranscriptHitTestCache } from '../../features/transcript/transcript-hit-test';
@@ -199,6 +199,7 @@ export class AppStateController {
   resetLivePane(): void {
     const { host } = this;
     host.state.livePane = { ...INITIAL_LIVE_PANE };
+    host.state.turnActivity = { ...EMPTY_TURN_ACTIVITY };
     host.updateActivityPane();
     requestTUIContentRender(host.state);
   }

@@ -230,6 +230,7 @@ export interface LioraTUIHost {
   setStartupReady(): void;
   clearQueuedMessages(): void;
   shiftQueuedMessage(): QueuedMessage | undefined;
+  takeNextQueuedBatch(): QueuedMessage | undefined;
   pushTranscriptEntry(entry: TranscriptEntry): void;
   setExternalEditorRunning(running: boolean): void;
   setTasksBrowser(value: TUIState['tasksBrowser']): void;

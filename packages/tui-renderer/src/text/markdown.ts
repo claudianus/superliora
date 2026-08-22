@@ -13,6 +13,12 @@ import {
   measurePlaceholderLines,
   shouldSkipExpensiveTranscriptFormat,
 } from '../transcript/measure-mode';
+import { findFrozenMarkdownSourceEnd } from './markdown-checkpoint';
+
+export {
+  findFrozenMarkdownSourceEnd,
+  splitMarkdownSourceLines,
+} from './markdown-checkpoint';
 
 export interface DefaultTextStyle {
   readonly color?: RendererTextBackgroundFn;
@@ -61,6 +67,13 @@ export class Markdown implements Component {
   private cheapCachedWidth?: number;
   private cheapCachedLines?: string[];
   private defaultStylePrefix?: string;
+  /**
+   * Streaming checkpoint: wrapped output of the frozen source prefix at a
+   * content width. Survives `setText` appends until the prefix or width moves.
+   */
+  private streamFrozenSource = '';
+  private streamFrozenWidth = -1;
+  private streamFrozenWrapped: string[] | undefined;
 
   constructor(
     private text: string,
@@ -73,7 +86,16 @@ export class Markdown implements Component {
   setText(text: string): void {
     if (this.text === text) return;
     this.text = text;
-    this.invalidate();
+    this.cachedText = undefined;
+    this.cachedWidth = undefined;
+    this.cachedLines = undefined;
+    this.cheapCachedText = undefined;
+    this.cheapCachedWidth = undefined;
+    this.cheapCachedLines = undefined;
+    const normalized = text.replaceAll('\t', '   ');
+    if (this.streamFrozenSource.length > 0 && !normalized.startsWith(this.streamFrozenSource)) {
+      this.clearStreamCache();
+    }
   }
 
   invalidate(): void {
@@ -88,6 +110,13 @@ export class Markdown implements Component {
     this.cheapCachedWidth = undefined;
     this.cheapCachedLines = undefined;
     this.defaultStylePrefix = undefined;
+    this.clearStreamCache();
+  }
+
+  private clearStreamCache(): void {
+    this.streamFrozenSource = '';
+    this.streamFrozenWidth = -1;
+    this.streamFrozenWrapped = undefined;
   }
 
   render(width: number): string[] {
@@ -175,8 +204,7 @@ export class Markdown implements Component {
     const paddingY = normalizePadding(this.paddingY);
     const contentWidth = Math.max(1, width - paddingX * 2);
     const normalizedText = this.text.replaceAll('\t', '   ');
-    const renderedLines = this.renderBlocks(normalizedText.split('\n'), contentWidth);
-    const wrappedLines = renderedLines.flatMap((line) => wrapTextWithAnsi(line, contentWidth));
+    const wrappedLines = this.renderWrappedIncremental(normalizedText, contentWidth);
     const contentLines = wrappedLines.map((line) => this.padLine(' '.repeat(paddingX) + line, width));
     const emptyLine = this.padLine('', width);
     return [
@@ -184,6 +212,49 @@ export class Markdown implements Component {
       ...contentLines,
       ...Array.from({ length: paddingY }, () => emptyLine),
     ];
+  }
+
+  private renderWrappedIncremental(normalizedText: string, contentWidth: number): string[] {
+    const frozenEnd = findFrozenMarkdownSourceEnd(normalizedText);
+    const frozenSource = frozenEnd > 0 ? normalizedText.slice(0, frozenEnd) : '';
+    const tailSource = frozenEnd > 0 ? normalizedText.slice(frozenEnd) : normalizedText;
+
+    let frozenWrapped: string[];
+    if (
+      frozenSource.length > 0 &&
+      this.streamFrozenWrapped !== undefined &&
+      this.streamFrozenWidth === contentWidth &&
+      (this.streamFrozenSource === frozenSource ||
+        frozenSource.startsWith(this.streamFrozenSource))
+    ) {
+      if (this.streamFrozenSource === frozenSource) {
+        frozenWrapped = this.streamFrozenWrapped;
+      } else {
+        const added = frozenSource.slice(this.streamFrozenSource.length);
+        const extra = this.renderBlocks(added.split('\n'), contentWidth).flatMap((line) =>
+          wrapTextWithAnsi(line, contentWidth),
+        );
+        frozenWrapped = this.streamFrozenWrapped.concat(extra);
+        this.streamFrozenSource = frozenSource;
+        this.streamFrozenWrapped = frozenWrapped;
+      }
+    } else if (frozenSource.length > 0) {
+      frozenWrapped = this.renderBlocks(frozenSource.split('\n'), contentWidth).flatMap((line) =>
+        wrapTextWithAnsi(line, contentWidth),
+      );
+      this.streamFrozenSource = frozenSource;
+      this.streamFrozenWidth = contentWidth;
+      this.streamFrozenWrapped = frozenWrapped;
+    } else {
+      frozenWrapped = [];
+      this.clearStreamCache();
+    }
+
+    if (tailSource.length === 0) return frozenWrapped;
+    const tailWrapped = this.renderBlocks(tailSource.split('\n'), contentWidth).flatMap((line) =>
+      wrapTextWithAnsi(line, contentWidth),
+    );
+    return frozenWrapped.length === 0 ? tailWrapped : frozenWrapped.concat(tailWrapped);
   }
 
   /**

@@ -157,6 +157,39 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
     expect(host.state.queuedMessages.map((m) => m.text)).toEqual(['hold this for later']);
   });
 
+  it('combines adjacent plain queued prompts into one drain', () => {
+    const host = fakeDispatchHost({ streamingPhase: 'running' });
+    const dispatch = controllerFor(host);
+
+    dispatch.sendNormalUserInput('one');
+    dispatch.sendNormalUserInput('two');
+    dispatch.sendNormalUserInput('three');
+    host.state.queuedMessages.push({ text: 'ls', mode: 'bash' });
+
+    const combined = dispatch.takeNextQueuedBatch();
+    expect(combined?.text).toBe('one\n\ntwo\n\nthree');
+    expect(combined?.displayText).toBe('one\n\ntwo\n\nthree');
+    expect(combined?.combinedDisplayTexts).toEqual(['one', 'two', 'three']);
+    expect(dispatch.takeNextQueuedBatch()?.text).toBe('ls');
+    expect(dispatch.takeNextQueuedBatch()).toBeUndefined();
+  });
+
+  it('does not combine an image follower or an expanded skill payload', () => {
+    const host = fakeDispatchHost({ streamingPhase: 'running' });
+    const dispatch = controllerFor(host);
+    host.state.queuedMessages = [
+      { text: 'see this', imageAttachmentIds: [1] },
+      { text: 'and that' },
+      { text: 'expanded body', displayText: '/commit' },
+      { text: 'later' },
+    ];
+
+    const first = dispatch.takeNextQueuedBatch();
+    expect(first?.text).toBe('see this\n\nand that');
+    expect(dispatch.takeNextQueuedBatch()?.displayText).toBe('/commit');
+    expect(dispatch.takeNextQueuedBatch()?.text).toBe('later');
+  });
+
   it('drains the queue FIFO via shift and pops the tail on recall', () => {
     const host = fakeDispatchHost({ streamingPhase: 'running' });
     const dispatch = controllerFor(host);
@@ -200,6 +233,28 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
     dispatch.sendQueuedMessage(session, { text: 'pnpm test', mode: 'bash' });
     expect(host.runShellCommandFromInput).toHaveBeenCalledWith('pnpm test');
     expect(host.session.prompt).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps combined follow-ups as one user entry with per-bubble texts', () => {
+    const host = fakeDispatchHost();
+    const dispatch = controllerFor(host);
+    const session = host.session as unknown as Session;
+
+    dispatch.sendQueuedMessage(session, {
+      text: 'one\n\ntwo',
+      displayText: 'one\n\ntwo',
+      combinedDisplayTexts: ['one', 'two'],
+    });
+
+    expect(host.session.prompt).toHaveBeenCalledWith('one\n\ntwo');
+    expect(host.appendTranscriptEntry).toHaveBeenCalledTimes(1);
+    expect(host.appendTranscriptEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'user',
+        content: 'one\n\ntwo',
+        combinedDisplayTexts: ['one', 'two'],
+      }),
+    );
   });
 
   it('steers mid-turn by appending to the transcript and calling session.steer once', () => {

@@ -54,6 +54,10 @@ import {
   buildToolCallReadSnapshot,
   type ToolCallReadSnapshot,
 } from './read-snapshot';
+import {
+  buildToolCallSearchSnapshot,
+  type ToolCallSearchSnapshot,
+} from './search-snapshot';
 import { hasToolCallLiveAnimation, tickToolCallRenderClock } from './render-tick';
 import {
   appendMainLiveOutputText,
@@ -92,6 +96,7 @@ import {
 
 
 export type { ToolCallReadSnapshot } from './read-snapshot';
+export type { ToolCallSearchSnapshot } from './search-snapshot';
 export type { ToolCallSubagentSnapshot } from './subagent';
 
 export class ToolCallComponent extends Container implements ToolCallCallPreviewHost {
@@ -478,6 +483,16 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
   getReadSnapshot(): ToolCallReadSnapshot {
     return buildToolCallReadSnapshot({
       toolCallId: this.toolCall.id,
+      args: this.toolCall.args,
+      result: this.result,
+      workspaceDir: this.workspaceDir,
+    });
+  }
+
+  getSearchSnapshot(): ToolCallSearchSnapshot {
+    return buildToolCallSearchSnapshot({
+      toolCallId: this.toolCall.id,
+      name: this.toolCall.name,
       args: this.toolCall.args,
       result: this.result,
       workspaceDir: this.workspaceDir,

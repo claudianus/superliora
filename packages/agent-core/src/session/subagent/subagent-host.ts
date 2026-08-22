@@ -121,6 +121,13 @@ export class SessionSubagentHost {
     return Array.from(this.activeChildren.values()).some((child) => !child.runInBackground);
   }
 
+  listActive(): readonly { readonly agentId: string; readonly runInBackground: boolean }[] {
+    return Array.from(this.activeChildren, ([agentId, child]) => ({
+      agentId,
+      runInBackground: child.runInBackground,
+    }));
+  }
+
   /**
    * Forward a mid-run steer to every child that is running a turn right now,
    * so it can adjust before the next phase checkpoint. Mirrors the

@@ -139,7 +139,7 @@ describe('chain summaries', () => {
   it('builds a live summary with label, count, and diff', () => {
     let stats = createToolChainStats(0);
     stats = recordChainTool(stats, { file: 'x.ts', linesAdded: 42, linesRemoved: 10 });
-    expect(formatChainLiveSummary(stats, 'Edit src/x.ts')).toBe('⚙ Edit src/x.ts · 1 tool · +42/−10');
+    expect(formatChainLiveSummary(stats, 'Edit src/x.ts')).toBe('⚙ Editing 1 file · +42/−10');
     stats = recordChainTool(stats, {});
     expect(formatChainLiveSummary(stats)).toBe('⚙ 2 tools · +42/−10');
   });

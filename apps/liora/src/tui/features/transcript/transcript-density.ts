@@ -1,5 +1,7 @@
 import type { TranscriptDetailLevel } from '#/tui/types';
 
+import { formatVerbGroupLabel } from './verb-group';
+
 /**
  * Pure helpers behind the 4-level transcript density model
  * (`minimal | compact | standard | full`).
@@ -125,6 +127,8 @@ export interface ToolChainStats {
   readonly firstError?: string;
   readonly startedAt: number;
   readonly settledAt?: number;
+  /** Tool names in first-seen order, one per finished call. */
+  readonly toolNames: readonly string[];
 }
 
 export function createToolChainStats(startedAt: number = Date.now()): ToolChainStats {
@@ -135,6 +139,7 @@ export function createToolChainStats(startedAt: number = Date.now()): ToolChainS
     linesRemoved: 0,
     failedCount: 0,
     startedAt,
+    toolNames: [],
   };
 }
 
@@ -144,6 +149,7 @@ export interface ChainToolRecord {
   readonly file?: string;
   readonly linesAdded?: number;
   readonly linesRemoved?: number;
+  readonly name?: string;
 }
 
 /** Pure update: fold one finished tool into the chain stats. */
@@ -160,6 +166,9 @@ export function recordChainTool(stats: ToolChainStats, record: ChainToolRecord):
     firstError:
       stats.firstError ??
       (record.isError ? firstLine(record.errorText ?? 'tool failed') : undefined),
+    toolNames: record.name !== undefined && record.name.length > 0
+      ? [...stats.toolNames, record.name]
+      : stats.toolNames,
   };
 }
 
@@ -190,13 +199,25 @@ export function formatDiffChip(stats: ToolChainStats): string | undefined {
 
 /**
  * One-line live summary while the chain is running:
- * `⚙ Edit src/foo.ts · 7 tools · +42/−10` (segments after the label are
- * appended only when meaningful).
+ * `⚙ Reading 2 files · Searching 1 pattern · +42/−10` (segments after the
+ * label are appended only when meaningful).
  */
 export function formatChainLiveSummary(stats: ToolChainStats, currentLabel?: string): string {
   const parts: string[] = [];
-  if (currentLabel) parts.push(currentLabel);
-  parts.push(toolCountPhrase(stats.toolCount));
+  const currentName =
+    currentLabel !== undefined && currentLabel.length > 0
+      ? (currentLabel.split(/\s+/, 1)[0] ?? currentLabel)
+      : undefined;
+  const verb = formatVerbGroupLabel(
+    [
+      ...stats.toolNames.map((name) => ({ name, running: false })),
+      ...(currentName !== undefined ? [{ name: currentName, running: true }] : []),
+    ],
+    { running: true },
+  );
+  if (verb.length > 0) parts.push(verb);
+  else if (currentLabel) parts.push(currentLabel);
+  if (verb.length === 0) parts.push(toolCountPhrase(stats.toolCount));
   const diff = formatDiffChip(stats);
   if (diff) parts.push(diff);
   return `⚙ ${parts.join(' · ')}`;

@@ -42,9 +42,10 @@ export interface AmbientCalmSignals {
   readonly fullscreenTakeover: boolean;
   readonly streamRevealArmed: boolean;
   /**
-   * Background agent work (a running Conductor job, or live/lingering Mission
-   * Control workers) keeps the shared clock advancing even while the main turn
-   * idles — their elapsed labels, spinners, and linger expiry all read it.
+   * Background agent work (a running Conductor job, live/lingering Mission
+   * Control workers, or idle-surviving watchers) keeps the shared clock
+   * advancing even while the main turn idles — their elapsed labels, pulse
+   * glyphs, and linger expiry all read it.
    */
   readonly backgroundWork: boolean;
 }

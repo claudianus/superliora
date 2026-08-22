@@ -19,6 +19,7 @@ import {
 } from '../../features/native-layout/native-input-router';
 import { createTUIStateNativeRenderCallback } from '../../features/native-layout/native-layout-frame';
 import { hasRunningConductorWorkers } from '../../features/appearance/ambient-calm';
+import { hasLiveWatchers } from '../../features/transcript/watchers';
 import { setAppearanceTransportStability } from '../../features/appearance/appearance-effects';
 import { handleFooterJobsStripMouse } from '../../features/control-tower/footer-jobs-mouse';
 import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
@@ -64,7 +65,8 @@ export function attachStartupNativeRendererCallback(host: StartupLifecycleHost):
       // animation clock; keep it advancing on calm transports while they run.
       hasBackgroundWork: () =>
         hasRunningConductorWorkers(host.state.appState.conductorJobs) ||
-        host.missionControl?.hasLiveWorkers() === true,
+        host.missionControl?.hasLiveWorkers() === true ||
+        hasLiveWatchers(host.sessionEventHandler?.backgroundTasks),
       onAmbientTick: () => {
         host.usageMonitor.tick();
       },

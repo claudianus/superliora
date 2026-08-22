@@ -15,6 +15,12 @@ import type { ImageAttachmentStore } from '../../utils/image/image-attachment-st
 import { extractMediaAttachments } from '../../utils/image/image-placeholder';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import {
+  combineQueuedPrefixLen,
+  joinQueuedTexts,
+  stampCombinedDisplayTexts,
+  type CombineQueuedGate,
+} from '../../features/transcript/combine-queued';
+import {
   askUserQuestionTemplateForIncompleteBrief,
   attachStructuredBrief,
   intentBriefIncompleteForGreenfield,
@@ -29,6 +35,7 @@ interface SendMessageOptions {
   readonly parts?: readonly PromptPart[];
   readonly imageAttachmentIds?: readonly number[];
   readonly hasMedia?: boolean;
+  readonly combinedDisplayTexts?: readonly string[];
 }
 
 /** Host surface required by user-input / send / queue / steer dispatch. */
@@ -90,6 +97,17 @@ export class MessageDispatchController {
     this.host.state.queuedMessages = rest;
     flushPromptInputState(this.host);
     return first;
+  }
+
+  takeNextQueuedBatch(): QueuedMessage | undefined {
+    const queue = this.host.state.queuedMessages;
+    if (queue.length === 0) return undefined;
+    const take = combineQueuedPrefixLen(queue.map(queuedMessageToCombineGate));
+    if (take <= 1) return this.shiftQueuedMessage();
+    const taken = queue.slice(0, take);
+    this.host.state.queuedMessages = queue.slice(take);
+    flushPromptInputState(this.host);
+    return joinQueuedMessages(taken);
   }
 
   setLastTurnFailed(failed: boolean): void {
@@ -293,6 +311,7 @@ export class MessageDispatchController {
         displayText: item.displayText,
         parts: item.parts,
         imageAttachmentIds: item.imageAttachmentIds,
+        combinedDisplayTexts: item.combinedDisplayTexts,
       });
     });
   }
@@ -353,6 +372,7 @@ export class MessageDispatchController {
       content: displayInput,
       imageAttachmentIds,
       timestamp: Date.now(),
+      combinedDisplayTexts: options?.combinedDisplayTexts,
     });
 
     // Track the last user input for `/retry` / Hub → Chat → Retry.
@@ -462,4 +482,28 @@ export class MessageDispatchController {
     }
     return first;
   }
+}
+
+function queuedMessageToCombineGate(message: QueuedMessage): CombineQueuedGate {
+  const text = (message.displayText ?? message.text).trim();
+  const expanded =
+    message.displayText !== undefined && message.displayText.trim() !== message.text.trim();
+  return {
+    isPlainPrompt: message.mode !== 'bash' && !expanded,
+    isBash: message.mode === 'bash',
+    hasImages: (message.imageAttachmentIds?.length ?? 0) > 0,
+    isExpandedSkill: expanded,
+    text,
+  };
+}
+
+function joinQueuedMessages(messages: readonly QueuedMessage[]): QueuedMessage {
+  const first = messages[0]!;
+  const segs = messages.map((message) => message.displayText ?? message.text);
+  return {
+    ...first,
+    text: joinQueuedTexts(messages.map((message) => message.text)),
+    displayText: joinQueuedTexts(segs),
+    combinedDisplayTexts: stampCombinedDisplayTexts(segs),
+  };
 }

@@ -392,6 +392,8 @@ export interface TranscriptEntry {
   goalData?: GoalTranscriptData;
   planData?: PlanTranscriptData;
   imageAttachmentIds?: readonly number[];
+  /** Original follow-ups when adjacent queued prompts were combined. */
+  combinedDisplayTexts?: readonly string[];
   skillActivationId?: string;
   skillName?: string;
   skillArgs?: string;
@@ -416,9 +418,23 @@ export interface LivePaneState {
   pendingQuestion: PendingQuestion | null;
 }
 
+/** Live tool names for the turn-status strip (activity pane). */
+export interface TurnActivityTool {
+  readonly name: string;
+  readonly running: boolean;
+}
+
+export interface TurnActivityState {
+  readonly tools: readonly TurnActivityTool[];
+}
+
+export const EMPTY_TURN_ACTIVITY: TurnActivityState = { tools: [] };
+
 export interface QueuedMessage {
   readonly text: string;
   readonly displayText?: string;
+  /** Original follow-ups when adjacent queued prompts were combined. */
+  readonly combinedDisplayTexts?: readonly string[];
   readonly agentId?: string;
   readonly parts?: readonly PromptPart[];
   readonly imageAttachmentIds?: readonly number[];

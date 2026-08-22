@@ -6,6 +6,7 @@ import {
   getActiveAppearancePreferences,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import { formatVerbGroupLabel } from '#/tui/features/transcript/verb-group';
 
 /**
  * Collapsed summary of older steps within a turn.
@@ -16,22 +17,26 @@ const SPARK = ['░', '▒', '▓', '█'] as const;
 export class StepSummaryComponent implements Component {
   private thinking = 0;
   private tool = 0;
+  private readonly toolNames: string[] = [];
 
   get isEmpty(): boolean {
     return this.thinking === 0 && this.tool === 0;
   }
 
-  addCounts(thinking: number, tool: number): void {
+  addCounts(thinking: number, tool: number, toolNames: readonly string[] = []): void {
     this.thinking += thinking;
     this.tool += tool;
+    this.toolNames.push(...toolNames);
   }
 
   invalidate(): void {}
 
   render(_width: number): string[] {
     const parts: string[] = [];
+    const verb = formatVerbGroupLabel(this.toolNames.map((name) => ({ name })));
     if (this.thinking > 0) parts.push(`thinking×${String(this.thinking)}`);
-    if (this.tool > 0) parts.push(`tools×${String(this.tool)}`);
+    if (verb.length > 0) parts.push(verb);
+    else if (this.tool > 0) parts.push(`tools×${String(this.tool)}`);
     if (parts.length === 0) return [];
 
     const total = this.thinking + this.tool;

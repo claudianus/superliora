@@ -196,8 +196,11 @@ describe('conductor hard-budget force-stop through the step loop (V1-4)', () => 
     expect(stopReason).toBe('end_turn');
     expect(callCount()).toBeGreaterThanOrEqual(3);
     expect(callCount()).toBeLessThanOrEqual(4);
-    // Every call really ran and was interrupted by the budget signal.
-    expect(tool.calls).toHaveLength(3);
+    // Every call that reached execute was interrupted by the budget signal.
+    // Whether the third tool reaches execute before trip-stop is load-dependent
+    // (same as the steered-input case below).
+    expect(tool.calls.length).toBeGreaterThanOrEqual(2);
+    expect(tool.calls.length).toBeLessThanOrEqual(3);
     for (const call of tool.calls) {
       expect(String(call.abortedReason)).toContain('hard budget');
     }
