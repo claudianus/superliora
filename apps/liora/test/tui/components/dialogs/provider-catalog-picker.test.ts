@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { ProviderCatalogPickerComponent } from '#/tui/components/dialogs/picker/provider-catalog-picker';
 import { darkColors } from '#/tui/theme/colors';
+import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import {
   buildProviderCatalogOptions,
   resolveProviderSelection,
@@ -36,6 +37,16 @@ function makeCatalog(): Catalog {
       api: 'https://api.openai.com/v1',
       models: {
         'gpt-5': { id: 'gpt-5', name: 'GPT-5', limit: { context: 400000 } },
+      },
+    },
+    'github-copilot': {
+      id: 'github-copilot',
+      name: 'GitHub Copilot',
+      env: ['GITHUB_TOKEN'],
+      npm: '@ai-sdk/openai-compatible',
+      api: 'https://api.githubcopilot.com',
+      models: {
+        'gpt-4.1': { id: 'gpt-4.1', name: 'GPT-4.1', limit: { context: 128000 } },
       },
     },
     'unsupported-embeddings': {
@@ -77,6 +88,19 @@ describe('buildProviderCatalogOptions', () => {
     expect(values).not.toContain('oauth:anthropic-oauth');
     // But the catalog API-key option for Anthropic is still present.
     expect(values).toContain('catalog:anthropic');
+  });
+
+  it('hides GitHub Copilot unless the experimental flag is on', () => {
+    setExperimentalFeatures([]);
+    const hidden = buildProviderCatalogOptions(makeCatalog()).map((o) => o.value);
+    expect(hidden).not.toContain('oauth:github-copilot');
+    expect(hidden).not.toContain('catalog:github-copilot');
+
+    setExperimentalFeatures([{ id: 'github_copilot', enabled: true }]);
+    const shown = buildProviderCatalogOptions(makeCatalog()).map((o) => o.value);
+    expect(shown).toContain('oauth:github-copilot');
+    expect(shown).not.toContain('catalog:github-copilot');
+    setExperimentalFeatures([]);
   });
 
   it('filters out providers with an unsupported wire type', () => {

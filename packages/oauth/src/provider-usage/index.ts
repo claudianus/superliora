@@ -13,21 +13,20 @@
  *   - **xAI Grok** (`xai-grok`): `GET /models` + `x-ratelimit-*`
  *   - **Cursor** (`cursor-oauth`): usage JSON when OAuth login exists
  *   - **ClinePass / Qwen / Z.AI**: existing plan / header probes
+ *   - **GitHub Copilot** (`github-copilot`): `/copilot_internal/user` quota
+ *     snapshots plus optional `x-ratelimit-*` on GET /models.
  *
  * models.dev catalog limits are never treated as account quota.
  */
 
 import { isManagedKimiCode } from '../kimi/managed-usage';
+import { isGitHubCopilotProviderId } from '../profiles/github-copilot';
 import {
   providerUsageTtlMs,
   usageCacheKey,
   withProviderUsageCache,
 } from './provider-usage-cache';
-import {
-  buildAllProvidersUsageSnapshot,
-  finalizeUsageSnapshot,
-  providerDisplayName,
-} from './provider-usage-display';
+import { finalizeUsageSnapshot, providerDisplayName } from './provider-usage-display';
 import { fetchAnthropicUsage } from './provider-usage-fetch-anthropic';
 import { fetchClinePassUsage } from './provider-usage-fetch-clinepass';
 import { fetchOpenAiCodexUsage } from './provider-usage-fetch-codex';
@@ -38,6 +37,7 @@ import { fetchKimiManagedUsage } from './provider-usage-fetch-kimi';
 import { fetchOpenRouterUsage } from './provider-usage-fetch-openrouter';
 import { fetchQwenTokenPlanUsage } from './provider-usage-fetch-qwen';
 import { fetchXaiGrokUsage } from './provider-usage-fetch-xai';
+import { fetchGitHubCopilotUsage } from './provider-usage-fetch-copilot';
 import { fetchZaiUsage } from './provider-usage-fetch-zai';
 import type {
   AllProvidersUsageSnapshot,
@@ -137,6 +137,9 @@ async function fetchProviderUsageUncached(
   }
   if (providerKey === 'zai-coding-plan' || providerKey === 'zai') {
     return fetchZaiUsage(providerKey, accessToken, baseUrl, opts);
+  }
+  if (isGitHubCopilotProviderId(providerKey)) {
+    return fetchGitHubCopilotUsage(providerKey, accessToken, baseUrl, opts);
   }
   return {
     providerKey,

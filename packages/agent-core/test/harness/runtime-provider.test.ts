@@ -569,6 +569,38 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
     });
   });
 
+  it('adds GitHub Copilot identity headers when the openai base URL is Copilot', () => {
+    const resolved = resolveRuntimeProvider({
+      config: {
+        defaultModel: 'github-copilot/gpt-4.1',
+        providers: {
+          'github-copilot': {
+            type: 'openai',
+            baseUrl: 'https://api.githubcopilot.com',
+            apiKey: 'ghu_test',
+          },
+        },
+        models: {
+          'github-copilot/gpt-4.1': {
+            provider: 'github-copilot',
+            model: 'gpt-4.1',
+            maxContextSize: 128000,
+          },
+        },
+      },
+    });
+
+    expect(resolved.provider).toMatchObject({
+      type: 'openai',
+      defaultHeaders: {
+        'Editor-Version': 'SuperLiora/1.0.0',
+        'Editor-Plugin-Version': 'SuperLiora/1.0.0',
+        'Copilot-Integration-Id': 'vscode-chat',
+        'User-Agent': 'SuperLiora/1.0.0',
+      },
+    });
+  });
+
   it('adds Grok Build CLI headers when the openai base URL is the Build proxy', () => {
     const resolved = resolveRuntimeProvider({
       config: {

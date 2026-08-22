@@ -42,7 +42,10 @@ import { requestDeviceAuthorization, pollDeviceToken, refreshAccessToken } from 
 import { FileTokenStorage, type TokenStorage } from '../storage';
 import type { DeviceAuthorization, TokenInfo } from '../types';
 import {
+  ensureGitHubCopilotSession,
   getProviderProfile,
+  githubCopilotUserTokenInfo,
+  readGitHubCopilotEnvToken,
   type ProviderFlowConfig,
   type ProviderProfile,
 } from '../profiles';
@@ -65,6 +68,11 @@ export interface ProviderLoginOptions extends LoginOptions {
    * of overwriting the provider default.
    */
   readonly storageKey?: string;
+  /**
+   * User-pasted token for `paste_token` flows (GitHub Copilot). When omitted,
+   * the manager reads `GITHUB_COPILOT_TOKEN` / `GITHUB_TOKEN` / `GH_TOKEN`.
+   */
+  readonly pastedToken?: string;
 }
 
 export interface ProviderLoginCallbacks {
@@ -151,6 +159,8 @@ export class OAuthProviderManager {
         return this.loginPkceBrowser(profile, callbacks, options);
       case 'deep_link_poll':
         return this.loginDeepLinkPoll(profile, callbacks, options);
+      case 'paste_token':
+        return this.loginPasteToken(profile, options);
     }
   }
 
@@ -267,6 +277,25 @@ export class OAuthProviderManager {
     await this.storage.save(storageKey, token);
     return token;
   }
+
+  private async loginPasteToken(
+    profile: ProviderProfile,
+    options: ProviderLoginOptions,
+  ): Promise<TokenInfo> {
+    const pasted = options.pastedToken?.trim();
+    const token = pasted !== undefined && pasted.length > 0 ? pasted : readGitHubCopilotEnvToken();
+    if (token === undefined || token.length === 0) {
+      throw new OAuthError(
+        `No token for "${profile.id}". Paste a GitHub token or set GITHUB_TOKEN / GH_TOKEN / GITHUB_COPILOT_TOKEN.`,
+      );
+    }
+    // Fail closed on a dead user token so /login does not persist a useless credential.
+    await ensureGitHubCopilotSession(token, { force: true });
+    const tokenInfo = githubCopilotUserTokenInfo(token);
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, tokenInfo);
+    return tokenInfo;
+  }
 }
 
 /** Adapts a ProviderFlowConfig to the GenericPkceFlowConfig shape. */
@@ -308,6 +337,9 @@ async function refreshForFlow(
       const token = await refreshOpenAiToken(flow, refreshToken);
       return toOpenAiTokenInfo(token);
     }
+    case 'paste_token':
+      // User token is long-lived; session exchange happens at request time.
+      return githubCopilotUserTokenInfo(refreshToken);
   }
 }
 

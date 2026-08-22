@@ -11,8 +11,12 @@ import {
   applyCursorOAuthModelAliases,
   CURSOR_OAUTH_PROVIDER_ID,
   cursorModelsToPresets,
+  ensureGitHubCopilotSession,
   fetchCursorAvailableModels,
+  GITHUB_COPILOT_PROVIDER_ID,
+  GITHUB_COPILOT_TOKEN_ENVS,
   getProviderProfile,
+  githubCopilotRequestHeaders,
   listProviderOAuthRefs,
   mergeProviderOAuthLogin,
   OAuthProviderManager,
@@ -31,7 +35,7 @@ import { loadCatalog } from '#/utils/catalog-cache';
 import { openUrl } from '#/utils/open-url';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
-import { promptOAuthCallback } from '../auth/prompts';
+import { promptApiKeyForCatalogProvider, promptOAuthCallback } from '../auth/prompts';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { openModelPickerForProvider } from './model-picker';
 import {
@@ -190,6 +194,20 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
 
   let spinner: LoginProgressSpinnerHandle | undefined;
   try {
+    let pastedToken: string | undefined;
+    if (profile.flow.kind === 'paste_token') {
+      pastedToken = await promptApiKeyForCatalogProvider(host, {
+        value: `oauth:${providerId}`,
+        label: profile.displayName,
+        authKind: 'api-key',
+        modelCount: 0,
+        envVars: [...GITHUB_COPILOT_TOKEN_ENVS],
+        docUrl: profile.docUrl,
+        catalogId: providerId,
+      });
+      if (pastedToken === undefined) return;
+    }
+
     spinner = host.showProgressSpinner(`Authorizing with ${profile.displayName}`);
     await manager.login(
       providerId,
@@ -247,7 +265,11 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
           return pasted;
         },
       },
-      { signal: controller.signal, storageKey },
+      {
+        signal: controller.signal,
+        storageKey,
+        ...(pastedToken === undefined ? {} : { pastedToken }),
+      },
     );
     spinner?.stop({ ok: true, label: ttui('tui.auth.loggedIn') });
     spinner = undefined;
@@ -275,6 +297,18 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
       routeBaseUrl = fields.baseUrl;
       routeCustomHeaders = fields.customHeaders;
       xaiRouteLabel = xaiGrokRouteStatusLabel(route);
+    }
+    if (providerId === GITHUB_COPILOT_PROVIDER_ID) {
+      routeCustomHeaders = githubCopilotRequestHeaders();
+      try {
+        const userToken = await manager.getCachedAccessToken(providerId, storageKey);
+        if (userToken !== undefined && userToken.length > 0) {
+          const session = await ensureGitHubCopilotSession(userToken);
+          routeBaseUrl = session.apiBaseUrl;
+        }
+      } catch {
+        // Keep the individual-host default when the cached session cannot be read.
+      }
     }
     const mergedProvider = mergeProviderOAuthLogin(
       freshConfig.providers[providerId] as Record<string, unknown> | undefined,

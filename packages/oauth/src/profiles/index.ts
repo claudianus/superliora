@@ -6,6 +6,31 @@
 
 import { ANTHROPIC_PROFILE } from './anthropic';
 import {
+  GITHUB_COPILOT_API_BASE_URL,
+  GITHUB_COPILOT_EDITOR_PLUGIN_VERSION,
+  GITHUB_COPILOT_EDITOR_VERSION,
+  GITHUB_COPILOT_INTEGRATION_ID,
+  GITHUB_COPILOT_OAUTH_HOST,
+  GITHUB_COPILOT_PROFILE,
+  GITHUB_COPILOT_PROVIDER_ID,
+  GITHUB_COPILOT_TOKEN_ENVS,
+  GITHUB_COPILOT_TOKEN_URL,
+  GITHUB_COPILOT_USER_URL,
+  ensureGitHubCopilotSession,
+  exchangeGitHubCopilotSession,
+  githubCopilotRequestHeaders,
+  githubCopilotUserTokenInfo,
+  isGitHubCopilotBaseUrl,
+  isGitHubCopilotProviderId,
+  isGitHubCopilotSessionToken,
+  isGitHubUserToken,
+  parseGitHubCopilotQuotaSnapshots,
+  parseGitHubCopilotTokenResponse,
+  peekGitHubCopilotSession,
+  readGitHubCopilotEnvToken,
+  resetGitHubCopilotSessionCache,
+} from './github-copilot';
+import {
   applyCursorOAuthModelAliases,
   CURSOR_FALLBACK_MODELS,
   CURSOR_OAUTH_PROVIDER_ID,
@@ -89,6 +114,7 @@ export const PROVIDER_PROFILES: readonly ProviderProfile[] = [
 export const EXPERIMENTAL_PROVIDER_PROFILES: readonly { readonly profile: ProviderProfile; readonly flag: string }[] = [
   { profile: ANTHROPIC_PROFILE, flag: 'anthropic_oauth' },
   { profile: CURSOR_PROFILE, flag: 'cursor_oauth' },
+  { profile: GITHUB_COPILOT_PROFILE, flag: 'github_copilot' },
 ];
 
 /** All profiles (always-on + experimental), for id-based lookup. */
@@ -113,6 +139,29 @@ export function isOAuthProviderId(id: string): boolean {
 
 export {
   ANTHROPIC_PROFILE,
+  GITHUB_COPILOT_API_BASE_URL,
+  GITHUB_COPILOT_EDITOR_PLUGIN_VERSION,
+  GITHUB_COPILOT_EDITOR_VERSION,
+  GITHUB_COPILOT_INTEGRATION_ID,
+  GITHUB_COPILOT_OAUTH_HOST,
+  GITHUB_COPILOT_PROFILE,
+  GITHUB_COPILOT_PROVIDER_ID,
+  GITHUB_COPILOT_TOKEN_ENVS,
+  GITHUB_COPILOT_TOKEN_URL,
+  GITHUB_COPILOT_USER_URL,
+  ensureGitHubCopilotSession,
+  exchangeGitHubCopilotSession,
+  githubCopilotRequestHeaders,
+  githubCopilotUserTokenInfo,
+  isGitHubCopilotBaseUrl,
+  isGitHubCopilotProviderId,
+  isGitHubCopilotSessionToken,
+  isGitHubUserToken,
+  parseGitHubCopilotQuotaSnapshots,
+  parseGitHubCopilotTokenResponse,
+  peekGitHubCopilotSession,
+  readGitHubCopilotEnvToken,
+  resetGitHubCopilotSessionCache,
   applyCursorOAuthModelAliases,
   CURSOR_AGENT_BASE_URL,
   CURSOR_CLIENT_TYPE,
@@ -170,6 +219,11 @@ export {
   xaiLongContextPricingThresholdTokens,
 };
 export type { CursorDiscoveredModel, FetchCursorAvailableModelsOptions } from './cursor-available-models';
+export type {
+  CopilotQuotaRow,
+  EnsureGitHubCopilotSessionOptions,
+  GitHubCopilotSession,
+} from './github-copilot';
 export type { XaiGrokRoute, XaiGrokRouteConfig } from './xai';
 export type {
   PricingCatalogCost,

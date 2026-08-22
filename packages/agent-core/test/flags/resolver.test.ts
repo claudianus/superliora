@@ -201,4 +201,11 @@ describe('FLAG_DEFINITIONS invariants', () => {
       seenId.add(def.id);
     }
   });
+
+  it('keeps GitHub Copilot off by default', () => {
+    const def = FLAG_DEFINITIONS.find((item) => item.id === 'github_copilot');
+    expect(def?.default).toBe(false);
+    expect(def?.env).toBe('SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT');
+    expect(new FlagResolver({}, FLAG_DEFINITIONS).enabled('github_copilot')).toBe(false);
+  });
 });
