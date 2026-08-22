@@ -426,6 +426,8 @@ export interface TurnActivityTool {
 
 export interface TurnActivityState {
   readonly tools: readonly TurnActivityTool[];
+  /** True while every in-flight tool is a blocking TaskOutput wait. */
+  readonly parked?: boolean;
 }
 
 export const EMPTY_TURN_ACTIVITY: TurnActivityState = { tools: [] };

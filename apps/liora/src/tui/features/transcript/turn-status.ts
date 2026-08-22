@@ -1,11 +1,13 @@
 /**
  * Grok-style turn-status row: spinner + live activity + elapsed + tokens/queue.
  * Hidden when idle unless background watchers are still running.
+ * Parked TaskOutput waits reuse the calm watcher chrome.
  * Pure layout — no UI imports.
  */
 
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 
+import { formatParkedWaitLabel } from './parked-wait';
 import { formatVerbGroupLabel, type VerbGroupItem } from './verb-group';
 import { stillRunningLabel, type Watchers } from './watchers';
 
@@ -26,6 +28,8 @@ export interface TurnStatusInput {
   readonly queued?: number;
   readonly tip?: string;
   readonly watchers?: Watchers;
+  /** Blocking TaskOutput wait — calm chrome, not the busy spinner. */
+  readonly parked?: boolean;
 }
 
 export function formatTurnStatusLabel(input: {
@@ -33,7 +37,11 @@ export function formatTurnStatusLabel(input: {
   readonly tools: readonly VerbGroupItem[];
   readonly tip?: string;
   readonly watchers?: Watchers;
+  readonly parked?: boolean;
 }): string {
+  if (input.parked === true) {
+    return formatParkedWaitLabel(stillRunningLabel(input.watchers) ?? 'waiting');
+  }
   if (input.phase === 'watching') {
     return stillRunningLabel(input.watchers) ?? 'still running';
   }
@@ -111,12 +119,13 @@ export function buildTurnStatusParts(input: TurnStatusInput): {
   readonly label: string;
   readonly right: string;
 } {
-  if (input.phase === 'watching') {
+  if (input.parked === true || input.phase === 'watching') {
     return {
       label: formatTurnStatusLabel({
-        phase: 'watching',
+        phase: input.phase,
         tools: input.tools,
         watchers: input.watchers,
+        parked: input.parked,
       }),
       right: formatTurnStatusRight({ queued: input.queued }),
     };

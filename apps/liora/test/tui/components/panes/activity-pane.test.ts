@@ -129,6 +129,26 @@ describe('ActivityPaneComponent', () => {
     expect(out).not.toContain('Waiting');
     expect(out).not.toContain('Thinking');
   });
+
+  it('paints a parked wait as a calm cue without elapsed or tokens', () => {
+    const pane = new ActivityPaneComponent({
+      mode: 'watching',
+      resolveStatus: () => ({
+        phase: 'watching',
+        tools: [{ name: 'TaskOutput', running: true }],
+        startedAt: Date.now() - 12_000,
+        now: Date.now(),
+        contextTokens: 12_000,
+        parked: true,
+        watchers: { commands: 1, questions: 0, subagents: 0 },
+      }),
+    });
+    const out = strip(pane.render(80).join('\n'));
+    expect(out).toContain('1 command still running · ctrl+s: steer');
+    expect(out).not.toContain('Waiting');
+    expect(out).not.toContain('12s');
+    expect(out).not.toContain('12k');
+  });
 });
 
 describe('ActivityPaneComponent thinking ambient', () => {

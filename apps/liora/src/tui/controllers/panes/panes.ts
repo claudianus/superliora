@@ -131,7 +131,8 @@ export class PanesController {
     }
     this.syncTerminalProgress(this.shouldShowTerminalProgress(effectiveMode));
     const watchers = countWatchers(host.sessionEventHandler.backgroundTasks.values());
-    const statusIdentity = `${turnActivityIdentity(host.state.turnActivity?.tools ?? [])}|${String(host.state.queuedMessages.length)}|${watchersIdentity(watchers)}`;
+    const parked = host.state.turnActivity?.parked === true;
+    const statusIdentity = `${turnActivityIdentity(host.state.turnActivity?.tools ?? [])}|${String(host.state.queuedMessages.length)}|${watchersIdentity(watchers)}|${parked ? '1' : '0'}`;
     const persist =
       effectiveMode === 'waiting' ||
       effectiveMode === 'thinking' ||
@@ -257,6 +258,8 @@ export class PanesController {
       }
     }
 
+    if (host.state.turnActivity?.parked === true) return 'watching';
+
     const mode = host.state.livePane.mode;
     if (
       (mode === 'idle' || mode === 'session') &&
@@ -280,6 +283,7 @@ export class PanesController {
       queued: host.state.queuedMessages.length,
       tip: this.currentLoadingTip?.tip,
       watchers: countWatchers(host.sessionEventHandler.backgroundTasks.values()),
+      parked: host.state.turnActivity?.parked === true,
     };
   }
 

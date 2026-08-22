@@ -88,9 +88,9 @@ export class ActivityPaneComponent extends Container {
       ...snapshot,
       now: Date.now(),
     });
-    const watching = snapshot.phase === 'watching';
-    const glyph = watching ? renderWatcherPulseGlyph() : (this.spinnerRef?.renderGlyph() ?? '');
-    const label = currentTheme.fg(watching ? 'textDim' : 'text', parts.label);
+    const calm = snapshot.phase === 'watching' || snapshot.parked === true;
+    const glyph = calm ? renderWatcherPulseGlyph() : (this.spinnerRef?.renderGlyph() ?? '');
+    const label = currentTheme.fg(calm ? 'textDim' : 'text', parts.label);
     const right = currentTheme.fg('textDim', parts.right);
     return composeTurnStatusLine({
       width,

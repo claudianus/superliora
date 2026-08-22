@@ -40,6 +40,24 @@ describe('formatTurnStatusLabel', () => {
       }),
     ).toBe('2 commands · 1 subagent still running');
   });
+
+  it('parks a blocking wait on calm copy, not busy tool chrome', () => {
+    expect(
+      formatTurnStatusLabel({
+        phase: 'tool',
+        tools: [{ name: 'TaskOutput', running: true }],
+        parked: true,
+        watchers: { commands: 1, questions: 0, subagents: 0 },
+      }),
+    ).toBe('1 command still running · ctrl+s: steer');
+    expect(
+      formatTurnStatusLabel({
+        phase: 'watching',
+        tools: [{ name: 'TaskOutput', running: true }],
+        parked: true,
+      }),
+    ).toBe('waiting · ctrl+s: steer');
+  });
 });
 
 describe('formatTokenChip', () => {
@@ -103,5 +121,21 @@ describe('buildTurnStatusParts', () => {
     });
     expect(parts.label).toBe('1 command still running');
     expect(parts.right).toBe('1 queued');
+  });
+
+  it('omits elapsed and tokens on a parked TaskOutput wait', () => {
+    const parts = buildTurnStatusParts({
+      phase: 'tool',
+      tools: [{ name: 'TaskOutput', running: true }],
+      startedAt: 1_000,
+      now: 13_000,
+      contextTokens: 12_000,
+      queued: 2,
+      parked: true,
+    });
+    expect(parts.label).toBe('waiting · ctrl+s: steer');
+    expect(parts.right).toBe('2 queued');
+    expect(parts.right).not.toContain('12s');
+    expect(parts.right).not.toContain('12k');
   });
 });

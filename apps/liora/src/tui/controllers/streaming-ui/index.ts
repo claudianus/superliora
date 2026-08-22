@@ -18,6 +18,7 @@ import {
   resetRevealState,
 } from '../../utils/streaming/streaming-text-reveal';
 import type { TodoItem } from '../../components/chrome/todo/todo-panel';
+import { isParkedSendableWait } from '../../features/transcript/parked-wait';
 import type {
   LivePaneState,
   QueuedMessage,
@@ -496,7 +497,8 @@ export class StreamingUIController {
   }
 
   private syncTurnActivity(): void {
-    const running = [...this._activeToolCalls.values()].map((tool) => ({
+    const runningCalls = [...this._activeToolCalls.values()];
+    const running = runningCalls.map((tool) => ({
       name: tool.name,
       running: true as const,
     }));
@@ -504,7 +506,10 @@ export class StreamingUIController {
       name,
       running: false as const,
     }));
-    this.host.state.turnActivity = { tools: [...completed, ...running] };
+    this.host.state.turnActivity = {
+      tools: [...completed, ...running],
+      parked: isParkedSendableWait(runningCalls),
+    };
     this.host.updateActivityPane();
   }
 
@@ -599,6 +604,8 @@ export class StreamingUIController {
 
   private flushToolCallPreview(id: string): void {
     streamingUiFlushToolCallPreview(this.toolRenderContext(), id);
+    // Args may gain `block: true` after the card already mounted.
+    this.syncTurnActivity();
   }
 
   private textRenderContext(): TextRenderContext {
