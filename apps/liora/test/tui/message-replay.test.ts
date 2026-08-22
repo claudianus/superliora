@@ -22,8 +22,6 @@ import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ReadGroupComponent } from '#/tui/components/messages/read-group';
 import { SearchGroupComponent } from '#/tui/components/messages/search-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
-import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import {
   REPLAY_MAX_TOOL_MOUNTS_PER_TURN,
   REPLAY_TURN_LIMIT,
