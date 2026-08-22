@@ -178,3 +178,14 @@ Two independent lines:
 ## Nested guides
 
 Directory-specific rules override this file when both apply: `apps/liora/AGENTS.md`, `packages/server/AGENTS.md`, `packages/server-e2e/AGENTS.md`, `packages/agent-core/AGENTS.md`, `packages/agent-core/src/services/AGENTS.md`, `docs/AGENTS.md`.
+
+## Cursor Cloud specific instructions
+
+Durable notes for Cloud Agent VMs. Standard commands live in this file's tables and the root `package.json` scripts — use those; the notes below only cover non-obvious environment caveats.
+
+- **Node 24 is provided via PATH shims, not the base image.** The base VM's default `node` (`/exec-daemon/node`) is v22, but `.npmrc` sets `engine-strict=true` and the repo requires Node `24.15.0`, so v22 would refuse `pnpm install`. Node 24.15.0 is installed under `~/.nvm` and symlinked (`node`/`npm`/`npx`/`corepack`/`pnpm`) into `/usr/local/cargo/bin`, which is first on `PATH`, so plain `node`/`pnpm`/`corepack` already resolve to 24. Both the shims and `~/.nvm` persist in the VM snapshot. Do not "fix" a v22 result from `/exec-daemon/node` — check `node --version` (should be `v24.15.0`) instead.
+- **Startup dependency refresh:** the update script runs `corepack pnpm install` (idempotent; no-op when the lockfile already matches). Nothing else is auto-run at boot.
+- **Building is not done at startup.** Before running the built CLI or the source-install gate, build first: `corepack pnpm run build:packages` (workspace libs) and, for the CLI bundle, `corepack pnpm -C apps/liora run build`. See "Source-install gate" above.
+- **Running the product:** the shippable product is the `apps/liora` CLI/TUI; it runs the agent engine in-process via the SDK and does **not** need `packages/server`. Launch dev mode with `corepack pnpm dev:cli` (or `pnpm -C apps/liora run dev -- --debug`). The TUI needs a real PTY — run it inside `tmux` or a terminal emulator (`xfce4-terminal` is installed), not a bare piped shell.
+- **An LLM provider credential is required for any real agent turn.** No provider key/login is present by default; the TUI opens a "Connect a provider" dialog on first run. To exercise the core coding loop, set a provider secret (e.g. `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) or `/login` in the TUI. Everything except an actual model call (build, lint, full test suite, TUI navigation) works without it.
+- **Test suite runtime:** `pnpm test:all` (whole monorepo via `scripts/test-local.mjs`) runs ~16.5k tests and takes ~10 min on Cloud VMs — budget accordingly rather than assuming the ~2.5 min figure from faster hosts. Always run tests through `scripts/test-local.mjs` (see "Local test gate").
