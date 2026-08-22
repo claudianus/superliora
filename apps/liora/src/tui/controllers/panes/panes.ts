@@ -26,7 +26,7 @@ import type { AppState, TranscriptDetailLevel, TranscriptEntry } from '../../typ
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { isExpandable } from '../../utils/component-capabilities';
 import { formatErrorMessage } from '../../utils/event-payload';
-import { pickForegroundTasks } from '../../utils/foreground-task';
+import { hasDetachableForeground, pickForegroundTasks } from '../../utils/foreground-task';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { installTerminalThemeTracking } from '../../utils/terminal/terminal-theme';
@@ -131,7 +131,15 @@ export class PanesController {
     }
     this.syncTerminalProgress(this.shouldShowTerminalProgress(effectiveMode));
     const watchers = countWatchers(host.sessionEventHandler.backgroundTasks.values());
-    const statusIdentity = `${turnActivityIdentity(host.state.turnActivity?.tools ?? [])}|${String(host.state.queuedMessages.length)}|${watchersIdentity(watchers)}`;
+    const parked = host.state.turnActivity?.parked === true;
+    const showStop = host.state.appState.streamingPhase !== 'idle' && !parked;
+    const showBg =
+      showStop &&
+      hasDetachableForeground(
+        host.sessionEventHandler.backgroundTasks.values(),
+        host.shellOutputStreams.size > 0,
+      );
+    const statusIdentity = `${turnActivityIdentity(host.state.turnActivity?.tools ?? [])}|${String(host.state.queuedMessages.length)}|${watchersIdentity(watchers)}|${parked ? '1' : '0'}|${showStop ? '1' : '0'}${showBg ? '1' : '0'}`;
     const persist =
       effectiveMode === 'waiting' ||
       effectiveMode === 'thinking' ||
@@ -257,6 +265,8 @@ export class PanesController {
       }
     }
 
+    if (host.state.turnActivity?.parked === true) return 'watching';
+
     const mode = host.state.livePane.mode;
     if (
       (mode === 'idle' || mode === 'session') &&
@@ -280,6 +290,14 @@ export class PanesController {
       queued: host.state.queuedMessages.length,
       tip: this.currentLoadingTip?.tip,
       watchers: countWatchers(host.sessionEventHandler.backgroundTasks.values()),
+      parked: host.state.turnActivity?.parked === true,
+      showStop:
+        host.state.appState.streamingPhase !== 'idle' &&
+        host.state.turnActivity?.parked !== true,
+      showBg: hasDetachableForeground(
+        host.sessionEventHandler.backgroundTasks.values(),
+        host.shellOutputStreams.size > 0,
+      ),
     };
   }
 

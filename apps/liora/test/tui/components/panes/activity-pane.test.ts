@@ -106,8 +106,9 @@ describe('ActivityPaneComponent', () => {
       const out = strip(pane.render(80).join('\n'));
       expect(out).toContain('Reading 2 files');
       expect(out).toContain('12s');
-      expect(out).toContain('42k');
+      expect(out).toContain('⇣42k');
       expect(out).toContain('2 queued');
+      expect(out).not.toContain('[stop]');
     } finally {
       vi.useRealTimers();
     }
@@ -128,6 +129,52 @@ describe('ActivityPaneComponent', () => {
     expect(out).toContain('1 command · 2 subagents still running');
     expect(out).not.toContain('Waiting');
     expect(out).not.toContain('Thinking');
+  });
+
+  it('paints a parked wait as a calm cue without elapsed or tokens', () => {
+    const pane = new ActivityPaneComponent({
+      mode: 'watching',
+      resolveStatus: () => ({
+        phase: 'watching',
+        tools: [{ name: 'TaskOutput', running: true }],
+        startedAt: Date.now() - 12_000,
+        now: Date.now(),
+        contextTokens: 12_000,
+        parked: true,
+        watchers: { commands: 1, questions: 0, subagents: 0 },
+      }),
+    });
+    const out = strip(pane.render(80).join('\n'));
+    expect(out).toContain('1 command still running · ctrl+s: steer');
+    expect(out).not.toContain('Waiting');
+    expect(out).not.toContain('12s');
+    expect(out).not.toContain('12k');
+    expect(out).not.toContain('[stop]');
+    expect(out).not.toContain('[↓]');
+  });
+
+  it('paints [stop] and [↓] on a busy turn', () => {
+    const pane = new ActivityPaneComponent({
+      mode: 'tool',
+      spinner: {
+        renderGlyph: () => '◐',
+        setTip() {},
+        setAvailableWidth() {},
+        render: () => ['loading'],
+        invalidate() {},
+      } as never,
+      resolveStatus: () => ({
+        phase: 'tool',
+        tools: [{ name: 'Read', running: true }],
+        startedAt: Date.now(),
+        now: Date.now(),
+        showStop: true,
+        showBg: true,
+      }),
+    });
+    const out = strip(pane.render(80).join('\n'));
+    expect(out).toContain('[stop]');
+    expect(out).toContain('[↓]');
   });
 });
 

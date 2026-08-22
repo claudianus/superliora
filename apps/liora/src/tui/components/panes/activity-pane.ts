@@ -13,6 +13,8 @@ import {
 import {
   buildTurnStatusParts,
   composeTurnStatusLine,
+  TURN_STATUS_BG_CHIP,
+  TURN_STATUS_STOP_CHIP,
   type TurnStatusInput,
 } from '#/tui/features/transcript/turn-status';
 
@@ -88,19 +90,30 @@ export class ActivityPaneComponent extends Container {
       ...snapshot,
       now: Date.now(),
     });
-    const watching = snapshot.phase === 'watching';
-    const glyph = watching ? renderWatcherPulseGlyph() : (this.spinnerRef?.renderGlyph() ?? '');
-    const label = currentTheme.fg(watching ? 'textDim' : 'text', parts.label);
+    const calm = snapshot.phase === 'watching' || snapshot.parked === true;
+    const glyph = calm ? renderWatcherPulseGlyph() : (this.spinnerRef?.renderGlyph() ?? '');
+    const label = currentTheme.fg(calm ? 'textDim' : 'text', parts.label);
     const right = currentTheme.fg('textDim', parts.right);
     return composeTurnStatusLine({
       width,
       glyph,
       label,
       right,
+      actions: styleTurnStatusActions(parts.actions),
       visibleWidth,
       pad: (text, budget) => truncateToWidth(text, budget),
     });
   }
+}
+
+function styleTurnStatusActions(actions: {
+  readonly showStop: boolean;
+  readonly showBg: boolean;
+}): string {
+  const chips: string[] = [];
+  if (actions.showBg) chips.push(currentTheme.fg('textDim', TURN_STATUS_BG_CHIP));
+  if (actions.showStop) chips.push(currentTheme.fg('error', TURN_STATUS_STOP_CHIP));
+  return chips.length === 0 ? '' : ` ${chips.join(' ')}`;
 }
 
 function renderWatcherPulseGlyph(): string {

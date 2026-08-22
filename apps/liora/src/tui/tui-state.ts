@@ -160,6 +160,11 @@ export interface TUIState {
    */
   cachedMissionRect?: RendererRect;
   /**
+   * Cached activity / turn-status row rect (same stage plan as todo/transcript).
+   * `[stop]` cancels, `[↓]` detaches, and the leftover cue opens /tasks.
+   */
+  cachedActivityRect?: RendererRect;
+  /**
    * User-chosen stage size from a corner/edge drag-resize. When set, the stage
    * holds this size (clamped to the terminal) instead of the responsive reading
    * cap. `undefined` = follow the default cap.
