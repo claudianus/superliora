@@ -91,6 +91,7 @@ describe('scripts/install/host-setup', () => {
       writeFile: async (dest: string, text: string) => {
         files.set(dest, text);
       },
+      writeBrandIcon: async () => {},
       chmod: async () => {},
       markDesktopTrusted: async () => {},
       readText: () => '',
@@ -98,6 +99,9 @@ describe('scripts/install/host-setup', () => {
     expect(result.desktopShortcutWritten).toBe(true);
     expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain('Terminal=true');
     expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain('Exec=/home/dev/.local/bin/liora');
+    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain(
+      'Icon=/home/dev/.local/bin/superliora.png',
+    );
   });
 
   it('skipPackages does not probe the Windows desktop folder', async () => {

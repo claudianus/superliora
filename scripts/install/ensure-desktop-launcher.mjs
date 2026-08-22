@@ -11,10 +11,12 @@ import { existsSync } from 'node:fs';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+import { materializeBrandShortcutIcon } from './brand-icon.mjs';
 import {
   SUPERLIORA_WT_PROFILE_NAME,
   findWindowsTerminal,
   skipTerminalRequested,
+  windowsTerminalShortcutLaunch,
   writeWindowsShortcut,
 } from './ensure-terminal.mjs';
 import { hostJoin } from './host-path.mjs';
@@ -79,6 +81,18 @@ export function resolveLauncherCommand(options = {}) {
   return candidates[0];
 }
 
+async function resolveLauncherIcon(options, platform) {
+  if (typeof options.icon === 'string' && options.icon.trim()) return options.icon.trim();
+  return materializeBrandShortcutIcon({
+    platform,
+    binDir: options.binDir,
+    writeFile: options.writeBrandIcon,
+    pngPath: options.brandPngPath,
+    iconPath: options.brandIconPath,
+    writePng: options.writeBrandPng,
+  });
+}
+
 export function shSingleQuote(value) {
   return `'${String(value ?? '').replaceAll("'", `'\\''`)}'`;
 }
@@ -92,6 +106,7 @@ export function escapeDesktopExec(commandline) {
 export function renderLinuxDesktopEntry(options = {}) {
   const commandline = options.commandline ?? '';
   const exec = escapeDesktopExec(commandline);
+  const icon = typeof options.icon === 'string' ? options.icon.trim() : '';
   return [
     '[Desktop Entry]',
     'Version=1.0',
@@ -100,6 +115,7 @@ export function renderLinuxDesktopEntry(options = {}) {
     'Comment=Open SuperLiora in a terminal',
     `Exec=${exec}`,
     `TryExec=${commandline}`,
+    ...(icon ? [`Icon=${icon}`] : []),
     'Terminal=true',
     'Categories=Development;Utility;',
     'StartupNotify=true',
@@ -107,7 +123,8 @@ export function renderLinuxDesktopEntry(options = {}) {
   ].join('\n');
 }
 
-export function renderMacosInfoPlist() {
+export function renderMacosInfoPlist(options = {}) {
+  const iconFile = typeof options.iconFile === 'string' ? options.iconFile.trim() : '';
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -127,7 +144,9 @@ export function renderMacosInfoPlist() {
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
   <key>NSHighResolutionCapable</key>
-  <true/>
+  <true/>${iconFile ? `
+  <key>CFBundleIconFile</key>
+  <string>${iconFile}</string>` : ''}
 </dict>
 </plist>
 `;
@@ -213,14 +232,21 @@ export async function ensureDesktopLauncher(options = {}) {
     if (platform === 'darwin') {
       const scriptPath = hostJoin(platform, dest, 'Contents', 'MacOS', DESKTOP_LAUNCHER_NAME);
       const plistPath = hostJoin(platform, dest, 'Contents', 'Info.plist');
-      await writeText(plistPath, renderMacosInfoPlist());
+      const pngPath = hostJoin(platform, dest, 'Contents', 'Resources', 'AppIcon.png');
+      await materializeBrandShortcutIcon({
+        platform,
+        pngPath,
+        writeFile: options.writeBrandIcon,
+      });
+      await writeText(plistPath, renderMacosInfoPlist({ iconFile: 'AppIcon.png' }));
       await writeText(scriptPath, renderMacosLauncherScript(commandline));
       await chmodFn(scriptPath, 0o755);
       await chmodFn(dest, 0o755);
       return { skipped: false, written: true, ok: true, path: dest };
     }
 
-    const entry = renderLinuxDesktopEntry({ commandline });
+    const icon = await resolveLauncherIcon(options, platform);
+    const entry = renderLinuxDesktopEntry({ commandline, icon });
     await writeText(dest, entry);
     await chmodFn(dest, 0o755);
     let applicationWritten = false;
@@ -255,13 +281,18 @@ async function writeWindowsDesktopShortcut(dest, options, env, platform) {
   const commandline = resolveLauncherCommand({ ...options, env, platform });
   const args = windowsTerminalLaunchArgs(commandline).join(' ');
   const writeShortcut = options.writeShortcut ?? writeWindowsShortcut;
-  const written = await writeShortcut({
-    dest,
-    target: wtPath,
+  const icon = (await resolveLauncherIcon(options, platform)) || commandline || wtPath;
+  const launch = windowsTerminalShortcutLaunch({
+    wtPath,
     arguments: args,
     workingDirectory: env.USERPROFILE ?? defaultHomeFrom(env),
     description: DESKTOP_LAUNCHER_NAME,
-    icon: commandline || wtPath,
+    icon,
+    env,
+  });
+  const written = await writeShortcut({
+    dest,
+    ...launch,
   });
   return {
     skipped: false,

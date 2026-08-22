@@ -507,7 +507,23 @@ export function memoryArgumentCompletions(argumentPrefix: string): AutocompleteI
 }
 
 function isPathLikeAddDirArgument(argumentPrefix: string): boolean {
-  return argumentPrefix === '.' || argumentPrefix === '..' || argumentPrefix.startsWith('./') || argumentPrefix.startsWith('../') || argumentPrefix.startsWith('/') || argumentPrefix.startsWith('~');
+  return (
+    argumentPrefix === '.'
+    || argumentPrefix === '..'
+    || argumentPrefix.startsWith('./')
+    || argumentPrefix.startsWith('../')
+    || argumentPrefix.startsWith('.\\')
+    || argumentPrefix.startsWith('..\\')
+    || argumentPrefix.startsWith('/')
+    || argumentPrefix.startsWith('~')
+    || /^[A-Za-z]:[\\/]/.test(argumentPrefix)
+  );
+}
+
+/** Path completions for `/folder` — no `list` subcommand. */
+export function folderArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  if (argumentPrefix.trim().length === 0) return null;
+  return completeAddDirPath(argumentPrefix);
 }
 
 function completeAddDirPath(argumentPrefix: string): AutocompleteItem[] | null {

@@ -78,6 +78,7 @@ $InstallModules = @(
   'wrappers.mjs',
   'ensure-terminal.mjs',
   'ensure-desktop-launcher.mjs',
+  'brand-icon.mjs',
   'locale.mjs',
   'strings.mjs',
   'ensure-winget.mjs',

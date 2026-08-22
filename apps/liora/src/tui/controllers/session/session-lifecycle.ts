@@ -181,9 +181,18 @@ export class SessionLifecycleController {
     const previous = this.unloadCurrentSession('switching session');
     await previous?.close();
     host.session = session;
-    // Keep TUI workspace aligned when forking into a worktree (different workDir).
-    if (resolve(session.workDir) !== resolve(host.state.appState.workDir)) {
-      host.state.appState.workDir = session.workDir;
+    // Keep TUI workspace aligned when forking into a worktree or opening a folder.
+    if (
+      typeof session.workDir === 'string' &&
+      session.workDir.length > 0 &&
+      resolve(session.workDir) !== resolve(host.state.appState.workDir)
+    ) {
+      try {
+        process.chdir(session.workDir);
+      } catch {
+        // Session kaos still uses workDir; process.cwd is best-effort.
+      }
+      host.setAppState({ workDir: session.workDir });
     }
     host.harness.setTelemetryContext({ sessionId: session.id });
     this.registerSessionHandlers(session);

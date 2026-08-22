@@ -147,6 +147,13 @@ export function buildDefaultCommandHubItems(state: {
   items.push(
     hub('start.new', 'tui.hub.section.start', 'tui.hub.start.new.label', 'tui.hub.start.new.desc'),
     hub(
+      'start.folder',
+      'tui.hub.section.start',
+      'tui.hub.start.folder.label',
+      'tui.hub.start.folder.desc',
+      { keywords: ['folder', 'workspace', 'cd', 'open', 'directory', 'repo', 'cwd'] },
+    ),
+    hub(
       'start.sessions',
       'tui.hub.section.start',
       'tui.hub.start.sessions.label',

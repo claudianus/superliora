@@ -13,11 +13,14 @@ import {
   SUPERLIORA_WT_PROFILE_NAME,
   SUPERLIORA_WT_SCHEME_NAME,
   isStockWindowsTerminalDefault,
+  isWindowsAppsLaunchPath,
   mergeWindowsTerminalSettings,
   parseJsonc,
   TERMINAL_INSTALL_HINT,
   WT_CONSOLE_HOST_GUID,
   WT_DELEGATION_CONSOLE,
+  WT_LAUNCH_EXE,
+  WT_SHORTCUT_WINDOW_MINIMIZED,
   WINGET_TERMINAL_ID,
   ensureTerminal,
   findWindowsTerminal,
@@ -28,9 +31,51 @@ import {
   shouldPromoteDefaultTerminal,
   skipTerminalRequested,
   wellKnownWtCandidates,
+  windowsTerminalShortcutLaunch,
 } from '../../../../scripts/install/ensure-terminal.mjs';
 
 describe('scripts/install/ensure-terminal', () => {
+  it('detects WindowsApps alias and package paths that cannot be .lnk targets', () => {
+    expect(isWindowsAppsLaunchPath(
+      'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe',
+    )).toBe(true);
+    expect(isWindowsAppsLaunchPath(
+      'C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.0_x64__8wekyb3d8bbwe\\wt.exe',
+    )).toBe(true);
+    expect(isWindowsAppsLaunchPath('D:\\Apps\\Windows Terminal\\wt.exe')).toBe(false);
+    expect(isWindowsAppsLaunchPath(
+      'E:\\Users\\dev\\AppData\\Local\\Microsoft\\Windows Terminal\\wt.exe',
+    )).toBe(false);
+  });
+
+  it('launches packaged wt.exe through cmd start so Explorer does not hit the Store license check', () => {
+    const alias = 'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe';
+    const packaged = windowsTerminalShortcutLaunch({
+      wtPath: alias,
+      arguments: `-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
+      workingDirectory: 'E:\\Users\\dev',
+      description: SUPERLIORA_WT_PROFILE_NAME,
+      icon: alias,
+      env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+    });
+    expect(packaged.target).toBe('C:\\Windows\\System32\\cmd.exe');
+    expect(packaged.arguments).toBe(
+      `/d /c start "" ${WT_LAUNCH_EXE} -w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
+    );
+    expect(packaged.windowStyle).toBe(WT_SHORTCUT_WINDOW_MINIMIZED);
+    expect(packaged.icon).toBeUndefined();
+
+    const unpackaged = windowsTerminalShortcutLaunch({
+      wtPath: 'D:\\Apps\\wt.exe',
+      arguments: `-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
+      icon: 'C:\\Apps\\SuperLiora\\bin\\liora.exe',
+    });
+    expect(unpackaged.target).toBe('D:\\Apps\\wt.exe');
+    expect(unpackaged.arguments).toBe(`-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`);
+    expect(unpackaged.windowStyle).toBeUndefined();
+    expect(unpackaged.icon).toBe('C:\\Apps\\SuperLiora\\bin\\liora.exe');
+  });
+
   it('lists well-known wt.exe locations from LOCALAPPDATA', () => {
     const list = wellKnownWtCandidates({
       LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
@@ -136,6 +181,13 @@ describe('scripts/install/ensure-terminal', () => {
     expect(fragment.profiles[0]?.colorScheme).toBe(SUPERLIORA_WT_SCHEME_NAME);
     expect((fragment.profiles[0] as { commandline?: string }).commandline)
       .toBe('C:\\Apps\\SuperLiora\\bin\\liora.exe');
+    expect((fragment.profiles[0] as { icon?: string }).icon).toBeUndefined();
+    expect(renderSuperLioraFragment({
+      commandline: 'C:\\Apps\\SuperLiora\\bin\\liora.exe',
+      icon: 'C:\\Apps\\SuperLiora\\bin\\superliora.ico',
+    }).profiles[0]).toMatchObject({
+      icon: 'C:\\Apps\\SuperLiora\\bin\\superliora.ico',
+    });
     expect(fragment.profiles[1]?.name).toBe(SUPERLIORA_SHELL_PROFILE_NAME);
     expect(fragment.profiles[1]?.guid).toBe(SUPERLIORA_SHELL_PROFILE_GUID);
     expect(fragment.schemes[0]?.name).toBe(SUPERLIORA_NEON_NOIR_SCHEME.name);
@@ -231,7 +283,7 @@ describe('scripts/install/ensure-terminal', () => {
 
   it('writes fragment and shortcut for an existing Terminal without calling winget', async () => {
     const files = new Map<string, string>();
-    const shortcuts: Array<{ dest: string; target: string; arguments: string }> = [];
+    const shortcuts: Array<{ dest: string; target: string; arguments: string; icon?: string; windowStyle?: number }> = [];
     let wingetCalls = 0;
     let promoted: unknown;
     const wt = 'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe';
@@ -263,7 +315,8 @@ describe('scripts/install/ensure-terminal', () => {
       writeFile: async (dest: string, text: string) => {
         files.set(dest, text);
       },
-      writeShortcut: async (spec: { dest: string; target: string; arguments: string }) => {
+      writeBrandIcon: async () => {},
+      writeShortcut: async (spec: { dest: string; target: string; arguments: string; icon?: string; windowStyle?: number }) => {
         shortcuts.push(spec);
         return true;
       },
@@ -286,11 +339,16 @@ describe('scripts/install/ensure-terminal', () => {
     expect(fragmentText).toContain(SUPERLIORA_WT_FONT_FACE_FALLBACK);
     expect(fragmentText).toContain('SuperLiora Neon Noir');
     expect(fragmentText).toContain('liora.exe');
+    expect(fragmentText).toContain('superliora.ico');
     expect(fragmentText).toContain(SUPERLIORA_SHELL_PROFILE_NAME);
     const settingsText = [...files.values()].find((text) => text.includes('defaultProfile'));
     expect(settingsText).toContain(SUPERLIORA_SHELL_PROFILE_GUID);
-    expect(shortcuts[0]?.target).toBe(wt);
-    expect(shortcuts[0]?.arguments).toBe(`-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`);
+    expect(shortcuts[0]?.target.replaceAll('/', '\\')).toBe('C:\\Windows\\System32\\cmd.exe');
+    expect(shortcuts[0]?.arguments).toBe(
+      `/d /c start "" ${WT_LAUNCH_EXE} -w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
+    );
+    expect(shortcuts[0]?.windowStyle).toBe(WT_SHORTCUT_WINDOW_MINIMIZED);
+    expect(shortcuts[0]?.icon?.replaceAll('/', '\\')).toBe('C:\\Apps\\SuperLiora\\bin\\superliora.ico');
     expect(promoted).toMatchObject({ DelegationConsole: WT_DELEGATION_CONSOLE });
   });
 
@@ -318,6 +376,7 @@ describe('scripts/install/ensure-terminal', () => {
         return { status: 0 };
       },
       writeFile: async () => {},
+      writeBrandIcon: async () => {},
       writeShortcut: async () => true,
     });
     expect(result.ok).toBe(true);
@@ -361,6 +420,7 @@ describe('scripts/install/ensure-terminal', () => {
       which: () => wt,
       ensureNerdFont: async () => ({ ok: true, skipped: true }),
       writeFile: async () => {},
+      writeBrandIcon: async () => {},
       writeShortcut: async () => true,
       writeDelegation: () => {
         wroteDelegation = true;
@@ -399,6 +459,7 @@ describe('scripts/install/ensure-terminal', () => {
       writeFile: async (dest: string, text: string) => {
         files.set(dest, text);
       },
+      writeBrandIcon: async () => {},
       writeShortcut: async () => true,
     });
     expect(result.ok).toBe(true);

@@ -27,6 +27,7 @@ export function commandHubKeepsOpen(id: CommandHubActionId): boolean {
 export function commandHubNestsPicker(id: CommandHubActionId): boolean {
   if (id === 'settings.open' || id.startsWith('settings.')) return true;
   switch (id) {
+    case 'start.folder':
     case 'start.sessions':
     case 'chat.model':
     case 'chat.thinking':

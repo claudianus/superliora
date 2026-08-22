@@ -15,7 +15,6 @@ import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
-import { quoteShellArg } from '#/utils/shell-quote';
 import {
   DISABLE_TERMINAL_THEME_REPORTING,
   ENABLE_TERMINAL_THEME_REPORTING,
@@ -917,7 +916,7 @@ describe('LioraTUI startup', () => {
     expect(output).not.toContain('Search: cwd');
   });
 
-  it('does not resume a session from a different cwd and shows a cd hint', async () => {
+  it('resumes a session from a different cwd by switching the workspace', async () => {
     const currentWorkDirSession = {
       id: 'ses-cwd',
       title: 'Current cwd session',
@@ -930,14 +929,15 @@ describe('LioraTUI startup', () => {
       workDir: '/tmp/proj-b',
       updatedAt: Date.now() - 1000,
     };
-    const resumeSession = vi.fn(async () => makeSession({ id: 'ses-other-cwd' }));
+    const resumeSession = vi.fn(async () =>
+      makeSession({ id: 'ses-other-cwd', workDir: '/tmp/proj-b' }),
+    );
     const harness = makeHarness(makeSession({ id: 'ses-current', workDir: '/tmp/proj-a' }), {
       resumeSession,
       listSessions: vi.fn(async () => [currentWorkDirSession, otherWorkDirSession]),
     });
     const driver = makeDriver(harness, makeStartupInput());
     await expect(driver.init()).resolves.toBe(false);
-    copyTextToClipboardMock.mockClear();
 
     (driver as unknown as { ensureNativeInputRouter(): void }).ensureNativeInputRouter();
     await (driver as unknown as { showSessionPicker(): Promise<void> }).showSessionPicker();
@@ -946,38 +946,34 @@ describe('LioraTUI startup', () => {
     picker.handleInput('\r');
     await new Promise((resolve) => setImmediate(resolve));
 
-    expect(resumeSession).not.toHaveBeenCalled();
+    expect(resumeSession).toHaveBeenCalledWith({ id: 'ses-other-cwd' });
     expect(driver.state.activeDialog).toBeNull();
-    const expectedResumeCmd = `cd ${quoteShellArg('/tmp/proj-b')} && liora --resume ${quoteShellArg('ses-other-cwd')}`;
-    expect(copyTextToClipboardMock).toHaveBeenCalledWith(expectedResumeCmd);
-    const transcript = driver.state.transcriptContainer.render(160).join('\n');
-    expect(transcript).toContain('Current session is in a different working directory.');
-    expect(transcript).toContain(`To resume, run: ${expectedResumeCmd}`);
-    expect(transcript).toContain(`To resume, run: ${expectedResumeCmd}`);
-    expect(transcript).toContain('Command copied to clipboard');
+    expect(driver.state.appState.workDir.replaceAll('\\', '/')).toMatch(/proj-b$/);
   });
 
-  it('copies a shell-safe resume command for another cwd with metacharacters', async () => {
+  it('switches into a recorded workDir that contains shell metacharacters without spawning a shell', async () => {
     const currentWorkDirSession = {
       id: 'ses-cwd',
       title: 'Current cwd session',
       workDir: '/tmp/proj-a',
       updatedAt: Date.now(),
     };
+    const otherWorkDir = '/tmp/proj$(touch /tmp/pwned)';
     const otherWorkDirSession = {
       id: 'ses-other-cwd',
       title: 'Other cwd session',
-      workDir: '/tmp/proj$(touch /tmp/pwned)',
+      workDir: otherWorkDir,
       updatedAt: Date.now() - 1000,
     };
-    const resumeSession = vi.fn(async () => makeSession({ id: 'ses-other-cwd' }));
+    const resumeSession = vi.fn(async () =>
+      makeSession({ id: 'ses-other-cwd', workDir: otherWorkDir }),
+    );
     const harness = makeHarness(makeSession({ id: 'ses-current', workDir: '/tmp/proj-a' }), {
       resumeSession,
       listSessions: vi.fn(async () => [currentWorkDirSession, otherWorkDirSession]),
     });
     const driver = makeDriver(harness, makeStartupInput());
     await expect(driver.init()).resolves.toBe(false);
-    copyTextToClipboardMock.mockClear();
 
     (driver as unknown as { ensureNativeInputRouter(): void }).ensureNativeInputRouter();
     await (driver as unknown as { showSessionPicker(): Promise<void> }).showSessionPicker();
@@ -986,14 +982,11 @@ describe('LioraTUI startup', () => {
     picker.handleInput('\r');
     await new Promise((resolve) => setImmediate(resolve));
 
-    expect(resumeSession).not.toHaveBeenCalled();
-    const expectedResumeCmd = `cd ${quoteShellArg('/tmp/proj$(touch /tmp/pwned)')} && liora --resume ${quoteShellArg('ses-other-cwd')}`;
-    expect(copyTextToClipboardMock).toHaveBeenCalledWith(expectedResumeCmd);
-    const transcript = driver.state.transcriptContainer.render(160).join('\n');
-    expect(transcript).toContain(`To resume, run: ${expectedResumeCmd}`);
+    expect(resumeSession).toHaveBeenCalledWith({ id: 'ses-other-cwd' });
+    expect(copyTextToClipboardMock).not.toHaveBeenCalled();
   });
 
-  it('exits after picking another cwd from the startup picker', async () => {
+  it('resumes another cwd from the startup picker instead of exiting', async () => {
     const currentWorkDirSession = {
       id: 'ses-cwd',
       title: 'Current cwd session',
@@ -1006,14 +999,15 @@ describe('LioraTUI startup', () => {
       workDir: '/tmp/proj-b',
       updatedAt: Date.now() - 1000,
     };
-    const resumeSession = vi.fn(async () => makeSession({ id: 'ses-other-cwd' }));
+    const resumeSession = vi.fn(async () =>
+      makeSession({ id: 'ses-other-cwd', workDir: '/tmp/proj-b' }),
+    );
     const harness = makeHarness(makeSession({ id: 'ses-current', workDir: '/tmp/proj-a' }), {
       resumeSession,
       listSessions: vi.fn(async () => [currentWorkDirSession, otherWorkDirSession]),
     });
     const driver = makeDriver(harness, makeStartupInput({ session: '' }));
     const stop = vi.spyOn(driver, 'stop').mockResolvedValue(undefined);
-    copyTextToClipboardMock.mockClear();
 
     await expect((driver as unknown as MainTuiDriver).initMainTui()).resolves.toBe(false);
     await (driver as unknown as { bootstrapFromPicker(): Promise<void> }).bootstrapFromPicker();
@@ -1023,11 +1017,8 @@ describe('LioraTUI startup', () => {
     picker.handleInput('\r');
     await new Promise((resolve) => setImmediate(resolve));
 
-    expect(resumeSession).not.toHaveBeenCalled();
-    const expectedResumeCmd = `cd ${quoteShellArg('/tmp/proj-b')} && liora --resume ${quoteShellArg('ses-other-cwd')}`;
-    expect(copyTextToClipboardMock).toHaveBeenCalledWith(expectedResumeCmd);
-    expect(stop).toHaveBeenCalledOnce();
-    expect(stop).toHaveBeenCalledWith(0);
+    expect(resumeSession).toHaveBeenCalledWith({ id: 'ses-other-cwd' });
+    expect(stop).not.toHaveBeenCalled();
   });
 
   it('does not apply startup flags when switching sessions via the /sessions picker', async () => {

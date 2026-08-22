@@ -18,6 +18,7 @@ import { detectTmuxKeyboardWarning } from '../../utils/terminal/tmux-keyboard';
 import { loadHostSetupModule } from '../../utils/terminal/host-setup-runtime';
 import { isCiLike, shouldPromptHostSetup, windowsTuiHostDegraded } from '../../utils/terminal/windows-host';
 import { getTuiLocale, ttui } from '../../utils/tui-i18n';
+import { shouldOfferStartupFolderPicker } from '../../commands/session/folder';
 import type { StartupLifecycleHost } from './types';
 
 export async function finishStartupSession(
@@ -82,6 +83,15 @@ export async function finishStartupSession(
   void host.sessionBrowser.fetchSessions();
   if (host.session !== undefined) {
     host.sessionBrowser.updateTerminalTitle();
+  }
+  if (
+    host.state.startupState === 'ready' &&
+    host.options.startup.sessionFlag === undefined &&
+    !host.options.startup.continueLast &&
+    !shouldPromptHostSetup() &&
+    shouldOfferStartupFolderPicker(host.state.appState.workDir)
+  ) {
+    void host.sessionBrowser.showFolderPicker({ startup: true });
   }
   void host.refreshDynamicSlashCommands(host.session);
   host.usageMonitor.start();

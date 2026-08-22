@@ -256,6 +256,7 @@ export interface LioraTUIHost {
   switchToSession(session: Session, statusMessage: string): Promise<void>;
   reloadCurrentSessionView(session: Session, statusMessage: string): Promise<void>;
   createNewSession(): Promise<void>;
+  openWorkspace(dir: string, options?: { readonly resumeSessionId?: string }): Promise<void>;
   renderWelcome(): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   appendPlanReviewTranscript(toolCallId: string, plan: PlanTranscriptData): boolean;
