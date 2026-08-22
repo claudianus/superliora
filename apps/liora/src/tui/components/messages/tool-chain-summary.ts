@@ -19,6 +19,7 @@ import {
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
 import {
+  clipCompactTranscriptRows,
   formatCompactChainMetrics,
   isCompactQuietChrome,
   styleCompactMetrics,
@@ -64,14 +65,17 @@ export class ToolChainSummaryComponent extends Container {
       });
       const lines = [styleCompactMetrics([metrics]), ''];
       if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) {
-        return lines;
+        return clipCompactTranscriptRows(lines, width);
       }
-      return polishTranscriptLines(lines, {
-        startedAtMs: this.entranceStartedAtMs,
-        kind: 'tool',
-        streaming: !this.settled,
-        appearance: getActiveAppearancePreferences(),
-      });
+      return clipCompactTranscriptRows(
+        polishTranscriptLines(lines, {
+          startedAtMs: this.entranceStartedAtMs,
+          kind: 'tool',
+          streaming: !this.settled,
+          appearance: getActiveAppearancePreferences(),
+        }),
+        width,
+      );
     }
     const body = this.settled
       ? formatChainSettledSummary(this.stats)

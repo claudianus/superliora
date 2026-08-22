@@ -30,18 +30,18 @@ describe('resolveTranscriptDetail', () => {
 });
 
 describe('default transcript expansion density', () => {
-  it('exports compact as the product default for unset / new sessions', () => {
-    expect(DEFAULT_TRANSCRIPT_DETAIL).toBe('compact');
+  it('exports standard as the product default for unset / new sessions', () => {
+    expect(DEFAULT_TRANSCRIPT_DETAIL).toBe('standard');
     // Restore the product default after other suites may have mutated the mirror.
     setActiveTranscriptDetail(DEFAULT_TRANSCRIPT_DETAIL);
-    expect(getActiveTranscriptDetail()).toBe('compact');
+    expect(getActiveTranscriptDetail()).toBe('standard');
   });
 
-  it('cycles unknown levels from compact (product default), not standard', () => {
+  it('cycles unknown levels from standard (product default), not compact', () => {
     // Cast: nextTranscriptDetailLevel only accepts valid levels at the type level,
     // but the runtime fallback must still start from the product default.
-    // From compact: next is standard.
-    expect(nextTranscriptDetailLevel('not-a-level' as never)).toBe('standard');
+    // From standard: next is full.
+    expect(nextTranscriptDetailLevel('not-a-level' as never)).toBe('full');
   });
 });
 

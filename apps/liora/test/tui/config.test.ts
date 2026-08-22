@@ -101,7 +101,7 @@ terminal_palette = true
         terminalBackground: 'session',
         terminalPalette: true,
         showTimestamps: true,
-        transcriptDetail: 'compact',
+        transcriptDetail: 'standard',
         neat: true,
         syntaxTheme: 'auto',
         missionControl: 'auto',
@@ -112,16 +112,16 @@ terminal_palette = true
     });
   });
 
-  it('defaults transcriptDetail to compact when appearance omits it', () => {
-    expect(DEFAULT_APPEARANCE_PREFERENCES.transcriptDetail).toBe('compact');
+  it('defaults transcriptDetail to standard when appearance omits it', () => {
+    expect(DEFAULT_APPEARANCE_PREFERENCES.transcriptDetail).toBe('standard');
     const config = parseTuiConfig(`
 [appearance]
 density = "comfortable"
 `);
-    expect(config.appearance?.transcriptDetail).toBe('compact');
+    expect(config.appearance?.transcriptDetail).toBe('standard');
   });
 
-  it('honors a persisted transcript_detail override over the compact default', () => {
+  it('honors a persisted transcript_detail override over the standard default', () => {
     const config = parseTuiConfig(`
 [appearance]
 transcript_detail = "full"

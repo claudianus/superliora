@@ -11,6 +11,7 @@ import {
   Text,
   projectRendererLineWindow,
   truncateToWidth,
+  wrapAnsiDisplayText,
   type Component,
   type RendererRootUI,
 } from '#/tui/renderer';
@@ -48,7 +49,10 @@ import {
   applyWorkBlockTintLine,
   phaseGutter,
 } from '#/tui/features/transcript/transcript-phase-tint';
-import { formatCompactThinkingLabel } from '#/tui/features/transcript/compact-activity';
+import {
+  clipCompactTranscriptRows,
+  formatCompactThinkingLabel,
+} from '#/tui/features/transcript/compact-activity';
 import { getActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
 
 export type ThinkingRenderMode = 'live' | 'finalized';
@@ -172,7 +176,7 @@ export class ThinkingComponent implements Component {
         const detail = getActiveTranscriptDetail();
 
         if (detail === 'compact') {
-          return this.renderCompactThinking(contentLines, appearance, scrollPaint);
+          return this.renderCompactThinking(contentLines, appearance, scrollPaint, width);
         }
 
         if (this.mode === 'live') {
@@ -293,6 +297,7 @@ export class ThinkingComponent implements Component {
     contentLines: string[],
     appearance: ReturnType<typeof getActiveAppearancePreferences>,
     scrollPaint: boolean,
+    width: number,
   ): string[] {
     const label = formatCompactThinkingLabel({
       live: this.mode === 'live',
@@ -301,13 +306,17 @@ export class ThinkingComponent implements Component {
     });
     const compactLine =
       this.mode === 'live' ? `${renderThinkingMascot(appearance)}${label}` : label;
+    const wrapped = wrapAnsiDisplayText(compactLine, Math.max(1, width));
     if (!this.expanded) {
-      return polishTranscriptLines(['', compactLine], {
-        startedAtMs: this.entranceStartedAtMs,
-        kind: 'thinking',
-        streaming: this.mode === 'live',
-        appearance,
-      });
+      return clipCompactTranscriptRows(
+        polishTranscriptLines(['', ...wrapped], {
+          startedAtMs: this.entranceStartedAtMs,
+          kind: 'thinking',
+          streaming: this.mode === 'live',
+          appearance,
+        }),
+        width,
+      );
     }
     const visible =
       this.mode === 'live'
@@ -322,12 +331,15 @@ export class ThinkingComponent implements Component {
     const body = caretOn
       ? appendStreamingCaret(visible.map((line) => MESSAGE_INDENT + line))
       : visible.map((line) => MESSAGE_INDENT + line);
-    return polishTranscriptLines(['', compactLine, ...body], {
-      startedAtMs: this.entranceStartedAtMs,
-      kind: 'thinking',
-      streaming: this.mode === 'live',
-      appearance,
-    });
+    return clipCompactTranscriptRows(
+      polishTranscriptLines(['', ...wrapped, ...body], {
+        startedAtMs: this.entranceStartedAtMs,
+        kind: 'thinking',
+        streaming: this.mode === 'live',
+        appearance,
+      }),
+      width,
+    );
   }
 
   private elapsedMs(): number | undefined {

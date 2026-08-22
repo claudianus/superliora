@@ -180,6 +180,14 @@ function applyHighlightSettle(
 ): string {
   if (line.length === 0) return line;
   if (durationMs <= 0 || startedAtMs < 0) return line;
+  // ansiTextToCells strips CR/LF. Compact activity headers are `title\nmetrics`;
+  // flattening them during the settle made wrap height jump every tick.
+  if (line.includes('\n') || line.includes('\r')) {
+    return line
+      .split(/\r?\n/)
+      .map((row) => applyHighlightSettle(row, startedAtMs, durationMs, nowMs))
+      .join('\n');
+  }
   const p = easeOutQuint((nowMs - startedAtMs) / durationMs);
   if (p >= 1) return line;
   const cells = ansiTextToCells(line);

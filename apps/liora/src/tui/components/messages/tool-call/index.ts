@@ -16,6 +16,7 @@ import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData, TranscriptDetailLevel } from '#/tui/types';
 import type { ToolOutputViewportState } from '#/tui/utils/tool/tool-output-viewport';
 import {
+  clipCompactTranscriptRows,
   compactHeaderRowCount,
   isCompactQuietChrome,
 } from '#/tui/features/transcript/compact-activity';
@@ -34,7 +35,6 @@ import {
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render/render-cache';
 import { areLiveToolTicksSuppressed } from '#/tui/utils/render/transcript-paint-mode';
 import {
-  applyToolHeaderEntrance,
   isTranscriptEntranceActive,
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
@@ -251,16 +251,25 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
           return applyWorkBlockTintLine(withGutter, width, 'tools');
         });
     if (!isTranscriptEntranceActive(this.entranceStartedAtMs) && this.result !== undefined) {
-      return painted;
+      return isCompactQuietChrome(this.detail)
+        ? clipCompactTranscriptRows(painted, width)
+        : painted;
     }
     // Skip entrance polish wash on pure-scroll paint (CPU only, no interaction).
-    if (areLiveToolTicksSuppressed()) return painted;
-    return polishTranscriptLines(painted, {
+    if (areLiveToolTicksSuppressed()) {
+      return isCompactQuietChrome(this.detail)
+        ? clipCompactTranscriptRows(painted, width)
+        : painted;
+    }
+    const polished = polishTranscriptLines(painted, {
       startedAtMs: this.entranceStartedAtMs,
       kind: 'tool',
       streaming: this.result === undefined,
       appearance: getActiveAppearancePreferences(),
     });
+    return isCompactQuietChrome(this.detail)
+      ? clipCompactTranscriptRows(polished, width)
+      : polished;
   }
 
   private renderTickInput() {

@@ -244,6 +244,30 @@ describe('ThinkingComponent', () => {
       setActiveTranscriptDetail('standard');
     }
   });
+
+  it('keeps compact live thinking at a stable row count across orb ticks', () => {
+    enableLiveMotion();
+    setActiveTranscriptDetail('compact');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    try {
+      const live = new ThinkingComponent(longThinking, true, 'live');
+      const rowCounts = new Set<number>();
+      for (let t = 0; t < THINKING_MASCOT_PERIOD_MS * 2; t += 80) {
+        advanceAppearanceAnimationClock(t);
+        live.invalidate();
+        rowCounts.add(live.render(52).length);
+      }
+      expect(rowCounts.size).toBe(1);
+      expect([...rowCounts][0]).toBeGreaterThan(1);
+    } finally {
+      setActiveTranscriptDetail('standard');
+      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    }
+  });
 });
 
 describe('thinking thought-orb mascot', () => {
