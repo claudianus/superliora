@@ -12,6 +12,7 @@ import {
 } from './browser/lightpanda-binary';
 import { resolveGuiUseWorkspaceRoot } from './gui-use-workspace';
 import {
+  resolveSetupSpawn,
   runSetupCommand,
   type SetupCommandOptions,
   type SetupCommandResult,
@@ -148,9 +149,11 @@ export function statusCuaDriver(driverCmd = process.env['KIMI_CUA_DRIVER_CMD'] ?
   readonly version?: string | undefined;
   readonly error?: string | undefined;
 } {
-  const result = spawnSync(driverCmd, ['--version'], {
+  const spawned = resolveSetupSpawn(driverCmd, ['--version']);
+  const result = spawnSync(spawned.command, [...spawned.args], {
     encoding: 'utf8',
     timeout: 5000,
+    windowsVerbatimArguments: spawned.windowsVerbatimArguments,
   });
   if (result.error !== undefined) {
     return { installed: false, error: result.error.message };

@@ -55,7 +55,12 @@ export async function maybeAutoVerifySurface(
   signal: AbortSignal | undefined,
 ): Promise<VisualVerificationVerdict> {
   const observed = child.verificationSensorLedger.visualVerdict;
-  if (observed === 'passed' || observed === 'failed') return observed;
+  if (observed === 'passed' || observed === 'failed' || observed === 'skipped_host') {
+    return observed;
+  }
+  if (child.verificationSensorLedger.hostBrowserCircuitOpen === true) {
+    return 'skipped_host';
+  }
 
   const url = resolveVerifySurfaceUrl({
     summary,
@@ -85,7 +90,7 @@ export async function maybeAutoVerifySurface(
     });
     observeVerificationToolResult(child.verificationSensorLedger, 'VerifySurface', args, result);
     const after = child.verificationSensorLedger.visualVerdict;
-    if (after === 'passed' || after === 'failed') return after;
+    if (after === 'passed' || after === 'failed' || after === 'skipped_host') return after;
     return 'not_run';
   } catch {
     return 'not_run';

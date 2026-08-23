@@ -28,6 +28,41 @@ export function isNativeSeaHost(): boolean {
   }
 }
 
+export interface HostPackageJsonSearchOptions {
+  readonly moduleDir?: string | undefined;
+  readonly execPath?: string | undefined;
+  readonly argv0?: string | undefined;
+}
+
+function uniqueExistingDirs(candidates: readonly (string | undefined)[]): string[] {
+  const seen = new Set<string>();
+  const dirs: string[] = [];
+  for (const candidate of candidates) {
+    if (candidate === undefined || candidate.length === 0) continue;
+    const dir = resolve(candidate);
+    const key = dir.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    dirs.push(dir);
+  }
+  return dirs;
+}
+
+/**
+ * Directories to walk for a host `package.json`.
+ * Native/SEA hosts often have `isSea() === false` but still ship `bin/package.json`
+ * next to `liora.exe`.
+ */
+export function hostPackageJsonSearchRoots(
+  options: HostPackageJsonSearchOptions = {},
+): readonly string[] {
+  return uniqueExistingDirs([
+    options.moduleDir ?? MODULE_DIR,
+    dirname(options.execPath ?? process.execPath),
+    dirname(options.argv0 ?? process.argv[0] ?? ''),
+  ]);
+}
+
 function findPackageJsonNear(startDir: string): string | undefined {
   let dir = startDir;
   for (let i = 0; i < 6; i++) {
@@ -42,18 +77,21 @@ function findPackageJsonNear(startDir: string): string | undefined {
   return undefined;
 }
 
+export function resolveHostPackageJsonPath(
+  searchRoots: readonly string[] = hostPackageJsonSearchRoots(),
+): string | undefined {
+  for (const root of searchRoots) {
+    const found = findPackageJsonNear(root);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
 export function tryGetHostPackageJsonPath(): string | undefined {
-  // Native SEA lives under e.g. %LocalAppData%\SuperLiora\bin — walking from
-  // there can miss a manifest or pick up an unrelated package.json.
-  if (isNativeSeaHost()) return undefined;
-  return findPackageJsonNear(MODULE_DIR);
+  return resolveHostPackageJsonPath();
 }
 
 export function getHostPackageJsonPath(): string {
-  // Walk upwards from this file's directory until a `package.json` shows up,
-  // so both dev (`tsx src/main.ts` — this file in `src/cli/`, pkg 2 levels
-  // up) and prod (`node dist/main.mjs` — this code bundled into `dist/`,
-  // pkg 1 level up) resolve correctly.
   const found = tryGetHostPackageJsonPath();
   if (found !== undefined) return found;
   throw new Error(`Could not locate package.json near ${MODULE_DIR}`);

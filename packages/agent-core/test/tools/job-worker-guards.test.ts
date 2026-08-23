@@ -324,6 +324,15 @@ describe('evaluateWorkerVerificationGuard', () => {
         recentTools: ['Read', 'Grep', 'Read', 'Grep'],
       }).abort,
     ).toBe(false);
+
+    expect(
+      evaluateWorkerVerificationGuard({
+        jobKind: 'explore',
+        verificationCommands: commands,
+        toolCount: 20,
+        recentTools: ['Read', 'Grep', 'Read', 'Grep', 'Read', 'Grep'],
+      }).abort,
+    ).toBe(false);
   });
 
   it('reportJobWorkerProgress pre-aborts via verification guard', () => {

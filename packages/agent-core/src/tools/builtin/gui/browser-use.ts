@@ -122,7 +122,12 @@ export class BrowserStatusTool implements BuiltinTool<BrowserStatusInput> {
   readonly description = STATUS_DESCRIPTION;
   readonly parameters = toInputJsonSchema(BrowserStatusInputSchema);
 
-  constructor(private readonly runtime: BrowserUseRuntime) {}
+  constructor(
+    private readonly runtime: BrowserUseRuntime,
+    private readonly options?: {
+      readonly shouldSkipHost?: (() => boolean) | undefined;
+    },
+  ) {}
 
   resolveExecution(args: BrowserStatusInput): ToolExecution {
     return {
@@ -134,6 +139,25 @@ export class BrowserStatusTool implements BuiltinTool<BrowserStatusInput> {
         args.install_if_missing === false ? 'check' : 'prepare',
       ),
       execute: async (ctx) => {
+        if (this.options?.shouldSkipHost?.() === true) {
+          const builder = new ToolResultBuilder();
+          builder.write(
+            JSON.stringify(
+              {
+                platform: process.platform,
+                installed: false,
+                ready: false,
+                skipped_host: true,
+                host_browser: 'einval',
+                error:
+                  'host_browser=einval circuit open; visual=skipped_host. Do not retry BrowserStatus this session.',
+              },
+              undefined,
+              2,
+            ),
+          );
+          return builder.ok();
+        }
         try {
           const status = await this.runtime.status({
             installIfMissing: args.install_if_missing !== false,

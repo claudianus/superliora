@@ -120,6 +120,8 @@ export function createJob(
     greenfieldChain: input.deliveryMode === 'greenfield' || input.deliveryPhase !== undefined,
     explicit: input.taskTrack,
     ownershipPaths: input.ownershipPaths,
+    contextPaths: input.contextPaths,
+    destPath: input.repoRoot,
   });
   const pending = input.taskTrackSource === 'pending' || (input.taskTrack === undefined && resolved.source === 'pending');
   const taskTrack = pending ? undefined : (input.taskTrack ?? (resolved.source === 'pending' ? undefined : resolved.track));

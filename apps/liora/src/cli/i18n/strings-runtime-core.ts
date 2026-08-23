@@ -92,6 +92,8 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.browserUse.doctorPassed': 'Browser-use doctor passed.',
   'cli.runtime.browserUse.actionFailed':
     'Browser-use {action} failed. Retry with `{command}`.',
+  'cli.runtime.browserUse.doctorSourceRestart':
+    'Packaged host has no source packageRoot. Restart from the source GUI (`pnpm -C apps/liora run dev`) instead of looping doctor/install.',
   'cli.runtime.browserUse.aside.enabled':
     'Aside MCP registered: {command} mcp → {path}. Reload the session or /mcp to connect.',
   'cli.runtime.browserUse.aside.disabled': 'Aside MCP removed from {path}.',
@@ -337,6 +339,8 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.browserUse.doctorPassed': 'Browser-use doctor 통과.',
   'cli.runtime.browserUse.actionFailed':
     'Browser-use {action} 실패. `{command}`(으)로 다시 시도하세요.',
+  'cli.runtime.browserUse.doctorSourceRestart':
+    '패키징된 호스트에는 소스 packageRoot가 없습니다. doctor/install을 반복하지 말고 소스 GUI에서 다시 시작하세요 (`pnpm -C apps/liora run dev`).',
   'cli.runtime.browserUse.aside.enabled':
     'Aside MCP 등록됨: {command} mcp → {path}. 세션을 다시 열거나 /mcp로 연결하세요.',
   'cli.runtime.browserUse.aside.disabled': '{path}에서 Aside MCP를 제거했습니다.',

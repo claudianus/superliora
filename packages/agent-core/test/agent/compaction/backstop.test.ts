@@ -133,6 +133,31 @@ describe('buildEmergencyBackstopSummary', () => {
     expect(summary).toContain('1234');
   });
 
+  it('does not let a status-query user message overwrite current_goal', () => {
+    const messages: Message[] = [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'NEON LOCK를 dest에 플레이 가능하게 만들어' }],
+        toolCalls: [],
+      } as unknown as Message,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'fill job started' }],
+        toolCalls: [],
+      } as unknown as Message,
+      {
+        role: 'user',
+        content: [{ type: 'text', text: '지금 뭔 작업하고있는지 보고해봐' }],
+        toolCalls: [],
+      } as unknown as Message,
+    ];
+    const plan = { compactedTokens: 400, rawRefs: [] } as never;
+    const summary = buildEmergencyBackstopSummary(messages, plan);
+    expect(summary).toContain('NEON LOCK');
+    expect(summary).not.toMatch(/current_goal:\n- 지금 뭔 작업하고있는지 보고해봐/);
+    expect(summary).toContain('recent_turns:');
+  });
+
   it('falls back to a default line when no user prompt is present', () => {
     const messages: Message[] = [
       {

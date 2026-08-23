@@ -98,6 +98,44 @@ describe('session-outcome-board', () => {
     expect(flat[2]!.statusLabel).toBe('끝남');
   });
 
+  it('folds identical EINVAL host failures into one blocked card', () => {
+    const board = buildSessionOutcomeBoard([
+      card({
+        id: 'job_a',
+        title: 'host fix 1',
+        status: 'failed',
+        kind: 'implement',
+        resultSummary: 'spawn EINVAL host_browser=einval',
+      }),
+      card({
+        id: 'job_b',
+        title: 'host fix 2',
+        status: 'failed',
+        kind: 'implement',
+        resultSummary: 'BrowserStatus spawn EINVAL',
+      }),
+    ]);
+    expect(board.blocked).toHaveLength(1);
+    expect(board.blocked[0]!.reason).toMatch(/EINVAL/);
+    expect(board.blocked[0]!.jobIds.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('does not count explore discoveries as blocked failures', () => {
+    const board = buildSessionOutcomeBoard([
+      card({
+        id: 'job_ex',
+        title: 'Find playable dest',
+        status: 'failed',
+        kind: 'explore',
+        resultSummary:
+          'Found package.json name=neon-lock, test=node --test tests/*.test.js, serve=python -m http.server 8765',
+      }),
+    ]);
+    expect(board.done).toHaveLength(1);
+    expect(board.blocked).toHaveLength(0);
+    expect(board.done[0]!.status).toBe('code_pass_ledger_fail');
+  });
+
   it('labels ledger failed + verifyVerdict pass as code pass / ledger fail', () => {
     const board = buildSessionOutcomeBoard([
       card({

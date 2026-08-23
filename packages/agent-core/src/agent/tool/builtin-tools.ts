@@ -18,6 +18,13 @@ import {
   isHideLegacyToolNamesEnabled,
 } from '../../profile/sovereign-soft-gates';
 import type { BuiltinTool } from './types';
+import {
+  hostBrowserCircuitSessionKey,
+  hostBrowserCircuitShouldSkip,
+  readHostBrowserCircuit,
+  sessionHostBrowserShouldEscalate,
+} from '../../sensors/host-browser-circuit';
+import { listJobs } from '../../tools/builtin/job/job-ledger';
 
 export { HIDE_LEGACY_TOOL_NAMES_ENV, isHideLegacyToolNamesEnabled };
 
@@ -79,6 +86,17 @@ export function shouldRegisterLegacyCompat(
  * sink is attached here, where both sides are reachable. No-op off the
  * conductor lane.
  */
+function hostBrowserSkip(host: BuiltinToolsHost): boolean {
+  const key = hostBrowserCircuitSessionKey(host.agent.homedir);
+  if (hostBrowserCircuitShouldSkip(readHostBrowserCircuit(key))) return true;
+  if (host.agent.verificationSensorLedger.hostBrowserCircuitOpen === true) return true;
+  try {
+    return sessionHostBrowserShouldEscalate(listJobs(host.toolStore));
+  } catch {
+    return false;
+  }
+}
+
 function wireConductorGuardLedgerRecording(host: BuiltinToolsHost): void {
   const guard = host.agent.conductorGuard;
   if (guard === undefined) return;
@@ -203,7 +221,7 @@ function createFileAndContextTools(
             ? () => {
                 const home = host.agent.homedir;
                 if (home === undefined || home.length === 0) return undefined;
-                const parts = home.replaceAll(/\\/g, '/').split('/').filter(Boolean);
+                const parts = home.replaceAll('\\', '/').split('/').filter(Boolean);
                 return parts.at(-1);
               }
             : undefined,
@@ -416,7 +434,9 @@ function createGuiAndWebTools(
   return [
     toolServices?.browserUse &&
       shouldCreateBuiltin(host, 'BrowserStatus') &&
-      new b.BrowserStatusTool(toolServices.browserUse),
+      new b.BrowserStatusTool(toolServices.browserUse, {
+        shouldSkipHost: () => hostBrowserSkip(host),
+      }),
     toolServices?.browserUse &&
       shouldCreateBuiltin(host, 'BrowserObserve') &&
       new b.BrowserObserveTool(toolServices.browserUse),
@@ -434,6 +454,7 @@ function createGuiAndWebTools(
       new b.VerifySurfaceTool(toolServices?.browserUse, {
         kaos: host.agent.kaos,
         cwd: host.agent.config.cwd,
+        shouldSkipHost: () => hostBrowserSkip(host),
         ...resolveVerifySurfaceMediaOptions(host.agent),
       }),
     toolServices?.computerUse &&

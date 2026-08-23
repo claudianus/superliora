@@ -146,6 +146,30 @@ describe('validateInitialCompactionSummary — structured handoff', () => {
     expect(result.warnings.some((w) => w.includes('free-form'))).toBe(true);
   });
 
+  it('rejects a status-query current_goal so repair can rewrite', () => {
+    const summary = [
+      'current_goal: 지금 뭔 작업하고있는지 보고해봐',
+      'last_known_state:',
+      '- emergency backstop',
+      'decisions:',
+      '- none',
+      'files_touched:',
+      '- dest/index.html',
+      'failed_attempts:',
+      '- none',
+      'open_questions:',
+      '- none',
+      'next_actions:',
+      '- Resume the product task',
+      'verified_claims:',
+      '- none | evidence=n/a | needs_revalidation=true',
+      'raw_refs:',
+      '- none',
+    ].join('\n');
+    const result = validateInitialCompactionSummary(summary, plan, history);
+    expect(result.critical.some((line) => line.includes('status query'))).toBe(true);
+  });
+
   it('accepts structured v2 labels with current_goal and next_actions', () => {
     const summary = [
       'current_goal: Fix cache hit rate regression in compaction',

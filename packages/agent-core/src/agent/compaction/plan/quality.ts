@@ -21,6 +21,7 @@ import {
   hasExactV2Attempt,
   hasPromptControlInStructuredMemory,
   injectMissingDurableEvidenceIds,
+  isStatusQueryUserText,
   latestUserText,
   overlapCount,
   ratio,
@@ -72,6 +73,8 @@ export function validateInitialCompactionSummary(
     const memory = parseStructuredCompactionMemory(trimmed);
     if (memory.currentGoal === undefined || memory.currentGoal.trim().length === 0) {
       critical.push('v2 summary is missing current_goal');
+    } else if (isStatusQueryUserText(memory.currentGoal)) {
+      critical.push('v2 summary current_goal is a status query, not the user task');
     }
     if (usefulItems(memory.nextActions).length === 0) {
       critical.push('v2 summary is missing next_actions');

@@ -199,6 +199,7 @@ export function reportJobWorkerProgress(
     verificationCommands: job.verificationCommands,
     toolCount,
     recentTools: progress.recentTools ?? job.progress?.recentTools,
+    jobKind: job.kind,
   });
   if (guard.abort) {
     clearJobWorkerProgressStall(workerAgentId);

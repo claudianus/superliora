@@ -5,6 +5,12 @@
 
 import type { ExecutableToolResult } from '../loop/types';
 import type { RunProjectChecksResult } from '../tools/builtin/ops/run-project-checks';
+import {
+  recordHostBrowserCircuitHit,
+  type HostBrowserSensorStatus,
+} from './host-browser-circuit';
+
+export type { HostBrowserSensorStatus };
 
 export interface VerificationFailureRecord {
   readonly toolName: string;
@@ -12,10 +18,7 @@ export interface VerificationFailureRecord {
   readonly recordedAtMs: number;
 }
 
-export type VisualSensorVerdict = 'passed' | 'failed' | 'not_run';
-
-/** Host browser class — EINVAL is host skip, not product visual quality. */
-export type HostBrowserSensorStatus = 'einval' | 'missing' | 'ok';
+export type VisualSensorVerdict = 'passed' | 'failed' | 'not_run' | 'skipped_host';
 
 export interface VerificationSensorLedger {
   failures: VerificationFailureRecord[];
@@ -31,6 +34,10 @@ export interface VerificationSensorLedger {
    * with EINVAL on this host — record separately; do not treat as product fail.
    */
   hostBrowser?: HostBrowserSensorStatus;
+  /** EINVAL hits this agent run. Circuit opens at HOST_BROWSER_EINVAL_RETRY_LIMIT. */
+  hostBrowserEinvalCount?: number;
+  /** When true, BrowserStatus / VerifySurface must not spawn again this session. */
+  hostBrowserCircuitOpen?: boolean;
 }
 
 export const VERIFICATION_SENSOR_MAX_FAILURES = 8;
@@ -172,7 +179,13 @@ export function observeVerificationToolResult(
   toolName: string,
   args: unknown,
   result: ExecutableToolResult,
+  sessionKey?: string,
 ): void {
+  if (toolName === 'BrowserStatus') {
+    observeBrowserStatusResult(ledger, result, sessionKey);
+    return;
+  }
+
   if (toolName === 'RunProjectChecks') {
     if (result.isError !== true) {
       recordVerificationPass(ledger);
@@ -218,7 +231,7 @@ export function observeVerificationToolResult(
   }
 
   if (toolName === 'VerifySurface') {
-    observeVerifySurfaceResult(ledger, result);
+    observeVerifySurfaceResult(ledger, result, sessionKey);
     return;
   }
 
@@ -249,27 +262,73 @@ export function classifyHostBrowserFromText(text: string): HostBrowserSensorStat
 
 export const HOST_BROWSER_EINVAL_LEDGER_NOTE = 'host_browser=einval';
 
+function stampHostBrowser(
+  ledger: VerificationSensorLedger,
+  hostClass: HostBrowserSensorStatus,
+  sessionKey?: string,
+): void {
+  ledger.hostBrowser = hostClass;
+  if (hostClass !== 'einval') {
+    if (hostClass === 'ok') ledger.hostBrowserCircuitOpen = false;
+    return;
+  }
+  ledger.hostBrowserEinvalCount = (ledger.hostBrowserEinvalCount ?? 0) + 1;
+  if (sessionKey !== undefined) {
+    const circuit = recordHostBrowserCircuitHit(sessionKey, hostClass);
+    ledger.hostBrowserCircuitOpen = circuit.open;
+    ledger.hostBrowserEinvalCount = circuit.einvalCount;
+  } else if ((ledger.hostBrowserEinvalCount ?? 0) >= 2) {
+    ledger.hostBrowserCircuitOpen = true;
+  }
+}
+
+function observeBrowserStatusResult(
+  ledger: VerificationSensorLedger,
+  result: ExecutableToolResult,
+  sessionKey?: string,
+): void {
+  const output = toolOutputText(result.output);
+  if (/skipped_host/i.test(output) && (ledger.hostBrowserCircuitOpen === true || /circuit open/i.test(output))) {
+    recordVisualVerdict(ledger, 'skipped_host');
+    ledger.hostBrowser = 'einval';
+    return;
+  }
+  const hostClass =
+    classifyHostBrowserFromText(output) ??
+    (result.isError === true ? classifyHostBrowserFromText(String(result.output ?? '')) : undefined);
+  if (hostClass !== undefined) {
+    stampHostBrowser(ledger, hostClass, sessionKey);
+  }
+  if (hostClass === 'einval' || ledger.hostBrowserCircuitOpen === true) {
+    recordVisualVerdict(ledger, 'skipped_host');
+  }
+}
+
 function observeVerifySurfaceResult(
   ledger: VerificationSensorLedger,
   result: ExecutableToolResult,
+  sessionKey?: string,
 ): void {
   const output = toolOutputText(result.output);
   const hostClass = classifyHostBrowserFromText(output);
   if (hostClass !== undefined) {
-    ledger.hostBrowser = hostClass;
+    stampHostBrowser(ledger, hostClass, sessionKey);
   }
-  if (result.isError === true) {
-    // visual stays failed — never auto-pass. host_browser=einval is recorded
-    // separately so implement closeout can stay mechanical-green.
-    recordVisualVerdict(ledger, 'failed');
+  if (hostClass === 'einval' || parsedSkippedHost(output)) {
+    recordVisualVerdict(ledger, 'skipped_host');
     recordAxisVerdicts(ledger, output);
-    const summary =
-      hostClass === 'einval'
-        ? `${HOST_BROWSER_EINVAL_LEDGER_NOTE} — ${output.trim().slice(0, 200) || 'VerifySurface spawn EINVAL'}`
-        : output.trim().slice(0, 240) || 'VerifySurface failed';
     recordVerificationFailure(ledger, {
       toolName: 'VerifySurface',
-      summary,
+      summary: `${HOST_BROWSER_EINVAL_LEDGER_NOTE} — visual=skipped_host; ${output.trim().slice(0, 180) || 'spawn EINVAL'}`,
+    });
+    return;
+  }
+  if (result.isError === true) {
+    recordVisualVerdict(ledger, 'failed');
+    recordAxisVerdicts(ledger, output);
+    recordVerificationFailure(ledger, {
+      toolName: 'VerifySurface',
+      summary: output.trim().slice(0, 240) || 'VerifySurface failed',
     });
     return;
   }
@@ -278,8 +337,6 @@ function observeVerifySurfaceResult(
   if (pass === true) {
     recordVisualVerdict(ledger, 'passed');
     ledger.hostBrowser = 'ok';
-    // Green visual proof clears sticky VerifySurface failures without wiping
-    // unrelated RunProjectChecks evidence.
     ledger.failures = ledger.failures.filter((entry) => entry.toolName !== 'VerifySurface');
     return;
   }
@@ -290,11 +347,12 @@ function observeVerifySurfaceResult(
       : output.trim().slice(0, 240) || 'VerifySurface did not report pass=true';
   recordVerificationFailure(ledger, {
     toolName: 'VerifySurface',
-    summary:
-      hostClass === 'einval'
-        ? `${HOST_BROWSER_EINVAL_LEDGER_NOTE} — ${failSummary}`
-        : failSummary,
+    summary: failSummary,
   });
+}
+
+function parsedSkippedHost(output: string): boolean {
+  return /visual=skipped_host|skipped_host/i.test(output);
 }
 
 function recordAxisVerdicts(ledger: VerificationSensorLedger, output: string): void {

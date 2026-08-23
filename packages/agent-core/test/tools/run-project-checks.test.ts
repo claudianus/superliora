@@ -57,6 +57,11 @@ describe('RunProjectChecksTool', () => {
     expect(pickScript('typecheck', { build: 'tsc --noEmit && vite build' })).toBe('build');
     expect(pickScript('smoke', { build: 'tsc' })).toBeUndefined();
     expect(buildCommandArgs(undefined, 'test')).toEqual(['pnpm', 'run', 'test']);
+    expect(buildCommandArgs(undefined, 'test', 'node --test tests/*.test.js')).toEqual([
+      'node',
+      '--test',
+      'tests',
+    ]);
     expect(buildCommandArgs('packages/agent-core', 'test')).toEqual([
       'pnpm',
       '-C',
@@ -136,6 +141,39 @@ describe('RunProjectChecksTool', () => {
       skipped: true,
     });
     expect(payload.checks[1]?.reason).toContain('No package.json script');
+  });
+
+  it('runs node --test directly and does not invoke pnpm for a no-dep package', async () => {
+    const exec = vi.fn(async (...args: string[]) => {
+      if (args[0] === 'node' && args.includes('--test')) {
+        return fakeProcess(0, 'ok\n');
+      }
+      throw new Error(`unexpected exec: ${args.join(' ')}`);
+    });
+    const kaos = createFakeKaos({
+      getcwd: () => '/work',
+      readText: async () =>
+        JSON.stringify({
+          name: 'neon-lock',
+          scripts: { test: 'node --test tests/*.test.js' },
+        }),
+      exec: exec as Kaos['exec'],
+    });
+    const tool = new RunProjectChecksTool(kaos, '/work');
+    const result = await executeTool(
+      tool,
+      context({ checks: ['test', 'typecheck', 'build'], timeoutMs: 5_000 }),
+    );
+    expect(result.isError).toBeFalsy();
+    const payload = JSON.parse(String(result.output)) as {
+      exitCode: number;
+      checks: Array<{ name: string; skipped?: boolean; command?: string }>;
+    };
+    expect(payload.exitCode).toBe(0);
+    expect(payload.checks[0]).toMatchObject({ name: 'test', command: 'node --test tests' });
+    expect(payload.checks[1]?.skipped).toBe(true);
+    expect(payload.checks[2]?.skipped).toBe(true);
+    expect(exec.mock.calls.some((call) => call[0] === 'pnpm')).toBe(false);
   });
 
   it('uses pnpm -C when packageDir is provided', async () => {
