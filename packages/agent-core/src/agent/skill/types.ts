@@ -1,4 +1,4 @@
-import type { SkillDefinition, SkillSearchHit } from '../../skill';
+import type { SessionCreatedSkill, SkillDefinition, SkillSearchHit } from '../../skill';
 
 export interface SkillRegistry {
   getSkill(name: string): SkillDefinition | undefined;
@@ -13,4 +13,6 @@ export interface SkillRegistry {
   register?(skill: SkillDefinition, options?: { readonly replace?: boolean }): void;
   /** Runtime removal (e.g. refine rollback of a created skill). */
   unregister?(name: string): void;
+  /** Skills written in this session (SkillCreate / auto / refine), newest last. */
+  listSessionCreatedSkills?(): readonly SessionCreatedSkill[];
 }

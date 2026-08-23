@@ -66,8 +66,29 @@ export class HybridRetriever {
     if (queryVector === undefined) return [];
 
     const precomputed = input.vectors;
-    if (precomputed !== undefined && precomputed.size > 0) {
-      return rankByCosine(queryVector, precomputed, topK);
+    const merged = new Map<string, Float32Array>(precomputed ?? []);
+
+    // Catalog vectors omit skills registered this session. Embed those sparse
+    // hits on the fly and fuse them with the precomputed map.
+    if (merged.size > 0) {
+      const missing: string[] = [];
+      const seen = new Set<string>(merged.keys());
+      for (const hit of input.sparseHits) {
+        if (seen.has(hit.id)) continue;
+        if (!input.passages.has(hit.id)) continue;
+        seen.add(hit.id);
+        missing.push(hit.id);
+        if (missing.length >= candidateLimit) break;
+      }
+      if (missing.length > 0) {
+        const texts = missing.map((id) => input.passages.get(id) ?? '');
+        const vectors = await this.embedder.embed(texts, input.signal);
+        for (let i = 0; i < missing.length; i += 1) {
+          const vector = vectors[i];
+          if (vector !== undefined) merged.set(missing[i]!, vector);
+        }
+      }
+      return rankByCosine(queryVector, merged, topK);
     }
 
     // No full index: embed sparse candidates (+ any leftover passage ids) on the fly.

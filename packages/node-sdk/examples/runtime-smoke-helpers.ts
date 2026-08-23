@@ -219,6 +219,7 @@ function logEvent(event: Event): void {
     case 'goal.updated':
     case 'session.meta.updated':
     case 'skill.activated':
+    case 'skill.created':
     case 'turn.step.started':
     case 'turn.step.completed':
     case 'turn.step.retrying':

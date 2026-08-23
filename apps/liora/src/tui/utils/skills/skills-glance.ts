@@ -12,9 +12,9 @@ export const SKILLS_SEARCH_SKILL_TIP =
 export const SKILLS_RISK_FILTER_TIP =
   'Risk filter — metadata.risk=high skills are excluded from SearchSkill results · inline/prompt skills only; reference/expert types use different paths · disableModelInvocation=true skills never appear in model search.';
 
-/** Compact Trace→Skill tip — session-end draft suggestions. */
+/** Compact Trace→Skill tip — live distill + same-session SearchSkill. */
 export const SKILLS_TRACE_SKILL_TIP =
-  'Trace→Skill — session end may suggest skill drafts (manual merge only; no auto pipeline) · drafts stay out of SearchSkill until you edit + move to ~/.superliora/skills · no skill PR bot yet — copy/paste stubs or Extensions → Skills install.';
+  'Trace→Skill — recoveries and user corrections can be distilled into .agents/skills/auto/ SKILL.md, registered live for SearchSkill/Skill (no restart), and listed in <session_skills>. Review in git; disable with SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY=false.';
 
 /** Compact manage tip — enable/disable, import, hot-reload. */
 export const SKILLS_MANAGE_TIP =
@@ -108,10 +108,10 @@ export function buildSkillsSettingsLines(input: SkillsGlanceInput): readonly str
     '· Inline/prompt skills only; reference/expert types use different paths',
     '· disableModelInvocation=true skills never appear in model search',
     '',
-    '── Trace→Skill (tips only) ──────────────────',
-    '· Session end may suggest skill drafts — manual merge only (no auto pipeline)',
-    '· Drafts stay out of SearchSkill until you edit + move to ~/.superliora/skills',
-    '· No skill PR bot yet — copy/paste stubs or Extensions → Skills install',
+    '── Trace→Skill (live) ───────────────────────',
+    '· Recoveries / user corrections → LLM-written SKILL.md under .agents/skills/auto/',
+    '· Registered immediately — SearchSkill and Skill("name") work in this session',
+    '· Review the files in git; disable with SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY=false',
     '',
     '── Manage (manual) ──────────────────────────',
     '· Extensions → Skills — enable/disable slash activation',

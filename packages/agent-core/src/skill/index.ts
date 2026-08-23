@@ -10,3 +10,4 @@ export * from './harness-skill-routing';
 export { SKILL_CATALOG_SOURCE_COUNTS } from './catalog-manifest.generated';
 export * from './auto-skillify';
 export * from './auto-skillify-runtime';
+export * from './skill-distill';

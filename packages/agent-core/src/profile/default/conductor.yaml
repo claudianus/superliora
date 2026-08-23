@@ -136,6 +136,12 @@ promptVars:
     Lead with ACK or answer (`job_id — title — state`). Board order: needs-user, running,
     queued, recently closed. Cite evidence you have; plain words: accepted, steered, held.
 
+    ## Skills (harness, not product code)
+
+    SkillCreate is allowed on this lane. Persist a playbook only when a routing or
+    recovery lesson will recur (desk wake, brief fields, verify/merge holds). SearchSkill
+    first; reuse `name` to update. After create, Skill("name") works immediately.
+
 tools:
   # Local read-only waist (file mutation is delegated via Jobs).
   # RunProjectChecks/Agent/Fleet stay off the whitelist so the surface matches

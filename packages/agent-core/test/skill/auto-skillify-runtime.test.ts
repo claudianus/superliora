@@ -10,12 +10,24 @@ import {
   extractToolCallEventsFromHistory,
   runAutoSkillify,
 } from '../../src/skill/auto-skillify-runtime';
+import { runLessonDistill } from '../../src/skill/skill-distill';
+
+vi.mock('../../src/skill/skill-distill', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/skill/skill-distill')>();
+  return {
+    ...actual,
+    runLessonDistill: vi.fn(),
+  };
+});
+
+const distillMock = vi.mocked(runLessonDistill);
 
 let workDir: string;
 
 beforeEach(async () => {
   workDir = await fs.mkdtemp(path.join(tmpdir(), 'auto-skillify-runtime-'));
   await fs.mkdir(path.join(workDir, '.git'));
+  distillMock.mockReset();
 });
 
 afterEach(async () => {
@@ -58,14 +70,16 @@ describe('extractToolCallEventsFromHistory', () => {
 });
 
 describe('runAutoSkillify', () => {
-  it('writes and registers a skill from retry recovery in history', async () => {
-    const register = vi.fn();
+  it('distills a skill from retry recovery in history', async () => {
+    distillMock.mockResolvedValueOnce({
+      writtenPath: path.join(workDir, '.agents', 'skills', 'auto', 'retry-bash', 'SKILL.md'),
+    });
     const agent = {
       config: { cwd: workDir },
       skills: {
         registry: {
           listInvocableSkills: () => [],
-          register,
+          register: vi.fn(),
         },
       },
       context: {
@@ -86,11 +100,10 @@ describe('runAutoSkillify', () => {
     } as unknown as Agent;
 
     const result = await runAutoSkillify(agent);
-    expect(result.written.length).toBeGreaterThan(0);
-    const skillMd = result.written[0]!;
-    expect(skillMd).toContain(`${path.sep}auto${path.sep}`);
-    expect(await fs.readFile(skillMd, 'utf-8')).toContain('source: auto');
-    expect(register).toHaveBeenCalled();
+    expect(distillMock).toHaveBeenCalledOnce();
+    expect(result.written).toEqual([
+      path.join(workDir, '.agents', 'skills', 'auto', 'retry-bash', 'SKILL.md'),
+    ]);
   });
 
   it('is a no-op when history has no recoveries', async () => {
@@ -112,5 +125,6 @@ describe('runAutoSkillify', () => {
 
     const result = await runAutoSkillify(agent);
     expect(result.written).toEqual([]);
+    expect(distillMock).not.toHaveBeenCalled();
   });
 });

@@ -277,6 +277,7 @@ export class SessionEventHandler {
       case 'job.updated': this.host.controlTowerDesk.handleUpdated(event); break;
       case 'job.inbox': this.host.controlTowerDesk.handleInbox(event); break;
       case 'skill.activated': this.notices.handleSkillActivated(event); break;
+      case 'skill.created': this.notices.handleSkillCreated(event); break;
       case 'plugin_command.activated': this.notices.handlePluginCommandActivated(event); break;
       case 'error': this.notices.handleSessionError(event); break;
       case 'warning': this.notices.handleSessionWarning(event); break;

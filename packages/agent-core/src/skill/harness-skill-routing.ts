@@ -253,6 +253,24 @@ function builtinHit(skill: SkillDefinition, domain: HarnessRoutingDomain): Skill
   };
 }
 
+/** Project/user playbooks outrank catalog hits that already matched the query. */
+export function preferLocalPlaybooks(hits: readonly SkillSearchHit[]): SkillSearchHit[] {
+  if (hits.length === 0) return [];
+  const local: SkillSearchHit[] = [];
+  const rest: SkillSearchHit[] = [];
+  for (const hit of hits) {
+    if (hit.source === 'project' || hit.source === 'user') {
+      local.push({
+        ...hit,
+        matchReason: appendReason(hit.matchReason, 'local playbook'),
+      });
+    } else {
+      rest.push(hit);
+    }
+  }
+  return [...local, ...rest];
+}
+
 function appendReason(existing: string, note: string): string {
   const base = existing.trim();
   if (base.length === 0) return note;

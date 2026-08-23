@@ -150,7 +150,7 @@ describe('showContextSettings', () => {
     expect(lines).toContain('Learning (Liora Memory): 2 active / 2 total');
     expect(lines).toContain('/memory remember');
     expect(lines).toContain('/context');
-    expect(lines).toContain('no PR bot yet');
+    expect(lines).toContain('.agents/skills/auto/');
     expect(host.harness.memory.stats).toHaveBeenCalled();
   });
 });

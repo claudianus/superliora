@@ -78,7 +78,7 @@ export const FLAG_DEFINITIONS = [
   {
     id: 'auto_skillify',
     title: 'Auto skill from trajectory',
-    description: 'After turns with tool retry/recovery patterns, write reusable SKILL.md files under .agents/skills/auto/ and register them live. Cooldown 5 minutes. Disable with SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY=false.',
+    description: 'After recoveries or user corrections, an LLM distills a reusable SKILL.md under .agents/skills/auto/, registers it live for SearchSkill/Skill in this session, and injects it as <session_skills>. Cooldown 5 minutes. Disable with SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY=false.',
     env: 'SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY',
     default: true,
     surface: 'core',

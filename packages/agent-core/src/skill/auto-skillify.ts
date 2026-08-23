@@ -1,15 +1,9 @@
 /**
- * Auto-skillification: detect actionable insights/mistakes from agent execution
- * and automatically create reusable SKILL.md files under `.agents/skills/auto/`.
+ * Auto-skillification event helpers.
  *
- * Inspired by Hermes Agent's self-improving skill loop and the self-improving
- * agents survey (arxiv 2607.13104): convert experience → accumulated capability.
- *
- * Lifecycle:
- *   1. detectSkillifiableEvents — inspect tool calls, errors, retries, outputs
- *   2. scoreSkillCandidate — quality gate (usefulness threshold, dedup)
- *   3. skillify — generate SKILL.md via LLM summary, write to auto/ dir
- *   4. Existing scanner.ts picks up auto/ skills on next SearchSkill/Skill call
+ * Live write path is LLM distill (`skill-distill.ts`) + `commitProjectSkill`.
+ * This module keeps tool-event shapes, a cheap recovery prefilter, and the
+ * on-disk helper used by tests.
  */
 
 import { createHash } from 'node:crypto';
@@ -53,34 +47,18 @@ export interface SkillifyOptions {
 export const DEFAULT_MIN_QUALITY_SCORE = 0.45;
 
 /**
- * Detect skill-worthy events from a batch of tool call results.
- * Triggers on: retries that eventually succeed, errors with recoverable patterns,
- * debug-success sequences, and explicit insight events.
+ * Cheap prefilter: only recoveries that eventually succeeded.
+ * Unrecovered errors are not skill-worthy on their own.
  */
 export function detectSkillifiableEvents(events: readonly ToolCallEvent[]): readonly SkillCandidate[] {
   const candidates: SkillCandidate[] = [];
 
   for (const event of events) {
-    // Retry recovery — the agent figured out how to make a failing tool work
     if (event.retryCount > 0 && event.success) {
       candidates.push(
         buildCandidate({
           type: 'retry-recovery',
           description: `Retry recovery for ${event.toolName} after ${event.retryCount} attempt(s)`,
-          context: event.error,
-          toolName: event.toolName,
-          inputSummary: event.inputSummary,
-          outputSummary: event.outputSummary,
-        }),
-      );
-    }
-
-    // Debug success — tool failed initially but a subsequent call succeeded
-    if (!event.success && event.error && isRecoverableError(event.error)) {
-      candidates.push(
-        buildCandidate({
-          type: 'debug-success',
-          description: `Error handling pattern for ${event.toolName}: ${event.error.slice(0, 120)}`,
           context: event.error,
           toolName: event.toolName,
           inputSummary: event.inputSummary,
@@ -154,25 +132,6 @@ export function scoreCandidate(
   const descRichness = Math.min(description.length / 80, 1) * 0.3;
   const contextBonus = context && context.length > 20 ? 0.15 : 0;
   return Math.min(base + descRichness + contextBonus, 1);
-}
-
-/**
- * Check if an error is recoverable (worth skillifying the recovery pattern).
- */
-function isRecoverableError(error: string): boolean {
-  const recoverablePatterns = [
-    /ENOENT/i,
-    /timeout/i,
-    /rate.?limit/i,
-    /ECONNRESET/i,
-    /420 /i,
-    /503 /i,
-    /parse error/i,
-    /unexpected token/i,
-    /not found/i,
-    /ENOENT/i,
-  ];
-  return recoverablePatterns.some((pattern) => pattern.test(error));
 }
 
 function candidateName(type: string, toolName: string | undefined, description: string): string {

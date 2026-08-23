@@ -5,6 +5,7 @@ import path from 'pathe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent/index';
+import { SessionSkillRegistry } from '../../src/skill/registry';
 import {
   SkillCreateTool,
   SkillCreateToolInputSchema,
@@ -22,7 +23,7 @@ afterEach(async () => {
   await fs.rm(workDir, { recursive: true, force: true });
 });
 
-function makeAgent(registry?: { register: ReturnType<typeof vi.fn> }): Agent {
+function makeAgent(registry?: { register: ReturnType<typeof vi.fn> } | SessionSkillRegistry): Agent {
   return {
     config: { cwd: workDir },
     skills: registry === undefined ? null : { registry },
@@ -56,6 +57,7 @@ describe('SkillCreateTool', () => {
     expect(written).toContain('description: "Retry pattern for flaky e2e runs"');
     expect(written).toContain('whenToUse: "When e2e tests fail intermittently"');
     expect(written).toContain(INPUT.body);
+    expect(written).toContain('source: auto');
     expect(result.isError !== true).toBe(true);
     expect(result.output).toContain('Created skill "retry-flaky-e2e"');
 
@@ -64,6 +66,23 @@ describe('SkillCreateTool', () => {
     expect(definition.name).toBe('retry-flaky-e2e');
     expect(definition.description).toBe('Retry pattern for flaky e2e runs');
     expect(options).toEqual({ replace: true });
+  });
+
+  it('is searchable in the same session without a rescan', async () => {
+    const registry = new SessionSkillRegistry({ disableCatalogLoad: true });
+    const tool = new SkillCreateTool(makeAgent(registry));
+    await tool
+      .resolveExecution({
+        ...INPUT,
+        triggers: ['flaky e2e', 'retry suite'],
+      })
+      .execute();
+
+    const hits = await registry.searchByQuery('flaky e2e retry suite', 5);
+    expect(hits[0]?.name).toBe('retry-flaky-e2e');
+    expect(hits[0]?.fresh).toBe(true);
+    expect(hits[0]?.whenToUse).toMatch(/intermittently/i);
+    expect(registry.getSkill('retry-flaky-e2e')?.name).toBe('retry-flaky-e2e');
   });
 
   it('updates an existing skill with the same name', async () => {
@@ -85,6 +104,24 @@ describe('SkillCreateTool', () => {
     expect(updated.output).toContain('Updated skill "retry-flaky-e2e"');
     const skillMd = path.join(workDir, '.agents', 'skills', 'auto', 'retry-flaky-e2e', 'SKILL.md');
     expect(await fs.readFile(skillMd, 'utf-8')).toContain('# v2');
+  });
+
+  it('rejects generic template bodies', async () => {
+    const tool = new SkillCreateTool(makeAgent({ register: vi.fn() }));
+    const result = await tool
+      .resolveExecution({
+        ...INPUT,
+        body: [
+          '# Retry',
+          '',
+          '## Recovery / Application',
+          '',
+          'Apply the steps that led to a successful outcome.',
+        ].join('\n'),
+      })
+      .execute();
+    expect(result.isError).toBe(true);
+    expect(String(result.output)).toMatch(/generic retry template/i);
   });
 
   it('rejects bodies without a completion criterion', async () => {

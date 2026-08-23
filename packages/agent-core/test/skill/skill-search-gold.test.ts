@@ -69,6 +69,43 @@ const SKILL_GOLD = [
   },
 ] as const;
 
+describe('local playbook search', () => {
+  it('ranks a project auto skill above a catalog fixture on trigger keywords', async () => {
+    const { SessionSkillRegistry } = await import('../../src/skill/registry');
+    const registry = new SessionSkillRegistry({ disableCatalogLoad: true });
+    registry.register({
+      name: 'playwright-smoke',
+      description: 'Browser interaction smoke and VerifySurface scenarios',
+      path: '/catalog/playwright-smoke/SKILL.md',
+      dir: '/catalog/playwright-smoke',
+      content: '',
+      source: 'builtin',
+      metadata: { catalogId: 'fixture-playwright-smoke' },
+    });
+    registry.register(
+      {
+        name: 'windows-pnpm-e2e-spawn',
+        description:
+          'Windows pnpm e2e hits spawn EPERM; run via node scripts/test-local.mjs. Use when Windows e2e, pnpm test, spawn EPERM, or test-local runner.',
+        path: '/repo/.agents/skills/auto/windows-pnpm-e2e-spawn/SKILL.md',
+        dir: '/repo/.agents/skills/auto/windows-pnpm-e2e-spawn',
+        content: '',
+        source: 'project',
+        metadata: {
+          whenToUse: 'Windows e2e spawn EPERM',
+          triggers: ['windows e2e', 'spawn EPERM', 'test-local'],
+        },
+      },
+      { replace: true },
+    );
+
+    const hits = await registry.searchByQuery('windows e2e spawn EPERM test-local', 5);
+    expect(hits[0]?.name).toBe('windows-pnpm-e2e-spawn');
+    expect(hits[0]?.fresh).toBe(true);
+    expect(hits[0]?.matchReason).toMatch(/local playbook/);
+  });
+});
+
 describe('SkillSearchEngine gold nDCG', () => {
   it('hybrid ranks fixture skills at or above sparse nDCG@3', async () => {
     const engine = new SkillSearchEngine();

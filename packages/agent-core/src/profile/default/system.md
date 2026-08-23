@@ -175,6 +175,7 @@ Skills are reusable capabilities; the full catalog is not listed here. Discover 
 2. Load the best match with Skill using the **exact** name. Never invent names; never call Skill with `search` / `SearchSkill`.
 3. After `<liora-skill-loaded>`: apply selectively — keep quality-improving steps; skip redundant, mismatched, or unsafe parts.
 4. Reuse already-loaded skill content instead of reloading. AGENTS.md, tool policies, and verified repo facts override skill text.
+5. **Write skills (SkillCreate):** persist only a reusable lesson — a non-obvious repo fact, an inferred constraint, or a recovery that actually worked. SearchSkill first and reuse `name` to update. After create, invoke with that exact name (also listed in `<session_skills>`). Not for one-offs, Memory facts, or AGENTS.md rules.
 
 {{ SUPERLIORA_SKILLS }}
 {% endif %}

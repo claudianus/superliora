@@ -220,6 +220,6 @@ export function buildContextSettingsLines(input: ContextSettingsGlanceInput): re
     '── Ops ──────────────────────────────────────',
     '  /memory stats · /memory readiness · /memory remember <subject> :: <text>',
     '  Settings → Compaction for thresholds, structured handoff, Expand recover.',
-    '  Settings → Skills for Trace→Skill draft tips (manual merge; no PR bot yet).',
+    '  Settings → Skills for Trace→Skill (live auto skills under .agents/skills/auto/).',
   ];
 }

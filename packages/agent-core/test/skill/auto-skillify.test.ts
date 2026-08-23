@@ -28,13 +28,12 @@ describe('auto-skillify — detectSkillifiableEvents', () => {
     assert.ok(candidates[0]!.qualityScore > 0);
   });
 
-  it('detects recoverable errors from failed tool calls', () => {
+  it('ignores unrecovered errors even when the message looks recoverable', () => {
     const events: ToolCallEvent[] = [
       { toolName: 'Read', success: false, retryCount: 0, error: 'ENOENT: no such file' },
     ];
     const candidates = detectSkillifiableEvents(events);
-    assert.equal(candidates.length, 1);
-    assert.ok(candidates[0]!.name.startsWith('debug-read-'));
+    assert.equal(candidates.length, 0);
   });
 
   it('ignores successful first-try tool calls', () => {

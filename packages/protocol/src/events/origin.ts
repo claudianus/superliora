@@ -105,6 +105,15 @@ export interface SkillActivatedEvent {
   readonly skillSource?: SkillSource;
 }
 
+export interface SkillCreatedEvent {
+  readonly type: 'skill.created';
+  readonly skillName: string;
+  readonly skillPath: string;
+  readonly origin: 'tool' | 'auto' | 'refine';
+  readonly updated: boolean;
+  readonly description?: string;
+}
+
 export interface PluginCommandActivatedEvent {
   readonly type: 'plugin_command.activated';
   readonly activationId: string;
@@ -220,6 +229,15 @@ export const skillActivatedEventSchema = z.object({
   skillPath: z.string().optional(),
   skillSource: skillSourceSchema.optional(),
 }) satisfies z.ZodType<SkillActivatedEvent>;
+
+export const skillCreatedEventSchema = z.object({
+  type: z.literal('skill.created'),
+  skillName: z.string(),
+  skillPath: z.string(),
+  origin: z.enum(['tool', 'auto', 'refine']),
+  updated: z.boolean(),
+  description: z.string().optional(),
+}) satisfies z.ZodType<SkillCreatedEvent>;
 
 export const pluginCommandActivatedEventSchema = z.object({
   type: z.literal('plugin_command.activated'),

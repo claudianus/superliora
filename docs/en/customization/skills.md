@@ -4,7 +4,17 @@ Agent Skills are a lightweight mechanism for extending model capabilities in Sup
 
 Compared to pasting the same instructions into a prompt every time, Skills offer the advantage of keeping content in a file, enabling reuse across projects and teams, allowing instant loading via a slash command, and letting the model invoke them automatically when needed.
 
-## Creating a Skill
+## Creating a skill in a session
+
+The agent can persist a lesson with the **SkillCreate** tool. Recoveries and user corrections may also be distilled automatically into `.agents/skills/auto/<name>/SKILL.md`.
+
+Both paths **register the skill immediately** in the current session: `SearchSkill` can find it and `Skill("name")` can load it without a restart. New skills appear in `<session_skills>` so the model can invoke them by exact name. Files are git-visible for review.
+
+Write a skill only when the lesson will recur — a non-obvious repo fact, an inferred constraint, or a recovery that actually worked. One-off fixes belong in Memory; standing project rules belong in `AGENTS.md`.
+
+Disable automatic distill with `SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY=false`.
+
+## Creating a Skill file by hand
 
 Skill files must be placed in a [known scan directory](#skill-locations). Two file structures are supported:
 
