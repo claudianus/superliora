@@ -7,17 +7,17 @@ import {
   MISSION_RATE_EMA_INSTANT,
   MISSION_RATE_EMA_PREV,
   MISSION_RATE_MIN_SAMPLE_MS,
-  MissionControlRegistry,
-} from '#/tui/controllers/mission-control/registry';
+  WorkerDockRegistry,
+} from '#/tui/controllers/worker-dock/registry';
 
 function createHarness(startMs = 1_000_000): {
-  registry: MissionControlRegistry;
+  registry: WorkerDockRegistry;
   advance: (ms: number) => void;
   now: () => number;
 } {
   let now = startMs;
   return {
-    registry: new MissionControlRegistry(() => now),
+    registry: new WorkerDockRegistry(() => now),
     advance: (ms) => {
       now += ms;
     },
@@ -36,7 +36,7 @@ function spawned(id: string, over: Partial<Extract<Event, { type: 'subagent.spaw
   } as Event;
 }
 
-describe('MissionControlRegistry', () => {
+describe('WorkerDockRegistry', () => {
   it('tracks the full subagent lifecycle with heartbeat telemetry', () => {
     const { registry, advance, now } = createHarness();
     registry.apply(spawned('sa-1', { subagentName: 'explore-1', modelAlias: 'gpt-5' }));
@@ -262,7 +262,7 @@ describe('MissionControlRegistry', () => {
     // Still within linger — both terminal workers remain.
     advance(MISSION_COMPLETED_LINGER_MS - 1);
     snap = registry.snapshot(now());
-    expect(snap.workers.map((w) => w.id).sort()).toEqual(['sa-bad', 'sa-ok']);
+    expect(snap.workers.map((w) => w.id).toSorted()).toEqual(['sa-bad', 'sa-ok']);
 
     advance(2);
     snap = registry.snapshot(now());

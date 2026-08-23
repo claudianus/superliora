@@ -45,7 +45,9 @@ describe('Agent tools', () => {
     const names = infos.map((tool) => tool.name);
 
     expect(new Set(names).size).toBe(names.length);
-    expect(names).toEqual(expect.arrayContaining(['Read', 'Grep', 'Glob', 'Bash', 'LioraRead']));
+    expect(names).toEqual(expect.arrayContaining(['Read', 'Grep', 'Glob', 'Bash', 'RepoQuery']));
+    expect(names).not.toContain('LioraRead');
+    expect(names).not.toContain('Fleet');
     for (const tool of ctx.agent.tools.loopTools.filter((entry) => names.includes(entry.name))) {
       expect(tool.description.length).toBeGreaterThan(0);
       expect(tool.parameters).toMatchObject({ type: 'object' });

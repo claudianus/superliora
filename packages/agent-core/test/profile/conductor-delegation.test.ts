@@ -50,13 +50,12 @@ const CONDUCTOR_FORBIDDEN_TOOLS = [
 const CONDUCTOR_TOOL_SNAPSHOT = [
   // Read-only query waist
   'Read',
-  'Grep',
-  'Glob',
   'Bash',
   'RepoQuery',
   'WebSearch',
   'FetchURL',
   'TodoList',
+  'Memory',
   // Plan/goal lifecycle spine — CreateGoal is Session Goal API (Goal Desk
   // facade). UpdateGoal stays off so the main Ralph loop cannot start.
   'EnterPlanMode',
@@ -122,12 +121,11 @@ describe('conductor delegation-only tool surface', () => {
         'SearchSkill',
         // Read-only query waist (§2.1 item 3)
         'Read',
-        'Grep',
-        'Glob',
         'RepoQuery',
         'WebSearch',
         'FetchURL',
         'TodoList',
+        'Memory',
       ]),
     );
   });
@@ -146,9 +144,9 @@ describe('conductor delegation-only tool surface', () => {
     expect(prompt).toContain('JobCreate(kind=explore)');
     expect(prompt).toContain('multi-file discovery');
     expect(prompt).toContain('EnterPlanMode');
-    expect(prompt).toContain('do **not** open a multi-step RepoQuery/Grep/Read marathon');
+    expect(prompt).toContain('do **not** open a multi-step RepoQuery/Read marathon');
     expect(prompt).toContain('Anti-pattern');
-    expect(prompt).toContain('parallelizing 5+ RepoQuery/Grep/Read');
+    expect(prompt).toContain('parallelizing 5+ RepoQuery/Read');
     expect(prompt).toContain('1–3 quick facts');
     // Desk wake: web/docs → research; codebase → explore; implement auto-verifies.
     expect(prompt).toContain('JobCreate(kind=research)');

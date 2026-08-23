@@ -21,11 +21,11 @@ describe('intervention-glance', () => {
     process.env = { ...envSnapshot };
   });
   it('exports the Never-Halt queued tip', () => {
-    expect(getInterventionNeverHaltTip()).toContain('Goal/Mission/Fleet continue');
+    expect(getInterventionNeverHaltTip()).toContain('Goal/Jobs continue');
   });
 
   it('documents ask-mode Fleet continue during one approval wait', () => {
-    expect(INTERVENTION_ASK_MODE_FLEET_TIP).toContain('Fleet workers');
+    expect(INTERVENTION_ASK_MODE_FLEET_TIP).toContain('Jobs and independent tools');
     expect(INTERVENTION_ASK_MODE_FLEET_TIP).toContain('independent tools');
   });
 
@@ -98,7 +98,7 @@ describe('intervention-glance', () => {
         oldestInterventionAgeMs: 30_000,
         staleInterventions: 1,
       }),
-    ).toContain('Goal/Mission/Fleet continue');
+    ).toContain('Goal/Jobs continue');
     expect(
       formatInterventionQueueSettingsLine({
         pendingInterventions: 2,
@@ -118,7 +118,7 @@ describe('intervention-glance', () => {
       formatInterventionQueueSettingsLine({
         pendingInterventions: 0,
       }),
-    ).toBe('Live queue: (clear) · Goal/Mission/Fleet continue');
+    ).toBe('Live queue: (clear) · Goal/Jobs continue');
     expect(
       formatInterventionQueueSettingsLine({
         sessionUnavailable: true,

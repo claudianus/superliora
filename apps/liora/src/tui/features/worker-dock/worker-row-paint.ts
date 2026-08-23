@@ -123,5 +123,5 @@ export function workerHoverPaintPending(
 }
 
 function stripForRebold(text: string): string {
-  return text.replaceAll(/\u001b\[[0-9;]*m/g, '');
+  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }

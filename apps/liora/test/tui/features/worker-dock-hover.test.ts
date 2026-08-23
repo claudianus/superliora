@@ -7,11 +7,11 @@ import {
   isHoverRegion,
   missionWorkerHoverId,
   setHoverRegion,
-} from '#/tui/features/mission-control/worker-hover';
+} from '#/tui/features/worker-dock/worker-hover';
 import {
   HOVER_ROW_PAD,
   paintWorkerRowChrome,
-} from '#/tui/features/mission-control/worker-row-paint';
+} from '#/tui/features/worker-dock/worker-row-paint';
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
   type AppearancePreferences,
@@ -29,7 +29,7 @@ const FULL: AppearancePreferences = {
 };
 
 function strip(text: string): string {
-  return text.replaceAll(/\u001b\[[0-9;]*m/g, '');
+  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
 afterEach(() => {

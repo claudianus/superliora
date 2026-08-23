@@ -40,7 +40,7 @@ import {
   hubRowHoverId,
   isHoverRegion,
   setHoverRegion,
-} from '#/tui/features/mission-control/worker-hover';
+} from '#/tui/features/worker-dock/worker-hover';
 
 import {
   COMMAND_HUB_PAGE_SIZE,

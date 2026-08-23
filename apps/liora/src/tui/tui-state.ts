@@ -15,9 +15,9 @@ import type { IntentComposerComponent } from './components/chrome/intent-compose
 import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
 import { TodoPanelComponent } from './components/chrome/todo/todo-panel';
 import { ConductorTimelinePanelComponent } from './components/panes/conductor-timeline/timeline-panel';
-import { MissionControlFallbackComponent } from './components/panes/mission-control/fallback';
-import { MissionControlPanelComponent } from './components/panes/mission-control/panel';
-import { missionBandActive } from './features/mission-control/dock';
+import { WorkerDockFallbackComponent } from './components/panes/worker-dock/fallback';
+import { WorkerDockPanelComponent } from './components/panes/worker-dock/panel';
+import { workerDockBandActive } from './features/worker-dock/dock';
 import type { SessionRow } from './components/dialogs/session/session-picker';
 import type { TUIEditor } from './components/editor/editor-contract';
 import { createTUIEditor } from './components/editor/editor-factory';
@@ -66,8 +66,8 @@ export interface TUIState {
   activityContainer: Container;
   todoPanelContainer: Container;
   todoPanel: TodoPanelComponent;
-  missionControlContainer: Container;
-  missionControlPanel: MissionControlPanelComponent;
+  workerDockContainer: Container;
+  workerDockPanel: WorkerDockPanelComponent;
   queueContainer: Container;
   btwPanelContainer: Container;
   editorContainer: Container;
@@ -155,13 +155,13 @@ export interface TUIState {
    */
   cachedTodoRect?: RendererRect;
   /**
-   * Cached Mission Control band rect (same stage plan as todo/transcript).
+   * Cached Worker Dock band rect (same stage plan as todo/transcript).
    * Wheel over the band windows the worker roster instead of the transcript.
    */
-  cachedMissionRect?: RendererRect;
+  cachedWorkerDockRect?: RendererRect;
   /**
    * Cached activity / turn-status row rect (same stage plan as todo/transcript).
-   * `[stop]` cancels, `[↓]` detaches, and the leftover cue opens /tasks.
+   * `[stop]` cancels, `[↓]` detaches, and the leftover cue opens /jobs bg.
    */
   cachedActivityRect?: RendererRect;
   /**
@@ -209,12 +209,12 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   );
   const activityContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
-  const missionControlContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
-  const missionControlPanel = new MissionControlPanelComponent();
+  const workerDockContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
+  const workerDockPanel = new WorkerDockPanelComponent();
   const todoPanel = new TodoPanelComponent({
     terminalRows: () => terminal.rows,
     resolveFocusLink: () => {
-      const worker = missionControlPanel.currentView.snapshot.workers.find(
+      const worker = workerDockPanel.currentView.snapshot.workers.find(
         (entry) =>
           entry.status === 'running' ||
           entry.status === 'finishing' ||
@@ -228,10 +228,10 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
       };
     },
   });
-  missionControlContainer.addChild(
-    new MissionControlFallbackComponent({
-      panel: missionControlPanel,
-      visible: () => self !== undefined && missionBandActive(self),
+  workerDockContainer.addChild(
+    new WorkerDockFallbackComponent({
+      panel: workerDockPanel,
+      visible: () => self !== undefined && workerDockBandActive(self),
     }),
   );
   const queueContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
@@ -261,7 +261,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
           header: measureContainerRows(headerContainer, contentWidth),
           activity: measureContainerRows(activityContainer, contentWidth),
           todo: measureContainerRows(todoPanelContainer, contentWidth),
-          mission: measureContainerRows(missionControlContainer, contentWidth),
+          workers: measureContainerRows(workerDockContainer, contentWidth),
           queue: measureContainerRows(queueContainer, contentWidth),
           btw: measureContainerRows(btwPanelContainer, contentWidth),
           editor: measureContainerRows(editorContainer, contentWidth),
@@ -299,8 +299,8 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     activityContainer,
     todoPanelContainer,
     todoPanel,
-    missionControlContainer,
-    missionControlPanel,
+    workerDockContainer,
+    workerDockPanel,
     queueContainer,
     btwPanelContainer,
     editorContainer,

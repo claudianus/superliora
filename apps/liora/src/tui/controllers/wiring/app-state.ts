@@ -58,7 +58,7 @@ export interface AppStateHost {
   readonly dialogs: DialogsController;
   readonly sessionEventHandler: SessionEventHandler;
   readonly promptIntelligence: PromptIntelligenceController;
-  readonly missionControl: { pushView(): void; syncPreferences(): void };
+  readonly workerDock: { pushView(): void; syncPreferences(): void };
 
   updateEditorBorderHighlight(text?: string): void;
   updateActivityPane(): void;
@@ -106,7 +106,7 @@ export class AppStateController {
       : collectFooterModeBeats(host.state.appState, patch);
     Object.assign(host.state.appState, mergedPatch);
     if (onlyConductorJobs) {
-      host.missionControl.pushView();
+      host.workerDock.pushView();
       host.state.footer.setState(host.state.appState);
       host.appearanceController.refreshAmbientSchedule();
       if (host.state.appState.goal?.execution === 'goal-desk') {
@@ -120,7 +120,7 @@ export class AppStateController {
       host.appearanceController.apply();
       // `mission_control` rides the appearance prefs; keep the panel's
       // pinned placeholder in sync no matter which command set it.
-      host.missionControl.syncPreferences();
+      host.workerDock.syncPreferences();
     }
     // Resync ambient schedule when busy state flips so live clocks keep ticking
     // (and stop) without waiting for an appearance change.
@@ -155,7 +155,7 @@ export class AppStateController {
     }
     if (conductorJobsChanged) {
       // Job lanes live in Mission Control now — push the new ledger snapshot.
-      host.missionControl.pushView();
+      host.workerDock.pushView();
       host.appearanceController.refreshAmbientSchedule();
       // Goal Desk monitor reads driver liveActivity from conductorJobs.
       if (host.state.appState.goal?.execution === 'goal-desk') {

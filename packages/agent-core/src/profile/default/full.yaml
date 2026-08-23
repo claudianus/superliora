@@ -34,7 +34,6 @@ tools:
   - SearchSkill
   - SkillCreate
   - SearchTools
-  - SearchExpert
   - WebSearch
   - DeepResearch
   - BrowserStatus
@@ -52,7 +51,6 @@ tools:
   - ComputerAct
   - ComputerStatus
   - Agent
-  - Fleet
   - FetchURL
   - Context7Resolve
   - Context7Docs

@@ -70,7 +70,7 @@ describe('tool help visibility', () => {
       tool('RepoQuery'),
       tool('TodoList'),
       tool('TaskGraph'),
-      tool('Fleet'),
+      tool('Agent'),
       tool('Read'),
     ];
     const publicNames = filterToolsForPublicHelp(catalog).map((entry) => entry.name);
@@ -91,7 +91,7 @@ describe('tool help visibility', () => {
     for (const name of LIORA_COMPAT_TOOLS) {
       expect(publicNames).not.toContain(name);
     }
-    expect(publicNames).toContain('Fleet');
+    expect(publicNames).toContain('Agent');
   });
 
   it('keeps compat tools in advanced help mode', () => {

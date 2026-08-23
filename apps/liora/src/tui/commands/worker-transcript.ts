@@ -6,7 +6,7 @@
 import type { SlashCommandHost } from './hub/dispatch';
 import { openJobDeckViewer } from './jobs-deck';
 import { formatJobDeckTraceLines } from './jobs-deck';
-import { WorkerTranscriptViewerComponent } from '../components/dialogs/mission-control/worker-transcript-viewer';
+import { WorkerTranscriptViewerComponent } from '../components/dialogs/worker-dock/worker-transcript-viewer';
 import {
   emptyConductorJobsSnapshot,
   type ConductorJobCard,
@@ -29,20 +29,20 @@ export function openWorkerTranscript(host: SlashCommandHost, workerId: string): 
     return;
   }
 
-  const panel = host.state.missionControlPanel;
+  const panel = host.state.workerDockPanel;
   const worker =
     panel.currentView.snapshot.workers.find((entry) => entry.id === workerId) ??
-    host.missionControl.registry.snapshot().workers.find((entry) => entry.id === workerId);
+    host.workerDock.registry.snapshot().workers.find((entry) => entry.id === workerId);
 
   if (worker === undefined) {
-    host.showStatus(ttui('tui.missionControl.workerNotFound'), 'warning');
+    host.showStatus(ttui('tui.workerDock.workerNotFound'), 'warning');
     return;
   }
 
   const viewer = new WorkerTranscriptViewerComponent({
     workerId,
     getWorker: () => {
-      const snap = host.missionControl.registry.snapshot();
+      const snap = host.workerDock.registry.snapshot();
       return snap.workers.find((entry) => entry.id === workerId);
     },
     loadTranscript: (id) => loadWorkerTranscript(host, id),
@@ -75,12 +75,12 @@ async function loadWorkerTranscript(
     const lines = formatJobDeckTraceLines(trace.context.history);
     if (lines.length > 0) return { lines };
     return { lines: buildFallbackLines(host, workerId) };
-  } catch (caught) {
+  } catch (error) {
     const fallback = buildFallbackLines(host, workerId);
     if (fallback.length > 0) {
       return { lines: fallback };
     }
-    return { lines: [], error: formatErrorMessage(caught) };
+    return { lines: [], error: formatErrorMessage(error) };
   }
 }
 
@@ -89,7 +89,7 @@ function buildFallbackLines(
   host: SlashCommandHost,
   workerId: string,
 ): string[] {
-  const snap = host.missionControl.registry.snapshot();
+  const snap = host.workerDock.registry.snapshot();
   const worker = snap.workers.find((entry) => entry.id === workerId);
   const lines: string[] = [];
   if (worker === undefined) return lines;

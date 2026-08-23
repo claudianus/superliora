@@ -86,7 +86,7 @@ function formatAppearanceStatus(appearance: AppearancePreferences): string {
     `terminal-background: ${appearance.terminalBackground}`,
     `terminal-palette: ${appearance.terminalPalette ? 'on' : 'off'}`,
     `transcript-detail: ${appearance.transcriptDetail}`,
-    `${isExperimentalFlagEnabled('conductor_ux_v2') ? 'worker-dock' : 'mission-control'}: ${appearance.missionControl}`,
+    `worker-dock: ${appearance.workerDock}`,
     `neat: ${appearance.neat ? 'on' : 'off'}`,
     `syntax-theme: ${appearance.syntaxTheme}`,
   ].join('\n');
@@ -156,7 +156,7 @@ function parseAppearancePatch(
     case 'mission-control':
     case 'worker-dock':
       if (!isOneOf(value, ['auto', 'pinned', 'hidden'])) return null;
-      next.missionControl = value;
+      next.workerDock = value;
       return next;
     case 'syntax-theme':
       if (!isSyntaxThemeId(value)) return null;

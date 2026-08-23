@@ -40,7 +40,6 @@ tools:
   - Refine
   - SearchTools
   - Agent
-  - Fleet
   # External information and user clarification (light research path).
   - WebSearch
   - FetchURL
@@ -51,8 +50,9 @@ tools:
   # Connected MCP / plugin servers (access pattern).
   - mcp__*
   # Edges on superliora-full / explore / coder: DeepResearch, Expand, Memory,
-  # GetCurrentTime, Context7*, ReadMediaFile, SearchExpert, TaskGraph.
+  # GetCurrentTime, Context7*, ReadMediaFile, TaskGraph.
   # Default agent waist: Script/Compact/Refine for Prime-parity harness (+ mcp__*).
+  # No Fleet tool — Job* (conductor) or Agent (this waist) are the live spawn paths.
 
 subagents:
   coder:

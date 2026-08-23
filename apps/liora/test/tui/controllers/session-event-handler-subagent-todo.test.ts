@@ -52,7 +52,7 @@ function makeHost() {
       active: vi.fn(),
       clear: vi.fn(),
     },
-    missionControl: {
+      workerDock: {
       handleEvent: vi.fn(),
       reset: vi.fn(),
     },
@@ -107,7 +107,7 @@ describe('SessionEventHandler Mission Control feed', () => {
 
     handler.handleEvent(event, vi.fn());
 
-    expect(host.missionControl.handleEvent).toHaveBeenCalledWith(event);
+    expect(host.workerDock.handleEvent).toHaveBeenCalledWith(event);
   });
 
   it('feeds subagent lifecycle events into Mission Control', () => {
@@ -123,7 +123,7 @@ describe('SessionEventHandler Mission Control feed', () => {
 
     handler.handleEvent(event, vi.fn());
 
-    expect(host.missionControl.handleEvent).toHaveBeenCalledWith(event);
+    expect(host.workerDock.handleEvent).toHaveBeenCalledWith(event);
   });
 
   it('resets Mission Control when runtime state resets between sessions', () => {
@@ -132,7 +132,7 @@ describe('SessionEventHandler Mission Control feed', () => {
 
     handler.resetRuntimeState();
 
-    expect(host.missionControl.reset).toHaveBeenCalledTimes(1);
+    expect(host.workerDock.reset).toHaveBeenCalledTimes(1);
   });
 
   it('feeds child thinking/assistant deltas into Mission Control after transcript routing', () => {
@@ -148,7 +148,7 @@ describe('SessionEventHandler Mission Control feed', () => {
       delta: 'checking Phaser docs',
     } as Event;
     handler.handleEvent(thinking, vi.fn());
-    expect(host.missionControl.handleEvent).toHaveBeenCalledWith(thinking);
+    expect(host.workerDock.handleEvent).toHaveBeenCalledWith(thinking);
 
     const answer = {
       agentId: 'sub-1',
@@ -157,6 +157,6 @@ describe('SessionEventHandler Mission Control feed', () => {
       delta: 'Metal slug uses run-and-gun',
     } as Event;
     handler.handleEvent(answer, vi.fn());
-    expect(host.missionControl.handleEvent).toHaveBeenCalledWith(answer);
+    expect(host.workerDock.handleEvent).toHaveBeenCalledWith(answer);
   });
 });

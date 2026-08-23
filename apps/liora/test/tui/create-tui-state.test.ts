@@ -2323,7 +2323,7 @@ describe('createTUIState', () => {
     state.footerContainer.addChild(fixedLines(['ft']));
 
     let backgroundWork = false;
-    const missionRender = vi.spyOn(state.missionControlContainer, 'render');
+    const missionRender = vi.spyOn(state.workerDockContainer, 'render');
     try {
       const output = new FakeNativeOutput(width, height);
       const scheduler = new FakeRenderLoopScheduler();

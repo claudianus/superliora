@@ -62,9 +62,9 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'workspace.errors':
       return '/errors';
     case 'workspace.tasks':
-      return '/tasks';
-    case 'workspace.missionControl':
-      return '/workers';
+      return '/jobs bg';
+    case 'workspace.workerDock':
+      return '/jobs dock';
     case 'workspace.jobDeck':
       return '/jobs deck';
     case 'workspace.jobInbox':

@@ -48,7 +48,7 @@ function makeHost() {
       active: vi.fn(),
       clear: vi.fn(),
     },
-    missionControl: {
+    workerDock: {
       handleEvent: vi.fn(),
       reset: vi.fn(),
     },

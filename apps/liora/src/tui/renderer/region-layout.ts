@@ -8,7 +8,7 @@ export type RendererRegionId =
   | 'transcript'
   | 'activity'
   | 'todo'
-  | 'mission'
+  | 'workers'
   | 'queue'
   | 'btw'
   | 'editor'
@@ -39,9 +39,9 @@ const FIXED_REGION_IDS: readonly RendererFixedRegionId[] = [
   'todo',
   'queue',
   'btw',
-  // Mission Control sits just above the editor so the band reads as the
+  // Worker Dock sits just above the editor so the band reads as the
   // bottom of the main stage (full reading width), not a side dock.
-  'mission',
+  'workers',
   'editor',
   'footer',
 ];

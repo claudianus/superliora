@@ -19,7 +19,7 @@ import type { BtwPanelController } from '../panes/btw-panel';
 import type { StreamingUIController } from '../streaming-ui/index';
 import type { TasksBrowserController } from '../panes/tasks-browser';
 import type { JobBoardController } from '../panes/job-board';
-import type { MissionControlController } from '../mission-control/controller';
+import type { WorkerDockController } from '../worker-dock/controller';
 import { SessionEventBackgroundTasks } from './background-tasks';
 import { SessionEventCompaction } from './compaction';
 import { SessionEventGoalQueue } from './goal-queue';
@@ -73,7 +73,7 @@ export interface SessionEventHost {
   /** Conductor job desk — single consumer of `job.*` protocol events (V5-3). */
   readonly controlTowerDesk: ControlTowerJobDesk;
   /** Mission Control — merged worker roster feeding the dock/fallback panel. */
-  readonly missionControl: MissionControlController;
+  readonly workerDock: WorkerDockController;
 }
 
 export class SessionEventHandler {
@@ -168,7 +168,7 @@ export class SessionEventHandler {
   private pendingModelBlockedFallback: GoalChange | undefined;
 
   resetRuntimeState(): void {
-    this.host.missionControl.reset();
+    this.host.workerDock.reset();
     this.backgroundTasksHandler.resetRuntimeState();
     this.subAgentEventHandler.resetRuntimeState();
     this.notices.resetRuntimeState();
@@ -208,7 +208,7 @@ export class SessionEventHandler {
     if (this.subAgentEventHandler.routeChildAgentEvent(event)) {
       // Child deltas / nested tools are consumed by the transcript Agent card,
       // but Mission Control still needs the same events for the NOW live strip.
-      this.host.missionControl.handleEvent(event);
+      this.host.workerDock.handleEvent(event);
       return;
     }
 
@@ -325,7 +325,7 @@ export class SessionEventHandler {
     }
     // Mission Control registry feeds off the same dispatch (no-op for events
     // it does not track). Job-lane refreshes flow through the app-state sync.
-    this.host.missionControl.handleEvent(event);
+    this.host.workerDock.handleEvent(event);
   }
 
   stopAllMcpServerStatusSpinners(): void {

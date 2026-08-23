@@ -96,7 +96,7 @@ describe('built-in slash command registry', () => {
   it('registers /profile in advanced help with Core waist guidance', () => {
     const profile = findBuiltInSlashCommand('profile');
     expect(profile?.name).toBe('profile');
-    expect(profile?.description).toContain('Core waist');
+    expect(profile?.description).toContain('Conductor default');
     expect(profile?.visibility).toBe('advanced');
     expect(slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced').some((c) => c.name === 'profile')).toBe(
       true,

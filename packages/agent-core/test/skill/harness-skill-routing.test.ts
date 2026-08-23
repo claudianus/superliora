@@ -8,6 +8,7 @@ import { RESEARCH_USE_SKILL } from '../../src/skill/builtin/research-use';
 import {
   harnessCollisionHint,
   isBlockedSkillRisk,
+  isHarnessCollisionCatalogSkill,
   rerankSkillHitsForHarnessRouting,
 } from '../../src/skill/harness-skill-routing';
 import type { SkillDefinition, SkillSearchHit } from '../../src/skill/types';
@@ -158,6 +159,42 @@ describe('harness skill routing', () => {
           source: 'extra',
           description: 'bun scripts for docs',
           score: 5,
+        }),
+        hit({
+          name: 'cooking',
+          source: 'extra',
+          description: 'recipes',
+          score: 1,
+        }),
+      ],
+      builtins(),
+    );
+    expect(ranked.map((row) => row.name)).toEqual(['cooking']);
+  });
+
+  it('hides catalog install playbooks from SearchSkill even when the query is unrelated', () => {
+    expect(
+      isHarnessCollisionCatalogSkill({
+        name: 'tavily',
+        description: 'Tavily API search via node scripts',
+        path: '/catalog/tavily',
+        source: 'extra',
+      }),
+    ).toBe(true);
+    const ranked = rerankSkillHitsForHarnessRouting(
+      'unrelated query about cooking',
+      [
+        hit({
+          name: 'tavily',
+          source: 'extra',
+          description: 'Tavily API search via node scripts',
+          score: 8,
+        }),
+        hit({
+          name: 'playwright-scraper',
+          source: 'extra',
+          description: 'npx playwright install then scrape',
+          score: 7,
         }),
         hit({
           name: 'cooking',

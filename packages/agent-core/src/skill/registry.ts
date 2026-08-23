@@ -3,6 +3,7 @@ import { discoverSkills, type DiscoverSkillsOptions } from './scanner';
 import { SkillSearchEngine } from './expert-search';
 import {
   isBlockedSkillRisk,
+  isHarnessCollisionCatalogSkill,
   preferLocalPlaybooks,
   rerankSkillHitsForHarnessRouting,
 } from './harness-skill-routing';
@@ -248,7 +249,7 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
     const first = await engine.search({
       query: trimmed,
       topK: limit,
-      filter: isModelSearchableSkill,
+      filter: (skill) => isHarnessSearchableSkill(skill, trimmed),
     });
     if (limit > this.defaultSearchLimit) {
       return this.markFreshHits(preferLocalPlaybooks(this.applyBrowserSkillRouting(trimmed, first)));
@@ -260,7 +261,7 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
     const expanded = await engine.search({
       query: trimmed,
       topK: Math.min(SKILL_SEARCH_EXPANDED_LIMIT, this.maxSearchLimit),
-      filter: isModelSearchableSkill,
+      filter: (skill) => isHarnessSearchableSkill(skill, trimmed),
     });
     return this.markFreshHits(preferLocalPlaybooks(this.applyBrowserSkillRouting(trimmed, expanded)));
   }
@@ -377,4 +378,17 @@ function isModelSearchableSkill(skill: SkillDefinition): boolean {
   if (skill.metadata.isSubSkill === true) return false;
   // Catalog uses critical/offensive; `high` alone matched zero skills.
   return !isBlockedSkillRisk(skillRisk(skill));
+}
+
+function isHarnessSearchableSkill(skill: SkillDefinition, query: string): boolean {
+  if (!isModelSearchableSkill(skill)) return false;
+  return !isHarnessCollisionCatalogSkill(
+    {
+      name: skill.name,
+      description: skill.description,
+      path: skill.path,
+      source: skill.source,
+    },
+    query,
+  );
 }

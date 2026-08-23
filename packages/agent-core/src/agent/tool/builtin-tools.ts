@@ -47,6 +47,15 @@ export function shouldCreateBuiltin(host: BuiltinToolsHost, name: string): boole
 }
 
 /**
+ * Retired Liora* lean-context tools. Live profiles never list them. Bootstrap
+ * (empty enabledTools) must not resurrect them; only an explicit whitelist
+ * (journal replay / tests) constructs them.
+ */
+export function shouldCreateRetiredLiora(host: BuiltinToolsHost, name: string): boolean {
+  return host.enabledTools.size > 0 && host.enabledTools.has(name);
+}
+
+/**
  * Register a legacy compat alias only when the profile or bootstrap set asks for
  * it. Hide-legacy is the product default; omit the alias whenever the sovereign
  * twin would also register — keeps journal replay working when the legacy name is
@@ -168,10 +177,11 @@ function createFileAndContextTools(
     shouldCreateBuiltin(host, 'Grep') && new b.GrepTool(kaos, workspace, host.agent.telemetry),
     shouldCreateBuiltin(host, 'Glob') && new b.GlobTool(kaos, workspace, host.agent.telemetry),
     shouldCreateBuiltin(host, 'RepoQuery') && new b.RepoQueryTool(kaos, workspace, host.agent.telemetry),
-    shouldCreateBuiltin(host, 'LioraRead') && new b.LioraReadTool(kaos, workspace, host.toolStore),
-    shouldCreateBuiltin(host, 'LioraTree') && new b.LioraTreeTool(kaos, workspace),
-    shouldCreateBuiltin(host, 'LioraSymbol') && new b.LioraSymbolTool(kaos, workspace),
-    shouldCreateBuiltin(host, 'LioraCallgraph') && new b.LioraCallgraphTool(kaos, workspace),
+    shouldCreateRetiredLiora(host, 'LioraRead') &&
+      new b.LioraReadTool(kaos, workspace, host.toolStore),
+    shouldCreateRetiredLiora(host, 'LioraTree') && new b.LioraTreeTool(kaos, workspace),
+    shouldCreateRetiredLiora(host, 'LioraSymbol') && new b.LioraSymbolTool(kaos, workspace),
+    shouldCreateRetiredLiora(host, 'LioraCallgraph') && new b.LioraCallgraphTool(kaos, workspace),
     shouldCreateBuiltin(host, 'Expand') && b.createExpandTool(host.toolStore),
     shouldCreateBuiltin(host, 'Compact') && new b.CompactTool(host.agent),
     // Refine is main-only: subagents carry no harness state to edit (the
@@ -193,8 +203,8 @@ function createFileAndContextTools(
             ? () => {
                 const home = host.agent.homedir;
                 if (home === undefined || home.length === 0) return undefined;
-                const parts = home.replace(/\\/g, '/').split('/').filter(Boolean);
-                return parts[parts.length - 1];
+                const parts = home.replaceAll(/\\/g, '/').split('/').filter(Boolean);
+                return parts.at(-1);
               }
             : undefined,
         workspace,

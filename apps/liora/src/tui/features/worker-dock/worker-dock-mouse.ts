@@ -8,7 +8,7 @@ import type { NativeInputEvent, NativeInputMouseEvent } from '#/tui/renderer';
 
 import type { TUIState } from '#/tui/tui-state';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
-import { getTUIStateNativeMissionRect } from '#/tui/features/transcript/transcript-hit-test';
+import { getTUIStateNativeWorkerDockRect } from '#/tui/features/transcript/transcript-hit-test';
 import { requestTUIContentRender } from '#/tui/utils/render/frame-render';
 import {
   chromeHeaderHoverId,
@@ -34,7 +34,7 @@ export function handleWorkerDockMouse(
 ): boolean {
   if (event.type !== 'mouse') return false;
   const mouse = event;
-  const rect = getTUIStateNativeMissionRect(host.state);
+  const rect = getTUIStateNativeWorkerDockRect(host.state);
   if (rect === undefined) {
     if (mouse.action === 'move' || mouse.action === 'drag') {
       if (clearHoverIfDock()) requestTUIContentRender(host.state);
@@ -55,7 +55,7 @@ export function handleWorkerDockMouse(
     return false;
   }
 
-  const panel = host.state.missionControlPanel;
+  const panel = host.state.workerDockPanel;
   const localY = mouse.y - rect.y;
   // Rounded panel: top border + optional title. Worker rows are reported
   // relative to content interior (panel maps them).

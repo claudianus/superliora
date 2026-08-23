@@ -45,7 +45,7 @@ export function buildNeverHaltSettingsLines(input: NeverHaltSettingsGlanceInput)
 
   return [
     '── Never-Halt contract ─────────────────────',
-    'Goal/Mission/Fleet survive transient faults —',
+    'Goal/Jobs survive transient faults —',
     'degrade, retry, alternate path; never hard-stop.',
     '',
     '── Search free fallback ────────────────────',
@@ -63,7 +63,7 @@ export function buildNeverHaltSettingsLines(input: NeverHaltSettingsGlanceInput)
     '── Permission intervention queue ───────────',
     INTERVENTION_ASK_MODE_FLEET_TIP,
     'High-risk approvals queue non-blocking —',
-    'Goal/Mission/Fleet keep running while tray waits.',
+    'Goal/Jobs keep running while tray waits.',
     INTERVENTION_PARALLEL_TOOLS_NOTE,
     'Only conflicting resource accesses serialize.',
     'yolo skips ask; auto still queues interventions.',

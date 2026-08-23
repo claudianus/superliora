@@ -78,7 +78,7 @@ describe('never-halt settings tips', () => {
     expect(NEVER_HALT_SEARCH_FALLBACK_TIP).toContain('Settings → Search');
     expect(NEVER_HALT_OAUTH_TIP).toContain('ensureFresh');
     expect(NEVER_HALT_OAUTH_TIP).toContain('Settings → Accounts');
-    expect(NEVER_HALT_INTERVENTION_TIP).toContain('Fleet workers');
+    expect(NEVER_HALT_INTERVENTION_TIP).toContain('Jobs and independent tools');
     expect(NEVER_HALT_INTERVENTION_TIP).toContain('parallel');
     expect(NEVER_HALT_BREAKER_TIP).toContain('half-open');
     expect(NEVER_HALT_BREAKER_TIP).toContain('runtime.degraded');
@@ -176,7 +176,7 @@ describe('showNeverHaltSettings', () => {
     const text = panel.render(100).join('\n');
     expect(text).toContain('── Session (live) ─');
     expect(text).toContain('Never-Halt queue: 2 pending');
-    expect(text).toContain('Goal/Mission/Fleet continue');
+    expect(text).toContain('Goal/Jobs continue');
     expect(text).toContain('stale×1');
   });
 

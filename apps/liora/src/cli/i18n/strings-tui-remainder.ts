@@ -2,17 +2,17 @@
  * Remainder TUI strings — deep settings panes, footer prefs, status panel, handlers.
  */
 export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
-  // ── Mission Control / Worker Dock ────────────────────────────────────────
-  'tui.missionControl.workerDock': 'Worker Dock',
-  'tui.missionControl.missionControl': 'Mission Control',
-  'tui.missionControl.dockHint': 'Enter open · Esc cancel · click select',
-  'tui.missionControl.transcriptHint':
+  // ── Worker Dock ──────────────────────────────────────────────────────────
+  'tui.workerDock.workerDock': 'Worker Dock',
+  'tui.workerDock.missionControl': 'Worker Dock',
+  'tui.workerDock.dockHint': 'Enter open · Esc cancel · click select',
+  'tui.workerDock.transcriptHint':
     '↑↓ navigate · PgUp/PgDn page · R refresh · Esc cancel',
-  'tui.missionControl.transcriptLoading': 'Loading worker transcript…',
-  'tui.missionControl.transcriptEmpty': 'No transcript messages yet for this worker.',
-  'tui.missionControl.transcriptLoadFailed': 'Could not load the worker transcript.',
-  'tui.missionControl.transcriptWorkerGone': 'Worker left the roster — showing last snapshot.',
-  'tui.missionControl.workerNotFound': 'That worker is no longer on the dock.',
+  'tui.workerDock.transcriptLoading': 'Loading worker transcript…',
+  'tui.workerDock.transcriptEmpty': 'No transcript messages yet for this worker.',
+  'tui.workerDock.transcriptLoadFailed': 'Could not load the worker transcript.',
+  'tui.workerDock.transcriptWorkerGone': 'Worker left the roster — showing last snapshot.',
+  'tui.workerDock.workerNotFound': 'That worker is no longer on the dock.',
 
   // ── Settings pane titles ─────────────────────────────────────────────────
   'tui.settings.pane.theme.title': 'Theme',
@@ -486,7 +486,7 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.extensions.hub.mcp': 'MCP servers',
   'tui.extensions.hub.mcpManageDesc': 'Install, toggle, remove, reload (mcp.json).',
   'tui.extensions.hub.coreWaist': 'Core waist (≤12 tools)',
-  'tui.extensions.hub.coreWaistDesc': 'Mission/Fleet surface — /profile core, then /new.',
+  'tui.extensions.hub.coreWaistDesc': 'Worker Core waist — /profile core, then /new.',
   'tui.media.fallback.block': 'Block the send',
   'tui.media.fallback.blockDesc':
     'Refuse prompts with media while the current model is text-only.',
@@ -620,7 +620,7 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.preset.skills.minimal.desc': 'Disable noisy builtins; keep core config helpers.',
   'tui.preset.skills.coding.label': 'Coding',
   'tui.preset.skills.coding.badge': 'ship',
-  'tui.preset.skills.coding.desc': 'Mission + recursive improve + avoid AI slop.',
+  'tui.preset.skills.coding.desc': 'Jobs + recursive improve + avoid AI slop.',
   'tui.preset.skills.writing.label': 'Writing',
   'tui.preset.skills.writing.badge': 'prose',
   'tui.preset.skills.writing.desc': 'Avoid AI writing + goal framing.',
@@ -803,6 +803,8 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.slash.arg.job.list': "List Conductor jobs",
   'tui.slash.arg.job.board': "Show/hide the Job Desk kanban panel",
   'tui.slash.arg.job.deck': "Open the interactive Job Deck monitor",
+  'tui.slash.arg.job.dock': "Toggle Worker Dock (auto/pinned/hidden)",
+  'tui.slash.arg.job.bg': "Browse detached shell / background tasks",
   'tui.slash.arg.job.monitor': "Alias for deck — worker transcripts + tokens",
   'tui.slash.arg.job.inbox': "Show Job inbox notices",
   'tui.slash.arg.job.answer': "Answer a needs_user job by id",
@@ -1115,11 +1117,11 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.dialog.conductorHowto.closeSeen': '  Esc / Enter cancel',
   'tui.dialog.conductorHowto.closeNew': "  S don't show again · Esc / Enter cancel",
   'tui.dialog.conductorHowto.line1': '1. Type a task in chat — Conductor creates a Job.',
-  'tui.dialog.conductorHowto.line2': '2. Workers run in the background (Worker Dock /agents).',
+  'tui.dialog.conductorHowto.line2': '2. Workers run in the background (Worker Dock /jobs dock).',
   'tui.dialog.conductorHowto.line3': '3. Alt+J opens the Job Deck to watch progress live.',
   'tui.dialog.conductorHowto.line4': '4. Answer needs_user cards when a Job asks you.',
   'tui.dialog.conductorHowto.line5': '5. Land/merge when trust checks pass.',
-  'tui.dialog.conductorHowto.line6': '6. /jobs lists jobs · /agents cycles the dock.',
+  'tui.dialog.conductorHowto.line6': '6. /jobs lists jobs · /jobs dock cycles the dock.',
   'tui.dialog.conductorHowto.line7': '7. Tip: describe the outcome; Conductor staffs the rest.',
   'tui.dialog.conductorHowto.line8':
     '8. Fork session = new chat branch; Job worktree = isolated git tree for that Job.',
@@ -1156,16 +1158,16 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
 };
 
 export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
-  'tui.missionControl.workerDock': 'Worker Dock',
-  'tui.missionControl.missionControl': 'Mission Control',
-  'tui.missionControl.dockHint': 'Enter 열기 · Esc 취소 · 클릭 선택',
-  'tui.missionControl.transcriptHint':
+  'tui.workerDock.workerDock': 'Worker Dock',
+  'tui.workerDock.missionControl': 'Worker Dock',
+  'tui.workerDock.dockHint': 'Enter 열기 · Esc 취소 · 클릭 선택',
+  'tui.workerDock.transcriptHint':
     '↑↓ 이동 · PgUp/PgDn 페이지 · R 새로고침 · Esc 취소',
-  'tui.missionControl.transcriptLoading': '워커 트랜스크립트 불러오는 중…',
-  'tui.missionControl.transcriptEmpty': '이 워커의 트랜스크립트 메시지가 아직 없습니다.',
-  'tui.missionControl.transcriptLoadFailed': '워커 트랜스크립트를 불러오지 못했습니다.',
-  'tui.missionControl.transcriptWorkerGone': '워커가 독에서 사라졌습니다 — 마지막 스냅샷을 표시합니다.',
-  'tui.missionControl.workerNotFound': '해당 워커가 독에 없습니다.',
+  'tui.workerDock.transcriptLoading': '워커 트랜스크립트 불러오는 중…',
+  'tui.workerDock.transcriptEmpty': '이 워커의 트랜스크립트 메시지가 아직 없습니다.',
+  'tui.workerDock.transcriptLoadFailed': '워커 트랜스크립트를 불러오지 못했습니다.',
+  'tui.workerDock.transcriptWorkerGone': '워커가 독에서 사라졌습니다 — 마지막 스냅샷을 표시합니다.',
+  'tui.workerDock.workerNotFound': '해당 워커가 독에 없습니다.',
 
   'tui.settings.pane.theme.title': '테마',
   'tui.settings.pane.theme.panelTitle': ' 테마 ',
@@ -1636,7 +1638,7 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.extensions.hub.mcp': 'MCP 서버',
   'tui.extensions.hub.mcpManageDesc': '설치, 토글, 제거, 다시 로드 (mcp.json).',
   'tui.extensions.hub.coreWaist': 'Core waist (도구 ≤12)',
-  'tui.extensions.hub.coreWaistDesc': 'Mission/Fleet 화면 — /profile core, 그다음 /new.',
+  'tui.extensions.hub.coreWaistDesc': '워커 Core 허리 — /profile core, 그다음 /new.',
   'tui.media.fallback.block': '전송 차단',
   'tui.media.fallback.blockDesc':
     '현재 모델이 텍스트 전용이면 미디어가 있는 프롬프트를 거절합니다.',
@@ -1770,7 +1772,7 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.preset.skills.minimal.desc': '시끄러운 내장을 끄고 핵심 설정 도우미만 남깁니다.',
   'tui.preset.skills.coding.label': '코딩',
   'tui.preset.skills.coding.badge': 'ship',
-  'tui.preset.skills.coding.desc': 'Mission + recursive improve + AI slop 회피.',
+  'tui.preset.skills.coding.desc': 'Jobs + recursive improve + AI slop 회피.',
   'tui.preset.skills.writing.label': '글쓰기',
   'tui.preset.skills.writing.badge': 'prose',
   'tui.preset.skills.writing.desc': 'AI 글쓰기 회피 + 목표 framing.',
@@ -1953,6 +1955,8 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.slash.arg.job.list': "Conductor Job 목록",
   'tui.slash.arg.job.board': "Job Desk 칸반 패널 표시/숨김",
   'tui.slash.arg.job.deck': "대화형 Job Deck 모니터 열기",
+  'tui.slash.arg.job.dock': "Worker Dock 전환 (auto/pinned/hidden)",
+  'tui.slash.arg.job.bg': "분리된 셸 / 백그라운드 작업 보기",
   'tui.slash.arg.job.monitor': "deck 별칭 — 워커 기록 + 토큰",
   'tui.slash.arg.job.inbox': "Job Inbox 알림 표시",
   'tui.slash.arg.job.answer': "id로 needs_user Job 답변",
@@ -2263,11 +2267,11 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.dialog.conductorHowto.closeSeen': '  Esc / Enter 취소',
   'tui.dialog.conductorHowto.closeNew': '  S 다시 보지 않기 · Esc / Enter 취소',
   'tui.dialog.conductorHowto.line1': '1. 채팅에 작업을 입력하면 Conductor가 Job을 만듭니다.',
-  'tui.dialog.conductorHowto.line2': '2. 워커가 백그라운드에서 실행됩니다 (Worker Dock /agents).',
+  'tui.dialog.conductorHowto.line2': '2. 워커가 백그라운드에서 실행됩니다 (Worker Dock /jobs dock).',
   'tui.dialog.conductorHowto.line3': '3. Alt+J로 Job Deck을 열어 진행을 실시간으로 봅니다.',
   'tui.dialog.conductorHowto.line4': '4. Job이 요청하면 needs_user 카드에 답합니다.',
   'tui.dialog.conductorHowto.line5': '5. 신뢰 검사를 통과하면 land/merge합니다.',
-  'tui.dialog.conductorHowto.line6': '6. /jobs로 Job 목록 · /agents로 독 전환.',
+  'tui.dialog.conductorHowto.line6': '6. /jobs로 Job 목록 · /jobs dock으로 독 전환.',
   'tui.dialog.conductorHowto.line7': '7. 팁: 결과를 설명하면 Conductor가 나머지를 맡깁니다.',
   'tui.dialog.conductorHowto.line8':
     '8. Fork session = 새 채팅 분기; Job worktree = 해당 Job용 격리 git 트리.',

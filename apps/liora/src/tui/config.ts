@@ -116,11 +116,10 @@ export const AppearancePreferencesSchema = z.object({
   showTimestamps: z.boolean(),
   transcriptDetail: TranscriptDetailSchema,
   /**
-   * Mission Control dock visibility: `auto` appears while background workers
-   * exist, `pinned` keeps the panel mounted even when idle, `hidden` disables
-   * every Mission Control surface.
+   * Worker Dock visibility: `auto` appears while background workers exist,
+   * `pinned` keeps the panel mounted even when idle, `hidden` disables it.
    */
-  missionControl: z.enum(['auto', 'pinned', 'hidden']),
+  workerDock: z.enum(['auto', 'pinned', 'hidden']),
   /**
    * Structured-first tool rendering. Orthogonal to {@link transcriptDetail}:
    * density picks how many rows a result gets, neat picks whether those rows
@@ -174,6 +173,8 @@ const AppearanceConfigFileFieldsSchema = z.object({
   terminal_palette: z.boolean().optional(),
   show_timestamps: z.boolean().optional(),
   transcript_detail: TranscriptDetailSchema.optional(),
+  worker_dock: z.enum(['auto', 'pinned', 'hidden']).optional(),
+  /** @deprecated Read fallback for Worker Dock; writers emit `worker_dock`. */
   mission_control: z.enum(['auto', 'pinned', 'hidden']).optional(),
   neat: z.boolean().optional(),
   syntax_theme: SyntaxThemeSchema.optional(),
@@ -349,7 +350,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   terminalPalette: false,
   showTimestamps: true,
   transcriptDetail: 'standard',
-  missionControl: 'auto',
+  workerDock: 'auto',
   neat: true,
   syntaxTheme: 'auto',
 };
@@ -564,8 +565,10 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
         config.appearance?.show_timestamps ?? DEFAULT_APPEARANCE_PREFERENCES.showTimestamps,
       transcriptDetail:
         config.appearance?.transcript_detail ?? DEFAULT_APPEARANCE_PREFERENCES.transcriptDetail,
-      missionControl:
-        config.appearance?.mission_control ?? DEFAULT_APPEARANCE_PREFERENCES.missionControl,
+      workerDock:
+        config.appearance?.worker_dock ??
+        config.appearance?.mission_control ??
+        DEFAULT_APPEARANCE_PREFERENCES.workerDock,
       neat: config.appearance?.neat ?? DEFAULT_APPEARANCE_PREFERENCES.neat,
       syntaxTheme:
         config.appearance?.syntax_theme ?? DEFAULT_APPEARANCE_PREFERENCES.syntaxTheme,
@@ -672,7 +675,7 @@ terminal_background = "${appearance.terminalBackground}" # "off" | "session"
 terminal_palette = ${String(appearance.terminalPalette)} # true applies terminal palette until exit
 show_timestamps = ${String(appearance.showTimestamps)} # true shows HH:MM on user messages
 transcript_detail = "${appearance.transcriptDetail}" # "minimal" | "compact" | "standard" | "full"
-mission_control = "${appearance.missionControl}" # "auto" | "pinned" | "hidden"
+worker_dock = "${appearance.workerDock}" # "auto" | "pinned" | "hidden"
 neat = ${String(appearance.neat)} # true renders structured tool cards; false shows raw output
 syntax_theme = "${appearance.syntaxTheme}" # "auto" | "github-dark-dimmed" | "one-dark-pro" | "palette" | …
 

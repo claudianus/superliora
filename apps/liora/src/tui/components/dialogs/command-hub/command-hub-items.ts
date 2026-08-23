@@ -277,13 +277,11 @@ export function buildDefaultCommandHubItems(state: {
       'tui.hub.workspace.tasks.desc',
     ),
     hub(
-      'workspace.missionControl',
+      'workspace.workerDock',
       'tui.hub.section.workspace',
-      conductorUx ? 'tui.hub.workspace.workerDock.label' : 'tui.hub.workspace.missionControl.label',
-      conductorUx
-        ? 'tui.hub.workspace.workerDock.desc'
-        : 'tui.hub.workspace.missionControl.desc',
-      { keywords: ['agents', 'subagent', 'monitor', 'dock', 'workers', 'mission'] },
+      'tui.hub.workspace.workerDock.label',
+      'tui.hub.workspace.workerDock.desc',
+      { keywords: ['jobs', 'dock', 'workers', 'monitor', 'subagent'] },
     ),
     hub(
       'workspace.jobDeck',

@@ -1,5 +1,5 @@
 /**
- * MissionControlController — owns the worker registry and pushes composed
+ * WorkerDockController — owns the worker registry and pushes composed
  * views (registry snapshot + Conductor jobs ledger) into the shared panel.
  * The session-event handler feeds every session event through
  * {@link handleEvent}; the app-state sync calls {@link pushView} when the
@@ -17,18 +17,18 @@ import {
 } from '../../utils/render/frame-render';
 import { invalidateTranscriptHitTestCache } from '../../features/transcript/transcript-hit-test';
 import { emptyConductorJobsSnapshot } from '../../utils/job/job-strip';
-import type { MissionControlMode } from '../../features/mission-control/dock';
-import { missionControlModeOf } from '../../features/mission-control/dock';
-import { MissionControlRegistry } from './registry';
+import type { WorkerDockMode } from '../../features/worker-dock/dock';
+import { workerDockModeOf } from '../../features/worker-dock/dock';
+import { WorkerDockRegistry } from './registry';
 
-export interface MissionControlHost {
+export interface WorkerDockHost {
   readonly state: TUIState;
 }
 
-export class MissionControlController {
-  readonly registry = new MissionControlRegistry();
+export class WorkerDockController {
+  readonly registry = new WorkerDockRegistry();
 
-  constructor(private readonly host: MissionControlHost) {}
+  constructor(private readonly host: WorkerDockHost) {}
 
   /** Feed one session event into the worker roster; repaints on change. */
   handleEvent(event: Event): void {
@@ -61,7 +61,7 @@ export class MissionControlController {
   /** Compose the latest view into the panel and invalidate the frame. */
   pushView(): void {
     const { state } = this.host;
-    const panel = state.missionControlPanel;
+    const panel = state.workerDockPanel;
     const wasEmpty = panel.isEmpty();
     const workDir = state.appState.workDir || process.cwd();
     const jobs = state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
@@ -83,13 +83,13 @@ export class MissionControlController {
     requestTUIContentRender(state);
   }
 
-  mode(): MissionControlMode {
-    return missionControlModeOf(this.host.state);
+  mode(): WorkerDockMode {
+    return workerDockModeOf(this.host.state);
   }
 
   /** Startup sync: reflect the persisted mode on the panel (no repaint). */
   syncPreferences(): void {
-    this.host.state.missionControlPanel.setPinned(this.mode() === 'pinned');
+    this.host.state.workerDockPanel.setPinned(this.mode() === 'pinned');
   }
 
   /**
@@ -103,21 +103,21 @@ export class MissionControlController {
   }
 
   /** `/agents` cycle: auto → pinned → hidden → auto. */
-  cycleMode(): MissionControlMode {
-    const next: MissionControlMode =
+  cycleMode(): WorkerDockMode {
+    const next: WorkerDockMode =
       this.mode() === 'auto' ? 'pinned' : this.mode() === 'pinned' ? 'hidden' : 'auto';
     this.setMode(next);
     return next;
   }
 
-  setMode(mode: MissionControlMode): void {
+  setMode(mode: WorkerDockMode): void {
     if (mode === this.mode()) return;
     const { state } = this.host;
     state.appState.appearance = {
       ...state.appState.appearance,
-      missionControl: mode,
+      workerDock: mode,
     } as NonNullable<typeof state.appState.appearance>;
-    state.missionControlPanel.setPinned(mode === 'pinned');
+    state.workerDockPanel.setPinned(mode === 'pinned');
     invalidateTranscriptHitTestCache(state);
     requestTUILayoutRender(state);
   }

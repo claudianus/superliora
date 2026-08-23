@@ -25,7 +25,7 @@ describe('keymap registry', () => {
 
   it('tags Plan / Agents / Jobs slash samples', () => {
     expect(keymapBindingsForSlash('/plan').map((b) => b.id)).toEqual(['interrupt', 'steer']);
-    expect(keymapBindingsForSlash('/agents').map((b) => b.id)).toEqual([
+    expect(keymapBindingsForSlash('/jobs dock').map((b) => b.id)).toEqual([
       'interrupt',
       'steer',
       'background',

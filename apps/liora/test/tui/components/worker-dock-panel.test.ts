@@ -4,35 +4,35 @@ import type { Event } from '@superliora/sdk';
 
 import {
   MISSION_FALLBACK_MAX_ROWS,
-  MissionControlPanelComponent,
-  emptyMissionControlView,
+  WorkerDockPanelComponent,
+  emptyWorkerDockView,
   formatMissionAgeMs,
   formatMissionTokenRate,
   missionDockBorderToken,
-  type MissionControlView,
-} from '#/tui/components/panes/mission-control/panel';
+  type WorkerDockView,
+} from '#/tui/components/panes/worker-dock/panel';
 import {
   MISSION_COMPLETED_LINGER_MS,
-  MissionControlRegistry,
-} from '#/tui/controllers/mission-control/registry';
+  WorkerDockRegistry,
+} from '#/tui/controllers/worker-dock/registry';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 import {
   clearHoverRegion,
   missionWorkerHoverId,
   setHoverRegion,
-} from '#/tui/features/mission-control/worker-hover';
-import { HOVER_ROW_PAD } from '#/tui/features/mission-control/worker-row-paint';
+} from '#/tui/features/worker-dock/worker-hover';
+import { HOVER_ROW_PAD } from '#/tui/features/worker-dock/worker-row-paint';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import {
   emptyConductorJobsSnapshot,
   type ConductorJobCard,
 } from '#/tui/utils/job/job-strip';
-import type { MissionWorker } from '#/tui/controllers/mission-control/registry';
+import type { DockWorker } from '#/tui/controllers/worker-dock/registry';
 
 // Motion is forced off under the CI-parity runner (NO_COLOR), so renders take
 // the static branch; strip ANSI to assert on plain text.
 function strip(text: string): string {
-  return text.replaceAll(/\u001b\[[0-9;]*m/g, '');
+  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
 function plain(lines: string[]): string[] {
@@ -41,9 +41,9 @@ function plain(lines: string[]): string[] {
 
 const NOW = 1_700_000_000_000;
 
-function registryWith(events: Event[]): MissionControlRegistry {
+function registryWith(events: Event[]): WorkerDockRegistry {
   let now = NOW;
-  const registry = new MissionControlRegistry(() => now);
+  const registry = new WorkerDockRegistry(() => now);
   for (const event of events) {
     registry.apply(event);
     now += 1_000;
@@ -52,10 +52,10 @@ function registryWith(events: Event[]): MissionControlRegistry {
 }
 
 function viewFor(
-  registry: MissionControlRegistry,
+  registry: WorkerDockRegistry,
   jobs = emptyConductorJobsSnapshot(),
   workDir?: string,
-): MissionControlView {
+): WorkerDockView {
   return {
     snapshot: registry.snapshot(NOW + 100_000),
     jobs,
@@ -75,7 +75,7 @@ function jobCard(over: Partial<ConductorJobCard>): ConductorJobCard {
   };
 }
 
-describe('MissionControlPanelComponent', () => {
+describe('WorkerDockPanelComponent', () => {
   afterEach(() => {
     clearHoverRegion();
   });
@@ -87,8 +87,8 @@ describe('MissionControlPanelComponent', () => {
   });
 
   it('renders nothing while the view is empty', () => {
-    const panel = new MissionControlPanelComponent();
-    panel.setView(emptyMissionControlView());
+    const panel = new WorkerDockPanelComponent();
+    panel.setView(emptyWorkerDockView());
     expect(panel.isEmpty()).toBe(true);
     expect(panel.render(80)).toEqual([]);
   });
@@ -124,7 +124,7 @@ describe('MissionControlPanelComponent', () => {
         ],
       } as unknown as Event,
     ]);
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView(viewFor(registry));
 
     const lines = plain(panel.render(100));
@@ -151,7 +151,7 @@ describe('MissionControlPanelComponent', () => {
 
   it('densemode omits TAPE/BOARD sections even when ops and jobs exist', () => {
     const clock = appearanceAnimationNow();
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView({
       snapshot: {
         version: 1,
@@ -233,7 +233,7 @@ describe('MissionControlPanelComponent', () => {
         toolCallId: 'tc-1',
       } as Event,
     ]);
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView(viewFor(registry));
     const text = plain(panel.render(100)).join('\n');
     expect(text).not.toContain('TAPE');
@@ -242,7 +242,7 @@ describe('MissionControlPanelComponent', () => {
   });
 
   it('missionDockBorderToken never goes error for failed-only workers', () => {
-    const failed: MissionWorker = {
+    const failed: DockWorker = {
       id: 'sa-bad',
       name: 'bad',
       kind: 'subagent',
@@ -256,7 +256,7 @@ describe('MissionControlPanelComponent', () => {
       terminalAtMs: NOW,
       error: 'boom',
     };
-    const running: MissionWorker = {
+    const running: DockWorker = {
       ...failed,
       id: 'sa-run',
       name: 'run',
@@ -264,7 +264,7 @@ describe('MissionControlPanelComponent', () => {
       terminalAtMs: undefined,
       error: undefined,
     };
-    const stalled: MissionWorker = {
+    const stalled: DockWorker = {
       ...failed,
       id: 'sa-stall',
       name: 'stall',
@@ -283,7 +283,7 @@ describe('MissionControlPanelComponent', () => {
 
   it('hides failed workers past the linger window from the dock', () => {
     const clock = appearanceAnimationNow();
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView({
       snapshot: {
         version: 1,
@@ -333,7 +333,7 @@ describe('MissionControlPanelComponent', () => {
       } as Event);
     }
     const registry = registryWith(events);
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView(viewFor(registry));
 
     const tight = panel.renderFittedBand(48, 8);
@@ -352,7 +352,7 @@ describe('MissionControlPanelComponent', () => {
         runInBackground: false,
       } as Event,
     ]);
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView(viewFor(registry));
     const lines = panel.renderFittedBand(40, 30);
     expect(lines).toHaveLength(30);
@@ -370,7 +370,7 @@ describe('MissionControlPanelComponent', () => {
       } as Event);
     }
     const registry = registryWith(events);
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView(viewFor(registry));
     expect(panel.render(80).length).toBeLessThanOrEqual(MISSION_FALLBACK_MAX_ROWS);
   });
@@ -391,7 +391,7 @@ describe('MissionControlPanelComponent', () => {
         toolCount: 4,
       } as Event,
     ]);
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView(viewFor(registry));
     const text = plain(panel.render(100)).join('\n');
     expect(text).toContain('scout-9');
@@ -400,7 +400,7 @@ describe('MissionControlPanelComponent', () => {
 
   it('prefers a hot live stream strip over static intent in LIVE', () => {
     const clock = appearanceAnimationNow();
-    const worker: MissionWorker = {
+    const worker: DockWorker = {
       id: 'sa-live',
       name: 'plan',
       kind: 'subagent',
@@ -417,7 +417,7 @@ describe('MissionControlPanelComponent', () => {
       liveText: 'Considering Phaser platformer physics',
       liveAtMs: clock,
     };
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView({
       snapshot: {
         version: 1,
@@ -432,14 +432,14 @@ describe('MissionControlPanelComponent', () => {
     expect(text).toContain('WORKERS');
     // LIVE column is truncated under densemode width + fixed chrome gutter.
     expect(text).toMatch(/Considering Phaser platfo/);
-    expect(text).toContain('\u25cc');
+    expect(text).toContain('\u25CC');
     // Hot stream replaces the static description/intent in LIVE.
     expect(text).not.toContain('Investigate Metal Slug mechanics');
   });
 
   it('switches to densemode KPI/TICKER/GRID when two workers are live', () => {
     const clock = appearanceAnimationNow();
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView({
       snapshot: {
         version: 1,
@@ -521,7 +521,7 @@ describe('MissionControlPanelComponent', () => {
 
   it('uses densemode KPI/GRID for a single worker', () => {
     const clock = appearanceAnimationNow();
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView({
       snapshot: {
         version: 1,
@@ -580,7 +580,7 @@ describe('MissionControlPanelComponent', () => {
         argsPreview: '{"query":"premium HTML game engines","limit":5}',
       } as Event,
     ]);
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView(viewFor(registry));
     const text = plain(panel.render(100)).join('\n');
     expect(text).not.toContain('TAPE');
@@ -591,7 +591,7 @@ describe('MissionControlPanelComponent', () => {
 
   it('windows densemode workers via scrollWorkers and j/k', () => {
     const clock = appearanceAnimationNow();
-    const workers: MissionWorker[] = Array.from({ length: 10 }, (_, i) => ({
+    const workers: DockWorker[] = Array.from({ length: 10 }, (_, i) => ({
       id: `sa-${String(i)}`,
       name: `w${String(i)}`,
       kind: 'subagent',
@@ -603,7 +603,7 @@ describe('MissionControlPanelComponent', () => {
       spawnedAtMs: clock + i,
       lastActivityAtMs: clock,
     }));
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView({
       snapshot: {
         version: 1,
@@ -635,7 +635,7 @@ describe('MissionControlPanelComponent', () => {
 
   it('selects workers with ↑↓ and opens via Enter; Esc clears selection', () => {
     const clock = appearanceAnimationNow();
-    const workers: MissionWorker[] = [
+    const workers: DockWorker[] = [
       {
         id: 'sa-a',
         name: 'coder-a',
@@ -661,7 +661,7 @@ describe('MissionControlPanelComponent', () => {
         lastActivityAtMs: clock,
       },
     ];
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView({
       snapshot: {
         version: 1,
@@ -698,7 +698,7 @@ describe('MissionControlPanelComponent', () => {
 
   it('hit-tests densemode worker rows after paint', () => {
     const clock = appearanceAnimationNow();
-    const workers: MissionWorker[] = [
+    const workers: DockWorker[] = [
       {
         id: 'sa-hit',
         name: 'hit-me',
@@ -712,7 +712,7 @@ describe('MissionControlPanelComponent', () => {
         lastActivityAtMs: clock,
       },
     ];
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView({
       snapshot: {
         version: 1,
@@ -739,7 +739,7 @@ describe('MissionControlPanelComponent', () => {
   it('same-frame render: selected ❯ on one worker, hover pad on another', () => {
     const clock = appearanceAnimationNow();
     // Densemode WKR column truncates names to 8 cols — keep short unique labels.
-    const workers: MissionWorker[] = [
+    const workers: DockWorker[] = [
       {
         id: 'sa-sel',
         name: 'sel-a',
@@ -765,7 +765,7 @@ describe('MissionControlPanelComponent', () => {
         lastActivityAtMs: clock,
       },
     ];
-    const panel = new MissionControlPanelComponent();
+    const panel = new WorkerDockPanelComponent();
     panel.setView({
       snapshot: {
         version: 1,

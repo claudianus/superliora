@@ -554,7 +554,7 @@ export class PanesController {
     } else {
       hint = `Moved ${detached} of ${targets.length} tasks to background.`;
     }
-    if (detached > 0) hint = `${hint} /tasks to view.`;
+    if (detached > 0) hint = `${hint} /jobs bg to view.`;
     this.showDetachHint(hint);
   }
 

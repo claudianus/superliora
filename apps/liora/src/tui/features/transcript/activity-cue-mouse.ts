@@ -1,5 +1,5 @@
 /**
- * Turn-status row mouse: `[stop]` cancels, `[↓]` detaches, cue opens /tasks.
+ * Turn-status row mouse: `[stop]` cancels, `[↓]` detaches, cue opens /jobs bg.
  * A watcherless parked row has nothing behind the cue — ignore those clicks.
  */
 

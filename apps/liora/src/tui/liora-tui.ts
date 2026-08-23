@@ -44,7 +44,7 @@ import { StartupLifecycleController } from './controllers/startup-lifecycle/inde
 import { StreamingUIController } from './controllers/streaming-ui/index';
 import { TasksBrowserController } from './controllers/panes/tasks-browser';
 import { JobBoardController } from './controllers/panes/job-board';
-import { MissionControlController } from './controllers/mission-control/controller';
+import { WorkerDockController } from './controllers/worker-dock/controller';
 import { JobBoardStore } from './features/control-tower/job-board-store';
 import { ControlTowerJobDesk } from './features/control-tower/job-desk-events';
 import { TranscriptRenderController } from './controllers/transcript/transcript-render';
@@ -135,7 +135,7 @@ class LioraTUIClass {
   jobBoardController!: JobBoardController;
   jobBoardStore!: JobBoardStore;
   controlTowerDesk!: ControlTowerJobDesk;
-  missionControl!: MissionControlController;
+  workerDock!: WorkerDockController;
   usageMonitor!: UsageMonitorController;
   editorKeyboard!: EditorKeyboardController;
   promptIntelligence!: PromptIntelligenceController;

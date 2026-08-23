@@ -1,10 +1,10 @@
 /**
- * MissionControlRegistry — pure data layer behind the Mission Control dock.
+ * WorkerDockRegistry — pure data layer behind the Mission Control dock.
  * Merges worker lifecycle / progress / tool telemetry, todo updates,
  * background tasks, and child `thinking`/`assistant` deltas into one roster
  * projection. No TUIState / component dependencies; the panel component
- * renders {@link MissionControlSnapshot} and the session-event handler feeds
- * events via {@link MissionControlRegistry.apply}.
+ * renders {@link WorkerDockSnapshot} and the session-event handler feeds
+ * events via {@link WorkerDockRegistry.apply}.
  */
 
 import type { Event } from '@superliora/sdk';
@@ -20,8 +20,8 @@ import { resolveSubagentToolTarget } from '../../utils/tools/subagent-tool-detai
 export const MISSION_COMPLETED_LINGER_MS = 12_000;
 
 /** True when a terminal worker is past the dock linger window and should hide. */
-export function isMissionWorkerPastLinger(
-  worker: { readonly status: MissionWorkerStatus; readonly terminalAtMs?: number },
+export function isDockWorkerPastLinger(
+  worker: { readonly status: DockWorkerStatus; readonly terminalAtMs?: number },
   nowMs: number,
   lingerMs: number = MISSION_COMPLETED_LINGER_MS,
 ): boolean {
@@ -51,7 +51,7 @@ const MISSION_RESULT_CHIP_MAX = 28;
 
 export type MissionLiveKind = 'thinking' | 'answer';
 
-export type MissionWorkerStatus =
+export type DockWorkerStatus =
   | 'running'
   | 'stalled'
   | 'suspended'
@@ -59,13 +59,13 @@ export type MissionWorkerStatus =
   | 'completed'
   | 'failed';
 
-export type MissionWorkerKind = 'subagent' | 'background' | 'process';
+export type DockWorkerKind = 'subagent' | 'background' | 'process';
 
-export interface MissionWorker {
+export interface DockWorker {
   readonly id: string;
   readonly name: string;
-  readonly kind: MissionWorkerKind;
-  readonly status: MissionWorkerStatus;
+  readonly kind: DockWorkerKind;
+  readonly status: DockWorkerStatus;
   readonly modelAlias?: string;
   readonly description?: string;
   readonly swarmIndex?: number;
@@ -110,7 +110,7 @@ export interface MissionWorker {
   readonly liveAtMs?: number;
 }
 
-export interface MissionOpsEntry {
+export interface DockOpsEntry {
   readonly toolCallId: string;
   readonly workerId: string;
   readonly workerName: string;
@@ -122,21 +122,21 @@ export interface MissionOpsEntry {
   readonly settledAtMs?: number;
 }
 
-export interface MissionControlSnapshot {
+export interface WorkerDockSnapshot {
   /** Bumped on every mutation — render caches key on it. */
   readonly version: number;
-  readonly workers: readonly MissionWorker[];
+  readonly workers: readonly DockWorker[];
   readonly activeCount: number;
   /** Aggregate tokens across active workers. */
   readonly totalTokens: number;
-  readonly ops: readonly MissionOpsEntry[];
+  readonly ops: readonly DockOpsEntry[];
 }
 
 interface MutableWorker {
   id: string;
   name: string;
-  kind: MissionWorkerKind;
-  status: MissionWorkerStatus;
+  kind: DockWorkerKind;
+  status: DockWorkerStatus;
   modelAlias?: string;
   description?: string;
   swarmIndex?: number;
@@ -170,16 +170,16 @@ interface MutableWorker {
   liveAtMs?: number;
 }
 
-const ACTIVE_STATUSES: ReadonlySet<MissionWorkerStatus> = new Set([
+const ACTIVE_STATUSES: ReadonlySet<DockWorkerStatus> = new Set([
   'running',
   'stalled',
   'suspended',
   'finishing',
 ]);
 
-export class MissionControlRegistry {
+export class WorkerDockRegistry {
   private readonly workers = new Map<string, MutableWorker>();
-  private readonly ops: MissionOpsEntry[] = [];
+  private readonly ops: DockOpsEntry[] = [];
   private version = 0;
 
   /**
@@ -232,7 +232,7 @@ export class MissionControlRegistry {
         continue;
       }
       wanted.add(ghostId);
-      const status: MissionWorkerStatus =
+      const status: DockWorkerStatus =
         job.status === 'running' ? 'finishing' : 'suspended';
       const title = job.title.trim();
       const phase = job.progress?.phase?.trim();
@@ -318,12 +318,12 @@ export class MissionControlRegistry {
     }
   }
 
-  snapshot(nowMs: number = this.now()): MissionControlSnapshot {
-    const workers: MissionWorker[] = [];
+  snapshot(nowMs: number = this.now()): WorkerDockSnapshot {
+    const workers: DockWorker[] = [];
     let activeCount = 0;
     let totalTokens = 0;
     for (const worker of this.workers.values()) {
-      if (isMissionWorkerPastLinger(worker, nowMs)) {
+      if (isDockWorkerPastLinger(worker, nowMs)) {
         continue;
       }
       const active = ACTIVE_STATUSES.has(worker.status);
@@ -379,7 +379,7 @@ export class MissionControlRegistry {
     // Status buckets first; within a bucket keep spawn order so heartbeats
     // (lastActivityAtMs) cannot reshuffle rows every progress tick.
     workers.sort((a, b) => {
-      const rank = (w: MissionWorker): number =>
+      const rank = (w: DockWorker): number =>
         ACTIVE_STATUSES.has(w.status) ? 0 : w.status === 'failed' ? 1 : 2;
       return (
         rank(a) - rank(b) ||
@@ -402,7 +402,7 @@ export class MissionControlRegistry {
    */
   hasVisibleWorkers(nowMs: number = this.now()): boolean {
     for (const worker of this.workers.values()) {
-      if (!isMissionWorkerPastLinger(worker, nowMs)) return true;
+      if (!isDockWorkerPastLinger(worker, nowMs)) return true;
     }
     return false;
   }
@@ -557,7 +557,7 @@ export class MissionControlRegistry {
     return this.bump();
   }
 
-  private applyStatus(subagentId: string, status: MissionWorkerStatus): boolean {
+  private applyStatus(subagentId: string, status: DockWorkerStatus): boolean {
     const worker = this.workers.get(subagentId);
     if (worker === undefined || worker.status === status) return false;
     worker.status = status;
@@ -742,7 +742,7 @@ export class MissionControlRegistry {
     return undefined;
   }
 
-  private pushOps(entry: MissionOpsEntry): void {
+  private pushOps(entry: DockOpsEntry): void {
     this.ops.push(entry);
     if (this.ops.length > MISSION_OPS_FEED_CAP) {
       this.ops.splice(0, this.ops.length - MISSION_OPS_FEED_CAP);
@@ -753,7 +753,7 @@ export class MissionControlRegistry {
   private pruneLingered(): void {
     const nowMs = this.now();
     for (const [id, worker] of this.workers) {
-      if (isMissionWorkerPastLinger(worker, nowMs)) {
+      if (isDockWorkerPastLinger(worker, nowMs)) {
         this.workers.delete(id);
       }
     }
@@ -775,7 +775,7 @@ function appendLiveBuffer(prev: string, delta: string): string {
 
 /** Last non-empty line, then char-cap — what NOW paints. */
 export function liveTextTail(buffer: string, maxChars: number = MISSION_LIVE_TEXT_CAP): string {
-  const normalized = buffer.replace(/\r\n/gu, '\n').replace(/\r/gu, '\n');
+  const normalized = buffer.replaceAll(/\r\n/gu, '\n').replaceAll(/\r/gu, '\n');
   const lines = normalized.split('\n');
   let last = '';
   for (let i = lines.length - 1; i >= 0; i -= 1) {
@@ -792,7 +792,7 @@ export function liveTextTail(buffer: string, maxChars: number = MISSION_LIVE_TEX
 
 function compactResultChip(preview: string | undefined): string | undefined {
   if (preview === undefined) return undefined;
-  const flat = preview.replace(/\s+/gu, ' ').trim();
+  const flat = preview.replaceAll(/\s+/gu, ' ').trim();
   if (flat.length === 0) return undefined;
   if (flat.length <= MISSION_RESULT_CHIP_MAX) return flat;
   return `${flat.slice(0, MISSION_RESULT_CHIP_MAX - 1).trimEnd()}…`;

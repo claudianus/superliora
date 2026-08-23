@@ -31,7 +31,7 @@ export type CommandHubActionId =
   | 'workspace.log'
   | 'workspace.errors'
   | 'workspace.tasks'
-  | 'workspace.missionControl'
+  | 'workspace.workerDock'
   | 'workspace.jobDeck'
   | 'workspace.jobInbox'
   | 'workspace.jobOps'

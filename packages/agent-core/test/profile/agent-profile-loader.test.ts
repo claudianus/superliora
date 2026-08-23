@@ -198,7 +198,7 @@ describe('default agent profiles', () => {
     );
 
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Fleet']),
+      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Agent']),
     );
     expect(DEFAULT_AGENT_PROFILES['superliora-full']?.tools).toEqual(
       expect.arrayContaining([
@@ -207,7 +207,6 @@ describe('default agent profiles', () => {
         'Edit',
         'Bash',
         'Agent',
-        'Fleet',
         'JobCreate',
         'CreateGoal',
         'UpdateGoal',

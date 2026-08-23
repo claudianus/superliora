@@ -12,15 +12,15 @@ import {
   shortModelAlias,
   shouldUseDensemode,
   workerRosterLabel,
-} from '#/tui/components/panes/mission-control/densemode';
-import type { MissionWorker } from '#/tui/controllers/mission-control/registry';
+} from '#/tui/components/panes/worker-dock/densemode';
+import type { DockWorker } from '#/tui/controllers/worker-dock/registry';
 import type { AppearancePreferences } from '#/tui/config';
 import {
   emptyConductorJobsSnapshot,
   type ConductorJobCard,
 } from '#/tui/utils/job/job-strip';
 
-function worker(id: string, spawnedAtMs = 0, over: Partial<MissionWorker> = {}): MissionWorker {
+function worker(id: string, spawnedAtMs = 0, over: Partial<DockWorker> = {}): DockWorker {
   return {
     id,
     name: id,
