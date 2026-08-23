@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.12.18
+
+### Patch Changes
+
+- Coding jobs now default to no extra verify workers and auto-land; follow-ups reuse the live job. `/job mode hotfix` skips the worktree when you are the only coding job.
+
 ## 0.12.17
 
 ### Patch Changes
