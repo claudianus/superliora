@@ -25,8 +25,17 @@ import {
   hotpathJobResume,
   isConductorUxV2Enabled,
 } from './job-hotpath';
+import { handleAgentsCommand } from './agents';
 import type { SlashCommandHost } from './hub/dispatch';
 import { ttui } from '../utils/tui-i18n';
+
+function isDockArgs(args: string): boolean {
+  return args === 'dock' || args === 'workers' || args === 'band';
+}
+
+function isBackgroundTaskArgs(args: string): boolean {
+  return args === 'bg' || args === 'background' || args === 'tasks';
+}
 
 function isConductorProjectMode(value: string): value is ConductorProjectMode {
   return (CONDUCTOR_PROJECT_MODES as readonly string[]).includes(value);
@@ -42,6 +51,18 @@ function isDeckArgs(args: string): boolean {
 
 export function handleJobsCommand(host: SlashCommandHost, rawArgs: string): void {
   const args = rawArgs.trim();
+  if (isDockArgs(args) || args.startsWith('dock ')) {
+    void handleAgentsCommand(host, args.startsWith('dock ') ? args.slice(5).trim() : '');
+    return;
+  }
+  if (isBackgroundTaskArgs(args)) {
+    void host.tasksBrowserController.show();
+    return;
+  }
+  if (args === 'autoresume' || args.startsWith('autoresume ') || args.startsWith('auto-resume')) {
+    handleJobCommand(host, args);
+    return;
+  }
   if (isBoardArgs(args)) {
     // The in-stack Job Desk board was absorbed into Mission Control; the
     // deck viewer is the board now.
@@ -87,6 +108,18 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
     case 'help':
     case '?':
       host.showStatus(ttui('tui.jobs.usage'));
+      return;
+
+    case 'dock':
+    case 'workers':
+    case 'band':
+      void handleAgentsCommand(host, tokens.slice(1).join(' ').trim());
+      return;
+
+    case 'bg':
+    case 'background':
+    case 'tasks':
+      void host.tasksBrowserController.show();
       return;
 
     case 'board':
@@ -141,7 +174,7 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
         host.state.appState.conductor?.autoResumeFleet ??
         DEFAULT_CONDUCTOR_PREFERENCES.autoResumeFleet;
       host.showStatus(
-        `Fleet auto-resume: ${current ? 'ON' : 'OFF'} — /job autoresume on|off`,
+        `Job auto-resume: ${current ? 'ON' : 'OFF'} — /jobs autoresume on|off`,
         'info',
       );
       return;

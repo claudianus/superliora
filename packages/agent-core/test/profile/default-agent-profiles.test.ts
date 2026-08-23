@@ -81,7 +81,7 @@ describe('default agent profiles', () => {
     for (const legacy of LEGACY_LIORA_TOOLS) {
       expect(mainTools).not.toContain(legacy);
     }
-    expect(mainTools).toContain('Fleet');
+    expect(mainTools).not.toContain('Fleet');
   });
 
   it('lists goal tools on the main agent and full profile, not on subagent profiles', () => {
@@ -127,8 +127,6 @@ describe('default agent profiles', () => {
         'ExitPlanMode',
         'CreateGoal',
         'UpdateGoal',
-        'SearchExpert',
-        'Fleet',
         'JobCreate',
         'JobList',
         'mcp__*',
@@ -216,6 +214,10 @@ describe('default agent profiles', () => {
     // V1-1: spawn/wait surfaces are guard-rejected and stay off the whitelist
     expect(tools).not.toContain('Agent');
     expect(tools).not.toContain('Fleet');
+    expect(tools).not.toContain('Grep');
+    expect(tools).not.toContain('Glob');
+    expect(tools).toContain('Memory');
+    expect(tools).toContain('RepoQuery');
     expect(tools).not.toContain('RunProjectChecks');
   });
 
@@ -246,7 +248,7 @@ describe('default agent profiles', () => {
     const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     const builtinCount = agentTools.filter((name) => !name.startsWith('mcp__')).length;
     // Prime-parity harness: Script (PTC) + Compact + Refine on the classic main lane.
-    expect(builtinCount).toBe(33);
+    expect(builtinCount).toBe(32);
     expect(agentTools).toContain('mcp__*');
     expect(agentTools).toContain('RecordInterviewFinding');
     expect(agentTools).toContain('Script');
@@ -273,7 +275,6 @@ describe('default agent profiles', () => {
         'Memory',
         'GetCurrentTime',
         'TaskGraph',
-        'SearchExpert',
         'Context7Resolve',
         'Context7Docs',
         'ReadMediaFile',
@@ -437,6 +438,7 @@ describe('default agent profiles', () => {
   it('exposes Liora Memory only to writable coding profiles', () => {
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['superliora-full']?.tools).toContain('Memory');
+    expect(DEFAULT_AGENT_PROFILES['conductor']?.tools).toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('Memory');
   });

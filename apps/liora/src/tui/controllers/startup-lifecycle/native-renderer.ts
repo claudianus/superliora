@@ -7,7 +7,7 @@ import {
 import { ensureFdPath } from '#/utils/process/fd-detect';
 
 import type { TodoBoardScrollAction } from '../../components/chrome/todo/todo-panel';
-import type { MissionWorkerScrollAction } from '../../components/panes/mission-control/panel';
+import type { DockWorkerScrollAction } from '../../components/panes/worker-dock/panel';
 import { setKittyGraphicsChannel } from '../../media/kitty-graphics-channel';
 import {
   requestTUIContentRender,
@@ -24,10 +24,10 @@ import { setAppearanceTransportStability } from '../../features/appearance/appea
 import { handleFooterJobsStripMouse } from '../../features/control-tower/footer-jobs-mouse';
 import { handleActivityCueMouse } from '../../features/transcript/activity-cue-mouse';
 import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
-import { handleWorkerDockMouse } from '../../features/mission-control/worker-dock-mouse';
+import { handleWorkerDockMouse } from '../../features/worker-dock/worker-dock-mouse';
 import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
 import {
-  getTUIStateNativeMissionRect,
+  getTUIStateNativeWorkerDockRect,
   getTUIStateNativeTodoRect,
 } from '../../features/transcript/transcript-hit-test';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
@@ -38,10 +38,10 @@ import { ttui } from '../../utils/tui-i18n';
 import { ensureMountedTuiStdioGuard } from '../../utils/stdio/tui-stdio-guard';
 import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import {
-  missionBandActive,
-  shouldMissionDockConsumeArrow,
-  shouldMissionDockConsumeEnter,
-} from '../../features/mission-control/dock';
+  workerDockBandActive,
+  shouldWorkerDockConsumeArrow,
+  shouldWorkerDockConsumeEnter,
+} from '../../features/worker-dock/dock';
 import { requestTUIContentRender as requestContentRender } from '../../utils/render/frame-render';
 
 export interface StartupNativeRendererCallbacks {
@@ -66,7 +66,7 @@ export function attachStartupNativeRendererCallback(host: StartupLifecycleHost):
       // animation clock; keep it advancing on calm transports while they run.
       hasBackgroundWork: () =>
         hasRunningConductorWorkers(host.state.appState.conductorJobs) ||
-        host.missionControl?.hasLiveWorkers() === true ||
+        host.workerDock?.hasLiveWorkers() === true ||
         hasLiveWatchers(host.sessionEventHandler?.backgroundTasks),
       onAmbientTick: () => {
         host.usageMonitor.tick();
@@ -122,7 +122,7 @@ export function ensureStartupNativeInputRouter(
       return host.state.editor.tryHandleAppShortcut?.(legacy) === true;
     },
   });
-  // Still-running / parked cue click → /tasks.
+  // Still-running / parked cue click → background task browser (/jobs bg).
   host.nativeInputRouter.router.registerGlobalHandler({
     id: 'activity-still-running-cue',
     onInput: (event) =>
@@ -343,7 +343,7 @@ function scrollStartupMissionPanelAtMouse(
   event: NativeInputEvent,
 ): boolean {
   if (event.type !== 'mouse') return false;
-  const rect = getTUIStateNativeMissionRect(host.state);
+  const rect = getTUIStateNativeWorkerDockRect(host.state);
   if (rect === undefined) return false;
   if (
     event.x < rect.x ||
@@ -353,14 +353,14 @@ function scrollStartupMissionPanelAtMouse(
   ) {
     return false;
   }
-  const action: MissionWorkerScrollAction | undefined =
+  const action: DockWorkerScrollAction | undefined =
     event.button === 'wheel-up'
       ? 'line-up'
       : event.button === 'wheel-down'
         ? 'line-down'
         : undefined;
   if (action === undefined) return false;
-  if (!host.state.missionControlPanel.scrollWorkers(action)) return false;
+  if (!host.state.workerDockPanel.scrollWorkers(action)) return false;
   requestTUILayoutRender(host.state);
   return true;
 }
@@ -369,7 +369,7 @@ function scrollStartupMissionPanelByKey(
   host: StartupLifecycleHost,
   key: NativeInputKey,
 ): boolean {
-  let action: MissionWorkerScrollAction | undefined;
+  let action: DockWorkerScrollAction | undefined;
   switch (key) {
     case 'up':
       action = 'line-up';
@@ -392,7 +392,7 @@ function scrollStartupMissionPanelByKey(
     default:
       return false;
   }
-  if (!host.state.missionControlPanel.scrollWorkers(action)) return false;
+  if (!host.state.workerDockPanel.scrollWorkers(action)) return false;
   requestTUILayoutRender(host.state);
   return true;
 }
@@ -408,8 +408,8 @@ function handleMissionDockSelectionKey(
   host: StartupLifecycleHost,
   key: NativeInputKey,
 ): boolean {
-  if (!missionBandActive(host.state)) return false;
-  const panel = host.state.missionControlPanel;
+  if (!workerDockBandActive(host.state)) return false;
+  const panel = host.state.workerDockPanel;
   if (panel.isEmpty()) return false;
 
   const mapKey =
@@ -431,7 +431,7 @@ function handleMissionDockSelectionKey(
   // Otherwise the pre-editor router must not swallow submit (`/exit`, prompts).
   if (
     mapKey === 'enter' &&
-    !shouldMissionDockConsumeEnter({
+    !shouldWorkerDockConsumeEnter({
       editorText: host.state.editor.getText(),
       selectedWorkerId: panel.selectedWorker,
     })
@@ -443,7 +443,7 @@ function handleMissionDockSelectionKey(
   // prompt-history or queued-prompt recall.
   if (
     (mapKey === 'up' || mapKey === 'down') &&
-    !shouldMissionDockConsumeArrow({ selectedWorkerId: panel.selectedWorker })
+    !shouldWorkerDockConsumeArrow({ selectedWorkerId: panel.selectedWorker })
   ) {
     return false;
   }

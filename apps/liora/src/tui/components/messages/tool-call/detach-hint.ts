@@ -3,7 +3,7 @@ import { currentTheme } from '#/tui/theme';
 
 /** Delay before a long-running foreground Bash/Agent card advertises Ctrl+B. */
 const DETACH_HINT_DELAY_MS = 6_000;
-const DETACH_HINT_TEXT = 'Press Ctrl+B to background this task · /tasks to inspect';
+const DETACH_HINT_TEXT = 'Press Ctrl+B to background this task · /jobs bg to inspect';
 
 export function isDetachHintEligible(toolName: string): boolean {
   return toolName === 'Bash' || toolName === 'Agent';

@@ -140,7 +140,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.exitConfirmCtrlD': 'Press {chord} again to exit',
   'tui.footer.exitConfirmPrimaryC': 'Press {chord} again to exit',
   'tui.footer.exitConfirmPrimaryD': 'Press {chord} again to exit',
-  'tui.footer.detachHint': 'Detached. Output continues in background (/tasks).',
+  'tui.footer.detachHint': 'Detached. Output continues in background (/jobs bg).',
 
   // ── Permission mode notices ──────────────────────────────────────────────
   'tui.permission.yolo.on.title': 'YOLO mode: ON',
@@ -347,7 +347,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
 
   // ── Tips (footer / working spinner) ──────────────────────────────────────
   'tui.tip.ctrlS': '{chord} adds guidance without waiting for the turn to finish',
-  'tui.tip.tasks': '/tasks to check progress for background tasks',
+  'tui.tip.tasks': '/jobs bg to check progress for background tasks',
   'tui.tip.init': '/init: generate AGENTS.md',
   'tui.tip.pluginsSuperpowers': '/plugins: manage plugins — try the "superpowers" plugin',
   'tui.tip.pluginsDatasource':
@@ -360,7 +360,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.mention': '@: mention files',
   'tui.tip.shell': '! to run a shell command',
   'tui.tip.ctrlO': '{chord} cycles transcript density: minimal → compact → standard → full',
-  'tui.tip.ctrlB': '{chord} backgrounds a long shell task; /tasks shows progress',
+  'tui.tip.ctrlB': '{chord} backgrounds a long shell task; /jobs bg shows progress',
   'tui.tip.conductorJobs': '/jobs lists Conductor jobs · /jobs deck watches workers',
   'tui.tip.altJ': 'Alt+J opens the Conductor Job Deck',
   'tui.tip.shiftEnter': 'shift+enter: newline',
@@ -543,7 +543,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.footer.exitConfirmCtrlD': '종료하려면 {chord}를 다시 누르세요',
   'tui.footer.exitConfirmPrimaryC': '종료하려면 {chord}를 다시 누르세요',
   'tui.footer.exitConfirmPrimaryD': '종료하려면 {chord}를 다시 누르세요',
-  'tui.footer.detachHint': '분리됨. 백그라운드 출력 계속 (/tasks).',
+  'tui.footer.detachHint': '분리됨. 백그라운드 출력 계속 (/jobs bg).',
 
   // ── Permission mode notices ──────────────────────────────────────────────
   'tui.permission.yolo.on.title': 'YOLO 모드: ON',
@@ -745,7 +745,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Tips ─────────────────────────────────────────────────────────────────
   'tui.tip.ctrlS': '{chord}로 턴이 끝나기 전에 추가 지시를 넣을 수 있습니다',
-  'tui.tip.tasks': '/tasks로 백그라운드 작업 진행을 확인하세요',
+  'tui.tip.tasks': '/jobs bg로 백그라운드 작업 진행을 확인하세요',
   'tui.tip.init': '/init: AGENTS.md 생성',
   'tui.tip.pluginsSuperpowers': '/plugins: 플러그인 관리 — "superpowers" 플러그인을 써 보세요',
   'tui.tip.pluginsDatasource':
@@ -758,7 +758,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.mention': '@: 파일 멘션',
   'tui.tip.shell': '!: 셸 명령 실행',
   'tui.tip.ctrlO': '{chord}로 트랜스크립트 밀도 순환: minimal → compact → standard → full',
-  'tui.tip.ctrlB': '{chord}로 긴 셸 작업을 백그라운드; /tasks로 진행 확인',
+  'tui.tip.ctrlB': '{chord}로 긴 셸 작업을 백그라운드; /jobs bg로 진행 확인',
   'tui.tip.conductorJobs': '/jobs로 Conductor Job 목록 · /jobs deck으로 워커 감시',
   'tui.tip.altJ': 'Alt+J로 Conductor Job Deck 열기',
   'tui.tip.shiftEnter': 'shift+enter: 줄바꿈',

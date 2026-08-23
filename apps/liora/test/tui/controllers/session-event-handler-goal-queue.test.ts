@@ -88,7 +88,7 @@ function makeHost(options: { createGoalRejects?: boolean } = {}) {
       active: vi.fn(),
       clear: vi.fn(),
     },
-    missionControl: {
+    workerDock: {
       handleEvent: vi.fn(),
       reset: vi.fn(),
     },

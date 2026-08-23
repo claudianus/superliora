@@ -22,7 +22,7 @@ export const EXPAND_DEFAULT_LIMIT = 120;
 
 const EXPAND_DESCRIPTION = [
   'Recover reversibly archived compressed output bytes.',
-  'Use when LioraRead/Bash compressed output and you need the omitted section.',
+  'Use when Compact/Bash archived output and you need the omitted section.',
 ].join(' ');
 
 export class ExpandTool implements BuiltinTool<ExpandInput> {

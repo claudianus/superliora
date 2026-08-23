@@ -1,12 +1,12 @@
 /**
- * MissionControlPanel — the single live-monitoring surface for every
+ * WorkerDockPanel — the single live-monitoring surface for every
  * background worker (subagents, background agents/processes, swarm members)
  * plus a condensed Conductor job lane summary. Renders as an in-stage bottom
  * band at the stage's full reading width (capped at
- * {@link MISSION_BAND_MAX_ROWS} rows).
+ * {@link WORKER_DOCK_BAND_MAX_ROWS} rows).
  *
  * Presentation only: the controller pushes an immutable
- * {@link MissionControlView} (registry snapshot + conductor jobs). Motion
+ * {@link WorkerDockView} (registry snapshot + conductor jobs). Motion
  * flows through the shared appearance clock and degrades to static marks
  * under off / SSH / NO_COLOR / CI per PREMIUM.md §7. Paint budget:
  * spectacular / pulse only on narrow signals (glyph, mark, bar, title chips,
@@ -35,13 +35,13 @@ import {
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { missionBandProductName } from '#/tui/features/mission-control/labels';
+import { workerDockProductName } from '#/tui/features/worker-dock/labels';
 import {
-  isMissionWorkerPastLinger,
-  type MissionControlSnapshot,
-  type MissionOpsEntry,
-  type MissionWorker,
-} from '#/tui/controllers/mission-control/registry';
+  isDockWorkerPastLinger,
+  type WorkerDockSnapshot,
+  type DockOpsEntry,
+  type DockWorker,
+} from '#/tui/controllers/worker-dock/registry';
 import {
   CHROME_BAND_LEFT_MARGIN,
   CHROME_BAND_SIDE_PADDING,
@@ -80,14 +80,14 @@ import {
   selectAttentionJobs,
   shouldUseDensemode,
 } from './densemode';
-import { getHoverRegionId } from '#/tui/features/mission-control/worker-hover';
+import { getHoverRegionId } from '#/tui/features/worker-dock/worker-hover';
 import {
   paintWorkerRowChrome,
   workerHoverPaintPending,
-} from '#/tui/features/mission-control/worker-row-paint';
+} from '#/tui/features/worker-dock/worker-row-paint';
 import { ttui } from '#/tui/utils/tui-i18n';
 
-export type MissionWorkerScrollAction =
+export type DockWorkerScrollAction =
   | 'line-up'
   | 'line-down'
   | 'page-up'
@@ -96,7 +96,7 @@ export type MissionWorkerScrollAction =
   | 'bottom';
 
 /** Hit-test result for a painted mission-band content row (0 = first content line). */
-export type MissionWorkerHit =
+export type DockWorkerHit =
   | { readonly kind: 'worker'; readonly workerId: string; readonly index: number }
   | { readonly kind: 'header' }
   | { readonly kind: 'other' };
@@ -108,7 +108,7 @@ import {
   formatMissionTokens,
   liveWorkerElapsedMs,
   MISSION_LIVE_HOT_MS,
-} from './mission-format';
+} from './dock-format';
 
 export {
   formatMissionAgeMs,
@@ -117,12 +117,14 @@ export {
   formatMissionTokens,
   liveWorkerElapsedMs,
   MISSION_LIVE_HOT_MS,
-} from './mission-format';
+} from './dock-format';
 
 /** In-stage bottom band never grows past this many rows. */
-export const MISSION_BAND_MAX_ROWS = 14;
-/** @deprecated Use {@link MISSION_BAND_MAX_ROWS}. */
-export const MISSION_FALLBACK_MAX_ROWS = MISSION_BAND_MAX_ROWS;
+export const WORKER_DOCK_BAND_MAX_ROWS = 14;
+/** @deprecated Use {@link WORKER_DOCK_BAND_MAX_ROWS}. */
+export const MISSION_BAND_MAX_ROWS = WORKER_DOCK_BAND_MAX_ROWS;
+/** @deprecated Use {@link WORKER_DOCK_BAND_MAX_ROWS}. */
+export const MISSION_FALLBACK_MAX_ROWS = WORKER_DOCK_BAND_MAX_ROWS;
 /** MOVES rows in the full layout (tight/minimal degrade first). */
 const OPS_FEED_FULL_ROWS = 4;
 /** Job rows under the counts line in the full layout. */
@@ -144,14 +146,14 @@ const TARGET_SOFT_CAP = 56;
 /** Display tok/s ease toward target per ambient frame (0–1). Higher = snappier. */
 const RATE_LERP_ALPHA = 0.55;
 
-export interface MissionControlView {
-  readonly snapshot: MissionControlSnapshot;
+export interface WorkerDockView {
+  readonly snapshot: WorkerDockSnapshot;
   readonly jobs: ConductorJobsSnapshot;
   /** Workspace cwd for path relativization (optional). */
   readonly workDir?: string;
 }
 
-export function emptyMissionControlView(): MissionControlView {
+export function emptyWorkerDockView(): WorkerDockView {
   return {
     snapshot: {
       version: 0,
@@ -170,7 +172,7 @@ export function emptyMissionControlView(): MissionControlView {
  * primary; idle/terminal-only stays the default border.
  */
 export function missionDockBorderToken(
-  workers: readonly MissionWorker[],
+  workers: readonly DockWorker[],
   jobs: Pick<ConductorJobsSnapshot, 'needsUser' | 'blocked'>,
 ): ColorToken {
   if (
@@ -195,8 +197,8 @@ export function missionDockBorderToken(
 
 type LayoutMode = 'full' | 'tight' | 'minimal';
 
-export class MissionControlPanelComponent implements Component {
-  private view: MissionControlView = emptyMissionControlView();
+export class WorkerDockPanelComponent implements Component {
+  private view: WorkerDockView = emptyWorkerDockView();
   /** `pinned` mode keeps the panel mounted with an idle placeholder. */
   private pinned = false;
   /** Window start into the sorted worker roster (densemode / NOW). */
@@ -234,7 +236,7 @@ export class MissionControlPanelComponent implements Component {
     | undefined;
 
   /** Current view — read by the hit-test chrome signature (cheap counts only). */
-  get currentView(): MissionControlView {
+  get currentView(): WorkerDockView {
     return this.view;
   }
 
@@ -243,7 +245,7 @@ export class MissionControlPanelComponent implements Component {
     return this.selectedWorkerId;
   }
 
-  setView(view: MissionControlView): void {
+  setView(view: WorkerDockView): void {
     if (
       view.snapshot.version === this.view.snapshot.version &&
       view.jobs === this.view.jobs &&
@@ -320,7 +322,7 @@ export class MissionControlPanelComponent implements Component {
    * Map a band-local screen row (0 = top of mission rect, including border)
    * to a worker / header hit. Uses the last paint's content row map.
    */
-  hitTestWorkerRow(bandLocalY: number, bandHeight: number): MissionWorkerHit | undefined {
+  hitTestWorkerRow(bandLocalY: number, bandHeight: number): DockWorkerHit | undefined {
     if (bandHeight <= 0) return undefined;
     // Rounded panel: top border is row 0; content starts at 1; bottom border last.
     const contentRow = bandLocalY - 1;
@@ -355,10 +357,10 @@ export class MissionControlPanelComponent implements Component {
   }
 
   /** Workers minus terminal ones whose linger window has elapsed. */
-  private visibleWorkers(now: number): readonly MissionWorker[] {
+  private visibleWorkers(now: number): readonly DockWorker[] {
     const workers = this.view.snapshot.workers;
     if (workers.length === 0) return workers;
-    return workers.filter((worker) => !isMissionWorkerPastLinger(worker, now));
+    return workers.filter((worker) => !isDockWorkerPastLinger(worker, now));
   }
 
   /**
@@ -378,7 +380,7 @@ export class MissionControlPanelComponent implements Component {
    * Move the worker-list window. Returns true only when the offset shifted
    * so wheel / key handlers can fall through at the edges.
    */
-  scrollWorkers(action: MissionWorkerScrollAction): boolean {
+  scrollWorkers(action: DockWorkerScrollAction): boolean {
     const workers = this.visibleWorkers(appearanceAnimationNow());
     const slots = Math.max(1, Math.min(this.lastWorkerSlots, workers.length));
     if (workers.length <= slots) {
@@ -496,7 +498,7 @@ export class MissionControlPanelComponent implements Component {
 
   /** In-stage bottom band (full stage reading width). */
   render(width: number): string[] {
-    return this.renderFitted(width, MISSION_BAND_MAX_ROWS);
+    return this.renderFitted(width, WORKER_DOCK_BAND_MAX_ROWS);
   }
 
   /**
@@ -521,7 +523,7 @@ export class MissionControlPanelComponent implements Component {
     if (this.isEmpty()) {
       if (!this.pinned) return [];
       const placeholder = renderRoundedPanel({
-        title: ` ${missionBandProductName()} `,
+        title: ` ${workerDockProductName()} `,
         content: [
           currentTheme.fg('textDim', 'No active workers —'),
           currentTheme.fg('textDim', 'subagents and background'),
@@ -700,7 +702,7 @@ export class MissionControlPanelComponent implements Component {
       const content = [...dense.lines];
       if (workers.length > 0 && content.length < contentBudget) {
         content.push(
-          currentTheme.fg('textMuted', ` ${ttui('tui.missionControl.dockHint')}`),
+          currentTheme.fg('textMuted', ` ${ttui('tui.workerDock.dockHint')}`),
         );
       }
       if (content.length > 0 && content.length <= contentBudget) {
@@ -770,7 +772,7 @@ export class MissionControlPanelComponent implements Component {
         0,
       );
       if (elapsed > 0) parts.push(formatJobDuration(elapsed));
-      return ` ${missionBandProductName()} ·${parts.join(' · ')} `;
+      return ` ${workerDockProductName()} ·${parts.join(' · ')} `;
     }
     const activeLabel = animated
       ? renderPulseText(`${String(active.length)} active`, 'mc:title:active', 'primary', appearance)
@@ -798,7 +800,7 @@ export class MissionControlPanelComponent implements Component {
       );
       if (elapsed > 0) parts.push(formatJobDuration(elapsed));
     }
-    return ` ${missionBandProductName()} ·${parts.join(' · ')} `;
+    return ` ${workerDockProductName()} ·${parts.join(' · ')} `;
   }
 
   private borderToken(now: number): ColorToken {
@@ -845,7 +847,7 @@ export class MissionControlPanelComponent implements Component {
     return renderLiveSectionHeader(label, live, 'mc:sec');
   }
 
-  private workerIntent(worker: MissionWorker): string | undefined {
+  private workerIntent(worker: DockWorker): string | undefined {
     const focus = worker.focusTodo?.trim();
     if (focus !== undefined && focus.length > 0) return focus;
     const description = worker.description?.trim();
@@ -855,7 +857,7 @@ export class MissionControlPanelComponent implements Component {
 
   /** Hot child thinking/answer tail for the NOW live strip. */
   private hotLiveStream(
-    worker: MissionWorker,
+    worker: DockWorker,
     now: number,
   ): { kind: 'thinking' | 'answer'; text: string } | undefined {
     if (worker.liveText === undefined || worker.liveText.length === 0) return undefined;
@@ -865,7 +867,7 @@ export class MissionControlPanelComponent implements Component {
     return { kind: worker.liveKind, text: worker.liveText };
   }
 
-  private humanAction(worker: MissionWorker, targetBudget: number = TARGET_MAX): string | undefined {
+  private humanAction(worker: DockWorker, targetBudget: number = TARGET_MAX): string | undefined {
     if (worker.lastTool === undefined) return undefined;
     const target = formatMissionTarget(
       worker.lastTool,
@@ -886,7 +888,7 @@ export class MissionControlPanelComponent implements Component {
   }
 
   private renderLiveStreamRow(
-    worker: MissionWorker,
+    worker: DockWorker,
     live: { kind: 'thinking' | 'answer'; text: string },
     animated: boolean,
     width: number,
@@ -964,7 +966,7 @@ export class MissionControlPanelComponent implements Component {
 
   /** Full: name → intent → action/progress (telemetry only as fallback). */
   private renderWorkerBlock(
-    worker: MissionWorker,
+    worker: DockWorker,
     animated: boolean,
     now: number,
     width: number,
@@ -1051,7 +1053,7 @@ export class MissionControlPanelComponent implements Component {
   }
 
   private renderProgressLine(
-    worker: MissionWorker,
+    worker: DockWorker,
     focusAlreadyShown: boolean,
     animated: boolean,
     now: number,
@@ -1108,7 +1110,7 @@ export class MissionControlPanelComponent implements Component {
     return `  ${bar} ${currentTheme.fg('textMuted', label)}${rateChip}`;
   }
 
-  private renderWorkerNameRow(worker: MissionWorker, animated: boolean, now: number): string {
+  private renderWorkerNameRow(worker: DockWorker, animated: boolean, now: number): string {
     const glyph = this.workerGlyph(worker, animated);
     const terminal = worker.status === 'completed' || worker.status === 'failed';
     const namePlain = truncateToWidth(worker.name, WORKER_NAME_MAX, '…');
@@ -1143,7 +1145,7 @@ export class MissionControlPanelComponent implements Component {
 
   /** Tight/minimal: glyph name — live stream / intent / short action. */
   private renderWorkerTight(
-    worker: MissionWorker,
+    worker: DockWorker,
     animated: boolean,
     now: number,
     width: number = 40,
@@ -1182,7 +1184,7 @@ export class MissionControlPanelComponent implements Component {
     return `${head}${elapsed}`;
   }
 
-  private workerGlyph(worker: MissionWorker, animated: boolean): string {
+  private workerGlyph(worker: DockWorker, animated: boolean): string {
     switch (worker.status) {
       case 'running':
         return animated
@@ -1223,7 +1225,7 @@ export class MissionControlPanelComponent implements Component {
   }
 
   private renderOpsRow(
-    entry: MissionOpsEntry,
+    entry: DockOpsEntry,
     width: number,
     showWorker: boolean,
     animated: boolean,

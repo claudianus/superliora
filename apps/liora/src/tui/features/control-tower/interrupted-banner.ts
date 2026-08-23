@@ -15,13 +15,13 @@ import {
 } from '../../config';
 import type { ColorToken } from '../../theme';
 import type { ControlTowerJobDesk } from './job-desk-events';
-import type { MissionControlController } from '../../controllers/mission-control/controller';
+import type { WorkerDockController } from '../../controllers/worker-dock/controller';
 
 export interface InterruptedBannerHost {
   showStatus(msg: string, color?: ColorToken): void;
   showNotice?(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   readonly controlTowerDesk?: ControlTowerJobDesk;
-  readonly missionControl?: MissionControlController;
+  readonly workerDock?: WorkerDockController;
   readonly state?: {
     readonly appState: {
       readonly conductor?: ConductorPreferences;
@@ -81,7 +81,7 @@ export async function maybeAnnounceInterruptedJobs(
         });
       }
       desk.publishFromStore();
-      host.missionControl?.hydrateGhostsFromJobs(desk.store.snapshot());
+      host.workerDock?.hydrateGhostsFromJobs(desk.store.snapshot());
       announceRecovery(host, jobs, prefs.autoResumeFleet);
       return;
     }

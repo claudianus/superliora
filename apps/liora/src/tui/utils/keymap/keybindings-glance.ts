@@ -50,7 +50,7 @@ export function loadKeybindingsGlance(): KeybindingsGlanceInput {
     idleCount: counts.idle,
     streamingCount: counts.streaming,
     planSamples: sampleLinesForSlash('/plan'),
-    agentsSamples: sampleLinesForSlash('/agents'),
+    agentsSamples: sampleLinesForSlash('/jobs dock'),
     transcriptSamples: sampleLinesForSlash('/transcript'),
   };
 }

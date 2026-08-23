@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { handleAgentsCommand } from '#/tui/commands/agents';
 import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
-import type { MissionControlMode } from '#/tui/features/mission-control/dock';
+import type { WorkerDockMode } from '#/tui/features/worker-dock/dock';
 
 const { saveTuiConfigMock } = vi.hoisted(() => ({ saveTuiConfigMock: vi.fn() }));
 vi.mock('../../../src/tui/config', async () => {
@@ -13,10 +13,10 @@ vi.mock('../../../src/tui/config', async () => {
   return { ...actual, saveTuiConfig: saveTuiConfigMock };
 });
 
-function createHost(mode: MissionControlMode) {
+function createHost(mode: WorkerDockMode) {
   return {
     showStatus: vi.fn(),
-    missionControl: {
+    workerDock: {
       mode: vi.fn(() => mode),
       setMode: vi.fn(),
     },
@@ -28,13 +28,13 @@ function createHost(mode: MissionControlMode) {
         notifications: {},
         upgrade: {},
         appearance: {
-          missionControl: mode,
+          workerDock: mode,
         },
       },
     },
   } as unknown as SlashCommandHost & {
     showStatus: ReturnType<typeof vi.fn>;
-    missionControl: {
+    workerDock: {
       mode: ReturnType<typeof vi.fn>;
       setMode: ReturnType<typeof vi.fn>;
     };
@@ -47,7 +47,7 @@ describe('/agents', () => {
     saveTuiConfigMock.mockClear();
     const host = createHost('auto');
     await handleAgentsCommand(host, '');
-    expect(host.missionControl.setMode).toHaveBeenCalledWith('pinned');
+    expect(host.workerDock.setMode).toHaveBeenCalledWith('pinned');
     expect(saveTuiConfigMock).toHaveBeenCalledTimes(1);
     expect(host.showStatus).toHaveBeenCalledWith(
       expect.stringContaining('Worker Dock:'),
@@ -56,26 +56,26 @@ describe('/agents', () => {
 
     const host2 = createHost('pinned');
     await handleAgentsCommand(host2, '');
-    expect(host2.missionControl.setMode).toHaveBeenCalledWith('hidden');
+    expect(host2.workerDock.setMode).toHaveBeenCalledWith('hidden');
 
     const host3 = createHost('hidden');
     await handleAgentsCommand(host3, '');
-    expect(host3.missionControl.setMode).toHaveBeenCalledWith('auto');
+    expect(host3.workerDock.setMode).toHaveBeenCalledWith('auto');
   });
 
   it('accepts an explicit mode', async () => {
     saveTuiConfigMock.mockClear();
     const host = createHost('auto');
     await handleAgentsCommand(host, 'hidden');
-    expect(host.missionControl.setMode).toHaveBeenCalledWith('hidden');
+    expect(host.workerDock.setMode).toHaveBeenCalledWith('hidden');
   });
 
   it('rejects unknown args with usage', async () => {
     const host = createHost('auto');
     await handleAgentsCommand(host, 'banana');
-    expect(host.missionControl.setMode).not.toHaveBeenCalled();
+    expect(host.workerDock.setMode).not.toHaveBeenCalled();
     expect(host.showStatus).toHaveBeenCalledWith(
-      expect.stringContaining('Usage: /agents'),
+      expect.stringContaining('Usage: /jobs dock'),
       'textMuted',
     );
   });

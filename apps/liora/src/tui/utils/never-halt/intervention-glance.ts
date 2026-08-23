@@ -10,9 +10,9 @@ export function getInterventionNeverHaltTip(): string {
   return ttui('tui.notice.neverHalt.tip');
 }
 
-/** Settings/Ops — ask-mode keeps Fleet and independent tools running during one wait. */
+/** Settings/Ops — ask-mode keeps Jobs and independent tools running during one wait. */
 export const INTERVENTION_ASK_MODE_FLEET_TIP =
-  'Ask mode: one approval waits in Ops tray — Fleet workers and independent tools keep running.';
+  'Ask mode: one approval waits in Ops tray — Jobs and independent tools keep running.';
 
 /** Env var referenced from Settings → Never-Halt for orphan tray cleanup. */
 export const PERMISSION_AUTO_EXPIRE_ENV = 'SUPERLIORA_PERMISSION_AUTO_EXPIRE_MS';
@@ -87,7 +87,7 @@ export function formatInterventionQueueSettingsLine(input: {
   }
   const count = input.pendingInterventions ?? 0;
   if (count <= 0) {
-    return 'Live queue: (clear) · Goal/Mission/Fleet continue';
+    return 'Live queue: (clear) · Goal/Jobs continue';
   }
   const base =
     formatInterventionQueueOpsLine(
@@ -95,7 +95,7 @@ export function formatInterventionQueueSettingsLine(input: {
       input.oldestInterventionAgeMs,
       input.staleInterventions ?? 0,
     ) ?? `Live queue: ${String(count)} pending`;
-  const fleetContinue = ' · Goal/Mission/Fleet continue';
+  const fleetContinue = ' · Goal/Jobs continue';
   const countdown = formatInterventionAutoExpireCountdown(input.oldestInterventionAgeMs);
   if (countdown != null) {
     return `${base}${fleetContinue} · ${countdown}`;

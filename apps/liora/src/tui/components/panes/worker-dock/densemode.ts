@@ -14,7 +14,7 @@ import type { ColorToken } from '#/tui/theme';
 import type { AppearancePreferences } from '#/tui/config';
 import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
 import { renderPulseCountChip } from '#/tui/components/chrome/chrome-band-motion';
-import type { MissionOpsEntry, MissionWorker } from '#/tui/controllers/mission-control/registry';
+import type { DockOpsEntry, DockWorker } from '#/tui/controllers/worker-dock/registry';
 import {
   JOB_STATUS_META,
   shortJobId,
@@ -34,7 +34,7 @@ import {
   formatMissionTokens,
   liveWorkerElapsedMs,
   MISSION_LIVE_HOT_MS,
-} from './mission-format';
+} from './dock-format';
 
 const SPARK_CHARS = '▁▂▃▄▅▆▇█';
 /** Max worker rows painted in densemode (windowed when the roster is longer). */
@@ -62,8 +62,8 @@ export function clampWorkerScrollOffset(
 }
 
 /** Densemode whenever at least one worker is visible (solo included). */
-export function shouldUseDensemode(workers: readonly MissionWorker[]): boolean {
-  return workers.length >= 1;
+export function shouldUseDensemode(workers: readonly DockWorker[]): boolean {
+  return workers.length > 0;
 }
 
 /** Map rate samples onto a fixed-width block sparkline. */
@@ -111,7 +111,7 @@ export interface DenseLiveCell {
 }
 
 export function denseLiveCell(
-  worker: MissionWorker,
+  worker: DockWorker,
   now: number,
   revealedLive: string | undefined,
   actionText: string | undefined,
@@ -154,12 +154,12 @@ export function denseLiveCell(
  * lastTool (helpers / tests; densemode paint is workers-only).
  */
 export function resolveDenseOps(
-  ops: readonly MissionOpsEntry[],
-  workers: readonly MissionWorker[],
-): MissionOpsEntry[] {
+  ops: readonly DockOpsEntry[],
+  workers: readonly DockWorker[],
+): DockOpsEntry[] {
   const collapsed = collapseLowSignalOps(ops);
   if (collapsed.length > 0) return [...collapsed];
-  const synthetic: MissionOpsEntry[] = [];
+  const synthetic: DockOpsEntry[] = [];
   for (const worker of workers) {
     if (worker.lastTool === undefined || worker.lastTool.length === 0) continue;
     synthetic.push({
@@ -293,9 +293,9 @@ export function formatAttentionJobRow(
 }
 
 export interface BuildDenseContentOptions {
-  readonly workers: readonly MissionWorker[];
+  readonly workers: readonly DockWorker[];
   /** @deprecated Densemode is workers-only; ops are ignored. */
-  readonly ops?: readonly MissionOpsEntry[];
+  readonly ops?: readonly DockOpsEntry[];
   readonly width: number;
   readonly budget: number;
   readonly now: number;
@@ -306,7 +306,7 @@ export interface BuildDenseContentOptions {
   readonly revealedLive: ReadonlyMap<string, string>;
   /** Per-worker display tok/s after lerp. */
   readonly displayRate: ReadonlyMap<string, number>;
-  readonly workerGlyph: (worker: MissionWorker) => string;
+  readonly workerGlyph: (worker: DockWorker) => string;
   /** Window start into the sorted worker roster (clamped). */
   readonly scrollOffset?: number;
   /** Conductor job ledger for KPI chips + a thin live BOARD attention strip. */
@@ -314,7 +314,7 @@ export interface BuildDenseContentOptions {
   /** Keyboard / click selection (worker id). */
   readonly selectedWorkerId?: string;
   /** Leading chrome for a worker row (selection / hover pointer). */
-  readonly paintRowChrome?: (worker: MissionWorker) => string;
+  readonly paintRowChrome?: (worker: DockWorker) => string;
 }
 
 export interface DenseContentResult {
@@ -440,7 +440,7 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
 }
 
 function buildKpiLine(
-  workers: readonly MissionWorker[],
+  workers: readonly DockWorker[],
   now: number,
   animated: boolean,
   appearance: AppearancePreferences,
@@ -535,7 +535,7 @@ function isResumePlaceholder(text: string | undefined): boolean {
 
 /** Role plus job title so the dock row is not just explore/plan/coder. */
 export function workerRosterLabel(
-  worker: MissionWorker,
+  worker: DockWorker,
   jobs: ConductorJobsSnapshot | undefined,
 ): string {
   const role = worker.name.trim().length > 0 ? worker.name.trim() : worker.id;
@@ -558,7 +558,7 @@ export function workerRosterLabel(
 }
 
 function buildWorkerRow(args: {
-  readonly worker: MissionWorker;
+  readonly worker: DockWorker;
   readonly jobs: ConductorJobsSnapshot | undefined;
   readonly width: number;
   readonly narrow: boolean;

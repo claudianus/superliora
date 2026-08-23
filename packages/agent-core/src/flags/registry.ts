@@ -85,10 +85,11 @@ export const FLAG_DEFINITIONS = [
   },
   {
     id: 'auto_pilot',
-    title: 'Autopilot issue-to-PR pipeline',
-    description: 'Queue-based autonomous repo loop: ingest issues, run agent in a worktree, verify, open PR, poll CI, auto-merge on label, with a repair loop. Disable with SUPERLIORA_EXPERIMENTAL_AUTO_PILOT=false.',
+    title: 'Retired issue-to-PR autopilot (no-op)',
+    description:
+      'Unused. The AutopilotMode issue-to-PR loop was removed. Job crash re-queue is /jobs autoresume (conductor preference), not this flag. Leave off.',
     env: 'SUPERLIORA_EXPERIMENTAL_AUTO_PILOT',
-    default: true,
+    default: false,
     surface: 'core',
   },
   {

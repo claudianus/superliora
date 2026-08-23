@@ -20,9 +20,9 @@ import { ttui } from '../../../utils/tui-i18n';
 import { completeLeadingArg, type ArgCompletionSpec } from '../../hub/complete-args';
 import type { SlashCommandHost } from '../../hub/dispatch';
 
-/** User-facing Core waist opt-in hint (Mission/Fleet; not Ultra*). */
+/** User-facing Core waist opt-in hint. */
 export const CORE_WAIST_TIP =
-  'Conductor is the default main profile (Jobs + Mission + Fleet). Worker Core≤12: /profile core. Coding waist: agent or superliora-full.';
+  'Conductor is the default main profile (Jobs + Worker Dock). Worker Core≤12: /profile core. Coding waist: agent or superliora-full.';
 
 /** Compact /status Tools row hint (SSOT with CORE_WAIST_TIP). */
 export const CORE_WAIST_STATUS_HINT = 'Conductor · worker core · agent/full';
@@ -49,7 +49,7 @@ const PROFILE_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   },
   {
     value: SOVEREIGN_CONDUCTOR_PROFILE_NAME,
-    description: 'Meta orchestrator default — Jobs + Mission lifecycle + Fleet',
+    description: 'Meta orchestrator default — Jobs + Worker Dock',
   },
   {
     value: SOVEREIGN_CORE_PROFILE_NAME,
@@ -57,7 +57,7 @@ const PROFILE_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   },
   {
     value: DEFAULT_MAIN_AGENT_PROFILE_NAME,
-    description: 'Session coding waist (≤30 tools; Goal/Fleet/DeepResearch)',
+    description: 'Session coding waist (Goal + Agent + WebSearch; not DeepResearch)',
   },
   {
     value: 'superliora-full',
@@ -103,7 +103,7 @@ export async function handleProfileCommand(host: SlashCommandHost, args: string)
       `Default agent profile set to "${sub}" in config.\n` +
         `Start a fresh session with /new (or restart liora) to apply.${envHint}\n` +
         (sub === SOVEREIGN_CORE_PROFILE_NAME
-          ? 'Core waist (≤12 tools) for Mission/Fleet — not Ultra*. /new to apply.'
+          ? 'Core waist (≤12 tools) for workers. /new to apply.'
           : ''),
     );
   } catch (error) {
@@ -134,7 +134,7 @@ async function showProfileStatus(host: SlashCommandHost): Promise<void> {
     const lines = [
       '── Agent tool profile ─────────────────────',
       `Effective: ${formatProfileToolsBadge(profile)}`,
-      configProfile ? `Config (agent.profile): ${configProfile}` : 'Config (agent.profile): (default core)',
+      configProfile ? `Config (agent.profile): ${configProfile}` : 'Config (agent.profile): (default conductor)',
       envProfile ? `Env (${MAIN_AGENT_PROFILE_ENV}): ${envProfile}` : `Env (${MAIN_AGENT_PROFILE_ENV}): (unset)`,
       sovereignFlag
         ? `Env (${SOVEREIGN_CORE_DEFAULT_ENV}): ${sovereignFlag}`
@@ -146,8 +146,8 @@ async function showProfileStatus(host: SlashCommandHost): Promise<void> {
       'Conductor is the default main profile. Worker Core≤12: SUPERLIORA_PROFILE=core. Coding waist: agent (≤30) or superliora-full.',
       'Session coding waist: SUPERLIORA_PROFILE=agent or agent.profile = "agent".',
       '',
-      'Core waist (Sovereign Core ≤12 tools) — Mission/Fleet; not Ultra*:',
-      `  (default) unset profile → ${SOVEREIGN_CORE_PROFILE_NAME} tools=12`,
+      'Core waist (Sovereign Core ≤12 tools) for workers:',
+      `  (default) unset profile → ${SOVEREIGN_CONDUCTOR_PROFILE_NAME}`,
       `  ${MAIN_AGENT_PROFILE_ENV}=${DEFAULT_MAIN_AGENT_PROFILE_NAME} liora  (session waist tools=30)`,
       `  ${SOVEREIGN_CORE_DEFAULT_ENV}=1 / ${SOVEREIGN_UMBRELLA_ENV}=1  (other sovereign soft gates)`,
       '  config.toml → [agent] profile = "core"',
@@ -158,13 +158,15 @@ async function showProfileStatus(host: SlashCommandHost): Promise<void> {
         const count = expectedToolCountForProfile(name);
         const countTag = count !== undefined ? ` tools=${String(count)}` : '';
         const tag =
-          name === SOVEREIGN_CORE_PROFILE_NAME
-            ? ` — default Sovereign Core waist (${String(count ?? 12)} tools)`
-            : name === DEFAULT_MAIN_AGENT_PROFILE_NAME
-              ? ' — session coding waist (≤30)'
-              : name === 'superliora-full'
-                ? ' — full edges (Context7/media/MCP)'
-                : '';
+          name === SOVEREIGN_CONDUCTOR_PROFILE_NAME
+            ? ' — default main (Jobs + Worker Dock)'
+            : name === SOVEREIGN_CORE_PROFILE_NAME
+              ? ` — worker Core waist (${String(count ?? 12)} tools)`
+              : name === DEFAULT_MAIN_AGENT_PROFILE_NAME
+                ? ' — session coding waist'
+                : name === 'superliora-full'
+                  ? ' — full edges (Context7/media/MCP)'
+                  : '';
         return `  ${name}${countTag}${tag}`;
       }),
     ];

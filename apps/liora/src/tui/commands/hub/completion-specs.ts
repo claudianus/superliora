@@ -112,6 +112,8 @@ const JOB_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('list', 'tui.slash.arg.job.list'),
   arg('board', 'tui.slash.arg.job.board'),
   arg('deck', 'tui.slash.arg.job.deck'),
+  arg('dock', 'tui.slash.arg.job.dock'),
+  arg('bg', 'tui.slash.arg.job.bg'),
   arg('monitor', 'tui.slash.arg.job.monitor'),
   arg('inbox', 'tui.slash.arg.job.inbox'),
   arg('answer', 'tui.slash.arg.job.answer'),
@@ -381,6 +383,8 @@ export function jobArgumentCompletions(
 const JOBS_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('board', 'tui.slash.arg.jobs.board'),
   arg('deck', 'tui.slash.arg.jobs.deck'),
+  arg('dock', 'tui.slash.arg.job.dock'),
+  arg('bg', 'tui.slash.arg.job.bg'),
   arg('monitor', 'tui.slash.arg.jobs.monitor'),
   arg('watch', 'tui.slash.arg.jobs.watch'),
 ];

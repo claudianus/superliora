@@ -118,13 +118,13 @@ export function rerankSkillHitsForHarnessRouting(
     (domain) => domain.query.test(trimmed) && !(domain.carveOut?.test(trimmed) ?? false),
   );
   if (activeDomains.length === 0) {
-    return demoteNameCollisions(working);
+    return demoteNameCollisions(working, trimmed);
   }
 
   for (const domain of activeDomains) {
     working = applyDomain(trimmed, working, domain, builtins.get(domain.preferBuiltin));
   }
-  return demoteNameCollisions(working);
+  return demoteNameCollisions(working, trimmed);
 }
 
 /** Back-compat wrapper used by older tests / call sites. */
@@ -200,12 +200,10 @@ function applyDomain(
 
   // Keep query in signature for future domain-specific boosts; silence unused.
   void query;
-  // Drop demoted rows from the visible window so catalog install playbooks
-  // do not linger as rank-2 distractions when every hit was demoted.
+  // Drop demoted catalog install playbooks from SearchSkill entirely.
   void demoted;
   const visible = [...preferred, ...kept];
-  if (visible.length > 0) return visible.slice(0, topK);
-  return demoted.slice(0, topK);
+  return visible.slice(0, topK);
 }
 
 function isExternalForDomain(
@@ -219,24 +217,36 @@ function isExternalForDomain(
   return domain.demote.test(blob);
 }
 
-function demoteNameCollisions(hits: readonly SkillSearchHit[]): SkillSearchHit[] {
+/** Catalog playbooks that collide with harness tools — never surface in SearchSkill. */
+export function isHarnessCollisionCatalogSkill(
+  skill: {
+    readonly name: string;
+    readonly description: string;
+    readonly path?: string;
+    readonly source: string;
+  },
+  query?: string,
+): boolean {
+  if (skill.source === 'builtin' || skill.source === 'project' || skill.source === 'user') {
+    return false;
+  }
+  if (harnessCollisionHint(skill.name) !== undefined) return true;
+  const blob = `${skill.name}\n${skill.description}\n${skill.path ?? ''}`;
+  const q = query?.trim() ?? '';
+  return HARNESS_ROUTING_DOMAINS.some((domain) => {
+    if (q.length > 0 && domain.carveOut?.test(q) === true) return false;
+    return domain.demote.test(blob);
+  });
+}
+
+function demoteNameCollisions(hits: readonly SkillSearchHit[], query: string): SkillSearchHit[] {
   if (hits.length === 0) return [];
   const preferred: SkillSearchHit[] = [];
-  const demoted: SkillSearchHit[] = [];
   for (const hit of hits) {
-    const hint = harnessCollisionHint(hit.name);
-    if (hint !== undefined && hit.source !== 'builtin' && hit.source !== 'project' && hit.source !== 'user') {
-      demoted.push({
-        ...hit,
-        score: hit.score * 0.05,
-        matchReason: appendReason(hit.matchReason, `demoted: name collides with ${hint}`),
-      });
-    } else {
-      preferred.push(hit);
-    }
+    if (isHarnessCollisionCatalogSkill(hit, query)) continue;
+    preferred.push(hit);
   }
-  if (preferred.length > 0) return preferred.slice(0, hits.length);
-  return demoted.slice(0, hits.length);
+  return preferred;
 }
 
 function builtinHit(skill: SkillDefinition, domain: HarnessRoutingDomain): SkillSearchHit {

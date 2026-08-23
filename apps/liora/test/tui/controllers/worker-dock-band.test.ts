@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  missionBandActive,
-  shouldMissionDockConsumeArrow,
-  shouldMissionDockConsumeEnter,
-} from '#/tui/features/mission-control/dock';
+  workerDockBandActive,
+  shouldWorkerDockConsumeArrow,
+  shouldWorkerDockConsumeEnter,
+} from '#/tui/features/worker-dock/dock';
 import { buildTUIStateNativeFrameRegions } from '#/tui/features/native-layout/native-layout-frame';
 import { createTUIState, type TUIState } from '#/tui/tui-state';
-import type { MissionControlView } from '#/tui/components/panes/mission-control/panel';
+import type { WorkerDockView } from '#/tui/components/panes/worker-dock/panel';
 import { emptyConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
 import type { AppState } from '#/tui/types';
 
@@ -53,7 +53,7 @@ function createState(columns: number, rows: number): TUIState {
   return state;
 }
 
-function busyView(): MissionControlView {
+function busyView(): WorkerDockView {
   return {
     snapshot: {
       version: 1,
@@ -79,10 +79,10 @@ function busyView(): MissionControlView {
   };
 }
 
-describe('shouldMissionDockConsumeEnter', () => {
+describe('shouldWorkerDockConsumeEnter', () => {
   it('lets editor submit when the prompt has draft text', () => {
     expect(
-      shouldMissionDockConsumeEnter({
+      shouldWorkerDockConsumeEnter({
         editorText: '/exit',
         selectedWorkerId: 'agent-6',
       }),
@@ -91,7 +91,7 @@ describe('shouldMissionDockConsumeEnter', () => {
 
   it('lets editor submit when the dock has no selection', () => {
     expect(
-      shouldMissionDockConsumeEnter({
+      shouldWorkerDockConsumeEnter({
         editorText: '',
         selectedWorkerId: undefined,
       }),
@@ -100,7 +100,7 @@ describe('shouldMissionDockConsumeEnter', () => {
 
   it('opens a selected worker only on an empty prompt', () => {
     expect(
-      shouldMissionDockConsumeEnter({
+      shouldWorkerDockConsumeEnter({
         editorText: '   ',
         selectedWorkerId: 'agent-6',
       }),
@@ -108,53 +108,53 @@ describe('shouldMissionDockConsumeEnter', () => {
   });
 });
 
-describe('shouldMissionDockConsumeArrow', () => {
+describe('shouldWorkerDockConsumeArrow', () => {
   it('leaves ↑/↓ with the editor until a dock row is selected', () => {
-    expect(shouldMissionDockConsumeArrow({ selectedWorkerId: undefined })).toBe(false);
+    expect(shouldWorkerDockConsumeArrow({ selectedWorkerId: undefined })).toBe(false);
   });
 
   it('lets an explicitly focused dock consume ↑/↓', () => {
-    expect(shouldMissionDockConsumeArrow({ selectedWorkerId: 'w-1' })).toBe(true);
+    expect(shouldWorkerDockConsumeArrow({ selectedWorkerId: 'w-1' })).toBe(true);
   });
 });
 
 describe('mission control bottom band', () => {
   it('activates with content in auto mode on any width', () => {
     const state = createState(200, 80);
-    expect(missionBandActive(state)).toBe(false);
-    state.missionControlPanel.setView(busyView());
-    expect(missionBandActive(state)).toBe(true);
+    expect(workerDockBandActive(state)).toBe(false);
+    state.workerDockPanel.setView(busyView());
+    expect(workerDockBandActive(state)).toBe(true);
     const narrow = createState(80, 24);
-    narrow.missionControlPanel.setView(busyView());
-    expect(missionBandActive(narrow)).toBe(true);
+    narrow.workerDockPanel.setView(busyView());
+    expect(workerDockBandActive(narrow)).toBe(true);
   });
 
   it('pinned mode shows the band even when idle; hidden disables everything', () => {
     const state = createState(200, 80);
     state.appState.appearance = {
       ...state.appState.appearance,
-      missionControl: 'pinned',
+      workerDock: 'pinned',
     } as AppState['appearance'];
-    state.missionControlPanel.setPinned(true);
-    expect(missionBandActive(state)).toBe(true);
+    state.workerDockPanel.setPinned(true);
+    expect(workerDockBandActive(state)).toBe(true);
 
     state.appState.appearance = {
       ...state.appState.appearance,
-      missionControl: 'hidden',
+      workerDock: 'hidden',
     } as AppState['appearance'];
-    state.missionControlPanel.setView(busyView());
-    expect(missionBandActive(state)).toBe(false);
+    state.workerDockPanel.setView(busyView());
+    expect(workerDockBandActive(state)).toBe(false);
   });
 
   it('paints Worker Dock in the stage stack, never as a side dock', () => {
     const width = 200;
     const height = 80;
     const state = createState(width, height);
-    state.missionControlPanel.setView(busyView());
+    state.workerDockPanel.setView(busyView());
 
     const regions = buildTUIStateNativeFrameRegions(state, width, height);
     expect(regions.some((region) => region.id === 'mission-dock')).toBe(false);
-    const mission = regions.find((region) => region.id === 'mission');
+    const mission = regions.find((region) => region.id === 'workers');
     expect(mission).toBeDefined();
     expect(mission!.rect.width).toBeGreaterThan(40);
     // Band sits above the editor inside the stage column.
@@ -166,16 +166,16 @@ describe('mission control bottom band', () => {
 
   it('keeps the band off while hidden or empty', () => {
     const state = createState(200, 80);
-    expect(state.missionControlContainer.render(100)).toEqual([]);
+    expect(state.workerDockContainer.render(100)).toEqual([]);
     const regions = buildTUIStateNativeFrameRegions(state, 200, 80);
-    expect(regions.some((region) => region.id === 'mission')).toBe(false);
+    expect(regions.some((region) => region.id === 'workers')).toBe(false);
     expect(regions.some((region) => region.id === 'mission-dock')).toBe(false);
   });
 
   it('renders the shared panel at stage width when active', () => {
     const state = createState(120, 40);
-    state.missionControlPanel.setView(busyView());
-    const band = state.missionControlContainer.render(100);
+    state.workerDockPanel.setView(busyView());
+    const band = state.workerDockContainer.render(100);
     expect(band.length).toBeGreaterThan(0);
     expect(band.join('\n')).toContain('Worker Dock');
   });

@@ -52,6 +52,7 @@ describe('TUI config', () => {
     expect(text).toContain('terminal_palette = false');
     expect(text).toContain('show_timestamps = true');
     expect(text).toContain('syntax_theme = "auto"');
+    expect(text).toContain('worker_dock = "auto"');
     expect(text).toContain('[notifications]');
     expect(text).toContain('enabled = true');
     expect(text).toContain('notification_condition = "unfocused"');
@@ -104,12 +105,29 @@ terminal_palette = true
         transcriptDetail: 'standard',
         neat: true,
         syntaxTheme: 'auto',
-        missionControl: 'auto',
+        workerDock: 'auto',
       },
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
       conductor: DEFAULT_CONDUCTOR_PREFERENCES,
     });
+  });
+
+  it('reads legacy appearance.mission_control as workerDock', () => {
+    const config = parseTuiConfig(`
+[appearance]
+mission_control = "pinned"
+`);
+    expect(config.appearance.workerDock).toBe('pinned');
+  });
+
+  it('prefers worker_dock over legacy mission_control', () => {
+    const config = parseTuiConfig(`
+[appearance]
+mission_control = "hidden"
+worker_dock = "pinned"
+`);
+    expect(config.appearance.workerDock).toBe('pinned');
   });
 
   it('defaults transcriptDetail to standard when appearance omits it', () => {

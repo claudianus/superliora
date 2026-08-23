@@ -29,7 +29,7 @@ import { BtwPanelController } from '../panes/btw-panel';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
 import { JobBoardStore } from '../../features/control-tower/job-board-store';
 import { ControlTowerJobDesk } from '../../features/control-tower/job-desk-events';
-import { MissionControlController } from '../mission-control/controller';
+import { WorkerDockController } from '../worker-dock/controller';
 import { DialogsController } from '../dialogs/index';
 import { EditorKeyboardController } from '../shell/editor-keyboard';
 import { MessageDispatchController } from '../transcript/message-dispatch';
@@ -119,10 +119,10 @@ export function wireLioraTUIControllers(
   tui.streamingUI = new StreamingUIController(tui);
   tui.authFlow = new AuthFlowController(tui);
   // Before AppearanceController: its constructor evaluates forceAmbientSchedule,
-  // which reads tui.missionControl.hasLiveWorkers().
-  tui.missionControl = new MissionControlController(tui);
+  // which reads tui.workerDock.hasLiveWorkers().
+  tui.workerDock = new WorkerDockController(tui);
   // Reflect the persisted `mission_control` mode on the panel placeholder.
-  tui.missionControl.syncPreferences();
+  tui.workerDock.syncPreferences();
   tui.appearanceController = new AppearanceController({
     terminal: tui.state.terminal,
     // Stored prefs stay intact; performance overlay may force Off-pack motion.
@@ -157,7 +157,7 @@ export function wireLioraTUIControllers(
       ) === true ||
       // Mission Control roster: live elapsed clocks + the completed-worker
       // linger expiry need 1s chrome ticks even while the main turn idles.
-      tui.missionControl.hasLiveWorkers() ||
+      tui.workerDock.hasLiveWorkers() ||
       hasLiveWatchers(tui.sessionEventHandler?.backgroundTasks),
     getTransportStability: () => tui.state.renderer.nativeRuntime?.transportStability,
     isAmbientIdle: () =>
@@ -172,7 +172,7 @@ export function wireLioraTUIControllers(
         // shared clock advancing.
         backgroundWork:
           hasRunningConductorWorkers(tui.state.appState.conductorJobs) ||
-          tui.missionControl.hasLiveWorkers() ||
+          tui.workerDock.hasLiveWorkers() ||
           hasLiveWatchers(tui.sessionEventHandler?.backgroundTasks),
       }),
   });

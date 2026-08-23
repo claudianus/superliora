@@ -62,7 +62,7 @@ import { AutoDreamService } from './dream/auto-dream';
 import { AgentRefineService } from './refine/service';
 import { AutoSkillifyService } from './skillify/auto-skillify-service';
 import { PromptIntelligenceService } from './intelligence/prompt-intelligence';
-import { AutopilotMode } from '../autopilot';
+
 import { LioraMemoryStore } from '../memory/store';
 import { ObjectiveProfileCache, PremiumQualityMode } from '../premium-quality';
 import { HookEngine } from '../session/hooks';
@@ -266,7 +266,6 @@ export class Agent {
   /** LLM distill of recoveries → SKILL.md; main agents only. */
   readonly skillify: AutoSkillifyService | null;
   readonly intelligence: PromptIntelligenceService;
-  readonly autopilot: AutopilotMode;
   readonly premiumQuality: PremiumQualityMode;
   /** Goal/Job objective → premium density profile (declared, cached, or LLM). */
   readonly objectiveProfile: ObjectiveProfileCache;
@@ -394,7 +393,6 @@ export class Agent {
     this.refine = this.type === 'main' ? new AgentRefineService(this) : null;
     this.skillify = this.type === 'main' ? new AutoSkillifyService(this) : null;
     this.intelligence = new PromptIntelligenceService(this);
-    this.autopilot = new AutopilotMode(this);
     this.premiumQuality = new PremiumQualityMode(this);
     this.objectiveProfile = new ObjectiveProfileCache();
     this.replayBuilder = new ReplayBuilder(this, options.replay);

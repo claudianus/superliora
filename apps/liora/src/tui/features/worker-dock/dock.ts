@@ -4,27 +4,27 @@
  * there is no separate right-side dock.
  */
 
-export type MissionControlMode = 'auto' | 'pinned' | 'hidden';
+export type WorkerDockMode = 'auto' | 'pinned' | 'hidden';
 
-export interface MissionBandStateLike {
+export interface WorkerDockBandStateLike {
   readonly appState: {
-    readonly appearance?: { readonly missionControl?: MissionControlMode };
+    readonly appearance?: { readonly workerDock?: WorkerDockMode };
   };
-  readonly missionControlPanel: { isEmpty(): boolean };
+  readonly workerDockPanel: { isEmpty(): boolean };
 }
 
-export function missionControlModeOf(state: MissionBandStateLike): MissionControlMode {
-  return state.appState.appearance?.missionControl ?? 'auto';
+export function workerDockModeOf(state: WorkerDockBandStateLike): WorkerDockMode {
+  return state.appState.appearance?.workerDock ?? 'auto';
 }
 
 /**
  * Whether the in-stage Mission Control band should paint. Hidden mode is
  * always off; otherwise `pinned` or a non-empty roster mounts the band.
  */
-export function missionBandActive(state: MissionBandStateLike): boolean {
-  const mode = missionControlModeOf(state);
+export function workerDockBandActive(state: WorkerDockBandStateLike): boolean {
+  const mode = workerDockModeOf(state);
   if (mode === 'hidden') return false;
-  return mode === 'pinned' || !state.missionControlPanel.isEmpty();
+  return mode === 'pinned' || !state.workerDockPanel.isEmpty();
 }
 
 /**
@@ -32,7 +32,7 @@ export function missionBandActive(state: MissionBandStateLike): boolean {
  * submitting the editor. Draft text always wins (`/exit`, prompts); Enter
  * only opens when the dock already has an explicit selection.
  */
-export function shouldMissionDockConsumeEnter(input: {
+export function shouldWorkerDockConsumeEnter(input: {
   readonly editorText: string;
   readonly selectedWorkerId: string | undefined;
 }): boolean {
@@ -48,7 +48,7 @@ export function shouldMissionDockConsumeEnter(input: {
  * explicit row selection — same gate as Enter. A visible-but-unfocused dock
  * must not steal prompt-history recall.
  */
-export function shouldMissionDockConsumeArrow(input: {
+export function shouldWorkerDockConsumeArrow(input: {
   readonly selectedWorkerId: string | undefined;
 }): boolean {
   return input.selectedWorkerId !== undefined;

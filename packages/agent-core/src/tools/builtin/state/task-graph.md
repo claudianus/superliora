@@ -1,8 +1,8 @@
 일반 작업·칸반은 `CreateGoal`·`TodoList` 우선. 구조화된 작업 그래프가 필요할 때 `TaskGraph`.
 
-Maintain the Mission WorkGraph — AC/work ledger backing TodoList during Mission runs.
+Maintain the plan WorkGraph — AC/work ledger that can mirror TodoList after Plan Desk artifacts exist.
 
-**Use:** after Plan artifacts exist; when AC/lanes become executable or node status changes; before Fleet with `work_node_ids`.
+**Use:** after Plan artifacts exist; when AC/lanes become executable or node status changes.
 
 **API:** no args = read; `run_id` + `nodes` = replace. `sync_todos` (default true) mirrors TodoList as `[nodeId] title`.
 

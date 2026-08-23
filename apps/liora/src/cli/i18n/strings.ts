@@ -43,7 +43,7 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
     'How hard to enforce the path sandbox: lexical (default) or process (Docker when present; Windows Job Object is not an FS jail).',
   'cli.option.noProcessSandbox':
     'Skip process-sandbox wrap (Docker / Job Object). Lexical path guards still apply.',
-  'cli.option.plan': 'Start with Mission plan steering.',
+  'cli.option.plan': 'Start with Plan Desk steering.',
   'cli.option.debug':
     'Write extra diagnostic logs under ~/.superliora/logs so a later bug report has evidence. Off by default.',
   'cli.option.resumeGoal': 'Automatically resume the first goal in the queue on startup.',
@@ -108,7 +108,7 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
     '경로 샌드박스 강도: lexical (기본) 또는 process (Docker가 있으면 FS 감옥; Windows Job Object는 FS 감옥이 아님).',
   'cli.option.noProcessSandbox':
     '프로세스 샌드박스 래퍼(Docker / Job Object)를 건너뜁니다. 렉시컬 경로 가드는 그대로입니다.',
-  'cli.option.plan': 'Mission 플랜 조향으로 시작합니다.',
+  'cli.option.plan': 'Plan Desk 조향으로 시작합니다.',
   'cli.option.debug':
     '~/.superliora/logs에 진단 로그를 남깁니다. 평소에 켜 두면 나중에 버그를 재현·분석할 증거가 남습니다. 기본 꺼짐.',
   'cli.option.resumeGoal': '시작 시 큐의 첫 번째 goal을 자동으로 재개합니다.',

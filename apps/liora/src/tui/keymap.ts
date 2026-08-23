@@ -69,7 +69,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     descriptionKey: 'tui.help.shortcut.ctrlC',
     surface: 'always',
     category: 'agent',
-    relatedSlash: ['/plan', '/agents'],
+    relatedSlash: ['/plan', '/jobs dock'],
   },
   {
     id: 'newline',
@@ -173,7 +173,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
     descriptionKey: 'tui.help.shortcut.ctrlS',
     surface: 'streaming',
     category: 'agent',
-    relatedSlash: ['/plan', '/agents'],
+    relatedSlash: ['/plan', '/jobs dock'],
   },
   {
     id: 'background',
@@ -181,7 +181,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
     descriptionKey: 'tui.help.shortcut.ctrlB',
     surface: 'streaming',
     category: 'agent',
-    relatedSlash: ['/jobs', '/agents'],
+    relatedSlash: ['/jobs', '/jobs dock'],
   },
 ];
 

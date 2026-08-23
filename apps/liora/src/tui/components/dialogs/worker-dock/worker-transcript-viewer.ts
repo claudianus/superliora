@@ -24,7 +24,7 @@ import {
 } from '#/tui/features/appearance/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
 import { formatJobDuration } from '#/tui/utils/job/job-strip';
-import type { MissionWorker } from '#/tui/controllers/mission-control/registry';
+import type { DockWorker } from '#/tui/controllers/worker-dock/registry';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 const TRANSCRIPT_ROWS = 16;
@@ -38,7 +38,7 @@ export interface WorkerTranscriptLoad {
 
 export interface WorkerTranscriptViewerOptions {
   readonly workerId: string;
-  readonly getWorker: () => MissionWorker | undefined;
+  readonly getWorker: () => DockWorker | undefined;
   readonly loadTranscript: (workerId: string) => Promise<WorkerTranscriptLoad>;
   readonly onCancel: () => void;
   readonly requestRender?: () => void;
@@ -61,7 +61,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
   focused = false;
 
   private readonly workerId: string;
-  private readonly getWorker: () => MissionWorker | undefined;
+  private readonly getWorker: () => DockWorker | undefined;
   private readonly loadTranscript: (workerId: string) => Promise<WorkerTranscriptLoad>;
   private readonly onCancel: () => void;
   private readonly requestRenderHook?: () => void;
@@ -184,7 +184,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
       ` ${title}`,
       theme.fg(
         'textMuted',
-        ` ${ttui('tui.missionControl.transcriptHint')}`,
+        ` ${ttui('tui.workerDock.transcriptHint')}`,
       ),
       this.renderMetaStrip(worker, width),
       ...(status === 'running' || status === 'finishing'
@@ -203,7 +203,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
         '',
         theme.fg(
           'textMuted',
-          `  ${renderShimmerPrefix()}${ttui('tui.missionControl.transcriptLoading')}`,
+          `  ${renderShimmerPrefix()}${ttui('tui.workerDock.transcriptLoading')}`,
         ),
       );
     } else if (this.state.error !== undefined) {
@@ -211,7 +211,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     } else if (this.state.lines.length === 0) {
       lines.push(
         '',
-        theme.fg('textMuted', `  ${ttui('tui.missionControl.transcriptEmpty')}`),
+        theme.fg('textMuted', `  ${ttui('tui.workerDock.transcriptEmpty')}`),
       );
       if (worker?.liveText !== undefined && worker.liveText.length > 0) {
         lines.push(
@@ -248,10 +248,10 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     return lines;
   }
 
-  private renderMetaStrip(worker: MissionWorker | undefined, width: number): string {
+  private renderMetaStrip(worker: DockWorker | undefined, width: number): string {
     const theme = currentTheme;
     if (worker === undefined) {
-      return theme.fg('textDim', ` ${ttui('tui.missionControl.transcriptWorkerGone')}`);
+      return theme.fg('textDim', ` ${ttui('tui.workerDock.transcriptWorkerGone')}`);
     }
     const parts: string[] = [theme.fg('textMuted', worker.kind)];
     if (worker.modelAlias !== undefined) {
@@ -302,7 +302,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     } catch {
       if (this.state.fetchGeneration === requestId) {
         this.state.loading = false;
-        this.state.error = ttui('tui.missionControl.transcriptLoadFailed');
+        this.state.error = ttui('tui.workerDock.transcriptLoadFailed');
       }
     } finally {
       if (this.state.fetchGeneration === requestId) {
@@ -319,7 +319,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
 }
 
 /** Dock telemetry fingerprint for event-driven transcript refresh. */
-function workerSignal(worker: MissionWorker | undefined): string {
+function workerSignal(worker: DockWorker | undefined): string {
   if (worker === undefined) return '';
   return [
     worker.status,

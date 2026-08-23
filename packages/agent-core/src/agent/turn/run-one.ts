@@ -21,6 +21,7 @@ import { closeAbandonedToolExchangeAtTurnEnd, createTurnLoopDispatch } from './l
 import { runTurnStepLoop } from './step-loop';
 import type { ActiveTurn, TurnEndResult } from './types';
 import { recordTurnMemory } from './goal-loop';
+import { scheduleTurnEndLearning } from './turn-end-learning';
 
 export interface TurnRunOneDeps {
   readonly agent: Agent;
@@ -164,9 +165,7 @@ export async function runOneTurnFlow(
     agent.emitEvent(errorEvent);
   }
   await recordTurnMemory(agent, turnId, input, ended.reason);
-  agent.dream?.maybeSchedule();
-  agent.refine?.maybeAutoRefine('turn');
-  agent.skillify?.maybeSchedule();
+  scheduleTurnEndLearning(agent);
   if (ended.reason !== 'completed') {
     turnTelemetry.trackTurnInterrupted(turnId, turnTelemetry.currentStepForTurn(turnId));
   }

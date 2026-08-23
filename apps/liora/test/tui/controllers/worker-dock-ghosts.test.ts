@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { MissionControlRegistry } from '../../../src/tui/controllers/mission-control/registry';
+import { WorkerDockRegistry } from '../../../src/tui/controllers/worker-dock/registry';
 
-describe('MissionControlRegistry job ghosts', () => {
+describe('WorkerDockRegistry job ghosts', () => {
   it('seeds suspended ghosts for interrupted jobs and drops them when live', () => {
-    const registry = new MissionControlRegistry(() => 1_000);
+    const registry = new WorkerDockRegistry(() => 1_000);
     expect(
       registry.hydrateJobGhosts([
         {
@@ -48,7 +48,7 @@ describe('MissionControlRegistry job ghosts', () => {
   });
 
   it('does not version-bump when ghost fields are unchanged', () => {
-    const registry = new MissionControlRegistry(() => 2_000);
+    const registry = new WorkerDockRegistry(() => 2_000);
     expect(
       registry.hydrateJobGhosts([
         { id: 'job_q', title: 'queued work', status: 'queued' },

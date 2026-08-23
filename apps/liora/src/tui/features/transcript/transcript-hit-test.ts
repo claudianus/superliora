@@ -8,7 +8,7 @@ import {
 import { CHROME_GUTTER } from '../../constant/rendering';
 import type { TUIState } from '../../tui-state';
 import { planTUINativeStage } from '#/tui/features/native-layout/native-stage-plan';
-import { missionBandActive } from '#/tui/features/mission-control/dock';
+import { workerDockBandActive } from '#/tui/features/worker-dock/dock';
 import {
   plainTextFromRegionLine,
   type TranscriptSelectionPoint,
@@ -43,14 +43,14 @@ export function invalidateTranscriptHitTestCache(state: TUIState): void {
   state.cachedTranscriptLineCount = undefined;
   state.cachedHitTestChromeSig = undefined;
   state.cachedTodoRect = undefined;
-  state.cachedMissionRect = undefined;
+  state.cachedWorkerDockRect = undefined;
   state.cachedActivityRect = undefined;
 }
 
 /** Cheap chrome signature — mission/todo mount + content counts drive region height. */
 export function hitTestChromeSignature(state: TUIState): string {
-  const view = state.missionControlPanel.currentView;
-  const missionMounted = missionBandActive(state) ? 1 : 0;
+  const view = state.workerDockPanel.currentView;
+  const missionMounted = workerDockBandActive(state) ? 1 : 0;
   const missionRows =
     view.snapshot.workers.length + view.snapshot.ops.length + (view.jobs?.jobs.length ?? 0);
   const todoEmpty = state.todoPanel.isEmpty() ? 1 : 0;
@@ -104,7 +104,7 @@ export function resolveTranscriptLayoutContext(
     state.cachedTranscriptLineCount = editorLineCount;
     state.cachedHitTestChromeSig = chromeSig;
     state.cachedTodoRect = plan.layout.regions.find((region) => region.id === 'todo')?.rect;
-    state.cachedMissionRect = plan.layout.regions.find((region) => region.id === 'mission')?.rect;
+    state.cachedWorkerDockRect = plan.layout.regions.find((region) => region.id === 'workers')?.rect;
     state.cachedActivityRect = plan.layout.regions.find((region) => region.id === 'activity')?.rect;
   }
   if (rect === undefined) return undefined;
@@ -161,16 +161,16 @@ export function getTUIStateNativeTodoRect(
 }
 
 /**
- * Rect of the Mission Control band, reused from the transcript hit-test cache.
+ * Rect of the Worker Dock band, reused from the transcript hit-test cache.
  * Wheel events inside it window the worker roster instead of the transcript.
  */
-export function getTUIStateNativeMissionRect(
+export function getTUIStateNativeWorkerDockRect(
   state: TUIState,
   width = state.terminal.columns,
   height = state.terminal.rows,
 ): RendererRect | undefined {
   resolveTranscriptHitTestContext(state, width, height);
-  return state.cachedMissionRect;
+  return state.cachedWorkerDockRect;
 }
 
 /** Rect of the turn-status / activity cue row (same stage plan as transcript). */
