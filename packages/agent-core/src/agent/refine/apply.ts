@@ -16,8 +16,8 @@ import type { MemoryRecord } from '../../memory/types';
 import { parseSkillMetadataFromFile } from '../../skill/parser';
 import {
   autoSkillsRoot,
+  commitProjectSkill,
   readIfExists,
-  renderSkillMd,
 } from '../../tools/builtin/fleet/skill-create';
 import type { HarnessEdit } from './plan';
 import {
@@ -200,16 +200,20 @@ async function applySkillEdit(
     return { ...base, targetId: name, before, after: undefined };
   }
 
-  const content = renderSkillMd({
+  const description = requireField(edit.description, 'description', edit);
+  const body = requireField(edit.body, 'body', edit);
+  const committed = await commitProjectSkill(agent, {
     name,
-    description: requireField(edit.description, 'description', edit),
-    ...(edit.whenToUse !== undefined ? { whenToUse: edit.whenToUse } : {}),
-    body: requireField(edit.body, 'body', edit),
+    description,
+    whenToUse: edit.whenToUse?.trim() || description,
+    body,
+    origin: 'refine',
   });
-  await fs.mkdir(skillDir, { recursive: true });
-  await fs.writeFile(skillMdPath, content, 'utf-8');
-  await registerSkill(agent, skillMdPath, name);
-  return { ...base, targetId: name, before, after: content };
+  if (!committed.ok) {
+    throw new HarnessApplyError(committed.error);
+  }
+  const after = await readIfExists(skillMdPath);
+  return { ...base, targetId: name, before, after };
 }
 
 async function registerSkill(agent: Agent, skillMdPath: string, name: string): Promise<void> {

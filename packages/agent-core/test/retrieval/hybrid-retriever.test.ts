@@ -55,6 +55,38 @@ describe('HybridRetriever', () => {
     expect(fused.find((h) => h.id === 'c')?.matchReason).toBe('dense');
   });
 
+  it('embeds sparse hits missing from the precomputed catalog index', async () => {
+    const queryLike = Float32Array.from([1, 0, 0, 0]);
+    const other = Float32Array.from([0, 1, 0, 0]);
+    let embedCalls = 0;
+    const stub = {
+      modelId: 'stub',
+      dimensions: 4,
+      degraded: true as const,
+      async embed(texts: readonly string[]): Promise<readonly Float32Array[]> {
+        embedCalls += 1;
+        if (embedCalls === 1) return [queryLike];
+        return texts.map(() => queryLike);
+      },
+    };
+    const result = await new HybridRetriever(stub).search({
+      query: 'keyboard focus',
+      sparseHits: [
+        { id: 'catalog', score: 2 },
+        { id: 'fresh-local', score: 1.2 },
+      ],
+      passages: new Map([
+        ['catalog', 'sales'],
+        ['fresh-local', 'session skill keyboard focus'],
+      ]),
+      vectors: new Map([['catalog', other]]),
+      topK: 2,
+    });
+
+    expect(embedCalls).toBe(2);
+    expect(result.hits.map((h) => h.id)).toContain('fresh-local');
+  });
+
   it('l2Normalize yields unit vectors', () => {
     const v = l2Normalize(Float32Array.from([3, 4]));
     expect(Math.hypot(v[0]!, v[1]!)).toBeCloseTo(1, 5);

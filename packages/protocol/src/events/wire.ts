@@ -35,9 +35,11 @@ import {
   cronFiredEventSchema,
   pluginCommandActivatedEventSchema,
   skillActivatedEventSchema,
+  skillCreatedEventSchema,
   type CronFiredEvent,
   type PluginCommandActivatedEvent,
   type SkillActivatedEvent,
+  type SkillCreatedEvent,
 } from './origin';
 import {
   configChangedEventSchema,
@@ -138,6 +140,7 @@ export type AgentEvent =
   | JobUpdatedEvent
   | JobInboxEvent
   | SkillActivatedEvent
+  | SkillCreatedEvent
   | PluginCommandActivatedEvent
   | TurnStartedEvent
   | TurnEndedEvent
@@ -195,6 +198,7 @@ const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   jobUpdatedEventSchema,
   jobInboxEventSchema,
   skillActivatedEventSchema,
+  skillCreatedEventSchema,
   pluginCommandActivatedEventSchema,
   turnStartedEventSchema,
   turnEndedEventSchema,

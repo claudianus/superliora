@@ -4,6 +4,7 @@ import { ContextOSInjector } from './context-os';
 import { CurrentTimeInjector } from './current-time';
 import { GoalInjector } from './goal';
 import { HarnessInjector } from '../refine/injector';
+import { SessionSkillsInjector } from './session-skills';
 import type { DynamicInjector } from './injector';
 import { ToolWorkflowInjector } from './tool-workflow-injector';
 import { MemoryInjector } from './memory';
@@ -113,6 +114,7 @@ export class InjectionManager {
       new ResponseLanguageInjector(agent),
       new ContextOSInjector(agent),
       new HarnessInjector(agent),
+      new SessionSkillsInjector(agent),
     ];
     this.goalInjector = agent.type === 'main' ? new GoalInjector(agent) : null;
   }

@@ -1,5 +1,5 @@
 /**
- * Turn-end / Job-completion scheduler for auto-skillify (deterministic
+ * Turn-end / Job-completion scheduler for auto-skillify (LLM distill
  * experience → SKILL.md). Mirrors AutoDreamService / AgentRefineService:
  * flag-gated, main-only, fire-and-forget, cooldown so we don't thrash the
  * skills dir. Worker trajectories feed via ingestWorkerEvents.

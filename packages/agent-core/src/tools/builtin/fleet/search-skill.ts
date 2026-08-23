@@ -90,10 +90,21 @@ function renderSearchHit(skill: SkillSearchHit, rank: number): string {
     skill.type !== undefined ? `type="${escapeXmlAttr(skill.type)}"` : undefined,
     skill.risk !== undefined ? `risk="${escapeXmlAttr(skill.risk)}"` : undefined,
     skill.category !== undefined ? `category="${escapeXmlAttr(skill.category)}"` : undefined,
+    skill.fresh === true ? 'fresh="true"' : undefined,
   ].filter((attr): attr is string => attr !== undefined);
+  const whenToUse =
+    skill.whenToUse !== undefined && skill.whenToUse.trim().length > 0
+      ? `  <whenToUse>${escapeXml(skill.whenToUse)}</whenToUse>`
+      : undefined;
+  const triggers =
+    skill.triggers !== undefined && skill.triggers.length > 0
+      ? `  <triggers>${escapeXml(skill.triggers.join(', '))}</triggers>`
+      : undefined;
   return [
     `<skill-candidate ${attrs.join(' ')}>`,
     `  <description>${escapeXml(skill.description)}</description>`,
+    ...(whenToUse !== undefined ? [whenToUse] : []),
+    ...(triggers !== undefined ? [triggers] : []),
     `  <path>${escapeXml(skill.path)}</path>`,
     '</skill-candidate>',
   ].join('\n');

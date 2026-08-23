@@ -7,6 +7,7 @@ import type {
   PluginCommandActivatedEvent,
   SessionMetaUpdatedEvent,
   SkillActivatedEvent,
+  SkillCreatedEvent,
   WarningEvent,
 } from '@superliora/sdk';
 
@@ -375,6 +376,19 @@ export class SessionEventNotices {
       return;
     }
     this.host.showStatus(ttui('tui.notice.warningPrefix', { message: event.message }), 'warning');
+  }
+
+  handleSkillCreated(event: SkillCreatedEvent): void {
+    const verb = event.updated ? 'Updated' : 'Created';
+    const detail =
+      event.description !== undefined && event.description.trim().length > 0
+        ? event.description.trim()
+        : event.skillPath;
+    this.host.showNotice?.(
+      `${verb} skill: ${event.skillName}`,
+      `${detail} · Skill("${event.skillName}") or /skill:${event.skillName}`,
+    );
+    this.host.showStatus(`${verb} skill ${event.skillName}`);
   }
 
   handleSkillActivated(event: SkillActivatedEvent): void {

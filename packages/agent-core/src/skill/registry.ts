@@ -3,13 +3,21 @@ import { discoverSkills, type DiscoverSkillsOptions } from './scanner';
 import { SkillSearchEngine } from './expert-search';
 import {
   isBlockedSkillRisk,
+  preferLocalPlaybooks,
   rerankSkillHitsForHarnessRouting,
 } from './harness-skill-routing';
 import { composeSkillInstructions, enrichSkillForSearch } from './skill-composition';
 import { budgetSkillContentForInjection } from './injection-budget';
 import { registerCatalogSkills } from './catalog-loader';
-import type { SkillDefinition, SkillRoot, SkillSearchHit, SkillSource, SkippedSkill } from './types';
-import { isInlineSkillType, normalizeSkillName, skillRisk } from './types';
+import type {
+  SessionCreatedSkill,
+  SkillDefinition,
+  SkillRoot,
+  SkillSearchHit,
+  SkillSource,
+  SkippedSkill,
+} from './types';
+import { isInlineSkillType, normalizeSkillName, skillRisk, skillWhenToUse } from './types';
 import type { SkillRegistry as AgentSkillRegistry } from '../agent/skill/types';
 import { escapeXmlAttr } from '../utils/xml-escape';
 
@@ -66,6 +74,7 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
   private searchEngine: SkillSearchEngine | undefined;
   private catalogLoadPromise: Promise<void> | undefined;
   private catalogLoaded = false;
+  private readonly sessionCreated: SessionCreatedSkill[] = [];
   readonly sessionId?: string;
 
   constructor(options: SkillRegistryOptions = {}) {
@@ -110,6 +119,9 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
     if (options.replace === true || !this.byName.has(key)) {
       this.byName.set(key, enriched);
       this.searchEngine = undefined;
+      if (enriched.source === 'project' || enriched.source === 'user') {
+        this.rememberSessionCreated(enriched);
+      }
     }
     this.indexPluginSkill(enriched, options);
   }
@@ -119,6 +131,26 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
     if (this.byName.delete(key)) {
       this.searchEngine = undefined;
     }
+    const index = this.sessionCreated.findIndex((entry) => normalizeSkillName(entry.name) === key);
+    if (index >= 0) this.sessionCreated.splice(index, 1);
+  }
+
+  listSessionCreatedSkills(): readonly SessionCreatedSkill[] {
+    return [...this.sessionCreated];
+  }
+
+  private rememberSessionCreated(skill: SkillDefinition): void {
+    const key = normalizeSkillName(skill.name);
+    const entry: SessionCreatedSkill = {
+      name: skill.name,
+      description: skill.description,
+      whenToUse: skillWhenToUse(skill),
+      path: skill.path,
+    };
+    const existing = this.sessionCreated.findIndex((item) => normalizeSkillName(item.name) === key);
+    if (existing >= 0) this.sessionCreated.splice(existing, 1);
+    this.sessionCreated.push(entry);
+    if (this.sessionCreated.length > 8) this.sessionCreated.shift();
   }
 
   getSkill(name: string): SkillDefinition | undefined {
@@ -219,16 +251,26 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
       filter: isModelSearchableSkill,
     });
     if (limit > this.defaultSearchLimit) {
-      return this.applyBrowserSkillRouting(trimmed, first);
+      return this.markFreshHits(preferLocalPlaybooks(this.applyBrowserSkillRouting(trimmed, first)));
     }
     const shouldExpand = first.length === 0 || (first[0]?.score ?? 0) < WEAK_SEARCH_SCORE;
-    if (!shouldExpand) return this.applyBrowserSkillRouting(trimmed, first);
+    if (!shouldExpand) {
+      return this.markFreshHits(preferLocalPlaybooks(this.applyBrowserSkillRouting(trimmed, first)));
+    }
     const expanded = await engine.search({
       query: trimmed,
       topK: Math.min(SKILL_SEARCH_EXPANDED_LIMIT, this.maxSearchLimit),
       filter: isModelSearchableSkill,
     });
-    return this.applyBrowserSkillRouting(trimmed, expanded);
+    return this.markFreshHits(preferLocalPlaybooks(this.applyBrowserSkillRouting(trimmed, expanded)));
+  }
+
+  private markFreshHits(hits: readonly SkillSearchHit[]): readonly SkillSearchHit[] {
+    if (this.sessionCreated.length === 0) return hits;
+    const fresh = new Set(this.sessionCreated.map((entry) => normalizeSkillName(entry.name)));
+    return hits.map((hit) =>
+      fresh.has(normalizeSkillName(hit.name)) ? { ...hit, fresh: true } : hit,
+    );
   }
 
   private applyBrowserSkillRouting(

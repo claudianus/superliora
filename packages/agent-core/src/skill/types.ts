@@ -48,6 +48,17 @@ export interface SkillSearchHit extends SkillSummary {
   readonly matchReason: string;
   readonly risk?: SkillRisk | undefined;
   readonly category?: string | undefined;
+  readonly whenToUse?: string | undefined;
+  readonly triggers?: readonly string[] | undefined;
+  /** True when this skill was registered in the current session (live SkillCreate/auto). */
+  readonly fresh?: boolean | undefined;
+}
+
+export interface SessionCreatedSkill {
+  readonly name: string;
+  readonly description: string;
+  readonly whenToUse: string;
+  readonly path: string;
 }
 
 export interface SkillRoot {
@@ -111,13 +122,36 @@ export function summarizeSkillSearchHit(
   matchReason: string,
 ): SkillSearchHit {
   const base = summarizeSkill(skill);
+  const whenToUse = skillWhenToUse(skill);
+  const triggers = skillTriggers(skill);
   return {
     ...base,
     score,
     matchReason,
     risk: skillRisk(skill),
     category: skillCategory(skill),
+    ...(whenToUse.length > 0 ? { whenToUse } : {}),
+    ...(triggers.length > 0 ? { triggers } : {}),
   };
+}
+
+export function skillWhenToUse(skill: SkillDefinition): string {
+  const value = skill.metadata.whenToUse;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+export function skillTriggers(skill: SkillDefinition): readonly string[] {
+  const value = skill.metadata['triggers'];
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+  return [];
 }
 
 export function skillRisk(skill: SkillDefinition): SkillRisk | undefined {

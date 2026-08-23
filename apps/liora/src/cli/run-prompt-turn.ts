@@ -128,6 +128,7 @@ export function runPromptTurn(
         case 'mcp.server.status':
         case 'session.meta.updated':
         case 'skill.activated':
+        case 'skill.created':
         case 'tool.list.updated':
         case 'turn.started':
         case 'warning':

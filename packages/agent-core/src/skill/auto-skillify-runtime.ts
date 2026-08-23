@@ -1,25 +1,26 @@
 /**
- * Wire auto-skillify into a live agent: extract tool outcomes from recent
- * history, write reusable SKILL.md files under `.agents/skills/auto/`, and
- * register them so SearchSkill/Skill see them without a restart.
+ * Wire auto-skillify into a live agent: extract recoveries from recent
+ * history, LLM-distill a SKILL.md under `.agents/skills/auto/`, and
+ * live-register so SearchSkill/Skill see it without a restart.
  */
-
-import path from 'pathe';
 
 import type { ContextMessage } from '../agent/context/types';
 import type { Agent } from '../agent/index';
-import { autoSkillsRoot } from '../tools/builtin/fleet/skill-create';
 import {
-  batchSkillify,
   detectSkillifiableEvents,
   type ToolCallEvent,
 } from './auto-skillify';
-import { parseSkillMetadataFromFile } from './parser';
+import {
+  formatWorkerEventsForDistill,
+  hasDistillSignal,
+  runLessonDistill,
+  serializeHistoryForDistill,
+} from './skill-distill';
 
 export type { ToolCallEvent };
 
-/** Cap how many auto skills one turn-end flush may write (spam guard). */
-export const AUTO_SKILLIFY_MAX_PER_RUN = 3;
+/** Distill writes at most one skill per flush. */
+export const AUTO_SKILLIFY_MAX_PER_RUN = 1;
 
 /** Look at the trailing history window only — lessons live in recent work. */
 export const AUTO_SKILLIFY_HISTORY_WINDOW = 80;
@@ -33,6 +34,7 @@ export function extractToolCallEventsFromHistory(
   messages: readonly ContextMessage[],
 ): ToolCallEvent[] {
   const nameByCallId = new Map<string, string>();
+  const argsByCallId = new Map<string, string>();
   const failStreakByTool = new Map<string, { count: number; lastError?: string }>();
   const events: ToolCallEvent[] = [];
 
@@ -41,6 +43,9 @@ export function extractToolCallEventsFromHistory(
       for (const call of message.toolCalls) {
         if (call.id.length > 0 && call.name.length > 0) {
           nameByCallId.set(call.id, call.name);
+        }
+        if (call.id.length > 0 && typeof call.arguments === 'string' && call.arguments.length > 0) {
+          argsByCallId.set(call.id, call.arguments.slice(0, 300));
         }
       }
       continue;
@@ -66,6 +71,7 @@ export function extractToolCallEventsFromHistory(
         success: false,
         retryCount: 0,
         error: outputText.slice(0, 400) || undefined,
+        inputSummary: argsByCallId.get(message.toolCallId),
         outputSummary: outputText.slice(0, 300) || undefined,
       });
       continue;
@@ -79,6 +85,7 @@ export function extractToolCallEventsFromHistory(
       success: true,
       retryCount,
       error: streak?.lastError,
+      inputSummary: argsByCallId.get(message.toolCallId),
       outputSummary: outputText.slice(0, 300) || undefined,
     });
   }
@@ -91,9 +98,25 @@ export interface AutoSkillifyRunResult {
   readonly written: readonly string[];
 }
 
+export function historyHasUserCorrection(messages: readonly ContextMessage[]): boolean {
+  for (const message of messages) {
+    if (message.role !== 'user') continue;
+    const text = message.content
+      .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n');
+    if (
+      /\b(?:no,|don't|do not|instead|that(?:'s| is) wrong|not that|stop doing)\b/i.test(text)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
- * Detect + write + live-register auto skills from the agent's recent history.
- * No-op when there is nothing skillifiable.
+ * Detect + LLM-distill + live-register auto skills from recent history.
+ * No-op when there is no recovery or user-correction signal.
  */
 export async function runAutoSkillify(agent: Agent): Promise<AutoSkillifyRunResult> {
   const history = agent.context.history;
@@ -112,41 +135,25 @@ export async function runAutoSkillifyFromEvents(
   agent: Agent,
   events: readonly ToolCallEvent[],
 ): Promise<AutoSkillifyRunResult> {
-  const candidates = detectSkillifiableEvents(events);
-  if (candidates.length === 0) {
+  const history = agent.context.history;
+  const window =
+    history.length > AUTO_SKILLIFY_HISTORY_WINDOW
+      ? history.slice(history.length - AUTO_SKILLIFY_HISTORY_WINDOW)
+      : history;
+  const hasRecovery =
+    detectSkillifiableEvents(events).length > 0 || hasDistillSignal(events);
+  if (!hasRecovery && !historyHasUserCorrection(window)) {
     return { examined: events.length, written: [] };
   }
 
-  const existingNames =
-    agent.skills?.registry.listInvocableSkills().map((skill) => skill.name) ?? [];
-  const autoRoot = autoSkillsRoot(agent.config.cwd);
-  const skillsDir = path.dirname(autoRoot);
-  const limited = candidates.slice(0, AUTO_SKILLIFY_MAX_PER_RUN);
-
-  const written = await batchSkillify(limited, {
-    skillsDir,
-    existingSkillNames: existingNames,
-  });
-
-  for (const skillMdPath of written) {
-    await registerWrittenSkill(agent, skillMdPath);
-  }
-
-  return { examined: events.length, written };
-}
-
-async function registerWrittenSkill(agent: Agent, skillMdPath: string): Promise<void> {
-  const registry = agent.skills?.registry;
-  if (registry?.register === undefined) return;
-  const name = path.basename(path.dirname(skillMdPath));
+  const workerBlock =
+    events.length > 0 ? `\n\nWorker / extracted tool events:\n${formatWorkerEventsForDistill(events)}` : '';
+  const serialized = `${serializeHistoryForDistill(agent)}${workerBlock}`;
   try {
-    const parsed = await parseSkillMetadataFromFile({
-      skillMdPath,
-      skillDirName: name,
-      source: 'project',
-    });
-    registry.register(parsed, { replace: true });
+    const result = await runLessonDistill(agent, serialized);
+    return { examined: events.length, written: result === undefined ? [] : [result.writtenPath] };
   } catch (error) {
-    agent.log.warn('auto-skillify register failed', { skillMdPath, error });
+    agent.log.warn('auto-skillify distill failed', error);
+    return { examined: events.length, written: [] };
   }
 }

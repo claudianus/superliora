@@ -44,6 +44,7 @@ export type {
   SessionMetaUpdatedEvent,
   SessionStatusChangedEvent,
   SkillActivatedEvent,
+  SkillCreatedEvent,
   SubagentCompletedEvent,
   SubagentFailedEvent,
   SubagentProgressEvent,

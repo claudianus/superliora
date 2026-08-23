@@ -18,6 +18,7 @@ export type {
   SessionMetaUpdatedEvent,
   GoalUpdatedEvent,
   SkillActivatedEvent,
+  SkillCreatedEvent,
   PluginCommandActivatedEvent,
   ProviderRouteCandidateStatus,
   ProviderRouteFailureKind,

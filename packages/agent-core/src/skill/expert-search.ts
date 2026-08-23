@@ -15,6 +15,7 @@ import type { SkillDefinition, SkillSearchHit } from './types';
 import {
   skillCategory,
   skillRisk,
+  skillTriggers,
   summarizeSkillSearchHit,
 } from './types';
 
@@ -31,6 +32,7 @@ interface SkillSearchDocument {
   readonly name: string;
   readonly description: string;
   readonly whenToUse: string;
+  readonly triggers: string;
   readonly type: string;
   readonly source: string;
   readonly path: string;
@@ -77,7 +79,7 @@ export class SkillSearchEngine {
           name: skill.name,
           description: skill.description,
           whenToUse: metadataString(skill, 'whenToUse'),
-          headings: skill.headings?.join(' ') ?? '',
+          headings: [...(skill.headings ?? []), ...skillTriggers(skill)].join(' '),
         }),
       );
       return toSearchDocument(id, skill);
@@ -232,6 +234,7 @@ function createIndex(): MiniSearch<SkillSearchDocument> {
       'name',
       'description',
       'whenToUse',
+      'triggers',
       'type',
       'arguments',
       'headings',
@@ -241,7 +244,7 @@ function createIndex(): MiniSearch<SkillSearchDocument> {
     ],
     storeFields: ['name'],
     searchOptions: {
-      boost: { name: 5, description: 3, whenToUse: 3, headings: 2, resources: 2 },
+      boost: { name: 5, description: 3, whenToUse: 3, triggers: 4, headings: 2, resources: 2 },
       fuzzy: 0.2,
       prefix: true,
     },
@@ -254,6 +257,7 @@ function toSearchDocument(id: string, skill: SkillDefinition): SkillSearchDocume
     name: skill.name,
     description: skill.description,
     whenToUse: metadataString(skill, 'whenToUse'),
+    triggers: skillTriggers(skill).join(' '),
     type: skill.metadata.type ?? '',
     source: skill.source,
     path: skill.path,

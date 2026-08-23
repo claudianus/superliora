@@ -263,7 +263,7 @@ export class Agent {
   readonly dream: AutoDreamService | null;
   /** Continual-harness refine pipeline; main agents only (subagents don't self-modify the harness). */
   readonly refine: AgentRefineService | null;
-  /** Deterministic experience → SKILL.md; main agents only. */
+  /** LLM distill of recoveries → SKILL.md; main agents only. */
   readonly skillify: AutoSkillifyService | null;
   readonly intelligence: PromptIntelligenceService;
   readonly autopilot: AutopilotMode;
