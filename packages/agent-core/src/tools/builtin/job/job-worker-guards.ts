@@ -54,7 +54,7 @@ export function isWholePackageTestCommand(command: string): boolean {
   for (const root of packageRoots) {
     // Match the root as a path token, not as a prefix of a deeper file path.
     // `.../test/tui` matches; `.../test/tui/foo.test.ts` does not.
-    const rootEscaped = root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rootEscaped = root.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // End of command, whitespace, quote, or shell operator after the root.
     const dirOnly = new RegExp(
       `(?:^|[\\s"'])${rootEscaped}(?=(?:\\s|"|'|$|[;&|]))`,
@@ -92,8 +92,8 @@ function commandReferencesTestFile(command: string): boolean {
   // Strip the well-known runner so `scripts/test-local.mjs` is not mistaken
   // for a focused test path.
   const withoutRunner = command
-    .replace(/\b(?:node\s+)?scripts\/test-local\.mjs\b/gi, ' ')
-    .replace(/\b(?:node\s+)?scripts\\test-local\.mjs\b/gi, ' ');
+    .replaceAll(/\b(?:node\s+)?scripts\/test-local\.mjs\b/gi, ' ')
+    .replaceAll(/\b(?:node\s+)?scripts\\test-local\.mjs\b/gi, ' ');
   // Concrete file under a package/app path, or any *.test.* / *.spec.* path.
   if (
     /(?:^|[\s"'])(?:apps|packages)\/[^\s"'|;&]+\.(?:ts|tsx|js|mjs|cjs|jsx)\b/i.test(
@@ -285,7 +285,12 @@ export function evaluateWorkerVerificationGuard(input: {
   readonly toolCount: number;
   readonly recentTools?: readonly string[];
   readonly toolBudget?: number;
+  /** Explore/research success = findings, not verification_commands. */
+  readonly jobKind?: string;
 }): WorkerVerificationGuardResult {
+  if (input.jobKind === 'explore' || input.jobKind === 'research') {
+    return { abort: false };
+  }
   const commands = input.verificationCommands?.filter((c) => c.trim().length > 0) ?? [];
   if (commands.length === 0) return { abort: false };
 

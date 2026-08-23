@@ -244,12 +244,12 @@ describe('ToolCallComponent', () => {
       );
 
       expect(strip(component.render(100).join('\n'))).not.toContain(
-        'Press Ctrl+B to background this task · /tasks to inspect',
+        'Press Ctrl+B to background this task · /jobs bg to inspect',
       );
 
       vi.advanceTimersByTime(6_000);
       expect(strip(component.render(100).join('\n'))).toContain(
-        'Press Ctrl+B to background this task · /tasks to inspect',
+        'Press Ctrl+B to background this task · /jobs bg to inspect',
       );
 
       component.dispose();
@@ -265,7 +265,7 @@ describe('ToolCallComponent', () => {
 
       // No timer advancement — Agents advertise Ctrl+B immediately.
       expect(strip(component.render(100).join('\n'))).toContain(
-        'Press Ctrl+B to background this task · /tasks to inspect',
+        'Press Ctrl+B to background this task · /jobs bg to inspect',
       );
 
       component.dispose();
@@ -281,7 +281,7 @@ describe('ToolCallComponent', () => {
 
       vi.advanceTimersByTime(15_000);
       expect(strip(component.render(100).join('\n'))).not.toContain(
-        'Press Ctrl+B to background this task · /tasks to inspect',
+        'Press Ctrl+B to background this task · /jobs bg to inspect',
       );
 
       component.dispose();
@@ -300,7 +300,7 @@ describe('ToolCallComponent', () => {
       vi.advanceTimersByTime(6_000);
 
       expect(strip(component.render(100).join('\n'))).not.toContain(
-        'Press Ctrl+B to background this task · /tasks to inspect',
+        'Press Ctrl+B to background this task · /jobs bg to inspect',
       );
 
       component.dispose();

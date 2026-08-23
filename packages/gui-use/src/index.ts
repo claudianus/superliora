@@ -7,3 +7,9 @@ export * from './browser/create-browser-use-runtime';
 export * from './browser/tiered-browser-use';
 export * from './computer/cua-computer';
 export * from './install';
+export {
+  needsWindowsCmdWrapper,
+  resolveSetupSpawn,
+  type ResolveSetupSpawnOptions,
+  type SetupSpawnResolution,
+} from './setup-command';

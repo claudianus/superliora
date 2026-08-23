@@ -43,6 +43,13 @@ export function verificationVisualBlocksMergeForSurface(
   surfaceKind: JobSurfaceKind | undefined,
 ): boolean {
   if (!surfaceRequiresVisualProof(surfaceKind)) return false;
+  // Host spawn skip is not a product visual fail — tests + playable may land.
+  if (
+    verification?.visual === 'skipped_host' ||
+    verification?.host_browser === 'einval'
+  ) {
+    return false;
+  }
   if (verification?.visual !== 'passed') return true;
   if (surfaceRequiresWebAxes(surfaceKind)) {
     if (verification.interaction !== undefined && verification.interaction !== 'passed') {
@@ -72,6 +79,12 @@ export function visualProofRejectReason(
       `Mixed web+TUI surface without visual proof (visual=${visualVerdict}). ` +
       'Need VerifySurface pass (web) and TUI smoke pass; BrowserScreenshot alone is not enough. ' +
       'force_user_confirm cannot bypass this gate.'
+    );
+  }
+  if (visualVerdict === 'skipped_host') {
+    return (
+      `Web surface visual=skipped_host (host_browser=einval). ` +
+      'Visual proof is not required; land on tests + playable path. Do not retry BrowserStatus this session.'
     );
   }
   return (

@@ -29,6 +29,7 @@ function mapGateVerdict(
     case 'failed':
       return 'fail';
     case 'not_applicable':
+    case 'skipped_host':
       return 'na';
     case 'not_run':
     case undefined:

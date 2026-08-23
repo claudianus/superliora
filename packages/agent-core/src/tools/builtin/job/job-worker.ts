@@ -28,6 +28,7 @@ import {
   verificationIsUnverified,
 } from '../../../session/subagent/subagent-result-contract';
 import { applySurfaceKindToContract, surfaceRequiresVisualProof } from './job-surface';
+import { inferPlayableFromChangeSet, playableStampForContract } from './job-playable';
 import { parseVerifyVerdict } from './job-verify-chain';
 import { userCancellationReason } from '../../../utils/abort';
 import type { ToolStore } from '../../store';
@@ -91,7 +92,7 @@ function visualDodLines(job: JobRecord): readonly string[] {
   const kind = job.surfaceKind;
   if (kind === 'web' || kind === 'mixed') {
     return [
-      `- Visual DoD (${kind} surface): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface once on the real surface before done (≤2 min fail-fast). VerifySurface requires load+interaction+craft axes; BrowserScreenshot alone does not set visual=passed. If the runtime is not ready, report visual failed — do not BrowserAct-explore or reinstall loops. Record screenshot path in the summary. MergeJob hard-fails without visual=passed.`,
+      `- Visual DoD (${kind} surface): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface once on the real surface before done (≤2 min fail-fast). VerifySurface requires load+interaction+craft axes; BrowserScreenshot alone does not set visual=passed. If spawn EINVAL / host_browser=einval, stamp visual=skipped_host and stop — do not BrowserAct-explore or reinstall loops. MergeJob requires visual=passed only when host_browser=ok; tests + playable_path may land with skipped_host.`,
       ...(kind === 'mixed'
         ? [
             '- Also land TUI visual smoke (`pnpm -C apps/liora run smoke:visual` or equivalent) before done — mixed surfaces need both web and TUI proof.',
@@ -240,7 +241,7 @@ export function renderRecoveryBriefAppendix(job: JobRecord): string | undefined 
 
   const interruptLine = notes
     .split('\n')
-    .reverse()
+    .toReversed()
     .find((line) => /\binterrupt:/i.test(line) || /\bresume:/i.test(line));
   const progress = job.progress;
   const progressBits: string[] = [];
@@ -727,18 +728,37 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         // embed the JSON envelope, which eats the stored-summary budget.
         const summary =
           (contractSummary || rawSummary.trim()).slice(0, 4000) || 'worker completed';
-        const verificationFailed = contract?.verification_failed === true;
+        const discoveryKind =
+          ledgerJob.kind === 'explore' || ledgerJob.kind === 'research';
+        const verificationFailed =
+          discoveryKind ? false : contract?.verification_failed === true;
         const hostBrowserEinval =
-          contract?.verification?.host_browser === 'einval';
+          contract?.verification?.host_browser === 'einval' ||
+          contract?.verification?.visual === 'skipped_host';
         // The gate skips more often than it runs (explore jobs, multi-package
         // changes, paths outside the workspace layout, gate timeouts). Such a
         // job is still `done`, but saying so plainly keeps the conductor from
         // reading "no failure" as "verified" when it decides to merge.
         const unverified =
+          !discoveryKind &&
           !verificationFailed &&
           verificationIsUnverified(contract?.verification, {
             requireVisual: surfaceRequiresVisualProof(ledgerJob.surfaceKind),
           });
+        const playableStamp = playableStampForContract(contract, ledgerJob);
+        const playable =
+          contract?.verification.playable ??
+          inferPlayableFromChangeSet(contract?.files_changed ?? [], summary);
+        const stampedContract =
+          contract === undefined
+            ? undefined
+            : {
+                ...contract,
+                verification: {
+                  ...contract.verification,
+                  playable,
+                },
+              };
         // Goal-driver terminal mapping (spec 2026-08-04-goal-driver-jobs §3.5):
         // a stopped goal (blocked/paused — budget circuit breaker, stagnation,
         // or a worker-reported blocker) escalates as a resumable `blocked` Job;
@@ -794,23 +814,31 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           completion.friction !== undefined
             ? renderFrictionSection(completion.friction)
             : undefined;
-        const resultSummary =
-          frictionBlock !== undefined
-            ? `${baseSummary}\n\n${frictionBlock}`.slice(0, 4500)
-            : baseSummary;
+        const playableLine =
+          playableStamp.playablePath !== undefined
+            ? `playable_path=${playableStamp.playablePath}`
+            : undefined;
+        const resultSummary = [
+          frictionBlock !== undefined ? `${baseSummary}\n\n${frictionBlock}` : baseSummary,
+          playableLine,
+        ]
+          .filter(Boolean)
+          .join('\n')
+          .slice(0, 4500);
         const updated = patchJob(input.store, job.id, {
           // A done with a failed verification gate misled the conductor:
           // surface explicit verification failures as failed so the playbook
           // routes them to inspection instead of merge/land.
           status: effectiveStatus,
           resultSummary,
-          ...(contract !== undefined ? { resultContract: contract } : {}),
+          ...(stampedContract !== undefined ? { resultContract: stampedContract } : {}),
           ...(completion.goalId !== undefined ? { goalId: completion.goalId } : {}),
           ...(verifyVerdictField !== undefined ? { verifyVerdict: verifyVerdictField } : {}),
           notes: [
             getJob(input.store, job.id)?.notes,
             commitNote,
             hostBrowserEinval ? 'host_browser=einval' : undefined,
+            playableLine,
             verificationFailed
               ? 'worker: completed but verification failed'
               : verifyMissingStructured
@@ -818,7 +846,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
                 : goalStopped
                   ? `worker: goal ${completion.goalStatus}${goalReason}`
                   : hostBrowserEinval
-                    ? 'worker: completed mechanical-green (host_browser=einval; visual not auto-passed)'
+                    ? 'worker: completed mechanical-green (host_browser=einval; visual=skipped_host)'
                     : unverified
                       ? 'worker: completed unverified (checks did not run)'
                       : 'worker: completed',

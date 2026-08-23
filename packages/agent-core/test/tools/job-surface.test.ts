@@ -18,6 +18,12 @@ describe('job-surface contract helpers', () => {
     expect(verificationVisualBlocksMergeForSurface(missing, undefined)).toBe(false);
     expect(verificationVisualBlocksMergeForSurface(missing, 'none')).toBe(false);
     expect(verificationVisualBlocksMergeForSurface(missing, 'web')).toBe(true);
+    expect(
+      verificationVisualBlocksMergeForSurface(
+        { ...missing, visual: 'skipped_host', host_browser: 'einval' },
+        'web',
+      ),
+    ).toBe(false);
     expect(verificationVisualBlocksMergeForSurface(missing, 'tui')).toBe(true);
     expect(
       verificationVisualBlocksMergeForSurface(

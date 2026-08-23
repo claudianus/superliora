@@ -433,6 +433,7 @@ export async function runTurnStepLoop(
               ctx.toolCall.name,
               ctx.args,
               finalResult,
+              agent.homedir,
             );
             // Green verification tools OR check-like Bash clear sticky mutation soft evidence.
             if (

@@ -58,7 +58,14 @@ export async function buildChildResultContract(
     profile: profileName,
     summary,
     filesChanged,
-    verification: await withVisualVerdict(verification, child, filesChanged, summary, signal),
+    verification: await withVisualVerdict(
+      verification,
+      child,
+      filesChanged,
+      summary,
+      signal,
+      profileName,
+    ),
   });
 }
 
@@ -68,8 +75,15 @@ async function withVisualVerdict(
   filesChanged: readonly string[],
   summary: string,
   signal: AbortSignal | undefined,
+  profileName: string,
 ): Promise<SubagentVerificationStatus> {
-  const visual = await resolveVisualVerdict(child, filesChanged, summary, signal);
+  const visual = await resolveVisualVerdict(
+    child,
+    filesChanged,
+    summary,
+    signal,
+    profileName,
+  );
   const ledger = child.verificationSensorLedger;
   // Axes only stick when VerifySurface recorded them; otherwise N/A (TUI smoke
   // and non-visual jobs must not inherit not_run interaction/craft gates).
@@ -105,7 +119,22 @@ async function withVisualVerdict(
     interaction,
     craft,
     ...(hostBrowser !== undefined ? { host_browser: hostBrowser } : {}),
+    playable: inferPlayable(filesChanged, summary),
   };
+}
+
+function inferPlayable(
+  filesChanged: readonly string[],
+  summary: string,
+): 'yes' | 'unknown' {
+  const hay = `${filesChanged.join('\n')}\n${summary}`.toLowerCase();
+  if (filesChanged.some((file) => /(?:^|\/)index\.html?$/i.test(file.replaceAll(/\\/g, '/')))) {
+    return 'yes';
+  }
+  if (/https?:\/\/localhost\b|python\s+-m\s+http\.server|file:\/\//i.test(hay)) {
+    return 'yes';
+  }
+  return 'unknown';
 }
 
 async function resolveVisualVerdict(
@@ -113,12 +142,16 @@ async function resolveVisualVerdict(
   filesChanged: readonly string[],
   summary: string,
   signal: AbortSignal | undefined,
+  profileName: string,
 ): Promise<VisualVerificationVerdict> {
   const observed = child.verificationSensorLedger.visualVerdict;
-  if (observed === 'passed' || observed === 'failed') return observed;
+  if (observed === 'passed' || observed === 'failed' || observed === 'skipped_host') {
+    return observed;
+  }
+  if (profileName === 'explore') return 'not_applicable';
   // Auto VerifySurface only when a URL/HTML surface exists (tool decides).
   const auto = await maybeAutoVerifySurface(child, filesChanged, summary, signal);
-  if (auto === 'passed' || auto === 'failed') return auto;
+  if (auto === 'passed' || auto === 'failed' || auto === 'skipped_host') return auto;
   // No URL/HTML / skipped → N/A. Job.surfaceKind decides if that blocks merge.
   return 'not_applicable';
 }

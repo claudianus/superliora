@@ -104,13 +104,13 @@ describe('AgentGroupComponent', () => {
     group.attach('call_agent_1', a);
     group.attach('call_agent_2', b);
 
-    expect(renderText(group)).toContain('Press Ctrl+B to background this task · /tasks to inspect');
+    expect(renderText(group)).toContain('Press Ctrl+B to background this task · /jobs bg to inspect');
 
     a.markBackgrounded();
-    expect(renderText(group)).toContain('Press Ctrl+B to background this task · /tasks to inspect');
+    expect(renderText(group)).toContain('Press Ctrl+B to background this task · /jobs bg to inspect');
 
     b.markBackgrounded();
-    expect(renderText(group)).not.toContain('Press Ctrl+B to background this task · /tasks to inspect');
+    expect(renderText(group)).not.toContain('Press Ctrl+B to background this task · /jobs bg to inspect');
 
     group.dispose();
     a.dispose();

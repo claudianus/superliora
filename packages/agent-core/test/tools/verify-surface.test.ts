@@ -82,6 +82,22 @@ describe('VerifySurfaceTool', () => {
     expect(payload.notes.join(' ')).toMatch(/runtime is not available|not a pass/i);
   });
 
+  it('returns visual=skipped_host without spawning when the host circuit is open', async () => {
+    const runtime = fakeBrowserRuntime();
+    const tool = new VerifySurfaceTool(runtime, { shouldSkipHost: () => true });
+    const result = await executeTool(tool, context({ url: 'https://example.test' }));
+    expect(result.isError).toBeFalsy();
+    const payload = JSON.parse(String(result.output)) as {
+      pass: boolean;
+      host_browser?: string;
+      notes: string[];
+    };
+    expect(payload.pass).toBe(false);
+    expect(payload.host_browser).toBe('einval');
+    expect(payload.notes.join(' ')).toMatch(/skipped_host/);
+    expect(runtime.status).not.toHaveBeenCalled();
+  });
+
   it('fails when runtime status is not ready', async () => {
     const runtime = fakeBrowserRuntime({
       status: vi.fn().mockResolvedValue({

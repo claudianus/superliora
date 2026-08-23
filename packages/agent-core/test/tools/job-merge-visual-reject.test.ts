@@ -75,6 +75,31 @@ describe('MergeJob visual hard reject (surfaceKind contract)', () => {
     if (!verdict.ok) expect(verdict.mode).toBe('reject');
   });
 
+  it('allows web surface merges when visual=skipped_host and host_browser=einval', () => {
+    const job = surfaceJob('web', 'not_run', ['apps/site/src/app/page.tsx']);
+    const withHost = {
+      ...job,
+      resultContract: job.resultContract
+        ? {
+            ...job.resultContract,
+            verification: {
+              ...job.resultContract.verification,
+              visual: 'skipped_host' as const,
+              host_browser: 'einval' as const,
+              playable: 'yes' as const,
+            },
+          }
+        : undefined,
+    };
+    const verdict = evaluateMergeTrust(
+      mergeTrustInputFromLedger({
+        job: withHost,
+        claim: approval,
+      }),
+    );
+    expect(verdict.ok).toBe(true);
+  });
+
   it('allows web surface merges when visual=passed', () => {
     const verdict = evaluateMergeTrust(
       mergeTrustInputFromLedger({

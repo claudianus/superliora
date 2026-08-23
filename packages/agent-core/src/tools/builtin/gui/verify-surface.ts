@@ -112,6 +112,8 @@ export interface VerifySurfaceResult {
   readonly craftHits?: readonly string[] | undefined;
   /** Text description when the chat model cannot consume the screenshot image. */
   readonly visualDescription?: string | undefined;
+  /** Host spawn class. `einval` means visual=skipped_host, not a product fail. */
+  readonly host_browser?: 'einval' | 'missing' | 'ok' | undefined;
 }
 
 export type VerifySurfaceVisionFallback = (input: {
@@ -139,6 +141,8 @@ export class VerifySurfaceTool implements BuiltinTool<VerifySurfaceInput> {
       readonly attachScreenshotImage?: boolean | undefined;
       /** Describe the screenshot for text-only chat models. */
       readonly visionFallback?: VerifySurfaceVisionFallback | undefined;
+      /** Session circuit: skip spawn after EINVAL retry budget. */
+      readonly shouldSkipHost?: (() => boolean) | undefined;
     },
   ) {}
 
@@ -164,6 +168,9 @@ export class VerifySurfaceTool implements BuiltinTool<VerifySurfaceInput> {
     if (runtime === undefined) {
       return missingRuntimeResult();
     }
+    if (this.options?.shouldSkipHost?.() === true) {
+      return skippedHostResult();
+    }
 
     const notes: string[] = [];
     const consoleErrors: string[] = [];
@@ -178,15 +185,19 @@ export class VerifySurfaceTool implements BuiltinTool<VerifySurfaceInput> {
       );
       if (!status.installed || status.ready === false) {
         notes.push(status.error ?? 'Browser-use runtime is not ready.');
+        const hostClass = classifyVerifyHost(status.error ?? notes.join('\n'));
         return resultPayload({
           pass: false,
           axes: { load: 'failed', interaction: 'not_run', craft: 'not_run' },
           url,
           screenshotPath,
           consoleErrors,
+          host_browser: hostClass,
           notes: [
             ...notes,
-            'VerifySurface failed: browser runtime missing or not ready (not a fake pass).',
+            hostClass === 'einval'
+              ? 'host_browser=einval — visual=skipped_host (not a product visual fail). Do not retry BrowserStatus this session.'
+              : 'VerifySurface failed: browser runtime missing or not ready (not a fake pass).',
           ],
         });
       }
@@ -323,12 +334,14 @@ export class VerifySurfaceTool implements BuiltinTool<VerifySurfaceInput> {
       } else {
         notes.push(message);
       }
+      const hostClass = classifyVerifyHost(message);
       return resultPayload({
         pass: false,
         axes: { load: 'failed', interaction: 'not_run', craft: 'not_run' },
         url,
         screenshotPath,
         consoleErrors,
+        host_browser: hostClass,
         notes,
       });
     }
@@ -401,10 +414,54 @@ function missingRuntimeResult(): ExecutableToolResult {
     pass: false,
     axes: { load: 'failed', interaction: 'not_run', craft: 'not_run' },
     consoleErrors: [],
+    host_browser: 'missing',
     notes: [MISSING_RUNTIME_MESSAGE],
   };
   // Pure JSON — no trailing error text after the object.
   return { isError: true, output: JSON.stringify(payload, undefined, 2) };
+}
+
+function skippedHostResult(): ExecutableToolResult {
+  const payload: VerifySurfaceResult = {
+    pass: false,
+    axes: { load: 'not_run', interaction: 'not_run', craft: 'not_run' },
+    consoleErrors: [],
+    host_browser: 'einval',
+    notes: [
+      'host_browser=einval — visual=skipped_host. BrowserStatus circuit open; do not retry this session.',
+    ],
+  };
+  return { isError: false, output: JSON.stringify(payload, undefined, 2) };
+}
+
+function classifyVerifyHost(text: string): 'einval' | 'missing' | undefined {
+  if (/\bEINVAL\b/i.test(text) || /spawn\s+.*\beinval\b/i.test(text)) return 'einval';
+  if (/not available|not ready|missing/i.test(text)) return 'missing';
+  return undefined;
+}
+
+function resultPayload(
+  payload: VerifySurfaceResult,
+  screenshot?: { readonly mimeType: string; readonly base64: string } | undefined,
+): ExecutableToolResult {
+  const text = JSON.stringify(payload, undefined, 2);
+  const skippedHost = payload.host_browser === 'einval' && payload.pass !== true;
+  const isError = payload.pass !== true && !skippedHost;
+  if (screenshot === undefined) {
+    return { isError, output: text };
+  }
+  return {
+    isError,
+    output: [
+      { type: 'text', text },
+      {
+        type: 'image_url',
+        imageUrl: {
+          url: `data:${screenshot.mimeType};base64,${screenshot.base64}`,
+        },
+      },
+    ] satisfies ContentPart[],
+  };
 }
 
 async function collectConsoleErrors(
@@ -488,29 +545,4 @@ function coerceBrowserAction(
     default:
       return undefined;
   }
-}
-
-function resultPayload(
-  payload: VerifySurfaceResult,
-  screenshot?: { readonly mimeType: string; readonly base64: string } | undefined,
-): ExecutableToolResult {
-  const text = JSON.stringify(payload, undefined, 2);
-  if (screenshot === undefined) {
-    return {
-      isError: !payload.pass,
-      output: text,
-    };
-  }
-  return {
-    isError: !payload.pass,
-    output: [
-      { type: 'text', text },
-      {
-        type: 'image_url',
-        imageUrl: {
-          url: `data:${screenshot.mimeType};base64,${screenshot.base64}`,
-        },
-      },
-    ] satisfies ContentPart[],
-  };
 }

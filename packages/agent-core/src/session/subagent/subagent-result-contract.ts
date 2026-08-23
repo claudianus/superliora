@@ -16,11 +16,17 @@ import { renderFrictionSection, type SubagentFriction } from './subagent-frictio
 
 /** Check slots: `not_applicable` = no script in package.json (skipped, not a fail). */
 export type VerificationVerdict = 'passed' | 'failed' | 'not_run' | 'not_applicable';
-/** Visual proof slot — `not_applicable` when the change set is non-UI. */
-export type VisualVerificationVerdict = VerificationVerdict;
+/**
+ * Visual proof slot — `not_applicable` when the change set is non-UI.
+ * `skipped_host` when the host browser cannot spawn (EINVAL); not a product fail.
+ */
+export type VisualVerificationVerdict = VerificationVerdict | 'skipped_host';
 
 /** Host browser runtime class — not a product visual fail. */
 export type HostBrowserStatus = 'einval' | 'missing' | 'ok';
+
+/** Playable product path exists (index.html / http.server / file://). */
+export type PlayableVerdict = 'yes' | 'no' | 'unknown';
 
 export interface SubagentVerificationStatus {
   readonly tests: VerificationVerdict;
@@ -34,9 +40,11 @@ export interface SubagentVerificationStatus {
   readonly craft?: VisualVerificationVerdict;
   /**
    * Host browser spawn class. `einval` = Windows spawn EINVAL (host skip) —
-   * visual may stay failed, but mechanical-green implement must not hard-fail.
+   * visual may stay skipped_host; mechanical-green implement must not hard-fail.
    */
   readonly host_browser?: HostBrowserStatus;
+  /** Product is playable (tests + dest path) even when visual is skipped_host. */
+  readonly playable?: PlayableVerdict;
 }
 
 export interface SubagentResultContract {
@@ -93,15 +101,14 @@ export function verificationHasProductFailure(
 }
 
 /**
- * Host-browser EINVAL: visual may stay failed for MergeJob, but it is not a
- * product incomplete signal for mechanical-green implement closeout.
+ * Host-browser EINVAL / skipped_host: not a product incomplete signal.
  */
 export function isHostBrowserEinvalVisual(
   verification: SubagentVerificationStatus | undefined,
 ): boolean {
-  return (
-    verification?.host_browser === 'einval' && verification.visual === 'failed'
-  );
+  if (verification === undefined) return false;
+  if (verification.visual === 'skipped_host') return true;
+  return verification.host_browser === 'einval';
 }
 
 /** True when any check or visual slot hard-failed (host EINVAL visual excluded). */
@@ -118,18 +125,17 @@ export function verificationHasFailure(
 
 /**
  * verification_failed for implement closeout: product checks fail always;
- * visual fail hard-fails unless host_browser=einval with mechanical green.
- * Never auto-passes visual — only stops EINVAL from blocking the chain.
+ * host skip (`skipped_host` / `host_browser=einval`) never hard-fails visual.
+ * Real UI rubric fails still hard-fail when the host browser is ok.
  */
 export function computeVerificationFailed(
   verification: SubagentVerificationStatus | undefined,
 ): boolean {
   if (verification === undefined) return false;
   if (verificationHasProductFailure(verification)) return true;
+  if (verification.visual === 'skipped_host') return false;
   if (verification.visual !== 'failed') return false;
-  if (verification.host_browser === 'einval' && verificationIsGreen(verification)) {
-    return false;
-  }
+  if (verification.host_browser === 'einval') return false;
   return true;
 }
 
@@ -149,7 +155,8 @@ export function verificationVisualIsSatisfied(
   return (
     verification.visual === 'not_applicable' ||
     verification.visual === 'passed' ||
-    verification.visual === 'not_run'
+    verification.visual === 'not_run' ||
+    verification.visual === 'skipped_host'
   );
 }
 
@@ -188,10 +195,11 @@ export function verificationIsUnverified(
   if (options !== undefined && !Array.isArray(options)) {
     requireVisual = (options as UnverifiedOptions).requireVisual === true;
   }
-  const checkVerdicts = [verification.tests, verification.typecheck, verification.lint];
-  if (checkVerdicts.includes('failed') || verification.visual === 'failed') return false;
+  const checkVerdicts = new Set([verification.tests, verification.typecheck, verification.lint]);
+  if (checkVerdicts.has('failed')) return false;
+  if (verification.visual === 'failed') return false;
   // not_applicable = no script; does not leave the job "unverified".
-  if (checkVerdicts.includes('not_run')) return true;
+  if (checkVerdicts.has('not_run')) return true;
   return (
     requireVisual &&
     (verification.visual === undefined || verification.visual === 'not_run')

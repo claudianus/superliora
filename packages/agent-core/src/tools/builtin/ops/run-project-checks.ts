@@ -137,8 +137,11 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
     const kinds = args.checks ?? [...DEFAULT_CHECKS];
 
     let scripts: Record<string, string> = {};
+    let noInstall = false;
     try {
-      scripts = await readPackageScripts(this.kaos, packageRoot);
+      const pkg = await readPackageManifest(this.kaos, packageRoot);
+      scripts = pkg.scripts;
+      noInstall = packageLooksLikeNoInstallSite(pkg);
     } catch (error) {
       // No readable package.json: a static site (HTML/CSS/JS) can still
       // verify itself — file existence + `node --check` on shipped JS —
@@ -176,19 +179,35 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
       if (scriptName === undefined) {
         results.push({
           name: kind,
-          exitCode: 1,
+          exitCode: noInstall && kind !== 'test' && kind !== 'static' ? 0 : 1,
           durationMs: 0,
           skipped: true,
-          reason: `No package.json script for '${kind}' (tried: ${SCRIPT_CANDIDATES[kind].join(', ')})`,
+          reason:
+            noInstall && kind !== 'test' && kind !== 'static'
+              ? `no-install static site — skipped '${kind}' (no script, would pull pnpm/node_modules)`
+              : `No package.json script for '${kind}' (tried: ${SCRIPT_CANDIDATES[kind].join(', ')})`,
         });
         continue;
       }
 
-      const commandArgs = buildCommandArgs(packageDir, scriptName);
+      const scriptBody = scripts[scriptName];
+      if (noInstall && kind !== 'test' && kind !== 'static') {
+        results.push({
+          name: kind,
+          exitCode: 0,
+          durationMs: 0,
+          skipped: true,
+          reason: `no-install static site — skipped '${kind}' (would pull pnpm/node_modules)`,
+        });
+        continue;
+      }
+
+      const commandArgs = buildCommandArgs(packageDir, scriptName, scriptBody);
       const commandLabel = commandArgs.join(' ');
       const started = Date.now();
       try {
-        const run = await runCommand(this.kaos, rootCwd, commandArgs, timeoutMs, signal);
+        const runCwd = commandArgs[0] === 'node' ? packageRoot : rootCwd;
+        const run = await runCommand(this.kaos, runCwd, commandArgs, timeoutMs, signal);
         const durationMs = Date.now() - started;
         const combined = formatCombinedLog(run.stdout, run.stderr);
         const { preview, logPath } = this.capAndMaybeArchive(kind, commandLabel, combined);
@@ -300,10 +319,43 @@ export function pickScript(
   return undefined;
 }
 
+export function scriptRunsWithoutInstall(script: string | undefined): boolean {
+  if (script === undefined) return false;
+  const t = script.trim();
+  return /^(?:node(?:\.exe)?)\s+--(?:test|check)\b/.test(t);
+}
+
+export function rewriteDirectNodeScript(script: string): string[] | undefined {
+  const t = script.trim();
+  const testMatch = /^(?:node(?:\.exe)?)\s+--test(?:\s+(.+))?$/.exec(t);
+  if (testMatch !== null) {
+    const spec = (testMatch[1] ?? 'tests').replaceAll(/\\/g, '/').replaceAll(/^["']|["']$/g, '');
+    const dir = spec.replace(/\/\*[^/]*$/, '').trim();
+    return ['node', '--test', dir.length > 0 ? dir : 'tests'];
+  }
+  const checkMatch = /^(?:node(?:\.exe)?)\s+--check\s+(.+)$/.exec(t);
+  if (checkMatch?.[1] !== undefined) {
+    return ['node', '--check', checkMatch[1].replaceAll(/^["']|["']$/g, '')];
+  }
+  return undefined;
+}
+
+export function packageLooksLikeNoInstallSite(pkg: {
+  readonly scripts: Record<string, string>;
+  readonly hasDependencies: boolean;
+}): boolean {
+  if (pkg.hasDependencies) return false;
+  const test = pkg.scripts['test'];
+  return test === undefined || scriptRunsWithoutInstall(test);
+}
+
 export function buildCommandArgs(
   packageDir: string | undefined,
   scriptName: string,
+  scriptBody?: string,
 ): string[] {
+  const direct = scriptBody !== undefined ? rewriteDirectNodeScript(scriptBody) : undefined;
+  if (direct !== undefined) return direct;
   if (packageDir !== undefined && packageDir.trim().length > 0) {
     return ['pnpm', '-C', packageDir.trim(), 'run', scriptName];
   }
@@ -350,27 +402,37 @@ function clampTimeoutMs(timeoutMs: number | undefined): number {
   return Math.min(Math.max(1, value), MAX_TIMEOUT_MS);
 }
 
-async function readPackageScripts(
+async function readPackageManifest(
   kaos: Kaos,
   packageRoot: string,
-): Promise<Record<string, string>> {
+): Promise<{ readonly scripts: Record<string, string>; readonly hasDependencies: boolean }> {
   const packageJsonPath = join(packageRoot, 'package.json');
   const raw = await kaos.readText(packageJsonPath);
   const parsed: unknown = JSON.parse(raw);
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return {};
+    return { scripts: {}, hasDependencies: false };
   }
-  const scriptsValue = (parsed as { scripts?: unknown }).scripts;
-  if (scriptsValue === null || typeof scriptsValue !== 'object' || Array.isArray(scriptsValue)) {
-    return {};
-  }
+  const record = parsed as {
+    scripts?: unknown;
+    dependencies?: unknown;
+    devDependencies?: unknown;
+  };
   const scripts: Record<string, string> = {};
-  for (const [key, value] of Object.entries(scriptsValue as Record<string, unknown>)) {
-    if (typeof value === 'string' && value.length > 0) {
-      scripts[key] = value;
+  if (record.scripts !== null && typeof record.scripts === 'object' && !Array.isArray(record.scripts)) {
+    for (const [key, value] of Object.entries(record.scripts as Record<string, unknown>)) {
+      if (typeof value === 'string' && value.length > 0) {
+        scripts[key] = value;
+      }
     }
   }
-  return scripts;
+  const hasDependencies =
+    hasNonEmptyMap(record.dependencies) || hasNonEmptyMap(record.devDependencies);
+  return { scripts, hasDependencies };
+}
+
+function hasNonEmptyMap(value: unknown): boolean {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.keys(value as Record<string, unknown>).length > 0;
 }
 
 async function runCommand(

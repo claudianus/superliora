@@ -8,7 +8,7 @@ import {
 import type { Command } from 'commander';
 import { t, tln } from '#/cli/i18n';
 
-import { getHostPackageRoot } from '#/cli/version';
+import { tryGetHostPackageRoot } from '#/cli/version';
 import {
   AsideCliMissingError,
   disableAsideSidecar,
@@ -25,7 +25,7 @@ interface WritableLike {
 type SetupRunner = (options?: SetupCommandOptions) => Promise<SetupCommandResult>;
 
 export interface BrowserUseCommandDeps {
-  readonly packageRoot: () => string;
+  readonly packageRoot: () => string | undefined;
   readonly stdout: WritableLike;
   readonly stderr: WritableLike;
   readonly exit: (code: number) => never;
@@ -110,13 +110,18 @@ export async function handleBrowserUseCommand(
   deps: Partial<BrowserUseCommandDeps> = {},
 ): Promise<number> {
   const resolved = resolveDeps(deps);
+  const packageRoot = resolved.packageRoot();
+  if (action === 'doctor' && packageRoot === undefined) {
+    resolved.stderr.write(tln('cli.runtime.browserUse.doctorSourceRestart'));
+    return 1;
+  }
   const runner = action === 'install'
     ? resolved.install
     : action === 'update'
       ? resolved.update
       : resolved.info;
   const result = await runner({
-    packageRoot: resolved.packageRoot(),
+    packageRoot,
     quiet: true,
   });
   writeResultOutput(resolved, result);
@@ -198,7 +203,7 @@ async function runBrowserUseCommand(
 
 function resolveDeps(deps: Partial<BrowserUseCommandDeps> | undefined): BrowserUseCommandDeps {
   return {
-    packageRoot: deps?.packageRoot ?? getHostPackageRoot,
+    packageRoot: deps?.packageRoot ?? tryGetHostPackageRoot,
     stdout: deps?.stdout ?? process.stdout,
     stderr: deps?.stderr ?? process.stderr,
     exit: deps?.exit ?? ((code) => process.exit(code)),

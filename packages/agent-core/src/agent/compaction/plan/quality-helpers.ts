@@ -79,6 +79,16 @@ export function latestUserText(messages: readonly Message[]): string | undefined
   return undefined;
 }
 
+/** Status / "what are you doing" queries must not become current_goal. */
+export function isStatusQueryUserText(text: string): boolean {
+  const t = text.replaceAll(/\s+/g, ' ').trim();
+  if (t.length === 0) return true;
+  if (t.length > 280) return false;
+  return /(?:지금\s*)?(?:뭔|무슨|어떤)\s*작업|보고해\s*봐|보고해봐|뭐\s*하고\s*있|what(?:'s| is) (?:going on|the status)|status report|where are we|what are you doing|현재\s*(?:상태|진행)|작업하고있는지/i.test(
+    t,
+  );
+}
+
 export function sharesMeaningfulToken(summary: string, source: string): boolean {
   const summaryLower = summary.toLowerCase();
   for (const token of source.toLowerCase().match(/[a-z0-9_./-]{4,}/g) ?? []) {

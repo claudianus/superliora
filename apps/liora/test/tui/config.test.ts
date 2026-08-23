@@ -118,7 +118,7 @@ terminal_palette = true
 [appearance]
 mission_control = "pinned"
 `);
-    expect(config.appearance.workerDock).toBe('pinned');
+    expect(config.appearance?.workerDock).toBe('pinned');
   });
 
   it('prefers worker_dock over legacy mission_control', () => {
@@ -127,7 +127,7 @@ mission_control = "pinned"
 mission_control = "hidden"
 worker_dock = "pinned"
 `);
-    expect(config.appearance.workerDock).toBe('pinned');
+    expect(config.appearance?.workerDock).toBe('pinned');
   });
 
   it('defaults transcriptDetail to standard when appearance omits it', () => {

@@ -49,7 +49,7 @@ const ISOLATION_WT =
   'C:/Users/Administrator/.superliora/worktrees/metalslug-6394865b/conductor-jmswlvown18jrcs';
 
 function slash(path: string | undefined): string {
-  return (path ?? '').toLowerCase().replace(/\\/g, '/');
+  return (path ?? '').toLowerCase().replaceAll(/\\/g, '/');
 }
 
 describe('guard1: persist repo identity; never follow live session cwd', () => {
@@ -317,7 +317,7 @@ describe('guard3: host_browser=einval vs implement fail', () => {
     );
   });
 
-  it('records host_browser=einval on the sensor ledger; visual stays failed', () => {
+  it('records host_browser=einval on the sensor ledger as visual=skipped_host', () => {
     const ledger = createVerificationSensorLedger();
     observeVerificationToolResult(ledger, 'VerifySurface', {}, {
       isError: true,
@@ -328,25 +328,23 @@ describe('guard3: host_browser=einval vs implement fail', () => {
         notes: ['spawn EINVAL on Windows host'],
       }),
     });
-    expect(ledger.visualVerdict).toBe('failed');
+    expect(ledger.visualVerdict).toBe('skipped_host');
     expect(ledger.hostBrowser).toBe('einval');
     expect(ledger.failures.some((f) => f.summary.includes('host_browser=einval'))).toBe(
       true,
     );
   });
 
-  it('mechanical-green + host_browser=einval → verification_failed false (visual still failed)', () => {
+  it('mechanical-green + host_browser=einval → verification_failed false (visual=skipped_host)', () => {
     const verification = {
       tests: 'passed' as const,
       typecheck: 'passed' as const,
       lint: 'passed' as const,
-      visual: 'failed' as const,
+      visual: 'skipped_host' as const,
       host_browser: 'einval' as const,
     };
     expect(verificationIsGreen(verification)).toBe(true);
     expect(computeVerificationFailed(verification)).toBe(false);
-    // verificationHasFailure also excludes einval visual so merge green path
-    // does not invent product fail — visual proof gate still uses visual=failed.
     expect(verificationHasFailure(verification)).toBe(false);
 
     const contract = buildSubagentResultContract({
@@ -356,7 +354,7 @@ describe('guard3: host_browser=einval vs implement fail', () => {
       filesChanged: ['packages/agent-core/src/x.ts'],
       verification,
     });
-    expect(contract.verification.visual).toBe('failed');
+    expect(contract.verification.visual).toBe('skipped_host');
     expect(contract.verification.host_browser).toBe('einval');
     expect(contract.verification_failed).toBe(false);
   });

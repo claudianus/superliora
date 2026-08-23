@@ -9,6 +9,7 @@
  */
 
 import { isPlaceholderBriefLine } from './job-brief';
+import { destIsUserDesktopDocument } from './job-playable';
 import type {
   JobDeliveryMode,
   JobKind,
@@ -32,6 +33,8 @@ export interface ClassifyJobTaskTrackInput {
   readonly surfaceKind?: JobSurfaceKind;
   readonly ownershipPaths?: readonly string[];
   readonly contextPaths?: readonly string[];
+  /** Absolute dest (repoRoot / user Desktop path). */
+  readonly destPath?: string;
   readonly kind?: JobKind;
   readonly deliveryMode?: JobDeliveryMode;
   readonly greenfieldChain?: boolean;
@@ -103,6 +106,15 @@ export function resolveJobTaskTrack(input: ClassifyJobTaskTrackInput): JobTaskTr
   }
   if (input.deliveryMode === 'greenfield' || input.greenfieldChain === true) {
     return { source: 'structural', track: 'coding' };
+  }
+
+  const destPaths = [
+    ...(input.ownershipPaths ?? []),
+    ...(input.contextPaths ?? []),
+    ...(input.destPath !== undefined ? [input.destPath] : []),
+  ];
+  if (destPaths.some((path) => destIsUserDesktopDocument(path))) {
+    return { source: 'structural', track: 'general' };
   }
 
   const explicit = normalizeJobTaskTrack(input.explicit);

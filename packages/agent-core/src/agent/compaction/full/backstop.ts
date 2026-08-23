@@ -10,12 +10,16 @@ import { ErrorCodes, isKimiError } from '#/errors/index';
 import { isAbortError } from '../../../loop/errors';
 import type { CompactionPlan } from '../plan/planner';
 import { extractEvidenceIdsFromText } from '../plan/quality';
-import { latestUserText } from '../plan/quality-helpers';
+import { isStatusQueryUserText, latestUserText } from '../plan/quality-helpers';
+import { parseStructuredCompactionMemory } from '../memory';
+import { isRealUserPromptOrigin, type ContextMessage } from '../../context/types';
 
 const EMERGENCY_MESSAGE_SNIPPET_CHARS = 600;
 /** Hard cap for the fail-open stub injected into the next turn. */
-const FAIL_OPEN_STUB_MAX_CHARS = 4_000;
+const FAIL_OPEN_STUB_MAX_CHARS = 7_500;
 const FAIL_OPEN_RAW_REF_LIMIT = 8;
+const RECENT_TURN_LIMIT = 30;
+const RECENT_TURN_SNIPPET_CHARS = 160;
 const JOB_ID_PATTERN = /job_[a-z0-9]{6,}/gi;
 
 /**
@@ -84,9 +88,11 @@ export function buildEmergencyBackstopSummary(
   instruction?: string,
 ): string {
   const latestUser = findLatestUserText(messages);
+  const currentGoal = resolveEmergencyCurrentGoal(messages) ?? latestUser;
   const jobIds = collectJobIds(messages, latestUser);
   const archiveIds = collectArchivePointers(messages, plan);
-  const nextAction = latestUser ?? 'the pending user request.';
+  const nextAction = currentGoal ?? 'the pending user request.';
+  const recentTurns = collectRecentUserAssistantTurns(messages);
 
   const rawRefLines =
     plan.rawRefs.length > 0
@@ -101,7 +107,7 @@ export function buildEmergencyBackstopSummary(
 
   const lines = [
     'current_goal:',
-    `- ${latestUser ?? 'Continue the active task from the compacted conversation state.'}`,
+    `- ${currentGoal ?? 'Continue the active task from the compacted conversation state.'}`,
     'last_known_state:',
     `- Emergency extractive backstop: ${String(messages.length)} messages (${String(plan.compactedTokens)} estimated tokens) were compacted because the LLM summarizer failed.`,
     instruction !== undefined && instruction.trim().length > 0
@@ -127,6 +133,16 @@ export function buildEmergencyBackstopSummary(
     ...(archiveIds.length > 0
       ? archiveIds.map((id) => `- [liora-archived id=${id}]`)
       : ['- (none captured)']),
+    'host_browser:',
+    `- ${extractHostBrowserSlot(messages)}`,
+    'dest_play_path:',
+    `- ${extractDestPlayPath(messages) ?? '(not captured during compaction.)'}`,
+    'last_green_tests:',
+    `- ${extractLastGreenTests(messages) ?? '(not captured during compaction.)'}`,
+    'do_not_retry:',
+    ...doNotRetryLines(messages),
+    'recent_turns:',
+    ...recentTurns,
     'raw_refs:',
     ...rawRefLines,
     ...collectEvidenceLines(messages),
@@ -160,6 +176,76 @@ function collectArchivePointers(
 function findLatestUserText(messages: readonly Message[]): string | undefined {
   const text = latestUserText(messages);
   return text === undefined ? undefined : truncateChars(text, EMERGENCY_MESSAGE_SNIPPET_CHARS);
+}
+
+function resolveEmergencyCurrentGoal(messages: readonly Message[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i] as ContextMessage;
+    if (message?.origin?.kind !== 'compaction_summary') continue;
+    const parsed = parseStructuredCompactionMemory(extractText(message, '\n'));
+    const goal = parsed.currentGoal?.trim();
+    if (goal !== undefined && goal.length > 0 && !isStatusQueryUserText(goal)) {
+      return truncateChars(goal, EMERGENCY_MESSAGE_SNIPPET_CHARS);
+    }
+  }
+  for (const message of messages) {
+    if (message.role !== 'user') continue;
+    if (!isRealUserPromptOrigin((message as ContextMessage).origin)) continue;
+    const text = extractText(message, ' ').replaceAll(/\s+/g, ' ').trim();
+    if (text.length === 0 || isStatusQueryUserText(text)) continue;
+    return truncateChars(text, EMERGENCY_MESSAGE_SNIPPET_CHARS);
+  }
+  return undefined;
+}
+
+function collectRecentUserAssistantTurns(messages: readonly Message[]): string[] {
+  const turns: string[] = [];
+  for (let i = messages.length - 1; i >= 0 && turns.length < RECENT_TURN_LIMIT; i--) {
+    const message = messages[i];
+    if (message === undefined) continue;
+    if (message.role !== 'user' && message.role !== 'assistant') continue;
+    const text = extractText(message, ' ').replaceAll(/\s+/g, ' ').trim();
+    if (text.length === 0) continue;
+    turns.push(`- ${message.role}: ${truncateChars(text, RECENT_TURN_SNIPPET_CHARS)}`);
+  }
+  if (turns.length === 0) return ['- (not captured during compaction.)'];
+  return turns.toReversed();
+}
+
+function extractHostBrowserSlot(messages: readonly Message[]): string {
+  const hay = messages.map((message) => extractText(message, ' ')).join('\n');
+  if (/\bEINVAL\b/i.test(hay) || /host_browser=einval/i.test(hay)) return 'einval';
+  if (/Browser-use runtime is not available/i.test(hay)) return 'missing';
+  return 'unknown';
+}
+
+function extractDestPlayPath(messages: readonly Message[]): string | undefined {
+  const hay = messages.map((message) => extractText(message, '\n')).join('\n');
+  const playable = /playable_path=([^\s]+)/i.exec(hay);
+  if (playable?.[1] !== undefined) return playable[1];
+  const local = /https?:\/\/localhost(?::\d+)?[^\s)"']*/i.exec(hay);
+  if (local?.[0] !== undefined) return local[0];
+  const desktop = /[A-Za-z]:[\\/][^\s]*Desktop[^\s]*index\.html/i.exec(hay);
+  return desktop?.[0];
+}
+
+function extractLastGreenTests(messages: readonly Message[]): string | undefined {
+  const hay = messages.map((message) => extractText(message, '\n')).join('\n');
+  const match = /(\d+)\s*\/\s*(\d+)\s*(?:pass|passed|ok)/i.exec(hay);
+  if (match?.[1] !== undefined && match[2] !== undefined) {
+    return `${match[1]}/${match[2]}`;
+  }
+  return undefined;
+}
+
+function doNotRetryLines(messages: readonly Message[]): string[] {
+  const hay = messages.map((message) => extractText(message, ' ')).join('\n');
+  const lines: string[] = [];
+  if (/\bEINVAL\b/i.test(hay) || /host_browser=einval/i.test(hay)) {
+    lines.push('- BrowserStatus / VerifySurface (host_browser=einval)');
+  }
+  if (lines.length === 0) return ['- (none captured)'];
+  return lines;
 }
 
 function collectAssistantDecisions(messages: readonly Message[]): string[] {

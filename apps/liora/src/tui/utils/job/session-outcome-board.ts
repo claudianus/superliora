@@ -134,8 +134,19 @@ export function summarizeBlockedReason(card: ConductorJobCard): string | undefin
   return undefined;
 }
 
+/** Explore/research found an answer but the ledger stamped failed. */
+export function isExploreDiscoveryFalseFail(card: ConductorJobCard): boolean {
+  if (card.kind !== 'explore' && card.kind !== 'research') return false;
+  if (card.status !== 'failed') return false;
+  const summary = card.resultSummary?.trim() ?? '';
+  if (summary.length < 20) return false;
+  return /package\.json|found|index\.html|playable|http:\/\/localhost|python\s+-m\s+http\.server/i.test(
+    summary,
+  );
+}
+
 function truncateReason(text: string, max = 64): string {
-  const oneLine = text.replace(/\s+/gu, ' ').trim();
+  const oneLine = text.replaceAll(/\s+/gu, ' ').trim();
   if (oneLine.length <= max) return oneLine;
   return `${oneLine.slice(0, max - 1)}…`;
 }
@@ -195,6 +206,17 @@ function classifyOutcome(
     root.status === 'failed' &&
     verifyPassed &&
     !children.some((c) => c.verifyVerdict === 'failed');
+  const exploreFalseFail = isExploreDiscoveryFalseFail(root);
+
+  if (exploreFalseFail) {
+    return {
+      bucket: 'done',
+      status: 'code_pass_ledger_fail',
+      statusLabel: STATUS_LABEL.code_pass_ledger_fail,
+      token: STATUS_TOKEN.code_pass_ledger_fail,
+      reason: '탐색 발견 있음 · 게이트 불일치(장부)',
+    };
+  }
 
   if (rootFailedButVerifyPass) {
     return {
@@ -272,6 +294,25 @@ function classifyOutcome(
   };
 }
 
+function foldHostBrowserEinvalOutcomes(rows: SessionOutcomeRow[]): SessionOutcomeRow[] {
+  const einval = rows.filter(
+    (row) => row.reason === '호스트 브라우저(EINVAL)' && row.bucket === 'blocked',
+  );
+  if (einval.length < 2) return rows;
+  const [primary, ...rest] = einval;
+  if (primary === undefined) return rows;
+  const restIds = new Set(rest.map((row) => row.id));
+  const merged: SessionOutcomeRow = {
+    ...primary,
+    jobIds: [...primary.jobIds, ...rest.flatMap((row) => row.jobIds)],
+    children: [...primary.children, ...rest.flatMap((row) => row.children)],
+    collapsedChildCount: primary.collapsedChildCount + rest.reduce((n, row) => n + row.jobIds.length, 0),
+    title: `${primary.title} (+${String(rest.length)} EINVAL)`,
+    reason: '호스트 브라우저(EINVAL) — 이 세션에서 BrowserStatus 재시도 중지',
+  };
+  return [merged, ...rows.filter((row) => row.id !== primary.id && !restIds.has(row.id))];
+}
+
 function sortOutcomes(rows: SessionOutcomeRow[]): SessionOutcomeRow[] {
   return rows.toSorted(
     (a, b) => b.priority - a.priority || b.updatedAtMs - a.updatedAtMs,
@@ -325,9 +366,10 @@ export function buildSessionOutcomeBoard(
     });
   }
 
-  const blocked = sortOutcomes(outcomes.filter((o) => o.bucket === 'blocked'));
-  const remaining = sortOutcomes(outcomes.filter((o) => o.bucket === 'remaining'));
-  const done = sortOutcomes(outcomes.filter((o) => o.bucket === 'done'));
+  const folded = foldHostBrowserEinvalOutcomes(outcomes);
+  const blocked = sortOutcomes(folded.filter((o) => o.bucket === 'blocked'));
+  const remaining = sortOutcomes(folded.filter((o) => o.bucket === 'remaining'));
+  const done = sortOutcomes(folded.filter((o) => o.bucket === 'done'));
 
   return {
     blocked,

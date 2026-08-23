@@ -97,6 +97,14 @@ describe('resolveJobTaskTrack / classifyJobTaskTrack', () => {
     }
   });
 
+  it('uses general track for a Desktop markdown dest (no coding worktree)', () => {
+    expect(
+      resolveJobTaskTrack({
+        destPath: 'C:/Users/Administrator/Desktop/SuperLiora-하네스-개선점-2026-08-23.md',
+      }),
+    ).toEqual({ source: 'structural', track: 'general' });
+  });
+
   it('honors declared and inherited contracts', () => {
     expect(
       resolveJobTaskTrack({

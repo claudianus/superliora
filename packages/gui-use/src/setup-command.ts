@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { extname } from 'node:path';
 
 export interface SetupCommandOptions {
   readonly cwd?: string | undefined;
@@ -19,9 +20,68 @@ export interface SetupCommandResult {
   readonly error?: string | undefined;
 }
 
+export interface SetupSpawnResolution {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly windowsVerbatimArguments?: boolean | undefined;
+  readonly displayCommand: readonly string[];
+}
+
+export interface ResolveSetupSpawnOptions {
+  readonly platform?: NodeJS.Platform | undefined;
+  readonly comspec?: string | undefined;
+}
+
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const KILL_ESCALATE_MS = 2_000;
 const FORCE_SETTLE_MS = 1_000;
+
+const WINDOWS_CMD_SHIMS = new Set(['npx', 'npm', 'pnpm', 'corepack', 'yarn']);
+
+function quoteWindowsCmdArg(value: string): string {
+  if (value.length === 0) return '""';
+  if (!/[\s"]/.test(value)) return value;
+  return `"${value.replaceAll(/"/g, '\\"')}"`;
+}
+
+/**
+ * Windows cannot spawn `.cmd` / `.bat` (or extensionless npm shims) with `shell: false`.
+ * Node reports `EINVAL`. Route those through `cmd.exe /d /s /c` instead.
+ */
+export function needsWindowsCmdWrapper(
+  command: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (platform !== 'win32') return false;
+  const base = command.replaceAll(/\\/g, '/').split('/').pop() ?? command;
+  const ext = extname(base).toLowerCase();
+  if (ext === '.cmd' || ext === '.bat') return true;
+  if (ext === '.exe' || ext === '.com' || ext === '.mjs' || ext === '.js' || ext === '.ps1') {
+    return false;
+  }
+  const stem = ext.length > 0 ? base.slice(0, -ext.length) : base;
+  return WINDOWS_CMD_SHIMS.has(stem.toLowerCase());
+}
+
+export function resolveSetupSpawn(
+  command: string,
+  args: readonly string[],
+  options: ResolveSetupSpawnOptions = {},
+): SetupSpawnResolution {
+  const platform = options.platform ?? process.platform;
+  const displayCommand = [command, ...args] as const;
+  if (!needsWindowsCmdWrapper(command, platform)) {
+    return { command, args, displayCommand };
+  }
+  const comspec = options.comspec ?? process.env['ComSpec'] ?? 'cmd.exe';
+  const cmdline = [command, ...args].map(quoteWindowsCmdArg).join(' ');
+  return {
+    command: comspec,
+    args: ['/d', '/s', '/c', cmdline],
+    windowsVerbatimArguments: true,
+    displayCommand,
+  };
+}
 
 /**
  * Spawn a setup/install command with wall-clock timeout and optional AbortSignal.
@@ -32,7 +92,8 @@ export function runSetupCommand(
   args: readonly string[],
   options: SetupCommandOptions = {},
 ): Promise<SetupCommandResult> {
-  const cmd = [command, ...args] as const;
+  const spawned = resolveSetupSpawn(command, args);
+  const cmd = spawned.displayCommand;
   if (options.signal?.aborted) {
     return Promise.resolve({
       ok: false,
@@ -45,11 +106,12 @@ export function runSetupCommand(
   }
 
   return new Promise((resolve) => {
-    const child = spawn(command, [...args], {
+    const child = spawn(spawned.command, [...spawned.args], {
       cwd: options.cwd ?? options.packageRoot,
       env: options.env ?? process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
+      windowsVerbatimArguments: spawned.windowsVerbatimArguments,
     });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
