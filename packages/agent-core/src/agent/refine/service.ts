@@ -161,7 +161,15 @@ export class AgentRefineService {
       const applied: HarnessRefinementEvent[] = [];
       const failed: HarnessRefinementEvent[] = [];
       const targetState = scope === 'global' ? this.globalState! : this.localState;
+      const skipAutoSkills =
+        options.auto === true && this.agent.experimentalFlags.enabled('auto_skillify');
       for (const edit of plan.edits) {
+        if (skipAutoSkills && edit.kind === 'skill') {
+          this.agent.log.info(
+            'auto-refine skipped skill edit; auto-skillify owns SKILL.md playbooks',
+          );
+          continue;
+        }
         try {
           const event = await applyHarnessEdit(
             { agent: this.agent, state: targetState, scope },
@@ -235,7 +243,7 @@ export class AgentRefineService {
     entry: HarnessEntry,
   ): Promise<void> {
     const latest = [...targetState.refinements]
-      .reverse()
+      .toReversed()
       .find(
         (event) =>
           event.status === 'applied' &&

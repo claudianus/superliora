@@ -60,7 +60,7 @@ describe('skills settings tips', () => {
   it('exports SearchSkill, risk filter, Trace→Skill, and manage tips (glance copy, not menu rows)', () => {
     expect(SKILLS_SEARCH_SKILL_TIP).toContain('SearchSkill');
     expect(SKILLS_RISK_FILTER_TIP).toContain('metadata.risk=high');
-    expect(SKILLS_TRACE_SKILL_TIP).toContain('Trace→Skill');
+    expect(SKILLS_TRACE_SKILL_TIP).toContain('Learning lanes');
     expect(SKILLS_TRACE_SKILL_TIP).toContain('.agents/skills/auto');
     expect(SKILLS_TRACE_SKILL_TIP).not.toContain('no auto pipeline');
     expect(SKILLS_MANAGE_TIP).toContain('Extensions → Skills');

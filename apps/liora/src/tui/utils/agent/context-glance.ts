@@ -12,10 +12,10 @@ export const CONTEXT_WORKING_SET_TIP =
   'Working set — soft cap before auto-compact on 1M-class models. Presets: economy · balanced · deep · full_window. Change via /context or Settings → Harness → Context working set. Models with a whole-request long-context surcharge stay under that band (Seed/Qwen Coder: 128k; Grok and Gemini Pro: 200k; Qwen Plus/Flash: 256k; GPT-5.4/5.6 and Fugu Ultra: 272k; MiniMax M3: 512k).';
 
 export const CONTEXT_INSTRUCTION_SOFT_TIP =
-  'Instruction — AGENTS.md, rules, skills: human SSOT; do not auto-write.';
+  'Instruction — AGENTS.md and human-committed skills. Do not auto-rewrite AGENTS.md.';
 
 export const CONTEXT_LEARNING_SOFT_TIP =
-  'Learning — Liora Memory (/memory remember): agent-curated durable facts.';
+  'Learning — Memory for facts/preferences; SkillCreate / auto-skillify playbooks under .agents/skills/auto/.';
 
 export interface InstructionFileHit {
   readonly name: string;
