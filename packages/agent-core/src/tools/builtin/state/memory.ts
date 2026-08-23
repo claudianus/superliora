@@ -15,6 +15,7 @@ import type {
   MemoryScope,
   MemorySearchResult,
 } from '../../../memory';
+import { LEARNING_LANES } from '../../../agent/learning-lanes';
 import { toInputJsonSchema } from '../../support/input-schema';
 
 export const MEMORY_TOOL_NAME = 'Memory' as const;
@@ -111,8 +112,11 @@ export const MemoryInputSchema: z.ZodType<MemoryInput> = z.object({
 
 export class MemoryTool implements BuiltinTool<MemoryInput> {
   readonly name = MEMORY_TOOL_NAME;
-  readonly description =
-    'Remember, recall, reflect, forget, and inspect durable Liora Memory across sessions. Use for stable preferences, project decisions, reminders, and important work continuity.';
+  readonly description = [
+    'Remember, recall, reflect, forget, and inspect durable Liora Memory across sessions.',
+    'Use for facts, preferences, decisions, and reminders (one or two sentences).',
+    LEARNING_LANES,
+  ].join('\n');
   readonly parameters: Record<string, unknown> = toInputJsonSchema(MemoryInputSchema);
 
   constructor(private readonly memory: AgentMemoryRuntime) {}

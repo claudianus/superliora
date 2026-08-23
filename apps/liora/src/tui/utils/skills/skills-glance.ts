@@ -14,7 +14,7 @@ export const SKILLS_RISK_FILTER_TIP =
 
 /** Compact Trace→Skill tip — live distill + same-session SearchSkill. */
 export const SKILLS_TRACE_SKILL_TIP =
-  'Trace→Skill — recoveries and user corrections can be distilled into .agents/skills/auto/ SKILL.md, registered live for SearchSkill/Skill (no restart), and listed in <session_skills>. Review in git; disable with SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY=false.';
+  'Learning lanes — AGENTS.md for standing rules (humans); Memory for facts/preferences; skills for playbooks. Recoveries distill to .agents/skills/auto/, live SearchSkill/Skill, listed in <session_skills>. Disable with SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY=false.';
 
 /** Compact manage tip — enable/disable, import, hot-reload. */
 export const SKILLS_MANAGE_TIP =
@@ -108,10 +108,10 @@ export function buildSkillsSettingsLines(input: SkillsGlanceInput): readonly str
     '· Inline/prompt skills only; reference/expert types use different paths',
     '· disableModelInvocation=true skills never appear in model search',
     '',
-    '── Trace→Skill (live) ───────────────────────',
-    '· Recoveries / user corrections → LLM-written SKILL.md under .agents/skills/auto/',
-    '· Registered immediately — SearchSkill and Skill("name") work in this session',
-    '· Review the files in git; disable with SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY=false',
+    '── Learning lanes ───────────────────────────',
+    '· Instruction: AGENTS.md (humans). Facts: Memory. Playbooks: skills.',
+    '· Recoveries → .agents/skills/auto/ SKILL.md, live SearchSkill / Skill("name")',
+    '· Review auto skills in git; disable with SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY=false',
     '',
     '── Manage (manual) ──────────────────────────',
     '· Extensions → Skills — enable/disable slash activation',

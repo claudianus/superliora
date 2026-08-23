@@ -113,7 +113,8 @@ describe('W9 compaction/context settings tips', () => {
     expect(CONTEXT_WORKING_SET_TIP).toContain('256k');
     expect(CONTEXT_WORKING_SET_TIP).toContain('512k');
     expect(CONTEXT_INSTRUCTION_SOFT_TIP).toContain('AGENTS.md');
-    expect(CONTEXT_LEARNING_SOFT_TIP).toContain('Liora Memory');
+    expect(CONTEXT_LEARNING_SOFT_TIP).toContain('Memory');
+    expect(CONTEXT_LEARNING_SOFT_TIP).toContain('.agents/skills/auto/');
   });
 });
 

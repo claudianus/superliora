@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import type { Agent } from '..';
 import { createCompactionProvider } from '../compaction/full/full-provider';
+import { LEARNING_LANES } from '../learning-lanes';
 import { sliceJsonObject } from './plan';
 import { serializeTrajectoryForRefine } from './serialize';
 import {
@@ -41,11 +42,13 @@ const REVIEW_SYSTEM_PROMPT = [
   'You are the auto-refine review gate for a coding agent\'s continual harness.',
   'An automatic refinement run is being considered. Refinement rewrites parts of the agent\'s own harness (prompt notes, memory, skills, subagent specs) from the recent trajectory. It costs a planning pass, so it should run only when the trajectory contains a durable, reusable lesson.',
   '',
+  LEARNING_LANES,
+  '',
   'Answer yes only when the trajectory shows at least one of:',
-  '- a repeated failure or correction the agent should not have to rediscover,',
-  '- a user correction or preference worth persisting,',
-  '- a reusable procedure or delegation pattern that worked and recurs,',
-  '- a harness gap that clearly caused wasted work.',
+  '- a user correction or preference worth persisting as memory or a short prompt note,',
+  '- a delegation / subagent-spec gap that caused wasted work,',
+  '- a harness habit (prompt note) the agent should not have to rediscover.',
+  'Do not answer yes only to persist a recovery playbook — auto-skillify owns SKILL.md.',
   '',
   'Ordinary progress, one-off tasks, and lessons already present in the harness state do not justify a run.',
   '',

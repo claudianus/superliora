@@ -366,6 +366,39 @@ describe('AgentRefineService', () => {
     }
   });
 
+  it('skips auto skill edits when auto_skillify is enabled', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'refine-skip-skill-'));
+    try {
+      const { mkdirSync } = await import('node:fs');
+      mkdirSync(join(cwd, '.git'));
+      const plan = JSON.stringify({
+        summary: 'capture the retry playbook',
+        edits: [
+          {
+            kind: 'skill',
+            operation: 'create',
+            name: 'retry-flaky-e2e',
+            description: 'Retry flaky e2e tests safely',
+            whenToUse: 'When e2e tests flake or fail intermittently',
+            body: '1. Re-run with --retries=2\n2. Quarantine on second failure.\n\nDone when the focused e2e command exits 0.',
+            evidence: 'agent reran flaky tests three times',
+          },
+        ],
+      });
+      const { agent, registry } = makeAgent({ planText: plan, cwd, flagEnabled: true });
+      const refine = new AgentRefineService(agent);
+
+      const result = await refine.refine({ auto: true });
+
+      const skillMd = join(cwd, '.agents', 'skills', 'auto', 'retry-flaky-e2e', 'SKILL.md');
+      expect(result.applied).toEqual([]);
+      expect(existsSync(skillMd)).toBe(false);
+      expect(registry.register).not.toHaveBeenCalled();
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   it('persists global scope to the global harness file', async () => {
     const home = mkdtempSync(join(tmpdir(), 'refine-home-'));
     process.env['SUPERLIORA_HOME'] = home;

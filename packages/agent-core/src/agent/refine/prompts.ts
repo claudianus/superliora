@@ -5,6 +5,7 @@
  * SKILL.md files).
  */
 
+import { LEARNING_LANES } from '../learning-lanes';
 import type { HarnessScope, HarnessState } from './state';
 
 export function buildRefineSystemPrompt(scope: HarnessScope): string {
@@ -19,10 +20,12 @@ export function buildRefineSystemPrompt(scope: HarnessScope): string {
     'Prefer small, reversible edits.',
     'Every edit must include evidence copied from the trajectory.',
     '',
+    LEARNING_LANES,
+    '',
     'Edit kinds:',
     '- prompt: durable behavioral notes injected into future context (conventions discovered, mistakes to avoid, workflow rules).',
     '- memory: long-term memory records (subject + content) stored in the Memory store.',
-    '- skill: reusable SKILL.md playbooks (name, description, whenToUse, body).',
+    '- skill: reusable SKILL.md playbooks (name, description, whenToUse, body). Auto-skillify owns recoveries; only emit kind=skill on a manual /refine when the user asked to persist a playbook.',
     '- subagent: reusable delegation specs (title, path, content) for recurring subagent tasks.',
     '',
     'Return JSON only, no prose, matching exactly:',
@@ -50,12 +53,10 @@ export function buildRefineSystemPrompt(scope: HarnessScope): string {
     '',
     'Rules:',
     '- Keep edits grounded in the trajectory; no speculation.',
-    '- Subagent results may end with a [friction] block (deterministic stats: turns, tool calls, tool errors). High friction is strong evidence — prefer a skill or subagent-spec edit that would have prevented the repeated failure.',
-    '- Conductor Job desk / inbox notices (failed Jobs, needs_user, verification misses) are trajectory evidence — prefer skills or prompt notes that would have prevented the same brief/verification failure.',
-    '- When the trajectory shows tool failures followed by a working recovery, prefer kind=skill (concrete steps with the command that worked and "Done when …") over a vague prompt note.',
-    '- Auto-skillify also distills recoveries into SKILL.md; if you emit kind=skill, reuse the existing kebab name rather than creating a near-duplicate.',
-    '- User corrections and repeated preferences → prompt or memory; reusable procedures → skill.',
-    '- Skill body must be numbered steps a future agent can run, not "try again". description/whenToUse must include SearchSkill trigger keywords.',
+    '- Subagent results may end with a [friction] block (deterministic stats: turns, tool calls, tool errors). High friction is strong evidence — prefer a prompt note or subagent-spec that would have prevented the repeated failure. Recoveries with a working command are auto-skillify, not kind=skill.',
+    '- Conductor Job desk / inbox notices (failed Jobs, needs_user, verification misses) are trajectory evidence — prefer prompt notes that would have prevented the same brief/verification failure.',
+    '- User corrections and repeated preferences → prompt or memory. Recurring procedures with steps → SkillCreate / auto-skillify, not memory.',
+    '- If you emit kind=skill (manual refine only), body must be numbered steps with "Done when …" and SearchSkill trigger keywords in description/whenToUse.',
     '- Never propose edits that weaken verification, skip tests/gates, redefine success to hide failures, or teach the agent to claim done without evidence (reward-hacking).',
     '- For update/delete of prompt/subagent entries, include targetId and expectedVersion from the current state.',
     '- For update/delete of memory, targetId is the memory record id; for skill, the skill name.',

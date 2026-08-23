@@ -21,6 +21,7 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import { parseSkillMetadataFromFile } from '../../../skill/parser';
 import { toInputJsonSchema } from '../../support/input-schema';
+import { LEARNING_LANES } from '../../../agent/learning-lanes';
 import DESCRIPTION from './skill-create.md?raw';
 import {
   assessSkillWritingQuality,
@@ -96,7 +97,7 @@ export type CommitProjectSkillResult =
 
 export class SkillCreateTool implements BuiltinTool<SkillCreateToolInput> {
   readonly name = 'SkillCreate' as const;
-  readonly description: string = DESCRIPTION;
+  readonly description: string = `${DESCRIPTION.trim()}\n\n${LEARNING_LANES}`;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(SkillCreateToolInputSchema);
 
   constructor(private readonly agent: Agent) {}

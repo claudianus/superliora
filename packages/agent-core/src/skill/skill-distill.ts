@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import type { Agent } from '../agent/index';
 import { createCompactionProvider } from '../agent/compaction/full/full-provider';
+import { LEARNING_LANES } from '../agent/learning-lanes';
 import { sliceJsonObject } from '../agent/refine/plan';
 import { serializeTrajectoryForRefine } from '../agent/refine/serialize';
 import { SKILL_NAME_RE, commitProjectSkill } from '../tools/builtin/fleet/skill-create';
@@ -56,7 +57,8 @@ export class SkillDistillError extends Error {
 
 const GATE_SYSTEM_PROMPT = [
   'You are the lesson gate for a coding-agent skill distiller.',
-  'A skill is a reusable playbook a FUTURE agent will SearchSkill and follow.',
+  LEARNING_LANES,
+  'A skill is a reusable playbook a FUTURE agent will SearchSkill and follow. Facts and preferences belong in Memory, not here.',
   'Answer hasLesson=true only when the trajectory contains at least one of:',
   '- nonobvious_fact: something a reader of AGENTS.md / the repo would not have known without this run',
   '- inferred_constraint: an environment, platform, or API quirk discovered by failing first',
