@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.12.17
+
+### Patch Changes
+
+- Fix Windows browser spawn EINVAL so visual proof is skipped_host instead of a product fail, and land playable dests when tests pass.
+
 ## 0.12.16
 
 ### Patch Changes
