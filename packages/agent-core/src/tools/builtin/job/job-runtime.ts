@@ -573,14 +573,40 @@ async function settlePendingJobTaskTrack(input: {
   return applySettledTaskTrack(input.store, input.job, { source, track }, input.agent);
 }
 
-export function needsWorktree(job: Pick<JobRecord, 'kind' | 'taskTrack'>): boolean {
+function codingJobMutatesCheckout(
+  job: Pick<JobRecord, 'kind' | 'taskTrack'>,
+): boolean {
+  if (isGeneralTaskTrack(job)) return false;
+  return (
+    job.kind === 'task' ||
+    job.kind === 'implement' ||
+    job.kind === 'goal-driver' ||
+    job.kind === 'verify'
+  );
+}
+
+export function needsWorktree(
+  job: Pick<JobRecord, 'kind' | 'taskTrack' | 'deliveryClass' | 'id'>,
+  store?: ToolStore,
+): boolean {
   // merge/push: bookkeeping only — land/push use the source job's worktree.
   if (job.kind === 'merge' || job.kind === 'push') return false;
   if (isGeneralTaskTrack(job)) return false;
   const profile = profileForJobKind(job.kind);
   // explore/research (+ desk via explore profile) + goal-desk: read-only /
   // orchestration — no worktree. verify keeps a worktree (usually parent chain).
-  return profile !== 'explore' && profile !== 'goal-desk';
+  if (profile === 'explore' || profile === 'goal-desk') return false;
+  if (job.deliveryClass === 'sprint') {
+    // Hotfix checkout: skip isolation unless another coding Job is already live.
+    if (store === undefined) return false;
+    return listJobs(store).some(
+      (other) =>
+        other.id !== job.id &&
+        isExecutionInFlight(other.status) &&
+        codingJobMutatesCheckout(other),
+    );
+  }
+  return true;
 }
 
 /**
@@ -639,7 +665,7 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
                 job: candidate,
                 agent: input.agent,
               });
-        if (requireWt && needsWorktree(job)) {
+        if (requireWt && needsWorktree(job, input.store)) {
           const assignRepo = job.repoRoot ?? input.repoPath;
           if (input.kaos === undefined || assignRepo === undefined) {
             const b = patchJobAndNotify(

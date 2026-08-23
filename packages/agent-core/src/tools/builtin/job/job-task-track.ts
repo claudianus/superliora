@@ -80,7 +80,7 @@ export function isPendingTaskTrack(
 
 /** Where the worker runs. Mirrors `needsWorktree` without importing runtime. */
 export function jobIsolationKind(
-  job: Pick<JobRecord, 'kind' | 'taskTrack'>,
+  job: Pick<JobRecord, 'kind' | 'taskTrack' | 'deliveryClass'>,
 ): 'worktree' | 'checkout' | 'none' {
   if (
     job.kind === 'merge' ||
@@ -92,6 +92,7 @@ export function jobIsolationKind(
   }
   if (isGeneralTaskTrack(job)) return 'checkout';
   if (job.kind === 'explore' || job.kind === 'research') return 'checkout';
+  if (job.deliveryClass === 'sprint') return 'checkout';
   return 'worktree';
 }
 
@@ -187,7 +188,9 @@ export function taskTrackCreateDefaults(input: {
   }
   return {
     tddMode: input.tddMode ?? 'preferred',
-    surfaceKind: input.surfaceKind,
+    // Coding default: none. Omitting the field used to spawn dual-axis verify
+    // workers and block auto-land — the slow path was the accidental default.
+    surfaceKind: input.surfaceKind ?? 'none',
   };
 }
 

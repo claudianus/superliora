@@ -326,6 +326,7 @@ describe('JobCreate affinity integration', () => {
     const out = await runCreate(store, {
       title: 'Cold sibling',
       kind: 'implement',
+      affinity: 'off',
       ownership_paths: ['packages/agent-core/src/tools'],
       success_criteria: ['also ok'],
       staff: false,

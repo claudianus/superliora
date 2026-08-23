@@ -42,7 +42,7 @@ promptVars:
     | Status ("what's running?") | JobList/JobInspect/JobInbox, report |
     | Unknown code location / multi-file discovery / root-cause hunt | `JobCreate(kind=explore)` with success_criteria + context_paths; ACK — do **not** open a multi-step RepoQuery/Read marathon here |
     | Web / API / library docs investigation | `JobCreate(kind=research)` (DeepResearch/Context7); ACK — do **not** FetchURL/WebSearch marathons here |
-    | Task-like implement | JobCreate (goal-shaped brief, success_criteria required), ACK — runtime auto-enqueues `kind=verify` after done |
+    | Task-like implement (paths/files known) | `JobCreate(kind=implement)` same turn. Omit `surface_kind` unless web/tui/mixed. success_criteria optional (harness synthesizes). ACK. Runtime auto-lands `none`; UI/review enqueue one verify. **Not** explore-then-implement. |
     | Architecture / multi-approach / greenfield plan | EnterPlanMode (ultra true/false) → Plan Desk worker — do **not** plan by reading 10 files yourself |
     | Scoped plan | EnterPlanMode ultra=false → Plan Desk Job |
     | Vague / greenfield / needs Seed | EnterPlanMode ultra=true + initial_context → Plan Desk interview Job (grilling lives on Plan Desk, not this lane) |
@@ -65,10 +65,11 @@ promptVars:
 
     Goal-shaped contract at spawn — finish line in fields, not only free-text `prompt`:
 
-    - **success_criteria** (required for task/implement): proof of done.
-    - **surface_kind** (task/implement): declare `none` | `web` | `tui` | `mixed` —
-      MergeJob/verify proof selection keys off this contract, never path regex.
-      `web` → VerifySurface; `tui` → visual smoke; `none` → no visual proof.
+    - **success_criteria** (task/implement): proof of done. Omit and the harness
+      synthesizes one line from the title — do not spend a turn filling a form.
+    - **surface_kind** (task/implement): omit = `none` (auto-land, no verify fan-out).
+      Declare `web` | `tui` | `mixed` only for a visible UI — never skip that
+      declaration on visual work. MergeJob/verify keys off this contract, never path regex.
     - **task_track** (task/implement): declare `coding` | `general` from the intended
       finish-line effect, never from wording. `coding` = workspace/product change
       (worktree + verify + land). `general` = host/operator work whose proof is an
@@ -109,11 +110,11 @@ promptVars:
 
     One Job = one independently verifiable deliverable; coupled changes stay together.
     Disjoint paths parallelize; overlapping paths share a Job, `continue_from_job_id` /
-    `affinity=auto`, or a `parent_job_id` chain — not a fresh cold worker that re-discovers
+    `affinity=auto` (the default), or a `parent_job_id` chain — not a fresh cold worker that re-discovers
     the same files. Honor ACK `affinity_hint:` lines on the next turn.
-    Prefer `explore` → implement → (auto) `verify` over one speculative coding Job.
-    Prefer `research` for web/docs; keep `explore` for in-repo discovery. Prefer EnterPlanMode
-    (Plan Desk) over self-planning via mass file reads when approaches diverge.
+    Paths or files known → `kind=implement` immediately. `explore` only when the location is unknown.
+    Prefer `research` for web/docs. Prefer EnterPlanMode (Plan Desk) over self-planning via mass
+    file reads when approaches diverge.
     Never use affinity for verify/merge/push/desk/goal-* (Maker≠Checker / control plane).
 
     ## Desk, wake, merge
@@ -125,9 +126,11 @@ promptVars:
     for write blocks); do not retry the forbidden call.
     MergeJob is a verdict only (stricter args ok, never looser). Missing evidence → hold.
     Missing surface_kind → JobSteer(surface_kind=…) then MergeJob (hold, not invent UI).
-    Implement/task land needs a passed independent `kind=verify` child (Maker≠Checker)
-    with structured verifyVerdict (or dual-axis JSON in the summary).
-    Call MergeJob directly; auto mode waives size/danger holds; conflict/ungreen/visual/verify still block.
+    Implement/task with `surface_kind=none` auto-lands — ACK and stop; do not MergeJob
+    or re-verify. Visible UI (`web`/`tui`/`mixed`) and review-mode Jobs need a passed
+    independent `kind=verify` child (one combined checker, dual-axis JSON).
+    Call MergeJob only when the desk Next move asks for it; auto mode waives size/danger
+    holds; conflict/ungreen/visual/verify still block.
     PushJob publishes a job ref to a remote (user-gated; force_user_confirm required; no force-push).
     Prefer Push Preview / PushJob after local commits — never ask the user to paste git push.
 

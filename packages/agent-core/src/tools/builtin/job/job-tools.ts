@@ -31,7 +31,12 @@ import {
   parseImplementHandoff,
   renderImplementHandoffDraft,
 } from '../planning/implement-handoff';
-import { findPlaceholderBriefLine, isPlaceholderBriefLine, nonEmptyStringList } from './job-brief';
+import {
+  findPlaceholderBriefLine,
+  isPlaceholderBriefLine,
+  nonEmptyStringList,
+  synthesizeSuccessCriteria,
+} from './job-brief';
 import { effectPreviewFromJob } from './job-emit';
 import {
   createJob,
@@ -57,6 +62,10 @@ import { patchJobAndNotify } from './job-notify';
 import { dispatchPushRemote, evaluatePushTrust } from './job-push';
 import { splitUserMessageIntoJobIntents } from './job-split';
 import { jobTaskTrackCreateFields, resolveJobTaskTrack } from './job-task-track';
+import {
+  deliveryClassFromProjectMode,
+  resolveConductorProjectMode,
+} from './job-project-mode';
 import { staffJobsFromObjective } from './job-staff';
 import { createGreenfieldChainJobs } from './job-greenfield-chain';
 import {
@@ -70,6 +79,7 @@ import {
   buildAffinitySteerMessage,
   findAffinityHint,
   formatAffinityHint,
+  isAffinityEligibleKind,
   mergeStringLists,
   resolveJobAffinity,
   reuseInheritanceFromAnchor,
@@ -140,7 +150,7 @@ const JobCreateInputSchema = z
       'Read-first hints for the worker: files/dirs it should inspect before exploring on its own (entry points, failing tests, referenced specs). Saves cold-start discovery turns; keep it short (≤6).',
     ),
     success_criteria: stringListField.describe(
-      'Verifiable done-lines (tests to pass, behaviors to observe). Required for every task/implement Job — this is the goal contract bound to the worker at spawn. Rejects placeholders (TBD/TODO/later/coming soon). Not required for explore/mission/desk/goal-desk/merge/goal-driver.',
+      'Verifiable done-lines (tests to pass, behaviors to observe). Optional for task/implement — when omitted the harness synthesizes one line from the title so spawn is not bounced. Rejects placeholders (TBD/TODO/later/coming soon). Not required for explore/mission/desk/goal-desk/merge/goal-driver.',
     ),
     must_not_touch: stringListField.describe(
       'Negative scope fence — paths or concerns the worker must not touch. Required when delivery_mode=greenfield for task/implement; strongly recommended otherwise.',
@@ -217,7 +227,14 @@ const JobCreateInputSchema = z
       .describe(
         'auto = pick the best affinity anchor from overlapping ownership_paths ' +
           '(live → queued → recent terminal) when continue_from_job_id is omitted. ' +
-          'Requires ownership_paths. Default off (explicit continue_from or cold create).',
+          'Requires ownership_paths. Default auto (pass off to force a cold sibling).',
+      ),
+    delivery_class: z
+      .enum(['sprint', 'standard', 'review'])
+      .optional()
+      .describe(
+        'Pipeline waist. Omit to inherit session project mode (hotfix→sprint, review→review, else standard). ' +
+          'sprint skips worktree when no other coding Job is in flight. review keeps one verify worker even for surface_kind=none.',
       ),
     goal_completion_criterion: z
       .string()
@@ -272,7 +289,7 @@ const JobCreateInputSchema = z
       .enum(['none', 'web', 'tui', 'mixed'])
       .optional()
       .describe(
-        'Merge/verify surface: none|web|tui|mixed. Required before MergeJob for task/implement; JobSteer can patch if missing.',
+        'Merge/verify surface: none|web|tui|mixed. Omit = none (auto-land, no verify fan-out). Declare web|tui|mixed for visible UI — JobSteer can patch if you forgot.',
       ),
   })
   .strict()
@@ -298,16 +315,7 @@ const JobCreateInputSchema = z
     const mode = val.delivery_mode ?? 'standard';
     const codingKind =
       val.kind === undefined || val.kind === 'task' || val.kind === 'implement';
-    // Goal contract on every coding worker: success_criteria is the finish line
-    // bound at spawn (not a full goal-driver loop). explore/mission/desk/merge skip.
-    if (codingKind && nonEmptyStringList(val.success_criteria).length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          'task/implement requires non-empty success_criteria — bind a verifiable finish line before spawning the worker.',
-        path: ['success_criteria'],
-      });
-    }
+    // Empty success_criteria is synthesized at execute time. Placeholders still reject.
     if (codingKind) {
       const placeholder = findPlaceholderBriefLine(val.success_criteria);
       if (placeholder !== undefined) {
@@ -792,8 +800,8 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
   readonly description =
     'Delegate work: create a Conductor Job on the meta ledger and return an immediate ACK (job_id + state). ' +
     'The ONLY path for any file mutation, build, test, install, or verification loop on the Conductor lane — even a one-line fix. ' +
-    'Bind a goal-shaped contract at spawn: success_criteria is required for every task/implement Job (finish line the worker must prove). Also pass must_not_touch / verification_commands / test_seams / tdd_mode / ownership_paths / context_paths when known. ' +
-    'Same-context follow-up: continue_from_job_id (or affinity=auto with ownership_paths) steers/folds a live or queued Job, or reuses worktree+resume on a terminal Job — prefer this over cold-spawning siblings that race the same paths. ' +
+    'Bind a goal-shaped contract at spawn: success_criteria is the finish line (synthesized from title when omitted). Pass must_not_touch / verification_commands / test_seams / tdd_mode / ownership_paths / context_paths when known. ' +
+    'Same-context follow-up: continue_from_job_id (or default affinity=auto with ownership_paths) steers/folds a live or queued Job, or reuses worktree+resume on a terminal Job — prefer this over cold-spawning siblings that race the same paths. ' +
     'When role models are auto, set model_alias from <fleet_model_catalog> for this Job (omit → harness role pick). ' +
     'Greenfield: delivery_mode=greenfield (+ usually greenfield_chain). Long unattended loops: kind=goal-driver with goal_completion_criterion. ' +
     'Multi-intent: auto_split=true or several calls, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
@@ -833,13 +841,16 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
       execute: async () => {
         const pool = resolveConductorPoolConfig(process.env, { store: this.store });
         const deliveryMode: JobDeliveryMode = a.delivery_mode ?? 'standard';
-        const successCriteria = nonEmptyStringList(a.success_criteria);
+        let successCriteria = nonEmptyStringList(a.success_criteria);
         const mustNotTouch = nonEmptyStringList(a.must_not_touch);
         const verificationCommands = nonEmptyStringList(a.verification_commands);
         const testSeams = nonEmptyStringList(a.test_seams);
         const blockedByJobIds = nonEmptyStringList(a.blocked_by_job_ids);
         const codingKind =
           a.kind === undefined || a.kind === 'task' || a.kind === 'implement';
+        if (codingKind && successCriteria.length === 0) {
+          successCriteria = synthesizeSuccessCriteria({ title: a.title, prompt: a.prompt });
+        }
         const tddMode = a.tdd_mode ?? (codingKind ? 'preferred' : undefined);
         const reproCommand = a.repro_command?.trim() || undefined;
         const debugFixer = a.debug_fixer === true ? true : undefined;
@@ -866,7 +877,12 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
 
         const affinityDisposition = resolveJobAffinity(this.store, {
           continueFromJobId: a.continue_from_job_id,
-          affinity: (a.affinity ?? 'off') as JobAffinityMode,
+          affinity: (a.affinity ??
+            (a.auto_split === true ||
+            a.greenfield_chain === true ||
+            !isAffinityEligibleKind((a.kind ?? 'task') as JobKind)
+              ? 'off'
+              : 'auto')) as JobAffinityMode,
           kind: a.kind as JobKind | undefined,
           ownershipPaths: a.ownership_paths,
           autoSplit: a.auto_split,
@@ -938,6 +954,12 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
         const contextPaths = mergeStringLists(reuse?.contextPaths, a.context_paths);
         const effectiveModelAlias = modelAlias ?? reuse?.modelAlias;
         const surfaceKind = a.surface_kind ?? reuse?.surfaceKind;
+        const deliveryClass =
+          a.delivery_class ??
+          reuse?.deliveryClass ??
+          (codingKind
+            ? deliveryClassFromProjectMode(resolveConductorProjectMode(this.store))
+            : undefined);
         // Affinity reuse keeps one child on the anchor worktree — never fan out.
         const shouldStaff =
           reuse === undefined &&
@@ -1032,6 +1054,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
                   surfaceKind,
                   sessionRepoPath,
                   ...reuseFields,
+                  deliveryClass,
                   ...jobTaskTrackCreateFields(trackResolution),
                 }),
               );
@@ -1063,6 +1086,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               surfaceKind,
               sessionRepoPath,
               ...reuseFields,
+              deliveryClass,
               ...jobTaskTrackCreateFields(trackResolution),
               ...(isGoalDriver
                 ? {

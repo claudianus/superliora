@@ -28,8 +28,10 @@ import { dispatchMergeLand } from './job-land';
 import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
 import { dispatchPushRemote, evaluatePushTrust, resolvePushRemoteRef } from './job-push';
+import { synthesizeSuccessCriteria } from './job-brief';
 import {
   CONDUCTOR_PROJECT_MODE_MAX_CONCURRENT,
+  deliveryClassFromProjectMode,
   resolveConductorProjectMode,
   setConductorProjectModeMaxConcurrent,
   type ConductorProjectMode,
@@ -75,6 +77,7 @@ export interface JobCreateInput {
   readonly parentJobId?: string;
   readonly autoSplit?: boolean;
   readonly surfaceKind?: JobRecord['surfaceKind'];
+  readonly deliveryClass?: JobRecord['deliveryClass'];
 }
 
 export interface JobCreateResult {
@@ -269,6 +272,15 @@ export async function jobCreate(
 
   const codingKind =
     input.kind === undefined || input.kind === 'task' || input.kind === 'implement';
+  const successCriteria =
+    input.successCriteria !== undefined && input.successCriteria.length > 0
+      ? input.successCriteria
+      : codingKind
+        ? synthesizeSuccessCriteria({ title: input.title, prompt: input.prompt })
+        : input.successCriteria;
+  const deliveryClass =
+    input.deliveryClass ??
+    (codingKind ? deliveryClassFromProjectMode(resolveConductorProjectMode(store)) : undefined);
   const created = intents.map((intent, index) =>
     createJob(store, {
       title: intent.title || input.title,
@@ -277,7 +289,7 @@ export async function jobCreate(
       prompt: intent.prompt,
       ownershipPaths: input.ownershipPaths,
       contextPaths: input.contextPaths,
-      successCriteria: input.successCriteria,
+      successCriteria,
       mustNotTouch: input.mustNotTouch,
       verificationCommands: input.verificationCommands,
       testSeams: input.testSeams,
@@ -285,6 +297,7 @@ export async function jobCreate(
       reproCommand: input.reproCommand,
       blockedByJobIds: input.blockedByJobIds,
       deliveryMode: input.deliveryMode === 'standard' ? undefined : input.deliveryMode,
+      deliveryClass,
       parentJobId: input.parentJobId,
       surfaceKind: input.surfaceKind,
       sessionRepoPath: agent?.config.cwd,
@@ -316,7 +329,12 @@ export async function jobCreateBatch(
         prompt: input.prompt ?? input.title,
         ownershipPaths: input.ownershipPaths,
         contextPaths: input.contextPaths,
-        successCriteria: input.successCriteria,
+        successCriteria:
+          input.successCriteria !== undefined && input.successCriteria.length > 0
+            ? input.successCriteria
+            : codingKind
+              ? synthesizeSuccessCriteria({ title: input.title, prompt: input.prompt })
+              : input.successCriteria,
         mustNotTouch: input.mustNotTouch,
         verificationCommands: input.verificationCommands,
         testSeams: input.testSeams,
@@ -324,6 +342,11 @@ export async function jobCreateBatch(
         reproCommand: input.reproCommand,
         blockedByJobIds: input.blockedByJobIds,
         deliveryMode: input.deliveryMode === 'standard' ? undefined : input.deliveryMode,
+        deliveryClass:
+          input.deliveryClass ??
+          (codingKind
+            ? deliveryClassFromProjectMode(resolveConductorProjectMode(store))
+            : undefined),
         parentJobId: input.parentJobId,
         surfaceKind: input.surfaceKind,
         sessionRepoPath: agent?.config.cwd,

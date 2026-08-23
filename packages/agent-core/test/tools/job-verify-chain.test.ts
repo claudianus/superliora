@@ -138,7 +138,9 @@ ${'x'.repeat(200)}
 
   it('enqueues verify only for implement/task done kinds', () => {
     expect(
-      shouldEnqueueVerifyAfterDone(job({ id: 'job_1', title: 't', kind: 'implement' })),
+      shouldEnqueueVerifyAfterDone(
+        job({ id: 'job_1', title: 't', kind: 'implement', surfaceKind: 'web' }),
+      ),
     ).toBe(true);
     expect(
       shouldEnqueueVerifyAfterDone(job({ id: 'job_2', title: 't', kind: 'verify' })),
@@ -168,6 +170,7 @@ ${'x'.repeat(200)}
       title: 'Feature',
       kind: 'implement',
       expertId: 'maker-1',
+      surfaceKind: 'web',
     });
     expect(evaluateVerifyChainForMerge({ job: implement, jobs: [implement] }).ok).toBe(false);
 
@@ -315,7 +318,7 @@ ${'x'.repeat(200)}
     expect(verifies).toHaveLength(0);
   });
 
-  it('enqueues parallel Standards∥Spec when surfaceKind is absent (coding, not path regex)', async () => {
+  it('defaults omitted surfaceKind to none and skips verify fan-out', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Fix scheduler',
@@ -325,15 +328,33 @@ ${'x'.repeat(200)}
       successCriteria: ['nextQueuedJobs respects blocked_by'],
       testSeams: ['nextQueuedJobs'],
       expertId: 'maker-x',
-      // surfaceKind omitted — still a coding implement; dual-axis review applies
+    });
+    expect(parent.surfaceKind).toBe('none');
+    const done = { ...parent, status: 'done' as const, resultSummary: 'fixed' };
+    expect(shouldEnqueueVerifyAfterDone(done)).toBe(false);
+    await enqueueVerifyJobForParent(store, done);
+    expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(0);
+  });
+
+  it('review deliveryClass enqueues one combined verify even for surface_kind=none', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Fix scheduler',
+      kind: 'implement',
+      prompt: 'Fix job scheduler ordering',
+      ownershipPaths: ['packages/agent-core/src/tools/builtin/job/job-runtime.ts'],
+      successCriteria: ['nextQueuedJobs respects blocked_by'],
+      expertId: 'maker-x',
+      surfaceKind: 'none',
+      deliveryClass: 'review',
     });
     const done = { ...parent, status: 'done' as const, resultSummary: 'fixed' };
     expect(shouldEnqueueVerifyAfterDone(done)).toBe(true);
     await enqueueVerifyJobForParent(store, done);
     const verifies = listJobs(store).filter((j) => j.parentJobId === parent.id);
-    expect(verifies).toHaveLength(2);
-    expect(verifies.map((r) => r.reviewAxis).sort()).toEqual(['spec', 'standards']);
-    expect(verifies[0]?.prompt).toMatch(/success criteria|Agreed test seams/i);
+    expect(verifies).toHaveLength(1);
+    expect(verifies[0]?.reviewAxis).toBeUndefined();
+    expect(verifies[0]?.kind).toBe('verify');
   });
 
   it('shouldEnqueueVerifyAfterDone: mission/none/desktop false; coding implement true', () => {
@@ -436,6 +457,7 @@ ${'x'.repeat(200)}
       kind: 'implement',
       expertId: 'maker-x',
       ownershipPaths: ['src/Button.js'],
+      surfaceKind: 'web',
     });
     patchJob(store, parent.id, { status: 'done' });
     await onJobTerminalForVerifyChain(store, {
@@ -475,12 +497,12 @@ ${'x'.repeat(200)}
       expertId: 'maker-x',
       ownershipPaths: ['src/App.js'],
       worktreePath: '/tmp/wt-free-text',
-      // surfaceKind absent → Standards∥Spec dual-axis; none skips verify entirely
+      deliveryClass: 'review',
     });
     patchJob(store, parent.id, { status: 'done' });
-    await onJobTerminalForVerifyChain(store, { ...parent, status: 'done' });
+    await onJobTerminalForVerifyChain(store, { ...parent, status: 'done', deliveryClass: 'review' });
     const firstWave = listJobs(store).filter((j) => j.kind === 'verify');
-    expect(firstWave).toHaveLength(2);
+    expect(firstWave).toHaveLength(1);
 
     for (const verify of firstWave) {
       patchJob(store, verify.id, {
@@ -493,7 +515,7 @@ ${'x'.repeat(200)}
     }
 
     // missing must NOT spawn a re-verify Job (retry=0).
-    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(2);
+    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(1);
     expect(
       listJobs(store).find((j) => j.notes?.includes('structured_verdict_retry')),
     ).toBeUndefined();
@@ -565,6 +587,7 @@ ${'x'.repeat(200)}
       title: 'Feature',
       kind: 'implement',
       expertId: 'maker-1',
+      surfaceKind: 'web',
     });
     const cancelledOnly = job({
       id: 'job_ver_cancelled',
@@ -814,12 +837,12 @@ ${'x'.repeat(200)}
       expertId: 'maker-x',
       ownershipPaths: ['src/App.js'],
       worktreePath: '/tmp/wt-timeout',
-      // surfaceKind absent → Standards∥Spec dual-axis; none skips verify fan-out
+      deliveryClass: 'review',
     });
     patchJob(store, parent.id, { status: 'done' });
-    await onJobTerminalForVerifyChain(store, { ...parent, status: 'done' });
+    await onJobTerminalForVerifyChain(store, { ...parent, status: 'done', deliveryClass: 'review' });
     const firstWave = listJobs(store).filter((j) => j.kind === 'verify');
-    expect(firstWave).toHaveLength(2);
+    expect(firstWave).toHaveLength(1);
 
     for (const verify of firstWave) {
       patchJob(store, verify.id, {
@@ -832,7 +855,7 @@ ${'x'.repeat(200)}
     }
 
     // Timeout/env missing is VOID ceremony — do not spawn structured_verdict_retry or Debug.
-    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(2);
+    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(1);
     expect(
       listJobs(store).find((j) => j.notes?.includes('structured_verdict_retry')),
     ).toBeUndefined();
@@ -973,7 +996,6 @@ ${'x'.repeat(200)}
 
   it('enqueueVerifyJobForParent pins live modelAlias and skips when none differ from maker', async () => {
     const store = memoryStore();
-    // surfaceKind absent (coding dual-axis) — none would skip verify fan-out entirely
     const done = createJob(store, {
       title: 'Ship coding dual-axis',
       kind: 'implement',
@@ -981,6 +1003,7 @@ ${'x'.repeat(200)}
       modelAlias: 'maker-a',
       ownershipPaths: ['packages/agent-core/src/x.ts'],
       worktreePath: '/tmp/wt-pin',
+      deliveryClass: 'review',
     });
     patchJob(store, done.id, { status: 'done', resultSummary: 'done' });
 

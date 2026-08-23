@@ -828,7 +828,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '작업 분위기',
-            body: 'balanced / greenfield / hotfix / review. 급한 수정은 hotfix가 가볍습니다.',
+            body: 'balanced / greenfield / hotfix / review. hotfix는 혼자일 때 worktree를 생략합니다.',
             code: '/job mode hotfix',
           },
           {
@@ -1149,7 +1149,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Modes',
-            body: 'balanced / greenfield / hotfix / review. Hotfix stays light for urgent fixes.',
+            body: 'balanced / greenfield / hotfix / review. Hotfix skips the worktree when no other coding job is live.',
             code: '/job mode hotfix',
           },
           {
