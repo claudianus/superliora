@@ -11,6 +11,7 @@ import {
   createJobId,
   emptyJobLedger,
   JOB_LEDGER_STORE_KEY,
+  type JobDeliveryClass,
   type JobDeliveryMode,
   type JobDeliveryPhase,
   type JobKind,
@@ -80,6 +81,7 @@ export function createJob(
     readonly explorePrototype?: boolean;
     readonly blockedByJobIds?: readonly string[];
     readonly deliveryMode?: JobDeliveryMode;
+    readonly deliveryClass?: JobDeliveryClass;
     readonly deliveryPhase?: JobDeliveryPhase;
     readonly parentJobId?: string;
     /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs). */
@@ -168,6 +170,7 @@ export function createJob(
     explorePrototype: input.explorePrototype === true ? true : undefined,
     blockedByJobIds: input.blockedByJobIds,
     deliveryMode: input.deliveryMode,
+    deliveryClass: input.deliveryClass,
     deliveryPhase: input.deliveryPhase,
     parentJobId: input.parentJobId,
     goalObjective: input.goalObjective,
@@ -397,6 +400,7 @@ export function renderJobLedger(jobs: readonly JobRecord[]): string {
 }
 
 export type {
+  JobDeliveryClass,
   JobDeliveryMode,
   JobDeliveryPhase,
   JobKind,

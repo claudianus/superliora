@@ -46,6 +46,19 @@ export type JobKind =
 /** How the worker should deliver — greenfield forces a tighter brief + optional chain. */
 export type JobDeliveryMode = 'standard' | 'greenfield';
 
+/**
+ * Pipeline waist for a coding Job. Session project mode stamps this at create
+ * (`hotfix` → sprint, `review` → review, else standard). Harness keys off this
+ * field, never prompt wording.
+ *
+ * - `standard`: `surface_kind=none` skips verify and auto-lands; UI surfaces
+ *   still get one combined verify worker.
+ * - `sprint`: same verify waist as standard, plus skip worktree when no other
+ *   in-flight coding Job shares the checkout.
+ * - `review`: Maker≠Checker even for `none` — one combined verify worker.
+ */
+export type JobDeliveryClass = 'sprint' | 'standard' | 'review';
+
 /** Isolation / verification contract. Harness keys off this, never prompt wording. */
 export type JobTaskTrack = 'coding' | 'general';
 
@@ -138,6 +151,8 @@ export interface JobRecord {
   readonly blockedByJobIds?: readonly string[];
   /** Delivery posture; greenfield requires successCriteria + mustNotTouch on create. */
   readonly deliveryMode?: JobDeliveryMode;
+  /** Pipeline waist; see {@link JobDeliveryClass}. Absent = standard. */
+  readonly deliveryClass?: JobDeliveryClass;
   /** Greenfield chain step; drives jobPrompt phase contract. */
   readonly deliveryPhase?: JobDeliveryPhase;
   readonly worktreePath?: string;
@@ -204,6 +219,9 @@ export interface JobRecord {
   /**
    * Conductor-declared surface kind. Merge/verify proof gates key off this —
    * path/keyword heuristics must not invent a web VerifySurface requirement.
+   * Coding Jobs default to `none` at create when omitted (UI must declare
+   * web|tui|mixed). Absent on legacy ledgers is treated as `none` for verify
+   * fan-out so a missing field no longer punishes with dual-axis workers.
    */
   readonly surfaceKind?: JobSurfaceKind;
   /**

@@ -12,6 +12,10 @@ import {
 import { globalExpertSearchEngine } from '../../../expert-agents/search';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
 import { currentAgentConfig } from '../../../session/subagent/subagent-model-routing';
+import {
+  verificationIsGreen,
+  verificationIsUnverified,
+} from '../../../session/subagent/subagent-result-contract';
 import type { ToolStore } from '../../store';
 import { dispatchMergeLand } from './job-land';
 import { createJob, getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
@@ -109,6 +113,7 @@ export function jobRequiresVerifyChain(
     | 'ownershipPaths'
     | 'taskTrack'
     | 'debugFixer'
+    | 'deliveryClass'
   >,
 ): boolean {
   if (
@@ -131,8 +136,10 @@ export function jobRequiresVerifyChain(
   if (job.kind !== 'task' && job.kind !== 'implement') {
     return false;
   }
-  // No UI surface → no visual verify fan-out (and no Standards∥Spec kids either).
-  if (job.surfaceKind === 'none') {
+  // No UI surface → no visual verify. Missing surfaceKind is none (create
+  // defaults none) so omitting the field no longer fans out Standards∥Spec.
+  // Review mode still wants one combined checker on code-only Jobs.
+  if (!surfaceRequiresVisualProof(job.surfaceKind) && job.deliveryClass !== 'review') {
     return false;
   }
   if (isDesktopOrOutOfRepoJob(job)) {
@@ -538,16 +545,23 @@ export async function enqueueVerifyJobForParent(
   const parentExpert = parent.expertId?.trim();
   const created: JobRecord[] = [];
 
-  if (visualSurface) {
-    const isTui = parent.surfaceKind === 'tui';
-    const query = isTui
+  const isTui = parent.surfaceKind === 'tui';
+  const query = visualSurface
+    ? isTui
       ? 'TUI visual smoke craft review ANSI terminal'
-      : 'visual QA UI craft review accessibility interaction screenshot';
-    const pick = await pickVerifyExpert(query, parentExpert);
-    const proofLine = isTui
+      : 'visual QA UI craft review accessibility interaction screenshot'
+    : 'code review correctness spec acceptance criteria AGENTS.md conventions';
+  const pick = await pickVerifyExpert(query, parentExpert);
+  const proofLine = visualSurface
+    ? isTui
       ? '- Spec: success criteria + TUI visual smoke (`pnpm -C apps/liora run smoke:visual` or recorded ANSI evidence). VerifySurface is N/A for ANSI/TUI.'
-      : '- Spec: success criteria + VerifySurface load+interaction+craft when a URL/HTML path exists.';
-    const criteria = isTui
+      : '- Spec: success criteria + VerifySurface load+interaction+craft when a URL/HTML path exists.'
+    : '- Spec: did the diff meet success criteria / seams? Note missing, wrong, or scope-creep.';
+  const standardsLine = visualSurface
+    ? '- Standards: craft / accessibility / banned-ship smells; repo docs override.'
+    : '- Standards: repo AGENTS.md / coding standards; skip what tooling already enforces.';
+  const criteria = visualSurface
+    ? isTui
       ? [
           'Emit dual-axis JSON (standards + spec) with overall verdict',
           'TUI visual smoke considered',
@@ -555,94 +569,32 @@ export async function enqueueVerifyJobForParent(
       : [
           'Emit dual-axis JSON (standards + spec) with overall verdict',
           'VerifySurface axes considered',
-        ];
-    const prompt = [
-      header,
-      'Verify on TWO axes without mixing them (single Job, dual-axis JSON):',
-      '- Standards: craft / accessibility / banned-ship smells; repo docs override.',
-      proofLine,
-      'Final output MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
-    ].join('\n\n');
-    created.push(
-      createJob(store, {
-        title: `Verify: ${parent.title}`.slice(0, 120),
-        kind: 'verify',
-        priority: (parent.priority ?? 0) + 1,
-        prompt,
-        contextPaths: parent.contextPaths ?? files,
-        parentJobId: parent.id,
-        expertId: pick.id,
-        expertScore: pick.score,
-        staffQuery: query,
-        successCriteria: criteria,
-        verificationCommands: parent.verificationCommands,
-        surfaceKind: parent.surfaceKind,
-        modelAlias,
-      }),
-    );
-  } else {
-    // Parallel Standards ∥ Spec so neither axis pollutes the other.
-    const standardsPick = await pickVerifyExpert(
-      'code review standards smells conventions AGENTS.md',
-      parentExpert,
-    );
-    const blocked = new Set(
-      [standardsPick.id].filter((id): id is string => id !== undefined && id.length > 0),
-    );
-    const specPick = await pickVerifyExpert(
-      'code review correctness spec acceptance criteria regressions',
-      parentExpert,
-      blocked,
-    );
-
-    const standardsPrompt = [
-      header,
-      'AXIS: Standards only. Do not judge spec completeness here.',
-      'Check repo AGENTS.md / coding standards; flag judgement-call smells (Mysterious Name, Duplicated Code, Feature Envy, Speculative Generality, Shotgun Surgery). Repo docs override smells; skip what tooling already enforces.',
-      'Final output MUST include JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}',
-    ].join('\n\n');
-    const specPrompt = [
-      header,
-      'AXIS: Spec only. Do not re-litigate style/smell standards here.',
-      'Did the diff faithfully implement the success criteria / seams? Note missing, wrong, or scope-creep behaviour. Check tests at agreed seams.',
-      'Final output MUST include JSON: {"verdict":"pass"|"fail","spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}',
-    ].join('\n\n');
-
-    created.push(
-      createJob(store, {
-        title: `Verify standards: ${parent.title}`.slice(0, 120),
-        kind: 'verify',
-        priority: (parent.priority ?? 0) + 1,
-        prompt: standardsPrompt,
-        contextPaths: parent.contextPaths ?? files,
-        parentJobId: parent.id,
-        expertId: standardsPick.id,
-        expertScore: standardsPick.score,
-        reviewAxis: 'standards',
-        staffQuery: 'code review standards smells conventions',
-        successCriteria: ['Emit Standards-axis JSON verdict'],
-        verificationCommands: parent.verificationCommands,
-        surfaceKind: parent.surfaceKind ?? 'none',
-        modelAlias,
-      }),
-      createJob(store, {
-        title: `Verify spec: ${parent.title}`.slice(0, 120),
-        kind: 'verify',
-        priority: (parent.priority ?? 0) + 1,
-        prompt: specPrompt,
-        contextPaths: parent.contextPaths ?? files,
-        parentJobId: parent.id,
-        expertId: specPick.id ?? standardsPick.id,
-        expertScore: specPick.score ?? standardsPick.score,
-        reviewAxis: 'spec',
-        staffQuery: 'code review correctness spec acceptance',
-        successCriteria: ['Emit Spec-axis JSON verdict'],
-        verificationCommands: parent.verificationCommands,
-        surfaceKind: parent.surfaceKind ?? 'none',
-        modelAlias,
-      }),
-    );
-  }
+        ]
+    : ['Emit dual-axis JSON (standards + spec) with overall verdict'];
+  const prompt = [
+    header,
+    'Verify on TWO axes without mixing them (single Job, dual-axis JSON):',
+    standardsLine,
+    proofLine,
+    'Final output MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
+  ].join('\n\n');
+  created.push(
+    createJob(store, {
+      title: `Verify: ${parent.title}`.slice(0, 120),
+      kind: 'verify',
+      priority: (parent.priority ?? 0) + 1,
+      prompt,
+      contextPaths: parent.contextPaths ?? files,
+      parentJobId: parent.id,
+      expertId: pick.id,
+      expertScore: pick.score,
+      staffQuery: query,
+      successCriteria: criteria,
+      verificationCommands: parent.verificationCommands,
+      surfaceKind: parent.surfaceKind ?? 'none',
+      modelAlias,
+    }),
+  );
 
   const ids = created.map((j) => j.id).join(', ');
   patchJob(store, parent.id, {
@@ -955,13 +907,32 @@ export async function onJobTerminalForVerifyChain(
   if (job.status === 'done' && shouldEnqueueVerifyAfterDone(job)) {
     if (hasVerifyChild(store, job.id)) return;
     await enqueueVerifyJobForParent(store, job, agent);
+    return;
+  }
+  // surface_kind=none (the create default) skips verify — still auto-land so
+  // the Conductor does not spend a wake turn on MergeJob.
+  if (job.status === 'done' && (job.kind === 'task' || job.kind === 'implement')) {
+    const parentNow = getJob(store, job.id) ?? job;
+    const jobsNow = listJobs(store);
+    if (shouldAutoEnqueueMergeAfterVerify(parentNow, jobsNow)) {
+      dispatchMergeLand({
+        store,
+        sourceJob: parentNow,
+        trustMode: 'auto',
+        trustReason:
+          'verify_chain: no verify child required (surface_kind=none); auto land',
+        agent,
+        repoPath: parentNow.repoRoot ?? agent?.config?.cwd,
+        kaos: agent?.kaos,
+      });
+    }
   }
 }
 
 /**
- * Auto land after verify only when:
- * - parent is a done coding job with surface_kind=none
- * - latest-per-axis verify gate is ok (Maker≠Checker + dual-axis pass)
+ * Auto land after verify (or when no verify child is required) when:
+ * - parent is a done coding job without a visual surface
+ * - latest-per-axis verify gate is ok (Maker≠Checker when a chain ran)
  * - no merge child already exists
  *
  * NEVER auto-merge tui/web/mixed — visual proof stays a human MergeJob path.
@@ -974,8 +945,14 @@ export function shouldAutoEnqueueMergeAfterVerify(
   if (parent.kind !== 'task' && parent.kind !== 'implement') return false;
   if (parent.status !== 'done') return false;
   if (isGeneralTaskTrack(parent)) return false;
-  if (parent.surfaceKind !== 'none') return false;
+  if (surfaceRequiresVisualProof(parent.surfaceKind)) return false;
   if (jobs.some((j) => j.parentJobId === parent.id && j.kind === 'merge')) return false;
+  const contract = parent.resultContract;
+  if (contract !== undefined) {
+    if (contract.verification_failed) return false;
+    if (verificationIsUnverified(contract.verification)) return false;
+    if (!verificationIsGreen(contract.verification)) return false;
+  }
   return evaluateVerifyChainForMerge({ job: parent, jobs }).ok;
 }
 

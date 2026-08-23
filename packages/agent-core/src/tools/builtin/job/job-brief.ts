@@ -62,6 +62,22 @@ export function nonEmptyStringList(items: readonly string[] | undefined): string
 }
 
 /**
+ * Fill a missing success_criteria list so JobCreate does not bounce the
+ * Conductor for a form field. One concrete line; placeholders still reject.
+ */
+export function synthesizeSuccessCriteria(input: {
+  readonly title: string;
+  readonly prompt?: string;
+}): string[] {
+  const title = input.title.trim();
+  const line =
+    title.length > 0
+      ? `${title} is complete; worker checks (or observable proof) are green.`
+      : 'Requested work is complete; worker checks (or observable proof) are green.';
+  return [line];
+}
+
+/**
  * Stall phrases that satisfy "non-empty" without a verifiable finish line.
  * ponytail: lexical only — false positives are tool errors (model rewrites).
  */

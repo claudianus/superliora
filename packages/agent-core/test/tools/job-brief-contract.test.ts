@@ -49,15 +49,23 @@ describe('JobCreate structured brief', () => {
     expect(job.verificationCommands).toEqual(['pnpm test auth']);
   });
 
-  it('rejects task/implement without success_criteria (goal contract at spawn)', () => {
+  it('synthesizes success_criteria when task/implement omits them', async () => {
     const store = memoryStore();
     const tool = new JobCreateTool(store);
     const missingCriteria = tool.resolveExecution({
       title: 'Fix flicker',
       kind: 'implement',
+      staff: false,
     });
-    expect(missingCriteria.isError).toBe(true);
-    expect(String(missingCriteria.output)).toMatch(/success_criteria/);
+    expect(missingCriteria.isError).toBeFalsy();
+    if (missingCriteria.isError) return;
+    await missingCriteria.execute({
+      turnId: 't',
+      toolCallId: 'c',
+      signal: new AbortController().signal,
+    });
+    const job = store.get('job_ledger')?.jobs[0];
+    expect(job?.successCriteria?.[0]).toMatch(/Fix flicker is complete/i);
   });
 
   it('rejects task/implement success_criteria that are TBD/later placeholders', () => {
@@ -277,7 +285,7 @@ describe('greenfield_chain JobCreate', () => {
     );
     expect(skeleton!.verificationCommands?.join('\n')).not.toMatch(/VerifySurface/i);
     expect(skeleton!.verificationCommands?.some((cmd) => /tsc|vitest/i.test(cmd))).toBe(true);
-    expect(skeleton!.surfaceKind).toBeUndefined();
+    expect(skeleton!.surfaceKind).toBe('none');
 
     const skeletonPrompt = jobPrompt(skeleton!, store);
     expect(skeletonPrompt).toContain('Skeleton only');
@@ -302,7 +310,7 @@ describe('greenfield_chain JobCreate', () => {
     expect(del!.successCriteria?.join('\n')).toMatch(/placeholder|dead/i);
     expect(del!.successCriteria?.join('\n')).not.toMatch(/Title → ending|Weapons 8/i);
     expect(jobPrompt(del!, store)).toContain('Do not rebuild the product from scratch');
-    expect(del!.surfaceKind).toBeUndefined();
+    expect(del!.surfaceKind).toBe('none');
   });
 });
 

@@ -302,6 +302,7 @@ export function reuseInheritanceFromAnchor(anchor: JobRecord): {
   readonly modelAlias?: string;
   readonly surfaceKind?: JobRecord['surfaceKind'];
   readonly taskTrack?: JobRecord['taskTrack'];
+  readonly deliveryClass?: JobRecord['deliveryClass'];
   readonly notes: string;
 } {
   return {
@@ -316,6 +317,7 @@ export function reuseInheritanceFromAnchor(anchor: JobRecord): {
     modelAlias: anchor.modelAlias,
     surfaceKind: anchor.surfaceKind,
     taskTrack: anchor.taskTrack,
+    deliveryClass: anchor.deliveryClass,
     notes: `affinity: reuse from ${anchor.id} (worktree=${anchor.worktreePath ?? 'none'}; resume=${anchor.workerResumeAgentId ?? 'cold'})`,
   };
 }

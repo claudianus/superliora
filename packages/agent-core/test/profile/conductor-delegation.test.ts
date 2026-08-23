@@ -153,7 +153,8 @@ describe('conductor delegation-only tool surface', () => {
     expect(prompt).toContain('kind=verify');
     // Core delegation contract remains.
     expect(prompt).toContain('Never wait on workers');
-    expect(prompt).toContain('Prefer `explore` → implement → (auto) `verify`');
+    expect(prompt).toContain('Paths or files known → `kind=implement` immediately');
+    expect(prompt).toContain('`explore` only when the location is unknown');
     expect(prompt).toContain('CreateGoal (facade → Goal Desk + goal-driver)');
     expect(prompt).toContain('Never JobCreate `kind=goal-desk`');
   });

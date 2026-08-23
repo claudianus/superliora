@@ -441,8 +441,9 @@ describe('general taskTrack runtime gates', () => {
     expect(getJob(store, job.id)?.worktreePath).toBeDefined();
 
     const done = patchJob(store, job.id, { status: 'done' })!;
-    expect(shouldEnqueueVerifyAfterDone(done)).toBe(true);
-    expect(evaluateVerifyChainForMerge({ job: done, jobs: listJobs(store) }).ok).toBe(false);
+    expect(done.surfaceKind).toBe('none');
+    expect(shouldEnqueueVerifyAfterDone(done)).toBe(false);
+    expect(evaluateVerifyChainForMerge({ job: done, jobs: listJobs(store) }).ok).toBe(true);
 
     const prompt = jobPrompt({ ...done, worktreePath: '/tmp/wt/job' });
     expect(prompt).toMatch(/git add -A && git commit/);

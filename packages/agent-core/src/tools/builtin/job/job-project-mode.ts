@@ -4,10 +4,20 @@
  */
 
 import type { ToolStore } from '../../store';
+import type { JobDeliveryClass } from './job-store-key';
 
 export const JOB_PROJECT_MODE_STORE_KEY = 'job_project_mode' as const;
 
 export type ConductorProjectMode = 'balanced' | 'greenfield' | 'hotfix' | 'review';
+
+/** Map session project mode onto the per-Job pipeline waist. */
+export function deliveryClassFromProjectMode(
+  mode: ConductorProjectMode | undefined,
+): JobDeliveryClass {
+  if (mode === 'hotfix') return 'sprint';
+  if (mode === 'review') return 'review';
+  return 'standard';
+}
 
 export const CONDUCTOR_PROJECT_MODE_MAX_CONCURRENT: Readonly<
   Record<ConductorProjectMode, number>

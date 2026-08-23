@@ -440,6 +440,40 @@ describe('job desk next-move guidance', () => {
     expect(text).toContain('Next move: verify done-claims against the brief');
   });
 
+  it('ACK-and-stop when a completed coding job already auto-landed', () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Landed fix',
+      kind: 'implement',
+      surfaceKind: 'none',
+    });
+    patchJob(store, parent.id, {
+      status: 'done',
+      landReceipt: {
+        mergeSha: 'abc123def456',
+        branch: 'HEAD',
+        verifiedAt: '2026-08-23T00:00:00.000Z',
+      },
+    });
+    const text = renderJobDeskInjection(
+      [
+        {
+          id: 'e_landed',
+          kind: 'job.completed',
+          jobId: parent.id,
+          status: 'done',
+          title: parent.title,
+          createdAt: new Date().toISOString(),
+          read: false,
+        },
+      ],
+      idleStrip,
+      { store },
+    );
+    expect(text).toMatch(/Next move: ACK the landed/i);
+    expect(text).not.toMatch(/verify done-claims/i);
+  });
+
   it('wakes Conductor for merge-ready ledger work even when inbox unread is empty', async () => {
     const store = memoryStore();
     // Implement done + independent verify passed, no merge child, no unread inbox.

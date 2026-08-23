@@ -24,7 +24,10 @@ import {
   formatJobStripLine,
   summarizeJobStrip,
 } from '#/tools/builtin/job/job-runtime';
-import { isMergeReadyJob } from '#/tools/builtin/job/job-verify-chain';
+import {
+  isMergeReadyJob,
+  jobRequiresVerifyChain,
+} from '#/tools/builtin/job/job-verify-chain';
 import {
   missionHasBlockingFog,
   parseImplementHandoff,
@@ -258,6 +261,8 @@ function nextMoveGuidance(
   const goalDeskMove = goalDeskNextMove(events, store);
   if (goalDeskMove !== undefined) return goalDeskMove;
   if (events.some((e) => e.kind === 'job.completed')) {
+    const completedMove = completedJobNextMove(events, store);
+    if (completedMove !== undefined) return completedMove;
     return 'verify done-claims against the brief; report the outcome; MergeJob if landing is wanted; PushJob / Push Preview for remote publish (never ask the user to paste git push).';
   }
   const mergeReadyMove = mergeReadyNextMove(store);
@@ -267,6 +272,36 @@ function nextMoveGuidance(
   }
   if (strip.running > 0) {
     return 'workers are live: steer only on real new information, never poll, and keep the lane free for the user.';
+  }
+  return undefined;
+}
+
+function jobHasLandedOrMergeDispatched(job: JobRecord, store: ToolStore): boolean {
+  if (job.landReceipt !== undefined) return true;
+  return listJobs(store).some(
+    (child) =>
+      child.parentJobId === job.id &&
+      child.kind === 'merge' &&
+      (child.status === 'done' || child.status === 'running' || child.status === 'queued'),
+  );
+}
+
+/** Completions that already auto-landed should not send Conductor into MergeJob theater. */
+function completedJobNextMove(
+  events: readonly JobInboxEvent[],
+  store: ToolStore | undefined,
+): string | undefined {
+  const completed = events.filter((e) => e.kind === 'job.completed');
+  if (completed.length === 0 || store === undefined) return undefined;
+  const jobs = completed
+    .map((e) => getJob(store, e.jobId))
+    .filter((j): j is JobRecord => j !== undefined);
+  if (jobs.length === 0) return undefined;
+  if (jobs.every((j) => jobHasLandedOrMergeDispatched(j, store))) {
+    return 'ACK the landed job_id — title — state and stop; do not MergeJob or re-verify.';
+  }
+  if (jobs.every((j) => !jobRequiresVerifyChain(j) && (j.kind === 'task' || j.kind === 'implement'))) {
+    return 'ACK the completed job_id — title — state; auto-land runs without MergeJob for surface_kind=none. Stop unless needs_user or failed remains.';
   }
   return undefined;
 }
