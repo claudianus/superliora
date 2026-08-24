@@ -31,6 +31,19 @@ describe('parseLessonGate', () => {
   it('rejects invalid JSON', () => {
     expect(() => parseLessonGate('not json')).toThrow(SkillDistillError);
   });
+
+  it('drops an unknown lessonKind instead of failing the gate', () => {
+    const gate = parseLessonGate(
+      JSON.stringify({
+        hasLesson: true,
+        lessonKind: 'nonobvious_fact|inferred_constraint|recovery_playbook|user_correction',
+        rationale: 'Windows pnpm ENOENT then node.exe succeeded',
+        focus: 'runtime PATH',
+      }),
+    );
+    expect(gate.hasLesson).toBe(true);
+    expect(gate.lessonKind).toBeUndefined();
+  });
 });
 
 describe('parseDistilledSkill', () => {

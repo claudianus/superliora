@@ -197,6 +197,16 @@ export function isTransientNoBodyStatusError(error: unknown): boolean {
   return TRANSIENT_NO_BODY_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage));
 }
 
+/**
+ * True when the idle watchdog aborted a live stream that went silent.
+ * Retrying this just kills in-flight reasoning (e.g. grok-4.6) and burns
+ * another full idle window — three attempts became ~8 minutes of dead wait
+ * in production worker logs.
+ */
+export function isStreamIdleTimeoutError(error: unknown): boolean {
+  return error instanceof APITimeoutError && error.message.startsWith('Stream idle timeout:');
+}
+
 export function isRetryableGenerateError(error: unknown): boolean {
   // Permanent account/auth/billing failures never recover with retries —
   // fail fast so hosts surface them instead of burning attempts or hanging
@@ -204,6 +214,8 @@ export function isRetryableGenerateError(error: unknown): boolean {
   // connection/timeout wrapper around an auth refusal stays non-retryable.
   if (isPermanentAuthError(error)) return false;
   if (isPermanentQuotaOrBillingError(error)) return false;
+  // A stalled stream is not a dropped handshake. Fail the step once.
+  if (isStreamIdleTimeoutError(error)) return false;
   if (error instanceof APIConnectionError || error instanceof APITimeoutError) {
     return true;
   }

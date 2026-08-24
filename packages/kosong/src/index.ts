@@ -102,6 +102,7 @@ export {
   isPermanentAuthError,
   isPermanentQuotaOrBillingError,
   isRetryableGenerateError,
+  isStreamIdleTimeoutError,
   isToolExchangeAdjacencyError,
   isTransientNoBodyStatusError,
   isTransientProviderError,

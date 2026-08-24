@@ -1131,11 +1131,10 @@ describe('generate()', () => {
       expect(cancelFn).toHaveBeenCalled();
     });
 
-    it('idle timeout error is retryable', () => {
+    it('idle timeout error is an APITimeoutError', () => {
       const error = new APITimeoutError('Stream idle timeout: no data received for 300000ms.');
       expect(error.name).toBe('APITimeoutError');
-      // isRetryableGenerateError treats APITimeoutError as retryable —
-      // verified in errors.test.ts; here we confirm the class is correct.
+      // Stream idle timeouts are NOT retryable — see errors.test.ts.
       expect(error).toBeInstanceOf(APITimeoutError);
     });
 

@@ -27,7 +27,13 @@ export type LessonKind = (typeof LESSON_KINDS)[number];
 const LessonGateSchema = z
   .object({
     hasLesson: z.boolean(),
-    lessonKind: z.enum(LESSON_KINDS).optional(),
+    lessonKind: z.preprocess(
+      (value) =>
+        typeof value === 'string' && (LESSON_KINDS as readonly string[]).includes(value)
+          ? value
+          : undefined,
+      z.enum(LESSON_KINDS).optional(),
+    ),
     rationale: z.string(),
     focus: z.string().optional(),
   })
