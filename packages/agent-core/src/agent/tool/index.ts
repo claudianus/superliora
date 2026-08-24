@@ -26,6 +26,7 @@ import type {
 } from './types';
 import { resolveToolHelpVisibility } from './help-visibility';
 import { scheduleJobLedgerCrashMirror } from '../../tools/builtin/job/job-crash-mirror';
+import { scheduleWorkspaceCatalogSync } from '../../tools/builtin/job/job-workspace-bind';
 
 export * from './types';
 export {
@@ -108,6 +109,7 @@ export class ToolManager {
     }
     if (key === 'job_ledger' && !this.agent.records.restoring) {
       scheduleJobLedgerCrashMirror(this.toolStore);
+      scheduleWorkspaceCatalogSync(this.toolStore);
     }
   }
 

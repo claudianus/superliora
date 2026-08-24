@@ -15,8 +15,12 @@ import type {
   JobPushInput,
   JobPushResult,
   JobResumeResult,
+  JobAdoptResult,
+  JobLandChoiceInput,
+  JobRenameInput,
   JobSetProjectModeResult,
   JobSnapshot,
+  JobWorkspaceCatalogResult,
   JobStatus,
   SplitJobIntent,
 } from '#/session/types';
@@ -161,6 +165,60 @@ export abstract class SDKRpcClientJobsMixin extends SDKRpcClientGoalsMixin {
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       mode: input.mode,
+    });
+  }
+
+  async jobWorkspaceCatalog(input: SessionIdRpcInput): Promise<JobWorkspaceCatalogResult> {
+    const rpc = await this.getRpc();
+    return rpc.jobWorkspaceCatalog({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+    });
+  }
+
+  async jobAdoptWorkspace(
+    input: SessionIdRpcInput & { jobId: string },
+  ): Promise<JobAdoptResult> {
+    const rpc = await this.getRpc();
+    return rpc.jobAdoptWorkspace({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      jobId: input.jobId,
+    });
+  }
+
+  async jobArchiveWorkspace(
+    input: SessionIdRpcInput & { jobId: string },
+  ): Promise<JobActionResult> {
+    const rpc = await this.getRpc();
+    return rpc.jobArchiveWorkspace({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      jobId: input.jobId,
+    });
+  }
+
+  async jobRenameWorkspace(
+    input: SessionIdRpcInput & JobRenameInput,
+  ): Promise<JobActionResult> {
+    const rpc = await this.getRpc();
+    return rpc.jobRenameWorkspace({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      jobId: input.jobId,
+      name: input.name,
+    });
+  }
+
+  async jobLandChoice(
+    input: SessionIdRpcInput & JobLandChoiceInput,
+  ): Promise<JobActionResult> {
+    const rpc = await this.getRpc();
+    return rpc.jobLandChoice({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      jobId: input.jobId,
+      choice: input.choice,
     });
   }
 }

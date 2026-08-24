@@ -9,6 +9,7 @@ import {
 import type { JobTaskTrackSource } from './job-store-key';
 import {
   createJobId,
+  defaultSessionName,
   emptyJobLedger,
   JOB_LEDGER_STORE_KEY,
   type JobDeliveryClass,
@@ -111,10 +112,16 @@ export function createJob(
     readonly workerResumeAgentId?: string;
     readonly workerCheckpointAt?: string;
     readonly workerDeadlineStartedAt?: string;
+    readonly sessionName?: string;
+    readonly sessionNamePinned?: boolean;
+    readonly landChoice?: JobRecord['landChoice'];
+    readonly portOffset?: number;
+    readonly workerHomedir?: string;
     readonly notes?: string;
   },
 ): JobRecord {
   const now = new Date().toISOString();
+  const id = createJobId();
   const kind = input.kind ?? 'task';
   const resolved = resolveJobTaskTrack({
     kind,
@@ -148,8 +155,9 @@ export function createJob(
     sessionRepoPath: input.sessionRepoPath,
   });
   const job: JobRecord = {
-    id: createJobId(),
+    id,
     title: input.title.trim(),
+    sessionName: input.sessionName?.trim() || defaultSessionName(input.title, id),
     status: 'queued',
     kind,
     taskTrack,
@@ -191,6 +199,10 @@ export function createJob(
     workerResumeAgentId: input.workerResumeAgentId?.trim() || undefined,
     workerCheckpointAt: input.workerCheckpointAt?.trim() || undefined,
     workerDeadlineStartedAt: input.workerDeadlineStartedAt?.trim() || undefined,
+    sessionNamePinned: input.sessionNamePinned === true ? true : undefined,
+    landChoice: input.landChoice,
+    portOffset: input.portOffset,
+    workerHomedir: input.workerHomedir?.trim() || undefined,
     notes: input.notes !== undefined ? capJobNotes(input.notes) : undefined,
   };
   return upsertJob(store, job);
@@ -234,6 +246,11 @@ export function patchJob(
       | 'taskTrack'
       | 'taskTrackSource'
       | 'premiumDensity'
+      | 'sessionName'
+      | 'sessionNamePinned'
+      | 'landChoice'
+      | 'portOffset'
+      | 'workerHomedir'
     >
   >,
 ): JobRecord | undefined {

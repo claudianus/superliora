@@ -225,6 +225,29 @@ describe('job.* protocol events', () => {
     expect(agentEventSchema.parse(updated).type).toBe('job.updated');
   });
 
+  it('v4: parses sessionName, landChoice, portOffset', () => {
+    const updated = {
+      type: 'job.updated' as const,
+      schemaVersion: JOB_EVENT_SCHEMA_VERSION,
+      job: {
+        id: 'job_v4_session',
+        title: 'Auth refactor',
+        status: 'done' as const,
+        kind: 'implement' as const,
+        priority: 0,
+        sessionName: 'auth-refactor',
+        landChoice: 'pending' as const,
+        portOffset: 1,
+        worktreeBranch: 'liora/auth',
+      },
+    };
+    const parsed = jobUpdatedEventSchema.parse(updated);
+    expect(parsed.job.sessionName).toBe('auth-refactor');
+    expect(parsed.job.landChoice).toBe('pending');
+    expect(parsed.job.portOffset).toBe(1);
+    expect(parsed.job.worktreeBranch).toBe('liora/auth');
+  });
+
   it('dual-read: v3 journal events still parse under schemaVersion 4 readers', () => {
     const v3Updated = {
       type: 'job.updated' as const,

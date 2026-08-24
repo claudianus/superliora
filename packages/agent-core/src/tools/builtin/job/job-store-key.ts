@@ -51,8 +51,8 @@ export type JobDeliveryMode = 'standard' | 'greenfield';
  * (`hotfix` → sprint, `review` → review, else standard). Harness keys off this
  * field, never prompt wording.
  *
- * - `standard`: `surface_kind=none` skips verify and auto-lands; UI surfaces
- *   still get one combined verify worker.
+ * - `standard`: `surface_kind=none` skips verify; land waits for Keep/Apply/PR.
+ *   UI surfaces still get one combined verify worker.
  * - `sprint`: same verify waist as standard, plus skip worktree when no other
  *   in-flight coding Job shares the checkout.
  * - `review`: Maker≠Checker even for `none` — one combined verify worker.
@@ -98,6 +98,9 @@ export interface JobLandReceipt {
   readonly branch: string;
   readonly verifiedAt: string;
 }
+
+/** Operator land disposition. Pending until Keep / Apply / PR. */
+export type JobLandChoice = 'pending' | 'keep' | 'apply' | 'pr';
 
 export interface JobRecord {
   readonly id: string;
@@ -163,6 +166,22 @@ export interface JobRecord {
   readonly repoRoot?: string;
   /** Branch created for the job worktree (`liora/…`); land prefers this over HEAD. */
   readonly worktreeBranch?: string;
+  /**
+   * Human resume handle (`auth-refactor`). Unique per workspace catalog.
+   * `liora --resume <name>` and `/jobs rename` resolve this, not only `job_*`.
+   */
+  readonly sessionName?: string;
+  /** True when the operator set `sessionName` (keep worktree; skip unnamed GC). */
+  readonly sessionNamePinned?: boolean;
+  /** Keep / Apply / PR. Coding worktrees default to `pending` at done. */
+  readonly landChoice?: JobLandChoice;
+  /** Parallel dev-server port offset; actual PORT = 3000 + offset. */
+  readonly portOffset?: number;
+  /**
+   * Worker agent homedir on disk (`…/agents/<id>`). Survives TUI chat switch
+   * so another session can copy + `host.resume` instead of cold-spawning.
+   */
+  readonly workerHomedir?: string;
   readonly workerAgentId?: string;
   /**
    * Last worker agent id kept across interrupt so crash recovery can try
@@ -267,4 +286,21 @@ export function createJobId(now = Date.now(), random = Math.random): string {
     .padStart(6, '0')
     .slice(0, 6);
   return `job_${timePart}${randPart}`.slice(0, 18);
+}
+
+/** Kebab resume handle from a title. Empty titles become `session`. */
+export function slugifySessionName(title: string): string {
+  const slug = title
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '')
+    .slice(0, 40);
+  return slug.length > 0 ? slug : 'session';
+}
+
+/** Default handle: `auth-refactor-7f3a` (slug + last 4 of job id). */
+export function defaultSessionName(title: string, jobId: string): string {
+  const suffix = jobId.replace(/^job_/, '').slice(-4);
+  return `${slugifySessionName(title)}-${suffix}`;
 }

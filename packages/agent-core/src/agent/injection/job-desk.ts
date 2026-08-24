@@ -300,8 +300,15 @@ function completedJobNextMove(
   if (jobs.every((j) => jobHasLandedOrMergeDispatched(j, store))) {
     return 'ACK the landed job_id — title — state and stop; do not MergeJob or re-verify.';
   }
+  const pendingLand = jobs.find((j) => j.landChoice === 'pending' && j.worktreePath !== undefined);
+  if (pendingLand !== undefined) {
+    return (
+      `Session ${pendingLand.sessionName ?? pendingLand.id} finished — AskUserQuestion Keep / Apply / PR ` +
+      `(Keep = leave the worktree; Apply = merge to local main; PR = push). Do not MergeJob yourself.`
+    );
+  }
   if (jobs.every((j) => !jobRequiresVerifyChain(j) && (j.kind === 'task' || j.kind === 'implement'))) {
-    return 'ACK the completed job_id — title — state; auto-land runs without MergeJob for surface_kind=none. Stop unless needs_user or failed remains.';
+    return 'ACK the completed job_id — title — state. If landChoice is pending, AskUserQuestion Keep/Apply/PR; do not MergeJob. Stop unless needs_user or failed remains.';
   }
   return undefined;
 }
@@ -312,10 +319,10 @@ function mergeReadyNextMove(store: ToolStore | undefined): string | undefined {
   const jobs = listJobs(store);
   const ready = jobs.find((j) => isMergeReadyJob(j, jobs));
   if (ready === undefined) return undefined;
-  if (ready.surfaceKind === 'none') {
+  if (ready.landChoice === 'pending' || ready.landChoice === undefined) {
     return (
-      `Job ${ready.id} is merge-ready (verify passed, surface_kind=none) — land via MergeJob ` +
-      `(auto land may already be dispatched); do not sit idle with remaining work.`
+      `Session ${ready.sessionName ?? ready.id} is ready to land — AskUserQuestion Keep / Apply / PR. ` +
+      `Do not MergeJob unless the operator picked Apply.`
     );
   }
   return (
@@ -491,7 +498,7 @@ function planDeskHandoffNextMove(
         `Plan Desk ${job.id} finished with an Implement handoff — JobInspect for the draft, ` +
         `present it, then JobCreate from those fields` +
         (handoff.deliveryMode === 'greenfield'
-          ? ' (delivery_mode=greenfield, greenfield_chain=true; runtime splits skeleton/fill/delete-pass contracts).'
+          ? ' (delivery_mode=greenfield; one implement session, not a three-Job chain).'
           : '.') +
         seamHint
       );

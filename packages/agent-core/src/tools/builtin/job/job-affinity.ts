@@ -5,7 +5,8 @@
  * Disposition:
  * - steer: live worker (running / needs_user) → JobSteer delta, no new Job
  * - fold: queued Job → patch brief in place, no new Job
- * - reuse: terminal Job → new child Job inheriting worktree + resume checkpoint
+ * - reattach: terminal unlanded coding Job → same job_id requeued + resume
+ * - reuse: other terminal anchors (explore/mission) → child inheriting worktree + resume
  */
 
 import type { ToolStore } from '../../store';
@@ -43,6 +44,7 @@ export type JobAffinityMode = 'off' | 'auto';
 export type JobAffinityDisposition =
   | { readonly action: 'steer'; readonly anchor: JobRecord }
   | { readonly action: 'fold'; readonly anchor: JobRecord }
+  | { readonly action: 'reattach'; readonly anchor: JobRecord }
   | { readonly action: 'reuse'; readonly anchor: JobRecord }
   | { readonly action: 'reject'; readonly reason: string };
 
@@ -163,6 +165,14 @@ export function resolveJobAffinity(
         action: 'reject',
         reason: `continue_from job ${anchor.id} already landed — start a fresh Job instead of reusing its worktree.`,
       };
+    }
+    // Same coding session: reattach the job_id instead of a child that drops
+    // the user's session identity. explore/research stay reuse (profile wall).
+    if (
+      (wantKind === 'task' || wantKind === 'implement') &&
+      (anchor.kind === 'task' || anchor.kind === 'implement')
+    ) {
+      return { action: 'reattach', anchor };
     }
     return { action: 'reuse', anchor };
   }
@@ -324,5 +334,5 @@ export function reuseInheritanceFromAnchor(anchor: JobRecord): {
 
 function newest(jobs: readonly JobRecord[]): JobRecord | undefined {
   if (jobs.length === 0) return undefined;
-  return [...jobs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  return [...jobs].toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 }

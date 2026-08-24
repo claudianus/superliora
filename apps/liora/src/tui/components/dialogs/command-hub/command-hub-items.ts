@@ -291,6 +291,13 @@ export function buildDefaultCommandHubItems(state: {
       { keywords: ['conductor', 'deck', 'monitor', 'worker', 'transcript'] },
     ),
     hub(
+      'workspace.jobDrawer',
+      'tui.hub.section.workspace',
+      'tui.hub.workspace.jobDrawer.label',
+      'tui.hub.workspace.jobDrawer.desc',
+      { keywords: ['session', 'drawer', 'archive', 'yesterday', 'workspace', 'continue'] },
+    ),
+    hub(
       'workspace.jobInbox',
       'tui.hub.section.workspace',
       'tui.hub.workspace.jobInbox.label',

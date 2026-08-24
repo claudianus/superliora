@@ -196,6 +196,8 @@ export function labelConductorJobs(
     readonly projectMode?: string;
     /** Optional session token glance when running jobs expose usage. */
     readonly tokenGlance?: string;
+    /** Live session names (cap 2) for the strip. */
+    readonly liveNames?: readonly string[];
   },
 ): string {
   const parts: string[] = [];
@@ -203,9 +205,11 @@ export function labelConductorJobs(
   const pool =
     snap.maxConcurrent !== undefined ? `pool=${String(snap.maxConcurrent)}` : undefined;
   const tok = extras?.tokenGlance;
+  const names = extras?.liveNames?.filter((name) => name.trim().length > 0).slice(0, 2);
   if (isPlainLabels(labels)) {
     if (mode !== undefined) parts.push(`mode=${mode}`);
     if (pool !== undefined) parts.push(pool);
+    if (names !== undefined && names.length > 0) parts.push(names.join(', '));
     if (snap.running > 0) parts.push(`${String(snap.running)} running`);
     if (tok !== undefined) parts.push(tok);
     if (snap.queued > 0) parts.push(`${String(snap.queued)} queued`);
@@ -219,8 +223,9 @@ export function labelConductorJobs(
   }
   if (mode !== undefined) parts.push(`m=${mode}`);
   if (pool !== undefined) parts.push(pool);
+  if (names !== undefined && names.length > 0) parts.push(names.join(','));
   if (snap.running > 0) parts.push(`${String(snap.running)}▸`);
-  if (tok !== undefined) parts.push(tok.replace(/\s/g, ''));
+  if (tok !== undefined) parts.push(tok.replaceAll(/\s/g, ''));
   if (snap.queued > 0) parts.push(`${String(snap.queued)}…`);
   if (snap.blocked > 0) parts.push(`${String(snap.blocked)}⛔`);
   if (snap.needsUser > 0) parts.push(`${String(snap.needsUser)}?`);

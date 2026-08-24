@@ -42,26 +42,36 @@ export async function initStartupSession(host: StartupLifecycleHost): Promise<bo
         });
         const target = sessions[0];
         if (target === undefined) {
-          throw new Error(`Session "${startup.sessionFlag}" not found.`);
+          const pending = await host.harness.createSession(createSessionOptions);
+          const adopt =
+            typeof pending.jobAdoptWorkspace === 'function'
+              ? await pending.jobAdoptWorkspace(startup.sessionFlag)
+              : { ok: false, text: '' };
+          if (!adopt.ok) {
+            throw new Error(`Session "${startup.sessionFlag}" not found.`);
+          }
+          session = pending;
+          host.startupNotice = combineStartupNotice(host.startupNotice, adopt.text);
+        } else {
+          if (resolve(target.workDir) !== resolve(workDir)) {
+            host.state.renderer.stop();
+            process.stderr.write(
+              `${currentTheme.fg(
+                'warning',
+                `Session "${startup.sessionFlag}" was created under a different directory.\n` +
+                  `  cd "${target.workDir}" && liora -r ${startup.sessionFlag}`,
+              )}\n\n`,
+            );
+            throw new Error(
+              `Session "${startup.sessionFlag}" was created under a different directory.`,
+            );
+          }
+          session = await host.harness.resumeSession({
+            id: startup.sessionFlag,
+            additionalDirs: createSessionOptions.additionalDirs,
+          });
+          shouldReplayHistory = true;
         }
-        if (resolve(target.workDir) !== resolve(workDir)) {
-          host.state.renderer.stop();
-          process.stderr.write(
-            `${currentTheme.fg(
-              'warning',
-              `Session "${startup.sessionFlag}" was created under a different directory.\n` +
-                `  cd "${target.workDir}" && liora -r ${startup.sessionFlag}`,
-            )}\n\n`,
-          );
-          throw new Error(
-            `Session "${startup.sessionFlag}" was created under a different directory.`,
-          );
-        }
-        session = await host.harness.resumeSession({
-          id: startup.sessionFlag,
-          additionalDirs: createSessionOptions.additionalDirs,
-        });
-        shouldReplayHistory = true;
       } else {
         const sessions = await host.harness.listSessions({ workDir });
         const target = sessions[0];

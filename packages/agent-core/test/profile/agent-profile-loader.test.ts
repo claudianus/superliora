@@ -381,7 +381,7 @@ describe('default agent profiles', () => {
     const prompt = DEFAULT_AGENT_PROFILES['conductor']?.systemPrompt(promptContext);
     expect(prompt).toContain('# Conductor Operating Playbook');
     expect(prompt).toContain('Delegation-only');
-    expect(prompt).toContain('intake → triage → route → ACK');
+    expect(prompt).toContain('classify → attach or spawn → ACK');
     // Per-state routing moved into the job desk injection; the static prompt
     // keeps the principles the desk cannot restate every turn.
     expect(prompt).toContain('Never wait on workers');

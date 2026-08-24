@@ -69,6 +69,10 @@ export interface ConductorJobCard {
   readonly verifyVerdict?: JobVerifyVerdictSnapshot;
   /** Debug-fixer implement child (schemaVersion 4). */
   readonly debugFixer?: boolean;
+  readonly sessionName?: string;
+  readonly landChoice?: JobSnapshot['landChoice'];
+  readonly portOffset?: number;
+  readonly worktreeBranch?: string;
 }
 
 /** Dense token strip for Job Desk cards / Job Deck usage rows. */
@@ -162,6 +166,10 @@ export function upsertConductorJobCard(
   const parentJobId = job.parentJobId ?? existing?.parentJobId;
   const verifyVerdict = job.verifyVerdict ?? existing?.verifyVerdict;
   const debugFixer = job.debugFixer ?? existing?.debugFixer;
+  const sessionName = job.sessionName ?? existing?.sessionName;
+  const landChoice = job.landChoice ?? existing?.landChoice;
+  const portOffset = job.portOffset ?? existing?.portOffset;
+  const worktreeBranch = job.worktreeBranch ?? existing?.worktreeBranch;
   const card: ConductorJobCard = {
     id: job.id,
     title: job.title,
@@ -192,6 +200,10 @@ export function upsertConductorJobCard(
     ...(parentJobId === undefined ? {} : { parentJobId }),
     ...(verifyVerdict === undefined ? {} : { verifyVerdict }),
     ...(debugFixer === undefined ? {} : { debugFixer }),
+    ...(sessionName === undefined ? {} : { sessionName }),
+    ...(landChoice === undefined ? {} : { landChoice }),
+    ...(portOffset === undefined ? {} : { portOffset }),
+    ...(worktreeBranch === undefined ? {} : { worktreeBranch }),
   };
   const next = cards.filter((entry) => entry.id !== job.id);
   next.push(card);
@@ -544,7 +556,7 @@ export function patchConductorJobProgressByWorker(
   const previous = cards[index]!;
   const trail = previous.progress?.recentTools ?? [];
   const recentTools =
-    beat.lastTool === undefined || beat.lastTool === trail[trail.length - 1]
+    beat.lastTool === undefined || beat.lastTool === trail.at(-1)
       ? trail
       : [...trail, beat.lastTool].slice(-PROGRESS_TOOL_TRAIL_MAX);
   const progress: JobProgressSnapshot = {
@@ -587,7 +599,7 @@ export function patchConductorJobActivityByWorker(
     (previousActivity?.toolCallId === activity.toolCallId ? previousActivity.target : undefined);
   const trail = previous.progress?.recentTools ?? [];
   const recentTools =
-    activity.name.length === 0 || activity.name === trail[trail.length - 1]
+    activity.name.length === 0 || activity.name === trail.at(-1)
       ? trail
       : [...trail, activity.name].slice(-PROGRESS_TOOL_TRAIL_MAX);
   const progress: JobProgressSnapshot = {

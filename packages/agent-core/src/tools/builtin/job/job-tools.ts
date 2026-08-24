@@ -79,7 +79,6 @@ import {
   buildAffinitySteerMessage,
   findAffinityHint,
   formatAffinityHint,
-  isAffinityEligibleKind,
   mergeStringLists,
   resolveJobAffinity,
   reuseInheritanceFromAnchor,
@@ -197,13 +196,13 @@ const JobCreateInputSchema = z
       'Job ids that must finish successfully before this Job may schedule (tracer-bullet DAG). Distinct from parent_job_id (decomposition / review chain).',
     ),
     delivery_mode: JobDeliveryModeSchema.optional().describe(
-      'standard (default) or greenfield. All task/implement Jobs need success_criteria; greenfield also needs must_not_touch. Use greenfield_chain to enqueue skeleton→fill→delete-pass.',
+      'standard (default) or greenfield. All task/implement Jobs need success_criteria; greenfield also needs must_not_touch. greenfield_chain still creates ONE session (TodoList phases), not three Jobs.',
     ),
     greenfield_chain: z
       .boolean()
       .optional()
       .describe(
-        'When true (and delivery_mode=greenfield), create three chained implement Jobs with split contracts: skeleton (scaffold/type/lint/unit/build only — no VerifySurface/60fps), fill (product AC + visual when surface_kind=web), delete-pass (placeholders/dead code). Serial via parent links; rejects instead of falling back if the structured brief is incomplete.',
+        'When true (and delivery_mode=greenfield), brief the session to work skeleton→fill→delete-pass via TodoList in ONE Job. Does not spawn three sibling workers.',
       ),
     parent_job_id: z
       .string()
@@ -215,19 +214,17 @@ const JobCreateInputSchema = z
       .min(1)
       .optional()
       .describe(
-        'Worker affinity: same-context follow-up on an existing Job. ' +
-          'running/needs_user → steer that worker (no new spawn); queued → fold brief into it; ' +
-          'done/failed/interrupted/blocked → new child reusing worktree + resume checkpoint. ' +
-          'Use when the finish line is the same deliverable (scope delta, fix-forward). ' +
-          'Not for verify/merge/push/desk/goal-* (Maker≠Checker / control plane).',
+        'Same-session follow-up after Conductor classified this as the same deliverable. ' +
+          'running/needs_user → steer that session (no new spawn); queued → fold brief; ' +
+          'done/failed/interrupted/blocked (unlanded coding) → reattach the same job_id + resume. ' +
+          'Not for verify/merge/push/desk/goal-*.',
       ),
     affinity: z
       .enum(['off', 'auto'])
       .optional()
       .describe(
-        'auto = pick the best affinity anchor from overlapping ownership_paths ' +
-          '(live → queued → recent terminal) when continue_from_job_id is omitted. ' +
-          'Requires ownership_paths. Default auto (pass off to force a cold sibling).',
+        'auto = pick an overlapping-path anchor when continue_from_job_id is omitted. ' +
+          'Default off — Conductor classifies same vs new session; pass continue_from_job_id to attach.',
       ),
     delivery_class: z
       .enum(['sprint', 'standard', 'review'])
@@ -289,7 +286,7 @@ const JobCreateInputSchema = z
       .enum(['none', 'web', 'tui', 'mixed'])
       .optional()
       .describe(
-        'Merge/verify surface: none|web|tui|mixed. Omit = none (auto-land, no verify fan-out). Declare web|tui|mixed for visible UI — JobSteer can patch if you forgot.',
+        'Merge/verify surface: none|web|tui|mixed. Omit = none (no verify fan-out). Land is Keep/Apply/PR on the desk. Declare web|tui|mixed for visible UI — JobSteer can patch if you forgot.',
       ),
   })
   .strict()
@@ -558,7 +555,10 @@ async function applyJobAffinityInPlace(input: {
   readonly store: ToolStore;
   readonly agent?: Agent;
   readonly pool: ReturnType<typeof resolveConductorPoolConfig>;
-  readonly disposition: Extract<JobAffinityDisposition, { action: 'steer' | 'fold' }>;
+  readonly disposition: Extract<
+    JobAffinityDisposition,
+    { action: 'steer' | 'fold' | 'reattach' }
+  >;
   readonly title: string;
   readonly kind?: JobKind;
   readonly prompt?: string;
@@ -614,8 +614,32 @@ async function applyJobAffinityInPlace(input: {
       pool: input.pool,
       skipSchedulePump: true,
       extraLines: [
-        `affinity: steer ${anchor.id} (no new worker; context kept)`,
+        `session: steer ${anchor.id} (same session; context kept)`,
         `steered=${steered.steered}`,
+      ],
+    });
+  }
+
+  if (input.disposition.action === 'reattach') {
+    const briefPatch = affinityBriefPatch(anchor, input);
+    const reattached = patchJob(input.store, anchor.id, {
+      ...briefPatch,
+      title: input.title.trim() || anchor.title,
+      kind: input.kind ?? anchor.kind,
+      status: 'queued',
+      workerDeadlineStartedAt: new Date().toISOString(),
+      notes: [anchor.notes, `session: reattach — ${message}`].filter(Boolean).join('\n'),
+    });
+    if (reattached === undefined) {
+      return { isError: true, output: `session reattach failed for ${anchor.id}` };
+    }
+    return ackCreatedJobs({
+      store: input.store,
+      agent: input.agent,
+      created: [reattached],
+      pool: input.pool,
+      extraLines: [
+        `session: reattach ${anchor.id} (same session; resume kept; budget reset)`,
       ],
     });
   }
@@ -637,7 +661,7 @@ async function applyJobAffinityInPlace(input: {
     created: [folded],
     pool: input.pool,
     skipSchedulePump: true,
-    extraLines: [`affinity: fold ${anchor.id} (queued brief updated; no new Job)`],
+    extraLines: [`session: fold ${anchor.id} (queued brief updated; no new session)`],
   });
 }
 
@@ -746,6 +770,9 @@ export async function ackCreatedJobs(input: {
   for (const job of input.created) {
     const latest = getJob(input.store, job.id) ?? job;
     lines.push(ack(latest.id, latest.status, renderJobLine(latest)));
+    if (latest.sessionName !== undefined && latest.sessionName.length > 0) {
+      lines.push(`session: ${latest.sessionName}`);
+    }
     lines.push(`effect: ${effectPreviewFromJob(latest).summary}`);
     if (latest.worktreePath) {
       lines.push(`worktree: ${latest.worktreePath}`);
@@ -798,12 +825,13 @@ export async function ackCreatedJobs(input: {
 export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputSchema>> {
   readonly name = 'JobCreate' as const;
   readonly description =
-    'Delegate work: create a Conductor Job on the meta ledger and return an immediate ACK (job_id + state). ' +
+    'Delegate work: create a session Job on the meta ledger and return an immediate ACK (job_id + state). ' +
     'The ONLY path for any file mutation, build, test, install, or verification loop on the Conductor lane — even a one-line fix. ' +
+    'One session explores, implements, and self-checks. Do not split a deliverable into explore/plan/verify/debug Jobs. ' +
     'Bind a goal-shaped contract at spawn: success_criteria is the finish line (synthesized from title when omitted). Pass must_not_touch / verification_commands / test_seams / tdd_mode / ownership_paths / context_paths when known. ' +
-    'Same-context follow-up: continue_from_job_id (or default affinity=auto with ownership_paths) steers/folds a live or queued Job, or reuses worktree+resume on a terminal Job — prefer this over cold-spawning siblings that race the same paths. ' +
+    'Same-context follow-up: continue_from_job_id steers/folds a live or queued session, or reattaches the same job_id on a terminal unlanded coding session. Classify first; default affinity is off. ' +
     'When role models are auto, set model_alias from <fleet_model_catalog> for this Job (omit → harness role pick). ' +
-    'Greenfield: delivery_mode=greenfield (+ usually greenfield_chain). Long unattended loops: kind=goal-driver with goal_completion_criterion. ' +
+    'Greenfield: delivery_mode=greenfield (one session, TodoList phases — not three Jobs). Long unattended loops: kind=goal-driver with goal_completion_criterion. ' +
     'Multi-intent: auto_split=true or several calls, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobCreateInputSchema);
 
@@ -877,12 +905,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
 
         const affinityDisposition = resolveJobAffinity(this.store, {
           continueFromJobId: a.continue_from_job_id,
-          affinity: (a.affinity ??
-            (a.auto_split === true ||
-            a.greenfield_chain === true ||
-            !isAffinityEligibleKind((a.kind ?? 'task') as JobKind)
-              ? 'off'
-              : 'auto')) as JobAffinityMode,
+          affinity: (a.affinity ?? 'off') as JobAffinityMode,
           kind: a.kind as JobKind | undefined,
           ownershipPaths: a.ownership_paths,
           autoSplit: a.auto_split,
@@ -893,7 +916,8 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
         }
         if (
           affinityDisposition?.action === 'steer' ||
-          affinityDisposition?.action === 'fold'
+          affinityDisposition?.action === 'fold' ||
+          affinityDisposition?.action === 'reattach'
         ) {
           return applyJobAffinityInPlace({
             store: this.store,
@@ -939,7 +963,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             agent: this.agent,
             created,
             pool,
-            batchLabel: 'greenfield chain skeleton→fill→delete-pass',
+            batchLabel: 'greenfield session (one worker, TodoList phases)',
           });
         }
 
@@ -1777,11 +1801,12 @@ export function createConductorJobDraftRecorder(
       code === 'CONDUCTOR_INTERACTIVE_EXPLORE_HARD';
     const webResearch =
       exploreDraft && (toolName === 'WebSearch' || toolName === 'FetchURL');
-    // Write/edit blocks and path-shaped ownership → implement; pure explore → explore/research.
+    // Search-cap drafts become one implement session (explores then edits).
+    // Web tools stay research (answer-only). Write/edit blocks → implement.
     const kind: JobKind = webResearch
       ? 'research'
       : exploreDraft
-        ? 'explore'
+        ? 'implement'
         : ownershipLooksLikePath ||
             toolName === 'Write' ||
             toolName === 'Edit' ||
@@ -1804,10 +1829,8 @@ export function createConductorJobDraftRecorder(
       prompt: draft.prompt,
       kind,
       successCriteria: [
-        kind === 'explore' || kind === 'research'
-          ? kind === 'research'
-            ? 'Web/docs investigation complete; findings summarized for the Conductor without product writes.'
-            : 'Codebase discovery complete; findings summarized for the Conductor without product writes.'
+        kind === 'research'
+          ? 'Web/docs investigation complete; findings summarized for the Conductor without product writes.'
           : trackResolution.source !== 'pending' &&
               trackResolution.source !== 'default' &&
               trackResolution.track === 'general'

@@ -10,7 +10,7 @@
 import type { Agent } from '../../../agent/index';
 import { requestConductorWake } from '../../../session/job/conductor-wake';
 import type { ToolStore } from '../../store';
-import { emitJobEvents, inboxToWireEvent, jobRecordToUpdatedEvent } from './job-emit';
+import { emitJobEvents, inboxToWireEventForJob, jobRecordToUpdatedEvent } from './job-emit';
 import { inboxKindForStatus, pushJobInboxEvent } from './job-inbox';
 import { getJob, patchJob, type JobRecord, type JobStatus } from './job-ledger';
 
@@ -49,7 +49,7 @@ export function notifyJobTerminal(input: NotifyJobTerminalInput): void {
     summary: input.summary,
   });
   emitJobEvents(input.agent, [
-    inboxToWireEvent(event),
+    inboxToWireEventForJob(event, input.job),
     jobRecordToUpdatedEvent(input.job, { reason: kind }),
   ]);
   if (input.agent !== undefined) {

@@ -243,9 +243,9 @@ describe('ConductorDirectWorkGuard', () => {
       if (soft.allowed) return;
       expect(soft.code).toBe(CONDUCTOR_GUARD_CODES.exploreSoft);
       expect(soft.output).toContain(CONDUCTOR_EXPLORE_SOFT_REJECTION_PHRASE);
-      expect(soft.output).toContain('JobCreate(kind=explore)');
-      expect(soft.output).toContain('kind: explore');
-      expect(soft.jobDraft?.title).toMatch(/Explore:/i);
+      expect(soft.output).toContain('JobCreate(kind=implement)');
+      expect(soft.output).toContain('kind: implement');
+      expect(soft.jobDraft?.title).toMatch(/Session:/i);
       expect(soft.stopTurn).toBeUndefined();
       // Explore soft rejects must not escalate the direct-work violation counter.
       expect(guard.violationsInTurn('turn-soft')).toBe(0);
@@ -273,9 +273,8 @@ describe('ConductorDirectWorkGuard', () => {
       if (hard.allowed) return;
       expect(hard.code).toBe(CONDUCTOR_GUARD_CODES.exploreHard);
       expect(hard.output).toContain(CONDUCTOR_EXPLORE_HARD_REJECTION_PHRASE);
-      expect(hard.output).toContain('JobCreate(kind=explore)');
-      expect(hard.output).toContain('EnterPlanMode');
-      expect(hard.jobDraft?.prompt).toContain('kind=explore');
+      expect(hard.output).toContain('JobCreate(kind=implement)');
+      expect(hard.jobDraft?.prompt).toContain('kind=implement');
       expect(guard.exploreCallsInTurn('turn-hard')).toBe(CONDUCTOR_INTERACTIVE_EXPLORE_HARD);
       expect(guard.violationsInTurn('turn-hard')).toBe(0);
     });

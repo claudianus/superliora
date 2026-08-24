@@ -21,5 +21,7 @@ export * from './job-push';
 export * from './job-desk';
 export * from './job-worker-ledger-bridge';
 export * from './job-crash-mirror';
+export * from './job-workspace-catalog';
+export * from './job-workspace-bind';
 export * from './job-recovery';
 export * from './job-model-live';

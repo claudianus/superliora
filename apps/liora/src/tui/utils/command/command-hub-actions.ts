@@ -67,6 +67,8 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/jobs dock';
     case 'workspace.jobDeck':
       return '/jobs deck';
+    case 'workspace.jobDrawer':
+      return '/jobs drawer';
     case 'workspace.jobInbox':
       return '/job inbox';
     case 'workspace.status':

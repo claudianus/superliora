@@ -18,9 +18,15 @@ import type {
   JobPreviewSplitPayload,
   JobResumePayload,
   JobResumeResult,
+  JobAdoptPayload,
+  JobAdoptResult,
+  JobLandChoicePayload,
+  JobRenamePayload,
   JobSetProjectModePayload,
   JobSetProjectModeResult,
   JobSnapshot,
+  JobWorkspaceCatalogPayload,
+  JobWorkspaceCatalogResult,
   JobSteerPayload,
   SplitJobIntent,
 } from './core-api';
@@ -120,4 +126,39 @@ export function jobSetProjectMode(
   { sessionId, ...payload }: SessionAgentPayload<JobSetProjectModePayload>,
 ): Promise<JobSetProjectModeResult> {
   return Promise.resolve(context.sessionApi(sessionId).jobSetProjectMode(payload));
+}
+
+export function jobWorkspaceCatalog(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<JobWorkspaceCatalogPayload>,
+): Promise<JobWorkspaceCatalogResult> {
+  return Promise.resolve(context.sessionApi(sessionId).jobWorkspaceCatalog(payload));
+}
+
+export function jobAdoptWorkspace(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<JobAdoptPayload>,
+): Promise<JobAdoptResult> {
+  return context.sessionApi(sessionId).jobAdoptWorkspace(payload);
+}
+
+export function jobArchiveWorkspace(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<JobIdPayload>,
+): Promise<JobActionResult> {
+  return Promise.resolve(context.sessionApi(sessionId).jobArchiveWorkspace(payload));
+}
+
+export function jobRenameWorkspace(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<JobRenamePayload>,
+): Promise<JobActionResult> {
+  return Promise.resolve(context.sessionApi(sessionId).jobRenameWorkspace(payload));
+}
+
+export function jobLandChoice(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<JobLandChoicePayload>,
+): Promise<JobActionResult> {
+  return context.sessionApi(sessionId).jobLandChoice(payload);
 }

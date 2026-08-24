@@ -168,7 +168,11 @@ export function jobRecordToSnapshot(job: JobRecord): JobSnapshot {
     kind: job.kind,
     priority: job.priority,
     worktreePath: job.worktreePath,
+    worktreeBranch: job.worktreeBranch,
     repoRoot: job.repoRoot,
+    sessionName: job.sessionName,
+    landChoice: job.landChoice,
+    portOffset: job.portOffset,
     workerAgentId: job.workerAgentId,
     resultSummary: job.resultSummary,
     progress: job.progress,
@@ -185,7 +189,10 @@ export function jobRecordToSnapshot(job: JobRecord): JobSnapshot {
   };
 }
 
-export function actionHintsForInboxKind(kind: JobInboxEventKind): readonly string[] {
+export function actionHintsForInboxKind(
+  kind: JobInboxEventKind,
+  job?: JobRecord,
+): readonly string[] {
   switch (kind) {
     case 'job.needs_user':
       return ['jobResume', 'jobSteer'];
@@ -198,6 +205,10 @@ export function actionHintsForInboxKind(kind: JobInboxEventKind): readonly strin
     case 'job.cancelled':
       return ['jobInspect'];
     case 'job.completed':
+      if (job?.landChoice === 'pending' && job.worktreePath !== undefined) {
+        return ['jobKeep', 'jobApply', 'jobPush', 'jobInspect'];
+      }
+      if (job?.landReceipt !== undefined) return ['jobInspect'];
       return ['jobMerge', 'jobPush', 'jobInspect'];
     case 'recovery.auto_resumed':
       return ['jobInspect'];
@@ -232,6 +243,16 @@ export function inboxToWireEvent(event: JobInboxEvent): WireJobInboxEvent {
     summary: event.summary,
     digest: event.digest,
     actionHints: actionHintsForInboxKind(event.kind),
+  };
+}
+
+export function inboxToWireEventForJob(
+  event: JobInboxEvent,
+  job: JobRecord | undefined,
+): WireJobInboxEvent {
+  return {
+    ...inboxToWireEvent(event),
+    actionHints: actionHintsForInboxKind(event.kind, job),
   };
 }
 

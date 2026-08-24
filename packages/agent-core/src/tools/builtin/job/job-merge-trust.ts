@@ -231,8 +231,12 @@ export function mergeTrustInputFromLedger(input: {
   // Mission / non-coding plan deliveries never run the product test suite —
   // trust the conductor claim when no verification failure is stamped.
   const checksGreenFromLedger = verificationIsGreen(contract?.verification);
+  const hasVerifyChildren =
+    input.jobs?.some((child) => child.parentJobId === job.id && child.kind === 'verify') ===
+    true;
   const checksGreenFromVerify =
     codingKind &&
+    hasVerifyChildren &&
     verifyGate.ok &&
     !verificationHasFailure(contract?.verification) &&
     (input.jobs?.every(

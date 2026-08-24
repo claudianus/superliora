@@ -1211,12 +1211,12 @@ describe('conductor guard draft recorder (V1-3)', () => {
     expect(listJobs(store)).toHaveLength(1);
   });
 
-  it('records explore-cap drafts as kind=explore and web tools as research', () => {
+  it('records search-cap drafts as implement sessions and web tools as research', () => {
     const store = memoryStore();
     const explore = createConductorJobDraftRecorder(store)({
       draft: {
-        title: 'Explore: auth module',
-        prompt: 'Map auth flows',
+        title: 'Session: auth module',
+        prompt: 'Map auth flows then fix',
         ownership: 'worker',
       },
       code: CONDUCTOR_GUARD_CODES.exploreSoft,
@@ -1224,7 +1224,7 @@ describe('conductor guard draft recorder (V1-3)', () => {
       turnId: 't-ex',
       violationCount: 1,
     });
-    expect(getJob(store, explore?.jobId ?? '')?.kind).toBe('explore');
+    expect(getJob(store, explore?.jobId ?? '')?.kind).toBe('implement');
 
     const research = createConductorJobDraftRecorder(store)({
       draft: {

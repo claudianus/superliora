@@ -24,8 +24,12 @@ import type {
   JobPushPayload,
   JobPreviewSplitPayload,
   JobResumePayload,
+  JobAdoptPayload,
+  JobLandChoicePayload,
+  JobRenamePayload,
   JobSetProjectModePayload,
   JobSteerPayload,
+  JobWorkspaceCatalogPayload,
   DiagnoseContextOSPayload,
   EnterPlanPayload,
   GetBackgroundOutputPayload,
@@ -66,6 +70,11 @@ import type {
 import type { PromisableMethods } from '#/utils/types';
 
 import { buildSessionOAuthStatus } from '../runtime/session-oauth-status';
+import { findWorkspaceSession } from '#/tools/builtin/job/job-workspace-catalog';
+import {
+  importWorkerHomedir,
+  siblingWorkerHomedir,
+} from '#/tools/builtin/job/job-workspace-bind';
 import type { Session, SessionMeta } from '.';
 import { buildSessionTrace } from './trace';
 import {
@@ -416,6 +425,52 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async jobSetProjectMode({ agentId, ...payload }: AgentScopedPayload<JobSetProjectModePayload>) {
     return (await this.getAgent(agentId)).jobSetProjectMode(payload);
+  }
+
+  async jobWorkspaceCatalog({
+    agentId,
+    ...payload
+  }: AgentScopedPayload<JobWorkspaceCatalogPayload>) {
+    return (await this.getAgent(agentId)).jobWorkspaceCatalog(payload);
+  }
+
+  async jobAdoptWorkspace({ agentId, ...payload }: AgentScopedPayload<JobAdoptPayload>) {
+    const agent = await this.getAgent(agentId);
+    this.importWorkspaceWorkerIfPresent(this.session.options.kaos.getcwd(), payload.jobId);
+    return agent.jobAdoptWorkspace(payload);
+  }
+
+  async jobArchiveWorkspace({ agentId, ...payload }: AgentScopedPayload<JobIdPayload>) {
+    return (await this.getAgent(agentId)).jobArchiveWorkspace(payload);
+  }
+
+  async jobRenameWorkspace({ agentId, ...payload }: AgentScopedPayload<JobRenamePayload>) {
+    return (await this.getAgent(agentId)).jobRenameWorkspace(payload);
+  }
+
+  async jobLandChoice({ agentId, ...payload }: AgentScopedPayload<JobLandChoicePayload>) {
+    return (await this.getAgent(agentId)).jobLandChoice(payload);
+  }
+
+  private importWorkspaceWorkerIfPresent(workDir: string | undefined, idOrName: string): void {
+    if (workDir === undefined || workDir.trim().length === 0) return;
+    const entry = findWorkspaceSession(workDir, idOrName);
+    const workerId = entry?.workerResumeAgentId?.trim();
+    if (entry === undefined || workerId === undefined || workerId.length === 0) return;
+    const source =
+      entry.workerHomedir?.trim() ||
+      (entry.sourceAgentDir !== undefined && entry.sourceAgentDir.length > 0
+        ? siblingWorkerHomedir(entry.sourceAgentDir, workerId)
+        : undefined);
+    if (source === undefined || source.length === 0) return;
+    const imported = importWorkerHomedir({
+      sessionHomedir: this.session.options.homedir,
+      workerId,
+      sourceHomedir: source,
+    });
+    if (imported.ok) {
+      this.session.registerImportedSubagent(workerId, imported.dest);
+    }
   }
 
   async getBackgroundOutput({

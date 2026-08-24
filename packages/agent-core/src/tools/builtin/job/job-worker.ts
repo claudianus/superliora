@@ -5,6 +5,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { dirname, join } from 'pathe';
 
 import type { Agent } from '../../../agent/index';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
@@ -18,7 +19,9 @@ import { classifierDepsFromAgent } from '../../../utils/llm-classifier-utils';
 import { isDebugFixerJob, isExplorePrototypeJob } from './job-store-key';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
 import {
+  DEFAULT_SUBAGENT_TIMEOUT_MS,
   isSubagentDeadlineError,
+  resetActiveChildDeadline,
   resolveJobWorkerLaunchTimeoutMs,
 } from '../../../session/subagent/subagent-host';
 import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
@@ -29,7 +32,7 @@ import {
 } from '../../../session/subagent/subagent-result-contract';
 import { applySurfaceKindToContract, surfaceRequiresVisualProof } from './job-surface';
 import { inferPlayableFromChangeSet, playableStampForContract } from './job-playable';
-import { parseVerifyVerdict } from './job-verify-chain';
+import { onJobTerminalForVerifyChain, parseVerifyVerdict } from './job-verify-chain';
 import { userCancellationReason } from '../../../utils/abort';
 import type { ToolStore } from '../../store';
 import {
@@ -51,6 +54,7 @@ import { buildExpertAssignmentPrompt } from '../../../expert-agents/expert-perso
 import { globalExpertSearchEngine } from '../../../expert-agents/search';
 import {
   renderDeliveryPhaseContract,
+  renderGreenfieldSessionContract,
   renderStructuredBriefSections,
 } from './job-brief';
 import { runMergeLandJob, type LandJobToMainInput } from './job-land';
@@ -62,10 +66,10 @@ import {
   ownershipDeferredNote,
 } from './job-ownership';
 import { runPushRemoteJob } from './job-push';
-import { onJobTerminalForVerifyChain } from './job-verify-chain';
 import { preflightJobWorkerModel } from './job-model-live';
 import { profileForJobKind } from './job-runtime';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
+import { jobDevServerPort } from '../../../session/worktree-setup';
 
 export interface LaunchJobWorkerInput {
   readonly store: ToolStore;
@@ -162,7 +166,9 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
           'Skill("prototype") for LOGIC vs UI branch details.',
         ].join('\n')
       : undefined,
-    renderDeliveryPhaseContract(job.deliveryPhase),
+    job.deliveryMode === 'greenfield' && job.deliveryPhase === undefined
+      ? renderGreenfieldSessionContract()
+      : renderDeliveryPhaseContract(job.deliveryPhase),
     renderStructuredBriefSections(job),
     job.prompt?.trim() ? `Brief:\n${job.prompt.trim()}` : undefined,
     job.contextPaths?.length
@@ -173,8 +179,15 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
     job.ownershipPaths?.length
       ? `Preferred paths: ${job.ownershipPaths.join(', ')}`
       : undefined,
+    job.sessionName
+      ? `Session name: ${job.sessionName}. The operator resumes this handle, not a role pipeline.`
+      : undefined,
     job.worktreePath
-      ? `You are running in an isolated worktree: ${job.worktreePath}. Do not push to remotes — finish with a publishable summary (branch/sha/remote_ref) so Conductor can call PushJob / open Push Preview.`
+      ? `You are running in an isolated worktree: ${job.worktreePath}. Do not push to remotes — finish with a publishable summary (branch/sha/remote_ref) so Conductor can call PushJob / open Push Preview.${
+          jobDevServerPort(job.portOffset) !== undefined
+            ? ` Dev servers must bind PORT=${String(jobDevServerPort(job.portOffset))} (assigned for this session; do not steal 3000 from siblings).`
+            : ''
+        }`
       : undefined,
     renderRecoveryBriefAppendix(job),
     job.taskTrack === 'general' && (job.kind === 'task' || job.kind === 'implement')
@@ -685,11 +698,16 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     const nowIso = new Date().toISOString();
     // First bind pins the wall-clock deadline start; reattach never resets it.
     const deadlineStartedAt = job.workerDeadlineStartedAt ?? nowIso;
+    const workerHomedir =
+      input.agent.homedir !== undefined && input.agent.homedir.length > 0
+        ? join(dirname(input.agent.homedir), handle.agentId)
+        : undefined;
     patchJob(input.store, job.id, {
       workerAgentId: handle.agentId,
       workerResumeAgentId: handle.agentId,
       workerCheckpointAt: nowIso,
       workerDeadlineStartedAt: deadlineStartedAt,
+      ...(workerHomedir !== undefined ? { workerHomedir } : {}),
       notes: [
         job.notes,
         reattached
@@ -825,12 +843,21 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           .filter(Boolean)
           .join('\n')
           .slice(0, 4500);
+        const pendingLand =
+          effectiveStatus === 'done' &&
+          (ledgerJob.kind === 'task' || ledgerJob.kind === 'implement') &&
+          ledgerJob.worktreePath !== undefined &&
+          ledgerJob.landReceipt === undefined &&
+          ledgerJob.landChoice !== 'apply' &&
+          ledgerJob.landChoice !== 'keep' &&
+          ledgerJob.landChoice !== 'pr';
         const updated = patchJob(input.store, job.id, {
           // A done with a failed verification gate misled the conductor:
           // surface explicit verification failures as failed so the playbook
           // routes them to inspection instead of merge/land.
           status: effectiveStatus,
           resultSummary,
+          ...(pendingLand ? { landChoice: 'pending' as const } : {}),
           ...(stampedContract !== undefined ? { resultContract: stampedContract } : {}),
           ...(completion.goalId !== undefined ? { goalId: completion.goalId } : {}),
           ...(verifyVerdictField !== undefined ? { verifyVerdict: verifyVerdictField } : {}),
@@ -1065,16 +1092,37 @@ export function steerJobWorker(input: {
       steered = false;
     }
   }
+  const live =
+    existing.status === 'running' || existing.status === 'needs_user';
+  const reattachTerminal =
+    !live &&
+    existing.landReceipt === undefined &&
+    (existing.kind === 'task' || existing.kind === 'implement') &&
+    (existing.status === 'done' ||
+      existing.status === 'failed' ||
+      existing.status === 'interrupted');
   // Ledger patches (esp. surface_kind on blocked/done jobs with no worker) count as
   // steered so JobSteer is not a no-op when the worker is inactive.
-  if (!steered && input.surfaceKind !== undefined) {
+  if (!steered && (input.surfaceKind !== undefined || reattachTerminal)) {
     steered = true;
   }
 
+  if (live && workerId !== undefined) {
+    resetActiveChildDeadline(workerId, DEFAULT_SUBAGENT_TIMEOUT_MS);
+  }
+
+  const nextStatus = reattachTerminal
+    ? 'queued'
+    : (input.status ?? existing.status);
   const note = [
     existing.notes,
     `steer: ${input.message}`,
     input.surfaceKind !== undefined ? `steer: surface_kind=${input.surfaceKind}` : undefined,
+    live
+      ? 'steer: session budget reset'
+      : reattachTerminal
+        ? 'steer: reattach same session (budget reset)'
+        : undefined,
     steered
       ? workerId && host
         ? 'steer: delivered to worker'
@@ -1088,12 +1136,16 @@ export function steerJobWorker(input: {
     input.jobId,
     {
       notes: note,
-      status: input.status ?? existing.status,
+      status: nextStatus,
       prompt: existing.prompt ? `${existing.prompt}\n\n[steer] ${input.message}` : input.message,
+      workerDeadlineStartedAt: new Date().toISOString(),
       ...(input.surfaceKind !== undefined ? { surfaceKind: input.surfaceKind } : {}),
     },
     { agent: input.agent, summary: input.message },
   );
+  if (reattachTerminal && input.agent !== undefined) {
+    pumpSchedulerAfterWorker(input.agent, input.store);
+  }
   return { ok: true, job, steered };
 }
 
