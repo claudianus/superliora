@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.13.0
+
+### Minor Changes
+
+- Conductor now runs work as named sessions you can resume, keep, apply, or open as a PR. Use `/jobs drawer` to continue yesterday's session, `/jobs rename` to name it, `/jobs land` for Keep/Apply/PR, or `liora -r <name>`.
+
 ## 0.12.18
 
 ### Patch Changes
