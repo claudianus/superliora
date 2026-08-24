@@ -24,7 +24,7 @@ import { KaosFileExistsError } from './errors';
 import { BufferedReadable, decodeTextWithErrors, globPatternToRegex } from './internal';
 import type { Kaos } from './kaos';
 import type { KaosProcess } from './process';
-import { resolveRuntimeExecutable, runtimePathPrepend } from './runtime-bins';
+import { resolveRuntimeSpawn, runtimePathPrepend } from './runtime-bins';
 import { realpathLongestExistingPrefix } from './realpath';
 import type { ProcessSandboxConfig } from './process-sandbox';
 import { wrapLocalExecForProcessSandbox } from './process-sandbox';
@@ -811,10 +811,10 @@ export class LocalKaos implements Kaos {
     restArgs: readonly string[],
     extraEnv?: Record<string, string>,
   ): Promise<KaosProcess> {
-    const file = isWindows ? resolveRuntimeExecutable(command) : command;
+    const mapped = isWindows ? resolveRuntimeSpawn(command) : { file: command, prefixArgs: [] as const };
     const wrapped = wrapLocalExecForProcessSandbox({
-      file,
-      args: restArgs,
+      file: mapped.file,
+      args: [...mapped.prefixArgs, ...restArgs],
       cwd: this._cwd,
       config: this._processSandbox,
     });
@@ -826,7 +826,7 @@ export class LocalKaos implements Kaos {
       return new LocalProcess(child);
     } catch (error) {
       if (this._processSandbox?.backend !== 'docker') throw error;
-      const fallback = spawn(file, [...restArgs], spawnOpts);
+      const fallback = spawn(mapped.file, [...mapped.prefixArgs, ...restArgs], spawnOpts);
       await waitForSpawn(fallback);
       return new LocalProcess(fallback);
     }

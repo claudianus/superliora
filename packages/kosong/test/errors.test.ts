@@ -12,6 +12,7 @@ import {
   isPermanentAuthError,
   isPermanentQuotaOrBillingError,
   isRetryableGenerateError,
+  isStreamIdleTimeoutError,
   isToolExchangeAdjacencyError,
   isTransientNoBodyStatusError,
   isTransientProviderError,
@@ -220,6 +221,17 @@ describe('isRetryableGenerateError', () => {
     expect(isRetryableGenerateError(new APIConnectionError('conn'))).toBe(true);
     expect(isRetryableGenerateError(new APITimeoutError('timeout'))).toBe(true);
     expect(isRetryableGenerateError(new APIEmptyResponseError('empty'))).toBe(true);
+  });
+
+  it('does not retry a stream idle timeout (reasoning stalls must fail once)', () => {
+    const idle = new APITimeoutError(
+      'Stream idle timeout: no data received for 120000ms. Provider: openai, model: grok-4.6',
+    );
+    expect(isStreamIdleTimeoutError(idle)).toBe(true);
+    expect(isRetryableGenerateError(idle)).toBe(false);
+    const open = new APITimeoutError('Stream open timeout: no stream established for 120000ms.');
+    expect(isStreamIdleTimeoutError(open)).toBe(false);
+    expect(isRetryableGenerateError(open)).toBe(true);
   });
 
   it.each([429, 500, 502, 503, 504])('treats HTTP %i as retryable', (statusCode) => {

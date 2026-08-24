@@ -18,9 +18,11 @@ export {
   resolveRuntimeBins,
   resolveRuntimeBinsFromNode,
   resolveRuntimeExecutable,
+  resolveRuntimeSpawn,
   runtimePathPrepend,
   runtimePathPrefixDirs,
   type RuntimeBinPaths,
+  type RuntimeSpawnTarget,
   type ResolveRuntimeBinsDeps,
 } from './runtime-bins';
 export { KaosFileNotFoundError, KaosSSHError } from './ssh';
