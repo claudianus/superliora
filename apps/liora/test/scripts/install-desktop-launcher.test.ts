@@ -99,6 +99,7 @@ describe('scripts/install/ensure-desktop-launcher', () => {
 
   it('writes a Windows .lnk that launches Windows Terminal then liora', async () => {
     const shortcuts: Array<{ dest: string; target: string; arguments: string; icon?: string; windowStyle?: number }> = [];
+    const files = new Map<string, string>();
     const wt = 'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe';
     const liora = 'C:\\Apps\\SuperLiora\\bin\\liora.exe';
     const result = await ensureDesktopLauncher({
@@ -108,9 +109,13 @@ describe('scripts/install/ensure-desktop-launcher', () => {
       env: {
         USERPROFILE: 'E:\\Users\\dev',
         LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
+        SystemRoot: 'C:\\Windows',
       },
       isFile: (p: string) => p.replaceAll('/', '\\') === liora,
       wtPath: wt,
+      writeFile: async (dest: string, text: string) => {
+        files.set(dest, text);
+      },
       writeShortcut: async (spec: { dest: string; target: string; arguments: string; icon?: string; windowStyle?: number }) => {
         shortcuts.push(spec);
         return true;
@@ -123,10 +128,11 @@ describe('scripts/install/ensure-desktop-launcher', () => {
     expect(result.written).toBe(true);
     expect(result.path?.replaceAll('/', '\\')).toBe('E:\\Users\\dev\\Desktop\\SuperLiora.lnk');
     expect(shortcuts).toHaveLength(1);
-    expect(shortcuts[0]?.target.replaceAll('/', '\\')).toBe('C:\\Windows\\System32\\cmd.exe');
-    expect(shortcuts[0]?.arguments).toMatch(/^\/d \/c start "" wt\.exe /);
-    expect(shortcuts[0]?.arguments).toContain(`-p ${SUPERLIORA_WT_PROFILE_NAME}`);
-    expect(shortcuts[0]?.arguments).toContain(liora);
+    expect(shortcuts[0]?.target.replaceAll('/', '\\')).toBe('C:\\Windows\\System32\\conhost.exe');
+    expect(shortcuts[0]?.arguments.startsWith('--headless ')).toBe(true);
+    expect(shortcuts[0]?.arguments).toContain('-File "C:\\Apps\\SuperLiora\\bin\\superliora-wt.ps1"');
+    expect(files.get('C:\\Apps\\SuperLiora\\bin\\superliora-wt.ps1')).toContain(liora);
+    expect(files.get('C:\\Apps\\SuperLiora\\bin\\superliora-wt.ps1')).toContain(`-p ${SUPERLIORA_WT_PROFILE_NAME}`);
     expect(shortcuts[0]?.icon?.replaceAll('/', '\\')).toBe('C:\\Apps\\SuperLiora\\bin\\superliora.ico');
     expect(shortcuts[0]?.windowStyle).toBe(7);
   });

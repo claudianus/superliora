@@ -18,19 +18,29 @@ import {
   parseJsonc,
   TERMINAL_INSTALL_HINT,
   WT_CONSOLE_HOST_GUID,
+  WT_CONHOST_EXE,
   WT_DELEGATION_CONSOLE,
   WT_LAUNCH_EXE,
+  WT_LAUNCHER_PS1,
   WT_SHORTCUT_WINDOW_MINIMIZED,
+  WT_STABLE_AUMID,
   WINGET_TERMINAL_ID,
   ensureTerminal,
   findWindowsTerminal,
+  packagedKeepAliveLaunchArgs,
+  packagedLauncherShortcutArgs,
+  packagedWindowsTerminalSettingsPath,
   probeWindowsTerminalEnv,
   renderSuperLioraFragment,
+  renderWindowsTerminalLauncherPs1,
   resolveCommandLine,
+  resolveConhostExe,
   resolveFragmentFontFace,
   shouldPromoteDefaultTerminal,
   skipTerminalRequested,
   wellKnownWtCandidates,
+  windowsTerminalLaunchArgs,
+  windowsTerminalReadyForDefaultPromotion,
   windowsTerminalShortcutLaunch,
 } from '../../../../scripts/install/ensure-terminal.mjs';
 
@@ -48,32 +58,89 @@ describe('scripts/install/ensure-terminal', () => {
     )).toBe(false);
   });
 
-  it('launches packaged wt.exe through cmd start so Explorer does not hit the Store license check', () => {
+  it('does not use cmd.exe or the WindowsApps stub as a packaged .lnk target', () => {
     const alias = 'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe';
+    const launcher = 'C:\\Apps\\SuperLiora\\bin\\superliora-wt.ps1';
     const packaged = windowsTerminalShortcutLaunch({
       wtPath: alias,
       arguments: `-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
+      launcherPath: launcher,
       workingDirectory: 'E:\\Users\\dev',
       description: SUPERLIORA_WT_PROFILE_NAME,
       icon: alias,
-      env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+      env: { SystemRoot: 'C:\\Windows' },
     });
-    expect(packaged.target).toBe('C:\\Windows\\System32\\cmd.exe');
-    expect(packaged.arguments).toBe(
-      `/d /c start "" ${WT_LAUNCH_EXE} -w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
-    );
+    expect(packaged.target).toBe(`C:\\Windows\\System32\\${WT_CONHOST_EXE}`);
+    expect(packaged.target.toLowerCase()).not.toContain('\\windowsapps\\');
+    expect(packaged.arguments).toBe(packagedLauncherShortcutArgs(launcher));
+    expect(packaged.arguments.startsWith('--headless ')).toBe(true);
+    expect(packaged.arguments).toContain('-File "C:\\Apps\\SuperLiora\\bin\\superliora-wt.ps1"');
     expect(packaged.windowStyle).toBe(WT_SHORTCUT_WINDOW_MINIMIZED);
     expect(packaged.icon).toBeUndefined();
+
+    const noLauncher = windowsTerminalShortcutLaunch({
+      wtPath: alias,
+      arguments: `-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
+      env: { SystemRoot: 'D:\\Windows' },
+    });
+    expect(noLauncher.target).toBe(`D:\\Windows\\System32\\${WT_CONHOST_EXE}`);
+    expect(noLauncher.arguments).toBe(
+      packagedKeepAliveLaunchArgs(`-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`),
+    );
+    expect(noLauncher.arguments).toContain(`start "" ${WT_LAUNCH_EXE}`);
+    expect(noLauncher.arguments).toContain('ping -n 3');
+    expect(noLauncher.windowStyle).toBe(WT_SHORTCUT_WINDOW_MINIMIZED);
 
     const unpackaged = windowsTerminalShortcutLaunch({
       wtPath: 'D:\\Apps\\wt.exe',
       arguments: `-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
+      launcherPath: launcher,
       icon: 'C:\\Apps\\SuperLiora\\bin\\liora.exe',
     });
     expect(unpackaged.target).toBe('D:\\Apps\\wt.exe');
     expect(unpackaged.arguments).toBe(`-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`);
     expect(unpackaged.windowStyle).toBeUndefined();
     expect(unpackaged.icon).toBe('C:\\Apps\\SuperLiora\\bin\\liora.exe');
+  });
+
+  it('renders a launcher that activates Windows Terminal like the Start Menu', () => {
+    const liora = 'C:\\Program Files\\SuperLiora\\liora.exe';
+    const script = renderWindowsTerminalLauncherPs1({ commandline: liora });
+    expect(script).toContain(WT_STABLE_AUMID);
+    expect(script).toContain('ActivateApplication');
+    expect(script).toContain("Start-Process -FilePath 'wt.exe'");
+    expect(script).toContain('shell:AppsFolder');
+    expect(script).toContain(liora);
+    expect(script).toContain(SUPERLIORA_WT_PROFILE_NAME);
+    expect(windowsTerminalLaunchArgs(liora)).toEqual([
+      '-w', 'new', 'nt', '-p', SUPERLIORA_WT_PROFILE_NAME, '--', `"${liora}"`,
+    ]);
+    expect(resolveConhostExe({ SystemRoot: 'E:\\Windows' })).toBe(
+      'E:\\Windows\\System32\\conhost.exe',
+    );
+  });
+
+  it('does not promote Windows Terminal as the default until it has first-run', () => {
+    const env = { LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local' };
+    const packagedSettings = packagedWindowsTerminalSettingsPath(env);
+    expect(packagedSettings.replaceAll('/', '\\')).toBe(
+      'E:\\Users\\dev\\AppData\\Local\\Packages\\Microsoft.WindowsTerminal_8wekyb3d8bbwe\\LocalState\\settings.json',
+    );
+    expect(windowsTerminalReadyForDefaultPromotion({
+      wtPath: 'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe',
+      env,
+      isFile: () => false,
+    })).toBe(false);
+    expect(windowsTerminalReadyForDefaultPromotion({
+      wtPath: 'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe',
+      env,
+      isFile: (p: string) => p === packagedSettings,
+    })).toBe(true);
+    expect(windowsTerminalReadyForDefaultPromotion({
+      wtPath: 'D:\\Apps\\Windows Terminal\\wt.exe',
+      env,
+      isFile: () => false,
+    })).toBe(true);
   });
 
   it('lists well-known wt.exe locations from LOCALAPPDATA', () => {
@@ -331,7 +398,7 @@ describe('scripts/install/ensure-terminal', () => {
     expect(result.alreadyPresent).toBe(true);
     expect(result.fragmentWritten).toBe(true);
     expect(result.shortcutWritten).toBe(true);
-    expect(result.promotedDefault).toBe(true);
+    expect(result.promotedDefault).toBe(false);
     expect(result.settingsMerged).toBe(true);
     expect(result.ohMyPoshInstalled).toBe(true);
     expect(result.profilePatched).toBe(true);
@@ -343,12 +410,45 @@ describe('scripts/install/ensure-terminal', () => {
     expect(fragmentText).toContain(SUPERLIORA_SHELL_PROFILE_NAME);
     const settingsText = [...files.values()].find((text) => text.includes('defaultProfile'));
     expect(settingsText).toContain(SUPERLIORA_SHELL_PROFILE_GUID);
-    expect(shortcuts[0]?.target.replaceAll('/', '\\')).toBe('C:\\Windows\\System32\\cmd.exe');
-    expect(shortcuts[0]?.arguments).toBe(
-      `/d /c start "" ${WT_LAUNCH_EXE} -w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
-    );
+    const launcherText = files.get(`C:\\Apps\\SuperLiora\\bin\\${WT_LAUNCHER_PS1}`);
+    expect(launcherText).toContain(WT_STABLE_AUMID);
+    expect(launcherText).toContain('ActivateApplication');
+    expect(shortcuts[0]?.target.replaceAll('/', '\\')).toBe('C:\\Windows\\System32\\conhost.exe');
+    expect(shortcuts[0]?.arguments.startsWith('--headless ')).toBe(true);
+    expect(shortcuts[0]?.arguments).toContain(`-File "C:\\Apps\\SuperLiora\\bin\\${WT_LAUNCHER_PS1}"`);
     expect(shortcuts[0]?.windowStyle).toBe(WT_SHORTCUT_WINDOW_MINIMIZED);
     expect(shortcuts[0]?.icon?.replaceAll('/', '\\')).toBe('C:\\Apps\\SuperLiora\\bin\\superliora.ico');
+    expect(promoted).toBeUndefined();
+  });
+
+  it('promotes Windows Terminal as the default only after first-run settings exist', async () => {
+    let promoted: unknown;
+    const wt = 'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe';
+    const env = {
+      LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
+      APPDATA: 'E:\\Users\\dev\\AppData\\Roaming',
+      USERPROFILE: 'E:\\Users\\dev',
+    };
+    const packagedSettings = packagedWindowsTerminalSettingsPath(env);
+    const result = await ensureTerminal({
+      platform: 'win32',
+      noShellRc: false,
+      binDir: 'C:\\Apps\\SuperLiora\\bin',
+      env,
+      isFile: (p: string) => p === wt || p === packagedSettings,
+      which: () => undefined,
+      ensureNerdFont: async () => ({ ok: true, skipped: true }),
+      ensureShellVibe: async () => ({ ok: true }),
+      readText: async () => '',
+      writeFile: async () => {},
+      writeBrandIcon: async () => {},
+      writeShortcut: async () => true,
+      readDelegation: () => ({ DelegationConsole: WT_CONSOLE_HOST_GUID }),
+      writeDelegation: (value: unknown) => {
+        promoted = value;
+      },
+    });
+    expect(result.promotedDefault).toBe(true);
     expect(promoted).toMatchObject({ DelegationConsole: WT_DELEGATION_CONSOLE });
   });
 
@@ -464,7 +564,8 @@ describe('scripts/install/ensure-terminal', () => {
     });
     expect(result.ok).toBe(true);
     expect(result.installed).toBe(true);
-    expect(files.size).toBe(1);
+    expect(files.size).toBe(2);
+    expect([...files.keys()].some((path) => path.endsWith(`\\${WT_LAUNCHER_PS1}`))).toBe(true);
     expect(WINGET_TERMINAL_ID).toBe('Microsoft.WindowsTerminal');
   });
 
