@@ -83,38 +83,9 @@ export function mechanicalVerificationCommands(
   return kept.length > 0 ? kept : [...SKELETON_DEFAULT_VERIFICATION];
 }
 
-function contractForPhase(
-  phase: (typeof PHASES)[number]['phase'],
-  input: GreenfieldChainInput,
-): {
-  readonly successCriteria: readonly string[] | undefined;
-  readonly verificationCommands: readonly string[] | undefined;
-  readonly surfaceKind: JobRecord['surfaceKind'] | undefined;
-} {
-  if (phase === 'skeleton') {
-    return {
-      successCriteria: [...SKELETON_SUCCESS_CRITERIA],
-      verificationCommands: mechanicalVerificationCommands(input.verificationCommands),
-      surfaceKind: undefined,
-    };
-  }
-  if (phase === 'fill') {
-    return {
-      successCriteria: input.successCriteria,
-      verificationCommands: input.verificationCommands,
-      surfaceKind: input.surfaceKind,
-    };
-  }
-  return {
-    successCriteria: [...DELETE_PASS_SUCCESS_CRITERIA],
-    verificationCommands: mechanicalVerificationCommands(input.verificationCommands),
-    surfaceKind: undefined,
-  };
-}
-
 /**
- * Enqueue three chained implement/task Jobs. Priority descends so skeleton
- * schedules first when the pool is free; parent links carry findings forward.
+ * One greenfield session — skeleton → fill → delete-pass as TodoList phases
+ * on a single Job, not three sibling workers.
  */
 export function createGreenfieldChainJobs(
   store: ToolStore,
@@ -124,40 +95,34 @@ export function createGreenfieldChainJobs(
     input.kind === 'implement' || input.kind === 'task' || input.kind === undefined
       ? (input.kind ?? 'implement')
       : 'implement';
-  const basePriority = input.priority ?? 0;
   const basePrompt = input.prompt?.trim();
-  const created: JobRecord[] = [];
-  let parentId = input.parentJobId;
-
-  for (let i = 0; i < PHASES.length; i++) {
-    const step = PHASES[i]!;
-    const contract = contractForPhase(step.phase, input);
-    const promptParts = [step.promptExtra, basePrompt].filter(Boolean);
-    const job = createJob(store, {
-      title: `${step.titlePrefix} ${input.title}`.slice(0, 120),
-      kind: baseKind,
-      priority: basePriority + (PHASES.length - i),
-      prompt: promptParts.join('\n\n'),
-      ownershipPaths: input.ownershipPaths,
-      contextPaths: input.contextPaths,
-      successCriteria: contract.successCriteria,
-      mustNotTouch: input.mustNotTouch,
-      verificationCommands: contract.verificationCommands,
-      testSeams: input.testSeams,
-      tddMode: input.tddMode,
-      // Only the first phase waits on external blockers; later phases chain via parent.
-      blockedByJobIds: i === 0 ? input.blockedByJobIds : undefined,
-      deliveryMode: 'greenfield',
-      deliveryPhase: step.phase,
-      parentJobId: parentId,
-      modelAlias: input.modelAlias,
-      surfaceKind: contract.surfaceKind,
-      repoRoot: input.repoRoot,
-      sessionRepoPath: input.sessionRepoPath,
-    });
-    created.push(job);
-    parentId = job.id;
-  }
-
-  return created;
+  const phasePlaybook = PHASES.map(
+    (step) => `${step.titlePrefix.replace(/:$/, '')}: ${step.promptExtra}`,
+  ).join('\n');
+  const promptParts = [
+    'Greenfield in ONE session. Work these phases in order (TodoList); do not spawn sibling Jobs.',
+    phasePlaybook,
+    basePrompt,
+  ].filter(Boolean);
+  const job = createJob(store, {
+    title: input.title.slice(0, 120),
+    kind: baseKind,
+    priority: input.priority ?? 0,
+    prompt: promptParts.join('\n\n'),
+    ownershipPaths: input.ownershipPaths,
+    contextPaths: input.contextPaths,
+    successCriteria: input.successCriteria,
+    mustNotTouch: input.mustNotTouch,
+    verificationCommands: input.verificationCommands,
+    testSeams: input.testSeams,
+    tddMode: input.tddMode,
+    blockedByJobIds: input.blockedByJobIds,
+    deliveryMode: 'greenfield',
+    parentJobId: input.parentJobId,
+    modelAlias: input.modelAlias,
+    surfaceKind: input.surfaceKind,
+    repoRoot: input.repoRoot,
+    sessionRepoPath: input.sessionRepoPath,
+  });
+  return [job];
 }

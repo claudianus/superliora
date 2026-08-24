@@ -16,8 +16,12 @@ import type {
   JobPushInput,
   JobPushResult,
   JobResumeResult,
+  JobAdoptResult,
+  JobLandChoiceInput,
+  JobRenameInput,
   JobSetProjectModeResult,
   JobSnapshot,
+  JobWorkspaceCatalogResult,
   JobStatus,
   SplitJobIntent,
 } from '#/session/types';
@@ -90,5 +94,30 @@ export abstract class SessionJobsMixin extends SessionGoalsMixin {
   async jobSetProjectMode(mode: ConductorProjectMode): Promise<JobSetProjectModeResult> {
     this.ensureOpen();
     return this.rpc.jobSetProjectMode({ sessionId: this.id, mode });
+  }
+
+  async jobWorkspaceCatalog(): Promise<JobWorkspaceCatalogResult> {
+    this.ensureOpen();
+    return this.rpc.jobWorkspaceCatalog({ sessionId: this.id });
+  }
+
+  async jobAdoptWorkspace(jobId: string): Promise<JobAdoptResult> {
+    this.ensureOpen();
+    return this.rpc.jobAdoptWorkspace({ sessionId: this.id, jobId });
+  }
+
+  async jobArchiveWorkspace(jobId: string): Promise<JobActionResult> {
+    this.ensureOpen();
+    return this.rpc.jobArchiveWorkspace({ sessionId: this.id, jobId });
+  }
+
+  async jobRenameWorkspace(input: JobRenameInput): Promise<JobActionResult> {
+    this.ensureOpen();
+    return this.rpc.jobRenameWorkspace({ sessionId: this.id, ...input });
+  }
+
+  async jobLandChoice(input: JobLandChoiceInput): Promise<JobActionResult> {
+    this.ensureOpen();
+    return this.rpc.jobLandChoice({ sessionId: this.id, ...input });
   }
 }

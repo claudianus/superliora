@@ -89,6 +89,42 @@ export async function hotpathJobResume(
   }
 }
 
+export async function hotpathJobRename(
+  host: SlashCommandHost,
+  jobId: string,
+  name: string,
+): Promise<void> {
+  const display = `/jobs rename ${shortJobId(jobId)}`;
+  try {
+    const result = await host.requireSession().jobRenameWorkspace({ jobId, name });
+    if (!result.ok) {
+      host.showError(result.error ?? result.text);
+      return;
+    }
+    ackStatus(host, display, result.text);
+  } catch (error) {
+    failStatus(host, display, error);
+  }
+}
+
+export async function hotpathJobLandChoice(
+  host: SlashCommandHost,
+  jobId: string,
+  choice: 'keep' | 'apply' | 'pr',
+): Promise<void> {
+  const display = `/jobs ${choice} ${shortJobId(jobId)}`;
+  try {
+    const result = await host.requireSession().jobLandChoice({ jobId, choice });
+    if (!result.ok) {
+      host.showError(result.error ?? result.text);
+      return;
+    }
+    ackStatus(host, display, result.text);
+  } catch (error) {
+    failStatus(host, display, error);
+  }
+}
+
 export async function hotpathJobList(host: SlashCommandHost): Promise<void> {
   try {
     const jobs = await host.requireSession().jobList();

@@ -17,7 +17,12 @@ import type {
   JobPushInput,
   JobPushResult,
   JobResumeResult,
+  JobAdoptResult,
+  JobLandChoiceInput,
+  JobRenameInput,
   JobSetProjectModeResult,
+  JobWorkspaceCatalogResult,
+  WorkspaceSessionRow,
 } from '#/tools/builtin/job/job-rpc-api';
 import type { SplitJobIntent } from '#/tools/builtin/job/job-split';
 import type { JobKind, JobStatus } from '#/tools/builtin/job/job-store-key';
@@ -35,9 +40,14 @@ export type {
   JobPushInput,
   JobPushResult,
   JobResumeResult,
+  JobAdoptResult,
+  JobLandChoiceInput,
+  JobRenameInput,
   JobSetProjectModeResult,
   JobSnapshot,
+  JobWorkspaceCatalogResult,
   SplitJobIntent,
+  WorkspaceSessionRow,
 };
 
 export type JobCreatePayload = JobCreateInput;
@@ -86,5 +96,17 @@ export interface JobGcWorktreesPayload {
 export interface JobSetProjectModePayload {
   readonly mode: ConductorProjectMode;
 }
+
+export interface JobWorkspaceCatalogPayload {
+  readonly workDir?: string;
+}
+
+export interface JobAdoptPayload {
+  readonly jobId: string;
+}
+
+export type JobRenamePayload = JobRenameInput;
+
+export type JobLandChoicePayload = JobLandChoiceInput;
 
 export type { JobKind, JobStatus };

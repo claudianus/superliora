@@ -19,6 +19,8 @@ import {
   createJob,
   getJob,
   listJobs,
+  patchJob,
+  upsertJob,
   type JobDeliveryMode,
   type JobKind,
   type JobRecord,
@@ -45,6 +47,18 @@ import {
 import { splitUserMessageIntoJobIntents, type SplitJobIntent } from './job-split';
 import { ackCreatedJobs, renderJobInspect } from './job-tools';
 import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
+import {
+  allocateUniqueSessionName,
+  archiveWorkspaceSession,
+  classifyWorkspaceShelf,
+  findWorkspaceSession,
+  listWorkspaceSessions,
+  workspaceEntryToJobRecord,
+  type WorkspaceSessionEntry,
+  type WorkspaceSessionShelf,
+} from './job-workspace-catalog';
+import { findOwnershipHolder, listRunningOwnershipHolders } from './job-ownership';
+import type { JobLandChoice } from './job-store-key';
 
 export type { ConductorProjectMode };
 
@@ -148,13 +162,45 @@ export interface JobSetProjectModeResult {
   readonly text: string;
 }
 
+export type { WorkspaceSessionEntry, WorkspaceSessionShelf };
+
+export interface WorkspaceSessionRow extends WorkspaceSessionEntry {
+  readonly shelf: WorkspaceSessionShelf;
+  readonly local: boolean;
+}
+
+export interface JobWorkspaceCatalogResult {
+  readonly rows: readonly WorkspaceSessionRow[];
+  readonly text: string;
+}
+
+export interface JobAdoptResult {
+  readonly ok: boolean;
+  readonly job?: JobSnapshot;
+  readonly adopted: boolean;
+  readonly text: string;
+  readonly error?: string;
+}
+
+export type JobLandChoiceKind = JobLandChoice;
+
+export interface JobLandChoiceInput {
+  readonly jobId: string;
+  readonly choice: 'keep' | 'apply' | 'pr';
+}
+
+export interface JobRenameInput {
+  readonly jobId: string;
+  readonly name: string;
+}
+
 function snapshot(job: JobRecord): JobSnapshot {
   return jobRecordToSnapshot(job);
 }
 
 export function jobList(store: ToolStore): JobSnapshot[] {
   return [...listJobs(store)]
-    .sort((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt))
+    .toSorted((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt))
     .map(snapshot);
 }
 
@@ -304,11 +350,32 @@ export async function jobCreate(
     }),
   );
 
-  const ack = await ackCreatedJobs({ store, agent, created, pool });
+  const overlapLines = overlapWarningLines(store, created);
+  const ack = await ackCreatedJobs({
+    store,
+    agent,
+    created,
+    pool,
+    extraLines: overlapLines,
+  });
   return {
     jobs: created.map((j) => snapshot(getJob(store, j.id) ?? j)),
     text: ack.output,
   };
+}
+
+function overlapWarningLines(store: ToolStore, created: readonly JobRecord[]): readonly string[] {
+  const holders = listRunningOwnershipHolders(store);
+  const lines: string[] = [];
+  for (const job of created) {
+    const hit = findOwnershipHolder(holders, job);
+    if (hit === undefined) continue;
+    const name = hit.holder.sessionName ?? hit.holder.id;
+    lines.push(
+      `overlap: ${job.sessionName ?? job.id} shares ${hit.path} with live session ${name} — files are worktree-isolated; watch ports/DB.`,
+    );
+  }
+  return lines;
 }
 
 export async function jobCreateBatch(
@@ -359,6 +426,7 @@ export async function jobCreateBatch(
     created,
     pool,
     batchLabel: 'rpc batch',
+    extraLines: overlapWarningLines(store, created),
   });
   return {
     jobs: created.map((j) => snapshot(getJob(store, j.id) ?? j)),
@@ -587,5 +655,245 @@ export async function jobGcWorktrees(
     removedJobIds: result.removedJobIds,
     removed: result.gc.removed,
     kept: result.gc.kept,
+  };
+}
+
+export function jobWorkspaceCatalog(
+  store: ToolStore,
+  input: { readonly workDir?: string; readonly homeDir?: string } = {},
+): JobWorkspaceCatalogResult {
+  const workDir = input.workDir?.trim();
+  if (workDir === undefined || workDir.length === 0) {
+    return { rows: [], text: 'workspace catalog: no workDir' };
+  }
+  const localIds = new Set(listJobs(store).map((job) => job.id));
+  const rows = listWorkspaceSessions({
+    workDir,
+    homeDir: input.homeDir,
+  }).map((row) => ({ ...row, local: localIds.has(row.jobId) }));
+  const active = rows.filter((r) => r.shelf === 'active').length;
+  const recent = rows.filter((r) => r.shelf === 'recent').length;
+  const archived = rows.filter((r) => r.shelf === 'archived').length;
+  return {
+    rows,
+    text: `workspace sessions: ${String(rows.length)} (active ${String(active)}, recent ${String(recent)}, archived ${String(archived)})`,
+  };
+}
+
+export async function jobAdoptWorkspaceSession(
+  store: ToolStore,
+  input: {
+    readonly jobId: string;
+    readonly workDir?: string;
+    readonly homeDir?: string;
+    readonly agent?: Agent;
+  },
+): Promise<JobAdoptResult> {
+  const workDir = input.workDir?.trim();
+  if (workDir === undefined || workDir.length === 0) {
+    return { ok: false, adopted: false, text: '', error: 'workDir required' };
+  }
+  const found = findWorkspaceSession(workDir, input.jobId, input.homeDir);
+  if (found === undefined) {
+    return {
+      ok: false,
+      adopted: false,
+      text: '',
+      error: `workspace session not found: ${input.jobId}`,
+    };
+  }
+  const shelf = classifyWorkspaceShelf(found);
+  let adopted = false;
+  let job = getJob(store, found.jobId);
+  if (job === undefined) {
+    let imported = workspaceEntryToJobRecord(found);
+    if (shelf === 'recent' && imported.status === 'done') {
+      imported = { ...imported, status: 'interrupted' };
+    }
+    job = upsertJob(store, imported);
+    adopted = true;
+  }
+  if (shelf === 'archived' || job.landReceipt !== undefined) {
+    return {
+      ok: true,
+      job: snapshot(job),
+      adopted,
+      text: `session ${job.id} is archived — listed only; not resumed`,
+    };
+  }
+  if (job.status === 'running' || job.status === 'needs_user') {
+    return {
+      ok: true,
+      job: snapshot(job),
+      adopted,
+      text: `session ${job.id} already live in this chat`,
+    };
+  }
+  if (job.status === 'done' && job.landReceipt === undefined) {
+    job =
+      patchJob(store, job.id, {
+        status: 'interrupted',
+        notes: [job.notes, 'workspace-catalog: continue here'].filter(Boolean).join('\n'),
+      }) ?? job;
+  }
+  const resumed = await resumeJobs({
+    store,
+    agent: input.agent,
+    jobId: job.id,
+  });
+  const latest = getJob(store, job.id) ?? job;
+  return {
+    ok: resumed.ok,
+    job: snapshot(latest),
+    adopted,
+    text: [
+      adopted
+        ? `adopted ${latest.sessionName ?? latest.id} (${latest.id}) into this chat`
+        : `${latest.sessionName ?? latest.id} already on this ledger`,
+      resumed.message,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    error: resumed.ok ? undefined : resumed.message,
+  };
+}
+
+export function jobRenameWorkspaceSession(
+  store: ToolStore,
+  input: {
+    readonly jobId: string;
+    readonly name: string;
+    readonly workDir?: string;
+    readonly homeDir?: string;
+  },
+): JobActionResult {
+  const named =
+    input.workDir !== undefined && input.workDir.trim().length > 0
+      ? findWorkspaceSession(input.workDir, input.jobId, input.homeDir)
+      : undefined;
+  const job = getJob(store, input.jobId) ?? (named !== undefined ? getJob(store, named.jobId) : undefined);
+  if (job === undefined) {
+    return { ok: false, text: '', error: `Job not found: ${input.jobId}` };
+  }
+  const workDir = input.workDir?.trim();
+  const unique =
+    workDir !== undefined && workDir.length > 0
+      ? allocateUniqueSessionName(workDir, input.name, {
+          homeDir: input.homeDir,
+          excludeJobId: job.id,
+        })
+      : input.name.trim();
+  if (unique.length === 0) {
+    return { ok: false, text: '', error: 'session name cannot be empty' };
+  }
+  const next = patchJob(store, job.id, {
+    sessionName: unique,
+    sessionNamePinned: true,
+  });
+  return {
+    ok: true,
+    job: next ? snapshot(next) : undefined,
+    text: `renamed ${job.id} → ${unique}`,
+  };
+}
+
+export async function jobChooseLand(
+  store: ToolStore,
+  input: JobLandChoiceInput,
+  agent?: Agent,
+): Promise<JobActionResult> {
+  const job = getJob(store, input.jobId);
+  if (job === undefined) {
+    return { ok: false, text: '', error: `Job not found: ${input.jobId}` };
+  }
+  if (input.choice === 'keep') {
+    const next = patchJobAndNotify(
+      store,
+      job.id,
+      {
+        landChoice: 'keep',
+        notes: [job.notes, 'land: keep worktree (operator)'].filter(Boolean).join('\n'),
+      },
+      { agent, summary: `kept session ${job.sessionName ?? job.id} in its worktree` },
+    );
+    return {
+      ok: true,
+      job: next ? snapshot(next) : undefined,
+      text: `Keep — ${job.sessionName ?? job.id} stays in its worktree. Resume anytime.`,
+    };
+  }
+  if (input.choice === 'apply') {
+    const source = patchJob(store, job.id, {
+      landChoice: 'apply',
+      notes: [job.notes, 'land: apply to main (operator)'].filter(Boolean).join('\n'),
+    }) ?? job;
+    const dispatch = dispatchMergeLand({
+      store,
+      sourceJob: source,
+      trustMode: 'auto',
+      trustReason: 'operator chose Apply',
+      summary: 'operator Apply',
+      kaos: agent?.kaos,
+      repoPath: source.repoRoot ?? agent?.config.cwd,
+      agent,
+    });
+    const latest = getJob(store, job.id) ?? source;
+    return {
+      ok: dispatch.mergeJob !== undefined,
+      job: snapshot(latest),
+      text:
+        dispatch.mergeJob !== undefined
+          ? `Apply — landing ${latest.sessionName ?? latest.id} onto local main (${dispatch.mergeJob.id}).`
+          : 'Apply dispatch failed — merge held for manual resolve.',
+      error: dispatch.mergeJob === undefined ? 'apply dispatch failed' : undefined,
+    };
+  }
+  patchJob(store, job.id, {
+    landChoice: 'pr',
+    notes: [job.notes, 'land: open PR (operator)'].filter(Boolean).join('\n'),
+  });
+  const pushed = await jobPush(
+    store,
+    {
+      jobId: job.id,
+      approve: true,
+      summary: 'operator PR',
+      forceUserConfirm: true,
+    },
+    agent,
+  );
+  return {
+    ok: pushed.ok,
+    job: pushed.job,
+    text: pushed.text,
+    error: pushed.error,
+  };
+}
+
+export function jobArchiveWorkspaceSession(
+  store: ToolStore,
+  input: {
+    readonly jobId: string;
+    readonly workDir?: string;
+    readonly homeDir?: string;
+  },
+): JobActionResult {
+  const workDir = input.workDir?.trim();
+  if (workDir === undefined || workDir.length === 0) {
+    return { ok: false, text: '', error: 'workDir required' };
+  }
+  const archived = archiveWorkspaceSession({
+    workDir,
+    jobId: input.jobId,
+    homeDir: input.homeDir,
+  });
+  if (archived === undefined) {
+    return { ok: false, text: '', error: `workspace session not found: ${input.jobId}` };
+  }
+  const local = getJob(store, input.jobId);
+  return {
+    ok: true,
+    job: local !== undefined ? snapshot(local) : undefined,
+    text: `archived ${archived.jobId} (${archived.title})`,
   };
 }

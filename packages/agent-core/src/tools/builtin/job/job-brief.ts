@@ -26,6 +26,16 @@ export function renderStructuredBriefSections(job: JobRecord): string | undefine
   return parts.length > 0 ? parts.join('\n\n') : undefined;
 }
 
+/** Combined greenfield playbook when one session owns all phases. */
+export function renderGreenfieldSessionContract(): string {
+  return [
+    'Greenfield in ONE session. Work phases in order via TodoList — do not spawn sibling Jobs.',
+    '1. Skeleton: folders, entrypoints, types, empty scenes, schemas. Mechanical typecheck/lint/unit/build only. No VerifySurface on empty scenes.',
+    '2. Fill: meet product success criteria; smallest diff. Visual / VerifySurface belongs here when surface_kind=web|tui|mixed.',
+    '3. Delete-pass: remove placeholders, dead wrappers, decorative layers. Do not rebuild; re-run verification.',
+  ].join('\n');
+}
+
 /** Phase contract for greenfield chain steps (not a separate JobKind). */
 export function renderDeliveryPhaseContract(phase: JobDeliveryPhase | undefined): string | undefined {
   if (phase === 'skeleton') {

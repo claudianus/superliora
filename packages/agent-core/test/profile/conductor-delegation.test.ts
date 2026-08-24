@@ -138,24 +138,21 @@ describe('conductor delegation-only tool surface', () => {
     expect(tools).not.toContain('ApplyPatch');
   });
 
-  it('routes multi-file discovery to explore Jobs and multi-approach work to EnterPlanMode', () => {
+  it('routes task-like work to one implement session, not an explore/plan/verify pipeline', () => {
     const prompt = DEFAULT_AGENT_PROFILES['conductor']?.systemPrompt(promptContext);
     expect(prompt).toBeTruthy();
-    expect(prompt).toContain('JobCreate(kind=explore)');
-    expect(prompt).toContain('multi-file discovery');
+    expect(prompt).toContain('JobCreate(kind=implement)');
+    expect(prompt).toContain('kind=explore');
     expect(prompt).toContain('EnterPlanMode');
-    expect(prompt).toContain('do **not** open a multi-step RepoQuery/Read marathon');
+    expect(prompt).toContain('Classify every user message');
     expect(prompt).toContain('Anti-pattern');
-    expect(prompt).toContain('parallelizing 5+ RepoQuery/Read');
+    expect(prompt).toContain('explore Job → implement Job → verify Job → debug Job');
     expect(prompt).toContain('1–3 quick facts');
-    // Desk wake: web/docs → research; codebase → explore; implement auto-verifies.
     expect(prompt).toContain('JobCreate(kind=research)');
-    expect(prompt).toContain('kind=verify');
-    // Core delegation contract remains.
     expect(prompt).toContain('Never wait on workers');
-    expect(prompt).toContain('Paths or files known → `kind=implement` immediately');
-    expect(prompt).toContain('`explore` only when the location is unknown');
+    expect(prompt).toContain('Task-like work → `kind=implement` even when the location is unknown');
     expect(prompt).toContain('CreateGoal (facade → Goal Desk + goal-driver)');
     expect(prompt).toContain('Never JobCreate `kind=goal-desk`');
+    expect(prompt).not.toContain('`explore` only when the location is unknown');
   });
 });

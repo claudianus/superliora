@@ -289,6 +289,29 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
       jobRpc.jobGcWorktrees(agent.tools.getStore(), { agent, dryRun: payload.dryRun }),
     jobSetProjectMode: (payload) =>
       jobRpc.jobSetProjectMode(agent.tools.getStore(), payload.mode),
+    jobWorkspaceCatalog: (payload) =>
+      jobRpc.jobWorkspaceCatalog(agent.tools.getStore(), {
+        workDir: payload.workDir ?? agent.config.cwd,
+      }),
+    jobAdoptWorkspace: (payload) =>
+      jobRpc.jobAdoptWorkspaceSession(agent.tools.getStore(), {
+        jobId: payload.jobId,
+        workDir: agent.config.cwd,
+        agent,
+      }),
+    jobArchiveWorkspace: (payload) =>
+      jobRpc.jobArchiveWorkspaceSession(agent.tools.getStore(), {
+        jobId: payload.jobId,
+        workDir: agent.config.cwd,
+      }),
+    jobRenameWorkspace: (payload) =>
+      jobRpc.jobRenameWorkspaceSession(agent.tools.getStore(), {
+        jobId: payload.jobId,
+        name: payload.name,
+        workDir: agent.config.cwd,
+      }),
+    jobLandChoice: (payload) =>
+      jobRpc.jobChooseLand(agent.tools.getStore(), payload, agent),
     getBackgroundOutput: (payload) => agent.background.readOutput(payload.taskId, payload.tail),
     getContext: () => agent.context.data(),
     getContextComposition: () => agent.context.composition(),

@@ -76,7 +76,7 @@ describe('resolveJobAffinity', () => {
     expect(d?.action).toBe('fold');
   });
 
-  it('reuses a done Job that has not landed', () => {
+  it('reattaches a done unlanded coding Job instead of spawning a child', () => {
     const store = memoryStore();
     const anchor = createJob(store, {
       title: 'Fix auth',
@@ -90,12 +90,10 @@ describe('resolveJobAffinity', () => {
       continueFromJobId: anchor.id,
       kind: 'implement',
     });
-    expect(d?.action).toBe('reuse');
-    if (d?.action !== 'reuse') return;
-    const inherit = reuseInheritanceFromAnchor(d.anchor);
-    expect(inherit.worktreePath).toBe('/tmp/wt-auth');
-    expect(inherit.workerResumeAgentId).toBe('agent_abc');
-    expect(inherit.parentJobId).toBe(anchor.id);
+    expect(d?.action).toBe('reattach');
+    if (d?.action !== 'reattach') return;
+    expect(d.anchor.worktreePath).toBe('/tmp/wt-auth');
+    expect(d.anchor.workerResumeAgentId).toBe('agent_abc');
   });
 
   it('rejects verify / auto_split / landed anchors', () => {
@@ -241,7 +239,7 @@ describe('JobCreate affinity integration', () => {
       staff: false,
     });
     expect(out.isError).toBeFalsy();
-    expect(out.output).toMatch(/affinity: fold/);
+    expect(out.output).toMatch(/session: fold/);
     expect(listJobs(store)).toHaveLength(1);
     const job = listJobs(store)[0]!;
     expect(job.id).toBe(anchor.id);
@@ -250,7 +248,7 @@ describe('JobCreate affinity integration', () => {
     expect(job.successCriteria).toEqual(['smoke green', 'scroll feels stable']);
   });
 
-  it('reuses worktree + resume checkpoint from a done Job', async () => {
+  it('reattaches a done unlanded coding Job onto the same id', async () => {
     const store = memoryStore();
     const anchor = createJob(store, {
       title: 'Fix flicker',
@@ -277,15 +275,13 @@ describe('JobCreate affinity integration', () => {
       staff: false,
     });
     expect(out.isError).toBeFalsy();
-    expect(out.output).toMatch(/affinity: reuse/);
+    expect(out.output).toMatch(/session: reattach/);
     const jobs = listJobs(store);
-    expect(jobs).toHaveLength(2);
-    const child = jobs.find((j) => j.id !== anchor.id)!;
-    expect(child.parentJobId).toBe(anchor.id);
-    expect(child.worktreePath).toBe('/tmp/wt-flicker');
-    expect(child.workerResumeAgentId).toBe('agent_resume_1');
-    // Schedule pump may promote queued→running before ACK returns.
-    expect(['queued', 'running', 'blocked']).toContain(child.status);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]!.id).toBe(anchor.id);
+    expect(jobs[0]!.worktreePath).toBe('/tmp/wt-flicker');
+    expect(jobs[0]!.workerResumeAgentId).toBe('agent_resume_1');
+    expect(['queued', 'running', 'blocked']).toContain(jobs[0]!.status);
   });
 
   it('steers a running Job via continue_from (same job id)', async () => {
@@ -306,7 +302,7 @@ describe('JobCreate affinity integration', () => {
       staff: false,
     });
     expect(out.isError).toBeFalsy();
-    expect(out.output).toMatch(/affinity: steer/);
+    expect(out.output).toMatch(/session: steer/);
     expect(listJobs(store)).toHaveLength(1);
     expect(listJobs(store)[0]!.successCriteria).toEqual([
       'smoke green',
@@ -361,7 +357,7 @@ describe('JobCreate affinity integration', () => {
       staff: false,
     });
     expect(out.isError).toBeFalsy();
-    expect(out.output).toMatch(/affinity: steer/);
+    expect(out.output).toMatch(/session: steer/);
     expect(listJobs(store)).toHaveLength(1);
     expect(listJobs(store)[0]!.id).toBe(live.id);
   });

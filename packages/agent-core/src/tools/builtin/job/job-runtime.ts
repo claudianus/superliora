@@ -16,6 +16,7 @@ import {
   sessionWorktreeDirExists,
   type CreateSessionWorktreeResult,
 } from '../../../session/worktree';
+import { nextPortOffset, setupJobWorktree } from '../../../session/worktree-setup';
 import type { ToolStore } from '../../store';
 import { resolveRepoRootForNewJob } from './job-git-root';
 import { ensureGitRepoForWorktrees } from './job-git-bootstrap';
@@ -137,7 +138,7 @@ export function nextQueuedJobs(
     .filter((j) => j.status === 'queued')
     .filter((j) => parentAllowsSchedule(byId, j))
     .filter((j) => blockersAllowSchedule(byId, j))
-    .sort((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt));
+    .toSorted((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt));
 
   const selected: JobRecord[] = [];
   const reserved: JobRecord[] = listRunningOwnershipHolders(store);
@@ -347,9 +348,18 @@ export async function assignJobWorktree(
       name: slug,
     });
     const branch = created.meta?.branch;
+    const portOffset = existing.portOffset ?? nextPortOffset(
+      listJobs(input.store).map((j) => j.portOffset),
+    );
+    const setup = await setupJobWorktree({
+      repoRoot: repo.root,
+      worktreePath: created.workDir,
+      portOffset,
+    });
     const job = patchJob(input.store, existing.id, {
       worktreePath: created.workDir,
       repoRoot: existing.repoRoot ?? inferredRoot ?? created.meta.repoRoot,
+      portOffset,
       ...(branch !== undefined ? { worktreeBranch: branch } : {}),
       notes: [
         existing.notes,
@@ -359,6 +369,7 @@ export async function assignJobWorktree(
         branch !== undefined
           ? `worktree: ${created.workDir} (${branch})`
           : `worktree: ${created.workDir}`,
+        ...setup.notes.map((line) => `worktree-setup: ${line}`),
       ]
         .filter(Boolean)
         .join('\n'),
@@ -385,7 +396,7 @@ export async function assignJobWorktree(
 
 export function worktreeNameForJob(jobId: string): string {
   // git worktree slug: keep short/safe
-  const compact = jobId.replace(/^job_/, 'j').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+  const compact = jobId.replace(/^job_/, 'j').replaceAll(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
   return `conductor-${compact || 'job'}`;
 }
 
@@ -774,6 +785,13 @@ export async function gcConductorJobWorktrees(
   const jobs = listJobs(input.store);
   for (const job of jobs) {
     if (job.status !== 'done' || !job.worktreePath) continue;
+    if (
+      job.landChoice === 'keep' ||
+      job.landChoice === 'pending' ||
+      job.sessionNamePinned === true
+    ) {
+      continue;
+    }
     if (input.dryRun) {
       removedJobIds.push(job.id);
       continue;

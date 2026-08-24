@@ -21,13 +21,17 @@ import {
   hotpathJobCancel,
   hotpathJobGc,
   hotpathJobInspect,
+  hotpathJobLandChoice,
   hotpathJobList,
+  hotpathJobRename,
   hotpathJobResume,
   isConductorUxV2Enabled,
 } from './job-hotpath';
 import { handleAgentsCommand } from './agents';
 import type { SlashCommandHost } from './hub/dispatch';
 import { ttui } from '../utils/tui-i18n';
+import { isDrawerArgs, openJobsDrawer } from './jobs-drawer';
+import { openLandChoicePicker } from '../features/control-tower/land-choice-controller';
 
 function isDockArgs(args: string): boolean {
   return args === 'dock' || args === 'workers' || args === 'band';
@@ -71,6 +75,10 @@ export function handleJobsCommand(host: SlashCommandHost, rawArgs: string): void
   }
   if (isDeckArgs(args)) {
     host.jobBoardController.openDeck();
+    return;
+  }
+  if (isDrawerArgs(args)) {
+    void openJobsDrawer(host);
     return;
   }
   if (args.startsWith('deck ') || args.startsWith('monitor ') || args.startsWith('watch ')) {
@@ -126,6 +134,12 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
     case 'view':
     case 'open':
       host.jobBoardController.openDeck();
+      return;
+
+    case 'drawer':
+    case 'sessions':
+    case 'shelf':
+      void openJobsDrawer(host);
       return;
 
     case 'deck':
@@ -256,6 +270,47 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
         `Use JobInspect with job_id=${jobId} and summarize status, paths, worktree, and result.`,
         { displayText: `/job inspect ${jobId}` },
       );
+      return;
+    }
+
+    case 'rename': {
+      const jobId = tokens[1] ?? '';
+      const name = tokens.slice(2).join(' ').trim();
+      if (jobId.length === 0 || name.length === 0) {
+        host.showStatus(ttui('tui.jobs.renameUsage'));
+        return;
+      }
+      if (uxV2) {
+        void hotpathJobRename(host, jobId, name);
+        return;
+      }
+      host.showStatus(ttui('tui.jobs.drawerNeedsUx'), 'warning');
+      return;
+    }
+
+    case 'land': {
+      const jobId = tokens.slice(1).join(' ').trim();
+      if (jobId.length === 0) {
+        host.showStatus(ttui('tui.jobs.landUsage'));
+        return;
+      }
+      void openLandChoicePicker(host, jobId);
+      return;
+    }
+
+    case 'keep':
+    case 'apply':
+    case 'pr': {
+      const jobId = tokens.slice(1).join(' ').trim();
+      if (jobId.length === 0) {
+        host.showStatus(ttui('tui.jobs.landUsage'));
+        return;
+      }
+      if (uxV2) {
+        void hotpathJobLandChoice(host, jobId, sub);
+        return;
+      }
+      host.showStatus(ttui('tui.jobs.drawerNeedsUx'), 'warning');
       return;
     }
 

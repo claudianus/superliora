@@ -155,9 +155,14 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
         jobs.needsUser > 0);
     if (showJobs && jobs !== undefined && jobs !== null) {
       const tokenGlance = formatSessionTokenGlance(sumRunningJobTokens(jobs.jobs));
+      const liveNames = jobs.jobs
+        .filter((card) => card.status === 'running' || card.status === 'needs_user')
+        .map((card) => card.sessionName?.trim() || card.title)
+        .filter((name) => name.length > 0);
       const jobLabel = labelConductorJobs(labels, jobs, {
         projectMode: state.conductorProjectMode,
         ...(tokenGlance === undefined ? {} : { tokenGlance }),
+        ...(liveNames.length > 0 ? { liveNames } : {}),
       });
       if (jobLabel.length > 0) {
         // F15: stronger attention pulse when needs_user / unread (quality-aware).

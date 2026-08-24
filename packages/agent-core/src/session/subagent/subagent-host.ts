@@ -88,6 +88,7 @@ export {
 export {
   __testing__,
   pauseActiveChildDeadline,
+  resetActiveChildDeadline,
   resumeActiveChildDeadline,
 } from './subagent-run-lifecycle';
 export type {

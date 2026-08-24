@@ -106,8 +106,7 @@ import type {
   UnregisterToolPayload,
   SetActiveToolsPayload,
 } from './payloads-agent';
-import type {
-} from './payloads-goal';
+
 import type {
   JobActionResult,
   JobCancelPayload,
@@ -127,9 +126,15 @@ import type {
   JobPreviewSplitPayload,
   JobResumePayload,
   JobResumeResult,
+  JobAdoptPayload,
+  JobAdoptResult,
+  JobLandChoicePayload,
+  JobRenamePayload,
   JobSetProjectModePayload,
   JobSetProjectModeResult,
   JobSnapshot,
+  JobWorkspaceCatalogPayload,
+  JobWorkspaceCatalogResult,
   JobSteerPayload,
   SplitJobIntent,
 } from './payloads-job';
@@ -204,6 +209,11 @@ export interface AgentAPI {
   jobPreviewSplit: (payload: JobPreviewSplitPayload) => readonly SplitJobIntent[];
   jobGcWorktrees: (payload: JobGcWorktreesPayload) => Promise<JobGcWorktreesResult>;
   jobSetProjectMode: (payload: JobSetProjectModePayload) => JobSetProjectModeResult;
+  jobWorkspaceCatalog: (payload: JobWorkspaceCatalogPayload) => JobWorkspaceCatalogResult;
+  jobAdoptWorkspace: (payload: JobAdoptPayload) => Promise<JobAdoptResult>;
+  jobArchiveWorkspace: (payload: JobIdPayload) => JobActionResult;
+  jobRenameWorkspace: (payload: JobRenamePayload) => JobActionResult;
+  jobLandChoice: (payload: JobLandChoicePayload) => Promise<JobActionResult>;
   getBackgroundOutput: (payload: GetBackgroundOutputPayload) => string;
   getContext: (payload: EmptyPayload) => AgentContextData;
   getContextComposition: (payload: EmptyPayload) => ContextComposition;

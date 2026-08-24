@@ -100,6 +100,10 @@ function hintLabel(hint: string): string {
       return 'Steer';
     case 'jobCancel':
       return 'Cancel';
+    case 'jobKeep':
+      return 'Keep';
+    case 'jobApply':
+      return 'Apply';
     default:
       return hint.trim();
   }

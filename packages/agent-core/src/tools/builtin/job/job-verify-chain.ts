@@ -98,9 +98,9 @@ export function isDesktopOrOutOfRepoJob(
 }
 
 /**
- * Whether a coding Job is expected to run the automatic verify chain.
- * Mission / explore / research / surface none / desktop / out-of-repo → false.
- * Coding implement (and in-repo task with a real surface) → true.
+ * Independent review sessions only — never an automatic pipeline stage.
+ * Maker sessions self-check (resultContract). `/review` or deliveryClass=review
+ * still get one verify child. Everything else → false.
  */
 export function jobRequiresVerifyChain(
   job: Pick<
@@ -116,6 +116,7 @@ export function jobRequiresVerifyChain(
     | 'deliveryClass'
   >,
 ): boolean {
+  if (job.deliveryClass !== 'review') return false;
   if (
     job.kind === 'merge' ||
     job.kind === 'push' ||
@@ -129,17 +130,10 @@ export function jobRequiresVerifyChain(
     return false;
   }
   if (isGeneralTaskTrack(job)) return false;
-  // Debug fixer children must not re-trigger another verify fan-out.
   if (isDebugFixerJob(job) && job.parentJobId !== undefined) {
     return false;
   }
   if (job.kind !== 'task' && job.kind !== 'implement') {
-    return false;
-  }
-  // No UI surface → no visual verify. Missing surfaceKind is none (create
-  // defaults none) so omitting the field no longer fans out Standards∥Spec.
-  // Review mode still wants one combined checker on code-only Jobs.
-  if (!surfaceRequiresVisualProof(job.surfaceKind) && job.deliveryClass !== 'review') {
     return false;
   }
   if (isDesktopOrOutOfRepoJob(job)) {
@@ -872,13 +866,9 @@ export async function onJobTerminalForVerifyChain(
         .filter(Boolean)
         .join('\n'),
     });
-    // Debug only for stamped fail — missing JSON (incl. void timeout) is not a code bug;
-    // never enqueueDebugJobForVerify on missing-JSON / unparsed verdict.
+    // Session model: verify fail does not spawn a debug worker. The desk
+    // steers the maker session. Keep the function for /review leftovers.
     if (verdict === 'failed') {
-      const failedChild = children.find((c) => resolveVerifyChildVerdict(c) === 'failed');
-      if (failedChild !== undefined) {
-        await enqueueDebugJobForVerify(store, latestParent, failedChild, agent);
-      }
       return;
     }
     // surface_kind=none + latest-per-axis pass → auto MergeJob land (no human click).
@@ -909,8 +899,8 @@ export async function onJobTerminalForVerifyChain(
     await enqueueVerifyJobForParent(store, job, agent);
     return;
   }
-  // surface_kind=none (the create default) skips verify — still auto-land so
-  // the Conductor does not spend a wake turn on MergeJob.
+  // surface_kind=none skips verify. Auto-land only when landChoice=apply
+  // (operator Apply). Pending/keep/pr stay on the desk.
   if (job.status === 'done' && (job.kind === 'task' || job.kind === 'implement')) {
     const parentNow = getJob(store, job.id) ?? job;
     const jobsNow = listJobs(store);
@@ -944,6 +934,9 @@ export function shouldAutoEnqueueMergeAfterVerify(
 ): boolean {
   if (parent.kind !== 'task' && parent.kind !== 'implement') return false;
   if (parent.status !== 'done') return false;
+  if (parent.landChoice === 'keep' || parent.landChoice === 'pr' || parent.landChoice === 'pending') {
+    return false;
+  }
   if (isGeneralTaskTrack(parent)) return false;
   if (surfaceRequiresVisualProof(parent.surfaceKind)) return false;
   if (jobs.some((j) => j.parentJobId === parent.id && j.kind === 'merge')) return false;

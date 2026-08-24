@@ -467,4 +467,9 @@ export {
   jobPreviewSplit,
   jobGcWorktrees,
   jobSetProjectMode,
+  jobWorkspaceCatalog,
+  jobAdoptWorkspace,
+  jobArchiveWorkspace,
+  jobRenameWorkspace,
+  jobLandChoice,
 } from './session-agent-methods-job';

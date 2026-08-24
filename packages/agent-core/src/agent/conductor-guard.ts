@@ -22,7 +22,8 @@
  *   search-shaped Bash) are limited so Conductor cannot burn the lane on a
  *   discovery marathon. Soft reject after
  *   {@link CONDUCTOR_INTERACTIVE_EXPLORE_SOFT} calls steers to
- *   `JobCreate(kind=explore)` / EnterPlanMode; hard reject after
+ *   `JobCreate(kind=implement)` (session worker explores then edits);
+ *   web tools steer to `kind=research`. Hard reject after
  *   {@link CONDUCTOR_INTERACTIVE_EXPLORE_HARD}. Job desk / plan / ask tools
  *   stay unrestricted. This is separate from the direct-work violation counter.
  * - Tripwire recorder: every block attempt and wall-clock budget overrun is
@@ -54,13 +55,13 @@ export const CONDUCTOR_GUARD_CODES = {
   /** Bash write command rejected on the conductor lane (§2.1 item 3, V1-5). */
   bashWriteBlocked: 'CONDUCTOR_BASH_WRITE_BLOCKED',
   /**
-   * Soft interactive-exploration cap exceeded — steer to explore Job / Plan Desk
-   * without escalating the direct-work violation counter.
+   * Soft interactive-exploration cap exceeded — steer to an implement session
+   * (or research for web tools) without escalating the direct-work violation counter.
    */
   exploreSoft: 'CONDUCTOR_INTERACTIVE_EXPLORE_SOFT',
   /**
    * Hard interactive-exploration cap exceeded — reject further discovery tools
-   * on this turn and require JobCreate(kind=explore) / EnterPlanMode.
+   * on this turn and require JobCreate(kind=implement|research).
    */
   exploreHard: 'CONDUCTOR_INTERACTIVE_EXPLORE_HARD',
   /** Tool wall-clock exceeded the soft budget (§3.2 G3 soft 5s). */
@@ -185,18 +186,18 @@ export const CONDUCTOR_INTERACTIVE_EXPLORE_SOFT = 3;
 /**
  * Hard cap for exploration-class tools on the Conductor interactive lane per
  * turn. After this many attempts (allowed + rejected), further discovery tools
- * are hard-rejected with a JobCreate(kind=explore|research) draft. Job desk /
+ * are hard-rejected with a JobCreate(kind=implement|research) draft. Job desk /
  * plan / ask tools are never counted here.
  */
 export const CONDUCTOR_INTERACTIVE_EXPLORE_HARD = 6;
 
 /** Soft explore-cap routing phrase — stop deep interactive search. */
 export const CONDUCTOR_EXPLORE_SOFT_REJECTION_PHRASE =
-  'Interactive exploration budget soft-limit reached on the Conductor lane. Stop multi-step RepoQuery/Grep/Read/WebSearch/FetchURL here — spawn JobCreate(kind=explore) for codebase discovery or JobCreate(kind=research) for web/docs, or EnterPlanMode for multi-approach work.';
+  'Interactive exploration budget soft-limit reached on the Conductor lane. Stop multi-step RepoQuery/Grep/Read/WebSearch/FetchURL here — spawn one JobCreate(kind=implement) session (the worker explores then edits) or JobCreate(kind=research) for web/docs answers. Do not spawn an explore-then-implement pipeline.';
 
 /** Hard explore-cap routing phrase — discovery must leave this lane. */
 export const CONDUCTOR_EXPLORE_HARD_REJECTION_PHRASE =
-  'Interactive exploration budget hard-limit reached on the Conductor lane. Further discovery tools are blocked this turn. Call JobCreate(kind=explore|research) or EnterPlanMode; do not continue searching on the interactive lane.';
+  'Interactive exploration budget hard-limit reached on the Conductor lane. Further discovery tools are blocked this turn. Call JobCreate(kind=implement|research); do not continue searching on the interactive lane.';
 
 /**
  * Exploration-class tools counted toward the interactive cap. Job desk, plan
@@ -603,7 +604,8 @@ export class ConductorDirectWorkGuard {
     const phrase = hard
       ? CONDUCTOR_EXPLORE_HARD_REJECTION_PHRASE
       : CONDUCTOR_EXPLORE_SOFT_REJECTION_PHRASE;
-    const draft = suggestExploreJobDraft(ctx.toolName, ctx.args);
+    const draft = suggestExploreCapJobDraft(ctx.toolName, ctx.args);
+    const kind = exploreCapDraftKind(ctx.toolName);
 
     this.record({
       code,
@@ -627,10 +629,10 @@ export class ConductorDirectWorkGuard {
       code,
       output: [
         phrase,
-        `Suggested explore Job draft:\n  title: ${draft.title}\n  prompt: ${draft.prompt}\n  ownership: ${draft.ownership}\n  kind: explore`,
+        `Suggested session Job draft:\n  title: ${draft.title}\n  prompt: ${draft.prompt}\n  ownership: ${draft.ownership}\n  kind: ${kind}`,
         hard
-          ? `Call JobCreate(kind=explore) or EnterPlanMode instead of retrying "${ctx.toolName}" on the Conductor lane.`
-          : `Soft cap (${String(CONDUCTOR_INTERACTIVE_EXPLORE_SOFT)} explore tools) reached — spawn JobCreate(kind=explore) or EnterPlanMode. Hard reject after ${String(CONDUCTOR_INTERACTIVE_EXPLORE_HARD)} attempts this turn.`,
+          ? `Call JobCreate(kind=${kind}) instead of retrying "${ctx.toolName}" on the Conductor lane.`
+          : `Soft cap (${String(CONDUCTOR_INTERACTIVE_EXPLORE_SOFT)} explore tools) reached — spawn JobCreate(kind=${kind}). Hard reject after ${String(CONDUCTOR_INTERACTIVE_EXPLORE_HARD)} attempts this turn.`,
       ].join('\n\n'),
       jobDraft: draft,
     };
@@ -814,11 +816,15 @@ function suggestJobDraft(toolName: string, args: unknown): ConductorJobDraft {
   };
 }
 
+function exploreCapDraftKind(toolName: string): 'implement' | 'research' {
+  return toolName === 'WebSearch' || toolName === 'FetchURL' ? 'research' : 'implement';
+}
+
 /**
- * Explore-cap Job draft: steers the model to JobCreate(kind=explore) rather
- * than an implement worker, with success_criteria + context_paths guidance.
+ * Explore-cap Job draft: search caps on this lane become one session worker
+ * (implement explores then edits). Web tools become research (answer-only).
  */
-function suggestExploreJobDraft(toolName: string, args: unknown): ConductorJobDraft {
+function suggestExploreCapJobDraft(toolName: string, args: unknown): ConductorJobDraft {
   const target = pickStringField(args, [
     'file_path',
     'path',
@@ -829,15 +835,25 @@ function suggestExploreJobDraft(toolName: string, args: unknown): ConductorJobDr
     'command',
   ]);
   const focus = target !== undefined ? truncateMiddle(target, 80) : 'unknown code location';
+  const kind = exploreCapDraftKind(toolName);
+  if (kind === 'research') {
+    return {
+      title: `Research: ${focus}`,
+      prompt:
+        `Web/docs research blocked on the Conductor interactive lane ` +
+        `(tool "${toolName}" hit the explore cap). Investigate ${focus} and summarize ` +
+        'findings with citations. When calling JobCreate set kind=research.',
+      ownership: target !== undefined ? target : 'research',
+    };
+  }
   return {
-    title: `Explore: ${focus}`,
+    title: `Session: ${focus}`,
     prompt:
-      `Read-only codebase exploration blocked on the Conductor interactive lane ` +
-      `(tool "${toolName}" hit the explore cap). Investigate ${focus}: locate the ` +
-      'relevant files, summarize findings with path:line citations, and return a ' +
-      'structured handoff for implement Jobs. When calling JobCreate set kind=explore, ' +
-      'success_criteria to a verifiable research finish line, and context_paths (≤6).',
-    ownership: target !== undefined ? target : 'explore',
+      `Discovery blocked on the Conductor interactive lane ` +
+      `(tool "${toolName}" hit the explore cap). Open one implement session that locates ` +
+      `${focus}, then performs the product change and runs checks in the same context. ` +
+      'When calling JobCreate set kind=implement — do not spawn a separate explore Job.',
+    ownership: target !== undefined ? target : 'worker',
   };
 }
 

@@ -24,6 +24,7 @@ import {
 } from '../../utils/job/needs-user-preview';
 import { resyncJobBoardFromSession } from './job-resync';
 import { canOpenMergePreview, openMergePreview } from './merge-preview-controller';
+import { openLandChoicePicker } from './land-choice-controller';
 import { canOpenPushPreview, openPushPreview } from './push-preview-controller';
 import { ttui } from '../../utils/tui-i18n';
 
@@ -175,6 +176,22 @@ async function actOnInboxItem(host: SlashCommandHost, item: InboxDrawerItem): Pr
       }),
     );
     return;
+  }
+
+  if (item.jobId !== undefined) {
+    const inbox = (host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot()).inbox;
+    const hints = inbox.find((entry) => entry.eventId === item.id)?.actionHints;
+    const card = resolveConductorJobCard(
+      (host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot()).jobs,
+      item.jobId,
+    );
+    if (
+      hints?.includes('jobKeep') === true ||
+      card?.landChoice === 'pending'
+    ) {
+      void openLandChoicePicker(host, item.jobId);
+      return;
+    }
   }
 
   // Notice rows: open Job Deck on the job when possible.

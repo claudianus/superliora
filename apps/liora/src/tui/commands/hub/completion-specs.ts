@@ -383,10 +383,16 @@ export function jobArgumentCompletions(
 const JOBS_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('board', 'tui.slash.arg.jobs.board'),
   arg('deck', 'tui.slash.arg.jobs.deck'),
+  arg('drawer', 'tui.slash.arg.jobs.drawer'),
   arg('dock', 'tui.slash.arg.job.dock'),
   arg('bg', 'tui.slash.arg.job.bg'),
   arg('monitor', 'tui.slash.arg.jobs.monitor'),
   arg('watch', 'tui.slash.arg.jobs.watch'),
+  arg('rename', 'tui.slash.arg.jobs.rename'),
+  arg('land', 'tui.slash.arg.jobs.land'),
+  arg('keep', 'tui.slash.arg.jobs.keep'),
+  arg('apply', 'tui.slash.arg.jobs.apply'),
+  arg('pr', 'tui.slash.arg.jobs.pr'),
 ];
 
 /** Argument autocompletion for `/jobs` board/deck aliases. */

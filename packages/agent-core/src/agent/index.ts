@@ -41,6 +41,7 @@ import {
 } from '../tools/policies/process-sandbox-apply';
 import type { PromisableMethods } from '../utils/types';
 import { bindJobLedgerCrashMirror } from '../tools/builtin/job/job-crash-mirror';
+import { bindWorkspaceSessionCatalog } from '../tools/builtin/job/job-workspace-bind';
 import { recoverJobsAfterResume } from '../tools/builtin/job/job-recovery';
 import { ConductorIdlePulse } from '../session/job/conductor-idle-pulse';
 import { BackgroundManager, BackgroundTaskPersistence } from './background';
@@ -380,6 +381,10 @@ export class Agent {
     this.tools = new ToolManager(this);
     if (this.type === 'main' && this.homedir !== undefined) {
       bindJobLedgerCrashMirror(this.tools.getStore(), this.homedir);
+      bindWorkspaceSessionCatalog(this.tools.getStore(), {
+        workDir: this.config.cwd,
+        sourceAgentDir: this.homedir,
+      });
     }
     this.background = new BackgroundManager(
       this,

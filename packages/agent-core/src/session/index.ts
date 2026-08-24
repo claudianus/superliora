@@ -374,6 +374,19 @@ export class Session {
     return { id, agent };
   }
 
+  /**
+   * Register a copied worker so `host.resume(agentId)` works in this TUI chat.
+   * Files must already live at `homedir` (see importWorkerHomedir).
+   */
+  registerImportedSubagent(agentId: string, homedir: string, parentAgentId = 'main'): void {
+    this.metadata.agents[agentId] = {
+      homedir,
+      type: 'sub',
+      parentAgentId,
+    };
+    void this.writeMetadata();
+  }
+
   async ensureAgentResumed(id: string): Promise<Agent> {
     const entry = this.agents.get(id);
     if (entry !== undefined) return (await this.agentLifecycle.resolveAgentEntry(entry)).agent;

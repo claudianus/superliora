@@ -44,6 +44,8 @@ export type ActiveChildEntry = {
   /** Pause/resume the wall-clock deadline (interview / needs_user stalls). */
   pauseDeadline?: () => void;
   resumeDeadline?: () => void;
+  /** Replace remaining wall-clock (session steer resets the 30m budget). */
+  resetDeadline?: (ms: number) => void;
 };
 
 /** Minimal options shape required by {@link runWithActiveChild}. */
@@ -59,7 +61,11 @@ export type RunWithActiveChildOptions = {
  */
 const deadlineControlsByChildId = new Map<
   string,
-  { readonly pause: () => void; readonly resume: () => void }
+  {
+    readonly pause: () => void;
+    readonly resume: () => void;
+    readonly reset: (ms: number) => void;
+  }
 >();
 
 /** Pause the hard wall-clock deadline for an active child (needs_user interview). */
@@ -75,6 +81,14 @@ export function resumeActiveChildDeadline(childId: string): boolean {
   const control = deadlineControlsByChildId.get(childId);
   if (control === undefined) return false;
   control.resume();
+  return true;
+}
+
+/** Replace remaining wall-clock for a live child (session steer budget reset). */
+export function resetActiveChildDeadline(childId: string, ms: number): boolean {
+  const control = deadlineControlsByChildId.get(childId);
+  if (control === undefined) return false;
+  control.reset(ms);
   return true;
 }
 
@@ -215,14 +229,28 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
     }
   };
 
+  const resetDeadline = (ms: number): void => {
+    const next = Math.max(1, ms);
+    deadlinePaused = false;
+    deadlineRemainingMs = next;
+    if (!controller.signal.aborted) {
+      armDeadlineTimer(next);
+    }
+  };
+
   const entry: ActiveChildEntry = {
     controller,
     runInBackground: options.runInBackground,
     pauseDeadline,
     resumeDeadline,
+    resetDeadline,
   };
   activeChildren.set(childId, entry);
-  deadlineControlsByChildId.set(childId, { pause: pauseDeadline, resume: resumeDeadline });
+  deadlineControlsByChildId.set(childId, {
+    pause: pauseDeadline,
+    resume: resumeDeadline,
+    reset: resetDeadline,
+  });
 
   if (deadlineMs > 0) {
     armDeadlineTimer(deadlineMs);

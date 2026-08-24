@@ -102,8 +102,8 @@ describe('coding Job create defaults', () => {
   });
 });
 
-describe('affinity default auto', () => {
-  it('steers a live overlapping Job without affinity=auto in the args', async () => {
+describe('affinity default off (conductor classifies)', () => {
+  it('does not silently steer a live overlapping Job without continue_from', async () => {
     const store = memoryStore();
     const live = createJob(store, {
       title: 'Live owner',
@@ -121,7 +121,29 @@ describe('affinity default auto', () => {
       staff: false,
     });
     expect(out.isError).toBeFalsy();
-    expect(out.output).toMatch(/affinity: steer/);
+    expect(out.output).not.toMatch(/session: steer/);
+    expect(listJobs(store)).toHaveLength(2);
+  });
+
+  it('steers when continue_from_job_id is set', async () => {
+    const store = memoryStore();
+    const live = createJob(store, {
+      title: 'Live owner',
+      kind: 'implement',
+      ownershipPaths: ['packages/foo'],
+      successCriteria: ['ok'],
+    });
+    patchJob(store, live.id, { status: 'running' });
+    const out = await runCreate(store, {
+      title: 'Follow-up',
+      kind: 'implement',
+      continue_from_job_id: live.id,
+      prompt: 'same area tweak',
+      success_criteria: ['ok', 'tweak done'],
+      staff: false,
+    });
+    expect(out.isError).toBeFalsy();
+    expect(out.output).toMatch(/session: steer/);
     expect(listJobs(store)).toHaveLength(1);
     expect(listJobs(store)[0]!.id).toBe(live.id);
   });

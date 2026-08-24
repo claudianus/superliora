@@ -77,7 +77,7 @@ delivery_mode: greenfield`),
 
   it('renders a JobCreate draft', () => {
     const draft = renderImplementHandoffDraft(parseImplementHandoff(SAMPLE)!);
-    expect(draft).toContain('greenfield_chain: true');
+    expect(draft).toContain('one implement session');
     expect(draft).toContain('"landing loads in under 2s"');
     expect(draft).toContain('test_seams');
     expect(draft).toContain('tdd_mode: preferred');
@@ -130,7 +130,7 @@ describe('desk Next move for Plan Desk handoff', () => {
       { store },
     );
     expect(text).toMatch(/Implement handoff/);
-    expect(text).toMatch(/greenfield_chain=true/);
+    expect(text).toMatch(/one implement session/);
   });
 
   it('asks for a handoff rewrite when the block is missing', () => {

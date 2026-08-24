@@ -33,6 +33,7 @@ export type CommandHubActionId =
   | 'workspace.tasks'
   | 'workspace.workerDock'
   | 'workspace.jobDeck'
+  | 'workspace.jobDrawer'
   | 'workspace.jobInbox'
   | 'workspace.jobOps'
   | 'workspace.cron'

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  enqueueDebugJobForVerify,
   enqueueVerifyJobForParent,
   evaluateVerifyChainForMerge,
   findActiveVerifyChildren,
@@ -136,10 +135,21 @@ ${'x'.repeat(200)}
     expect(makerCheckerCollision(undefined, 'eng-b')).toBe(false);
   });
 
-  it('enqueues verify only for implement/task done kinds', () => {
+  it('enqueues verify only for explicit review sessions, not automatic UI implement', () => {
     expect(
       shouldEnqueueVerifyAfterDone(
         job({ id: 'job_1', title: 't', kind: 'implement', surfaceKind: 'web' }),
+      ),
+    ).toBe(false);
+    expect(
+      shouldEnqueueVerifyAfterDone(
+        job({
+          id: 'job_review',
+          title: 't',
+          kind: 'implement',
+          surfaceKind: 'none',
+          deliveryClass: 'review',
+        }),
       ),
     ).toBe(true);
     expect(
@@ -164,13 +174,25 @@ ${'x'.repeat(200)}
     ).toBe(false);
   });
 
-  it('blocks merge until independent verify passes', () => {
+  it('does not require a verify child for ordinary implement sessions', () => {
     const implement = job({
       id: 'job_impl',
       title: 'Feature',
       kind: 'implement',
       expertId: 'maker-1',
       surfaceKind: 'web',
+    });
+    expect(evaluateVerifyChainForMerge({ job: implement, jobs: [implement] }).ok).toBe(true);
+  });
+
+  it('blocks merge until independent verify passes on review-class jobs', () => {
+    const implement = job({
+      id: 'job_impl',
+      title: 'Feature',
+      kind: 'implement',
+      expertId: 'maker-1',
+      surfaceKind: 'web',
+      deliveryClass: 'review',
     });
     expect(evaluateVerifyChainForMerge({ job: implement, jobs: [implement] }).ok).toBe(false);
 
@@ -250,7 +272,7 @@ ${'x'.repeat(200)}
     if (!collision.ok) expect(collision.reason).toMatch(/Maker≠Checker|expertId/i);
   });
 
-  it('enqueues a verify child on web surfaceKind implement done', async () => {
+  it('does not enqueue a verify child on ordinary web implement done', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Ship footer',
@@ -259,6 +281,28 @@ ${'x'.repeat(200)}
       ownershipPaths: ['apps/site/src/components/Footer.tsx'],
       expertId: 'frontend-engineer',
       surfaceKind: 'web',
+    });
+    patchJob(store, parent.id, { status: 'done', resultSummary: 'footer shipped' });
+    const done = {
+      ...parent,
+      status: 'done' as const,
+      resultSummary: 'footer shipped',
+      surfaceKind: 'web' as const,
+    };
+    expect(await enqueueVerifyJobForParent(store, done)).toBeUndefined();
+    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(0);
+  });
+
+  it('enqueues a verify child on review-class web implement done', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Ship footer',
+      kind: 'implement',
+      prompt: 'Implement the footer component',
+      ownershipPaths: ['apps/site/src/components/Footer.tsx'],
+      expertId: 'frontend-engineer',
+      surfaceKind: 'web',
+      deliveryClass: 'review',
     });
     patchJob(store, parent.id, { status: 'done', resultSummary: 'footer shipped' });
     const done = {
@@ -290,6 +334,7 @@ ${'x'.repeat(200)}
       ownershipPaths: ['apps/liora/src/tui/components/idle-stage.ts'],
       expertId: 'frontend-engineer',
       surfaceKind: 'tui',
+      deliveryClass: 'review',
     });
     const done = { ...parent, status: 'done' as const, surfaceKind: 'tui' as const };
     const verify = await enqueueVerifyJobForParent(store, done);
@@ -406,6 +451,18 @@ ${'x'.repeat(200)}
         ownershipPaths: ['packages/agent-core'],
         ...stamp,
       }),
+    ).toBe(false);
+    expect(
+      shouldEnqueueVerifyAfterDone({
+        id: 'job_review',
+        title: 'Ship feature',
+        kind: 'implement',
+        surfaceKind: 'web',
+        worktreePath: '/tmp/wt-code',
+        ownershipPaths: ['packages/agent-core'],
+        deliveryClass: 'review',
+        ...stamp,
+      }),
     ).toBe(true);
   });
 
@@ -450,7 +507,7 @@ ${'x'.repeat(200)}
     expect(resolveVerifyChildVerdict(getJob(store, failedFormat.id)!)).toBe('passed');
   });
 
-  it('onJobTerminal enqueues debug after both axis verifies fail aggregate', async () => {
+  it('onJobTerminal does not fan out verify/debug for ordinary implement sessions', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Broken button',
@@ -462,6 +519,26 @@ ${'x'.repeat(200)}
     patchJob(store, parent.id, { status: 'done' });
     await onJobTerminalForVerifyChain(store, {
       ...parent,
+      status: 'done',
+    });
+    const verifies = listJobs(store).filter((j) => j.kind === 'verify');
+    expect(verifies).toHaveLength(0);
+    expect(listJobs(store).filter((j) => j.debugFixer === true)).toHaveLength(0);
+  });
+
+  it('onJobTerminal still enqueues verify for review-class jobs but never a debug worker', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Broken button',
+      kind: 'implement',
+      expertId: 'maker-x',
+      ownershipPaths: ['src/Button.js'],
+      surfaceKind: 'web',
+      deliveryClass: 'review',
+    });
+    patchJob(store, parent.id, { status: 'done' });
+    await onJobTerminalForVerifyChain(store, {
+      ...getJob(store, parent.id)!,
       status: 'done',
     });
     const verifies = listJobs(store).filter((j) => j.kind === 'verify');
@@ -481,12 +558,7 @@ ${'x'.repeat(200)}
     const debug = listJobs(store).find(
       (j) => j.kind === 'implement' && j.title.startsWith('Debug:'),
     );
-    expect(debug).toBeDefined();
-    // Debug fixer still claims write ownership on the parent paths.
-    expect(debug?.ownershipPaths).toEqual(['src/Button.js']);
-    // Idempotent debug enqueue.
-    const failedVerify = verifies.find((r) => r.reviewAxis === 'spec') ?? verifies[0]!;
-    expect(await enqueueDebugJobForVerify(store, parent, failedVerify)).toBeUndefined();
+    expect(debug).toBeUndefined();
   });
 
   it('onJobTerminal fails free-text verify without spawning re-verify (retry=0)', async () => {
@@ -588,6 +660,7 @@ ${'x'.repeat(200)}
       kind: 'implement',
       expertId: 'maker-1',
       surfaceKind: 'web',
+      deliveryClass: 'review',
     });
     const cancelledOnly = job({
       id: 'job_ver_cancelled',
@@ -744,7 +817,7 @@ ${'x'.repeat(200)}
       standardsPass,
       specPass,
     ]);
-    expect(active.map((j) => j.id).sort()).toEqual(['job_spec_pass_late', 'job_std_pass_late']);
+    expect(active.map((j) => j.id).toSorted()).toEqual(['job_spec_pass_late', 'job_std_pass_late']);
     expect(
       evaluateVerifyChainForMerge({
         job: implement,
@@ -945,6 +1018,23 @@ ${'x'.repeat(200)}
         false,
       );
     }
+  });
+
+  it('does not auto-land while landChoice is pending', () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Wait for Keep/Apply/PR',
+      kind: 'implement',
+      surfaceKind: 'none',
+    });
+    patchJob(store, parent.id, {
+      status: 'done',
+      landChoice: 'pending',
+      worktreePath: '/tmp/wt',
+    });
+    expect(shouldAutoEnqueueMergeAfterVerify(getJob(store, parent.id)!, listJobs(store))).toBe(
+      false,
+    );
   });
 
   it('JobSteer surface_kind on blocked job persists and counts as steered=true', () => {

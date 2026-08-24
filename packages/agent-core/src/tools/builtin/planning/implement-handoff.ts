@@ -116,7 +116,7 @@ export function renderImplementHandoffDraft(handoff: ImplementHandoff): string {
   ];
   if (handoff.deliveryMode === 'greenfield') {
     lines.push(
-      'greenfield_chain: true  # preferred after ultra plan approval; runtime splits skeleton/fill/delete-pass contracts',
+      '# one implement session; TodoList skeleton→fill→delete-pass — do not split into three Jobs',
     );
   }
   if (handoff.tddMode !== undefined) {

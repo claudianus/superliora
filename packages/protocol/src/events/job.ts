@@ -135,6 +135,9 @@ export interface JobEffectPreview {
 /** Structured Maker≠Checker verify outcome on the wire (schemaVersion 4). */
 export type JobVerifyVerdictSnapshot = 'passed' | 'failed';
 
+/** Operator land disposition after a coding session finishes (schemaVersion 4, optional). */
+export type JobLandChoiceSnapshot = 'pending' | 'keep' | 'apply' | 'pr';
+
 export interface JobSnapshot {
   readonly id: string;
   readonly title: string;
@@ -142,8 +145,16 @@ export interface JobSnapshot {
   readonly kind: JobEventKind;
   readonly priority: number;
   readonly worktreePath?: string;
+  /** Isolated branch name (`liora/…`) when a worktree is assigned. */
+  readonly worktreeBranch?: string;
   /** Product git toplevel frozen at job create (schemaVersion 4). */
   readonly repoRoot?: string;
+  /** Human resume handle, e.g. `auth-refactor`. */
+  readonly sessionName?: string;
+  /** Keep / Apply / PR after the worker finishes. */
+  readonly landChoice?: JobLandChoiceSnapshot;
+  /** Dev-server port offset (0 → 3000, 1 → 3001, …). */
+  readonly portOffset?: number;
   readonly workerAgentId?: string;
   readonly resultSummary?: string;
   /** Worker progress (schemaVersion 2; absent on v1 snapshots). */
@@ -304,6 +315,7 @@ export const jobEventSchemaVersionSchema = z.union([
 ]) satisfies z.ZodType<JobEventSchemaVersion>;
 
 export const jobVerifyVerdictSnapshotSchema = z.enum(['passed', 'failed']);
+export const jobLandChoiceSnapshotSchema = z.enum(['pending', 'keep', 'apply', 'pr']);
 
 export const jobSnapshotSchema = z.object({
   id: z.string(),
@@ -312,7 +324,11 @@ export const jobSnapshotSchema = z.object({
   kind: jobEventKindSchema,
   priority: z.number(),
   worktreePath: z.string().optional(),
+  worktreeBranch: z.string().optional(),
   repoRoot: z.string().optional(),
+  sessionName: z.string().optional(),
+  landChoice: jobLandChoiceSnapshotSchema.optional(),
+  portOffset: z.number().int().nonnegative().optional(),
   workerAgentId: z.string().optional(),
   resultSummary: z.string().optional(),
   progress: jobProgressSnapshotSchema.optional(),
