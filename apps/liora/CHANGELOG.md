@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.13.1
+
+### Patch Changes
+
+- Fix the Windows desktop shortcut doing nothing on the first double-click after a fresh install.
+
 ## 0.13.0
 
 ### Minor Changes

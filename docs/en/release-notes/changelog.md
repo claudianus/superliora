@@ -8,6 +8,12 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
+## 0.13.1 (2026-08-24)
+
+### Bug Fixes
+
+- Fix the Windows desktop shortcut doing nothing on the first double-click after a fresh install.
+
 ## 0.13.0 (2026-08-24)
 
 ### Features
