@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.13.2
+
+### Patch Changes
+
+- Fix Windows workers missing bundled node/pnpm when SuperLiora home is redirected, and stop retrying stalled LLM streams.
+
 ## 0.13.1
 
 ### Patch Changes
