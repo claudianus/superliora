@@ -13,9 +13,11 @@ import { dirname } from 'node:path';
 
 import { materializeBrandShortcutIcon } from './brand-icon.mjs';
 import {
-  SUPERLIORA_WT_PROFILE_NAME,
   findWindowsTerminal,
+  isWindowsAppsLaunchPath,
+  materializeWindowsTerminalLauncher,
   skipTerminalRequested,
+  windowsTerminalLaunchArgs,
   windowsTerminalShortcutLaunch,
   writeWindowsShortcut,
 } from './ensure-terminal.mjs';
@@ -177,13 +179,7 @@ APPLESCRIPT
 `;
 }
 
-export function windowsTerminalLaunchArgs(commandline) {
-  const args = ['-w', 'new', 'nt', '-p', SUPERLIORA_WT_PROFILE_NAME];
-  if (commandline) {
-    args.push('--', /\s/.test(commandline) ? `"${commandline}"` : commandline);
-  }
-  return args;
-}
+export { windowsTerminalLaunchArgs };
 
 /**
  * @returns {Promise<{
@@ -280,11 +276,25 @@ async function writeWindowsDesktopShortcut(dest, options, env, platform) {
   }
   const commandline = resolveLauncherCommand({ ...options, env, platform });
   const args = windowsTerminalLaunchArgs(commandline).join(' ');
+  let launcherPath;
+  if (isWindowsAppsLaunchPath(wtPath)) {
+    try {
+      launcherPath = await materializeWindowsTerminalLauncher({
+        binDir: options.binDir,
+        commandline,
+        writeFile: options.writeFile,
+        launcherPath: options.launcherPath,
+      });
+    } catch {
+      launcherPath = undefined;
+    }
+  }
   const writeShortcut = options.writeShortcut ?? writeWindowsShortcut;
   const icon = (await resolveLauncherIcon(options, platform)) || commandline || wtPath;
   const launch = windowsTerminalShortcutLaunch({
     wtPath,
     arguments: args,
+    launcherPath,
     workingDirectory: env.USERPROFILE ?? defaultHomeFrom(env),
     description: DESKTOP_LAUNCHER_NAME,
     icon,

@@ -43,6 +43,12 @@ export const TERMINAL_INSTALL_HINT =
   'Install Windows Terminal from https://aka.ms/terminal then re-run, or pass --no-terminal.';
 export const WT_LAUNCH_EXE = 'wt.exe';
 export const WT_SHORTCUT_WINDOW_MINIMIZED = 7;
+export const WT_CONHOST_EXE = 'conhost.exe';
+export const WT_LAUNCHER_PS1 = 'superliora-wt.ps1';
+/** Stable Store/winget identity. Package family name does not change across versions. */
+export const WT_STABLE_AUMID = 'Microsoft.WindowsTerminal_8wekyb3d8bbwe!App';
+export const WT_AAM_CLSID = '45BA127D-10A8-46EA-8AB7-56EA9078943C';
+export const WT_PACKAGED_FAMILY = 'Microsoft.WindowsTerminal_8wekyb3d8bbwe';
 
 /**
  * True for Store / AppX aliases and package binaries. Explorer .lnk TargetPath
@@ -54,13 +60,15 @@ export function isWindowsAppsLaunchPath(filePath) {
   return n.includes('\\windowsapps\\');
 }
 
-function resolveCmdExe(env = {}) {
-  const comspec = typeof env.ComSpec === 'string' ? env.ComSpec.trim() : '';
-  if (comspec) return comspec;
+function resolveSystem32Exe(env = {}, name) {
   const root = typeof env.SystemRoot === 'string' && env.SystemRoot.trim()
     ? env.SystemRoot.trim().replace(/[\\/]+$/, '')
     : 'C:\\Windows';
-  return `${root}\\System32\\cmd.exe`;
+  return `${root}\\System32\\${name}`;
+}
+
+export function resolveConhostExe(env = {}) {
+  return resolveSystem32Exe(env, WT_CONHOST_EXE);
 }
 
 function shortcutIconLocation(icon) {
@@ -68,10 +76,63 @@ function shortcutIconLocation(icon) {
   return icon;
 }
 
+export function windowsTerminalLaunchArgs(commandline, profileName = SUPERLIORA_WT_PROFILE_NAME) {
+  const args = ['-w', 'new', 'nt', '-p', profileName];
+  if (commandline) {
+    args.push('--', /\s/.test(commandline) ? `"${commandline}"` : commandline);
+  }
+  return args;
+}
+
+export function windowsTerminalLauncherPath(binDir) {
+  if (!binDir) return undefined;
+  return winJoin(binDir, WT_LAUNCHER_PS1);
+}
+
+export function packagedWindowsTerminalSettingsPath(env = {}) {
+  const localAppData = (env.LOCALAPPDATA ?? '').trim()
+    || winJoin(defaultHomeFrom(env), 'AppData', 'Local');
+  return winJoin(
+    localAppData,
+    'Packages',
+    WT_PACKAGED_FAMILY,
+    'LocalState',
+    'settings.json',
+  );
+}
+
 /**
- * Build .lnk fields that open Windows Terminal. Unpackaged wt.exe can be the
- * target; packaged installs go through `cmd /c start wt.exe` so ShellExecute
- * activates the alias with identity instead of CreateProcess on the stub.
+ * Packaged Windows Terminal has not finished first-run until LocalState exists.
+ * Promoting it as the default terminal before that makes Win11 swallow cmd.exe /
+ * powershell.exe shortcuts and often shows no window at all.
+ */
+export function windowsTerminalReadyForDefaultPromotion(options = {}) {
+  const wtPath = options.wtPath;
+  if (wtPath && !isWindowsAppsLaunchPath(wtPath)) return true;
+  const isFile = options.isFile ?? ((p) => existsSync(p));
+  return isFile(packagedWindowsTerminalSettingsPath(options.env ?? {}));
+}
+
+export function packagedKeepAliveLaunchArgs(wtArgs) {
+  const startCmd = wtArgs ? `${WT_LAUNCH_EXE} ${wtArgs}` : WT_LAUNCH_EXE;
+  return `--headless cmd.exe /d /c start "" ${startCmd} & ping -n 3 127.0.0.1 >nul`;
+}
+
+export function packagedLauncherShortcutArgs(launcherPath) {
+  return `--headless powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "${launcherPath}"`;
+}
+
+/**
+ * Build .lnk fields that open Windows Terminal.
+ *
+ * Unpackaged wt.exe can be the .lnk target.
+ *
+ * Packaged installs cannot: Explorer CreateProcess on the WindowsApps stub
+ * shows "A license is required". `cmd.exe` / `powershell.exe` as the target
+ * is also wrong — after WT is the default terminal, Windows 11 redirects
+ * those console shortcuts, and on a cold first launch the hand-off fails
+ * with no window. Host the click in conhost.exe (not a CUI app, so it is
+ * not redirected) and activate WT the same way the Start Menu does.
  */
 export function windowsTerminalShortcutLaunch(options = {}) {
   const env = options.env ?? {};
@@ -80,6 +141,7 @@ export function windowsTerminalShortcutLaunch(options = {}) {
   const workingDirectory = options.workingDirectory;
   const description = options.description;
   const icon = shortcutIconLocation(options.icon);
+  const launcherPath = typeof options.launcherPath === 'string' ? options.launcherPath.trim() : '';
 
   if (wtPath && !isWindowsAppsLaunchPath(wtPath)) {
     return {
@@ -91,15 +153,92 @@ export function windowsTerminalShortcutLaunch(options = {}) {
     };
   }
 
-  const startCmd = wtArgs ? `${WT_LAUNCH_EXE} ${wtArgs}` : WT_LAUNCH_EXE;
   return {
-    target: resolveCmdExe(env),
-    arguments: `/d /c start "" ${startCmd}`,
+    target: resolveConhostExe(env),
+    arguments: launcherPath
+      ? packagedLauncherShortcutArgs(launcherPath)
+      : packagedKeepAliveLaunchArgs(wtArgs),
     workingDirectory,
     description,
     icon,
     windowStyle: WT_SHORTCUT_WINDOW_MINIMIZED,
   };
+}
+
+export function renderWindowsTerminalLauncherPs1(options = {}) {
+  const liora = String(options.commandline ?? '').trim();
+  const profileName = String(options.profileName ?? SUPERLIORA_WT_PROFILE_NAME);
+  const aumid = String(options.aumid ?? WT_STABLE_AUMID);
+  const argString = windowsTerminalLaunchArgs(liora || undefined, profileName).join(' ');
+  const processArgs = ['-w', 'new', 'nt', '-p', profileName];
+  if (liora) processArgs.push('--', liora);
+  const psArgList = processArgs.map((part) => `'${escapePs(part)}'`).join(',');
+  return [
+    '# Managed by superliora host-setup. Opens Windows Terminal, then liora.',
+    "$ErrorActionPreference = 'SilentlyContinue'",
+    `$liora = '${escapePs(liora)}'`,
+    `$aumid = '${escapePs(aumid)}'`,
+    `$argString = '${escapePs(argString)}'`,
+    `$wtArgList = @(${psArgList})`,
+    'function Test-WindowsTerminalRunning {',
+    '  return [bool](Get-Process -Name WindowsTerminal,WindowsTerminalPreview -ErrorAction SilentlyContinue)',
+    '}',
+    'function Start-ByAumid {',
+    '  try {',
+    `    Add-Type -TypeDefinition @'`,
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'namespace LioraWt {',
+    '  [ComImport, Guid("2E941141-7F97-4756-BA1D-9DECDE894A3D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]',
+    '  interface IApplicationActivationManager {',
+    '    [PreserveSig] int ActivateApplication([In, MarshalAs(UnmanagedType.LPWStr)] string appUserModelId, [In, MarshalAs(UnmanagedType.LPWStr)] string arguments, [In] uint options, [Out] out uint processId);',
+    '  }',
+    `  [ComImport, Guid("${WT_AAM_CLSID}")] public class ApplicationActivationManager {}`,
+    '  public static class Launch {',
+    '    public static uint Aumid(string aumid, string args) {',
+    '      var aam = (IApplicationActivationManager)new ApplicationActivationManager();',
+    '      uint pid;',
+    '      aam.ActivateApplication(aumid, args ?? "", 2, out pid);',
+    '      return pid;',
+    '    }',
+    '  }',
+    '}',
+    `'@`,
+    '    $procId = [LioraWt.Launch]::Aumid($aumid, $argString)',
+    '    return $procId -gt 0',
+    '  } catch {',
+    '    return $false',
+    '  }',
+    '}',
+    'if (Start-ByAumid) {',
+    '  Start-Sleep -Seconds 1',
+    '  if (Test-WindowsTerminalRunning) { exit 0 }',
+    '}',
+    "try { Start-Process -FilePath 'wt.exe' -ArgumentList $wtArgList | Out-Null } catch {}",
+    'Start-Sleep -Seconds 2',
+    'if (Test-WindowsTerminalRunning) { exit 0 }',
+    // Same path as opening Windows Terminal from the Start Menu — completes
+    // first-run, then retry wt.exe with the SuperLiora command line.
+    'try { Start-Process "shell:AppsFolder\\$aumid" | Out-Null } catch {}',
+    'Start-Sleep -Seconds 2',
+    "try { Start-Process -FilePath 'wt.exe' -ArgumentList $wtArgList | Out-Null } catch {}",
+    'Start-Sleep -Seconds 2',
+    'if (Test-WindowsTerminalRunning) { exit 0 }',
+    'if ($liora -and (Test-Path -LiteralPath $liora)) { Start-Process -FilePath $liora | Out-Null }',
+    '',
+  ].join('\n');
+}
+
+export async function materializeWindowsTerminalLauncher(options = {}) {
+  const dest = options.launcherPath || windowsTerminalLauncherPath(options.binDir);
+  if (!dest) return undefined;
+  const writeText = options.writeFile ?? defaultWriteUtf8;
+  await writeText(dest, renderWindowsTerminalLauncherPs1({
+    commandline: options.commandline,
+    profileName: options.profileName,
+    aumid: options.aumid,
+  }));
+  return dest;
 }
 
 /** Copied from apps/liora/src/tui/theme/colors.ts `neonNoirColors` — do not import TUI from the installer. */
@@ -492,9 +631,23 @@ export async function ensureTerminal(options = {}) {
     if (found.wtPath) {
       const dest = options.shortcutPath ?? startMenuShortcutPath(env);
       const writeShortcut = options.writeShortcut ?? writeWindowsShortcut;
+      let launcherPath;
+      if (isWindowsAppsLaunchPath(found.wtPath)) {
+        try {
+          launcherPath = await materializeWindowsTerminalLauncher({
+            binDir: options.binDir,
+            commandline,
+            writeFile: options.writeFile ?? writeJson,
+            launcherPath: options.launcherPath,
+          });
+        } catch {
+          launcherPath = undefined;
+        }
+      }
       const launch = windowsTerminalShortcutLaunch({
         wtPath: found.wtPath,
-        arguments: `-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`,
+        arguments: windowsTerminalLaunchArgs(commandline).join(' '),
+        launcherPath,
         workingDirectory: env.USERPROFILE ?? defaultHomeFrom(env),
         description: SUPERLIORA_WT_PROFILE_NAME,
         icon: icon || commandline || found.wtPath,
@@ -510,7 +663,14 @@ export async function ensureTerminal(options = {}) {
       const readDelegation = options.readDelegation ?? defaultReadDelegation;
       const writeDelegation = options.writeDelegation ?? defaultWriteDelegation;
       const current = readDelegation() ?? {};
-      if (shouldPromoteDefaultTerminal(current)) {
+      if (
+        shouldPromoteDefaultTerminal(current)
+        && windowsTerminalReadyForDefaultPromotion({
+          wtPath: found.wtPath,
+          env,
+          isFile,
+        })
+      ) {
         writeDelegation({
           DelegationConsole: WT_DELEGATION_CONSOLE,
           DelegationTerminal: WT_DELEGATION_TERMINAL,
