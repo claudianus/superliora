@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.13.5
+
+### Patch Changes
+
+- Fix Cursor/Grok text-form tool calls so JSON array arguments are not split on commas.
+
 ## 0.13.4
 
 ### Patch Changes
