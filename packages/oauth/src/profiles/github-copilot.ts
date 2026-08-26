@@ -13,9 +13,6 @@
  * token response (enterprise vs individual), not hardcoded.
  */
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
 import { OAuthUnauthorizedError } from '../errors';
 import { isRecord } from '../utils';
 import type { TokenInfo } from '../types';
@@ -85,17 +82,23 @@ export function readGitHubCopilotEnvToken(
   return undefined;
 }
 
-const execFileAsync = promisify(execFile);
-
 /**
  * Best-effort `gh auth token` prefill for the paste dialog. Times out quickly
  * and returns undefined when the GitHub CLI is missing or not logged in.
+ * Load `child_process` only here so suites that mock that module without
+ * `execFile` can still import OAuth usage helpers.
  */
 export async function readGitHubCopilotGhCliToken(): Promise<string | undefined> {
   try {
-    const { stdout } = await execFileAsync('gh', ['auth', 'token'], {
-      timeout: 2000,
-      windowsHide: true,
+    const { execFile } = await import('node:child_process');
+    const stdout = await new Promise<string>((resolve, reject) => {
+      execFile('gh', ['auth', 'token'], { timeout: 2000, windowsHide: true }, (err, out) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(typeof out === 'string' ? out : String(out));
+      });
     });
     const token = stdout.trim();
     return token.length > 0 ? token : undefined;
