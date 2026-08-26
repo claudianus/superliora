@@ -86,7 +86,7 @@ function findMcpTextCalls(text: string): McpTextCallSpan[] {
     if (name === undefined || name.length === 0 || start === undefined) continue;
     if (start < lastEnd) continue;
     let cursor = start + match[0].length;
-    while (cursor < text.length && text.codePointAt(cursor) <= 32) cursor += 1;
+    while (cursor < text.length && (text.codePointAt(cursor) ?? 33) <= 32) cursor += 1;
     let argsText = '';
     let end = cursor;
     if (text[cursor] === '(') {
