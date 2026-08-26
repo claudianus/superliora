@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.13.3
+
+### Patch Changes
+
+- Start the research-bridge loopback server when Node launches the host as a Windows child process.
+
 ## 0.13.2
 
 ### Patch Changes

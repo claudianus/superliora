@@ -8,6 +8,12 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
+## 0.13.3 (2026-08-26)
+
+### Bug Fixes
+
+- Start the research-bridge loopback server when Node launches the host as a Windows child process.
+
 ## 0.13.2 (2026-08-24)
 
 ### Bug Fixes
