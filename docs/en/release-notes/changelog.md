@@ -8,6 +8,18 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
+## 0.13.4 (2026-08-26)
+
+### Bug Fixes
+
+- Send thinking effort `max` as `max` on OpenAI-compatible requests instead of rewriting it to `xhigh`.
+
+### Features
+
+- Show OpenRouter, OpenCode Zen, and Z.AI in `/login`, and keep thinking on when the imported model cannot disable it.
+- Save detected catalog API keys as `{env:VAR}` from `/login` instead of copying the secret into the file.
+- Prefill GitHub Copilot paste-login from `gh auth token` when env is empty, and point failed Anthropic/Cursor/xAI OAuth at API key, cloud, or client-version env pins.
+
 ## 0.13.3 (2026-08-26)
 
 ### Bug Fixes

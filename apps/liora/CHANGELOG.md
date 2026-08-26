@@ -1,5 +1,14 @@
 # @superliora/liora
 
+## 0.13.4
+
+### Patch Changes
+
+- Send thinking effort `max` as `max` on OpenAI-compatible requests instead of rewriting it to `xhigh`.
+- Show OpenRouter, OpenCode Zen, and Z.AI in `/login`, and keep thinking on when the imported model cannot disable it.
+- Save detected catalog API keys as `{env:VAR}` from `/login` instead of copying the secret into the file.
+- Prefill GitHub Copilot paste-login from `gh auth token` when env is empty, and point failed Anthropic/Cursor/xAI OAuth at API key, cloud, or client-version env pins.
+
 ## 0.13.3
 
 ### Patch Changes
