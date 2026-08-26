@@ -21,4 +21,5 @@ export const KIMI_PROFILE: ProviderProfile = {
   },
   wire: 'kimi',
   signupUrl: 'https://platform.kimi.com',
+  docUrl: 'https://www.kimi.com/code/console',
 };

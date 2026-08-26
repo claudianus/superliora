@@ -42,6 +42,13 @@ describe('inferCustomEndpointFromUrl', () => {
       baseUrl: 'http://127.0.0.1:10100/v1',
     });
   });
+
+  it('infers openai_responses for a Codex backend host', () => {
+    expect(inferCustomEndpointFromUrl('https://chatgpt.com/backend-api/codex')).toEqual({
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+      providerType: 'openai_responses',
+    });
+  });
 });
 
 describe('applyCustomEndpointProvider', () => {
@@ -79,5 +86,17 @@ describe('applyCustomEndpointProvider', () => {
       maxContextSize: 500_000,
     });
     expect(config.models?.['xai-grok/grok-4.6']?.maxContextSize).toBe(200_000);
+  });
+
+  it('writes probed supportEfforts onto the model alias', () => {
+    const config = emptyConfig();
+    applyCustomEndpointProvider(config, {
+      providerId: 'zen',
+      baseUrl: 'https://opencode.ai/zen/v1',
+      modelId: 'x-preview-f-free',
+      thinking: true,
+      supportEfforts: ['low', 'high', 'max'],
+    });
+    expect(config.models?.['zen/x-preview-f-free']?.supportEfforts).toEqual(['low', 'high', 'max']);
   });
 });

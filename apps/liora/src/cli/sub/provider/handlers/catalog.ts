@@ -5,6 +5,7 @@
 import {
   applyCatalogProvider,
   catalogBaseUrl,
+  catalogImportThinking,
   catalogProviderModels,
   CatalogFetchError,
   DEFAULT_CATALOG_URL,
@@ -14,7 +15,7 @@ import {
   type CatalogProviderEntry,
 } from '@superliora/sdk';
 
-import { mergeLocalCatalogProviders } from '#/utils/local-catalog-providers';
+import { loadCatalog } from '#/utils/catalog-cache';
 
 import { resolveCatalogProviderApiKeySource } from '../credential';
 import { errorMessage, modelUnit, writeProviderErr, writeProviderOut } from '../shared';
@@ -173,6 +174,7 @@ export async function handleCatalogAdd(
   }
 
   const baseUrl = catalogBaseUrl(entry, wire);
+  const importThinking = catalogImportThinking(models, opts.defaultModel);
   // `applyCatalogProvider` always overwrites both `defaultModel` and
   // `defaultThinking`. The values we pass here are temporary; we restore
   // a consistent state in the post-apply block below.
@@ -183,7 +185,7 @@ export async function handleCatalogAdd(
     apiKey,
     models,
     selectedModelId: opts.defaultModel ?? '',
-    thinking: false,
+    thinking: importThinking,
   });
 
   // Resolve the final `defaultModel`:
@@ -199,12 +201,17 @@ export async function handleCatalogAdd(
     config.defaultModel = stillResolves ? previousDefaultModel : undefined;
   }
 
-  // Always restore `defaultThinking` from what was there before — including
+  // Restore `defaultThinking` from what was there before — including
   // `undefined`. Persisting `false` when the user never set it would make
   // `resolveThinkingLevel` (agent-core/src/agent/config/thinking.ts) treat
-  // it as an explicit "off" request and silently disable thinking, even
-  // for thinking-capable models.
-  config.defaultThinking = previousDefaultThinking;
+  // it as an explicit "off" request and silently disable thinking.
+  // Exception: the selected model declares always-on thinking, so leave
+  // the import's `true` when there was no previous value.
+  if (previousDefaultThinking !== undefined) {
+    config.defaultThinking = previousDefaultThinking;
+  } else if (!importThinking) {
+    config.defaultThinking = undefined;
+  }
 
   await harness.setConfig({
     providers: config.providers,
@@ -230,20 +237,21 @@ export async function handleCatalogAdd(
 }
 
 export async function loadCatalogOrExit(deps: ProviderDeps, url: string): Promise<Catalog> {
+  if (url === DEFAULT_CATALOG_URL) {
+    try {
+      return await loadCatalog();
+    } catch (error) {
+      writeProviderErr(deps, 'cli.runtime.provider.fetchCatalogFailed', {
+        url,
+        suffix: error instanceof CatalogFetchError ? ` (HTTP ${String(error.status)})` : '',
+        error: errorMessage(error),
+      });
+      deps.exit(1);
+    }
+  }
   try {
-    const catalog = await fetchCatalog(url);
-    // Curated SuperLiora providers (ClinePass, …) only attach to the public
-    // models.dev catalog — never to a user-supplied custom registry URL.
-    if (url === DEFAULT_CATALOG_URL) {
-      return mergeLocalCatalogProviders(catalog);
-    }
-    return catalog;
+    return await fetchCatalog(url);
   } catch (error) {
-    // models.dev may be unreachable while SuperLiora-curated providers still
-    // need to work (e.g. `liora provider catalog add clinepass`).
-    if (url === DEFAULT_CATALOG_URL) {
-      return mergeLocalCatalogProviders({});
-    }
     writeProviderErr(deps, 'cli.runtime.provider.fetchCatalogFailed', {
       url,
       suffix: error instanceof CatalogFetchError ? ` (HTTP ${String(error.status)})` : '',

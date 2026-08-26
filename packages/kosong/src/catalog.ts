@@ -138,11 +138,37 @@ export function inferWireType(entry: CatalogProviderEntry): ProviderType | undef
   if (npm.includes('google') || id.includes('google') || id.includes('gemini')) {
     return 'google-genai';
   }
-  if (npm.includes('openai') || id.includes('openai')) return 'openai';
-  if (id.includes('github-copilot') || id.includes('github_copilot') || id.includes('githubcopilot')) {
-    return 'openai';
-  }
+  if (looksLikeOpenAIChatCompletions(npm, id)) return 'openai';
   return undefined;
+}
+
+/**
+ * Chat Completions gateways whose npm id does not contain the substring
+ * `openai` (OpenRouter, DeepInfra, QVAC, GitHub Copilot). Without this,
+ * `inferWireType` returns undefined and `/login` hides the row.
+ */
+function looksLikeOpenAIChatCompletions(npm: string, id: string): boolean {
+  if (npm.includes('openai') || id.includes('openai')) return true;
+  if (id.includes('github-copilot') || id.includes('github_copilot') || id.includes('githubcopilot')) {
+    return true;
+  }
+  if (npm.includes('@openrouter/') || id.includes('openrouter')) return true;
+  if (npm.includes('deepinfra') || id.includes('deepinfra')) return true;
+  if (npm.includes('@qvac/') || id.includes('qvac')) return true;
+  return false;
+}
+
+/**
+ * Whether catalog import should turn thinking on. Only the selected (or
+ * CLI `--default-model`) alias is considered — mixed catalogs must not
+ * flip the global default just because one sibling is always-on.
+ */
+export function catalogImportThinking(
+  models: readonly CatalogModel[],
+  selectedModelId?: string,
+): boolean {
+  if (selectedModelId === undefined || selectedModelId.length === 0) return false;
+  return models.some((model) => model.id === selectedModelId && model.alwaysThinking === true);
 }
 
 /**
@@ -198,7 +224,7 @@ export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel
 
 const KNOWN_THINKING_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
-function catalogThinkingMetadata(model: CatalogModelEntry): {
+export function catalogThinkingMetadata(model: CatalogModelEntry): {
   readonly supportEfforts: readonly string[] | undefined;
   readonly alwaysThinking: boolean;
 } {

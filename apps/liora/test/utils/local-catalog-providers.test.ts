@@ -10,7 +10,11 @@ import {
   CLINEPASS_API_KEY_ENV,
   CLINEPASS_CATALOG_ENTRY,
   CLINEPASS_PROVIDER_ID,
+  detectedConnectEnvHints,
   mergeLocalCatalogProviders,
+  OPENCODE_ZEN_API_BASE,
+  OPENCODE_ZEN_CATALOG_ENTRY,
+  OPENCODE_ZEN_PROVIDER_ID,
   ZAI_CODING_PLAN_API_BASE,
   ZAI_CODING_PLAN_CATALOG_ENTRY,
   ZAI_CODING_PLAN_PROVIDER_ID,
@@ -44,6 +48,30 @@ describe('local catalog providers', () => {
     expect(models.some((m) => m.id === 'glm-4.6v' && m.capability.image_in)).toBe(true);
   });
 
+  it('declares OpenCode Zen with always-thinking effort rungs low/high/max', () => {
+    expect(OPENCODE_ZEN_CATALOG_ENTRY.id).toBe(OPENCODE_ZEN_PROVIDER_ID);
+    expect(OPENCODE_ZEN_CATALOG_ENTRY.api).toBe(OPENCODE_ZEN_API_BASE);
+    expect(OPENCODE_ZEN_CATALOG_ENTRY.env).toContain('OPENCODE_API_KEY');
+    expect(inferWireType(OPENCODE_ZEN_CATALOG_ENTRY)).toBe('openai');
+    const models = catalogProviderModels(OPENCODE_ZEN_CATALOG_ENTRY);
+    expect(models.some((m) => m.id === 'x-preview-f-free')).toBe(true);
+    expect(models.some((m) => m.id === 'deepseek-v4-flash-free')).toBe(true);
+    const ox = models.find((m) => m.id === 'x-preview-f-free');
+    expect(ox?.alwaysThinking).toBe(true);
+    expect(ox?.supportEfforts).toEqual(['low', 'high', 'max']);
+  });
+
+  it('lists unique connect-env hints without duplicating Z.AI labels', () => {
+    expect(
+      detectedConnectEnvHints({
+        OPENCODE_API_KEY: 'k',
+        Z_AI_API_KEY: 'z',
+        ZAI_API_KEY: 'also-z',
+        OPENROUTER_API_KEY: 'or',
+      }).map((row) => row.label),
+    ).toEqual(['OpenCode Zen', 'Z.AI', 'OpenRouter']);
+  });
+
   it('merges local providers without clobbering unrelated catalog entries', () => {
     const remote: Catalog = {
       anthropic: {
@@ -57,6 +85,8 @@ describe('local catalog providers', () => {
     expect(merged['anthropic']?.name).toBe('Anthropic');
     expect(merged[CLINEPASS_PROVIDER_ID]?.name).toBe('ClinePass');
     expect(merged[CLINEPASS_PROVIDER_ID]?.api).toBe(CLINEPASS_API_BASE);
+    expect(merged[OPENCODE_ZEN_PROVIDER_ID]?.name).toBe('OpenCode Zen');
+    expect(merged[ZAI_CODING_PLAN_PROVIDER_ID]?.name).toBe('Z.AI (GLM Coding Plan)');
   });
 
   it('lets SuperLiora-curated entries override a same-id remote entry', () => {

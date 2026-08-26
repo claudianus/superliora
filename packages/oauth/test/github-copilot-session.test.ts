@@ -10,6 +10,7 @@ import {
   githubCopilotUserTokenInfo,
   isGitHubCopilotSessionToken,
   isGitHubUserToken,
+  parseGitHubCopilotModelsResponse,
   parseGitHubCopilotQuotaSnapshots,
   parseGitHubCopilotTokenResponse,
   readGitHubCopilotEnvToken,
@@ -114,6 +115,30 @@ describe('parseGitHubCopilotTokenResponse', () => {
   it('defaults the individual host when endpoints are omitted', () => {
     const parsed = parseGitHubCopilotTokenResponse({ token: 'tid=only' });
     expect(parsed?.apiBaseUrl).toBe(GITHUB_COPILOT_API_BASE_URL);
+  });
+});
+
+describe('parseGitHubCopilotModelsResponse', () => {
+  it('keeps chat models and drops non-chat rows', () => {
+    const models = parseGitHubCopilotModelsResponse({
+      data: [
+        {
+          id: 'gpt-4.1',
+          name: 'GPT-4.1',
+          capabilities: {
+            type: 'chat',
+            limits: { max_prompt_tokens: 128000 },
+            supports: { vision: true, tool_calls: true },
+          },
+        },
+        {
+          id: 'text-embedding-3-small',
+          capabilities: { type: 'embeddings' },
+        },
+      ],
+    });
+    expect(models?.map((m) => m.id)).toEqual(['gpt-4.1']);
+    expect(models?.[0]?.capabilities).toEqual(['tool_use', 'image_in']);
   });
 });
 

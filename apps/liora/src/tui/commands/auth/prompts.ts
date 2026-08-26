@@ -138,32 +138,66 @@ export function promptOAuthCallback(
 
 /**
  * Prompts for an API key, surfacing the catalog provider's env-var names and
- * documentation URL as hints. When one of the catalog's declared env vars is
- * already set in the environment, its value is pre-filled so the user can
- * confirm with Enter instead of pasting the key manually.
+ * documentation URL as hints. When a catalog env var is already set, the
+ * default is an `{env:VAR}` reference so the secret stays out of the file.
+ * Pass `pasteSecret` for token-exchange flows (GitHub Copilot) that need the
+ * raw value.
  */
 export function promptApiKeyForCatalogProvider(
   host: SlashCommandHost,
   option: ProviderCatalogOption,
+  options: { readonly pasteSecret?: boolean; readonly prefill?: string } = {},
 ): Promise<string | undefined> {
-  const subtitleLines: string[] = ['Your key will be saved to ~/.superliora/config.toml'];
-  let prefill: string | undefined;
-  if (option.envVars !== undefined && option.envVars.length > 0) {
+  const state = catalogApiKeyDialogState(option, process.env, {
+    pasteSecret: options.pasteSecret === true,
+    prefill: options.prefill,
+  });
+  return promptApiKey(host, option.label, state.subtitleLines, { prefill: state.prefill });
+}
+
+export interface CatalogApiKeyDialogState {
+  readonly prefill?: string;
+  readonly subtitleLines: readonly string[];
+}
+
+export function catalogApiKeyDialogState(
+  option: ProviderCatalogOption,
+  env: NodeJS.Dict<string> = process.env,
+  options: { readonly pasteSecret?: boolean; readonly prefill?: string } = {},
+): CatalogApiKeyDialogState {
+  const pasteSecret = options.pasteSecret === true;
+  const subtitleLines: string[] = [
+    pasteSecret
+      ? 'Your token will be saved to ~/.superliora/config.toml'
+      : 'Detected env vars are stored as {env:VAR}; paste a key only if you want it copied into the file.',
+  ];
+  let prefill = options.prefill;
+  if (prefill === undefined && option.envVars !== undefined && option.envVars.length > 0) {
     const detected = option.envVars.find((name) => {
-      const value = process.env[name];
-      return typeof value === 'string' && value.length > 0;
+      const value = env[name];
+      return typeof value === 'string' && value.trim().length > 0;
     });
     if (detected !== undefined) {
-      prefill = process.env[detected];
-      subtitleLines.push(`Detected $${detected} — press Enter to use it.`);
+      const value = env[detected]?.trim();
+      if (pasteSecret) {
+        prefill = value;
+        subtitleLines.push(`Detected $${detected} — press Enter to use it.`);
+      } else {
+        prefill = `{env:${detected}}`;
+        subtitleLines.push(
+          `Detected $${detected} — Enter stores {env:${detected}} (the key stays out of the file).`,
+        );
+      }
     } else {
       subtitleLines.push(`Or set the ${option.envVars.join(' / ')} env var.`);
     }
+  } else if (prefill !== undefined && pasteSecret) {
+    subtitleLines.push('Prefill from gh auth token — press Enter to use it.');
   }
   if (option.docUrl !== undefined && option.docUrl.length > 0) {
     subtitleLines.push(`Get a key: ${option.docUrl}`);
   }
-  return promptApiKey(host, option.label, subtitleLines, { prefill });
+  return { prefill, subtitleLines };
 }
 
 export function runModelSelector(

@@ -42,14 +42,20 @@ export const ANTHROPIC_PROFILE: ProviderProfile = {
   docUrl: 'https://docs.anthropic.com',
   models: [
     {
-      id: 'claude-opus-4-1',
-      displayName: 'Claude Opus 4.1',
+      id: 'claude-opus-4-7',
+      displayName: 'Claude Opus 4.7',
       maxContextSize: 200000,
       capabilities: ['thinking', 'tool_use', 'image_in'],
     },
     {
-      id: 'claude-sonnet-4-1',
-      displayName: 'Claude Sonnet 4.1',
+      id: 'claude-sonnet-4-6',
+      displayName: 'Claude Sonnet 4.6',
+      maxContextSize: 200000,
+      capabilities: ['thinking', 'tool_use', 'image_in'],
+    },
+    {
+      id: 'claude-haiku-4-5',
+      displayName: 'Claude Haiku 4.5',
       maxContextSize: 200000,
       capabilities: ['thinking', 'tool_use', 'image_in'],
     },

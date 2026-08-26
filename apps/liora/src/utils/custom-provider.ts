@@ -1,5 +1,5 @@
 import { applyXaiPricingSafeContextTokens } from '@superliora/oauth';
-import type { Catalog, LioraConfig } from '@superliora/sdk';
+import { catalogThinkingMetadata, type Catalog, type LioraConfig } from '@superliora/sdk';
 
 type ProviderType = LioraConfig['providers'][string]['type'];
 type ProviderConfig = LioraConfig['providers'][string];
@@ -26,6 +26,7 @@ export interface CustomEndpointProviderInput {
   readonly maxOutputSize?: number;
   readonly displayName?: string;
   readonly thinking?: boolean;
+  readonly supportEfforts?: readonly string[];
   readonly setDefault?: boolean;
 }
 
@@ -84,6 +85,14 @@ export function inferCustomEndpointFromUrl(raw: string): InferredCustomEndpoint 
     };
   }
 
+  const host = parsed.hostname.toLowerCase();
+  if (host === 'chatgpt.com' || host.endsWith('.chatgpt.com') || /\/backend-api(\/|$)/i.test(pathname)) {
+    return {
+      baseUrl: parsed.toString().replace(/\/+$/, ''),
+      providerType: 'openai_responses',
+    };
+  }
+
   return { baseUrl: parsed.toString().replace(/\/+$/, '') };
 }
 
@@ -132,6 +141,9 @@ export function applyCustomEndpointProvider(
     maxOutputSize,
     capabilities,
     displayName,
+    ...(input.supportEfforts !== undefined && input.supportEfforts.length > 0
+      ? { supportEfforts: [...input.supportEfforts] }
+      : {}),
   };
 
   config.providers = {
@@ -248,11 +260,15 @@ export function lookupModelCapability(
 type CatalogModelEntry = NonNullable<Catalog[string]['models']>[string];
 
 function hintFromCatalogModel(model: CatalogModelEntry): ModelCapabilityHint {
+  const thinking = catalogThinkingMetadata(model);
   return {
     thinking: model.reasoning === true,
     toolUse: model.tool_call ?? true,
     maxContextTokens: model.limit?.context,
     maxOutputTokens: model.limit?.output,
+    ...(thinking.supportEfforts !== undefined && thinking.supportEfforts.length > 0
+      ? { supportEfforts: thinking.supportEfforts }
+      : {}),
   };
 }
 
@@ -337,14 +353,28 @@ function extractHintFromModelsResponse(
     const id = typeof record['id'] === 'string' ? record['id'] : undefined;
     if (id === undefined || id.toLowerCase() !== lowerModelId) continue;
 
-    // OpenAI-style: no explicit reasoning field — infer from model name.
     const thinking =
       typeof record['reasoning'] === 'boolean'
         ? record['reasoning']
         : /(?:^|[-/])(?:o\d|reasoning|think)/i.test(id);
+    const thinkingMeta = catalogThinkingMetadata({
+      id,
+      reasoning: thinking,
+      reasoning_options: Array.isArray(record['reasoning_options'])
+        ? (record['reasoning_options'] as CatalogModelEntry['reasoning_options'])
+        : undefined,
+    });
+    const listedEfforts = Array.isArray(record['support_efforts'])
+      ? record['support_efforts'].filter((value): value is string => typeof value === 'string')
+      : undefined;
     return {
       thinking,
       toolUse: true,
+      ...(thinkingMeta.supportEfforts !== undefined && thinkingMeta.supportEfforts.length > 0
+        ? { supportEfforts: thinkingMeta.supportEfforts }
+        : listedEfforts !== undefined && listedEfforts.length > 0
+          ? { supportEfforts: listedEfforts }
+          : {}),
     };
   }
   return undefined;

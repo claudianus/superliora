@@ -77,10 +77,12 @@ const PROVIDER_PRIORITY: ReadonlyMap<string, number> = new Map<string, number>([
   ['deepseek', 5],
   ['groq', 6],
   ['mistral', 7],
-  // SuperLiora-curated subscription gateway (not in models.dev).
-  ['clinepass', 8],
+  // SuperLiora-curated gateways (not in models.dev, or first-class overlays).
+  ['opencode', 8],
+  ['clinepass', 9],
+  ['zai-coding-plan', 10],
   // Qwen Cloud Token Plan — first-class multimodal subscription.
-  ['qwen-token-plan', 9],
+  ['qwen-token-plan', 11],
 ]);
 
 export function buildProviderCatalogOptions(catalog: Catalog): readonly ProviderCatalogOption[] {
@@ -92,7 +94,7 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
       value: `oauth:${profile.id}`,
       label: profile.displayName,
       authKind: 'oauth',
-      modelCount: 0,
+      modelCount: oauthPickerModelCount(profile.models, catalog, profile.id),
       baseUrl: profile.apiBaseUrl,
       docUrl: profile.docUrl,
     });
@@ -106,7 +108,7 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
       value: `oauth:${entry.profile.id}`,
       label: entry.profile.displayName,
       authKind: 'oauth',
-      modelCount: 0,
+      modelCount: oauthPickerModelCount(entry.profile.models, catalog, entry.profile.id),
       baseUrl: entry.profile.apiBaseUrl,
       docUrl: entry.profile.docUrl,
     });
@@ -225,6 +227,18 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
     if (pa !== pb) return pa - pb;
     return a.label.localeCompare(b.label);
   });
+}
+
+function oauthPickerModelCount(
+  presets: readonly { readonly id: string }[] | undefined,
+  catalog: Catalog,
+  profileId: string,
+): number {
+  if (presets !== undefined && presets.length > 0) return presets.length;
+  const catalogId = oauthProviderCatalogId(profileId);
+  const entry = catalog[catalogId];
+  if (entry === undefined) return 0;
+  return catalogProviderModels(entry).length;
 }
 
 function priorityFor(option: ProviderCatalogOption): number {
