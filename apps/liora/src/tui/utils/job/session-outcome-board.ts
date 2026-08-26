@@ -135,7 +135,7 @@ export function summarizeBlockedReason(card: ConductorJobCard): string | undefin
 }
 
 /** Explore/research found an answer but the ledger stamped failed. */
-export function isExploreDiscoveryFalseFail(card: ConductorJobCard): boolean {
+function isExploreDiscoveryFalseFail(card: ConductorJobCard): boolean {
   if (card.kind !== 'explore' && card.kind !== 'research') return false;
   if (card.status !== 'failed') return false;
   const summary = card.resultSummary?.trim() ?? '';

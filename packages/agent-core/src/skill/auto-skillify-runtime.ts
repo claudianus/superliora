@@ -98,7 +98,7 @@ export interface AutoSkillifyRunResult {
   readonly written: readonly string[];
 }
 
-export function historyHasUserCorrection(messages: readonly ContextMessage[]): boolean {
+function historyHasUserCorrection(messages: readonly ContextMessage[]): boolean {
   for (const message of messages) {
     if (message.role !== 'user') continue;
     const text = message.content

@@ -6,7 +6,7 @@
 import { DynamicInjector } from './injector';
 import type { Agent } from '..';
 
-export const SESSION_SKILLS_INJECTION_CAP = 8;
+const SESSION_SKILLS_INJECTION_CAP = 8;
 
 export class SessionSkillsInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'session_skills';

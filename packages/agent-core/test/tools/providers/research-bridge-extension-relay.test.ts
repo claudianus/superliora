@@ -19,9 +19,10 @@ import {
   relayPortFromEnv,
   readNativeMessageAsync,
   writeNativeMessage,
+  // @ts-expect-error native host is JS without a declaration file
 } from '../../../scripts/research-bridge-native-host.mjs';
 
-const agentCoreRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
+const agentCoreRoot = join(import.meta.dirname, '../../..');
 const nativeHostScript = join(agentCoreRoot, 'scripts/research-bridge-native-host.mjs');
 
 function connectRelay(port: number): Promise<Socket> {
@@ -163,6 +164,7 @@ describe('research-bridge extension relay', () => {
 
   it('resolveAllowedOrigins prefers --allowed-origin over --extension-id', async () => {
     const { resolveAllowedOrigins } = await import(
+      // @ts-expect-error native host is JS without a declaration file
       '../../../scripts/research-bridge-native-host.mjs'
     );
     expect(

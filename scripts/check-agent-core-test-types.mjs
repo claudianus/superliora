@@ -16,9 +16,10 @@ const repoRoot = resolve(import.meta.dirname, '..');
 const baselinePath = resolve(repoRoot, 'meta', 'agent-core-test-types-baseline.json');
 const update = process.argv.includes('--update');
 
+const tscBin = resolve(repoRoot, 'node_modules/typescript/bin/tsc');
 const result = spawnSync(
-  'pnpm',
-  ['exec', 'tsc', '-p', 'tsconfig.json', '--noEmit', '--pretty', 'false'],
+  process.execPath,
+  [tscBin, '-p', 'tsconfig.json', '--noEmit', '--pretty', 'false'],
   {
     cwd: resolve(repoRoot, 'packages/agent-core'),
     encoding: 'utf8',

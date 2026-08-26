@@ -62,9 +62,9 @@ export const SkillCreateToolInputSchema = z
 
 export type SkillCreateToolInput = z.infer<typeof SkillCreateToolInputSchema>;
 
-export type SkillCommitOrigin = 'tool' | 'auto' | 'refine';
+type SkillCommitOrigin = 'tool' | 'auto' | 'refine';
 
-export interface CommitProjectSkillHost {
+interface CommitProjectSkillHost {
   readonly config: { readonly cwd: string };
   readonly skills: {
     readonly registry?: {
@@ -74,7 +74,7 @@ export interface CommitProjectSkillHost {
   emitEvent?(event: AgentEvent): void;
 }
 
-export interface CommitProjectSkillInput {
+interface CommitProjectSkillInput {
   readonly name: string;
   readonly description: string;
   readonly whenToUse: string;
@@ -83,7 +83,7 @@ export interface CommitProjectSkillInput {
   readonly origin?: SkillCommitOrigin | undefined;
 }
 
-export type CommitProjectSkillResult =
+type CommitProjectSkillResult =
   | {
       readonly ok: true;
       readonly skillMdPath: string;

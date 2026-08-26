@@ -10,7 +10,7 @@ export type HostBrowserSensorStatus = 'einval' | 'missing' | 'ok';
 
 export const HOST_BROWSER_EINVAL_RETRY_LIMIT = 2;
 
-export interface HostBrowserCircuitState {
+interface HostBrowserCircuitState {
   readonly status: HostBrowserSensorStatus | 'unknown';
   readonly einvalCount: number;
   readonly open: boolean;

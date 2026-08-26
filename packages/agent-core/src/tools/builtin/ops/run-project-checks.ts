@@ -319,17 +319,17 @@ export function pickScript(
   return undefined;
 }
 
-export function scriptRunsWithoutInstall(script: string | undefined): boolean {
+function scriptRunsWithoutInstall(script: string | undefined): boolean {
   if (script === undefined) return false;
   const t = script.trim();
   return /^(?:node(?:\.exe)?)\s+--(?:test|check)\b/.test(t);
 }
 
-export function rewriteDirectNodeScript(script: string): string[] | undefined {
+function rewriteDirectNodeScript(script: string): string[] | undefined {
   const t = script.trim();
   const testMatch = /^(?:node(?:\.exe)?)\s+--test(?:\s+(.+))?$/.exec(t);
   if (testMatch !== null) {
-    const spec = (testMatch[1] ?? 'tests').replaceAll(/\\/g, '/').replaceAll(/^["']|["']$/g, '');
+    const spec = (testMatch[1] ?? 'tests').replaceAll('\\', '/').replaceAll(/^["']|["']$/g, '');
     const dir = spec.replace(/\/\*[^/]*$/, '').trim();
     return ['node', '--test', dir.length > 0 ? dir : 'tests'];
   }
@@ -340,7 +340,7 @@ export function rewriteDirectNodeScript(script: string): string[] | undefined {
   return undefined;
 }
 
-export function packageLooksLikeNoInstallSite(pkg: {
+function packageLooksLikeNoInstallSite(pkg: {
   readonly scripts: Record<string, string>;
   readonly hasDependencies: boolean;
 }): boolean {

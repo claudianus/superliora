@@ -26,7 +26,7 @@ export type VisualVerificationVerdict = VerificationVerdict | 'skipped_host';
 export type HostBrowserStatus = 'einval' | 'missing' | 'ok';
 
 /** Playable product path exists (index.html / http.server / file://). */
-export type PlayableVerdict = 'yes' | 'no' | 'unknown';
+type PlayableVerdict = 'yes' | 'no' | 'unknown';
 
 export interface SubagentVerificationStatus {
   readonly tests: VerificationVerdict;
