@@ -352,8 +352,8 @@ describe('thinkingEffortToReasoningEffort', () => {
   it('maps xhigh -> "xhigh"', () => {
     expect(thinkingEffortToReasoningEffort('xhigh')).toBe('xhigh');
   });
-  it('maps max -> "xhigh"', () => {
-    expect(thinkingEffortToReasoningEffort('max')).toBe('xhigh');
+  it('maps max -> "max"', () => {
+    expect(thinkingEffortToReasoningEffort('max')).toBe('max');
   });
   it('throws on unknown effort', () => {
     expect(() => thinkingEffortToReasoningEffort('extreme' as never)).toThrow(
@@ -381,8 +381,8 @@ describe('reasoningEffortToThinkingEffort', () => {
   it('maps "xhigh" -> xhigh', () => {
     expect(reasoningEffortToThinkingEffort('xhigh')).toBe('xhigh');
   });
-  it('maps "max" -> xhigh (alias)', () => {
-    expect(reasoningEffortToThinkingEffort('max')).toBe('xhigh');
+  it('maps "max" -> max', () => {
+    expect(reasoningEffortToThinkingEffort('max')).toBe('max');
   });
   it('maps "none" -> off', () => {
     expect(reasoningEffortToThinkingEffort('none')).toBe('off');

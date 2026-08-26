@@ -150,7 +150,10 @@ export function isFunctionToolCall<T extends { type: string }>(
   return tc.type === 'function';
 }
 /**
- * Map kosong `ThinkingEffort` to OpenAI `reasoning_effort` string.
+ * Map kosong `ThinkingEffort` to the OpenAI-compatible `reasoning_effort`
+ * string. `xhigh` and `max` are distinct rungs (GPT-5.6, DeepSeek V4, and
+ * OpenCode Zen all accept `max` as its own value). Catalog `supportEfforts`
+ * is what snaps an unsupported request onto a wire value the model lists.
  */
 export function thinkingEffortToReasoningEffort(effort: ThinkingEffort): string | undefined {
   switch (effort) {
@@ -163,8 +166,9 @@ export function thinkingEffortToReasoningEffort(effort: ThinkingEffort): string 
     case 'high':
       return 'high';
     case 'xhigh':
-    case 'max':
       return 'xhigh';
+    case 'max':
+      return 'max';
     default:
       throw new Error(`Unknown thinking effort: ${String(effort)}`);
   }
@@ -188,8 +192,9 @@ export function reasoningEffortToThinkingEffort(
     case 'high':
       return 'high';
     case 'xhigh':
-    case 'max':
       return 'xhigh';
+    case 'max':
+      return 'max';
     case 'none':
       return 'off';
     default:

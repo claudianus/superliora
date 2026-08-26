@@ -4,7 +4,7 @@
  * Goals:
  * - Prefer each model's declared `supportEfforts` when present.
  * - When absent, offer a provider-aware list (not the full abstract ladder).
- * - Surface clamp/mapping transparently: `max→high`, `max→xhigh`, etc.
+ * - Surface clamp/mapping transparently: `max→high`, etc.
  */
 
 import type { ModelAlias } from '@superliora/sdk';
@@ -43,7 +43,9 @@ export function modelUsesEmbeddedThinkingEffort(
 const DEFAULT_EFFORTS_BY_FAMILY: Record<ProviderThinkingFamily, readonly ThinkingEffortName[]> = {
   // Kimi wire maps xhigh/max → high, so offering them is misleading.
   kimi: ['low', 'medium', 'high'],
-  // OpenAI maps max → xhigh; expose the wire name, not a duplicate max.
+  // Without a catalog declaration, stop at xhigh — older GPT-5 SKUs reject
+  // `max`. Models that list `max` (GPT-5.6, DeepSeek, Zen) keep it via
+  // supportEfforts.
   openai: ['low', 'medium', 'high', 'xhigh'],
   // Anthropic support is model-specific; only catalog-declared models expose
   // xhigh/max so an unavailable catalog does not advertise false controls.
@@ -144,7 +146,8 @@ export function clampEffortToModel(
 
 /**
  * What the transport adapter typically sends for this effort on this provider.
- * Matches kosong provider clamps (Kimi/Gemini high ceiling, OpenAI max→xhigh).
+ * Matches kosong provider clamps (Kimi/Gemini high ceiling). OpenAI-compatible
+ * transports send `max` as `max` when the catalog lists it.
  */
 export function wireEffortForModel(
   effort: string | undefined,
@@ -164,8 +167,6 @@ export function wireEffortForModel(
       if (clamped === 'xhigh' || clamped === 'max') return 'high';
       return clamped;
     case 'openai':
-      if (clamped === 'max') return 'xhigh';
-      return clamped;
     case 'anthropic':
     case 'unknown':
     default:
