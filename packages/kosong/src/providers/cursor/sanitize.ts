@@ -24,15 +24,17 @@ const ROLE_TAG_RE = /<\/?(?:system|user|assistant|tool)\b[^>]*>/gi;
 
 const THINKING_BLOCK_RE = /<thinking\b[^>]*>[\s\S]*?<\/thinking>/gi;
 
-const MCP_CALL_RE = new RegExp(
-  String.raw`mcp_(?:${CURSOR_PROVIDER_ID}|_${CURSOR_PROVIDER_ID}_)_([A-Za-z][\w]*)\s*(?:\(([^)]*)\))?`,
+const MCP_NAME_RE = new RegExp(
+  String.raw`mcp_(?:${CURSOR_PROVIDER_ID}|_${CURSOR_PROVIDER_ID}_)_([A-Za-z][\w]*)`,
   'g',
 );
 
-const BARE_MCP_LINE_RE = new RegExp(
-  String.raw`^\s*mcp_(?:${CURSOR_PROVIDER_ID}|_${CURSOR_PROVIDER_ID}_)_[A-Za-z][\w]*\s*(?:\([^)]*\))?\s*$`,
-  'gm',
-);
+interface McpTextCallSpan {
+  readonly name: string;
+  readonly argsText: string;
+  readonly start: number;
+  readonly end: number;
+}
 
 /** Remove leaked wire/prompt tags from assistant-visible text. */
 export function sanitizeCursorAssistantText(text: string): string {
@@ -42,8 +44,13 @@ export function sanitizeCursorAssistantText(text: string): string {
   out = out.replace(TOOL_USE_BLOCK_RE, '');
   out = out.replace(THINKING_BLOCK_RE, '');
   out = out.replace(ROLE_TAG_RE, '');
-  out = out.replace(BARE_MCP_LINE_RE, '');
-  return out.replace(/\n{3,}/g, '\n\n').trim();
+  const leftover = findMcpTextCalls(out);
+  for (let i = leftover.length - 1; i >= 0; i--) {
+    const call = leftover[i];
+    if (call === undefined) continue;
+    out = `${out.slice(0, call.start)}${out.slice(call.end)}`;
+  }
+  return out.replaceAll(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
@@ -56,16 +63,13 @@ export function recoverToolCallsFromCursorText(text: string): RecoveredTextToolC
   }
   const found: RecoveredTextToolCall[] = [];
   const seen = new Set<string>();
-  for (const match of text.matchAll(MCP_CALL_RE)) {
-    const toolName = match[1];
-    if (toolName === undefined || toolName.length === 0) continue;
-    const argsText = (match[2] ?? '').trim();
-    const inputJson = parseLooseToolArgs(argsText);
-    const key = `${toolName}:${inputJson}`;
+  for (const call of findMcpTextCalls(text)) {
+    const inputJson = parseLooseToolArgs(call.argsText);
+    const key = `${call.name}:${inputJson}`;
     if (seen.has(key)) continue;
     seen.add(key);
     found.push({
-      name: toolName,
+      name: call.name,
       inputJson,
       toolCallId: randomUUID(),
     });
@@ -73,44 +77,186 @@ export function recoverToolCallsFromCursorText(text: string): RecoveredTextToolC
   return found;
 }
 
+function findMcpTextCalls(text: string): McpTextCallSpan[] {
+  const found: McpTextCallSpan[] = [];
+  let lastEnd = 0;
+  for (const match of text.matchAll(MCP_NAME_RE)) {
+    const name = match[1];
+    const start = match.index;
+    if (name === undefined || name.length === 0 || start === undefined) continue;
+    if (start < lastEnd) continue;
+    let cursor = start + match[0].length;
+    while (cursor < text.length && (text.codePointAt(cursor) ?? 33) <= 32) cursor += 1;
+    let argsText = '';
+    let end = cursor;
+    if (text[cursor] === '(') {
+      const close = indexOfMatchingClose(text, cursor);
+      if (close === -1) {
+        argsText = text.slice(cursor + 1);
+        end = text.length;
+      } else {
+        argsText = text.slice(cursor + 1, close);
+        end = close + 1;
+      }
+    }
+    lastEnd = end;
+    found.push({ name, argsText: argsText.trim(), start, end });
+  }
+  return found;
+}
+
+function indexOfMatchingClose(text: string, openIndex: number): number {
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
+  for (let i = openIndex; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === undefined) break;
+    if (quote !== null) {
+      if (ch === '\\') {
+        i += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === '(') {
+      depth += 1;
+      continue;
+    }
+    if (ch === ')') {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
 function parseLooseToolArgs(argsText: string): string {
   if (argsText.length === 0) return '{}';
-  // Already JSON object/array.
+  const trimmed = argsText.trim();
   if (
-    (argsText.startsWith('{') && argsText.endsWith('}')) ||
-    (argsText.startsWith('[') && argsText.endsWith(']'))
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
   ) {
     try {
-      JSON.parse(argsText);
-      return argsText;
+      JSON.parse(trimmed);
+      return trimmed;
     } catch {
-      // fall through
+      // kwargs, not a JSON payload
     }
   }
-  // Python/KW style: skill=game-art, limit=20, flag=true
   const out: Record<string, unknown> = {};
-  const parts = argsText
-    .split(',')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-  for (const part of parts) {
-    const eq = part.indexOf('=');
+  for (const part of splitTopLevelCommas(trimmed)) {
+    const slice = part.trim();
+    if (slice.length === 0) continue;
+    const eq = slice.indexOf('=');
     if (eq <= 0) continue;
-    const key = part.slice(0, eq).trim();
-    let value = part.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    if (value === 'true' || value === 'false') {
-      out[key] = value === 'true';
-    } else if (/^-?\d+(?:\.\d+)?$/.test(value)) {
-      out[key] = Number(value);
-    } else {
-      out[key] = value;
-    }
+    const key = slice.slice(0, eq).trim();
+    if (key.length === 0) continue;
+    out[key] = parseLooseValue(slice.slice(eq + 1));
   }
   return JSON.stringify(out);
+}
+
+function parseLooseValue(raw: string): unknown {
+  const value = raw.trim();
+  if (value.length === 0) return '';
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (value === 'null') return null;
+  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+
+  if (value.startsWith('[') && value.endsWith(']')) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      const inner = value.slice(1, -1).trim();
+      if (inner.length === 0) return [];
+      return splitTopLevelCommas(inner).map((item) => parseLooseValue(item));
+    }
+  }
+
+  if (value.startsWith('{') && value.endsWith('}')) {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      // keep as string
+    }
+  }
+
+  if (value.length >= 2) {
+    const start = value[0];
+    const end = value.at(-1);
+    if (start === '"' && end === '"') {
+      try {
+        return JSON.parse(value) as unknown;
+      } catch {
+        return value.slice(1, -1);
+      }
+    }
+    if (start === "'" && end === "'") {
+      return value.slice(1, -1);
+    }
+  }
+  return value;
+}
+
+function splitTopLevelCommas(text: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  let quote: '"' | "'" | null = null;
+  let paren = 0;
+  let bracket = 0;
+  let brace = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === undefined) break;
+    if (quote !== null) {
+      if (ch === '\\') {
+        i += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    switch (ch) {
+      case '"':
+      case "'":
+        quote = ch;
+        break;
+      case '(':
+        paren += 1;
+        break;
+      case ')':
+        if (paren > 0) paren -= 1;
+        break;
+      case '[':
+        bracket += 1;
+        break;
+      case ']':
+        if (bracket > 0) bracket -= 1;
+        break;
+      case '{':
+        brace += 1;
+        break;
+      case '}':
+        if (brace > 0) brace -= 1;
+        break;
+      case ',':
+        if (paren === 0 && bracket === 0 && brace === 0) {
+          parts.push(text.slice(start, i));
+          start = i + 1;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts;
 }

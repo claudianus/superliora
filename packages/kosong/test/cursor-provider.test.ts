@@ -175,6 +175,63 @@ describe('cursor tool name + text sanitize', () => {
     expect(parts.some((part) => part.text?.includes('tool_call'))).toBe(false);
     expect(stream.finishReason).toBe('tool_calls');
   });
+
+  it('recovers JobCreate JSON array kwargs instead of splitting them on commas', () => {
+    const leaked = [
+      '<tool_call>',
+      'mcp_superliora_JobCreate(title=Grok bot harness, kind=research, task_track=general, staff=true, context_paths=["packages/oauth/src/xai.ts", "packages/kosong"], must_not_touch=["apps/liora/src"], success_criteria=["cite official docs", "map harness loop"])',
+      '</tool_call>',
+    ].join('\n');
+    const recovered = recoverToolCallsFromCursorText(leaked);
+    expect(recovered).toHaveLength(1);
+    expect(recovered[0]?.name).toBe('JobCreate');
+    expect(JSON.parse(recovered[0]!.inputJson)).toEqual({
+      title: 'Grok bot harness',
+      kind: 'research',
+      task_track: 'general',
+      staff: true,
+      context_paths: ['packages/oauth/src/xai.ts', 'packages/kosong'],
+      must_not_touch: ['apps/liora/src'],
+      success_criteria: ['cite official docs', 'map harness loop'],
+    });
+  });
+
+  it('keeps brace globs and dashed flags intact in text-form tool calls', () => {
+    const recovered = recoverToolCallsFromCursorText(
+      'mcp_superliora_Grep(path=C:/repo, pattern=grok, glob=*.{ts,tsx}, -i=true, head_limit=40)',
+    );
+    expect(JSON.parse(recovered[0]!.inputJson)).toEqual({
+      path: 'C:/repo',
+      pattern: 'grok',
+      glob: '*.{ts,tsx}',
+      '-i': true,
+      head_limit: 40,
+    });
+  });
+
+  it('recovers quoted kwargs and array items that contain commas or parentheses', () => {
+    const recovered = recoverToolCallsFromCursorText(
+      'mcp_superliora_JobCreate(title="Grok bot, harness", success_criteria=["foo() returns 0", "bar, baz"])',
+    );
+    expect(JSON.parse(recovered[0]!.inputJson)).toEqual({
+      title: 'Grok bot, harness',
+      success_criteria: ['foo() returns 0', 'bar, baz'],
+    });
+  });
+
+  it('accepts a JSON object as the whole argument list', () => {
+    const recovered = recoverToolCallsFromCursorText('mcp_superliora_JobList({"limit":20})');
+    expect(JSON.parse(recovered[0]!.inputJson)).toEqual({ limit: 20 });
+  });
+
+  it('recovers single-quoted Python-style list kwargs', () => {
+    const recovered = recoverToolCallsFromCursorText(
+      "mcp_superliora_JobCreate(context_paths=['packages/oauth/src/xai.ts', 'packages/kosong'])",
+    );
+    expect(JSON.parse(recovered[0]!.inputJson)).toEqual({
+      context_paths: ['packages/oauth/src/xai.ts', 'packages/kosong'],
+    });
+  });
 });
 
 describe('cursor client replies', () => {
@@ -209,7 +266,7 @@ describe('cursor client replies', () => {
     const close = encodeExecStreamClose(4);
     expect(close[0]).toBe(0);
     // Last reject frame should be streamClose control.
-    expect(Buffer.from(frames[frames.length - 1]!).equals(Buffer.from(close))).toBe(true);
+    expect(Buffer.from(frames.at(-1)!).equals(Buffer.from(close))).toBe(true);
   });
 });
 
