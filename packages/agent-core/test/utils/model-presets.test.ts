@@ -228,6 +228,30 @@ describe('model-presets — thinking level in assignments', () => {
     assert.equal(assignments.planning!.thinkingLevel, 'max');
   });
 
+  it('does not invent xhigh on ladders whose ceiling is max', () => {
+    const models: ModelMetadata[] = [
+      {
+        id: 'x-preview-f-free',
+        alias: 'opencode/x-preview-f-free',
+        provider: 'opencode',
+        family: 'ox-alpha',
+        tier: 'high',
+        available: true,
+        supportsTools: true,
+        supportsReasoning: true,
+        supportEfforts: ['low', 'high', 'max'],
+        contextWindow: 1_000_000,
+        inputCostPerM: 0,
+        qualityScore: 86,
+        valueScore: 23,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.coding?.thinkingLevel, 'high');
+    assert.equal(assignments.planning?.thinkingLevel, 'max');
+    assert.equal(assignments.debugging?.thinkingLevel, 'max');
+  });
+
   it('promotes quality main roles to xhigh when the same-family catalog supports it', () => {
     const models: ModelMetadata[] = [
       {

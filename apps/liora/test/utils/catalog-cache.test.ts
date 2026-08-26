@@ -77,5 +77,6 @@ describe('loadCatalog', () => {
     const catalog = await loadCatalog(undefined, fetchImpl as unknown as typeof fetch);
     expect(catalog['clinepass']?.name).toBe('ClinePass');
     expect(catalog['clinepass']?.api).toBe('https://api.cline.bot/api/v1');
+    expect(catalog['opencode']?.name).toBe('OpenCode Zen');
   });
 });

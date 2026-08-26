@@ -1,6 +1,7 @@
 import {
   applyCatalogProvider,
   catalogBaseUrl,
+  catalogImportThinking,
   catalogProviderModels,
   DEFAULT_CATALOG_URL,
   fetchCatalog,
@@ -107,7 +108,7 @@ export async function connectCatalogProvider(
     apiKey,
     models,
     selectedModelId: '',
-    thinking: false,
+    thinking: catalogImportThinking(models),
   });
 
   await host.harness.setConfig({

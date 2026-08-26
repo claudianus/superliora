@@ -22,6 +22,9 @@ import {
   OAuthProviderManager,
   SUPERLIORA_PROVIDER_NAME,
   applyXaiPricingSafeContextTokens,
+  fetchGitHubCopilotModels,
+  readGitHubCopilotEnvToken,
+  readGitHubCopilotGhCliToken,
   xaiGrokProviderRouteFields,
   type ProviderModelPreset,
 } from '@superliora/oauth';
@@ -38,6 +41,7 @@ import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
 import { promptApiKeyForCatalogProvider, promptOAuthCallback } from '../auth/prompts';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { openModelPickerForProvider } from './model-picker';
+import { oauthLoginFollowUp } from './oauth-login-hint';
 import {
   promptXaiGrokRoute,
   readXaiGrokRouteFromProvider,
@@ -119,6 +123,8 @@ export async function connectKimiManaged(host: SlashCommandHost): Promise<void> 
     } else if (alreadyLoggedIn) {
       host.showStatus(ttui('tui.provider.alreadyLoggedIn'));
     }
+    host.showNotice(ttui('tui.provider.kimiConsole'));
+    await openModelPickerForProvider(host, SUPERLIORA_PROVIDER_NAME);
   } catch (error) {
     const cancelled = controller.signal.aborted;
     spinner?.stop({
@@ -196,15 +202,23 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
   try {
     let pastedToken: string | undefined;
     if (profile.flow.kind === 'paste_token') {
-      pastedToken = await promptApiKeyForCatalogProvider(host, {
-        value: `oauth:${providerId}`,
-        label: profile.displayName,
-        authKind: 'api-key',
-        modelCount: 0,
-        envVars: [...GITHUB_COPILOT_TOKEN_ENVS],
-        docUrl: profile.docUrl,
-        catalogId: providerId,
-      });
+      const envToken = readGitHubCopilotEnvToken();
+      pastedToken = await promptApiKeyForCatalogProvider(
+        host,
+        {
+          value: `oauth:${providerId}`,
+          label: profile.displayName,
+          authKind: 'api-key',
+          modelCount: 0,
+          envVars: [...GITHUB_COPILOT_TOKEN_ENVS],
+          docUrl: profile.docUrl,
+          catalogId: providerId,
+        },
+        {
+          pasteSecret: true,
+          prefill: envToken === undefined ? await readGitHubCopilotGhCliToken() : undefined,
+        },
+      );
       if (pastedToken === undefined) return;
     }
 
@@ -298,6 +312,16 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
       routeCustomHeaders = fields.customHeaders;
       xaiRouteLabel = xaiGrokRouteStatusLabel(route);
     }
+    let accessToken: string | undefined;
+    let copilotSessionToken: string | undefined;
+    let copilotApiBaseUrl: string | undefined;
+    if (providerId === CURSOR_OAUTH_PROVIDER_ID) {
+      try {
+        accessToken = await manager.ensureFresh(providerId, { storageKey });
+      } catch {
+        // Discovery falls back to presets when the token cannot be read.
+      }
+    }
     if (providerId === GITHUB_COPILOT_PROVIDER_ID) {
       routeCustomHeaders = githubCopilotRequestHeaders();
       try {
@@ -305,6 +329,8 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
         if (userToken !== undefined && userToken.length > 0) {
           const session = await ensureGitHubCopilotSession(userToken);
           routeBaseUrl = session.apiBaseUrl;
+          copilotSessionToken = session.token;
+          copilotApiBaseUrl = session.apiBaseUrl;
         }
       } catch {
         // Keep the individual-host default when the cached session cannot be read.
@@ -323,18 +349,14 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
     freshConfig.providers[providerId] = mergedProvider as (typeof freshConfig.providers)[string];
 
     // Resolve the model list from a live catalog when possible (models.dev for
-    // most OAuth providers; Cursor AvailableModels for cursor-oauth), falling
-    // back to the profile preset when discovery fails.
-    let accessToken: string | undefined;
-    if (providerId === CURSOR_OAUTH_PROVIDER_ID) {
-      try {
-        accessToken = await manager.ensureFresh(providerId, { storageKey });
-      } catch {
-        // Discovery falls back to presets when the token cannot be read.
-      }
-    }
+    // most OAuth providers; Cursor AvailableModels for cursor-oauth; Copilot
+    // /models after session exchange), falling back to the profile preset.
     const resolvedModels = await resolveOAuthProviderModels(providerId, profile.models, {
       accessToken,
+      copilotSession:
+        copilotSessionToken === undefined || copilotApiBaseUrl === undefined
+          ? undefined
+          : { token: copilotSessionToken, apiBaseUrl: copilotApiBaseUrl },
     });
     if (resolvedModels !== undefined && resolvedModels.length > 0) {
       if (providerId === CURSOR_OAUTH_PROVIDER_ID) {
@@ -398,6 +420,8 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
     spinner = undefined;
     if (cancelled) return;
     host.showError(ttui('tui.provider.loginFailed', { message: formatErrorMessage(error) }));
+    const followUp = oauthLoginFollowUp(providerId, error);
+    if (followUp !== undefined) host.showNotice(followUp);
   } finally {
     if (host.cancelInFlight === cancelLogin) {
       host.cancelInFlight = undefined;
@@ -426,6 +450,8 @@ function presetModelToAlias(providerId: string, preset: ProviderModelPreset): Mo
 export interface ResolveOAuthProviderModelsOptions {
   /** Fresh access token; used for Cursor AvailableModels discovery. */
   readonly accessToken?: string;
+  /** Copilot session token + API host after `ensureGitHubCopilotSession`. */
+  readonly copilotSession?: { readonly token: string; readonly apiBaseUrl: string };
 }
 
 /**
@@ -439,6 +465,24 @@ export async function resolveOAuthProviderModels(
   presets: readonly ProviderModelPreset[] | undefined,
   options: ResolveOAuthProviderModelsOptions = {},
 ): Promise<readonly ModelAlias[] | undefined> {
+  if (providerId === GITHUB_COPILOT_PROVIDER_ID && options.copilotSession !== undefined) {
+    try {
+      const live = await fetchGitHubCopilotModels({
+        token: options.copilotSession.token,
+        expiresAtSec: 0,
+        apiBaseUrl: options.copilotSession.apiBaseUrl,
+      });
+      if (live !== undefined && live.length > 0) {
+        return live.map((preset) => presetModelToAlias(providerId, preset));
+      }
+    } catch (error) {
+      log.warn(
+        `Failed to load GitHub Copilot models for "${providerId}", using preset.`,
+        formatErrorMessage(error),
+      );
+    }
+  }
+
   if (providerId === CURSOR_OAUTH_PROVIDER_ID) {
     let token = options.accessToken?.trim();
     if (token === undefined || token.length === 0) {

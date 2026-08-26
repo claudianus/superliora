@@ -31,8 +31,10 @@ export type { KimiForCodingProviderOptions } from '#/kimi-code-model-provider';
 export {
   applyCatalogProvider,
   catalogBaseUrl,
+  catalogImportThinking,
   catalogModelToAlias,
   catalogProviderModels,
+  catalogThinkingMetadata,
   CatalogFetchError,
   DEFAULT_CATALOG_URL,
   fetchCatalog,

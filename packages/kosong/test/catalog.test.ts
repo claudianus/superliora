@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   catalogBaseUrl,
+  catalogImportThinking,
   catalogModelToCapability,
   catalogProviderModels,
   inferWireType,
@@ -31,6 +32,12 @@ describe('inferWireType', () => {
   it('infers openai for github-copilot even without an npm package', () => {
     expect(inferWireType({ id: 'github-copilot' })).toBe('openai');
     expect(inferWireType({ id: 'github-copilot', npm: '@ai-sdk/openai-compatible' })).toBe('openai');
+  });
+
+  it('infers openai for Chat Completions gateways whose npm lacks the openai substring', () => {
+    expect(inferWireType({ id: 'openrouter', npm: '@openrouter/ai-sdk-provider' })).toBe('openai');
+    expect(inferWireType({ id: 'deepinfra', npm: '@ai-sdk/deepinfra' })).toBe('openai');
+    expect(inferWireType({ id: 'qvac', npm: '@qvac/sdk' })).toBe('openai');
   });
 });
 
@@ -210,5 +217,44 @@ describe('catalogProviderModels', () => {
     });
     expect(models).toHaveLength(1);
     expect(models[0]?.id).toBe('good');
+  });
+});
+
+describe('catalogImportThinking', () => {
+  it('is off when no model is selected', () => {
+    const models = catalogProviderModels({
+      id: 'zen',
+      models: {
+        'x-preview-f-free': {
+          id: 'x-preview-f-free',
+          limit: { context: 200000 },
+          reasoning: true,
+          reasoning_options: [{ type: 'effort', values: ['low', 'high', 'max'] }],
+        },
+      },
+    });
+    expect(catalogImportThinking(models)).toBe(false);
+    expect(catalogImportThinking(models, '')).toBe(false);
+  });
+
+  it('is on only for the selected always-thinking model', () => {
+    const models = catalogProviderModels({
+      id: 'zen',
+      models: {
+        'x-preview-f-free': {
+          id: 'x-preview-f-free',
+          limit: { context: 200000 },
+          reasoning: true,
+          reasoning_options: [{ type: 'effort', values: ['low', 'high', 'max'] }],
+        },
+        'plain': {
+          id: 'plain',
+          limit: { context: 128000 },
+          reasoning: true,
+        },
+      },
+    });
+    expect(catalogImportThinking(models, 'x-preview-f-free')).toBe(true);
+    expect(catalogImportThinking(models, 'plain')).toBe(false);
   });
 });

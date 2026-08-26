@@ -127,14 +127,128 @@ export const ZAI_CODING_PLAN_CATALOG_ENTRY: CatalogProviderEntry = {
   models: ZAI_CODING_PLAN_MODELS,
 };
 
+/** OpenCode Zen OpenAI-compatible chat base. */
+export const OPENCODE_ZEN_API_BASE = 'https://opencode.ai/zen/v1';
+
+export const OPENCODE_ZEN_PROVIDER_ID = 'opencode';
+
+/** Env vars checked for an existing OpenCode Zen API key. */
+export const OPENCODE_API_KEY_ENVS = ['OPENCODE_API_KEY', 'OPENCODE_ZEN_API_KEY'] as const;
+
+const ZEN_ALWAYS_THINKING = {
+  alwaysThinking: true,
+  supportEfforts: ['low', 'high', 'max'],
+} as const;
+
+/**
+ * Curated OpenCode Zen models (free + paid representatives).
+ *
+ * Live `/models` after connect can expand this list. Effort rungs stay
+ * `low` / `high` / `max` — Zen rejects OpenAI `xhigh`, and several SKUs
+ * cannot disable thinking.
+ *
+ * @see https://opencode.ai/docs/zen
+ */
+const OPENCODE_ZEN_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
+  'x-preview-f-free': model(
+    'x-preview-f-free',
+    'Ox Alpha Free',
+    262_144,
+    65_536,
+    true,
+    ZEN_ALWAYS_THINKING,
+  ),
+  'deepseek-v4-flash-free': model(
+    'deepseek-v4-flash-free',
+    'DeepSeek V4 Flash Free',
+    1_000_000,
+    384_000,
+    true,
+    ZEN_ALWAYS_THINKING,
+  ),
+  'glm-4.7-free': model('glm-4.7-free', 'GLM-4.7 Free', 200_000, 131_072, true, ZEN_ALWAYS_THINKING),
+  'MiniMax-M2.5-free': model(
+    'MiniMax-M2.5-free',
+    'MiniMax M2.5 Free',
+    196_608,
+    32_768,
+    true,
+    ZEN_ALWAYS_THINKING,
+  ),
+  'qwen3.6-plus-free': model(
+    'qwen3.6-plus-free',
+    'Qwen3.6 Plus Free',
+    262_144,
+    65_536,
+    true,
+    ZEN_ALWAYS_THINKING,
+  ),
+  'x-preview-f': model('x-preview-f', 'Ox Alpha', 262_144, 65_536, true, ZEN_ALWAYS_THINKING),
+  'deepseek-v4-flash': model(
+    'deepseek-v4-flash',
+    'DeepSeek V4 Flash',
+    1_000_000,
+    384_000,
+    true,
+    ZEN_ALWAYS_THINKING,
+  ),
+  'glm-4.7': model('glm-4.7', 'GLM-4.7', 200_000, 131_072, true, ZEN_ALWAYS_THINKING),
+};
+
+export const OPENCODE_ZEN_CATALOG_ENTRY: CatalogProviderEntry = {
+  id: OPENCODE_ZEN_PROVIDER_ID,
+  name: 'OpenCode Zen',
+  api: OPENCODE_ZEN_API_BASE,
+  env: [...OPENCODE_API_KEY_ENVS],
+  type: 'openai',
+  npm: '@ai-sdk/openai-compatible',
+  doc: 'https://opencode.ai/docs/zen',
+  models: OPENCODE_ZEN_MODELS,
+};
+
 /**
  * SuperLiora-owned catalog entries layered on top of models.dev.
  * Add future curated providers here.
  */
 export const LOCAL_CATALOG_PROVIDERS: Readonly<Record<string, CatalogProviderEntry>> = {
+  [OPENCODE_ZEN_PROVIDER_ID]: OPENCODE_ZEN_CATALOG_ENTRY,
   [CLINEPASS_PROVIDER_ID]: CLINEPASS_CATALOG_ENTRY,
   [ZAI_CODING_PLAN_PROVIDER_ID]: ZAI_CODING_PLAN_CATALOG_ENTRY,
 };
+
+/**
+ * Env vars that mean a catalog provider is available but not yet written
+ * to config. Startup may hint `/login`; it must not persist the secret.
+ */
+export const CONNECT_ENV_HINTS: ReadonlyArray<{ readonly env: string; readonly label: string }> = [
+  { env: 'OPENCODE_API_KEY', label: 'OpenCode Zen' },
+  { env: 'OPENCODE_ZEN_API_KEY', label: 'OpenCode Zen' },
+  { env: CLINEPASS_API_KEY_ENV, label: 'ClinePass' },
+  { env: 'Z_AI_API_KEY', label: 'Z.AI' },
+  { env: 'ZAI_API_KEY', label: 'Z.AI' },
+  { env: 'OPENROUTER_API_KEY', label: 'OpenRouter' },
+];
+
+export interface DetectedConnectEnvHint {
+  readonly env: string;
+  readonly label: string;
+}
+
+/** Unique provider labels whose catalog env var is set in `env`. */
+export function detectedConnectEnvHints(
+  env: NodeJS.Dict<string> = process.env,
+): readonly DetectedConnectEnvHint[] {
+  const seen = new Set<string>();
+  const out: DetectedConnectEnvHint[] = [];
+  for (const row of CONNECT_ENV_HINTS) {
+    const value = env[row.env]?.trim();
+    if (value === undefined || value.length === 0) continue;
+    if (seen.has(row.label)) continue;
+    seen.add(row.label);
+    out.push(row);
+  }
+  return out;
+}
 
 /**
  * Returns a new catalog with SuperLiora-curated providers merged in.
@@ -154,8 +268,17 @@ function model(
   context: number,
   output: number,
   reasoning: boolean,
-  options?: { imageIn?: boolean },
+  options?: {
+    imageIn?: boolean;
+    alwaysThinking?: boolean;
+    supportEfforts?: readonly string[];
+  },
 ): LocalCatalogModel {
+  const efforts = options?.supportEfforts;
+  const reasoning_options =
+    options?.alwaysThinking === true
+      ? [{ type: 'effort' as const, values: [...(efforts ?? ['low', 'high', 'max'])] }]
+      : undefined;
   return {
     id,
     name,
@@ -164,6 +287,7 @@ function model(
     reasoning,
     // OpenAI-compatible gateways round-trip thinking via reasoning_content.
     interleaved: reasoning ? true : undefined,
+    reasoning_options,
     modalities: {
       input: options?.imageIn === true ? ['text', 'image'] : ['text'],
       output: ['text'],

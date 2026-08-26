@@ -3770,4 +3770,35 @@ describe('liora provider catalog add', () => {
     expect(finalConfig.models?.['clinepass/cline-pass/glm-5.2']).toBeDefined();
     expect(stdout.join('')).toContain('Imported ClinePass (clinepass)');
   });
+
+  it('imports curated OpenCode Zen and turns thinking on for always-thinking models', async () => {
+    mockRegistryFetch(CATALOG_BODY);
+    const { harness, current } = makeHarness({ providers: {} } as LioraConfig);
+    const { deps, stdout, exitCodes } = makeDeps(harness);
+
+    await tryRun(() =>
+      handleCatalogAdd(deps, 'opencode', {
+        apiKey: 'zen-test-key',
+        defaultModel: 'x-preview-f-free',
+      }),
+    );
+
+    expect(exitCodes).toEqual([]);
+    const finalConfig = current();
+    expect(finalConfig.providers['opencode']).toMatchObject({
+      type: 'openai',
+      apiKey: 'zen-test-key',
+    });
+    expect(finalConfig.models?.['opencode/x-preview-f-free']).toMatchObject({
+      provider: 'opencode',
+      model: 'x-preview-f-free',
+      supportEfforts: ['low', 'high', 'max'],
+    });
+    expect(finalConfig.models?.['opencode/x-preview-f-free']?.capabilities).toContain(
+      'always_thinking',
+    );
+    expect(finalConfig.defaultModel).toBe('opencode/x-preview-f-free');
+    expect(finalConfig.defaultThinking).toBe(true);
+    expect(stdout.join('')).toContain('Imported OpenCode Zen (opencode)');
+  });
 });

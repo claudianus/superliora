@@ -9,6 +9,7 @@ import {
   buildProviderCatalogOptions,
   resolveProviderSelection,
 } from '#/tui/utils/model/provider-catalog-options';
+import { mergeLocalCatalogProviders } from '#/utils/local-catalog-providers';
 
 const ESC = String.fromCodePoint(27);
 const SGR = new RegExp(`${ESC}\\[[0-9;]*m`, 'g');
@@ -115,6 +116,9 @@ describe('buildProviderCatalogOptions', () => {
     expect(anthropic?.envVars).toEqual(['ANTHROPIC_API_KEY']);
     expect(anthropic?.docUrl).toBe('https://docs.anthropic.com');
     expect(anthropic?.modelCount).toBe(1);
+    const oauthCodex = options.find((o) => o.value === 'oauth:openai-codex');
+    expect(oauthCodex?.authKind).toBe('oauth');
+    expect(oauthCodex?.modelCount).toBeGreaterThan(0);
   });
 
   it('pins common providers ahead of the alphabetical tail', () => {
@@ -155,6 +159,21 @@ describe('buildProviderCatalogOptions', () => {
       envVars: ['CLINE_API_KEY'],
       baseUrl: 'https://api.cline.bot/api/v1',
     });
+  });
+
+  it('pins OpenCode Zen and Z.AI ahead of the alphabetical tail', () => {
+    const catalog = mergeLocalCatalogProviders(makeCatalog());
+    const options = buildProviderCatalogOptions(catalog);
+    const opencodeIdx = options.findIndex((o) => o.catalogId === 'opencode');
+    const zaiIdx = options.findIndex((o) => o.catalogId === 'zai-coding-plan');
+    const clinepassIdx = options.findIndex((o) => o.catalogId === 'clinepass');
+    expect(opencodeIdx).toBeGreaterThanOrEqual(0);
+    expect(zaiIdx).toBeGreaterThanOrEqual(0);
+    expect(opencodeIdx).toBeLessThan(clinepassIdx);
+    const ox = options.find((o) => o.catalogId === 'opencode');
+    expect(ox?.label).toBe('OpenCode Zen');
+    expect(ox?.envVars).toContain('OPENCODE_API_KEY');
+    expect(ox?.modelCount).toBeGreaterThan(0);
   });
 });
 

@@ -1,5 +1,6 @@
 import { formatBytes, LIORA_HOME_COMFORT_FREE_BYTES, probeVolumeSpace } from '@superliora/sdk';
 
+import { detectedConnectEnvHints } from '#/utils/local-catalog-providers';
 import { getDataDir } from '#/utils/paths';
 
 import { setExperimentalFeatures } from '../../commands';
@@ -68,6 +69,17 @@ export async function maybeStartOnboarding(host: StartupLifecycleHost): Promise<
         'success',
       );
     } else {
+      const hints = detectedConnectEnvHints();
+      if (hints.length > 0) {
+        const labels = hints.map((h) => h.label).join(', ');
+        const vars = hints.map((h) => h.env).join(', ');
+        host.showNotice(
+          ttui('tui.onboarding.envKeyHintTitle'),
+          ttui('tui.onboarding.envKeyHint', { labels, vars }),
+          { coalesceKey: 'onboarding.envKeyHint' },
+        );
+        host.showStatus(ttui('tui.onboarding.envKeyHintStatus', { labels }), 'info');
+      }
       slashCommands.dispatchInput(host as never, '/login');
       return;
     }

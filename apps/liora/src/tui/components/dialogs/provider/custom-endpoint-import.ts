@@ -44,6 +44,7 @@ export interface CustomEndpointImportValue {
   readonly apiKey?: string;
   readonly maxContextSize: number;
   readonly thinking: boolean;
+  readonly supportEfforts?: readonly string[];
 }
 
 export type CustomEndpointImportResult =
@@ -107,6 +108,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
   private providerType: CustomEndpointWireType = 'openai';
   private thinkingEnabled = false;
   private thinkingAutoDetected = false;
+  private supportEfforts: readonly string[] | undefined;
   private done = false;
   private hint: string = SUBTITLE_DEFAULT;
 
@@ -127,9 +129,11 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
   }
 
   /** Sets the initial thinking state (e.g. from a models.dev catalog lookup). */
-  setThinkingDefault(enabled: boolean): void {
+  setThinkingDefault(enabled: boolean, supportEfforts?: readonly string[]): void {
     this.thinkingEnabled = enabled;
     this.thinkingAutoDetected = enabled;
+    this.supportEfforts =
+      supportEfforts !== undefined && supportEfforts.length > 0 ? [...supportEfforts] : undefined;
   }
 
   handleInput(data: string): void {
@@ -342,6 +346,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
         apiKey: apiKey.length === 0 ? undefined : apiKey,
         maxContextSize,
         thinking: this.thinkingEnabled,
+        ...(this.supportEfforts !== undefined ? { supportEfforts: this.supportEfforts } : {}),
       },
     });
   }

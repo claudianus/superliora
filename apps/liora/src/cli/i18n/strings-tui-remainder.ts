@@ -682,6 +682,10 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.native.diagHud': 'Native renderer diagnostics HUD: {state}.',
   'tui.native.traceExported': 'Native renderer trace exported: {outputPath}',
   'tui.onboarding.modelsAdded': '{provider} · +{count} model{plural}.',
+  'tui.onboarding.envKeyHintTitle': 'API key env var detected',
+  'tui.onboarding.envKeyHint':
+    '{vars} is set ({labels}). Pick that provider in /login — SuperLiora will not copy the key into the file unless you paste it.',
+  'tui.onboarding.envKeyHintStatus': '{labels} env is set. Run /login to connect.',
   'tui.finish.resumeGoal': '🎯 Resuming goal: {objective}...',
   'tui.finish.resumeGoalFailed': 'Failed to resume goal from queue: {string}',
   'tui.windowsSetup.usage': 'Usage: /host-setup [status|apply]',
@@ -1840,6 +1844,10 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.native.diagHud': '네이티브 렌더러 진단 HUD: {state}.',
   'tui.native.traceExported': '네이티브 렌더러 추적 내보내기: {outputPath}',
   'tui.onboarding.modelsAdded': '{provider} · +{count}개 모델.',
+  'tui.onboarding.envKeyHintTitle': 'API 키 환경 변수 감지',
+  'tui.onboarding.envKeyHint':
+    '{vars}가 설정되어 있습니다 ({labels}). /login에서 해당 프로바이더를 고르세요. 붙여넣지 않는 한 파일에 키를 복사하지 않습니다.',
+  'tui.onboarding.envKeyHintStatus': '{labels} 환경 변수가 있습니다. /login으로 연결하세요.',
   'tui.finish.resumeGoal': '🎯 목표 재개: {objective}...',
   'tui.finish.resumeGoalFailed': '대기 목표 재개 실패: {string}',
   'tui.windowsSetup.usage': '사용법: /host-setup [status|apply]',

@@ -1,7 +1,9 @@
 import type { LioraConfig, ModelAlias } from '@superliora/agent-core';
 import {
   catalogBaseUrl,
+  catalogImportThinking,
   catalogProviderModels,
+  catalogThinkingMetadata,
   inferWireType,
   type Catalog,
   type CatalogModel,
@@ -11,7 +13,13 @@ import {
 } from '@superliora/kosong';
 import { applyXaiPricingSafeContextTokens } from '@superliora/oauth';
 
-export { catalogBaseUrl, catalogProviderModels, inferWireType };
+export {
+  catalogBaseUrl,
+  catalogImportThinking,
+  catalogProviderModels,
+  catalogThinkingMetadata,
+  inferWireType,
+};
 export type { Catalog, CatalogModel, CatalogProviderEntry };
 
 export const DEFAULT_CATALOG_URL = 'https://models.dev/api.json';

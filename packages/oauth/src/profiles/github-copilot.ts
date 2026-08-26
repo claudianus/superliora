@@ -16,7 +16,7 @@
 import { OAuthUnauthorizedError } from '../errors';
 import { isRecord } from '../utils';
 import type { TokenInfo } from '../types';
-import type { ProviderProfile } from './provider-profile';
+import type { ProviderModelPreset, ProviderProfile } from './provider-profile';
 
 export const GITHUB_COPILOT_PROVIDER_ID = 'github-copilot';
 export const GITHUB_COPILOT_OAUTH_HOST = 'https://api.github.com';
@@ -80,6 +80,31 @@ export function readGitHubCopilotEnvToken(
     if (value !== undefined && value.length > 0) return value;
   }
   return undefined;
+}
+
+/**
+ * Best-effort `gh auth token` prefill for the paste dialog. Times out quickly
+ * and returns undefined when the GitHub CLI is missing or not logged in.
+ * Load `child_process` only here so suites that mock that module without
+ * `execFile` can still import OAuth usage helpers.
+ */
+export async function readGitHubCopilotGhCliToken(): Promise<string | undefined> {
+  try {
+    const { execFile } = await import('node:child_process');
+    const stdout = await new Promise<string>((resolve, reject) => {
+      execFile('gh', ['auth', 'token'], { timeout: 2000, windowsHide: true }, (err, out) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(typeof out === 'string' ? out : String(out));
+      });
+    });
+    const token = stdout.trim();
+    return token.length > 0 ? token : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function githubCopilotUserTokenInfo(userToken: string): TokenInfo {
@@ -258,6 +283,57 @@ export const GITHUB_COPILOT_PROFILE: ProviderProfile = {
     },
   ],
 };
+
+export async function fetchGitHubCopilotModels(
+  session: GitHubCopilotSession,
+  fetchImpl: typeof fetch = fetch,
+): Promise<readonly ProviderModelPreset[] | undefined> {
+  const base = session.apiBaseUrl.replace(/\/+$/, '');
+  const res = await fetchImpl(`${base}/models`, {
+    headers: {
+      Authorization: `Bearer ${session.token}`,
+      Accept: 'application/json',
+      ...githubCopilotRequestHeaders(),
+    },
+  });
+  if (!res.ok) return undefined;
+  return parseGitHubCopilotModelsResponse(await res.json());
+}
+
+export function parseGitHubCopilotModelsResponse(payload: unknown): readonly ProviderModelPreset[] | undefined {
+  if (!isRecord(payload)) return undefined;
+  const data = payload['data'];
+  if (!Array.isArray(data) || data.length === 0) return undefined;
+  const models: ProviderModelPreset[] = [];
+  for (const item of data) {
+    if (!isRecord(item)) continue;
+    const id = readString(item['id']);
+    if (id === undefined) continue;
+    const capabilities = isRecord(item['capabilities']) ? item['capabilities'] : undefined;
+    const type = capabilities !== undefined ? readString(capabilities['type']) : undefined;
+    if (type !== undefined && type !== 'chat') continue;
+    const supports = capabilities !== undefined && isRecord(capabilities['supports'])
+      ? capabilities['supports']
+      : undefined;
+    const limits = capabilities !== undefined && isRecord(capabilities['limits'])
+      ? capabilities['limits']
+      : undefined;
+    const maxContext =
+      num(limits?.['max_prompt_tokens']) ??
+      num(limits?.['max_context_window_tokens']) ??
+      128000;
+    const caps: string[] = ['tool_use'];
+    if (supports?.['vision'] === true || supports?.['image'] === true) caps.push('image_in');
+    if (supports?.['thinking'] === true || supports?.['reasoning'] === true) caps.push('thinking');
+    models.push({
+      id,
+      displayName: readString(item['name']) ?? id,
+      maxContextSize: maxContext,
+      capabilities: caps,
+    });
+  }
+  return models.length > 0 ? models : undefined;
+}
 
 function githubApiAuthorization(userToken: string): string {
   return `token ${userToken}`;

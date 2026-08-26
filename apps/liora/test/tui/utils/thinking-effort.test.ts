@@ -95,8 +95,15 @@ describe('thinking-effort utils', () => {
   it('maps wire efforts per provider family', () => {
     expect(wireEffortForModel('max', model('managed:kimi-api'))).toBe('high');
     expect(wireEffortForModel('xhigh', model('managed:kimi-api'))).toBe('high');
+    // No catalog declaration: openai default ladder stops at xhigh.
     expect(wireEffortForModel('max', model('openai'))).toBe('xhigh');
     expect(wireEffortForModel('high', model('openai'))).toBe('high');
+    expect(
+      wireEffortForModel('max', model('openai', { supportEfforts: ['low', 'high', 'xhigh', 'max'] })),
+    ).toBe('max');
+    expect(
+      wireEffortForModel('max', model('openai', { supportEfforts: ['low', 'high', 'max'] })),
+    ).toBe('max');
     expect(
       wireEffortForModel(
         'max',

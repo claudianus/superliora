@@ -80,7 +80,8 @@ export interface ModelMetadata {
   readonly benchmarkCount?: number;
   /**
    * Declared reasoning efforts (`models.dev` reasoning_options / alias
-   * `supportEfforts`). Used to promote quality-role thinking to `xhigh`.
+   * `supportEfforts`). Used to promote quality-role thinking to `xhigh`
+   * only when that rung is actually declared.
    */
   readonly supportEfforts?: readonly string[];
 }
@@ -226,7 +227,7 @@ const CODING_BENCH_WEIGHTS: readonly {
 function parseNumericScore(score: number | string | undefined): number | undefined {
   if (typeof score === 'number' && Number.isFinite(score)) return score;
   if (typeof score === 'string') {
-    const n = Number(score.replace(/%/g, '').trim());
+    const n = Number(score.replaceAll(/%/g, '').trim());
     return Number.isFinite(n) ? n : undefined;
   }
   return undefined;
@@ -648,7 +649,7 @@ function parseModelGeneration(modelId: string, familyHint?: string): ModelGenera
     haystack.match(/\b(grok|claude|gpt|gemini|kimi|qwen|glm|deepseek|llama|mistral|sonnet|opus|haiku)\b/)?.[1];
   if (family === undefined) return undefined;
 
-  const escapedFamily = family.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedFamily = family.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // Optional letter prefix covers kimi-k2.6 / deepseek-v4 without treating 4o as 4.0-only.
   const versionMatch =
     haystack.match(new RegExp(`\\b${escapedFamily}[-_]?[a-z]*(\\d+)(?:[._-](\\d+))?\\b`)) ??
@@ -1295,7 +1296,7 @@ function pickBestForRole(
       ? qualityOk
       : pool;
   if (finalPool.length === 0) return undefined;
-  const sorted = [...finalPool].sort(
+  const sorted = [...finalPool].toSorted(
     (a, b) => compareRoleCandidates(preset, b, a, catalog, sessionDefault),
   );
   return sorted[0];
@@ -1444,9 +1445,9 @@ export function autoAssignRoleModels(
 
 /**
  * Resolve the thinking level for a role+model combination.
- * Quality/main roles promote `high`/`max` to `xhigh` when the same-family SKU
- * embeds that effort or declares it in `supportEfforts`. Models without
- * reasoning stay at `low`.
+ * Quality/main roles promote `high` to `xhigh` when that rung exists.
+ * `max` stays `max` when the catalog lists it — do not rewrite it to `xhigh`.
+ * Models without reasoning stay at `low`.
  */
 function resolveThinkingLevel(preset: RolePreset, model: ModelMetadata): ThinkingLevel {
   if (preset.thinkingLevel === 'minimal' || preset.thinkingLevel === 'low') {
@@ -1458,9 +1459,11 @@ function resolveThinkingLevel(preset: RolePreset, model: ModelMetadata): Thinkin
   }
   if (isQualityStrictRole(preset.role) || preset.thinkingLevel === 'high' || preset.thinkingLevel === 'max') {
     const available = highestAvailableEffort(model);
-    if (available === 'xhigh' || available === 'max') {
-      if (preset.thinkingLevel === 'max' && available === 'max') return 'max';
-      if (available === 'xhigh' || available === 'max') return 'xhigh';
+    if (preset.thinkingLevel === 'max') {
+      if (available === 'max') return 'max';
+      if (available === 'xhigh') return 'xhigh';
+    } else if (available === 'xhigh') {
+      return 'xhigh';
     }
   }
   return preset.thinkingLevel;
@@ -1500,13 +1503,13 @@ export function buildFallbackChain(
       (m) =>
         floorOk(m) && (m.tier || classifyModelTier(m.id)) === preset.preferredTier,
     )
-    .sort((a, b) => compareRoleCandidates(preset, b, a, catalog));
+    .toSorted((a, b) => compareRoleCandidates(preset, b, a, catalog));
   const fallback = scored
     .filter(
       (m) =>
         floorOk(m) && (m.tier || classifyModelTier(m.id)) === preset.fallbackTier,
     )
-    .sort((a, b) => compareRoleCandidates(preset, b, a, catalog));
+    .toSorted((a, b) => compareRoleCandidates(preset, b, a, catalog));
   const others = scored
     .filter(
       (m) =>
@@ -1514,7 +1517,7 @@ export function buildFallbackChain(
         (m.tier || classifyModelTier(m.id)) !== preset.preferredTier &&
         (m.tier || classifyModelTier(m.id)) !== preset.fallbackTier,
     )
-    .sort((a, b) => compareRoleCandidates(preset, b, a, catalog));
+    .toSorted((a, b) => compareRoleCandidates(preset, b, a, catalog));
 
   return [...preferred, ...fallback, ...others];
 }

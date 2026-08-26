@@ -117,6 +117,38 @@ max_context_size = 200000
 capabilities = ["tool_use", "thinking"]
 ```
 
+### OpenCode Zen
+
+[OpenCode Zen](https://opencode.ai/docs/zen) is a SuperLiora-curated OpenAI-compatible gateway. It is available in `/login` and `liora provider catalog` even when models.dev is unreachable.
+
+- Provider id: `opencode`
+- `base_url`: `https://opencode.ai/zen/v1`
+- Credential env: `OPENCODE_API_KEY`
+- Thinking efforts are `low` / `high` / `max` (not OpenAI `xhigh`). Several SKUs always think.
+
+```bash
+/login   # pick OpenCode Zen
+liora provider catalog add opencode --api-key-env OPENCODE_API_KEY
+```
+
+### OpenRouter
+
+OpenRouter is imported from models.dev as an OpenAI Chat Completions provider. Pick it in `/login` or:
+
+```bash
+liora provider catalog add openrouter --api-key-env OPENROUTER_API_KEY
+```
+
+### Z.AI (GLM Coding Plan)
+
+[Z.AI Coding Plan](https://docs.z.ai/devpack/overview) is a SuperLiora-curated OpenAI-compatible overlay (`zai-coding-plan`). MCP extras inject when the key is present.
+
+- Credential env: `Z_AI_API_KEY` or `ZAI_API_KEY`
+
+```bash
+/login   # pick Z.AI (GLM Coding Plan)
+```
+
 ## `openai_responses`
 
 Corresponds to OpenAI's newer Responses API, always operating in streaming mode. Configuration is the same as `openai`.

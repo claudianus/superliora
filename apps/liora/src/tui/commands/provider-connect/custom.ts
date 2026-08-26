@@ -40,6 +40,7 @@ export async function connectCustomEndpoint(host: SlashCommandHost): Promise<boo
       providerType: value.providerType,
       maxContextSize: value.maxContextSize,
       thinking: value.thinking,
+      ...(value.supportEfforts !== undefined ? { supportEfforts: value.supportEfforts } : {}),
       setDefault: true,
     });
     await host.harness.setConfig({
@@ -139,7 +140,7 @@ function promptCustomEndpointImport(
         if (catalog !== undefined) {
           const hint = lookupModelCapability(catalog, info.providerId, info.modelId);
           if (hint !== undefined) {
-            dialog.setThinkingDefault(hint.thinking);
+            dialog.setThinkingDefault(hint.thinking, hint.supportEfforts);
             return;
           }
         }
@@ -147,7 +148,7 @@ function promptCustomEndpointImport(
         if (info.baseUrl.length > 0) {
           const probed = await probeModelsEndpoint(info.baseUrl, undefined, info.modelId);
           if (probed !== undefined) {
-            dialog.setThinkingDefault(probed.thinking);
+            dialog.setThinkingDefault(probed.thinking, probed.supportEfforts);
           }
         }
       })();

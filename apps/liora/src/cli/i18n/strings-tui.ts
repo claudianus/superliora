@@ -291,6 +291,13 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.provider.setModelFailed': 'Set default model failed: {message}',
   'tui.provider.loginFailed': 'Login failed: {message}',
   'tui.provider.loginFailedLabel': 'Login failed.',
+  'tui.provider.oauthAnthropicRejected':
+    'Anthropic account login was rejected. Use the Anthropic API key row, Amazon Bedrock, or Google Vertex AI. Turn this option off with SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH=0.',
+  'tui.provider.oauthCursorVersion':
+    'Cursor rejected this client version. Set SUPERLIORA_CURSOR_CLIENT_VERSION to match a current Cursor CLI.',
+  'tui.provider.oauthXaiVersion':
+    'Grok Build rejected this client version. Set SUPERLIORA_XAI_GROK_CLIENT_VERSION to match a current grok CLI.',
+  'tui.provider.kimiConsole': 'Kimi console: https://www.kimi.com/code/console',
   'tui.provider.loginCancelled': 'Login cancelled.',
   'tui.provider.refreshFailed':
     'Authentication successful, but failed to refresh config: {message}',
@@ -690,6 +697,13 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.provider.setModelFailed': '기본 모델 설정 실패: {message}',
   'tui.provider.loginFailed': '로그인 실패: {message}',
   'tui.provider.loginFailedLabel': '로그인 실패.',
+  'tui.provider.oauthAnthropicRejected':
+    'Anthropic 계정 로그인이 거절되었습니다. Anthropic API 키, Amazon Bedrock, 또는 Google Vertex AI 줄을 쓰세요. SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH=0 으로 이 옵션을 끌 수 있습니다.',
+  'tui.provider.oauthCursorVersion':
+    'Cursor가 이 클라이언트 버전을 거절했습니다. SUPERLIORA_CURSOR_CLIENT_VERSION을 현재 Cursor CLI에 맞추세요.',
+  'tui.provider.oauthXaiVersion':
+    'Grok Build가 이 클라이언트 버전을 거절했습니다. SUPERLIORA_XAI_GROK_CLIENT_VERSION을 현재 grok CLI에 맞추세요.',
+  'tui.provider.kimiConsole': 'Kimi 콘솔: https://www.kimi.com/code/console',
   'tui.provider.loginCancelled': '로그인 취소됨.',
   'tui.provider.refreshFailed': '인증은 성공했으나 설정 새로고침 실패: {message}',
   'tui.provider.xaiRouteTitle': 'xAI Grok 과금 경로',

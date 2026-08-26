@@ -9,6 +9,7 @@ vi.mock('@superliora/oauth', async (importOriginal) => {
   return {
     ...actual,
     fetchCursorAvailableModels: vi.fn(),
+    fetchGitHubCopilotModels: vi.fn(),
     OAuthProviderManager: class {
       async ensureFresh() {
         return 'cursor-token';
@@ -18,7 +19,7 @@ vi.mock('@superliora/oauth', async (importOriginal) => {
 });
 
 const { loadCatalog } = await import('#/utils/catalog-cache');
-const { fetchCursorAvailableModels } = await import('@superliora/oauth');
+const { fetchCursorAvailableModels, fetchGitHubCopilotModels } = await import('@superliora/oauth');
 const { resolveOAuthProviderModels } = await import('#/tui/commands/provider-connect/oauth');
 
 const XAI_PRESETS = [
@@ -125,5 +126,20 @@ describe('resolveOAuthProviderModels', () => {
     );
 
     expect(result?.map((m) => m.model)).toEqual(['composer-2.5']);
+  });
+
+  it('prefers live Copilot models after a session exchange', async () => {
+    vi.mocked(fetchGitHubCopilotModels).mockResolvedValue([
+      { id: 'gpt-4.1', displayName: 'GPT-4.1', maxContextSize: 128_000, capabilities: ['tool_use'] },
+    ]);
+
+    const result = await resolveOAuthProviderModels(
+      'github-copilot',
+      [{ id: 'gpt-4o', displayName: 'GPT-4o', maxContextSize: 128_000 }],
+      { copilotSession: { token: 'tid=s', apiBaseUrl: 'https://api.githubcopilot.com' } },
+    );
+
+    expect(result?.map((m) => m.model)).toEqual(['gpt-4.1']);
+    expect(fetchGitHubCopilotModels).toHaveBeenCalled();
   });
 });

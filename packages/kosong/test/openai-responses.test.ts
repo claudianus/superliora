@@ -997,9 +997,26 @@ describe('OpenAIResponsesChatProvider', () => {
       expect(body['reasoning']).toEqual({ effort: 'xhigh', summary: 'auto' });
     });
 
-    it('with_thinking("max") on gpt-5.1-codex-max clamps up to xhigh on the wire', async () => {
-      // Regression guard: "max" used to fall back to "high"; for OpenAI it
-      // must clamp up to their highest supported level, xhigh.
+    it('with_thinking("max") on gpt-5.6 sends effort=max', async () => {
+      const provider = new OpenAIResponsesChatProvider({
+        model: 'gpt-5.6',
+        apiKey: 'test-key',
+      }).withThinking('max');
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Think' }], toolCalls: [] },
+      ];
+      const body = await captureRequestBody(provider, '', [], history);
+
+      expect(body['reasoning']).toEqual({
+        effort: 'max',
+        summary: 'auto',
+        context: 'all_turns',
+      });
+    });
+
+    it('with_thinking("max") on gpt-5.1-codex-max sends max, not xhigh', async () => {
+      // xhigh and max are distinct rungs. Catalog supportEfforts snaps
+      // unsupported requests; the adapter must not rewrite max to xhigh.
       const provider = new OpenAIResponsesChatProvider({
         model: 'gpt-5.1-codex-max',
         apiKey: 'test-key',
@@ -1009,7 +1026,7 @@ describe('OpenAIResponsesChatProvider', () => {
       ];
       const body = await captureRequestBody(provider, '', [], history);
 
-      expect((body['reasoning'] as Record<string, unknown>)['effort']).toBe('xhigh');
+      expect((body['reasoning'] as Record<string, unknown>)['effort']).toBe('max');
     });
   });
 
