@@ -58,7 +58,7 @@ export function shouldCreateBuiltin(host: BuiltinToolsHost, name: string): boole
  * (empty enabledTools) must not resurrect them; only an explicit whitelist
  * (journal replay / tests) constructs them.
  */
-export function shouldCreateRetiredLiora(host: BuiltinToolsHost, name: string): boolean {
+function shouldCreateRetiredLiora(host: BuiltinToolsHost, name: string): boolean {
   return host.enabledTools.size > 0 && host.enabledTools.has(name);
 }
 

@@ -20,7 +20,7 @@ import type {
 } from './job-store-key';
 import { slugifySessionName } from './job-store-key';
 
-export const WORKSPACE_SESSION_CATALOG_VERSION = 1 as const;
+const WORKSPACE_SESSION_CATALOG_VERSION = 1 as const;
 
 export type WorkspaceSessionShelf = 'active' | 'recent' | 'archived';
 
@@ -52,7 +52,7 @@ export interface WorkspaceSessionEntry {
   readonly notes?: string;
 }
 
-export interface WorkspaceSessionCatalog {
+interface WorkspaceSessionCatalog {
   readonly version: typeof WORKSPACE_SESSION_CATALOG_VERSION;
   readonly workDir: string;
   readonly updatedAt: string;
@@ -67,7 +67,7 @@ const ACTIVE_STATUSES = new Set<JobStatus>([
   'interrupted',
 ]);
 
-export function workspaceSessionCatalogDir(
+function workspaceSessionCatalogDir(
   workDir: string,
   homeDir: string = resolveLioraHome(),
 ): string {
@@ -81,7 +81,7 @@ export function workspaceSessionCatalogPath(
   return join(workspaceSessionCatalogDir(workDir, homeDir), 'catalog.json');
 }
 
-export function workspaceSessionTtlMs(
+function workspaceSessionTtlMs(
   failTtlDays: number = CONDUCTOR_WORKTREE_FAIL_TTL_DAYS,
 ): number {
   return Math.max(1, failTtlDays) * 24 * 60 * 60 * 1000;
@@ -156,7 +156,7 @@ export function jobRecordToWorkspaceEntry(
   };
 }
 
-export function emptyWorkspaceCatalog(workDir: string): WorkspaceSessionCatalog {
+function emptyWorkspaceCatalog(workDir: string): WorkspaceSessionCatalog {
   return {
     version: WORKSPACE_SESSION_CATALOG_VERSION,
     workDir,
@@ -165,7 +165,7 @@ export function emptyWorkspaceCatalog(workDir: string): WorkspaceSessionCatalog 
   };
 }
 
-export function readWorkspaceCatalog(
+function readWorkspaceCatalog(
   workDir: string,
   homeDir: string = resolveLioraHome(),
 ): WorkspaceSessionCatalog {
@@ -186,7 +186,7 @@ export function readWorkspaceCatalog(
   }
 }
 
-export function writeWorkspaceCatalog(
+function writeWorkspaceCatalog(
   catalog: WorkspaceSessionCatalog,
   homeDir: string = resolveLioraHome(),
 ): void {

@@ -14,14 +14,14 @@
 import { existsSync, readFileSync, copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'pathe';
 
-export const JOB_DEV_SERVER_BASE_PORT = 3000;
+const JOB_DEV_SERVER_BASE_PORT = 3000;
 
-export interface WorktreeSetupRecipe {
+interface WorktreeSetupRecipe {
   readonly setupWorktree?: readonly string[];
   readonly copy?: readonly string[];
 }
 
-export interface WorktreeSetupInput {
+interface WorktreeSetupInput {
   readonly repoRoot: string;
   readonly worktreePath: string;
   readonly portOffset?: number;
@@ -33,7 +33,7 @@ export interface WorktreeSetupInput {
   ) => Promise<{ readonly ok: boolean; readonly stderr: string }>;
 }
 
-export interface WorktreeSetupResult {
+interface WorktreeSetupResult {
   readonly notes: readonly string[];
   readonly port?: number;
 }

@@ -16,4 +16,3 @@ export async function createWorktree(kaos: Kaos, root: string, target: string, b
 /** Reattach an existing branch to a worktree path (`git worktree add <path> <branch>`). */
 export async function attachWorktree(kaos: Kaos, root: string, target: string, branch: string): Promise<GitCommandResult> { return runGit(kaos, root, ['worktree', 'add', target, branch]); }
 export async function removeWorktree(kaos: Kaos, root: string, target: string): Promise<void> { await runGit(kaos, root, ['worktree', 'remove', '--force', target]); await runGit(kaos, root, ['worktree', 'prune']); }
-export async function commitAll(kaos: Kaos, cwd: string, msg: string): Promise<GitCommandResult> { const a = await runGit(kaos, cwd, ['add', '-A']); return a.ok ? runGit(kaos, cwd, ['commit', '-m', msg]) : a; }

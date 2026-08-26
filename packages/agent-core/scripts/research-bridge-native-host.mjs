@@ -13,7 +13,7 @@ import { connect, createServer as createNetServer } from 'node:net';
 import { createServer } from 'node:http';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -24,7 +24,6 @@ import {
 const HOST_ID = 'com.superliora.research_bridge';
 const HOST_VERSION = '0.1.0-stub';
 const DEFAULT_BRIDGE_URL = 'http://127.0.0.1:32123/search';
-const DEFAULT_RELAY_PORT = 32_124;
 const EXTENSION_SEARCH_TIMEOUT_MS = 5_000;
 const scriptPath = import.meta.filename;
 
@@ -149,7 +148,6 @@ export function handleMessage(message) {
 
 export function createExtensionRelayState(options = {}) {
   const timeoutMs = options.timeoutMs ?? EXTENSION_SEARCH_TIMEOUT_MS;
-  /** @type {import('node:net').Socket | null} */
   let extensionRelay = null;
   /** @type {Map<string, { resolve: (results: SearchHit[]) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>} */
   const pending = new Map();
@@ -265,7 +263,6 @@ export function normalizeSearchHits(rows) {
 
 async function runStdioHost() {
   const relayPort = relayPortFromEnv();
-  /** @type {import('node:net').Socket | null} */
   let relaySocket = null;
 
   const connectRelay = () => {
@@ -488,13 +485,25 @@ async function main() {
   usage();
 }
 
-const isMain =
-  import.meta.url === new URL(process.argv[1] ?? '', 'file:').href ||
-  import.meta.filename === resolve(process.argv[1] ?? '');
+function isExecutedAsMain() {
+  const entry = process.argv[1];
+  if (entry === undefined || entry.length === 0) return false;
+  const resolved = resolve(entry);
+  try {
+    if (import.meta.url === pathToFileURL(resolved).href) return true;
+  } catch {
+    // Windows argv paths can still match on normalized filenames below.
+  }
+  const left = import.meta.filename.replaceAll('\\', '/');
+  const right = resolved.replaceAll('\\', '/');
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
+}
 
-if (isMain) {
-  main().catch((error) => {
+if (isExecutedAsMain()) {
+  try {
+    await main();
+  } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
-  });
+  }
 }

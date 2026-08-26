@@ -461,7 +461,6 @@ packages/agent-core/src/agent/turn/telemetry.ts:telemetryToolOutcome
 packages/agent-core/src/agent/turn/tool-result-budget.ts:TOOL_RESULT_LARGE_WINDOW_MAX_CHARS
 packages/agent-core/src/agent/turn/tool-result-budget.ts:ToolOutputReceipt
 packages/agent-core/src/autopilot/git.ts:GitCommandResult
-packages/agent-core/src/autopilot/mode.ts:AutopilotPolicy
 packages/agent-core/src/codemap/code-map.ts:CodeMapHit
 packages/agent-core/src/codemap/code-map.ts:codeMapHitToMemoryLink
 packages/agent-core/src/codemap/extract.ts:ExtractResult
@@ -721,10 +720,10 @@ packages/agent-core/src/security/redaction.ts:SecretRedactionResult
 packages/agent-core/src/sensors/auto-check-sensor.ts:AutoCheckDirectiveInput
 packages/agent-core/src/sensors/auto-check-sensor.ts:DecideAutoCheckSpawnInput
 packages/agent-core/src/sensors/auto-check-sensor.ts:FormatAutoCheckSpawnResultInput
+packages/agent-core/src/sensors/host-browser-circuit.ts:markHostBrowserCircuitProbed
 packages/agent-core/src/sensors/stop-sensor.ts:StopSensorInput
 packages/agent-core/src/sensors/verification-sensor-ledger.ts:clearVerificationFailures
 packages/agent-core/src/sensors/verification-sensor-ledger.ts:HOST_BROWSER_EINVAL_LEDGER_NOTE
-packages/agent-core/src/sensors/verification-sensor-ledger.ts:HostBrowserSensorStatus
 packages/agent-core/src/sensors/verification-sensor-ledger.ts:recordVisualVerdict
 packages/agent-core/src/sensors/verification-sensor-ledger.ts:VisualSensorVerdict
 packages/agent-core/src/services/fs/fsServiceHelpers.ts:FS_BINARY_NONPRINTABLE_FRACTION
@@ -996,7 +995,6 @@ packages/agent-core/src/tools/builtin/job/job-lanes.ts:LaneClassification
 packages/agent-core/src/tools/builtin/job/job-ledger.ts:capJobNotes
 packages/agent-core/src/tools/builtin/job/job-ledger.ts:isPinnedJobDiagnosticLine
 packages/agent-core/src/tools/builtin/job/job-ledger.ts:renderJobWaitLabel
-packages/agent-core/src/tools/builtin/job/job-ledger.ts:upsertJob
 packages/agent-core/src/tools/builtin/job/job-merge-trust.ts:MERGE_DANGEROUS_PATH_PATTERNS
 packages/agent-core/src/tools/builtin/job/job-merge-trust.ts:MergeTrustClaim
 packages/agent-core/src/tools/builtin/job/job-merge-trust.ts:MergeTrustInput
@@ -1023,9 +1021,9 @@ packages/agent-core/src/tools/builtin/job/job-push.ts:RunGitFn
 packages/agent-core/src/tools/builtin/job/job-push.ts:RunPushRemoteJobInput
 packages/agent-core/src/tools/builtin/job/job-recovery.ts:JobRecoveryDisposition
 packages/agent-core/src/tools/builtin/job/job-recovery.ts:JobRecoveryResult
+packages/agent-core/src/tools/builtin/job/job-rpc-api.ts:JobLandChoiceKind
 packages/agent-core/src/tools/builtin/job/job-runtime.ts:AssignJobWorktreeInput
 packages/agent-core/src/tools/builtin/job/job-runtime.ts:AttachWorktreeFactory
-packages/agent-core/src/tools/builtin/job/job-runtime.ts:CONDUCTOR_WORKTREE_FAIL_TTL_DAYS
 packages/agent-core/src/tools/builtin/job/job-runtime.ts:ConductorJobStripSnapshot
 packages/agent-core/src/tools/builtin/job/job-runtime.ts:ConductorPoolConfig
 packages/agent-core/src/tools/builtin/job/job-runtime.ts:GcJobWorktreesInput
@@ -1048,11 +1046,11 @@ packages/agent-core/src/tools/builtin/job/job-task-track.ts:normalizeJobTaskTrac
 packages/agent-core/src/tools/builtin/job/job-tools.ts:createConductorJobTools
 packages/agent-core/src/tools/builtin/job/job-tools.ts:MergeJobToolOptions
 packages/agent-core/src/tools/builtin/job/job-tools.ts:PushJobToolOptions
+packages/agent-core/src/tools/builtin/job/job-verify-chain.ts:enqueueDebugJobForVerify
 packages/agent-core/src/tools/builtin/job/job-verify-chain.ts:findDebugChild
 packages/agent-core/src/tools/builtin/job/job-verify-chain.ts:findVerifyChild
 packages/agent-core/src/tools/builtin/job/job-verify-chain.ts:findVerifyChildren
 packages/agent-core/src/tools/builtin/job/job-verify-chain.ts:isDesktopOrOutOfRepoJob
-packages/agent-core/src/tools/builtin/job/job-verify-chain.ts:jobRequiresVerifyChain
 packages/agent-core/src/tools/builtin/job/job-verify-chain.ts:JobVerifyVerdict
 packages/agent-core/src/tools/builtin/job/job-verify-chain.ts:resolveVerifyChildVerdictForStamp
 packages/agent-core/src/tools/builtin/job/job-worker-guards.ts:isPathOutsideWorktree
@@ -1063,6 +1061,7 @@ packages/agent-core/src/tools/builtin/job/job-worker-ledger-bridge.ts:clearJobWo
 packages/agent-core/src/tools/builtin/job/job-worker.ts:LaunchJobWorkerInput
 packages/agent-core/src/tools/builtin/job/job-worker.ts:LaunchJobWorkerResult
 packages/agent-core/src/tools/builtin/job/job-worker.ts:pumpSchedulerAfterWorker
+packages/agent-core/src/tools/builtin/job/job-workspace-bind.ts:unbindWorkspaceSessionCatalog
 packages/agent-core/src/tools/builtin/job/job-worktree-commit.ts:CommitJobWorktreeInput
 packages/agent-core/src/tools/builtin/job/job-worktree-commit.ts:CommitJobWorktreeResult
 packages/agent-core/src/tools/builtin/job/job-worktree-commit.ts:kaosWorktreeGitRunner

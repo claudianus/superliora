@@ -11,7 +11,7 @@ import type { ToolStore } from '../../store';
 import { readJobLedger } from './job-ledger';
 import { upsertWorkspaceCatalogJobs } from './job-workspace-catalog';
 
-export interface WorkspaceCatalogBinding {
+interface WorkspaceCatalogBinding {
   readonly homeDir: string;
   readonly workDir: string;
   readonly sourceAgentDir?: string;
@@ -56,7 +56,7 @@ export function scheduleWorkspaceCatalogSync(store: ToolStore): void {
   binding.timer.unref?.();
 }
 
-export function flushWorkspaceCatalogSync(store: ToolStore): void {
+function flushWorkspaceCatalogSync(store: ToolStore): void {
   const binding = bindings.get(store);
   if (binding === undefined) return;
   try {
@@ -78,7 +78,7 @@ export function siblingWorkerHomedir(
   return join(dirname(sourceAgentDir), workerId);
 }
 
-export interface ImportWorkerHomedirResult {
+interface ImportWorkerHomedirResult {
   readonly ok: boolean;
   readonly dest: string;
   readonly copied: boolean;

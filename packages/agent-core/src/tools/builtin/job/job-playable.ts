@@ -20,13 +20,13 @@ const PLAYABLE_ENTRY_CANDIDATES = ['index.html', 'index.htm'] as const;
 
 export function destIsUserDesktopDocument(path: string | undefined): boolean {
   if (path === undefined || path.trim().length === 0) return false;
-  const n = path.replaceAll(/\\/g, '/');
+  const n = path.replaceAll('\\', '/');
   if (!/\/desktop\//i.test(n)) return false;
   return /\.(md|txt|markdown)$/i.test(n);
 }
 
 export function isForbiddenDestRelPath(relPath: string): boolean {
-  const n = relPath.replaceAll(/\\/g, '/').replace(/^\/+/, '');
+  const n = relPath.replaceAll('\\', '/').replace(/^\/+/, '');
   if (n.length === 0) return true;
   const parts = n.split('/');
   return parts.some((part) => {
@@ -41,7 +41,7 @@ export function inferPlayableFromChangeSet(
 ): 'yes' | 'no' | 'unknown' {
   const hay = `${filesChanged.join('\n')}\n${summary ?? ''}`.toLowerCase();
   if (
-    filesChanged.some((file) => /(?:^|\/)index\.html?$/i.test(file.replaceAll(/\\/g, '/')))
+    filesChanged.some((file) => /(?:^|\/)index\.html?$/i.test(file.replaceAll('\\', '/')))
   ) {
     return 'yes';
   }
@@ -57,7 +57,7 @@ export function inferPlayableFromChangeSet(
   return 'unknown';
 }
 
-export function resolvePlayablePath(input: {
+function resolvePlayablePath(input: {
   readonly job: Pick<JobRecord, 'worktreePath' | 'repoRoot' | 'ownershipPaths'>;
   readonly filesChanged?: readonly string[];
 }): string | undefined {
@@ -65,7 +65,7 @@ export function resolvePlayablePath(input: {
   const worktree = input.job.worktreePath?.trim();
   const files = input.filesChanged ?? [];
   const entry = files.find((file) =>
-    PLAYABLE_ENTRY_CANDIDATES.some((name) => file.replaceAll(/\\/g, '/').endsWith(name)),
+    PLAYABLE_ENTRY_CANDIDATES.some((name) => file.replaceAll('\\', '/').endsWith(name)),
   );
   if (dest !== undefined && dest.length > 0) {
     if (entry !== undefined) return join(dest, entry);
@@ -83,7 +83,7 @@ export function resolvePlayablePath(input: {
   return ownership;
 }
 
-export interface SyncPlayableFilesResult {
+interface SyncPlayableFilesResult {
   readonly ok: boolean;
   readonly playablePath?: string;
   readonly copied: number;
@@ -117,7 +117,7 @@ export function syncPlayableFilesToDest(input: {
   let skipped = 0;
   try {
     for (const file of input.filesChanged) {
-      const rel = file.replaceAll(/\\/g, '/').replace(/^\/+/, '');
+      const rel = file.replaceAll('\\', '/').replace(/^\/+/, '');
       if (isForbiddenDestRelPath(rel)) {
         skipped += 1;
         continue;

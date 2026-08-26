@@ -15,7 +15,7 @@ export interface SkillWritingQualityIssue {
   readonly message: string;
 }
 
-export interface SkillWritingQualityMeta {
+interface SkillWritingQualityMeta {
   readonly description?: string | undefined;
   readonly whenToUse?: string | undefined;
 }

@@ -15,14 +15,14 @@ import { SKILL_NAME_RE, commitProjectSkill } from '../tools/builtin/fleet/skill-
 import type { ToolCallEvent } from './auto-skillify';
 import { skillWhenToUse } from './types';
 
-export const LESSON_KINDS = [
+const LESSON_KINDS = [
   'nonobvious_fact',
   'inferred_constraint',
   'recovery_playbook',
   'user_correction',
 ] as const;
 
-export type LessonKind = (typeof LESSON_KINDS)[number];
+type LessonKind = (typeof LESSON_KINDS)[number];
 
 const LessonGateSchema = z
   .object({
@@ -51,8 +51,8 @@ const DistilledSkillSchema = z
   })
   .strict();
 
-export type LessonGate = z.infer<typeof LessonGateSchema>;
-export type DistilledSkill = z.infer<typeof DistilledSkillSchema>;
+type LessonGate = z.infer<typeof LessonGateSchema>;
+type DistilledSkill = z.infer<typeof DistilledSkillSchema>;
 
 export class SkillDistillError extends Error {
   constructor(message: string) {
@@ -179,7 +179,7 @@ async function generateJsonText(agent: Agent, system: string, user: string): Pro
     .join('\n');
 }
 
-export async function distillLessonToSkill(
+async function distillLessonToSkill(
   agent: Agent,
   input: {
     readonly serializedTrajectory: string;

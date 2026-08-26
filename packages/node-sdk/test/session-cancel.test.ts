@@ -79,13 +79,14 @@ describe('Session.cancel', () => {
       const unsubscribe = session.onEvent((event) => {
         events.push(event);
       });
-      const started = waitForSDKEvent(session, (event) => event.type === 'turn.started');
-      const ended = waitForSDKEvent(session, (event) => event.type === 'turn.ended');
+      const started = waitForSDKEvent(session, (event) => event.type === 'turn.started', 8_000);
+      const ended = waitForSDKEvent(session, (event) => event.type === 'turn.ended', 8_000);
 
-      await session.prompt('start a turn that will be cancelled');
+      const promptPromise = session.prompt('start a turn that will be cancelled');
       const startedEvent = await started;
       await session.cancel();
       const endedEvent = await ended;
+      await promptPromise.catch(() => undefined);
       unsubscribe();
 
       expect(startedEvent).toMatchObject({
@@ -155,10 +156,10 @@ describe('LioraHarness.forkSession', () => {
 
     try {
       const session = await harness.createSession({ id: 'ses_fork_active_turn', workDir });
-      const started = waitForSDKEvent(session, (event) => event.type === 'turn.started');
-      const ended = waitForSDKEvent(session, (event) => event.type === 'turn.ended');
+      const started = waitForSDKEvent(session, (event) => event.type === 'turn.started', 8_000);
+      const ended = waitForSDKEvent(session, (event) => event.type === 'turn.ended', 8_000);
 
-      await session.prompt('keep this turn active');
+      const promptPromise = session.prompt('keep this turn active');
       await started;
       try {
         await expect(
@@ -173,6 +174,7 @@ describe('LioraHarness.forkSession', () => {
       } finally {
         await session.cancel().catch(() => undefined);
         await ended.catch(() => undefined);
+        await promptPromise.catch(() => undefined);
       }
     } finally {
       await harness.close();
