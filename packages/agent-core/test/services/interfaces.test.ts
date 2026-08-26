@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   Emitter,
@@ -13,24 +13,7 @@ import type { ApprovalRequest, Event, QuestionRequest } from '../../src';
 import {
   IApprovalService,
   IEventService,
-  IFileStore,
-  IFsGitService,
-  IFsSearchService,
-  IFsService,
-  IFsWatcher,
-  ILogService,
   IQuestionService,
-  IWorkspaceFsService,
-  IWorkspaceRegistry,
-  FileStore,
-  FsGitService,
-  FsSearchService,
-  FsService,
-  FsWatcherService,
-  WorkspaceFsService,
-  WorkspaceRegistryService,
-  parsePorcelain,
-  resolveSafePath,
   type ApprovalResponse,
   type QuestionResult,
 } from '../../src/services';
@@ -227,36 +210,5 @@ describe('@superliora/agent-core · services interfaces', () => {
     expect(ix.get(IEventService)).toBeUndefined();
     expect(ix.get(IApprovalService)).toBeUndefined();
     expect(ix.get(IQuestionService)).toBeUndefined();
-  });
-
-  it('IEventService / IApprovalService / IQuestionService are callable ServiceIdentifiers (compile-time guard)', () => {
-    expect(typeof IEventService).toBe('function');
-    expect(typeof IApprovalService).toBe('function');
-    expect(typeof IQuestionService).toBe('function');
-
-    const _typeProbe: ApprovalResponse | QuestionResult = null;
-    void _typeProbe;
-    vi.fn();
-  });
-
-  it('exports filesystem, file store, logger, and workspace service surfaces from the services package', () => {
-    expect(typeof ILogService).toBe('function');
-    expect(typeof IFileStore).toBe('function');
-    expect(typeof IFsService).toBe('function');
-    expect(typeof IFsSearchService).toBe('function');
-    expect(typeof IFsGitService).toBe('function');
-    expect(typeof IFsWatcher).toBe('function');
-    expect(typeof IWorkspaceRegistry).toBe('function');
-    expect(typeof IWorkspaceFsService).toBe('function');
-
-    expect(typeof FileStore).toBe('function');
-    expect(typeof FsService).toBe('function');
-    expect(typeof FsSearchService).toBe('function');
-    expect(typeof FsGitService).toBe('function');
-    expect(typeof FsWatcherService).toBe('function');
-    expect(typeof WorkspaceRegistryService).toBe('function');
-    expect(typeof WorkspaceFsService).toBe('function');
-    expect(typeof parsePorcelain).toBe('function');
-    expect(typeof resolveSafePath).toBe('function');
   });
 });

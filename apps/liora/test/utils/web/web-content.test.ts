@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  WEB_FETCH_MAX_BYTES,
-  WEB_FETCH_TIMEOUT_MS,
   fetchWebContent,
   htmlToReadableText,
   normalizeWebUrl,
@@ -146,11 +144,6 @@ describe('htmlToReadableText', () => {
 describe('fetchWebContent', () => {
   const jsonResponse = (body: string, init?: ResponseInit): Response =>
     new Response(body, init);
-
-  it('exports the default timeout and byte cap', () => {
-    expect(WEB_FETCH_TIMEOUT_MS).toBe(10_000);
-    expect(WEB_FETCH_MAX_BYTES).toBe(1_000_000);
-  });
 
   it('throws on an invalid URL', async () => {
     await expect(

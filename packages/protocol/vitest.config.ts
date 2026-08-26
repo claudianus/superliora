@@ -6,5 +6,7 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     include: ['src/__tests__/**/*.test.ts'],
+    // No vi.mock in this package — reuse the module graph across files.
+    isolate: false,
   },
 });

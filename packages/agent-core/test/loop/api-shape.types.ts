@@ -7,12 +7,10 @@
  * this file is the structural complement to them.
  *
  * Type checks live inside a never-called function body so they run during
- * compile (`tsc --noEmit`) but cost nothing at runtime. A single trivial
- * `it` keeps Vitest happy.
+ * compile (`tsc --noEmit`) but cost nothing at runtime.
  */
 
 import type { ContentPart, ModelCapability, TokenUsage } from '@superliora/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { createLoopEventDispatcher, runTurn, ToolAccesses } from '../../src/loop/index';
 import type {
@@ -583,10 +581,6 @@ function _typeOnlyChecks(): void {
   void _e;
 }
 void _typeOnlyChecks;
-
-describe('loop public API shape', () => {
-  it('barrel exports the runtime entry points', () => {
-    expect(typeof runTurn).toBe('function');
-    expect(typeof createLoopEventDispatcher).toBe('function');
-  });
-});
+void runTurn;
+void createLoopEventDispatcher;
+void ToolAccesses;

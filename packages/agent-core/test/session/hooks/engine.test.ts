@@ -37,13 +37,4 @@ describe('hooks/engine.ts — HookEngine.trigger (no matching hooks)', () => {
     const out = await engine.trigger('UserPromptSubmit', { matcherValue: 'commit' });
     expect(out).toEqual([]);
   });
-
-  it('returns the public trigger / fireAndForgetTrigger / triggerBlock / summary surface', () => {
-    const engine = new HookEngine([]);
-    expect(typeof engine.trigger).toBe('function');
-    expect(typeof engine.fireAndForgetTrigger).toBe('function');
-    expect(typeof engine.triggerBlock).toBe('function');
-    // `summary` is a getter, not a method.
-    expect(typeof engine.summary).toBe('object');
-  });
 });

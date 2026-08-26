@@ -4,7 +4,8 @@
 // scripts/debug-local.mjs — this runner kills motion on purpose.
 //
 // Usage:
-//   node scripts/test-local.mjs                 # affected workspaces (vs origin/main + worktree)
+//   node scripts/test-local.mjs                 # affected workspaces + dependents (vs origin/main + worktree)
+//   node scripts/test-local.mjs --direct        # changed workspaces only (no dependents)
 //   node scripts/test-local.mjs --all           # whole monorepo
 //   node scripts/test-local.mjs <path|pattern>  # vitest filters, e.g. apps/liora/test/tui
 //   node scripts/test-local.mjs --base HEAD~3   # different comparison base
@@ -110,6 +111,12 @@ function isInertForTests(file) {
 
 const hasTests = (dir) => existsSync(join(repoRoot, dir, 'test')) || existsSync(join(repoRoot, dir, 'src/__tests__'));
 
+/** Vitest path filter for a workspace that actually has tests. */
+function testDirFilter(dir) {
+  if (existsSync(join(repoRoot, dir, 'src/__tests__'))) return `${dir}/src/__tests__`;
+  return `${dir}/test`;
+}
+
 /**
  * Changed workspaces *plus their dependents*, straight from pnpm's own graph —
  * a change in `telemetry` has to re-run `agent-core`, `sdk`, and `liora` too.
@@ -133,25 +140,38 @@ function changedWorkspaceClosure(base) {
 
 /**
  * `filters: undefined` means "run everything" — a shared script or root config
- * change can break any package, and the whole suite is ~2 minutes. `filters: []`
- * means nothing observable changed.
+ * change can break any package. `filters: []` means nothing observable changed.
+ *
+ * Default mode includes pnpm dependents. `direct` limits to the workspaces
+ * that own the changed files (faster local iteration).
  */
-function decideScope(changed, closureOf, dirHasTests) {
+function decideScope(changed, closureOf, dirHasTests, options = {}) {
   const files = changed.filter((file) => !isInertForTests(file));
+  const toFilter = options.toFilter ?? ((dir) => `${dir}/test`);
+  const direct = options.direct === true;
   if (files.length === 0) return { filters: [], reason: 'no code changes' };
   const shared = files.find((file) => ownerWorkspace(file) === undefined);
   if (shared !== undefined) return { filters: undefined, reason: `shared file changed (${shared})` };
+  if (direct) {
+    const owners = [...new Set(files.map(ownerWorkspace).filter((dir) => dir !== undefined))];
+    const testable = owners.filter(dirHasTests);
+    if (testable.length === 0) return { filters: [], reason: 'no test dir in the changed workspaces' };
+    return { filters: testable.map(toFilter), reason: `direct: ${testable.join(', ')}` };
+  }
   const closure = closureOf();
   if (closure === undefined) return { filters: undefined, reason: 'pnpm could not resolve the changed graph' };
   const testable = closure.filter(dirHasTests);
   if (testable.length === 0) return { filters: [], reason: 'no test dir in the affected graph' };
-  return { filters: testable.map((dir) => `${dir}/test`), reason: `affected: ${testable.join(', ')}` };
+  return { filters: testable.map(toFilter), reason: `affected: ${testable.join(', ')}` };
 }
 
-function affectedFilters(base) {
+function affectedFilters(base, options = {}) {
   const changed = changedFiles(base);
   if (changed === undefined) return { filters: undefined, reason: `git could not diff against ${base}` };
-  return decideScope(changed, () => changedWorkspaceClosure(base), hasTests);
+  return decideScope(changed, () => changedWorkspaceClosure(base), hasTests, {
+    ...options,
+    toFilter: testDirFilter,
+  });
 }
 
 function selfCheck() {
@@ -163,14 +183,17 @@ function selfCheck() {
     { files: ['scripts/test-local.mjs'], want: 'all' },
     { files: ['packages/telemetry/src/index.ts', 'meta/test-baseline.yaml'], want: 'packages/agent-core/test,apps/liora/test' },
     { files: ['packages/telemetry/src/index.ts'], closure: () => undefined, want: 'all' },
+    { files: ['packages/agent-core/src/foo.ts'], direct: true, want: 'packages/agent-core/test' },
+    { files: ['packages/telemetry/src/index.ts'], direct: true, want: '[]' },
+    { files: ['scripts/test-local.mjs'], direct: true, want: 'all' },
   ];
   let failed = 0;
-  for (const { files, closure: override, want } of cases) {
-    const { filters } = decideScope(files, override ?? closure, withTests);
+  for (const { files, closure: override, want, direct } of cases) {
+    const { filters } = decideScope(files, override ?? closure, withTests, { direct });
     const actual = filters === undefined ? 'all' : filters.length === 0 ? '[]' : filters.join(',');
     if (actual !== want) {
       failed++;
-      console.error(`self-check FAIL ${JSON.stringify(files)}: expected ${want}, got ${actual}`);
+      console.error(`self-check FAIL ${JSON.stringify(files)} direct=${Boolean(direct)}: expected ${want}, got ${actual}`);
     }
   }
   // Fail open, not silent: an unresolvable base must widen to the full suite.
@@ -200,15 +223,16 @@ if (baseIdx >= 0 && base === undefined) {
   process.exit(2);
 }
 const baseArgIndices = baseIdx >= 0 ? [baseIdx, baseIdx + 1] : [];
-const LOCAL_FLAGS = ['--all', '--scope', '--self-check'];
-const forwarded = argv.filter((arg, i) => !LOCAL_FLAGS.includes(arg) && !baseArgIndices.includes(i));
+const LOCAL_FLAGS = new Set(['--all', '--scope', '--self-check', '--direct']);
+const forwarded = argv.filter((arg, i) => !LOCAL_FLAGS.has(arg) && !baseArgIndices.includes(i));
 const hasExplicitFilter = forwarded.some((arg) => !arg.startsWith('-'));
+const direct = argv.includes('--direct');
 
 const scopeOnly = argv.includes('--scope');
 let filters = [];
 let nothingToRun = false;
 if (!argv.includes('--all') && !hasExplicitFilter) {
-  const affected = affectedFilters(base);
+  const affected = affectedFilters(base, { direct });
   if (affected.filters === undefined) {
     console.log(`test-local: full suite — ${affected.reason}`);
   } else if (affected.filters.length === 0) {
