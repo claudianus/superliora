@@ -54,16 +54,17 @@ Package boundaries stay as in Project Map. Inside a package:
 
 ## Local test gate (MANDATORY)
 
-**Never push to find out whether tests pass.** GitHub CI is a ~15-minute backstop; the full local suite is ~2 minutes. A red CI run that a local run would have caught is a process failure, not bad luck.
+**Never push to find out whether tests pass.** GitHub CI is a ~15-minute backstop. The full suite is a few minutes on Linux CI / fast hosts, and about 15 minutes on a typical Windows workstation (import cost dominates, not assertion count). A red CI run that a local run would have caught is a process failure, not bad luck.
 
 | When | Command | Cost |
 |---|---|---|
 | One file / one case | `node scripts/test-local.mjs <path> -t "case"` | ~5s |
-| While iterating | `pnpm run test:local` — changed workspaces **and their pnpm dependents** | seconds–1 min |
-| Before every push | `pnpm run gate` — lint + typecheck + full suite | ~3.5 min |
-| Whole suite only | `pnpm run test:all` | ~2.5 min |
+| Iterate the packages you edited | `node scripts/test-local.mjs --direct` | seconds–1 min |
+| Iterate plus pnpm dependents | `pnpm run test:local` | seconds–several min; oauth/core/liora graphs approach the full suite |
+| Before every push | `pnpm run gate` — lint + typecheck + full suite | Linux CI a few minutes; Windows workstation ~15 min for tests |
+| Whole suite only | `pnpm run test:all` | same as the test half of `gate` |
 
-`test:local` widens to the full suite when a shared file (root config, `scripts/`) changes and skips the run entirely when only docs/changesets changed; `--scope` prints the decision without running, `--all` forces everything.
+`test:local` widens to the full suite when a shared file (root config, `scripts/`) changes and skips the run entirely when only docs/changesets changed; `--scope` prints the decision without running, `--direct` limits to workspaces that own the diff (no dependents), `--all` forces everything.
 
 **Always run tests through `scripts/test-local.mjs`, not bare `vitest`.** A dev shell is not a runner: `NO_COLOR` / `TERM=dumb` silently disable TUI motion, a local timezone hides UTC clock assertions, `init.defaultBranch=main` hides bare-repo HEAD assumptions, and provider keys in your shell let network paths pass that CI cannot reach. The runner strips that state; `node scripts/test-local.mjs --env` prints exactly what it changes. Bare `pnpm exec vitest` is for `--watch` only, and its green result proves nothing about CI.
 
@@ -188,4 +189,4 @@ Durable notes for Cloud Agent VMs. Standard commands live in this file's tables 
 - **Building is not done at startup.** Before running the built CLI or the source-install gate, build first: `corepack pnpm run build:packages` (workspace libs) and, for the CLI bundle, `corepack pnpm -C apps/liora run build`. See "Source-install gate" above.
 - **Running the product:** the shippable product is the `apps/liora` CLI/TUI; it runs the agent engine in-process via the SDK and does **not** need `packages/server`. Launch dev mode with `corepack pnpm dev:cli` (or `pnpm -C apps/liora run dev -- --debug`). The TUI needs a real PTY — run it inside `tmux` or a terminal emulator (`xfce4-terminal` is installed), not a bare piped shell.
 - **An LLM provider credential is required for any real agent turn.** No provider key/login is present by default; the TUI opens a "Connect a provider" dialog on first run. To exercise the core coding loop, set a provider secret (e.g. `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) or `/login` in the TUI. Everything except an actual model call (build, lint, full test suite, TUI navigation) works without it.
-- **Test suite runtime:** `pnpm test:all` (whole monorepo via `scripts/test-local.mjs`) runs ~16.5k tests and takes ~10 min on Cloud VMs — budget accordingly rather than assuming the ~2.5 min figure from faster hosts. Always run tests through `scripts/test-local.mjs` (see "Local test gate").
+- **Test suite runtime:** `pnpm test:all` (whole monorepo via `scripts/test-local.mjs`) runs ~16.5k tests and takes ~10 min on Cloud VMs — budget accordingly rather than assuming a few minutes on a fast Linux host. Always run tests through `scripts/test-local.mjs` (see "Local test gate").

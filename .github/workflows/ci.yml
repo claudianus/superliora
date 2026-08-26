@@ -45,7 +45,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run test
+      - run: node scripts/test-local.mjs --all
       - run: pnpm run check:test-baseline
 
   test-windows:
@@ -69,7 +69,7 @@ jobs:
       # Default forks use cpus-1 workers; that OOMs windows-latest and
       # fails the job with "Worker exited unexpectedly" after every
       # reported test passed. Cap the pool (also set in vitest.config.ts).
-      - run: pnpm run test -- --testTimeout=30000 --maxWorkers=2
+      - run: node scripts/test-local.mjs --all --testTimeout=30000 --maxWorkers=2
 
   lint:
     runs-on: ubuntu-latest
