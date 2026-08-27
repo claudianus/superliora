@@ -243,6 +243,22 @@ describe('shipped landing copy', () => {
     }
   });
 
+  it('teaches shipped Appearance preview, streaming fences, and Job Deck/Inbox list chrome', () => {
+    for (const lang of ['ko', 'en'] as const) {
+      const t = translations[lang];
+      const features = t.clusters.items.flatMap((cluster) => cluster.features);
+      const visual = features.find((feature) => feature.id === 'visual-quality');
+      const jobDeck = features.find((feature) => feature.id === 'job-deck');
+      const inbox = features.find((feature) => feature.id === 'inbox');
+      expect(visual?.body).toContain('Settings → Appearance');
+      expect(visual?.body).toMatch(/Esc/);
+      expect(visual?.body).toMatch(/streaming|흐르는/);
+      expect(visual?.body).toMatch(/fence|펜스/);
+      expect(jobDeck?.body).toMatch(/Search:/);
+      expect(inbox?.body).toMatch(/search|검색/);
+    }
+  });
+
   it('teaches live /quota and the footer remaining chip in EN and KO', () => {
     for (const name of ['README.md', 'README.ko.md'] as const) {
       const readme = readFileSync(resolve(repoRoot, name), 'utf8');
