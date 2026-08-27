@@ -266,7 +266,6 @@ describe('Land/verify Job snapshot for Job Deck', () => {
     expect(verify).toBeDefined();
     patchJob(store, verify!.id, {
       status: 'done',
-      expertId: 'checker-x',
       verifyVerdict: 'failed',
       resultSummary: '{"verdict":"fail","findings":["red"],"required_fixes":["fix"]}',
     });
