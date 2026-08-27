@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   cacheInvalidateEpochPatch,
   mergeConfigPatch,
+  pinPromptCacheKeyToAgent,
   resolvePromptCacheKey,
   type LioraConfig,
 } from '../../src/config';
@@ -77,11 +78,11 @@ describe('ProviderManager dynamic promptCacheKey', () => {
     });
 
     const first = manager.resolveProviderConfig('kimi-code/kimi-for-coding');
-    expect(first.provider.generationKwargs?.['prompt_cache_key']).toBe('sess-abc');
+    expect(promptCacheKeyOf(first.provider)).toBe('sess-abc');
 
     epoch = 2;
     const second = manager.resolveProviderConfig('kimi-code/kimi-for-coding');
-    expect(second.provider.generationKwargs?.['prompt_cache_key']).toBe('sess-abc:v2');
+    expect(promptCacheKeyOf(second.provider)).toBe('sess-abc:v2');
   });
 
   it('pins prompt_cache_key for OpenAI-compatible (xAI Grok) providers', () => {
@@ -108,6 +109,80 @@ describe('ProviderManager dynamic promptCacheKey', () => {
     });
     const resolved = manager.resolveProviderConfig('xai-grok/grok-4.5');
     expect(resolved.provider.type).toBe('openai');
-    expect(resolved.provider.generationKwargs?.['prompt_cache_key']).toBe('sess-xai');
+    expect(promptCacheKeyOf(resolved.provider)).toBe('sess-xai');
   });
 });
+
+describe('pinPromptCacheKeyToAgent', () => {
+  it('keeps the session key for main', () => {
+    expect(pinPromptCacheKeyToAgent('sess-abc', 'main')).toBe('sess-abc');
+    expect(pinPromptCacheKeyToAgent('sess-abc:v2', 'main')).toBe('sess-abc:v2');
+    expect(pinPromptCacheKeyToAgent('sess-abc', '  ')).toBe('sess-abc');
+  });
+
+  it('appends the worker agent id before an invalidate epoch', () => {
+    expect(pinPromptCacheKeyToAgent('sess-abc', 'agent-0')).toBe('sess-abc:agent-0');
+    expect(pinPromptCacheKeyToAgent('sess-abc:v2', 'agent-0')).toBe('sess-abc:agent-0:v2');
+    expect(pinPromptCacheKeyToAgent('sess-abc:v10', 'agent-3')).toBe('sess-abc:agent-3:v10');
+  });
+});
+
+describe('ProviderManager.forAgent', () => {
+  it('returns the same manager for main and pins Job workers to their agent id', () => {
+    const manager = new ProviderManager({
+      config: BASE_CONFIG,
+      promptCacheKey: () => resolvePromptCacheKey('sess-abc', BASE_CONFIG),
+    });
+    expect(manager.forAgent('main')).toBe(manager);
+    expect(
+      promptCacheKeyOf(
+        manager.forAgent('main').resolveProviderConfig('kimi-code/kimi-for-coding').provider,
+      ),
+    ).toBe('sess-abc');
+
+    const worker = manager.forAgent('agent-0');
+    expect(worker).not.toBe(manager);
+    expect(
+      promptCacheKeyOf(worker.resolveProviderConfig('kimi-code/kimi-for-coding').provider),
+    ).toBe('sess-abc:agent-0');
+    expect(
+      promptCacheKeyOf(
+        manager.forAgent('agent-1').resolveProviderConfig('kimi-code/kimi-for-coding').provider,
+      ),
+    ).toBe('sess-abc:agent-1');
+  });
+
+  it('keeps Settings cache invalidate on the pinned worker key', () => {
+    let epoch = 2;
+    const manager = new ProviderManager({
+      config: () => ({ ...BASE_CONFIG, cache: { invalidateEpoch: epoch } }),
+      promptCacheKey: () =>
+        resolvePromptCacheKey('sess-abc', { ...BASE_CONFIG, cache: { invalidateEpoch: epoch } }),
+    });
+    const worker = manager.forAgent('agent-0');
+    expect(
+      promptCacheKeyOf(worker.resolveProviderConfig('kimi-code/kimi-for-coding').provider),
+    ).toBe('sess-abc:agent-0:v2');
+
+    epoch = 3;
+    expect(
+      promptCacheKeyOf(worker.resolveProviderConfig('kimi-code/kimi-for-coding').provider),
+    ).toBe('sess-abc:agent-0:v3');
+  });
+
+  it('leaves generationKwargs unset when the session has no cache key', () => {
+    const manager = new ProviderManager({ config: BASE_CONFIG });
+    expect(
+      promptCacheKeyOf(
+        manager.forAgent('agent-0').resolveProviderConfig('kimi-code/kimi-for-coding').provider,
+      ),
+    ).toBeUndefined();
+  });
+});
+
+/** Kosong `ProviderConfig` is a union; only some members carry generationKwargs. */
+function promptCacheKeyOf(provider: object): unknown {
+  const kwargs = (provider as { generationKwargs?: { prompt_cache_key?: unknown } })
+    .generationKwargs;
+  return kwargs?.prompt_cache_key;
+}
