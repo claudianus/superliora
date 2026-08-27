@@ -22,6 +22,7 @@ import type { SandboxProfile } from '../../tools/policies/path-access';
 import { FileSnapshotStore } from '../file-snapshot';
 import type { ExperimentalFlagResolver } from '../../flags';
 import { responseLanguagePreferenceFromUnknown } from '../response-language';
+import { ProviderManager } from '../provider/provider-manager';
 import { SessionSubagentHost } from '../subagent/subagent-host';
 import type { Session } from '../index';
 import type {
@@ -100,7 +101,7 @@ export class SessionAgentLifecycle {
       homedir,
       skills: this.opts.skills,
       rpc: proxyWithExtraPayload(this.opts.rpc, { agentId: id }),
-      modelProvider: this.opts.options.providerManager,
+      modelProvider: providerManagerForAgent(this.opts.options.providerManager, id),
       hookEngine: config.hookEngine ?? this.opts.hookEngine,
       subagentHost: config.subagentHost ?? new SessionSubagentHost(this.opts.session, id),
       mcp: this.opts.mcp,
@@ -240,4 +241,12 @@ export class SessionAgentLifecycle {
     }
     return 'lexical';
   }
+}
+
+function providerManagerForAgent(
+  manager: SessionOptions['providerManager'],
+  agentId: string,
+): SessionOptions['providerManager'] {
+  if (manager instanceof ProviderManager) return manager.forAgent(agentId);
+  return manager;
 }

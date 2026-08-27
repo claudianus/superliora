@@ -7,7 +7,12 @@ import {
   readGitHubCopilotEnvToken,
   sharedCredentialHealthStore,
 } from '@superliora/oauth';
-import { effectiveModelAlias, type LioraConfig, type ProviderConfig } from '../../config';
+import {
+  effectiveModelAlias,
+  pinPromptCacheKeyToAgent,
+  type LioraConfig,
+  type ProviderConfig,
+} from '../../config';
 import { ErrorCodes, isKimiError, LioraError } from '../../errors';
 
 import {
@@ -51,6 +56,26 @@ export { providerHasAnyCredential } from './provider-manager-capability';
 
 export class ProviderManager implements ModelProvider {
   constructor(private readonly options: ProviderManagerOptions) {}
+
+  /**
+   * Conductor (main) keeps the session cache key. Job workers / subagents
+   * get `sessionId:agentId` so multi-turn work reuses that worker's prefix
+   * instead of competing with the desk (and each other) on one routing key.
+   */
+  forAgent(agentId: string): ProviderManager {
+    const trimmed = agentId.trim();
+    if (trimmed.length === 0 || trimmed === 'main') return this;
+    const parent = this.options.promptCacheKey;
+    return new ProviderManager({
+      ...this.options,
+      promptCacheKey: () => {
+        const sessionKey =
+          parent === undefined ? undefined : typeof parent === 'function' ? parent() : parent;
+        if (sessionKey === undefined || sessionKey.length === 0) return sessionKey;
+        return pinPromptCacheKeyToAgent(sessionKey, trimmed);
+      },
+    });
+  }
 
   private get config(): LioraConfig {
     const { config } = this.options;
