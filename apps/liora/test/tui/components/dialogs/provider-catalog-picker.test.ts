@@ -175,6 +175,81 @@ describe('buildProviderCatalogOptions', () => {
     expect(ox?.envVars).toContain('OPENCODE_API_KEY');
     expect(ox?.modelCount).toBeGreaterThan(0);
   });
+
+  it('surfaces Chat Completions majors whose npm package does not contain openai', () => {
+    const catalog: Catalog = {
+      ...makeCatalog(),
+      groq: {
+        id: 'groq',
+        name: 'Groq',
+        env: ['GROQ_API_KEY'],
+        npm: '@ai-sdk/groq',
+        doc: 'https://console.groq.com/docs/models',
+        models: {
+          'llama-3.3-70b-versatile': {
+            id: 'llama-3.3-70b-versatile',
+            name: 'Llama 3.3 70B',
+            limit: { context: 131072 },
+            tool_call: true,
+          },
+        },
+      },
+      mistral: {
+        id: 'mistral',
+        name: 'Mistral',
+        env: ['MISTRAL_API_KEY'],
+        npm: '@ai-sdk/mistral',
+        models: {
+          'mistral-large-latest': {
+            id: 'mistral-large-latest',
+            name: 'Mistral Large',
+            limit: { context: 131072 },
+            tool_call: true,
+            modalities: { input: ['text', 'image'], output: ['text'] },
+          },
+        },
+      },
+      xai: {
+        id: 'xai',
+        name: 'xAI',
+        env: ['XAI_API_KEY'],
+        npm: '@ai-sdk/xai',
+        models: {
+          'grok-4.5': {
+            id: 'grok-4.5',
+            name: 'Grok 4.5',
+            limit: { context: 200000 },
+            tool_call: true,
+            reasoning: true,
+            modalities: { input: ['text', 'image'], output: ['text'] },
+          },
+        },
+      },
+      cohere: {
+        id: 'cohere',
+        name: 'Cohere',
+        env: ['COHERE_API_KEY'],
+        npm: '@ai-sdk/cohere',
+        models: {
+          'command-a': { id: 'command-a', name: 'Command A', limit: { context: 256000 } },
+        },
+      },
+    };
+    const options = buildProviderCatalogOptions(catalog);
+    const groq = options.find((o) => o.catalogId === 'groq');
+    expect(groq).toMatchObject({
+      label: 'Groq',
+      authKind: 'api-key',
+      envVars: ['GROQ_API_KEY'],
+      baseUrl: 'https://api.groq.com/openai/v1',
+      modelCount: 1,
+    });
+    expect(options.find((o) => o.catalogId === 'mistral')?.baseUrl).toBe(
+      'https://api.mistral.ai/v1',
+    );
+    expect(options.find((o) => o.catalogId === 'xai')?.baseUrl).toBe('https://api.x.ai/v1');
+    expect(options.some((o) => o.catalogId === 'cohere')).toBe(false);
+  });
 });
 
 describe('resolveProviderSelection', () => {
