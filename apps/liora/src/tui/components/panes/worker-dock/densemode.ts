@@ -12,9 +12,14 @@ import { truncateToWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import type { AppearancePreferences } from '#/tui/config';
-import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
+import {
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/features/appearance/appearance-effects';
+import { applyStreamTailGlow } from '#/tui/features/transcript/transcript-entrance';
 import { renderPulseCountChip } from '#/tui/components/chrome/chrome-band-motion';
 import type { DockOpsEntry, DockWorker } from '#/tui/controllers/worker-dock/registry';
+import { isToolProgressLiveKind } from '#/tui/controllers/worker-dock/registry';
 import {
   JOB_STATUS_META,
   shortJobId,
@@ -106,7 +111,7 @@ export function compactElapsed(ms: number): string {
 }
 
 export interface DenseLiveCell {
-  readonly kind: 'thinking' | 'answer' | 'action' | 'stall' | 'idle';
+  readonly kind: 'thinking' | 'answer' | 'action' | 'stall' | 'idle' | 'stdout' | 'stderr' | 'progress' | 'status';
   readonly text: string;
 }
 
@@ -122,17 +127,21 @@ export function denseLiveCell(
     const last = worker.lastTool === undefined ? '' : ` · last ${worker.lastTool}`;
     return { kind: 'stall', text: `stall${silent}${last}` };
   }
+  const liveText =
+    revealedLive !== undefined && revealedLive.length > 0 ? revealedLive : undefined;
   if (
-    revealedLive !== undefined &&
-    revealedLive.length > 0 &&
-    worker.liveAtMs !== undefined &&
-    now - worker.liveAtMs < MISSION_LIVE_HOT_MS &&
+    liveText !== undefined &&
     (worker.status === 'running' || worker.status === 'finishing')
   ) {
-    return {
-      kind: worker.liveKind === 'answer' ? 'answer' : 'thinking',
-      text: revealedLive,
-    };
+    if (isToolProgressLiveKind(worker.liveKind)) {
+      return { kind: worker.liveKind, text: liveText };
+    }
+    if (worker.liveAtMs !== undefined && now - worker.liveAtMs < MISSION_LIVE_HOT_MS) {
+      return {
+        kind: worker.liveKind === 'answer' ? 'answer' : 'thinking',
+        text: liveText,
+      };
+    }
   }
   // Intent beats action (paths never dominate the LIVE cell).
   const focus = worker.focusTodo?.trim();
@@ -603,7 +612,15 @@ function buildWorkerRow(args: {
         })();
   const live = denseLiveCell(worker, now, revealed, action);
   const liveMark =
-    live.kind === 'thinking' ? '◌' : live.kind === 'answer' ? '◆' : live.kind === 'action' ? '→' : '·';
+    live.kind === 'thinking'
+      ? '◌'
+      : live.kind === 'answer'
+        ? '◆'
+        : live.kind === 'action'
+          ? '→'
+          : isToolProgressLiveKind(live.kind)
+            ? '▏'
+            : '·';
   const liveBody = truncateToWidth(
     `${liveMark} ${live.text}`,
     Math.max(12, width - (narrow ? 38 : 64)),
@@ -612,10 +629,27 @@ function buildWorkerRow(args: {
   let livePaint: string;
   if (live.kind === 'thinking' || live.kind === 'answer') {
     livePaint = currentTheme.fg(live.kind === 'thinking' ? 'textDim' : 'text', liveBody);
+  } else if (live.kind === 'stderr') {
+    livePaint = currentTheme.fg('error', liveBody);
+  } else if (live.kind === 'stdout' || live.kind === 'progress' || live.kind === 'status') {
+    livePaint = currentTheme.fg('textMuted', liveBody);
   } else if (live.kind === 'stall') {
     livePaint = currentTheme.fg('warning', liveBody);
   } else {
     livePaint = currentTheme.fg('textDim', liveBody);
+  }
+  if (
+    animated &&
+    shouldRenderAmbientEffects(appearance) &&
+    (live.kind === 'stdout' || live.kind === 'stderr' || live.kind === 'progress')
+  ) {
+    const glowed = applyStreamTailGlow(
+      [livePaint],
+      live.kind === 'stderr' ? 'tool' : 'assistant',
+      appearance,
+      { active: true, nowMs: now },
+    );
+    livePaint = glowed[0] ?? livePaint;
   }
 
   if (narrow) {

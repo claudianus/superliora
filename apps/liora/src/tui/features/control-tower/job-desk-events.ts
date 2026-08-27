@@ -13,6 +13,7 @@ import type {
   SubagentToolCallEvent,
   SubagentToolResultEvent,
 } from '@superliora/protocol';
+import type { SubagentToolProgressEvent } from '@superliora/sdk';
 
 import { isExperimentalFlagEnabled } from '../../commands/experimental-flags';
 import { shortJobId } from '../../components/job-board/job-board-helpers';
@@ -29,6 +30,7 @@ import {
   jobDeckHintNotice,
   shouldShowJobDeckHint,
 } from '../../utils/job/job-deck-hint';
+import { lastNonEmptyLine } from '../../utils/tools/subagent-tool-detail';
 import { formatLandResultNotice } from '../../utils/job/land-result-card';
 import type {
   ConductorJobActivity,
@@ -335,6 +337,34 @@ export class ControlTowerJobDesk {
       status: event.isError === true ? 'error' : 'ok',
       atMs: Date.now(),
       ...(previous?.target === undefined ? {} : { target: previous.target }),
+    };
+    if (!this.store.applySubagentActivity(event.subagentId, activity)) return;
+    this.publish();
+  }
+
+  /**
+   * Volatile live stdout/stderr/progress/status while a child tool is still
+   * running. Missing `textPreview` is ignored (emitter dropped empty chunks).
+   * Keyed by `subagentId` + `toolCallId` onto the owning job card.
+   */
+  handleSubagentToolProgress(event: SubagentToolProgressEvent): void {
+    if (event.textPreview === undefined || event.textPreview.length === 0) return;
+    const preview = lastNonEmptyLine(event.textPreview);
+    if (preview.length === 0) return;
+    const previousCard = this.store.cardByWorkerAgentId(event.subagentId);
+    const previous =
+      previousCard?.liveActivity?.toolCallId === event.toolCallId
+        ? previousCard.liveActivity
+        : undefined;
+    const activity: ConductorJobActivity = {
+      toolCallId: event.toolCallId,
+      name: event.name ?? previous?.name ?? 'tool',
+      status: 'running',
+      atMs: Date.now(),
+      preview,
+      previewKind: event.kind,
+      ...(previous?.target === undefined ? {} : { target: previous.target }),
+      ...(previous?.workerName === undefined ? {} : { workerName: previous.workerName }),
     };
     if (!this.store.applySubagentActivity(event.subagentId, activity)) return;
     this.publish();

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   describeSubagentToolFeedBody,
+  lastNonEmptyLine,
   subagentToolDetailParts,
 } from '#/tui/utils/tools/subagent-tool-detail';
 
@@ -56,5 +57,13 @@ describe('describeSubagentToolFeedBody', () => {
       ),
     ).toBe('WebSearch premium HTML');
     expect(describeSubagentToolFeedBody('Tool', undefined, undefined)).toBe('Tool');
+  });
+});
+
+describe('lastNonEmptyLine', () => {
+  it('returns the last non-empty line of a stdout chunk', () => {
+    expect(lastNonEmptyLine('ok\n12 passing\n')).toBe('12 passing');
+    expect(lastNonEmptyLine('warn: slow')).toBe('warn: slow');
+    expect(lastNonEmptyLine('\n\n')).toBe('');
   });
 });

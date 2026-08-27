@@ -205,6 +205,7 @@ export function goalDeskLiveKey(live: GoalDeskLive | null | undefined): string {
         live.liveActivity?.name ?? '',
         live.liveActivity?.status ?? '',
         live.liveActivity?.target ?? '',
+        live.liveActivity?.preview ?? '',
       ].join('|');
     case 'spinning_up':
       return 'spinning_up';
@@ -230,6 +231,7 @@ export function goalDriverLiveKey(live: GoalDriverLive | null | undefined): stri
     live.liveActivity?.name ?? '',
     live.liveActivity?.status ?? '',
     live.liveActivity?.target ?? '',
+    live.liveActivity?.preview ?? '',
     live.recentTools?.at(-1) ?? '',
   ].join('|');
 }

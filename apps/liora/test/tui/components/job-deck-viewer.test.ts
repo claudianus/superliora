@@ -214,4 +214,30 @@ describe('JobDeckViewerComponent', () => {
     viewer.handleInput('F');
     expect(viewer.render(100).join('\n')).toContain('line 39');
   });
+
+  it('paints a live truncated stdout tail on the running job row', () => {
+    const snap = snapshotOf([
+      card('job_a1b2c3d4', 'migrate the billing service', 'running', {
+        workerAgentId: 'agent_worker01',
+        liveActivity: {
+          toolCallId: 'tc-1',
+          name: 'Bash',
+          status: 'running',
+          atMs: 1,
+          preview: '12 passing',
+          previewKind: 'stdout',
+        },
+      }),
+      card('job_b2c3d4e5', 'queued sibling', 'queued'),
+    ]);
+    const viewer = new JobDeckViewerComponent({
+      getSnapshot: () => snap,
+      loadWorker: async () => ({ lines: [] }),
+      onAction: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const joined = viewer.render(100).map(stripAnsi).join('\n');
+    expect(joined).toContain('12 passing');
+    expect(joined).toContain('migrate the billing');
+  });
 });
