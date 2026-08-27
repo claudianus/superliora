@@ -137,8 +137,13 @@ describe('landJobToMain post-merge receipt', () => {
   it('never reads as landed when there is no worktree (ledger-only)', async () => {
     const store = memoryStore();
     const job = createJob(store, { title: 'ledger only job', kind: 'implement' });
+    patchJob(store, job.id, { status: 'done', resultSummary: 'worker finished' });
 
-    const result = await landJobToMain({ store, job, repoPath: '/repo/main' });
+    const result = await landJobToMain({
+      store,
+      job: getJob(store, job.id)!,
+      repoPath: '/repo/main',
+    });
 
     expect(result.ok).toBe(true);
     expect(result.merged).toBe(false);

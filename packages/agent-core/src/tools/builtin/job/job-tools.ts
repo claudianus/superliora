@@ -231,7 +231,7 @@ const JobCreateInputSchema = z
       .optional()
       .describe(
         'Pipeline waist. Omit to inherit session project mode (hotfix→sprint, review→review, else standard). ' +
-          'sprint skips worktree when no other coding Job is in flight. review is a project-mode stamp only — do not auto-spawn a nested verify Job; user-asked /review is kind=verify.',
+          'sprint keeps an isolated worktree (hotfix pool). review keeps one verify worker even for surface_kind=none.',
       ),
     goal_completion_criterion: z
       .string()
@@ -1476,17 +1476,20 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
         });
 
         const latest = getJob(this.store, a.job_id) ?? existing;
+        const held = !dispatch.dispatched;
         return {
-          isError: false,
+          isError: held,
           output: ack(
             latest.id,
             latest.status,
-            [
-              `Merge approved (${trust.mode}). ${trust.reason}`,
-              dispatch.mergeJob
-                ? `Execution offloaded to landing worker ${dispatch.mergeJob.id} (kind=merge); land result lands on ledger/inbox. Main turn ran no git merge.`
-                : 'Dispatch failed — merge held for manual resolve.',
-            ].join('\n'),
+            held
+              ? `Merge held: ${dispatch.reason}`
+              : [
+                  `Merge approved (${trust.mode}). ${trust.reason}`,
+                  dispatch.mergeJob
+                    ? `Execution offloaded to landing worker ${dispatch.mergeJob.id} (kind=merge); land result lands on ledger/inbox. Main turn ran no git merge.`
+                    : 'Dispatch failed — merge held for manual resolve.',
+                ].join('\n'),
           ),
         };
       },

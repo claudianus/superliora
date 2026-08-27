@@ -19,7 +19,7 @@ import {
 import type { ToolStore } from '../../store';
 import { dispatchMergeLand } from './job-land';
 import { createJob, getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
-import { isDebugFixerJob } from './job-store-key';
+import { isDebugFixerJob, type JobVerifyVerdictField } from './job-store-key';
 import { surfaceRequiresVisualProof } from './job-surface';
 import { STAFF_MIN_EXPERT_SCORE } from './job-staff';
 import { isGeneralTaskTrack } from './job-task-track';
@@ -701,7 +701,7 @@ function latestVerifyChildrenByAxis(children: readonly JobRecord[]): JobRecord[]
   return [...byAxis.values()];
 }
 
-function aggregateVerifyVerdict(children: readonly JobRecord[]): JobVerifyVerdict {
+function aggregateVerifyVerdict(children: readonly JobRecord[]): JobVerifyVerdictField {
   let anyFailed = false;
   for (const child of children) {
     // Structured field only — free-text / status alone never count as pass.
@@ -841,6 +841,7 @@ export async function onJobTerminalForVerifyChain(
     const verdict = aggregateVerifyVerdict(children);
     const latestParent = getJob(store, parent.id) ?? parent;
     patchJob(store, parent.id, {
+      verifyVerdict: verdict,
       notes: [latestParent.notes, `verify_chain: aggregate verdict=${verdict}`]
         .filter(Boolean)
         .join('\n'),

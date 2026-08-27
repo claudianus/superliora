@@ -1,6 +1,6 @@
 /**
- * Conductor sprint waist: default none-surface auto-land, synthesized briefs,
- * affinity=auto, hotfix skip-worktree.
+ * Conductor sprint waist: default none-surface auto-land,
+ * synthesized briefs, affinity=auto. Hotfix sprint still isolates in a worktree.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -194,8 +194,8 @@ describe('none-surface auto-land', () => {
   });
 });
 
-describe('hotfix sprint worktree skip', () => {
-  it('skips worktree when no other coding Job is in flight', async () => {
+describe('hotfix sprint worktree isolation', () => {
+  it('creates a worktree even when no other coding Job is in flight', async () => {
     const created: string[] = [];
     const store = memoryStore();
     const job = createJob(store, {
@@ -204,7 +204,7 @@ describe('hotfix sprint worktree skip', () => {
       deliveryClass: 'sprint',
       ownershipPaths: ['src/a.ts'],
     });
-    expect(needsWorktree(job, store)).toBe(false);
+    expect(needsWorktree(job)).toBe(true);
     const result = await scheduleQueuedJobs({
       store,
       kaos: {} as never,
@@ -213,8 +213,8 @@ describe('hotfix sprint worktree skip', () => {
       ensureGitRepo: false,
     });
     expect(result.started).toHaveLength(1);
-    expect(created).toEqual([]);
-    expect(getJob(store, job.id)?.worktreePath).toBeUndefined();
+    expect(created).toHaveLength(1);
+    expect(getJob(store, job.id)?.worktreePath).toBeDefined();
   });
 
   it('creates a worktree when another coding Job is already running', async () => {
@@ -232,7 +232,7 @@ describe('hotfix sprint worktree skip', () => {
       deliveryClass: 'sprint',
       ownershipPaths: ['src/a.ts'],
     });
-    expect(needsWorktree(job, store)).toBe(true);
+    expect(needsWorktree(job)).toBe(true);
     const result = await scheduleQueuedJobs({
       store,
       kaos: {} as never,

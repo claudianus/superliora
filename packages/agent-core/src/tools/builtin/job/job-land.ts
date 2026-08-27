@@ -23,8 +23,9 @@ import {
   sameRepoPath,
 } from './job-git-root';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
+import { jobMayLandToMain, LAND_REFUSED_NOTE } from './job-task-track';
 
-export { repoRootFromGitCommonDir };
+export { repoRootFromGitCommonDir, jobMayLandToMain, LAND_REFUSED_NOTE };
 
 export interface LandJobToMainInput {
   readonly store: ToolStore;
@@ -250,104 +251,49 @@ export async function resolveJobWorktreeBranch(
  */
 export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobToMainResult> {
   const { store, job } = input;
+  const gate = jobMayLandToMain(job);
+  if (!gate.ok) {
+    const status: JobStatus = job.status === 'done' ? 'blocked' : job.status;
+    const next = patchJobAndNotify(
+      store,
+      job.id,
+      {
+        ...(status !== job.status ? { status } : {}),
+        notes: [job.notes, gate.reason].filter(Boolean).join('\n'),
+      },
+      { agent: input.agent, summary: gate.reason },
+    );
+    return {
+      ok: false,
+      job: next ?? job,
+      merged: false,
+      gcRemoved: false,
+      message: '',
+      error: gate.reason,
+    };
+  }
   const worktreePath = job.worktreePath;
 
   if (!worktreePath) {
-    const repoPath =
-      job.repoRoot?.trim() ||
-      input.repoPath?.trim() ||
-      input.agent?.config?.cwd?.trim() ||
-      undefined;
-    const codingCheckout =
-      (job.kind === 'task' || job.kind === 'implement') &&
-      job.deliveryClass === 'sprint' &&
-      repoPath !== undefined &&
-      job.taskTrack !== 'general';
-    if (!codingCheckout) {
-      const next = patchJobAndNotify(
-        store,
-        job.id,
-        {
-          status: 'done',
-          notes: [job.notes, 'land: no worktree — ledger-only approve (nothing merged)']
-            .filter(Boolean)
-            .join('\n'),
-        },
-        { agent: input.agent, summary: LAND_LEDGER_ONLY_MESSAGE },
-      );
-      return {
-        ok: true,
-        job: next ?? job,
-        merged: false,
-        gcRemoved: false,
-        message: LAND_LEDGER_ONLY_MESSAGE,
-      };
-    }
-
-    const runGit =
-      input.runGit ??
-      ((cwd: string, args: readonly string[]) => defaultRunGit(input.kaos, cwd, args));
-    const snapshot = await commitJobWorktreeIfDirty({
-      worktreePath: repoPath,
-      jobId: job.id,
-      jobTitle: job.title,
-      kaos: input.kaos,
-      run: async (cwd, args) => {
-        const res = await runGit(cwd, args);
-        return { ok: res.code === 0, stdout: res.stdout, stderr: res.stderr };
-      },
-    });
-    const snapshotNote = snapshot.committed
-      ? 'land: committed dirty session checkout (no worktree merge)'
-      : snapshot.error !== undefined
-        ? `land: checkout snapshot skipped (${snapshot.error})`
-        : 'land: session checkout already clean (no worktree merge)';
-    const head = await runGit(repoPath, ['rev-parse', 'HEAD']);
-    const mergeSha = head.code === 0 ? head.stdout.trim() : '';
-    if (mergeSha.length === 0) {
-      const err = 'land verification failed: could not read HEAD on session checkout';
-      const next = patchJobAndNotify(
-        store,
-        job.id,
-        {
-          status: 'blocked',
-          notes: [job.notes, snapshotNote, `land: ${err}`].filter(Boolean).join('\n'),
-        },
-        { agent: input.agent, summary: err },
-      );
-      return {
-        ok: false,
-        job: next ?? job,
-        merged: false,
-        gcRemoved: false,
-        message: '',
-        error: err,
-      };
-    }
-    const landReceipt = {
-      mergeSha,
-      branch: job.worktreeBranch ?? 'HEAD',
-      verifiedAt: new Date().toISOString(),
-    };
-    const message = `Already on session checkout at ${mergeSha.slice(0, 12)} (no worktree merge).`;
+    // Coding jobs isolate in worktrees. No worktree means nothing to merge —
+    // never snapshot/commit the operator checkout as a fake land.
     const next = patchJobAndNotify(
       store,
       job.id,
       {
         status: 'done',
-        landReceipt,
-        notes: [job.notes, snapshotNote, `land: checkout ${mergeSha.slice(0, 12)}`]
+        notes: [job.notes, 'land: no worktree — ledger-only approve (nothing merged)']
           .filter(Boolean)
           .join('\n'),
       },
-      { agent: input.agent, summary: message },
+      { agent: input.agent, summary: LAND_LEDGER_ONLY_MESSAGE },
     );
     return {
       ok: true,
       job: next ?? job,
       merged: false,
       gcRemoved: false,
-      message,
+      message: LAND_LEDGER_ONLY_MESSAGE,
     };
   }
 
@@ -752,6 +698,19 @@ export interface DispatchMergeLandResult {
  */
 export function dispatchMergeLand(input: DispatchMergeLandInput): DispatchMergeLandResult {
   const { store, sourceJob, trustMode, trustReason } = input;
+  const gate = jobMayLandToMain(sourceJob);
+  if (!gate.ok) {
+    patchJobAndNotify(
+      store,
+      sourceJob.id,
+      {
+        ...(sourceJob.status === 'done' ? { status: 'blocked' as const } : {}),
+        notes: [sourceJob.notes, gate.reason].filter(Boolean).join('\n'),
+      },
+      { agent: input.agent, summary: gate.reason },
+    );
+    return { dispatched: false, reason: gate.reason };
+  }
   // Job product root first; session cwd is last-resort for legacy jobs.
   const repoPath =
     sourceJob.repoRoot?.trim() ||

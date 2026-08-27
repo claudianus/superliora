@@ -93,6 +93,8 @@ export interface JobGateChecklist {
   readonly review: JobGateChecklistStatus;
   readonly tests: JobGateChecklistStatus;
   readonly typecheck: JobGateChecklistStatus;
+  /** Land pass cell for Job Deck / Merge Preview. Omitted on older snapshots. */
+  readonly land?: JobGateChecklistStatus;
 }
 
 export interface JobLandReceiptSnapshot {
@@ -272,6 +274,7 @@ export const jobGateChecklistSchema = z.object({
   review: jobGateChecklistStatusSchema,
   tests: jobGateChecklistStatusSchema,
   typecheck: jobGateChecklistStatusSchema,
+  land: jobGateChecklistStatusSchema.optional(),
 }) satisfies z.ZodType<JobGateChecklist>;
 
 export const jobLandReceiptSnapshotSchema = z.object({
