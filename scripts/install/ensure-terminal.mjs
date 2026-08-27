@@ -165,6 +165,35 @@ export function windowsTerminalShortcutLaunch(options = {}) {
   };
 }
 
+/**
+ * True when a SuperLiora .lnk already hosts the click in conhost (or
+ * unpackaged wt.exe). `.lnk` files store strings as UTF-16LE; tests may
+ * pass a plain haystack.
+ *
+ * Stale launchers target cmd.exe (`start wt.exe`) or the WindowsApps Store
+ * stub, and open no window on a cold first click.
+ */
+export function windowsShortcutLaunchIsCurrent(payload) {
+  const hay = shortcutHaystack(payload);
+  if (!hay) return false;
+  if (hay.includes(WT_LAUNCHER_PS1)) return true;
+  if (hay.includes(WT_CONHOST_EXE)) return true;
+  if (hay.includes('cmd.exe')) return false;
+  if (hay.includes('\\windowsapps\\') || hay.includes('/windowsapps/')) return false;
+  return hay.includes(WT_LAUNCH_EXE);
+}
+
+function shortcutHaystack(payload) {
+  if (payload == null) return '';
+  if (typeof payload === 'string') return payload.toLowerCase();
+  try {
+    const buf = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
+    return `${buf.toString('utf16le')}\n${buf.toString('latin1')}`.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
 export function renderWindowsTerminalLauncherPs1(options = {}) {
   const liora = String(options.commandline ?? '').trim();
   const profileName = String(options.profileName ?? SUPERLIORA_WT_PROFILE_NAME);
