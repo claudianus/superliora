@@ -14,6 +14,7 @@ import { LAND_REFUSED_NOTE } from '../../src/tools/builtin/job/job-land-gate';
 import { createJob, getJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import { jobChooseLand } from '../../src/tools/builtin/job/job-rpc-api';
 import { jobIsolationKind } from '../../src/tools/builtin/job/job-task-track';
+import { onJobTerminalForVerifyChain } from '../../src/tools/builtin/job/job-verify-chain';
 import type { ToolStore } from '../../src/tools/store';
 
 function memoryStore(): ToolStore {
@@ -233,16 +234,61 @@ describe('Land/verify Job snapshot for Job Deck', () => {
       status: 'done',
       worktreePath: `/tmp/wt/${job.id}`,
       landChoice: 'pending',
-      notes: 'verify_chain: aggregate verdict=failed',
+      verifyVerdict: 'failed',
     });
     const latest = getJob(store, job.id)!;
     const snap = jobRecordToSnapshot(latest);
     expect(snap.gateChecklist?.land).toBe('fail');
     expect(snap.gateChecklist?.review).toBe('fail');
+    expect(snap.verifyVerdict).toBe('failed');
     expect(actionHintsForInboxKind('job.completed', latest)).toEqual([
       'jobInspect',
       'jobResume',
     ]);
+  });
+
+  it('stamps parent verifyVerdict from the verify chain so Land refuses without notes scrape', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Needs review',
+      kind: 'implement',
+      expertId: 'maker-x',
+      deliveryClass: 'review',
+      surfaceKind: 'none',
+    });
+    patchJob(store, parent.id, {
+      status: 'done',
+      worktreePath: `/tmp/wt/${parent.id}`,
+      landChoice: 'pending',
+    });
+    await onJobTerminalForVerifyChain(store, getJob(store, parent.id)!);
+    const verify = listJobs(store).find((j) => j.kind === 'verify');
+    expect(verify).toBeDefined();
+    patchJob(store, verify!.id, {
+      status: 'done',
+      expertId: 'checker-x',
+      verifyVerdict: 'failed',
+      resultSummary: '{"verdict":"fail","findings":["red"],"required_fixes":["fix"]}',
+    });
+    await onJobTerminalForVerifyChain(store, getJob(store, verify!.id)!);
+
+    const latest = getJob(store, parent.id)!;
+    expect(latest.verifyVerdict).toBe('failed');
+    const { calls, runGit } = gitStub();
+    const result = await landJobToMain({
+      store,
+      job: latest,
+      repoPath: '/repo/main',
+      runGit,
+      gcOnSuccess: false,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.merged).toBe(false);
+    expect(calls.some((c) => c.args[0] === 'merge')).toBe(false);
+    const snap = jobRecordToSnapshot(getJob(store, parent.id)!);
+    expect(snap.verifyVerdict).toBe('failed');
+    expect(snap.gateChecklist?.land).toBe('fail');
+    expect(snap.gateChecklist?.review).toBe('fail');
   });
 
   it('marks land pass after a verified receipt', () => {

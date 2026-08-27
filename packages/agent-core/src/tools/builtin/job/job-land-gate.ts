@@ -49,12 +49,6 @@ export function jobMayLandToMain(job: JobRecord): JobLandGate {
       reason: `${LAND_REFUSED_NOTE}: verifyVerdict=failed — only passed work may land`,
     };
   }
-  if (/\bverify_chain:\s*aggregate verdict=failed\b/i.test(job.notes ?? '')) {
-    return {
-      ok: false,
-      reason: `${LAND_REFUSED_NOTE}: verify chain failed — only passed work may land`,
-    };
-  }
   return { ok: true };
 }
 
@@ -66,7 +60,6 @@ export function landGateStatusFromJob(job: JobRecord): JobLandGateStatus {
   if (job.status === 'failed' || job.status === 'cancelled') return 'fail';
   if (job.resultContract?.verification_failed === true) return 'fail';
   if (job.verifyVerdict === 'failed') return 'fail';
-  if (/\bverify_chain:\s*aggregate verdict=failed\b/i.test(job.notes ?? '')) return 'fail';
   if (job.notes?.includes(LAND_REFUSED_NOTE) === true) return 'fail';
   return 'pending';
 }

@@ -862,6 +862,7 @@ export async function onJobTerminalForVerifyChain(
     const verdict = aggregateVerifyVerdict(children);
     const latestParent = getJob(store, parent.id) ?? parent;
     patchJob(store, parent.id, {
+      verifyVerdict: verdict,
       notes: [latestParent.notes, `verify_chain: aggregate verdict=${verdict}`]
         .filter(Boolean)
         .join('\n'),

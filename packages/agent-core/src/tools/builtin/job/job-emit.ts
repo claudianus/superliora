@@ -60,11 +60,9 @@ function briefPreviewFromJob(job: JobRecord): JobSnapshot['briefPreview'] {
 }
 
 function reviewGateFromJob(job: JobRecord): JobGateChecklistStatus {
+  if (job.verifyVerdict === 'passed') return 'pass';
+  if (job.verifyVerdict === 'failed') return 'fail';
   const notes = job.notes ?? '';
-  if (/\bverify_chain:\s*aggregate verdict=passed\b/i.test(notes)) return 'pass';
-  if (/\bverify_chain:\s*aggregate verdict=failed\b/i.test(notes)) return 'fail';
-  if (/\bverify_chain:\s*\S+\s+verdict=passed\b/i.test(notes)) return 'pass';
-  if (/\bverify_chain:\s*\S+\s+verdict=failed\b/i.test(notes)) return 'fail';
   if (/\bverify_chain:\s*enqueued\b/i.test(notes)) return 'pending';
   if (job.kind === 'verify') return 'na';
   if (isDebugFixerJob(job)) return 'na';
