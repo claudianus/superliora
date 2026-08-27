@@ -435,9 +435,11 @@ describe('job desk next-move guidance', () => {
     expect(text).toContain('Next move: fleet auto-resumed safe jobs; held merge/push/needs_user');
   });
 
-  it('suggests verification and merge verdict for completions', () => {
+  it('ACKs completions from the ledger instead of a second review pass', () => {
     const text = renderJobDeskInjection([event('job.completed', 'done')], idleStrip);
-    expect(text).toContain('Next move: verify done-claims against the brief');
+    expect(text).toContain('Next move: ACK the completed job_id');
+    expect(text).toMatch(/do not re-review/i);
+    expect(text).not.toMatch(/verify done-claims against the brief/i);
   });
 
   it('ACK-and-stop when a completed coding job already auto-landed', () => {
@@ -472,6 +474,47 @@ describe('job desk next-move guidance', () => {
     );
     expect(text).toMatch(/Next move: ACK the landed/i);
     expect(text).not.toMatch(/verify done-claims/i);
+    expect(text).not.toMatch(/re-review/i);
+  });
+
+  it('ACKs a stamped verify Job from the ledger without a second inspect pass', () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Feature',
+      kind: 'implement',
+      surfaceKind: 'none',
+    });
+    patchJob(store, parent.id, { status: 'done' });
+    const verify = createJob(store, {
+      title: 'Verify: Feature',
+      kind: 'verify',
+      parentJobId: parent.id,
+      surfaceKind: 'none',
+    });
+    patchJob(store, verify.id, {
+      status: 'done',
+      verifyVerdict: 'passed',
+      resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+    });
+    const text = renderJobDeskInjection(
+      [
+        {
+          id: 'e_verify_done',
+          kind: 'job.completed',
+          jobId: verify.id,
+          status: 'done',
+          title: verify.title,
+          createdAt: new Date().toISOString(),
+          read: false,
+        },
+      ],
+      idleStrip,
+      { store },
+    );
+    expect(text).toMatch(/Next move: ACK the review/i);
+    expect(text).toMatch(/verifyVerdict/i);
+    expect(text).toMatch(/do not JobInspect again or spawn another review/i);
+    expect(text).not.toMatch(/verify done-claims against the brief/i);
   });
 
   it('wakes Conductor for merge-ready ledger work even when inbox unread is empty', async () => {

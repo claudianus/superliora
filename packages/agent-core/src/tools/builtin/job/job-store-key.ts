@@ -51,11 +51,11 @@ export type JobDeliveryMode = 'standard' | 'greenfield';
  * (`hotfix` → sprint, `review` → review, else standard). Harness keys off this
  * field, never prompt wording.
  *
- * - `standard`: `surface_kind=none` skips verify; land waits for Keep/Apply/PR.
- *   UI surfaces still get one combined verify worker.
+ * - `standard`: maker self-check via resultContract; land waits for Keep/Apply/PR.
  * - `sprint`: same verify waist as standard, plus skip worktree when no other
  *   in-flight coding Job shares the checkout.
- * - `review`: Maker≠Checker even for `none` — one combined verify worker.
+ * - `review`: project-mode stamp only. Independent review is `kind=verify` when
+ *   the operator asked — never an auto-enqueued nested verify child.
  */
 export type JobDeliveryClass = 'sprint' | 'standard' | 'review';
 
