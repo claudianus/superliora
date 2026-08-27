@@ -1,4 +1,9 @@
-import { APIConnectionError, emptyUsage, isRetryableGenerateError } from '@superliora/kosong';
+import {
+  APIConnectionError,
+  APITimeoutError,
+  emptyUsage,
+  isRetryableGenerateError,
+} from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import type { LioraConfig } from '#/config';
@@ -69,6 +74,25 @@ describe('chatWithRetry: terminated stream drops', () => {
       name: 'AbortError',
     });
     expect(calls).toBe(1);
+  });
+
+  it('retries a custom OpenAI-compatible Request-was-aborted timeout and succeeds later', async () => {
+    let calls = 0;
+    const llm: LLM = {
+      systemPrompt: '',
+      modelName: 'mock',
+      isRetryableError: (e) => isRetryableGenerateError(e),
+      async chat(_params: LLMChatParams): Promise<LLMChatResponse> {
+        calls += 1;
+        if (calls === 1) throw new APITimeoutError('Request was aborted.');
+        return okResponse();
+      },
+    };
+
+    const response = await chatWithRetry(makeInput(llm, new AbortController().signal));
+
+    expect(calls).toBe(2);
+    expect(response).toEqual(okResponse());
   });
 
   it('does not retry OAuth token fetch connection errors (already retried internally)', async () => {

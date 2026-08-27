@@ -1204,4 +1204,49 @@ describe('generate()', () => {
       ).rejects.toMatchObject({ name: 'APITimeoutError' });
     });
   });
+
+  describe('custom OpenAI-compatible abort', () => {
+    it('surfaces a mid-stream Request-was-aborted timeout without a caller cancel', async () => {
+      const stream: StreamedMessage = {
+        get id(): string | null {
+          return null;
+        },
+        get usage(): TokenUsage | null {
+          return null;
+        },
+        finishReason: null,
+        rawFinishReason: null,
+        async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          throw new APITimeoutError('Request was aborted.');
+        },
+      };
+
+      await expect(generate(createMockProvider(stream), '', [], [])).rejects.toMatchObject({
+        name: 'APITimeoutError',
+        message: 'Request was aborted.',
+      });
+    });
+
+    it('keeps a caller Esc as AbortError when the stream also reports Request was aborted', async () => {
+      const controller = new AbortController();
+      const stream: StreamedMessage = {
+        get id(): string | null {
+          return null;
+        },
+        get usage(): TokenUsage | null {
+          return null;
+        },
+        finishReason: null,
+        rawFinishReason: null,
+        async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          controller.abort();
+          throw new APITimeoutError('Request was aborted.');
+        },
+      };
+
+      await expect(
+        generate(createMockProvider(stream), '', [], [], undefined, { signal: controller.signal }),
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    });
+  });
 });
