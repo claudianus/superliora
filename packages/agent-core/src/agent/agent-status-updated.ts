@@ -114,5 +114,8 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
 export function durableTraceRecordType(
   eventType: string,
 ): 'subagent.lifecycle' | undefined {
-  return eventType.startsWith('subagent.') ? 'subagent.lifecycle' : undefined;
+  if (!eventType.startsWith('subagent.')) return undefined;
+  // High-frequency child stdout/stderr chunks stay volatile; do not journal.
+  if (eventType === 'subagent.tool_progress') return undefined;
+  return 'subagent.lifecycle';
 }

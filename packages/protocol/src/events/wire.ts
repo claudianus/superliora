@@ -69,6 +69,7 @@ import {
   subagentSuspendedEventSchema,
   subagentTodoUpdatedEventSchema,
   subagentToolCallEventSchema,
+  subagentToolProgressEventSchema,
   subagentToolResultEventSchema,
   type SubagentCompletedEvent,
   type SubagentFailedEvent,
@@ -79,6 +80,7 @@ import {
   type SubagentSuspendedEvent,
   type SubagentTodoUpdatedEvent,
   type SubagentToolCallEvent,
+  type SubagentToolProgressEvent,
   type SubagentToolResultEvent,
 } from './subagent';
 import {
@@ -166,6 +168,7 @@ export type AgentEvent =
   | SubagentStalledEvent
   | SubagentToolCallEvent
   | SubagentToolResultEvent
+  | SubagentToolProgressEvent
   | SubagentCompletedEvent
   | SubagentFailedEvent
   | SubagentTodoUpdatedEvent
@@ -224,6 +227,7 @@ const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   subagentStalledEventSchema,
   subagentToolCallEventSchema,
   subagentToolResultEventSchema,
+  subagentToolProgressEventSchema,
   subagentCompletedEventSchema,
   subagentFailedEventSchema,
   subagentTodoUpdatedEventSchema,
@@ -266,6 +270,7 @@ export const VOLATILE_EVENT_TYPES = [
   'thinking.delta',
   'tool.call.delta',
   'tool.progress',
+  'subagent.tool_progress',
   'shell.output',
   'shell.started',
   'agent.status.updated',
