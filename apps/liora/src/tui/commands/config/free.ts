@@ -45,6 +45,7 @@ export async function handleFreeCommand(host: SlashCommandHost, args: string): P
           defaultModel?: string;
           freeMode?: boolean;
           models?: Record<string, { provider: string; model: string; cost?: { input?: number } }>;
+          providers?: Record<string, { apiKey?: string; oauth?: unknown; apiKeys?: string[] }>;
         };
         const def = after.defaultModel?.trim();
         const isPaidConcrete =
@@ -70,6 +71,32 @@ export async function handleFreeCommand(host: SlashCommandHost, args: string): P
             }
           }
           host.showNotice(ttui('tui.free.enabledTitle'), `${ttui('tui.free.enabledDetail')} (default_model → auto for free routing)`);
+        }
+        // Immediate validation: no free alias at all -> warn before the next message errors
+        const hasFreeAlias = Object.entries(after.models ?? {}).some(([alias, m]) => {
+          const a = alias.toLowerCase();
+          const id = (m.model ?? '').toLowerCase();
+          return a.includes('-free') || id.includes('-free') || (m.cost?.input ?? -1) === 0;
+        });
+        if (!hasFreeAlias) {
+          host.showNotice(ttui('tui.free.noFreeModelsTitle'), ttui('tui.free.noFreeModelsDetail'));
+        } else {
+          // Also check healthy free (provider has credential)
+          const hasHealthyFree = Object.entries(after.models ?? {}).some(([alias, m]) => {
+            const a = alias.toLowerCase();
+            const id = (m.model ?? '').toLowerCase();
+            const isFree = a.includes('-free') || id.includes('-free') || (m.cost?.input ?? -1) === 0;
+            if (!isFree) return false;
+            const prov = after.providers?.[m.provider];
+            if (prov === undefined) return false;
+            const hasKey = typeof prov.apiKey === 'string' && prov.apiKey.trim().length > 0;
+            const hasKeys = Array.isArray(prov.apiKeys) && prov.apiKeys.length > 0;
+            const hasOauth = prov.oauth !== undefined;
+            return hasKey || hasKeys || hasOauth;
+          });
+          if (!hasHealthyFree) {
+            host.showNotice(ttui('tui.free.noFreeModelsTitle'), ttui('tui.free.noFreeModelsDetail'));
+          }
         }
       } catch {
         // ignore

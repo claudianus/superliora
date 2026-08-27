@@ -185,6 +185,8 @@ export const STRINGS_TUI_HANDLERS_EN: Readonly<Record<string, string>> = {
   'tui.free.disabledTitle': "FREE mode disabled",
   'tui.free.disabledDetail': "Role routing restored to standard smart-auto (credential health + quality/value).",
   'tui.free.setFailed': "Failed to set FREE mode: {message}",
+  'tui.free.noFreeModelsTitle': "No free models for FREE mode",
+  'tui.free.noFreeModelsDetail': "No -free free models in config.toml. Add OpenCode Zen via /login or configure an OpenRouter free model. Sending a message will error until a free model is available.",
 };
 
 export const STRINGS_TUI_HANDLERS_KO: Readonly<Record<string, string>> = {
@@ -371,4 +373,6 @@ export const STRINGS_TUI_HANDLERS_KO: Readonly<Record<string, string>> = {
   'tui.free.disabledTitle': "FREE 모드 비활성화",
   'tui.free.disabledDetail': "역할 라우팅이 일반 smart-auto(자격 증명 + 품질/가성비)로 복원되었습니다.",
   'tui.free.setFailed': "FREE 모드 설정 실패: {message}",
+  'tui.free.noFreeModelsTitle': "FREE 모드에 무료 모델 없음",
+  'tui.free.noFreeModelsDetail': "config.toml에 -free 무료 모델이 없습니다. /login → OpenCode Zen을 추가하거나 OpenRouter free 모델을 설정하세요. 무료 모델이 없으면 메시지 전송 시 오류가 납니다.",
 };
