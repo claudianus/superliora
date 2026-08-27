@@ -125,7 +125,7 @@ describe('AssistantMessageComponent', () => {
     expect(component.render(80)).not.toBe(first);
   });
 
-  it('rebuilds the Markdown child when transient changes so final render can highlight code', () => {
+  it('rebuilds the Markdown child when a stream settles so large fences can full-highlight', () => {
     const component = new AssistantMessageComponent();
     const code = '```ts\nconst x = 1\n```';
 
@@ -140,20 +140,55 @@ describe('AssistantMessageComponent', () => {
     expect(finalized).not.toBe(streaming);
   });
 
-  it('skips synchronous syntax highlighting in transient markdown themes', () => {
+  it('highlights markdown fences while the assistant draft is still streaming', () => {
     const highlightSpy = vi.spyOn(codeHighlight, 'highlightLines');
     try {
       const streamingTheme = createMarkdownTheme({ transient: true });
       const finalTheme = createMarkdownTheme();
       const code = 'const x = 1';
 
-      expect(streamingTheme.highlightCode?.(code, 'typescript')).toEqual([code]);
-      expect(highlightSpy).not.toHaveBeenCalled();
-
-      finalTheme.highlightCode?.(code, 'typescript');
+      const streaming = streamingTheme.highlightCode?.(code, 'typescript');
       expect(highlightSpy).toHaveBeenCalled();
+      expect(streaming).toEqual(highlightSpy.mock.results.at(-1)?.value);
+
+      highlightSpy.mockClear();
+      const finalized = finalTheme.highlightCode?.(code, 'typescript');
+      expect(highlightSpy).toHaveBeenCalled();
+      expect(finalized).toEqual(streaming);
     } finally {
       highlightSpy.mockRestore();
+    }
+  });
+
+  it('highlights an unclosed streaming fence instead of waiting for the closing ticks', () => {
+    const highlightSpy = vi.spyOn(codeHighlight, 'highlightLines');
+    try {
+      const component = new AssistantMessageComponent();
+      component.updateContent('```ts\nconst x =', { transient: true });
+      component.render(80);
+      expect(highlightSpy).toHaveBeenCalled();
+      expect(
+        highlightSpy.mock.calls.some((call) => call[0] === 'const x =' && call[1] === 'typescript'),
+      ).toBe(true);
+    } finally {
+      highlightSpy.mockRestore();
+    }
+  });
+
+  it('windows oversized streaming fences and fully highlights them once settled', () => {
+    const windowSpy = vi.spyOn(codeHighlight, 'highlightLinesWindow');
+    try {
+      const lineCount = codeHighlight.HIGHLIGHT_WINDOW_SOFT_CAP + 8;
+      const code = Array.from({ length: lineCount }, (_, i) => `const n${String(i)} = ${String(i)}`).join(
+        '\n',
+      );
+      createMarkdownTheme({ transient: true }).highlightCode?.(code, 'typescript');
+      expect(windowSpy).toHaveBeenCalled();
+      windowSpy.mockClear();
+      createMarkdownTheme().highlightCode?.(code, 'typescript');
+      expect(windowSpy).not.toHaveBeenCalled();
+    } finally {
+      windowSpy.mockRestore();
     }
   });
 

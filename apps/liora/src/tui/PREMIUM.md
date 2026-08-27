@@ -292,6 +292,7 @@ reveals, and quality-gated ambient that still reads under SSH/`off`.
 | Entrance highlights (tool headers, turn boundaries) | `features/transcript/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |
 | Soft fade-in wash (assistant/user/status/markers) | `polishTranscriptLines` / `applyTranscriptEntrance` — quint ease, cascade + ink lead |
 | Live stream tail glow | `applyStreamTailGlow` — smoothstep trail + gentle breath on newest clusters |
+| Live assistant fence highlight | `createMarkdownTheme({ transient })` → `highlightLines` while the reply is still streaming (same Shiki path as Write/Edit). Oversized in-progress dumps window the growing tail; settle highlights the full fence. Cheap-paint / `NO_COLOR` / unknown langs stay plain. |
 | Live thinking thought-orb | `components/messages/thinking.ts` → `renderThinkingMascot` |
 | Smooth type-on catch-up | `utils/streaming/streaming-text-reveal.ts` + `constant/streaming.ts` — ease-in-out CPS curve |
 | Staged line reveal (Write/Edit previews) | `utils/streaming-text-reveal.ts` → `computeStagedLineReveal` |
@@ -443,6 +444,9 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
 ### Transcript output
 - [ ] Tool results / diffs / logs highlight incrementally while streaming —
       no batch paint only on completion.
+- [ ] Assistant markdown fences highlight while the draft is still streaming
+      (not only after the closing fence / turn end). Cheap-paint / SSH /
+      `NO_COLOR` / CI / `TERM=dumb` stay plain.
 - [ ] Highlighting routes through `components/media/code-highlight.ts`
       (LRU + shiki warmup); unsupported languages fall back to plain.
 - [ ] No new raw-dump render path bypasses formatting / highlighting.
