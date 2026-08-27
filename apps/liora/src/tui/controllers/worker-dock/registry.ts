@@ -49,7 +49,14 @@ export const MISSION_RATE_EMA_INSTANT = 0.65;
 /** Compact result chip on settled MOVES rows. */
 const MISSION_RESULT_CHIP_MAX = 28;
 
-export type MissionLiveKind = 'thinking' | 'answer';
+export type MissionLiveKind = 'thinking' | 'answer' | 'stdout' | 'stderr' | 'progress' | 'status';
+
+/** True when the live strip is child-tool stdout/stderr/progress/status. */
+export function isToolProgressLiveKind(
+  kind: string | undefined,
+): kind is 'stdout' | 'stderr' | 'progress' | 'status' {
+  return kind === 'stdout' || kind === 'stderr' || kind === 'progress' || kind === 'status';
+}
 
 export type DockWorkerStatus =
   | 'running'
@@ -168,6 +175,8 @@ interface MutableWorker {
   liveKind?: MissionLiveKind;
   liveBuffer?: string;
   liveAtMs?: number;
+  /** `subagent.tool_progress` tail is keyed by this toolCallId. */
+  liveToolCallId?: string;
 }
 
 const ACTIVE_STATUSES: ReadonlySet<DockWorkerStatus> = new Set([
@@ -303,6 +312,8 @@ export class WorkerDockRegistry {
         return this.applyToolCall(event);
       case 'subagent.tool_result':
         return this.applyToolResult(event);
+      case 'subagent.tool_progress':
+        return this.applyToolProgress(event);
       case 'subagent.todo.updated':
         return this.applyTodo(event);
       case 'background.task.started':
@@ -644,7 +655,41 @@ export class WorkerDockRegistry {
       });
     }
     const worker = this.workers.get(event.subagentId);
-    if (worker !== undefined) worker.lastActivityAtMs = atMs;
+    if (worker !== undefined) {
+      worker.lastActivityAtMs = atMs;
+      if (worker.liveToolCallId === event.toolCallId) {
+        clearLiveStream(worker);
+      }
+    }
+    return this.bump();
+  }
+
+  /**
+   * Volatile child-tool stdout/stderr/progress/status. Missing `textPreview`
+   * is a no-op. Tail is keyed by `subagentId` + `toolCallId` so a new call
+   * resets the buffer; stderr/stdout share one tail (kind only changes paint).
+   */
+  private applyToolProgress(
+    event: Extract<Event, { type: 'subagent.tool_progress' }>,
+  ): boolean {
+    const preview = event.textPreview;
+    if (preview === undefined || preview.length === 0) return false;
+    const worker = this.workers.get(event.subagentId);
+    if (worker === undefined) return false;
+    if (worker.liveToolCallId !== event.toolCallId) {
+      worker.liveToolCallId = event.toolCallId;
+      worker.liveBuffer = '';
+    }
+    worker.liveKind = event.kind;
+    worker.liveBuffer = appendLiveBuffer(worker.liveBuffer ?? '', preview);
+    const atMs = this.now();
+    worker.liveAtMs = atMs;
+    worker.lastActivityAtMs = atMs;
+    if (event.name !== undefined && event.name.length > 0) {
+      worker.lastTool = event.name;
+    }
+    if (worker.status === 'stalled') worker.status = 'running';
+    worker.stalledSilentMs = undefined;
     return this.bump();
   }
 
@@ -764,6 +809,7 @@ function clearLiveStream(worker: MutableWorker): void {
   delete worker.liveKind;
   delete worker.liveBuffer;
   delete worker.liveAtMs;
+  delete worker.liveToolCallId;
 }
 
 function appendLiveBuffer(prev: string, delta: string): string {

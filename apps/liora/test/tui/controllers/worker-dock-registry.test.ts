@@ -537,6 +537,85 @@ describe('WorkerDockRegistry', () => {
     });
   });
 
+  it('tracks subagent.tool_progress as a live tail keyed by toolCallId', () => {
+    const { registry, now } = createHarness();
+    registry.apply(spawned('sa-1', { subagentName: 'coder' }));
+    registry.apply({
+      type: 'subagent.tool_call',
+      subagentId: 'sa-1',
+      toolCallId: 'tc-bash',
+      name: 'Bash',
+      detail: { kind: 'bash', command: 'pnpm test' },
+    } as Event);
+
+    expect(
+      registry.apply({
+        type: 'subagent.tool_progress',
+        subagentId: 'sa-1',
+        toolCallId: 'tc-bash',
+        name: 'Bash',
+        kind: 'stdout',
+        textPreview: 'ok\n12 passing',
+      } as Event),
+    ).toBe(true);
+    expect(registry.snapshot(now()).workers[0]).toMatchObject({
+      liveKind: 'stdout',
+      liveText: '12 passing',
+      lastTool: 'Bash',
+    });
+
+    registry.apply({
+      type: 'subagent.tool_progress',
+      subagentId: 'sa-1',
+      toolCallId: 'tc-bash',
+      kind: 'stderr',
+      textPreview: 'warn: slow',
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]).toMatchObject({
+      liveKind: 'stderr',
+      liveText: 'warn: slow',
+    });
+
+    expect(
+      registry.apply({
+        type: 'subagent.tool_progress',
+        subagentId: 'sa-1',
+        toolCallId: 'tc-bash',
+        kind: 'stdout',
+      } as Event),
+    ).toBe(false);
+
+    registry.apply({
+      type: 'subagent.tool_progress',
+      subagentId: 'sa-1',
+      toolCallId: 'tc-other',
+      kind: 'stdout',
+      textPreview: 'other call',
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]!.liveText).toBe('other call');
+
+    registry.apply({
+      type: 'subagent.tool_result',
+      subagentId: 'sa-1',
+      toolCallId: 'tc-other',
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]!.liveText).toBeUndefined();
+    expect(registry.snapshot(now()).workers[0]!.liveKind).toBeUndefined();
+  });
+
+  it('ignores tool_progress for unknown workers and empty previews', () => {
+    const { registry } = createHarness();
+    expect(
+      registry.apply({
+        type: 'subagent.tool_progress',
+        subagentId: 'ghost',
+        toolCallId: 'tc-1',
+        kind: 'stdout',
+        textPreview: 'nope',
+      } as Event),
+    ).toBe(false);
+  });
+
   it('attaches a compact result chip on settled ops without an existing chip', () => {
     const { registry, now } = createHarness();
     registry.apply(spawned('sa-1'));

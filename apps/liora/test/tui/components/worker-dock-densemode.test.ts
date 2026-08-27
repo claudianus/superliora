@@ -5,6 +5,7 @@ import {
   clampWorkerScrollOffset,
   compactElapsed,
   DENSE_WORKER_CAP,
+  denseLiveCell,
   denseWorkerSlots,
   formatRateSparkline,
   resolveDenseOps,
@@ -302,5 +303,20 @@ describe('mission-control densemode helpers', () => {
     expect(joined1).not.toContain('w0');
     expect(page1.scrollOffset).toBe(2);
     expect(clampWorkerScrollOffset(99, 12, DENSE_WORKER_CAP)).toBe(12 - DENSE_WORKER_CAP);
+  });
+
+  it('prefers a tool-progress tail over intent without the thinking hot window', () => {
+    const cell = denseLiveCell(
+      worker('coder', 0, {
+        description: 'stale intent',
+        liveKind: 'stdout',
+        liveText: '12 passing',
+        liveAtMs: 0,
+      }),
+      60_000,
+      '12 passing',
+      'Bash pnpm test',
+    );
+    expect(cell).toEqual({ kind: 'stdout', text: '12 passing' });
   });
 });
