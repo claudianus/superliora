@@ -104,7 +104,97 @@ describe('scripts/install/host-setup', () => {
     );
   });
 
-  it('skipPackages does not probe the Windows desktop folder', async () => {
+  it('marks existing stale Windows shortcuts as needed, not refresh', () => {
+    const env = {
+      USERPROFILE: 'E:\\Users\\dev',
+      LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
+      APPDATA: 'E:\\Users\\dev\\AppData\\Roaming',
+    };
+    const desktop = 'E:\\Users\\dev\\Desktop\\SuperLiora.lnk';
+    const startMenu = 'E:\\Users\\dev\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\SuperLiora.lnk';
+    const present = new Set([
+      desktop.replaceAll('/', '\\').toLowerCase(),
+      startMenu.replaceAll('/', '\\').toLowerCase(),
+    ]);
+    const payloads = new Map([
+      [desktop.replaceAll('/', '\\').toLowerCase(), 'C:\\Windows\\System32\\cmd.exe /c start "" wt.exe'],
+      [
+        startMenu.replaceAll('/', '\\').toLowerCase(),
+        'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe',
+      ],
+    ]);
+    const stale = planHostSetup({
+      platform: 'win32',
+      env,
+      isFile: (p: string) => present.has(p.replaceAll('/', '\\').toLowerCase()),
+      which: () => undefined,
+      readText: () => '',
+      readBytes: (p: string) => payloads.get(p.replaceAll('/', '\\').toLowerCase()),
+    });
+    expect(stale.needsApply).toBe(true);
+    expect(stale.items.find((item: { id: string }) => item.id === 'desktop-shortcut')?.status)
+      .toBe('needed');
+    expect(stale.items.find((item: { id: string }) => item.id === 'start-menu')?.status)
+      .toBe('needed');
+
+    const current = planHostSetup({
+      platform: 'win32',
+      env,
+      isFile: (p: string) => present.has(p.replaceAll('/', '\\').toLowerCase()),
+      which: () => undefined,
+      readText: () => '',
+      readBytes: () => 'C:\\Windows\\System32\\conhost.exe --headless powershell -File superliora-wt.ps1',
+    });
+    expect(current.items.find((item: { id: string }) => item.id === 'desktop-shortcut')?.status)
+      .toBe('refresh');
+    expect(current.items.find((item: { id: string }) => item.id === 'start-menu')?.status)
+      .toBe('refresh');
+  });
+
+  it('skipPackages rewrites the Windows desktop shortcut without GetFolderPath', async () => {
+    const shortcuts: Array<{ dest: string; target: string; arguments: string }> = [];
+    const wt = 'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe';
+    const liora = 'E:\\Users\\dev\\AppData\\Local\\SuperLiora\\bin\\liora.exe';
+    const result = await ensureHostSetup({
+      platform: 'win32',
+      skipPackages: true,
+      noShellRc: true,
+      binDir: 'E:\\Users\\dev\\AppData\\Local\\SuperLiora\\bin',
+      env: {
+        USERPROFILE: 'E:\\Users\\dev',
+        LOCALAPPDATA: 'E:\\Users\\dev\\AppData\\Local',
+        APPDATA: 'E:\\Users\\dev\\AppData\\Roaming',
+        SystemRoot: 'C:\\Windows',
+        SUPERLIORA_NO_NERD_FONT: '1',
+        SUPERLIORA_NO_SHELL_VIBE: '1',
+      },
+      isFile: (p: string) => {
+        const n = p.replaceAll('/', '\\').toLowerCase();
+        return n === wt.toLowerCase() || n === liora.toLowerCase();
+      },
+      which: () => undefined,
+      listAppx: () => undefined,
+      resolveWindowsDesktop: () => {
+        throw new Error('should not resolve Desktop during upgrade refresh');
+      },
+      writeFile: async () => {},
+      writeBrandIcon: async () => {},
+      writeShortcut: async (spec: { dest: string; target: string; arguments: string }) => {
+        shortcuts.push(spec);
+        return true;
+      },
+      readText: () => '',
+    });
+    expect(result.desktopShortcutWritten).toBe(true);
+    const desktop = shortcuts.find((spec) =>
+      spec.dest.replaceAll('/', '\\').toLowerCase().endsWith('\\desktop\\superliora.lnk'),
+    );
+    expect(desktop).toBeDefined();
+    expect(desktop?.target.replaceAll('/', '\\')).toBe('C:\\Windows\\System32\\conhost.exe');
+    expect(desktop?.arguments).toContain('superliora-wt.ps1');
+  });
+
+  it('skipPackages does not probe GetFolderPath when Terminal is missing', async () => {
     const result = await ensureHostSetup({
       platform: 'win32',
       skipPackages: true,
