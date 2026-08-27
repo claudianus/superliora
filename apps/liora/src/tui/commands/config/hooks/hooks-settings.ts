@@ -64,7 +64,6 @@ export function showHooksSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.hooks.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {

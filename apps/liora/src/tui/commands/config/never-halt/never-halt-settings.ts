@@ -34,7 +34,6 @@ export function showNeverHaltSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.neverHalt.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {

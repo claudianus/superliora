@@ -91,6 +91,63 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.settings.pane.appearance.performance': 'Performance mode',
   'tui.settings.pane.appearance.performanceDesc':
     'off | auto | on — low-spec overlay; does not rewrite saved appearance prefs.',
+  'tui.settings.pane.appearance.status': 'Appearance status',
+  'tui.settings.pane.appearance.statusDesc':
+    'Live theme palette · saved motion prefs · canvas / terminal / transcript.',
+  'tui.settings.pane.appearance.theme': 'Theme…',
+  'tui.settings.pane.appearance.themeDesc': 'Open Settings → Theme palette picker.',
+  'tui.settings.pane.appearance.profileDesc':
+    'auto | off | subtle | premium — ambient motion budget.',
+  'tui.settings.pane.appearance.densityDesc':
+    'auto | compact | comfortable | spacious — chrome spacing.',
+  'tui.settings.pane.appearance.transcriptDesc':
+    'minimal | compact | standard | full — live tool card density.',
+  'tui.settings.pane.appearance.neatDesc':
+    'Structured tool result cards instead of raw output dumps.',
+  'tui.settings.pane.appearance.syntaxDesc':
+    'Coding colors independent of UI skin (GitHub Dimmed, One Dark, …).',
+  'tui.settings.pane.appearance.particlesDesc': 'auto | off | ambient | events | premium.',
+  'tui.settings.pane.appearance.fpsDesc': '1–60 · shared animation clock (common presets).',
+  'tui.settings.pane.appearance.timestampsDesc': 'HH:MM on user messages.',
+  'tui.settings.pane.appearance.canvasDesc': 'Fill TUI-owned cells with theme background.',
+  'tui.settings.pane.appearance.terminalBgDesc':
+    'off | session — OSC terminal background while running.',
+  'tui.settings.pane.appearance.terminalPaletteDesc':
+    'Inject theme palette into the terminal until exit.',
+  'tui.settings.pane.appearance.profile.premium': 'Full ambient motion (default premium profile)',
+  'tui.settings.pane.appearance.profile.subtle': 'Reduced motion accents',
+  'tui.settings.pane.appearance.profile.off': 'Motion effects off',
+  'tui.settings.pane.appearance.profile.auto': 'Follow Visual Quality / environment',
+  'tui.settings.pane.appearance.density.spacious': 'Roomier chrome (default)',
+  'tui.settings.pane.appearance.density.compact': 'Tighter spacing',
+  'tui.settings.pane.appearance.density.comfortable': 'Balanced spacing',
+  'tui.settings.pane.appearance.density.auto': 'Auto from terminal size / prefs',
+  'tui.settings.pane.appearance.transcript.minimal':
+    'Chain-only tools · full answers · thinking groups',
+  'tui.settings.pane.appearance.transcript.compact':
+    'Tool headers only · phase tints; click to expand',
+  'tui.settings.pane.appearance.transcript.standard':
+    'Default — preview cards · phase tints',
+  'tui.settings.pane.appearance.transcript.full': 'Every tool card expanded',
+  'tui.settings.pane.appearance.toggle.on': 'on',
+  'tui.settings.pane.appearance.toggle.off': 'off',
+  'tui.settings.pane.appearance.timestamps.onDesc': 'Show HH:MM on user messages',
+  'tui.settings.pane.appearance.timestamps.offDesc': 'Hide message timestamps',
+  'tui.settings.pane.appearance.neat.onDesc': 'Structured cards for tool results',
+  'tui.settings.pane.appearance.neat.offDesc': 'Raw tool output',
+  'tui.settings.pane.appearance.terminalBg.offDesc': 'Leave host terminal background alone',
+  'tui.settings.pane.appearance.terminalBg.session': 'session',
+  'tui.settings.pane.appearance.terminalBg.sessionDesc':
+    'Apply theme background for this session',
+  'tui.settings.pane.appearance.fpsLabel': '{fps} fps',
+  'tui.settings.pane.appearance.hint.syntax': 'coding colors only',
+  'tui.settings.pane.appearance.hint.transcript': 'live tool-card density',
+  'tui.settings.pane.theme.status': 'Theme status',
+  'tui.settings.pane.theme.statusDesc':
+    'Saved theme · live palette · canvas background · catalog counts · config path.',
+  'tui.settings.pane.theme.change': 'Change theme',
+  'tui.settings.pane.theme.changeDesc':
+    'Searchable picker with preview — bundled, custom, plugin, and external.',
   'tui.settings.pane.neverHalt.title': 'Never-Halt',
   'tui.settings.pane.neverHalt.panelTitle': ' Never-Halt ',
   'tui.settings.pane.extras.title': 'Provider extras (auto-detected)',
@@ -115,7 +172,8 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
     'Data home copied to {path}. Restart liora. Old files were left in place.',
   'tui.storage.homeTight':
     'Data home has {free} free (wants ~100 GB). Settings → Storage → Move data home.',
-  'tui.settings.pane.pickerHint': '↑↓ · Enter · Esc',
+  'tui.settings.pane.pickerHint':
+    '↑↓ navigate · Enter select · wheel scroll · click select · Esc cancel',
 
   // ── Footer preferences ───────────────────────────────────────────────────
   'tui.footer.pref.slot.auto': 'Auto',
@@ -427,7 +485,7 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.auth.logout.title': 'Select a provider to log out',
   'tui.auth.loggedIn': 'Logged in.',
   'tui.skills.manage.title': 'Skills',
-  'tui.skills.manage.hint': '↑↓ · Enter · Esc · Claude-compatible dirs',
+  'tui.skills.manage.hint': 'Claude-compatible dirs',
   'tui.skills.manage.toggle': 'Enable / disable',
   'tui.skills.manage.toggleDesc': 'Toggle slash activation (skills-state.json).',
   'tui.skills.manage.install': 'Install from path',
@@ -462,13 +520,13 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.plugins.mcp.backDesc': 'Return to the local plugin manager.',
   'tui.plugins.mcp.disable': 'Enter/Space disable',
   'tui.plugins.mcp.enable': 'Enter/Space enable',
-  'tui.extensions.hub.hint': '↑↓ · Enter · Esc · install/toggle hot-reloads session',
+  'tui.extensions.hub.hint': 'install/toggle hot-reloads session',
   'tui.extensions.hub.pluginsDesc': 'Install, enable, disable, remove, marketplace.',
   'tui.extensions.hub.skillsDesc': 'Enable/disable skills for slash activation.',
   'tui.extensions.hub.mcpDesc': 'Add, enable, and inspect MCP servers.',
   'tui.extensions.hub.claude': 'Import from Claude Code',
   'tui.extensions.hub.claudeDesc': 'Bring .claude / ~/.claude inventory into SuperLiora.',
-  'tui.mcp.manage.hint': '↑↓ · Enter · Esc · Claude-compatible mcp.json',
+  'tui.mcp.manage.hint': 'Claude-compatible mcp.json',
   'tui.mcp.manage.status': 'Status',
   'tui.mcp.manage.statusDesc': 'Live connection status for configured servers.',
   'tui.mcp.manage.toggle': 'Enable / disable',
@@ -548,7 +606,7 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.session.picker.hint.select': 'Enter select',
   'tui.session.picker.hint.cancel': 'Esc cancel',
   'tui.claude.import.title': 'Import from Claude Code',
-  'tui.claude.import.hint': '↑↓ · Enter · Esc · ~/.claude if present',
+  'tui.claude.import.hint': '~/.claude if present',
   'tui.claude.import.all': 'Import skills + MCP',
   'tui.claude.import.allFallback': 'Copy into ~/.superliora',
   'tui.claude.import.skills': 'Import skills only',
@@ -559,7 +617,7 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.claude.import.guidanceDesc': 'Soft link or manual setup without copying.',
   'tui.settings.presets.label': 'Presets…',
   'tui.settings.presets.desc': 'Named packs — apply one, then fine-tune below.',
-  'tui.settings.presets.hint': '↑↓←→ · Enter apply · Esc',
+  'tui.settings.presets.hint': '↑↓←→ navigate · Enter apply · Esc cancel',
   'tui.context.capOff': 'cap off',
   'tui.context.capOn': 'cap {value}',
   'tui.context.unknownWindow': 'unknown',
@@ -1256,6 +1314,63 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.settings.pane.appearance.performance': '성능 모드',
   'tui.settings.pane.appearance.performanceDesc':
     'off | auto | on — 저사양 오버레이. 저장된 외관 설정은 그대로 둡니다.',
+  'tui.settings.pane.appearance.status': '외관 상태',
+  'tui.settings.pane.appearance.statusDesc':
+    '라이브 테마 팔레트 · 저장된 모션 설정 · 캔버스 / 터미널 / 트랜스크립트.',
+  'tui.settings.pane.appearance.theme': '테마…',
+  'tui.settings.pane.appearance.themeDesc': 'Settings → Theme 팔레트 선택기를 엽니다.',
+  'tui.settings.pane.appearance.profileDesc':
+    'auto | off | subtle | premium — 앰비언트 모션 예산.',
+  'tui.settings.pane.appearance.densityDesc':
+    'auto | compact | comfortable | spacious — 크롬 간격.',
+  'tui.settings.pane.appearance.transcriptDesc':
+    'minimal | compact | standard | full — 라이브 도구 카드 밀도.',
+  'tui.settings.pane.appearance.neatDesc':
+    '원본 덤프 대신 구조화된 도구 결과 카드.',
+  'tui.settings.pane.appearance.syntaxDesc':
+    'UI 스킨과 별개의 코딩 색 (GitHub Dimmed, One Dark, …).',
+  'tui.settings.pane.appearance.particlesDesc': 'auto | off | ambient | events | premium.',
+  'tui.settings.pane.appearance.fpsDesc': '1–60 · 공유 애니메이션 클럭 (자주 쓰는 프리셋).',
+  'tui.settings.pane.appearance.timestampsDesc': '사용자 메시지에 HH:MM.',
+  'tui.settings.pane.appearance.canvasDesc': 'TUI가 그리는 셀을 테마 배경으로 채웁니다.',
+  'tui.settings.pane.appearance.terminalBgDesc':
+    'off | session — 실행 중 OSC 터미널 배경.',
+  'tui.settings.pane.appearance.terminalPaletteDesc':
+    '종료할 때까지 테마 팔레트를 터미널에 주입합니다.',
+  'tui.settings.pane.appearance.profile.premium': '전체 앰비언트 모션 (기본 프리미엄 프로필)',
+  'tui.settings.pane.appearance.profile.subtle': '줄어든 모션 액센트',
+  'tui.settings.pane.appearance.profile.off': '모션 효과 끔',
+  'tui.settings.pane.appearance.profile.auto': 'Visual Quality / 환경을 따름',
+  'tui.settings.pane.appearance.density.spacious': '더 넓은 크롬 (기본)',
+  'tui.settings.pane.appearance.density.compact': '더 촘촘한 간격',
+  'tui.settings.pane.appearance.density.comfortable': '균형 잡힌 간격',
+  'tui.settings.pane.appearance.density.auto': '터미널 크기 / 설정에서 자동',
+  'tui.settings.pane.appearance.transcript.minimal':
+    '체인만 표시 · 전체 답변 · 생각 그룹',
+  'tui.settings.pane.appearance.transcript.compact':
+    '도구 헤더만 · 페이즈 틴트; 클릭하면 펼침',
+  'tui.settings.pane.appearance.transcript.standard':
+    '기본 — 미리보기 카드 · 페이즈 틴트',
+  'tui.settings.pane.appearance.transcript.full': '모든 도구 카드를 펼침',
+  'tui.settings.pane.appearance.toggle.on': '켜기',
+  'tui.settings.pane.appearance.toggle.off': '끄기',
+  'tui.settings.pane.appearance.timestamps.onDesc': '사용자 메시지에 HH:MM 표시',
+  'tui.settings.pane.appearance.timestamps.offDesc': '메시지 타임스탬프 숨김',
+  'tui.settings.pane.appearance.neat.onDesc': '도구 결과를 구조화된 카드로',
+  'tui.settings.pane.appearance.neat.offDesc': '원본 도구 출력',
+  'tui.settings.pane.appearance.terminalBg.offDesc': '호스트 터미널 배경을 그대로 둠',
+  'tui.settings.pane.appearance.terminalBg.session': 'session',
+  'tui.settings.pane.appearance.terminalBg.sessionDesc':
+    '이 세션에 테마 배경을 적용',
+  'tui.settings.pane.appearance.fpsLabel': '{fps} fps',
+  'tui.settings.pane.appearance.hint.syntax': '코딩 색만',
+  'tui.settings.pane.appearance.hint.transcript': '라이브 도구 카드 밀도',
+  'tui.settings.pane.theme.status': '테마 상태',
+  'tui.settings.pane.theme.statusDesc':
+    '저장된 테마 · 라이브 팔레트 · 캔버스 배경 · 카탈로그 수 · 설정 경로.',
+  'tui.settings.pane.theme.change': '테마 변경',
+  'tui.settings.pane.theme.changeDesc':
+    '미리보기가 있는 검색 선택기 — 번들, 커스텀, 플러그인, 외부.',
   'tui.settings.pane.neverHalt.title': 'Never-Halt',
   'tui.settings.pane.neverHalt.panelTitle': ' Never-Halt ',
   'tui.settings.pane.extras.title': 'Provider extras (자동 감지)',
@@ -1281,7 +1396,8 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
     '데이터 홈을 {path}로 복사했습니다. liora를 다시 시작하세요. 이전 파일은 그대로 둡니다.',
   'tui.storage.homeTight':
     '데이터 홈 여유 {free} (권장 약 100GB). 설정 → 저장소 → 데이터 홈 이동.',
-  'tui.settings.pane.pickerHint': '↑↓ 이동 · Enter · Esc',
+  'tui.settings.pane.pickerHint':
+    '↑↓ 이동 · Enter 선택 · 휠 스크롤 · 클릭 선택 · Esc 취소',
 
   'tui.footer.pref.slot.auto': '자동',
   'tui.footer.pref.slot.always': '항상',
@@ -1590,7 +1706,7 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.auth.logout.title': '로그아웃할 프로바이더 선택',
   'tui.auth.loggedIn': '로그인됨.',
   'tui.skills.manage.title': '스킬',
-  'tui.skills.manage.hint': '↑↓ · Enter · Esc · Claude 호환 디렉터리',
+  'tui.skills.manage.hint': 'Claude 호환 디렉터리',
   'tui.skills.manage.toggle': '켜기 / 끄기',
   'tui.skills.manage.toggleDesc': '슬래시 활성화를 토글합니다 (skills-state.json).',
   'tui.skills.manage.install': '경로에서 설치',
@@ -1625,13 +1741,13 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.plugins.mcp.backDesc': '로컬 플러그인 관리자로 돌아갑니다.',
   'tui.plugins.mcp.disable': 'Enter/Space 끄기',
   'tui.plugins.mcp.enable': 'Enter/Space 켜기',
-  'tui.extensions.hub.hint': '↑↓ · Enter · Esc · 설치/토글 시 세션을 다시 로드',
+  'tui.extensions.hub.hint': '설치/토글 시 세션을 다시 로드',
   'tui.extensions.hub.pluginsDesc': '설치, 켜기, 끄기, 제거, 마켓플레이스.',
   'tui.extensions.hub.skillsDesc': '슬래시 활성화용 스킬을 켜거나 끕니다.',
   'tui.extensions.hub.mcpDesc': 'MCP 서버를 추가, 켜고, 상태를 봅니다.',
   'tui.extensions.hub.claude': 'Claude Code에서 가져오기',
   'tui.extensions.hub.claudeDesc': '.claude / ~/.claude inventory를 SuperLiora로 가져옵니다.',
-  'tui.mcp.manage.hint': '↑↓ · Enter · Esc · Claude 호환 mcp.json',
+  'tui.mcp.manage.hint': 'Claude 호환 mcp.json',
   'tui.mcp.manage.status': '상태',
   'tui.mcp.manage.statusDesc': '설정된 서버의 실시간 연결 상태.',
   'tui.mcp.manage.toggle': '켜기 / 끄기',
@@ -1711,7 +1827,7 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.session.picker.hint.select': 'Enter 선택',
   'tui.session.picker.hint.cancel': 'Esc 취소',
   'tui.claude.import.title': 'Claude Code에서 가져오기',
-  'tui.claude.import.hint': '↑↓ · Enter · Esc · ~/.claude가 있으면',
+  'tui.claude.import.hint': '~/.claude가 있으면',
   'tui.claude.import.all': '스킬 + MCP 가져오기',
   'tui.claude.import.allFallback': '~/.superliora로 복사',
   'tui.claude.import.skills': '스킬만 가져오기',
@@ -1722,7 +1838,7 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.claude.import.guidanceDesc': '복사 없이 소프트 링크 또는 수동 설정.',
   'tui.settings.presets.label': '프리셋…',
   'tui.settings.presets.desc': '이름 있는 팩 — 하나를 적용한 뒤 아래에서 조정.',
-  'tui.settings.presets.hint': '↑↓←→ · Enter 적용 · Esc',
+  'tui.settings.presets.hint': '↑↓←→ 이동 · Enter 적용 · Esc 취소',
   'tui.context.capOff': '캡 끔',
   'tui.context.capOn': '캡 {value}',
   'tui.context.unknownWindow': '알 수 없음',

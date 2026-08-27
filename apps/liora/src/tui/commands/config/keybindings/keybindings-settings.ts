@@ -30,7 +30,6 @@ export function showKeybindingsSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.keybindings.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {

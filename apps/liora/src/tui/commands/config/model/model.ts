@@ -131,7 +131,6 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
     host,
     new ChoicePickerComponent({
       title: ttui('tui.model.routing.title'),
-      hint: ttui('tui.model.routing.hint'),
       notice: ttui('tui.model.routing.notice'),
       noticeTone: 'warning',
       options: [
@@ -375,7 +374,6 @@ export function showModelSettingsReset(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.model.reset.title'),
-      hint: ttui('tui.model.reset.hint'),
       notice: ttui('tui.model.reset.notice'),
       noticeTone: 'warning',
       options: [

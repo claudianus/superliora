@@ -78,7 +78,6 @@ export function showLocaleSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.locale.title'),
-      hint: ttui('tui.locale.hint'),
       currentValue: current,
       options: [
         {

@@ -23,7 +23,7 @@ export async function showSkillsManagePanel(host: SlashCommandHost): Promise<voi
     host,
     new ChoicePickerComponent({
       title: ttui('tui.skills.manage.title'),
-      hint: ttui('tui.skills.manage.hint'),
+      hintExtra: ttui('tui.skills.manage.hint'),
       searchable: true,
       options: [
         {

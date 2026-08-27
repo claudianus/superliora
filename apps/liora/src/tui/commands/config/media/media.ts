@@ -24,7 +24,6 @@ export function showMediaFallbackPicker(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.media.fallback.title'),
-      hint: ttui('tui.media.fallback.hint'),
       options: [
         {
           value: 'analyze',

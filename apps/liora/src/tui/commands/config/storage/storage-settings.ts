@@ -79,7 +79,6 @@ export function showStorageSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.storage.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {
@@ -157,7 +156,6 @@ async function showMoveDataHomePicker(host: SlashCommandHost): Promise<void> {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.storage.move'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options,
       onSelect: (value) => {

@@ -53,7 +53,7 @@ export function showExtensionsSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.extensions.title'),
-      hint: '↑↓ · Enter · Esc · install/toggle hot-reloads session',
+      hintExtra: ttui('tui.extensions.hub.hint'),
       searchable: true,
       options: [
         {

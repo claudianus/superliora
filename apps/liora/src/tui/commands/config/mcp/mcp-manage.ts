@@ -40,7 +40,7 @@ export async function showMcpManagePanel(host: SlashCommandHost): Promise<void> 
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.mcp.title'),
-      hint: ttui('tui.mcp.manage.hint'),
+      hintExtra: ttui('tui.mcp.manage.hint'),
       searchable: true,
       options: [
         {
@@ -147,7 +147,6 @@ async function showServerPicker(host: SlashCommandHost, mode: 'toggle' | 'remove
     host,
     new ChoicePickerComponent({
       title: mode === 'toggle' ? 'Toggle MCP server' : 'Remove MCP server',
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: servers.map((server) => ({
         value: server.name,
