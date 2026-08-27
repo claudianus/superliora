@@ -10,7 +10,7 @@ import {
   jobRecordToSnapshot,
 } from '../../src/tools/builtin/job/job-emit';
 import { landJobToMain } from '../../src/tools/builtin/job/job-land';
-import { LAND_REFUSED_NOTE } from '../../src/tools/builtin/job/job-land-gate';
+import { LAND_REFUSED_NOTE } from '../../src/tools/builtin/job/job-task-track';
 import { createJob, getJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import { jobChooseLand } from '../../src/tools/builtin/job/job-rpc-api';
 import { jobIsolationKind } from '../../src/tools/builtin/job/job-task-track';

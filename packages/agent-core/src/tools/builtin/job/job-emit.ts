@@ -17,9 +17,8 @@ import type { Agent } from '../../../agent/index';
 import type { VerificationVerdict, VisualVerificationVerdict } from '../../../session/subagent/subagent-result-contract';
 import type { JobInboxEvent, JobInboxEventKind } from './job-inbox';
 import type { JobRecord } from './job-ledger';
-import { jobIsolationKind } from './job-task-track';
 import { isDebugFixerJob } from './job-store-key';
-import { landGateStatusFromJob } from './job-land-gate';
+import { jobIsolationKind, landGateStatusFromJob } from './job-task-track';
 
 function mapGateVerdict(
   verdict: VerificationVerdict | VisualVerificationVerdict | undefined,

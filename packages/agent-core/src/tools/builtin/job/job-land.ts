@@ -23,7 +23,7 @@ import {
   sameRepoPath,
 } from './job-git-root';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
-import { jobMayLandToMain, LAND_REFUSED_NOTE } from './job-land-gate';
+import { jobMayLandToMain, LAND_REFUSED_NOTE } from './job-task-track';
 
 export { repoRootFromGitCommonDir, jobMayLandToMain, LAND_REFUSED_NOTE };
 
