@@ -36,6 +36,7 @@ import {
   renderToneSettleFlash,
 } from '#/tui/features/appearance/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { SearchableList } from '#/tui/utils/ui/searchable-list';
 import {
   JOB_STATUS_META,
@@ -234,7 +235,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
         this.draft = '';
         this.repaint();
       } else {
-        this.setStatus('Steer needs a running worker — pick a ▸ row.');
+        this.setStatus('Steer needs a running worker — pick a running job.');
       }
       return;
     }
@@ -318,14 +319,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     const lines: string[] = [
       border,
       ` ${title}${suffix}`,
-      theme.fg(
-        'textMuted',
-        ` ${ttui('tui.jobs.deckNavHint')}`,
-      ),
-      theme.fg(
-        'textDim',
-        ` ${ttui('tui.jobs.deckActionHint')}`,
-      ),
+      theme.fg('textMuted', ` ${ttui('tui.jobs.deckNavHint')}`),
       this.renderMissionStrip(width),
       this.renderOutcomeStrip(width),
       ...(this.snapshot.running > 0
@@ -339,7 +333,10 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       lines.push(...this.renderOutcomeSections(width));
     }
     if (view.query.length > 0) {
-      lines.push(theme.fg('text', ` Search: ${view.query}`));
+      lines.push(
+        theme.fg('primary', ` ${ttui('tui.common.searchLabel').trimEnd()} `) +
+          theme.fg('text', view.query),
+      );
     }
     if (view.items.length === 0) {
       if (this.snapshot.jobs.length === 0) {
@@ -449,7 +446,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
         lines.push(
           theme.boldFg(
             token,
-            ` ▸ ${sessionOutcomeBucketLabel(row.bucket)} (${String(board[row.bucket].length)})`,
+            ` ${sessionOutcomeBucketLabel(row.bucket)} (${String(board[row.bucket].length)})`,
           ),
         );
       }
@@ -483,7 +480,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     const theme = currentTheme;
     const meta = JOB_STATUS_META[card.status];
     const pointer = selected
-      ? theme.boldFg('primary', SELECT_POINTER)
+      ? renderSelectPointer('job-deck:pointer')
       : ' '.repeat(visibleWidth(SELECT_POINTER));
     const glyph =
       card.status === 'running'

@@ -2,13 +2,16 @@
  * Job Deck viewer — interactive Conductor mission monitor (list + transcript).
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   formatTokenCount,
   JobDeckViewerComponent,
   shortAgentId,
 } from '#/tui/components/dialogs/job-deck/job-deck-viewer';
+import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
+import { currentTheme } from '#/tui/theme';
 import type { ConductorJobCard, ConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
 
 function stripAnsi(text: string): string {
@@ -66,6 +69,10 @@ describe('formatTokenCount / shortAgentId', () => {
 });
 
 describe('JobDeckViewerComponent', () => {
+  afterEach(() => {
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  });
+
   it('renders the mission strip and searchable job rows', () => {
     const snap = snapshotOf([
       card('job_a1b2c3d4', 'migrate the billing service', 'running', {
@@ -90,6 +97,39 @@ describe('JobDeckViewerComponent', () => {
     expect(joined).toContain('migrate the billing');
     expect(joined).toContain('running tests');
     expect(joined).toContain('worker01');
+  });
+
+  it('keeps a single PREMIUM hint line and primary Search: label', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const snap = snapshotOf([
+      card('job_a1b2c3d4', 'migrate the billing service', 'running'),
+      card('job_b2c3d4e5', 'answer needed for rollout', 'needs_user'),
+    ]);
+    const viewer = new JobDeckViewerComponent({
+      getSnapshot: () => snap,
+      loadWorker: async () => ({ lines: [] }),
+      onAction: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    const idleLines = viewer.render(120).map(stripAnsi);
+    const hintLines = idleLines.filter(
+      (line) => line.includes('navigate') || line.includes('merge'),
+    );
+    expect(hintLines).toHaveLength(1);
+    expect(hintLines[0]).toContain('↑↓ navigate');
+    expect(hintLines[0]).toContain('M merge');
+    expect(hintLines[0]).toContain('Esc cancel');
+    expect(idleLines.filter((line) => /▸\s*막힘/.test(line))).toEqual([]);
+    expect(idleLines.some((line) => line.includes('막힘 (') && !line.includes('▸'))).toBe(true);
+
+    viewer.handleInput('b');
+    const searching = viewer.render(120);
+    const joined = searching.map(stripAnsi).join('\n');
+    expect(joined).toContain('Search: b');
+    expect(searching.join('\n')).toContain(currentTheme.fg('primary', ' Search: '));
+    expect(joined).toContain('migrate the billing');
+    expect(joined).not.toContain('answer needed');
   });
 
   it('drills into a worker transcript on Enter when a worker exists', async () => {

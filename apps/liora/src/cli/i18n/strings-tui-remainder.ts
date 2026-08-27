@@ -1158,6 +1158,7 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
 
   'tui.dialog.inbox.title': ' Inbox',
   'tui.dialog.inbox.hint': '↑↓ navigate · Enter select · M merge · P push · Esc cancel',
+  'tui.dialog.inbox.noMatch': '  No notices match this search.',
   'tui.dialog.inbox.empty': '  Inbox is empty.',
   'tui.dialog.inbox.badge.approval': '[approval]',
   'tui.dialog.inbox.badge.question': '[question]',
@@ -2318,6 +2319,7 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
 
   'tui.dialog.inbox.title': ' 받은편지함',
   'tui.dialog.inbox.hint': '↑↓ 이동 · Enter 선택 · M merge · P push · Esc 취소',
+  'tui.dialog.inbox.noMatch': '  검색과 맞는 알림이 없습니다.',
   'tui.dialog.inbox.empty': '  받은편지함이 비어 있습니다.',
   'tui.dialog.inbox.badge.approval': '[승인]',
   'tui.dialog.inbox.badge.question': '[질문]',
