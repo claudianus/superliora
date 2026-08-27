@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.14.0
+
+### Minor Changes
+
+- Add custom model input for unlisted and just-released models and refresh model catalog handling. Add Ctrl+N custom model dialog in the model picker and `liora provider model add <providerId> <modelId>` for any wire ID not yet in models.dev or provider /models; custom entries are marked userManaged and survive catalog refreshes. Run /model then Ctrl+N or `liora provider model add anthropic claude-opus-4-8 --thinking` to try it. Offline fallback presets for Copilot, Codex, xAI Grok, and cloud Claude are updated to current flagships.
+
 ## 0.13.7
 
 ### Patch Changes
