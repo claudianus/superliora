@@ -10,7 +10,7 @@ import { upsertConductorJobCard } from '#/tui/utils/job/job-strip';
 import type { JobSnapshot } from '@superliora/protocol';
 
 describe('gate-preview', () => {
-  it('formats checklist glyphs', () => {
+  it('formats checklist glyphs and omits missing land', () => {
     expect(
       formatGateChecklistLine({
         visual: 'pass',
@@ -21,7 +21,58 @@ describe('gate-preview', () => {
     ).toBe('visual✓ review… tests✗ typecheck–');
   });
 
-  it('lists pending/fail gates as missing evidence', () => {
+  it('paints land pass/pending/fail and omits na', () => {
+    const base = {
+      visual: 'na',
+      review: 'pass',
+      tests: 'pass',
+      typecheck: 'pass',
+    } as const;
+    expect(formatGateChecklistLine({ ...base, land: 'pass' })).toBe(
+      'visual– review✓ tests✓ typecheck✓ land✓',
+    );
+    expect(formatGateChecklistLine({ ...base, land: 'fail' })).toBe(
+      'visual– review✓ tests✓ typecheck✓ land✗',
+    );
+    expect(formatGateChecklistLine({ ...base, land: 'pending' })).toBe(
+      'visual– review✓ tests✓ typecheck✓ land…',
+    );
+    expect(formatGateChecklistLine({ ...base, land: 'na' })).toBe(
+      'visual– review✓ tests✓ typecheck✓',
+    );
+  });
+
+  it('paints stamped verify fail as review and land fail', () => {
+    expect(
+      formatGateChecklistLine({
+        visual: 'na',
+        review: 'fail',
+        tests: 'pass',
+        typecheck: 'pass',
+        land: 'fail',
+      }),
+    ).toBe('visual– review✗ tests✓ typecheck✓ land✗');
+  });
+
+  it('lists pending/fail land as missing evidence, not na or omitted', () => {
+    expect(
+      formatMissingGateEvidence({
+        visual: 'pass',
+        review: 'pending',
+        tests: 'fail',
+        typecheck: 'na',
+        land: 'fail',
+      }),
+    ).toEqual(['review: pending', 'tests: fail', 'land: fail']);
+    expect(
+      formatMissingGateEvidence({
+        visual: 'pass',
+        review: 'pass',
+        tests: 'pass',
+        typecheck: 'pass',
+        land: 'pending',
+      }),
+    ).toEqual(['land: pending']);
     expect(
       formatMissingGateEvidence({
         visual: 'pass',
@@ -30,6 +81,15 @@ describe('gate-preview', () => {
         typecheck: 'na',
       }),
     ).toEqual(['review: pending', 'tests: fail']);
+    expect(
+      formatMissingGateEvidence({
+        visual: 'pass',
+        review: 'pass',
+        tests: 'pass',
+        typecheck: 'pass',
+        land: 'na',
+      }),
+    ).toEqual([]);
   });
 
   it('maps brief + gate into ACK detail', () => {
@@ -46,6 +106,7 @@ describe('gate-preview', () => {
       },
     });
     expect(detail).toContain('visual–');
+    expect(detail).not.toContain('land');
     expect(detail).toContain('ok: tests green');
     expect(detail).toContain("don't touch: apps/site");
   });
