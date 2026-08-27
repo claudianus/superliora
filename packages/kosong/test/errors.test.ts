@@ -301,6 +301,12 @@ describe('isTransientTryAgainError', () => {
       ),
     ).toBe(true);
     expect(isTransientTryAgainError(new ChatProviderError('please retry in a moment'))).toBe(true);
+    expect(isTransientTryAgainError(new ChatProviderError('ERROR_UNEXPECTED from upstream'))).toBe(
+      true,
+    );
+    expect(
+      isTransientTryAgainError(new ChatProviderError('This region is not available for your team')),
+    ).toBe(true);
   });
 
   it('vetoes permanent auth/quota lookalikes and non-errors', () => {

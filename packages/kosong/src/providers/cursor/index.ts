@@ -16,32 +16,39 @@ import type { Tool } from '#/tool';
 import { ChatProviderError } from '#/errors';
 
 import { mergeRequestHeaders, requireProviderApiKey } from '../request-auth';
+import { resolveCursorAgentOrigin } from './agent-url';
 import { CursorAgentClient } from './client';
+import { CURSOR_API_BASE_URL } from './constants';
+import { convertCursorError } from './errors';
 import type { CursorAgentTool } from './frames';
 import { renderCursorPrompt } from './prompt';
 import { CursorStreamedMessage } from './stream';
+import { resolveCursorClientVersion } from './version';
 
 export interface CursorOptions {
   readonly model: string;
   readonly apiKey?: string;
+  /**
+   * AgentService/Run origin. Auth-API hosts (`api2.cursor.sh`) are ignored and
+   * replaced by GetServerConfig. Override with `CURSOR_AGENT_BASE_URL`.
+   */
   readonly baseUrl?: string;
+  /** Auth/catalog host for GetServerConfig (default `https://api2.cursor.sh`). */
+  readonly apiBaseUrl?: string;
   readonly defaultHeaders?: Record<string, string>;
-  /** Advertised `x-cursor-client-version`; defaults to env or a recent CLI build. */
+  /** Advertised `x-cursor-client-version`; defaults to env or a local CLI build. */
   readonly clientVersion?: string;
   /** Working directory sent in Cursor environment context. */
   readonly cwd?: string;
 }
-
-/** Matches opencodex v2.10 Cursor provider baseUrl. */
-const DEFAULT_BASE_URL = 'https://api2.cursor.sh';
-const DEFAULT_CLIENT_VERSION = 'cli-2026.07.08-0c04a8a';
 
 export class CursorChatProvider implements ChatProvider {
   readonly name = 'cursor';
 
   private readonly _model: string;
   private readonly _apiKey: string | undefined;
-  private readonly _baseUrl: string;
+  private readonly _baseUrl: string | undefined;
+  private readonly _apiBaseUrl: string;
   private readonly _defaultHeaders: Record<string, string> | undefined;
   private readonly _clientVersion: string;
   private readonly _cwd: string;
@@ -50,13 +57,12 @@ export class CursorChatProvider implements ChatProvider {
   constructor(options: CursorOptions, thinkingEffort: ThinkingEffort | null = null) {
     const apiKey = options.apiKey ?? process.env['CURSOR_ACCESS_TOKEN'];
     this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
-    this._baseUrl = options.baseUrl?.trim() || DEFAULT_BASE_URL;
+    const configured = options.baseUrl?.trim();
+    this._baseUrl = configured !== undefined && configured.length > 0 ? configured : undefined;
+    this._apiBaseUrl = options.apiBaseUrl?.trim() || CURSOR_API_BASE_URL;
     this._defaultHeaders = options.defaultHeaders;
     this._model = options.model;
-    this._clientVersion =
-      options.clientVersion?.trim() ||
-      process.env['SUPERLIORA_CURSOR_CLIENT_VERSION']?.trim() ||
-      DEFAULT_CLIENT_VERSION;
+    this._clientVersion = resolveCursorClientVersion(options.clientVersion);
     this._cwd = options.cwd?.trim() || process.cwd();
     this._thinkingEffort = thinkingEffort;
   }
@@ -74,7 +80,8 @@ export class CursorChatProvider implements ChatProvider {
       {
         model: this._model,
         ...(this._apiKey === undefined ? {} : { apiKey: this._apiKey }),
-        baseUrl: this._baseUrl,
+        ...(this._baseUrl === undefined ? {} : { baseUrl: this._baseUrl }),
+        apiBaseUrl: this._apiBaseUrl,
         ...(this._defaultHeaders === undefined ? {} : { defaultHeaders: this._defaultHeaders }),
         clientVersion: this._clientVersion,
         cwd: this._cwd,
@@ -96,8 +103,21 @@ export class CursorChatProvider implements ChatProvider {
       throw new ChatProviderError('cursor: empty prompt after rendering history.');
     }
 
+    let agentOrigin: string;
+    try {
+      agentOrigin = await resolveCursorAgentOrigin({
+        token: apiKey,
+        ...(this._baseUrl === undefined ? {} : { configuredBaseUrl: this._baseUrl }),
+        apiBaseUrl: this._apiBaseUrl,
+        clientVersion: this._clientVersion,
+        signal: options?.signal,
+      });
+    } catch (error) {
+      throw convertCursorError(error);
+    }
+
     const client = new CursorAgentClient({
-      baseUrl: this._baseUrl,
+      baseUrl: agentOrigin,
       clientVersion: this._clientVersion,
       ...(headers === undefined ? {} : { defaultHeaders: headers }),
     });
@@ -130,8 +150,19 @@ export class CursorChatProvider implements ChatProvider {
 }
 
 export { buildRunFrames, heartbeatFrame } from './frames';
-export { encodeConnectFrame, ConnectFrameDecoder } from './connect';
-export { CURSOR_PROVIDER_ID } from './constants';
+export {
+  encodeConnectFrame,
+  ConnectFrameDecoder,
+  parseConnectEndError,
+  parseHttp2Trailers,
+  unwrapConnectPayload,
+} from './connect';
+export {
+  CURSOR_PROVIDER_ID,
+  CURSOR_API_BASE_URL,
+  CURSOR_AGENT_FALLBACK_URL,
+  CURSOR_CLIENT_VERSION_DEFAULT,
+} from './constants';
 export {
   extractAnswerText,
   extractReasoningText,
@@ -164,3 +195,32 @@ export {
   fieldVarint,
   concatBytes,
 } from './proto';
+export {
+  convertCursorError,
+  isCursorBadModelError,
+  isCursorClientVersionError,
+  isCursorRegionRoutingError,
+} from './errors';
+export {
+  parseGetServerConfigAgentUrl,
+  resolveCursorAgentOrigin,
+  invalidateCursorAgentOriginCache,
+} from './agent-url';
+export {
+  explicitCursorAgentOrigin,
+  isCursorAuthApiOrigin,
+  isCursorDefaultFallbackOrigin,
+  normalizeCursorAgentOrigin,
+} from './hosts';
+export { buildCursorIdentityHeaders, mergeCursorProtocolHeaders } from './headers';
+export {
+  createCursorChecksumHeader,
+  obfuscateCursorTimestamp,
+  parseCursorWindowsMachineGuid,
+} from './identity';
+export { cursorEnvironmentOs, cursorEnvironmentShell, cursorIsWorkingDirHome } from './env';
+export {
+  resolveCursorClientVersion,
+  discoverLocalCursorClientVersion,
+  cursorAgentVersionsDirs,
+} from './version';

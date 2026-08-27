@@ -89,12 +89,14 @@ export function* iterFields(buf: Uint8Array): Generator<PbField> {
       offset += size;
     } else if (wire === 5) {
       if (offset + 4 > buf.length) return;
+      const data = buf.subarray(offset, offset + 4);
       offset += 4;
-      yield { field, wire, data: new Uint8Array(0) };
+      yield { field, wire, data };
     } else if (wire === 1) {
       if (offset + 8 > buf.length) return;
+      const data = buf.subarray(offset, offset + 8);
       offset += 8;
-      yield { field, wire, data: new Uint8Array(0) };
+      yield { field, wire, data };
     } else {
       return;
     }
@@ -155,50 +157,56 @@ const MAX_PROTOBUF_VALUE_DEPTH = 64;
 /** Decode `google.protobuf.Value` bytes into JSON. */
 export function decodeProtobufValue(buf: Uint8Array, depth = 0): unknown {
   if (depth >= MAX_PROTOBUF_VALUE_DEPTH || buf.length === 0) return null;
-  const tag = readVarint(buf, 0);
-  if (tag === undefined) return null;
-  const field = Number(tag.value >> 3n);
-  const wire = Number(tag.value & 7n);
-  const rest = buf.subarray(tag.next);
-  switch (field) {
-    case 1:
-      return null;
-    case 2: {
-      if (rest.length < 8) return null;
-      return Buffer.from(rest.subarray(0, 8)).readDoubleLE(0);
-    }
-    case 3: {
-      const len = readVarint(rest, 0);
-      if (len === undefined) return null;
-      const size = Number(len.value);
-      return Buffer.from(rest.subarray(len.next, len.next + size)).toString('utf8');
-    }
-    case 4: {
-      const v = readVarint(rest, 0);
-      return v !== undefined && v.value !== 0n;
-    }
-    case 5: {
-      const len = readVarint(rest, 0);
-      if (len === undefined) return null;
-      const size = Number(len.value);
-      return decodeProtobufStruct(rest.subarray(len.next, len.next + size), depth + 1);
-    }
-    case 6: {
-      const len = readVarint(rest, 0);
-      if (len === undefined) return null;
-      const size = Number(len.value);
-      const listBuf = rest.subarray(len.next, len.next + size);
-      const items: unknown[] = [];
-      for (const entry of iterFields(listBuf)) {
-        if (entry.field === 1 && entry.wire === 2) {
-          items.push(decodeProtobufValue(entry.data, depth + 1));
+  let decoded: unknown = null;
+  let found = false;
+  for (const entry of iterFields(buf)) {
+    switch (entry.field) {
+      case 1:
+        decoded = null;
+        found = true;
+        break;
+      case 2: {
+        if (entry.wire === 1 && entry.data.length >= 8) {
+          decoded = Buffer.from(entry.data.subarray(0, 8)).readDoubleLE(0);
+          found = true;
         }
+        break;
       }
-      return items;
+      case 3:
+        if (entry.wire === 2) {
+          decoded = Buffer.from(entry.data).toString('utf8');
+          found = true;
+        }
+        break;
+      case 4:
+        if (entry.wire === 0) {
+          decoded = entry.varint !== undefined && entry.varint !== 0n;
+          found = true;
+        }
+        break;
+      case 5:
+        if (entry.wire === 2) {
+          decoded = decodeProtobufStruct(entry.data, depth + 1);
+          found = true;
+        }
+        break;
+      case 6:
+        if (entry.wire === 2) {
+          const items: unknown[] = [];
+          for (const listEntry of iterFields(entry.data)) {
+            if (listEntry.field === 1 && listEntry.wire === 2) {
+              items.push(decodeProtobufValue(listEntry.data, depth + 1));
+            }
+          }
+          decoded = items;
+          found = true;
+        }
+        break;
+      default:
+        break;
     }
-    default:
-      return null;
   }
+  return found ? decoded : null;
 }
 
 function decodeProtobufStruct(buf: Uint8Array, depth: number): Record<string, unknown> {

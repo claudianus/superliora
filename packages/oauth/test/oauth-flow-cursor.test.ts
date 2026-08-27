@@ -11,7 +11,7 @@ import {
   runCursorDeepLinkFlow,
   toCursorTokenInfo,
 } from '../src/flow/oauth-flow-cursor';
-import { CURSOR_PROFILE, getProviderProfile, isOAuthProviderId } from '../src/profiles';
+import { CURSOR_PROFILE, CURSOR_AGENT_BASE_URL, getProviderProfile, isOAuthProviderId } from '../src/profiles';
 import { EXPERIMENTAL_PROVIDER_PROFILES } from '../src/profiles';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -33,6 +33,8 @@ describe('cursor deep-link OAuth', () => {
     expect(isOAuthProviderId('cursor-oauth')).toBe(true);
     expect(CURSOR_PROFILE.flow.kind).toBe('deep_link_poll');
     expect(CURSOR_PROFILE.wire).toBe('cursor');
+    expect(CURSOR_PROFILE.apiBaseUrl).toBe('https://api2.cursor.sh');
+    expect(CURSOR_AGENT_BASE_URL).toBe('https://agentn.global.api5.cursor.sh');
     expect(
       EXPERIMENTAL_PROVIDER_PROFILES.some(
         (entry) => entry.profile.id === 'cursor-oauth' && entry.flag === 'cursor_oauth',

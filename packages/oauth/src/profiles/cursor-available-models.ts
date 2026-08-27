@@ -7,15 +7,17 @@
 
 import http2 from 'node:http2';
 import { randomUUID } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 
 import { isRecord } from '../utils';
 import type { ProviderModelPreset } from './provider-profile';
-import { CURSOR_CLIENT_TYPE, resolveCursorClientVersion } from './cursor-client';
+import { CURSOR_CLIENT_TYPE, createCursorChecksumHeader, resolveCursorClientVersion } from './cursor-client';
 import { applyXaiPricingSafeContextTokens } from './xai-pricing-window';
 
 const AVAILABLE_MODELS_PATH = '/aiserver.v1.AiService/AvailableModels';
 /** Same RPC opencodex uses for account-usable Run wire ids. */
 const USABLE_MODELS_PATH = '/agent.v1.AgentService/GetUsableModels';
+const SERVER_CONFIG_PATH = '/aiserver.v1.ServerConfigService/GetServerConfig';
 const DEFAULT_API_HOST = 'https://api2.cursor.sh';
 const DEFAULT_CONTEXT = 200_000;
 const DEFAULT_TIMEOUT_MS = 8_000;
@@ -166,22 +168,27 @@ export async function fetchCursorUsableModels(options: {
 }): Promise<CursorDiscoveredModel[] | undefined> {
   const token = options.accessToken.trim();
   if (token.length === 0) return undefined;
-  const host = (options.apiHost ?? DEFAULT_API_HOST).replace(/\/$/, '');
+  const apiHost = (options.apiHost ?? DEFAULT_API_HOST).replace(/\/$/, '');
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const agentHost = await resolveCursorAgentOrigin(token, apiHost, {
+    timeoutMs,
+    signal: options.signal,
+  });
+  if (agentHost === undefined) return undefined;
 
-  let body: Uint8Array;
   try {
-    body = await postProtoEmpty(host, USABLE_MODELS_PATH, token, {
+    const body = await postProtoEmpty(agentHost, USABLE_MODELS_PATH, token, {
       timeoutMs,
       signal: options.signal,
     });
+    const ids = decodeUsableModelIds(body);
+    if (ids.length > 0) {
+      return ids.map((id) => cursorUsableModelToDiscoveredModel(toCursorCatalogModelId(id)));
+    }
   } catch {
-    return undefined;
+    // GetUsableModels lives on the region agent host; AvailableModels on api2 is the fallback.
   }
-
-  const ids = decodeUsableModelIds(body);
-  if (ids.length === 0) return undefined;
-  return ids.map((id) => cursorUsableModelToDiscoveredModel(toCursorCatalogModelId(id)));
+  return undefined;
 }
 
 /** Adds known fallback metadata to the id-only GetUsableModels response. */
@@ -297,7 +304,7 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
     });
   }
 
-  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+  return [...byId.values()].toSorted((a, b) => a.id.localeCompare(b.id));
 }
 
 async function postProtoEmpty(
@@ -351,6 +358,7 @@ async function postProtoEmpty(
         'connect-protocol-version': '1',
         'x-cursor-client-type': CURSOR_CLIENT_TYPE,
         'x-cursor-client-version': resolveCursorClientVersion(),
+        'x-cursor-checksum': createCursorChecksumHeader(),
         'x-ghost-mode': 'true',
         'x-session-id': randomUUID(),
       });
@@ -377,16 +385,112 @@ async function postProtoEmpty(
 export function decodeUsableModelIds(buf: Uint8Array): string[] {
   const ids: string[] = [];
   const seen = new Set<string>();
-  for (const model of iterLenFields(buf, 1)) {
+  const payload = unwrapConnectPayload(buf);
+  for (const model of iterLenFields(payload, 1)) {
     for (const idField of iterLenFields(model, 1)) {
       const id = Buffer.from(idField).toString('utf8').trim();
-      if (id.length === 0 || /[\x00-\x1f]/.test(id) || seen.has(id)) continue;
+      if (id.length === 0 || /[\u0000-\u001F]/.test(id) || seen.has(id)) continue;
       seen.add(id);
       ids.push(id);
       if (ids.length >= 500) return ids;
     }
   }
   return ids;
+}
+
+const CONNECT_FLAG_MASK = 0x03;
+
+/** Strip a lone Connect envelope; leave raw protobuf (first byte often `0x0a`) alone. */
+export function unwrapConnectPayload(buf: Uint8Array): Uint8Array {
+  if (buf.length < 5) return buf;
+  const flags = buf[0]!;
+  if ((flags & ~CONNECT_FLAG_MASK) !== 0) return buf;
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const len = view.getUint32(1, false);
+  if (5 + len !== buf.length) return buf;
+  const payload = buf.subarray(5, 5 + len);
+  if ((flags & 0x01) !== 0) {
+    try {
+      return gunzipSync(payload);
+    } catch {
+      return payload;
+    }
+  }
+  return payload;
+}
+
+function isCursorAuthApiHost(hostname: string): boolean {
+  return /^(api2|api3)(?:\.[a-z0-9-]+)*\.cursor\.sh$/i.test(hostname);
+}
+
+function normalizeCursorAgentOrigin(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return undefined;
+  try {
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(withScheme);
+    if (parsed.protocol !== 'https:') return undefined;
+    if (parsed.username.length > 0 || parsed.password.length > 0) return undefined;
+    if (!/^([a-z0-9-]+\.)+cursor\.sh$/i.test(parsed.hostname)) return undefined;
+    if (isCursorAuthApiHost(parsed.hostname)) return undefined;
+    return parsed.origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function stringish(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function recordProp(
+  value: Record<string, unknown>,
+  ...keys: string[]
+): Record<string, unknown> | undefined {
+  for (const key of keys) {
+    const inner = value[key];
+    if (isRecord(inner)) return inner;
+  }
+  return undefined;
+}
+
+/** Pull `agentUrlConfig.agentnUrl` (camel or snake) out of GetServerConfig JSON. */
+export function parseGetServerConfigAgentUrl(body: unknown): string | undefined {
+  if (!isRecord(body)) return undefined;
+  const cfg =
+    recordProp(body, 'agentUrlConfig', 'agent_url_config') ??
+    recordProp(
+      recordProp(body, 'serverConfig', 'server_config') ?? {},
+      'agentUrlConfig',
+      'agent_url_config',
+    );
+  if (cfg === undefined) return undefined;
+  return (
+    stringish(cfg['agentnUrl']) ??
+    stringish(cfg['agentn_url']) ??
+    stringish(cfg['agentUrl']) ??
+    stringish(cfg['agent_url'])
+  );
+}
+
+async function resolveCursorAgentOrigin(
+  token: string,
+  apiHost: string,
+  options: { readonly timeoutMs: number; readonly signal?: AbortSignal },
+): Promise<string | undefined> {
+  try {
+    const raw = await postConnectJson(
+      apiHost,
+      SERVER_CONFIG_PATH,
+      { telem_enabled: false },
+      token,
+      options,
+    );
+    return normalizeCursorAgentOrigin(parseGetServerConfigAgentUrl(raw));
+  } catch {
+    return undefined;
+  }
 }
 
 function iterLenFields(buf: Uint8Array, fieldNumber: number): Uint8Array[] {
@@ -494,7 +598,8 @@ async function postConnectJson(
         'user-agent': 'connect-es/1.6.1',
         'x-cursor-client-type': CURSOR_CLIENT_TYPE,
         'x-cursor-client-version': resolveCursorClientVersion(),
-        'x-ghost-mode': 'false',
+        'x-cursor-checksum': createCursorChecksumHeader(),
+        'x-ghost-mode': 'true',
         'x-request-id': requestId,
         'content-length': payload.length,
       });
@@ -625,9 +730,9 @@ function cleanDisplayName(
   parameters: ReadonlyArray<{ id: string; value: string }>,
 ): string {
   let cleaned = value
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/:icon-[a-z-]+:/gi, ' ')
-    .replace(/\s+/g, ' ')
+    .replaceAll(/<[^>]*>/g, ' ')
+    .replaceAll(/:icon-[a-z-]+:/gi, ' ')
+    .replaceAll(/\s+/g, ' ')
     .trim();
   const fast = parameters.some((p) => p.id === 'fast' && p.value === 'true');
   if (fast && !/\bfast\b/i.test(cleaned)) cleaned = `${cleaned} Fast`;

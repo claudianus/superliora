@@ -5,6 +5,7 @@ import type { FinishReason, StreamedMessage } from '#/provider';
 import type { TokenUsage } from '#/usage';
 
 import type { CursorStreamEvent } from './client';
+import { convertCursorError } from './errors';
 import { recoverToolCallsFromCursorText, sanitizeCursorAssistantText } from './sanitize';
 
 export class CursorStreamedMessage implements StreamedMessage {
@@ -87,56 +88,61 @@ export class CursorStreamedMessage implements StreamedMessage {
       }
     };
 
-    for await (const event of events) {
-      switch (event.type) {
-        case 'text': {
-          if (
-            !holdForProtocol &&
-            (event.text.includes('<') || event.text.includes('mcp_superliora'))
-          ) {
-            holdForProtocol = true;
+    try {
+      for await (const event of events) {
+        switch (event.type) {
+          case 'text': {
+            if (
+              !holdForProtocol &&
+              (event.text.includes('<') || event.text.includes('mcp_superliora'))
+            ) {
+              holdForProtocol = true;
+            }
+            if (holdForProtocol) {
+              textBuf += event.text;
+            } else {
+              yield { type: 'text', text: event.text };
+            }
+            break;
           }
-          if (holdForProtocol) {
-            textBuf += event.text;
-          } else {
-            yield { type: 'text', text: event.text };
+          case 'think':
+            yield { type: 'think', think: event.text };
+            break;
+          case 'tool_call': {
+            yield* flushHeldText();
+            sawTool = true;
+            yield* emitTool(event.name, event.inputJson, event.toolCallId, toolIndex++);
+            break;
           }
-          break;
-        }
-        case 'think':
-          yield { type: 'think', think: event.text };
-          break;
-        case 'tool_call': {
-          yield* flushHeldText();
-          sawTool = true;
-          yield* emitTool(event.name, event.inputJson, event.toolCallId, toolIndex++);
-          break;
-        }
-        case 'end': {
-          yield* flushHeldText();
-          if (sawTool) {
-            this._finishReason = 'tool_calls';
-            this._rawFinishReason = 'tool_calls';
-          } else {
-            this._finishReason = 'completed';
-            this._rawFinishReason = 'completed';
+          case 'end': {
+            yield* flushHeldText();
+            if (sawTool) {
+              this._finishReason = 'tool_calls';
+              this._rawFinishReason = 'tool_calls';
+            } else {
+              this._finishReason = 'completed';
+              this._rawFinishReason = 'completed';
+            }
+            return;
           }
-          return;
-        }
-        default: {
-          const exhaustive: never = event;
-          void exhaustive;
+          default: {
+            const exhaustive: never = event;
+            void exhaustive;
+          }
         }
       }
-    }
 
-    yield* flushHeldText();
-    if (sawTool) {
-      this._finishReason = 'tool_calls';
-      this._rawFinishReason = 'tool_calls';
-    } else {
-      this._finishReason = 'completed';
-      this._rawFinishReason = 'completed';
+      yield* flushHeldText();
+      if (sawTool) {
+        this._finishReason = 'tool_calls';
+        this._rawFinishReason = 'tool_calls';
+      } else {
+        this._finishReason = 'completed';
+        this._rawFinishReason = 'completed';
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Cursor request aborted.') throw error;
+      throw convertCursorError(error);
     }
   }
 }

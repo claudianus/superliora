@@ -7,7 +7,9 @@ import {
   cursorUsableModelToDiscoveredModel,
   decodeUsableModelIds,
   normalizeAvailableModels,
+  parseGetServerConfigAgentUrl,
   toCursorCatalogModelId,
+  unwrapConnectPayload,
 } from '../src/profiles/cursor-available-models';
 
 describe('normalizeAvailableModels', () => {
@@ -134,6 +136,25 @@ describe('toCursorCatalogModelId / decodeUsableModelIds', () => {
       'cursor-grok-4.5-high',
       'composer-2.5',
     ]);
+  });
+
+  it('unwraps a Connect-framed GetUsableModels body', () => {
+    const proto = Buffer.concat([pbLen(1, pbStr(1, 'composer-2.5'))]);
+    const framed = Buffer.alloc(5 + proto.length);
+    framed[0] = 0;
+    framed.writeUInt32BE(proto.length, 1);
+    proto.copy(framed, 5);
+    expect(unwrapConnectPayload(new Uint8Array(framed))).toEqual(new Uint8Array(proto));
+    expect(decodeUsableModelIds(new Uint8Array(framed))).toEqual(['composer-2.5']);
+    expect(unwrapConnectPayload(new Uint8Array(proto))).toEqual(new Uint8Array(proto));
+  });
+
+  it('reads GetServerConfig agentnUrl', () => {
+    expect(
+      parseGetServerConfigAgentUrl({
+        agentUrlConfig: { agentnUrl: 'https://agentn.us.api5.cursor.sh' },
+      }),
+    ).toBe('https://agentn.us.api5.cursor.sh');
   });
 
   it('reuses fallback capabilities for id-only usable-model responses', () => {

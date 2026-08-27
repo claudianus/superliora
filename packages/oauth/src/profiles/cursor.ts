@@ -25,11 +25,14 @@ import type { ProviderProfile } from './provider-profile';
 
 const CURSOR_OAUTH_HOST = 'https://api2.cursor.sh';
 const CURSOR_LOGIN_HOST = 'https://cursor.com';
+/** Auth / AvailableModels / GetServerConfig. Not valid for AgentService/Run. */
+export const CURSOR_API_BASE_URL = 'https://api2.cursor.sh';
 /**
- * Default agent host — matches opencodex v2.10 (`providers.cursor.baseUrl`).
- * Override with `providers.cursor-oauth.base_url` if needed.
+ * Last-resort AgentService/Run host when GetServerConfig does not return a
+ * region URL. Override with `CURSOR_AGENT_BASE_URL` (must be https `*.cursor.sh`,
+ * not the auth API host).
  */
-export const CURSOR_AGENT_BASE_URL = 'https://api2.cursor.sh';
+export const CURSOR_AGENT_BASE_URL = 'https://agentn.global.api5.cursor.sh';
 
 export {
   CURSOR_CLIENT_TYPE,
@@ -55,7 +58,7 @@ export const CURSOR_PROFILE: ProviderProfile = {
     userAgent: 'liora-cli',
   },
   wire: 'cursor',
-  apiBaseUrl: CURSOR_AGENT_BASE_URL,
+  apiBaseUrl: CURSOR_API_BASE_URL,
   customHeaders: cursorAuthHeaders(),
   signupUrl: 'https://cursor.com',
   docUrl: 'https://cursor.com/docs',

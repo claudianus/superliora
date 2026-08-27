@@ -23,8 +23,11 @@ import {
   ConnectFrameDecoder,
   decodeFramePayload,
   parseConnectEndError,
+  parseHttp2Trailers,
   type ConnectFrame,
 } from './connect';
+import { CURSOR_RUN_PATH } from './constants';
+import { convertCursorError, isCursorRegionRoutingError } from './errors';
 import {
   extractAnswerText,
   extractExecMessage,
@@ -35,6 +38,8 @@ import {
   isCursorProgressPayload,
 } from './extract';
 import { buildRunFrames, heartbeatFrame, type CursorAgentTool, type CursorRunParams } from './frames';
+import { buildCursorIdentityHeaders, mergeCursorProtocolHeaders } from './headers';
+import { invalidateCursorAgentOriginCache } from './agent-url';
 import {
   encodeInteractionQueryReply,
   encodeKvReply,
@@ -42,13 +47,14 @@ import {
   encodeRequestContextReply,
 } from './replies';
 
-const AGENT_PATH = '/agent.v1.AgentService/Run';
+const AGENT_PATH = CURSOR_RUN_PATH;
 const HEARTBEAT_INTERVAL_MS = 5_000;
 const FIRST_BYTE_TIMEOUT_MS = 60_000;
 /** Align with kosong LLM idle default — must survive long tool-assembly gaps. */
 const IDLE_TIMEOUT_MS = 180_000;
 /** Wait for sibling parallel tool calls before ending the Cursor turn. */
 const TOOL_FINALIZE_GRACE_MS = 400;
+const CONNECT_TIMEOUT_MS = 15_000;
 
 export type CursorStreamEvent =
   | { readonly type: 'text'; readonly text: string }
@@ -123,11 +129,18 @@ export class CursorAgentClient {
 
     try {
       await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          session.off('connect', onConnect);
+          session.off('error', onError);
+          reject(new Error(`Cursor HTTP/2 connect timed out after ${CONNECT_TIMEOUT_MS}ms`));
+        }, CONNECT_TIMEOUT_MS);
         const onConnect = (): void => {
+          clearTimeout(timer);
           session.off('error', onError);
           resolve();
         };
         const onError = (error: Error): void => {
+          clearTimeout(timer);
           session.off('connect', onConnect);
           reject(error);
         };
@@ -135,26 +148,32 @@ export class CursorAgentClient {
         session.once('error', onError);
       });
 
-      const headers: http2.OutgoingHttpHeaders = {
-        ':method': 'POST',
-        ':path': AGENT_PATH,
-        ':authority': authority,
-        ':scheme': 'https',
-        authorization: `Bearer ${token}`,
-        'content-type': 'application/connect+proto',
-        'connect-protocol-version': '1',
-        'connect-accept-encoding': 'gzip',
-        'user-agent': 'connect-es/1.6.1',
-        'x-cursor-client-type': this.clientType,
-        'x-cursor-client-version': this.clientVersion,
-        'x-ghost-mode': 'true',
-        'x-request-id': requestId,
-        'x-original-request-id': requestId,
-        'x-cursor-streaming': 'true',
-        te: 'trailers',
+      const identity = buildCursorIdentityHeaders(this.clientVersion, {
         ...this.defaultHeaders,
         ...options.requestHeaders,
-      };
+      });
+      const headers: http2.OutgoingHttpHeaders = mergeCursorProtocolHeaders(
+        {
+          ':method': 'POST',
+          ':path': AGENT_PATH,
+          ':authority': authority,
+          ':scheme': 'https',
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/connect+proto',
+          'connect-protocol-version': '1',
+          'connect-accept-encoding': 'gzip',
+          'user-agent': 'connect-es/1.6.1',
+          'x-cursor-client-type': this.clientType,
+          'x-cursor-client-version': this.clientVersion,
+          'x-ghost-mode': 'true',
+          'x-request-id': requestId,
+          'x-original-request-id': requestId,
+          'x-cursor-streaming': 'true',
+          te: 'trailers',
+          'x-cursor-checksum': identity['x-cursor-checksum'] ?? '',
+        },
+        { ...this.defaultHeaders, ...options.requestHeaders },
+      );
 
       const req = session.request(headers, { endStream: false });
       // Closing the session on abort can RST the request; swallow so it cannot
@@ -206,6 +225,9 @@ export class CursorAgentClient {
           paced.stop();
         }
       }
+    } catch (error) {
+      if (options.signal?.aborted || isCursorAbortedError(error)) throw cursorAbortedError();
+      throw convertCursorError(error);
     } finally {
       options.signal?.removeEventListener('abort', onAbort);
       closeSession();
@@ -341,6 +363,10 @@ async function* decodeResponseStream(
   const pendingTools: Array<Extract<CursorStreamEvent, { type: 'tool_call' }>> = [];
   const iterator = (stream as AsyncIterable<Buffer>)[Symbol.asyncIterator]();
   let nextChunk: Promise<IteratorResult<Buffer>> | undefined;
+  let httpTrailers: http2.IncomingHttpHeaders | undefined;
+  stream.once('trailers', (headers) => {
+    httpTrailers = headers;
+  });
 
   const resetIdle = (): void => {
     if (idleTimer !== undefined) clearTimeout(idleTimer);
@@ -443,6 +469,18 @@ async function* decodeResponseStream(
     if (idleTimedOut) {
       throw new Error('Cursor upstream went idle with no frames; retry the turn.');
     }
+    const trailerError = parseHttp2Trailers(httpTrailers as Record<string, unknown> | undefined);
+    if (trailerError !== undefined) {
+      if (
+        isCursorRegionRoutingError(trailerError.message) ||
+        isCursorRegionRoutingError(trailerError.detail)
+      ) {
+        invalidateCursorAgentOriginCache();
+      }
+      throw new Error(
+        `Cursor AgentService/Run failed (HTTP ${trailerError.status}): ${trailerError.message}: ${trailerError.detail}`,
+      );
+    }
     yield { type: 'end' };
   } catch (error) {
     if (options.signal?.aborted || isCursorAbortedError(error)) throw cursorAbortedError();
@@ -457,10 +495,10 @@ async function* decodeResponseStream(
       return;
     }
     if (idleTimedOut) {
-      throw new Error('Cursor upstream went idle with no frames; retry the turn.');
+      throw new Error('Cursor upstream went idle with no frames; retry the turn.', { cause: error });
     }
     if (isPrematureClose(error)) {
-      throw new Error('Cursor upstream closed the stream early; retry the turn.');
+      throw new Error('Cursor upstream closed the stream early; retry the turn.', { cause: error });
     }
     throw error;
   } finally {
@@ -475,11 +513,17 @@ function* handleFrame(
   tools: readonly CursorAgentTool[],
 ): Generator<CursorStreamEvent> {
   if ((frame.flags & CONNECT_FLAG_END) !== 0) {
-    const error = parseConnectEndError(frame.payload);
+    const payload = decodeFramePayload(frame);
+    const error = parseConnectEndError(payload);
     if (error !== undefined) {
+      if (isCursorRegionRoutingError(error.message) || isCursorRegionRoutingError(error.detail)) {
+        invalidateCursorAgentOriginCache();
+      }
       // Surface as a thrown error so decodeResponseStream can convert
       // "No exec result" + pending tools into a successful suspend.
-      throw new Error(`${error.message}: ${error.detail}`);
+      throw new Error(
+        `Cursor AgentService/Run failed (HTTP ${error.status}): ${error.message}: ${error.detail}`,
+      );
     }
     yield { type: 'end' };
     return;

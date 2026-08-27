@@ -374,6 +374,8 @@ const PROVIDER_TRY_AGAIN_MESSAGE_PATTERNS = [
   /temporarily (?:unavailable|overloaded|busy)/,
   /try again/,
   /please retry/,
+  /error_unexpected/,
+  /region is not available/,
 ] as const;
 
 export function isTransientTryAgainError(error: unknown): boolean {
