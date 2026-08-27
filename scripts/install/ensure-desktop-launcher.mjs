@@ -2,7 +2,7 @@
  * Best-effort SuperLiora desktop launcher.
  * Windows: .lnk that opens Windows Terminal on the SuperLiora profile (runs liora).
  * macOS: .app that opens Terminal.app (Kitty/Ghostty if present) and runs liora.
- * Linux: .desktop with Terminal=true, plus a user applications entry.
+ * Linux: helper script opens a real terminal, then a .desktop + applications entry.
  * Never throws for missing Desktop / gio / wt — callers treat this as a sidecar.
  */
 
@@ -26,6 +26,8 @@ import { defaultBinDir, defaultHome } from './platform.mjs';
 
 export const DESKTOP_LAUNCHER_NAME = 'SuperLiora';
 export const LINUX_APPLICATIONS_ENTRY = 'superliora.desktop';
+/** Sibling of Windows `superliora-wt.ps1` — Linux desktop must not rely on Terminal=true. */
+export const LINUX_TERM_LAUNCHER_NAME = 'superliora-term';
 
 export function defaultDesktopDir(env = process.env, platform = process.platform) {
   const home = env.HOME ?? env.USERPROFILE ?? defaultHome();
@@ -50,6 +52,12 @@ export function linuxApplicationsDesktopPath(env = process.env, platform = 'linu
   const xdg = typeof env.XDG_DATA_HOME === 'string' ? env.XDG_DATA_HOME.trim() : '';
   const dataHome = xdg || hostJoin(platform, home, '.local', 'share');
   return hostJoin(platform, dataHome, 'applications', LINUX_APPLICATIONS_ENTRY);
+}
+
+export function linuxTermLauncherPath(options = {}) {
+  const platform = options.platform ?? 'linux';
+  const binDir = options.binDir || defaultBinDir(platform);
+  return hostJoin(platform, binDir, LINUX_TERM_LAUNCHER_NAME);
 }
 
 export function resolveLauncherCommand(options = {}) {
@@ -107,7 +115,9 @@ export function escapeDesktopExec(commandline) {
 
 export function renderLinuxDesktopEntry(options = {}) {
   const commandline = options.commandline ?? '';
-  const exec = escapeDesktopExec(commandline);
+  const launcher = options.launcher ?? commandline;
+  const exec = escapeDesktopExec(launcher);
+  const tryExec = commandline || launcher;
   const icon = typeof options.icon === 'string' ? options.icon.trim() : '';
   return [
     '[Desktop Entry]',
@@ -116,13 +126,102 @@ export function renderLinuxDesktopEntry(options = {}) {
     `Name=${DESKTOP_LAUNCHER_NAME}`,
     'Comment=Open SuperLiora in a terminal',
     `Exec=${exec}`,
-    `TryExec=${commandline}`,
+    `TryExec=${tryExec}`,
     ...(icon ? [`Icon=${icon}`] : []),
-    'Terminal=true',
+    // Helper opens the emulator. Terminal=true is ignored by several DEs,
+    // so a double-click ran liora with no TTY and the window vanished.
+    'Terminal=false',
     'Categories=Development;Utility;',
     'StartupNotify=true',
     '',
   ].join('\n');
+}
+
+/**
+ * True when a Linux .desktop already points at the term helper (not a
+ * Terminal=true / bare-liora leftover from older installs).
+ */
+export function isCurrentLinuxDesktopEntry(text) {
+  if (typeof text !== 'string' || text.length === 0) return false;
+  if (!text.includes(LINUX_TERM_LAUNCHER_NAME)) return false;
+  if (!/^Terminal=false$/m.test(text)) return false;
+  if (/^Terminal=true$/m.test(text)) return false;
+  return true;
+}
+
+export function linuxDesktopShortcutStatus(path, isFile, readText) {
+  if (!isFile(path)) return 'needed';
+  try {
+    return isCurrentLinuxDesktopEntry(readText(path)) ? 'refresh' : 'needed';
+  } catch {
+    return 'needed';
+  }
+}
+
+export function renderLinuxTermLauncherScript(commandline) {
+  const bin = shSingleQuote(commandline);
+  return `#!/bin/bash
+# SuperLiora desktop launcher — open a real terminal, then run liora.
+# The .desktop terminal flag is not enough: several DEs execute Exec with no TTY.
+set -euo pipefail
+BIN=${bin}
+
+if [ -t 0 ] && [ -t 1 ]; then
+  exec "$BIN"
+fi
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+run() {
+  local term="$1"
+  shift
+  if have "$term"; then
+    exec "$term" "$@"
+  fi
+}
+
+if have xdg-terminal-exec; then
+  exec xdg-terminal-exec "$BIN"
+fi
+
+run ghostty -e "$BIN"
+run kitty "$BIN"
+run wezterm start -- "$BIN"
+run alacritty -e "$BIN"
+run gnome-terminal -- "$BIN"
+run ptyxis -- "$BIN"
+run kgx -- "$BIN"
+run konsole -e "$BIN"
+run xfce4-terminal -e "$BIN"
+run mate-terminal -e "$BIN"
+run tilix -e "$BIN"
+run terminator -e "$BIN"
+run lxterminal -e "$BIN"
+run x-terminal-emulator -e "$BIN"
+run xterm -e "$BIN"
+
+for candidate in \\
+  /usr/bin/xdg-terminal-exec \\
+  /usr/bin/gnome-terminal \\
+  /usr/bin/ptyxis \\
+  /usr/bin/kgx \\
+  /usr/bin/konsole \\
+  /usr/bin/x-terminal-emulator \\
+  /usr/bin/xterm
+do
+  if [ -x "$candidate" ]; then
+    case "$candidate" in
+      *xdg-terminal-exec) exec "$candidate" "$BIN" ;;
+      *gnome-terminal|*ptyxis|*kgx) exec "$candidate" -- "$BIN" ;;
+      *) exec "$candidate" -e "$BIN" ;;
+    esac
+  fi
+done
+
+echo "error: no terminal emulator found; install gnome-terminal, kitty, or xterm" >&2
+echo "then double-click SuperLiora again, or run: $BIN" >&2
+exit 1
+`;
 }
 
 export function renderMacosInfoPlist(options = {}) {
@@ -159,12 +258,25 @@ export function renderMacosLauncherScript(commandline) {
   return `#!/bin/bash
 # SuperLiora desktop launcher
 BIN=${bin}
-if [ -d /Applications/kitty.app ]; then
-  open -na kitty --args -- "$BIN"
+open_in_app() {
+  local app="$1"
+  shift
+  if [ -d "$app" ]; then
+    open -na "$app" --args "$@"
+    return 0
+  fi
+  return 1
+}
+if open_in_app /Applications/kitty.app "$BIN"; then exit 0; fi
+if open_in_app "$HOME/Applications/kitty.app" "$BIN"; then exit 0; fi
+if command -v kitty >/dev/null 2>&1; then
+  kitty "$BIN" &
   exit 0
 fi
-if [ -d /Applications/Ghostty.app ]; then
-  open -na Ghostty --args -e "$BIN"
+if open_in_app /Applications/Ghostty.app -e "$BIN"; then exit 0; fi
+if open_in_app "$HOME/Applications/Ghostty.app" -e "$BIN"; then exit 0; fi
+if command -v ghostty >/dev/null 2>&1; then
+  ghostty -e "$BIN" &
   exit 0
 fi
 osascript - "$BIN" <<'APPLESCRIPT'
@@ -242,7 +354,14 @@ export async function ensureDesktopLauncher(options = {}) {
     }
 
     const icon = await resolveLauncherIcon(options, platform);
-    const entry = renderLinuxDesktopEntry({ commandline, icon });
+    const termPath = options.termLauncherPath ?? linuxTermLauncherPath({
+      ...options,
+      env,
+      platform,
+    });
+    await writeText(termPath, renderLinuxTermLauncherScript(commandline));
+    await chmodFn(termPath, 0o755);
+    const entry = renderLinuxDesktopEntry({ commandline, launcher: termPath, icon });
     await writeText(dest, entry);
     await chmodFn(dest, 0o755);
     let applicationWritten = false;
