@@ -515,6 +515,7 @@ describe('job desk next-move guidance', () => {
     expect(text).toMatch(/verifyVerdict/i);
     expect(text).toMatch(/do not JobInspect again or spawn another review/i);
     expect(text).not.toMatch(/verify done-claims against the brief/i);
+  });
 
   it('wakes Conductor for merge-ready ledger work even when inbox unread is empty', async () => {
     const store = memoryStore();
