@@ -20,6 +20,7 @@ import {
   defaultDesktopDir,
   desktopLauncherPath,
   ensureDesktopLauncher,
+  linuxDesktopShortcutStatus,
 } from './ensure-desktop-launcher.mjs';
 import {
   ensureTerminal,
@@ -270,6 +271,11 @@ export function planHostSetup(options = {}) {
 
   if (platform !== 'win32' || !skipTerminal) {
     const launcher = desktopLauncherPath({ ...options, env, platform });
+    const shortcutStatus = platform === 'linux'
+      ? linuxDesktopShortcutStatus(launcher, isFile, readText)
+      : platform === 'win32'
+        ? windowsShortcutStatus(launcher, isFile, readBytes)
+        : fileStatus(launcher, isFile);
     items.push(item(
       'desktop-shortcut',
       'write',
@@ -277,9 +283,7 @@ export function planHostSetup(options = {}) {
       platform === 'win32'
         ? tr('install.host.detail.desktopWt', { path: launcher })
         : tr('install.host.detail.desktopTerm', { path: launcher }),
-      platform === 'win32'
-        ? windowsShortcutStatus(launcher, isFile, readBytes)
-        : fileStatus(launcher, isFile),
+      shortcutStatus,
     ));
   }
 

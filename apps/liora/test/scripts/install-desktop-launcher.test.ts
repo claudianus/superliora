@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DESKTOP_LAUNCHER_NAME,
+  LINUX_TERM_LAUNCHER_NAME,
   defaultDesktopDir,
   desktopLauncherPath,
   ensureDesktopLauncher,
   escapeDesktopExec,
+  isCurrentLinuxDesktopEntry,
   linuxApplicationsDesktopPath,
+  linuxDesktopShortcutStatus,
+  linuxTermLauncherPath,
   renderLinuxDesktopEntry,
+  renderLinuxTermLauncherScript,
   renderMacosInfoPlist,
   renderMacosLauncherScript,
   resolveLauncherCommand,
@@ -32,6 +37,10 @@ describe('scripts/install/ensure-desktop-launcher', () => {
     })).toBe('/home/dev/Schreibtisch/SuperLiora.desktop');
     expect(linuxApplicationsDesktopPath({ HOME: '/home/dev' }, 'linux'))
       .toBe('/home/dev/.local/share/applications/superliora.desktop');
+    expect(linuxTermLauncherPath({
+      platform: 'linux',
+      binDir: '/home/dev/.local/bin',
+    })).toBe(`/home/dev/.local/bin/${LINUX_TERM_LAUNCHER_NAME}`);
     expect(defaultDesktopDir({ HOME: '/home/dev' }, 'linux')).toBe('/home/dev/Desktop');
   });
 
@@ -64,21 +73,69 @@ describe('scripts/install/ensure-desktop-launcher', () => {
       .toBe('"C:\\Program Files\\liora.exe"');
   });
 
-  it('renders a Linux desktop entry that opens a terminal and runs liora', () => {
+  it('renders a Linux desktop entry that launches via the term helper', () => {
     const entry = renderLinuxDesktopEntry({
       commandline: '/home/dev/.local/bin/liora',
+      launcher: '/home/dev/.local/bin/superliora-term',
     });
     expect(entry).toContain('Name=SuperLiora');
-    expect(entry).toContain('Terminal=true');
-    expect(entry).toContain('Exec=/home/dev/.local/bin/liora');
+    expect(entry).toContain('Terminal=false');
+    expect(entry).not.toContain('Terminal=true');
+    expect(entry).toContain('Exec=/home/dev/.local/bin/superliora-term');
     expect(entry).toContain('TryExec=/home/dev/.local/bin/liora');
     expect(entry).not.toContain('Icon=');
+    expect(isCurrentLinuxDesktopEntry(entry)).toBe(true);
 
     const branded = renderLinuxDesktopEntry({
       commandline: '/home/dev/.local/bin/liora',
+      launcher: '/home/dev/.local/bin/superliora-term',
       icon: '/home/dev/.local/bin/superliora.png',
     });
     expect(branded).toContain('Icon=/home/dev/.local/bin/superliora.png');
+  });
+
+  it('treats Terminal=true / bare-liora Linux desktop files as stale', () => {
+    const stale = [
+      '[Desktop Entry]',
+      'Type=Application',
+      'Name=SuperLiora',
+      'Exec=/home/dev/.local/bin/liora',
+      'TryExec=/home/dev/.local/bin/liora',
+      'Terminal=true',
+      '',
+    ].join('\n');
+    expect(isCurrentLinuxDesktopEntry(stale)).toBe(false);
+    expect(linuxDesktopShortcutStatus(
+      '/home/dev/Desktop/SuperLiora.desktop',
+      (p: string) => p === '/home/dev/Desktop/SuperLiora.desktop',
+      () => stale,
+    )).toBe('needed');
+    expect(linuxDesktopShortcutStatus(
+      '/home/dev/Desktop/SuperLiora.desktop',
+      () => false,
+      () => stale,
+    )).toBe('needed');
+
+    const current = renderLinuxDesktopEntry({
+      commandline: '/home/dev/.local/bin/liora',
+      launcher: '/home/dev/.local/bin/superliora-term',
+    });
+    expect(linuxDesktopShortcutStatus(
+      '/home/dev/Desktop/SuperLiora.desktop',
+      () => true,
+      () => current,
+    )).toBe('refresh');
+  });
+
+  it('renders a Linux term helper that opens a real emulator then liora', () => {
+    const script = renderLinuxTermLauncherScript('/home/dev/.local/bin/liora');
+    expect(script.startsWith('#!/bin/bash')).toBe(true);
+    expect(script).toContain("BIN='/home/dev/.local/bin/liora'");
+    expect(script).toContain('xdg-terminal-exec');
+    expect(script).toContain('gnome-terminal --');
+    expect(script).toContain('ghostty -e');
+    expect(script).toContain('no terminal emulator found');
+    expect(script).not.toContain('Terminal=true');
   });
 
   it('renders a macOS app that opens Terminal.app (or Kitty/Ghostty) and runs liora', () => {
@@ -88,7 +145,9 @@ describe('scripts/install/ensure-desktop-launcher', () => {
     expect(script).toContain('tell application "Terminal"');
     expect(script).toContain('quoted form of lioraBin');
     expect(script).toContain('/Applications/kitty.app');
+    expect(script).toContain('$HOME/Applications/kitty.app');
     expect(script).toContain('/Applications/Ghostty.app');
+    expect(script).toContain('$HOME/Applications/Ghostty.app');
     expect(renderMacosInfoPlist()).toContain(`<string>${DESKTOP_LAUNCHER_NAME}</string>`);
     expect(renderMacosInfoPlist()).toContain('dev.superliora.launcher');
     expect(renderMacosInfoPlist()).not.toContain('CFBundleIconFile');
@@ -262,11 +321,22 @@ describe('scripts/install/ensure-desktop-launcher', () => {
     });
     expect(result.written).toBe(true);
     expect(result.applicationWritten).toBe(true);
-    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain('Terminal=true');
+    expect(files.get('/home/dev/.local/bin/superliora-term')).toContain("BIN='/home/dev/.local/bin/liora'");
+    expect(files.get('/home/dev/.local/bin/superliora-term')).toContain('xdg-terminal-exec');
+    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain('Terminal=false');
+    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).not.toContain('Terminal=true');
+    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain(
+      'Exec=/home/dev/.local/bin/superliora-term',
+    );
+    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain(
+      'TryExec=/home/dev/.local/bin/liora',
+    );
     expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain(
       'Icon=/home/dev/.local/bin/superliora.png',
     );
-    expect(files.get('/home/dev/.local/share/applications/superliora.desktop')).toContain('Exec=/home/dev/.local/bin/liora');
+    expect(files.get('/home/dev/.local/share/applications/superliora.desktop')).toContain(
+      'Exec=/home/dev/.local/bin/superliora-term',
+    );
     expect(trusted).toBe('/home/dev/Desktop/SuperLiora.desktop');
   });
 });
