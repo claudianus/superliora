@@ -53,8 +53,8 @@ export type JobDeliveryMode = 'standard' | 'greenfield';
  *
  * - `standard`: `surface_kind=none` skips verify; land waits for Keep/Apply/PR.
  *   UI surfaces still get one combined verify worker.
- * - `sprint`: same verify waist as standard, plus skip worktree when no other
- *   in-flight coding Job shares the checkout.
+ * - `sprint`: same verify waist and worktree isolation as standard (hotfix pool
+ *   is smaller). Coding work never shares the operator checkout before Land.
  * - `review`: Maker≠Checker even for `none` — one combined verify worker.
  */
 export type JobDeliveryClass = 'sprint' | 'standard' | 'review';

@@ -170,6 +170,7 @@ describe('job.* protocol events', () => {
           review: 'pass' as const,
           tests: 'pass' as const,
           typecheck: 'pending' as const,
+          land: 'pending' as const,
         },
         landReceipt: {
           mergeSha: 'abc123',
@@ -183,6 +184,7 @@ describe('job.* protocol events', () => {
     expect(parsed.schemaVersion).toBe(3);
     expect(parsed.job.briefPreview?.successCriteria).toEqual(['tests green']);
     expect(parsed.job.gateChecklist?.tests).toBe('pass');
+    expect(parsed.job.gateChecklist?.land).toBe('pending');
     expect(parsed.job.landReceipt?.merged).toBe(true);
 
     const inbox = {

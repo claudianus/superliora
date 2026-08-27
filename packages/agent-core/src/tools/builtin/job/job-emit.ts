@@ -19,6 +19,7 @@ import type { JobInboxEvent, JobInboxEventKind } from './job-inbox';
 import type { JobRecord } from './job-ledger';
 import { jobIsolationKind } from './job-task-track';
 import { isDebugFixerJob } from './job-store-key';
+import { landGateStatusFromJob } from './job-land-gate';
 
 function mapGateVerdict(
   verdict: VerificationVerdict | VisualVerificationVerdict | undefined,
@@ -74,12 +75,14 @@ function reviewGateFromJob(job: JobRecord): JobGateChecklistStatus {
 function gateChecklistFromJob(job: JobRecord): JobGateChecklist | undefined {
   const v = job.resultContract?.verification;
   const review = reviewGateFromJob(job);
-  if (v === undefined && review === 'na') return undefined;
+  const land = landGateStatusFromJob(job);
+  if (v === undefined && review === 'na' && land === 'na') return undefined;
   return {
     visual: mapGateVerdict(v?.visual),
     review,
     tests: mapGateVerdict(v?.tests),
     typecheck: mapGateVerdict(v?.typecheck),
+    land,
   };
 }
 
@@ -205,10 +208,13 @@ export function actionHintsForInboxKind(
     case 'job.cancelled':
       return ['jobInspect'];
     case 'job.completed':
+      if (job?.landReceipt !== undefined) return ['jobInspect'];
+      if (job !== undefined && landGateStatusFromJob(job) === 'fail') {
+        return ['jobInspect', 'jobResume'];
+      }
       if (job?.landChoice === 'pending' && job.worktreePath !== undefined) {
         return ['jobKeep', 'jobApply', 'jobPush', 'jobInspect'];
       }
-      if (job?.landReceipt !== undefined) return ['jobInspect'];
       return ['jobMerge', 'jobPush', 'jobInspect'];
     case 'recovery.auto_resumed':
       return ['jobInspect'];

@@ -80,7 +80,7 @@ export function isPendingTaskTrack(
 
 /** Where the worker runs. Mirrors `needsWorktree` without importing runtime. */
 export function jobIsolationKind(
-  job: Pick<JobRecord, 'kind' | 'taskTrack' | 'deliveryClass'>,
+  job: Pick<JobRecord, 'kind' | 'taskTrack'>,
 ): 'worktree' | 'checkout' | 'none' {
   if (
     job.kind === 'merge' ||
@@ -92,7 +92,6 @@ export function jobIsolationKind(
   }
   if (isGeneralTaskTrack(job)) return 'checkout';
   if (job.kind === 'explore' || job.kind === 'research') return 'checkout';
-  if (job.deliveryClass === 'sprint') return 'checkout';
   return 'worktree';
 }
 

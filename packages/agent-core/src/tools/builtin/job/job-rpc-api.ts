@@ -27,6 +27,7 @@ import {
   type JobStatus,
 } from './job-ledger';
 import { dispatchMergeLand } from './job-land';
+import { jobMayLandToMain } from './job-land-gate';
 import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
 import { dispatchPushRemote, evaluatePushTrust, resolvePushRemoteRef } from './job-push';
@@ -823,6 +824,10 @@ export async function jobChooseLand(
     };
   }
   if (input.choice === 'apply') {
+    const gate = jobMayLandToMain(job);
+    if (!gate.ok) {
+      return { ok: false, text: '', error: gate.reason, job: snapshot(job) };
+    }
     const source = patchJob(store, job.id, {
       landChoice: 'apply',
       notes: [job.notes, 'land: apply to main (operator)'].filter(Boolean).join('\n'),
