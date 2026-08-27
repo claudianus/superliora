@@ -119,6 +119,8 @@ export class AssistantMessageComponent implements Component {
 
     if (this.markdown === undefined || this.markdownTransient !== transient) {
       this.contentContainer.clear();
+      // `transient` still paints live fence colors; it only windows oversized
+      // in-progress dumps. Settle remounts so a large fence can full-highlight.
       this.markdown = new Markdown(displayText, 0, 0, createMarkdownTheme({ transient }));
       this.markdownTransient = transient;
       this.contentContainer.addChild(this.markdown);
