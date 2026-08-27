@@ -7,7 +7,12 @@ import {
   readGitHubCopilotEnvToken,
   sharedCredentialHealthStore,
 } from '@superliora/oauth';
-import { effectiveModelAlias, type LioraConfig, type ProviderConfig } from '../../config';
+import {
+  effectiveModelAlias,
+  pinPromptCacheKeyToAgent,
+  type LioraConfig,
+  type ProviderConfig,
+} from '../../config';
 import { ErrorCodes, isKimiError, LioraError } from '../../errors';
 
 import {
@@ -52,6 +57,26 @@ export { providerHasAnyCredential } from './provider-manager-capability';
 export class ProviderManager implements ModelProvider {
   constructor(private readonly options: ProviderManagerOptions) {}
 
+  /**
+   * Conductor (main) keeps the session cache key. Job workers / subagents
+   * get `sessionId:agentId` so multi-turn work reuses that worker's prefix
+   * instead of competing with the desk (and each other) on one routing key.
+   */
+  forAgent(agentId: string): ProviderManager {
+    const trimmed = agentId.trim();
+    if (trimmed.length === 0 || trimmed === 'main') return this;
+    const parent = this.options.promptCacheKey;
+    return new ProviderManager({
+      ...this.options,
+      promptCacheKey: () => {
+        const sessionKey =
+          parent === undefined ? undefined : typeof parent === 'function' ? parent() : parent;
+        if (sessionKey === undefined || sessionKey.length === 0) return sessionKey;
+        return pinPromptCacheKeyToAgent(sessionKey, trimmed);
+      },
+    });
+  }
+
   private get config(): LioraConfig {
     const { config } = this.options;
     return typeof config === 'function' ? config() : config;
@@ -86,7 +111,6 @@ export class ProviderManager implements ModelProvider {
       ),
     );
 
-    // Same-capability cross-provider expansion (Upgrade+).
     candidates = this.expandSameCapabilityCandidates(model, candidates);
     candidates = this.filterHealthyCandidates(candidates);
 
@@ -98,15 +122,10 @@ export class ProviderManager implements ModelProvider {
       alias.routing === undefined &&
       candidates.length <= 1 &&
       !candidates.some((candidate) => candidate.localLimits !== undefined) &&
-      // Still expose a single expanded candidate when health filtering applied
-      // so kosong-llm can record failures consistently — only skip when truly
-      // a plain single-provider non-routed alias with no expansion.
       this.expandSameCapabilityCandidates(model, [
         this.resolveModelAlias(model),
       ]).length <= 1
     ) {
-      // Keep legacy: no multi-candidate routing → undefined (use resolveProviderConfig)
-      // unless we actually expanded or filtered multi-cred.
       const baseline = candidateAliases.flatMap((candidateAlias) =>
         this.resolveModelAliasCandidates(
           candidateAlias,
@@ -114,7 +133,6 @@ export class ProviderManager implements ModelProvider {
         ),
       );
       if (baseline.length <= 1 && !baseline.some((c) => c.localLimits !== undefined)) {
-        // Prefer multi-candidate route when expansion found alternatives
         if (candidates.length <= 1) return undefined;
       }
     }
@@ -128,9 +146,6 @@ export class ProviderManager implements ModelProvider {
     };
   }
 
-  /**
-   * Drop candidates whose OAuth/API credential is marked unhealthy.
-   */
   private filterHealthyCandidates(
     candidates: readonly ResolvedRuntimeProvider[],
   ): ResolvedRuntimeProvider[] {
@@ -142,10 +157,6 @@ export class ProviderManager implements ModelProvider {
     );
   }
 
-  /**
-   * Append logged-in providers' default models that match capability footprint.
-   * Same provider first (already in list); other providers after.
-   */
   private expandSameCapabilityCandidates(
     primaryModel: string,
     candidates: readonly ResolvedRuntimeProvider[],
@@ -299,8 +310,6 @@ export class ProviderManager implements ModelProvider {
     const oauthRef = providerOAuthRef(providerConfig, options?.credentialLabel);
     if (oauthRef === undefined) return undefined;
 
-    // Explicit key sources must win over stored OAuth credentials. This avoids
-    // a stale login silently hijacking a direct API-key/custom-endpoint setup.
     if (hasConfiguredApiKeySource(providerConfig)) return undefined;
 
     const authDetails = (): Record<string, unknown> => ({
@@ -338,9 +347,6 @@ export class ProviderManager implements ModelProvider {
         if (isKimiError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED) {
           throw enrichLoginRequired(error);
         }
-        // login-required is an expected state (the user must /login); don't
-        // warn. Other failures (connection errors, etc.) are logged once for
-        // diagnosis and then propagated — chatWithRetry does not retry them.
         if (!isKimiError(error) || error.code !== ErrorCodes.AUTH_LOGIN_REQUIRED) {
           log?.warn('oauth token fetch failed', {
             providerName,
@@ -388,11 +394,6 @@ export class ProviderManager implements ModelProvider {
     };
   }
 
-  /**
-   * GitHub Copilot stores a GitHub user token (oauth or apiKey/env). Chat
-   * needs the short-lived session token + identity headers, and the API host
-   * from the token response (enterprise vs individual).
-   */
   private resolveGitHubCopilotAuth(
     providerName: string,
     providerConfig: ProviderConfig,
@@ -413,7 +414,6 @@ export class ProviderManager implements ModelProvider {
       );
 
     const resolveUserToken = async (force: boolean): Promise<string> => {
-      // Do not use providerApiKey(): that falls back to OPENAI_API_KEY.
       const configured = providerConfig.apiKey?.trim();
       if (configured !== undefined && configured.length > 0) return configured;
       const fromEnv = readGitHubCopilotEnvToken();
