@@ -54,6 +54,7 @@ function toConfigResponse(config: LioraConfig): ConfigResponse {
     default_provider: config.defaultProvider,
     default_model: config.defaultModel,
     models: config.models,
+    free_mode: config.freeMode,
     thinking: config.thinking,
     plan_mode: config.planMode,
     yolo: config.yolo,

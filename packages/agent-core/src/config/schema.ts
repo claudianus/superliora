@@ -486,6 +486,13 @@ export const LioraConfigSchema = z.object({
   defaultProvider: z.string().optional(),
   defaultModel: z.string().optional(),
   models: z.record(z.string(), ModelAliasSchema).optional(),
+  /**
+   * FREE mode: when true, all model routing (main session via `auto` and
+   * per-role smart auto) resolves only to free-tier models (cost.input === 0
+   * or id/alias contains `free`). Smart scoring still picks the best free
+   * candidate per role by benchmarks / quality / value.
+   */
+  freeMode: z.boolean().optional(),
   thinking: ThinkingConfigSchema.optional(),
   planMode: z.boolean().optional(),
   yolo: z.boolean().optional(),
@@ -570,6 +577,7 @@ export const LioraConfigPatchSchema = z
     defaultProvider: z.string().optional(),
     defaultModel: z.string().optional(),
     models: z.record(z.string(), ModelAliasPatchSchema).optional(),
+    freeMode: z.boolean().optional(),
     thinking: ThinkingConfigPatchSchema.optional(),
     planMode: z.boolean().optional(),
     yolo: z.boolean().optional(),

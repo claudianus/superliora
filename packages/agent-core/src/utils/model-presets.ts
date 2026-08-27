@@ -227,7 +227,7 @@ const CODING_BENCH_WEIGHTS: readonly {
 function parseNumericScore(score: number | string | undefined): number | undefined {
   if (typeof score === 'number' && Number.isFinite(score)) return score;
   if (typeof score === 'string') {
-    const n = Number(score.replaceAll(/%/g, '').trim());
+    const n = Number(score.replaceAll('%', '').trim());
     return Number.isFinite(n) ? n : undefined;
   }
   return undefined;
@@ -1281,6 +1281,7 @@ function pickBestForRole(
   candidates: readonly ModelMetadata[],
   catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family' | 'supportsTools'>)[] = [],
   sessionDefault?: string,
+  freeMode = false,
 ): ModelMetadata | undefined {
   if (candidates.length === 0) return undefined;
   const eligible = candidates.filter((m) => !isHardExcludedForRole(preset.role, m.id));
@@ -1289,9 +1290,14 @@ function pickBestForRole(
   const capable = eligible.filter((m) => meetsCapabilityFloor(preset, m));
   const pool = capable.length > 0 ? capable : eligible;
   const qualityOk = pool.filter((m) => meetsQualityFloor(preset, m, anyScored));
-  // coding/planning/debugging never soft-fall back below the quality floor.
+  // coding/planning/debugging never soft-fall back below the quality floor — except in FREE
+  // mode where the free pool may be below the floor but must still yield the best free candidate.
   const finalPool = isQualityStrictRole(preset.role)
-    ? qualityOk
+    ? qualityOk.length > 0
+      ? qualityOk
+      : freeMode
+        ? pool
+        : qualityOk
     : qualityOk.length > 0
       ? qualityOk
       : pool;
@@ -1335,6 +1341,8 @@ function formatPickReason(
 export type RoleAssignHints = {
   /** Session / user default alias — last same-family equal-price tie-break only. */
   readonly sessionDefault?: string;
+  /** When true, strict quality floors soft-fallback to best available (FREE mode). */
+  readonly freeMode?: boolean;
 };
 
 export function autoAssignRoleModels(
@@ -1388,6 +1396,7 @@ export function autoAssignRoleModels(
       byTier.get(preset.preferredTier) ?? [],
       catalog,
       sessionDefault,
+      hints?.freeMode === true,
     );
     const skipStalePreferred =
       preset.preferValue === true &&
@@ -1412,6 +1421,7 @@ export function autoAssignRoleModels(
       byTier.get(preset.fallbackTier) ?? [],
       catalog,
       sessionDefault,
+      hints?.freeMode === true,
     );
     if (fallback) {
       result[preset.role] = {
@@ -1426,7 +1436,7 @@ export function autoAssignRoleModels(
       continue;
     }
 
-    const any = pickBestForRole(preset, allAvailable, catalog, sessionDefault);
+    const any = pickBestForRole(preset, allAvailable, catalog, sessionDefault, hints?.freeMode === true);
     if (any) {
       result[preset.role] = {
         role: preset.role,
@@ -1482,6 +1492,7 @@ function highestAvailableEffort(model: ModelMetadata): GradedEffort | undefined 
 export function buildFallbackChain(
   role: ModelRole,
   availableModels: readonly ModelMetadata[],
+  hints?: { readonly freeMode?: boolean },
 ): readonly ModelMetadata[] {
   const preset = ROLE_PRESETS.find((p) => p.role === role);
   if (!preset) return [];
@@ -1519,7 +1530,26 @@ export function buildFallbackChain(
     )
     .toSorted((a, b) => compareRoleCandidates(preset, b, a, catalog));
 
-  return [...preferred, ...fallback, ...others];
+  const chain = [...preferred, ...fallback, ...others];
+  if (hints?.freeMode === true && chain.length === 0 && scored.length > 0) {
+    // FREE mode relaxation: no free candidate met the strict quality floor, but we must still
+    // return the best free models by smart ranking (benchmark/value) rather than failing the role.
+    const preferredRelaxed = scored
+      .filter((m) => (m.tier || classifyModelTier(m.id)) === preset.preferredTier)
+      .toSorted((a, b) => compareRoleCandidates(preset, b, a, catalog));
+    const fallbackRelaxed = scored
+      .filter((m) => (m.tier || classifyModelTier(m.id)) === preset.fallbackTier)
+      .toSorted((a, b) => compareRoleCandidates(preset, b, a, catalog));
+    const othersRelaxed = scored
+      .filter(
+        (m) =>
+          (m.tier || classifyModelTier(m.id)) !== preset.preferredTier &&
+          (m.tier || classifyModelTier(m.id)) !== preset.fallbackTier,
+      )
+      .toSorted((a, b) => compareRoleCandidates(preset, b, a, catalog));
+    return [...preferredRelaxed, ...fallbackRelaxed, ...othersRelaxed];
+  }
+  return chain;
 }
 
 /**

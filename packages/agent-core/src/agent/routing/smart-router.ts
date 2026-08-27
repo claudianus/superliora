@@ -33,6 +33,7 @@ import {
   type ModelMetadata,
   type ModelRole,
 } from '../../utils/model-presets';
+import { isFreeConfigAlias, isFreeModelMetadata } from '../../utils/free-model';
 import { sharedModelRouteHealthStore } from './model-route-health';
 import { routeOutcomeEma } from './route-outcome';
 import {
@@ -154,9 +155,13 @@ function oauthStorageName(providerName: string, oauthKey: string): string {
 }
 
 export function buildLocalModelMetadata(config: LioraConfig): readonly ModelMetadata[] {
-  return Object.entries(config.models ?? {}).map(([alias, model]) =>
+  const all = Object.entries(config.models ?? {}).map(([alias, model]) =>
     localModelMetadata(alias, model, config),
   );
+  if (config.freeMode === true) {
+    return all.filter(isFreeModelMetadata);
+  }
+  return all;
 }
 
 function localModelMetadata(
@@ -237,8 +242,12 @@ export type ResolveSmartRouteInput = {
  */
 export function resolveSmartRoute(input: ResolveSmartRouteInput): SmartRoute | undefined {
   const config = input.config;
-  const healthy =
+  const freeMode = config.freeMode === true;
+  const baseHealthy =
     input.isAliasHealthy ?? ((alias: string) => isConfigAliasHealthy(config, alias));
+  const healthy = freeMode
+    ? (alias: string) => isFreeConfigAlias(alias, config.models) && baseHealthy(alias)
+    : baseHealthy;
 
   let role = input.role;
   let intensity = input.intensity ?? defaultIntensityForRole(role);
@@ -283,6 +292,11 @@ export function resolveSmartRoute(input: ResolveSmartRouteInput): SmartRoute | u
   }
 
   let metadata = [...buildLocalModelMetadata(config)];
+  // FREE mode: only free models participate in ranking (benchmark-aware value/quality scorer stays).
+  if (freeMode) {
+    metadata = metadata.filter(isFreeModelMetadata);
+    if (metadata.length === 0) return undefined;
+  }
   if (input.minContextTokens !== undefined && input.minContextTokens > 0) {
     metadata = metadata.map((m) => {
       if (
@@ -296,11 +310,11 @@ export function resolveSmartRoute(input: ResolveSmartRouteInput): SmartRoute | u
     });
   }
 
-  const fullChain = buildFallbackChain(role, metadata);
+  const fullChain = buildFallbackChain(role, metadata, freeMode ? { freeMode: true } : undefined);
   const sliced = sliceChainByIntensity(role, fullChain, intensity);
   const chainAliases = uniqueHealthyAliases(sliced, healthy);
 
-  const assignments = autoAssignRoleModels(metadata);
+  const assignments = autoAssignRoleModels(metadata, undefined, freeMode ? { freeMode: true } : undefined);
   const assignment = assignments[role];
   const catalogPick =
     assignment?.modelAlias !== undefined && healthy(assignment.modelAlias)

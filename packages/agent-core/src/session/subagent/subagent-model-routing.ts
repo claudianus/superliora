@@ -13,6 +13,7 @@ import {
   type SmartRoute,
   type TurnSignals,
 } from '../../agent/routing';
+import { isFreeConfigAlias } from '../../utils/free-model';
 import type { LioraConfig } from '../../config';
 import { ProviderManager } from '../provider/provider-manager';
 import { selectVisionModel } from '../vision-analyzer';
@@ -134,7 +135,11 @@ function resolveSubagentModelSelectionCore(
 
   const forced = options?.forcedAlias?.trim();
   if (forced !== undefined && forced.length > 0) {
-    if (config !== undefined && isConfigAliasHealthy(config, forced)) {
+    if (
+      config !== undefined &&
+      isConfigAliasHealthy(config, forced) &&
+      (config.freeMode !== true || isFreeConfigAlias(forced, config.models))
+    ) {
       const route = role !== undefined
         ? resolveSmartRoute({
             role,

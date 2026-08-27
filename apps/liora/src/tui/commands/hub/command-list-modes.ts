@@ -118,5 +118,14 @@ export function getBuiltinSlashCommandsModes(): readonly LioraSlashCommand[] {
     completeArgs: askArgumentCompletions,
     availability: () => 'always',
   },
+  {
+    name: 'free',
+    aliases: ['free-mode', 'freemode'],
+    description: slashDesc('free'),
+    priority: 90,
+    argumentHint: '[on|off|status]',
+    completeArgs: toggleOnOffArgumentCompletions,
+    availability: 'always',
+  },
 ] as const satisfies readonly LioraSlashCommand[];
 }

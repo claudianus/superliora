@@ -41,6 +41,7 @@ export function configToTomlData(config: LioraConfig): Record<string, unknown> {
   const scalarFields: (keyof LioraConfig)[] = [
     'defaultProvider',
     'defaultModel',
+    'freeMode',
     'planMode',
     'yolo',
     'defaultThinking',

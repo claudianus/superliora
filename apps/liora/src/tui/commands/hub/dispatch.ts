@@ -437,6 +437,9 @@ async function handleBuiltInSlashCommand(
     case 'thinking':
       await handleThinkingCommand(host, args);
       return;
+    case 'free':
+      await import('../config/free').then(({ handleFreeCommand }) => handleFreeCommand(host, args));
+      return;
     case 'permission':
       void handlePermissionCommand(host, args);
       return;
