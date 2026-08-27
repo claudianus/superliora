@@ -6,6 +6,12 @@ import { randomUUID } from 'node:crypto';
 
 import { encodeConnectFrame } from './connect';
 import { CURSOR_PROVIDER_ID } from './constants';
+import {
+  cursorEnvironmentOs,
+  cursorEnvironmentShell,
+  cursorEnvironmentTimezone,
+  cursorIsWorkingDirHome,
+} from './env';
 import { toCursorWireModelId } from './model-id';
 import {
   concatBytes,
@@ -56,19 +62,22 @@ export function buildRunFrames(params: CursorRunParams): Uint8Array[] {
     fieldLd(14, fieldStr(1, 'default')),
     fieldLd(14, encodeModelMeta(wireModelId)),
     fieldStr(16, conv),
+    // client_supports_inline_images — Cursor only honours image bytes when set.
+    fieldVarint(19, 1),
   );
   const frame0 = encodeConnectFrame(fieldLd(1, req));
 
   const env = concatBytes(
-    fieldStr(1, process.platform === 'darwin' ? 'darwin' : 'linux'),
+    fieldStr(1, cursorEnvironmentOs()),
     fieldStr(2, params.cwd),
-    fieldStr(3, 'bash'),
-    fieldStr(10, Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'),
+    fieldStr(3, cursorEnvironmentShell()),
+    fieldVarint(5, 0),
+    fieldStr(10, cursorEnvironmentTimezone()),
     fieldStr(11, params.cwd),
-    fieldVarint(14, 1),
-    fieldVarint(16, 1),
+    fieldVarint(14, 0),
+    fieldVarint(16, 0),
     fieldVarint(19, 0),
-    fieldVarint(20, 0),
+    fieldVarint(20, cursorIsWorkingDirHome(params.cwd) ? 1 : 0),
     fieldStr(21, params.cwd),
     fieldVarint(22, 0),
   );

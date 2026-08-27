@@ -4,6 +4,9 @@ import { createPacedBody } from '../src/providers/cursor/client';
 import {
   buildRunFrames,
   concatBytes,
+  convertCursorError,
+  cursorAgentVersionsDirs,
+  cursorEnvironmentOs,
   decodeProtobufValue,
   encodeConnectFrame,
   encodeExecStreamClose,
@@ -18,16 +21,28 @@ import {
   extractKvMessage,
   extractReasoningText,
   extractToolCall,
+  explicitCursorAgentOrigin,
   fieldLd,
   fieldStr,
   fieldVarint,
+  isCursorAuthApiOrigin,
+  isCursorDefaultFallbackOrigin,
+  mergeCursorProtocolHeaders,
+  normalizeCursorAgentOrigin,
   normalizeCursorToolName,
+  parseCursorWindowsMachineGuid,
+  parseGetServerConfigAgentUrl,
+  parseHttp2Trailers,
   recoverToolCallsFromCursorText,
+  resolveCursorAgentOrigin,
   sanitizeCursorAssistantText,
+  unwrapConnectPayload,
   ConnectFrameDecoder,
   renderCursorPrompt,
   toCursorWireModelId,
+  CURSOR_AGENT_FALLBACK_URL,
 } from '../src/providers/cursor/index';
+import { iterFields } from '../src/providers/cursor/proto';
 import type { Message } from '../src/message';
 import { CursorStreamedMessage } from '../src/providers/cursor/stream';
 
@@ -295,6 +310,11 @@ describe('cursor run frames', () => {
     const decoded = decoder.push(frames[0]!);
     expect(decoded).toHaveLength(1);
     expect(decoded[0]!.payload.length).toBeGreaterThan(0);
+    const outer = [...iterFields(decoded[0]!.payload)];
+    const req = outer.find((field) => field.field === 1);
+    expect(req).toBeDefined();
+    const reqFields = [...iterFields(req!.data)];
+    expect(reqFields.some((field) => field.field === 19 && field.varint === 1n)).toBe(true);
   });
 
   it('encodes prefixed Grok wire ids (bare grok is rejected by Run)', () => {
@@ -415,5 +435,166 @@ describe('cursor No exec result trailer', () => {
     );
     const err = parseConnectEndError(payload);
     expect(err?.message).toContain('No exec result');
+    expect(err?.status).toBe(500);
+  });
+
+  it('parseConnectEndError accepts a bare Connect error object', async () => {
+    const { parseConnectEndError } = await import('../src/providers/cursor/connect');
+    const err = parseConnectEndError(
+      Buffer.from(JSON.stringify({ code: 'unauthenticated', message: 'invalid token' }), 'utf8'),
+    );
+    expect(err?.status).toBe(401);
+    expect(err?.message).toContain('invalid token');
+  });
+
+  it('parseConnectEndError gunzips a compressed trailer', async () => {
+    const { gzipSync } = await import('node:zlib');
+    const { parseConnectEndError } = await import('../src/providers/cursor/connect');
+    const json = JSON.stringify({ error: { code: 'unavailable', message: 'region is not available' } });
+    const err = parseConnectEndError(gzipSync(Buffer.from(json, 'utf8')));
+    expect(err?.status).toBe(503);
+    expect(err?.message).toContain('region is not available');
   });
 });
+
+describe('cursor protocol compatibility', () => {
+  it('does not treat api2 as an AgentService/Run host', () => {
+    expect(isCursorAuthApiOrigin('https://api2.cursor.sh')).toBe(true);
+    expect(normalizeCursorAgentOrigin('https://api2.cursor.sh')).toBeUndefined();
+    expect(normalizeCursorAgentOrigin('https://agentn.us.api5.cursor.sh')).toBe(
+      'https://agentn.us.api5.cursor.sh',
+    );
+    expect(normalizeCursorAgentOrigin('https://agent-gcpp-uswest.api5.cursor.sh')).toBe(
+      'https://agent-gcpp-uswest.api5.cursor.sh',
+    );
+    expect(normalizeCursorAgentOrigin('https://evil.example.com')).toBeUndefined();
+  });
+
+  it('does not treat the global fallback host as an explicit Run override', () => {
+    expect(isCursorDefaultFallbackOrigin(CURSOR_AGENT_FALLBACK_URL)).toBe(true);
+    expect(explicitCursorAgentOrigin(CURSOR_AGENT_FALLBACK_URL)).toBeUndefined();
+    expect(explicitCursorAgentOrigin('https://api2.cursor.sh')).toBeUndefined();
+    expect(explicitCursorAgentOrigin('https://agentn.us.api5.cursor.sh')).toBe(
+      'https://agentn.us.api5.cursor.sh',
+    );
+  });
+
+  it('reads GetServerConfig agentnUrl in camelCase and snake_case', () => {
+    expect(
+      parseGetServerConfigAgentUrl({
+        agentUrlConfig: { agentnUrl: 'https://agentn.us.api5.cursor.sh' },
+      }),
+    ).toBe('https://agentn.us.api5.cursor.sh');
+    expect(
+      parseGetServerConfigAgentUrl({
+        agent_url_config: { agentn_url: 'agent-gcpp-uswest.api5.cursor.sh' },
+      }),
+    ).toBe('agent-gcpp-uswest.api5.cursor.sh');
+  });
+
+  it('falls back to the global agent host when GetServerConfig is skipped', async () => {
+    const origin = await resolveCursorAgentOrigin({
+      token: 'test-token',
+      configuredBaseUrl: 'https://api2.cursor.sh',
+      clientVersion: 'cli-2026.08.25-3e8eec8',
+      skipServerConfig: true,
+    });
+    expect(origin).toBe(CURSOR_AGENT_FALLBACK_URL);
+  });
+
+  it('honors a region agent override and ignores api2 leftovers', async () => {
+    const origin = await resolveCursorAgentOrigin({
+      token: 'test-token',
+      configuredBaseUrl: 'https://agentn.us.api5.cursor.sh',
+      clientVersion: 'cli-2026.08.25-3e8eec8',
+      skipServerConfig: true,
+    });
+    expect(origin).toBe('https://agentn.us.api5.cursor.sh');
+  });
+
+  it('keeps protocol identity headers over OAuth customHeaders', () => {
+    const merged = mergeCursorProtocolHeaders(
+      {
+        'x-ghost-mode': 'true',
+        'x-cursor-client-version': 'cli-2026.08.25-3e8eec8',
+        authorization: 'Bearer tok',
+      },
+      {
+        'x-ghost-mode': 'false',
+        'x-cursor-client-version': 'stale',
+        'x-request-id': 'keep-me',
+      },
+    );
+    expect(merged['x-ghost-mode']).toBe('true');
+    expect(merged['x-cursor-client-version']).toBe('cli-2026.08.25-3e8eec8');
+    expect(merged['x-request-id']).toBe('keep-me');
+    expect(merged['authorization']).toBe('Bearer tok');
+  });
+
+  it('unwraps Connect envelopes but leaves raw protobuf alone', () => {
+    const proto = fieldStr(1, 'composer-2.5');
+    expect(Buffer.from(unwrapConnectPayload(proto))).toEqual(Buffer.from(proto));
+    const framed = encodeConnectFrame(proto);
+    expect(Buffer.from(unwrapConnectPayload(framed))).toEqual(Buffer.from(proto));
+  });
+
+  it('converts Connect auth and HTTP failures into typed provider errors', async () => {
+    const { APIStatusError, APIConnectionError } = await import('../src/errors');
+    const auth = convertCursorError(new Error('Cursor Connect error: unauthenticated: expired'));
+    expect(auth).toBeInstanceOf(APIStatusError);
+    expect((auth as InstanceType<typeof APIStatusError>).statusCode).toBe(401);
+
+    const alb = convertCursorError(new Error('Cursor AgentService/Run failed (HTTP 464): Incompatible'));
+    expect(alb).toBeInstanceOf(APIConnectionError);
+  });
+
+  it('maps HTTP/2 grpc-status trailers onto Connect codes', () => {
+    const err = parseHttp2Trailers({ 'grpc-status': '16', 'grpc-message': 'invalid token' });
+    expect(err?.status).toBe(401);
+    expect(err?.code).toBe('unauthenticated');
+    expect(err?.message).toContain('invalid token');
+  });
+
+  it('parses Cursor CLI REG_SZ MachineGuid output', () => {
+    const guid = parseCursorWindowsMachineGuid(
+      [
+        '',
+        'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Cryptography',
+        '    MachineGuid    REG_SZ    ABCD1234-5678-90AB-CDEF-1234567890AB',
+        '',
+      ].join('\r\n'),
+    );
+    expect(guid).toBe('abcd1234-5678-90ab-cdef-1234567890ab');
+  });
+
+  it('advertises os_version as platform plus kernel release', () => {
+    expect(cursorEnvironmentOs()).toMatch(/^(win32|darwin|linux) /);
+  });
+
+  it('discovers the Cursor IDE agent-cli versions directory', () => {
+    const dirs = cursorAgentVersionsDirs();
+    expect(dirs.some((dir) => dir.includes('anysphere.cursor-agent-worker'))).toBe(true);
+  });
+
+  it('encodes RequestContextEnv sandbox flags as disabled', () => {
+    const frames = buildRunFrames({
+      prompt: 'hi',
+      modelId: 'composer-2.5',
+      cwd: '/tmp',
+      mode: 1,
+      tools: [],
+    });
+    const decoder = new ConnectFrameDecoder();
+    const decoded = decoder.push(frames[1]!);
+    expect(decoded).toHaveLength(1);
+    const payload = Buffer.from(decoded[0]!.payload);
+    expect(payload.includes(Buffer.from(cursorEnvironmentOs(), 'utf8'))).toBe(true);
+  });
+
+  it('decodes protobuf Values even when an unknown field precedes the kind', () => {
+    const unknown = fieldVarint(99, 1);
+    const encoded = concatBytes(unknown, encodeProtobufValue({ path: '/tmp' }));
+    expect(decodeProtobufValue(encoded)).toEqual({ path: '/tmp' });
+  });
+});
+
