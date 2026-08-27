@@ -69,8 +69,11 @@ describe('Session agent prompt_cache_key', () => {
 });
 
 function cacheKey(provider: ModelProvider | undefined): string | undefined {
-  const value = provider?.resolveProviderConfig('kimi-code/kimi-for-coding').provider
-    .generationKwargs?.['prompt_cache_key'];
+  if (provider === undefined) return undefined;
+  const resolved = provider.resolveProviderConfig('kimi-code/kimi-for-coding');
+  const kwargs = (resolved.provider as { generationKwargs?: { prompt_cache_key?: unknown } })
+    .generationKwargs;
+  const value = kwargs?.prompt_cache_key;
   return typeof value === 'string' ? value : undefined;
 }
 
