@@ -163,6 +163,14 @@ import {
   USAGE_TOKEN_TIP,
 } from '#/tui/commands/config/upgrade/usage-settings';
 
+function expectPremiumPickerChrome(picker: ChoicePickerComponent): void {
+  const lines = picker.render(120).map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''));
+  const hint = lines.find((line) => line.includes('Esc cancel'));
+  expect(hint).toMatch(/navigate/);
+  expect(hint).toContain('Enter select');
+  expect(hint).not.toMatch(/Enter · Esc$/);
+}
+
 describe('appearance-settings', () => {
   function makeHost(options: {
     theme?: string;
@@ -266,11 +274,8 @@ describe('appearance-settings', () => {
         | ChoicePickerComponent
         | undefined;
       expect(picker).toBeDefined();
+      expectPremiumPickerChrome(picker!);
       const lines = picker!.render(120).map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''));
-      const hint = lines.find((line) => line.includes('Esc cancel'));
-      expect(hint).toContain('↑↓ navigate');
-      expect(hint).toContain('Enter select');
-      expect(hint).not.toMatch(/↑↓ · Enter · Esc$/);
       expect(lines.join('\n')).toContain('Appearance status');
       expect(lines.join('\n')).toContain('Motion profile ·');
     });
@@ -311,6 +316,8 @@ describe('appearance-settings', () => {
       nested.opts.onHighlight?.('session');
       expect(host.setAppState).not.toHaveBeenCalled();
     });
+
+    it('renders live theme from appState and currentTheme', () => {
       const previousPalette = currentTheme.palette;
       currentTheme.setPalette(lightColors);
 
@@ -431,6 +438,18 @@ describe('cache-settings', () => {
     return (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
       UsagePanelComponent;
   }
+
+  describe('showCacheSettings picker chrome', () => {
+    it('inherits PREMIUM list chrome instead of a stub ↑↓ · Enter · Esc hint', () => {
+      const host = makeHost();
+      showCacheSettings(host);
+      const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+        | ChoicePickerComponent
+        | undefined;
+      expect(picker).toBeDefined();
+      expectPremiumPickerChrome(picker!);
+    });
+  });
 
   describe('showCacheSettings status panel', () => {
     it('shows Session (live) section with hit rate and streak from getStatus', async () => {
@@ -2269,6 +2288,16 @@ describe('premium-settings', () => {
       ]);
     });
 
+    it('inherits PREMIUM list chrome instead of a stub ↑↓ · Enter · Esc hint', () => {
+      const host = makeHost();
+      showPremiumSettings(host);
+      const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+        | ChoicePickerComponent
+        | undefined;
+      expect(picker).toBeDefined();
+      expectPremiumPickerChrome(picker!);
+    });
+
     it('renders live Visual Quality + motion budget lines when session is wired', async () => {
       setAppearanceRenderQuality('balanced');
       setAppearanceRenderHealth('watch');
@@ -3273,6 +3302,16 @@ describe('usage-settings', () => {
         'quota',
       ]);
       expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
+    });
+
+    it('inherits PREMIUM list chrome instead of a stub ↑↓ · Enter · Esc hint', () => {
+      const host = makeUsageHost();
+      showUsageSettings(host);
+      const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+        | ChoicePickerComponent
+        | undefined;
+      expect(picker).toBeDefined();
+      expectPremiumPickerChrome(picker!);
     });
 
     it('wires live token/$ from session.getStatus', async () => {

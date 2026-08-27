@@ -2,4 +2,4 @@
 "@superliora/liora": patch
 ---
 
-Make Settings → Appearance preview motion, density, and transcript detail as you highlight a value, and raise light-theme ghost text to WCAG AA. Open Settings → Appearance.
+Preview Appearance values as you highlight them, give remaining Settings lists the shared picker chrome, and raise light-theme ghost text to WCAG AA. Open Settings → Appearance.

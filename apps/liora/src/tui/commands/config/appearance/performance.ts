@@ -95,7 +95,6 @@ export function showPerformanceSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.performance.title'),
-      hint: ttui('tui.performance.hint'),
       currentValue: current,
       options: [
         {

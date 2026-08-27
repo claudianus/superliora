@@ -42,7 +42,6 @@ export function showSearchSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.search.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         settingsPresetsRow(),
@@ -200,7 +199,6 @@ function showSearchStrategyPicker(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.search.routingStrategy'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: SEARCH_ROUTING_STRATEGY_OPTIONS.map((option) => ({
         value: option.value,

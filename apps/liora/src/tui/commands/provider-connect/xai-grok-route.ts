@@ -33,7 +33,6 @@ export function promptXaiGrokRoute(
   return new Promise((resolve) => {
     const picker = new ChoicePickerComponent({
       title: ttui('tui.provider.xaiRouteTitle'),
-      hint: '↑↓ · Enter · Esc',
       options: [
         {
           value: 'build',

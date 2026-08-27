@@ -287,6 +287,7 @@ reveals, and quality-gated ambient that still reads under SSH/`off`.
 | Ambient effects | `features/appearance/appearance-effects.ts` → `renderPulseText` / `renderShimmerPrefix` / `renderParticleRail` |
 | Chrome-band live signals (Todo Board + Worker Dock) | `components/chrome/chrome-band-motion.ts` → `renderLiveSectionHeader` / `renderLiveRatioBar` / `renderPulseCountChip` |
 | Settings appearance live preview | `commands/config/appearance/appearance-settings.ts` → highlight applies motion/density without persist; Esc restores. Preview uses `renderAppearanceValuePreview` + settle flash. |
+| Settings list chrome | Settings `ChoicePicker` panes omit a stub `hint` so they inherit `tui.common.hint.list` / `.grid` (keys capitalized, `cancel`, wheel/click). Domain copy goes in `hintExtra`. |
 | Live prompt-editor frame | `components/editor/editor-chrome-motion.ts` → `applyEditorChromeChase` |
 | Settle flashes (change → rest on a final tone) | `features/appearance/appearance-effects.ts` → `renderSettleFlash` / `renderToneSettleFlash` / `renderStatusFlashLine` |
 | Entrance highlights (tool headers, turn boundaries) | `features/transcript/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |

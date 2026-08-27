@@ -1,7 +1,9 @@
 /**
  * Settings → Appearance — live glance + real preference pickers (SSOT §9.2).
- * Persist via handleAppearanceCommand so tui.toml, appState, and live
- * transcript projection share one code path.
+ * Highlight previews via previewAppearanceChange; persist via
+ * commitAppearanceChange so tui.toml, appState, and live transcript
+ * projection share one code path. The commit baseline is the last saved
+ * prefs, not the live preview, or an already-applied highlight looks unchanged.
  */
 
 import { currentTheme } from '#/tui/theme';

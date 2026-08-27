@@ -28,7 +28,6 @@ export function showEyesSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.eyes.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {
