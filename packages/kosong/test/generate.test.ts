@@ -1217,6 +1217,7 @@ describe('generate()', () => {
         finishReason: null,
         rawFinishReason: null,
         async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          yield { type: 'think', think: 'start' };
           throw new APITimeoutError('Request was aborted.');
         },
       };
@@ -1239,6 +1240,7 @@ describe('generate()', () => {
         finishReason: null,
         rawFinishReason: null,
         async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          yield { type: 'think', think: 'start' };
           controller.abort();
           throw new APITimeoutError('Request was aborted.');
         },
