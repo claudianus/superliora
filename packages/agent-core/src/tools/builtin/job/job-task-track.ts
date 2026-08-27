@@ -95,11 +95,11 @@ export function jobIsolationKind(
   return 'worktree';
 }
 
-export type JobLandGate =
+type JobLandGate =
   | { readonly ok: true }
   | { readonly ok: false; readonly reason: string };
 
-export type JobLandGateStatus = 'pass' | 'fail' | 'pending' | 'na';
+type JobLandGateStatus = 'pass' | 'fail' | 'pending' | 'na';
 
 /** Ledger note prefix Job Deck / Inbox can match when Land is refused. */
 export const LAND_REFUSED_NOTE = 'land: refused';
