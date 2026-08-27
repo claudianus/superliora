@@ -60,6 +60,13 @@ describe('agent/turn/kosong-llm — classifyProviderRouteFailure', () => {
     ).toBeUndefined();
   });
 
+  it('fails over Cloudflare 52x and Anthropic 529 without try-again copy', () => {
+    expect(classifyProviderRouteFailure(new APIStatusError(524, 'error code: 524'), 1000)?.kind).toBe(
+      'server',
+    );
+    expect(classifyProviderRouteFailure(new APIStatusError(529, 'error'), 1000)?.kind).toBe('server');
+  });
+
   it('returns undefined for an unrelated error', () => {
     const result = classifyProviderRouteFailure(new Error('boom'), 1000);
     expect(result).toBeUndefined();

@@ -233,11 +233,17 @@ export function isRetryableGenerateError(error: unknown): boolean {
   }
   // Provider-declared "temporary / try again" signals on other 4xx (e.g. a
   // 400 resource_exhausted) are transient too — permanent lookalikes were
-  // vetoed above.
+  // vetoed above. This also covers HTTP 5xx outside 500/502/503/504
+  // (Anthropic 529, Cloudflare 52x in front of custom OpenAI-compatible
+  // endpoints) so the generate loop and route failover both hop instead of
+  // halting the operator turn.
   if (isTransientTryAgainError(error)) {
     return true;
   }
-  return error instanceof APIStatusError && [429, 500, 502, 503, 504].includes(error.statusCode);
+  return (
+    error instanceof APIStatusError &&
+    (error.statusCode === 429 || isTransientServerStatusError(error))
+  );
 }
 
 // `terminated` is the undici signature for an SSE/HTTP body stream that is
@@ -362,8 +368,19 @@ export function isProviderCapacityError(error: unknown): boolean {
 }
 
 /**
- * Provider-declared transient signals: the provider/gateway explicitly says
- * the failure is temporary and asks for a retry, but on a non-5xx status —
+ * HTTP 5xx from the provider or an upstream gateway. Includes Anthropic 529
+ * (overloaded) and Cloudflare 520–527 in front of custom OpenAI-compatible
+ * endpoints, not only the classic 500/502/503/504 set. Hosts that fail over
+ * on {@link isTransientTryAgainError} pick these up without a second status
+ * whitelist.
+ */
+function isTransientServerStatusError(error: unknown): boolean {
+  return error instanceof APIStatusError && error.statusCode >= 500 && error.statusCode <= 599;
+}
+
+/**
+ * Transient signals that should retry / fail over: HTTP 5xx, plus
+ * provider-declared "temporary / try again" copy on a non-5xx status —
  * e.g. a 400 with `resource_exhausted ... "temporary - try again in a
  * moment"`. Permanent auth/quota are vetoed inside so lookalikes ("account
  * temporarily suspended", "insufficient quota, try again") stay non-retryable.
@@ -389,6 +406,7 @@ export function isTransientTryAgainError(error: unknown): boolean {
   if (CONTEXT_OVERFLOW_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage))) {
     return false;
   }
+  if (isTransientServerStatusError(error)) return true;
   return PROVIDER_TRY_AGAIN_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage));
 }
 
