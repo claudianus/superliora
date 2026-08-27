@@ -9,6 +9,8 @@ import {
   type AgentMemoryRuntime,
   type MemoryRecord,
 } from '../../src/memory';
+import { mergeDurableInjection } from '../../src/memory/store-query';
+import type { MemorySearchResult } from '../../src/memory/types';
 
 const roots: string[] = [];
 
@@ -45,7 +47,7 @@ describe('LioraMemoryStore', () => {
     expect(results[0]?.score).toBeGreaterThan(0.4);
   });
 
-  it('captures explicit remember requests from completed turns', async () => {
+  it('captures explicit remember requests from completed turns as active', async () => {
     const { runtime } = makeRuntime('s1', '/repo');
 
     const captured = await runtime.recordTurn({
@@ -55,14 +57,70 @@ describe('LioraMemoryStore', () => {
     });
 
     expect(captured).toHaveLength(1);
-    expect(captured[0]?.status).toBe('candidate');
+    expect(captured[0]?.status).toBe('active');
     expect(captured[0]?.source.kind).toBe('auto');
-    await runtime.reflect();
     const results = await runtime.recall({ query: 'concise Korean summaries', limit: 3 });
 
     expect(results.length).toBeGreaterThan(0);
     expect(results[0]?.memory.content).toContain('concise Korean engineering summaries');
     expect(results[0]?.memory.source.kind).toBe('auto');
+  });
+
+  it('injects an explicit preference on a later unrelated Job-shaped prompt', async () => {
+    const { runtime } = makeRuntime('s1', '/repo');
+
+    const captured = await runtime.recordTurn({
+      turnId: 4,
+      reason: 'completed',
+      input: [{ type: 'text', text: 'always use rg for repository text search' }],
+    });
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.status).toBe('active');
+    expect(captured[0]?.type).toBe('procedure');
+
+    await runtime.remember({
+      type: 'event',
+      subject: 'auth refresh job done',
+      content: 'Auth refresh job completed; inspect the land receipt.',
+      importance: 0.6,
+    });
+
+    const injection = await runtime.getInjection(
+      'Auth refresh job completed; inspect the land receipt.',
+    );
+
+    expect(injection).toContain('rg for repository text search');
+    expect(injection).toContain('auth refresh job done');
+  });
+
+  it('keeps episode auto-captures as candidates that do not inject', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'liora-memory-episode-'));
+    roots.push(root);
+    const store = new LioraMemoryStore({
+      homeDir: root,
+      config: () => ({ captureMode: 'candidate' }),
+    });
+    const runtime = runtimeFrom(store, 's1', '/repo');
+
+    const captured = await runtime.recordTurn({
+      turnId: 5,
+      reason: 'completed',
+      input: [
+        {
+          type: 'text',
+          text: 'implement the packages/agent-core memory store refactor and run tests',
+        },
+      ],
+    });
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.status).toBe('candidate');
+    expect(captured[0]?.metadata).toMatchObject({ capture: 'episode' });
+
+    const injection = await runtime.getInjection(
+      'implement the packages/agent-core memory store refactor and run tests',
+    );
+    expect(injection).toBeUndefined();
   });
 
   it('stores capture rationale and utility metadata for durable preference memories', async () => {
@@ -579,6 +637,26 @@ describe('recall precision (T2-5)', () => {
     expect(injection?.split('<memory ').length ?? 0).toBe(2 + 1);
   });
 
+  it('lets standing procedures outrank marginal event hits', async () => {
+    const { runtime } = makeRuntime('s1', '/repo');
+    await runtime.remember({
+      type: 'event',
+      subject: 'old incident chat',
+      content: 'Deployment rollback runbook discussion from an incident.',
+      importance: 0.6,
+    });
+    await runtime.remember({
+      type: 'procedure',
+      subject: 'rollback habit',
+      content: 'Always follow the deployment rollback runbook before release.',
+      importance: 0.55,
+    });
+
+    const injection = await runtime.getInjection('deployment rollback runbook');
+
+    expect(injection).toContain('rollback habit');
+  });
+
   it('lets rules outrank marginal event hits', async () => {
     const { runtime } = makeRuntime('s1', '/repo');
     await runtime.remember({
@@ -620,6 +698,66 @@ describe('recall precision (T2-5)', () => {
     expect(injection).not.toContain('zorbakat');
   });
 });
+
+describe('mergeDurableInjection', () => {
+  it('pins one standing preference when query recall is only events', () => {
+    const eventHit = searchHit('e1', 'event', 0.8);
+    const prefHit = searchHit('p1', 'procedure', 0.5);
+    const merged = mergeDurableInjection([eventHit], [prefHit], 2);
+    expect(merged.map((result) => result.memory.id)).toEqual(['p1', 'e1']);
+  });
+
+  it('does not steal a slot when query recall already has a fact', () => {
+    const factHit = searchHit('f1', 'fact', 0.7);
+    const eventHit = searchHit('e1', 'event', 0.8);
+    const prefHit = searchHit('p1', 'procedure', 0.9);
+    const merged = mergeDurableInjection([factHit, eventHit], [prefHit], 2);
+    expect(merged.map((result) => result.memory.id)).toEqual(['f1', 'e1']);
+  });
+
+  it('pins a standing fact when query recall abstained', () => {
+    const abstained: MemorySearchResult = {
+      ...searchHit('a1', 'event', 0.1),
+      abstained: true,
+      abstentionReason: 'below minimum',
+    };
+    const prefHit = searchHit('p1', 'procedure', 0.5);
+    const merged = mergeDurableInjection([abstained], [prefHit], 2);
+    expect(merged.map((result) => result.memory.id)).toEqual(['p1']);
+  });
+});
+
+function searchHit(
+  id: string,
+  type: MemoryRecord['type'],
+  score: number,
+): MemorySearchResult {
+  return {
+    score,
+    reasons: ['test'],
+    memory: {
+      id,
+      type,
+      epistemic: 'direct',
+      scope: 'user',
+      subject: id,
+      content: id,
+      tags: [],
+      confidence: 0.8,
+      importance: 0.8,
+      status: 'active',
+      source: { kind: 'user' },
+      createdAt: 1,
+      updatedAt: 1,
+      recordedAt: 1,
+      accessCount: 0,
+      supersedes: [],
+      evidenceRefs: [],
+      links: [],
+      metadata: {},
+    },
+  };
+}
 
 function makeRuntime(
   sessionId: string,
