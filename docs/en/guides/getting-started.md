@@ -104,10 +104,12 @@ On first launch you need to connect a model. In the interactive UI, enter `/logi
 /login
 ```
 
-`/login` connects OAuth, a catalog provider, or a custom endpoint. To sign out, enter `/logout` to clear the current credentials.
+`/login` connects OAuth, a catalog provider, or a custom endpoint. Catalog rows include Groq, Mistral, Together, xAI API keys, Cerebras, Perplexity, and Vercel AI Gateway. To sign out, enter `/logout` to clear the current credentials.
+
+If a provider returns HTTP 5xx (not only 504), Never-Halt retries and fails over so the turn stays alive.
 
 ::: tip Using other AI providers
-If you want to connect Anthropic, OpenAI, Google, or other providers, use `/login` in the TUI or `liora provider catalog add` / `liora provider custom add` from the shell. For teams with multiple accounts or API keys, `liora provider key add`, `liora provider oauth add`, and `liora provider route auto` can create quota-aware fallback routes without exposing secrets. See [Providers and models](../configuration/providers.md) for details.
+If you want to connect Anthropic, OpenAI, Google, Groq, Mistral, Together, xAI API keys, Cerebras, Perplexity, Vercel AI Gateway, or another catalog host, use `/login` in the TUI or `liora provider catalog add` / `liora provider custom add` from the shell. For teams with multiple accounts or API keys, `liora provider key add`, `liora provider oauth add`, and `liora provider route auto` can create quota-aware fallback routes without exposing secrets. See [Providers and models](../configuration/providers.md) for details.
 :::
 
 ## Your first conversation
