@@ -1,6 +1,10 @@
 /**
  * Conductor Inbox drawer — editor-replacement list of unread job notices
  * plus optional pending approval / question glance rows.
+ *
+ * PREMIUM.md §3 list grammar: two full-width borders, title +
+ * (type to search), one hint line, Search: only while filtering,
+ * SearchableList paging, printableChar type-to-search.
  */
 
 import {
@@ -17,6 +21,7 @@ import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
+import { SearchableList } from '#/tui/utils/ui/searchable-list';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { inboxKindLabel } from '../../job-board/job-board-helpers';
 
@@ -45,66 +50,90 @@ export interface InboxDrawerOptions {
   readonly requestRender?: () => void;
 }
 
+const INBOX_PAGE_SIZE = 10;
+
 export class InboxDrawerComponent extends Container implements Focusable {
   focused = false;
 
   private readonly opts: InboxDrawerOptions;
   private items: readonly InboxDrawerItem[];
-  private selectedIndex = 0;
+  private list: SearchableList<InboxDrawerItem>;
 
   constructor(opts: InboxDrawerOptions) {
     super();
     this.opts = opts;
     this.items = opts.items;
+    this.list = this.createList(opts.items);
   }
 
   setItems(items: readonly InboxDrawerItem[]): void {
+    const selectedId = this.list.selected()?.id;
     this.items = items;
-    if (this.selectedIndex >= items.length) {
-      this.selectedIndex = Math.max(0, items.length - 1);
-    }
+    this.list = this.createList(items, selectedId);
     this.opts.requestRender?.();
   }
 
   handleInput(data: string): void {
     if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl('c'))) {
+      if (matchesKey(data, Key.escape) && this.list.clearQuery()) {
+        this.opts.requestRender?.();
+        return;
+      }
       this.opts.onCancel();
       return;
     }
     if (matchesKey(data, Key.enter)) {
-      const item = this.items[this.selectedIndex];
+      const item = this.list.selected();
       if (item !== undefined) this.opts.onAct(item);
       return;
     }
+    const queryEmpty = this.list.view().query.length === 0;
     const ch = printableChar(data);
-    if (ch === 'm' || ch === 'M') {
-      const item = this.items[this.selectedIndex];
+    // Idle M/P are actions; once a query exists they type into search.
+    if (queryEmpty && (ch === 'm' || ch === 'M')) {
+      const item = this.list.selected();
       if (item !== undefined) this.opts.onMergePreview?.(item);
       return;
     }
-    if (ch === 'p' || ch === 'P') {
-      const item = this.items[this.selectedIndex];
+    if (queryEmpty && (ch === 'p' || ch === 'P')) {
+      const item = this.list.selected();
       if (item !== undefined) this.opts.onPushPreview?.(item);
       return;
     }
-    if (matchesKey(data, Key.up) || ch === 'k') {
-      this.selectedIndex = Math.max(0, this.selectedIndex - 1);
-      return;
-    }
-    if (matchesKey(data, Key.down) || ch === 'j') {
-      this.selectedIndex = Math.min(this.items.length - 1, this.selectedIndex + 1);
+    if (this.list.handleKey(data)) {
+      this.opts.requestRender?.();
     }
   }
 
   override render(width: number): string[] {
-    const hint = ttui('tui.dialog.inbox.hint');
+    const view = this.list.view();
+    const titleSuffix =
+      view.query.length === 0
+        ? currentTheme.fg('textMuted', ttui('tui.common.typeToSearch'))
+        : '';
+    const hintParts = [ttui('tui.dialog.inbox.hint')];
+    if (view.page.pageCount > 1) hintParts.push(ttui('tui.common.hint.page'));
     const body: string[] = [];
-    if (this.items.length === 0) {
-      body.push(currentTheme.fg('textMuted', ttui('tui.dialog.inbox.empty')));
+    if (view.query.length > 0) {
+      body.push(
+        currentTheme.fg('primary', ` ${ttui('tui.common.searchLabel').trimEnd()} `) +
+          currentTheme.fg('text', view.query),
+      );
+    }
+    if (view.items.length === 0) {
+      body.push(
+        currentTheme.fg(
+          'textMuted',
+          this.items.length === 0
+            ? ttui('tui.dialog.inbox.empty')
+            : ttui('tui.dialog.inbox.noMatch'),
+        ),
+      );
     } else {
-      for (let i = 0; i < this.items.length; i++) {
-        const item = this.items[i]!;
-        body.push(this.renderRow(item, i === this.selectedIndex, width));
+      for (let i = view.page.start; i < view.page.end; i++) {
+        const item = view.items[i];
+        if (item === undefined) continue;
+        body.push(this.renderRow(item, i === view.selectedIndex, width));
         for (const preview of item.previewLines ?? []) {
           body.push(
             truncateToWidth(
@@ -116,15 +145,43 @@ export class InboxDrawerComponent extends Container implements Focusable {
         }
       }
     }
+    const footer: string[] = [];
+    if (view.page.pageCount > 1 && view.page.end < view.items.length) {
+      footer.push(
+        currentTheme.fg(
+          'textMuted',
+          `  ▼ ${String(view.items.length - view.page.end)} more`,
+        ),
+      );
+    }
     return renderRendererPanelChromeRows({
       width,
       title: ttui('tui.dialog.inbox.title'),
-      hint: ` ${hint}`,
+      titleSuffix,
+      hint: ` ${hintParts.join(' · ')}`,
       body,
+      footer,
       dividerStyle: (text) => currentTheme.fg('primary', text),
       titleStyle: (text) => renderPremiumHeadline(text.trim(), 'inbox-drawer:title'),
       hintStyle: (text) => currentTheme.fg('textMuted', text),
       ellipsis: '…',
+    });
+  }
+
+  private createList(
+    items: readonly InboxDrawerItem[],
+    selectedId?: string,
+  ): SearchableList<InboxDrawerItem> {
+    const initialIndex = Math.max(
+      0,
+      selectedId === undefined ? 0 : items.findIndex((item) => item.id === selectedId),
+    );
+    return new SearchableList({
+      items,
+      toSearchText: inboxSearchText,
+      pageSize: INBOX_PAGE_SIZE,
+      searchable: true,
+      initialIndex,
     });
   }
 
@@ -144,6 +201,12 @@ export class InboxDrawerComponent extends Container implements Focusable {
     const line = `${prefix}${badgeStyled} ${title}${detail}`;
     return truncateToWidth(line, Math.max(1, width), '…');
   }
+}
+
+function inboxSearchText(item: InboxDrawerItem): string {
+  return [item.title, item.detail, item.jobId, item.kind, item.eventKind]
+    .filter((part): part is string => part !== undefined && part.length > 0)
+    .join(' ');
 }
 
 function rowBadge(item: InboxDrawerItem): string {
