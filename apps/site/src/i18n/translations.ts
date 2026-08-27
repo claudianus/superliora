@@ -435,10 +435,10 @@ const clustersKo: ClusterItem[] = [
       { id: 'smart-auto', title: 'Smart Auto', body: '지금 살아서 응답하는 모델을 골라 이 턴을 이어 갑니다.' },
       { id: 'fallback', title: '모델 폴백', body: '하나가 죽으면 다음 후보로 바로 넘깁니다.' },
       { id: 'role-routing', title: '역할별 라우팅', body: '탐색·코딩·계획에 맞는 모델을 나눠 씁니다.' },
-      { id: 'login', title: '로그인', body: '/login으로 계정을 붙이면 바로 쓸 수 있습니다.' },
+      { id: 'login', title: '로그인', body: '/login으로 OAuth, 카탈로그 키, 커스텀 엔드포인트를 붙입니다.' },
       { id: 'oauth-pools', title: 'OAuth 풀', body: '계정 여러 개를 돌려 가며 한도·장애를 피합니다.' },
       { id: 'api-key-pools', title: 'API 키 풀', body: '키를 묶어두면 하나가 막혀도 다음 키로 갑니다.' },
-      { id: 'never-halt', title: 'Never-Halt', body: '재시도·교체로 작업이 중간에 죽지 않게 붙잡습니다.' },
+      { id: 'never-halt', title: 'Never-Halt', body: 'HTTP 5xx(504만이 아님)를 재시도하고 다음 후보로 넘겨 작업이 중간에 죽지 않게 붙잡습니다.' },
       { id: 'custom-endpoint', title: '커스텀 엔드포인트', body: 'OpenAI 호환 URL을 그대로 붙일 수 있습니다.' },
     ],
   },
@@ -491,10 +491,10 @@ const clustersEn: ClusterItem[] = [
       { id: 'smart-auto', title: 'Smart Auto', body: 'Picks a model that is alive for this turn.' },
       { id: 'fallback', title: 'Model fallback', body: 'If one dies, the next candidate takes over.' },
       { id: 'role-routing', title: 'Role routing', body: 'Explore, code, and plan can use different models.' },
-      { id: 'login', title: 'Login', body: '/login connects an account and you are ready.' },
+      { id: 'login', title: 'Login', body: '/login connects OAuth, a catalog key, or a custom endpoint.' },
       { id: 'oauth-pools', title: 'OAuth pools', body: 'Rotate accounts to ride out limits and outages.' },
       { id: 'api-key-pools', title: 'API key pools', body: 'Bundle keys so a blocked one is not the end.' },
-      { id: 'never-halt', title: 'Never-Halt', body: 'Retry and swap so a job stays alive mid-flight.' },
+      { id: 'never-halt', title: 'Never-Halt', body: 'Retry HTTP 5xx (not only 504) and fail over so a job stays alive mid-flight.' },
       { id: 'custom-endpoint', title: 'Custom endpoint', body: 'Point at your OpenAI-compatible URL.' },
     ],
   },
@@ -636,7 +636,7 @@ export const translations: Record<Lang, Translation> = {
           id: 'login',
           cmd: USAGE_COMMANDS[3].cmd,
           title: '계정 연결',
-          body: '프로바이더 계정을 붙이면 바로 쓸 수 있습니다.',
+          body: 'OAuth, 카탈로그 키(Groq, Mistral, Together, xAI, Cerebras, Perplexity, Vercel AI Gateway), 또는 커스텀 엔드포인트를 붙입니다.',
         },
         {
           id: 'model',
@@ -759,7 +759,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '사용법',
-            body: '프로젝트 폴더에서 세션을 열고 /login과 /model로 모델을 연결한 뒤, 원하는 결과를 적습니다.',
+            body: '프로젝트 폴더에서 세션을 열고 /login과 /model로 모델을 연결한 뒤, 원하는 결과를 적습니다. /login에는 OAuth, 카탈로그 키(Groq, Mistral, Together, xAI, Cerebras, Perplexity, Vercel AI Gateway), 커스텀 엔드포인트가 있습니다.',
             code: 'liora\nliora --continue\nliora --plan\n/login\n/model\n/host-setup',
           },
           {
@@ -957,7 +957,7 @@ export const translations: Record<Lang, Translation> = {
           id: 'login',
           cmd: USAGE_COMMANDS[3].cmd,
           title: 'Connect an account',
-          body: 'Attach a provider account and you are ready.',
+          body: 'Attach OAuth, a catalog key (Groq, Mistral, Together, xAI, Cerebras, Perplexity, Vercel AI Gateway), or a custom endpoint.',
         },
         {
           id: 'model',
@@ -1080,7 +1080,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Usage',
-            body: 'Open a session in a project folder, connect a model with /login and /model, then write the outcome.',
+            body: 'Open a session in a project folder, connect a model with /login and /model, then write the outcome. /login lists OAuth, catalog keys (Groq, Mistral, Together, xAI, Cerebras, Perplexity, Vercel AI Gateway), and custom endpoints.',
             code: 'liora\nliora --continue\nliora --plan\n/login\n/model\n/host-setup',
           },
           {
