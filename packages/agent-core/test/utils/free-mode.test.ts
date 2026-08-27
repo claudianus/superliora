@@ -102,7 +102,7 @@ describe('FREE mode routing (benchmark-aware)', () => {
     const config = validateConfig({ providers: baseProviders, models: baseModels, defaultModel: 'openai/gpt-4o', freeMode: true });
     const tomlData = configToTomlData(config);
     expect(tomlData['free_mode']).toBe(true);
-    const tomlText = stringifyToml(tomlData as Record<string, unknown>);
+    const tomlText = stringifyToml(tomlData);
     expect(tomlText).toContain('free_mode = true');
     const reparsed = parseConfigString(tomlText);
     expect(reparsed.freeMode).toBe(true);
