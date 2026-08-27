@@ -1,5 +1,14 @@
 # @superliora/liora
 
+## 0.13.7
+
+### Patch Changes
+
+- Keep hotfix coding jobs in isolated worktrees and refuse Land until the Job has passed. Job Deck reads the land cell on the existing job snapshot.
+- Keep standing Memory preferences in later turns, including Job follow-ups that never mention them.
+- Pin Job worker prompt cache to the worker so parallel workers no longer share the Conductor session key and evict each other's routes.
+- Show Land on the Job Deck gate line, and say hotfix coding jobs always isolate in worktrees. Open Job Deck (Alt+J) to see the land cell.
+
 ## 0.13.6
 
 ### Patch Changes

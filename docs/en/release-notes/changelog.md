@@ -8,6 +8,15 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
+## 0.13.7 (2026-08-27)
+
+### Bug Fixes
+
+- Keep hotfix coding jobs in isolated worktrees and refuse Land until the Job has passed. Job Deck reads the land cell on the existing job snapshot.
+- Keep standing Memory preferences in later turns, including Job follow-ups that never mention them.
+- Pin Job worker prompt cache to the worker so parallel workers no longer share the Conductor session key and evict each other's routes.
+- Show Land on the Job Deck gate line, and say hotfix coding jobs always isolate in worktrees. Open Job Deck (Alt+J) to see the land cell.
+
 ## 0.13.6 (2026-08-27)
 
 ### Bug Fixes
