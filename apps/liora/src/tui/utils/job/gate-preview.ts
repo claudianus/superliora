@@ -18,9 +18,22 @@ const GATE_CELLS = [
   ['typecheck', 'typecheck'],
 ] as const;
 
-/** Compact one-line gate strip: `visual✓ review… tests✓ typecheck–`. */
+/**
+ * Land is first-class only when the snapshot stamps pass/pending/fail.
+ * Missing (older snapshots) and `na` (not a land target) are omitted — never
+ * painted as pending. Fail is shown so the operator stays on Job Deck.
+ */
+function formatLandCell(land: JobGateChecklistStatus | undefined): string | undefined {
+  if (land === undefined || land === 'na') return undefined;
+  return `land${GATE_GLYPH[land]}`;
+}
+
+/** Compact one-line gate strip: `visual✓ review… tests✓ typecheck– land…`. */
 export function formatGateChecklistLine(checklist: JobGateChecklist): string {
-  return GATE_CELLS.map(([key, name]) => `${name}${GATE_GLYPH[checklist[key]]}`).join(' ');
+  const cells = GATE_CELLS.map(([key, name]) => `${name}${GATE_GLYPH[checklist[key]]}`);
+  const land = formatLandCell(checklist.land);
+  if (land !== undefined) cells.push(land);
+  return cells.join(' ');
 }
 
 /** Pending/fail gates for Merge Preview hold checklist. */
@@ -34,6 +47,10 @@ export function formatMissingGateEvidence(
     if (status === 'pending' || status === 'fail') {
       missing.push(`${name}: ${status}`);
     }
+  }
+  const land = checklist.land;
+  if (land === 'pending' || land === 'fail') {
+    missing.push(`land: ${land}`);
   }
   return missing;
 }
