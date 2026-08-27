@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { access, constants, mkdtemp } from 'node:fs/promises';
+import { access, constants, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,11 +21,23 @@ const OFFICIAL = path.join(
 
 const tempDirs: string[] = [];
 
-afterEach(async () => {
-  const { rm } = await import('node:fs/promises');
-  for (const dir of tempDirs.splice(0)) {
-    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+/** Windows can leave a handle on hook-spawned files; `fs.rm` then hangs past hookTimeout. */
+async function rmBestEffort(dir: string, timeoutMs = 5_000): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      rm(dir, { recursive: true, force: true }).catch(() => {}),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
+}
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rmBestEffort(dir)));
 });
 
 async function makeHome(): Promise<string> {
@@ -118,8 +130,16 @@ describe('Claude official plugin proof (anthropics/claude-plugins-official)', ()
     const scriptPath = path.join(record.root, 'hooks', 'security_reminder_hook.py');
     await access(scriptPath, constants.R_OK);
 
-    // Engine selects PostToolUse Edit matcher (does not require running Python).
-    const engine = new HookEngine(hooks);
+    // Engine selects PostToolUse Edit matcher. Swap the official Python command for a
+    // no-op so Windows CI does not keep a handle on the temp plugin copy.
+    const engine = new HookEngine(
+      hooks.map((hook) => ({
+        ...hook,
+        command: process.platform === 'win32' ? 'cmd /c exit 0' : 'true',
+        args: undefined,
+        timeout: 1,
+      })),
+    );
     const matched = await engine.trigger('PostToolUse', {
       matcherValue: 'Edit',
       inputData: {
@@ -127,8 +147,7 @@ describe('Claude official plugin proof (anthropics/claude-plugins-official)', ()
         tool_input: { file_path: 'secret.env', content: 'AWS_SECRET=x' },
       },
     });
-    // May be empty if hook process fails open; still assert engine accepted the event.
-    expect(Array.isArray(matched)).toBe(true);
+    expect(matched.length).toBeGreaterThan(0);
   });
 
   it.skipIf(resolveBashExecutable() === undefined)(
@@ -150,6 +169,8 @@ describe('Claude official plugin proof (anthropics/claude-plugins-official)', ()
       cwd: root,
     });
 
+    const pluginData = await mkdtemp(path.join(tmpdir(), 'sg-data-'));
+    tempDirs.push(pluginData);
     const result = await runCommand(
       bash!,
       [wrapper, hookPy],
@@ -158,7 +179,7 @@ describe('Claude official plugin proof (anthropics/claude-plugins-official)', ()
         env: {
           ...process.env,
           CLAUDE_PLUGIN_ROOT: root,
-          CLAUDE_PLUGIN_DATA: await mkdtemp(path.join(tmpdir(), 'sg-data-')),
+          CLAUDE_PLUGIN_DATA: pluginData,
         },
         stdin: input,
         timeoutMs: 60_000,

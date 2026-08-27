@@ -38,9 +38,11 @@ import {
 import { workerDockProductName } from '#/tui/features/worker-dock/labels';
 import {
   isDockWorkerPastLinger,
+  isToolProgressLiveKind,
   type WorkerDockSnapshot,
   type DockOpsEntry,
   type DockWorker,
+  type MissionLiveKind,
 } from '#/tui/controllers/worker-dock/registry';
 import {
   CHROME_BAND_LEFT_MARGIN,
@@ -855,15 +857,20 @@ export class WorkerDockPanelComponent implements Component {
     return undefined;
   }
 
-  /** Hot child thinking/answer tail for the NOW live strip. */
+  /** Hot child thinking/answer/tool-progress tail for the NOW live strip. */
   private hotLiveStream(
     worker: DockWorker,
     now: number,
-  ): { kind: 'thinking' | 'answer'; text: string } | undefined {
+  ): { kind: MissionLiveKind; text: string } | undefined {
     if (worker.liveText === undefined || worker.liveText.length === 0) return undefined;
     if (worker.liveKind === undefined || worker.liveAtMs === undefined) return undefined;
-    if (now - worker.liveAtMs >= MISSION_LIVE_HOT_MS) return undefined;
     if (worker.status !== 'running' && worker.status !== 'finishing') return undefined;
+    if (
+      !isToolProgressLiveKind(worker.liveKind) &&
+      now - worker.liveAtMs >= MISSION_LIVE_HOT_MS
+    ) {
+      return undefined;
+    }
     return { kind: worker.liveKind, text: worker.liveText };
   }
 
@@ -889,7 +896,7 @@ export class WorkerDockPanelComponent implements Component {
 
   private renderLiveStreamRow(
     worker: DockWorker,
-    live: { kind: 'thinking' | 'answer'; text: string },
+    live: { kind: MissionLiveKind; text: string },
     animated: boolean,
     width: number,
   ): string {
@@ -898,16 +905,35 @@ export class WorkerDockPanelComponent implements Component {
     const source =
       revealed !== undefined && revealed.target.length > 0 ? visibleText(revealed) : live.text;
     const plain = truncateToWidth(source, this.liveTextBudget(width), '…');
-    const mark = live.kind === 'thinking' ? '◌' : '◆';
+    const tool = isToolProgressLiveKind(live.kind);
+    const mark = live.kind === 'thinking' ? '◌' : tool ? '▏' : '◆';
     const markPaint = currentTheme.fg(
-      live.kind === 'thinking' ? 'textMuted' : 'primary',
+      live.kind === 'thinking' || live.kind === 'status' || live.kind === 'stdout' || live.kind === 'progress'
+        ? 'textMuted'
+        : live.kind === 'stderr'
+          ? 'error'
+          : 'primary',
       mark,
     );
-    // Body stays static semantic text; optional tail glow on newest clusters only.
-    const tinted = currentTheme.fg(live.kind === 'thinking' ? 'textDim' : 'text', plain);
+    const bodyToken =
+      live.kind === 'thinking' || live.kind === 'stdout' || live.kind === 'progress' || live.kind === 'status'
+        ? live.kind === 'thinking'
+          ? 'textDim'
+          : 'textMuted'
+        : live.kind === 'stderr'
+          ? 'error'
+          : 'text';
+    const tinted = currentTheme.fg(bodyToken, plain);
     let body = `${markPaint} ${tinted}`;
-    if (animated && shouldRenderAmbientEffects(appearance) && live.kind === 'answer') {
-      const glowed = applyStreamTailGlow([body], 'assistant', appearance, { active: true });
+    const glowKind = live.kind === 'answer' || live.kind === 'stdout' || live.kind === 'progress';
+    const toolGlow = live.kind === 'stderr';
+    if (animated && shouldRenderAmbientEffects(appearance) && (glowKind || toolGlow)) {
+      const glowed = applyStreamTailGlow(
+        [body],
+        toolGlow ? 'tool' : 'assistant',
+        appearance,
+        { active: true, nowMs: appearanceAnimationNow() },
+      );
       body = glowed[0] ?? body;
     }
     return truncateToWidth(`  ${body}`, width, '…');
@@ -1160,12 +1186,14 @@ export class WorkerDockPanelComponent implements Component {
     const restBudget = Math.max(12, width - visibleWidth(head) - 1);
     const live = this.hotLiveStream(worker, now);
     if (live !== undefined) {
-      const mark = live.kind === 'thinking' ? '◌' : '◆';
+      const mark = live.kind === 'thinking' ? '◌' : isToolProgressLiveKind(live.kind) ? '▏' : '◆';
       const revealed = this.revealByWorker.get(worker.id);
       const source =
         revealed !== undefined && revealed.target.length > 0 ? visibleText(revealed) : live.text;
       const tail = truncateToWidth(source, Math.max(12, restBudget - 2), '…');
-      return `${head}${currentTheme.fg('textDim', ` ${mark} ${tail}`)}`;
+      const token =
+        live.kind === 'stderr' ? 'error' : live.kind === 'answer' ? 'textDim' : 'textMuted';
+      return `${head}${currentTheme.fg(token, ` ${mark} ${tail}`)}`;
     }
     const intent = this.workerIntent(worker);
     if (intent !== undefined) {

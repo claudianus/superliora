@@ -56,6 +56,12 @@ function makeHost() {
       handleEvent: vi.fn(),
       reset: vi.fn(),
     },
+    controlTowerDesk: {
+      handleSubagentProgress: vi.fn(),
+      handleSubagentToolCall: vi.fn(),
+      handleSubagentToolResult: vi.fn(),
+      handleSubagentToolProgress: vi.fn(),
+    },
     requireSession: vi.fn(),
     setAppState: vi.fn(),
     patchLivePane: vi.fn(),
@@ -158,5 +164,25 @@ describe('SessionEventHandler Mission Control feed', () => {
     } as Event;
     handler.handleEvent(answer, vi.fn());
     expect(host.workerDock.handleEvent).toHaveBeenCalledWith(answer);
+  });
+
+  it('routes subagent.tool_progress to Job Desk and Worker Dock', () => {
+    const host = makeHost();
+    const handler = new SessionEventHandler(host);
+    const event = {
+      agentId: 'main',
+      sessionId: 's1',
+      type: 'subagent.tool_progress',
+      subagentId: 'sub-1',
+      toolCallId: 'tc-1',
+      name: 'Bash',
+      kind: 'stdout',
+      textPreview: '12 passing',
+    } as Event;
+
+    handler.handleEvent(event, vi.fn());
+
+    expect(host.controlTowerDesk.handleSubagentToolProgress).toHaveBeenCalledWith(event);
+    expect(host.workerDock.handleEvent).toHaveBeenCalledWith(event);
   });
 });

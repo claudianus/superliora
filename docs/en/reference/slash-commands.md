@@ -16,7 +16,7 @@ Some commands are only available in the idle state. Executing these commands whi
 
 | Command | Alias | Description | Always available |
 | --- | --- | --- | --- |
-| `/login` | — | Connect OAuth, a catalog provider, or a custom endpoint | No |
+| `/login` | — | Connect OAuth, a catalog provider (Groq, Mistral, Together, xAI API keys, Cerebras, Perplexity, Vercel AI Gateway), or a custom endpoint | No |
 | `/logout` | — | Clear credentials for the currently selected account | No |
 | `/model` | — | Switch the LLM model used in the current session | Yes |
 | `/upgrade` | `/update` | Open Upgrade Studio — check for SuperLiora CLI updates and install with live progress | Yes |
