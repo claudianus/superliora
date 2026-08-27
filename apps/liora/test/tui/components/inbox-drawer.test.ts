@@ -9,10 +9,10 @@ import { InboxDrawerComponent } from '#/tui/components/dialogs/inbox/inbox-drawe
 import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import { currentTheme } from '#/tui/theme';
 
-const ESC = '\x1b';
+const ESC = '\x1B';
 const ENTER = '\r';
-const DOWN = '\x1b[B';
-const PAGEDOWN = '\x1b[6~';
+const DOWN = '\x1B[B';
+const PAGEDOWN = '\x1B[6~';
 const ANSI = /\u001B\[[0-9;]*m/g;
 
 function stripAnsi(text: string): string {
@@ -83,11 +83,11 @@ describe('InboxDrawerComponent', () => {
       onCancel,
     });
 
-    // Kitty CSI-u for 'n' (codepoint 110) must type into search, not be ignored.
-    drawer.handleInput('\x1b[110u');
+    // Kitty CSI-u for 'u' (codepoint 117) must type into search, not be ignored.
+    drawer.handleInput('\x1B[117u');
     const searching = drawer.render(80);
     const joined = searching.map(stripAnsi).join('\n');
-    expect(joined).toContain('Search: n');
+    expect(joined).toContain('Search: u');
     expect(searching.join('\n')).toContain(currentTheme.fg('primary', ' Search: '));
     expect(joined).toContain('Need input');
     expect(joined).not.toContain('Done A');

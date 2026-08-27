@@ -123,10 +123,10 @@ describe('JobDeckViewerComponent', () => {
     expect(idleLines.filter((line) => /▸\s*막힘/.test(line))).toEqual([]);
     expect(idleLines.some((line) => line.includes('막힘 (') && !line.includes('▸'))).toBe(true);
 
-    viewer.handleInput('b');
+    for (const ch of 'bill') viewer.handleInput(ch);
     const searching = viewer.render(120);
     const joined = searching.map(stripAnsi).join('\n');
-    expect(joined).toContain('Search: b');
+    expect(joined).toContain('Search: bill');
     expect(searching.join('\n')).toContain(currentTheme.fg('primary', ' Search: '));
     expect(joined).toContain('migrate the billing');
     expect(joined).not.toContain('answer needed');
@@ -167,7 +167,7 @@ describe('JobDeckViewerComponent', () => {
       onAction: vi.fn(),
       onCancel,
     });
-    viewer.handleInput('\u001b');
+    viewer.handleInput('\u001B');
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
@@ -207,9 +207,9 @@ describe('JobDeckViewerComponent', () => {
     expect(viewer.render(100).join('\n')).not.toContain('line 0');
     viewer.handleInput('g');
     expect(viewer.render(100).join('\n')).toContain('line 0');
-    viewer.handleInput('\u001b[F');
+    viewer.handleInput('\u001B[F');
     expect(viewer.render(100).join('\n')).toContain('line 39');
-    viewer.handleInput('\u001b[H');
+    viewer.handleInput('\u001B[H');
     expect(viewer.render(100).join('\n')).toContain('line 0');
     viewer.handleInput('F');
     expect(viewer.render(100).join('\n')).toContain('line 39');
