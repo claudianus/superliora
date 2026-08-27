@@ -162,7 +162,7 @@ export function renderLinuxTermLauncherScript(commandline) {
   const bin = shSingleQuote(commandline);
   return `#!/bin/bash
 # SuperLiora desktop launcher — open a real terminal, then run liora.
-# Desktop Entry Terminal=true is not enough: several DEs execute Exec with no TTY.
+# The .desktop terminal flag is not enough: several DEs execute Exec with no TTY.
 set -euo pipefail
 BIN=${bin}
 

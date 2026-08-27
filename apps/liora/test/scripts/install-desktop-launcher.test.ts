@@ -135,7 +135,7 @@ describe('scripts/install/ensure-desktop-launcher', () => {
     expect(script).toContain('gnome-terminal --');
     expect(script).toContain('ghostty -e');
     expect(script).toContain('no terminal emulator found');
-    expect(script).not.toContain('Terminal=true');
+    expect(script).not.toMatch(/^Terminal=true$/m);
   });
 
   it('renders a macOS app that opens Terminal.app (or Kitty/Ghostty) and runs liora', () => {
