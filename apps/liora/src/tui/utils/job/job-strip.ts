@@ -83,7 +83,7 @@ export interface ConductorJobUsage {
 }
 
 /** Live `subagent.tool_progress` kind mirrored onto a job card (SDK union). */
-export type ConductorJobProgressKind = 'stdout' | 'stderr' | 'progress' | 'status';
+type ConductorJobProgressKind = 'stdout' | 'stderr' | 'progress' | 'status';
 
 export interface ConductorJobActivity {
   readonly toolCallId: string;

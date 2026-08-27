@@ -64,6 +64,7 @@ import {
   resolveNeedsUserQuestionText,
 } from '#/tui/utils/job/needs-user-preview';
 import { applyStreamTailGlow } from '#/tui/features/transcript/transcript-entrance';
+import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 
 /** Worker transcript + usage payload for the drill-down surface. */
 export interface JobDeckWorkerLoad {
@@ -912,7 +913,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     snapshot: ConductorJobsSnapshot,
     focusJobId: string | undefined,
   ): SearchableList<ConductorJobCard> {
-    const cards = [...snapshot.jobs].sort(
+    const cards = [...snapshot.jobs].toSorted(
       (a, b) =>
         DECK_STATUS_RANK[a.status] - DECK_STATUS_RANK[b.status] ||
         b.priority - a.priority ||
