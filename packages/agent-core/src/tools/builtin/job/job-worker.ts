@@ -1176,6 +1176,11 @@ export async function resumeJobs(input: {
   readonly jobId?: string;
   /** Optional user answer for a needs_user card. */
   readonly answer?: string;
+  /**
+   * Skip the offload pump (fleet recovery re-queues many jobs, then pumps once
+   * so independent work starts together instead of one schedule tick each).
+   */
+  readonly skipSchedulePump?: boolean;
 }): Promise<{
   readonly ok: boolean;
   readonly resumed: readonly JobRecord[];
@@ -1260,12 +1265,11 @@ export async function resumeJobs(input: {
   }
 
   let scheduleMessage = 'Queued for schedule.';
-  if (agent) {
-    // Await the schedule pump only (queued→running + spawn enqueue). Do not
-    // await spawner.settle() — merge/push handshakes share that pool and can
-    // hold the Conductor JobResume tool past the hard budget. Worker attach
-    // lands on ledger/inbox asynchronously (same contract as JobCreate).
-    await requestJobSchedulePump({ store, agent });
+  if (agent && input.skipSchedulePump !== true) {
+    // Same contract as JobCreate: ACK after ledger re-queue. Worktree I/O and
+    // spawn handshakes stay on the offload lane so Conductor/session resume
+    // never waits on a worker. Attach lands on ledger/inbox.
+    void requestJobSchedulePump({ store, agent });
     scheduleMessage = 'Scheduling offloaded — transitions land on ledger/inbox.';
   }
 

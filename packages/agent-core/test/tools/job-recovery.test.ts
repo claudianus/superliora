@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  getJobWorkerSpawner,
+  requestJobSchedulePump,
+} from '../../src/session/job/job-offload';
+import {
   classifyJobForAutoResume,
   recoverJobsAfterResume,
   SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV,
@@ -27,6 +31,19 @@ function memoryStore(): ToolStore {
 afterEach(() => {
   __resetJobWorkerHandlesForTests();
 });
+
+async function drainJobOffload(store: ToolStore, agent: unknown): Promise<void> {
+  await requestJobSchedulePump({ store, agent: agent as never });
+  await getJobWorkerSpawner().settle();
+}
+
+async function until(predicate: () => boolean, rounds = 80): Promise<void> {
+  for (let i = 0; i < rounds; i += 1) {
+    if (predicate()) return;
+    await Promise.resolve();
+  }
+  throw new Error('until: predicate never became true');
+}
 
 describe('job fleet recovery', () => {
   it('classifies safe kinds for resume and holds merge/push/needs_user', () => {
@@ -110,6 +127,7 @@ describe('job fleet recovery', () => {
 
       const result = await recoverJobsAfterResume({ store, agent, autoResume: true });
       expect(result.resumed.some((j) => j.id === impl.id)).toBe(true);
+      await drainJobOffload(store, agent);
       expect(getJob(store, impl.id)?.status).toBe('running');
       expect(getJob(store, impl.id)?.workerAgentId).toBe('agent_recovery');
     } finally {
@@ -174,8 +192,73 @@ describe('job fleet recovery', () => {
       const result = await recoverJobsAfterResume({ store, agent, autoResume: true });
       expect(result.resumed).toHaveLength(0);
       expect(result.held.some((j) => j.id === blocked.id)).toBe(true);
+      await drainJobOffload(store, agent);
       expect(getJob(store, verify.id)?.status).toBe('running');
       expect(getJob(store, verify.id)?.workerAgentId).toBe('agent_verify_recovery');
+    } finally {
+      if (prev === undefined) delete process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV];
+      else process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV] = prev;
+    }
+  });
+
+  it('returns while independent Jobs spawn in parallel (session is not blocked)', async () => {
+    const prev = process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV];
+    process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV] = '1';
+    try {
+      const store = memoryStore();
+      const jobs = [0, 1, 2].map((i) => {
+        const job = createJob(store, { title: `par ${i}`, kind: 'implement', priority: 3 - i });
+        patchJob(store, job.id, {
+          status: 'interrupted',
+          worktreePath: `/tmp/recovery-par/${job.id}`,
+        });
+        return job;
+      });
+      expect(jobs).toHaveLength(3);
+
+      let inFlight = 0;
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const host = {
+        spawn: async () => {
+          inFlight += 1;
+          await gate;
+          return {
+            agentId: `agent_par_${String(inFlight)}`,
+            profileName: 'coder',
+            resumed: false,
+            completion: new Promise<never>(() => {}),
+          };
+        },
+      };
+      const agent = {
+        subagentHost: host,
+        config: { cwd: '/tmp/recovery-par' },
+        kaos: undefined,
+      } as never;
+
+      let recoverSettled = false;
+      const recover = recoverJobsAfterResume({ store, agent, autoResume: true }).then((result) => {
+        recoverSettled = true;
+        return result;
+      });
+
+      try {
+        await until(() => recoverSettled);
+        const result = await recover;
+        expect(result.resumed).toHaveLength(3);
+        // Session/Agent.resume is free while spawn is still gated.
+        expect(recoverSettled).toBe(true);
+
+        await until(() => inFlight >= 3);
+        expect(inFlight).toBe(3);
+        expect(recoverSettled).toBe(true);
+      } finally {
+        release();
+        await getJobWorkerSpawner().settle();
+      }
     } finally {
       if (prev === undefined) delete process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV];
       else process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV] = prev;
