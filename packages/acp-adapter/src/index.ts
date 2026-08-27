@@ -17,10 +17,14 @@ export {
   toolResultToAcpContent,
 } from '#/convert/index';
 export {
+  acpSubagentToolCallId,
   acpToolCallId,
   assistantDeltaToSessionUpdate,
   inferToolKind,
   stringifyArgs,
+  subagentToolCallToSessionUpdate,
+  subagentToolProgressToSessionUpdate,
+  subagentToolResultToSessionUpdate,
   thinkingDeltaToSessionUpdate,
   toolCallDeltaToSessionUpdate,
   toolCallLazyCreateToSessionUpdate,

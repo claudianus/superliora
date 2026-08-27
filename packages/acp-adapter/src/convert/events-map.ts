@@ -16,6 +16,9 @@ import type {
   ToolProgressEvent,
   ToolResultEvent,
   TurnEndReason,
+  SubagentToolCallEvent,
+  SubagentToolProgressEvent,
+  SubagentToolResultEvent,
 } from '@superliora/sdk';
 
 import { displayBlockToAcpContent, toolResultToAcpContent } from './convert';
@@ -86,6 +89,11 @@ export function turnEndReasonToStopReason(reason: TurnEndReason): AcpStopReason 
  */
 export function acpToolCallId(turnId: number, toolCallId: string): string {
   return `${turnId}:${toolCallId}`;
+}
+
+/** Wire id for a child tool mirrored onto the parent as `subagent.tool_*`. */
+export function acpSubagentToolCallId(subagentId: string, toolCallId: string): string {
+  return `sub:${subagentId}:${toolCallId}`;
 }
 
 /**
@@ -316,27 +324,152 @@ export function toolCallStartedUpgradeToSessionUpdate(
 /**
  * Map an SDK `tool.progress` event to an ACP `tool_call_update`.
  *
- * Only `update.kind === 'status'` with non-empty `text` produces a wire
- * notification (used to refresh the tool card title as the tool reports
- * what it's currently doing). stdout/stderr/progress/custom updates
- * return `null` here — they're folded into the final `tool.result`
- * content in Phase 4.2 rather than streaming as title flickers.
+ * `update.kind === 'status'` with non-empty `text` refreshes the tool card
+ * title. stdout/stderr/progress chunks stream as `content` so clients can
+ * paint logs while the tool is still running instead of waiting for
+ * `tool.result`. ACP `content` is REPLACE, so callers that see more than
+ * one chunk should pass an accumulator; a missing accumulator emits the
+ * current chunk only.
  */
 export function toolProgressToSessionUpdate(
   sessionId: string,
   event: ToolProgressEvent,
+  accumulator?: { output: string },
 ): SessionNotification | null {
-  if (event.update.kind === 'status' && event.update.text) {
+  const text = event.update.text;
+  if (event.update.kind === 'status' && text) {
     return {
       sessionId,
       update: {
         sessionUpdate: 'tool_call_update',
         toolCallId: acpToolCallId(event.turnId, event.toolCallId),
-        title: event.update.text,
+        title: text,
+      },
+    };
+  }
+  if (
+    (event.update.kind === 'stdout' ||
+      event.update.kind === 'stderr' ||
+      event.update.kind === 'progress') &&
+    text
+  ) {
+    let body = text;
+    if (accumulator !== undefined) {
+      accumulator.output = capToolOutputTail(accumulator.output + text);
+      body = accumulator.output;
+    }
+    return {
+      sessionId,
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: acpToolCallId(event.turnId, event.toolCallId),
+        status: 'in_progress',
+        content: [
+          {
+            type: 'content',
+            content: { type: 'text', text: body },
+          },
+        ],
       },
     };
   }
   return null;
+}
+
+const ACP_TOOL_OUTPUT_CAP = 8_192;
+
+function capToolOutputTail(text: string): string {
+  if (text.length <= ACP_TOOL_OUTPUT_CAP) return text;
+  return `…${text.slice(text.length - (ACP_TOOL_OUTPUT_CAP - 1))}`;
+}
+
+export function subagentToolCallToSessionUpdate(
+  sessionId: string,
+  event: SubagentToolCallEvent,
+): SessionNotification {
+  const content: ToolCallContent[] =
+    event.argsPreview !== undefined && event.argsPreview.length > 0
+      ? [
+          {
+            type: 'content',
+            content: { type: 'text', text: event.argsPreview },
+          },
+        ]
+      : [];
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'tool_call',
+      toolCallId: acpSubagentToolCallId(event.subagentId, event.toolCallId),
+      title: event.name,
+      kind: inferToolKind(event.name),
+      status: 'in_progress',
+      content,
+    },
+  };
+}
+
+export function subagentToolProgressToSessionUpdate(
+  sessionId: string,
+  event: SubagentToolProgressEvent,
+  accumulator?: { output: string },
+): SessionNotification | null {
+  const text = event.textPreview;
+  if (text === undefined || text.length === 0) return null;
+  const toolCallId = acpSubagentToolCallId(event.subagentId, event.toolCallId);
+  if (event.kind === 'status') {
+    return {
+      sessionId,
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId,
+        title: text,
+      },
+    };
+  }
+  let body = text;
+  if (accumulator !== undefined) {
+    accumulator.output = capToolOutputTail(accumulator.output + text);
+    body = accumulator.output;
+  }
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'tool_call_update',
+      toolCallId,
+      status: 'in_progress',
+      content: [
+        {
+          type: 'content',
+          content: { type: 'text', text: body },
+        },
+      ],
+    },
+  };
+}
+
+export function subagentToolResultToSessionUpdate(
+  sessionId: string,
+  event: SubagentToolResultEvent,
+): SessionNotification {
+  const content: ToolCallContent[] =
+    event.resultPreview !== undefined && event.resultPreview.length > 0
+      ? [
+          {
+            type: 'content',
+            content: { type: 'text', text: event.resultPreview },
+          },
+        ]
+      : [];
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: acpSubagentToolCallId(event.subagentId, event.toolCallId),
+      status: event.isError === true ? 'failed' : 'completed',
+      content,
+    },
+  };
 }
 
 /**

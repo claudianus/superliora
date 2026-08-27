@@ -96,6 +96,9 @@ export type {
   SubagentCompletedEvent,
   SubagentFailedEvent,
   SubagentTodoUpdatedEvent,
+  SubagentToolCallEvent,
+  SubagentToolResultEvent,
+  SubagentToolProgressEvent,
   ToolsUpdateStoreEvent,
 } from '@superliora/agent-core';
 

@@ -24,6 +24,7 @@ import {
   collectSubagentProgressStats,
   describeSubagentToolDetail,
   previewSubagentToolArgs,
+  previewSubagentToolProgress,
   previewSubagentToolResult,
   type SubagentProgressStats,
 } from './subagent-progress-preview';
@@ -174,12 +175,13 @@ function progressPhaseLabel(stats: SubagentProgressStats, finishing: boolean): s
 
 /**
  * Live tool-call telemetry (Phase 1-A realtime overhaul): mirrors the
- * child's `tool.call.started` / `tool.result` agent events onto the parent
- * agent as truncated `subagent.tool_call` / `subagent.tool_result` events,
- * so clients can render a live per-subagent tool feed without subscribing
- * to every raw child event (and without huge wire payloads). Uses the same
- * instance-patch pattern as `attachSubagentTodoBridge`; the returned
- * disposer restores the original emitter.
+ * child's `tool.call.started` / `tool.progress` / `tool.result` agent events
+ * onto the parent as truncated `subagent.tool_call` /
+ * `subagent.tool_progress` / `subagent.tool_result` events, so clients can
+ * render a live per-subagent tool feed (including stdout chunks) without
+ * subscribing to every raw child event. Uses the same instance-patch
+ * pattern as `attachSubagentTodoBridge`; the returned disposer restores
+ * the original emitter.
  */
 export function attachToolStreamBridge(
   parent: Agent,
@@ -210,6 +212,21 @@ export function attachToolStreamBridge(
         name: event.name,
         argsPreview: previewSubagentToolArgs(event.args),
         ...(detail !== undefined ? { detail } : {}),
+      });
+      return;
+    }
+    if (event.type === 'tool.progress') {
+      const preview = previewSubagentToolProgress(event.update);
+      if (preview === undefined) return;
+      const name = toolNames.get(event.toolCallId);
+      parent.emitEvent({
+        type: 'subagent.tool_progress',
+        subagentId: childId,
+        ...(runId !== undefined ? { runId } : {}),
+        toolCallId: event.toolCallId,
+        ...(name !== undefined ? { name } : {}),
+        kind: preview.kind,
+        textPreview: preview.textPreview,
       });
       return;
     }
