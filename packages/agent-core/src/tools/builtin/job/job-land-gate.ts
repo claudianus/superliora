@@ -21,10 +21,17 @@ function isCodingLandJob(job: Pick<JobRecord, 'kind' | 'taskTrack'>): boolean {
 
 /**
  * Whether `landJobToMain` / Apply / MergeJob may touch the operator checkout.
- * Status must be `done`; a failed verify or verification contract blocks Land.
+ * Worker output must be `done` or `blocked` (trust-hold retry); failed verify
+ * or a failed verification contract still blocks Land.
  */
+function isLandableStatus(status: JobRecord['status']): boolean {
+  // `blocked` is still passed worker output (merge-trust hold, land retry).
+  // Failed / queued / running work must not touch the operator checkout.
+  return status === 'done' || status === 'blocked';
+}
+
 export function jobMayLandToMain(job: JobRecord): JobLandGate {
-  if (job.status !== 'done') {
+  if (!isLandableStatus(job.status)) {
     return {
       ok: false,
       reason: `${LAND_REFUSED_NOTE}: status=${job.status} — only done work may land`,

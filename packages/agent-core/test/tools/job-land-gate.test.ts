@@ -157,6 +157,31 @@ describe('land pass gate', () => {
     expect(getJob(store, job.id)?.status).toBe('queued');
   });
 
+  it('lands a Job that is blocked only by a prior merge-trust hold', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'trust hold retry', kind: 'implement' });
+    patchJob(store, job.id, {
+      status: 'blocked',
+      worktreePath: `/tmp/wt/${job.id}`,
+      worktreeBranch: 'job/retry',
+      resultSummary: 'worker finished',
+      notes: 'merge: hold — Dangerous paths',
+    });
+    const { calls, runGit } = gitStub();
+
+    const result = await landJobToMain({
+      store,
+      job: getJob(store, job.id)!,
+      repoPath: '/repo/main',
+      runGit,
+      gcOnSuccess: false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.merged).toBe(true);
+    expect(calls.some((c) => c.args[0] === 'merge')).toBe(true);
+  });
+
   it('refuses operator Apply on a failed Job without dispatching merge', async () => {
     const store = memoryStore();
     const job = createJob(store, { title: 'apply failed', kind: 'implement' });
