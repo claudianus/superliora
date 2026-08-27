@@ -71,6 +71,35 @@ function viewFor(
   };
 }
 
+function stdoutTailView(clockMs: number): WorkerDockView {
+  return {
+    snapshot: {
+      version: 1,
+      workers: [
+        {
+          id: 'sa-glow',
+          name: 'coder',
+          kind: 'subagent',
+          status: 'running',
+          runInBackground: false,
+          toolCount: 1,
+          tokens: 10,
+          elapsedMs: 1_000,
+          spawnedAtMs: clockMs,
+          lastActivityAtMs: clockMs,
+          liveKind: 'stdout',
+          liveText: 'uniq-stdout-tail',
+          liveAtMs: clockMs,
+        },
+      ],
+      activeCount: 1,
+      totalTokens: 10,
+      ops: [],
+    },
+    jobs: emptyConductorJobsSnapshot(),
+  };
+}
+
 function jobCard(over: Partial<ConductorJobCard>): ConductorJobCard {
   return {
     id: 'job_abcdef123456',
@@ -869,6 +898,28 @@ describe('WorkerDockPanelComponent', () => {
     expect(text).toContain('warn: slow');
   });
 
+  it('keeps the live stdout tail byte-identical when motion is off', () => {
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
+    try {
+      const panel = new WorkerDockPanelComponent();
+      panel.setView(stdoutTailView(2_000));
+      advanceAppearanceAnimationClock(2_000);
+      const first = panel.render(160).find((row) => strip(row).includes('coder'));
+      expect(first).toBeDefined();
+      expect(strip(first!)).toContain('uniq-stdout-tail');
+      advanceAppearanceAnimationClock(2_280);
+      panel.invalidate();
+      const second = panel.render(160).find((row) => strip(row).includes('coder'));
+      expect(second).toBe(first);
+    } finally {
+      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    }
+  });
+
   it('glows the live stdout tail across ≥4 appearance-clock frames', () => {
     const previousChalkLevel = chalk.level;
     const previousEnv = {
@@ -894,38 +945,13 @@ describe('WorkerDockPanelComponent', () => {
       particles: 'premium',
     });
     try {
-      const frames = new Set<string>();
       const panel = new WorkerDockPanelComponent();
-      for (let i = 0; i < 6; i += 1) {
+      panel.setView(stdoutTailView(1_000));
+      const frames = new Set<string>();
+      for (let i = 0; i < 8; i += 1) {
         advanceAppearanceAnimationClock(1_000 + i * 280);
-        const clock = appearanceAnimationNow();
-        panel.setView({
-          snapshot: {
-            version: i + 1,
-            workers: [
-              {
-                id: 'sa-glow',
-                name: 'coder',
-                kind: 'subagent',
-                status: 'running',
-                runInBackground: false,
-                toolCount: 1,
-                tokens: 10,
-                elapsedMs: 1_000,
-                spawnedAtMs: clock,
-                lastActivityAtMs: clock,
-                liveKind: 'stdout',
-                liveText: 'abcdefghijklmnopqrstuvwxyz012345',
-                liveAtMs: clock,
-              },
-            ],
-            activeCount: 1,
-            totalTokens: 10,
-            ops: [],
-          },
-          jobs: emptyConductorJobsSnapshot(),
-        });
-        const line = panel.render(120).find((row) => row.includes('abcdefghijklmnopqrst'));
+        panel.invalidate();
+        const line = panel.render(160).find((row) => strip(row).includes('coder'));
         expect(line).toBeDefined();
         frames.add(line!);
       }

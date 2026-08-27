@@ -614,6 +614,17 @@ describe('WorkerDockRegistry', () => {
         textPreview: 'nope',
       } as Event),
     ).toBe(false);
+
+    registry.apply(spawned('sa-1'));
+    expect(
+      registry.apply({
+        type: 'subagent.tool_progress',
+        subagentId: 'sa-1',
+        toolCallId: 'tc-1',
+        kind: 'stdout',
+        textPreview: '  \n  ',
+      } as Event),
+    ).toBe(false);
   });
 
   it('attaches a compact result chip on settled ops without an existing chip', () => {

@@ -10,7 +10,7 @@
 import type { Event } from '@superliora/sdk';
 
 import { monotonicMotionNowMs } from '../../features/appearance/appearance-effects';
-import { resolveSubagentToolTarget } from '../../utils/tools/subagent-tool-detail';
+import { lastNonEmptyLine, resolveSubagentToolTarget } from '../../utils/tools/subagent-tool-detail';
 
 /**
  * Terminal workers (completed + failed) linger this long so the operator sees
@@ -674,6 +674,8 @@ export class WorkerDockRegistry {
   ): boolean {
     const preview = event.textPreview;
     if (preview === undefined || preview.length === 0) return false;
+    const tail = lastNonEmptyLine(preview);
+    if (tail.length === 0) return false;
     const worker = this.workers.get(event.subagentId);
     if (worker === undefined) return false;
     if (worker.liveToolCallId !== event.toolCallId) {
@@ -681,7 +683,13 @@ export class WorkerDockRegistry {
       worker.liveBuffer = '';
     }
     worker.liveKind = event.kind;
-    worker.liveBuffer = appendLiveBuffer(worker.liveBuffer ?? '', preview);
+    const sep =
+      worker.liveBuffer !== undefined &&
+      worker.liveBuffer.length > 0 &&
+      !worker.liveBuffer.endsWith('\n')
+        ? '\n'
+        : '';
+    worker.liveBuffer = appendLiveBuffer(worker.liveBuffer ?? '', `${sep}${preview}`);
     const atMs = this.now();
     worker.liveAtMs = atMs;
     worker.lastActivityAtMs = atMs;
@@ -821,7 +829,7 @@ function appendLiveBuffer(prev: string, delta: string): string {
 
 /** Last non-empty line, then char-cap — what NOW paints. */
 export function liveTextTail(buffer: string, maxChars: number = MISSION_LIVE_TEXT_CAP): string {
-  const normalized = buffer.replaceAll(/\r\n/gu, '\n').replaceAll(/\r/gu, '\n');
+  const normalized = buffer.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
   const lines = normalized.split('\n');
   let last = '';
   for (let i = lines.length - 1; i >= 0; i -= 1) {
