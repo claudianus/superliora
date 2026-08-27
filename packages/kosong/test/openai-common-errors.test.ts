@@ -308,6 +308,7 @@ describe('OpenAI streaming: custom OpenAI-compatible abort', () => {
     expect(isRetryableGenerateError(caught)).toBe(true);
   });
 });
+describe('convertContentPart', () => {
   it('converts TextPart to OpenAI text content part', () => {
     expect(convertContentPart({ type: 'text', text: 'hi' })).toEqual({
       type: 'text',
