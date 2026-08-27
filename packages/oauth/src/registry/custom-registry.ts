@@ -342,8 +342,12 @@ export function applyCustomRegistryProvider(
   const upstreamKeys = new Set(
     Object.keys(entry.models).map((modelKey) => `${providerKey}/${modelKey}`),
   );
+  const preservedCustom: Record<string, unknown> = {};
   for (const [key, alias] of Object.entries(existingModels)) {
     if (isRecord(alias) && alias['provider'] === providerKey && !upstreamKeys.has(key)) {
+      if (alias['userManaged'] === true) {
+        preservedCustom[key] = alias;
+      }
       delete existingModels[key];
     }
   }
@@ -367,6 +371,10 @@ export function applyCustomRegistryProvider(
       ...(model.think_efforts !== undefined ? { supportEfforts: model.think_efforts } : {}),
       ...(model.default_effort !== undefined ? { defaultEffort: model.default_effort } : {}),
     };
+  }
+
+  for (const [key, value] of Object.entries(preservedCustom)) {
+    if (existingModels[key] === undefined) existingModels[key] = value as never;
   }
 
   config.models = existingModels;

@@ -100,6 +100,8 @@ const ModelAliasBaseSchema = z.object({
   betaApi: z.boolean().optional(),
   fallbackModels: z.array(z.string().min(1)).optional(),
   routing: ModelRoutingConfigSchema.optional(),
+  /** Marks a user-added custom model that should survive provider refreshes. */
+  userManaged: z.boolean().optional(),
   /** Per-million-token pricing in USD (from models.dev catalog). */
   cost: z
     .object({

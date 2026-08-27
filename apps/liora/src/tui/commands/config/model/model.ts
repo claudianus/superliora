@@ -14,6 +14,7 @@ import {
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { ModelFallbackSelectorComponent, type ModelFallbackAction, type ModelFallbackItem } from '../../../components/dialogs/picker/model-fallback-selector';
 import { TabbedModelSelectorComponent } from '../../../components/dialogs/picker/tabbed-model-selector';
+import { CustomModelInputDialogComponent } from '../../../components/dialogs/provider/custom-model-input';
 import { formatErrorMessage } from '../../../utils/event-payload';
 import {
   formatModelRefreshErrorNotice,
@@ -569,10 +570,17 @@ function showFallbackModelPicker(
         dismissPickerDialog(host);
         onSelect(alias);
       },
+      onCustomModel: () => {
+        dismissPickerDialog(host);
+        void promptCustomModel(host).then(() => {
+          // After custom add, re-open fallback picker with refreshed list
+          showFallbackModelPicker(host, primaryAlias, currentFallbacks, onSelect);
+        });
+      },
       onCancel: () => {
         dismissPickerDialog(host);
       },
-      notice: 'Select a fallback model.',
+      notice: 'Select a fallback model. Ctrl+N for custom ID.',
     }),
     { label: 'Select fallback model' },
   );
@@ -620,7 +628,7 @@ export function showModelPicker(host: SlashCommandHost, selectedValue: string = 
   if (entries.length === 0) {
     host.showNotice(
       'No models configured',
-      'Run /login to sign in or add a provider, then pick a model with /model.',
+      'Run /login to sign in or add a provider, then pick a model with /model. Press Ctrl+N for a custom model ID not yet in the catalog.',
     );
     return;
   }
@@ -655,12 +663,163 @@ export function showModelPicker(host: SlashCommandHost, selectedValue: string = 
         dismissPickerDialog(host);
         void performModelSwitch(host, alias, thinking, false, effort);
       },
+      onCustomModel: () => {
+        dismissPickerDialog(host);
+        void promptCustomModel(host);
+      },
       onCancel: () => {
         dismissPickerDialog(host);
       },
     }),
     { label: 'Model' },
   );
+}
+
+export async function promptCustomModel(host: SlashCommandHost): Promise<void> {
+  const config = await host.harness.getConfig();
+  const providerIds = Object.keys(config.providers);
+  const currentProvider = host.state.appState.availableModels[host.state.appState.model]?.provider;
+  const hintProvider = currentProvider !== undefined && currentProvider !== 'smart-auto' ? currentProvider : providerIds[0];
+
+  let catalogPromise: Promise<import('@superliora/sdk').Catalog | undefined> | undefined;
+  try {
+    const { loadCatalog } = await import('#/utils/catalog-cache');
+    catalogPromise = loadCatalog().catch(() => undefined);
+  } catch {
+    catalogPromise = undefined;
+  }
+
+  await new Promise<void>((resolve) => {
+    const dialog = new CustomModelInputDialogComponent(
+      (result) => {
+        host.restoreEditor();
+        resolve();
+        if (result.kind !== 'ok') {
+          // Return to model picker on cancel
+          showModelPicker(host);
+          return;
+        }
+        const { providerId, modelId, displayName, maxContextSize, thinking, supportEfforts } = result.value;
+
+        void (async () => {
+          try {
+            await addCustomModelAlias(host, {
+              providerId,
+              modelId,
+              displayName,
+              maxContextSize,
+              thinking,
+              supportEfforts,
+            });
+            host.showStatus(`Added custom model ${providerId}/${modelId}`, 'success');
+            showModelPicker(host, `${providerId}/${modelId}`);
+          } catch (error) {
+            host.showError(`Failed to add custom model: ${formatErrorMessage(error)}`);
+            showModelPicker(host);
+          }
+        })();
+      },
+      {
+        initialProviderId: hintProvider,
+        catalogPromise,
+        availableProviders: providerIds,
+      },
+    );
+    // Wire live catalog lookup for thinking auto-detect
+    if (catalogPromise !== undefined) {
+      dialog.onModelHintRequest = ({ providerId, modelId }) => {
+        void (async () => {
+          try {
+            const catalog = await catalogPromise;
+            if (catalog !== undefined) {
+              const { lookupModelCapability } = await import('#/utils/custom-provider');
+              const hint = lookupModelCapability(catalog, providerId, modelId);
+              if (hint !== undefined) {
+                dialog.setThinkingDefault(hint.thinking, hint.supportEfforts);
+                return;
+              }
+            }
+            const { probeModelsEndpoint } = await import('#/utils/custom-provider');
+            const baseUrl = config.providers[providerId]?.baseUrl as string | undefined;
+            if (baseUrl !== undefined && baseUrl.length > 0) {
+              const provider = config.providers[providerId];
+              const apiKey = (provider as { apiKey?: string })?.apiKey;
+              const probed = await probeModelsEndpoint(baseUrl, apiKey, modelId);
+              if (probed !== undefined) dialog.setThinkingDefault(probed.thinking, probed.supportEfforts);
+            }
+          } catch {
+            // best-effort
+          }
+        })();
+      };
+    }
+    host.mountEditorReplacement(dialog);
+  });
+}
+
+async function addCustomModelAlias(
+  host: SlashCommandHost,
+  input: {
+    readonly providerId: string;
+    readonly modelId: string;
+    readonly displayName?: string;
+    readonly maxContextSize: number;
+    readonly thinking: boolean;
+    readonly supportEfforts?: readonly string[];
+  },
+): Promise<void> {
+  const config = await host.harness.getConfig();
+  const provider = config.providers[input.providerId];
+  if (provider === undefined) {
+    throw new Error(
+      `Provider "${input.providerId}" not found. Add it first via /login → Custom endpoint or "liora provider custom add ${input.providerId} --base-url https://... --model ${input.modelId}"`,
+    );
+  }
+  const alias = `${input.providerId}/${input.modelId}`;
+  const capabilities = input.thinking ? ['thinking', 'tool_use'] : ['tool_use'];
+  // Try catalog hint for richer capabilities when available
+  let enrichedCapabilities = capabilities;
+  let enrichedContext = input.maxContextSize;
+  try {
+    const { loadCatalog } = await import('#/utils/catalog-cache');
+    const catalog = await loadCatalog().catch(() => undefined);
+    if (catalog !== undefined) {
+      const { lookupModelCapability } = await import('#/utils/custom-provider');
+      const hint = lookupModelCapability(catalog, input.providerId, input.modelId);
+      if (hint !== undefined) {
+        if (hint.maxContextTokens !== undefined && hint.maxContextTokens > 0) enrichedContext = hint.maxContextTokens;
+        const caps: string[] = [];
+        if (hint.toolUse) caps.push('tool_use');
+        if (hint.thinking) caps.push('thinking');
+        // keep image_in etc if catalog had it — probe via cost? minimal, stick to hint
+        if (caps.length > 0) enrichedCapabilities = caps;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  const aliasKey = alias;
+  const existing = config.models?.[aliasKey] as Record<string, unknown> | undefined;
+  config.models = {
+    ...config.models,
+    [aliasKey]: {
+      ...existing,
+      provider: input.providerId,
+      model: input.modelId,
+      maxContextSize: enrichedContext,
+      capabilities: enrichedCapabilities,
+      displayName: input.displayName ?? input.modelId,
+      userManaged: true,
+      ...(input.supportEfforts !== undefined && input.supportEfforts.length > 0
+        ? { supportEfforts: [...input.supportEfforts] }
+        : {}),
+    },
+  };
+  await host.harness.setConfig({
+    providers: config.providers,
+    models: config.models,
+  });
+  await host.authFlow.refreshConfigAfterLogin();
 }
 
 async function performModelSwitch(

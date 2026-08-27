@@ -35,7 +35,7 @@ import {
 export const XAI_IMAGINE_IMAGE_MODEL = 'grok-imagine-image-quality';
 export const XAI_IMAGINE_VIDEO_MODEL = 'grok-imagine-video';
 export const XAI_IMAGINE_VIDEO_QUALITY_MODEL = 'grok-imagine-video-1.5';
-export const XAI_DEFAULT_WEB_SEARCH_MODEL = 'grok-4.5';
+export const XAI_DEFAULT_WEB_SEARCH_MODEL = 'grok-4.6';
 
 const IMAGE_GEN_TIMEOUT_MS = 300_000;
 const VIDEO_START_TIMEOUT_MS = 60_000;

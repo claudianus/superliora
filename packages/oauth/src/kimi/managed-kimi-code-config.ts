@@ -150,12 +150,14 @@ export function applyManagedKimiCodeConfig(
   };
 
   const upstreamKeys = new Set(options.models.map((model) => managedModelKey(model.id)));
+  const preservedCustom: Record<string, unknown> = {};
   for (const [key, model] of Object.entries(existingModels)) {
     if (
       isRecord(model) &&
       model['provider'] === SUPERLIORA_PROVIDER_NAME &&
       !upstreamKeys.has(key)
     ) {
+      if (model['userManaged'] === true) preservedCustom[key] = model;
       delete existingModels[key];
     }
   }
@@ -180,6 +182,10 @@ export function applyManagedKimiCodeConfig(
       betaApi: model.protocol === 'anthropic' ? true : undefined,
       adaptiveThinking: supportsAdaptiveThinking ? true : undefined,
     };
+  }
+
+  for (const [key, value] of Object.entries(preservedCustom)) {
+    if (existingModels[key] === undefined) existingModels[key] = value as never;
   }
 
   config.models = existingModels;

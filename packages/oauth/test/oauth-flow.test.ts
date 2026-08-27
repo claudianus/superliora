@@ -170,9 +170,11 @@ describe('provider profile registry', () => {
       'grok-4.6',
       'grok-4.5',
       'grok-4.3',
+      'grok-code-fast-1',
       'grok-build-0.1',
     ]);
-    expect(XAI_PROFILE.models!.every((m) => m.maxContextSize === 200_000)).toBe(true);
+    expect(XAI_PROFILE.models!.find((m) => m.id === 'grok-code-fast-1')!.maxContextSize).toBe(128_000);
+    expect(XAI_PROFILE.models!.filter((m) => m.id !== 'grok-code-fast-1').every((m) => m.maxContextSize === 200_000)).toBe(true);
   });
 
   it('keeps the Anthropic profile out of the always-on list and in the experimental list', () => {

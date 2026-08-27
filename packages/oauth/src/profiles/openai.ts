@@ -40,14 +40,32 @@ export const OPENAI_PROFILE: ProviderProfile = {
   docUrl: 'https://developers.openai.com/codex/auth',
   models: [
     {
+      id: 'gpt-5.3-codex',
+      displayName: 'GPT-5.3 Codex',
+      maxContextSize: 272000,
+      capabilities: ['thinking', 'tool_use'],
+    },
+    {
+      id: 'gpt-5.2-codex',
+      displayName: 'GPT-5.2 Codex',
+      maxContextSize: 400000,
+      capabilities: ['thinking', 'tool_use'],
+    },
+    {
+      id: 'gpt-5.1-codex',
+      displayName: 'GPT-5.1 Codex',
+      maxContextSize: 272000,
+      capabilities: ['thinking', 'tool_use'],
+    },
+    {
       id: 'gpt-5-codex',
       displayName: 'GPT-5 Codex',
       maxContextSize: 272000,
       capabilities: ['thinking', 'tool_use'],
     },
     {
-      id: 'gpt-5.1-codex',
-      displayName: 'GPT-5.1 Codex',
+      id: 'gpt-5.4',
+      displayName: 'GPT-5.4',
       maxContextSize: 272000,
       capabilities: ['thinking', 'tool_use'],
     },

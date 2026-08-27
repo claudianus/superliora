@@ -210,6 +210,12 @@ export const XAI_PROFILE: ProviderProfile = {
       capabilities: ['thinking', 'tool_use', 'image_in'],
     },
     {
+      id: 'grok-code-fast-1',
+      displayName: 'Grok Code Fast 1',
+      maxContextSize: 128000,
+      capabilities: ['tool_use'],
+    },
+    {
       id: 'grok-build-0.1',
       displayName: 'Grok Build 0.1',
       maxContextSize: 200000,

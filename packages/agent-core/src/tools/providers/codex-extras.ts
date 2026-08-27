@@ -16,7 +16,7 @@ export interface CodexTokenProvider {
 }
 
 export const CODEX_DEFAULT_BASE_URL = 'https://chatgpt.com/backend-api/codex';
-export const CODEX_DEFAULT_EXTRAS_MODEL = 'gpt-5.1-codex';
+export const CODEX_DEFAULT_EXTRAS_MODEL = 'gpt-5.3-codex';
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_SNIPPET_CHARS = 600;

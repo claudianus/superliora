@@ -46,6 +46,7 @@ import {
 } from './handlers/route';
 import { handleProviderAdd } from './handlers/add';
 import { handleProviderList } from './handlers/list';
+import { handleProviderModelAdd } from './handlers/model-add';
 import { handleProviderRemove } from './handlers/remove';
 import { handleProviderUse } from './handlers/use';
 import { resolveDeps, runAction } from './shared';
@@ -59,6 +60,7 @@ import { DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE } from '#/utils/custom-provider';
 
 export type { ProviderDeps } from './types';
 export { handleProviderAdd } from './handlers/add';
+export { handleProviderModelAdd } from './handlers/model-add';
 export { handleProviderRemove } from './handlers/remove';
 export { handleProviderList } from './handlers/list';
 export { handleProviderDoctor } from './handlers/doctor';
@@ -149,6 +151,22 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
     .action(async (modelAlias: string) => {
       const resolved = resolveDeps(deps);
       await runAction(resolved, () => handleProviderUse(resolved, modelAlias));
+    });
+
+  provider
+    .command('model')
+    .description('Manage individual model aliases for a provider.')
+    .command('add <providerId> <modelId>')
+    .description('Add a custom model ID to an existing provider (for unlisted / just-released models).')
+    .option('--context <tokens>', `Context window in tokens (default: ${String(DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE)})`)
+    .option('--display-name <name>', 'Display name shown in the picker')
+    .option('--thinking', 'Mark the model as thinking/reasoning capable', false)
+    .option('--set-default', 'Make this model the default after adding', false)
+    .action(async (providerId: string, modelId: string, options: Record<string, unknown>) => {
+      const resolved = resolveDeps(deps);
+      await runAction(resolved, () =>
+        handleProviderModelAdd(resolved, providerId, modelId, options as never),
+      );
     });
 
   const custom = provider

@@ -4,6 +4,30 @@ import { openModelPickerForProvider } from './model-picker';
 /** Cloud-hosted Claude model presets for Bedrock and Vertex AI. */
 const CLOUD_CLAUDE_MODELS = [
   {
+    id: 'claude-sonnet-4-6',
+    bedrockId: 'us.anthropic.claude-sonnet-4-6-v1:0',
+    vertexId: 'claude-sonnet-4-6@20250514',
+    displayName: 'Claude Sonnet 4.6',
+    maxContextSize: 200000,
+    capabilities: ['thinking', 'tool_use', 'image_in'],
+  },
+  {
+    id: 'claude-opus-4-6',
+    bedrockId: 'us.anthropic.claude-opus-4-6-v1:0',
+    vertexId: 'claude-opus-4-6@20250514',
+    displayName: 'Claude Opus 4.6',
+    maxContextSize: 200000,
+    capabilities: ['thinking', 'tool_use', 'image_in'],
+  },
+  {
+    id: 'claude-haiku-4-5',
+    bedrockId: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+    vertexId: 'claude-haiku-4-5@20251001',
+    displayName: 'Claude Haiku 4.5',
+    maxContextSize: 200000,
+    capabilities: ['thinking', 'tool_use', 'image_in'],
+  },
+  {
     id: 'claude-sonnet-4-20250514',
     bedrockId: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
     vertexId: 'claude-sonnet-4@20250514',

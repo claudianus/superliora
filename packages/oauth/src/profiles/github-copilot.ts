@@ -264,6 +264,18 @@ export const GITHUB_COPILOT_PROFILE: ProviderProfile = {
   docUrl: 'https://docs.github.com/en/copilot',
   models: [
     {
+      id: 'gpt-5',
+      displayName: 'GPT-5',
+      maxContextSize: 400000,
+      capabilities: ['thinking', 'tool_use', 'image_in'],
+    },
+    {
+      id: 'gpt-5-mini',
+      displayName: 'GPT-5 Mini',
+      maxContextSize: 272000,
+      capabilities: ['thinking', 'tool_use', 'image_in'],
+    },
+    {
       id: 'gpt-4.1',
       displayName: 'GPT-4.1',
       maxContextSize: 128000,
@@ -276,8 +288,20 @@ export const GITHUB_COPILOT_PROFILE: ProviderProfile = {
       capabilities: ['tool_use', 'image_in'],
     },
     {
+      id: 'claude-sonnet-4-6',
+      displayName: 'Claude Sonnet 4.6',
+      maxContextSize: 200000,
+      capabilities: ['thinking', 'tool_use', 'image_in'],
+    },
+    {
       id: 'claude-sonnet-4',
       displayName: 'Claude Sonnet 4',
+      maxContextSize: 200000,
+      capabilities: ['thinking', 'tool_use', 'image_in'],
+    },
+    {
+      id: 'claude-opus-4-6',
+      displayName: 'Claude Opus 4.6',
       maxContextSize: 200000,
       capabilities: ['thinking', 'tool_use', 'image_in'],
     },

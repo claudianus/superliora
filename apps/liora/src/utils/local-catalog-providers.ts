@@ -175,6 +175,14 @@ const OPENCODE_ZEN_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
     true,
     ZEN_ALWAYS_THINKING,
   ),
+  'qwen3.7-plus-free': model(
+    'qwen3.7-plus-free',
+    'Qwen3.7 Plus Free',
+    262_144,
+    65_536,
+    true,
+    ZEN_ALWAYS_THINKING,
+  ),
   'qwen3.6-plus-free': model(
     'qwen3.6-plus-free',
     'Qwen3.6 Plus Free',

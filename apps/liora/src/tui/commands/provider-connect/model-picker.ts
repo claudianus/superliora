@@ -1,4 +1,5 @@
 import { TabbedModelSelectorComponent } from '../../components/dialogs/picker/tabbed-model-selector';
+import { CustomModelInputDialogComponent } from '../../components/dialogs/provider/custom-model-input';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { ttui } from '../../utils/tui-i18n';
 import {
@@ -19,24 +20,82 @@ export async function openModelPickerForProvider(
     host.state.appState.thinkingLevel !== 'on'
       ? host.state.appState.thinkingLevel
       : undefined;
-  const selector = new TabbedModelSelectorComponent({
-    models: stateModels,
-    currentValue: host.state.appState.model,
-    selectedValue: Object.keys(stateModels).find((a) => a.startsWith(`${providerId}/`)),
-    currentThinking: host.state.appState.thinking,
-    currentEffort,
-    initialTabId: providerId,
-    onSelect: ({ alias, thinking, effort }) => {
-      host.restoreEditor();
-      void setDefaultModel(host, alias, thinking, effort).catch((error: unknown) => {
-        host.showError(ttui('tui.provider.modelSetFailed', { message: formatErrorMessage(error) }));
-      });
-    },
-    onCancel: () => {
-      host.restoreEditor();
-    },
+  const mountPicker = (): void => {
+    const selector = new TabbedModelSelectorComponent({
+      models: stateModels,
+      currentValue: host.state.appState.model,
+      selectedValue: Object.keys(stateModels).find((a) => a.startsWith(`${providerId}/`)),
+      currentThinking: host.state.appState.thinking,
+      currentEffort,
+      initialTabId: providerId,
+      onSelect: ({ alias, thinking, effort }) => {
+        host.restoreEditor();
+        void setDefaultModel(host, alias, thinking, effort).catch((error: unknown) => {
+          host.showError(ttui('tui.provider.modelSetFailed', { message: formatErrorMessage(error) }));
+        });
+      },
+      onCustomModel: () => {
+        host.restoreEditor();
+        void promptCustomModelForProvider(host, providerId).then(() => mountPicker());
+      },
+      onCancel: () => {
+        host.restoreEditor();
+      },
+    });
+    host.mountEditorReplacement(selector);
+  };
+  mountPicker();
+}
+
+async function promptCustomModelForProvider(host: SlashCommandHost, providerId: string): Promise<void> {
+  const config = await host.harness.getConfig();
+  let catalogPromise: Promise<import('@superliora/sdk').Catalog | undefined> | undefined;
+  try {
+    const { loadCatalog } = await import('#/utils/catalog-cache');
+    catalogPromise = loadCatalog().catch(() => undefined);
+  } catch {
+    catalogPromise = undefined;
+  }
+  const providerIds = Object.keys(config.providers);
+  await new Promise<void>((resolve) => {
+    const dialog = new CustomModelInputDialogComponent(
+      (result) => {
+        host.restoreEditor();
+        resolve();
+        if (result.kind !== 'ok') return;
+        const { providerId: pid, modelId, displayName, maxContextSize, thinking, supportEfforts } = result.value;
+        void (async () => {
+          try {
+            const cfg = await host.harness.getConfig();
+            const prov = cfg.providers[pid];
+            if (prov === undefined) throw new Error(`Provider "${pid}" not found.`);
+            const alias = `${pid}/${modelId}`;
+            const caps = thinking ? ['thinking', 'tool_use'] : ['tool_use'];
+            cfg.models = {
+              ...cfg.models,
+              [alias]: {
+                ...cfg.models?.[alias],
+                provider: pid,
+                model: modelId,
+                maxContextSize,
+                capabilities: caps,
+                displayName: displayName ?? modelId,
+                userManaged: true,
+                ...(supportEfforts !== undefined && supportEfforts.length > 0 ? { supportEfforts: [...supportEfforts] } : {}),
+              },
+            };
+            await host.harness.setConfig({ providers: cfg.providers, models: cfg.models });
+            await host.authFlow.refreshConfigAfterLogin();
+            await setDefaultModel(host, alias, thinking);
+          } catch (error) {
+            host.showError(`Failed to add custom model: ${formatErrorMessage(error)}`);
+          }
+        })();
+      },
+      { initialProviderId: providerId, catalogPromise, availableProviders: providerIds },
+    );
+    host.mountEditorReplacement(dialog);
   });
-  host.mountEditorReplacement(selector);
 }
 
 async function setDefaultModel(

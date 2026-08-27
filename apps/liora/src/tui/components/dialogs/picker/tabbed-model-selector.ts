@@ -51,6 +51,8 @@ export interface TabbedModelSelectorOptions {
   readonly onSessionOnlySelect?: (selection: ModelSelection) => void;
   /** Forwarded to each inner selector; Alt+R invokes it. */
   readonly onReset?: () => void;
+  /** Forwarded to each inner selector; Ctrl+N opens custom model input. */
+  readonly onCustomModel?: () => void;
   /** Optional note rendered below the model controls. */
   readonly notice?: string;
   readonly onCancel: () => void;
@@ -192,6 +194,7 @@ function makeSelector(
     onSelect: opts.onSelect,
     onSessionOnlySelect: opts.onSessionOnlySelect,
     onReset: opts.onReset,
+    onCustomModel: opts.onCustomModel,
     notice: opts.notice,
     onCancel: opts.onCancel,
   };

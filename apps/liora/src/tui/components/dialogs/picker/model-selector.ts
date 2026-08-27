@@ -77,6 +77,8 @@ export interface ModelSelectorOptions {
   readonly onSessionOnlySelect?: (selection: ModelSelection) => void;
   /** When provided, Alt+R clears the selected routing override. */
   readonly onReset?: () => void;
+  /** When provided, Ctrl+N opens the custom model input dialog. */
+  readonly onCustomModel?: () => void;
   /** Optional note for settings-specific model selections. */
   readonly notice?: string;
   readonly onCancel: () => void;
@@ -187,6 +189,11 @@ export class ModelSelectorComponent extends Container implements Focusable {
   }
 
   handleInput(data: string): void {
+    if (matchesKey(data, Key.ctrl('n')) && this.opts.onCustomModel !== undefined) {
+      this.opts.onCustomModel();
+      return;
+    }
+
     if (matchesKey(data, Key.escape)) {
       if (this.list.clearQuery()) return;
       this.opts.onCancel();
@@ -286,6 +293,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
       hintParts.push('1-5 effort');
     }
     hintParts.push('Enter select');
+    if (this.opts.onCustomModel !== undefined) hintParts.push('Ctrl+N custom');
     if (this.opts.onSessionOnlySelect !== undefined) hintParts.push('Alt+S session-only');
     if (this.opts.onReset !== undefined) hintParts.push('Alt+R reset');
     hintParts.push('Esc cancel');

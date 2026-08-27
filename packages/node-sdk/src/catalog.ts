@@ -131,11 +131,23 @@ export function applyCatalogProvider(
   };
 
   const models = config.models ?? {};
+  const upstreamKeys = new Set(options.models.map((m) => `${options.providerId}/${m.id}`));
+  const preservedCustom: Record<string, typeof models[string]> = {};
   for (const [key, alias] of Object.entries(models)) {
-    if (alias.provider === options.providerId) delete models[key];
+    if (alias.provider === options.providerId) {
+      if (!upstreamKeys.has(key)) {
+        if ((alias as { userManaged?: boolean }).userManaged === true) {
+          preservedCustom[key] = alias;
+        }
+      }
+      delete models[key];
+    }
   }
   for (const model of options.models) {
     models[`${options.providerId}/${model.id}`] = catalogModelToAlias(options.providerId, model);
+  }
+  for (const [key, value] of Object.entries(preservedCustom)) {
+    if (models[key] === undefined) models[key] = value;
   }
   config.models = models;
 

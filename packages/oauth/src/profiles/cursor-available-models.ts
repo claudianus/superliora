@@ -84,6 +84,18 @@ export function applyCursorOAuthModelAliases(
   models: readonly CursorDiscoveredModel[],
 ): void {
   const nextModels: Record<string, unknown> = { ...config.models };
+  const discoveredKeys = new Set(models.map((m) => `${CURSOR_OAUTH_PROVIDER_ID}/${m.id}`));
+  const preserved: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(nextModels)) {
+    if (key.startsWith(`${CURSOR_OAUTH_PROVIDER_ID}/`) && !discoveredKeys.has(key)) {
+      // Preserve only user-managed custom models (hidden / just-released ids).
+      // Stale catalog entries (previously discovered but now removed upstream)
+      // are intentionally deleted so the picker never shows retired models.
+      if (isRecord(value) && value['provider'] === CURSOR_OAUTH_PROVIDER_ID && value['userManaged'] === true) {
+        preserved[key] = value;
+      }
+    }
+  }
   for (const key of Object.keys(nextModels)) {
     if (key.startsWith(`${CURSOR_OAUTH_PROVIDER_ID}/`)) delete nextModels[key];
   }
@@ -96,6 +108,9 @@ export function applyCursorOAuthModelAliases(
       displayName: cursorDisplayName(model.id, model.displayName),
       ...cursorThinkingMetadata(model.id),
     };
+  }
+  for (const [key, value] of Object.entries(preserved)) {
+    if (nextModels[key] === undefined) nextModels[key] = value;
   }
   config.models = nextModels;
 }
