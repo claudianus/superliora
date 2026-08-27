@@ -63,9 +63,9 @@ describe('FREE mode routing (benchmark-aware)', () => {
   it('FREE mode relaxes quality floor for low-quality free pool (real Zen free tier)', () => {
     // Curated Zen free models have low heuristic quality (34-56) but FREE mode must still yield a coding model
     const lowFreeModels = {
-      'opencode/x-preview-f-free': { provider: 'opencode', model: 'x-preview-f-free', maxContextSize: 262144 },
-      'opencode/deepseek-v4-flash-free': { provider: 'opencode', model: 'deepseek-v4-flash-free', maxContextSize: 1_000_000 },
-      'opencode/glm-4.7-free': { provider: 'opencode', model: 'glm-4.7-free', maxContextSize: 200000 },
+      'opencode/mimo-v2.5-free': { provider: 'opencode', model: 'mimo-v2.5-free', maxContextSize: 262144 },
+      'opencode/hy3-free': { provider: 'opencode', model: 'hy3-free', maxContextSize: 262144 },
+      'opencode/nemotron-3-ultra-free': { provider: 'opencode', model: 'nemotron-3-ultra-free', maxContextSize: 262144 },
       'openai/gpt-4o': { provider: 'openai', model: 'gpt-4o', maxContextSize: 128000 },
     };
     const configLowFree = validateConfig({ providers: baseProviders, models: lowFreeModels, defaultModel: 'openai/gpt-4o', freeMode: true });
@@ -74,7 +74,7 @@ describe('FREE mode routing (benchmark-aware)', () => {
     expect(codingRoute?.alias).toBeDefined();
     expect(isFreeModelId(codingRoute!.alias)).toBe(true);
     // Benchmark/tier-aware: coding prefers balanced/high tiers even when low quality; picks one of the balanced free models
-    expect(['opencode/x-preview-f-free', 'opencode/glm-4.7-free', 'opencode/deepseek-v4-flash-free']).toContain(codingRoute!.alias);
+    expect(['opencode/mimo-v2.5-free', 'opencode/hy3-free', 'opencode/nemotron-3-ultra-free']).toContain(codingRoute!.alias);
     const explorationRoute = resolveSmartRoute({ role: 'exploration', config: configLowFree });
     expect(explorationRoute?.alias).toBeDefined();
     expect(isFreeModelId(explorationRoute!.alias)).toBe(true);

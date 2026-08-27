@@ -3779,7 +3779,7 @@ describe('liora provider catalog add', () => {
     await tryRun(() =>
       handleCatalogAdd(deps, 'opencode', {
         apiKey: 'zen-test-key',
-        defaultModel: 'x-preview-f-free',
+        defaultModel: 'mimo-v2.5-free',
       }),
     );
 
@@ -3789,15 +3789,15 @@ describe('liora provider catalog add', () => {
       type: 'openai',
       apiKey: 'zen-test-key',
     });
-    expect(finalConfig.models?.['opencode/x-preview-f-free']).toMatchObject({
+    expect(finalConfig.models?.['opencode/mimo-v2.5-free']).toMatchObject({
       provider: 'opencode',
-      model: 'x-preview-f-free',
+      model: 'mimo-v2.5-free',
       supportEfforts: ['low', 'high', 'max'],
     });
-    expect(finalConfig.models?.['opencode/x-preview-f-free']?.capabilities).toContain(
+    expect(finalConfig.models?.['opencode/mimo-v2.5-free']?.capabilities).toContain(
       'always_thinking',
     );
-    expect(finalConfig.defaultModel).toBe('opencode/x-preview-f-free');
+    expect(finalConfig.defaultModel).toBe('opencode/mimo-v2.5-free');
     expect(finalConfig.defaultThinking).toBe(true);
     expect(stdout.join('')).toContain('Imported OpenCode Zen (opencode)');
   });

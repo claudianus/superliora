@@ -54,9 +54,10 @@ describe('local catalog providers', () => {
     expect(OPENCODE_ZEN_CATALOG_ENTRY.env).toContain('OPENCODE_API_KEY');
     expect(inferWireType(OPENCODE_ZEN_CATALOG_ENTRY)).toBe('openai');
     const models = catalogProviderModels(OPENCODE_ZEN_CATALOG_ENTRY);
-    expect(models.some((m) => m.id === 'x-preview-f-free')).toBe(true);
-    expect(models.some((m) => m.id === 'deepseek-v4-flash-free')).toBe(true);
-    const ox = models.find((m) => m.id === 'x-preview-f-free');
+    expect(models.some((m) => m.id === 'mimo-v2.5-free')).toBe(true);
+    expect(models.some((m) => m.id === 'muse-spark-1.2-contributor-free')).toBe(true);
+    expect(models.some((m) => m.id === 'big-pickle')).toBe(true);
+    const ox = models.find((m) => m.id === 'mimo-v2.5-free');
     expect(ox?.alwaysThinking).toBe(true);
     expect(ox?.supportEfforts).toEqual(['low', 'high', 'max']);
   });
