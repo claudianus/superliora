@@ -8,6 +8,12 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
+## 0.13.6 (2026-08-27)
+
+### Bug Fixes
+
+- Fix Cursor subscription chat against the current AgentService host, device checksum, and Connect error trailers so turns stop failing with generic API errors.
+
 ## 0.13.5 (2026-08-26)
 
 ### Bug Fixes
