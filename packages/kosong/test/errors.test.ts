@@ -281,6 +281,27 @@ describe('isRetryableGenerateError', () => {
     expect(isRetryableGenerateError(new APIStatusError(400, 'non-retryable'))).toBe(false);
   });
 
+  it('retries a custom OpenAI-compatible stream abort (not a user Esc)', () => {
+    const aborted = new APITimeoutError('Request was aborted.');
+    expect(isRetryableGenerateError(aborted)).toBe(true);
+    expect(
+      isRetryableGenerateError(
+        Object.assign(new Error('Request was aborted.'), { name: 'APIUserAbortError' }),
+      ),
+    ).toBe(true);
+  });
+
+  it('does not retry a user-cancel abort', () => {
+    expect(
+      isRetryableGenerateError(
+        Object.assign(new Error('Aborted by the user'), {
+          name: 'AbortError',
+          userCancelled: true,
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it('retries provider-declared temporary 4xx failures', () => {
     expect(
       isRetryableGenerateError(

@@ -117,6 +117,12 @@ export function convertOpenAIError(error: unknown): ChatProviderError {
     return classifyBaseApiError(error.message);
   }
   if (error instanceof OpenAIError) {
+    // The OpenAI SDK wraps AbortSignal / proxy stream aborts as
+    // APIUserAbortError (an OpenAIError subclass). That is a transport
+    // timeout on custom OpenAI-compatible endpoints — not a user Esc.
+    if (isAbortTimeoutError(error)) {
+      return new APITimeoutError(error.message);
+    }
     return new ChatProviderError(`Error: ${error.message}`);
   }
   // Raw, non-SDK errors (e.g. undici's `TypeError: terminated` raised when a

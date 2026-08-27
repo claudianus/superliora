@@ -1,5 +1,7 @@
 import {
   APIProviderRateLimitError,
+  APIStatusError,
+  APITimeoutError,
   emptyUsage,
   type ChatProvider,
   type ModelCapability,
@@ -1101,6 +1103,83 @@ describe('KosongLLM provider routing', () => {
       providerModel: 'backup-model',
       baseUrl: 'https://backup.example/v1',
     });
+  });
+
+  it('fails over a custom OpenAI-compatible abort to the next Smart Auto candidate', async () => {
+    const primaryProvider = makeProvider('primary', 'primary-model');
+    const backupProvider = makeProvider('backup', 'backup-model');
+    const attempts: string[] = [];
+    const generate: GenerateFn = async (nextProvider) => {
+      attempts.push(nextProvider.modelName);
+      if (nextProvider.modelName === 'primary-model') {
+        throw new APITimeoutError('Request was aborted.');
+      }
+      return {
+        id: 'response-1',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'backup response' }],
+          toolCalls: [],
+        },
+        usage: emptyUsage(),
+        finishReason: 'completed',
+        rawFinishReason: 'stop',
+      };
+    };
+    const llm = new KosongLLM({
+      provider: primaryProvider,
+      systemPrompt: 'system',
+      generate,
+      route: {
+        key: 'primary',
+        strategy: 'fallback',
+        candidates: [
+          { modelAlias: 'primary', providerName: 'primary', provider: primaryProvider },
+          { modelAlias: 'backup', providerName: 'backup', provider: backupProvider },
+        ],
+      },
+      routeState: new InMemoryProviderRouteState(),
+    });
+
+    const response = await llm.chat({
+      messages: [],
+      tools: [],
+      signal: new AbortController().signal,
+    });
+
+    expect(attempts).toEqual(['primary-model', 'backup-model']);
+    expect(response.usageModel).toBe('backup');
+  });
+
+  it('does not hop on a 4xx validation error after a custom abort path stays fatal for auth/quota/overflow', async () => {
+    const primaryProvider = makeProvider('primary', 'primary-model');
+    const backupProvider = makeProvider('backup', 'backup-model');
+    const generate = vi.fn<GenerateFn>(async () => {
+      throw new APIStatusError(400, 'Invalid request body: model is required');
+    });
+    const llm = new KosongLLM({
+      provider: primaryProvider,
+      systemPrompt: 'system',
+      generate,
+      route: {
+        key: 'primary',
+        strategy: 'fallback',
+        candidates: [
+          { modelAlias: 'primary', providerName: 'primary', provider: primaryProvider },
+          { modelAlias: 'backup', providerName: 'backup', provider: backupProvider },
+        ],
+      },
+      routeState: new InMemoryProviderRouteState(),
+    });
+
+    await expect(
+      llm.chat({
+        messages: [],
+        tools: [],
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it('notifies route status changes when a candidate enters cooldown', async () => {
