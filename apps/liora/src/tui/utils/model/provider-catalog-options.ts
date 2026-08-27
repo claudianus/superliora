@@ -17,6 +17,7 @@
 
 import { EXPERIMENTAL_PROVIDER_PROFILES, PROVIDER_PROFILES } from '@superliora/oauth';
 import {
+  catalogBaseUrl,
   catalogProviderModels,
   inferWireType,
   type Catalog,
@@ -130,7 +131,7 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
       label: entry.name ?? id,
       authKind: envVars !== undefined && envVars.length > 0 ? 'api-key' : 'keyless',
       modelCount: models.length,
-      baseUrl: typeof entry.api === 'string' && entry.api.length > 0 ? entry.api : undefined,
+      baseUrl: catalogBaseUrl(entry, wire),
       envVars,
       docUrl,
       catalogId: id,

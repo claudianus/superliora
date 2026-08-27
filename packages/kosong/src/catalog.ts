@@ -143,12 +143,70 @@ export function inferWireType(entry: CatalogProviderEntry): ProviderType | undef
 }
 
 /**
- * Chat Completions gateways whose npm id does not contain the substring
- * `openai` (OpenRouter, DeepInfra, QVAC, GitHub Copilot). Without this,
- * `inferWireType` returns undefined and `/login` hides the row.
+ * Chat Completions hosts whose models.dev `npm` package does not contain the
+ * substring `openai`. Without this table, `inferWireType` returns undefined
+ * and `/login` hides the row (Groq, Mistral, Together, xAI API keys, …).
+ *
+ * Native non-Chat-Completions SDKs stay off this list (Cohere, Bedrock, Azure
+ * resource-name auth, Cloudflare gateway extras).
  */
+const CHAT_COMPLETIONS_NPM = new Set([
+  '@ai-sdk/groq',
+  '@ai-sdk/mistral',
+  '@ai-sdk/togetherai',
+  '@ai-sdk/xai',
+  '@ai-sdk/cerebras',
+  '@ai-sdk/perplexity',
+  '@ai-sdk/gateway',
+  '@ai-sdk/vercel',
+  '@ai-sdk/deepinfra',
+  '@openrouter/ai-sdk-provider',
+  '@qvac/ai-sdk-provider',
+  '@qvac/sdk',
+  'venice-ai-sdk-provider',
+  '@aihubmix/ai-sdk-provider',
+  'merge-gateway-ai-sdk-provider',
+]);
+
+const CHAT_COMPLETIONS_IDS = new Set([
+  'groq',
+  'mistral',
+  'togetherai',
+  'together',
+  'xai',
+  'cerebras',
+  'perplexity',
+  'vercel',
+  'v0',
+  'venice',
+  'aihubmix',
+  'merge-gateway',
+  'openrouter',
+  'deepinfra',
+  'qvac',
+  'github-copilot',
+  'github_copilot',
+  'githubcopilot',
+]);
+
+/** Official Chat Completions bases used when models.dev omits `api`. */
+const CHAT_COMPLETIONS_DEFAULT_API: Readonly<Record<string, string>> = {
+  groq: 'https://api.groq.com/openai/v1',
+  mistral: 'https://api.mistral.ai/v1',
+  togetherai: 'https://api.together.xyz/v1',
+  together: 'https://api.together.xyz/v1',
+  xai: 'https://api.x.ai/v1',
+  cerebras: 'https://api.cerebras.ai/v1',
+  perplexity: 'https://api.perplexity.ai',
+  vercel: 'https://ai-gateway.vercel.sh/v1',
+  v0: 'https://api.v0.dev/v1',
+  venice: 'https://api.venice.ai/api/v1',
+  aihubmix: 'https://aihubmix.com/v1',
+};
+
 function looksLikeOpenAIChatCompletions(npm: string, id: string): boolean {
   if (npm.includes('openai') || id.includes('openai')) return true;
+  if (CHAT_COMPLETIONS_NPM.has(npm) || CHAT_COMPLETIONS_IDS.has(id)) return true;
   if (id.includes('github-copilot') || id.includes('github_copilot') || id.includes('githubcopilot')) {
     return true;
   }
@@ -187,9 +245,18 @@ export function catalogBaseUrl(
   wire: ProviderType,
 ): string | undefined {
   const api = entry.api;
-  if (typeof api !== 'string' || api.length === 0) return undefined;
-  if (wire === 'anthropic') return api.replace(/\/v1\/?$/, '');
-  return api;
+  const fromCatalog = typeof api === 'string' && api.length > 0 ? api : undefined;
+  const resolved =
+    fromCatalog ??
+    (wire === 'openai' ? defaultChatCompletionsApi(entry.id) : undefined);
+  if (resolved === undefined) return undefined;
+  if (wire === 'anthropic') return resolved.replace(/\/v1\/?$/, '');
+  return resolved;
+}
+
+function defaultChatCompletionsApi(providerId: string | undefined): string | undefined {
+  if (providerId === undefined) return undefined;
+  return CHAT_COMPLETIONS_DEFAULT_API[providerId.toLowerCase()];
 }
 
 /** Normalizes one catalog model entry into a {@link CatalogModel}; skips invalid entries. */
