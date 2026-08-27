@@ -62,7 +62,7 @@ export const MAX_LIMIT = 100;
 // boosted, re-ranked, then capped. Procedures are in this set because explicit
 // "always / prefer" captures land as type=procedure, not fact.
 const TYPE_PRIORITY_BOOST = 0.05;
-export const DURABLE_INJECTION_TYPES: ReadonlySet<MemoryType> = new Set([
+const DURABLE_INJECTION_TYPES: ReadonlySet<MemoryType> = new Set([
   'rule',
   'fact',
   'procedure',
