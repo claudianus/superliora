@@ -135,7 +135,7 @@ ${'x'.repeat(200)}
     expect(makerCheckerCollision(undefined, 'eng-b')).toBe(false);
   });
 
-  it('enqueues verify only for explicit review sessions, not automatic UI implement', () => {
+  it('never auto-enqueues a nested verify Job, including review-class implement', () => {
     expect(
       shouldEnqueueVerifyAfterDone(
         job({ id: 'job_1', title: 't', kind: 'implement', surfaceKind: 'web' }),
@@ -151,7 +151,7 @@ ${'x'.repeat(200)}
           deliveryClass: 'review',
         }),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldEnqueueVerifyAfterDone(job({ id: 'job_2', title: 't', kind: 'verify' })),
     ).toBe(false);
@@ -185,7 +185,7 @@ ${'x'.repeat(200)}
     expect(evaluateVerifyChainForMerge({ job: implement, jobs: [implement] }).ok).toBe(true);
   });
 
-  it('blocks merge until independent verify passes on review-class jobs', () => {
+  it('does not wait for a nested verify child on review-class jobs; existing children still gate', () => {
     const implement = job({
       id: 'job_impl',
       title: 'Feature',
@@ -194,7 +194,7 @@ ${'x'.repeat(200)}
       surfaceKind: 'web',
       deliveryClass: 'review',
     });
-    expect(evaluateVerifyChainForMerge({ job: implement, jobs: [implement] }).ok).toBe(false);
+    expect(evaluateVerifyChainForMerge({ job: implement, jobs: [implement] }).ok).toBe(true);
 
     const verifyRunning = job({
       id: 'job_ver',
@@ -293,7 +293,7 @@ ${'x'.repeat(200)}
     expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(0);
   });
 
-  it('enqueues a verify child on review-class web implement done', async () => {
+  it('does not enqueue a nested verify child on review-class web implement done', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Ship footer',
@@ -311,21 +311,11 @@ ${'x'.repeat(200)}
       resultSummary: 'footer shipped',
       surfaceKind: 'web' as const,
     };
-    const verify = await enqueueVerifyJobForParent(store, done);
-    expect(verify).toBeDefined();
-    expect(verify?.parentJobId).toBe(parent.id);
-    expect(verify?.kind).toBe('verify');
-    expect(verify?.expertId).not.toBe('frontend-engineer');
-    expect(verify?.surfaceKind).toBe('web');
-    // Soft reader: no exclusive write lease — paths stay on context only.
-    expect(verify?.ownershipPaths).toBeUndefined();
-    expect(verify?.contextPaths).toContain('apps/site/src/components/Footer.tsx');
-    // Idempotent — second enqueue is a no-op.
     expect(await enqueueVerifyJobForParent(store, done)).toBeUndefined();
-    expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(1);
+    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(0);
   });
 
-  it('enqueues TUI verify (not VerifySurface) when surfaceKind=tui', async () => {
+  it('does not enqueue a nested TUI verify Job on review-class tui implement', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Idle stage',
@@ -337,11 +327,8 @@ ${'x'.repeat(200)}
       deliveryClass: 'review',
     });
     const done = { ...parent, status: 'done' as const, surfaceKind: 'tui' as const };
-    const verify = await enqueueVerifyJobForParent(store, done);
-    expect(verify).toBeDefined();
-    expect(verify?.prompt).toMatch(/TUI visual smoke|smoke:visual/i);
-    expect(verify?.prompt).not.toMatch(/VerifySurface load\+interaction/);
-    expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(1);
+    expect(await enqueueVerifyJobForParent(store, done)).toBeUndefined();
+    expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(0);
   });
 
   it('skips verify children when surfaceKind=none (no Standards∥Spec fan-out)', async () => {
@@ -381,7 +368,7 @@ ${'x'.repeat(200)}
     expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(0);
   });
 
-  it('review deliveryClass enqueues one combined verify even for surface_kind=none', async () => {
+  it('review deliveryClass does not enqueue a nested verify even for surface_kind=none', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Fix scheduler',
@@ -394,15 +381,13 @@ ${'x'.repeat(200)}
       deliveryClass: 'review',
     });
     const done = { ...parent, status: 'done' as const, resultSummary: 'fixed' };
-    expect(shouldEnqueueVerifyAfterDone(done)).toBe(true);
+    expect(shouldEnqueueVerifyAfterDone(done)).toBe(false);
     await enqueueVerifyJobForParent(store, done);
     const verifies = listJobs(store).filter((j) => j.parentJobId === parent.id);
-    expect(verifies).toHaveLength(1);
-    expect(verifies[0]?.reviewAxis).toBeUndefined();
-    expect(verifies[0]?.kind).toBe('verify');
+    expect(verifies).toHaveLength(0);
   });
 
-  it('shouldEnqueueVerifyAfterDone: mission/none/desktop false; coding implement true', () => {
+  it('shouldEnqueueVerifyAfterDone: never auto-enqueues nested verify, including review-class', () => {
     const stamp = { createdAt: 0, updatedAt: 0, status: 'done' as const };
     expect(
       shouldEnqueueVerifyAfterDone({
@@ -463,7 +448,7 @@ ${'x'.repeat(200)}
         deliveryClass: 'review',
         ...stamp,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('prefers stamped verifyVerdict; heals parseable summary JSON for merge', () => {
@@ -526,7 +511,7 @@ ${'x'.repeat(200)}
     expect(listJobs(store).filter((j) => j.debugFixer === true)).toHaveLength(0);
   });
 
-  it('onJobTerminal still enqueues verify for review-class jobs but never a debug worker', async () => {
+  it('onJobTerminal does not enqueue a nested verify for review-class jobs and never a debug worker', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Broken button',
@@ -542,23 +527,8 @@ ${'x'.repeat(200)}
       status: 'done',
     });
     const verifies = listJobs(store).filter((j) => j.kind === 'verify');
-    expect(verifies.length).toBeGreaterThanOrEqual(1);
-    for (const verify of verifies) {
-      expect(verify.ownershipPaths).toBeUndefined();
-      patchJob(store, verify.id, {
-        status: 'done',
-        resultSummary:
-          verify.reviewAxis === 'standards'
-            ? '{"standards":{"verdict":"pass","findings":[]},"verdict":"pass"}'
-            : '{"verdict":"fail","findings":["click noop"],"required_fixes":["wire handler"]}',
-        expertId: `checker-${verify.reviewAxis ?? 'ui'}`,
-      });
-      await onJobTerminalForVerifyChain(store, listJobs(store).find((j) => j.id === verify.id)!);
-    }
-    const debug = listJobs(store).find(
-      (j) => j.kind === 'implement' && j.title.startsWith('Debug:'),
-    );
-    expect(debug).toBeUndefined();
+    expect(verifies).toHaveLength(0);
+    expect(listJobs(store).filter((j) => j.debugFixer === true)).toHaveLength(0);
   });
 
   it('onJobTerminal fails free-text verify without spawning re-verify (retry=0)', async () => {
@@ -572,19 +542,18 @@ ${'x'.repeat(200)}
       deliveryClass: 'review',
     });
     patchJob(store, parent.id, { status: 'done' });
-    await onJobTerminalForVerifyChain(store, { ...parent, status: 'done', deliveryClass: 'review' });
-    const firstWave = listJobs(store).filter((j) => j.kind === 'verify');
-    expect(firstWave).toHaveLength(1);
-
-    for (const verify of firstWave) {
-      patchJob(store, verify.id, {
-        status: 'done',
-        // Human-readable PASS with no dual-axis JSON — MergeJob must not trust this.
-        resultSummary: 'Delete-pass verify PASS. All criteria look good.',
-        expertId: `checker-${verify.reviewAxis ?? 'ui'}`,
-      });
-      await onJobTerminalForVerifyChain(store, listJobs(store).find((j) => j.id === verify.id)!);
-    }
+    const verify = createJob(store, {
+      title: 'Verify: Delete-pass',
+      kind: 'verify',
+      parentJobId: parent.id,
+      expertId: 'checker-ui',
+    });
+    patchJob(store, verify.id, {
+      status: 'done',
+      // Human-readable PASS with no dual-axis JSON — MergeJob must not trust this.
+      resultSummary: 'Delete-pass verify PASS. All criteria look good.',
+    });
+    await onJobTerminalForVerifyChain(store, getJob(store, verify.id)!);
 
     // missing must NOT spawn a re-verify Job (retry=0).
     expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(1);
@@ -595,11 +564,9 @@ ${'x'.repeat(200)}
       listJobs(store).find((j) => j.kind === 'implement' && j.title.startsWith('Debug:')),
     ).toBeUndefined();
 
-    const failedOriginals = firstWave.map((v) => listJobs(store).find((j) => j.id === v.id)!);
-    for (const v of failedOriginals) {
-      expect(v.status).toBe('failed');
-      expect(v.verifyVerdict).toBeUndefined();
-    }
+    const failed = getJob(store, verify.id)!;
+    expect(failed.status).toBe('failed');
+    expect(failed.verifyVerdict).toBeUndefined();
 
     const parentLatest = listJobs(store).find((j) => j.id === parent.id)!;
     const gate = evaluateVerifyChainForMerge({
@@ -677,12 +644,9 @@ ${'x'.repeat(200)}
       job: implement,
       jobs: [implement, cancelledOnly],
     });
-    expect(cancelledGate.ok).toBe(false);
-    if (!cancelledGate.ok) {
-      // Must look like "no verify yet" — not "still cancelled / wait".
-      expect(cancelledGate.reason).toMatch(/No verify child/i);
-      expect(cancelledGate.reason).not.toMatch(/still cancelled|still pending/i);
-    }
+    // Inert-only history is not a nested review in flight — do not wait for
+    // an auto-enqueue that will never run.
+    expect(cancelledGate.ok).toBe(true);
 
     const store = memoryStore();
     // Seed ledger so hasVerifyChild sees only the cancelled child.
@@ -711,7 +675,7 @@ ${'x'.repeat(200)}
       }),
     ).toEqual({ ok: true });
 
-    // Cancelled must not auto-approve alone even when dual-axis shells exist.
+    // Cancelled-only dual-axis shells are inert — no nested review in flight.
     const cancelledStandards = job({
       id: 'job_std_cancelled',
       title: 'Verify standards',
@@ -735,7 +699,7 @@ ${'x'.repeat(200)}
         job: implement,
         jobs: [implement, cancelledStandards, cancelledSpec],
       }).ok,
-    ).toBe(false);
+    ).toBe(true);
 
     // Still-running non-cancelled sibling keeps the wait path.
     const running = job({
@@ -913,19 +877,18 @@ ${'x'.repeat(200)}
       deliveryClass: 'review',
     });
     patchJob(store, parent.id, { status: 'done' });
-    await onJobTerminalForVerifyChain(store, { ...parent, status: 'done', deliveryClass: 'review' });
-    const firstWave = listJobs(store).filter((j) => j.kind === 'verify');
-    expect(firstWave).toHaveLength(1);
-
-    for (const verify of firstWave) {
-      patchJob(store, verify.id, {
-        status: 'failed',
-        resultSummary: 'Agent timed out after 30 minutes. frames=0 bash ENOENT pnpm ENOENT',
-        notes: 'route_fail: worker timeout',
-        expertId: `checker-${verify.reviewAxis ?? 'ui'}`,
-      });
-      await onJobTerminalForVerifyChain(store, listJobs(store).find((j) => j.id === verify.id)!);
-    }
+    const verify = createJob(store, {
+      title: 'Verify: Timeout void',
+      kind: 'verify',
+      parentJobId: parent.id,
+      expertId: 'checker-ui',
+    });
+    patchJob(store, verify.id, {
+      status: 'failed',
+      resultSummary: 'Agent timed out after 30 minutes. frames=0 bash ENOENT pnpm ENOENT',
+      notes: 'route_fail: worker timeout',
+    });
+    await onJobTerminalForVerifyChain(store, getJob(store, verify.id)!);
 
     // Timeout/env missing is VOID ceremony — do not spawn structured_verdict_retry or Debug.
     expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(1);
@@ -1084,7 +1047,7 @@ ${'x'.repeat(200)}
     ).toBeUndefined();
   });
 
-  it('enqueueVerifyJobForParent pins live modelAlias and skips when none differ from maker', async () => {
+  it('enqueueVerifyJobForParent skips nested review even when a live checker alias exists', async () => {
     const store = memoryStore();
     const done = createJob(store, {
       title: 'Ship coding dual-axis',
@@ -1097,23 +1060,16 @@ ${'x'.repeat(200)}
     });
     patchJob(store, done.id, { status: 'done', resultSummary: 'done' });
 
-    // No live candidate different from maker → do not create verify Jobs.
     const none = await enqueueVerifyJobForParent(store, getJob(store, done.id)!, undefined, {
       pickModelAlias: () => undefined,
     });
     expect(none).toBeUndefined();
     expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(0);
 
-    const created = await enqueueVerifyJobForParent(store, getJob(store, done.id)!, undefined, {
+    const stillNone = await enqueueVerifyJobForParent(store, getJob(store, done.id)!, undefined, {
       pickModelAlias: () => 'checker-live',
     });
-    expect(created).toBeDefined();
-    const verifies = listJobs(store).filter((j) => j.kind === 'verify');
-    expect(verifies.length).toBeGreaterThanOrEqual(1);
-    for (const verify of verifies) {
-      expect(verify.modelAlias).toBe('checker-live');
-      expect(verify.modelAlias).not.toBe('grok-4.6');
-      expect(verify.modelAlias).not.toBe('maker-a');
-    }
+    expect(stillNone).toBeUndefined();
+    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(0);
   });
 });

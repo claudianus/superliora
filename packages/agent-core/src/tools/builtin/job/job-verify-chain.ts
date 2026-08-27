@@ -98,12 +98,14 @@ export function isDesktopOrOutOfRepoJob(
 }
 
 /**
- * Independent review sessions only — never an automatic pipeline stage.
- * Maker sessions self-check (resultContract). `/review` or deliveryClass=review
- * still get one verify child. Everything else → false.
+ * Independent review is `JobCreate(kind=verify)` when the operator asked
+ * (`/review`). Auto-enqueue of a nested verify child after implement duplicated
+ * Conductor LLM judgment on the same Job (token burn). Maker sessions
+ * self-check via resultContract; mechanical type/lint/tests stay on that
+ * contract. `deliveryClass=review` is a project-mode stamp only.
  */
 export function jobRequiresVerifyChain(
-  job: Pick<
+  _job: Pick<
     JobRecord,
     | 'kind'
     | 'title'
@@ -116,30 +118,7 @@ export function jobRequiresVerifyChain(
     | 'deliveryClass'
   >,
 ): boolean {
-  if (job.deliveryClass !== 'review') return false;
-  if (
-    job.kind === 'merge' ||
-    job.kind === 'push' ||
-    job.kind === 'desk' ||
-    job.kind === 'goal-desk' ||
-    job.kind === 'explore' ||
-    job.kind === 'research' ||
-    job.kind === 'mission' ||
-    job.kind === 'verify'
-  ) {
-    return false;
-  }
-  if (isGeneralTaskTrack(job)) return false;
-  if (isDebugFixerJob(job) && job.parentJobId !== undefined) {
-    return false;
-  }
-  if (job.kind !== 'task' && job.kind !== 'implement') {
-    return false;
-  }
-  if (isDesktopOrOutOfRepoJob(job)) {
-    return false;
-  }
-  return true;
+  return false;
 }
 
 /** Implement/task workers that should receive an automatic verify child. */
@@ -973,16 +952,14 @@ export function evaluateVerifyChainForMerge(input: {
   ) {
     return { ok: true };
   }
-  // Only gate coding deliveries that require a verify chain.
-  // surfaceKind=none / desktop / out-of-repo / non-coding / general track → no verify kids expected.
-  if (!jobRequiresVerifyChain(input.job)) {
-    return { ok: true };
-  }
-
   // Cancelled verify is inert — do not wait on it; later done+verdict is enough.
-  // Never auto-approve when only cancelled (or no) verify children exist.
+  // A user-asked kind=verify child still gates merge. Auto-enqueue is retired,
+  // so "no children yet" is not a hold (Conductor LLM / resultContract judge).
   const allChildren = findActiveVerifyChildren(input.job.id, input.jobs);
   if (allChildren.length === 0) {
+    if (!jobRequiresVerifyChain(input.job)) {
+      return { ok: true };
+    }
     return {
       ok: false,
       reason:
