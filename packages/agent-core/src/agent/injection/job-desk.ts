@@ -263,7 +263,7 @@ function nextMoveGuidance(
   if (events.some((e) => e.kind === 'job.completed')) {
     const completedMove = completedJobNextMove(events, store);
     if (completedMove !== undefined) return completedMove;
-    return 'verify done-claims against the brief; report the outcome; MergeJob if landing is wanted; PushJob / Push Preview for remote publish (never ask the user to paste git push).';
+    return 'ACK the completed job_id — title — state from the ledger; do not re-review or JobInspect a Job that already ran checks. MergeJob if landing is wanted; PushJob / Push Preview for remote publish (never ask the user to paste git push).';
   }
   const mergeReadyMove = mergeReadyNextMove(store);
   if (mergeReadyMove !== undefined) return mergeReadyMove;
@@ -299,6 +299,15 @@ function completedJobNextMove(
   if (jobs.length === 0) return undefined;
   if (jobs.every((j) => jobHasLandedOrMergeDispatched(j, store))) {
     return 'ACK the landed job_id — title — state and stop; do not MergeJob or re-verify.';
+  }
+  if (
+    jobs.every((j) => j.kind === 'verify') &&
+    jobs.every((j) => j.verifyVerdict === 'passed' || j.verifyVerdict === 'failed')
+  ) {
+    return (
+      'ACK the review job_id — title — state (verifyVerdict on the ledger); ' +
+      'do not JobInspect again or spawn another review.'
+    );
   }
   const pendingLand = jobs.find((j) => j.landChoice === 'pending' && j.worktreePath !== undefined);
   if (pendingLand !== undefined) {

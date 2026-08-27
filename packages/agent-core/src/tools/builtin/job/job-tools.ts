@@ -231,7 +231,7 @@ const JobCreateInputSchema = z
       .optional()
       .describe(
         'Pipeline waist. Omit to inherit session project mode (hotfix→sprint, review→review, else standard). ' +
-          'sprint skips worktree when no other coding Job is in flight. review keeps one verify worker even for surface_kind=none.',
+          'sprint skips worktree when no other coding Job is in flight. review is a project-mode stamp only — do not auto-spawn a nested verify Job; user-asked /review is kind=verify.',
       ),
     goal_completion_criterion: z
       .string()

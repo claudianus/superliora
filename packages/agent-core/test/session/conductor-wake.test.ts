@@ -103,10 +103,12 @@ describe('requestConductorWake', () => {
     expect(prompts).toHaveLength(1);
     expect(prompts[0]?.origin).toEqual(CONDUCTOR_WAKE_ORIGIN);
     expect(prompts[0]?.input[0]?.text).toContain('routing pass');
-    // Cap: digest 1 + highest-severity JobInspect 1 — no Inbox+Inspect marathon.
+    // Cap: digest 1; JobInspect 1 only for needs_user/failed/blocked — no Inbox+Inspect marathon.
     expect(CONDUCTOR_WAKE_PROMPT).toMatch(/digest\s*1|one digest|1 digest/i);
-    expect(CONDUCTOR_WAKE_PROMPT).toMatch(/JobInspect\s*1|1 JobInspect|highest[- ]severity/i);
+    expect(CONDUCTOR_WAKE_PROMPT).toMatch(/JobInspect\s*1|1 JobInspect/i);
+    expect(CONDUCTOR_WAKE_PROMPT).toMatch(/needs_user|failed|blocked/i);
     expect(CONDUCTOR_WAKE_PROMPT).not.toMatch(/JobInspect each unread/i);
+    expect(CONDUCTOR_WAKE_PROMPT).toMatch(/nested verify|re-review|Do not JobInspect again/i);
     expect(prompts[0]?.input[0]?.text).toBe(CONDUCTOR_WAKE_PROMPT);
   });
 

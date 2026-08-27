@@ -24,8 +24,8 @@ export const CONDUCTOR_WAKE_ORIGIN: PromptOrigin = {
  */
 export const CONDUCTOR_WAKE_PROMPT = [
   '[job desk wake] Terminal job notices landed — the <conductor_job_desk> injection this turn lists them.',
-  'Do exactly one routing pass: digest 1 card (runDeskDigestCycle manual when the backlog is noisy) + JobInspect 1 highest-severity notice only. No Inbox+Inspect marathon.',
-  'Relay needs_user (AskUserQuestion). Check done-claims against briefs with ledger reads only (resultContract is the witness). Same-context follow-ups → JobSteer / continue_from; different work → JobCreate. Then end the turn.',
+  'Do exactly one routing pass: digest 1 card (runDeskDigestCycle manual when the backlog is noisy). JobInspect 1 only for needs_user / failed / blocked — not for done-claims. No Inbox+Inspect marathon.',
+  'Relay needs_user (AskUserQuestion). Done-claims: trust ledger fields (verification, result, sha, verifyVerdict). Do not JobInspect again, spawn a nested verify Job, or re-review the same work. Same-context follow-ups → JobSteer / continue_from; different work → JobCreate. Then end the turn.',
   'If a Plan Desk (mission) job completed, prefer JobInspect 1 → Implement handoff fields for ONE JobCreate (delivery_mode=greenfield when the plan says so; never greenfield_chain into three Jobs); do not invent a fresh brief from memory.',
   'Never spawn explore/verify/debug pipeline stages. Never run builds/tests on this lane — the session worker self-checks.',
 ].join('\n');
