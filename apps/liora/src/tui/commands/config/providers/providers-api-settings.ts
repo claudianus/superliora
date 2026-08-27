@@ -135,7 +135,6 @@ async function openProvidersApiSettings(host: SlashCommandHost): Promise<void> {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.providersApi.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options,
       onSelect: (value) => {

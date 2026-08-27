@@ -26,7 +26,6 @@ export function showSettingPresetsPicker<TId extends string, TPatch>(
     host,
     new ChoicePickerComponent({
       title: options.title,
-      hint: ttui('tui.settings.presets.hint'),
       searchable: true,
       layout: 'grid',
       currentValue: options.currentId,

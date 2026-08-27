@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { Kaos } from '@superliora/kaos';
 
-import { createLioraReviewTool } from '../../../../src/tools/builtin/review/code-review';
+import {
+  REVIEW_JUDGMENT_DEFERRED,
+  createLioraReviewTool,
+} from '../../../../src/tools/builtin/review/code-review';
 
 const SAMPLE_DIFF = `diff --git a/src/x.ts b/src/x.ts
 index 1111111..2222222 100644
@@ -31,8 +34,8 @@ function mockGitDiffKaos(diff: string): Kaos {
   } as unknown as Kaos;
 }
 
-describe('LioraReview execute baseline scan', () => {
-  it('returns structured comments from pure heuristics on a unified diff', async () => {
+describe('LioraReview execute mechanical inventory', () => {
+  it('inventories the diff and does not emit regex quality findings', async () => {
     const kaos = mockGitDiffKaos(SAMPLE_DIFF);
     const agent = {} as never;
     const tool = createLioraReviewTool(kaos, agent);
@@ -46,13 +49,15 @@ describe('LioraReview execute baseline scan', () => {
     expect(result.isError).toBeFalsy();
     const output = result.output as string;
     expect(output).toContain('Code Review Report');
-    expect(output).toContain('TODO');
-    expect(output).toContain('debugger');
-    expect(output).toContain('console.log');
     expect(output).toContain('src/x.ts');
-    // error-severity heuristics map to CRITICAL in the report
-    expect(output).toContain('**CRITICAL**');
-    expect(output).toContain('**SUGGESTION**');
+    expect(output).toContain('+4 / -1');
+    expect(output).toContain(REVIEW_JUDGMENT_DEFERRED);
+    expect(output).not.toContain('**CRITICAL**');
+    expect(output).not.toContain('**SUGGESTION**');
+    expect(output).not.toContain('Unresolved TODO');
+    expect(output).not.toContain('debugger statement');
+    expect(output).not.toContain('console.log left in code');
+    expect(output).not.toContain('The diff looks clean');
   });
 
   it('reports empty when the diff has no changes', async () => {

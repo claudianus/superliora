@@ -38,6 +38,25 @@ describe('inferWireType', () => {
     expect(inferWireType({ id: 'openrouter', npm: '@openrouter/ai-sdk-provider' })).toBe('openai');
     expect(inferWireType({ id: 'deepinfra', npm: '@ai-sdk/deepinfra' })).toBe('openai');
     expect(inferWireType({ id: 'qvac', npm: '@qvac/sdk' })).toBe('openai');
+    expect(inferWireType({ id: 'groq', npm: '@ai-sdk/groq' })).toBe('openai');
+    expect(inferWireType({ id: 'mistral', npm: '@ai-sdk/mistral' })).toBe('openai');
+    expect(inferWireType({ id: 'togetherai', npm: '@ai-sdk/togetherai' })).toBe('openai');
+    expect(inferWireType({ id: 'xai', npm: '@ai-sdk/xai' })).toBe('openai');
+    expect(inferWireType({ id: 'cerebras', npm: '@ai-sdk/cerebras' })).toBe('openai');
+    expect(inferWireType({ id: 'perplexity', npm: '@ai-sdk/perplexity' })).toBe('openai');
+    expect(inferWireType({ id: 'vercel', npm: '@ai-sdk/gateway' })).toBe('openai');
+    expect(inferWireType({ id: 'v0', npm: '@ai-sdk/vercel' })).toBe('openai');
+    expect(inferWireType({ id: 'venice', npm: 'venice-ai-sdk-provider' })).toBe('openai');
+    expect(inferWireType({ id: 'aihubmix', npm: '@aihubmix/ai-sdk-provider' })).toBe('openai');
+    expect(inferWireType({ id: 'merge-gateway', npm: 'merge-gateway-ai-sdk-provider' })).toBe(
+      'openai',
+    );
+  });
+
+  it('does not treat native non-Chat-Completions SDKs as openai', () => {
+    expect(inferWireType({ id: 'cohere', npm: '@ai-sdk/cohere' })).toBeUndefined();
+    expect(inferWireType({ id: 'amazon-bedrock', npm: '@ai-sdk/amazon-bedrock' })).toBeUndefined();
+    expect(inferWireType({ id: 'azure', npm: '@ai-sdk/azure' })).toBeUndefined();
   });
 });
 
@@ -69,6 +88,26 @@ describe('catalogBaseUrl', () => {
   it('returns undefined for a missing or empty api', () => {
     expect(catalogBaseUrl({ id: 'x' }, 'anthropic')).toBeUndefined();
     expect(catalogBaseUrl({ id: 'x', api: '' }, 'openai')).toBeUndefined();
+  });
+
+  it('fills the official Chat Completions host when models.dev omits api', () => {
+    expect(catalogBaseUrl({ id: 'groq', npm: '@ai-sdk/groq' }, 'openai')).toBe(
+      'https://api.groq.com/openai/v1',
+    );
+    expect(catalogBaseUrl({ id: 'mistral', npm: '@ai-sdk/mistral' }, 'openai')).toBe(
+      'https://api.mistral.ai/v1',
+    );
+    expect(catalogBaseUrl({ id: 'togetherai' }, 'openai')).toBe('https://api.together.xyz/v1');
+    expect(catalogBaseUrl({ id: 'xai' }, 'openai')).toBe('https://api.x.ai/v1');
+    expect(catalogBaseUrl({ id: 'cerebras' }, 'openai')).toBe('https://api.cerebras.ai/v1');
+    expect(catalogBaseUrl({ id: 'perplexity' }, 'openai')).toBe('https://api.perplexity.ai');
+    expect(catalogBaseUrl({ id: 'vercel' }, 'openai')).toBe('https://ai-gateway.vercel.sh/v1');
+  });
+
+  it('prefers the catalog api over the built-in Chat Completions host', () => {
+    expect(
+      catalogBaseUrl({ id: 'groq', api: 'https://example.test/groq/v1' }, 'openai'),
+    ).toBe('https://example.test/groq/v1');
   });
 });
 

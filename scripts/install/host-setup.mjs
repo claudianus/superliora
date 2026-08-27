@@ -17,8 +17,10 @@ import {
   findToolExe,
 } from './ensure-shell-vibe.mjs';
 import {
+  defaultDesktopDir,
   desktopLauncherPath,
   ensureDesktopLauncher,
+  linuxDesktopShortcutStatus,
 } from './ensure-desktop-launcher.mjs';
 import {
   ensureTerminal,
@@ -26,6 +28,7 @@ import {
   fragmentPath,
   skipTerminalRequested,
   startMenuShortcutPath,
+  windowsShortcutLaunchIsCurrent,
   windowsTerminalSettingsPath,
 } from './ensure-terminal.mjs';
 import { findWinget } from './ensure-winget.mjs';
@@ -75,6 +78,27 @@ function fileStatus(path, isFile) {
   return isFile(path) ? 'refresh' : 'needed';
 }
 
+function defaultReadBytes(dest) {
+  try {
+    return readFileSync(dest);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Existing Desktop / Start Menu .lnk files are not necessarily current.
+ * Older shortcuts target cmd.exe or the WindowsApps wt.exe stub and
+ * open no window on a cold first click. Treat those as `needed` so
+ * upgrade + `/host-setup` rewrite them.
+ */
+function windowsShortcutStatus(path, isFile, readBytes) {
+  if (!isFile(path)) return 'needed';
+  const payload = readBytes?.(path);
+  if (payload == null) return 'refresh';
+  return windowsShortcutLaunchIsCurrent(payload) ? 'refresh' : 'needed';
+}
+
 /**
  * @returns {{
  *   platform: string,
@@ -95,6 +119,7 @@ export function planHostSetup(options = {}) {
   const locale = options.locale ?? detectInstallLocale(env);
   const isFile = options.isFile ?? hostPathExists;
   const readText = options.readText ?? defaultReadText;
+  const readBytes = options.readBytes ?? defaultReadBytes;
   const items = [];
   const tr = (key, params) => t(key, params, locale);
 
@@ -225,7 +250,7 @@ export function planHostSetup(options = {}) {
       'write',
       tr('install.host.item.startMenu'),
       shortcut,
-      fileStatus(shortcut, isFile),
+      windowsShortcutStatus(shortcut, isFile, readBytes),
     ));
     const settings = windowsTerminalSettingsPath(env);
     items.push(item(
@@ -246,6 +271,11 @@ export function planHostSetup(options = {}) {
 
   if (platform !== 'win32' || !skipTerminal) {
     const launcher = desktopLauncherPath({ ...options, env, platform });
+    const shortcutStatus = platform === 'linux'
+      ? linuxDesktopShortcutStatus(launcher, isFile, readText)
+      : platform === 'win32'
+        ? windowsShortcutStatus(launcher, isFile, readBytes)
+        : fileStatus(launcher, isFile);
     items.push(item(
       'desktop-shortcut',
       'write',
@@ -253,7 +283,7 @@ export function planHostSetup(options = {}) {
       platform === 'win32'
         ? tr('install.host.detail.desktopWt', { path: launcher })
         : tr('install.host.detail.desktopTerm', { path: launcher }),
-      fileStatus(launcher, isFile),
+      shortcutStatus,
     ));
   }
 
@@ -348,11 +378,14 @@ export async function ensureHostSetup(options = {}) {
       skipPackages,
       noShellRc,
     });
-    // Upgrade refresh (skipPackages) must not probe Desktop via PowerShell —
-    // GetFolderPath / COM can sit until the Windows runner times out.
-    const desktop = skipPackages
-      ? { written: false }
-      : await writeDesktopLauncher(options, result.wtPath);
+    // Upgrade refresh (skipPackages) must not call GetFolderPath — that
+    // PowerShell COM probe can sit until the Windows runner times out.
+    // Still rewrite Desktop using USERPROFILE\Desktop so existing installs
+    // pick up conhost + superliora-wt.ps1 without a full reinstall.
+    const desktopOpts = skipPackages && !options.desktopDir
+      ? { ...options, desktopDir: defaultDesktopDir(env, platform) }
+      : options;
+    const desktop = await writeDesktopLauncher(desktopOpts, result.wtPath);
     return { ...result, platform, plan, desktopShortcutWritten: desktop.written === true };
   }
 

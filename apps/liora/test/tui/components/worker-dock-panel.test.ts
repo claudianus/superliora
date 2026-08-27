@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import chalk from 'chalk';
 
 import type { Event } from '@superliora/sdk';
 
@@ -15,7 +16,14 @@ import {
   MISSION_COMPLETED_LINGER_MS,
   WorkerDockRegistry,
 } from '#/tui/controllers/worker-dock/registry';
-import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import {
+  advanceAppearanceAnimationClock,
+  appearanceAnimationNow,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/features/appearance/appearance-effects';
 import {
   clearHoverRegion,
   missionWorkerHoverId,
@@ -60,6 +68,35 @@ function viewFor(
     snapshot: registry.snapshot(NOW + 100_000),
     jobs,
     ...(workDir === undefined ? {} : { workDir }),
+  };
+}
+
+function stdoutTailView(clockMs: number): WorkerDockView {
+  return {
+    snapshot: {
+      version: 1,
+      workers: [
+        {
+          id: 'sa-glow',
+          name: 'coder',
+          kind: 'subagent',
+          status: 'running',
+          runInBackground: false,
+          toolCount: 1,
+          tokens: 10,
+          elapsedMs: 1_000,
+          spawnedAtMs: clockMs,
+          lastActivityAtMs: clockMs,
+          liveKind: 'stdout',
+          liveText: 'uniq-stdout-tail',
+          liveAtMs: clockMs,
+        },
+      ],
+      activeCount: 1,
+      totalTokens: 10,
+      ops: [],
+    },
+    jobs: emptyConductorJobsSnapshot(),
   };
 }
 
@@ -793,5 +830,139 @@ describe('WorkerDockPanelComponent', () => {
     // Hover pad is immediately after the box border / gutter (SPARK · is later).
     expect(hovLine!).toMatch(new RegExp(`[│ ]${HOVER_ROW_PAD} `));
     expect(hovLine!.indexOf(HOVER_ROW_PAD)).toBeLessThan(hovLine!.indexOf('hov-b'));
+  });
+
+  it('paints live truncated stdout from subagent.tool_progress on the worker row', () => {
+    const registry = registryWith([
+      {
+        type: 'subagent.spawned',
+        subagentId: 'sa-1',
+        subagentName: 'coder',
+        parentToolCallId: 'ptc',
+        runInBackground: false,
+      } as Event,
+      {
+        type: 'subagent.tool_call',
+        subagentId: 'sa-1',
+        toolCallId: 'tc-1',
+        name: 'Bash',
+        detail: { kind: 'bash', command: 'pnpm test' },
+      } as Event,
+      {
+        type: 'subagent.tool_progress',
+        subagentId: 'sa-1',
+        toolCallId: 'tc-1',
+        name: 'Bash',
+        kind: 'stdout',
+        textPreview: 'ok\n12 passing',
+      } as Event,
+    ]);
+    const panel = new WorkerDockPanelComponent();
+    panel.setView(viewFor(registry));
+    const text = plain(panel.render(100)).join('\n');
+    expect(text).toContain('12 passing');
+    expect(text).toContain('▏');
+    expect(text).not.toContain('ok\n');
+  });
+
+  it('shares the stdout tail for stderr with an error token', () => {
+    const clock = appearanceAnimationNow();
+    const panel = new WorkerDockPanelComponent();
+    panel.setView({
+      snapshot: {
+        version: 1,
+        workers: [
+          {
+            id: 'sa-err',
+            name: 'coder',
+            kind: 'subagent',
+            status: 'running',
+            runInBackground: false,
+            toolCount: 1,
+            tokens: 10,
+            elapsedMs: 1_000,
+            spawnedAtMs: clock,
+            lastActivityAtMs: clock,
+            liveKind: 'stderr',
+            liveText: 'warn: slow',
+            liveAtMs: clock,
+          },
+        ],
+        activeCount: 1,
+        totalTokens: 10,
+        ops: [],
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
+    const text = plain(panel.render(100)).join('\n');
+    expect(text).toContain('warn: slow');
+  });
+
+  it('keeps the live stdout tail byte-identical when motion is off', () => {
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
+    try {
+      const panel = new WorkerDockPanelComponent();
+      panel.setView(stdoutTailView(2_000));
+      advanceAppearanceAnimationClock(2_000);
+      const first = panel.render(160).find((row) => strip(row).includes('coder'));
+      expect(first).toBeDefined();
+      expect(strip(first!)).toContain('uniq-stdout-tail');
+      advanceAppearanceAnimationClock(2_280);
+      panel.invalidate();
+      const second = panel.render(160).find((row) => strip(row).includes('coder'));
+      expect(second).toBe(first);
+    } finally {
+      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    }
+  });
+
+  it('glows the live stdout tail across ≥4 appearance-clock frames', () => {
+    const previousChalkLevel = chalk.level;
+    const previousEnv = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+      SSH_TTY: process.env['SSH_TTY'],
+      SSH_CONNECTION: process.env['SSH_CONNECTION'],
+      SSH_CLIENT: process.env['SSH_CLIENT'],
+    };
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    chalk.level = 3;
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    try {
+      const panel = new WorkerDockPanelComponent();
+      panel.setView(stdoutTailView(1_000));
+      const frames = new Set<string>();
+      for (let i = 0; i < 8; i += 1) {
+        advanceAppearanceAnimationClock(1_000 + i * 280);
+        panel.invalidate();
+        const line = panel.render(160).find((row) => strip(row).includes('coder'));
+        expect(line).toBeDefined();
+        frames.add(line!);
+      }
+      expect(frames.size).toBeGreaterThanOrEqual(4);
+    } finally {
+      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+      chalk.level = previousChalkLevel;
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 });

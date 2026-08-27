@@ -57,6 +57,16 @@ describe('Event public types', () => {
     expectTypeOf<EventByType<'subagent.suspended'>['reason']>().toEqualTypeOf<string>();
   });
 
+  it('narrows live child-tool progress events by type', () => {
+    expectTypeOf<EventByType<'subagent.tool_progress'>['toolCallId']>().toEqualTypeOf<string>();
+    expectTypeOf<EventByType<'subagent.tool_progress'>['kind']>().toEqualTypeOf<
+      'stdout' | 'stderr' | 'progress' | 'status'
+    >();
+    expectTypeOf<EventByType<'subagent.tool_progress'>['textPreview']>().toEqualTypeOf<
+      string | undefined
+    >();
+  });
+
   it('narrows cron fired events by type', () => {
     expectTypeOf<EventByType<'cron.fired'>['prompt']>().toEqualTypeOf<string>();
     expectTypeOf<EventByType<'cron.fired'>['origin']['kind']>().toEqualTypeOf<'cron_job'>();
@@ -117,6 +127,7 @@ describe('Event public types', () => {
         case 'subagent.stalled':
         case 'subagent.tool_call':
         case 'subagent.tool_result':
+        case 'subagent.tool_progress':
         case 'compaction.started':
         case 'compaction.blocked':
         case 'compaction.cancelled':

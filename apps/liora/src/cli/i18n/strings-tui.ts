@@ -350,6 +350,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.common.hint.grid':
     '↑↓←→ navigate · Enter select · wheel scroll · click select · Esc cancel',
   'tui.common.hint.page': 'PgUp/PgDn page',
+  'tui.common.hint.clear': 'Backspace clear',
   'tui.common.searchLabel': 'Search: ',
 
   // ── Tips (footer / working spinner) ──────────────────────────────────────
@@ -755,6 +756,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.common.hint.grid':
     '↑↓←→ 이동 · Enter 선택 · 휠 스크롤 · 클릭 선택 · Esc 취소',
   'tui.common.hint.page': 'PgUp/PgDn 페이지',
+  'tui.common.hint.clear': 'Backspace 지우기',
   'tui.common.searchLabel': '검색: ',
 
   // ── Tips ─────────────────────────────────────────────────────────────────

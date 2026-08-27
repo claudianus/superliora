@@ -10,7 +10,7 @@ import {
   showLoopModelRoutingPicker,
   showModelSettingsReset,
 } from '#/tui/commands/config/model/model';
-import { handleAppearanceCommand } from '#/tui/commands/config/appearance/appearance';
+import { handleAppearanceCommand, commitAppearanceChange } from '#/tui/commands/config/appearance/appearance';
 import { handleContextCommand } from '#/tui/commands/config/context/context';
 import { handlePlanCommand } from '#/tui/commands/config/plan/plan';
 import { handleThemeCommand } from '#/tui/commands/config/appearance/editor-theme';
@@ -317,6 +317,22 @@ describe('handleAppearanceCommand', () => {
         'Appearance profile set to subtle.',
         'success',
       );
+    });
+  });
+
+  it('persists from the committed baseline after a live highlight preview', async () => {
+    await withTempHome(async () => {
+      const host = makeThemeHost();
+      const committed = { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'premium' as const };
+      host.setAppState({ appearance: { ...committed, profile: 'off' } });
+
+      await commitAppearanceChange(host, committed, 'profile', 'off');
+
+      expect((await loadTuiConfig()).appearance?.profile).toBe('off');
+      expect(host.track).toHaveBeenCalledWith('appearance_changed', {
+        key: 'profile',
+        value: 'off',
+      });
     });
   });
 

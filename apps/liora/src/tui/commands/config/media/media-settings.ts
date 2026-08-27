@@ -31,7 +31,6 @@ export function showMediaSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.media.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         settingsPresetsRow(),

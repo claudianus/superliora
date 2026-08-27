@@ -124,7 +124,6 @@ export function showHarnessPanel(host: SlashCommandHost): void {
   mountPickerDialog(host,
     new ChoicePickerComponent({
       title: ttui('tui.harness.panel.title'),
-      hint: ttui('tui.harness.panel.hint'),
       searchable: true,
       options: [
         settingsPresetsRow(),

@@ -135,6 +135,25 @@ export interface SubagentToolResultEvent {
   readonly resultPreview?: string;
 }
 
+/**
+ * Incremental counterpart to {@link SubagentToolCallEvent}. Emitted on the
+ * parent agent when a child tool reports `tool.progress` (stdout/stderr/
+ * status), so clients can paint logs and diffs while the child is still
+ * running. Each chunk is truncated at the emitter (~500 chars); `custom`
+ * updates are dropped so opaque payloads never hit the wire.
+ */
+export interface SubagentToolProgressEvent {
+  readonly type: 'subagent.tool_progress';
+  readonly subagentId: string;
+  readonly runId?: string;
+  readonly toolCallId: string;
+  /** Tool name tracked from the matching `subagent.tool_call`, when seen. */
+  readonly name?: string;
+  readonly kind: 'stdout' | 'stderr' | 'progress' | 'status';
+  /** Chunk preview, truncated at the emitter (~500 chars). */
+  readonly textPreview?: string;
+}
+
 export interface SubagentCompletedEvent {
   readonly type: 'subagent.completed';
   readonly subagentId: string;
@@ -256,6 +275,16 @@ export const subagentToolResultEventSchema = z.object({
   isError: z.boolean().optional(),
   resultPreview: z.string().optional(),
 }) satisfies z.ZodType<SubagentToolResultEvent>;
+
+export const subagentToolProgressEventSchema = z.object({
+  type: z.literal('subagent.tool_progress'),
+  subagentId: z.string(),
+  runId: z.string().optional(),
+  toolCallId: z.string(),
+  name: z.string().optional(),
+  kind: z.enum(['stdout', 'stderr', 'progress', 'status']),
+  textPreview: z.string().optional(),
+}) satisfies z.ZodType<SubagentToolProgressEvent>;
 
 export const subagentCompletedEventSchema = z.object({
   type: z.literal('subagent.completed'),

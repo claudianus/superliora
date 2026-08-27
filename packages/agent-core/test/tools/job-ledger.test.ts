@@ -1174,11 +1174,10 @@ describe('conductor non-blocking job path (regression)', () => {
     const result = await resumeJobs({ store, agent, jobId: job.id });
     expect(result.ok).toBe(true);
     expect(result.resumed).toHaveLength(1);
-    // Pump promotes to running; worker attach is async on the spawner lane
-    // (JobResume no longer awaits settle — Conductor hard-budget safety).
-    expect(getJob(store, job.id)?.status).toBe('running');
-    const { getJobWorkerSpawner } = await import('../../src/session/job/job-offload');
+    const { getJobWorkerSpawner, requestJobSchedulePump } = await import('../../src/session/job/job-offload');
+    await requestJobSchedulePump({ store, agent });
     await getJobWorkerSpawner().settle();
+    expect(getJob(store, job.id)?.status).toBe('running');
     expect(getJob(store, job.id)?.workerAgentId).toBe('agent_resume');
   });
 });

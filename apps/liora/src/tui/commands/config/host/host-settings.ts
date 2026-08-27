@@ -28,7 +28,6 @@ export function showHostSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.host.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {

@@ -54,6 +54,7 @@ export type {
   SubagentSuspendedEvent,
   SubagentTodoUpdatedEvent,
   SubagentToolCallEvent,
+  SubagentToolProgressEvent,
   SubagentToolResultEvent,
   ThinkingDeltaEvent,
   ToolCallDeltaEvent,

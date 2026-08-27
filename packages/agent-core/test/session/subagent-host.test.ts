@@ -425,6 +425,111 @@ describe('SessionSubagentHost', () => {
     );
   });
 
+  it('mirrors child tool.progress as truncated subagent.tool_progress while the tool is still running', () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+    const child = testAgent();
+    fakeSession(parent.agent, child.agent);
+    const options: RunSubagentOptions = {
+      parentToolCallId: 'tc-1',
+      prompt: 'work',
+      description: 'test subagent',
+      runInBackground: true,
+      signal,
+    };
+    const dispose = attachToolStreamBridge(
+      parent.agent,
+      child.agent,
+      'agent-0',
+      'coder',
+      options,
+    );
+
+    try {
+      child.agent.emitEvent({
+        type: 'tool.call.started',
+        turnId: 1,
+        toolCallId: 'call-bash',
+        name: 'Bash',
+        args: { command: 'pnpm test' },
+      });
+      child.agent.emitEvent({
+        type: 'tool.progress',
+        turnId: 1,
+        toolCallId: 'call-bash',
+        update: { kind: 'stdout', text: `ok\n${'z'.repeat(700)}` },
+      });
+      child.agent.emitEvent({
+        type: 'tool.progress',
+        turnId: 1,
+        toolCallId: 'call-bash',
+        update: { kind: 'stderr', text: 'warn: slow' },
+      });
+      child.agent.emitEvent({
+        type: 'tool.progress',
+        turnId: 1,
+        toolCallId: 'call-bash',
+        update: { kind: 'custom', customKind: 'mcp.oauth.authorization_url', text: 'https://example.test/auth' },
+      });
+      child.agent.emitEvent({
+        type: 'tool.progress',
+        turnId: 1,
+        toolCallId: 'call-bash',
+        update: { kind: 'stdout' },
+      });
+
+      const progressEvents = parent.allEvents.filter(
+        (entry) => entry.type === '[rpc]' && entry.event === 'subagent.tool_progress',
+      );
+      expect(progressEvents).toHaveLength(2);
+      expect(progressEvents[0]?.args).toEqual(
+        expect.objectContaining({
+          subagentId: 'agent-0',
+          toolCallId: 'call-bash',
+          name: 'Bash',
+          kind: 'stdout',
+        }),
+      );
+      const firstPreview = (progressEvents[0]?.args as { textPreview?: string } | undefined)
+        ?.textPreview;
+      expect(firstPreview).toContain('ok\n');
+      expect(firstPreview?.length).toBeLessThanOrEqual(500);
+      expect(progressEvents[1]?.args).toEqual(
+        expect.objectContaining({
+          kind: 'stderr',
+          textPreview: 'warn: slow',
+          name: 'Bash',
+        }),
+      );
+
+      // Progress is live: it arrives before tool.result, not only at completion.
+      child.agent.emitEvent({
+        type: 'tool.result',
+        turnId: 1,
+        toolCallId: 'call-bash',
+        output: 'done',
+      });
+      const types = parent.allEvents
+        .filter(
+          (entry) =>
+            entry.type === '[rpc]' &&
+            (entry.event === 'subagent.tool_call' ||
+              entry.event === 'subagent.tool_progress' ||
+              entry.event === 'subagent.tool_result'),
+        )
+        .map((entry) => entry.event);
+      expect(types).toEqual([
+        'subagent.tool_call',
+        'subagent.tool_progress',
+        'subagent.tool_progress',
+        'subagent.tool_result',
+      ]);
+    } finally {
+      dispose();
+    }
+  });
+
   it('attaches structured detail to subagent.tool_call from the full child args', () => {
     const parent = testAgent();
     parent.configure();

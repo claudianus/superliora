@@ -75,6 +75,11 @@ export interface ChoicePickerOptions {
   readonly onHighlight?: (value: string) => void;
   /** Optional preview block for the highlighted option. */
   readonly renderPreview?: (option: ChoiceOption, width: number) => readonly string[];
+  /**
+   * Extra hint segment appended after the default PREMIUM chrome
+   * (`coding colors only`). Ignored business copy — not a replacement hint.
+   */
+  readonly hintExtra?: string;
   readonly onSelect: (value: string) => void;
   readonly onCancel: () => void;
 }
@@ -224,9 +229,17 @@ export class ChoicePickerComponent extends Container implements Focusable {
 
     const navHint =
       columns > 1 ? ttui('tui.common.hint.grid') : ttui('tui.common.hint.list');
-    const hintParts = [navHint];
-    if (view.page.pageCount > 1) hintParts.push(ttui('tui.common.hint.page'));
-    const hint = this.opts.hint ?? hintParts.join(' · ');
+    const hintParts =
+      this.opts.hint !== undefined
+        ? [this.opts.hint]
+        : [navHint, ...(view.page.pageCount > 1 ? [ttui('tui.common.hint.page')] : [])];
+    if (searchable && view.query.length > 0) {
+      hintParts.push(ttui('tui.common.hint.clear'));
+    }
+    if (this.opts.hintExtra !== undefined && this.opts.hintExtra.length > 0) {
+      hintParts.push(this.opts.hintExtra);
+    }
+    const hint = hintParts.join(' · ');
 
     const titleSuffix =
       searchable && view.query.length === 0

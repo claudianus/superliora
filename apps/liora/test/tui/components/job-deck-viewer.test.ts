@@ -2,13 +2,16 @@
  * Job Deck viewer — interactive Conductor mission monitor (list + transcript).
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   formatTokenCount,
   JobDeckViewerComponent,
   shortAgentId,
 } from '#/tui/components/dialogs/job-deck/job-deck-viewer';
+import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
+import { currentTheme } from '#/tui/theme';
 import type { ConductorJobCard, ConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
 
 function stripAnsi(text: string): string {
@@ -66,6 +69,10 @@ describe('formatTokenCount / shortAgentId', () => {
 });
 
 describe('JobDeckViewerComponent', () => {
+  afterEach(() => {
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  });
+
   it('renders the mission strip and searchable job rows', () => {
     const snap = snapshotOf([
       card('job_a1b2c3d4', 'migrate the billing service', 'running', {
@@ -90,6 +97,39 @@ describe('JobDeckViewerComponent', () => {
     expect(joined).toContain('migrate the billing');
     expect(joined).toContain('running tests');
     expect(joined).toContain('worker01');
+  });
+
+  it('keeps a single PREMIUM hint line and primary Search: label', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const snap = snapshotOf([
+      card('job_a1b2c3d4', 'migrate the billing service', 'running'),
+      card('job_b2c3d4e5', 'answer needed for rollout', 'needs_user'),
+    ]);
+    const viewer = new JobDeckViewerComponent({
+      getSnapshot: () => snap,
+      loadWorker: async () => ({ lines: [] }),
+      onAction: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    const idleLines = viewer.render(120).map(stripAnsi);
+    const hintLines = idleLines.filter(
+      (line) => line.includes('navigate') || line.includes('merge'),
+    );
+    expect(hintLines).toHaveLength(1);
+    expect(hintLines[0]).toContain('↑↓ navigate');
+    expect(hintLines[0]).toContain('M merge');
+    expect(hintLines[0]).toContain('Esc cancel');
+    expect(idleLines.filter((line) => /▸\s*막힘/.test(line))).toEqual([]);
+    expect(idleLines.some((line) => line.includes('막힘 (') && !line.includes('▸'))).toBe(true);
+
+    for (const ch of 'bill') viewer.handleInput(ch);
+    const searching = viewer.render(120);
+    const joined = searching.map(stripAnsi).join('\n');
+    expect(joined).toContain('Search: bill');
+    expect(searching.join('\n')).toContain(currentTheme.fg('primary', ' Search: '));
+    expect(joined).toContain('migrate the billing');
+    expect(joined).not.toContain('answer needed');
   });
 
   it('drills into a worker transcript on Enter when a worker exists', async () => {
@@ -127,7 +167,7 @@ describe('JobDeckViewerComponent', () => {
       onAction: vi.fn(),
       onCancel,
     });
-    viewer.handleInput('\u001b');
+    viewer.handleInput('\u001B');
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
@@ -167,11 +207,37 @@ describe('JobDeckViewerComponent', () => {
     expect(viewer.render(100).join('\n')).not.toContain('line 0');
     viewer.handleInput('g');
     expect(viewer.render(100).join('\n')).toContain('line 0');
-    viewer.handleInput('\u001b[F');
+    viewer.handleInput('\u001B[F');
     expect(viewer.render(100).join('\n')).toContain('line 39');
-    viewer.handleInput('\u001b[H');
+    viewer.handleInput('\u001B[H');
     expect(viewer.render(100).join('\n')).toContain('line 0');
     viewer.handleInput('F');
     expect(viewer.render(100).join('\n')).toContain('line 39');
+  });
+
+  it('paints a live truncated stdout tail on the running job row', () => {
+    const snap = snapshotOf([
+      card('job_a1b2c3d4', 'migrate the billing service', 'running', {
+        workerAgentId: 'agent_worker01',
+        liveActivity: {
+          toolCallId: 'tc-1',
+          name: 'Bash',
+          status: 'running',
+          atMs: 1,
+          preview: '12 passing',
+          previewKind: 'stdout',
+        },
+      }),
+      card('job_b2c3d4e5', 'queued sibling', 'queued'),
+    ]);
+    const viewer = new JobDeckViewerComponent({
+      getSnapshot: () => snap,
+      loadWorker: async () => ({ lines: [] }),
+      onAction: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const joined = viewer.render(100).map(stripAnsi).join('\n');
+    expect(joined).toContain('12 passing');
+    expect(joined).toContain('migrate the billing');
   });
 });

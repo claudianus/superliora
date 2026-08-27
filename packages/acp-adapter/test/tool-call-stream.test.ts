@@ -256,7 +256,7 @@ describe('AcpServer tool-call streaming', () => {
     });
   });
 
-  it('relays only `status` tool.progress updates as title-bearing tool_call_update', async () => {
+  it('streams stdout tool.progress as content and status as title', async () => {
     const sessionId = 'sess-progress';
     const turnId = 1;
     const toolCallId = 'tc-prog';
@@ -276,7 +276,15 @@ describe('AcpServer tool-call streaming', () => {
         agentId: 'main',
         turnId,
         toolCallId,
-        update: { kind: 'stdout', text: 'should not stream' },
+        update: { kind: 'stdout', text: 'pass 1\n' },
+      } as Event,
+      {
+        type: 'tool.progress',
+        sessionId,
+        agentId: 'main',
+        turnId,
+        toolCallId,
+        update: { kind: 'stdout', text: 'pass 2\n' },
       } as Event,
       {
         type: 'tool.progress',
@@ -302,14 +310,94 @@ describe('AcpServer tool-call streaming', () => {
     await client.prompt({ sessionId, prompt: [textBlock('go')] });
     await flushNdjson();
 
-    // 1 start + 1 status (stdout is dropped) = 2 updates.
-    expect(collecting.promptUpdates).toHaveLength(2);
-    const second = collecting.promptUpdates[1]?.update as {
+    // start + 2 stdout chunks + 1 status title
+    expect(collecting.promptUpdates).toHaveLength(4);
+    const stdout1 = collecting.promptUpdates[1]?.update as {
+      sessionUpdate: string;
+      content?: Array<{ content?: { text?: string } }>;
+    };
+    expect(stdout1.sessionUpdate).toBe('tool_call_update');
+    expect(stdout1.content?.[0]?.content?.text).toBe('pass 1\n');
+    const stdout2 = collecting.promptUpdates[2]?.update as {
+      sessionUpdate: string;
+      content?: Array<{ content?: { text?: string } }>;
+    };
+    expect(stdout2.content?.[0]?.content?.text).toBe('pass 1\npass 2\n');
+    const status = collecting.promptUpdates[3]?.update as {
       sessionUpdate: string;
       title?: string;
     };
-    expect(second.sessionUpdate).toBe('tool_call_update');
-    expect(second.title).toBe('running test suite');
+    expect(status.sessionUpdate).toBe('tool_call_update');
+    expect(status.title).toBe('running test suite');
+  });
+
+  it('relays parent-side subagent tool_call / tool_progress / tool_result as live ACP cards', async () => {
+    const sessionId = 'sess-sub-progress';
+    const session = makeScriptedSession(sessionId, [
+      {
+        type: 'subagent.tool_call',
+        sessionId,
+        agentId: 'main',
+        subagentId: 'agent-0',
+        toolCallId: 'call-bash',
+        name: 'Bash',
+        argsPreview: '{"command":"pnpm test"}',
+      } as Event,
+      {
+        type: 'subagent.tool_progress',
+        sessionId,
+        agentId: 'main',
+        subagentId: 'agent-0',
+        toolCallId: 'call-bash',
+        name: 'Bash',
+        kind: 'stdout',
+        textPreview: 'ok\n',
+      } as Event,
+      {
+        type: 'subagent.tool_result',
+        sessionId,
+        agentId: 'main',
+        subagentId: 'agent-0',
+        toolCallId: 'call-bash',
+        name: 'Bash',
+        resultPreview: 'ok',
+      } as Event,
+      { type: 'turn.ended', sessionId, agentId: 'main', turnId: 1, reason: 'completed' } as Event,
+    ]);
+    const harness = {
+      auth: { status: async () => AUTHED_STATUS },
+      createSession: async () => session,
+    } as unknown as LioraHarness;
+
+    const { agentStream, clientStream } = makeInMemoryStreamPair();
+    new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);
+    const collecting = new CollectingClient();
+    const client = new ClientSideConnection(() => collecting, clientStream);
+
+    await client.newSession({ cwd: '/tmp/x', mcpServers: [] });
+    await client.prompt({ sessionId, prompt: [textBlock('go')] });
+    await flushNdjson();
+
+    expect(collecting.promptUpdates).toHaveLength(3);
+    expect(collecting.promptUpdates[0]?.update).toMatchObject({
+      sessionUpdate: 'tool_call',
+      toolCallId: 'sub:agent-0:call-bash',
+      title: 'Bash',
+      kind: 'execute',
+      status: 'in_progress',
+    });
+    expect(collecting.promptUpdates[1]?.update).toMatchObject({
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'sub:agent-0:call-bash',
+      status: 'in_progress',
+      content: [{ type: 'content', content: { type: 'text', text: 'ok\n' } }],
+    });
+    expect(collecting.promptUpdates[2]?.update).toMatchObject({
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'sub:agent-0:call-bash',
+      status: 'completed',
+      content: [{ type: 'content', content: { type: 'text', text: 'ok' } }],
+    });
   });
 
   it('lazy-creates tool_call on the first delta and upgrades on tool.call.started (production event order)', async () => {

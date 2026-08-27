@@ -82,6 +82,9 @@ export interface ConductorJobUsage {
   readonly cacheRead: number;
 }
 
+/** Live `subagent.tool_progress` kind mirrored onto a job card (SDK union). */
+type ConductorJobProgressKind = 'stdout' | 'stderr' | 'progress' | 'status';
+
 export interface ConductorJobActivity {
   readonly toolCallId: string;
   readonly name: string;
@@ -89,6 +92,9 @@ export interface ConductorJobActivity {
   readonly target?: string;
   readonly status: 'running' | 'ok' | 'error';
   readonly atMs: number;
+  /** Last non-empty line of the latest `textPreview` for this toolCallId. */
+  readonly preview?: string;
+  readonly previewKind?: ConductorJobProgressKind;
 }
 
 /** One `job.inbox` notice kept for the board drill-down. */
@@ -594,9 +600,15 @@ export function patchConductorJobActivityByWorker(
   if (index < 0) return undefined;
   const previous = cards[index]!;
   const previousActivity = previous.liveActivity;
+  const sameCall = previousActivity?.toolCallId === activity.toolCallId;
   const target =
-    activity.target ??
-    (previousActivity?.toolCallId === activity.toolCallId ? previousActivity.target : undefined);
+    activity.target ?? (sameCall ? previousActivity?.target : undefined);
+  const preview =
+    activity.preview ??
+    (activity.status === 'running' && sameCall ? previousActivity?.preview : undefined);
+  const previewKind =
+    activity.previewKind ??
+    (activity.status === 'running' && sameCall ? previousActivity?.previewKind : undefined);
   const trail = previous.progress?.recentTools ?? [];
   const recentTools =
     activity.name.length === 0 || activity.name === trail.at(-1)
@@ -616,6 +628,8 @@ export function patchConductorJobActivityByWorker(
     liveActivity: {
       ...activity,
       ...(target === undefined ? {} : { target }),
+      ...(preview === undefined ? {} : { preview }),
+      ...(previewKind === undefined ? {} : { previewKind }),
     },
   };
   return next;

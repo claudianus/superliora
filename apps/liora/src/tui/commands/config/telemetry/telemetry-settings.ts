@@ -49,7 +49,6 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.telemetry.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         settingsPresetsRow(),

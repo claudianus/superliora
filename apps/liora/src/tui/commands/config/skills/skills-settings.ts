@@ -57,7 +57,6 @@ export function showSkillsSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.skills.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         settingsPresetsRow(),

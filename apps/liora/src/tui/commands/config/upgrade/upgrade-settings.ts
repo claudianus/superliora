@@ -27,7 +27,6 @@ export function showUpgradeSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.upgrade.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {

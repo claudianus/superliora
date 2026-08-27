@@ -11,10 +11,14 @@ import {
 } from '@superliora/sdk';
 
 import {
+  acpSubagentToolCallId,
   acpToolCallId,
   assistantDeltaToSessionUpdate,
   planFromDisplayBlock,
   stringifyArgs,
+  subagentToolCallToSessionUpdate,
+  subagentToolProgressToSessionUpdate,
+  subagentToolResultToSessionUpdate,
   thinkingDeltaToSessionUpdate,
   toolCallDeltaToSessionUpdate,
   toolCallLazyCreateToSessionUpdate,
@@ -111,6 +115,9 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
     // each turn produces a distinct wire-level tool call that needs
     // its own CREATE.
     const startedToolCalls = new Set<string>();
+    const outputByToolCall = new Map<string, { output: string }>();
+    const startedSubagentToolCalls = new Set<string>();
+    const subagentOutputByToolCall = new Map<string, { output: string }>();
     const initialActiveTurnId = getCurrentTurnId();
     let hasReceivedOwnTurnStarted = false;
     const unsub = session.onEvent((event) => {
@@ -145,6 +152,9 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         settled = true;
         argsByToolCall.clear();
         startedToolCalls.clear();
+        outputByToolCall.clear();
+        startedSubagentToolCalls.clear();
+        subagentOutputByToolCall.clear();
         setCurrentTurnId(undefined);
         unsub();
         log.warn('acp: prompt rejected because another turn is active', {
@@ -293,7 +303,12 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
       }
       if (event.type === 'tool.progress') {
         if (!isFromMainAgent(event)) return;
-        const note = toolProgressToSessionUpdate(sessionId, event);
+        let acc = outputByToolCall.get(event.toolCallId);
+        if (!acc) {
+          acc = { output: '' };
+          outputByToolCall.set(event.toolCallId, acc);
+        }
+        const note = toolProgressToSessionUpdate(sessionId, event, acc);
         if (note === null) return;
         conn.sessionUpdate(note).catch((error) => {
           log.warn('acp: failed to push tool_call_update (progress)', {
@@ -306,6 +321,7 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
       }
       if (event.type === 'tool.result') {
         if (!isFromMainAgent(event)) return;
+        outputByToolCall.delete(event.toolCallId);
         conn
           .sessionUpdate(toolResultToSessionUpdate(sessionId, event))
           .catch((error) => {
@@ -315,6 +331,89 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
               error: error instanceof Error ? error.message : String(error),
             });
           });
+        return;
+      }
+      if (event.type === 'subagent.tool_call') {
+        if (!isFromMainAgent(event)) return;
+        const wireId = acpSubagentToolCallId(event.subagentId, event.toolCallId);
+        startedSubagentToolCalls.add(wireId);
+        conn.sessionUpdate(subagentToolCallToSessionUpdate(sessionId, event)).catch((error) => {
+          log.warn('acp: failed to push tool_call (subagent)', {
+            sessionId,
+            toolCallId: event.toolCallId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+        return;
+      }
+      if (event.type === 'subagent.tool_progress') {
+        if (!isFromMainAgent(event)) return;
+        const wireId = acpSubagentToolCallId(event.subagentId, event.toolCallId);
+        if (!startedSubagentToolCalls.has(wireId)) {
+          startedSubagentToolCalls.add(wireId);
+          conn
+            .sessionUpdate(
+              subagentToolCallToSessionUpdate(sessionId, {
+                type: 'subagent.tool_call',
+                subagentId: event.subagentId,
+                toolCallId: event.toolCallId,
+                name: event.name ?? 'tool',
+              }),
+            )
+            .catch((error) => {
+              log.warn('acp: failed to push tool_call (subagent lazy create)', {
+                sessionId,
+                toolCallId: event.toolCallId,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+        }
+        let acc = subagentOutputByToolCall.get(wireId);
+        if (!acc) {
+          acc = { output: '' };
+          subagentOutputByToolCall.set(wireId, acc);
+        }
+        const note = subagentToolProgressToSessionUpdate(sessionId, event, acc);
+        if (note === null) return;
+        conn.sessionUpdate(note).catch((error) => {
+          log.warn('acp: failed to push tool_call_update (subagent progress)', {
+            sessionId,
+            toolCallId: event.toolCallId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+        return;
+      }
+      if (event.type === 'subagent.tool_result') {
+        if (!isFromMainAgent(event)) return;
+        const wireId = acpSubagentToolCallId(event.subagentId, event.toolCallId);
+        subagentOutputByToolCall.delete(wireId);
+        if (!startedSubagentToolCalls.has(wireId)) {
+          startedSubagentToolCalls.add(wireId);
+          conn
+            .sessionUpdate(
+              subagentToolCallToSessionUpdate(sessionId, {
+                type: 'subagent.tool_call',
+                subagentId: event.subagentId,
+                toolCallId: event.toolCallId,
+                name: event.name ?? 'tool',
+              }),
+            )
+            .catch((error) => {
+              log.warn('acp: failed to push tool_call (subagent result create)', {
+                sessionId,
+                toolCallId: event.toolCallId,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+        }
+        conn.sessionUpdate(subagentToolResultToSessionUpdate(sessionId, event)).catch((error) => {
+          log.warn('acp: failed to push tool_call_update (subagent result)', {
+            sessionId,
+            toolCallId: event.toolCallId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
         return;
       }
       if (event.type === 'turn.ended') {
@@ -335,6 +434,9 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
           });
           argsByToolCall.clear();
           startedToolCalls.clear();
+          outputByToolCall.clear();
+          startedSubagentToolCalls.clear();
+          subagentOutputByToolCall.clear();
           setCurrentTurnId(undefined);
           unsub();
           const authErr = authRequiredFromPayload(event.error);
@@ -352,6 +454,9 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
           }
           argsByToolCall.clear();
           startedToolCalls.clear();
+          outputByToolCall.clear();
+          startedSubagentToolCalls.clear();
+          subagentOutputByToolCall.clear();
           // Drop the turnId so a late-arriving approval (e.g. an SDK
           // reverse-RPC racing the turn boundary) falls back to the raw
           // SDK id rather than re-prefixing with a stale value.

@@ -4,10 +4,8 @@
 
 import { saveTuiConfig, type AppearancePreferences } from '../../../config';
 import { formatErrorMessage } from '../../../utils/event-payload';
-import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 import { ttui } from '#/tui/utils/tui-i18n';
-import { isTranscriptDetailLevel } from '#/tui/features/transcript/transcript-density';
-import { isSyntaxThemeId } from '#/tui/theme/syntax-theme';
+import { parseAppearancePatch } from '#/tui/utils/appearance/appearance-patch';
 import { currentAppearance, tuiConfigFromHost } from './tui-persist';
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -45,7 +43,52 @@ export async function handleAppearanceCommand(host: SlashCommandHost, args: stri
     return;
   }
 
-  const previous = currentAppearance(host);
+  await commitAppearanceChange(host, currentAppearance(host), key, value, raw);
+}
+
+/** Keys that mutate the host terminal (OSC). Highlight-preview skips these. */
+const OSC_APPEARANCE_KEYS = new Set(['terminal-background', 'terminal-palette']);
+
+export function canLivePreviewAppearanceKey(key: string): boolean {
+  return !OSC_APPEARANCE_KEYS.has(key);
+}
+
+/** Apply an appearance patch to the live TUI without writing tui.toml. */
+export function previewAppearanceChange(
+  host: SlashCommandHost,
+  previous: AppearancePreferences,
+  key: string,
+  value: string,
+): void {
+  if (!canLivePreviewAppearanceKey(key)) return;
+  const next = parseAppearancePatch(previous, key, value);
+  if (next === null) return;
+  applyAppearanceLive(host, next, key);
+}
+
+/** Restore the last committed appearance after a cancelled highlight preview. */
+export function restoreAppearancePreview(
+  host: SlashCommandHost,
+  previous: AppearancePreferences,
+  key: string,
+): void {
+  if (!canLivePreviewAppearanceKey(key)) return;
+  applyAppearanceLive(host, previous, key);
+}
+
+/**
+ * Persist an appearance patch from a known baseline.
+ * Callers that highlight-preview must pass the committed prefs, not the live
+ * preview state — otherwise an already-applied highlight looks "unchanged"
+ * and never writes tui.toml.
+ */
+export async function commitAppearanceChange(
+  host: SlashCommandHost,
+  previous: AppearancePreferences,
+  key: string,
+  value: string,
+  raw = `${key} ${value}`,
+): Promise<void> {
   const next = parseAppearancePatch(previous, key, value);
   if (next === null) {
     host.showError(ttui('tui.appearance.unknownOption', { raw }));
@@ -63,16 +106,22 @@ export async function handleAppearanceCommand(host: SlashCommandHost, args: stri
     return;
   }
 
+  applyAppearanceLive(host, next, key);
+  host.track('appearance_changed', { key, value });
+  host.showStatus(ttui('tui.appearance.set', { key, value }), 'success');
+}
+
+function applyAppearanceLive(
+  host: SlashCommandHost,
+  next: AppearancePreferences,
+  key: string,
+): void {
   host.setAppState({ appearance: next });
-  // setAppState re-applies appearance (syntax theme + Shiki caches included).
   if (key === 'transcript-detail') {
-    // Live re-projection of mounted tool cards; the save above persists.
     host.setTranscriptDetail(next.transcriptDetail);
   } else if (key === 'neat') {
     host.setNeatMode(next.neat);
   }
-  host.track('appearance_changed', { key, value });
-  host.showStatus(ttui('tui.appearance.set', { key, value }), 'success');
 }
 
 function formatAppearanceStatus(appearance: AppearancePreferences): string {
@@ -92,87 +141,4 @@ function formatAppearanceStatus(appearance: AppearancePreferences): string {
   ].join('\n');
 }
 
-function parseAppearancePatch(
-  previous: AppearancePreferences,
-  key: string,
-  value: string,
-): AppearancePreferences | null {
-  const next: AppearancePreferences = { ...previous };
-  switch (key) {
-    case 'profile':
-      if (!isOneOf(value, ['auto', 'off', 'subtle', 'premium'])) return null;
-      next.profile = value;
-      return next;
-    case 'density':
-      if (!isOneOf(value, ['auto', 'compact', 'comfortable', 'spacious'])) return null;
-      next.density = value;
-      return next;
-    case 'timestamps':
-      {
-        const enabled = parseOnOff(value);
-        if (enabled === undefined) return null;
-        next.showTimestamps = enabled;
-        return next;
-      }
-    case 'neat':
-      {
-        const enabled = parseOnOff(value);
-        if (enabled === undefined) return null;
-        next.neat = enabled;
-        return next;
-      }
-    case 'particles':
-      if (!isOneOf(value, ['auto', 'off', 'ambient', 'events', 'premium'])) return null;
-      next.particles = value;
-      return next;
-    case 'animation-fps': {
-      const fps = Number.parseInt(value, 10);
-      if (!Number.isInteger(fps) || fps < 1 || fps > 60) return null;
-      next.animationFps = fps;
-      return next;
-    }
-    case 'canvas-background':
-      {
-        const enabled = parseOnOff(value);
-        if (enabled === undefined) return null;
-        next.canvasBackground = enabled;
-        return next;
-      }
-    case 'terminal-background':
-      if (!isOneOf(value, ['off', 'session'])) return null;
-      next.terminalBackground = value;
-      return next;
-    case 'terminal-palette':
-      {
-        const enabled = parseOnOff(value);
-        if (enabled === undefined) return null;
-        next.terminalPalette = enabled;
-        return next;
-      }
-    case 'transcript-detail':
-      if (!isTranscriptDetailLevel(value)) return null;
-      next.transcriptDetail = value;
-      return next;
-    case 'mission-control':
-    case 'worker-dock':
-      if (!isOneOf(value, ['auto', 'pinned', 'hidden'])) return null;
-      next.workerDock = value;
-      return next;
-    case 'syntax-theme':
-      if (!isSyntaxThemeId(value)) return null;
-      next.syntaxTheme = value;
-      return next;
-    default:
-      return null;
-  }
-}
-
-function parseOnOff(value: string): boolean | undefined {
-  if (value === 'on' || value === 'true' || value === 'yes') return true;
-  if (value === 'off' || value === 'false' || value === 'no') return false;
-  return undefined;
-}
-
-function isOneOf<const T extends readonly string[]>(value: string, choices: T): value is T[number] {
-  return choices.includes(value as T[number]);
-}
+export { parseAppearancePatch } from '#/tui/utils/appearance/appearance-patch';
