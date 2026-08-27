@@ -57,10 +57,20 @@ export const MEMORY_STATUSES: readonly MemoryStatus[] = [
 export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 100;
 
-// Durable rules and facts should outrank noisy event memories at the tiny
-// prompt boundary. Candidates are fetched wide, re-ranked, then capped.
+// Durable rules, facts, and procedures (standing prefs) should outrank noisy
+// event memories at the tiny prompt boundary. Candidates are fetched wide,
+// boosted, re-ranked, then capped. Procedures are in this set because explicit
+// "always / prefer" captures land as type=procedure, not fact.
 const TYPE_PRIORITY_BOOST = 0.05;
-const PRIORITY_INJECTION_TYPES: ReadonlySet<MemoryType> = new Set(['rule', 'fact']);
+const DURABLE_INJECTION_TYPES: ReadonlySet<MemoryType> = new Set([
+  'rule',
+  'fact',
+  'procedure',
+]);
+
+export function isDurableInjectionType(type: MemoryType): boolean {
+  return DURABLE_INJECTION_TYPES.has(type);
+}
 
 export function prioritizeInjectionTypes(
   results: readonly MemorySearchResult[],
@@ -69,10 +79,57 @@ export function prioritizeInjectionTypes(
     .map((result) => ({
       result,
       boosted:
-        result.score + (PRIORITY_INJECTION_TYPES.has(result.memory.type) ? TYPE_PRIORITY_BOOST : 0),
+        result.score + (isDurableInjectionType(result.memory.type) ? TYPE_PRIORITY_BOOST : 0),
     }))
     .toSorted((a, b) => b.boosted - a.boosted || b.result.score - a.result.score)
     .map((entry) => entry.result);
+}
+
+/**
+ * Keep one standing memory in the injection window when FTS-only recall
+ * returned only events (or nothing). Job-desk prompts rarely mention the
+ * stored preference, so query MATCH would otherwise drop it.
+ */
+export function mergeDurableInjection(
+  queried: readonly MemorySearchResult[],
+  durable: readonly MemorySearchResult[],
+  cap: number,
+): readonly MemorySearchResult[] {
+  const liveQueried = queried.filter((result) => result.abstained !== true);
+  const alreadyDurable = liveQueried.some((result) => isDurableInjectionType(result.memory.type));
+  const seen = new Set<string>();
+  const selected: MemorySearchResult[] = [];
+
+  if (!alreadyDurable) {
+    for (const result of durable) {
+      if (result.abstained === true) continue;
+      if (!isDurableInjectionType(result.memory.type)) continue;
+      selected.push(result);
+      seen.add(result.memory.id);
+      break;
+    }
+  }
+
+  const bound = Math.max(1, cap);
+  for (const result of liveQueried) {
+    if (selected.length >= bound) break;
+    if (seen.has(result.memory.id)) continue;
+    selected.push(result);
+    seen.add(result.memory.id);
+  }
+  return selected;
+}
+
+export function selectDurableInjection(
+  records: readonly MemoryRecord[],
+  minScore: number | undefined,
+  now: number,
+): readonly MemorySearchResult[] {
+  return records
+    .filter((memory) => memory.status === 'active' && isDurableInjectionType(memory.type))
+    .map((memory) => scoreMemory(memory, undefined, undefined, now))
+    .filter((result) => minScore === undefined || result.score >= minScore)
+    .toSorted((a, b) => b.score - a.score || b.memory.updatedAt - a.memory.updatedAt);
 }
 
 // ---------------------------------------------------------------------------
@@ -454,7 +511,11 @@ export function normalizeCreateInput(
   if ((input.links ?? []).some((link) => !isMemoryLinkLike(link))) {
     throw new Error('Memory links contains an invalid link.');
   }
-  const status = source.kind === 'auto' ? 'candidate' : input.status ?? 'active';
+  // Honor an explicit status. Auto captures default to candidate so noisy
+  // episode summaries wait for reflect(); user-directed remember/prefer
+  // sentences pass status:'active' so they inject without a dream cycle.
+  const status = input.status ?? (source.kind === 'auto' ? 'candidate' : 'active');
+  assertMemoryStatus(status);
   return stripUndefined({
     id: randomUUID(),
     type: input.type,
@@ -514,7 +575,7 @@ export function extractMemoryCandidates(
       tags: explicit.tags,
       confidence: 0.92,
       importance: explicit.type === 'procedure' ? 0.85 : 0.72,
-      status: 'candidate',
+      status: 'active',
       source: {
         kind: 'auto',
         sessionId: context.sessionId,

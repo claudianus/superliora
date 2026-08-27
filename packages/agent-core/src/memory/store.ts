@@ -25,6 +25,7 @@ import {
   defaultScopeKey,
   extractMemoryCandidates,
   hasAllTags,
+  isDurableInjectionType,
   isMemoryType,
   isMemoryEvidenceRefLike,
   isMemoryLinkLike,
@@ -35,6 +36,7 @@ import {
   MEMORY_TYPES,
   MEMORY_SCOPES,
   contentPartsToText,
+  mergeDurableInjection,
   normalizeComparable,
   normalizeCreateInput,
   normalizeRequired,
@@ -42,6 +44,7 @@ import {
   prioritizeInjectionTypes,
   sanitizeMetadata,
   scoreMemory,
+  selectDurableInjection,
   stripUndefined,
 } from './store-query';
 import type {
@@ -86,9 +89,11 @@ export interface MemoryIntegrityReport {
 const DEFAULT_INJECTION_LIMIT = 2;
 const DEFAULT_INJECTION_MIN_SCORE = 0.35;
 
-// Recall precision (T2-5): rule/fact memories are durable guidance; event
-// noise should not crowd them out of the tiny injection window.
-// cap. Candidates are fetched wide, boosted, re-ranked, then capped.
+// Recall precision (T2-5): rule/fact/procedure memories are durable guidance;
+// event noise should not crowd them out of the tiny injection window.
+// Candidates are fetched wide, boosted, re-ranked, then capped. When the
+// current prompt is a Job notice with no lexical overlap, one durable pin
+// still occupies a slot so standing prefs compound across Jobs.
 const INJECTION_CANDIDATE_MULTIPLIER = 3;
 const INJECTION_CANDIDATE_FLOOR = 6;
 
@@ -526,6 +531,9 @@ export class LioraMemoryStore {
     if (context.agentType !== 'main') return undefined;
     const hasQuery = query !== undefined && query.trim().length > 0;
     const cap = this.config?.()?.maxRetrieved ?? DEFAULT_INJECTION_LIMIT;
+    const minScore = hasQuery
+      ? (this.config?.()?.minInjectionScore ?? DEFAULT_INJECTION_MIN_SCORE)
+      : undefined;
     const results = await this.recall({
       query,
       workspaceKey: context.workDir,
@@ -533,9 +541,28 @@ export class LioraMemoryStore {
       limit: Math.max(cap * INJECTION_CANDIDATE_MULTIPLIER, INJECTION_CANDIDATE_FLOOR),
       includeArchived: false,
       includeCandidates: false,
-      minScore: hasQuery ? (this.config?.()?.minInjectionScore ?? DEFAULT_INJECTION_MIN_SCORE) : undefined,
+      minScore,
     });
-    return renderMemoryInjection(prioritizeInjectionTypes(results).slice(0, cap));
+    const rankedQuery = prioritizeInjectionTypes(results);
+    if (!hasQuery) {
+      return renderMemoryInjection(rankedQuery.slice(0, cap));
+    }
+    const alreadyDurable = rankedQuery.some(
+      (result) => result.abstained !== true && isDurableInjectionType(result.memory.type),
+    );
+    const durable = alreadyDurable
+      ? []
+      : selectDurableInjection(
+          await this.list({
+            status: 'active',
+            workspaceKey: context.workDir,
+            sessionId: context.sessionId,
+            limit: MAX_LIMIT,
+          }),
+          minScore,
+          this.now(),
+        );
+    return renderMemoryInjection(mergeDurableInjection(rankedQuery, durable, cap));
   }
 }
 
