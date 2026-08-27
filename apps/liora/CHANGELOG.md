@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.13.6
+
+### Patch Changes
+
+- Fix Cursor subscription chat against the current AgentService host, device checksum, and Connect error trailers so turns stop failing with generic API errors.
+
 ## 0.13.5
 
 ### Patch Changes
