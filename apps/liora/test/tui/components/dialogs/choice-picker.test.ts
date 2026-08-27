@@ -79,6 +79,40 @@ describe('ChoicePickerComponent', () => {
     expect(lines[titleIdx + 2]).toBe('');
   });
 
+  it('appends Backspace clear once a search query exists', () => {
+    const picker = new ChoicePickerComponent({
+      title: 'Add provider',
+      options: [
+        { value: 'a', label: 'Alpha' },
+        { value: 'b', label: 'Beta' },
+      ],
+      searchable: true,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    picker.handleInput('a');
+    const lines = picker.render(120).map(strip);
+    const hint = lines.find((line) => line.includes('Esc cancel'));
+    expect(hint).toContain('Backspace clear');
+    expect(hint).toContain('Enter select');
+  });
+
+  it('appends hintExtra after the default PREMIUM chrome', () => {
+    const picker = new ChoicePickerComponent({
+      title: 'Syntax theme',
+      options: [{ value: 'auto', label: 'Auto' }],
+      searchable: true,
+      hintExtra: 'coding colors only',
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const lines = picker.render(120).map(strip);
+    const hint = lines.find((line) => line.includes('Esc cancel'));
+    expect(hint).toContain('coding colors only');
+    expect(hint).toContain('?? navigate');
+    expect(hint).not.toContain('?? ? Enter ? Esc');
+  });
+
   it('renders optional descriptions below choice labels', () => {
     const picker = new ChoicePickerComponent({
       title: 'Select permission mode',

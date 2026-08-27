@@ -73,6 +73,8 @@ describe('theme hue span', () => {
     expect(contrastRatio(lightColors.textDim, lightColors.background)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(lightColors.border, lightColors.background)).toBeGreaterThanOrEqual(3);
     expect(contrastRatio(lightColors.primary, lightColors.background)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(lightColors.ghostText, lightColors.background)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(lightColors.textMuted, lightColors.background)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('widens every bundled theme motion span', () => {

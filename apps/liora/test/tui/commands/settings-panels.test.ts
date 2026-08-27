@@ -184,6 +184,7 @@ describe('appearance-settings', () => {
       showStatus: vi.fn(),
       setAppState: vi.fn(),
       setTranscriptDetail: vi.fn(),
+      setNeatMode: vi.fn(),
       track: vi.fn(),
     } as unknown as SlashCommandHost;
   }
@@ -258,7 +259,58 @@ describe('appearance-settings', () => {
       ]);
     });
 
-    it('renders live theme from appState and currentTheme', () => {
+    it('uses PREMIUM list chrome instead of a stub ↑↓ · Enter · Esc hint', () => {
+      const host = makeHost();
+      showAppearanceSettings(host);
+      const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+        | ChoicePickerComponent
+        | undefined;
+      expect(picker).toBeDefined();
+      const lines = picker!.render(120).map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''));
+      const hint = lines.find((line) => line.includes('Esc cancel'));
+      expect(hint).toContain('↑↓ navigate');
+      expect(hint).toContain('Enter select');
+      expect(hint).not.toMatch(/↑↓ · Enter · Esc$/);
+      expect(lines.join('\n')).toContain('Appearance status');
+      expect(lines.join('\n')).toContain('Motion profile ·');
+    });
+
+    it('highlight-previews motion profile and restores on cancel', () => {
+      const host = makeHost({
+        appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'premium' },
+      });
+      showAppearanceSettings(host);
+      selectAppearanceAction(host, 'profile');
+      const nested = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1]?.[0] as {
+        opts: {
+          onHighlight?: (value: string) => void;
+          onCancel: () => void;
+          renderPreview?: (option: { value: string }, width: number) => readonly string[];
+        };
+      };
+      expect(nested.opts.onHighlight).toBeTypeOf('function');
+      nested.opts.onHighlight?.('off');
+      expect(host.setAppState).toHaveBeenCalledWith({
+        appearance: expect.objectContaining({ profile: 'off' }),
+      });
+      const preview = nested.opts.renderPreview?.({ value: 'off' }, 72) ?? [];
+      expect(preview.join('\n')).toMatch(/Appearance/);
+      nested.opts.onCancel();
+      expect(host.setAppState).toHaveBeenCalledWith({
+        appearance: expect.objectContaining({ profile: 'premium' }),
+      });
+    });
+
+    it('does not OSC-preview terminal background on highlight', () => {
+      const host = makeHost();
+      showAppearanceSettings(host);
+      selectAppearanceAction(host, 'terminal-background');
+      const nested = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1]?.[0] as {
+        opts: { onHighlight?: (value: string) => void };
+      };
+      nested.opts.onHighlight?.('session');
+      expect(host.setAppState).not.toHaveBeenCalled();
+    });
       const previousPalette = currentTheme.palette;
       currentTheme.setPalette(lightColors);
 

@@ -16,7 +16,6 @@ import {
 import {
   TRANSCRIPT_DETAIL_LEVELS,
 } from '#/tui/features/transcript/transcript-density';
-import type { TranscriptDetailLevel } from '#/tui/types';
 import { SYNTAX_THEME_CATALOG } from '#/tui/theme/syntax-theme';
 import { ChoicePickerComponent, type ChoiceOption } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
@@ -29,7 +28,14 @@ import {
 } from '#/tui/utils/settings/appearance-presets';
 import { settingsPresetsRow, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { formatErrorMessage } from '#/tui/utils/event-payload';
-import { handleAppearanceCommand } from './appearance';
+import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
+import { renderAppearanceValuePreview } from '#/tui/utils/appearance/appearance-preview';
+import {
+  canLivePreviewAppearanceKey,
+  commitAppearanceChange,
+  previewAppearanceChange,
+  restoreAppearancePreview,
+} from './appearance';
 import { showPerformanceSettings, currentPerformanceMode } from './performance';
 import { currentAppearance, tuiConfigFromHost } from './tui-persist';
 import { showThemeSettings } from './theme-settings';
@@ -38,13 +44,6 @@ import type { SlashCommandHost } from '../../hub/dispatch';
 import { ttui } from '../../../utils/tui-i18n';
 
 export { APPEARANCE_BACKGROUND_TIP, APPEARANCE_CHANGE_TIP, APPEARANCE_MOTION_TIP, APPEARANCE_THEME_TIP };
-
-const TRANSCRIPT_LEVEL_HINTS: Record<TranscriptDetailLevel, string> = {
-  minimal: 'Chain-only tools · full answers · thinking groups',
-  compact: 'Tool headers only · phase tints; click to expand',
-  standard: 'Default — preview cards · phase tints',
-  full: 'Every tool card expanded',
-};
 
 const PROFILE_OPTIONS = ['auto', 'off', 'subtle', 'premium'] as const;
 const DENSITY_OPTIONS = ['auto', 'compact', 'comfortable', 'spacious'] as const;
@@ -58,15 +57,13 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.appearance.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         settingsPresetsRow(),
         {
           value: 'status',
-          label: 'Appearance status',
-          description:
-            'Live theme palette · saved motion prefs · canvas / terminal / transcript.',
+          label: ttui('tui.settings.pane.appearance.status'),
+          description: ttui('tui.settings.pane.appearance.statusDesc'),
         },
         {
           value: 'performance',
@@ -75,65 +72,64 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
         },
         {
           value: 'theme',
-          label: 'Theme…',
-          description: 'Open Settings → Theme palette picker.',
+          label: ttui('tui.settings.pane.appearance.theme'),
+          description: ttui('tui.settings.pane.appearance.themeDesc'),
         },
         {
           value: 'profile',
-          label: `Motion profile · ${appearance.profile}`,
-          description: 'auto | off | subtle | premium — ambient motion budget.',
+          label: `${ttui('tui.settings.pane.appearance.motionProfile')} · ${appearance.profile}`,
+          description: ttui('tui.settings.pane.appearance.profileDesc'),
         },
         {
           value: 'density',
-          label: `Layout density · ${appearance.density}`,
-          description: 'auto | compact | comfortable | spacious — chrome spacing.',
+          label: `${ttui('tui.settings.pane.appearance.layoutDensity')} · ${appearance.density}`,
+          description: ttui('tui.settings.pane.appearance.densityDesc'),
         },
         {
           value: 'transcript-detail',
-          label: `Transcript detail · ${appearance.transcriptDetail}`,
-          description: 'minimal | compact | standard | full — live tool card density.',
+          label: `${ttui('tui.settings.pane.appearance.transcriptDetail')} · ${appearance.transcriptDetail}`,
+          description: ttui('tui.settings.pane.appearance.transcriptDesc'),
         },
         {
           value: 'neat',
-          label: `Neat cards · ${appearance.neat ? 'on' : 'off'}`,
-          description: 'Structured tool result cards instead of raw output dumps.',
+          label: `${ttui('tui.settings.pane.appearance.neatCards')} · ${appearance.neat ? ttui('tui.settings.pane.appearance.toggle.on') : ttui('tui.settings.pane.appearance.toggle.off')}`,
+          description: ttui('tui.settings.pane.appearance.neatDesc'),
         },
         {
           value: 'syntax-theme',
-          label: `Syntax theme · ${appearance.syntaxTheme}`,
-          description: 'Coding colors independent of UI skin (GitHub Dimmed, One Dark, …).',
+          label: `${ttui('tui.settings.pane.appearance.syntaxTheme')} · ${appearance.syntaxTheme}`,
+          description: ttui('tui.settings.pane.appearance.syntaxDesc'),
         },
         {
           value: 'particles',
-          label: `Particles · ${appearance.particles}`,
-          description: 'auto | off | ambient | events | premium.',
+          label: `${ttui('tui.settings.pane.appearance.particles')} · ${appearance.particles}`,
+          description: ttui('tui.settings.pane.appearance.particlesDesc'),
         },
         {
           value: 'animation-fps',
-          label: `Animation FPS · ${String(appearance.animationFps)}`,
-          description: '1–60 · shared animation clock (common presets).',
+          label: `${ttui('tui.settings.pane.appearance.animationFps')} · ${String(appearance.animationFps)}`,
+          description: ttui('tui.settings.pane.appearance.fpsDesc'),
         },
         {
           value: 'timestamps',
-          label: `Timestamps · ${appearance.showTimestamps ? 'on' : 'off'}`,
-          description: 'HH:MM on user messages.',
+          label: `${ttui('tui.settings.pane.appearance.timestamps')} · ${appearance.showTimestamps ? ttui('tui.settings.pane.appearance.toggle.on') : ttui('tui.settings.pane.appearance.toggle.off')}`,
+          description: ttui('tui.settings.pane.appearance.timestampsDesc'),
         },
         {
           value: 'canvas-background',
-          label: `Canvas background · ${appearance.canvasBackground ? 'on' : 'off'}`,
-          description: 'Fill TUI-owned cells with theme background.',
+          label: `${ttui('tui.settings.pane.appearance.canvasBg')} · ${appearance.canvasBackground ? ttui('tui.settings.pane.appearance.toggle.on') : ttui('tui.settings.pane.appearance.toggle.off')}`,
+          description: ttui('tui.settings.pane.appearance.canvasDesc'),
         },
         {
           value: 'terminal-background',
-          label: `Terminal background · ${appearance.terminalBackground}`,
-          description: 'off | session — OSC terminal background while running.',
+          label: `${ttui('tui.settings.pane.appearance.terminalBg')} · ${appearance.terminalBackground}`,
+          description: ttui('tui.settings.pane.appearance.terminalBgDesc'),
         },
         {
           value: 'terminal-palette',
-          label: `Terminal palette · ${appearance.terminalPalette ? 'on' : 'off'}`,
-          description: 'Inject theme palette into the terminal until exit.',
+          label: `${ttui('tui.settings.pane.appearance.terminalPalette')} · ${appearance.terminalPalette ? ttui('tui.settings.pane.appearance.toggle.on') : ttui('tui.settings.pane.appearance.toggle.off')}`,
+          description: ttui('tui.settings.pane.appearance.terminalPaletteDesc'),
         },
-
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -158,14 +154,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
               choices: PROFILE_OPTIONS.map((option) => ({
                 value: option,
                 label: option,
-                description:
-                  option === 'premium'
-                    ? 'Full ambient motion (default premium profile)'
-                    : option === 'subtle'
-                      ? 'Reduced motion accents'
-                      : option === 'off'
-                        ? 'Motion effects off'
-                        : 'Follow Visual Quality / environment',
+                description: ttui(`tui.settings.pane.appearance.profile.${option}`),
               })),
             });
             return;
@@ -177,14 +166,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
               choices: DENSITY_OPTIONS.map((option) => ({
                 value: option,
                 label: option,
-                description:
-                  option === 'spacious'
-                    ? 'Roomier chrome (default)'
-                    : option === 'compact'
-                      ? 'Tighter spacing'
-                      : option === 'comfortable'
-                        ? 'Balanced spacing'
-                        : 'Auto from terminal size / prefs',
+                description: ttui(`tui.settings.pane.appearance.density.${option}`),
               })),
             });
             return;
@@ -212,7 +194,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
               current: String(appearance.animationFps),
               choices: FPS_OPTIONS.map((option) => ({
                 value: option,
-                label: `${option} fps`,
+                label: ttui('tui.settings.pane.appearance.fpsLabel', { fps: option }),
               })),
             });
             return;
@@ -222,8 +204,16 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
               key: 'timestamps',
               current: appearance.showTimestamps ? 'on' : 'off',
               choices: [
-                { value: 'on', label: 'on', description: 'Show HH:MM on user messages' },
-                { value: 'off', label: 'off', description: 'Hide message timestamps' },
+                {
+                  value: 'on',
+                  label: ttui('tui.settings.pane.appearance.toggle.on'),
+                  description: ttui('tui.settings.pane.appearance.timestamps.onDesc'),
+                },
+                {
+                  value: 'off',
+                  label: ttui('tui.settings.pane.appearance.toggle.off'),
+                  description: ttui('tui.settings.pane.appearance.timestamps.offDesc'),
+                },
               ],
             });
             return;
@@ -233,8 +223,16 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
               key: 'neat',
               current: appearance.neat ? 'on' : 'off',
               choices: [
-                { value: 'on', label: 'on', description: 'Structured cards for tool results' },
-                { value: 'off', label: 'off', description: 'Raw tool output' },
+                {
+                  value: 'on',
+                  label: ttui('tui.settings.pane.appearance.toggle.on'),
+                  description: ttui('tui.settings.pane.appearance.neat.onDesc'),
+                },
+                {
+                  value: 'off',
+                  label: ttui('tui.settings.pane.appearance.toggle.off'),
+                  description: ttui('tui.settings.pane.appearance.neat.offDesc'),
+                },
               ],
             });
             return;
@@ -244,8 +242,8 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
               key: 'canvas-background',
               current: appearance.canvasBackground ? 'on' : 'off',
               choices: [
-                { value: 'on', label: 'on' },
-                { value: 'off', label: 'off' },
+                { value: 'on', label: ttui('tui.settings.pane.appearance.toggle.on') },
+                { value: 'off', label: ttui('tui.settings.pane.appearance.toggle.off') },
               ],
             });
             return;
@@ -255,11 +253,15 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
               key: 'terminal-background',
               current: appearance.terminalBackground,
               choices: [
-                { value: 'off', label: 'off', description: 'Leave host terminal background alone' },
+                {
+                  value: 'off',
+                  label: ttui('tui.settings.pane.appearance.toggle.off'),
+                  description: ttui('tui.settings.pane.appearance.terminalBg.offDesc'),
+                },
                 {
                   value: 'session',
-                  label: 'session',
-                  description: 'Apply theme background for this session',
+                  label: ttui('tui.settings.pane.appearance.terminalBg.session'),
+                  description: ttui('tui.settings.pane.appearance.terminalBg.sessionDesc'),
                 },
               ],
             });
@@ -270,8 +272,8 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
               key: 'terminal-palette',
               current: appearance.terminalPalette ? 'on' : 'off',
               choices: [
-                { value: 'on', label: 'on' },
-                { value: 'off', label: 'off' },
+                { value: 'on', label: ttui('tui.settings.pane.appearance.toggle.on') },
+                { value: 'off', label: ttui('tui.settings.pane.appearance.toggle.off') },
               ],
             });
             return;
@@ -289,57 +291,33 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
 
 /** Public entry for Settings → Appearance → Syntax theme. */
 export function showSyntaxThemePicker(host: SlashCommandHost): void {
-  const current = currentAppearance(host).syntaxTheme;
-  mountPickerDialog(
-    host,
-    new ChoicePickerComponent({
-      title: ttui('tui.settings.pane.appearance.syntaxTheme'),
-      hint: '↑↓ · Enter · Esc · coding colors only',
-      searchable: true,
-      layout: 'grid',
-      currentValue: current,
-      options: SYNTAX_THEME_CATALOG.map((entry) => ({
-        value: entry.id,
-        label: entry.label,
-        description: entry.description,
-      })),
-      onSelect: (value) => {
-        dismissPickerDialog(host);
-        void handleAppearanceCommand(host, `syntax-theme ${value}`);
-      },
-      onCancel: () => {
-        dismissPickerDialog(host);
-      },
-    }),
-    { label: ttui('tui.settings.pane.appearance.syntaxTheme') },
-  );
+  showAppearanceEnumPicker(host, {
+    title: ttui('tui.settings.pane.appearance.syntaxTheme'),
+    key: 'syntax-theme',
+    current: currentAppearance(host).syntaxTheme,
+    hintExtra: ttui('tui.settings.pane.appearance.hint.syntax'),
+    layout: 'grid',
+    choices: SYNTAX_THEME_CATALOG.map((entry) => ({
+      value: entry.id,
+      label: entry.label,
+      description: entry.description,
+    })),
+  });
 }
 
 /** Public entry for /transcript with no args and Settings → Appearance. */
 export function showTranscriptDetailPicker(host: SlashCommandHost): void {
-  const current = currentAppearance(host).transcriptDetail;
-  mountPickerDialog(
-    host,
-    new ChoicePickerComponent({
-      title: ttui('tui.settings.pane.appearance.transcriptDetail'),
-      hint: '↑↓ · Enter · Esc · live tool-card density',
-      searchable: true,
-      currentValue: current,
-      options: TRANSCRIPT_DETAIL_LEVELS.map((level) => ({
-        value: level,
-        label: level,
-        description: TRANSCRIPT_LEVEL_HINTS[level],
-      })),
-      onSelect: (value) => {
-        dismissPickerDialog(host);
-        void handleAppearanceCommand(host, `transcript-detail ${value}`);
-      },
-      onCancel: () => {
-        dismissPickerDialog(host);
-      },
-    }),
-    { label: ttui('tui.settings.pane.appearance.transcriptDetail') },
-  );
+  showAppearanceEnumPicker(host, {
+    title: ttui('tui.settings.pane.appearance.transcriptDetail'),
+    key: 'transcript-detail',
+    current: currentAppearance(host).transcriptDetail,
+    hintExtra: ttui('tui.settings.pane.appearance.hint.transcript'),
+    choices: TRANSCRIPT_DETAIL_LEVELS.map((level) => ({
+      value: level,
+      label: level,
+      description: ttui(`tui.settings.pane.appearance.transcript.${level}`),
+    })),
+  });
 }
 
 function showAppearanceEnumPicker(
@@ -349,21 +327,40 @@ function showAppearanceEnumPicker(
     readonly key: string;
     readonly current: string;
     readonly choices: readonly ChoiceOption[];
+    readonly hintExtra?: string;
+    readonly layout?: 'list' | 'grid';
   },
 ): void {
+  const committed = currentAppearance(host);
+  let previewStartedAt = appearanceAnimationNow();
+  let highlighted = opts.current;
+  const live = canLivePreviewAppearanceKey(opts.key);
+
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
       title: opts.title,
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
+      layout: opts.layout,
       currentValue: opts.current,
+      hintExtra: opts.hintExtra,
       options: opts.choices.map((choice) => ({ ...choice })),
+      onHighlight: live
+        ? (value) => {
+            if (value === highlighted) return;
+            highlighted = value;
+            previewStartedAt = appearanceAnimationNow();
+            previewAppearanceChange(host, committed, opts.key, value);
+          }
+        : undefined,
+      renderPreview: (option, width) =>
+        renderAppearanceValuePreview(opts.key, option.value, width, previewStartedAt, committed),
       onSelect: (value) => {
         dismissPickerDialog(host);
-        void handleAppearanceCommand(host, `${opts.key} ${value}`);
+        void commitAppearanceChange(host, committed, opts.key, value);
       },
       onCancel: () => {
+        restoreAppearancePreview(host, committed, opts.key);
         dismissPickerDialog(host);
       },
     }),
