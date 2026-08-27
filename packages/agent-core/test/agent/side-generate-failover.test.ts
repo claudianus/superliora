@@ -1,4 +1,4 @@
-import { APIStatusError, type ChatProvider } from '@superliora/kosong';
+import { APIStatusError, APITimeoutError, type ChatProvider } from '@superliora/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -94,6 +94,30 @@ describe('runSideGenerateWithSharedFailover', () => {
       ],
     });
     expect(result).toBe('secondary-ok');
+  });
+
+  it('fails over a custom OpenAI-compatible abort to the next credential', async () => {
+    const route = routeOf('oauth:0', 'oauth:1');
+    const state = new InMemoryProviderRouteState();
+    const calls: string[] = [];
+
+    const result = await runSideGenerateWithSharedFailover({
+      route,
+      routeState: state,
+      attempts: route.candidates.map((c) => ({
+        candidate: c,
+        run: async () => {
+          calls.push(c.credentialLabel ?? '');
+          if (c.credentialLabel === 'oauth:0') {
+            throw new APITimeoutError('Request was aborted.');
+          }
+          return { ok: true, credential: c.credentialLabel };
+        },
+      })),
+    });
+
+    expect(calls).toEqual(['oauth:0', 'oauth:1']);
+    expect(result).toEqual({ ok: true, credential: 'oauth:1' });
   });
 
   it('rethrows non-failover errors without trying the next candidate', async () => {

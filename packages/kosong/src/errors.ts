@@ -216,6 +216,9 @@ export function isRetryableGenerateError(error: unknown): boolean {
   if (isPermanentQuotaOrBillingError(error)) return false;
   // A stalled stream is not a dropped handshake. Fail the step once.
   if (isStreamIdleTimeoutError(error)) return false;
+  // Custom OpenAI-compatible gateways abort hung streams as APIUserAbortError
+  // / "Request was aborted." — retry and hop, unlike a user Esc.
+  if (isAbortTimeoutError(error)) return true;
   if (error instanceof APIConnectionError || error instanceof APITimeoutError) {
     return true;
   }
@@ -253,15 +256,21 @@ export function isRetryableGenerateError(error: unknown): boolean {
 // Anthropic and OpenAI providers so a raw, non-SDK transport error classifies
 // the same way regardless of which provider was streaming.
 const NETWORK_RE = /network|connection|connect|disconnect|terminated/i;
-const TIMEOUT_RE = /timed?\s*out|timeout|deadline|(?:the|this)\s+operation\s+was\s+aborted/i;
-const ABORT_ERROR_NAMES = new Set(['AbortError', 'TimeoutError', 'DOMException']);
+const TIMEOUT_RE =
+  /timed?\s*out|timeout|deadline|(?:the|this)\s+operation\s+was\s+aborted|request was aborted/i;
+const ABORT_ERROR_NAMES = new Set(['AbortError', 'TimeoutError', 'DOMException', 'APIUserAbortError']);
 
 function isUserCancelledAbort(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const record = error as { userCancelled?: unknown; message?: unknown };
   if (record.userCancelled === true) return true;
   const message = typeof record.message === 'string' ? record.message.toLowerCase() : '';
-  return message.includes('aborted by the user') || message.includes('user cancelled');
+  return (
+    message.includes('aborted by the user') ||
+    message.includes('aborted by user') ||
+    message.includes('user cancelled') ||
+    message.includes('user canceled')
+  );
 }
 
 /**
@@ -275,7 +284,7 @@ export function isAbortTimeoutError(error: unknown): boolean {
   const name = typeof record.name === 'string' ? record.name : '';
   const message = typeof record.message === 'string' ? record.message : '';
   if (ABORT_ERROR_NAMES.has(name) && TIMEOUT_RE.test(message)) return true;
-  if (name === 'TimeoutError') return true;
+  if (name === 'TimeoutError' || name === 'APIUserAbortError') return true;
   if (name === 'AbortError' && /aborted/i.test(message)) return true;
   return TIMEOUT_RE.test(message);
 }

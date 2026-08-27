@@ -54,6 +54,28 @@ describe('scripts/install/host-setup', () => {
     expect(linux.items.some((item: { id: string }) => item.id === 'desktop-shortcut')).toBe(true);
   });
 
+  it('marks a stale Linux Terminal=true desktop shortcut as needed', () => {
+    const dest = '/home/dev/Desktop/SuperLiora.desktop';
+    const stale = [
+      '[Desktop Entry]',
+      'Type=Application',
+      'Name=SuperLiora',
+      'Exec=/home/dev/.local/bin/liora',
+      'Terminal=true',
+      '',
+    ].join('\n');
+    const plan = planHostSetup({
+      platform: 'linux',
+      env: { HOME: '/home/dev' },
+      isFile: (p: string) => p === dest,
+      which: () => undefined,
+      readText: (p: string) => (p === dest ? stale : ''),
+    });
+    const row = plan.items.find((item: { id: string }) => item.id === 'desktop-shortcut');
+    expect(row?.status).toBe('needed');
+    expect(plan.needsApply).toBe(true);
+  });
+
   it('omits Windows Terminal when skipTerminal is set, but keeps font and shell', () => {
     const plan = planHostSetup({
       platform: 'win32',
@@ -97,8 +119,11 @@ describe('scripts/install/host-setup', () => {
       readText: () => '',
     });
     expect(result.desktopShortcutWritten).toBe(true);
-    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain('Terminal=true');
-    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain('Exec=/home/dev/.local/bin/liora');
+    expect(files.get('/home/dev/.local/bin/superliora-term')).toContain('xdg-terminal-exec');
+    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain('Terminal=false');
+    expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain(
+      'Exec=/home/dev/.local/bin/superliora-term',
+    );
     expect(files.get('/home/dev/Desktop/SuperLiora.desktop')).toContain(
       'Icon=/home/dev/.local/bin/superliora.png',
     );
