@@ -234,9 +234,12 @@ describe('isRetryableGenerateError', () => {
     expect(isRetryableGenerateError(open)).toBe(true);
   });
 
-  it.each([429, 500, 502, 503, 504])('treats HTTP %i as retryable', (statusCode) => {
-    expect(isRetryableGenerateError(new APIStatusError(statusCode, 'retryable'))).toBe(true);
-  });
+  it.each([429, 500, 502, 503, 504, 508, 520, 524, 529])(
+    'treats HTTP %i as retryable',
+    (statusCode) => {
+      expect(isRetryableGenerateError(new APIStatusError(statusCode, 'retryable'))).toBe(true);
+    },
+  );
 
   it.each([400, 401, 403, 404, 422])('treats HTTP %i as non-retryable', (statusCode) => {
     expect(isRetryableGenerateError(new APIStatusError(statusCode, 'non-retryable'))).toBe(false);
@@ -278,6 +281,27 @@ describe('isRetryableGenerateError', () => {
     expect(isRetryableGenerateError(new APIStatusError(400, 'non-retryable'))).toBe(false);
   });
 
+  it('retries a custom OpenAI-compatible stream abort (not a user Esc)', () => {
+    const aborted = new APITimeoutError('Request was aborted.');
+    expect(isRetryableGenerateError(aborted)).toBe(true);
+    expect(
+      isRetryableGenerateError(
+        Object.assign(new Error('Request was aborted.'), { name: 'APIUserAbortError' }),
+      ),
+    ).toBe(true);
+  });
+
+  it('does not retry a user-cancel abort', () => {
+    expect(
+      isRetryableGenerateError(
+        Object.assign(new Error('Aborted by the user'), {
+          name: 'AbortError',
+          userCancelled: true,
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it('retries provider-declared temporary 4xx failures', () => {
     expect(
       isRetryableGenerateError(
@@ -290,6 +314,13 @@ describe('isRetryableGenerateError', () => {
     expect(
       isRetryableGenerateError(new APIStatusError(503, 'service temporarily unavailable')),
     ).toBe(true);
+  });
+
+  it('retries Cloudflare 52x and Anthropic 529 even without try-again copy', () => {
+    expect(isRetryableGenerateError(new APIStatusError(524, 'error code: 524'))).toBe(true);
+    expect(isRetryableGenerateError(new APIStatusError(529, 'error'))).toBe(true);
+    expect(isTransientTryAgainError(new APIStatusError(524, 'error code: 524'))).toBe(true);
+    expect(isTransientTryAgainError(new APIStatusError(529, 'error'))).toBe(true);
   });
 });
 
@@ -307,6 +338,8 @@ describe('isTransientTryAgainError', () => {
     expect(
       isTransientTryAgainError(new ChatProviderError('This region is not available for your team')),
     ).toBe(true);
+    expect(isTransientTryAgainError(new APIStatusError(529, 'error'))).toBe(true);
+    expect(isTransientTryAgainError(new APIStatusError(524, 'A timeout occurred'))).toBe(true);
   });
 
   it('vetoes permanent auth/quota lookalikes and non-errors', () => {

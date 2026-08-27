@@ -132,6 +132,7 @@ describe('events — volatile classification', () => {
       'thinking.delta',
       'tool.call.delta',
       'tool.progress',
+      'subagent.tool_progress',
       'shell.output',
       'shell.started',
       'agent.status.updated',
@@ -143,7 +144,7 @@ describe('events — volatile classification', () => {
       expect(isVolatileEventType(type)).toBe(true);
     }
     // Length parity with the list above catches drift in both directions.
-    expect(VOLATILE_EVENT_TYPES).toHaveLength(11);
+    expect(VOLATILE_EVENT_TYPES).toHaveLength(12);
   });
 
   it('keeps timeline-bearing events durable', () => {

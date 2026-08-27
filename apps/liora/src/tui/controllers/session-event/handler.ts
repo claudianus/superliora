@@ -313,6 +313,8 @@ export class SessionEventHandler {
         this.host.controlTowerDesk.handleSubagentToolCall(event); break;
       case 'subagent.tool_result':
         this.host.controlTowerDesk.handleSubagentToolResult(event); break;
+      case 'subagent.tool_progress':
+        this.host.controlTowerDesk.handleSubagentToolProgress(event); break;
       case 'tools.update_store':
         this.tools.handleToolsUpdateStore(event); break;
       case 'background.task.started':

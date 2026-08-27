@@ -97,6 +97,40 @@ export function previewSubagentToolResult(output: unknown): string | undefined {
   );
 }
 
+const SUBAGENT_TOOL_PROGRESS_KINDS = ['stdout', 'stderr', 'progress', 'status'] as const;
+type SubagentToolProgressKind = (typeof SUBAGENT_TOOL_PROGRESS_KINDS)[number];
+
+function isSubagentToolProgressKind(kind: string): kind is SubagentToolProgressKind {
+  return (SUBAGENT_TOOL_PROGRESS_KINDS as readonly string[]).includes(kind);
+}
+
+/**
+ * Bound a child `tool.progress` chunk for the parent-side
+ * `subagent.tool_progress` event. `custom` updates are dropped so opaque
+ * payloads never hit the wire. Empty text yields `undefined` (no event).
+ * stdout/stderr/progress keep internal newlines so clients can paint
+ * logs incrementally; status titles are flattened like args previews.
+ */
+export function previewSubagentToolProgress(update: {
+  readonly kind: string;
+  readonly text?: string | undefined;
+}): { readonly kind: SubagentToolProgressKind; readonly textPreview: string } | undefined {
+  if (!isSubagentToolProgressKind(update.kind)) return undefined;
+  if (update.kind === 'status') {
+    const textPreview = truncateToolPayloadPreview(
+      stringifyToolPayloadPreview(update.text),
+      SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH,
+    );
+    if (textPreview === undefined) return undefined;
+    return { kind: update.kind, textPreview };
+  }
+  if (typeof update.text !== 'string') return undefined;
+  if (update.text.trim().length === 0) return undefined;
+  const textPreview = truncateToolPayloadPreview(update.text, SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH);
+  if (textPreview === undefined) return undefined;
+  return { kind: update.kind, textPreview };
+}
+
 /**
  * Structured chip detail for the common child tools (Phase 1-B realtime
  * overhaul). Computed from the FULL child args before preview truncation so

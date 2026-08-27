@@ -8,7 +8,7 @@
 
 - **Conductor** — 끝난 모습을 적으면 격리 git worktree Job이 실행합니다
 - **Job Deck · Inbox** — `Alt+J`로 진행을 보고, `Alt+I`에서 질문에 답한 뒤, 통과분만 로컬에 Land
-- **Smart Auto** — 모델 폴백과 로그인 풀로 계정·모델이 흔들려도 턴이 이어집니다
+- **Smart Auto** — 모델 폴백, 로그인 풀, Never-Halt 재시도(HTTP 5xx, 504만이 아님)로 계정·모델이 흔들려도 턴이 이어집니다
 - **Command Hub** — `Ctrl+K`(macOS는 Cmd, 또는 `Ctrl+Space` / `?`)에서 설정, 모드, 세션, 업그레이드를 찾습니다
 - **Host setup** — `/host-setup`과 모든 OS의 바탕 화면 바로가기. Windows는 여유 있는 드라이브(약 100 GB)를 고를 수 있습니다. 홈 고정은 모든 OS에서 `SUPERLIORA_HOME` 또는 `--home`
 - **언어** — 한국어 / English. `SUPERLIORA_LOCALE=ko|en`, Settings → Language, 또는 `/locale`
@@ -45,7 +45,7 @@ liora --continue      # 현재 디렉터리 최근 세션 이어하기
 liora --plan          # Plan Desk로 시작
 ```
 
-TUI에서 `/login` · `/model`로 프로바이더를 연결한 뒤, `/quota`(또는 Command Hub → Quota)로 실시간 남은 크레딧을 봅니다(푸터 칩은 활성 프로바이더). 터미널이 얇으면 `/host-setup`을 쓴 뒤 원하는 결과를 적으세요. Conductor가 Job을 만듭니다. `/jobs` 또는 `Alt+J`(Job Deck)로 보고, Inbox(`Alt+I`)에서 질문에 답하세요. Command Hub는 `Ctrl+K`(macOS는 Cmd)입니다.
+TUI에서 `/login` · `/model`로 프로바이더를 연결합니다. 카탈로그 로그인에는 Groq, Mistral, Together, xAI API 키, Cerebras, Perplexity, Vercel AI Gateway가 있습니다. `/quota`(또는 Command Hub → Quota)로 실시간 남은 크레딧을 봅니다(푸터 칩은 활성 프로바이더). 터미널이 얇으면 `/host-setup`을 쓴 뒤 원하는 결과를 적으세요. Conductor가 Job을 만듭니다. `/jobs` 또는 `Alt+J`(Job Deck)로 보고, Inbox(`Alt+I`)에서 질문에 답하세요. Command Hub는 `Ctrl+K`(macOS는 Cmd)입니다.
 
 ## CLI
 

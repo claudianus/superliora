@@ -24,7 +24,6 @@ export function showNetworkSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.network.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {

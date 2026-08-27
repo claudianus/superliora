@@ -40,7 +40,6 @@ export function showCompactionSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.compaction.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         settingsPresetsRow(),

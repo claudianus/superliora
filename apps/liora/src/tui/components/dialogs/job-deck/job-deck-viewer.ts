@@ -34,8 +34,10 @@ import {
   renderPulseGlyph,
   renderShimmerPrefix,
   renderToneSettleFlash,
+  shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { SearchableList } from '#/tui/utils/ui/searchable-list';
 import {
   JOB_STATUS_META,
@@ -61,6 +63,7 @@ import {
   formatNeedsUserQuestionPreview,
   resolveNeedsUserQuestionText,
 } from '#/tui/utils/job/needs-user-preview';
+import { applyStreamTailGlow } from '#/tui/features/transcript/transcript-entrance';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 
 /** Worker transcript + usage payload for the drill-down surface. */
@@ -234,7 +237,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
         this.draft = '';
         this.repaint();
       } else {
-        this.setStatus('Steer needs a running worker — pick a ▸ row.');
+        this.setStatus('Steer needs a running worker — pick a running job.');
       }
       return;
     }
@@ -318,14 +321,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     const lines: string[] = [
       border,
       ` ${title}${suffix}`,
-      theme.fg(
-        'textMuted',
-        ` ${ttui('tui.jobs.deckNavHint')}`,
-      ),
-      theme.fg(
-        'textDim',
-        ` ${ttui('tui.jobs.deckActionHint')}`,
-      ),
+      theme.fg('textMuted', ` ${ttui('tui.jobs.deckNavHint')}`),
       this.renderMissionStrip(width),
       this.renderOutcomeStrip(width),
       ...(this.snapshot.running > 0
@@ -339,7 +335,10 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       lines.push(...this.renderOutcomeSections(width));
     }
     if (view.query.length > 0) {
-      lines.push(theme.fg('text', ` Search: ${view.query}`));
+      lines.push(
+        theme.fg('primary', ` ${ttui('tui.common.searchLabel').trimEnd()} `) +
+          theme.fg('text', view.query),
+      );
     }
     if (view.items.length === 0) {
       if (this.snapshot.jobs.length === 0) {
@@ -362,6 +361,8 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     for (const [index, card] of pageItems.entries()) {
       const selected = view.page.start + index === view.selectedIndex;
       lines.push(this.renderJobRow(card, selected, width, now));
+      const progressTail = this.renderJobToolProgressTail(card, selected, width);
+      if (progressTail !== undefined) lines.push(progressTail);
       if (card.status === 'needs_user') {
         for (const preview of this.needsUserPreviewLines(card, width)) {
           lines.push(preview);
@@ -449,7 +450,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
         lines.push(
           theme.boldFg(
             token,
-            ` ▸ ${sessionOutcomeBucketLabel(row.bucket)} (${String(board[row.bucket].length)})`,
+            ` ${sessionOutcomeBucketLabel(row.bucket)} (${String(board[row.bucket].length)})`,
           ),
         );
       }
@@ -483,7 +484,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     const theme = currentTheme;
     const meta = JOB_STATUS_META[card.status];
     const pointer = selected
-      ? theme.boldFg('primary', SELECT_POINTER)
+      ? renderSelectPointer('job-deck:pointer')
       : ' '.repeat(visibleWidth(SELECT_POINTER));
     const glyph =
       card.status === 'running'
@@ -540,6 +541,43 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     const left = `${prefix}${title}`;
     const gap = Math.max(2, width - visibleWidth(left) - visibleWidth(right));
     return ` ${left}${' '.repeat(gap)}${right}`;
+  }
+
+  /**
+   * Live truncated stdout/stderr snippet under the selected or in-flight row.
+   * §3 chrome (hint / Search: / pointer) stays untouched — this is a tail
+   * under the existing job row, same indent as needs-user previews.
+   */
+  private renderJobToolProgressTail(
+    card: ConductorJobCard,
+    selected: boolean,
+    width: number,
+  ): string | undefined {
+    if (!selected && card.status !== 'running') return undefined;
+    const activity = card.liveActivity;
+    if (activity === undefined || activity.status !== 'running') return undefined;
+    const preview = activity.preview;
+    if (preview === undefined || preview.length === 0) return undefined;
+    const theme = currentTheme;
+    const pad = ' '.repeat(visibleWidth(SELECT_POINTER) + 3);
+    const token = activity.previewKind === 'stderr' ? 'error' : 'textMuted';
+    const bodyBudget = Math.max(8, width - visibleWidth(pad) - 1);
+    const clipped = truncateToWidth(preview, bodyBudget, '…');
+    let body = theme.fg(token, clipped);
+    const appearance = getActiveAppearancePreferences();
+    if (
+      shouldRenderAmbientEffects(appearance) &&
+      activity.previewKind !== 'status'
+    ) {
+      const glowed = applyStreamTailGlow(
+        [body],
+        activity.previewKind === 'stderr' ? 'tool' : 'assistant',
+        appearance,
+        { active: true, nowMs: appearanceAnimationNow() },
+      );
+      body = glowed[0] ?? body;
+    }
+    return truncateToWidth(`${pad}${body}`, Math.max(1, width), '…');
   }
 
   private needsUserPreviewLines(card: ConductorJobCard, width: number): readonly string[] {
@@ -804,6 +842,11 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       const activity = state.card.liveActivity;
       const target = activity.target === undefined ? '' : ` ${activity.target}`;
       parts.push(theme.fg('primary', `${activity.name}${target}`));
+      if (activity.preview !== undefined && activity.preview.length > 0 && activity.status === 'running') {
+        parts.push(
+          theme.fg(activity.previewKind === 'stderr' ? 'error' : 'textMuted', activity.preview),
+        );
+      }
     }
     if (state.card.liveTokens !== undefined) {
       parts.push(theme.fg('textMuted', `~${formatTokenCount(state.card.liveTokens)} live tok`));
@@ -870,7 +913,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     snapshot: ConductorJobsSnapshot,
     focusJobId: string | undefined,
   ): SearchableList<ConductorJobCard> {
-    const cards = [...snapshot.jobs].sort(
+    const cards = [...snapshot.jobs].toSorted(
       (a, b) =>
         DECK_STATUS_RANK[a.status] - DECK_STATUS_RANK[b.status] ||
         b.priority - a.priority ||
@@ -912,7 +955,7 @@ export function progressSignalForCard(card: ConductorJobCard): string {
   const act =
     activity === undefined
       ? ''
-      : `${activity.toolCallId}|${activity.name}|${activity.status}|${activity.atMs}`;
+      : `${activity.toolCallId}|${activity.name}|${activity.status}|${activity.atMs}|${activity.preview ?? ''}|${activity.previewKind ?? ''}`;
   return `${card.status}|${phase}|${tools}|${act}|${String(card.liveTokens ?? 0)}|${card.effectPreview?.chip ?? ''}`;
 }
 

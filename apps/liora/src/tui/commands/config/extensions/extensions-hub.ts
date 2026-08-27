@@ -16,7 +16,7 @@ export function showExtensionsHub(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.extensions.modal.title'),
-      hint: ttui('tui.extensions.hub.hint'),
+      hintExtra: ttui('tui.extensions.hub.hint'),
       searchable: true,
       options: [
         {

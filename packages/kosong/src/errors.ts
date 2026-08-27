@@ -216,6 +216,9 @@ export function isRetryableGenerateError(error: unknown): boolean {
   if (isPermanentQuotaOrBillingError(error)) return false;
   // A stalled stream is not a dropped handshake. Fail the step once.
   if (isStreamIdleTimeoutError(error)) return false;
+  // Custom OpenAI-compatible gateways abort hung streams as APIUserAbortError
+  // / "Request was aborted." — retry and hop, unlike a user Esc.
+  if (isAbortTimeoutError(error)) return true;
   if (error instanceof APIConnectionError || error instanceof APITimeoutError) {
     return true;
   }
@@ -233,11 +236,17 @@ export function isRetryableGenerateError(error: unknown): boolean {
   }
   // Provider-declared "temporary / try again" signals on other 4xx (e.g. a
   // 400 resource_exhausted) are transient too — permanent lookalikes were
-  // vetoed above.
+  // vetoed above. This also covers HTTP 5xx outside 500/502/503/504
+  // (Anthropic 529, Cloudflare 52x in front of custom OpenAI-compatible
+  // endpoints) so the generate loop and route failover both hop instead of
+  // halting the operator turn.
   if (isTransientTryAgainError(error)) {
     return true;
   }
-  return error instanceof APIStatusError && [429, 500, 502, 503, 504].includes(error.statusCode);
+  return (
+    error instanceof APIStatusError &&
+    (error.statusCode === 429 || isTransientServerStatusError(error))
+  );
 }
 
 // `terminated` is the undici signature for an SSE/HTTP body stream that is
@@ -247,15 +256,21 @@ export function isRetryableGenerateError(error: unknown): boolean {
 // Anthropic and OpenAI providers so a raw, non-SDK transport error classifies
 // the same way regardless of which provider was streaming.
 const NETWORK_RE = /network|connection|connect|disconnect|terminated/i;
-const TIMEOUT_RE = /timed?\s*out|timeout|deadline|(?:the|this)\s+operation\s+was\s+aborted/i;
-const ABORT_ERROR_NAMES = new Set(['AbortError', 'TimeoutError', 'DOMException']);
+const TIMEOUT_RE =
+  /timed?\s*out|timeout|deadline|(?:the|this)\s+operation\s+was\s+aborted|request was aborted/i;
+const ABORT_ERROR_NAMES = new Set(['AbortError', 'TimeoutError', 'DOMException', 'APIUserAbortError']);
 
 function isUserCancelledAbort(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const record = error as { userCancelled?: unknown; message?: unknown };
   if (record.userCancelled === true) return true;
   const message = typeof record.message === 'string' ? record.message.toLowerCase() : '';
-  return message.includes('aborted by the user') || message.includes('user cancelled');
+  return (
+    message.includes('aborted by the user') ||
+    message.includes('aborted by user') ||
+    message.includes('user cancelled') ||
+    message.includes('user canceled')
+  );
 }
 
 /**
@@ -269,7 +284,7 @@ export function isAbortTimeoutError(error: unknown): boolean {
   const name = typeof record.name === 'string' ? record.name : '';
   const message = typeof record.message === 'string' ? record.message : '';
   if (ABORT_ERROR_NAMES.has(name) && TIMEOUT_RE.test(message)) return true;
-  if (name === 'TimeoutError') return true;
+  if (name === 'TimeoutError' || name === 'APIUserAbortError') return true;
   if (name === 'AbortError' && /aborted/i.test(message)) return true;
   return TIMEOUT_RE.test(message);
 }
@@ -362,8 +377,19 @@ export function isProviderCapacityError(error: unknown): boolean {
 }
 
 /**
- * Provider-declared transient signals: the provider/gateway explicitly says
- * the failure is temporary and asks for a retry, but on a non-5xx status —
+ * HTTP 5xx from the provider or an upstream gateway. Includes Anthropic 529
+ * (overloaded) and Cloudflare 520–527 in front of custom OpenAI-compatible
+ * endpoints, not only the classic 500/502/503/504 set. Hosts that fail over
+ * on {@link isTransientTryAgainError} pick these up without a second status
+ * whitelist.
+ */
+function isTransientServerStatusError(error: unknown): boolean {
+  return error instanceof APIStatusError && error.statusCode >= 500 && error.statusCode <= 599;
+}
+
+/**
+ * Transient signals that should retry / fail over: HTTP 5xx, plus
+ * provider-declared "temporary / try again" copy on a non-5xx status —
  * e.g. a 400 with `resource_exhausted ... "temporary - try again in a
  * moment"`. Permanent auth/quota are vetoed inside so lookalikes ("account
  * temporarily suspended", "insufficient quota, try again") stay non-retryable.
@@ -389,6 +415,7 @@ export function isTransientTryAgainError(error: unknown): boolean {
   if (CONTEXT_OVERFLOW_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage))) {
     return false;
   }
+  if (isTransientServerStatusError(error)) return true;
   return PROVIDER_TRY_AGAIN_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage));
 }
 

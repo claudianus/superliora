@@ -37,7 +37,6 @@ export function showExperimentsSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.experiments.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {

@@ -72,3 +72,18 @@ export function describeSubagentToolFeedBody(
   if (chip !== undefined && chip.length > 0) parts.push(chip);
   return parts.join(' ');
 }
+
+/**
+ * Last non-empty line of a `subagent.tool_progress` `textPreview`.
+ * stdout/stderr/progress keep internal newlines at the emitter; paint
+ * surfaces show the rolling tail, not the whole 500-char chunk.
+ */
+export function lastNonEmptyLine(text: string): string {
+  const normalized = text.replaceAll(/\r\n/gu, '\n').replaceAll(/\r/gu, '\n');
+  const lines = normalized.split('\n');
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i]!.trim();
+    if (line.length > 0) return line;
+  }
+  return '';
+}

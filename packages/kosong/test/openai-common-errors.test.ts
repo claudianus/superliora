@@ -174,6 +174,15 @@ describe('convertOpenAIError: subclass errors fall through', () => {
     expect(convertOpenAIError(timeoutNamed)).toBeInstanceOf(APITimeoutError);
   });
 
+  it('classifies a custom OpenAI-compatible APIUserAbortError as a retryable timeout', () => {
+    // Custom OpenAI-compatible gateways abort hung SSE streams as
+    // APIUserAbortError("Request was aborted.") — not a user Esc.
+    const err = new OpenAIUserAbortError({ message: 'Request was aborted.' });
+    const result = convertOpenAIError(err);
+    expect(result).toBeInstanceOf(APITimeoutError);
+    expect(isRetryableGenerateError(result)).toBe(true);
+  });
+
   it('does not treat a user-cancel abort as a transport timeout', () => {
     const cancelled = Object.assign(new Error('Aborted by the user'), {
       name: 'AbortError',
@@ -270,6 +279,32 @@ describe('OpenAI streaming: undici terminated mid-stream', () => {
     }
 
     expect(caught).toBeInstanceOf(APIConnectionError);
+    expect(isRetryableGenerateError(caught)).toBe(true);
+  });
+});
+describe('OpenAI streaming: custom OpenAI-compatible abort', () => {
+  it('a stream that throws APIUserAbortError rejects with a retryable APITimeoutError', async () => {
+    async function* abortedStream(): AsyncGenerator<never> {
+      throw new OpenAIUserAbortError({ message: 'Request was aborted.' });
+      yield undefined as never;
+    }
+
+    const msg = new OpenAILegacyStreamedMessage(
+      abortedStream() as AsyncIterable<never>,
+      true,
+      undefined,
+    );
+
+    let caught: unknown;
+    try {
+      for await (const _ of msg) {
+        void _;
+      }
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(APITimeoutError);
     expect(isRetryableGenerateError(caught)).toBe(true);
   });
 });

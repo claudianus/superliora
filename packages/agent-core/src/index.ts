@@ -81,15 +81,19 @@ export {
 export { VisualDiffTool, createVisualDiffTool } from './tools/visual-diff-tool';
 export { createLioraReviewTool } from './tools/builtin/review/code-review';
 export {
+  inventoryDiffFile,
+  inventoryDiffFiles,
   scanAddedLine,
   scanDiffFile,
   scanDiffFiles,
+  type ReviewFileInventory,
   type ReviewHeuristicComment,
   type ReviewHeuristicFile,
   type ReviewHeuristicHunk,
   type ReviewHeuristicLine,
   type ReviewSeverity,
 } from './tools/builtin/review/review-heuristics';
+
 export {
   DEFAULT_MAX_PER_DIVISION,
   applyStaffingDiversity,

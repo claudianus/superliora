@@ -11,7 +11,11 @@
 import type { MarkdownTheme } from '#/tui/renderer';
 import chalk from 'chalk';
 
-import { highlightLines } from '#/tui/components/media/code-highlight';
+import {
+  HIGHLIGHT_WINDOW_SOFT_CAP,
+  highlightLines,
+  highlightLinesWindow,
+} from '#/tui/components/media/code-highlight';
 import { normalizeLangId } from '#/tui/components/media/lang-aliases';
 import {
   detectTranscriptOutputKind,
@@ -56,7 +60,7 @@ function resolveMarkdownCodeLang(code: string, lang?: string): string | undefine
 }
 
 export function createMarkdownTheme(options?: { transient?: boolean }): MarkdownTheme {
-  const transient = options?.transient === true;
+  const streaming = options?.transient === true;
   const stripHash = (text: string): string => text.replace(HEADING_HASH_PREFIX, '$1');
 
   return {
@@ -77,11 +81,33 @@ export function createMarkdownTheme(options?: { transient?: boolean }): Markdown
     italic: (text) => chalk.hex(currentTheme.color('text')).italic(text),
     strikethrough: (text) => chalk.hex(currentTheme.color('textMuted')).strikethrough(text),
     underline: (text) => chalk.hex(currentTheme.color('primary')).underline(text),
-    highlightCode: (code: string, lang?: string) => {
-      if (transient) return code.split('\n');
-      // Shared Shiki → cli-highlight pipeline (same as Write/Edit previews).
-      return highlightLines(code, resolveMarkdownCodeLang(code, lang));
-    },
+    highlightCode: (code: string, lang?: string) =>
+      highlightMarkdownFence(code, lang, streaming),
   };
+}
+
+/**
+ * Live assistant fences use the same Shiki → cli-highlight pipeline as
+ * Write/Edit previews. Cheap-paint / `NO_COLOR` / unknown langs already fall
+ * back to plain inside `highlightLines`. Oversized in-progress dumps window
+ * the growing tail so a multi-k stream cannot retokenize the whole blob every
+ * delta; settle (non-streaming) still highlights the full fence.
+ */
+function highlightMarkdownFence(
+  code: string,
+  lang?: string,
+  streaming = false,
+): string[] {
+  const resolved = resolveMarkdownCodeLang(code, lang);
+  if (streaming) {
+    const lineCount = code.split('\n').length;
+    if (lineCount > HIGHLIGHT_WINDOW_SOFT_CAP) {
+      return highlightLinesWindow(code, resolved, {
+        startLine: Math.max(0, lineCount - HIGHLIGHT_WINDOW_SOFT_CAP),
+        endLine: lineCount,
+      });
+    }
+  }
+  return highlightLines(code, resolved);
 }
 

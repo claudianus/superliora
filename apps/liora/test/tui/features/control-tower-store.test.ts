@@ -308,6 +308,63 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
     setExperimentalFeatures([]);
   });
 
+  it('publishes live tool_progress stdout onto the owning job without waiting for tool_result', () => {
+    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: false }]);
+    const host = fakeDeskHost();
+    const store = new JobBoardStore();
+    const desk = new ControlTowerJobDesk(host, store);
+    const base = jobUpdated('job_worker', 'running');
+    desk.handleUpdated({
+      ...base,
+      job: { ...base.job, workerAgentId: 'agent_worker' },
+    });
+
+    desk.handleSubagentToolCall({
+      type: 'subagent.tool_call',
+      subagentId: 'agent_worker',
+      toolCallId: 'call_1',
+      name: 'Bash',
+      detail: { kind: 'bash', command: 'pnpm test' },
+    });
+    desk.handleSubagentToolProgress({
+      type: 'subagent.tool_progress',
+      subagentId: 'agent_worker',
+      toolCallId: 'call_1',
+      name: 'Bash',
+      kind: 'stdout',
+      textPreview: 'ok\n12 passing',
+    });
+
+    let card = store.snapshot().jobs.find((entry) => entry.id === 'job_worker');
+    expect(card?.liveActivity).toMatchObject({
+      toolCallId: 'call_1',
+      name: 'Bash',
+      status: 'running',
+      preview: '12 passing',
+      previewKind: 'stdout',
+    });
+
+    desk.handleSubagentToolProgress({
+      type: 'subagent.tool_progress',
+      subagentId: 'agent_worker',
+      toolCallId: 'call_1',
+      kind: 'stdout',
+    });
+    card = store.snapshot().jobs.find((entry) => entry.id === 'job_worker');
+    expect(card?.liveActivity?.preview).toBe('12 passing');
+
+    desk.handleSubagentToolResult({
+      type: 'subagent.tool_result',
+      subagentId: 'agent_worker',
+      toolCallId: 'call_1',
+      name: 'Bash',
+    });
+    card = store.snapshot().jobs.find((entry) => entry.id === 'job_worker');
+    expect(card?.liveActivity?.status).toBe('ok');
+    expect(card?.liveActivity?.preview).toBeUndefined();
+    setExperimentalFeatures([]);
+  });
+
   it('shows the board hint once while a job runs and the board is closed', () => {
     setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
     const host = fakeDeskHost();

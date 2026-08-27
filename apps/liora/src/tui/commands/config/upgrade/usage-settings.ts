@@ -26,7 +26,6 @@ export function showUsageSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.usage.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {

@@ -1,11 +1,7 @@
 /**
- * Structured diff code-review tool. Absorbed from alibaba/open-code-review.
- *
- * Parses a git diff, then spawns a reviewer subagent per changed file to
- * collect context and emit findings. Comment line positions are resolved
- * deterministically via snippet matching (the model's line numbers are
- * never trusted). A falsify-only reflection pass removes only comments the
- * diff can directly contradict.
+ * Structured diff inventory tool. Parses a git diff into file paths and
+ * added/removed line counts. Does not judge quality — Conductor/worker LLM
+ * inspects exceptions. Mechanical type/lint/protocol stay on their own tools.
  */
 
 import { z } from 'zod';
@@ -16,11 +12,7 @@ import type { Agent } from '../../../agent/index';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { ToolAccesses, type ToolExecution } from '../../../loop';
 import { parseDiff, type DiffFile } from './diff-parser';
-import {
-  scanDiffFile,
-  type ReviewHeuristicComment,
-  type ReviewSeverity,
-} from './review-heuristics';
+import { inventoryDiffFiles, type ReviewFileInventory } from './review-heuristics';
 
 const inputSchema = z.object({
   diff_source: z.enum(['workspace', 'commit', 'range']).describe('Where to get the diff.'),
@@ -31,15 +23,14 @@ const inputSchema = z.object({
 
 type CodeReviewInput = z.infer<typeof inputSchema>;
 
-export interface ReviewComment {
-  readonly path: string;
-  readonly line: number;
-  readonly severity: 'critical' | 'warning' | 'suggestion';
-  readonly message: string;
-}
+export const REVIEW_JUDGMENT_DEFERRED =
+  'No regex quality policy. Inspect exceptions on the Conductor/worker LLM — this tool only inventories the diff.';
+
+const REVIEW_INVENTORY_DESCRIPTION =
+  'Parse a git diff into a mechanical file inventory (paths and added/removed line counts). Does not judge quality, style, or security — Conductor/worker LLM inspects exceptions. Prefer this over regex/heuristic policy.';
 
 const LIORA_REVIEW_DESCRIPTION =
-  'Legacy/advanced alias of Review. Prefer Review for new work. Reviews a git diff for bugs, security issues, and improvements; returns structured comments with file paths and line numbers resolved from the diff (not trusted from the model).';
+  `Legacy/advanced alias of Review. Prefer Review for new work. ${REVIEW_INVENTORY_DESCRIPTION}`;
 
 export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
   readonly name: string = 'LioraReview';
@@ -48,7 +39,7 @@ export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
 
   constructor(
     private readonly kaos: Kaos,
-    private readonly agent: Agent,
+    _agent: Agent,
   ) {}
 
   resolveExecution(args: CodeReviewInput): ToolExecution {
@@ -60,7 +51,7 @@ export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
     return {
       accesses: ToolAccesses.none(),
       readOnly: true,
-      display: { kind: 'generic', summary: `Reviewing diff (${input.diff_source})` },
+      display: { kind: 'generic', summary: `Inventorying diff (${input.diff_source})` },
       approvalRule: 'LioraReview' as const,
       execute: async () => this.runReview(input),
     };
@@ -75,29 +66,8 @@ export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
     if (files.length === 0) {
       return { output: 'No files found in the diff.' };
     }
-    const comments: ReviewComment[] = [];
-    for (const file of files) {
-      const fileComments = this.reviewFile(file);
-      comments.push(...fileComments);
-    }
-    if (comments.length === 0) {
-      return { output: this.formatReport(files, [], 'No issues found. The diff looks clean.') };
-    }
-    return { output: this.formatReport(files, comments) };
-  }
-
-  /**
-   * Per-file review. In a full implementation this spawns a subagent; here we
-   * do a lightweight structural scan for obvious issues (missing error
-   * handling, TODO/FIXME, secrets, type escapes) as a baseline.
-   */
-  private reviewFile(file: DiffFile): ReviewComment[] {
-    return scanDiffFile(file).map((c: ReviewHeuristicComment) => ({
-      path: c.path,
-      line: c.line,
-      severity: mapHeuristicSeverity(c.severity),
-      message: c.message,
-    }));
+    const inventory = inventoryDiffFiles(files);
+    return { output: formatInventoryReport(files, inventory) };
   }
 
   private async getDiff(input: CodeReviewInput): Promise<string> {
@@ -117,46 +87,29 @@ export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
     await proc.wait();
     return stdout;
   }
-
-  private formatReport(
-    files: readonly DiffFile[],
-    comments: readonly ReviewComment[],
-    summary?: string,
-  ): string {
-    const lines: string[] = [];
-    lines.push(`# Code Review Report`);
-    lines.push(`Files reviewed: ${files.length}`);
-    if (summary) {
-      lines.push('');
-      lines.push(summary);
-    }
-    if (comments.length > 0) {
-      lines.push('');
-      lines.push('## Findings');
-      for (const c of comments) {
-        lines.push(`- **${c.severity.toUpperCase()}** \`${c.path}:${c.line}\` — ${c.message}`);
-      }
-    }
-    lines.push('');
-    lines.push('---');
-    lines.push('Line numbers are resolved deterministically from the diff hunks.');
-    return lines.join('\n');
-  }
 }
 
-function mapHeuristicSeverity(
-  severity: ReviewSeverity,
-): ReviewComment['severity'] {
-  if (severity === 'error') return 'critical';
-  if (severity === 'info') return 'suggestion';
-  return severity;
+function formatInventoryReport(
+  files: readonly DiffFile[],
+  inventory: readonly ReviewFileInventory[],
+): string {
+  const lines: string[] = [];
+  lines.push('# Code Review Report');
+  lines.push(`Files reviewed: ${files.length}`);
+  lines.push('');
+  lines.push('## Diff inventory');
+  for (const item of inventory) {
+    lines.push(`- \`${item.path}\` +${item.added} / -${item.removed}`);
+  }
+  lines.push('');
+  lines.push(REVIEW_JUDGMENT_DEFERRED);
+  return lines.join('\n');
 }
 
 /** Sovereign public name — same implementation as {@link CodeReviewTool}. */
 export class ReviewTool extends CodeReviewTool {
   override readonly name = 'Review' as const;
-  override readonly description =
-    'Review a git diff for bugs, security issues, and improvements. Returns structured comments with file paths and line numbers resolved from the diff (not trusted from the model).';
+  override readonly description = REVIEW_INVENTORY_DESCRIPTION;
 }
 
 /** Factory alias used by ToolManager registration. */

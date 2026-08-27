@@ -42,6 +42,7 @@ import {
   windowsTerminalLaunchArgs,
   windowsTerminalReadyForDefaultPromotion,
   windowsTerminalShortcutLaunch,
+  windowsShortcutLaunchIsCurrent,
 } from '../../../../scripts/install/ensure-terminal.mjs';
 
 describe('scripts/install/ensure-terminal', () => {
@@ -77,6 +78,10 @@ describe('scripts/install/ensure-terminal', () => {
     expect(packaged.arguments).toContain('-File "C:\\Apps\\SuperLiora\\bin\\superliora-wt.ps1"');
     expect(packaged.windowStyle).toBe(WT_SHORTCUT_WINDOW_MINIMIZED);
     expect(packaged.icon).toBeUndefined();
+    expect(windowsShortcutLaunchIsCurrent(
+      `${packaged.target}\0${packaged.arguments}\0${WT_LAUNCHER_PS1}`,
+    )).toBe(true);
+
 
     const noLauncher = windowsTerminalShortcutLaunch({
       wtPath: alias,
@@ -101,6 +106,39 @@ describe('scripts/install/ensure-terminal', () => {
     expect(unpackaged.arguments).toBe(`-w new -p ${SUPERLIORA_WT_PROFILE_NAME}`);
     expect(unpackaged.windowStyle).toBeUndefined();
     expect(unpackaged.icon).toBe('C:\\Apps\\SuperLiora\\bin\\liora.exe');
+  });
+
+  it('detects stale cmd.exe / WindowsApps shortcuts vs current conhost launch', () => {
+    expect(windowsShortcutLaunchIsCurrent(
+      'C:\\Windows\\System32\\cmd.exe\0/c start "" wt.exe',
+    )).toBe(false);
+    expect(windowsShortcutLaunchIsCurrent(
+      'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe',
+    )).toBe(false);
+    expect(windowsShortcutLaunchIsCurrent(
+      Buffer.from(
+        'C:\\Windows\\System32\\cmd.exe /c start "" wt.exe',
+        'utf16le',
+      ),
+    )).toBe(false);
+
+    const launcher = 'C:\\Apps\\SuperLiora\\bin\\superliora-wt.ps1';
+    const packaged = windowsTerminalShortcutLaunch({
+      wtPath: 'E:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe',
+      launcherPath: launcher,
+      env: { SystemRoot: 'C:\\Windows' },
+    });
+    expect(windowsShortcutLaunchIsCurrent(
+      `${packaged.target} ${packaged.arguments}`,
+    )).toBe(true);
+    expect(windowsShortcutLaunchIsCurrent(
+      Buffer.from(`${packaged.target} ${packaged.arguments}`, 'utf16le'),
+    )).toBe(true);
+    expect(windowsShortcutLaunchIsCurrent(
+      'D:\\Apps\\Windows Terminal\\wt.exe -w new nt -p SuperLiora',
+    )).toBe(true);
+    expect(windowsShortcutLaunchIsCurrent('')).toBe(false);
+    expect(windowsShortcutLaunchIsCurrent(undefined)).toBe(false);
   });
 
   it('renders a launcher that activates Windows Terminal like the Start Menu', () => {

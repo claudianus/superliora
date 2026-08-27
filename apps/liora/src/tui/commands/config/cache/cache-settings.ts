@@ -82,7 +82,6 @@ export function showCacheSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.cache.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {

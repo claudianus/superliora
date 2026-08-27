@@ -1,6 +1,10 @@
 /**
- * Pure structural scan heuristics for LioraReview baseline findings.
- * Side-effect free so ToolManager registration stays thin and unit-testable.
+ * Mechanical diff inventory for Review / LioraReview.
+ *
+ * Quality, style, and exception calls belong to the Conductor/worker LLM.
+ * This module must not emit regex or hardcoded policy findings (TODO,
+ * console.log, debugger, secrets, `any`, lint suppressions, empty catch).
+ * Compile / type / lint / protocol gates stay on their own tools.
  */
 
 export type ReviewSeverity = 'info' | 'suggestion' | 'warning' | 'error';
@@ -27,101 +31,52 @@ export interface ReviewHeuristicFile {
   readonly hunks: readonly ReviewHeuristicHunk[];
 }
 
-/** Scan a single added line for baseline issues. */
-export function scanAddedLine(
-  path: string,
-  lineNo: number,
-  text: string,
-): readonly ReviewHeuristicComment[] {
-  const trimmed = text.trim();
-  const comments: ReviewHeuristicComment[] = [];
-
-  if (/\b(?:TODO|FIXME|HACK|XXX)\b/i.test(trimmed)) {
-    comments.push({
-      path,
-      line: lineNo,
-      severity: 'suggestion',
-      message: 'Unresolved TODO/FIXME marker introduced in this change.',
-    });
-  }
-  if (/catch\s*\([^)]*\)\s*\{\s*\}/.test(trimmed)) {
-    comments.push({
-      path,
-      line: lineNo,
-      severity: 'warning',
-      message: 'Empty catch block swallows errors silently.',
-    });
-  }
-  if (/\bconsole\.log\b/.test(trimmed)) {
-    comments.push({
-      path,
-      line: lineNo,
-      severity: 'suggestion',
-      message: 'console.log left in code — consider removing or using a logger.',
-    });
-  }
-  // debugger statements must never land in production paths
-  if (/\bdebugger\b/.test(trimmed)) {
-    comments.push({
-      path,
-      line: lineNo,
-      severity: 'error',
-      message: 'debugger statement introduced — remove before merge.',
-    });
-  }
-  // Hard-coded secrets / tokens (MVP heuristic; not a full scanner)
-  if (
-    /(?:api[_-]?key|secret|password|token)\s*[:=]\s*['"][^'"]{8,}['"]/i.test(trimmed) ||
-    /Bearer\s+[A-Za-z0-9\-._~+/]+=*/.test(trimmed)
-  ) {
-    comments.push({
-      path,
-      line: lineNo,
-      severity: 'error',
-      message: 'Possible hard-coded secret or bearer token in new code.',
-    });
-  }
-  // any-typed escapes that weaken type safety
-  if (/:\s*any\b|as\s+any\b/.test(trimmed)) {
-    comments.push({
-      path,
-      line: lineNo,
-      severity: 'suggestion',
-      message: 'any type escape — prefer a concrete type or unknown + narrow.',
-    });
-  }
-  // eslint / ts-ignore suppressions in new code
-  if (/@ts-(?:ignore|expect-error|nocheck)\b|eslint-disable/.test(trimmed)) {
-    comments.push({
-      path,
-      line: lineNo,
-      severity: 'suggestion',
-      message: 'Lint/type suppression introduced — document why or fix the root cause.',
-    });
-  }
-
-  return comments;
+export interface ReviewFileInventory {
+  readonly path: string;
+  readonly added: number;
+  readonly removed: number;
 }
 
-/** Scan all added lines in a parsed diff file. */
-export function scanDiffFile(file: ReviewHeuristicFile): readonly ReviewHeuristicComment[] {
-  const comments: ReviewHeuristicComment[] = [];
+/**
+ * Intentionally empty: line-level quality policy is not a harness regex job.
+ * Kept as a public no-op so SDK callers still resolve the export.
+ */
+export function scanAddedLine(
+  _path: string,
+  _lineNo: number,
+  _text: string,
+): readonly ReviewHeuristicComment[] {
+  return [];
+}
+
+/** Quality comments are never produced from a parsed diff file. */
+export function scanDiffFile(_file: ReviewHeuristicFile): readonly ReviewHeuristicComment[] {
+  return [];
+}
+
+/** Quality comments are never produced from parsed diff files. */
+export function scanDiffFiles(
+  _files: readonly ReviewHeuristicFile[],
+): readonly ReviewHeuristicComment[] {
+  return [];
+}
+
+/** Count added/removed lines in one parsed file. No quality judgment. */
+export function inventoryDiffFile(file: ReviewHeuristicFile): ReviewFileInventory {
+  let added = 0;
+  let removed = 0;
   for (const hunk of file.hunks) {
     for (const line of hunk.lines) {
-      if (line.type !== 'add' || line.newLineNo === null) continue;
-      comments.push(...scanAddedLine(file.newPath, line.newLineNo, line.text));
+      if (line.type === 'add') added += 1;
+      else if (line.type === 'remove') removed += 1;
     }
   }
-  return comments;
+  return { path: file.newPath, added, removed };
 }
 
-/** Scan many files; preserves input order. */
-export function scanDiffFiles(
+/** Count added/removed lines across many parsed files. */
+export function inventoryDiffFiles(
   files: readonly ReviewHeuristicFile[],
-): readonly ReviewHeuristicComment[] {
-  const comments: ReviewHeuristicComment[] = [];
-  for (const file of files) {
-    comments.push(...scanDiffFile(file));
-  }
-  return comments;
+): readonly ReviewFileInventory[] {
+  return files.map(inventoryDiffFile);
 }

@@ -1,4 +1,4 @@
-import { APIStatusError } from '@superliora/kosong';
+import { APIStatusError, APITimeoutError } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { type Message, buildMessagesWithSystem, classifyProviderRouteFailure } from '#/agent/turn/kosong-llm';
@@ -60,6 +60,13 @@ describe('agent/turn/kosong-llm — classifyProviderRouteFailure', () => {
     ).toBeUndefined();
   });
 
+  it('fails over Cloudflare 52x and Anthropic 529 without try-again copy', () => {
+    expect(classifyProviderRouteFailure(new APIStatusError(524, 'error code: 524'), 1000)?.kind).toBe(
+      'server',
+    );
+    expect(classifyProviderRouteFailure(new APIStatusError(529, 'error'), 1000)?.kind).toBe('server');
+  });
+
   it('returns undefined for an unrelated error', () => {
     const result = classifyProviderRouteFailure(new Error('boom'), 1000);
     expect(result).toBeUndefined();
@@ -111,6 +118,16 @@ describe('agent/turn/kosong-llm — classifyProviderRouteFailure', () => {
       userCancelled: true,
     });
     expect(classifyProviderRouteFailure(cancelled, 1000)).toBeUndefined();
+  });
+
+  it('fails over a custom OpenAI-compatible Request-was-aborted timeout', () => {
+    const converted = new APITimeoutError('Request was aborted.');
+    const raw = Object.assign(new Error('Request was aborted.'), { name: 'APIUserAbortError' });
+    expect(classifyProviderRouteFailure(converted, 1000)?.kind).toBe('timeout');
+    expect(classifyProviderRouteFailure(raw, 1000)?.kind).toBe('timeout');
+    expect(
+      classifyProviderRouteFailure(new APIStatusError(400, 'Invalid request body'), 1000),
+    ).toBeUndefined();
   });
 
   it('keeps unsupported-parameter 400 unclassified (not quota/auth/model_unavailable)', () => {

@@ -10,6 +10,7 @@ import {
   assistantDeltaEventSchema,
   eventSchema,
   subagentToolCallEventSchema,
+  subagentToolProgressEventSchema,
   subagentToolResultEventSchema,
   toolCallStartedEventSchema,
 } from '../events';
@@ -524,6 +525,42 @@ describe('subagent tool streaming event schemas', () => {
     ).toBe(false);
   });
 
+  it('round-trips subagent.tool_progress through its own schema and the union', () => {
+    const event = {
+      type: 'subagent.tool_progress',
+      subagentId: 'agent-0',
+      runId: 'run-1',
+      toolCallId: 'call-1',
+      name: 'Bash',
+      kind: 'stdout',
+      textPreview: 'ok',
+    } as const;
+    expect(subagentToolProgressEventSchema.parse(event)).toEqual(event);
+    expect(agentEventSchema.parse(event)).toEqual(event);
+    expect(
+      agentEventSchema.safeParse({
+        type: 'subagent.tool_progress',
+        subagentId: 'agent-0',
+        toolCallId: 'call-2',
+        kind: 'stderr',
+      }).success,
+    ).toBe(true);
+    expect(
+      subagentToolProgressEventSchema.safeParse({
+        type: 'subagent.tool_progress',
+        toolCallId: 'call-2',
+      }).success,
+    ).toBe(false);
+    expect(
+      subagentToolProgressEventSchema.safeParse({
+        type: 'subagent.tool_progress',
+        subagentId: 'agent-0',
+        toolCallId: 'call-2',
+        kind: 'custom',
+      }).success,
+    ).toBe(false);
+  });
+
   it('keeps subagent tool events parseable on the session envelope', () => {
     const parsed = eventSchema.parse({
       type: 'subagent.tool_call',
@@ -536,6 +573,17 @@ describe('subagent tool streaming event schemas', () => {
     });
     expect(parsed.agentId).toBe('main');
     expect(parsed.sessionId).toBe('session-0');
+    expect(
+      eventSchema.parse({
+        type: 'subagent.tool_progress',
+        subagentId: 'agent-0',
+        toolCallId: 'call-1',
+        kind: 'stdout',
+        textPreview: 'ok\n',
+        agentId: 'main',
+        sessionId: 'session-0',
+      }).type,
+    ).toBe('subagent.tool_progress');
   });
 
   it('parses every subagent.tool_call detail variant and keeps detail optional', () => {

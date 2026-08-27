@@ -15,7 +15,6 @@ export function showMemorySettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.memory.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {

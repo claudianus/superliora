@@ -37,7 +37,7 @@ export async function showClaudeImportPanel(host: SlashCommandHost): Promise<voi
     host,
     new ChoicePickerComponent({
       title: ttui('tui.claude.import.title'),
-      hint: ttui('tui.claude.import.hint'),
+      hintExtra: ttui('tui.claude.import.hint'),
       searchable: true,
       options: [
         ...(hasSkills || hasMcp

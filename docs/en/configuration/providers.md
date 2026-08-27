@@ -139,6 +139,17 @@ OpenRouter is imported from models.dev as an OpenAI Chat Completions provider. P
 liora provider catalog add openrouter --api-key-env OPENROUTER_API_KEY
 ```
 
+### Groq, Mistral, Together, Cerebras, Perplexity, Vercel AI Gateway
+
+These models.dev providers speak Chat Completions even though their SDK package names do not contain `openai`. `/login` and `liora provider catalog add` import them on the `openai` wire and fill the official host when the catalog omits `api`.
+
+```bash
+/login   # pick Groq, Mistral, Together AI, Cerebras, Perplexity, or Vercel AI Gateway
+liora provider catalog add groq --api-key-env GROQ_API_KEY
+```
+
+xAI prepaid API keys use the same path (`XAI_API_KEY`, `https://api.x.ai/v1`). Account login stays on the separate **xAI Grok (account login)** OAuth row.
+
 ### Z.AI (GLM Coding Plan)
 
 [Z.AI Coding Plan](https://docs.z.ai/devpack/overview) is a SuperLiora-curated OpenAI-compatible overlay (`zai-coding-plan`). MCP extras inject when the key is present.

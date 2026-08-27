@@ -217,6 +217,7 @@ export async function generate(
     abortScope.clearOpenTimer();
   } catch (error: unknown) {
     abortScope.dispose();
+    rethrowIfCallerCancelled(options?.signal, abortScope.openTimedOut());
     if (abortScope.openTimedOut() && !(error instanceof APITimeoutError)) {
       throw openTimeoutError(openTimeoutMs, streamLabel);
     }
@@ -386,6 +387,9 @@ export async function generate(
     ) {
       await cancelStream(stream);
     }
+    // Caller Esc can race the SDK's APIUserAbortError. Coerce back to AbortError
+    // so the retry layer does not treat a user cancel as a transport timeout.
+    rethrowIfCallerCancelled(options?.signal, abortScope.openTimedOut());
     throw error;
   } finally {
     abortScope.dispose();
@@ -413,6 +417,15 @@ type CancelableStream = StreamedMessage & {
 
 function throwAbortError(): never {
   throw new DOMException('The operation was aborted.', 'AbortError');
+}
+
+function rethrowIfCallerCancelled(
+  signal: AbortSignal | undefined,
+  openTimedOut: boolean,
+): void {
+  if (signal?.aborted === true && !openTimedOut) {
+    throwAbortError();
+  }
 }
 
 async function cancelStream(stream: StreamedMessage): Promise<void> {

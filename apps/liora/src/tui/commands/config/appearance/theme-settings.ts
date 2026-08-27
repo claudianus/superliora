@@ -26,19 +26,17 @@ export function showThemeSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: ttui('tui.settings.pane.theme.title'),
-      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {
           value: 'status',
-          label: 'Theme status',
-          description:
-            'Saved theme · live palette · canvas background · catalog counts · config path.',
+          label: ttui('tui.settings.pane.theme.status'),
+          description: ttui('tui.settings.pane.theme.statusDesc'),
         },
         {
           value: 'change-theme',
-          label: 'Change theme',
-          description: 'Searchable picker with preview — bundled, custom, plugin, and external.',
+          label: ttui('tui.settings.pane.theme.change'),
+          description: ttui('tui.settings.pane.theme.changeDesc'),
         },
 
       ],
