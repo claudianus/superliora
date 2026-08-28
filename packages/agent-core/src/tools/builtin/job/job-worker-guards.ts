@@ -12,14 +12,162 @@ export interface WorkerShellGuardResult {
   readonly rewrittenCommand?: string;
 }
 
+/** Git global options that consume a separate value token before the subcommand. */
+const GIT_GLOBAL_VALUE_FLAGS = new Set([
+  '-c',
+  '-C',
+  '--exec-path',
+  '--git-dir',
+  '--work-tree',
+  '--namespace',
+  '--super-prefix',
+]);
+
+/** Wrapper commands that exec their remaining arguments directly. */
+const GIT_EXEC_WRAPPERS = new Set(['command', 'env', 'exec', 'nohup', 'nice', 'timeout', 'xargs']);
+
+/**
+ * Split a command into list/pipeline segments on shell operators, honoring
+ * quotes so operators inside quoted strings do not split. Not a full shell
+ * parser — enough to place `git` positionally per segment. Command
+ * substitution (`$(…)`) is not interpreted; textual guards are
+ * defense-in-depth, not a sandbox.
+ */
+function splitOperatorSegments(command: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | undefined;
+  const flush = (): void => {
+    if (current.trim().length > 0) segments.push(current);
+    current = '';
+  };
+  for (let i = 0; i < command.length; i += 1) {
+    const ch = command[i]!;
+    if (quote !== undefined) {
+      current += ch;
+      if (ch === quote) quote = undefined;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+    if (ch === ';' || ch === '\n') {
+      flush();
+      continue;
+    }
+    if (ch === '&') {
+      flush();
+      if (command[i + 1] === '&') i += 1;
+      continue;
+    }
+    if (ch === '|') {
+      flush();
+      if (command[i + 1] === '|') i += 1;
+      continue;
+    }
+    current += ch;
+  }
+  flush();
+  return segments;
+}
+
+/** Quote-aware word split; quote characters are stripped from the words. */
+function shellWords(segment: string): string[] {
+  const words: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | undefined;
+  for (const ch of segment) {
+    if (quote !== undefined) {
+      if (ch === quote) quote = undefined;
+      else current += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (current.length > 0) words.push(current);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current.length > 0) words.push(current);
+  return words;
+}
+
+function basename(token: string): string {
+  return token.split(/[\\/]/).pop() ?? token;
+}
+
+function isEnvAssignment(word: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*=/.test(word);
+}
+
+/** `git [global-opts…] push` inside a quoted command string (e.g. `sh -c '…'`). */
+function embeddedGitPush(text: string): boolean {
+  return /(?:^|[;&|\n]|&&|\|\|)\s*git(?:\s+-{1,2}\S+(?:\s+\S+)?)*\s+(?:push|send-pack)\b/i.test(
+    text,
+  );
+}
+
+function segmentForbidsGitRemoteMutation(segment: string): boolean {
+  const words = shellWords(segment);
+  const lower = words.map((word) => word.toLowerCase());
+  let i = 0;
+  while (i < words.length && isEnvAssignment(words[i]!)) i += 1;
+  // Quoted command strings handed to a shell: `sh -c 'git push'`.
+  const head = lower[i];
+  if (head !== undefined && /\b(?:ba|z|da|k)?sh\b/.test(head)) {
+    for (const word of words.slice(i + 1)) {
+      if (word.includes(' ') && embeddedGitPush(word)) return true;
+    }
+  }
+  while (i < words.length && GIT_EXEC_WRAPPERS.has(lower[i]!)) {
+    const wrapper = lower[i]!;
+    i += 1;
+    if (wrapper === 'env') {
+      while (i < words.length && (isEnvAssignment(words[i]!) || words[i]!.startsWith('-'))) i += 1;
+    } else if (wrapper === 'nice') {
+      while (
+        i < words.length &&
+        (words[i] === '-n' || /^\d+$/.test(words[i]!) || /^-\w{1,2}$/.test(words[i]!))
+      ) {
+        i += 1;
+      }
+    } else if (wrapper === 'timeout' || wrapper === 'xargs') {
+      while (i < words.length && words[i]!.startsWith('-')) i += 1;
+      if (wrapper === 'timeout' && i < words.length && /^\d+/.test(words[i]!)) i += 1;
+    }
+  }
+  const first = lower[i];
+  if (first === undefined) return false;
+  const base = basename(first);
+  if (base !== 'git' && base !== 'git.exe') return false;
+  i += 1;
+  while (i < words.length) {
+    const word = words[i]!;
+    if (!word.startsWith('-') || word === '-') break;
+    if (GIT_GLOBAL_VALUE_FLAGS.has(word.toLowerCase())) {
+      i += 2;
+      continue;
+    }
+    i += 1;
+  }
+  const sub = lower[i];
+  return sub === 'push' || sub === 'send-pack';
+}
+
 /** Detect remote-mutating git commands that workers must not run. */
 export function isWorkerForbiddenGitRemoteCommand(command: string): boolean {
   const c = command.trim();
   if (c.length === 0) return false;
-  // git push / git push --force / git push origin HEAD etc.
-  if (/(?:^|[;&|\n]|&&|\|\|)\s*git\s+push\b/i.test(c)) return true;
-  // gh pr merge --admin that pushes; keep narrow: git push only per product lock
-  if (/(?:^|[;&|\n]|&&|\|\|)\s*git\s+send-pack\b/i.test(c)) return true;
+  for (const segment of splitOperatorSegments(c)) {
+    if (segmentForbidsGitRemoteMutation(segment)) return true;
+  }
   return false;
 }
 

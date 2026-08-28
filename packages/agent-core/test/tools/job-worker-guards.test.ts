@@ -178,6 +178,48 @@ describe('guardWorkerShellCommand suite_guard', () => {
   });
 });
 
+describe('isWorkerForbiddenGitRemoteCommand bypass hardening', () => {
+  const forbidden = (command: string): boolean =>
+    guardWorkerShellCommand(command, { isWorker: true }).allowed === false;
+
+  it('blocks positional bypasses around the git subcommand', () => {
+    expect(forbidden('git push')).toBe(true);
+    expect(forbidden('git push origin HEAD')).toBe(true);
+    expect(forbidden('echo done && git push')).toBe(true);
+    expect(forbidden('git -c a=b push origin HEAD')).toBe(true);
+    expect(forbidden('git -c a=b -c c=d push')).toBe(true);
+    expect(forbidden('git --git-dir=/tmp/x --work-tree=/tmp/y push')).toBe(true);
+    expect(forbidden('git --no-pager push')).toBe(true);
+    expect(forbidden('Git PUSH origin HEAD')).toBe(true);
+    expect(forbidden('git send-pack origin main')).toBe(true);
+  });
+
+  it('blocks wrapped and path-qualified git invocations', () => {
+    expect(forbidden('env git push')).toBe(true);
+    expect(forbidden('FOO=1 env BAR=2 git push')).toBe(true);
+    expect(forbidden('/usr/bin/git push')).toBe(true);
+    expect(forbidden('git.exe push')).toBe(true);
+    expect(forbidden('xargs git push')).toBe(true);
+    expect(forbidden('timeout 10 git push')).toBe(true);
+    expect(forbidden('nice -n 5 git push')).toBe(true);
+  });
+
+  it('blocks git push inside quoted shell wrapper commands', () => {
+    expect(forbidden("sh -c 'git push'")).toBe(true);
+    expect(forbidden('bash -lc "cd wt && git push --force"')).toBe(true);
+    expect(forbidden("echo hi; sh -c 'git -c a=b push'")).toBe(true);
+  });
+
+  it('does not block lookalikes or mere mentions', () => {
+    expect(forbidden('git pushish --dry-run')).toBe(false);
+    expect(forbidden('git status && git log')).toBe(false);
+    expect(forbidden('git -c a=b status')).toBe(false);
+    expect(forbidden('git commit -m "push"')).toBe(false);
+    expect(forbidden('echo "git push is forbidden by policy"')).toBe(false);
+    expect(forbidden('git fetch origin')).toBe(false);
+  });
+});
+
 describe('pickFocusedVerificationRewrite', () => {
   it('prefers the first file-path command', () => {
     expect(
