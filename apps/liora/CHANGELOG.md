@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.15.2
+
+### Patch Changes
+
+- Unify ClinePass provider id `clinepass` (without hyphen) to `cline-pass` per `models.dev` (13 models) and remove last hard-coded `cline-pass/glm-5.2` fallback — now all 4 curated providers (`opencode` 93, `zai` 16, `zai-coding-plan` 7, `cline-pass` 13) are fully live via `models.dev` → `OpenRouter` → `provider /models` with `BUILT_IN_CATALOG_JSON` offline fallback. No hard-coded model lists remain.
+
 ## 0.15.1
 
 ### Patch Changes
