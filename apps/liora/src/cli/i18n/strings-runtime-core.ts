@@ -162,6 +162,8 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.server.labelUrl': 'URL:      ',
   'cli.runtime.server.labelNetworkBanner': 'Network:  ',
   'cli.runtime.server.labelToken': 'Token:    ',
+  'cli.runtime.server.bannerTokenHidden':
+    'hidden (non-loopback bind) — read <homeDir>/server.token or pass --show-token',
   'cli.runtime.server.labelLogs': 'Logs:     ',
   'cli.runtime.server.labelStop': 'Stop:     ',
   'cli.runtime.server.rotateTokenInvalid':
@@ -410,6 +412,8 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.server.labelUrl': 'URL:      ',
   'cli.runtime.server.labelNetworkBanner': '네트워크:  ',
   'cli.runtime.server.labelToken': '토큰:    ',
+  'cli.runtime.server.bannerTokenHidden':
+    '숨김(비루프백 바인드) — <homeDir>/server.token을 읽거나 --show-token을 사용하세요',
   'cli.runtime.server.labelLogs': '로그:     ',
   'cli.runtime.server.labelStop': '중지:     ',
   'cli.runtime.server.rotateTokenInvalid':

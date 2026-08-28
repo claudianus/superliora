@@ -74,11 +74,13 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.server.option.allowedHost':
     'Extra Host header value to allow through the DNS-rebinding check. Repeat or comma-separate; a leading dot matches a domain suffix (e.g. .example.com).',
   'cli.sub.server.option.insecureNoTls':
-    'Allow a non-loopback bind without a TLS-terminating reverse proxy. Defaults to true; only relevant for non-loopback binds.',
+    'Allow a non-loopback bind without a TLS-terminating reverse proxy. Off by default: non-loopback binds refuse to start unless this flag is passed.',
   'cli.sub.server.option.allowRemoteShutdown':
     'On a non-loopback bind, keep POST /api/v1/shutdown enabled (default: route is disabled → 404).',
   'cli.sub.server.option.allowRemoteTerminals':
     'On a non-loopback bind, keep the PTY /api/v1/terminals/* routes enabled (default: disabled → 404). Remote shell is high risk.',
+  'cli.sub.server.option.showToken':
+    'Print the bearer token in the ready banner even on a non-loopback bind (default: token prints on loopback binds only).',
   'cli.sub.server.option.logLevel': 'Server log level: {levels}. Omit to keep logs off.',
   'cli.sub.server.option.debugEndpoints':
     'Mount /api/v1/debug/* routes for test introspection. OFF by default; production callers leave this unset.',
@@ -346,11 +348,13 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.server.option.allowedHost':
     'DNS 리바인딩 검사를 통과할 추가 Host 헤더 값. 반복하거나 쉼표로 구분; 선행 점(.)은 도메인 접미사와 매칭(예: .example.com).',
   'cli.sub.server.option.insecureNoTls':
-    'TLS 종단 리버스 프록시 없이 non-loopback 바인드를 허용합니다. 기본값 true; non-loopback 바인드에만 해당.',
+    'TLS 종단 리버스 프록시 없이 non-loopback 바인드를 허용합니다. 기본값은 off이며, 이 플래그 없이 non-loopback 바인드는 시작을 거부합니다.',
   'cli.sub.server.option.allowRemoteShutdown':
     'non-loopback 바인드에서 POST /api/v1/shutdown을 유지합니다(기본: 비활성 → 404).',
   'cli.sub.server.option.allowRemoteTerminals':
     'non-loopback 바인드에서 PTY /api/v1/terminals/* 경로를 유지합니다(기본: 비활성 → 404). 원격 셸은 위험합니다.',
+  'cli.sub.server.option.showToken':
+    '비루프백 바인드에서도 시작 배너에 bearer 토큰을 출력합니다(기본: 루프백 바인드에서만 출력).',
   'cli.sub.server.option.logLevel': '서버 로그 수준: {levels}. 생략하면 로그 끔.',
   'cli.sub.server.option.debugEndpoints':
     '테스트용 /api/v1/debug/* 경로를 마운트합니다. 기본 OFF; 프로덕션에서는 설정하지 마세요.',

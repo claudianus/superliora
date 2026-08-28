@@ -52,6 +52,8 @@ export interface ParsedServerOptions {
   allowRemoteTerminals: boolean;
   /** Extra `Host` header values to allow through the DNS-rebinding check. */
   allowedHosts: readonly string[];
+  /** Print the bearer token in the ready banner even on non-loopback binds. */
+  showToken: boolean;
   /** Internal: run as an idle-exiting background daemon instead of foreground. */
   daemon: boolean;
   /** Internal: idle-shutdown grace in ms (daemon mode only). */
@@ -71,6 +73,8 @@ export interface ServerCliOptions {
   allowRemoteTerminals?: boolean;
   /** Extra `Host` header values to allow (`--allowed-host`). */
   allowedHost?: string[];
+  /** Print the bearer token in the ready banner (`--show-token`). */
+  showToken?: boolean;
   /** Internal flag set by the daemon spawner. */
   daemon?: boolean;
   /** Internal flag set by the daemon spawner / tests. */
@@ -83,10 +87,11 @@ export function parseServerOptions(opts: ServerCliOptions): ParsedServerOptions 
     port: parsePort(opts.port, '--port', DEFAULT_SERVER_PORT),
     logLevel: parseLogLevel(opts.logLevel ?? DEFAULT_FOREGROUND_LOG_LEVEL),
     debugEndpoints: opts.debugEndpoints === true,
-    insecureNoTls: opts.insecureNoTls !== false,
+    insecureNoTls: opts.insecureNoTls === true,
     allowRemoteShutdown: opts.allowRemoteShutdown === true,
     allowRemoteTerminals: opts.allowRemoteTerminals === true,
     allowedHosts: parseAllowedHostArgs(opts.allowedHost),
+    showToken: opts.showToken === true,
     daemon: opts.daemon === true,
     idleGraceMs: parseIdleGraceMs(opts.idleGraceMs),
   };

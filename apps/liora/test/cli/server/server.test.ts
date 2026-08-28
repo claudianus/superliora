@@ -633,7 +633,7 @@ describe('--host threading (M6.2)', () => {
 });
 
 describe('default bind (M6.3)', () => {
-  it('defaults host to 127.0.0.1 and insecureNoTls to true when no flags are passed', async () => {
+  it('defaults host to 127.0.0.1 and insecureNoTls to false when no flags are passed', async () => {
     const { handleRunCommand } = await import('#/cli/sub/server/run');
     let parsed: unknown;
 
@@ -649,10 +649,10 @@ describe('default bind (M6.3)', () => {
       },
     );
 
-    expect(parsed).toMatchObject({ host: '127.0.0.1', insecureNoTls: true });
+    expect(parsed).toMatchObject({ host: '127.0.0.1', insecureNoTls: false });
   });
 
-  it('treats a bare --host as the default LAN host', async () => {
+  it('treats a bare --host as the default LAN host without implying --insecure-no-tls', async () => {
     const { handleRunCommand } = await import('#/cli/sub/server/run');
     let parsed: unknown;
 
@@ -668,7 +668,13 @@ describe('default bind (M6.3)', () => {
       },
     );
 
-    expect(parsed).toMatchObject({ host: '0.0.0.0', insecureNoTls: true });
+    expect(parsed).toMatchObject({ host: '0.0.0.0', insecureNoTls: false });
+  });
+
+  it('only sets insecureNoTls when --insecure-no-tls is explicitly passed', async () => {
+    const { parseServerOptions } = await import('#/cli/sub/server/shared');
+    expect(parseServerOptions({}).insecureNoTls).toBe(false);
+    expect(parseServerOptions({ insecureNoTls: true }).insecureNoTls).toBe(true);
   });
 });
 
@@ -801,9 +807,36 @@ describe('ready banner reflects the bind class (M6.3)', () => {
     expect(raw).toContain('http://localhost:58627/');
     expect(raw).toContain('http://192.168.98.66:58627/');
     expect(raw).toContain('http://10.8.12.216:58627/');
+    // Non-loopback bind: the long-lived bearer token must not land in
+    // scrollback — the banner hides it and points at the token file.
+    expect(raw).toContain('Token:');
+    expect(raw).not.toContain('tok-xyz');
+    expect(raw).toContain('--show-token');
+    expect(raw).not.toContain('╭');
+  });
+
+  it('prints the token on a non-loopback bind only with --show-token', async () => {
+    const { handleRunCommand } = await import('#/cli/sub/server/run');
+    let stdout = '';
+
+    await handleRunCommand(
+      { host: '0.0.0.0', insecureNoTls: true, showToken: true },
+      {
+        startServerBackground: async () => ({ origin: 'http://0.0.0.0:58627' }),
+        resolveToken: () => 'tok-xyz',
+        stdout: {
+          write(chunk: string | Uint8Array) {
+            stdout += String(chunk);
+            return true;
+          },
+        },
+        stderr: { write: () => true },
+      },
+    );
+
+    const raw = stripAnsi(stdout);
     expect(raw).toContain('Token:');
     expect(raw).toContain('tok-xyz');
-    expect(raw).not.toContain('╭');
   });
 
   it('prints the Local URL and token for a 127.0.0.1 bind', async () => {

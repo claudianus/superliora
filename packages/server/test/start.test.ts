@@ -310,8 +310,10 @@ describe('startServer — API-only root', () => {
     });
     running.push(r);
 
-    expect((await fetch(`${r.address}/`)).status).toBe(404);
-    expect((await fetch(`${r.address}/sessions/abc`)).status).toBe(404);
+    // Default-closed auth: unknown non-API paths answer 401 (route existence
+    // is not revealed without a credential) — never a served UI.
+    expect((await fetch(`${r.address}/`)).status).toBe(401);
+    expect((await fetch(`${r.address}/sessions/abc`)).status).toBe(401);
 
     const health = await fetch(`${r.address}/api/v1/healthz`);
     await expect(health.json()).resolves.toMatchObject({ code: 0 });
@@ -365,8 +367,10 @@ describe('startServer — API-only root', () => {
     const openApi = await fetch(`${r.address}/openapi.json`, { headers: authHeaders() });
     expect(openApi.status).toBe(200);
 
+    // Default-closed auth: unauthenticated /documentation is 401 (not a 404
+    // that reveals route shapes, and not a served Swagger UI).
     const res = await fetch(`${r.address}/documentation`);
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
   });
 });
 

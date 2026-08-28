@@ -41,11 +41,27 @@ export function installErrorHandler(app: ErrorHandlerHost): void {
     const requestId = req.id;
     req.log.error({ err, request_id: requestId }, 'unhandled error');
     reply.status(200).send(
-      errEnvelope(
-        ErrorCode.INTERNAL_ERROR,
-        err.message !== undefined && err.message !== '' ? err.message : 'internal error',
-        requestId,
-      ),
+      errEnvelope(ErrorCode.INTERNAL_ERROR, safeInternalMessage(err), requestId),
     );
   });
+}
+
+/**
+ * Client-caused errors (Fastify 4xx) are safe and useful to echo back verbatim;
+ * anything reaching this handler without a 4xx status is an unexpected internal
+ * failure whose message may embed filesystem paths, upstream URLs, or driver
+ * detail — it stays in the server log and the envelope carries the generic
+ * string.
+ */
+function safeInternalMessage(err: FastifyError): string {
+  if (
+    typeof err.statusCode === 'number' &&
+    err.statusCode >= 400 &&
+    err.statusCode < 500 &&
+    err.message !== undefined &&
+    err.message !== ''
+  ) {
+    return err.message;
+  }
+  return 'internal error';
 }

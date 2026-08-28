@@ -3,7 +3,8 @@
  *
  * HTTP `onRequest` hook:
  *   - no `Origin` header → non-CORS / same-origin request → proceeds untouched;
- *   - same-origin (`Origin` host === `Host`, port stripped both sides) → allowed;
+ *   - `Origin: null` → rejected (present-but-disallowed; no CORS headers);
+ *   - same-origin (`Origin` host[:port] === `Host` exactly) → allowed;
  *   - cross-origin → allowed only if the full origin (scheme + host) is in the
  *     explicit whitelist (`SUPERLIORA_CORS_ORIGINS`, no `*` wildcard — PLAN
  *     §3.4). Allowed origins get `Access-Control-Allow-*` echoed; `OPTIONS`
@@ -19,8 +20,6 @@
  */
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
-
-import { stripPort } from './hostnames';
 
 const CORS_ALLOW_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
 const CORS_ALLOW_HEADERS = 'Content-Type, Authorization';
@@ -65,20 +64,40 @@ export function originHost(origin: string | undefined): string | undefined {
 /**
  * Decide whether an `Origin` is allowed for a request to `host`.
  *
- *   - missing/malformed `Origin` → allowed (non-CORS / non-browser client);
- *   - same-origin (`Origin` host === `Host`, port stripped both sides) → allowed;
+ *   - missing `Origin` → allowed (non-CORS / non-browser client);
+ *   - `Origin: null` → rejected (a *present* sentinel origin from a sandboxed
+ *     iframe or cross-origin fetch, never a legitimate same-origin client);
+ *   - malformed `Origin` → allowed (non-browser client);
+ *   - same-origin → allowed only when the full `host[:port]` matches the
+ *     request `Host` exactly — a different port on the same hostname is a
+ *     different origin;
  *   - otherwise → allowed only when the full origin string is in `allowed`.
  */
+/**
+ * Lowercase and drop a default-port suffix (`:80` / `:443`) so `URL.host`
+ * (which already drops default ports) compares equal to a `Host` header that
+ * spells the default port out.
+ */
+function normalizeHostPort(value: string): string {
+  return value.replace(/(?::80|:443)$/, '').toLowerCase();
+}
+
 export function isOriginAllowed(
   origin: string | undefined,
   host: string | undefined,
   allowed: readonly string[],
 ): boolean {
+  if (origin === undefined) {
+    return true;
+  }
+  if (origin === 'null') {
+    return false;
+  }
   const oh = originHost(origin);
   if (oh === undefined) {
     return true;
   }
-  if (host !== undefined && stripPort(oh) === stripPort(host)) {
+  if (host !== undefined && normalizeHostPort(oh) === normalizeHostPort(host)) {
     return true;
   }
   // `origin` is defined here (originHost returned a host), so the whitelist

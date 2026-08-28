@@ -25,6 +25,13 @@ describe('file launch commands', () => {
     });
   });
 
+  it('never routes win32 open through a shell, even for metacharacter filenames', () => {
+    const evil = 'C:\\ws\\x&calc.exe&y.txt';
+    const cmd = openFileCommandFor(evil, undefined, {}, 'win32');
+    expect(cmd).toEqual({ command: 'explorer.exe', args: [evil] });
+    expect(cmd.shell).toBeUndefined();
+  });
+
   it('reveals files with platform-specific commands', () => {
     expect(revealFileCommandFor('/repo/src/App.vue', 'darwin')).toEqual({
       command: 'open',
@@ -117,8 +124,8 @@ describe('open-in-app launch commands', () => {
     for (const key of ['SUPERLIORA_EDITOR', 'VISUAL', 'EDITOR']) delete process.env[key];
     try {
       expect(openInAppCommandFor('iterm', '/repo/src/App.vue', {}, 'win32')).toEqual({
-        command: 'cmd',
-        args: ['/c', 'start', '""', '/repo/src/App.vue'],
+        command: 'explorer.exe',
+        args: ['/repo/src/App.vue'],
       });
       expect(openInAppCommandFor('iterm', '/repo/src/App.vue', {}, 'linux')).toEqual({
         command: 'xdg-open',

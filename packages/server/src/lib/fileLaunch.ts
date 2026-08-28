@@ -30,7 +30,10 @@ export function openFileCommandFor(
     case 'darwin':
       return { command: 'open', args: [absolutePath] };
     case 'win32':
-      return { command: 'cmd', args: ['/c', 'start', '""', absolutePath] };
+      // explorer.exe receives the path as a single CreateProcess argv, so a
+      // filename containing cmd metacharacters (`x&calc.exe&y.txt`) cannot be
+      // re-parsed the way `cmd /c start "" <path>` would allow.
+      return { command: 'explorer.exe', args: [absolutePath] };
     default:
       return { command: 'xdg-open', args: [absolutePath] };
   }

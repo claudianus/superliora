@@ -82,10 +82,17 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
   // reached. The default-allow set keeps `app.inject` (`Host: localhost:80`)
   // and real `fetch` to `127.0.0.1:<port>` working.
   const allowedHosts = [...parseAllowedHosts(process.env), ...(opts.allowedHosts ?? [])];
+  const hostCheckDisabled = isHostCheckDisabled(process.env);
+  if (hostCheckDisabled) {
+    pinoLogger.warn(
+      { env: 'SUPERLIORA_DISABLE_HOST_CHECK' },
+      'DNS-rebinding Host check is disabled for this process by SUPERLIORA_DISABLE_HOST_CHECK=1 — re-enable unless this is a controlled test',
+    );
+  }
   const hostCheck = createHostCheck({
     boundHost: opts.host,
     extra: allowedHosts,
-    disable: isHostCheckDisabled(process.env),
+    disable: hostCheckDisabled,
   });
   const originHook = createOriginHook({ allowedOrigins: parseCorsOrigins(process.env) });
   app.addHook('onRequest', hostCheck.onRequest);

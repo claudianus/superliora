@@ -50,6 +50,10 @@ export class WSGateway extends Disposable implements IWSGateway {
     this.authTokenService = options.authTokenService;
     this.wss = new WebSocketServer({
       noServer: true,
+      // Client→server frames are small zod-validated control messages (<1 KiB).
+      // The ws library's 100 MiB default would let a single authenticated
+      // socket buffer a huge frame (then JSON.parse it) to OOM the daemon.
+      maxPayload: 1 << 20,
       // Browsers require the server to select one of the offered subprotocols;
       // echo back the `kimi-code.bearer.<token>` subprotocol when present so
       // token-carrying browser clients complete the handshake.

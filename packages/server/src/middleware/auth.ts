@@ -40,28 +40,24 @@ export interface AuthHookOptions {
 }
 
 /**
- * Default bypass policy — the security boundary.
+ * Default bypass policy — the security boundary (explicit allowlist).
  *
  * Bypassed (no token required):
  *   - every `OPTIONS` request (CORS preflight);
- *   - `GET /api/v1/healthz` (liveness probe for supervisors / load balancers);
- *   - non-API, non-meta paths, so removed browser routes fall through to 404
- *     without needing a bearer token.
+ *   - `GET /api/v1/healthz` (liveness probe for supervisors / load balancers).
  *
- * NOT bypassed (token required): all `/api/…` routes plus `/openapi.json` and
- * `/asyncapi.json` (the meta documents leak the API shape, so they stay gated).
+ * Everything else — every `/api/…` route, the meta documents, and any future
+ * root-level route — requires a bearer token. Default-closed keeps a typo'd
+ * route prefix or a newly added static route from silently skipping auth;
+ * unknown paths answer 401 rather than a pre-auth 404, so route existence is
+ * not revealed without a credential.
  */
 function defaultIsBypassed(req: FastifyRequest): boolean {
   if (req.method === 'OPTIONS') {
     return true;
   }
   const path = req.url.split('?', 1)[0] ?? req.url;
-  if (req.method === 'GET' && path === '/api/v1/healthz') {
-    return true;
-  }
-  const isApi = path.startsWith('/api/');
-  const isMeta = path === '/openapi.json' || path === '/asyncapi.json';
-  return !isApi && !isMeta;
+  return req.method === 'GET' && path === '/api/v1/healthz';
 }
 
 /**

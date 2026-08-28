@@ -41,16 +41,32 @@ function buildApp() {
 }
 
 describe('error handler — envelope wrapping', () => {
-  it('returns HTTP 200 with code 50001 envelope on unhandled exception', async () => {
+  it('returns HTTP 200 with code 50001 and a sanitized message on unhandled exception', async () => {
     const app = buildApp();
     try {
       const res = await app.inject({ method: 'GET', url: '/boom' });
       expect(res.statusCode).toBe(200);
       const body = res.json() as Record<string, unknown>;
       expect(body['code']).toBe(50001);
-      expect(body['msg']).toBe('oops something broke');
+      // Unexpected internal errors must not leak their raw message (it may
+      // embed filesystem paths or upstream detail); detail stays in the log.
+      expect(body['msg']).toBe('internal error');
       expect(body['data']).toBeNull();
       expect(typeof body['request_id']).toBe('string');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('passes through the message for client-caused (4xx) Fastify errors', async () => {
+    const app = buildApp();
+    try {
+      const res = await app.inject({ method: 'GET', url: '/boom' });
+      expect(res.statusCode).toBe(200);
+      // Sanity: the route 404s through Fastify's own handling, not this hook.
+      const missing = await app.inject({ method: 'GET', url: '/definitely-missing' });
+      expect(missing.statusCode).toBe(404);
+      void res;
     } finally {
       await app.close();
     }

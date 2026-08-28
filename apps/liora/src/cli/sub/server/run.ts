@@ -100,7 +100,6 @@ export function buildRunCommand(cmd: Command): Command {
     .option(
       '--insecure-no-tls',
       t('cli.sub.server.option.insecureNoTls'),
-      true,
     )
     .option(
       '--allow-remote-shutdown',
@@ -111,6 +110,10 @@ export function buildRunCommand(cmd: Command): Command {
       '--allow-remote-terminals',
       t('cli.sub.server.option.allowRemoteTerminals'),
       false,
+    )
+    .option(
+      '--show-token',
+      t('cli.sub.server.option.showToken'),
     )
     .option(
       '--log-level <level>',
@@ -172,6 +175,7 @@ export async function handleRunCommand(
         ? formatReadyBanner(origin, host, {
             token,
             networkAddresses: deps.networkAddresses,
+            showToken: parsed.showToken,
           })
         : formatReadyLine(origin, token);
     deps.stdout.write(output);
@@ -377,6 +381,8 @@ interface FormatReadyBannerOptions {
   token?: string;
   /** Non-loopback interface addresses to list for a wildcard bind. */
   networkAddresses?: NetworkAddress[];
+  /** Force-print the token even on a non-loopback bind (`--show-token`). */
+  showToken?: boolean;
 }
 
 function formatReadyBanner(
@@ -417,11 +423,22 @@ function formatReadyBanner(
     );
   }
   if (opts.token !== undefined) {
-    // Set the token off with surrounding whitespace rather than color, so it is
-    // easy to spot without being highlighted.
-    lines.push('');
-    lines.push(`  ${label(t('cli.runtime.server.labelToken'))}${opts.token}`);
-    lines.push('');
+    if (isLoopbackHost(host) || opts.showToken === true) {
+      // Set the token off with surrounding whitespace rather than color, so it is
+      // easy to spot without being highlighted.
+      lines.push('');
+      lines.push(`  ${label(t('cli.runtime.server.labelToken'))}${opts.token}`);
+      lines.push('');
+    } else {
+      // A non-loopback bind serves the LAN: printing a long-lived credential
+      // into scrollback, CI logs, and screenshots is unnecessary exposure.
+      // Point at the token file instead; `--show-token` opts back in.
+      lines.push('');
+      lines.push(
+        `  ${label(t('cli.runtime.server.labelToken'))}${muted(t('cli.runtime.server.bannerTokenHidden'))}`,
+      );
+      lines.push('');
+    }
   }
 
   // Auxiliary controls last.

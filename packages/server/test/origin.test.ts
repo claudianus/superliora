@@ -43,6 +43,15 @@ describe('isOriginAllowed', () => {
     expect(isOriginAllowed('http://localhost:80', 'localhost:80', [])).toBe(true);
   });
 
+  it('denies a same-host different-port origin (different origin)', () => {
+    expect(isOriginAllowed('http://localhost:3000', 'localhost:80', [])).toBe(false);
+    expect(isOriginAllowed('http://127.0.0.1:3000', '127.0.0.1:58627', [])).toBe(false);
+  });
+
+  it('rejects the present `null` sentinel origin', () => {
+    expect(isOriginAllowed('null', 'localhost:80', [])).toBe(false);
+  });
+
   it('denies cross-origin that is not whitelisted', () => {
     expect(isOriginAllowed('http://evil.com', 'localhost:80', [])).toBe(false);
   });
