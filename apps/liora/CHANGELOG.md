@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.15.4
+
+### Patch Changes
+
+- Fix `Model "auto" is not configured` after `/free off` → `/free on`: the turn now falls back to a concrete free model with stale probe cooldowns cleared, so a transient free-tier outage surfaces a provider error instead of a config error.
+- Side LLM calls (prompt suggestions, ghost text) no longer resolve auth against the virtual `auto` pin.
+- Stale free-model aliases are now actually deleted from config.toml on `/free on` and at startup (the previous prune wrote a patch the deep-merge config API cannot apply).
+
 ## 0.15.3
 
 ### Patch Changes
