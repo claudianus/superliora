@@ -17,7 +17,7 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   openrouter: 'OpenRouter',
   deepseek: 'DeepSeek',
   groq: 'Groq',
-  clinepass: 'ClinePass',
+  'cline-pass': 'ClinePass',
   'qwen-token-plan': 'Alibaba Token Plan',
   'alibaba-token-plan': 'Alibaba Token Plan',
   'alibaba-token-plan-cn': 'Alibaba Token Plan (China)',
@@ -37,7 +37,7 @@ const PROVIDER_SHORT_NAMES: Readonly<Record<string, string>> = {
   openrouter: 'OR',
   deepseek: 'DS',
   groq: 'Groq',
-  clinepass: 'Cline',
+  'cline-pass': 'Cline',
   'qwen-token-plan': 'Qwen',
   'alibaba-token-plan': 'Qwen',
   'alibaba-token-plan-cn': 'Qwen',
@@ -58,7 +58,7 @@ const SUBSCRIPTION_KEYS = new Set([
   'github_copilot',
 ]);
 
-const CREDITS_KEYS = new Set(['openrouter', 'deepseek', 'clinepass', 'zai', 'zai-coding-plan']);
+const CREDITS_KEYS = new Set(['openrouter', 'deepseek', 'cline-pass', 'zai', 'zai-coding-plan']);
 
 export function providerDisplayName(providerKey: string): string {
   return PROVIDER_DISPLAY_NAMES[providerKey] ?? providerKey;

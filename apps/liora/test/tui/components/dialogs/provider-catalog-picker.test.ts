@@ -133,8 +133,8 @@ describe('buildProviderCatalogOptions', () => {
   it('surfaces ClinePass when present in the catalog', () => {
     const catalog = {
       ...makeCatalog(),
-      clinepass: {
-        id: 'clinepass',
+      'cline-pass': {
+        id: 'cline-pass',
         name: 'ClinePass',
         api: 'https://api.cline.bot/api/v1',
         env: ['CLINE_API_KEY'],
@@ -151,7 +151,7 @@ describe('buildProviderCatalogOptions', () => {
       },
     };
     const options = buildProviderCatalogOptions(catalog);
-    const clinepass = options.find((o) => o.catalogId === 'clinepass');
+    const clinepass = options.find((o) => o.catalogId === 'cline-pass');
     expect(clinepass).toMatchObject({
       label: 'ClinePass',
       authKind: 'api-key',
@@ -166,14 +166,15 @@ describe('buildProviderCatalogOptions', () => {
     const options = buildProviderCatalogOptions(catalog);
     const opencodeIdx = options.findIndex((o) => o.catalogId === 'opencode');
     const zaiIdx = options.findIndex((o) => o.catalogId === 'zai-coding-plan');
-    const clinepassIdx = options.findIndex((o) => o.catalogId === 'clinepass');
+    const clinepassIdx = options.findIndex((o) => o.catalogId === 'cline-pass');
     expect(opencodeIdx).toBeGreaterThanOrEqual(0);
     expect(zaiIdx).toBeGreaterThanOrEqual(0);
     expect(opencodeIdx).toBeLessThan(clinepassIdx);
     const ox = options.find((o) => o.catalogId === 'opencode');
     expect(ox?.label).toBe('OpenCode Zen');
     expect(ox?.envVars).toContain('OPENCODE_API_KEY');
-    expect(ox?.modelCount).toBeGreaterThan(0);
+    // opencode hard-coded removed — live is source, so 0 with minimal makeCatalog is expected
+    expect(ox).toBeDefined();
   });
 
   it('surfaces Chat Completions majors whose npm package does not contain openai', () => {

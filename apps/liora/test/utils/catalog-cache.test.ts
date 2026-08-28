@@ -36,14 +36,14 @@ describe('loadCatalog', () => {
     const catalog = await loadCatalog(undefined, fetchImpl as unknown as typeof fetch);
     expect(catalog['anthropic']?.name).toBe('Anthropic');
     // SuperLiora-curated providers are layered on top of models.dev.
-    expect(catalog['clinepass']?.name).toBe('ClinePass');
+    expect(catalog['cline-pass']?.name).toBe('ClinePass');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     // The cache file exists so the next load skips the network.
     const cachePath = join(home, 'cache', 'models-dev-catalog.json');
     expect(() => statSync(cachePath)).not.toThrow();
     // Cache stores the remote snapshot only — no curated overlay baked in.
     const disk = JSON.parse(readFileSync(cachePath, 'utf8')) as Record<string, unknown>;
-    expect(disk['clinepass']).toBeUndefined();
+    expect(disk['cline-pass']).toBeUndefined();
     expect(disk['anthropic']).toBeDefined();
   });
 
@@ -67,7 +67,7 @@ describe('loadCatalog', () => {
     });
     const catalog = await loadCatalog(undefined, fetchImpl as unknown as typeof fetch);
     expect(catalog['anthropic']?.name).toBe('Anthropic');
-    expect(catalog['clinepass']?.name).toBe('ClinePass');
+    expect(catalog['cline-pass']?.name).toBe('ClinePass');
   });
 
   it('returns curated providers when the network fails with no cache', async () => {
@@ -75,8 +75,8 @@ describe('loadCatalog', () => {
       throw new Error('network down');
     });
     const catalog = await loadCatalog(undefined, fetchImpl as unknown as typeof fetch);
-    expect(catalog['clinepass']?.name).toBe('ClinePass');
-    expect(catalog['clinepass']?.api).toBe('https://api.cline.bot/api/v1');
+    expect(catalog['cline-pass']?.name).toBe('ClinePass');
+    expect(catalog['cline-pass']?.api).toBe('https://api.cline.bot/api/v1');
     expect(catalog['opencode']?.name).toBe('OpenCode Zen');
   });
 });

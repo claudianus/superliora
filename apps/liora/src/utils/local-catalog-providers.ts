@@ -1,7 +1,7 @@
 /**
  * Curated catalog providers that are not (yet) in models.dev.
  *
- * Previously this file hard-coded 9+ opencode, 7 zai, 13 clinepass model
+ * Previously this file hard-coded 9+ opencode, 7 zai, 13 cline-pass model
  * lists, which drifted from live `https://models.dev/api.json` (now 93
  * opencode, 16 zai, 7 zai-coding-plan, 13 cline-pass) and caused the
  * picker to show stale free tiers. As of 2026-08, all three are on
@@ -16,76 +16,20 @@ import type { Catalog, CatalogProviderEntry } from '@superliora/sdk';
 /** Cline API base for OpenAI-compatible chat completions. */
 export const CLINEPASS_API_BASE = 'https://api.cline.bot/api/v1';
 
-export const CLINEPASS_PROVIDER_ID = 'clinepass';
+export const CLINEPASS_PROVIDER_ID = 'cline-pass';
 
 /** Env var checked for an existing Cline / ClinePass API key. */
 export const CLINEPASS_API_KEY_ENV = 'CLINE_API_KEY';
 
-/**
- * Curated ClinePass open-weight coding models.
- *
- * Model IDs use the full ClinePass slug (e.g. `cline-pass/glm-5.2`) expected
- * by `https://api.cline.bot/api/v1/chat/completions`. Context windows and
- * reasoning flags follow the public ClinePass docs.
- *
- * @see https://docs.cline.bot/getting-started/clinepass
- */
 type LocalCatalogModel = NonNullable<CatalogProviderEntry['models']>[string];
 
-// ClinePass uses id `clinepass` (without hyphen) which is not yet on models.dev
-// (`cline-pass` with hyphen is a different id). Keep curated list as offline
-// fallback; opencode/zai are on models.dev so their hard-coded lists are
-// removed and live is the source of truth.
+// opencode (93), zai (16), zai-coding-plan (7) are now on models.dev —
+// hard-coded model maps removed so live is single source. cline-pass
+// (id `cline-pass` with hyphen) is also on models.dev (13), but keep a
+// single curated entry as offline fallback for fresh installs without
+// built-in snapshot; live merge will still expose all 13.
 const CLINEPASS_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
   'cline-pass/glm-5.2': model('cline-pass/glm-5.2', 'GLM-5.2', 200_000, 131_072, true),
-  'cline-pass/glm-5.3': model('cline-pass/glm-5.3', 'GLM-5.3', 200_000, 131_072, true),
-  'cline-pass/kimi-k2.7-code': model(
-    'cline-pass/kimi-k2.7-code',
-    'Kimi K2.7 Code',
-    262_144,
-    131_072,
-    true,
-  ),
-  'cline-pass/kimi-k2.6': model('cline-pass/kimi-k2.6', 'Kimi K2.6', 262_144, 131_072, true),
-  'cline-pass/kimi-k3': model('cline-pass/kimi-k3', 'Kimi K3', 262_144, 131_072, true),
-  'cline-pass/deepseek-v4-pro': model(
-    'cline-pass/deepseek-v4-pro',
-    'DeepSeek V4 Pro',
-    1_000_000,
-    384_000,
-    true,
-  ),
-  'cline-pass/deepseek-v4-flash': model(
-    'cline-pass/deepseek-v4-flash',
-    'DeepSeek V4 Flash',
-    1_000_000,
-    384_000,
-    true,
-  ),
-  'cline-pass/mimo-v2.5': model('cline-pass/mimo-v2.5', 'MiMo-V2.5', 262_144, 131_072, true),
-  'cline-pass/mimo-v2.5-pro': model(
-    'cline-pass/mimo-v2.5-pro',
-    'MiMo-V2.5-Pro',
-    262_144,
-    131_072,
-    true,
-  ),
-  'cline-pass/minimax-m3': model('cline-pass/minimax-m3', 'MiniMax M3', 512_000, 131_072, true),
-  'cline-pass/qwen3.7-max': model(
-    'cline-pass/qwen3.7-max',
-    'Qwen3.7 Max',
-    262_144,
-    131_072,
-    true,
-  ),
-  'cline-pass/qwen3.7-plus': model(
-    'cline-pass/qwen3.7-plus',
-    'Qwen3.7 Plus',
-    256_000,
-    131_072,
-    true,
-  ),
-  'cline-pass/qwen3.8-max': model('cline-pass/qwen3.8-max', 'Qwen3.8 Max', 262_144, 131_072, true),
 };
 
 export const CLINEPASS_CATALOG_ENTRY: CatalogProviderEntry = {
@@ -93,7 +37,7 @@ export const CLINEPASS_CATALOG_ENTRY: CatalogProviderEntry = {
   name: 'ClinePass',
   api: CLINEPASS_API_BASE,
   env: [CLINEPASS_API_KEY_ENV],
-  // Explicit wire type: id "clinepass" does not match the openai substring
+  // Explicit wire type: id "cline-pass" does not match the openai substring
   // heuristic used by inferWireType for packages like openrouter.
   type: 'openai',
   npm: '@ai-sdk/openai-compatible',

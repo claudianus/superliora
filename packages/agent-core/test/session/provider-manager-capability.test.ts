@@ -92,7 +92,7 @@ describe('resolveModelCapabilities', () => {
   it('caps MiniMax M3 advertised windows at the 512k price band', () => {
     const caps = resolveModelCapabilities(
       {
-        provider: 'clinepass',
+        provider: 'cline-pass',
         model: 'cline-pass/minimax-m3',
         maxContextSize: 1_048_576,
         capabilities: ['thinking', 'tool_use'],

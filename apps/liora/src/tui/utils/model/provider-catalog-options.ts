@@ -80,7 +80,7 @@ const PROVIDER_PRIORITY: ReadonlyMap<string, number> = new Map<string, number>([
   ['mistral', 7],
   // SuperLiora-curated gateways (not in models.dev, or first-class overlays).
   ['opencode', 8],
-  ['clinepass', 9],
+  ['cline-pass', 9],
   ['zai-coding-plan', 10],
   // Qwen Cloud Token Plan — first-class multimodal subscription.
   ['qwen-token-plan', 11],

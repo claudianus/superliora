@@ -125,7 +125,7 @@ async function fetchProviderUsageUncached(
   if (providerKey === 'groq') {
     return fetchGroqUsage(providerKey, accessToken, baseUrl, opts);
   }
-  if (providerKey === 'clinepass') {
+  if (providerKey === 'cline-pass') {
     return fetchClinePassUsage(providerKey, accessToken, baseUrl, opts);
   }
   if (

@@ -28,14 +28,11 @@ describe('local catalog providers', () => {
     expect(inferWireType(CLINEPASS_CATALOG_ENTRY)).toBe('openai');
   });
 
-  it('lists curated ClinePass models with positive context windows', () => {
+  it('exposes ClinePass provider shell with minimal offline fallback (live is source)', () => {
     const models = catalogProviderModels(CLINEPASS_CATALOG_ENTRY);
-    expect(models.length).toBe(13);
-    expect(models.every((m) => m.id.startsWith('cline-pass/'))).toBe(true);
-    expect(models.every((m) => m.capability.max_context_tokens > 0)).toBe(true);
-    expect(models.every((m) => m.capability.tool_use)).toBe(true);
-    expect(models.some((m) => m.id === 'cline-pass/glm-5.2')).toBe(true);
-    expect(models.some((m) => m.id === 'cline-pass/deepseek-v4-flash')).toBe(true);
+    // cline-pass is on models.dev (13) but keep 1 curated as offline fallback; live merge adds rest
+    expect(models.length).toBe(1);
+    expect(models[0]?.id).toBe('cline-pass/glm-5.2');
   });
 
   it('declares Z.AI Coding Plan as an OpenAI-compatible entry without hard-coded models', () => {
@@ -88,14 +85,14 @@ describe('local catalog providers', () => {
 
   it('lets SuperLiora-curated entries override a same-id remote entry', () => {
     const remote: Catalog = {
-      clinepass: {
-        id: 'clinepass',
+      'cline-pass': {
+        id: 'cline-pass',
         name: 'Stale ClinePass',
         api: 'https://example.test/v1',
       },
     };
     const merged = mergeLocalCatalogProviders(remote);
-    expect(merged['clinepass']?.name).toBe('ClinePass');
-    expect(merged['clinepass']?.api).toBe(CLINEPASS_API_BASE);
+    expect(merged['cline-pass']?.name).toBe('ClinePass');
+    expect(merged['cline-pass']?.api).toBe(CLINEPASS_API_BASE);
   });
 });

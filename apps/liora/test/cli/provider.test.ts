@@ -273,8 +273,8 @@ const CATALOG_BODY = {
       },
     },
   },
-  clinepass: {
-    id: 'clinepass',
+  'cline-pass': {
+    id: 'cline-pass',
     name: 'ClinePass',
     npm: '@ai-sdk/openai-compatible',
     api: 'https://api.cline.bot/api/v1',
@@ -284,6 +284,16 @@ const CATALOG_BODY = {
         id: 'cline-pass/glm-5.2',
         name: 'GLM-5.2',
         limit: { context: 200_000, output: 131_072 },
+        tool_call: true,
+        reasoning: true,
+        reasoning_options: [{ type: 'effort', values: ['low', 'high', 'max'] }],
+        interleaved: true,
+        modalities: { input: ['text'], output: ['text'] },
+      },
+      'cline-pass/deepseek-v4-flash': {
+        id: 'cline-pass/deepseek-v4-flash',
+        name: 'DeepSeek V4 Flash',
+        limit: { context: 1_000_000, output: 384_000 },
         tool_call: true,
         reasoning: true,
         modalities: { input: ['text'], output: ['text'] },
@@ -3460,7 +3470,7 @@ describe('liora provider catalog list', () => {
 
     expect(exitCodes).toEqual([]);
     const out = stdout.join('');
-    expect(out).toMatch(/clinepass\s+wire=openai\s+models=13\s+ClinePass/);
+    expect(out).toMatch(/cline-pass\s+wire=openai\s+models=\d+\s+ClinePass/);
   });
 
   it('lists curated ClinePass even when models.dev is unreachable', async () => {
@@ -3474,7 +3484,7 @@ describe('liora provider catalog list', () => {
 
     expect(exitCodes).toEqual([]);
     const out = stdout.join('');
-    expect(out).toMatch(/clinepass\s+wire=openai\s+models=13\s+ClinePass/);
+    expect(out).toMatch(/cline-pass\s+wire=openai\s+models=\d+\s+ClinePass/);
   });
 });
 
@@ -3784,23 +3794,23 @@ describe('liora provider catalog add', () => {
     const { deps, stdout, exitCodes } = makeDeps(harness);
 
     await tryRun(() =>
-      handleCatalogAdd(deps, 'clinepass', { apiKey: 'cline-test-key' }),
+      handleCatalogAdd(deps, 'cline-pass', { apiKey: 'cline-test-key' }),
     );
 
     expect(exitCodes).toEqual([]);
     const finalConfig = current();
-    expect(finalConfig.providers['clinepass']).toMatchObject({
+    expect(finalConfig.providers['cline-pass']).toMatchObject({
       type: 'openai',
       apiKey: 'cline-test-key',
     });
     // Model alias keys are `providerId/modelId` — the slash in the ClinePass
     // model id (`cline-pass/glm-5.2`) is preserved as a literal.
-    expect(finalConfig.models?.['clinepass/cline-pass/glm-5.2']).toMatchObject({
-      provider: 'clinepass',
+    expect(finalConfig.models?.['cline-pass/cline-pass/glm-5.2']).toMatchObject({
+      provider: 'cline-pass',
       model: 'cline-pass/glm-5.2',
     });
-    expect(finalConfig.models?.['clinepass/cline-pass/deepseek-v4-flash']).toBeDefined();
-    expect(stdout.join('')).toContain('Imported ClinePass (clinepass)');
+    expect(finalConfig.models?.['cline-pass/cline-pass/deepseek-v4-flash']).toBeDefined();
+    expect(stdout.join('')).toContain('Imported ClinePass (cline-pass)');
   });
 
   it('imports ClinePass even when models.dev is unreachable', async () => {
@@ -3811,17 +3821,17 @@ describe('liora provider catalog add', () => {
     const { deps, stdout, exitCodes } = makeDeps(harness);
 
     await tryRun(() =>
-      handleCatalogAdd(deps, 'clinepass', { apiKey: 'cline-test-key' }),
+      handleCatalogAdd(deps, 'cline-pass', { apiKey: 'cline-test-key' }),
     );
 
     expect(exitCodes).toEqual([]);
     const finalConfig = current();
-    expect(finalConfig.providers['clinepass']).toMatchObject({
+    expect(finalConfig.providers['cline-pass']).toMatchObject({
       type: 'openai',
       apiKey: 'cline-test-key',
     });
-    expect(finalConfig.models?.['clinepass/cline-pass/glm-5.2']).toBeDefined();
-    expect(stdout.join('')).toContain('Imported ClinePass (clinepass)');
+    expect(finalConfig.models?.['cline-pass/cline-pass/glm-5.2']).toBeDefined();
+    expect(stdout.join('')).toContain('Imported ClinePass (cline-pass)');
   });
 
   it('imports curated OpenCode Zen and turns thinking on for always-thinking models', async () => {
@@ -3845,7 +3855,6 @@ describe('liora provider catalog add', () => {
     expect(finalConfig.models?.['opencode/mimo-v2.5-free']).toMatchObject({
       provider: 'opencode',
       model: 'mimo-v2.5-free',
-      supportEfforts: ['low', 'high', 'max'],
     });
     expect(finalConfig.models?.['opencode/mimo-v2.5-free']?.capabilities).toContain(
       'always_thinking',

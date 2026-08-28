@@ -378,7 +378,7 @@ export class LioraAuthFacade {
         return this.providerManager.getCachedAccessToken(providerKey);
       }
     }
-    // API-key-based providers (clinepass, qwen-token-plan, …): use the
+    // API-key-based providers (cline-pass, qwen-token-plan, …): use the
     // configured apiKey directly — no OAuth token refresh needed.
     const config = loadRuntimeConfigSafe(this.options.configPath).config;
     const providerEntry = config.providers?.[providerKey];

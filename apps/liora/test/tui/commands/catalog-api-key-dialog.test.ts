@@ -4,12 +4,12 @@ import { catalogApiKeyDialogState } from '#/tui/commands/auth/prompts';
 import type { ProviderCatalogOption } from '#/tui/utils/model/provider-catalog-options';
 
 const option: ProviderCatalogOption = {
-  value: 'catalog:clinepass',
+  value: 'catalog:cline-pass',
   label: 'ClinePass',
   authKind: 'api-key',
   modelCount: 1,
   envVars: ['CLINE_API_KEY'],
-  catalogId: 'clinepass',
+  catalogId: 'cline-pass',
 };
 
 describe('catalogApiKeyDialogState', () => {
