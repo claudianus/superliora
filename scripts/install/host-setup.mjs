@@ -292,8 +292,10 @@ export function planHostSetup(options = {}) {
       'execution-policy',
       'change',
       'PowerShell execution policy (CurrentUser)',
-      'Set RemoteSigned only when current policy is Restricted',
-      'refresh',
+      options.allowExecutionPolicy === true
+        ? 'Set RemoteSigned only when current policy is Restricted'
+        : 'Opt-in only: pass --allow-execution-policy (or SUPERLIORA_ALLOW_EXECUTION_POLICY=1); Restricted is left untouched by default',
+      options.allowExecutionPolicy === true ? 'refresh' : 'needed',
     ));
   }
 

@@ -5,10 +5,11 @@
 import { spawnSync } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import { chmod, mkdir, rm } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 
+import { sha256File } from './download.mjs';
 import {
   DEFAULT_NODE_MIN,
   defaultRuntimeNodeDir,
@@ -48,6 +49,7 @@ export async function ensureNode(options = {}) {
       `${slug}.${process.platform === 'win32' ? 'zip' : 'tar.gz'}`,
     );
     await downloadFile(url, archivePath);
+    await verifyShasums256(archivePath, url);
     await rm(destRoot, { recursive: true, force: true });
     await mkdir(destRoot, { recursive: true });
     if (process.platform === 'win32') {
@@ -135,6 +137,37 @@ async function downloadFile(url, dest) {
   }
   await mkdir(dirname(dest), { recursive: true });
   await pipeline(Readable.fromWeb(res.body), createWriteStream(dest));
+}
+
+/**
+ * Verify the downloaded archive against nodejs.org's SHASUMS256.txt, so a
+ * tampered or truncated archive never becomes the CLI runtime.
+ */
+async function verifyShasums256(archivePath, url) {
+  const shasumsUrl = `${new URL('.', url).href}SHASUMS256.txt`;
+  const res = await fetch(shasumsUrl, { redirect: 'follow' });
+  if (!res.ok) {
+    throw new Error(`Failed to download ${shasumsUrl}: HTTP ${res.status}`);
+  }
+  const text = await res.text();
+  const fileName = basename(archivePath);
+  const entry = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.endsWith(fileName));
+  if (entry === undefined) {
+    throw new Error(`SHASUMS256.txt has no entry for ${fileName}`);
+  }
+  const expected = entry.split(/\s+/)[0]?.toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(expected ?? '')) {
+    throw new Error(`SHASUMS256.txt entry for ${fileName} has no sha256 digest`);
+  }
+  const digest = await sha256File(archivePath);
+  if (digest !== expected) {
+    throw new Error(
+      `Checksum mismatch for ${fileName}: expected ${expected}, got ${digest}`,
+    );
+  }
 }
 
 async function extractTarGz(archivePath, destParent) {

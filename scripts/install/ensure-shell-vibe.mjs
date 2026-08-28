@@ -383,12 +383,25 @@ export async function ensureShellVibe(options = {}) {
   }
 
   let executionPolicySet = false;
+  let executionPolicySkipped = false;
   if (platform === 'win32' && options.noExecutionPolicy !== true) {
-    const setPolicy = options.setExecutionPolicy ?? defaultSetExecutionPolicy;
-    try {
-      executionPolicySet = setPolicy() === true;
-    } catch {
-      executionPolicySet = false;
+    const allowed =
+      options.allowExecutionPolicy === true
+      || (options.env ?? process.env).SUPERLIORA_ALLOW_EXECUTION_POLICY === '1';
+    if (allowed) {
+      const setPolicy = options.setExecutionPolicy ?? defaultSetExecutionPolicy;
+      try {
+        executionPolicySet = setPolicy() === true;
+      } catch {
+        executionPolicySet = false;
+      }
+    } else {
+      // Consent-gated (default): loosening PowerShell's script policy is a
+      // security-relevant host change, so the installer never does it
+      // silently. Opt in with --allow-execution-policy or
+      // SUPERLIORA_ALLOW_EXECUTION_POLICY=1; a Restricted host keeps
+      // working — the CLI can still be started from an existing shell.
+      executionPolicySkipped = true;
     }
   }
 
@@ -403,6 +416,7 @@ export async function ensureShellVibe(options = {}) {
     terminalIconsInstalled,
     profilePatched,
     executionPolicySet,
+    executionPolicySkipped,
     message: omp.message,
   };
 }

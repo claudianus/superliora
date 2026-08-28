@@ -167,6 +167,20 @@ async function installBrowserSidecars(installDir, commandName, warn, options) {
   }
 }
 
+/**
+ * Pinned Lightpanda release. `nightly` is a moving target executed as a CDP
+ * sidecar, so pin a versioned release and verify against the sha256 digests
+ * GitHub records for the release assets (mirror of the map in
+ * packages/gui-use/src/browser/lightpanda-binary.ts — update both together).
+ */
+const LIGHTPANDA_RELEASE_TAG = '0.3.7';
+const LIGHTPANDA_ASSET_SHA256 = {
+  'lightpanda-aarch64-linux': '4c0ecb28b4fcfb6d5bce82ec86e15fc6cde89cea168cf3840494f0ee26755852',
+  'lightpanda-aarch64-macos': 'ae99542d81af23087296ec037abb0d57a57002502f5ff4c1b0b05dfa484b79b8',
+  'lightpanda-x86_64-linux': '895339b02205171a181dde743ae0068bb4564884076feac8482baca9c212aa5a',
+  'lightpanda-x86_64-macos': '5e118b6e91c2cccb1ce7f0d34fc39dab262b947e4dea29a90b1a75b9399d7862',
+};
+
 async function installLightpanda(warn, options) {
   const asset = lightpandaAsset(options.platform ?? process.platform, options.arch ?? process.arch);
   if (!asset) {
@@ -181,13 +195,13 @@ async function installLightpanda(warn, options) {
   try {
     const download = options.downloadToFile ?? downloadToFile;
     await download(
-      `https://github.com/lightpanda-io/browser/releases/download/nightly/${asset}`,
+      `https://github.com/lightpanda-io/browser/releases/download/${LIGHTPANDA_RELEASE_TAG}/${asset}`,
       target,
-      { timeoutMs: stepTimeoutMs(options) },
+      { timeoutMs: stepTimeoutMs(options), expectedSha256: LIGHTPANDA_ASSET_SHA256[asset] },
     );
     if (platform !== 'win32') await chmod(target, 0o755);
   } catch {
-    warn('Lightpanda pre-install failed; retry with browser-use install');
+    warn('Lightpanda pre-install failed (integrity check or download); retry with browser-use install');
   }
 }
 
@@ -208,6 +222,11 @@ function installCuaDriver(commandName, warn, options) {
     timeout,
     windowsHide: true,
   };
+  // Third-party installer pinned to an immutable commit of trycua/cua —
+  // piping that repo's `main` would execute whatever lands there next. The
+  // script itself fetches further artifacts; bumping the pin is a deliberate
+  // update decision, not an accident of timing.
+  const CUA_INSTALL_PIN = '57981a16f8c16a72955ac06d3a98dbcc0f9ca4b6';
   try {
     const platform = options.platform ?? process.platform;
     if (platform === 'win32') {
@@ -218,7 +237,7 @@ function installCuaDriver(commandName, warn, options) {
           '-ExecutionPolicy',
           'Bypass',
           '-Command',
-          'irm https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.ps1 | iex',
+          `irm https://raw.githubusercontent.com/trycua/cua/${CUA_INSTALL_PIN}/libs/cua-driver/scripts/install.ps1 | iex`,
         ],
         spawnOpts,
       );
@@ -228,7 +247,7 @@ function installCuaDriver(commandName, warn, options) {
     if (platform === 'darwin' || platform === 'linux') {
       const r = spawn(
         '/bin/bash',
-        ['-c', 'curl -fsSL https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.sh | /bin/bash'],
+        ['-c', `curl -fsSL https://raw.githubusercontent.com/trycua/cua/${CUA_INSTALL_PIN}/libs/cua-driver/scripts/install.sh | /bin/bash`],
         spawnOpts,
       );
       if (r.status !== 0) throw Object.assign(new Error(`exit ${r.status}`), { result: r });

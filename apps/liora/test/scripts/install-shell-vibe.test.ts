@@ -76,6 +76,8 @@ describe('scripts/install/ensure-shell-vibe', () => {
       downloadToFile: async () => '',
       expandZip: () => {},
       installTerminalIcons: () => true,
+      // Policy changes are consent-gated: only an explicit opt-in sets it.
+      allowExecutionPolicy: true,
       setExecutionPolicy: () => true,
       addUserPath: () => {},
     });

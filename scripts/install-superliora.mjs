@@ -213,6 +213,9 @@ try {
       skip: args.noHostSetup,
       skipTerminal: args.noTerminal,
       noShellRc: args.noShellRc,
+      allowExecutionPolicy:
+        args.allowExecutionPolicy === true
+        || process.env.SUPERLIORA_ALLOW_EXECUTION_POLICY === '1',
       locale: installLocale,
     });
     if (plan.applicable && !args.noHostSetup) {
@@ -226,6 +229,11 @@ try {
       skipTerminal: args.noTerminal,
       noShellRc: args.noShellRc,
       skipPackages: postInstall.skipHostPackages,
+      // Consent-gated: loosening PowerShell's script policy never happens
+      // without an explicit opt-in (flag or env).
+      allowExecutionPolicy:
+        args.allowExecutionPolicy === true
+        || process.env.SUPERLIORA_ALLOW_EXECUTION_POLICY === '1',
       binDir,
       commandName,
       plan,
@@ -253,6 +261,9 @@ try {
     }
     if (termInfo.profilePatched) {
       theatre.setDetail(t('install.profilePatched', undefined, installLocale));
+    }
+    if (termInfo.executionPolicySkipped === true) {
+      theatre.note(t('install.executionPolicySkipped', undefined, installLocale));
     }
     if (termInfo.wingetBootstrapped) {
       theatre.setDetail(t('install.wingetBootstrapped', undefined, installLocale));
@@ -419,6 +430,9 @@ function parseArgs(argv) {
       case '--no-host-setup':
         out.noHostSetup = true;
         break;
+      case '--allow-execution-policy':
+        out.allowExecutionPolicy = true;
+        break;
       case '--prefer-source':
         out.preferSource = true;
         break;
@@ -481,6 +495,10 @@ Options:
   --no-terminal         Skip Windows Terminal only (font / prompt / shell still run)
   --no-host-setup       Skip host setup (or SUPERLIORA_NO_HOST_SETUP=1)
   --no-shell-rc         Do not edit shell PATH / User PATH (or SUPERLIORA_NO_SHELL_RC=1)
+  --allow-execution-policy
+                        Allow Set-ExecutionPolicy RemoteSigned on Windows (or
+                        SUPERLIORA_ALLOW_EXECUTION_POLICY=1); without it a
+                        Restricted policy is left untouched
   --main                Ignore releases; build tip of origin/main from source
   --prefer-source       Skip prebuilt; build from source (--ref, default main)
   --force-prebuilt      Fail if prebuilt unavailable (same as default without --main)

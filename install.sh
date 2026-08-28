@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SuperLiora bootstrap — ensure Node, then run scripts/install-superliora.mjs
+# SuperLiora bootstrap -- ensure Node, then run scripts/install-superliora.mjs
 set -euo pipefail
 
 DEFAULT_REPO_URL="https://github.com/claudianus/superliora.git"
@@ -56,9 +56,39 @@ say_info() {
   fi
 }
 
+# Repo base of a raw URL: strip the trailing `/main` from the default base.
+REPO_RAW_ROOT="${DEFAULT_RAW_BASE%/main}"
+
+# Verify a release tag is reachable on raw and return its raw base; print
+# nothing and return 1 when it is not. The probe also guards against a stale
+# `latest` pointer on main advertising a tag that was never cut.
+tag_raw_base() {
+  local version="$1" tag probe
+  tag="v${version#v}"
+  probe="$(curl -fsSL "${REPO_RAW_ROOT}/${tag}/latest.json" 2>/dev/null)" || return 1
+  printf '%s' "$probe" | grep -Eq "\"version\"[[:space:]]*:[[:space:]]*\"${version}\"" || return 1
+  printf '%s/%s\n' "$REPO_RAW_ROOT" "$tag"
+}
+
+# Pin the installer module bundle to the release being installed. The entry
+# script (this file) still comes from whatever branch it was piped from, but
+# every module the orchestrator executes is fetched from the same immutable
+# tag the release was published from -- not from the mutable tip of main.
+# Skipped when the caller pinned SUPERLIORA_RAW_BASE or asked for --main.
+pin_raw_base() {
+  local target_version="$1" pinned
+  if [ -z "$target_version" ]; then
+    local latest_json
+    latest_json="$(curl -fsSL "${DEFAULT_RAW_BASE}/latest.json" 2>/dev/null)" || return 1
+    target_version="$(printf '%s' "$latest_json" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+    [ -n "$target_version" ] || return 1
+  fi
+  pinned="$(tag_raw_base "$target_version")" || return 1
+  printf '%s\n' "$pinned"
+}
+
 install_locale() {
-  raw="${SUPERLIORA_LOCALE:-${LANGUAGE:-${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}}}"
-  first="$(printf '%s' "$raw" | cut -d: -f1 | tr 'A-Z' 'a-z')"
+  raw="${SUPERLIORA_LOCALE:-${LANGUAGE:-${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}}}"  first="$(printf '%s' "$raw" | cut -d: -f1 | tr 'A-Z' 'a-z')"
   first="${first%%.*}"
   first="${first%%@*}"
   case "$first" in
@@ -333,6 +363,14 @@ if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/scripts/install-superliora.mjs" ]; 
 else
   BUNDLE_DIR="${TMPDIR:-/tmp}/superliora-install-$$"
   mkdir -p "$BUNDLE_DIR/scripts/install"
+  if [ -z "${SUPERLIORA_RAW_BASE:-}" ] && [ "$FROM_MAIN" -ne 1 ]; then
+    if PINNED_BASE="$(pin_raw_base "$VERSION")"; then
+      say_info "installer modules pinned to release ${PINNED_BASE##*/}"
+      RAW_BASE="$PINNED_BASE"
+    else
+      say_info "could not pin installer modules to a release tag; falling back to main"
+    fi
+  fi
   fetch_raw() {
     local rel="$1" dest="$2"
     curl -fsSL "${RAW_BASE}/${rel}" -o "$dest" || die "failed to download ${RAW_BASE}/${rel}"

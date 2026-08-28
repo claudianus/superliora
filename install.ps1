@@ -576,6 +576,9 @@ $opt.CommandName = Get-ValueOrDefault $opt.CommandName 'SUPERLIORA_COMMAND' $Def
 $opt.NodeMin = Get-ValueOrDefault $opt.NodeMin 'SUPERLIORA_NODE_MIN' $DefaultNodeMin
 $opt.ManifestUrl = Get-ValueOrDefault $opt.ManifestUrl 'SUPERLIORA_MANIFEST_URL' $DefaultManifestUrl
 $opt.Version = Get-ValueOrDefault $opt.Version 'SUPERLIORA_VERSION' ''
+$rawBasePinnedByCaller =
+  (-not [string]::IsNullOrWhiteSpace($opt.RawBase)) -or
+  (-not [string]::IsNullOrWhiteSpace($env:SUPERLIORA_RAW_BASE))
 $opt.RawBase = Get-ValueOrDefault $opt.RawBase 'SUPERLIORA_RAW_BASE' $DefaultRawBase
 $opt.InstallDir = Expand-HomePath $opt.InstallDir $homeDir
 $opt.Home = Expand-HomePath $opt.Home $homeDir
@@ -671,6 +674,28 @@ if ($scriptRoot) {
   if (Test-Path -LiteralPath $candidate) { $orch = $candidate }
 }
 
+# Resolve the published release tag and return a raw base pinned to it.
+# Returns $null when the tag cannot be resolved or verified. The probe also
+# guards against a stale `latest` pointer on main advertising a tag that was
+# never cut. The installer module bundle should come from the same immutable
+# tag the release was published from, not from the mutable tip of main.
+function Resolve-PinnedRawBase {
+  param([string]$Base, [string]$Version)
+  $repoRoot = $Base.TrimEnd('/')
+  if ($repoRoot.EndsWith('/main')) { $repoRoot = $repoRoot.Substring(0, $repoRoot.Length - 5) }
+  try {
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+      $latest = Invoke-RestMethod -Uri ($Base.TrimEnd('/') + '/latest.json') -TimeoutSec 15
+      $Version = [string]$latest.version
+    }
+    if ([string]::IsNullOrWhiteSpace($Version)) { return $null }
+    $tag = 'v' + ($Version -replace '^v', '')
+    $check = Invoke-RestMethod -Uri ($repoRoot + '/' + $tag + '/latest.json') -TimeoutSec 15
+  } catch { return $null }
+  if ([string]$check.version -ne $Version) { return $null }
+  return ($repoRoot + '/' + $tag)
+}
+
 if (-not $orch) {
   $bundleDir = Join-Path ([IO.Path]::GetTempPath()) ('superliora-install-' + [guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Force -Path (Join-Path $bundleDir 'scripts\install') | Out-Null
@@ -682,6 +707,18 @@ if (-not $orch) {
     $relFiles += ('scripts/install/' + $name)
   }
   $base = $opt.RawBase.TrimEnd('/')
+  # Consent-free but safe default: pin the executed installer modules to the
+  # release tag. Skipped when the caller pinned SUPERLIORA_RAW_BASE or asked
+  # for --main; falls back to main with a note when pinning cannot resolve.
+  if (-not $opt.Main -and -not $rawBasePinnedByCaller) {
+    $pinned = Resolve-PinnedRawBase -Base $DefaultRawBase -Version $opt.Version
+    if ($pinned) {
+      Write-Host ("installer modules pinned to release " + ($pinned -replace '^.*/', ''))
+      $base = $pinned.TrimEnd('/')
+    } else {
+      Write-Host 'could not pin installer modules to a release tag; falling back to main'
+    }
+  }
   foreach ($rel in $relFiles) {
     $dest = Join-Path $bundleDir ($rel -replace '/', '\')
     $destDir = Split-Path -Parent $dest

@@ -57,6 +57,8 @@ export const INSTALL_STRINGS_EN = {
   'install.zoxideInstalled': 'Installed zoxide',
   'install.fzfInstalled': 'Installed fzf',
   'install.profilePatched': 'Wrote SuperLiora shell profile',
+  'install.executionPolicySkipped':
+    'PowerShell execution policy left unchanged (opt-in). If scripts are blocked: run PowerShell as the user and `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or re-run the installer with --allow-execution-policy.',
   'install.wingetBootstrapped': 'Bootstrapped winget',
   'install.desktopShortcut': 'Wrote SuperLiora desktop shortcut',
   'install.hostSetupFailed':
@@ -141,6 +143,8 @@ export const INSTALL_STRINGS_KO = {
   'install.zoxideInstalled': 'zoxide 설치됨',
   'install.fzfInstalled': 'fzf 설치됨',
   'install.profilePatched': 'SuperLiora 셸 프로필 작성됨',
+  'install.executionPolicySkipped':
+    'PowerShell 실행 정책은 건드리지 않았습니다(옵트인). 스크립트가 차단되면 사용자 PowerShell에서 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`를 실행하거나 --allow-execution-policy로 설치기를 다시 실행하세요.',
   'install.wingetBootstrapped': 'winget 준비됨',
   'install.desktopShortcut': 'SuperLiora 바탕화면 바로가기 작성됨',
   'install.hostSetupFailed':

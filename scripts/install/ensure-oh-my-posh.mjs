@@ -5,7 +5,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
@@ -14,17 +14,35 @@ import { hostJoin } from './host-path.mjs';
 import { OPTIONAL_INSTALL_TIMEOUT_MS, archId, defaultHome } from './platform.mjs';
 
 export const OMP_WINGET_ID = 'JanDeDobbeleer.OhMyPosh';
-export const OMP_EXE_URL =
-  'https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-windows-amd64.exe';
+/**
+ * Pinned oh-my-posh release. `releases/latest/download` is a moving target
+ * executed on every shell prompt, so pin the version and verify the artifact
+ * against upstream's published checksums (from checksums.txt at
+ * {@link OMP_RELEASE_TAG}). Bumping: fetch the new release's checksums.txt,
+ * update the tag and the map below together.
+ */
+export const OMP_RELEASE_TAG = 'v30.9.0';
+const OMP_RELEASE_BASE = `https://github.com/JanDeDobbeleer/oh-my-posh/releases/download/${OMP_RELEASE_TAG}`;
+/** sha256 per asset, from upstream checksums.txt at {@link OMP_RELEASE_TAG}. */
+export const OMP_ASSET_SHA256 = {
+  'posh-windows-amd64.exe': 'f32908269839f60c22b0f6062bfb4681148232a88e696b55cb61a58f56f8a315',
+  'posh-darwin-amd64': 'f2e7d8688548b0c6cfcb168c7d543652a642bf1ff1f0750adbb43b9cf2a289f2',
+  'posh-darwin-arm64': '16d6dcee5997f0d3639c5fc1954a98f032b745ad7f37433f82581152624d5982',
+  'posh-linux-amd64': '8ef4ffa6b219681ec36a1bfde724b915b7ead9ffb011ef217ad3516b35616a3e',
+  'posh-linux-arm64': 'c3b1b5506ddac8529cfcc4ab4ad3699c8558b41beb37072a9329069cda09fae4',
+};
+export const OMP_EXE_URL = `${OMP_RELEASE_BASE}/posh-windows-amd64.exe`;
 export const OMP_THEME_NAME = 'superliora-neon-noir.omp.json';
 
-export function ohMyPoshDownloadUrl(platform = process.platform, arch = process.arch) {
-  if (platform === 'win32') return OMP_EXE_URL;
+export function ohMyPoshAssetName(platform = process.platform, arch = process.arch) {
+  if (platform === 'win32') return 'posh-windows-amd64.exe';
   const cpu = archId(arch);
-  if (platform === 'darwin') {
-    return `https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-darwin-${cpu === 'arm64' ? 'arm64' : 'amd64'}`;
-  }
-  return `https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-linux-${cpu === 'arm64' ? 'arm64' : 'amd64'}`;
+  if (platform === 'darwin') return `posh-darwin-${cpu === 'arm64' ? 'arm64' : 'amd64'}`;
+  return `posh-linux-${cpu === 'arm64' ? 'arm64' : 'amd64'}`;
+}
+
+export function ohMyPoshDownloadUrl(platform = process.platform, arch = process.arch) {
+  return `${OMP_RELEASE_BASE}/${ohMyPoshAssetName(platform, arch)}`;
 }
 
 export function skipOhMyPoshRequested(env = process.env, options = {}) {
@@ -271,8 +289,22 @@ async function installOhMyPoshBinary(options = {}) {
   const destName = platform === 'win32' ? 'oh-my-posh.exe' : 'oh-my-posh';
   const dest = hostJoin(platform, destDir, destName);
   const download = options.downloadToFile ?? downloadToFile;
+  const asset = ohMyPoshAssetName(platform, options.arch ?? process.arch);
   await mkdir(destDir, { recursive: true });
-  await download(ohMyPoshDownloadUrl(platform, options.arch ?? process.arch), dest);
+  try {
+    await download(ohMyPoshDownloadUrl(platform, options.arch ?? process.arch), dest, {
+      expectedSha256: OMP_ASSET_SHA256[asset],
+    });
+  } catch (error) {
+    // A checksum mismatch throws after the file was written — remove the
+    // artifact so a corrupt binary is never picked up by findOhMyPosh.
+    try {
+      await rm(dest, { force: true });
+    } catch {
+      // best-effort cleanup
+    }
+    throw error;
+  }
   if (platform !== 'win32') {
     try {
       await chmod(dest, 0o755);
