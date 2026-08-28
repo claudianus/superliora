@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.16.1
+
+### Patch Changes
+
+- Remove unused FREE-mode helper exports.
+
 ## 0.16.0
 
 ### Minor Changes
