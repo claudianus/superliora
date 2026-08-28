@@ -41,7 +41,7 @@ describe('TUI config', () => {
     expect(text).toContain(`theme = "${DEFAULT_TUI_THEME}"`);
     expect(text).toContain('command = ""');
     expect(text).toContain('[upgrade]');
-    expect(text).toContain('auto_install = true');
+    expect(text).toContain('auto_install = false');
     expect(text).toContain('[appearance]');
     expect(text).toContain('profile = "premium"');
     expect(text).toContain('density = "spacious"');
@@ -218,7 +218,7 @@ command = "   "
       disablePasteBurst: false,
       editorCommand: null,
       notifications: { enabled: true, condition: 'unfocused' },
-      upgrade: { autoInstall: true },
+      upgrade: { autoInstall: false },
       appearance: DEFAULT_APPEARANCE_PREFERENCES,
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
@@ -230,7 +230,7 @@ command = "   "
     const config = parseTuiConfig(`theme = "dark"`);
 
     expect(config.notifications).toEqual({ enabled: true, condition: 'unfocused' });
-    expect(config.upgrade).toEqual({ autoInstall: true });
+    expect(config.upgrade).toEqual({ autoInstall: false });
     expect(config.appearance).toEqual(DEFAULT_APPEARANCE_PREFERENCES);
     expect(config.onboarding).toEqual(DEFAULT_ONBOARDING_PREFERENCES);
   });

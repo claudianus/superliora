@@ -923,7 +923,7 @@ describe('runUpdatePreflight', () => {
     }));
   });
 
-  it('defaults to automatic background updates when client preferences cannot be loaded', async () => {
+  it('asks the user instead of background-installing when preferences cannot be loaded', async () => {
     mocks.loadTuiConfig.mockRejectedValue(new Error('broken tui.toml'));
     mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.readUpdateInstallState.mockResolvedValue(installState());
@@ -932,14 +932,19 @@ describe('runUpdatePreflight', () => {
     mockSpawnExit(0);
     const { options } = captureOutput();
 
-    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
+    const result = await runUpdatePreflight('0.4.0', options);
 
-    expect(promptForInstallChoice).not.toHaveBeenCalled();
+    // Fail closed: an unreadable config must never widen auto-install back
+    // to "on". The preflight falls back to prompting, and any install it
+    // then runs is user-confirmed and foreground — never the detached
+    // background spawn. A user-consented install restarts the CLI ('exit').
+    expect(promptForInstallChoice).toHaveBeenCalledTimes(1);
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^npm(\.cmd)?$/),
       ['install', '-g', '@superliora/liora@0.5.0'],
-      npmBackgroundSpawnOptions(),
+      cmdShimForegroundSpawnOptions(),
     );
+    expect(result).toBe('exit');
   });
 
   it('starts only one background update when two sessions preflight concurrently', async () => {

@@ -337,7 +337,9 @@ export function applyAutoResumeFleetEnv(prefs: ConductorPreferences): void {
 }
 
 export const DEFAULT_UPGRADE_PREFERENCES: UpgradePreferences = {
-  autoInstall: true,
+  // Background updates download and execute installer code unattended, so they
+  // are opt-in: the user must explicitly enable auto-install.
+  autoInstall: false,
 };
 
 export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {

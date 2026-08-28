@@ -195,7 +195,9 @@ async function shouldAutoInstallUpdates(): Promise<boolean> {
     const config = await loadTuiConfig();
     return config.upgrade.autoInstall;
   } catch {
-    return true;
+    // Fail closed: auto-install spawns installer code unattended, so an
+    // unreadable config must never widen it back to "on".
+    return false;
   }
 }
 
