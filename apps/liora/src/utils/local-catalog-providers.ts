@@ -30,6 +30,7 @@ type LocalCatalogModel = NonNullable<CatalogProviderEntry['models']>[string];
 
 const CLINEPASS_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
   'cline-pass/glm-5.2': model('cline-pass/glm-5.2', 'GLM-5.2', 200_000, 131_072, true),
+  'cline-pass/glm-5.3': model('cline-pass/glm-5.3', 'GLM-5.3', 200_000, 131_072, true),
   'cline-pass/kimi-k2.7-code': model(
     'cline-pass/kimi-k2.7-code',
     'Kimi K2.7 Code',
@@ -38,6 +39,7 @@ const CLINEPASS_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
     true,
   ),
   'cline-pass/kimi-k2.6': model('cline-pass/kimi-k2.6', 'Kimi K2.6', 262_144, 131_072, true),
+  'cline-pass/kimi-k3': model('cline-pass/kimi-k3', 'Kimi K3', 262_144, 131_072, true),
   'cline-pass/deepseek-v4-pro': model(
     'cline-pass/deepseek-v4-pro',
     'DeepSeek V4 Pro',
@@ -75,6 +77,7 @@ const CLINEPASS_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
     131_072,
     true,
   ),
+  'cline-pass/qwen3.8-max': model('cline-pass/qwen3.8-max', 'Qwen3.8 Max', 262_144, 131_072, true),
 };
 
 export const CLINEPASS_CATALOG_ENTRY: CatalogProviderEntry = {
@@ -109,9 +112,12 @@ export const ZAI_API_KEY_ENVS = ['Z_AI_API_KEY', 'ZAI_API_KEY'] as const;
  */
 const ZAI_CODING_PLAN_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
   'glm-5.2': model('glm-5.2', 'GLM-5.2', 200_000, 131_072, true),
+  'glm-5.2-highspeed': model('glm-5.2-highspeed', 'GLM-5.2 HighSpeed', 200_000, 131_072, true),
   'glm-5-turbo': model('glm-5-turbo', 'GLM-5 Turbo', 200_000, 131_072, true),
   'glm-4.7': model('glm-4.7', 'GLM-4.7', 200_000, 131_072, true),
-  'glm-4.6v': model('glm-4.6v', 'GLM-4.6V', 131_072, 65_536, true, { imageIn: true }),
+  'glm-5.3': model('glm-5.3', 'GLM-5.3', 200_000, 131_072, true),
+  'glm-5.3-flash': model('glm-5.3-flash', 'GLM-5.3 Flash', 200_000, 131_072, true),
+  'glm-5.3-highspeed': model('glm-5.3-highspeed', 'GLM-5.3 HighSpeed', 200_000, 131_072, true),
 };
 
 export const ZAI_CODING_PLAN_CATALOG_ENTRY: CatalogProviderEntry = {
@@ -260,14 +266,29 @@ export function detectedConnectEnvHints(
 
 /**
  * Returns a new catalog with SuperLiora-curated providers merged in.
- * Local entries overwrite same-id models.dev entries so the wire type,
- * base URL, and model list stay under SuperLiora control.
+ * For providers already in models.dev (opencode, zai, zai-coding-plan), merge
+ * models so the TUI picker shows the full live list plus our curated pins
+ * (local wins for same model id, but remote-only models are kept). For
+ * providers not yet in models.dev, the local entry is added as-is.
  */
 export function mergeLocalCatalogProviders(catalog: Catalog): Catalog {
-  return {
-    ...catalog,
-    ...LOCAL_CATALOG_PROVIDERS,
-  };
+  const merged: Catalog = { ...catalog };
+  for (const [id, local] of Object.entries(LOCAL_CATALOG_PROVIDERS)) {
+    const remote = catalog[id];
+    if (remote === undefined) {
+      merged[id] = local;
+    } else {
+      merged[id] = {
+        ...remote,
+        ...local,
+        models: {
+          ...remote.models,
+          ...local.models,
+        },
+      };
+    }
+  }
+  return merged;
 }
 
 function model(

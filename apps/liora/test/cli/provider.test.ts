@@ -3407,7 +3407,7 @@ describe('liora provider catalog list', () => {
 
     expect(exitCodes).toEqual([]);
     const out = stdout.join('');
-    expect(out).toMatch(/clinepass\s+wire=openai\s+models=10\s+ClinePass/);
+    expect(out).toMatch(/clinepass\s+wire=openai\s+models=13\s+ClinePass/);
   });
 
   it('lists curated ClinePass even when models.dev is unreachable', async () => {
@@ -3421,7 +3421,7 @@ describe('liora provider catalog list', () => {
 
     expect(exitCodes).toEqual([]);
     const out = stdout.join('');
-    expect(out).toMatch(/clinepass\s+wire=openai\s+models=10\s+ClinePass/);
+    expect(out).toMatch(/clinepass\s+wire=openai\s+models=13\s+ClinePass/);
   });
 });
 
