@@ -101,23 +101,79 @@ const FETCH_MAX_BLOCK_RETRIES = 1;
 const FETCH_RETRY_BASE_BACKOFF_MS = 800;
 
 /**
+ * Expand an IPv6 literal into its 8 lowercase hex groups, or `undefined` when
+ * the input is not a valid IPv6 literal (brackets already stripped).
+ */
+function expandIPv6(host: string): readonly string[] | undefined {
+  if (!host.includes(':')) return undefined;
+  const dc = host.indexOf('::');
+  let head = host;
+  let tail = '';
+  if (dc !== -1) {
+    if (host.indexOf('::', dc + 1) !== -1) return undefined;
+    head = host.slice(0, dc);
+    tail = host.slice(dc + 2);
+  }
+  const headGroups = head.length === 0 ? [] : head.split(':');
+  const tailGroups = tail.length === 0 ? [] : tail.split(':');
+  const fill = 8 - headGroups.length - tailGroups.length;
+  if (fill < 0 || (dc === -1 && fill !== 0)) return undefined;
+  const groups: string[] = [];
+  for (const group of [...headGroups, ...Array<string>(fill).fill('0'), ...tailGroups]) {
+    if (!/^[0-9a-fA-F]{1,4}$/.test(group)) return undefined;
+    groups.push(group.toLowerCase().padStart(4, '0'));
+  }
+  return groups;
+}
+
+function isIPv4Mapped(v6: readonly string[]): boolean {
+  return v6.slice(0, 5).every((g) => g === '0000') && v6[5] === 'ffff';
+}
+
+function v4FromMapped(v6: readonly string[]): string {
+  const hi = v6[6]!;
+  const lo = v6[7]!;
+  return [
+    Number.parseInt(hi.slice(0, 2), 16),
+    Number.parseInt(hi.slice(2, 4), 16),
+    Number.parseInt(lo.slice(0, 2), 16),
+    Number.parseInt(lo.slice(2, 4), 16),
+  ].join('.');
+}
+
+/**
  * True when the IP literal is private / loopback / link-local / ULA / CGNAT.
- * Handles IPv4 dotted-quad, IPv6 loopback/ULA/link-local, and IPv6-mapped IPv4
- * (`::ffff:127.0.0.1`). Returns false for non-IP strings (domain names).
+ * Handles IPv4 dotted-quad and IPv6 structurally (loopback, ULA fc00::/7,
+ * link-local fe80::/10, and IPv4-mapped forms including the hex
+ * `::ffff:7f00:1` spelling that the dotted-quad regex cannot see). Returns
+ * false for non-IP strings (domain names) — a domain that merely starts with
+ * `fc`/`fd` (e.g. `fc-example.com`) is NOT private.
  */
 export function isPrivateIp(address: string): boolean {
-  const host = address.toLowerCase();
+  let host = address.toLowerCase();
+  if (host.startsWith('[') && host.endsWith(']')) {
+    host = host.slice(1, -1);
+  }
   // Literal "localhost" / loopback aliases.
   if (host === 'localhost' || host.endsWith('.localhost')) return true;
 
-  // Strip IPv6-mapped IPv4: `::ffff:127.0.0.1` → `127.0.0.1`.
+  // IPv4-mapped dotted-quad spelling: `::ffff:127.0.0.1` → `127.0.0.1`.
   const mappedV4 = /::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(host);
   if (mappedV4 !== null) return isPrivateIp(mappedV4[1]!);
 
-  // IPv6 loopback / ULA / link-local. `fc`/`fd` are ULA (fc00::/7);
-  // `fe80` is link-local; `::1` loopback; `::` unspecified.
-  if (host === '::1' || host === '::') return true;
-  if (host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) return true;
+  // IPv6 literals, analyzed structurally.
+  const v6 = expandIPv6(host);
+  if (v6 !== undefined) {
+    if (v6.every((g) => g === '0000')) return true; // :: unspecified
+    if (isIPv4Mapped(v6)) return isPrivateIp(v4FromMapped(v6));
+    if (v6.slice(0, 7).every((g) => g === '0000') && v6[7] === '0001') return true; // ::1
+    const first = v6[0]!;
+    if (first.startsWith('fc') || first.startsWith('fd')) return true; // fc00::/7 ULA
+    if (first.startsWith('fe8') || first.startsWith('fe9') || first.startsWith('fea') || first.startsWith('feb')) {
+      return true; // fe80::/10 link-local
+    }
+    return false;
+  }
 
   // IPv4 literal — only check when the hostname is a dotted-quad.
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);

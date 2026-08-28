@@ -138,9 +138,12 @@ describe('isPrivateIp', () => {
     'sub.localhost',
     '::1',
     'fe80::1',
+    'febf::1',
     'fc00::1',
     'fd00::1',
     '::ffff:127.0.0.1',
+    '::ffff:7f00:1', // hex IPv4-mapped spelling of 127.0.0.1
+    '[::1]',
   ])('flags %s as private', (address) => {
     expect(isPrivateIp(address), address).toBe(true);
   });
@@ -151,6 +154,8 @@ describe('isPrivateIp', () => {
     '172.32.0.1', // just outside the 172.16/12 private range
     '11.0.0.1',
     'example.com',
+    'fc-example.com', // domain starting with ULA letters is NOT private
+    'fdb.example.com',
     '2001:4860:4860::8888',
   ])('does not flag %s as private', (address) => {
     expect(isPrivateIp(address), address).toBe(false);
