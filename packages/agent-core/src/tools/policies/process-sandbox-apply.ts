@@ -66,12 +66,19 @@ export async function resolveProcessSandboxRuntime(
     };
   }
 
+  // The Windows Job Object backend is a process-tree cleanup supervisor, not
+  // a confinement sandbox — report it honestly as lexical so the status never
+  // claims process isolation the OS layer does not provide.
+  const isSupervisorOnly = backendResult.backend === 'job';
   return {
     status: {
       desired: 'process',
-      effective: 'process',
+      effective: isSupervisorOnly ? 'lexical' : 'process',
       backend: backendResult.backend,
-      warning: backendResult.warning,
+      warning: isSupervisorOnly
+        ? (backendResult.warning ??
+          'Windows Job Object backend supervises process-tree cleanup only; it does not confine the process')
+        : backendResult.warning,
     },
     config: {
       backend: backendResult.backend,

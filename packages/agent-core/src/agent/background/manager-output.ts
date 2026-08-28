@@ -59,15 +59,29 @@ export async function readBackgroundTaskOutput(
   return output;
 }
 
+/**
+ * Running char total of `outputChunks`, keyed per entry — recomputing the sum
+ * on every appended chunk made chatty processes quadratic (CPU DoS on the
+ * agent's event loop). WeakMap so replaced/GC'd entries never leak.
+ */
+const ringBytes = new WeakMap<ManagedTask, number>();
+
+/** Drop the in-memory ring and its cached running total (terminal tasks). */
+export function resetBackgroundOutputRing(entry: ManagedTask): void {
+  entry.outputChunks.length = 0;
+  ringBytes.delete(entry);
+}
+
 export function appendBackgroundTaskOutput(host: BackgroundManagerHost, entry: ManagedTask, chunk: string): void {
   entry.outputSizeBytes += Buffer.byteLength(chunk, 'utf-8');
   entry.outputChunks.push(chunk);
-  let total = entry.outputChunks.reduce((s, c) => s + c.length, 0);
+  let total = (ringBytes.get(entry) ?? 0) + chunk.length;
   while (total > MAX_OUTPUT_BYTES && entry.outputChunks.length > 1) {
     const removed = entry.outputChunks.shift();
     if (removed === undefined) break;
     total -= removed.length;
   }
+  ringBytes.set(entry, total);
 
   if (host.persistence === undefined) return;
 

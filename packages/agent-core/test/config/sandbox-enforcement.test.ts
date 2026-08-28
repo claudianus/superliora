@@ -83,7 +83,7 @@ describe('process sandbox runtime', () => {
     expect(result.config).toBeUndefined();
   });
 
-  it('uses job backend on win32 without docker and does not call it an FS jail', async () => {
+  it('uses job backend on win32 without docker but reports it as lexical (not a jail)', async () => {
     const result = await resolveProcessSandboxRuntime({
       desired: 'process',
       profile: 'workspace',
@@ -91,7 +91,9 @@ describe('process sandbox runtime', () => {
       platform: 'win32',
       probeDocker: async () => false,
     });
-    expect(result.status.effective).toBe('process');
+    // The Job Object is a process-tree cleanup supervisor only — the status
+    // must not claim process confinement the OS layer does not provide.
+    expect(result.status.effective).toBe('lexical');
     expect(result.status.backend).toBe('job');
     expect(result.status.warning).toMatch(/not a filesystem jail/i);
     expect(result.config?.backend).toBe('job');

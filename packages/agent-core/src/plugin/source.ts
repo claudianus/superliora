@@ -18,7 +18,16 @@ export function resolveInstallSource(source: string): ResolvedSource {
   const github = parseGithubUrl(trimmed);
   if (github !== undefined) return github;
 
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+  if (trimmed.startsWith('https://')) {
+    return { kind: 'zip-url', path: trimmed };
+  }
+  if (trimmed.startsWith('http://')) {
+    // Plaintext zip downloads can be tampered with in transit and there is no
+    // integrity manifest for plugin archives. Loopback (local dev servers) is
+    // exempt — nothing is intercepted between two processes on one host.
+    if (!isLoopbackHttpUrl(trimmed)) {
+      throw new Error(`Plugin zip URL must use https:// (got "${source}")`);
+    }
     return { kind: 'zip-url', path: trimmed };
   }
   if (!path.isAbsolute(trimmed)) {
@@ -106,4 +115,17 @@ function decodeRefSegments(segments: readonly string[]): string {
       }
     })
     .join('/');
+}
+
+/** True when the URL points at a loopback address (host 127.0.0.1, ::1, or
+ *  localhost, optionally with a port). */
+function isLoopbackHttpUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  const host = url.hostname.toLowerCase();
+  return host === '127.0.0.1' || host === '::1' || host === '[::1]' || host === 'localhost';
 }

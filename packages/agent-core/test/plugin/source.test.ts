@@ -8,9 +8,10 @@ describe('resolveInstallSource', () => {
     expect(result).toEqual({ kind: 'zip-url', path: 'https://example.com/plugin.zip' });
   });
 
-  it('recognizes http:// as zip-url', () => {
-    const result = resolveInstallSource('http://example.com/plugin.zip');
-    expect(result).toEqual({ kind: 'zip-url', path: 'http://example.com/plugin.zip' });
+  it('rejects http:// zip URLs (https only)', () => {
+    expect(() => resolveInstallSource('http://example.com/plugin.zip')).toThrow(
+      /must use https/i,
+    );
   });
 
   it('recognizes absolute path as local-path', () => {
@@ -169,10 +170,10 @@ describe('resolveInstallSource', () => {
       expect(result).toEqual({ kind: 'zip-url', path: url });
     });
 
-    it('treats http:// (non-https) github URL as plain zip-url', () => {
-      const url = 'http://github.com/wbxl2000/superpowers';
-      const result = resolveInstallSource(url);
-      expect(result).toEqual({ kind: 'zip-url', path: url });
+    it('rejects http:// (non-https) github URLs', () => {
+      expect(() => resolveInstallSource('http://github.com/wbxl2000/superpowers')).toThrow(
+        /must use https/i,
+      );
     });
 
     it('percent-decodes %23 in /releases/tag/ so storage is human-readable', () => {

@@ -9,7 +9,7 @@ import {
   type TerminalOutcome,
 } from './managed-types';
 import type { BackgroundManagerHost } from './manager-host';
-import { appendBackgroundTaskOutput } from './manager-output';
+import { appendBackgroundTaskOutput, resetBackgroundOutputRing } from './manager-output';
 import { persistLiveBackgroundTask } from './manager-persistence';
 import { fireTerminalEffects } from './manager-events';
 import type { BackgroundTaskSettlement } from './task';
@@ -143,7 +143,7 @@ async function finalizeBackgroundTask(
   // to `output.log` (the authoritative copy read by getOutputSnapshot), drop
   // the in-memory ring so long sessions don't retain up to 1 MiB per task.
   if (entry.outputPersistStarted && host.persistence !== undefined) {
-    entry.outputChunks.length = 0;
+    resetBackgroundOutputRing(entry);
     entry.pendingOutput = [];
     entry.pendingOutputBytes = 0;
   }
