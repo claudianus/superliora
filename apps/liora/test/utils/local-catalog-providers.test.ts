@@ -28,11 +28,11 @@ describe('local catalog providers', () => {
     expect(inferWireType(CLINEPASS_CATALOG_ENTRY)).toBe('openai');
   });
 
-  it('exposes ClinePass provider shell with minimal offline fallback (live is source)', () => {
+  it('exposes ClinePass provider shell without hard-coded models (live is source)', () => {
     const models = catalogProviderModels(CLINEPASS_CATALOG_ENTRY);
-    // cline-pass is on models.dev (13) but keep 1 curated as offline fallback; live merge adds rest
-    expect(models.length).toBe(1);
-    expect(models[0]?.id).toBe('cline-pass/glm-5.2');
+    // cline-pass is on models.dev (13) — hard-coded removed, live/OpenRouter is source
+    expect(models.length).toBe(0);
+    expect(CLINEPASS_CATALOG_ENTRY.models).toEqual({});
   });
 
   it('declares Z.AI Coding Plan as an OpenAI-compatible entry without hard-coded models', () => {

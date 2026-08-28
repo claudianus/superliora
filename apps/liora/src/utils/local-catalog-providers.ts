@@ -23,14 +23,12 @@ export const CLINEPASS_API_KEY_ENV = 'CLINE_API_KEY';
 
 type LocalCatalogModel = NonNullable<CatalogProviderEntry['models']>[string];
 
-// opencode (93), zai (16), zai-coding-plan (7) are now on models.dev —
-// hard-coded model maps removed so live is single source. cline-pass
-// (id `cline-pass` with hyphen) is also on models.dev (13), but keep a
-// single curated entry as offline fallback for fresh installs without
-// built-in snapshot; live merge will still expose all 13.
-const CLINEPASS_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
-  'cline-pass/glm-5.2': model('cline-pass/glm-5.2', 'GLM-5.2', 200_000, 131_072, true),
-};
+// opencode (93), zai (16), zai-coding-plan (7), cline-pass (13) are now
+// on models.dev per https://models.dev/api.json — hard-coded model maps
+// removed so live is single source. Provider entries now only pin wire
+// type / baseUrl; models are fetched live (models.dev → OpenRouter →
+// provider /models) with built-in snapshot as offline fallback.
+const CLINEPASS_MODELS: Readonly<Record<string, LocalCatalogModel>> = {};
 
 export const CLINEPASS_CATALOG_ENTRY: CatalogProviderEntry = {
   id: CLINEPASS_PROVIDER_ID,
