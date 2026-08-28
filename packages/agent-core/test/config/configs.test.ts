@@ -784,6 +784,38 @@ async_compaction = false
     );
   });
 
+  it('drops __proto__/constructor/prototype keys from patches (prototype pollution)', () => {
+    const base = parseConfigString(`
+[models.opus]
+provider = "p1"
+model = "claude-opus-4-7"
+max_context_size = 100000
+`);
+    // A JSON.parse'd patch carries `__proto__` as an own property; the merge
+    // path must never let it become a prototype reassignment or an own key on
+    // the merged config. Polluting values are schema-valid aliases so the
+    // patch itself validates.
+    const patch = JSON.parse(
+      '{"models":{"__proto__":{"provider":"evil","model":"evil","maxContextSize":100000},"constructor":{"provider":"evil","model":"evil","maxContextSize":100000},"real":{"provider":"p2","model":"m2","maxContextSize":100000}}}',
+    );
+    const merged = mergeConfigPatch(base, patch);
+
+    expect(Object.getPrototypeOf(merged)).toBe(Object.prototype);
+    expect(Object.getPrototypeOf(merged.models)).toBe(Object.prototype);
+    expect(Object.prototype.hasOwnProperty.call(merged.models, '__proto__')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(merged.models, 'constructor')).toBe(false);
+    expect(merged.models['real']).toEqual({
+      provider: 'p2',
+      model: 'm2',
+      maxContextSize: 100000,
+    });
+    expect(merged.models['opus']).toEqual({
+      provider: 'p1',
+      model: 'claude-opus-4-7',
+      maxContextSize: 100000,
+    });
+  });
+
   it('replaces hooks arrays in config patches', () => {
     const base = parseConfigString(COMPLETE_TOML);
     const merged = mergeConfigPatch(base, {

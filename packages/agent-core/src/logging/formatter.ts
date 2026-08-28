@@ -12,12 +12,19 @@ export const REDACT_MAX_DEPTH = 10;
 const REDACTED_KEYS: ReadonlySet<string> = new Set([
   'authorization',
   'apikey',
+  'apitoken',
+  'xapikey',
+  'xauthtoken',
   'token',
+  'authtoken',
   'refreshtoken',
   'accesstoken',
   'idtoken',
+  'sessiontoken',
   'password',
   'secret',
+  'secretkey',
+  'privatekey',
   'clientsecret',
   'apisecret',
   'cookie',
@@ -31,7 +38,7 @@ const TRUNCATED_TAIL = ` …truncated`;
 const REDACTED = '[REDACTED]';
 const RAW_SECRET_PATTERNS: readonly RegExp[] = [
   /\b(authorization\s*[:=]\s*bearer\s+)[^\s"'`]+/gi,
-  /\b((?:api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|token|password|secret)\s*[:=]\s*)[^\s"'`]+/gi,
+  /\b((?:api[_-]?key|api[_-]?token|access[_-]?token|refresh[_-]?token|id[_-]?token|auth[_-]?token|session[_-]?token|token|password|secret|secret[_-]?key|private[_-]?key)\s*[:=]\s*)[^\s"'`]+/gi,
   /\b(cookie\s*[:=]\s*)[^\r\n]+/gi,
 ];
 
@@ -164,7 +171,10 @@ function indentStack(stack: string): string {
 export function formatEntry(entry: LogEntry, options: FormatOptions = {}): FormattedEntry {
   const ctx = entry.ctx ? redactCtx(entry.ctx) : undefined;
   const omitContextKeys = new Set(options.omitContextKeys ?? []);
-  const msg = truncate(entry.msg, MSG_MAX_CHARS);
+  // Redact before truncating: the message body is free-form interpolation of
+  // whatever the caller had in scope (error messages, URLs, headers), so it
+  // needs the same secret scrubbing ctx values get before it hits disk.
+  const msg = truncate(redactString(entry.msg), MSG_MAX_CHARS);
   const pairs: string[] = [];
   if (ctx) {
     for (const [k, v] of Object.entries(ctx)) {
