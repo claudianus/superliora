@@ -800,16 +800,17 @@ max_context_size = 100000
     );
     const merged = mergeConfigPatch(base, patch);
 
+    const models = merged.models!;
     expect(Object.getPrototypeOf(merged)).toBe(Object.prototype);
-    expect(Object.getPrototypeOf(merged.models)).toBe(Object.prototype);
-    expect(Object.prototype.hasOwnProperty.call(merged.models, '__proto__')).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(merged.models, 'constructor')).toBe(false);
-    expect(merged.models['real']).toEqual({
+    expect(Object.getPrototypeOf(models)).toBe(Object.prototype);
+    expect(Object.prototype.hasOwnProperty.call(models, '__proto__')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(models, 'constructor')).toBe(false);
+    expect(models['real']).toEqual({
       provider: 'p2',
       model: 'm2',
       maxContextSize: 100000,
     });
-    expect(merged.models['opus']).toEqual({
+    expect(models['opus']).toEqual({
       provider: 'p1',
       model: 'claude-opus-4-7',
       maxContextSize: 100000,

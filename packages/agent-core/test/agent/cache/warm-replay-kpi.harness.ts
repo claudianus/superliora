@@ -122,6 +122,7 @@ export function runWarmReplayKpi(options: WarmReplayKpiOptions = {}): WarmReplay
   }
 
   const usageStatus = rpc.getUsage({});
+  if (usageStatus instanceof Promise) throw new Error('unexpected async getUsage');
   const warmTurns = turns.slice(bootstrapTurns);
   const warmTurnsAtTarget = warmTurns.filter((entry) => entry.meetsTarget).length;
 

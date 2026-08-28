@@ -26,7 +26,7 @@ function isZeroCost(inputCostPerM: number | undefined): boolean {
   return inputCostPerM !== undefined && Number.isFinite(inputCostPerM) && inputCostPerM === 0;
 }
 
-export function isFreeModelAliasConfig(alias: string, model: ModelAlias): boolean {
+function isFreeModelAliasConfig(alias: string, model: ModelAlias): boolean {
   if (isZeroCost(model.cost?.input)) return true;
   if (isFreeModelId(alias)) return true;
   if (isFreeModelId(model.model)) return true;
@@ -44,14 +44,6 @@ export function isFreeModelMetadata(model: ModelMetadata): boolean {
 }
 
 /**
- * Filter a metadata list to free models only.
- * Returns empty when nothing qualifies — caller decides fallback.
- */
-export function filterFreeModels(models: readonly ModelMetadata[]): readonly ModelMetadata[] {
-  return models.filter(isFreeModelMetadata);
-}
-
-/**
  * Whether a config alias qualifies as free under FREE mode.
  * Uses the same cost + marker rules as metadata, but reads directly from
  * LioraConfig.models so callers don't need to build metadata first.
@@ -65,11 +57,3 @@ export function isFreeConfigAlias(
   if (entry === undefined) return false;
   return isFreeModelAliasConfig(alias, entry);
 }
-
-/**
- * Smart free ranking helper — picks best free model per role via existing
- * quality/value scorer. This file does NOT reimplement scoring; it only
- * filters to free candidates so model-presets.ts remains the single scorer.
- * Routing layers call `filterFreeModels` then reuse `autoAssignRoleModels` /
- * `buildFallbackChain` / `rankScore` on the filtered pool.
- */

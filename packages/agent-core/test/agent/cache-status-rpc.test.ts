@@ -57,7 +57,7 @@ describe('agent cache status RPC', () => {
       'turn',
     );
 
-    const usage = rpc.getUsage({});
+    const usage = await rpc.getUsage({});
     expect(usage.cacheHitRate).toBeCloseTo(1, 5);
     expect(usage.cacheWarmStreak).toBe(1);
   });
@@ -82,6 +82,6 @@ describe('agent cache status RPC', () => {
       'mock-model',
     );
 
-    expect(rpc.getUsage({}).cacheDiagnostics?.missReasons).toEqual({ schema_change: 1 });
+    expect((await rpc.getUsage({})).cacheDiagnostics?.missReasons).toEqual({ schema_change: 1 });
   });
 });
