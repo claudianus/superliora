@@ -261,15 +261,22 @@ describe('Land/verify Job snapshot for Job Deck', () => {
       worktreePath: `/tmp/wt/${parent.id}`,
       landChoice: 'pending',
     });
-    await onJobTerminalForVerifyChain(store, getJob(store, parent.id)!);
-    const verify = listJobs(store).find((j) => j.kind === 'verify');
-    expect(verify).toBeDefined();
-    patchJob(store, verify!.id, {
+    // Default verify fan-out is skipped for surface_kind=none parents, so the
+    // checker child is constructed directly and the terminal handler is driven
+    // exactly as a dispatched verify Job would be.
+    const verify = createJob(store, {
+      title: 'verify: Needs review',
+      kind: 'verify',
+      parentJobId: parent.id,
+      expertId: 'checker-x',
+      deliveryClass: 'review',
+      surfaceKind: 'none',
+    });
+    patchJob(store, verify.id, {
       status: 'done',
-      verifyVerdict: 'failed',
       resultSummary: '{"verdict":"fail","findings":["red"],"required_fixes":["fix"]}',
     });
-    await onJobTerminalForVerifyChain(store, getJob(store, verify!.id)!);
+    await onJobTerminalForVerifyChain(store, getJob(store, verify.id)!);
 
     const latest = getJob(store, parent.id)!;
     expect(latest.verifyVerdict).toBe('failed');

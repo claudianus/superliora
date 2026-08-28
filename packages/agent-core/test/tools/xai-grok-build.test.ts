@@ -10,6 +10,7 @@ import {
   XaiGrokBuildClient,
   XaiGrokWebSearchProvider,
   isXaiGrokCredentialConfigured,
+  XAI_DEFAULT_WEB_SEARCH_MODEL,
 } from '../../src/tools/providers/xai-grok-build';
 
 type FetchArgs = [input: string | URL, init?: RequestInit];
@@ -55,7 +56,9 @@ describe('XaiGrokBuildClient', () => {
     expect(String(call![0])).toBe('https://cli-chat-proxy.grok.com/v1/responses');
     const body = JSON.parse(String(call![1]?.body));
     expect(body.tools).toEqual([{ type: 'web_search' }]);
-    expect(body.model).toBe('grok-4.5');
+    // Assert against the shipped default so a catalog bump cannot silently
+    // desync this test from the client.
+    expect(body.model).toBe(XAI_DEFAULT_WEB_SEARCH_MODEL);
     expect(results[0]?.url).toBe('https://example.com/ts6');
     expect(results[1]?.url).toBe('https://example.com/docs');
     expect(results[0]?.snippet).toContain('TypeScript 6');

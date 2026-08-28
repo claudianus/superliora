@@ -95,8 +95,18 @@ describe('createAuthHook (onRequest middleware)', () => {
     expect(res.statusCode).toBe(204);
   });
 
-  it('bypasses GET / (static asset) with no token', async () => {
+  it('answers 401 for GET / without a token (default-closed)', async () => {
     const res = await app.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(401);
+    expect((res.json())['code']).toBe(40101);
+  });
+
+  it('accepts GET / with the correct bearer token', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/',
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
     expect(res.statusCode).toBe(200);
   });
 
