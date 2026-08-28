@@ -48,11 +48,17 @@ jobs:
       - name: Resolve release tag
         id: rel
         shell: bash
+        env:
+          # Indirect via env, never interpolated into the shell text — a tag or
+          # input containing quotes/semicolons must not become bash source.
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          RELEASE_EVENT: ${{ github.event_name }}
+          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
         run: |
           set -euo pipefail
-          tag='${{ github.event.inputs.tag || github.ref_name }}'
+          tag="${RELEASE_TAG}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          if [ '${{ github.event_name }}' = 'workflow_dispatch' ] && [ '${{ inputs.prerelease }}' = 'true' ]; then
+          if [ "$RELEASE_EVENT" = 'workflow_dispatch' ] && [ "$RELEASE_PRERELEASE" = 'true' ]; then
             echo 'prerelease=true' >> "$GITHUB_OUTPUT"
           else
             echo 'prerelease=false' >> "$GITHUB_OUTPUT"
@@ -60,9 +66,11 @@ jobs:
 
       - name: Assert release tag matches package + CDN tip files
         shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.rel.outputs.tag }}
         run: |
           set -euo pipefail
-          tag='${{ steps.rel.outputs.tag }}'
+          tag="${RELEASE_TAG}"
           # Accept v0.5.0 or @superliora/liora@0.5.0
           ver="${tag##*@}"
           ver="${ver#v}"
