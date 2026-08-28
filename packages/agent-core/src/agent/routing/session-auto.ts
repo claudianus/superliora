@@ -54,7 +54,7 @@ export async function applySessionSmartAutoForTurn(
     return undefined;
   }
 
-  const route = await resolveSessionSmartRouteAsync({
+  let route = await resolveSessionSmartRouteAsync({
     config,
     prompt: promptTextFromParts(input),
     sessionSpendUsd,
@@ -72,6 +72,29 @@ export async function applySessionSmartAutoForTurn(
         code: 'free-no-model',
         details: { profile: agent.config.profileName },
       });
+      // Avoid leaving `auto` as effective model (which would throw
+      // `Model "auto" is not configured`). Try any free alias even if
+      // unhealthy as last resort, so the turn at least has a concrete model
+      // and can surface a provider error instead of a config error.
+      const anyFree = Object.entries(config.models ?? {}).find(([alias, m]) =>
+        isFreeConfigAlias(alias, config.models),
+      );
+      if (anyFree !== undefined) {
+        const fallbackAlias = anyFree[0];
+        agent.log.warn('FREE mode: falling back to any free alias as last resort', {
+          alias: fallbackAlias,
+        });
+        agent.config.setSmartRouteAlias(fallbackAlias);
+        return {
+          role: 'completion' as const,
+          intensity: 'balanced' as const,
+          alias: fallbackAlias,
+          chain: [fallbackAlias],
+          thinkingLevel: 'medium' as const,
+          source: 'auto' as const,
+          reason: 'FREE fallback — no healthy free model',
+        };
+      }
     }
     return undefined;
   }
@@ -90,6 +113,26 @@ export async function applySessionSmartAutoForTurn(
         code: 'free-probe-failed',
         details: { chain: route.chain.join(' -> ') },
       });
+      // Avoid leaving `auto` as effective model when probe fails for all free.
+      // Fall back to any free alias as last resort (even if unhealthy) so the
+      // turn can at least try a concrete model and surface a provider error
+      // instead of `Model "auto" is not configured`.
+      const anyFree = Object.entries(config.models ?? {}).find(([alias]) =>
+        isFreeConfigAlias(alias, config.models),
+      );
+      if (anyFree !== undefined) {
+        const fallbackAlias = anyFree[0];
+        agent.config.setSmartRouteAlias(fallbackAlias);
+        return {
+          role: route.role,
+          intensity: route.intensity,
+          alias: fallbackAlias,
+          chain: [fallbackAlias],
+          thinkingLevel: route.thinkingLevel,
+          source: 'auto' as const,
+          reason: 'FREE probe fallback — no healthy free model',
+        };
+      }
     }
     return undefined;
   }
