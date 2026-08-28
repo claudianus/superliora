@@ -1,5 +1,12 @@
 # @superliora/liora
 
+## 0.15.3
+
+### Patch Changes
+
+- Fix FREE mode `Model auto is not configured` when no healthy free model is available: fallback to any free alias as last resort so the turn surfaces a provider error instead of a config error.
+- Prune stale free-model aliases (`opencode/x-preview-f-free`, `deepseek-v4-flash-free`, etc.) that are no longer in the live `models.dev` catalog and clear `defaultModel` when it points at a deleted alias.
+
 ## 0.15.2
 
 ### Patch Changes
