@@ -13,6 +13,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
   closeSync,
@@ -31,6 +32,27 @@ import { basename, join } from 'node:path';
 import type { TokenInfo, TokenInfoWire } from './types';
 import { tokenFromWire, tokenToWire } from './types';
 import { isRecord } from './utils';
+
+/**
+ * On Windows, POSIX mode bits are ignored by Node — `chmodSync(0o600)` is a
+ * no-op and credential files inherit the profile's default ACL, so any process
+ * running as the user can read them. After writing a credential, restrict the
+ * ACL to the current user via `icacls` (best-effort, once per process; a
+ * failure never blocks the save).
+ */
+let windowsAclRestrictionFailed = false;
+
+function restrictWindowsAclBestEffort(file: string): void {
+  if (process.platform !== 'win32' || windowsAclRestrictionFailed) return;
+  const result = spawnSync(
+    'icacls',
+    [file, '/inheritance:r', '/grant:r', `${process.env['USERNAME'] ?? 'CURRENT_USER'}:F`],
+    { stdio: 'ignore', windowsHide: true },
+  );
+  if (result.error !== undefined || result.status !== 0) {
+    windowsAclRestrictionFailed = true;
+  }
+}
 
 export interface TokenStorage {
   load(name: string): Promise<TokenInfo | undefined>;
@@ -152,6 +174,7 @@ export class FileTokenStorage implements TokenStorage {
       }
       throw error;
     }
+    restrictWindowsAclBestEffort(target);
   }
 
   async remove(name: string): Promise<void> {
