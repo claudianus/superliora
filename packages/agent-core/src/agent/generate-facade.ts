@@ -14,7 +14,8 @@ export function createGenerateProxy(agent: Agent): typeof generate {
   return async (provider, systemPrompt, tools, history, callbacks, options) => {
     const { requestLogFields, runtimeModelAlias, runtimeCredentialLabel, generateOptions } =
       splitGenerateOptions(options);
-    const modelAlias = runtimeModelAlias ?? agent.config.modelAlias;
+    const modelAlias =
+      runtimeModelAlias ?? agent.config.effectiveModelAlias ?? agent.config.modelAlias;
     const run = (
       requestProvider: typeof provider,
       requestModelAlias: string | undefined,

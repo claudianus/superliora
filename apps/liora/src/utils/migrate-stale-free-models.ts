@@ -1,4 +1,4 @@
-import type { Catalog, LioraConfig } from '@superliora/sdk';
+import type { Catalog, DeleteConfigFieldPath, LioraConfig } from '@superliora/sdk';
 
 /**
  * Prunes stale free-model aliases that were created from the old hard-coded
@@ -11,7 +11,9 @@ import type { Catalog, LioraConfig } from '@superliora/sdk';
  * non-userManaged stale aliases so FREE mode and the picker show only live.
  *
  * Called once after `loadCatalog` succeeds and `config` is available.
- * Returns a patch to apply via `setConfig` or `undefined` when nothing to do.
+ * Prefer {@link getStaleFreeAliasDeletePaths} — it returns delete paths for
+ * `deleteConfigFields` (the RPC patch API cannot delete keys).
+ * {@link pruneStaleFreeAliases} stays for direct in-memory mutation.
  */
 const STALE_FREE_ALIASES = new Set<string>([
   'opencode/x-preview-f-free',
@@ -24,30 +26,25 @@ const STALE_FREE_ALIASES = new Set<string>([
   'opencode/deepseek-v4-flash', // now paid rep but stale if user had free variant
 ]);
 
-export function pruneStaleFreeAliases(
+export function collectStaleFreeAliases(
   config: LioraConfig,
   catalog: Catalog,
-): Partial<LioraConfig> | undefined {
+): readonly string[] {
   const models = config.models;
-  if (models === undefined) return undefined;
-
+  if (models === undefined) return [];
   const liveIds = new Set<string>();
   for (const [provId, entry] of Object.entries(catalog)) {
     for (const modelId of Object.keys(entry.models ?? {})) {
-      // Catalog model ids can be `cline-pass/glm-5.2` etc — store both bare and provider-qualified
       liveIds.add(modelId);
       liveIds.add(`${provId}/${modelId}`);
     }
   }
-
   const toDelete: string[] = [];
   for (const alias of Object.keys(models)) {
     if (!STALE_FREE_ALIASES.has(alias)) continue;
     const entry = models[alias];
     if (entry === undefined) continue;
-    // Never delete userManaged custom models
     if ((entry as { userManaged?: boolean }).userManaged === true) continue;
-    // If alias is not in live, it's stale
     const provider = entry.provider;
     const modelId = entry.model;
     const qualified = `${provider}/${modelId}`;
@@ -56,20 +53,39 @@ export function pruneStaleFreeAliases(
       toDelete.push(alias);
     }
   }
+  return toDelete;
+}
 
+export function getStaleFreeAliasDeletePaths(
+  config: LioraConfig,
+  catalog: Catalog,
+): {
+  readonly deletePaths: readonly DeleteConfigFieldPath[];
+  readonly clearDefaultModel: boolean;
+} | undefined {
+  const toDelete = collectStaleFreeAliases(config, catalog);
   if (toDelete.length === 0) return undefined;
+  const deletePaths: DeleteConfigFieldPath[] = toDelete.map(
+    (alias) => `models."${alias}"` as DeleteConfigFieldPath,
+  );
+  const clearDefaultModel =
+    config.defaultModel !== undefined && toDelete.includes(config.defaultModel);
+  if (clearDefaultModel) deletePaths.push('defaultModel');
+  return { deletePaths, clearDefaultModel };
+}
 
-  const nextModels = { ...models } as NonNullable<LioraConfig['models']>;
+export function pruneStaleFreeAliases(
+  config: LioraConfig,
+  catalog: Catalog,
+): Partial<LioraConfig> | undefined {
+  const toDelete = collectStaleFreeAliases(config, catalog);
+  if (toDelete.length === 0) return undefined;
+  const models = config.models as NonNullable<LioraConfig['models']>;
+  const nextModels = { ...models };
   for (const alias of toDelete) delete nextModels[alias];
-
-  const patch: Partial<LioraConfig> = {
-    models: nextModels,
-  };
-
-  // If defaultModel pointed at a deleted alias, clear it so Smart Auto can pick live free
+  const patch: Partial<LioraConfig> = { models: nextModels };
   if (config.defaultModel !== undefined && toDelete.includes(config.defaultModel)) {
     patch.defaultModel = undefined;
   }
-
   return patch;
 }

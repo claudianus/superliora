@@ -29,6 +29,7 @@ export const DELETE_CONFIG_FIELD_PATHS = new Set<DeleteConfigFieldPath>([
   'persona',
 ]);
 const CONFIG_PATH_SEGMENT = /^[A-Za-z][A-Za-z0-9]*$/;
+const MODELS_PATH_PREFIX = 'models.';
 
 // ---------------------------------------------------------------------------
 // deleteConfigFields
@@ -63,6 +64,24 @@ export function validateDeleteConfigFields(
       );
     }
 
+    // `models.*` allows arbitrary alias keys (including slashes/dashes) — validate separately.
+    if (path.startsWith(MODELS_PATH_PREFIX)) {
+      const aliasPart = path.slice(MODELS_PATH_PREFIX.length);
+      if (aliasPart.length === 0) {
+        throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid config field path "${path}".`);
+      }
+      // Disallow prototype pollution even inside quoted alias.
+      if (aliasPart.includes('__proto__') || aliasPart.includes('constructor')) {
+        throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid config field path "${path}".`);
+      }
+      // Basic sanity: alias must be non-empty after stripping optional quotes.
+      const unquoted = aliasPart.replace(/^"(.*)"$/, '$1').trim();
+      if (unquoted.length === 0) {
+        throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid config field path "${path}".`);
+      }
+      return path as DeleteConfigFieldPath;
+    }
+
     const segments = path.split('.');
     const segmentCountOk = segments.length === 1 || segments.length === 2;
     if (
@@ -86,6 +105,18 @@ export function validateDeleteConfigFields(
 }
 
 function deleteConfigField(config: LioraConfig, path: DeleteConfigFieldPath): boolean {
+  if (path.startsWith(MODELS_PATH_PREFIX)) {
+    const aliasPart = path.slice(MODELS_PATH_PREFIX.length);
+    const alias = aliasPart.replace(/^"(.*)"$/, '$1');
+    const models = config.models;
+    if (models === undefined || !Object.hasOwn(models, alias)) return false;
+    delete models[alias];
+    if (config.defaultModel === alias) delete config.defaultModel;
+    // Clean up empty models table to keep TOML tidy.
+    if (Object.keys(models).length === 0) delete config.models;
+    return true;
+  }
+
   if (path === 'persona') {
     if (!Object.hasOwn(config, 'persona')) return false;
     delete config.persona;

@@ -2,11 +2,13 @@
  * Apply virtual session `auto` routing at the start of a main-agent turn.
  */
 
+import { sharedCredentialHealthStore } from '@superliora/oauth';
 import type { ContentPart } from '@superliora/kosong';
 
 import type { Agent } from '..';
 import { isFreeConfigAlias } from '../../utils/free-model';
 import { ensureSmartRouteProbed } from './live-probe';
+import { sharedModelRouteHealthStore } from './model-route-health';
 import {
   isSmartAutoSessionAlias,
   resolveSessionSmartRouteAsync,
@@ -76,7 +78,7 @@ export async function applySessionSmartAutoForTurn(
       // `Model "auto" is not configured`). Try any free alias even if
       // unhealthy as last resort, so the turn at least has a concrete model
       // and can surface a provider error instead of a config error.
-      const anyFree = Object.entries(config.models ?? {}).find(([alias, m]) =>
+      const anyFree = Object.entries(config.models ?? {}).find(([alias]) =>
         isFreeConfigAlias(alias, config.models),
       );
       if (anyFree !== undefined) {
@@ -84,6 +86,12 @@ export async function applySessionSmartAutoForTurn(
         agent.log.warn('FREE mode: falling back to any free alias as last resort', {
           alias: fallbackAlias,
         });
+        // Clear stale health so the fallback can be used for the immediate LLM call
+        // — without this, providerRoute filtering would still see the alias as
+        // unavailable (all opencode free aliases share one provider health bucket).
+        sharedModelRouteHealthStore.markHealthy(fallbackAlias);
+        const fp = config.models?.[fallbackAlias]?.provider;
+        if (typeof fp === 'string' && fp.length > 0) sharedCredentialHealthStore.markHealthy(fp);
         agent.config.setSmartRouteAlias(fallbackAlias);
         return {
           role: 'completion' as const,
@@ -122,6 +130,9 @@ export async function applySessionSmartAutoForTurn(
       );
       if (anyFree !== undefined) {
         const fallbackAlias = anyFree[0];
+        sharedModelRouteHealthStore.markHealthy(fallbackAlias);
+        const fp = config.models?.[fallbackAlias]?.provider;
+        if (typeof fp === 'string' && fp.length > 0) sharedCredentialHealthStore.markHealthy(fp);
         agent.config.setSmartRouteAlias(fallbackAlias);
         return {
           role: route.role,

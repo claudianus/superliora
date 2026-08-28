@@ -250,12 +250,17 @@ export class PromptIntelligenceService {
   ): Promise<{ readonly provider: ChatProvider; readonly modelAlias: string | undefined } | undefined> {
     try {
       const runtimeConfig = this.agent.runtimeConfig ?? this.agent.kimiConfig;
+      const effectiveParentAlias =
+        this.agent.config.effectiveModelAlias ?? this.agent.config.modelAlias;
       const route =
         runtimeConfig !== undefined
           ? resolveSmartRoute({
               role: 'completion',
               config: runtimeConfig,
-              parentAlias: this.agent.config.modelAlias,
+              ...(effectiveParentAlias !== undefined &&
+              effectiveParentAlias.trim().toLowerCase() !== 'auto'
+                ? { parentAlias: effectiveParentAlias }
+                : {}),
             })
           : undefined;
       const explicit = runtimeConfig?.loopControl?.completionModel;
@@ -284,12 +289,16 @@ export class PromptIntelligenceService {
         provider = createProvider(resolved.provider);
         modelAlias = chosenAlias;
       } else {
-        const mainAlias = this.agent.config.modelAlias ?? '';
+        const mainAlias =
+          this.agent.config.effectiveModelAlias ?? this.agent.config.modelAlias ?? '';
         const mainModel =
           (
             runtimeConfig?.models as Record<string, CheapModelConfig> | undefined
           )?.[mainAlias]?.model ?? mainAlias;
-        if (!looksLikeCheapCompletionModel(mainAlias) && !looksLikeCheapCompletionModel(mainModel)) {
+        if (
+          mainAlias.trim().toLowerCase() === 'auto' ||
+          (!looksLikeCheapCompletionModel(mainAlias) && !looksLikeCheapCompletionModel(mainModel))
+        ) {
           this.agent.log.debug?.(
             'prompt intelligence skipped: no cheap completion model (set loopControl.completionModel)',
           );

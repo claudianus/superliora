@@ -234,4 +234,70 @@ max_context_size = 128000
     expect(result.loopControl?.compactionModel).toBe('compact');
     await expect(readFile(configPath, 'utf-8')).resolves.toBe(beforeText);
   });
+
+  it('deletes a quoted model alias and clears defaultModel when it pointed there', async () => {
+    const staleToml = `
+default_model = "opencode/deepseek-v4-flash-free"
+
+[providers.opencode]
+type = "openai"
+api_key = "sk-good"
+
+[models."opencode/deepseek-v4-flash-free"]
+provider = "opencode"
+model = "deepseek-v4-flash-free"
+max_context_size = 262144
+
+[models."opencode/mimo-v2.5-free"]
+provider = "opencode"
+model = "mimo-v2.5-free"
+max_context_size = 262144
+`;
+    const home = await makeHome(staleToml);
+    const configPath = path.join(home, 'config.toml');
+    const core = makeCore(home);
+
+    const deleted = await core.deleteConfigFields({
+      paths: ['models."opencode/deepseek-v4-flash-free"'],
+    });
+
+    expect(deleted.models?.['opencode/deepseek-v4-flash-free']).toBeUndefined();
+    expect(deleted.models?.['opencode/mimo-v2.5-free']).toBeDefined();
+    expect(deleted.defaultModel).toBeUndefined();
+
+    const persisted = await readFile(configPath, 'utf-8');
+    expect(persisted).not.toContain('deepseek-v4-flash-free');
+    expect(persisted).not.toContain('default_model');
+    expect(persisted).toContain('mimo-v2.5-free');
+
+    const reloaded = await core.getKimiConfig({ reload: true });
+    expect(reloaded.models?.['opencode/deepseek-v4-flash-free']).toBeUndefined();
+    expect(reloaded.defaultModel).toBeUndefined();
+  });
+
+  it('keeps defaultModel when a different alias is deleted via models.*', async () => {
+    const home = await makeHome(VALID_TOML);
+    const core = makeCore(home);
+
+    const deleted = await core.deleteConfigFields({ paths: ['models."k2"'] });
+
+    expect(deleted.models?.k2).toBeUndefined();
+    // defaultModel was "k2" — deleted above, so cleared.
+    expect(deleted.defaultModel).toBeUndefined();
+  });
+
+  it('rejects malformed models.* delete paths', async () => {
+    const home = await makeHome(VALID_TOML);
+    const configPath = path.join(home, 'config.toml');
+    const core = makeCore(home);
+    const before = await readFile(configPath, 'utf-8');
+
+    for (const paths of [['models.'], ['models.""'], ['models."x__proto__y"']]) {
+      await expect(core.deleteConfigFields({ paths } as never)).rejects.toMatchObject({
+        code: 'config.invalid',
+      });
+    }
+
+    await expect(readFile(configPath, 'utf-8')).resolves.toBe(before);
+  });
 });

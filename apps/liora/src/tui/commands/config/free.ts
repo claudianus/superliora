@@ -1,4 +1,6 @@
 import { SMART_AUTO_SESSION_ALIAS } from '@superliora/sdk';
+import { getStaleFreeAliasDeletePaths } from '../../../utils/migrate-stale-free-models';
+import { loadCatalog } from '../../../utils/catalog-cache';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { ttui } from '../../utils/tui-i18n';
 import type { SlashCommandHost } from '../hub/dispatch';
@@ -38,7 +40,31 @@ export async function handleFreeCommand(host: SlashCommandHost, args: string): P
       return;
     }
     await host.harness.setConfig({ freeMode: desired } as Record<string, unknown>);
+    // On toggle, clear stale in-memory route cooldowns so the next turn does
+    // not inherit a previous `all free failed probe` state from the other mode.
+    try {
+      await host.session?.resetProviderRouteStatus();
+    } catch {
+      // best-effort
+    }
     if (desired) {
+      // Prune stale free aliases that are no longer in the live catalog (best-effort)
+      try {
+        const catalog = await loadCatalog().catch(() => undefined);
+        if (catalog !== undefined) {
+          const afterForPrune = await host.harness.getConfig({ reload: true });
+          const pruned = getStaleFreeAliasDeletePaths(afterForPrune, catalog);
+          if (pruned !== undefined && pruned.deletePaths.length > 0) {
+            await host.harness.deleteConfigFields([...pruned.deletePaths]);
+            // Also ensure session model is not pointing at a deleted alias.
+            if (pruned.clearDefaultModel && host.state.appState.model !== SMART_AUTO_SESSION_ALIAS) {
+              try { await host.session?.setModel(SMART_AUTO_SESSION_ALIAS); } catch {}
+            }
+          }
+        }
+      } catch {
+        // best-effort
+      }
       // Ensure main session also routes to free models: if default is a concrete paid alias, switch to Smart Auto
       try {
         const after = (await host.harness.getConfig({ reload: true })) as {
