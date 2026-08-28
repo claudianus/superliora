@@ -1,5 +1,12 @@
 # @superliora/liora
 
+## 0.15.1
+
+### Patch Changes
+
+- Fix FREE mode crash when no free models are configured and remove stale hard-coded model lists: `opencode`/`zai`/`zai-coding-plan`/`cline-pass` now rely on live `models.dev` (93/16/7/13) via additive merge, with OpenRouter (`https://openrouter.ai/api/v1/models`) as live fallback when `models.dev` is unreachable. `clinepass` (without hyphen) unified to `cline-pass` per `models.dev`. Curated `big-pickle` now correctly flagged `cost 0` for FREE detection.
+- Fix `/free on` immediately warning when no healthy free model and `FREE` turn routing emitting `free-no-model` warning instead of generic `model.not_configured`. Lint fix for `free-mode.test.ts` unnecessary cast.
+
 ## 0.15.0
 
 ### Minor Changes
