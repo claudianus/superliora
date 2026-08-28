@@ -1,5 +1,6 @@
-import { chmod, mkdir, stat } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rm, stat } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -11,7 +12,20 @@ import {
 } from '../setup-command';
 import { findFreePort } from './browser-support';
 
-const LIGHTPANDA_RELEASE_TAG = 'nightly';
+/**
+ * Pinned Lightpanda release. `nightly` is a moving target that gets executed
+ * as a CDP sidecar, so pin a versioned release and verify the artifact
+ * against the sha256 digests GitHub records for the release assets. Bumping:
+ * read the digests from the new release's asset list and update the tag and
+ * map below together.
+ */
+const LIGHTPANDA_RELEASE_TAG = '0.3.7';
+const LIGHTPANDA_ASSET_SHA256: Readonly<Record<string, string>> = {
+  'lightpanda-aarch64-linux': '4c0ecb28b4fcfb6d5bce82ec86e15fc6cde89cea168cf3840494f0ee26755852',
+  'lightpanda-aarch64-macos': 'ae99542d81af23087296ec037abb0d57a57002502f5ff4c1b0b05dfa484b79b8',
+  'lightpanda-x86_64-linux': '895339b02205171a181dde743ae0068bb4564884076feac8482baca9c212aa5a',
+  'lightpanda-x86_64-macos': '5e118b6e91c2cccb1ce7f0d34fc39dab262b947e4dea29a90b1a75b9399d7862',
+};
 const DEFAULT_CACHE_DIR = join(homedir(), '.cache', 'superliora-lightpanda');
 
 export interface LightpandaBinaryOptions {
@@ -66,6 +80,21 @@ export async function installLightpandaBinary(
       };
     }
     await pipeline(response.body, createWriteStream(target));
+    // Integrity gate before the binary is chmod'd and later spawned: a
+    // mismatched hash removes the artifact and fails the install.
+    const digest = createHash('sha256').update(await readFile(target)).digest('hex');
+    const expected = LIGHTPANDA_ASSET_SHA256[asset];
+    if (expected === undefined || digest !== expected) {
+      await rm(target, { force: true });
+      return {
+        ok: false,
+        code: 1,
+        stdout: '',
+        stderr: `Lightpanda download failed integrity check for ${asset}`,
+        command,
+        error: `sha256 mismatch for ${asset}: expected ${expected ?? 'none'}, got ${digest}`,
+      };
+    }
     await chmod(target, 0o755);
     return {
       ok: true,

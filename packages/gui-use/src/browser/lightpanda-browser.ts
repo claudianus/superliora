@@ -206,7 +206,9 @@ export class LightpandaBrowserRuntime implements BrowserUseRuntime {
   }
 
   private shouldAutoInstall(): boolean {
-    if (this.options.autoInstall === false) return false;
+    // Opt-in only: the binary ships from a moving nightly release with no
+    // integrity manifest, so downloads happen only when explicitly enabled.
+    if (this.options.autoInstall !== true) return false;
     if (this.options.binaryPath !== undefined) return false;
     if (process.env['LIGHTPANDA_EXECUTABLE_PATH'] !== undefined) return false;
     return true;

@@ -221,6 +221,14 @@ function npxCommand(): string {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
 }
 
+/**
+ * Third-party installer pinned to an immutable commit of trycua/cua (mirror
+ * of CUA_INSTALL_PIN in scripts/install/sidecars.mjs — update both together).
+ * Piping that repo's `main` would execute whatever lands there next; bumping
+ * the pin is a deliberate update decision.
+ */
+const CUA_INSTALL_PIN = '57981a16f8c16a72955ac06d3a98dbcc0f9ca4b6';
+
 function cuaInstallCommand(): readonly string[] | undefined {
   if (process.platform === 'win32') {
     return [
@@ -229,14 +237,14 @@ function cuaInstallCommand(): readonly string[] | undefined {
       '-ExecutionPolicy',
       'Bypass',
       '-Command',
-      'irm https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.ps1 | iex',
+      `irm https://raw.githubusercontent.com/trycua/cua/${CUA_INSTALL_PIN}/libs/cua-driver/scripts/install.ps1 | iex`,
     ];
   }
   if (process.platform === 'darwin' || process.platform === 'linux') {
     return [
       '/bin/bash',
       '-c',
-      'curl -fsSL https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.sh | /bin/bash',
+      `curl -fsSL https://raw.githubusercontent.com/trycua/cua/${CUA_INSTALL_PIN}/libs/cua-driver/scripts/install.sh | /bin/bash`,
     ];
   }
   return undefined;

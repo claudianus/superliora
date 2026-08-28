@@ -426,7 +426,11 @@ export class CuaComputerRuntime implements ComputerUseRuntime {
   }
 
   private shouldAutoInstall(): boolean {
-    if (this.options.autoInstall === false) return false;
+    // Opt-in only: auto-install pipes a third-party installer script into the
+    // system shell, so an agent turn must never trigger it unprompted. Users
+    // who want it enable `computerUse.autoInstall` or run
+    // `liora computer-use install` themselves.
+    if (this.options.autoInstall !== true) return false;
     if (this.options.driverCmd !== undefined) return false;
     if (process.env['KIMI_CUA_DRIVER_CMD'] !== undefined) return false;
     if (process.env['HERMES_CUA_DRIVER_CMD'] !== undefined) return false;

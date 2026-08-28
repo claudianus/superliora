@@ -76,7 +76,7 @@ describe('CuaComputerRuntime', () => {
     }
   });
 
-  it('auto-installs cua-driver on first use when the default driver is missing', async () => {
+  it('does not auto-install cua-driver unless explicitly opted in', async () => {
     const dir = await mkdtemp(join(process.cwd(), '.tmp-cua-driver-bin-'));
     tempDirs.push(dir);
     const oldPath = process.env['PATH'];
@@ -87,6 +87,28 @@ describe('CuaComputerRuntime', () => {
       return { ok: true, code: 0, stdout: '', stderr: '', command: ['install'] };
     });
     const runtime = new CuaComputerRuntime({ install });
+
+    try {
+      const status = await runtime.status();
+      expect(status.installed).toBe(false);
+      expect(install).not.toHaveBeenCalled();
+    } finally {
+      process.env['PATH'] = oldPath;
+      await runtime.close();
+    }
+  });
+
+  it('auto-installs cua-driver on first use only when autoInstall is enabled', async () => {
+    const dir = await mkdtemp(join(process.cwd(), '.tmp-cua-driver-bin-'));
+    tempDirs.push(dir);
+    const oldPath = process.env['PATH'];
+    const delimiter = process.platform === 'win32' ? ';' : ':';
+    process.env['PATH'] = `${dir}${delimiter}${dirname(process.execPath)}`;
+    const install = vi.fn(async () => {
+      await writeFakeCuaDriver(join(dir, process.platform === 'win32' ? 'cua-driver.cmd' : 'cua-driver'));
+      return { ok: true, code: 0, stdout: '', stderr: '', command: ['install'] };
+    });
+    const runtime = new CuaComputerRuntime({ install, autoInstall: true });
 
     try {
       const status = await runtime.status();
