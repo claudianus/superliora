@@ -1,5 +1,28 @@
 # @superliora/liora
 
+## 0.16.0
+
+### Minor Changes
+
+- Make background auto-updates opt-in. Enable them in Command Hub → Upgrade → Auto-install.
+
+### Patch Changes
+
+- Require --insecure-no-tls for non-loopback server binds and hide the bearer token on those binds unless --show-token is passed.
+- Answer 401 for unknown paths without a token, compare Origins including port, reject a null Origin, and cap WebSocket frame size at 1 MiB.
+- Open files through explorer.exe on Windows so filenames containing cmd metacharacters cannot run commands.
+- Close shell wrapper and git flag bypasses of the Conductor worker no-push guard.
+- Recognize hex IPv4-mapped IPv6 addresses in the fetch tool private-address check, and stop blocking public domains that start with ULA-looking prefixes.
+- Kill processes spawned by Script tool calls when the call times out or is cancelled, and stop reusing the first call's parent context for later calls.
+- Restrict OAuth token files to the current user on Windows and enable the cross-process token refresh lock there.
+- Pin Lightpanda, oh-my-posh, and cua-driver installs to fixed versions with checksum verification.
+- Leave the PowerShell execution policy unchanged during install unless --allow-execution-policy is passed.
+- Verify the Node.js bootstrap download against nodejs.org SHASUMS256 before using it, and pin installer modules to the published release tag.
+- Redact credential-shaped strings before writing editor input history to disk, and apply secret redaction to log message bodies.
+- Cap live ACP sessions with least-recently-used eviction instead of holding every session forever.
+- Drop __proto__ and constructor keys from config patches before merging.
+- Retry Windows atomic writes when the target file is briefly locked, treat malformed glob character classes as no-match instead of crashing, and warn when the docker process sandbox falls back to host execution.
+
 ## 0.15.5
 
 ### Patch Changes
