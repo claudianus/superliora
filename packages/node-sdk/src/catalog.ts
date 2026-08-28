@@ -124,6 +124,64 @@ export function applyCatalogProvider(
   config: LioraConfig,
   options: ApplyCatalogProviderOptions,
 ): { defaultModel: string | undefined } {
+  // opencode-go/muse-spark-1.2-contributor requires openai_responses (responses API)
+  // while other opencode-go models use openai (chat completions). Split the provider
+  // so the same alias `opencode-go/muse-spark-1.2-contributor` routes correctly.
+  const isOpencodeGo = options.providerId === 'opencode-go' && options.wire === 'openai';
+  const museModels = isOpencodeGo
+    ? options.models.filter((m) => m.id === 'muse-spark-1.2-contributor')
+    : [];
+  const otherModels = isOpencodeGo ? options.models.filter((m) => m.id !== 'muse-spark-1.2-contributor') : options.models;
+
+  if (museModels.length > 0 && otherModels.length > 0) {
+    config.providers[options.providerId] = {
+      type: options.wire,
+      baseUrl: options.baseUrl,
+      apiKey: options.apiKey,
+    };
+    const museProviderId = 'opencode-go-muse';
+    config.providers[museProviderId] = {
+      type: 'openai_responses',
+      baseUrl: options.baseUrl,
+      apiKey: options.apiKey,
+    };
+
+    const models = config.models ?? {};
+    const upstreamKeys = new Set(options.models.map((m) => `${options.providerId}/${m.id}`));
+    const museUpstreamKeys = new Set(museModels.map((m) => `${options.providerId}/${m.id}`));
+    const preservedCustom: Record<string, typeof models[string]> = {};
+    for (const [key, alias] of Object.entries(models)) {
+      if (alias.provider === options.providerId || alias.provider === museProviderId) {
+        if (!upstreamKeys.has(key) && !museUpstreamKeys.has(key)) {
+          if ((alias as { userManaged?: boolean }).userManaged === true) {
+            preservedCustom[key] = alias;
+          }
+        }
+        delete models[key];
+      }
+    }
+    for (const model of otherModels) {
+      models[`${options.providerId}/${model.id}`] = catalogModelToAlias(options.providerId, model);
+    }
+    for (const model of museModels) {
+      const alias = catalogModelToAlias(museProviderId, model);
+      // Keep alias key as `opencode-go/muse-spark-...` for UX, but route via muse provider
+      models[`${options.providerId}/${model.id}`] = { ...alias, provider: museProviderId };
+    }
+    for (const [key, value] of Object.entries(preservedCustom)) {
+      if (models[key] === undefined) models[key] = value;
+    }
+    config.models = models;
+
+    const defaultModel =
+      options.selectedModelId.length > 0 ? `${options.providerId}/${options.selectedModelId}` : undefined;
+    if (defaultModel !== undefined) {
+      config.defaultModel = defaultModel;
+      config.defaultThinking = options.thinking;
+    }
+    return { defaultModel };
+  }
+
   config.providers[options.providerId] = {
     type: options.wire,
     baseUrl: options.baseUrl,
