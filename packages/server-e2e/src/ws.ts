@@ -34,6 +34,12 @@ export interface WsClientOptions {
   wsImpl: typeof WsWebSocket;
   logger: (level: 'info' | 'warn' | 'error' | 'debug', msg: string, meta?: unknown) => void;
   reportDir?: string;
+  /**
+   * Bearer token for token-gated servers — offered as the
+   * `kimi-code.bearer.<token>` subprotocol, which the server validates during
+   * the upgrade. Resolved from `SUPERLIORA_SERVER_TOKEN` by `DaemonClient`.
+   */
+  token?: string;
 }
 
 type FrameWaiter = (frame: AnyFrame) => boolean;
@@ -70,8 +76,14 @@ export class WsClient {
   /** Open the socket; resolves once `open` fires. */
   async open(): Promise<void> {
     if (this.ws) return;
+    const token = this.opts.token;
+    const protocols =
+      token !== undefined && token.length > 0 ? [`kimi-code.bearer.${token}`] : undefined;
     await new Promise<void>((resolve, reject) => {
-      const ws = new this.opts.wsImpl(this.opts.url);
+      const ws =
+        protocols !== undefined
+          ? new this.opts.wsImpl(this.opts.url, protocols)
+          : new this.opts.wsImpl(this.opts.url);
       this.ws = ws;
       ws.once('open', () => {
         recordReportEvent(

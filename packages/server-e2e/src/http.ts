@@ -51,6 +51,12 @@ export interface HttpClientOptions {
   apiPrefix: string;
   fetchImpl: typeof fetch;
   reportDir?: string;
+  /**
+   * Bearer token for token-gated servers (`Authorization: Bearer …` on every
+   * request). Resolved from `SUPERLIORA_SERVER_TOKEN` by `DaemonClient` when
+   * not passed explicitly.
+   */
+  token?: string;
 }
 
 type UploadFileData = Blob | ArrayBuffer | Uint8Array | string;
@@ -69,6 +75,9 @@ export class HttpClient {
   ): Promise<T> {
     const startedAt = Date.now();
     const headers: Record<string, string> = { accept: 'application/json' };
+    if (this.opts.token !== undefined && this.opts.token.length > 0) {
+      headers['authorization'] = `Bearer ${this.opts.token}`;
+    }
     let init: RequestInit;
     if (body !== undefined) {
       headers['content-type'] = 'application/json';
@@ -142,11 +151,15 @@ export class HttpClient {
     body: FormData,
   ): Promise<T> {
     const url = this.url(path);
+    const headers: Record<string, string> = { accept: 'application/json' };
+    if (this.opts.token !== undefined && this.opts.token.length > 0) {
+      headers['authorization'] = `Bearer ${this.opts.token}`;
+    }
     const res = await fetchWithReport(
       url,
       {
         method,
-        headers: { accept: 'application/json' },
+        headers,
         body,
       },
       {

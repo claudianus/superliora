@@ -77,6 +77,12 @@ export interface DaemonClientOptions {
   logger?: (level: 'info' | 'warn' | 'error' | 'debug', msg: string, meta?: unknown) => void;
   /** Directory for JSONL trace events and generated HTML reports. */
   reportDir?: string;
+  /**
+   * Bearer token for a token-gated server. Sent as `Authorization: Bearer …`
+   * on REST and as the `kimi-code.bearer.<token>` WS subprotocol. Defaults to
+   * the `SUPERLIORA_SERVER_TOKEN` env var.
+   */
+  token?: string;
   /** Default 5s. Applies to handshake + subscribe acks. */
   controlAckTimeoutMs?: number;
 }
@@ -159,6 +165,7 @@ export class DaemonClient {
   readonly baseUrl: string;
   readonly apiPrefix: string;
   readonly clientId: string;
+  readonly token: string | undefined;
   readonly http: HttpClient;
 
   private readonly _wsImpl: typeof WsWebSocket;
@@ -182,11 +189,13 @@ export class DaemonClient {
     this._logger = opts.logger ?? noopLogger;
     this._reportDir = opts.reportDir;
     this._controlAckTimeoutMs = opts.controlAckTimeoutMs ?? DEFAULT_CONTROL_ACK_TIMEOUT_MS;
+    this.token = opts.token ?? process.env['SUPERLIORA_SERVER_TOKEN'];
     this.http = new HttpClient({
       baseUrl: this.baseUrl,
       apiPrefix: this.apiPrefix,
       fetchImpl: opts.fetchImpl ?? fetch,
       reportDir: this._reportDir,
+      token: this.token,
     });
   }
 
@@ -377,6 +386,7 @@ export class DaemonClient {
       wsImpl: this._wsImpl,
       logger: this._logger,
       reportDir: this._reportDir,
+      token: this.token,
     });
     this._ws = ws;
     await ws.open();
