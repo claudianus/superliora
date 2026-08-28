@@ -254,6 +254,59 @@ const CATALOG_BODY = {
       },
     },
   },
+  opencode: {
+    id: 'opencode',
+    name: 'OpenCode Zen',
+    npm: '@ai-sdk/openai-compatible',
+    api: 'https://opencode.ai/zen/v1',
+    env: ['OPENCODE_API_KEY'],
+    models: {
+      'mimo-v2.5-free': {
+        id: 'mimo-v2.5-free',
+        name: 'MiMo-V2.5 Free',
+        limit: { context: 262_144, output: 131_072 },
+        tool_call: true,
+        reasoning: true,
+        reasoning_options: [{ type: 'effort', values: ['low', 'high', 'max'] }],
+        interleaved: true,
+        modalities: { input: ['text'], output: ['text'] },
+      },
+    },
+  },
+  clinepass: {
+    id: 'clinepass',
+    name: 'ClinePass',
+    npm: '@ai-sdk/openai-compatible',
+    api: 'https://api.cline.bot/api/v1',
+    env: ['CLINE_API_KEY'],
+    models: {
+      'cline-pass/glm-5.2': {
+        id: 'cline-pass/glm-5.2',
+        name: 'GLM-5.2',
+        limit: { context: 200_000, output: 131_072 },
+        tool_call: true,
+        reasoning: true,
+        modalities: { input: ['text'], output: ['text'] },
+      },
+    },
+  },
+  'zai-coding-plan': {
+    id: 'zai-coding-plan',
+    name: 'Z.AI (GLM Coding Plan)',
+    npm: '@ai-sdk/openai-compatible',
+    api: 'https://api.z.ai/api/coding/paas/v4',
+    env: ['Z_AI_API_KEY'],
+    models: {
+      'glm-5.2': {
+        id: 'glm-5.2',
+        name: 'GLM-5.2',
+        limit: { context: 200_000, output: 131_072 },
+        tool_call: true,
+        reasoning: true,
+        modalities: { input: ['text'], output: ['text'] },
+      },
+    },
+  },
 };
 
 describe('liora provider add', () => {

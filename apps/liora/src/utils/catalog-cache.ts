@@ -61,14 +61,78 @@ async function writeCachedCatalog(catalog: Catalog): Promise<void> {
   }
 }
 
+const OPENROUTER_CATALOG_URL = 'https://openrouter.ai/api/v1/models';
+
+async function fetchOpenRouterCatalog(
+  signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Catalog | undefined> {
+  try {
+    const res = await fetchImpl(OPENROUTER_CATALOG_URL, {
+      headers: { Accept: 'application/json' },
+      signal,
+    });
+    if (!res.ok) return undefined;
+    const json = (await res.json()) as {
+      data?: Array<{
+        id?: string;
+        name?: string;
+        context_length?: number;
+        pricing?: { prompt?: string; completion?: string };
+        architecture?: { input_modalities?: string[]; output_modalities?: string[] };
+        supported_parameters?: string[];
+      }>;
+    };
+    const data = json.data;
+    if (!Array.isArray(data) || data.length === 0) return undefined;
+    const models: Record<string, NonNullable<Catalog[string]['models']>[string]> = {};
+    for (const m of data) {
+      if (typeof m.id !== 'string' || m.id.length === 0) continue;
+      const ctx = typeof m.context_length === 'number' && m.context_length > 0 ? m.context_length : undefined;
+      const prompt = m.pricing?.prompt !== undefined ? Number(m.pricing.prompt) : undefined;
+      const completion = m.pricing?.completion !== undefined ? Number(m.pricing.completion) : undefined;
+      const cost =
+        prompt !== undefined && Number.isFinite(prompt) && completion !== undefined && Number.isFinite(completion)
+          ? { input: prompt * 1_000_000, output: completion * 1_000_000 }
+          : undefined;
+      const hasTools = Array.isArray(m.supported_parameters) && m.supported_parameters.includes('tools');
+      models[m.id] = {
+        id: m.id,
+        name: typeof m.name === 'string' && m.name.length > 0 ? m.name : undefined,
+        limit: ctx !== undefined ? { context: ctx } : undefined,
+        tool_call: hasTools ? true : undefined,
+        reasoning: undefined,
+        modalities: undefined,
+        cost,
+      };
+    }
+    if (Object.keys(models).length === 0) return undefined;
+    return {
+      openrouter: {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        api: 'https://openrouter.ai/api/v1',
+        env: ['OPENROUTER_API_KEY'],
+        npm: '@openrouter/ai-sdk-provider',
+        type: 'openai',
+        doc: 'https://openrouter.ai/docs',
+        models,
+      },
+    } satisfies Catalog;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Loads the catalog with a disk cache in front of the network fetch.
  *
  * Resolution order:
  *   1. Fresh on-disk cache (within {@link CATALOG_CACHE_TTL_MS}) → returned.
  *   2. Network fetch from {@link DEFAULT_CATALOG_URL} → cached and returned.
- *   3. Stale on-disk cache (any age) → returned when the network fails.
- *   4. Build-time snapshot (`BUILT_IN_CATALOG_JSON`) → last-resort fallback.
+ *   3. Live OpenRouter fallback (`https://openrouter.ai/api/v1/models`) → cached and returned.
+ *   4. Stale on-disk cache (any age) → returned when the network fails.
+ *   5. Build-time snapshot (`BUILT_IN_CATALOG_JSON`) → last-resort fallback.
  *
  * SuperLiora-curated providers (e.g. ClinePass) are always merged after the
  * models.dev snapshot so they appear even when offline. The on-disk cache
@@ -100,11 +164,21 @@ export async function loadCatalog(
     await writeCachedCatalog(catalog);
     return mergeLocalCatalogProviders(catalog);
   } catch {
+    // Live OpenRouter fallback when models.dev is down (no hard-coded model lists)
+    try {
+      const openRouter = await fetchOpenRouterCatalog(signal, fetchImpl);
+      if (openRouter !== undefined) {
+        await writeCachedCatalog(openRouter);
+        return mergeLocalCatalogProviders(openRouter);
+      }
+    } catch {
+      // fall through to disk cache
+    }
     if (cached !== undefined) return mergeLocalCatalogProviders(cached);
     const builtIn = loadBuiltInCatalog(BUILT_IN_CATALOG_JSON);
     if (builtIn !== undefined) return mergeLocalCatalogProviders(builtIn);
-    // Still surface SuperLiora-curated providers when models.dev is unreachable
-    // and no snapshot exists (e.g. fresh install offline).
+    // Last resort: still surface curated provider shells (now without hard-coded models)
+    // so /login can still show the provider row even fully offline.
     return mergeLocalCatalogProviders({});
   }
 }

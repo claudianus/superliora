@@ -30,7 +30,7 @@ describe('local catalog providers', () => {
 
   it('lists curated ClinePass models with positive context windows', () => {
     const models = catalogProviderModels(CLINEPASS_CATALOG_ENTRY);
-    expect(models.length).toBeGreaterThanOrEqual(10);
+    expect(models.length).toBe(13);
     expect(models.every((m) => m.id.startsWith('cline-pass/'))).toBe(true);
     expect(models.every((m) => m.capability.max_context_tokens > 0)).toBe(true);
     expect(models.every((m) => m.capability.tool_use)).toBe(true);
@@ -38,30 +38,24 @@ describe('local catalog providers', () => {
     expect(models.some((m) => m.id === 'cline-pass/deepseek-v4-flash')).toBe(true);
   });
 
-  it('declares Z.AI Coding Plan as an OpenAI-compatible entry', () => {
+  it('declares Z.AI Coding Plan as an OpenAI-compatible entry without hard-coded models', () => {
     expect(ZAI_CODING_PLAN_CATALOG_ENTRY.id).toBe(ZAI_CODING_PLAN_PROVIDER_ID);
     expect(ZAI_CODING_PLAN_CATALOG_ENTRY.api).toBe(ZAI_CODING_PLAN_API_BASE);
     expect(ZAI_CODING_PLAN_CATALOG_ENTRY.env).toContain('Z_AI_API_KEY');
     expect(inferWireType(ZAI_CODING_PLAN_CATALOG_ENTRY)).toBe('openai');
     const models = catalogProviderModels(ZAI_CODING_PLAN_CATALOG_ENTRY);
-    expect(models.some((m) => m.id === 'glm-5.2' && m.capability.thinking)).toBe(true);
-    expect(models.length).toBe(7);
-    // glm-4.6v is in `zai` (not zai-coding-plan) per models.dev — curated zai-coding-plan no longer includes it
-    expect(models.some((m) => m.id === 'glm-4.6v')).toBe(false);
+    // zai-coding-plan is on models.dev (7 models) — hard-coded removed, live is source
+    expect(models.length).toBe(0);
   });
 
-  it('declares OpenCode Zen with always-thinking effort rungs low/high/max', () => {
+  it('declares OpenCode Zen provider shell without hard-coded models (live is source)', () => {
     expect(OPENCODE_ZEN_CATALOG_ENTRY.id).toBe(OPENCODE_ZEN_PROVIDER_ID);
     expect(OPENCODE_ZEN_CATALOG_ENTRY.api).toBe(OPENCODE_ZEN_API_BASE);
     expect(OPENCODE_ZEN_CATALOG_ENTRY.env).toContain('OPENCODE_API_KEY');
     expect(inferWireType(OPENCODE_ZEN_CATALOG_ENTRY)).toBe('openai');
     const models = catalogProviderModels(OPENCODE_ZEN_CATALOG_ENTRY);
-    expect(models.some((m) => m.id === 'mimo-v2.5-free')).toBe(true);
-    expect(models.some((m) => m.id === 'muse-spark-1.2-contributor-free')).toBe(true);
-    expect(models.some((m) => m.id === 'big-pickle')).toBe(true);
-    const ox = models.find((m) => m.id === 'mimo-v2.5-free');
-    expect(ox?.alwaysThinking).toBe(true);
-    expect(ox?.supportEfforts).toEqual(['low', 'high', 'max']);
+    // opencode is on models.dev (93 models) — hard-coded removed, live/OpenRouter is source
+    expect(models.length).toBe(0);
   });
 
   it('lists unique connect-env hints without duplicating Z.AI labels', () => {

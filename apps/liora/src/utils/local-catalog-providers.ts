@@ -1,10 +1,14 @@
 /**
  * Curated catalog providers that are not (yet) in models.dev.
  *
- * Merged into the public catalog on every load so `/login`,
- * `liora provider catalog *`, and the TUI picker expose them alongside
- * models.dev entries. Local entries always win for their id so SuperLiora
- * can pin the wire type, base URL, and model list.
+ * Previously this file hard-coded 9+ opencode, 7 zai, 13 clinepass model
+ * lists, which drifted from live `https://models.dev/api.json` (now 93
+ * opencode, 16 zai, 7 zai-coding-plan, 13 cline-pass) and caused the
+ * picker to show stale free tiers. As of 2026-08, all three are on
+ * models.dev, so hard-coded model lists are removed — provider entries
+ * now only pin wire type / baseUrl and rely on live fetch. Offline
+ * fallback is the built-in snapshot + live provider /models and
+ * OpenRouter (see catalog-cache.ts), not hard-coded arrays.
  */
 
 import type { Catalog, CatalogProviderEntry } from '@superliora/sdk';
@@ -28,6 +32,10 @@ export const CLINEPASS_API_KEY_ENV = 'CLINE_API_KEY';
  */
 type LocalCatalogModel = NonNullable<CatalogProviderEntry['models']>[string];
 
+// ClinePass uses id `clinepass` (without hyphen) which is not yet on models.dev
+// (`cline-pass` with hyphen is a different id). Keep curated list as offline
+// fallback; opencode/zai are on models.dev so their hard-coded lists are
+// removed and live is the source of truth.
 const CLINEPASS_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
   'cline-pass/glm-5.2': model('cline-pass/glm-5.2', 'GLM-5.2', 200_000, 131_072, true),
   'cline-pass/glm-5.3': model('cline-pass/glm-5.3', 'GLM-5.3', 200_000, 131_072, true),
@@ -110,15 +118,7 @@ export const ZAI_API_KEY_ENVS = ['Z_AI_API_KEY', 'ZAI_API_KEY'] as const;
  *
  * @see https://docs.z.ai/devpack/overview
  */
-const ZAI_CODING_PLAN_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
-  'glm-5.2': model('glm-5.2', 'GLM-5.2', 200_000, 131_072, true),
-  'glm-5.2-highspeed': model('glm-5.2-highspeed', 'GLM-5.2 HighSpeed', 200_000, 131_072, true),
-  'glm-5-turbo': model('glm-5-turbo', 'GLM-5 Turbo', 200_000, 131_072, true),
-  'glm-4.7': model('glm-4.7', 'GLM-4.7', 200_000, 131_072, true),
-  'glm-5.3': model('glm-5.3', 'GLM-5.3', 200_000, 131_072, true),
-  'glm-5.3-flash': model('glm-5.3-flash', 'GLM-5.3 Flash', 200_000, 131_072, true),
-  'glm-5.3-highspeed': model('glm-5.3-highspeed', 'GLM-5.3 HighSpeed', 200_000, 131_072, true),
-};
+const ZAI_CODING_PLAN_MODELS: Readonly<Record<string, LocalCatalogModel>> = {};
 
 export const ZAI_CODING_PLAN_CATALOG_ENTRY: CatalogProviderEntry = {
   id: ZAI_CODING_PLAN_PROVIDER_ID,
@@ -141,73 +141,7 @@ export const OPENCODE_ZEN_PROVIDER_ID = 'opencode';
 /** Env vars checked for an existing OpenCode Zen API key. */
 export const OPENCODE_API_KEY_ENVS = ['OPENCODE_API_KEY', 'OPENCODE_ZEN_API_KEY'] as const;
 
-const ZEN_ALWAYS_THINKING = {
-  alwaysThinking: true,
-  supportEfforts: ['low', 'high', 'max'],
-} as const;
-
-const ZEN_FREE = {
-  ...ZEN_ALWAYS_THINKING,
-  free: true as const,
-} as const;
-
-/**
- * Curated OpenCode Zen models (free + paid representatives).
- *
- * Live `/models` after connect can expand this list. Effort rungs stay
- * `low` / `high` / `max` — Zen rejects OpenAI `xhigh`, and several SKUs
- * cannot disable thinking.
- *
- * @see https://opencode.ai/docs/zen
- */
-const OPENCODE_ZEN_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
-  // Free tier (pricing table: Free input/output) — keep in sync with https://opencode.ai/docs/zen
-  'big-pickle': model('big-pickle', 'Big Pickle', 262_144, 65_536, true, ZEN_FREE),
-  'mimo-v2.5-free': model(
-    'mimo-v2.5-free',
-    'MiMo-V2.5 Free',
-    262_144,
-    131_072,
-    true,
-    ZEN_FREE,
-  ),
-  'hy3-free': model('hy3-free', 'Hy3 Free', 262_144, 65_536, true, ZEN_FREE),
-  'nemotron-3-ultra-free': model(
-    'nemotron-3-ultra-free',
-    'Nemotron 3 Ultra Free',
-    262_144,
-    65_536,
-    true,
-    ZEN_FREE,
-  ),
-  'nemotron-3.5-lightning-free': model(
-    'nemotron-3.5-lightning-free',
-    'Nemotron 3.5 Lightning Free',
-    262_144,
-    65_536,
-    true,
-    ZEN_FREE,
-  ),
-  'muse-spark-1.2-contributor-free': model(
-    'muse-spark-1.2-contributor-free',
-    'Muse Spark 1.2 Contributor Free',
-    262_144,
-    65_536,
-    true,
-    ZEN_FREE,
-  ),
-  // Paid representatives (curated subset — live /models expands this after connect)
-  'deepseek-v4-flash': model(
-    'deepseek-v4-flash',
-    'DeepSeek V4 Flash',
-    1_000_000,
-    384_000,
-    true,
-    ZEN_ALWAYS_THINKING,
-  ),
-  'glm-5.2': model('glm-5.2', 'GLM-5.2', 200_000, 131_072, true, ZEN_ALWAYS_THINKING),
-  'kimi-k3': model('kimi-k3', 'Kimi K3', 262_144, 131_072, true, ZEN_ALWAYS_THINKING),
-};
+const OPENCODE_ZEN_MODELS: Readonly<Record<string, LocalCatalogModel>> = {};
 
 export const OPENCODE_ZEN_CATALOG_ENTRY: CatalogProviderEntry = {
   id: OPENCODE_ZEN_PROVIDER_ID,
