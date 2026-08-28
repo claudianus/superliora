@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.15.5
+
+### Patch Changes
+
+- Fix opencode-go muse-spark 1.2 contributor routing to use openai_responses. The zen/go chat completions endpoint returns 500 for this model while the responses endpoint succeeds.
+
 ## 0.15.4
 
 ### Patch Changes
