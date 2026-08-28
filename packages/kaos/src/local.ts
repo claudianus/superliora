@@ -771,17 +771,35 @@ export class LocalKaos implements Kaos {
         await fh.close();
       }
       // Windows `fs.rename` maps to MoveFileEx and fails with EPERM if the
-      // target is held by another handle; pre-unlinking turns it into the
-      // POSIX-style "replace" case.
+      // target is held by another handle. Retry briefly first — holders come
+      // and go — and only fall back to pre-unlinking as a last resort.
+      // Unlinking first turns a crash between unlink and rename into data
+      // loss for the target, which defeats the point of an atomic write.
       if (isWindows) {
-        try {
-          await unlink(resolved);
-        } catch (error) {
-          const code = (error as NodeJS.ErrnoException).code;
-          if (code !== 'ENOENT') throw error;
+        let replaced = false;
+        for (let attempt = 0; attempt < 3 && !replaced; attempt += 1) {
+          try {
+            await rename(tmpPath, resolved);
+            replaced = true;
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'EPERM') break;
+            await new Promise<void>((resolve) => {
+              setTimeout(resolve, 25 * (attempt + 1));
+            });
+          }
         }
+        if (!replaced) {
+          try {
+            await unlink(resolved);
+          } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code !== 'ENOENT') throw error;
+          }
+          await rename(tmpPath, resolved);
+        }
+      } else {
+        await rename(tmpPath, resolved);
       }
-      await rename(tmpPath, resolved);
       renamed = true;
       // Commit the directory entry so the rename survives a power loss.
       // NTFS commits the dirent inside the file fsync, so the dir fsync is a
@@ -826,6 +844,15 @@ export class LocalKaos implements Kaos {
       return new LocalProcess(child);
     } catch (error) {
       if (this._processSandbox?.backend !== 'docker') throw error;
+      // Fail-open is deliberate for the host CLI, but it must never be
+      // silent: report that this command ran without the requested
+      // confinement so operators can tell the sandbox was bypassed.
+      process.emitWarning(
+        `docker process sandbox spawn failed (${
+          error instanceof Error ? error.message : String(error)
+        }); executing ${JSON.stringify(mapped.file)} on the host without confinement`,
+        'SuperLioraSandboxFallback',
+      );
       const fallback = spawn(mapped.file, [...mapped.prefixArgs, ...restArgs], spawnOpts);
       await waitForSpawn(fallback);
       return new LocalProcess(fallback);

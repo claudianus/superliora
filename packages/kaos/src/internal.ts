@@ -234,7 +234,13 @@ export function globPatternToRegex(pattern: string, caseSensitive: boolean): Reg
     }
   }
   regex += '$';
-  return new RegExp(regex, caseSensitive ? '' : 'i');
+  try {
+    return new RegExp(regex, caseSensitive ? '' : 'i');
+  } catch {
+    // A malformed character class (e.g. `[z-a]`) throws a RangeError. Treat
+    // it as a never-matching pattern instead of crashing mid-glob.
+    return /(?!)/;
+  }
 }
 
 /**

@@ -117,8 +117,13 @@ export function buildDockerSandboxArgs(opts: {
     args.push(file, ...rest);
     return args;
   }
-  args.push('bash', '-lc', rest.length > 0 ? rest.join(' ') : 'true');
-  return args;
+  // A host-absolute Windows binary cannot run inside the Linux container, and
+  // re-joining its argv as `bash -lc` shell text would silently reinterpret
+  // arguments as shell syntax. Fail with the reason instead.
+  throw new Error(
+    `docker process sandbox cannot execute host-absolute binary ${JSON.stringify(file)}; ` +
+      'invoke it through a bash-like shell (bash -lc …) or a container-relative path',
+  );
 }
 
 export async function probeDockerAvailable(
