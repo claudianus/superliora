@@ -64,6 +64,15 @@ export type { SlashCommandsSnapshot } from './server-slash';
 export { runAcpServer, runAcpServerWithStream } from './server-run';
 
 /**
+ * Live {@link AcpSession} cap. Every AcpSession pins a kernel Session (event
+ * subscriptions, reverse-RPC handlers, server-side state), so a long-lived
+ * ACP agent must not accumulate them unbounded. Eviction is LRU and
+ * recoverable: `loadSession`/`resumeSession` rebuild an evicted id from disk
+ * on the next request.
+ */
+const MAX_LIVE_SESSIONS = 32;
+
+/**
  * Agent-side ACP handler. Routes `initialize` + `session/new` + `session/cancel`
  * into {@link LioraHarness}; refuses methods that are not yet wired with a
  * JSON-RPC "method not found" error so clients see a structured failure
@@ -114,6 +123,49 @@ export class AcpServer implements Agent {
   /** @internal — for tests/inspection only. */
   getSession(sessionId: string): AcpSession | undefined {
     return this.sessions.get(sessionId);
+  }
+
+  /**
+   * Mark `sessionId` as the most recently used live session and enforce the
+   * live-session cap. JS Maps iterate in insertion order, so delete+set makes
+   * the touched key the LRU tail.
+   */
+  private touchSession(sessionId: string): void {
+    const acpSession = this.sessions.get(sessionId);
+    if (acpSession === undefined) return;
+    this.sessions.delete(sessionId);
+    this.sessions.set(sessionId, acpSession);
+    this.evictStaleSessions();
+  }
+
+  private evictStaleSessions(): void {
+    while (this.sessions.size > MAX_LIVE_SESSIONS) {
+      const oldest = this.sessions.keys().next().value;
+      if (oldest === undefined) break;
+      const acpSession = this.sessions.get(oldest);
+      if (acpSession === undefined) {
+        this.sessions.delete(oldest);
+        continue;
+      }
+      if (acpSession.hasActiveTurn) {
+        // Never close a session mid-turn: rotate it to the tail so the next
+        // candidate is evicted instead.
+        this.sessions.delete(oldest);
+        this.sessions.set(oldest, acpSession);
+        break;
+      }
+      this.sessions.delete(oldest);
+      log.warn('acp: evicting least-recently-used session (live-session cap)', {
+        sessionId: oldest,
+        liveSessions: this.sessions.size,
+      });
+      void acpSession.session.close().catch((error) => {
+        log.warn('acp: error while closing evicted session', {
+          sessionId: oldest,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
   }
 
   async initialize(params: InitializeRequest): Promise<InitializeResponse> {
@@ -184,6 +236,7 @@ export class AcpServer implements Agent {
       currentThinkingEnabled,
     );
     this.sessions.set(session.id, acpSession);
+    this.touchSession(session.id);
     const configOptions = await buildSessionConfigOptions(
       this.harness,
       currentModelId,
@@ -243,6 +296,7 @@ export class AcpServer implements Agent {
     if (!acpSession) {
       throw RequestError.invalidParams(undefined, `Unknown sessionId: ${params.sessionId}`);
     }
+    this.touchSession(params.sessionId);
     return acpSession.prompt(params.prompt);
   }
 
@@ -252,6 +306,7 @@ export class AcpServer implements Agent {
       log.warn('acp: cancel for unknown sessionId', { sessionId: params.sessionId });
       return;
     }
+    this.touchSession(params.sessionId);
     try {
       await acpSession.cancel();
     } catch (error) {
@@ -270,6 +325,7 @@ export class AcpServer implements Agent {
         `Unknown sessionId: ${params.sessionId}`,
       );
     }
+    this.touchSession(params.sessionId);
     await acpSession.setMode(params.modeId);
   }
 
@@ -283,6 +339,7 @@ export class AcpServer implements Agent {
         `Unknown sessionId: ${params.sessionId}`,
       );
     }
+    this.touchSession(params.sessionId);
     await acpSession.setModel(params.modelId);
   }
 
@@ -296,6 +353,7 @@ export class AcpServer implements Agent {
         `Unknown sessionId: ${params.sessionId}`,
       );
     }
+    this.touchSession(params.sessionId);
     const value = (params as { value: unknown }).value;
     switch (params.configId) {
       case 'model':
@@ -353,6 +411,7 @@ export class AcpServer implements Agent {
       makeTelemetryTrack: () => this.makeTelemetryTrack(),
       registerSession: (sessionId: string, acpSession: AcpSession) => {
         this.sessions.set(sessionId, acpSession);
+        this.touchSession(sessionId);
       },
     };
   }

@@ -214,6 +214,15 @@ export class AcpSession {
   }
 
   /**
+   * True while a `session/prompt` turn is in flight on this session. The
+   * server's LRU eviction skips busy sessions so a live turn is never closed
+   * out from under its prompt.
+   */
+  get hasActiveTurn(): boolean {
+    return this.currentTurnId !== undefined;
+  }
+
+  /**
    * Adapter-side authoritative current BASE model id (no `,thinking`
    * suffix), used by {@link AcpServer.setSessionConfigOption} to build
    * the response's `configOptions` snapshot after a model / mode /
