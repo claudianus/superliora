@@ -82,6 +82,10 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
   readonly parameters: Record<string, unknown> = toInputJsonSchema(ScriptToolInputSchema);
 
   private context: vm.Context | null = null;
+  /** ExecutableToolContext of the run currently on the serialized queue. */
+  private currentCtx: ExecutableToolContext | null = null;
+  /** Combined ctx.abort + timeout signal for the current run's child processes. */
+  private currentSignal: AbortSignal | null = null;
   private logBuffer: string[] = [];
   // Script runs share the persistent context, so serialize them per agent —
   // concurrent runs would clobber each other's console buffer and `store`.
@@ -125,9 +129,14 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
     ctx: ExecutableToolContext,
   ): Promise<string> {
     if (this.context === null) {
-      this.context = vm.createContext(this.buildSandbox(ctx));
+      // The sandbox is built once, but every ctx-dependent closure reads
+      // `this.currentCtx`, re-bound below — a context built on the first
+      // call must not keep parenting later runs' subagents to a dead tool
+      // call or wiring them to a stale abort signal.
+      this.context = vm.createContext(this.buildSandbox());
     }
     const context = this.context;
+    this.currentCtx = ctx;
     this.logBuffer = [];
     const wrapped = `(async () => {\n${code}\n})()`;
     const script = new vm.Script(wrapped, { filename: 'script-tool.js' });
@@ -137,27 +146,28 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
     if (typeof (result as { then?: unknown } | null)?.then !== 'function') {
       throw new TypeError('internal: wrapped script did not return a promise');
     }
+    // One controller fans abort out to BOTH the awaiting race and the child
+    // processes spawned via exec/execFile — a timed-out or cancelled script
+    // must not leave its children running.
+    const controller = new AbortController();
+    this.currentSignal = controller.signal;
     let timer: NodeJS.Timeout | undefined;
-    let abortReject: ((error: Error) => void) | undefined;
-    const onAbort = (): void => abortReject?.(new Error('script aborted'));
-    ctx.signal.addEventListener('abort', onAbort, { once: true });
+    const onOuterAbort = (): void => controller.abort(new Error('script aborted'));
+    timer = setTimeout(
+      () => controller.abort(new Error(`script timed out after ${String(timeoutMs)}ms`)),
+      timeoutMs,
+    );
+    if (ctx.signal.aborted) onOuterAbort();
+    else ctx.signal.addEventListener('abort', onOuterAbort, { once: true });
     try {
-      const value = await Promise.race([
-        result as Promise<unknown>,
-        new Promise((_, reject) => {
-          timer = setTimeout(() => {
-            reject(new Error(`script timed out after ${String(timeoutMs)}ms`));
-          }, timeoutMs);
-        }),
-        new Promise((_, reject) => {
-          abortReject = reject;
-        }),
-      ]);
+      const value = await raceWithAbort(result as Promise<unknown>, controller.signal);
       this.persistStore(context);
       return this.renderOutput(value);
     } finally {
       if (timer !== undefined) clearTimeout(timer);
-      ctx.signal.removeEventListener('abort', onAbort);
+      ctx.signal.removeEventListener('abort', onOuterAbort);
+      this.currentSignal = null;
+      if (this.currentCtx === ctx) this.currentCtx = null;
     }
   }
 
@@ -247,7 +257,7 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
     }
   }
 
-  private buildSandbox(ctx: ExecutableToolContext): Record<string, unknown> {
+  private buildSandbox(): Record<string, unknown> {
     const kaos = this.kaos;
     const cwd = this.agent.config.cwd;
     const pushLog = (...values: unknown[]): void => {
@@ -292,7 +302,7 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
         // Prefer kaos.osEnv.shellPath (runtime bash on Windows) — never bare
         // `bash` which may resolve to a missing Program Files install.
         const shell = resolveScriptShell(kaos);
-        return runKaosExec(kaos, shell, ['-lc', command]);
+        return runKaosExec(kaos, shell, ['-lc', command], this.currentSignal ?? undefined);
       },
       execFile: async (
         file: string,
@@ -302,7 +312,7 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
         // Argv form: spawn file + args without bash -lc. On Windows, map
         // git/node/bash short names to SuperLiora runtime absolute paths.
         const resolved = resolveScriptExecutable(kaos, file);
-        return runKaosExec(kaos, resolved, args);
+        return runKaosExec(kaos, resolved, args, this.currentSignal ?? undefined);
       },
     };
     if (canWrite) {
@@ -313,13 +323,17 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
     const host = this.agent.type === 'main' ? this.agent.subagentHost : undefined;
     if (host != null) {
       sandbox['agent'] = async (prompt: string, profile?: string): Promise<string> => {
+        // Re-read per call: the sandbox outlives any single Script run, so a
+        // stale first-call toolCallId/signal would mis-parent later spawns.
+        const current = this.currentCtx;
+        if (current === null) throw new Error('internal: no active Script run');
         const handle = await host.spawn({
           profileName: profile ?? 'coder',
-          parentToolCallId: ctx.toolCallId,
+          parentToolCallId: current.toolCallId,
           prompt,
           description: prompt.replaceAll('\n', ' ').slice(0, 80),
           runInBackground: false,
-          signal: ctx.signal,
+          signal: current.signal,
         });
         const completion = await handle.completion;
         return completion.result;
@@ -327,6 +341,31 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
     }
     return sandbox;
   }
+}
+
+/**
+ * Await `value`, rejecting as soon as `signal` aborts. The script promise's
+ * late settlement (after the race has been rejected) is observed here, so it
+ * cannot surface as an unhandled rejection.
+ */
+async function raceWithAbort<T>(value: Promise<T>, signal: AbortSignal): Promise<T> {
+  const reason = (): Error =>
+    signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason));
+  if (signal.aborted) throw reason();
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(reason());
+    signal.addEventListener('abort', onAbort, { once: true });
+    value.then(
+      (resolved) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(resolved);
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
 }
 
 async function collectStream(stream: NodeJS.ReadableStream, cap: number): Promise<string> {
@@ -341,14 +380,28 @@ async function runKaosExec(
   kaos: Kaos,
   file: string,
   args: readonly string[],
+  signal?: AbortSignal,
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   const proc = await kaos.exec(file, ...args);
+  // Kill the child when the run aborts or times out; without this the
+  // awaiting caller rejects but the child (and its pipes) live on.
+  const onAbort = (): void => {
+    void Promise.resolve(proc.kill('SIGTERM')).catch(() => {});
+  };
+  if (signal !== undefined) {
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  }
+  // After the caller has been rejected, streams and wait() still settle in
+  // the background — swallow their late failures so they cannot become
+  // unhandled rejections and crash the process.
   const [stdout, stderr, code] = await Promise.all([
-    collectStream(proc.stdout, EXEC_OUTPUT_MAX_CHARS),
-    collectStream(proc.stderr, EXEC_OUTPUT_MAX_CHARS),
-    proc.wait(),
+    collectStream(proc.stdout, EXEC_OUTPUT_MAX_CHARS).catch(() => ''),
+    collectStream(proc.stderr, EXEC_OUTPUT_MAX_CHARS).catch(() => ''),
+    proc.wait().catch(() => -1),
   ]);
-  await proc.dispose();
+  signal?.removeEventListener('abort', onAbort);
+  await Promise.resolve(proc.dispose()).catch(() => {});
   return { stdout, stderr, code };
 }
 
