@@ -6,6 +6,20 @@ import { SUPERLIORA_HOME } from '../config';
 import { isSafeAgentId, readSessionDetail } from '../lib/session-store';
 import { isSafeBlobHash } from '../lib/blob-resolver';
 
+/**
+ * Raster image types the SPA previews inline. Everything else — including
+ * `text/html`, `image/svg+xml`, or any attacker-requested `mime` — is served
+ * as an inert download so a poisoned session blob can never execute script on
+ * the vis origin.
+ */
+const SAFE_INLINE_MIME_RE = /^image\/(?:png|jpeg|gif|webp|avif)$/;
+
+export function blobResponseContentType(requested: string | undefined): string {
+  return requested !== undefined && SAFE_INLINE_MIME_RE.test(requested)
+    ? requested
+    : 'application/octet-stream';
+}
+
 export function blobsRoute(home: string = SUPERLIORA_HOME): Hono {
   const r = new Hono();
   r.get('/:id/blobs/:hash', async (c) => {
@@ -36,10 +50,12 @@ export function blobsRoute(home: string = SUPERLIORA_HOME): Hono {
     } catch {
       return c.json({ error: 'blob not found', code: 'NOT_FOUND' }, 404);
     }
-    const mimeType = c.req.query('mime') ?? 'application/octet-stream';
-    return new Response(content, {
-      headers: { 'content-type': mimeType },
-    });
+    const mimeType = blobResponseContentType(c.req.query('mime'));
+    const headers: Record<string, string> = { 'content-type': mimeType };
+    if (mimeType === 'application/octet-stream') {
+      headers['content-disposition'] = 'attachment';
+    }
+    return new Response(content, { headers });
   });
   return r;
 }

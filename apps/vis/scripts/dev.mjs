@@ -52,6 +52,8 @@ if (webPort !== requestedWeb) {
 process.stdout.write(`[vis] web → http://localhost:${webPort}  (api on ${apiPort})\n`);
 
 const env = { ...process.env, PORT: String(apiPort), WEB_PORT: String(webPort) };
+// `concurrently` resolves to a .cmd shim on Windows; spawning a .cmd without a
+// shell throws EINVAL on modern Node, so shell out on win32 only.
 const child = spawn(
   'concurrently',
   [
@@ -61,7 +63,7 @@ const child = spawn(
     'pnpm --filter @superliora/vis-server dev',
     'pnpm --filter @superliora/vis-web dev',
   ],
-  { stdio: 'inherit', env, shell: false },
+  { stdio: 'inherit', env, shell: process.platform === 'win32' },
 );
 
 child.on('exit', (code, signal) => {

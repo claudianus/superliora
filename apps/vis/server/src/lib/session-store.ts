@@ -95,7 +95,7 @@ async function discoverAgentsFromDisk(sessionDir: string): Promise<AgentInfo[]> 
     let info: { count: number; protocolVersion: string | null } = { count: 0, protocolVersion: null };
     if (wirePath !== undefined) {
       try {
-        info = await scanWire(wirePath);
+        info = await cachedScanWire(wirePath);
       } catch {
         readable = false;
       }
@@ -132,7 +132,7 @@ async function tryReadSummary(sessionDir: string, sessionId: string, workDir: st
     health = 'missing_main_wire';
   } else {
     try {
-      const info = await scanWire(mainWirePath);
+      const info = await cachedScanWire(mainWirePath);
       mainCount = info.count;
       protocolVersion = info.protocolVersion;
       // Note: the protocol version is not used to gate health any more —
@@ -213,7 +213,7 @@ async function inventoryAgents(sessionDir: string, state: StateJson): Promise<Ag
     let info: { count: number; protocolVersion: string | null } = { count: 0, protocolVersion: null };
     if (wirePath !== undefined) {
       try {
-        info = await scanWire(wirePath);
+        info = await cachedScanWire(wirePath);
       } catch {
         // The file exists but is unreadable / malformed. Report it as
         // unavailable so wire/context routes return 404 ("wire missing")
@@ -290,29 +290,71 @@ async function scanWire(path: string): Promise<{ count: number; protocolVersion:
   const rl = createInterface({ input: stream, crlfDelay: Infinity });
   let count = 0;
   let protocolVersion: string | null = null;
-  for await (const line of rl) {
-    if (line.length === 0) continue;
-    if (protocolVersion === null) {
-      // Strict: the first non-empty line MUST be a well-formed
-      // `metadata` record. Otherwise the list-view health would say
-      // "ok" while the wire-reader rejects the file on open.
-      let parsed: { type?: unknown; protocol_version?: unknown };
-      try {
-        parsed = JSON.parse(line) as typeof parsed;
-      } catch {
-        throw new Error(`wire metadata is not valid JSON at line 1`);
+  // Always tear the interface down — including throw paths — or each scan of
+  // a malformed wire leaks an fd (and list re-scans on every request).
+  try {
+    for await (const line of rl) {
+      if (line.length === 0) continue;
+      if (protocolVersion === null) {
+        // Strict: the first non-empty line MUST be a well-formed
+        // `metadata` record. Otherwise the list-view health would say
+        // "ok" while the wire-reader rejects the file on open.
+        let parsed: { type?: unknown; protocol_version?: unknown };
+        try {
+          parsed = JSON.parse(line) as typeof parsed;
+        } catch {
+          throw new Error(`wire metadata is not valid JSON at line 1`);
+        }
+        if (parsed.type !== 'metadata' || typeof parsed.protocol_version !== 'string') {
+          throw new Error(`wire is missing a metadata header on line 1`);
+        }
+        protocolVersion = parsed.protocol_version;
       }
-      if (parsed.type !== 'metadata' || typeof parsed.protocol_version !== 'string') {
-        throw new Error(`wire is missing a metadata header on line 1`);
-      }
-      protocolVersion = parsed.protocol_version;
+      count += 1;
     }
-    count += 1;
+  } finally {
+    rl.close();
+    stream.destroy();
   }
   if (protocolVersion === null) {
     throw new Error('wire file is empty');
   }
   return { count, protocolVersion };
+}
+
+/**
+ * (mtime,size)-keyed memoization over `scanWire`. `listSessions` re-scans the
+ * full wire of every session on every request — O(total session bytes) per
+ * HTTP call on a mature home. A wire only ever appends, so an unchanged
+ * mtime+size proves the count is current; any change re-scans.
+ */
+interface ScanCacheEntry {
+  mtimeMs: number;
+  size: number;
+  value: { count: number; protocolVersion: string };
+}
+const scanCache = new Map<string, ScanCacheEntry>();
+const SCAN_CACHE_MAX = 512;
+
+async function cachedScanWire(path: string): Promise<{ count: number; protocolVersion: string }> {
+  let s: Awaited<ReturnType<typeof stat>>;
+  try {
+    s = await stat(path);
+  } catch {
+    // Missing/unreadable file: let scanWire surface the real error.
+    return scanWire(path);
+  }
+  const cached = scanCache.get(path);
+  if (cached !== undefined && cached.mtimeMs === s.mtimeMs && cached.size === s.size) {
+    return cached.value;
+  }
+  const value = await scanWire(path);
+  if (scanCache.size >= SCAN_CACHE_MAX) {
+    const oldest = scanCache.keys().next().value;
+    if (oldest !== undefined) scanCache.delete(oldest);
+  }
+  scanCache.set(path, { mtimeMs: s.mtimeMs, size: s.size, value });
+  return value;
 }
 
 function parseTs(input: string | undefined): number {

@@ -76,59 +76,67 @@ export async function readAgentWire(path: string): Promise<WireReadResult> {
   const records: WireEntry[] = [];
   const warnings: string[] = [];
 
-  for await (const line of rl) {
-    lineNo += 1;
-    if (line.length === 0) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch (error) {
-      warnings.push(`line ${lineNo}: invalid JSON (${(error as Error).message})`);
-      continue;
-    }
-    if (!isObject(parsed) || typeof parsed['type'] !== 'string') {
-      warnings.push(`line ${lineNo}: missing 'type' field`);
-      continue;
-    }
-    if (metadata === null) {
-      if (parsed['type'] !== 'metadata') {
-        throw new Error(`Wire file missing metadata header at line ${lineNo}`);
-      }
-      const pv = parsed['protocol_version'];
-      const ca = parsed['created_at'];
-      if (typeof pv !== 'string' || typeof ca !== 'number') {
-        throw new TypeError(`Wire metadata malformed at line ${lineNo}`);
-      }
+  // Always tear down the readline interface and its underlying streams —
+  // including the metadata throw paths — or each malformed wire leaks an fd
+  // (and the leak repeats on every list call that re-reads the file).
+  try {
+    for await (const line of rl) {
+      lineNo += 1;
+      if (line.length === 0) continue;
+      let parsed: unknown;
       try {
-        migrations = resolveWireMigrations(pv);
+        parsed = JSON.parse(line);
       } catch (error) {
-        warnings.push(
-          `unrecognised protocol_version "${pv}" — parsing as best-effort (${(error as Error).message})`,
-        );
-        migrations = bestEffortMigrations();
+        warnings.push(`line ${lineNo}: invalid JSON (${(error as Error).message})`);
+        continue;
       }
-      metadata = { protocolVersion: pv, createdAt: ca };
-      continue;
+      if (!isObject(parsed) || typeof parsed['type'] !== 'string') {
+        warnings.push(`line ${lineNo}: missing 'type' field`);
+        continue;
+      }
+      if (metadata === null) {
+        if (parsed['type'] !== 'metadata') {
+          throw new Error(`Wire file missing metadata header at line ${lineNo}`);
+        }
+        const pv = parsed['protocol_version'];
+        const ca = parsed['created_at'];
+        if (typeof pv !== 'string' || typeof ca !== 'number') {
+          throw new TypeError(`Wire metadata malformed at line ${lineNo}`);
+        }
+        try {
+          migrations = resolveWireMigrations(pv);
+        } catch (error) {
+          warnings.push(
+            `unrecognised protocol_version "${pv}" — parsing as best-effort (${(error as Error).message})`,
+          );
+          migrations = bestEffortMigrations();
+        }
+        metadata = { protocolVersion: pv, createdAt: ca };
+        continue;
+      }
+      const raw = parsed;
+      let migrated: Record<string, unknown>;
+      try {
+        migrated =
+          migrations.length === 0
+            ? (structuredClone(raw))
+            : (migrateWireRecord(
+                raw as Record<string, unknown> & { type: string },
+                migrations,
+              ) as Record<string, unknown>);
+      } catch (error) {
+        // A single record that won't migrate is not fatal — keep the raw
+        // payload so the UI can still render whatever fields it understands.
+        warnings.push(
+          `line ${lineNo}: migration failed (${(error as Error).message}); using raw record`,
+        );
+        migrated = structuredClone(raw);
+      }
+      records.push({ lineNo, data: migrated as AgentRecord, raw });
     }
-    const raw = parsed;
-    let migrated: Record<string, unknown>;
-    try {
-      migrated =
-        migrations.length === 0
-          ? (structuredClone(raw))
-          : (migrateWireRecord(
-              raw as Record<string, unknown> & { type: string },
-              migrations,
-            ) as Record<string, unknown>);
-    } catch (error) {
-      // A single record that won't migrate is not fatal — keep the raw
-      // payload so the UI can still render whatever fields it understands.
-      warnings.push(
-        `line ${lineNo}: migration failed (${(error as Error).message}); using raw record`,
-      );
-      migrated = structuredClone(raw);
-    }
-    records.push({ lineNo, data: migrated as AgentRecord, raw });
+  } finally {
+    rl.close();
+    stream.destroy();
   }
   if (metadata === null) {
     throw new Error('Wire file is empty (no metadata)');
