@@ -1208,6 +1208,9 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.dialog.mergePreview.reject': '[ Reject ]',
   'tui.dialog.mergePreview.rejectIdle': '  Reject  ',
   'tui.dialog.mergePreview.noGates': '  (no gate checklist on this job yet)',
+  'tui.dialog.mergePreview.diffHint': ' · D diff',
+  'tui.dialog.mergePreview.diffEmpty': '✓ No changes on this branch (already merged?)',
+  'tui.dialog.mergePreview.diffUnavailable': 'Diff unavailable — worktree branch missing or git failed',
 
   'tui.dialog.question.title': ' question',
 
@@ -2427,6 +2430,9 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.dialog.mergePreview.reject': '[ 거부 ]',
   'tui.dialog.mergePreview.rejectIdle': '  거부  ',
   'tui.dialog.mergePreview.noGates': '  (이 Job에 아직 게이트 체크리스트 없음)',
+  'tui.dialog.mergePreview.diffHint': ' · D 변경점',
+  'tui.dialog.mergePreview.diffEmpty': '✓ 이 브랜치에 변경점 없음 (이미 병합됐나?)',
+  'tui.dialog.mergePreview.diffUnavailable': '변경점을 볼 수 없음 — 워크트리 브랜치 없음 또는 git 실패',
 
   'tui.dialog.question.title': ' 질문',
 

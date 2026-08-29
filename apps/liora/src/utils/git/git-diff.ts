@@ -125,6 +125,49 @@ export function collectGitDiff(workDir: string): GitDiffReport | null {
   return { branch, files, totalAdded, totalDeleted, truncated };
 }
 
+/**
+ * Collect the changes a Conductor job's `branch` adds relative to the merge
+ * base with HEAD (`git diff HEAD...<branch>`), for the pre-land diff review.
+ * Runs against the MAIN workspace checkout — the branch is visible there even
+ * though the job's worktree may already be swept. Returns `null` when the
+ * repo/branch is unavailable or git fails; never throws.
+ */
+export function collectGitBranchDiff(
+  workDir: string,
+  branch: string,
+  label?: string,
+): GitDiffReport | null {
+  const trimmed = branch.trim();
+  if (trimmed.length === 0 || !isGitRepo(workDir)) return null;
+
+  // Three-dot diff = merge-base(HEAD, branch)..branch: exactly what a merge
+  // into the current checkout would apply.
+  const diffText = runGit(workDir, [
+    'diff',
+    `HEAD...${trimmed}`,
+    '--no-color',
+    '--no-ext-diff',
+    '--unified=3',
+  ]);
+  if (diffText === null) return null;
+
+  const files = parseUnifiedDiff(diffText);
+
+  let totalAdded = 0;
+  let totalDeleted = 0;
+  let displayedLines = 0;
+  for (const file of files) {
+    totalAdded += file.added;
+    totalDeleted += file.deleted;
+    displayedLines += file.lines.length;
+  }
+
+  const truncated =
+    displayedLines >= MAX_TOTAL_LINES || files.some((file) => file.lines.length >= MAX_FILE_LINES);
+
+  return { branch: label ?? trimmed, files, totalAdded, totalDeleted, truncated };
+}
+
 // ---------------------------------------------------------------------------
 // Pure parsing helpers
 // ---------------------------------------------------------------------------
