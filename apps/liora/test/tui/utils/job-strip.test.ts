@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   appendJobInboxEntry,
   emptyConductorJobsSnapshot,
+  formatJobCacheRate,
   formatJobDuration,
   JOB_BOARD_MAX_CARDS,
   JOB_BOARD_MAX_INBOX,
   interviewNeedsUserCount,
+  jobCacheHitRate,
   jobElapsedMs,
   longestActiveJobElapsedMs,
   mergeConductorJobsSnapshot,
@@ -175,7 +177,7 @@ describe('job-strip', () => {
       );
     }
     expect(inbox).toHaveLength(JOB_BOARD_MAX_INBOX);
-    expect(inbox[inbox.length - 1]?.eventId).toBe(`evt_${String(JOB_BOARD_MAX_INBOX + 2)}`);
+    expect(inbox.at(-1)?.eventId).toBe(`evt_${String(JOB_BOARD_MAX_INBOX + 2)}`);
   });
 
   it('formats compact durations across scales', () => {
@@ -329,5 +331,14 @@ describe('job-strip', () => {
     );
 
     expect(cards[0]?.statusChangedAtMs).toBe(1_000);
+  });
+
+  it('measures per-worker cache hit share with a minimum input floor', () => {
+    expect(jobCacheHitRate(undefined)).toBeUndefined();
+    expect(jobCacheHitRate({ input: 40, output: 10, cacheRead: 50 })).toBeUndefined();
+    expect(jobCacheHitRate({ input: 1_000, output: 10, cacheRead: 0 })).toBe(0);
+    expect(jobCacheHitRate({ input: 1_000, output: 10, cacheRead: 3_000 })).toBeCloseTo(0.75);
+    expect(formatJobCacheRate({ input: 1_000, output: 10, cacheRead: 3_000 })).toBe('cache 75%');
+    expect(formatJobCacheRate(undefined)).toBe('cache —');
   });
 });

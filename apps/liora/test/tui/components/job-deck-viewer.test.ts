@@ -156,7 +156,43 @@ describe('JobDeckViewerComponent', () => {
     const joined = viewer.render(100).map(stripAnsi).join('\n');
     expect(joined).toContain('tokens');
     expect(joined).toContain('1.2k in');
+    expect(joined).toMatch(/cache \d+%/);
     expect(joined).toMatch(/kickoff|Bash|result|Loading worker/);
+  });
+
+  it('shows a per-worker cache hit chip on rows with usage', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const snap = snapshotOf([
+      card('job_a1b2c3d4', 'warm worker', 'running', {
+        usage: { input: 1200, output: 400, cacheRead: 98_000 },
+      }),
+    ]);
+    const viewer = new JobDeckViewerComponent({
+      getSnapshot: () => snap,
+      loadWorker: async () => ({ lines: [] }),
+      onAction: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    const joined = viewer.render(120).map(stripAnsi).join('\n');
+    // cacheRead 98k of 99.2k input → 99% — meets the cache target chip.
+    expect(joined).toContain('cache 99%');
+    expect(joined).toContain('warm worker');
+  });
+
+  it('keeps rows cache-free when no usage has been observed', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const snap = snapshotOf([card('job_a1b2c3d4', 'cold worker', 'running')]);
+    const viewer = new JobDeckViewerComponent({
+      getSnapshot: () => snap,
+      loadWorker: async () => ({ lines: [] }),
+      onAction: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    const joined = viewer.render(120).map(stripAnsi).join('\n');
+    expect(joined).toContain('cold worker');
+    expect(joined).not.toContain('cache ');
   });
 
   it('Esc from the list invokes onCancel', () => {
