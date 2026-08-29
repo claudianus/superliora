@@ -1,12 +1,12 @@
 /**
- * Job worker affinity — keep same-context follow-ups on an existing Job/worker
+ * Job worker affinity ??keep same-context follow-ups on an existing Job/worker
  * instead of cold-spawning a sibling that drops transcript context.
  *
  * Disposition:
- * - steer: live worker (running / needs_user) → JobSteer delta, no new Job
- * - fold: queued Job → patch brief in place, no new Job
- * - reattach: terminal unlanded coding Job → same job_id requeued + resume
- * - reuse: other terminal anchors (explore/mission) → child inheriting worktree + resume
+ * - steer: live worker (running / needs_user) ??JobSteer delta, no new Job
+ * - fold: queued Job ??patch brief in place, no new Job
+ * - reattach: terminal unlanded coding Job ??same job_id requeued + resume
+ * - reuse: other terminal anchors (explore/mission) ??child inheriting worktree + resume
  */
 
 import type { ToolStore } from '../../store';
@@ -53,8 +53,82 @@ export interface JobAffinityRequest {
   readonly affinity?: JobAffinityMode;
   readonly kind?: JobKind;
   readonly ownershipPaths?: readonly string[];
+  readonly contextPaths?: readonly string[];
   readonly autoSplit?: boolean;
   readonly greenfieldChain?: boolean;
+}
+
+/** Weighted same-context fit of a candidate anchor, with readable reasons. */
+interface JobAffinityScore {
+  readonly score: number;
+  readonly reasons: readonly string[];
+}
+
+/** Recency buckets: a warm worker shares more reusable context than an old one. */
+const AFFINITY_AGE_BUCKETS: readonly { readonly maxHours: number; readonly points: number; readonly label: string }[] = [
+  { maxHours: 1, points: 3, label: 'age<=1h' },
+  { maxHours: 6, points: 2, label: 'age<=6h' },
+  { maxHours: 24, points: 1, label: 'age<=24h' },
+];
+
+/**
+ * Score how well a Job can host a same-context follow-up. Status ladders and
+ * eligibility gates stay outside this function ??the score only orders
+ * candidates within the same status tier. Deterministic; no wall-clock
+ * assertions (buckets tolerate CI timing).
+ */
+function scoreAffinityCandidate(
+  anchor: JobRecord,
+  input: {
+    readonly kind?: JobKind;
+    readonly ownershipPaths?: readonly string[];
+    readonly contextPaths?: readonly string[];
+  },
+): JobAffinityScore {
+  const reasons: string[] = [];
+  let score = 0;
+
+  let ownershipOverlap = 0;
+  for (const path of input.ownershipPaths ?? []) {
+    if (ownershipPathsOverlap([path], anchor.ownershipPaths) !== undefined) ownershipOverlap += 1;
+  }
+  if (ownershipOverlap > 0) {
+    score += 3 * ownershipOverlap;
+    reasons.push(`paths=${String(ownershipOverlap)}`);
+  }
+
+  let contextOverlap = 0;
+  for (const path of input.contextPaths ?? []) {
+    if (ownershipPathsOverlap([path], anchor.contextPaths) !== undefined) contextOverlap += 1;
+  }
+  if (contextOverlap > 0) {
+    score += contextOverlap;
+    reasons.push(`context=${String(contextOverlap)}`);
+  }
+
+  if (input.kind !== undefined && anchor.kind === input.kind) {
+    score += 1;
+    reasons.push(`kind=${anchor.kind}`);
+  }
+
+  if (anchor.workerResumeAgentId !== undefined) {
+    score += 2;
+    reasons.push(`resume=${anchor.workerResumeAgentId.slice(0, 24)}`);
+  }
+
+  const updatedAtMs = Date.parse(anchor.updatedAt);
+  if (Number.isFinite(updatedAtMs)) {
+    const ageHours = (Date.now() - updatedAtMs) / 3_600_000;
+    for (const bucket of AFFINITY_AGE_BUCKETS) {
+      if (ageHours <= bucket.maxHours) {
+        score += bucket.points;
+        reasons.push(bucket.label);
+        break;
+      }
+    }
+  }
+
+  return { score, reasons };
 }
 
 export function isAffinityEligibleKind(kind: JobKind | undefined): boolean {
@@ -76,7 +150,7 @@ export function resolveJobAffinity(
       return {
         action: 'reject',
         reason:
-          'Job affinity cannot combine with auto_split — affinity keeps one Job; split intents need separate creates or an explicit merge.',
+          'Job affinity cannot combine with auto_split ??affinity keeps one Job; split intents need separate creates or an explicit merge.',
       };
     }
     return undefined;
@@ -86,7 +160,7 @@ export function resolveJobAffinity(
       return {
         action: 'reject',
         reason:
-          'Job affinity cannot combine with greenfield_chain — the skeleton→fill→delete-pass chain owns its own parent links.',
+          'Job affinity cannot combine with greenfield_chain ??the skeleton?뭚ill?뭗elete-pass chain owns its own parent links.',
       };
     }
     return undefined;
@@ -97,7 +171,7 @@ export function resolveJobAffinity(
     if (request.continueFromJobId !== undefined || request.affinity === 'auto') {
       return {
         action: 'reject',
-        reason: `Job affinity does not apply to kind=${wantKind} (Maker≠Checker / control-plane kinds stay on a fresh Job).`,
+        reason: `Job affinity does not apply to kind=${wantKind} (Maker?잺hecker / control-plane kinds stay on a fresh Job).`,
       };
     }
     return undefined;
@@ -110,6 +184,7 @@ export function resolveJobAffinity(
         ? findAffinityAnchor(store, {
             kind: wantKind,
             ownershipPaths: request.ownershipPaths,
+            contextPaths: request.contextPaths,
           })
         : undefined;
 
@@ -147,7 +222,7 @@ export function resolveJobAffinity(
     if (anchor.landReceipt !== undefined) {
       return {
         action: 'reject',
-        reason: `continue_from job ${anchor.id} already landed — start a fresh Job instead of reusing its worktree.`,
+        reason: `continue_from job ${anchor.id} already landed ??start a fresh Job instead of reusing its worktree.`,
       };
     }
     return { action: 'reuse', anchor };
@@ -163,7 +238,7 @@ export function resolveJobAffinity(
     if (anchor.landReceipt !== undefined) {
       return {
         action: 'reject',
-        reason: `continue_from job ${anchor.id} already landed — start a fresh Job instead of reusing its worktree.`,
+        reason: `continue_from job ${anchor.id} already landed ??start a fresh Job instead of reusing its worktree.`,
       };
     }
     // Same coding session: reattach the job_id instead of a child that drops
@@ -184,13 +259,16 @@ export function resolveJobAffinity(
 
 /**
  * Pick the best same-context Job for affinity=auto.
- * Prefer live → queued → recent terminal with overlapping ownership.
+ * Status tiers come first (live ??queued ??terminal); within a tier the
+ * multi-factor {@link scoreAffinityCandidate} decides, with updatedAt as the
+ * final tiebreak so behavior stays deterministic for identical scores.
  */
 export function findAffinityAnchor(
   store: ToolStore,
   input: {
     readonly kind: JobKind;
     readonly ownershipPaths?: readonly string[];
+    readonly contextPaths?: readonly string[];
   },
 ): JobRecord | undefined {
   const paths = input.ownershipPaths;
@@ -198,7 +276,7 @@ export function findAffinityAnchor(
 
   const candidates = listJobs(store).filter(
     (j) =>
-      // Auto affinity still excludes mission — only explicit continue_from_job_id
+      // Auto affinity still excludes mission ??only explicit continue_from_job_id
       // may pick up a terminal Plan Desk worktree.
       isAffinityEligibleKind(j.kind) &&
       ownershipPathsOverlap(paths, j.ownershipPaths) !== undefined &&
@@ -206,22 +284,22 @@ export function findAffinityAnchor(
   );
   if (candidates.length === 0) return undefined;
 
-  const live = newest(
-    candidates.filter((j) => LIVE_STATUSES.has(j.status)),
-  );
+  const live = bestScored(candidates.filter((j) => LIVE_STATUSES.has(j.status)), input);
   if (live !== undefined) return live;
 
-  const queued = newest(candidates.filter((j) => FOLD_STATUSES.has(j.status)));
+  const queued = bestScored(candidates.filter((j) => FOLD_STATUSES.has(j.status)), input);
   if (queued !== undefined) return queued;
 
-  return newest(candidates.filter((j) => REUSE_STATUSES.has(j.status)));
+  return bestScored(candidates.filter((j) => REUSE_STATUSES.has(j.status)), input);
 }
 
 /** Soft hint when a cold create overlaps a live/queued owner (no continue_from). */
 export function findAffinityHint(
   store: ToolStore,
   input: {
+    readonly kind?: JobKind;
     readonly ownershipPaths?: readonly string[];
+    readonly contextPaths?: readonly string[];
     readonly excludeJobIds?: ReadonlySet<string>;
   },
 ): JobRecord | undefined {
@@ -235,18 +313,32 @@ export function findAffinityHint(
       (LIVE_STATUSES.has(j.status) || FOLD_STATUSES.has(j.status)) &&
       ownershipPathsOverlap(paths, j.ownershipPaths) !== undefined,
   );
-  return newest(holders);
+  return bestScored(holders, input);
 }
 
-export function formatAffinityHint(anchor: JobRecord): string {
+export function formatAffinityHint(
+  anchor: JobRecord,
+  input?: {
+    readonly kind?: JobKind;
+    readonly ownershipPaths?: readonly string[];
+    readonly contextPaths?: readonly string[];
+  },
+): string {
   const path =
     anchor.ownershipPaths !== undefined && anchor.ownershipPaths.length > 0
       ? ` owns ${anchor.ownershipPaths.slice(0, 3).join(',')}`
       : '';
+  const scored =
+    input === undefined
+      ? ''
+      : (() => {
+          const { score, reasons } = scoreAffinityCandidate(anchor, input);
+          return score > 0 ? ` score=${String(score)} (${reasons.join(', ')})` : '';
+        })();
   return (
-    `affinity_hint: ${anchor.id} (${anchor.status}${path}) — ` +
+    `affinity_hint: ${anchor.id} (${anchor.status}${path}) ??` +
     `same-context follow-up: JobSteer or JobCreate(continue_from_job_id=${anchor.id}) / affinity=auto; ` +
-    `do not cold-spawn a sibling that races the same paths.`
+    `do not cold-spawn a sibling that races the same paths.${scored}`
   );
 }
 
@@ -259,7 +351,7 @@ export function buildAffinitySteerMessage(input: {
   readonly contextPaths?: readonly string[];
 }): string {
   const lines = [
-    `[affinity] Scope delta — keep the existing finish line unless criteria below replace it.`,
+    `[affinity] Scope delta ??keep the existing finish line unless criteria below replace it.`,
     `Title: ${input.title}`,
   ];
   const prompt = input.prompt?.trim();
@@ -335,4 +427,22 @@ export function reuseInheritanceFromAnchor(anchor: JobRecord): {
 function newest(jobs: readonly JobRecord[]): JobRecord | undefined {
   if (jobs.length === 0) return undefined;
   return [...jobs].toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+}
+
+/** Highest affinity score wins; updatedAt breaks ties deterministically. */
+function bestScored(
+  jobs: readonly JobRecord[],
+  input: {
+    readonly kind?: JobKind;
+    readonly ownershipPaths?: readonly string[];
+    readonly contextPaths?: readonly string[];
+  },
+): JobRecord | undefined {
+  if (jobs.length === 0) return undefined;
+  if (jobs.length === 1) return jobs[0];
+  return jobs
+    .map((job) => ({ job, score: scoreAffinityCandidate(job, input) }))
+    .toSorted(
+      (a, b) => b.score.score - a.score.score || b.job.updatedAt.localeCompare(a.job.updatedAt),
+    )[0]!.job;
 }

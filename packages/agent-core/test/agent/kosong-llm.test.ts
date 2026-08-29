@@ -501,6 +501,91 @@ describe('KosongLLM provider routing', () => {
     ]);
   });
 
+  it('prefers the warmed candidate on least_used ties (cache affinity)', () => {
+    const firstProvider = makeProvider('openai', 'gpt-first');
+    const secondProvider = makeProvider('openai', 'gpt-second');
+    const route = {
+      key: 'k2',
+      strategy: 'least_used' as const,
+      candidates: [
+        {
+          modelAlias: 'k2',
+          providerName: 'openai',
+          credentialLabel: 'api_key:1',
+          provider: firstProvider,
+        },
+        {
+          modelAlias: 'k2',
+          providerName: 'openai',
+          credentialLabel: 'api_key:2',
+          provider: secondProvider,
+        },
+      ],
+    };
+    const state = new InMemoryProviderRouteState();
+
+    state.recordSuccess(route, route.candidates[0]!);
+    state.recordSuccess(route, route.candidates[1]!);
+
+    // Request counts are tied at 1-1; the last successful candidate still
+    // holds the warm provider prefix, so it sorts ahead of the index order.
+    expect(state.orderCandidates(route).map((candidate) => candidate.credentialLabel)).toEqual([
+      'api_key:2',
+      'api_key:1',
+    ]);
+  });
+
+  it('carries cache affinity across an alias switch when provider+model match', () => {
+    const sharedProvider = makeProvider('openai', 'gpt-shared');
+    const otherProvider = makeProvider('openai', 'gpt-other');
+    const routeA = {
+      key: 'alias-a',
+      strategy: 'least_used' as const,
+      candidates: [
+        {
+          modelAlias: 'alias-a',
+          providerName: 'openai',
+          credentialLabel: 'api_key:1',
+          provider: sharedProvider,
+        },
+        {
+          modelAlias: 'alias-a',
+          providerName: 'openai',
+          credentialLabel: 'api_key:2',
+          provider: otherProvider,
+        },
+      ],
+    };
+    const routeB = {
+      key: 'alias-b',
+      strategy: 'least_used' as const,
+      candidates: [
+        {
+          modelAlias: 'alias-b',
+          providerName: 'openai',
+          credentialLabel: 'api_key:2',
+          provider: otherProvider,
+        },
+        {
+          modelAlias: 'alias-b',
+          providerName: 'openai',
+          credentialLabel: 'api_key:1',
+          provider: sharedProvider,
+        },
+      ],
+    };
+    const state = new InMemoryProviderRouteState();
+
+    state.recordSuccess(routeA, routeA.candidates[0]!);
+
+    // A smart-route alias switch builds a fresh route with no per-route state,
+    // but the provider cache is still warm on api_key:1 + gpt-shared.
+    expect(state.orderCandidates(routeB).map((candidate) => candidate.credentialLabel)).toEqual([
+      'api_key:1',
+      'api_key:2',
+    ]);
+  });
+
   it('pins session-affinity routes to the first successful candidate until it fails', () => {
     const firstProvider = makeProvider('openai', 'gpt-first');
     const secondProvider = makeProvider('openai', 'gpt-second');

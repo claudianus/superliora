@@ -121,6 +121,21 @@ export function candidateKey(candidate: KosongLLMRouteCandidate): string {
   ].join('\n');
 }
 
+/**
+ * Continuity identity for cache affinity: what a provider prompt cache
+ * actually keys on, minus the route alias. Two candidates that share this
+ * key share a warmed prefix even when their aliases differ, so route
+ * ordering can prefer them without breaking alias-specific state.
+ */
+export function candidateContinuityKey(candidate: KosongLLMRouteCandidate): string {
+  return [
+    candidate.providerName,
+    candidate.credentialLabel ?? '',
+    candidate.provider.modelName,
+    providerBaseUrl(candidate.provider) ?? '',
+  ].join('\n');
+}
+
 export function providerBaseUrl(provider: ChatProvider): string | undefined {
   const baseUrl = (provider as { readonly baseUrl?: unknown }).baseUrl;
   return typeof baseUrl === 'string' && baseUrl.trim().length > 0 ? baseUrl.trim() : undefined;

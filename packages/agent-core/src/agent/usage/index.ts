@@ -165,6 +165,20 @@ export class UsageRecorder {
     };
   }
 
+  /**
+   * Consecutive recent turns whose cache hit rate met the warm target. Read
+   * by cache-affinity routing to decide whether the provider prefix is still
+   * live; deliberately absent from the status()/data() telemetry shapes.
+   */
+  get warmStreak(): number {
+    return this.warmHitStreak;
+  }
+
+  /** Concrete model alias of the most recent recorded step, if any. */
+  get lastStepModelAlias(): string | undefined {
+    return this.lastStepModel;
+  }
+
   status(): UsageStatus | undefined {
     const status = this.data();
     const neverEmpty = getSearchNeverEmptyTelemetry();
