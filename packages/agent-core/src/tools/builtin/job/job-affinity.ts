@@ -1,12 +1,12 @@
 /**
- * Job worker affinity — keep same-context follow-ups on an existing Job/worker
+ * Job worker affinity ??keep same-context follow-ups on an existing Job/worker
  * instead of cold-spawning a sibling that drops transcript context.
  *
  * Disposition:
- * - steer: live worker (running / needs_user) → JobSteer delta, no new Job
- * - fold: queued Job → patch brief in place, no new Job
- * - reattach: terminal unlanded coding Job → same job_id requeued + resume
- * - reuse: other terminal anchors (explore/mission) → child inheriting worktree + resume
+ * - steer: live worker (running / needs_user) ??JobSteer delta, no new Job
+ * - fold: queued Job ??patch brief in place, no new Job
+ * - reattach: terminal unlanded coding Job ??same job_id requeued + resume
+ * - reuse: other terminal anchors (explore/mission) ??child inheriting worktree + resume
  */
 
 import type { ToolStore } from '../../store';
@@ -59,7 +59,7 @@ export interface JobAffinityRequest {
 }
 
 /** Weighted same-context fit of a candidate anchor, with readable reasons. */
-export interface JobAffinityScore {
+interface JobAffinityScore {
   readonly score: number;
   readonly reasons: readonly string[];
 }
@@ -73,11 +73,11 @@ const AFFINITY_AGE_BUCKETS: readonly { readonly maxHours: number; readonly point
 
 /**
  * Score how well a Job can host a same-context follow-up. Status ladders and
- * eligibility gates stay outside this function — the score only orders
+ * eligibility gates stay outside this function ??the score only orders
  * candidates within the same status tier. Deterministic; no wall-clock
  * assertions (buckets tolerate CI timing).
  */
-export function scoreAffinityCandidate(
+function scoreAffinityCandidate(
   anchor: JobRecord,
   input: {
     readonly kind?: JobKind;
@@ -150,7 +150,7 @@ export function resolveJobAffinity(
       return {
         action: 'reject',
         reason:
-          'Job affinity cannot combine with auto_split — affinity keeps one Job; split intents need separate creates or an explicit merge.',
+          'Job affinity cannot combine with auto_split ??affinity keeps one Job; split intents need separate creates or an explicit merge.',
       };
     }
     return undefined;
@@ -160,7 +160,7 @@ export function resolveJobAffinity(
       return {
         action: 'reject',
         reason:
-          'Job affinity cannot combine with greenfield_chain — the skeleton→fill→delete-pass chain owns its own parent links.',
+          'Job affinity cannot combine with greenfield_chain ??the skeleton?뭚ill?뭗elete-pass chain owns its own parent links.',
       };
     }
     return undefined;
@@ -171,7 +171,7 @@ export function resolveJobAffinity(
     if (request.continueFromJobId !== undefined || request.affinity === 'auto') {
       return {
         action: 'reject',
-        reason: `Job affinity does not apply to kind=${wantKind} (Maker≠Checker / control-plane kinds stay on a fresh Job).`,
+        reason: `Job affinity does not apply to kind=${wantKind} (Maker?잺hecker / control-plane kinds stay on a fresh Job).`,
       };
     }
     return undefined;
@@ -222,7 +222,7 @@ export function resolveJobAffinity(
     if (anchor.landReceipt !== undefined) {
       return {
         action: 'reject',
-        reason: `continue_from job ${anchor.id} already landed — start a fresh Job instead of reusing its worktree.`,
+        reason: `continue_from job ${anchor.id} already landed ??start a fresh Job instead of reusing its worktree.`,
       };
     }
     return { action: 'reuse', anchor };
@@ -238,7 +238,7 @@ export function resolveJobAffinity(
     if (anchor.landReceipt !== undefined) {
       return {
         action: 'reject',
-        reason: `continue_from job ${anchor.id} already landed — start a fresh Job instead of reusing its worktree.`,
+        reason: `continue_from job ${anchor.id} already landed ??start a fresh Job instead of reusing its worktree.`,
       };
     }
     // Same coding session: reattach the job_id instead of a child that drops
@@ -259,7 +259,7 @@ export function resolveJobAffinity(
 
 /**
  * Pick the best same-context Job for affinity=auto.
- * Status tiers come first (live → queued → terminal); within a tier the
+ * Status tiers come first (live ??queued ??terminal); within a tier the
  * multi-factor {@link scoreAffinityCandidate} decides, with updatedAt as the
  * final tiebreak so behavior stays deterministic for identical scores.
  */
@@ -276,7 +276,7 @@ export function findAffinityAnchor(
 
   const candidates = listJobs(store).filter(
     (j) =>
-      // Auto affinity still excludes mission — only explicit continue_from_job_id
+      // Auto affinity still excludes mission ??only explicit continue_from_job_id
       // may pick up a terminal Plan Desk worktree.
       isAffinityEligibleKind(j.kind) &&
       ownershipPathsOverlap(paths, j.ownershipPaths) !== undefined &&
@@ -336,7 +336,7 @@ export function formatAffinityHint(
           return score > 0 ? ` score=${String(score)} (${reasons.join(', ')})` : '';
         })();
   return (
-    `affinity_hint: ${anchor.id} (${anchor.status}${path}) — ` +
+    `affinity_hint: ${anchor.id} (${anchor.status}${path}) ??` +
     `same-context follow-up: JobSteer or JobCreate(continue_from_job_id=${anchor.id}) / affinity=auto; ` +
     `do not cold-spawn a sibling that races the same paths.${scored}`
   );
@@ -351,7 +351,7 @@ export function buildAffinitySteerMessage(input: {
   readonly contextPaths?: readonly string[];
 }): string {
   const lines = [
-    `[affinity] Scope delta — keep the existing finish line unless criteria below replace it.`,
+    `[affinity] Scope delta ??keep the existing finish line unless criteria below replace it.`,
     `Title: ${input.title}`,
   ];
   const prompt = input.prompt?.trim();
