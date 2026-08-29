@@ -94,7 +94,8 @@ describe('workspace dock controller', () => {
     expect(region!.rect.y).toBe(center.y);
     expect(region!.rect.height).toBe(center.height);
     expect(region!.clear).toBe(true);
-    expect(region!.content.length).toBeGreaterThan(0);
+    expect(Array.isArray(region!.content)).toBe(true);
+    expect((region!.content as readonly unknown[]).length).toBeGreaterThan(0);
   });
 
   it('skips the region when the remaining columns are too narrow', () => {
