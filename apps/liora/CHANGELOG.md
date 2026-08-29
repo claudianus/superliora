@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.17.1
+
+### Patch Changes
+
+- Warm sessions keep their model across smart-route role switches, and route ordering prefers the warmed provider prefix on ties — switching aliases destroys the prompt cache and costs more than it saves. Disable with SUPERLIORA_EXPERIMENTAL_CACHE_STICKY_ROUTING=false.
+- Job affinity weighs resume checkpoints, shared context paths, kind match, and recency when folding a follow-up into an existing Job, and the affinity hint shows the score with its reasons.
+- Job Deck rows and the worker usage strip show each worker's prompt-cache hit share, so a worker drifting below the 99% cache target is visible at a glance.
+
 ## 0.17.0
 
 ### Minor Changes
