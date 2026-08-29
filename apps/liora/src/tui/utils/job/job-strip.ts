@@ -82,6 +82,24 @@ export interface ConductorJobUsage {
   readonly cacheRead: number;
 }
 
+/**
+ * Cache hit share of a worker's total input tokens, or `undefined` when the
+ * worker has not billed enough input for the rate to mean anything. The
+ * 0.99 target matches the session-level CACHE_HIT_TARGET.
+ */
+export function jobCacheHitRate(usage: ConductorJobUsage | undefined): number | undefined {
+  if (usage === undefined) return undefined;
+  const totalInput = usage.cacheRead + usage.input;
+  if (totalInput < 100) return undefined;
+  return usage.cacheRead / totalInput;
+}
+
+/** Rendered `cache NN%` chip body; muted placeholder when unmeasurable. */
+export function formatJobCacheRate(usage: ConductorJobUsage | undefined): string {
+  const rate = jobCacheHitRate(usage);
+  return rate === undefined ? 'cache —' : `cache ${String(Math.round(rate * 100))}%`;
+}
+
 /** Live `subagent.tool_progress` kind mirrored onto a job card (SDK union). */
 type ConductorJobProgressKind = 'stdout' | 'stderr' | 'progress' | 'status';
 

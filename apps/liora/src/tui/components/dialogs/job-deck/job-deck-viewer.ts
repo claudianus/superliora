@@ -46,6 +46,7 @@ import {
 import type { ConductorJobCard, ConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
 import {
   formatJobDuration,
+  jobCacheHitRate,
   jobElapsedMs,
   longestActiveJobElapsedMs,
   resolveConductorJobCard,
@@ -522,6 +523,14 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       rightParts.push(
         `${formatTokenCount(card.usage.input + card.usage.output)}tok`,
       );
+      // Fleet cache observability: per-worker prompt-cache hit share, so a
+      // worker drifting off the 99% target is visible at a glance.
+      const cacheRate = jobCacheHitRate(card.usage);
+      if (cacheRate !== undefined) {
+        rightParts.push(
+          theme.fg(cacheRate >= 0.99 ? 'success' : 'textMuted', `cache ${String(Math.round(cacheRate * 100))}%`),
+        );
+      }
     }
     if (card.workerAgentId !== undefined) {
       rightParts.push(shortAgentId(card.workerAgentId));
@@ -818,12 +827,19 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     const theme = currentTheme;
     const parts: string[] = [];
     if (state.usage !== undefined) {
+      const cacheRate = jobCacheHitRate(state.usage);
+      const cacheLabel =
+        cacheRate === undefined
+          ? `cache ${formatTokenCount(state.usage.cacheRead)}`
+          : `cache ${String(Math.round(cacheRate * 100))}%`;
+      const cacheToken = cacheRate !== undefined && cacheRate >= 0.99 ? 'success' : 'info';
       parts.push(
         theme.fg(
           'info',
           `tokens ${formatTokenCount(state.usage.input)} in · ${formatTokenCount(state.usage.output)} out · ${formatTokenCount(state.usage.cacheRead)} cache`,
         ),
       );
+      parts.push(theme.fg(cacheToken, cacheLabel));
     }
     if (state.card.effectPreview?.chip !== undefined && state.card.effectPreview.chip.length > 0) {
       parts.push(theme.fg('info', state.card.effectPreview.chip));
