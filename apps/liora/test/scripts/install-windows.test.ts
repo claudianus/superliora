@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// These tests spawn real powershell/git processes; under CI Windows load they
+// routinely exceed the runner's 30s default timeout.
+vi.setConfig({ testTimeout: 120_000 });
 
 import {
   applyUserPathWin,

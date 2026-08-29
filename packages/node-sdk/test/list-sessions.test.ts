@@ -3,10 +3,14 @@ import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createLioraHarness } from '#/index';
 import type { LioraError } from '#/index';
+
+// These tests boot real harnesses (filesystem session stores + workdirs) and
+// blow past the CI runner's 30s default under Windows load.
+vi.setConfig({ testTimeout: 90_000 });
 
 import {
   SessionStore,
