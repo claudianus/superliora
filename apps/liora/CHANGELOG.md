@@ -1,5 +1,18 @@
 # @superliora/liora
 
+## 0.17.0
+
+### Minor Changes
+
+- Show the job's branch diff in Merge Preview before landing. Press D inside Merge Preview to review the changed files.
+
+### Patch Changes
+
+- Queued prompts held by the daemon now survive a restart and keep their order instead of being dropped when dispatch fails.
+- Workers that crash or fail to spawn now retry up to twice with backoff before the job is marked failed.
+- Background jobs now ring the terminal bell and send a desktop notification when they finish, fail, or need input.
+- Send the per-session prompt-cache routing marker to Bedrock and Vertex Claude so worker prompt prefixes stay isolated.
+
 ## 0.16.1
 
 ### Patch Changes
