@@ -29,7 +29,12 @@
  *     reseed after session close, agent.status.updated mirrors into shadow.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Emitter } from '../../src/base/common/event';
 
@@ -1609,5 +1614,227 @@ describe('PromptService.applyAgentState (POST /sessions/{sid}/profile path)', ()
       thinking: 'high',
       permissionMode: 'yolo',
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Durable queue sidecar (daemon restart recovery + FIFO / drain guarantees)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('PromptService durable queue', () => {
+  let sessionDir = '';
+
+  beforeEach(async () => {
+    sessionDir = await mkdtemp(join(tmpdir(), 'prompt-queue-'));
+  });
+
+  afterEach(async () => {
+    await rm(sessionDir, { recursive: true, force: true });
+  });
+
+  function summaryWithDir(id = SID): SessionSummary {
+    return {
+      id,
+      workDir: '/tmp/ws',
+      sessionDir,
+      createdAt: SESSION_CREATED_AT,
+      updatedAt: SESSION_CREATED_AT,
+    };
+  }
+
+  function sidecarPath(): string {
+    return join(sessionDir, 'prompt-queue.json');
+  }
+
+  async function waitUntil(
+    condition: () => boolean,
+    label: string,
+    timeoutMs = 2_000,
+  ): Promise<void> {
+    const start = Date.now();
+    while (!condition()) {
+      if (Date.now() - start > timeoutMs) {
+        throw new Error(`condition not reached: ${label}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  function turnEvents(startedTurnId: number): unknown[] {
+    return [
+      {
+        type: 'turn.started',
+        turnId: startedTurnId,
+        origin: { kind: 'user' },
+        sessionId: SID,
+        agentId: 'main',
+      },
+      {
+        type: 'turn.ended',
+        turnId: startedTurnId,
+        reason: 'completed',
+        sessionId: SID,
+        agentId: 'main',
+      },
+    ];
+  }
+
+  it('persists queued prompts to the session sidecar while the active prompt runs', async () => {
+    const { bridge } = makeBridge({ sessions: [summaryWithDir()] });
+    const { bus } = makeBus();
+    const impl = newSvc(bridge, bus);
+
+    const first = await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'one' }] }));
+    const second = await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'two' }] }));
+
+    expect(first.status).toBe('running');
+    expect(second.status).toBe('queued');
+    await waitUntil(() => existsSync(sidecarPath()), 'sidecar written');
+
+    const raw = JSON.parse(await readFile(sidecarPath(), 'utf-8')) as {
+      version: number;
+      prompts: Array<{ promptId: string; agentId: string }>;
+    };
+    expect(raw.version).toBe(1);
+    // Only the queued prompt persists — the active one was mid-turn.
+    expect(raw.prompts.map((entry) => entry.promptId)).toEqual([second.prompt_id]);
+    expect(raw.prompts[0]?.agentId).toBe('main');
+  });
+
+  it('clears the sidecar when the queue drains', async () => {
+    const { bridge } = makeBridge({ sessions: [summaryWithDir()] });
+    const { bus, triggerSubscribers } = makeBus();
+    const impl = newSvc(bridge, bus);
+
+    await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'one' }] }));
+    await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'two' }] }));
+    await waitUntil(() => existsSync(sidecarPath()), 'sidecar written');
+
+    const aborted = await impl.list(SID);
+    expect(aborted.queued).toHaveLength(1);
+    await impl.abort(SID, aborted.queued[0]!.prompt_id);
+
+    await waitUntil(() => !existsSync(sidecarPath()), 'sidecar cleared');
+    expect((await impl.list(SID)).queued).toHaveLength(0);
+  });
+
+  it('recovers the persisted queue in a new instance and keeps FIFO order', async () => {
+    const { bridge, record } = makeBridge({ sessions: [summaryWithDir()] });
+    const { bus } = makeBus();
+
+    const crashed = newSvc(bridge, bus);
+    await crashed.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'one' }] }));
+    await crashed.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'two' }] }));
+    await crashed.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'three' }] }));
+    await waitUntil(() => existsSync(sidecarPath()), 'sidecar written');
+
+    // Fresh instance = simulated restart: empty in-memory queues, same
+    // session dir. The sidecar still holds prompts two and three.
+    const resumed = newSvc(bridge, bus);
+    const fourth = await resumed.submit(
+      SID,
+      mkBodyMinimal({ content: [{ type: 'text', text: 'four' }] }),
+    );
+
+    // FIFO: the recovered head batch ('two'+'three' merged) starts first; the
+    // fresh submission must not jump it. promptCalls carries the crashed
+    // instance's 'one' dispatch too — the bridge record is shared.
+    expect(fourth.status).toBe('queued');
+    expect(record.promptCalls).toHaveLength(2);
+    expect(record.promptCalls[1]).toEqual({
+      sessionId: SID,
+      agentId: 'main',
+      input: [{ type: 'text', text: 'two\n\nthree' }],
+    });
+    const listed = await resumed.list(SID);
+    expect(listed.active).not.toBeNull();
+    expect(listed.queued.map((entry) => entry.prompt_id)).toEqual([fourth.prompt_id]);
+  });
+
+  it('requeues a failed drain batch instead of dropping it and resumes on the next submit', async () => {
+    const { bridge, record } = makeBridge({ sessions: [summaryWithDir()] });
+    const promptMock = bridge.rpc.prompt as unknown as ReturnType<typeof vi.fn>;
+    const { bus, triggerSubscribers } = makeBus();
+    const impl = newSvc(bridge, bus);
+
+    await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'one' }] }));
+    await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'two' }] }));
+    await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'three' }] }));
+
+    // Fail the drain dispatch while still recording the call (once-mocks
+    // bypass the base recording implementation).
+    promptMock.mockImplementationOnce((payload: unknown) => {
+      record.promptCalls.push(payload);
+      throw new Error('dispatch down');
+    });
+    for (const event of turnEvents(7)) {
+      triggerSubscribers(event as unknown as Event);
+    }
+    // Drain attempted the merged batch, failed, and restored it (poll until
+    // the async requeue settles).
+    const start = Date.now();
+    let afterFailure: Awaited<ReturnType<typeof impl.list>> | undefined;
+    for (;;) {
+      afterFailure = await impl.list(SID);
+      if (afterFailure.active === null && afterFailure.queued.length === 2) break;
+      if (Date.now() - start > 2_000) throw new Error('failed batch was not requeued');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(
+      afterFailure.queued.map((entry) => (entry.content[0] as { text: string }).text),
+    ).toEqual(['two', 'three']);
+
+    // Next submit kicks the drain; the requeued batch still leads. Calls:
+    // #1 'one', #2 failed merged attempt (recorded by the once-mock), #3 the
+    // retry — which merges the requeued batch AND the fresh plain prompt, the
+    // same adjacent-plain merge the normal drain performs.
+    const fourth = await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'four' }] }));
+    expect(fourth.status).toBe('queued');
+    expect(record.promptCalls).toHaveLength(3);
+    expect(record.promptCalls[2]).toEqual({
+      sessionId: SID,
+      agentId: 'main',
+      input: [{ type: 'text', text: 'two\n\nthree\n\nfour' }],
+    });
+  });
+
+  it('tolerates a corrupt sidecar on hydration', async () => {
+    const { bridge, record } = makeBridge({ sessions: [summaryWithDir()] });
+    const { bus } = makeBus();
+    await writeFile(sidecarPath(), '{not json', 'utf-8');
+
+    const impl = newSvc(bridge, bus);
+    const result = await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'fresh' }] }));
+
+    expect(result.status).toBe('running');
+    expect(record.promptCalls).toHaveLength(1);
+  });
+
+  it('steers a queued prompt from a non-main agent lane', async () => {
+    const { bridge, record } = makeBridge({ sessions: [summaryWithDir()] });
+    const { bus } = makeBus();
+    const impl = newSvc(bridge, bus);
+
+    await impl.submit(
+      SID,
+      mkBodyMinimal({ agent_id: 'agent_btw', content: [{ type: 'text', text: 'active' }] }),
+    );
+    const queued = await impl.submit(
+      SID,
+      mkBodyMinimal({ agent_id: 'agent_btw', content: [{ type: 'text', text: 'queued' }] }),
+    );
+    expect(queued.status).toBe('queued');
+
+    const result = await impl.steer(SID, [queued.prompt_id]);
+
+    expect(result).toEqual({ steered: true, prompt_ids: [queued.prompt_id] });
+    expect(record.steerCalls).toEqual([
+      {
+        sessionId: SID,
+        agentId: 'agent_btw',
+        input: [{ type: 'text', text: 'queued' }],
+      },
+    ]);
+    expect((await impl.list(SID)).queued).toHaveLength(0);
   });
 });

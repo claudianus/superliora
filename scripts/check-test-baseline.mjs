@@ -44,7 +44,7 @@ function parseBaseline(text) {
       const inline = m[2].trim();
       if (inline && inline !== '[]') throw new Error(`inline lists not supported: ${line}`);
     } else if ((m = line.match(/^\s*-\s*"((?:[^"\\]|\\.)*)"\s*$/)) && pkg && listKey) {
-      pkg[listKey].push(m[1].replaceAll(/\\"/g, '"').replaceAll(/\\\\/g, '\\'));
+      pkg[listKey].push(m[1].replaceAll('\\"', '"').replaceAll('\\\\', '\\'));
     } else if ((m = line.match(/^\s*-\s*'([^']*)'\s*$/)) && pkg && listKey) {
       pkg[listKey].push(m[1]);
     } else {
@@ -55,7 +55,7 @@ function parseBaseline(text) {
 }
 
 function emitBaseline(baseline) {
-  const esc = (s) => `"${s.replaceAll(/\\/g, '\\\\').replaceAll(/"/g, '\\"')}"`;
+  const esc = (s) => `"${s.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
   const lines = ['# Test baseline ratchet — expected failures. Update only via:', '#   node scripts/check-test-baseline.mjs --update', 'version: 1', 'packages:'];
   for (const pkg of baseline.packages) {
     lines.push(`  - dir: ${pkg.dir}`, `    runner: ${pkg.runner}`, '    failures:');
@@ -72,12 +72,21 @@ function emitBaseline(baseline) {
 function runVitest(dir) {
   const tmp = mkdtempSync(join(tmpdir(), 'test-baseline-'));
   const outFile = join(tmp, 'results.json');
-  const res = spawnSync('pnpm', ['exec', 'vitest', 'run', '--reporter=json', `--outputFile=${outFile}`], {
-    cwd: join(repoRoot, dir),
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, NO_COLOR: '1' },
-  });
+  // Windows: `pnpm` is a .cmd shim — spawning it unquoted fails with EINVAL
+  // since Node 18.20, so route through the shell there. The temp outfile
+  // path never contains spaces (mkdtemp suffix), so arg joining is safe.
+  const isWindows = process.platform === 'win32';
+  const res = spawnSync(
+    isWindows ? 'pnpm.cmd' : 'pnpm',
+    ['exec', 'vitest', 'run', '--reporter=json', `--outputFile=${outFile}`],
+    {
+      cwd: join(repoRoot, dir),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, NO_COLOR: '1' },
+      ...(isWindows ? { shell: true } : {}),
+    },
+  );
   let failed = [];
   let totals = null;
   try {

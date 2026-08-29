@@ -83,9 +83,42 @@ export function notifyNeedsAttention(context: string): void {
   });
 }
 
+/**
+ * Notify that a background Conductor job reached a terminal status. Rings
+ * the bell too — job awareness previously depended on the user staring at
+ * the footer strip.
+ */
+export function notifyJobOutcome(input: {
+  readonly status: 'done' | 'failed' | 'needs_user' | 'blocked';
+  readonly title: string;
+  readonly detail?: string;
+}): void {
+  ringBell();
+  const title =
+    input.status === 'done'
+      ? ttui('tui.notification.jobDone.title')
+      : input.status === 'failed'
+        ? ttui('tui.notification.jobFailed.title')
+        : ttui('tui.notification.jobAttention.title');
+  const body =
+    input.status === 'done'
+      ? ttui('tui.notification.jobDone.body', { title: input.title })
+      : input.status === 'failed'
+        ? ttui('tui.notification.jobFailed.body', { title: input.title })
+        : ttui('tui.notification.jobAttention.body', { title: input.title });
+  sendDesktopNotification({
+    title,
+    body:
+      input.detail !== undefined && input.detail.length > 0
+        ? `${body} — ${input.detail.slice(0, 140)}`
+        : body,
+    urgency: input.status === 'failed' ? 'critical' : 'normal',
+  });
+}
+
 /** Escape special characters for OSC payload. */
 function escapeOsc(text: string): string {
-  return text.replaceAll(/[\u001B\u0007]/g, '').replaceAll(/;/g, ',');
+  return text.replaceAll(/[\u001B\u0007]/g, '').replaceAll(';', ',');
 }
 
 /**

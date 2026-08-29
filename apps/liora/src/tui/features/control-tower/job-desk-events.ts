@@ -25,6 +25,7 @@ import {
 import { tuiConfigFromHost } from '../../commands/config/appearance/tui-persist';
 import type { ColorToken } from '../../theme';
 import type { AppState } from '../../types';
+import { notifyJobOutcome } from '../../utils/notification/desktop-notification';
 import { formatGateAckDetail } from '../../utils/job/gate-preview';
 import {
   jobDeckHintNotice,
@@ -64,6 +65,8 @@ export class ControlTowerJobDesk {
   private boardHintShown = false;
   /** One-shot resume banner when interrupted jobs exist (UX v2). */
   private interruptedBannerShown = false;
+  /** Terminal job:status pairs already pushed to bell / desktop notify. */
+  private readonly notifiedTerminal = new Set<string>();
 
   /** V3-1: input submission → first JobCreate ACK latency samples. */
   readonly inputAckLatency = new InputAckLatencyTracker();
@@ -92,7 +95,30 @@ export class ControlTowerJobDesk {
     this.maybeShowStallNotice(event);
     this.maybeShowGateAck(event);
     this.maybePulseGoalDriver(event);
+    this.maybeNotifyJobTerminal(event);
     this.host.maybeDefaultConductorTimeline?.();
+  }
+
+  /**
+   * Bell + desktop notification when a job lands in a terminal state while
+   * the user is looking somewhere else. Goal lanes are excluded (their
+   * status flashes already surface in the transcript), and each
+   * job:status pair notifies at most once.
+   */
+  private maybeNotifyJobTerminal(event: JobUpdatedEvent): void {
+    const status = event.job.status;
+    if (status !== 'done' && status !== 'failed' && status !== 'needs_user' && status !== 'blocked') {
+      return;
+    }
+    if (event.job.kind === 'goal-driver' || event.job.kind === 'goal-desk') return;
+    const key = `${event.job.id}:${status}`;
+    if (this.notifiedTerminal.has(key)) return;
+    this.notifiedTerminal.add(key);
+    notifyJobOutcome({
+      status,
+      title: event.job.title,
+      ...(event.job.resultSummary !== undefined ? { detail: event.job.resultSummary } : {}),
+    });
   }
 
   handleInbox(event: JobInboxEvent): void {

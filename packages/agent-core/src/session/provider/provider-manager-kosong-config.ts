@@ -120,6 +120,9 @@ export function toKosongProviderConfig(
         ...(maxOutputSize !== undefined ? { defaultMaxTokens: maxOutputSize } : {}),
         ...(adaptiveThinking !== undefined ? { adaptiveThinking } : {}),
         ...(betaApi !== undefined ? { betaApi } : {}),
+        // Bedrock reuses the Anthropic pipeline: keep the per-session cache
+        // routing marker so worker prefixes stay isolated like direct Anthropic.
+        ...(promptCacheKey !== undefined ? { metadata: { user_id: promptCacheKey } } : {}),
         ...defaultHeadersField(provider.customHeaders),
       };
     case 'vertex_claude':
@@ -131,6 +134,8 @@ export function toKosongProviderConfig(
         ...(maxOutputSize !== undefined ? { defaultMaxTokens: maxOutputSize } : {}),
         ...(adaptiveThinking !== undefined ? { adaptiveThinking } : {}),
         ...(betaApi !== undefined ? { betaApi } : {}),
+        // Vertex Claude reuses the Anthropic pipeline: same cache routing marker.
+        ...(promptCacheKey !== undefined ? { metadata: { user_id: promptCacheKey } } : {}),
         ...defaultHeadersField(provider.customHeaders),
       };
     case 'cursor':

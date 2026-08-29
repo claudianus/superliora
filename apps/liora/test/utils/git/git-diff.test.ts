@@ -1,6 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MAX_FILE_LINES, MAX_TOTAL_LINES, parseUnifiedDiff } from '#/utils/git/git-diff';
+const mocks = vi.hoisted(() => ({
+  execFileSync: vi.fn(),
+}));
+
+vi.mock('node:child_process', () => ({
+  execFileSync: mocks.execFileSync,
+}));
+
+import {
+  MAX_FILE_LINES,
+  MAX_TOTAL_LINES,
+  collectGitBranchDiff,
+  parseUnifiedDiff,
+} from '#/utils/git/git-diff';
 
 function addedFileDiff(path: string, count: number): string {
   const lines = [
@@ -178,5 +191,84 @@ describe('parseUnifiedDiff', () => {
 
   it('respects the default total cap constant', () => {
     expect(MAX_TOTAL_LINES).toBeGreaterThan(MAX_FILE_LINES);
+  });
+});
+
+describe('collectGitBranchDiff', () => {
+  const PATCH = `${addedFileDiff('src/job-change.ts', 2)}\n${addedFileDiff('src/second.ts', 1)}`;
+
+  /** Route mocked git invocations by their first git argument. */
+  function routeGit(handlers: Record<string, () => string>): (cmd: string, args: string[]) => string {
+    return (_cmd: string, args: string[]) => {
+      const gitArgs = args.slice(2); // drop `-C <workDir>`
+      const handler = handlers[gitArgs[0] ?? ''];
+      if (handler === undefined) throw new Error(`unexpected git args: ${gitArgs.join(' ')}`);
+      return handler();
+    };
+  }
+
+  beforeEach(() => {
+    mocks.execFileSync.mockReset();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('rejects a blank branch without spawning git', () => {
+    expect(collectGitBranchDiff('/repo', '   ')).toBeNull();
+    expect(mocks.execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('returns null when not a git repository', () => {
+    mocks.execFileSync.mockImplementation(() => {
+      throw new Error('fatal: not a git repository');
+    });
+    expect(collectGitBranchDiff('/tmp/nope', 'feature/x')).toBeNull();
+  });
+
+  it('diffs the branch against the merge base with HEAD and parses files', () => {
+    mocks.execFileSync.mockImplementation(
+      routeGit({
+        'rev-parse': () => 'true\n',
+        diff: () => PATCH,
+      }),
+    );
+    const report = collectGitBranchDiff('/repo', 'liora/feature-x');
+
+    expect(report).not.toBeNull();
+    expect(report?.branch).toBe('liora/feature-x');
+    expect(report?.files.map((file) => file.path)).toEqual(['src/job-change.ts', 'src/second.ts']);
+    expect(report?.totalAdded).toBe(3);
+
+    // Three-dot diff against the exact branch ref.
+    const diffCall = mocks.execFileSync.mock.calls.find(
+      (call) => (call[1] as string[]).slice(2)[0] === 'diff',
+    );
+    const gitArgs = (diffCall?.[1] as string[]).slice(2);
+    expect(gitArgs[0]).toBe('diff');
+    expect(gitArgs[1]).toBe('HEAD...liora/feature-x');
+  });
+
+  it('uses the custom label in the report header', () => {
+    mocks.execFileSync.mockImplementation(
+      routeGit({
+        'rev-parse': () => 'true\n',
+        diff: () => PATCH,
+      }),
+    );
+    const report = collectGitBranchDiff('/repo', 'liora/feature-x', 'job_ab12 · liora/feature-x');
+    expect(report?.branch).toBe('job_ab12 · liora/feature-x');
+  });
+
+  it('returns null when the branch is unknown (git diff fails)', () => {
+    mocks.execFileSync.mockImplementation(
+      routeGit({
+        'rev-parse': () => 'true\n',
+        diff: () => {
+          throw new Error('fatal: bad revision');
+        },
+      }),
+    );
+    expect(collectGitBranchDiff('/repo', 'gone/branch')).toBeNull();
   });
 });

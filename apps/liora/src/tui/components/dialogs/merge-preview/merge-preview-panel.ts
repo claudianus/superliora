@@ -18,13 +18,21 @@ import { formatMissingGateEvidence } from '#/tui/utils/job/gate-preview';
 import { formatTrustReasonForUser } from '#/tui/utils/job/trust-copy';
 import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
 import { ttui } from '#/tui/utils/tui-i18n';
+import { DiffReviewComponent } from '#/tui/components/dialogs/workspace/diff-review';
 import type { ConductorJobCard } from '#/tui/utils/job/job-strip';
+import type { GitDiffReport } from '#/utils/git/git-diff';
 import type { JobGateChecklist } from '@superliora/protocol';
 
 export interface MergePreviewPanelOptions {
   readonly job: ConductorJobCard;
   /** Raw trust / merge hold reason when known (notes / last error). */
   readonly trustReason?: string;
+  /**
+   * Pre-land diff of the job's worktree branch vs the merge base with HEAD.
+   * `undefined` = the job carries no branch (nothing to show); `null` = the
+   * branch exists but git could not produce a diff.
+   */
+  readonly diffReport?: GitDiffReport | null;
   readonly onApprove: (summary: string) => void;
   readonly onReject: (summary: string) => void;
   readonly onCancel: () => void;
@@ -37,14 +45,31 @@ export class MergePreviewPanelComponent extends Container implements Focusable {
   private readonly opts: MergePreviewPanelOptions;
   private selected: 0 | 1 = 0;
   private summaryDraft = '';
+  /** Whether the embedded branch diff review is on top of the decision view. */
+  private diffOpen = false;
+  private readonly diffReview: DiffReviewComponent | undefined;
 
   constructor(opts: MergePreviewPanelOptions) {
     super();
     this.opts = opts;
     this.summaryDraft = (opts.job.resultSummary ?? '').slice(0, 240);
+    if (opts.diffReport !== undefined && opts.diffReport !== null && opts.diffReport.files.length > 0) {
+      this.diffReview = new DiffReviewComponent({
+        report: opts.diffReport,
+        // Esc returns to the approve/reject view; a second Esc closes the stage.
+        onClose: () => {
+          this.diffOpen = false;
+          this.opts.requestRender?.();
+        },
+      });
+    }
   }
 
   handleInput(data: string): void {
+    if (this.diffOpen && this.diffReview !== undefined) {
+      this.diffReview.handleInput(data);
+      return;
+    }
     if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl('c'))) {
       this.opts.onCancel();
       return;
@@ -76,6 +101,13 @@ export class MergePreviewPanelComponent extends Container implements Focusable {
       this.opts.onReject(this.summaryDraft.trim());
       return;
     }
+    if (ch === 'd' || ch === 'D') {
+      if (this.diffReview !== undefined) {
+        this.diffOpen = true;
+        this.opts.requestRender?.();
+      }
+      return;
+    }
     if (matchesKey(data, Key.backspace) || matchesKey(data, Key.delete)) {
       this.summaryDraft = this.summaryDraft.slice(0, -1);
       this.opts.requestRender?.();
@@ -90,6 +122,9 @@ export class MergePreviewPanelComponent extends Container implements Focusable {
   }
 
   override render(width: number): string[] {
+    if (this.diffOpen && this.diffReview !== undefined) {
+      return this.diffReview.render(width);
+    }
     const theme = currentTheme;
     const job = this.opts.job;
     const body: string[] = [];
@@ -106,6 +141,14 @@ export class MergePreviewPanelComponent extends Container implements Focusable {
       }
     }
     body.push('');
+    const diffReport = this.opts.diffReport;
+    if (diffReport === null) {
+      body.push(theme.fg('warning', ttui('tui.dialog.mergePreview.diffUnavailable')));
+      body.push('');
+    } else if (diffReport !== undefined && diffReport.files.length === 0) {
+      body.push(theme.fg('success', ttui('tui.dialog.mergePreview.diffEmpty')));
+      body.push('');
+    }
     if (this.opts.trustReason !== undefined && this.opts.trustReason.trim().length > 0) {
       const trust = formatTrustReasonForUser(this.opts.trustReason);
       body.push(theme.fg('warning', trust.headline));
@@ -145,10 +188,14 @@ export class MergePreviewPanelComponent extends Container implements Focusable {
         : theme.fg('textMuted', ttui('tui.dialog.mergePreview.rejectIdle'));
     body.push(`  ${approve}   ${reject}`);
 
+    const hint = this.diffReview !== undefined
+      ? `${ttui('tui.dialog.mergePreview.hint')}${ttui('tui.dialog.mergePreview.diffHint')}`
+      : ttui('tui.dialog.mergePreview.hint');
+
     return renderRendererPanelChromeRows({
       width,
       title: ttui('tui.dialog.mergePreview.title'),
-      hint: ttui('tui.dialog.mergePreview.hint'),
+      hint,
       body,
       dividerStyle: (text) => theme.fg('primary', text),
       titleStyle: (text) => renderPremiumHeadline(text.trim(), 'merge-preview:title'),

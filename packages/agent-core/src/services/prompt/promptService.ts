@@ -11,6 +11,7 @@ import type {
   PromptSteerResult,
   PromptSubmitResult,
 } from '@superliora/protocol';
+import type { SessionSummary } from '../../rpc/core-api/payloads-session';
 import { ulid } from 'ulid';
 
 import { ICoreProcessService } from '../coreProcess/coreProcess';
@@ -39,6 +40,11 @@ import {
 } from './promptAgentStateDispatch';
 import { hasAnyAgentStateField, pickAgentStatePatch } from './promptAgentStatePatch';
 import { contentToCoreParts, steerContentToCoreParts } from './promptContent';
+import {
+  clearQueuedPrompts,
+  readQueuedPrompts,
+  writeQueuedPrompts,
+} from './promptQueueStore';
 import { combinePromptPrefixLen, mergePromptStates } from './combineQueued';
 import { handlePromptBusEvent } from './promptLifecycle';
 import {
@@ -58,6 +64,19 @@ export class PromptService
   private readonly _active = new Map<string, PromptState>();
 
   private readonly _queued = new Map<string, PromptState[]>();
+
+  /**
+   * Session dir per known session (from `listSessions`). Backs the durable
+   * queue sidecar; absent until `_requireSession` first resolves the session.
+   */
+  private readonly _sessionDirs = new Map<string, string>();
+
+  /**
+   * Sessions whose persisted queue has been merged into `_queued` in this
+   * process. Hydration happens lazily on the first queue-touching call so a
+   * daemon restart recovers prompts the previous process had queued.
+   */
+  private readonly _hydratedSids = new Set<string>();
 
   /**
    * Per-session shadow of `model` / `thinking` / `permissionMode` /
@@ -121,6 +140,8 @@ export class PromptService
       this.sessionService.onDidClose(({ sessionId }) => {
         this._agentState.delete(sessionId);
         this._dispatchLog.delete(sessionId);
+        this._sessionDirs.delete(sessionId);
+        this._hydratedSids.delete(sessionId);
         for (const key of this._queued.keys()) {
           if (key.startsWith(`${sessionId}\u0000`)) this._queued.delete(key);
         }
@@ -132,6 +153,7 @@ export class PromptService
 
   async list(sid: string): Promise<PromptListResponse> {
     await this._requireSession(sid);
+    await this._hydrateQueuedPrompts(sid, { resumeDrain: false });
     const key = promptKey(sid, MAIN_AGENT_ID);
     const active = this._active.get(key);
     return {
@@ -154,15 +176,30 @@ export class PromptService
     // hand off to agent-core. Daemon route layer maps to 40110/40111/40113.
     await this.auth.ensureReady();
 
+    // Recover a queue persisted by a previous daemon process before deciding
+    // whether this submission can start immediately; a recovered queue may
+    // resume its drain here.
+    await this._hydrateQueuedPrompts(sid, { resumeDrain: true });
+
     const promptId = `prompt_${ulid()}`;
     const state = this._createPromptState(sid, promptId, body);
     const key = promptKey(sid, state.agentId);
 
     const existing = this._active.get(key);
-    if (existing !== undefined && !existing.completed && !existing.aborted) {
+    const busy =
+      existing !== undefined && !existing.completed && !existing.aborted;
+    // FIFO: an idle lane must not jump a non-empty queue — the drain below
+    // starts the head batch, and this submission keeps its place in line.
+    const hasQueuedAhead = (this._queued.get(key)?.length ?? 0) > 0;
+    if (busy || hasQueuedAhead) {
       this._enqueue(sid, state);
       const item = toPromptItem(state, 'queued');
       this._publishSubmitted(sid, state, item);
+      if (!busy) {
+        // Idle lane with a non-empty queue (recovered sidecar or a requeued
+        // failed batch): kick the head batch so the queue cannot stall.
+        await this._startNextQueued(sid, state.agentId);
+      }
       return item;
     }
 
@@ -182,10 +219,17 @@ export class PromptService
 
   async steer(sid: string, promptIds: readonly string[]): Promise<PromptSteerResult> {
     await this._requireSession(sid);
+    await this._hydrateQueuedPrompts(sid, { resumeDrain: false });
     if (promptIds.length === 0) {
       throw new PromptNotFoundError(sid, '');
     }
-    const key = promptKey(sid, MAIN_AGENT_ID);
+    // Resolve the agent lane from the queued prompts themselves so per-agent
+    // queues are steer-able, not just the main agent's.
+    const agentId = this._agentIdForQueuedPrompts(sid, promptIds);
+    if (agentId === undefined) {
+      throw new PromptNotFoundError(sid, promptIds[0]!);
+    }
+    const key = promptKey(sid, agentId);
     const active = this._active.get(key);
     if (active === undefined || active.completed || active.aborted) {
       throw new PromptNotFoundError(sid, promptIds[0]!);
@@ -203,22 +247,22 @@ export class PromptService
 
     const selectedIds = new Set(promptIds);
     const remaining = queue.filter((item) => !selectedIds.has(item.promptId));
-    this._replaceQueue(sid, MAIN_AGENT_ID, remaining);
+    this._replaceQueue(sid, agentId, remaining);
 
     try {
       await this.core.rpc.steer({
         sessionId: sid,
-        agentId: MAIN_AGENT_ID,
+        agentId,
         input: steerContentToCoreParts(selected),
       });
     } catch (error) {
-      this._restoreSteeredQueueItems(sid, selected);
+      this._restoreSteeredQueueItems(sid, agentId, selected);
       throw error;
     }
 
     const event: SyntheticPromptSteeredEvent = {
       type: 'prompt.steered',
-      agentId: MAIN_AGENT_ID,
+      agentId,
       sessionId: sid,
       activePromptId: active.promptId,
       promptIds: [...promptIds],
@@ -227,6 +271,27 @@ export class PromptService
     };
     this.eventService.publish(event as unknown as Event);
     return { steered: true, prompt_ids: [...promptIds] };
+  }
+
+  /**
+   * Find the agent lane that owns every requested prompt id. Returns
+   * `undefined` when the ids span lanes or match no queue — callers surface
+   * `PromptNotFoundError` either way.
+   */
+  private _agentIdForQueuedPrompts(
+    sid: string,
+    promptIds: readonly string[],
+  ): string | undefined {
+    const ids = new Set(promptIds);
+    let owner: string | undefined;
+    for (const [key, queue] of this._queued) {
+      const [keySid, agentId] = key.split('\u0000');
+      if (keySid !== sid || agentId === undefined) continue;
+      if (!queue.some((state) => ids.has(state.promptId))) continue;
+      if (owner !== undefined && owner !== agentId) return undefined;
+      owner = agentId;
+    }
+    return owner;
   }
 
   private async _startPrompt(
@@ -308,6 +373,7 @@ export class PromptService
 
   async abort(sid: string, pid: string): Promise<PromptAbortResult> {
     await this._requireSession(sid);
+    await this._hydrateQueuedPrompts(sid, { resumeDrain: false });
     const key = promptKey(sid, MAIN_AGENT_ID);
     const state = this._active.get(key);
     if (state !== undefined && state.promptId === pid) {
@@ -341,9 +407,7 @@ export class PromptService
       throw new PromptNotFoundError(sid, pid);
     }
     queue.splice(index, 1);
-    if (queue.length === 0) {
-      this._queued.delete(key);
-    }
+    this._replaceQueue(sid, MAIN_AGENT_ID, queue);
     this._publishAborted(sid, MAIN_AGENT_ID, pid);
     return { aborted: true };
   }
@@ -535,22 +599,107 @@ export class PromptService
       this._queued.set(key, queue);
     }
     queue.push(state);
+    this._persistQueue(sid);
   }
 
   private _replaceQueue(sid: string, agentId: string, queue: PromptState[]): void {
     const key = promptKey(sid, agentId);
     if (queue.length === 0) {
       this._queued.delete(key);
-      return;
+    } else {
+      this._queued.set(key, queue);
     }
-    this._queued.set(key, queue);
+    this._persistQueue(sid);
   }
 
-  private _restoreSteeredQueueItems(sid: string, selected: readonly PromptState[]): void {
-    const queue = this._queued.get(promptKey(sid, MAIN_AGENT_ID)) ?? [];
+  private _restoreSteeredQueueItems(
+    sid: string,
+    agentId: string,
+    selected: readonly PromptState[],
+  ): void {
+    const queue = this._queued.get(promptKey(sid, agentId)) ?? [];
     const queueIds = new Set(queue.map((state) => state.promptId));
     const missing = selected.filter((state) => !queueIds.has(state.promptId));
-    this._replaceQueue(sid, MAIN_AGENT_ID, [...missing, ...queue]);
+    this._replaceQueue(sid, agentId, [...missing, ...queue]);
+  }
+
+  /**
+   * Merge the persisted queue sidecar into the in-memory queues, once per
+   * session per process. Already-known prompt ids (active or queued) win so a
+   * crash between write and dispatch cannot duplicate a prompt. With
+   * `resumeDrain`, an idle main lane starts the recovered head batch.
+   */
+  private async _hydrateQueuedPrompts(
+    sid: string,
+    options: { readonly resumeDrain: boolean },
+  ): Promise<void> {
+    if (this._hydratedSids.has(sid)) return;
+    const sessionDir = await this._resolveSessionDir(sid);
+    if (sessionDir === undefined) return;
+    this._hydratedSids.add(sid);
+
+    const persisted = await readQueuedPrompts(sessionDir);
+    if (persisted.length === 0) return;
+
+    const activeIds = new Set<string>();
+    for (const [key, state] of this._active) {
+      if (key.startsWith(`${sid}\u0000`)) activeIds.add(state.promptId);
+    }
+    let recovered = 0;
+    for (const state of persisted) {
+      if (activeIds.has(state.promptId)) continue;
+      const key = promptKey(sid, state.agentId);
+      const queue = this._queued.get(key);
+      if (queue?.some((item) => item.promptId === state.promptId) === true) continue;
+      if (queue === undefined) this._queued.set(key, [state]);
+      else queue.push(state);
+      recovered += 1;
+    }
+    if (recovered === 0) return;
+    this._logger.info(
+      { sid, recovered },
+      '[prompt-queue] recovered queued prompts from previous process',
+    );
+    this._persistQueue(sid);
+    if (options.resumeDrain) {
+      await this._startNextQueued(sid, MAIN_AGENT_ID);
+    }
+  }
+
+  /** Resolve + cache the session dir used by the queue sidecar. */
+  private async _resolveSessionDir(sid: string): Promise<string | undefined> {
+    const cached = this._sessionDirs.get(sid);
+    if (cached !== undefined) return cached;
+    try {
+      const matches = await this.core.rpc.listSessions({ sessionId: sid });
+      const summary = matches[0];
+      if (summary === undefined) return undefined;
+      this._sessionDirs.set(sid, summary.sessionDir);
+      return summary.sessionDir;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Best-effort persist of every queued lane for a session. Fire-and-forget:
+   * a slow or failing disk must never block the submit path, and a lost
+   * sidecar write only costs recovery of prompts not yet dispatched.
+   */
+  private _persistQueue(sid: string): void {
+    const sessionDir = this._sessionDirs.get(sid);
+    if (sessionDir === undefined) return;
+    const states: PromptState[] = [];
+    for (const [key, queue] of this._queued) {
+      if (!key.startsWith(`${sid}\u0000`)) continue;
+      states.push(...queue);
+    }
+    void writeQueuedPrompts(sessionDir, states).catch((error: unknown) => {
+      this._logger.warn(
+        { sid, err: (error as Error)?.message ?? error },
+        '[prompt-queue] sidecar write failed',
+      );
+    });
   }
 
   private async _startNextQueued(sid: string, agentId = MAIN_AGENT_ID): Promise<void> {
@@ -561,21 +710,37 @@ export class PromptService
     if (queue === undefined || queue.length === 0) return;
     const take = combinePromptPrefixLen(queue);
     const batch = queue.splice(0, Math.max(1, take));
-    if (queue.length === 0) {
-      this._queued.delete(key);
-    }
+    this._replaceQueue(sid, agentId, queue);
     const next = mergePromptStates(batch);
     if (next === undefined) return;
-    await this._startPrompt(sid, next).catch(() => {
-      void this._startNextQueued(sid, agentId);
-    });
+    try {
+      await this._startPrompt(sid, next);
+    } catch (error) {
+      // Restore the batch to the head and stop draining. The old behavior
+      // recursed into the next batch, silently dropping every prompt in a
+      // failing drain; keeping the data and waiting for the next lifecycle
+      // trigger (submit / turn.ended) is strictly safer.
+      this._logger.warn(
+        { sid, agentId, batchSize: batch.length, err: (error as Error)?.message ?? error },
+        '[prompt-queue] dispatch failed; batch requeued',
+      );
+      const remaining = (this._queued.get(key) ?? []).filter(
+        (item) => !batch.some((entry) => entry.promptId === item.promptId),
+      );
+      this._replaceQueue(sid, agentId, [...batch, ...remaining]);
+    }
   }
 
-  private async _requireSession(sid: string): Promise<void> {
+  private async _requireSession(sid: string): Promise<SessionSummary> {
     const matches = await this.core.rpc.listSessions({ sessionId: sid });
-    if (matches.length === 0) {
+    const summary = matches[0];
+    if (summary === undefined) {
       throw new SessionNotFoundError(sid);
     }
+    // Cache the session dir so queue sidecar writes resolve without a second
+    // RPC on every mutation.
+    this._sessionDirs.set(sid, summary.sessionDir);
+    return summary;
   }
 
   override dispose(): void {
@@ -584,6 +749,8 @@ export class PromptService
     this._queued.clear();
     this._agentState.clear();
     this._dispatchLog.clear();
+    this._sessionDirs.clear();
+    this._hydratedSids.clear();
     // `_onDidComplete` and `_onDidAbort` are registered via `this._register(...)`,
     // so `super.dispose()` flushes their listeners.
     super.dispose();

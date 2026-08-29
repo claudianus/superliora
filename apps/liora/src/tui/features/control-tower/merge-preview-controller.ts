@@ -8,9 +8,21 @@ import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import type { ConductorJobCard } from '../../utils/job/job-strip';
 import { shortJobId } from '../../components/job-board/job-board-helpers';
 import { ttui } from '../../utils/tui-i18n';
+import { collectGitBranchDiff } from '#/utils/git/git-diff';
 
 export function canOpenMergePreview(card: ConductorJobCard): boolean {
   return card.status === 'done' || card.status === 'blocked';
+}
+
+/**
+ * Pre-land diff for the job's worktree branch, collected from the main
+ * workspace checkout. `undefined` when the job carries no branch; `null`
+ * when git could not produce a diff (missing branch / not a repo).
+ */
+function jobDiffReport(host: SlashCommandHost, card: ConductorJobCard) {
+  const branch = card.worktreeBranch?.trim();
+  if (branch === undefined || branch.length === 0) return undefined;
+  return collectGitBranchDiff(host.state.appState.workDir, branch, branch);
 }
 
 export function openMergePreview(host: SlashCommandHost, card: ConductorJobCard): void {
@@ -31,10 +43,12 @@ export function openMergePreview(host: SlashCommandHost, card: ConductorJobCard)
   const trustReason = card.resultSummary?.includes('merge:')
     ? card.resultSummary
     : undefined;
+  const diffReport = jobDiffReport(host, card);
 
   const panel = new MergePreviewPanelComponent({
     job: card,
     trustReason,
+    diffReport,
     onApprove: (summary) => {
       host.restoreEditor();
       void session

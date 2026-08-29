@@ -4,6 +4,9 @@
  * a real harness or hitting the network.
  */
 
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
 import type { LioraConfig, ProviderRouteStatus } from '@superliora/sdk';
@@ -41,6 +44,7 @@ import {
   registerProviderCommand,
   type ProviderDeps,
 } from '#/cli/sub/provider';
+import { getCacheDir } from '#/utils/paths';
 
 class ExitCalled extends Error {
   constructor(public readonly code: number) {
@@ -191,8 +195,13 @@ const REGISTRY_BODY = {
 
 let originalFetch: typeof globalThis.fetch;
 
-beforeEach(() => {
+beforeEach(async () => {
   originalFetch = globalThis.fetch;
+  // The models.dev catalog cache lives in the real data home with a 5-minute
+  // TTL. A live fetch from any earlier test (or a previous run) would win
+  // over the fetch mocks below while the cache is fresh. Clear it so every
+  // catalog test sees its own fixture.
+  await rm(join(getCacheDir(), 'models-dev-catalog.json'), { force: true }).catch(() => {});
 });
 
 afterEach(() => {
@@ -3814,6 +3823,15 @@ describe('liora provider catalog add', () => {
   });
 
   it('imports ClinePass even when models.dev is unreachable', async () => {
+    // models.dev is "down" below; the import succeeds because discovery
+    // already seeded the disk cache. Seed it explicitly instead of relying
+    // on whatever the previous test left behind.
+    await mkdir(getCacheDir(), { recursive: true });
+    await writeFile(
+      join(getCacheDir(), 'models-dev-catalog.json'),
+      JSON.stringify(CATALOG_BODY),
+      'utf-8',
+    );
     globalThis.fetch = vi.fn(
       async () => new Response('server error', { status: 500 }),
     ) as unknown as typeof globalThis.fetch;
