@@ -13,6 +13,11 @@ import {
 } from '../utils/job/job-strip';
 import { formatErrorMessage } from '../utils/event-payload';
 import { ttui } from '../utils/tui-i18n';
+import {
+  closeWorkspaceDock,
+  isWorkspaceDockEnabled,
+  toggleWorkspaceDock,
+} from '../features/workspace/workspace-dock';
 
 /**
  * Open worker transcript / detail for `workerId` (mission registry id =
@@ -36,6 +41,29 @@ export function openWorkerTranscript(host: SlashCommandHost, workerId: string): 
 
   if (worker === undefined) {
     host.showStatus(ttui('tui.workerDock.workerNotFound'), 'warning');
+    return;
+  }
+
+  // Workspace side dock (flag): the live transcript sits beside the main
+  // transcript instead of taking over the editor. Same-row re-click closes.
+  if (isWorkspaceDockEnabled()) {
+    toggleWorkspaceDock({
+      state: host.state,
+      workerId,
+      createViewer: () =>
+        new WorkerTranscriptViewerComponent({
+          workerId,
+          getWorker: () => {
+            const snap = host.workerDock.registry.snapshot();
+            return snap.workers.find((entry) => entry.id === workerId);
+          },
+          loadTranscript: (id) => loadWorkerTranscript(host, id),
+          onCancel: () => closeWorkspaceDock(host.state),
+          requestRender: () => {
+            host.state.renderer.requestRender('manual');
+          },
+        }),
+    });
     return;
   }
 

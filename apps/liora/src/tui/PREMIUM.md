@@ -326,9 +326,20 @@ not floating panels:
   panel frames render afterward and overwrite their own portion of that
   perimeter, so the outer frame only shows through above/below and around the
   center stage — never a second border stacked on a dock's own edge.
+  *(Not yet implemented — the outer perimeter remains spec-ahead-of-code; the
+  shipped piece is the worker transcript side dock below.)*
+- **Worker transcript side dock (shipped, `workspace_dock` flag, off by
+  default).** `features/workspace/workspace-dock.ts` supplies the frame
+  callback's `workspaceCenter` band and paints the dock as a frame region via
+  the stack builder — no `postFrameRender` cell writes. While open the stage
+  (chrome + transcript + editor) resolves inside the measured center band;
+  closed, the center callback returns `null` and geometry is bit-for-bit the
+  pre-dock renderer. The dock is a live follow-tail view: no focus, no key
+  routing — the editor keeps every key; the same-row re-click closes.
 - **Shared border family.** All dock `renderPanelFrame` calls use
   `borderStyle: 'rounded'` (focused and unfocused alike) — never mix
-  `'rounded'`/`'single'` within the same workspace.
+  `'rounded'`/`'single'` within the same workspace. The side dock's divider
+  borders and headline follow the same family.
 - **Focus ring on the active column only.** Focused panel border uses
   `primary` (+ ultrawork glow transition); unfocused panels dim to
   `border`/`textMuted`. Never brighten more than one panel per dock at a time.

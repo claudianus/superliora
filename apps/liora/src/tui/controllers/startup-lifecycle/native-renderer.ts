@@ -30,6 +30,7 @@ import {
   getTUIStateNativeWorkerDockRect,
   getTUIStateNativeTodoRect,
 } from '../../features/transcript/transcript-hit-test';
+import { getWorkspaceDockCenterRect } from '../../features/workspace/workspace-dock';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import { openWorkerTranscript } from '../../commands/worker-transcript';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
@@ -68,6 +69,9 @@ export function attachStartupNativeRendererCallback(host: StartupLifecycleHost):
         hasRunningConductorWorkers(host.state.appState.conductorJobs) ||
         host.workerDock?.hasLiveWorkers() === true ||
         hasLiveWatchers(host.sessionEventHandler?.backgroundTasks),
+      // Workspace side dock: while open, the stage resolves inside the
+      // measured center band and the dock paints in the freed right columns.
+      workspaceCenter: (ctx) => getWorkspaceDockCenterRect(ctx),
       onAmbientTick: () => {
         host.usageMonitor.tick();
       },

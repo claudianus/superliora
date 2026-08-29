@@ -118,6 +118,15 @@ export const FLAG_DEFINITIONS = [
     default: true,
     surface: 'core',
   },
+  {
+    id: 'workspace_dock',
+    title: 'Workspace side dock',
+    description:
+      'Split workspace: clicking a mission-control worker opens its live transcript in a right-hand dock beside the main transcript instead of taking over the editor. Off by default while the layout settles. Enable with SUPERLIORA_EXPERIMENTAL_WORKSPACE_DOCK=1.',
+    env: 'SUPERLIORA_EXPERIMENTAL_WORKSPACE_DOCK',
+    default: false,
+    surface: 'both',
+  },
 ] as const satisfies readonly FlagDefinitionInput[];
 
 /** Literal union of registered flag ids. */
