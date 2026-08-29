@@ -11,7 +11,7 @@ import {
   resolveJobAffinity,
   reuseInheritanceFromAnchor,
 } from '../../src/tools/builtin/job/job-affinity';
-import { createJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
+import { createJob, getJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import { JobCreateTool } from '../../src/tools/builtin/job/job-tools';
 import type { ToolStore } from '../../src/tools/store';
 
@@ -216,6 +216,85 @@ describe('affinity=auto selection', () => {
       ownershipPaths: ['packages/foo'],
     });
     expect(anchor?.id).toBe(live.id);
+  });
+
+  it('ranks a resumable same-kind job above a newer sibling within a tier', () => {
+    const store = memoryStore();
+    // Created first (older) but a strictly better context match: same kind and
+    // a live resume checkpoint worth +2, beating the newer sibling.
+    const resumable = createJob(store, {
+      title: 'older resumable',
+      kind: 'implement',
+      ownershipPaths: ['packages/foo'],
+      workerResumeAgentId: 'agent_warm',
+    });
+    const newer = createJob(store, {
+      title: 'newer sibling',
+      kind: 'explore',
+      ownershipPaths: ['packages/foo'],
+    });
+    expect(newer.updatedAt.localeCompare(resumable.updatedAt)).toBeGreaterThanOrEqual(0);
+
+    const anchor = findAffinityAnchor(store, {
+      kind: 'implement',
+      ownershipPaths: ['packages/foo'],
+    });
+    expect(anchor?.id).toBe(resumable.id);
+  });
+
+  it('scores context-path overlap into the anchor choice', () => {
+    const store = memoryStore();
+    const withContext = createJob(store, {
+      title: 'shares context paths',
+      kind: 'explore',
+      ownershipPaths: ['packages/foo'],
+      contextPaths: ['docs/design.md'],
+    });
+    const other = createJob(store, {
+      title: 'no shared context',
+      kind: 'explore',
+      ownershipPaths: ['packages/foo'],
+    });
+    // Both are fresh, same-kind, no resume — context overlap is the decider.
+    const anchor = findAffinityAnchor(store, {
+      kind: 'explore',
+      ownershipPaths: ['packages/foo'],
+      contextPaths: ['docs/design.md'],
+    });
+    expect(anchor?.id).toBe(withContext.id);
+    expect(anchor?.id).not.toBe(other.id);
+  });
+});
+
+describe('formatAffinityHint scoring suffix', () => {
+  it('appends score and reasons when scoring input is given', () => {
+    const store = memoryStore();
+    const anchor = createJob(store, {
+      title: 'hint me',
+      kind: 'implement',
+      ownershipPaths: ['packages/foo'],
+      workerResumeAgentId: 'agent_warm',
+    });
+    const hint = formatAffinityHint(
+      getJob(store, anchor.id)!,
+      { kind: 'implement', ownershipPaths: ['packages/foo'] },
+    );
+    expect(hint).toMatch(new RegExp(`^affinity_hint: ${anchor.id}`));
+    expect(hint).toMatch(/score=\d+/);
+    expect(hint).toMatch(/paths=1/);
+    expect(hint).toMatch(/resume=agent_warm/);
+  });
+
+  it('stays score-free without scoring input', () => {
+    const store = memoryStore();
+    const anchor = createJob(store, {
+      title: 'plain hint',
+      kind: 'implement',
+      ownershipPaths: ['packages/foo'],
+    });
+    const hint = formatAffinityHint(getJob(store, anchor.id)!);
+    expect(hint).toMatch(new RegExp(`^affinity_hint: ${anchor.id}`));
+    expect(hint).not.toMatch(/score=/);
   });
 });
 

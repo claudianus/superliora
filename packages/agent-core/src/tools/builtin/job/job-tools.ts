@@ -908,6 +908,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           affinity: (a.affinity ?? 'off') as JobAffinityMode,
           kind: a.kind as JobKind | undefined,
           ownershipPaths: a.ownership_paths,
+          contextPaths: a.context_paths,
           autoSplit: a.auto_split,
           greenfieldChain: a.greenfield_chain,
         });
@@ -1141,11 +1142,19 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           );
         } else {
           const hint = findAffinityHint(this.store, {
+            kind: a.kind as JobKind | undefined,
             ownershipPaths,
+            contextPaths: a.context_paths,
             excludeJobIds: new Set(created.map((j) => j.id)),
           });
           if (hint !== undefined) {
-            extraLines.push(formatAffinityHint(hint));
+            extraLines.push(
+              formatAffinityHint(hint, {
+                kind: a.kind as JobKind | undefined,
+                ownershipPaths,
+                contextPaths: a.context_paths,
+              }),
+            );
           }
         }
 
