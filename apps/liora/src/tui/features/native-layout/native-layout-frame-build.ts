@@ -9,6 +9,7 @@ import {
   type RendererRegionId,
   type RendererRegionLine,
 } from '#/tui/renderer';
+import { createWorkspaceDockFrameRegion } from '#/tui/features/workspace/workspace-dock';
 import { currentTheme } from '#/tui/theme';
 import { createCenterModalOverlayRegion } from '#/tui/utils/ui/center-modal';
 import {
@@ -285,6 +286,18 @@ export function buildTUIStateNativeFrame(
     }),
   );
   const regions: RendererFrameRegion[] = [...stackRegions];
+  // Workspace side dock: when the workspaceCenter callback handed the stage a
+  // narrower center band, the columns to its right host the live worker
+  // transcript. Skipped entirely when the dock is closed/flag-off so closed
+  // layout geometry is identical to the pre-flag renderer.
+  if (options.workspaceCenter !== undefined) {
+    const dockRegion = createWorkspaceDockFrameRegion({
+      center: options.workspaceCenter,
+      width,
+      height,
+    });
+    if (dockRegion !== undefined) regions.push(dockRegion);
+  }
   const appearance = getActiveAppearancePreferences();
   // Keep letterbox sky + frame chase alive while typing; only editor VFX skips.
   regions.push(

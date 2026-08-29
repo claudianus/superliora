@@ -27,7 +27,7 @@ import { formatJobDuration } from '#/tui/utils/job/job-strip';
 import type { DockWorker } from '#/tui/controllers/worker-dock/registry';
 import { ttui } from '#/tui/utils/tui-i18n';
 
-const TRANSCRIPT_ROWS = 16;
+const DEFAULT_TRANSCRIPT_ROWS = 16;
 /** Slow fallback when dock telemetry is quiet but the worker is still live. */
 const REFRESH_FALLBACK_MS = 5_000;
 
@@ -38,6 +38,8 @@ export interface WorkerTranscriptLoad {
 
 export interface WorkerTranscriptViewerOptions {
   readonly workerId: string;
+  /** Visible transcript rows; defaults to 16. The side dock overrides per height. */
+  readonly rows?: number;
   readonly getWorker: () => DockWorker | undefined;
   readonly loadTranscript: (workerId: string) => Promise<WorkerTranscriptLoad>;
   readonly onCancel: () => void;
@@ -65,6 +67,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
   private readonly loadTranscript: (workerId: string) => Promise<WorkerTranscriptLoad>;
   private readonly onCancel: () => void;
   private readonly requestRenderHook?: () => void;
+  private transcriptRows = DEFAULT_TRANSCRIPT_ROWS;
   private state: LoadState;
 
   constructor(opts: WorkerTranscriptViewerOptions) {
@@ -74,6 +77,9 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     this.loadTranscript = opts.loadTranscript;
     this.onCancel = opts.onCancel;
     this.requestRenderHook = opts.requestRender;
+    if (opts.rows !== undefined && opts.rows > 0) {
+      this.transcriptRows = opts.rows;
+    }
     this.state = {
       lines: [],
       loading: true,
@@ -88,6 +94,22 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     void this.fetch();
   }
 
+  /**
+   * Adjust the visible transcript window (the side dock re-fits on resize).
+   * Keeps follow-tail semantics; clamps the current offset into range.
+   */
+  setRows(rows: number): void {
+    if (!Number.isFinite(rows)) return;
+    this.transcriptRows = Math.max(4, Math.floor(rows));
+    if (this.state.followTail) {
+      this.state.scrollOffset = Math.max(0, this.state.lines.length - this.transcriptRows);
+    }
+    this.state.scrollOffset = Math.min(
+      this.state.scrollOffset,
+      Math.max(0, this.state.lines.length - this.transcriptRows),
+    );
+  }
+
   handleInput(data: string): void {
     if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl('c'))) {
       this.onCancel();
@@ -100,7 +122,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
       return;
     }
     if (matchesKey(data, Key.down)) {
-      const maxOffset = Math.max(0, this.state.lines.length - TRANSCRIPT_ROWS);
+      const maxOffset = Math.max(0, this.state.lines.length - this.transcriptRows);
       this.state.scrollOffset = Math.min(maxOffset, this.state.scrollOffset + 1);
       this.state.followTail = this.state.scrollOffset >= maxOffset;
       this.repaint();
@@ -108,13 +130,13 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     }
     if (matchesKey(data, Key.pageUp)) {
       this.state.followTail = false;
-      this.state.scrollOffset = Math.max(0, this.state.scrollOffset - TRANSCRIPT_ROWS);
+      this.state.scrollOffset = Math.max(0, this.state.scrollOffset - this.transcriptRows);
       this.repaint();
       return;
     }
     if (matchesKey(data, Key.pageDown)) {
-      const maxOffset = Math.max(0, this.state.lines.length - TRANSCRIPT_ROWS);
-      this.state.scrollOffset = Math.min(maxOffset, this.state.scrollOffset + TRANSCRIPT_ROWS);
+      const maxOffset = Math.max(0, this.state.lines.length - this.transcriptRows);
+      this.state.scrollOffset = Math.min(maxOffset, this.state.scrollOffset + this.transcriptRows);
       this.state.followTail = this.state.scrollOffset >= maxOffset;
       this.repaint();
       return;
@@ -126,7 +148,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
       return;
     }
     if (matchesKey(data, Key.end)) {
-      this.state.scrollOffset = Math.max(0, this.state.lines.length - TRANSCRIPT_ROWS);
+      this.state.scrollOffset = Math.max(0, this.state.lines.length - this.transcriptRows);
       this.state.followTail = true;
       this.repaint();
       return;
@@ -140,7 +162,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     }
     if (ch === 'f' || ch === 'F') {
       this.state.followTail = true;
-      this.state.scrollOffset = Math.max(0, this.state.lines.length - TRANSCRIPT_ROWS);
+      this.state.scrollOffset = Math.max(0, this.state.lines.length - this.transcriptRows);
       this.repaint();
       return;
     }
@@ -228,16 +250,16 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     } else {
       const visible = this.state.lines.slice(
         this.state.scrollOffset,
-        this.state.scrollOffset + TRANSCRIPT_ROWS,
+        this.state.scrollOffset + this.transcriptRows,
       );
       for (const line of visible) {
         lines.push(truncateToWidth(`  ${line}`, width));
       }
-      if (this.state.scrollOffset + TRANSCRIPT_ROWS < this.state.lines.length) {
+      if (this.state.scrollOffset + this.transcriptRows < this.state.lines.length) {
         lines.push(
           theme.fg(
             'textDim',
-            `  ▼ ${String(this.state.lines.length - this.state.scrollOffset - TRANSCRIPT_ROWS)} more · F → tail`,
+            `  ▼ ${String(this.state.lines.length - this.state.scrollOffset - this.transcriptRows)} more · F → tail`,
           ),
         );
       }
@@ -297,7 +319,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
       this.state.error = load.error;
       this.state.loading = false;
       if (this.state.followTail) {
-        this.state.scrollOffset = Math.max(0, this.state.lines.length - TRANSCRIPT_ROWS);
+        this.state.scrollOffset = Math.max(0, this.state.lines.length - this.transcriptRows);
       }
     } catch {
       if (this.state.fetchGeneration === requestId) {
