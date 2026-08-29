@@ -5,6 +5,10 @@ import { join, normalize } from 'pathe';
 import type { Kaos } from '@superliora/kaos';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// Full LioraCore boot + kaos subprocess work exceeds the CI runner's 30s
+// default under Windows load.
+vi.setConfig({ testTimeout: 90_000 });
+
 import {
   createRPC,
   ErrorCodes,
