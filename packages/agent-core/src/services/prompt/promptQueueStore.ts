@@ -19,11 +19,11 @@ import type { PromptSubmission } from '@superliora/protocol';
 
 import type { PromptState } from './promptState';
 
-export const PROMPT_QUEUE_FILE = 'prompt-queue.json';
+const PROMPT_QUEUE_FILE = 'prompt-queue.json';
 
 const QUEUE_SCHEMA_VERSION = 1 as const;
 /** Cap persisted entries per session; the oldest are kept on overflow. */
-export const MAX_PERSISTED_QUEUE_ITEMS = 100;
+const MAX_PERSISTED_QUEUE_ITEMS = 100;
 /** Per-text-part cap so one huge paste cannot bloat the sidecar. */
 const MAX_PART_TEXT_LENGTH = 200_000;
 
