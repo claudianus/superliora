@@ -109,6 +109,15 @@ export const FLAG_DEFINITIONS = [
     default: true,
     surface: 'both',
   },
+  {
+    id: 'cache_sticky_routing',
+    title: 'Cache-sticky model routing',
+    description:
+      'Warm sessions keep their established model alias across role-driven smart-route switches — a switch destroys the provider prompt-cache prefix, and a cached call on the established model usually costs less than a cold call on the cheaper one. Unhealthy aliases, explicit switches, and FREE mode always win. Route candidate ordering also prefers candidates sharing the warmed provider/model prefix on exact ties. Disable with SUPERLIORA_EXPERIMENTAL_CACHE_STICKY_ROUTING=false.',
+    env: 'SUPERLIORA_EXPERIMENTAL_CACHE_STICKY_ROUTING',
+    default: true,
+    surface: 'core',
+  },
 ] as const satisfies readonly FlagDefinitionInput[];
 
 /** Literal union of registered flag ids. */

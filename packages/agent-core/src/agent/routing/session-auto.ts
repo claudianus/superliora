@@ -6,14 +6,63 @@ import { sharedCredentialHealthStore } from '@superliora/oauth';
 import type { ContentPart } from '@superliora/kosong';
 
 import type { Agent } from '..';
+import type { LioraConfig } from '../../config';
 import { isFreeConfigAlias } from '../../utils/free-model';
 import { ensureSmartRouteProbed } from './live-probe';
 import { sharedModelRouteHealthStore } from './model-route-health';
 import {
+  isConfigAliasHealthy,
   isSmartAutoSessionAlias,
   resolveSessionSmartRouteAsync,
   type SmartRoute,
 } from './smart-router';
+
+/** Warm turns required before a role-driven alias switch is deferred. */
+const CACHE_AFFINITY_WARM_STREAK = 2;
+
+/**
+ * Cache-affinity hold (cache_sticky_routing): a warm session keeps its
+ * established alias across role-driven switches. Switching alias destroys
+ * the provider prompt-cache prefix, and a cached call on the established
+ * model usually costs less than a cold call on the role-preferred one.
+ * Escapes: explicit user switches reset the smart alias (so nothing is
+ * established), an unhealthy established alias falls through to the normal
+ * chain, FREE mode keeps its own routing, and the kill-switch flag. The
+ * established alias is placed at the chain head so the live probe still
+ * validates it before the turn runs.
+ */
+export function applyCacheAffinityHold(
+  agent: Agent,
+  config: LioraConfig,
+  route: SmartRoute,
+): SmartRoute {
+  if (agent.experimentalFlags?.enabled('cache_sticky_routing') === false) return route;
+  if (config.freeMode === true) return route;
+  const establishedAlias = agent.config.effectiveModelAlias;
+  if (
+    establishedAlias === undefined ||
+    isSmartAutoSessionAlias(establishedAlias) ||
+    establishedAlias === route.alias
+  ) {
+    return route;
+  }
+  if ((agent.usage?.warmStreak ?? 0) < CACHE_AFFINITY_WARM_STREAK) return route;
+  if (!isConfigAliasHealthy(config, establishedAlias)) {
+    return route;
+  }
+  agent.log.info('cache-affinity hold: keeping established alias across role switch', {
+    established: establishedAlias,
+    resolved: route.alias,
+    role: route.role,
+    warmStreak: agent.usage?.warmStreak ?? 0,
+  });
+  return {
+    ...route,
+    alias: establishedAlias,
+    chain: [establishedAlias, ...route.chain.filter((alias) => alias !== establishedAlias)],
+    reason: `${route.reason} · cache-affinity hold`,
+  };
+}
 
 function promptTextFromParts(input: readonly ContentPart[]): string {
   const chunks: string[] = [];
@@ -73,8 +122,7 @@ export async function applySessionSmartAutoForTurn(
           'FREE mode is on but no healthy free model is available — add a free model (e.g. /login → OpenCode Zen) or run /free off to restore paid routing.',
         code: 'free-no-model',
         details: { profile: agent.config.profileName },
-      });
-      // Avoid leaving `auto` as effective model (which would throw
+      });      // Avoid leaving `auto` as effective model (which would throw
       // `Model "auto" is not configured`). Try any free alias even if
       // unhealthy as last resort, so the turn at least has a concrete model
       // and can surface a provider error instead of a config error.
@@ -106,6 +154,8 @@ export async function applySessionSmartAutoForTurn(
     }
     return undefined;
   }
+
+  route = applyCacheAffinityHold(agent, config, route);
 
   const probed = await ensureSmartRouteProbed(agent, route);
   if (probed === undefined) {

@@ -26,6 +26,7 @@ import type {
   ProviderRouteUnavailable,
 } from './provider-route-types';
 import {
+  candidateContinuityKey,
   candidateKey,
   candidateWeight,
   compareRateLimitAwareCandidates,
@@ -83,6 +84,14 @@ export class InMemoryProviderRouteState implements ProviderRouteState {
   private readonly roundRobinIndexByRoute = new Map<string, number>();
   private readonly weightedRoundRobinByRoute = new Map<string, Map<string, number>>();
   private readonly pinnedCandidateByRoute = new Map<string, string>();
+  /**
+   * Continuity identity of the last successful candidate across ALL routes of
+   * this agent. A provider prompt cache keys on (provider, credential, model,
+   * baseUrl) — not on the route alias — so ordering prefers candidates that
+   * share this key even after a smart-route alias switch. Agent-scoped on
+   * purpose; `reset(route)` clears per-route state only.
+   */
+  private establishedContinuityKey?: string;
 
   orderCandidates(route: KosongLLMRoute): readonly KosongLLMRouteCandidate[] {
     const available = route.candidates.filter((candidate) => !this.isUnavailable(candidate));
@@ -106,7 +115,12 @@ export class InMemoryProviderRouteState implements ProviderRouteState {
     if (route.strategy === 'least_used') {
       return candidates
         .map((candidate, index) => ({ candidate, index, requestCount: this.requestCount(candidate) }))
-        .toSorted((left, right) => left.requestCount - right.requestCount || left.index - right.index)
+        .toSorted(
+          (left, right) =>
+            left.requestCount - right.requestCount ||
+            this.compareContinuity(left.candidate, right.candidate) ||
+            left.index - right.index,
+        )
         .map((entry) => entry.candidate);
     }
 
@@ -189,6 +203,9 @@ export class InMemoryProviderRouteState implements ProviderRouteState {
     if (route.sessionAffinity === true) {
       this.pinnedCandidateByRoute.set(route.key, key);
     }
+    // Cache affinity: remember what the provider prefix is warm on, across
+    // aliases, so ordering can prefer it after a smart-route switch.
+    this.establishedContinuityKey = candidateContinuityKey(candidate);
     return true;
   }
 
@@ -479,6 +496,7 @@ export class InMemoryProviderRouteState implements ProviderRouteState {
         (left, right) =>
           (left.latencyMs ?? Number.POSITIVE_INFINITY) -
             (right.latencyMs ?? Number.POSITIVE_INFINITY) ||
+          this.compareContinuity(left.candidate, right.candidate) ||
           left.index - right.index,
       )
       .map((entry) => entry.candidate);
@@ -495,6 +513,23 @@ export class InMemoryProviderRouteState implements ProviderRouteState {
       }))
       .toSorted(compareRateLimitAwareCandidates)
       .map((entry) => entry.candidate);
+  }
+
+  /**
+   * Cache-affinity tiebreak: candidates that share the last successful
+   * candidate's continuity key (provider/credential/model/base) sort first
+   * among equals, before the historical index tiebreak. Zero when nothing is
+   * established, so cold ordering is unchanged.
+   */
+  private compareContinuity(
+    left: KosongLLMRouteCandidate,
+    right: KosongLLMRouteCandidate,
+  ): number {
+    const established = this.establishedContinuityKey;
+    if (established === undefined) return 0;
+    const leftMatch = candidateContinuityKey(left) === established ? 0 : 1;
+    const rightMatch = candidateContinuityKey(right) === established ? 0 : 1;
+    return leftMatch - rightMatch;
   }
 
   private orderLeadingAliasRoundRobin(
@@ -538,7 +573,11 @@ export class InMemoryProviderRouteState implements ProviderRouteState {
       const key = candidateKey(candidate);
       const nextWeight = (current.get(key) ?? 0) + weights[index]!;
       current.set(key, nextWeight);
-      if (nextWeight > selectedWeight) {
+      if (
+        nextWeight > selectedWeight ||
+        (nextWeight === selectedWeight &&
+          this.compareContinuity(candidate, candidates[selectedIndex]!) < 0)
+      ) {
         selectedIndex = index;
         selectedWeight = nextWeight;
       }

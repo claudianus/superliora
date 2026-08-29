@@ -10,7 +10,9 @@ import {
   setLiveProbeRunnerForTests,
   sharedModelRouteHealthStore,
 } from '../../../src/agent/routing';
+import { applyCacheAffinityHold } from '../../../src/agent/routing/session-auto';
 import type { LioraConfig } from '../../../src/config';
+import type { SmartRoute } from '../../../src/agent/routing/smart-router';
 
 function freeModel(provider: string, name: string) {
   return {
@@ -107,5 +109,109 @@ describe('applySessionSmartAutoForTurn FREE fallback', () => {
     expect(pinned).toBe(result?.alias);
     expect(sharedModelRouteHealthStore.isAvailable(result!.alias)).toBe(true);
     expect(sharedCredentialHealthStore.isAvailable('opencode')).toBe(true);
+  });
+});
+
+describe('applyCacheAffinityHold', () => {
+  function paidConfig(): LioraConfig {
+    return {
+      providers: {
+        'test-provider': { type: 'openai' as const, apiKey: 'key-paid' },
+      },
+      models: {
+        'test-provider/big': {
+          provider: 'test-provider',
+          model: 'big',
+          maxContextSize: 262_144,
+          capabilities: ['tool_use', 'thinking'],
+        },
+        'test-provider/small': {
+          provider: 'test-provider',
+          model: 'small',
+          maxContextSize: 262_144,
+          capabilities: ['tool_use'],
+        },
+      },
+    } as LioraConfig;
+  }
+
+  function makeHoldAgent(over: {
+    readonly established?: string;
+    readonly warmStreak?: number;
+    readonly flagEnabled?: boolean;
+  }): Agent {
+    return {
+      runtimeConfig: paidConfig(),
+      kimiConfig: paidConfig(),
+      log: { warn: () => {}, debug: () => {}, info: () => {}, error: () => {} },
+      emitEvent: () => {},
+      config: {
+        modelAlias: 'auto',
+        effectiveModelAlias: over.established,
+      },
+      usage: { warmStreak: over.warmStreak ?? 0 },
+      experimentalFlags: { enabled: () => over.flagEnabled !== false },
+    } as unknown as Agent;
+  }
+
+  function routeTo(alias: string): SmartRoute {
+    return {
+      role: 'exploration',
+      intensity: 'balanced',
+      alias,
+      chain: [alias],
+      thinkingLevel: 'off',
+      source: 'auto',
+      reason: 'explore prompt',
+    };
+  }
+
+  beforeEach(() => {
+    resetModelRouteHealthStoreForTests();
+    sharedCredentialHealthStore.clear();
+  });
+
+  it('holds the established alias when the session cache is warm', () => {
+    const agent = makeHoldAgent({ established: 'test-provider/big', warmStreak: 3 });
+    const held = applyCacheAffinityHold(agent, paidConfig(), routeTo('test-provider/small'));
+    expect(held.alias).toBe('test-provider/big');
+    expect(held.chain[0]).toBe('test-provider/big');
+    expect(held.reason).toContain('cache-affinity hold');
+  });
+
+  it('lets a cold session switch aliases freely', () => {
+    const agent = makeHoldAgent({ established: 'test-provider/big', warmStreak: 1 });
+    const held = applyCacheAffinityHold(agent, paidConfig(), routeTo('test-provider/small'));
+    expect(held.alias).toBe('test-provider/small');
+  });
+
+  it('does not hold when nothing is established (fresh pin or explicit switch)', () => {
+    const agent = makeHoldAgent({ established: 'auto', warmStreak: 5 });
+    const held = applyCacheAffinityHold(agent, paidConfig(), routeTo('test-provider/small'));
+    expect(held.alias).toBe('test-provider/small');
+  });
+
+  it('does not hold when the established alias is unhealthy', () => {
+    const agent = makeHoldAgent({ established: 'test-provider/big', warmStreak: 5 });
+    sharedModelRouteHealthStore.markUnavailable('test-provider/big', { cooldownMs: 60_000 });
+    const held = applyCacheAffinityHold(agent, paidConfig(), routeTo('test-provider/small'));
+    expect(held.alias).toBe('test-provider/small');
+  });
+
+  it('does not hold in FREE mode', () => {
+    const agent = makeHoldAgent({ established: 'test-provider/big', warmStreak: 5 });
+    const config = { ...paidConfig(), freeMode: true } as LioraConfig;
+    const held = applyCacheAffinityHold(agent, config, routeTo('test-provider/small'));
+    expect(held.alias).toBe('test-provider/small');
+  });
+
+  it('respects the kill-switch flag', () => {
+    const agent = makeHoldAgent({
+      established: 'test-provider/big',
+      warmStreak: 5,
+      flagEnabled: false,
+    });
+    const held = applyCacheAffinityHold(agent, paidConfig(), routeTo('test-provider/small'));
+    expect(held.alias).toBe('test-provider/small');
   });
 });
