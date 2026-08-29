@@ -245,6 +245,7 @@ export function patchJob(
       | 'kind'
       | 'taskTrack'
       | 'taskTrackSource'
+      | 'autoRetryCount'
       | 'premiumDensity'
       | 'sessionName'
       | 'sessionNamePinned'

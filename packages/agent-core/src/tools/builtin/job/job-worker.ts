@@ -7,6 +7,11 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'pathe';
 
+/** Budget of automatic retries for crashed / failed-to-spawn workers. */
+export const JOB_AUTO_RETRY_LIMIT = 2;
+/** Backoff before each automatic retry attempt (indexed by attempt-1). */
+export const JOB_AUTO_RETRY_BACKOFF_MS: readonly number[] = [2_000, 8_000];
+
 import type { Agent } from '../../../agent/index';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
 import { pushJobInboxEvent } from './job-inbox';
@@ -912,6 +917,18 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         // command) so continue_from does not restart a repo-wide scan empty.
         const isDeadline = isSubagentDeadlineError(error);
         const ledgerJob = current ?? job;
+        if (!isDeadline) {
+          // Transient crash: spend the automatic retry budget before
+          // surfacing a terminal failure. Deadline aborts are deliberate.
+          const attempt = maybeAutoRetryFailedWorker({
+            store: input.store,
+            job: ledgerJob,
+            detail,
+            agent: input.agent,
+            extraNote: commitNote,
+          });
+          if (attempt !== undefined) return;
+        }
         const resultSummary = isDeadline
           ? buildDeadlineFailureSummary(
               ledgerJob,
@@ -994,6 +1011,20 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
       return { ok: false, error: detail };
     }
 
+    // Transient spawn failure: spend the automatic retry budget (bounded)
+    // before recording a terminal failure.
+    if (!keepState && current !== undefined) {
+      const attempt = maybeAutoRetryFailedWorker({
+        store: input.store,
+        job: current,
+        detail,
+        agent: input.agent,
+      });
+      if (attempt !== undefined) {
+        return { ok: false, error: detail };
+      }
+    }
+
     const updated = patchJob(input.store, job.id, {
       ...(keepState ? {} : { status: 'failed' as const, resultSummary: detail.slice(0, 2000) }),
       notes: [current?.notes ?? job.notes, `spawn_failed: ${detail}`].filter(Boolean).join('\n'),
@@ -1009,6 +1040,50 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     }
     return { ok: false, error: detail };
   }
+}
+
+/**
+ * Requeue a crashed / failed-to-spawn worker under a small automatic retry
+ * budget. This heals transient flakes (provider outage past Never-Halt, a
+ * crashed worker process) without operator attention; deliberate failures —
+ * deadline exhaustion, verification verdicts, user cancels — are never
+ * retried by the caller. The backoff pump reuses the normal scheduler, so
+ * concurrency limits and ownership conflicts still apply.
+ *
+ * Returns the attempt number when the job was requeued, `undefined` when the
+ * budget is exhausted (caller falls through to the terminal failure path).
+ */
+export function maybeAutoRetryFailedWorker(input: {
+  readonly store: ToolStore;
+  readonly job: JobRecord;
+  readonly detail: string;
+  readonly agent?: Agent;
+  readonly extraNote?: string;
+}): number | undefined {
+  const prior = input.job.autoRetryCount ?? 0;
+  if (prior >= JOB_AUTO_RETRY_LIMIT) return undefined;
+  const attempt = prior + 1;
+  const backoffMs =
+    JOB_AUTO_RETRY_BACKOFF_MS[Math.min(attempt - 1, JOB_AUTO_RETRY_BACKOFF_MS.length - 1)] ??
+    JOB_AUTO_RETRY_BACKOFF_MS[0] ??
+    2_000;
+  const trimmedDetail = input.detail.slice(0, 400);
+  patchJob(input.store, input.job.id, {
+    status: 'queued',
+    resultSummary: `auto-retry ${attempt}/${JOB_AUTO_RETRY_LIMIT} scheduled — ${trimmedDetail}`,
+    autoRetryCount: attempt,
+    notes: [
+      input.job.notes,
+      input.extraNote,
+      `auto_retry ${attempt}/${JOB_AUTO_RETRY_LIMIT}: ${trimmedDetail}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  });
+  setTimeout(() => {
+    void requestJobSchedulePump({ store: input.store, agent: input.agent });
+  }, backoffMs);
+  return attempt;
 }
 
 /**

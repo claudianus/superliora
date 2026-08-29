@@ -204,6 +204,12 @@ export interface JobRecord {
   /** Shell gate for goal-driver markComplete (Prime `--autonomous-gate`). */
   readonly goalGateCommand?: string;
   readonly goalBudgetLimits?: GoalBudgetLimits;
+  /**
+   * Automatic retries already spent on crashed / failed-to-spawn workers.
+   * Deadline exhaustion, verification failures, and user-driven terminal
+   * states are never counted — those are deliberate outcomes, not flakes.
+   */
+  readonly autoRetryCount?: number;
   readonly resultSummary?: string;
   /** Machine-readable handoff facts (files changed, verification) from the worker contract. */
   readonly resultContract?: SubagentResultContract;
