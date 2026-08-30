@@ -12,6 +12,7 @@ import { LEARNING_LANES } from '../agent/learning-lanes';
 import { sliceJsonObject } from '../agent/refine/plan';
 import { serializeTrajectoryForRefine } from '../agent/refine/serialize';
 import { SKILL_NAME_RE, commitProjectSkill } from '../tools/builtin/fleet/skill-create';
+import { WRITING_QUALITY_GATE_MARKER } from '../tools/builtin/fleet/skill-writing-quality';
 import type { ToolCallEvent } from './auto-skillify';
 import { skillWhenToUse } from './types';
 
@@ -85,10 +86,18 @@ const DISTILL_SYSTEM_PROMPT = [
   'Rules:',
   '- Name: kebab-case, human meaning (windows-pnpm-e2e-spawn), never retry-<tool>-<error-slug>.',
   '- description AND whenToUse AND triggers: 3–12 English SearchSkill keywords (task, domain, error, tool).',
-  '- body: numbered steps with the EXACT commands/paths that worked. Include "Done when …". Include what not to do.',
+  '- body: numbered steps with the EXACT commands/paths that worked. Include "Done when …".',
+  '- Steer by positive target behaviour: say what to DO, with the exact command/path/rule.',
+  '  Fold cautions into one short line at most; a body that mostly says don\'t/never/avoid is rejected.',
   '- Generalize temp paths and commit SHAs. Keep repo-relative commands.',
   '- If an existing auto skill listed below is the same lesson, set updateOf to that name and improve it.',
   '- Do not invent steps that did not happen. Evidence must quote the trajectory.',
+  '',
+  'Self-check before returning (all must hold):',
+  '- body contains a "Done when …" bound',
+  '- body has ordered steps with at least one concrete command, path, or decision rule',
+  '- description and whenToUse together carry 3+ distinct English trigger tokens',
+  '- positive instructions outnumber don\'t/never/avoid statements',
   '',
   'Return JSON only:',
   '{"name":"kebab-name","description":"…","whenToUse":"…","triggers":["…"],"body":"markdown","evidence":"quote","updateOf":"optional-existing-name"}',
@@ -201,7 +210,7 @@ async function distillLessonToSkill(
     .filter((line): line is string => line !== undefined)
     .join('\n');
 
-  const distilled = parseDistilledSkill(await generateJsonText(agent, DISTILL_SYSTEM_PROMPT, distillUser));
+  let distilled = parseDistilledSkill(await generateJsonText(agent, DISTILL_SYSTEM_PROMPT, distillUser));
   const name =
     distilled.updateOf !== undefined &&
     distilled.updateOf.length > 0 &&
@@ -209,19 +218,35 @@ async function distillLessonToSkill(
       ? distilled.updateOf
       : distilled.name;
 
-  const committed = await commitProjectSkill(agent, {
-    name,
-    description: distilled.description,
-    whenToUse: distilled.whenToUse,
-    triggers: distilled.triggers,
-    body: distilled.body,
-    origin: 'auto',
-  });
+  const commit = async (
+    skill: DistilledSkill,
+  ): Promise<{ readonly ok: boolean; readonly error?: string; readonly skippedIdentical?: boolean; readonly skillMdPath?: string }> =>
+    commitProjectSkill(agent, {
+      name,
+      description: skill.description,
+      whenToUse: skill.whenToUse,
+      triggers: skill.triggers,
+      body: skill.body,
+      origin: 'auto',
+    });
+
+  let committed = await commit(distilled);
+  if (!committed.ok && committed.error?.includes(WRITING_QUALITY_GATE_MARKER) === true) {
+    // One feedback retry: the gate rejection text is exactly the rewrite brief.
+    distilled = parseDistilledSkill(
+      await generateJsonText(
+        agent,
+        DISTILL_SYSTEM_PROMPT,
+        `${distillUser}\n\nYour previous draft was rejected:\n${committed.error}\n\nRewrite the skill so it passes. Return JSON only, same shape.`,
+      ),
+    );
+    committed = await commit(distilled);
+  }
   if (!committed.ok) {
-    throw new SkillDistillError(committed.error);
+    throw new SkillDistillError(committed.error ?? 'skill commit failed');
   }
   if (committed.skippedIdentical) return undefined;
-  return { writtenPath: committed.skillMdPath };
+  return { writtenPath: committed.skillMdPath! };
 }
 
 export async function runLessonDistill(

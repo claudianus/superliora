@@ -186,6 +186,50 @@ describe('LioraMemoryStore', () => {
     expect(captured).toHaveLength(0);
   });
 
+  it('never mines harness-authored turns (system triggers) for preferences', async () => {
+    const { runtime } = makeRuntime('s1', '/repo');
+
+    const captured = await runtime.recordTurn({
+      turnId: 9,
+      reason: 'completed',
+      originKind: 'system_trigger',
+      input: [
+        {
+          type: 'text',
+          text:
+            '[job desk wake] If a Plan Desk job completed, prefer JobInspect 1 → Implement handoff ' +
+            'fields for ONE JobCreate; do not invent a fresh brief from memory.',
+        },
+      ],
+    });
+
+    expect(captured).toHaveLength(0);
+  });
+
+  it('does not duplicate an identical auto-captured preference across turns', async () => {
+    const { runtime } = makeRuntime('s1', '/repo');
+    const text = 'always use rg for repository text search';
+
+    const first = await runtime.recordTurn({
+      turnId: 1,
+      reason: 'completed',
+      input: [{ type: 'text', text }],
+    });
+    expect(first).toHaveLength(1);
+
+    const second = await runtime.recordTurn({
+      turnId: 2,
+      reason: 'completed',
+      input: [{ type: 'text', text }],
+    });
+    expect(second).toHaveLength(0);
+
+    const all = await runtime.list({ status: 'active', limit: 50 });
+    expect(
+      all.filter((memory) => memory.content.includes('rg for repository text search')),
+    ).toHaveLength(1);
+  });
+
   it('reinforces frequently reused memories in retrieval ranking', async () => {
     const { runtime } = makeRuntime('s1', '/repo');
     const reused = await runtime.remember({

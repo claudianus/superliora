@@ -220,6 +220,13 @@ export interface MemoryTurnCaptureInput {
   readonly turnId: number;
   readonly input: readonly ContentPart[];
   readonly reason: string;
+  /**
+   * `PromptOrigin.kind` of the captured turn. Turns that did not originate
+   * from the user (system triggers, injections, hooks) are harness-authored
+   * text and must never be mined for preferences — `undefined` is treated as
+   * user-authored for callers that predate the field.
+   */
+  readonly originKind?: string;
 }
 
 export interface AgentMemoryRuntime {

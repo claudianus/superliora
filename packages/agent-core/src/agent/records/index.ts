@@ -120,6 +120,9 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'context.undo':
       agent.context.undo(input.count);
       return;
+    case 'context.rollback_attempt':
+      agent.context.rollbackAttempt(input.turnId, input.historyLength);
+      return;
     case 'tools.register_user_tool':
       agent.tools.registerUserTool(input);
       return;

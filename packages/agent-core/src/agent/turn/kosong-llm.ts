@@ -161,6 +161,7 @@ export class KosongLLM implements LLM {
             latencyMs,
             usage: response.usage,
           }) === true;
+        sharedModelRouteHealthStore.markTrafficSuccess(candidate.modelAlias);
         const rateLimits =
           response.rateLimits !== undefined && response.rateLimits.length > 0
             ? response.rateLimits

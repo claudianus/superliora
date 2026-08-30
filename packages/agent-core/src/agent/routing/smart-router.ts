@@ -627,7 +627,7 @@ export function matchesConductorPool(alias: string, pool: readonly string[], _mo
       let ok = true;
       for (let i = 0; i < segments.length; i++) {
         const seg = segments[i];
-        if (seg.length === 0) continue;
+        if (seg === undefined || seg.length === 0) continue;
         const idx = lowerAlias.indexOf(seg, pos);
         if (idx === -1) { ok = false; break; }
         if (i === 0 && idx !== 0) { ok = false; break; }

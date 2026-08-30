@@ -15,6 +15,8 @@ export type ModelRouteHealthRecord = {
 
 export const DEFAULT_MODEL_UNAVAILABLE_COOLDOWN_MS = 60 * 60_000;
 export const DEFAULT_PROBE_FAIL_COOLDOWN_MS = 10 * 60_000;
+/** Real LLM traffic within this window proves alias liveness without a probe. */
+export const TRAFFIC_SUCCESS_FRESH_MS = 5 * 60_000;
 
 const globalAliasHealth = new Map<string, ModelRouteHealthRecord>();
 
@@ -23,6 +25,8 @@ function normalizeAlias(alias: string): string {
 }
 
 export class ModelRouteHealthStore {
+  private readonly trafficSuccessAt = new Map<string, number>();
+
   constructor(private readonly store: Map<string, ModelRouteHealthRecord> = globalAliasHealth) {}
 
   get(alias: string): ModelRouteHealthRecord | undefined {
@@ -79,13 +83,42 @@ export class ModelRouteHealthStore {
     this.store.delete(key);
   }
 
+  /**
+   * Record a successful real LLM call on this alias. Actual traffic is
+   * stronger liveness evidence than any probe, so it also clears stale
+   * cooldown marks.
+   */
+  markTrafficSuccess(alias: string, now: number = Date.now()): void {
+    const key = normalizeAlias(alias);
+    if (key.length === 0) return;
+    this.trafficSuccessAt.set(key, now);
+    this.store.delete(key);
+  }
+
+  lastTrafficSuccessAt(alias: string): number | undefined {
+    return this.trafficSuccessAt.get(normalizeAlias(alias));
+  }
+
+  hasFreshTrafficSuccess(
+    alias: string,
+    now: number = Date.now(),
+    windowMs: number = TRAFFIC_SUCCESS_FRESH_MS,
+  ): boolean {
+    const at = this.trafficSuccessAt.get(normalizeAlias(alias));
+    return at !== undefined && now - at < windowMs;
+  }
+
   clear(alias?: string): void {
     if (alias === undefined) {
       this.store.clear();
+      this.trafficSuccessAt.clear();
       return;
     }
     const key = normalizeAlias(alias);
-    if (key.length > 0) this.store.delete(key);
+    if (key.length > 0) {
+      this.store.delete(key);
+      this.trafficSuccessAt.delete(key);
+    }
   }
 
   snapshot(): readonly ModelRouteHealthRecord[] {

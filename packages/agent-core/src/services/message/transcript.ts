@@ -30,6 +30,8 @@
  *   - `context.undo`                → remove tail messages exactly like
  *                                     `ContextMemory.undo` (skip injections, stop at
  *                                     compaction summaries / `context.clear` floors)
+ *   - `context.rollback_attempt`    → truncate the failed attempt's tail back to
+ *                                     the recorded pre-turn baseline
  *   - `context.clear`               → keep prior messages in the transcript (the TUI
  *                                     replay keeps them too) but reset the folded view
  *
@@ -312,6 +314,20 @@ export function reduceWireRecords(records: Iterable<AgentRecord>): {
       case 'context.undo':
         applyUndo(record.count);
         break;
+      case 'context.rollback_attempt': {
+        // Mirrors ContextMemory.rollbackAttempt: the failed attempt's tail
+        // (user prompt + per-attempt injections + partial exchange) is cut
+        // back to the pre-turn baseline. Post-compaction entries all count
+        // toward foldedLength, so popping until foldedLength === baseline
+        // matches the live truncation one-for-one.
+        const target = Math.max(0, record.historyLength);
+        while (foldedLength > target && transcript.length > clearFloor) {
+          transcript.pop();
+          foldedLength--;
+        }
+        resetOpenState();
+        break;
+      }
       case 'context.clear':
         clearFloor = transcript.length;
         foldedLength = 0;
