@@ -1,5 +1,15 @@
 # @superliora/liora
 
+## 0.20.2
+
+### Patch Changes
+
+- Stop re-appending the user prompt on every provider-failure retry, which inflated the context with duplicate messages and skewed model input after a failed turn.
+- Treat a recent successful LLM call on a model as proof it is live, so job workers no longer get blocked by a false probe failure on a model the session is actively using.
+- Stop auto-memory from recording system-generated prompts as user preferences, and skip duplicate captures of the same preference.
+- Give auto-created skills one rewrite round using the quality-gate feedback instead of dropping the lesson.
+- Remove the leftover worktree when a job is cancelled before its worker ever ran.
+
 ## 0.20.0
 
 ### Minor Changes
@@ -590,3 +600,4 @@
 ## 0.20.1
 
 SuperLiora 0.20.1 (2026-08-08) was the first GitHub Release with native SEA installers (`install.sh` / `install.ps1`).
+
