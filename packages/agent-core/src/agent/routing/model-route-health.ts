@@ -16,7 +16,7 @@ export type ModelRouteHealthRecord = {
 export const DEFAULT_MODEL_UNAVAILABLE_COOLDOWN_MS = 60 * 60_000;
 export const DEFAULT_PROBE_FAIL_COOLDOWN_MS = 10 * 60_000;
 /** Real LLM traffic within this window proves alias liveness without a probe. */
-export const TRAFFIC_SUCCESS_FRESH_MS = 5 * 60_000;
+const TRAFFIC_SUCCESS_FRESH_MS = 5 * 60_000;
 
 const globalAliasHealth = new Map<string, ModelRouteHealthRecord>();
 

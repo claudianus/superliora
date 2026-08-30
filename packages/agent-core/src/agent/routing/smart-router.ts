@@ -612,7 +612,7 @@ export function mergeRouteFallbackAliases(
  * ranking + live health only. User-prompt role regex must not demote the
  * control plane to completion/exploration models.
  */
-export function matchesConductorPool(alias: string, pool: readonly string[], _mode: string): boolean {
+function matchesConductorPool(alias: string, pool: readonly string[], _mode: string): boolean {
   const lowerAlias = alias.toLowerCase();
   const provider = alias.split('/')[0]?.toLowerCase() ?? '';
   for (const entry of pool) {
