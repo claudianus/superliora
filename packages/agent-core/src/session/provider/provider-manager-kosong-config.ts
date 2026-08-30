@@ -30,7 +30,10 @@ export function toKosongProviderConfig(
   adaptiveThinking: boolean | undefined,
   betaApi: boolean | undefined,
 ): KosongProviderConfig {
-  const effectiveType = modelProtocol === 'anthropic' ? 'anthropic' : provider.type;
+  const normalizedProtocol = modelProtocol?.trim().toLowerCase();
+  const effectiveType = normalizedProtocol === 'anthropic' || normalizedProtocol === 'openai' || normalizedProtocol === 'openai_responses'
+    ? (normalizedProtocol as typeof provider.type)
+    : provider.type;
   switch (effectiveType) {
     case 'anthropic': {
       const baseUrl = providerValue(
@@ -44,7 +47,7 @@ export function toKosongProviderConfig(
         type: 'anthropic',
         model,
         baseUrl:
-          modelProtocol === 'anthropic' && resolvedBaseUrl !== undefined
+          normalizedProtocol === 'anthropic' && resolvedBaseUrl !== undefined
             ? resolvedBaseUrl.replace(/\/v1\/?$/, '')
             : resolvedBaseUrl,
         apiKey: providerApiKey(provider),
@@ -53,7 +56,7 @@ export function toKosongProviderConfig(
         ...(betaApi !== undefined ? { betaApi } : {}),
         ...(promptCacheKey !== undefined ? { metadata: { user_id: promptCacheKey } } : {}),
         ...defaultHeadersField(
-          provider.type === 'kimi' && modelProtocol === 'anthropic'
+          provider.type === 'kimi' && normalizedProtocol === 'anthropic'
             ? { ...kimiRequestHeaders, ...provider.customHeaders }
             : provider.customHeaders,
         ),

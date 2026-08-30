@@ -128,6 +128,10 @@ function formatRoleRoutingState(
   role: ModelRole,
 ): string {
   const intensity = defaultIntensityForRole(role);
+  if (override !== undefined && override.toLowerCase() === 'inherit') {
+    if (resolvedAlias !== undefined) return `inherit → ${resolvedAlias} (${role}/${intensity})`;
+    return `inherit (${role}/${intensity})`;
+  }
   if (source === 'override' && override !== undefined) {
     if (resolvedAlias !== undefined && resolvedAlias !== override) {
       return `override · ${override} → ${resolvedAlias}`;

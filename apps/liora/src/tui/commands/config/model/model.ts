@@ -289,17 +289,28 @@ function showLoopRoleModelPicker(host: SlashCommandHost, role: LoopModelRoutingR
     );
     return;
   }
-
+  const inheritKey = '__inherit_parent__';
+  const modelsWithInherit: Record<string, import('@superliora/sdk').ModelAlias> = {
+    [inheritKey]: {
+      model: 'inherit',
+      provider: 'inherit',
+      displayName: 'Inherit parent model',
+      maxContextSize: 128000,
+      capabilities: ['tool_use'],
+    } as unknown as import('@superliora/sdk').ModelAlias,
+    ...host.state.appState.availableModels,
+  };
   mountPickerDialog(
     host,
     new TabbedModelSelectorComponent({
-      models: host.state.appState.availableModels,
+      models: modelsWithInherit,
       currentValue: role.model ?? '',
       selectedValue: role.model,
       currentThinking: false,
       onSelect: ({ alias }) => {
         dismissPickerDialog(host);
-        void applyLoopModelRoutingChoice(host, role, alias);
+        const target = alias === inheritKey ? 'inherit' : alias;
+        void applyLoopModelRoutingChoice(host, role, target);
       },
       onReset: () => {
         dismissPickerDialog(host);
@@ -308,7 +319,7 @@ function showLoopRoleModelPicker(host: SlashCommandHost, role: LoopModelRoutingR
       onCancel: () => {
         dismissPickerDialog(host);
       },
-      notice: `${role.label}: applies on next worker spawn / role resolution.`,
+      notice: `${role.label}: inherit uses parent model, or pick a fixed alias.`,
     }),
     { label: `${role.label} model routing` },
   );
@@ -951,4 +962,12 @@ async function persistModelSelection(
     },
   });
   return true;
+}
+
+export async function showConductorPoolPicker(host: SlashCommandHost): Promise<void> {
+  const config = (await host.harness.getConfig({ reload: true })) as { loopControl?: Record<string, unknown> };
+  const currentPool = (config.loopControl?.['conductorModelPool'] as string[] | undefined) ?? [];
+  const mode = (config.loopControl?.['conductorPoolMode'] as string | undefined) ?? 'allowlist';
+  const hint = currentPool.length === 0 ? 'All healthy models (no pool filter)' : `Pool (${mode}): ${currentPool.join(', ')}`;
+  host.showNotice('Conductor model pool', `${hint}\nEdit via: liora provider route --conductor-pool "opencode/*" or set loopControl.conductorModelPool in config.toml`);
 }

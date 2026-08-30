@@ -375,6 +375,67 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
 
   const route = provider
     .command('route')
+  route
+    .command('worker-inherit')
+    .description('Manage worker inherit-parent routing (per-role or global).')
+    .option('--roles <roles>', 'Comma-separated roles or "all", empty clears per-role list')
+    .option('--global <onoff>', 'on/off for global workerInheritParent')
+    .option('--json', 'JSON output', false)
+    .action(async (options: { roles?: string; global?: string; json?: boolean }) => {
+      const resolved = resolveDeps(deps);
+      await runAction(resolved, async () => {
+        const harness = resolved.getHarness();
+        await harness.ensureConfigFile();
+        const config = await harness.getConfig() as Record<string, unknown>;
+        const loopControl = (config['loopControl'] as Record<string, unknown> | undefined) ?? {};
+        if (options.roles === undefined && options.global === undefined) {
+          const roles = (loopControl['workerInheritParentRoles'] as string[] | undefined) ?? [];
+          const global = (loopControl['workerInheritParent'] as boolean | undefined) ?? false;
+          if (options.json) {
+            resolved.stdout.write(JSON.stringify({ global, roles }, null, 2) + '\n');
+          } else {
+            resolved.stdout.write(`Worker inherit global: ${String(global)}\nRoles: ${roles.length === 0 ? '(none, per-role inherit via loopControl.*Model=inherit)' : roles.join(', ')}\n`);
+            resolved.stdout.write('Tip: set per-role inherit via: liora provider route set --help or edit loopControl.*Model="inherit" in config.toml\n');
+          }
+          return;
+        }
+        const next: Record<string, unknown> = { ...loopControl };
+        if (options.global !== undefined) {
+          const v = options.global.trim().toLowerCase();
+          if (v === 'on' || v === 'true' || v === '1') next['workerInheritParent'] = true;
+          else if (v === 'off' || v === 'false' || v === '0' || v === '') delete next['workerInheritParent'];
+          else { resolved.stderr.write('global must be on/off\n'); resolved.exit(1); }
+        }
+        if (options.roles !== undefined) {
+          const trimmed = options.roles.trim();
+          if (trimmed.length === 0 || trimmed.toLowerCase() === 'none' || trimmed.toLowerCase() === 'clear') {
+            delete next['workerInheritParentRoles'];
+          } else if (trimmed.toLowerCase() === 'all') {
+            next['workerInheritParentRoles'] = ['compaction','completion','exploration','coding','planning','debugging'];
+  route
+          } else {
+            const roles = trimmed.split(',').map((s) => s.trim().toLowerCase()).filter((s) => s.length > 0);
+            const valid = new Set(['compaction','completion','exploration','coding','planning','debugging']);
+            const invalid = roles.filter((r) => !valid.has(r));
+            if (invalid.length > 0) { resolved.stderr.write(`invalid roles: ${invalid.join(', ')}\n`); resolved.exit(1); }
+            next['workerInheritParentRoles'] = roles;
+          }
+        }
+        await harness.setConfig({ loopControl: next as never });
+        resolved.stdout.write('Worker inherit updated\n');
+      });
+    });
+
+            const valid = new Set(['compaction','completion','exploration','coding','planning','debugging']);
+            const invalid = roles.filter((r) => !valid.has(r));
+            if (invalid.length > 0) { resolved.stderr.write(`invalid roles: ${invalid.join(', ')}\n`); resolved.exit(1); }
+          }
+        }
+        await harness.setConfig({ loopControl: next as never });
+        resolved.stdout.write('Worker inherit updated\n');
+      });
+    });
+
     .description(t('cli.sub.provider.cmd.route.desc'));
 
   route
@@ -493,6 +554,47 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
         handleProviderRouteStatus(resolved, sessionId, { json: options.json === true }),
       );
     });
+  route
+    .command('conductor-pool')
+    .description('Manage Conductor orchestrator model pool (allowlist/blocklist).')
+    .option('--pool <aliases>', 'Comma-separated aliases or provider/* globs, empty clears')
+    .option('--mode <mode>', 'allowlist or blocklist (default allowlist)')
+    .option('--json', 'JSON output', false)
+    .action(async (options: { pool?: string; mode?: string; json?: boolean }) => {
+      const resolved = resolveDeps(deps);
+      await runAction(resolved, async () => {
+        const harness = resolved.getHarness();
+        await harness.ensureConfigFile();
+        const config = await harness.getConfig() as Record<string, unknown>;
+        const loopControl = (config['loopControl'] as Record<string, unknown> | undefined) ?? {};
+        if (options.pool === undefined && options.mode === undefined) {
+          const pool = (loopControl['conductorModelPool'] as string[] | undefined) ?? [];
+          const mode = (loopControl['conductorPoolMode'] as string | undefined) ?? 'allowlist';
+          if (options.json) {
+            resolved.stdout.write(JSON.stringify({ pool, mode }, null, 2) + '\n');
+          } else {
+            resolved.stdout.write(`Conductor pool (${mode}): ${pool.length === 0 ? '(all healthy models)' : pool.join(', ')}\n`);
+          }
+          return;
+        }
+        const next: Record<string, unknown> = { ...loopControl };
+        if (options.pool !== undefined) {
+          const trimmed = options.pool.trim();
+          next['conductorModelPool'] = trimmed.length === 0 ? undefined : trimmed.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+          if (next['conductorModelPool'] === undefined) delete next['conductorModelPool'];
+        }
+        if (options.mode !== undefined) {
+          const m = options.mode.trim().toLowerCase();
+          if (m !== 'allowlist' && m !== 'blocklist') { resolved.stderr.write('mode must be allowlist or blocklist\n'); resolved.exit(1); }
+          next['conductorPoolMode'] = m;
+        }
+        await harness.setConfig({ loopControl: next as never });
+        const pool = (next['conductorModelPool'] as string[] | undefined) ?? [];
+        const mode = (next['conductorPoolMode'] as string | undefined) ?? 'allowlist';
+        resolved.stdout.write(`Conductor pool updated (${mode}): ${pool.length === 0 ? '(all)' : pool.join(', ')}\n`);
+      });
+    });
+
 
   const catalog = provider
     .command('catalog')

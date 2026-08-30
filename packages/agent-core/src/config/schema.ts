@@ -95,7 +95,7 @@ const ModelAliasBaseSchema = z.object({
   defaultEffort: z.string().min(1).optional(),
   displayName: z.string().optional(),
   reasoningKey: z.string().optional(),
-  protocol: z.literal('anthropic').optional(),
+  protocol: z.enum(['anthropic', 'openai', 'openai_responses']).optional(),
   adaptiveThinking: z.boolean().optional(),
   betaApi: z.boolean().optional(),
   fallbackModels: z.array(z.string().min(1)).optional(),
@@ -206,6 +206,10 @@ export const LoopControlSchema = z.object({
    * session spend reaches this value, intensity steps down one level
    * (max→balanced→value). Explicit role overrides are unchanged.
    */
+  workerInheritParent: z.boolean().optional(),
+  workerInheritParentRoles: z.array(z.enum(['compaction','completion','exploration','coding','planning','debugging'])).optional(),
+  conductorModelPool: z.array(z.string().min(1)).optional(),
+  conductorPoolMode: z.enum(['allowlist','blocklist']).optional(),
   smartRouterBudgetUsd: z.number().positive().optional(),
 });
 

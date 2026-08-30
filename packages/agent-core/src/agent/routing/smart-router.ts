@@ -262,7 +262,31 @@ export function resolveSmartRoute(input: ResolveSmartRouteInput): SmartRoute | u
   }
   intensity = applyBudgetIntensity(config, intensity, input.sessionSpendUsd);
 
-  const explicit = configuredRoleAlias(config, role);
+  const rawExplicit = configuredRoleAlias(config, role);
+  const inheritSentinel = rawExplicit !== undefined && rawExplicit.toLowerCase() === 'inherit';
+  if (inheritSentinel) {
+    const p = input.parentAlias?.trim();
+    if (p !== undefined && p.length > 0 && healthy(p)) {
+      return {
+        role,
+        intensity,
+        alias: p,
+        chain: [p],
+        thinkingLevel: thinkingForRole(role, config.models?.[p]),
+        source: 'parent',
+        reason: `Inherit parent 00b7 ${role}/${intensity}`,
+      };
+    }
+    const globalInherit = config.loopControl?.workerInheritParent === true;
+    const roleInherit = Array.isArray((config.loopControl as Record<string, unknown>)["workerInheritParentRoles"]) && ((config.loopControl as Record<string, unknown>)["workerInheritParentRoles"] as string[]).includes(role);
+    if ((globalInherit || roleInherit) && input.parentAlias !== undefined) {
+      const pa = input.parentAlias.trim();
+      if (pa.length > 0 && healthy(pa)) {
+        return { role, intensity, alias: pa, chain: [pa], thinkingLevel: thinkingForRole(role, config.models?.[pa]), source: 'parent', reason: `Inherit parent (global) 00b7 ${role}/${intensity}` } as SmartRoute;
+      }
+    }
+  }
+  const explicit = inheritSentinel ? undefined : rawExplicit;
   if (explicit !== undefined) {
     const chain = buildExplicitChain(config, explicit, healthy);
     if (healthy(explicit)) {
@@ -588,6 +612,23 @@ export function mergeRouteFallbackAliases(
  * ranking + live health only. User-prompt role regex must not demote the
  * control plane to completion/exploration models.
  */
+export function matchesConductorPool(alias: string, pool: readonly string[], _mode: string): boolean {
+  const lowerAlias = alias.toLowerCase();
+  const provider = alias.split('/')[0]?.toLowerCase() ?? '';
+  for (const entry of pool) {
+    const e = entry.trim().toLowerCase();
+    if (e.length === 0) continue;
+    if (e === lowerAlias) return true;
+    if (e.endsWith('/*') && provider === e.slice(0, -2)) return true;
+    if (e === provider) return true;
+    if (e.includes('*')) {
+      const re = new RegExp('^' + e.replace(/[.+?^${}()|[\]\]/g, '\$&').replace(/\*/g, '.*') + '$');
+      if (re.test(lowerAlias)) return true;
+    }
+  }
+  return false;
+}
+
 export function resolveSessionSmartRoute(input: {
   readonly config: LioraConfig;
   readonly prompt?: string;
@@ -596,18 +637,31 @@ export function resolveSessionSmartRoute(input: {
   readonly profileName?: string;
 }): SmartRoute | undefined {
   if (input.profileName === SOVEREIGN_CONDUCTOR_PROFILE_NAME) {
+    const pool = (input.config.loopControl as Record<string, unknown>)['conductorModelPool'] as string[] | undefined;
+    if (pool !== undefined && pool.length > 0) {
+      const mode = ((input.config.loopControl as Record<string, unknown>)['conductorPoolMode'] as string | undefined) ?? 'allowlist';
+      const poolHealthy = (alias: string): boolean => {
+        if (!isConfigAliasHealthy(input.config, alias)) return false;
+        return mode === 'blocklist' ? !matchesConductorPool(alias, pool, mode) : matchesConductorPool(alias, pool, mode);
+      };
+      const route = resolveSmartRoute({
+        role: 'coding',
+        config: input.config,
+        intensity: 'balanced',
+        sessionSpendUsd: input.sessionSpendUsd,
+        isAliasHealthy: poolHealthy,
+      });
+      if (route === undefined) return undefined;
+      return { ...route, reason: `${route.reason} · conductor-orch(pool)` };
+    }
     const route = resolveSmartRoute({
       role: 'coding',
       config: input.config,
       intensity: 'balanced',
       sessionSpendUsd: input.sessionSpendUsd,
-      // Omit signals.prompt — classifyTurnRouting must not re-bucket the orch lane.
     });
     if (route === undefined) return undefined;
-    return {
-      ...route,
-      reason: `${route.reason} · conductor-orch`,
-    };
+    return { ...route, reason: `${route.reason} · conductor-orch` };
   }
   const role = classifySessionRole(input.prompt);
   return resolveSmartRoute({
@@ -633,9 +687,3 @@ export async function resolveSmartRouteAsync(
 export async function resolveSessionSmartRouteAsync(input: {
   readonly config: LioraConfig;
   readonly prompt?: string;
-  readonly sessionSpendUsd?: number;
-  readonly profileName?: string;
-}): Promise<SmartRoute | undefined> {
-  await getModelsDevData();
-  return resolveSessionSmartRoute(input);
-}
