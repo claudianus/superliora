@@ -44,7 +44,9 @@ export {
   catalogModelToCapability,
   catalogProviderModels,
   catalogThinkingMetadata,
+  catalogWireGroups,
   inferWireType,
+  resolveModelWire,
 } from './catalog';
 export type {
   Catalog,
@@ -54,7 +56,12 @@ export type {
   CatalogModelEntry,
   CatalogProviderEntry,
   CatalogReasoningOption,
+  CatalogWireGroup,
 } from './catalog';
+
+// Wire profile registry: models.dev `npm` package ids → provider wires
+export { packageForWire, registerWireProfile, resolveWireFromPackage, wireProfiles } from './providers/wire-registry';
+export type { WireProfile } from './providers/wire-registry';
 
 // Core functions
 export {

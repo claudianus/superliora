@@ -1,5 +1,6 @@
 import type { ModelCapability } from './capability';
 import type { ProviderType } from './providers';
+import { resolveWireFromPackage } from './providers/wire-registry';
 
 /**
  * models.dev-style catalog: a public map of provider/model metadata. Callers
@@ -30,6 +31,14 @@ export interface CatalogModelEntry {
   readonly id?: string;
   readonly name?: string;
   readonly family?: string;
+  /**
+   * Per-model SDK override (models.dev `provider` block on a model row).
+   *
+   * A gateway that serves several protocols from one API root publishes this
+   * so a single model can use a different wire than its provider default —
+   * the reason SuperLiora resolves wires per model instead of per model name.
+   */
+  readonly provider?: { readonly npm?: string };
   readonly limit?: { readonly context?: number; readonly output?: number };
   readonly tool_call?: boolean;
   readonly reasoning?: boolean;
@@ -90,6 +99,12 @@ export interface CatalogModel {
   readonly capability: ModelCapability;
   /** Per-million-token pricing in USD (models.dev `cost` field). */
   readonly cost?: CatalogCost;
+  /**
+   * Wire that serves this model: the model's own `provider.npm` override when
+   * the catalog publishes one, otherwise the provider entry's wire.
+   * `undefined` means nothing in the catalog named a usable protocol.
+   */
+  readonly wire?: ProviderType;
 }
 
 const KNOWN_WIRE_TYPES = [
@@ -129,6 +144,10 @@ function isUsableChatModel(model: CatalogModelEntry): boolean {
  */
 export function inferWireType(entry: CatalogProviderEntry): ProviderType | undefined {
   if (isWireType(entry.type)) return entry.type;
+  // Provider-level inference keeps its historical heuristics on purpose: a
+  // provider row saying `@ai-sdk/openai` still means its Chat Completions root
+  // here. Only the model-level `provider.npm` override (see
+  // {@link resolveModelWire}) may select a different protocol.
   const npm = (entry.npm ?? '').toLowerCase();
   const id = (entry.id ?? '').toLowerCase();
   if (npm.includes('anthropic') || id.includes('anthropic') || id.includes('claude')) {
@@ -259,8 +278,15 @@ function defaultChatCompletionsApi(providerId: string | undefined): string | und
   return CHAT_COMPLETIONS_DEFAULT_API[providerId.toLowerCase()];
 }
 
-/** Normalizes one catalog model entry into a {@link CatalogModel}; skips invalid entries. */
-export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel | undefined {
+/**
+ * Normalizes one catalog model entry into a {@link CatalogModel}; skips invalid
+ * entries. `providerWire` is the fallback for models that carry no
+ * `provider.npm` override of their own.
+ */
+export function catalogModelToCapability(
+  model: CatalogModelEntry,
+  providerWire?: ProviderType,
+): CatalogModel | undefined {
   if (typeof model.id !== 'string' || model.id.length === 0) return undefined;
   const context = model.limit?.context;
   if (typeof context !== 'number' || !Number.isInteger(context) || context <= 0) return undefined;
@@ -278,6 +304,7 @@ export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel
       : {}),
     ...(thinking.alwaysThinking ? { alwaysThinking: true } : {}),
     cost: model.cost,
+    wire: resolveModelWire(model, providerWire),
     capability: {
       image_in: inputs.includes('image'),
       video_in: inputs.includes('video'),
@@ -338,7 +365,58 @@ function catalogReasoningKey(interleaved: CatalogModelEntry['interleaved']): str
 /** Extracts the valid, normalized models from a catalog provider entry. */
 export function catalogProviderModels(entry: CatalogProviderEntry): CatalogModel[] {
   const models = entry.models ?? {};
+  const providerWire = inferWireType(entry);
   return Object.values(models)
-    .map((model) => catalogModelToCapability(model))
+    .map((model) => catalogModelToCapability(model, providerWire))
     .filter((model): model is CatalogModel => model !== undefined);
+}
+
+/**
+ * Wire for one catalog model: its own `provider.npm` override wins, then the
+ * provider-level wire. Metadata decides the protocol — never the model name.
+ */
+export function resolveModelWire(
+  model: CatalogModelEntry,
+  providerWire?: ProviderType,
+): ProviderType | undefined {
+  return resolveWireFromPackage(model.provider?.npm) ?? providerWire;
+}
+
+/** Models of one catalog provider that share a wire, plus the API root for it. */
+export interface CatalogWireGroup {
+  readonly wire: ProviderType;
+  readonly baseUrl?: string;
+  readonly models: readonly CatalogModel[];
+}
+
+/**
+ * Partitions a catalog provider by wire. A gateway such as OpenCode Zen or Go
+ * yields one group per protocol it serves (`openai` for Chat Completions,
+ * `openai_responses` for the Responses API, `anthropic`, `google-genai`), each
+ * with the API root adapted for that wire, so callers can write one provider
+ * config per group instead of matching on model names.
+ *
+ * `options.wire` is the fallback for models whose catalog row names no package
+ * and that sit under a provider entry the catalog cannot classify; without it
+ * those models are dropped, since a model with no known protocol cannot be
+ * called.
+ */
+export function catalogWireGroups(
+  entry: CatalogProviderEntry,
+  options?: { readonly wire?: ProviderType },
+): CatalogWireGroup[] {
+  const fallbackWire = inferWireType(entry) ?? options?.wire;
+  const models = catalogProviderModels(entry);
+  const groups = new Map<ProviderType, CatalogModel[]>();
+  for (const model of models) {
+    const wire = model.wire ?? fallbackWire;
+    if (wire === undefined) continue;
+    const bucket = groups.get(wire);
+    if (bucket === undefined) groups.set(wire, [model]);
+    else bucket.push(model);
+  }
+  return [...groups.entries()].map(([wire, groupModels]): CatalogWireGroup => {
+    const baseUrl = catalogBaseUrl(entry, wire);
+    return { wire, ...(baseUrl === undefined ? {} : { baseUrl }), models: groupModels };
+  });
 }

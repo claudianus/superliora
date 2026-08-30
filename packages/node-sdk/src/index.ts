@@ -35,17 +35,24 @@ export {
   catalogModelToAlias,
   catalogProviderModels,
   catalogThinkingMetadata,
+  catalogWireGroups,
   CatalogFetchError,
   DEFAULT_CATALOG_URL,
   fetchCatalog,
   inferWireType,
   loadBuiltInCatalog,
+  packageForWire,
+  registerWireProfile,
+  resolveWireFromPackage,
+  wireProfiles,
 } from '#/catalog';
 export type {
   ApplyCatalogProviderOptions,
   Catalog,
   CatalogModel,
   CatalogProviderEntry,
+  CatalogWireGroup,
+  WireProfile,
 } from '#/catalog';
 
 export {
