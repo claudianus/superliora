@@ -968,6 +968,6 @@ export async function showConductorPoolPicker(host: SlashCommandHost): Promise<v
   const config = (await host.harness.getConfig({ reload: true })) as { loopControl?: Record<string, unknown> };
   const currentPool = (config.loopControl?.['conductorModelPool'] as string[] | undefined) ?? [];
   const mode = (config.loopControl?.['conductorPoolMode'] as string | undefined) ?? 'allowlist';
-  const hint = currentPool.length === 0 ? 'All healthy models (no pool filter)' : `Pool (${mode}): ${currentPool.join(', ')}`;
-  host.showNotice('Conductor model pool', `${hint}\nEdit via: liora provider route --conductor-pool "opencode/*" or set loopControl.conductorModelPool in config.toml`);
+  const hint = currentPool.length === 0 ? ttui('tui.model.conductorPoolAllHealthy') : `Pool (${mode}): ${currentPool.join(', ')}`;
+  host.showNotice(ttui('tui.model.conductorPoolTitle'), ttui('tui.model.conductorPoolDetail', { hint }));
 }

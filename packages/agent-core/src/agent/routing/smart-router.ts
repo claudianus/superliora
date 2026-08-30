@@ -622,8 +622,19 @@ export function matchesConductorPool(alias: string, pool: readonly string[], _mo
     if (e.endsWith('/*') && provider === e.slice(0, -2)) return true;
     if (e === provider) return true;
     if (e.includes('*')) {
-      const re = new RegExp('^' + e.replace(/[.+?^${}()|[\]\]/g, '\$&').replace(/\*/g, '.*') + '$');
-      if (re.test(lowerAlias)) return true;
+      const segments = e.split('*');
+      let pos = 0;
+      let ok = true;
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        if (seg.length === 0) continue;
+        const idx = lowerAlias.indexOf(seg, pos);
+        if (idx === -1) { ok = false; break; }
+        if (i === 0 && idx !== 0) { ok = false; break; }
+        if (i === segments.length - 1 && !lowerAlias.endsWith(seg)) { ok = false; break; }
+        pos = idx + seg.length;
+      }
+      if (ok) return true;
     }
   }
   return false;
@@ -637,9 +648,9 @@ export function resolveSessionSmartRoute(input: {
   readonly profileName?: string;
 }): SmartRoute | undefined {
   if (input.profileName === SOVEREIGN_CONDUCTOR_PROFILE_NAME) {
-    const pool = (input.config.loopControl as Record<string, unknown>)['conductorModelPool'] as string[] | undefined;
+    const pool = (input.config.loopControl as Record<string, unknown> | undefined)?.['conductorModelPool'] as string[] | undefined;
     if (pool !== undefined && pool.length > 0) {
-      const mode = ((input.config.loopControl as Record<string, unknown>)['conductorPoolMode'] as string | undefined) ?? 'allowlist';
+      const mode = ((input.config.loopControl as Record<string, unknown> | undefined)?.['conductorPoolMode'] as string | undefined) ?? 'allowlist';
       const poolHealthy = (alias: string): boolean => {
         if (!isConfigAliasHealthy(input.config, alias)) return false;
         return mode === 'blocklist' ? !matchesConductorPool(alias, pool, mode) : matchesConductorPool(alias, pool, mode);
@@ -687,3 +698,10 @@ export async function resolveSmartRouteAsync(
 export async function resolveSessionSmartRouteAsync(input: {
   readonly config: LioraConfig;
   readonly prompt?: string;
+
+  readonly sessionSpendUsd?: number;
+  readonly profileName?: string;
+}): Promise<SmartRoute | undefined> {
+  await getModelsDevData();
+  return resolveSessionSmartRoute(input);
+}
