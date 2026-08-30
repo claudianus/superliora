@@ -291,6 +291,7 @@ function showLoopRoleModelPicker(host: SlashCommandHost, role: LoopModelRoutingR
   }
   const inheritKey = '__inherit_parent__';
   const modelsWithInherit: Record<string, import('@superliora/sdk').ModelAlias> = {
+    ...host.state.appState.availableModels,
     [inheritKey]: {
       model: 'inherit',
       provider: 'inherit',
@@ -298,7 +299,6 @@ function showLoopRoleModelPicker(host: SlashCommandHost, role: LoopModelRoutingR
       maxContextSize: 128000,
       capabilities: ['tool_use'],
     } as unknown as import('@superliora/sdk').ModelAlias,
-    ...host.state.appState.availableModels,
   };
   mountPickerDialog(
     host,
