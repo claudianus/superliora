@@ -112,11 +112,14 @@ function hasSearchTriggers(description: string, whenToUse: string): boolean {
   return new Set(tokens).size >= 3;
 }
 
+/** Marker embedded in every gate rejection so callers can branch on it. */
+export const WRITING_QUALITY_GATE_MARKER = 'writing-for-agents quality gate';
+
 export function formatSkillWritingQualityFailure(
   issues: readonly SkillWritingQualityIssue[],
 ): string {
   return [
-    'SkillCreate rejected — writing-for-agents quality gate:',
+    `SkillCreate rejected — ${WRITING_QUALITY_GATE_MARKER}:`,
     ...issues.map((i) => `- ${i.message}`),
   ].join('\n');
 }

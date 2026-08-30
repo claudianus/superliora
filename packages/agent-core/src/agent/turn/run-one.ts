@@ -164,7 +164,7 @@ export async function runOneTurnFlow(
   if (errorEvent !== undefined) {
     agent.emitEvent(errorEvent);
   }
-  await recordTurnMemory(agent, turnId, input, ended.reason);
+  await recordTurnMemory(agent, turnId, input, ended.reason, origin.kind);
   scheduleTurnEndLearning(agent);
   if (ended.reason !== 'completed') {
     turnTelemetry.trackTurnInterrupted(turnId, turnTelemetry.currentStepForTurn(turnId));

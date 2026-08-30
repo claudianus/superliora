@@ -370,6 +370,32 @@ export function projectContext(
         // still carry them. Track the latest cutoff; blanking runs after the loop.
         microCutoff = rec.cutoff;
         break;
+      case 'context.rollback_attempt': {
+        // Mirror agent-core rollbackAttempt: cut live history back to
+        // `rec.historyLength` entries (injections included, unlike undo) and
+        // clear open steps. In 'full' mode keep the messages so debugging
+        // still sees what the failed attempt appended.
+        if (mode === 'model') {
+          const target = Math.max(0, rec.historyLength);
+          let passed = 0;
+          let sliceAt = messages.length;
+          for (let i = 0; i < messages.length; i++) {
+            if (passed >= target) {
+              sliceAt = i;
+              break;
+            }
+            if (isHistoryEntry(messages[i]!)) passed++;
+          }
+          if (passed <= target) sliceAt = messages.length;
+          messages = messages.slice(0, sliceAt);
+          openSteps = new Map();
+          const historyCount = messages.reduce((n, pm) => (isHistoryEntry(pm) ? n + 1 : n), 0);
+          microCutoff = Math.min(microCutoff, historyCount);
+        } else {
+          openSteps = new Map();
+        }
+        break;
+      }
       case 'goal.create':
         goal = {
           goalId: rec.goalId,

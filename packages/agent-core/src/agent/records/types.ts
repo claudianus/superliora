@@ -87,6 +87,7 @@ export interface AgentRecordEvents {
   'context.clear': {};
   'context.apply_compaction': CompactionResult;
   'context.undo': { count: number };
+  'context.rollback_attempt': { turnId: number; historyLength: number };
 
   'tools.update_store': ToolStoreUpdate;
 

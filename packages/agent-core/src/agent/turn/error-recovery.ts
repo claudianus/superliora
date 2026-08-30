@@ -161,6 +161,7 @@ export async function recoverFromProviderFailure(
   turnOrigin: PromptOrigin,
   signal: AbortSignal,
   initialEnd: TurnEndResult,
+  contextBaselineLength: number,
 ): Promise<TurnEndResult> {
   let end = initialEnd;
   // Snapshot primary fallbackModels before any silent switch mutates modelAlias.
@@ -211,6 +212,9 @@ export async function recoverFromProviderFailure(
       recoveryState = { ...recoveryState, userPrompted: true };
     }
 
+    // The failed attempt already appended the prompt + attempt injections;
+    // roll back to the pre-turn baseline so the retry does not duplicate them.
+    ctx.agent.context.rollbackAttempt(turnId, contextBaselineLength);
     end = await ctx.runOneTurn(turnId, turnInput, turnOrigin, signal, false);
 
     if (end.event.reason !== 'failed') {

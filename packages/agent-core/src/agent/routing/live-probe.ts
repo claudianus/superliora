@@ -118,6 +118,12 @@ export async function probeModelAlias(
   }
 
   const providerName = config.models[alias]?.provider ?? '';
+  // Fresh real-traffic success is stronger liveness evidence than any probe:
+  // the parent lane just completed a call on this alias, so skip the network
+  // round-trip even past a sticky probe-failure cooldown.
+  if (sharedModelRouteHealthStore.hasFreshTrafficSuccess(alias, now)) {
+    return { ok: true, alias, provider: providerName, fromCache: true };
+  }
   // Fresh failures are sticky — check before static health so a force retry
   // still short-circuits after alias/provider cooldowns land.
   if (isLiveProbeFailureFresh(alias, now)) {
@@ -281,7 +287,7 @@ async function defaultProbeRunner(
   const pinned = pinCompletionThinking(provider);
   if (pinned !== undefined) provider = pinned;
   if (typeof provider.withMaxCompletionTokens === 'function') {
-    provider = provider.withMaxCompletionTokens(1);
+    provider = provider.withMaxCompletionTokens(probeCompletionBudget(agent, alias, resolved, pinned !== undefined));
   }
 
   const history = [createUserMessage('ok')];
@@ -293,6 +299,24 @@ async function defaultProbeRunner(
     return;
   }
   await withAuth((auth) => generate(provider, system, [], history, undefined, { signal, auth }));
+}
+
+/** Thinking-forced models need completion headroom or the probe reads as empty. */
+const THINKING_PROBE_COMPLETION_TOKENS = 2048;
+
+function probeCompletionBudget(
+  agent: Agent,
+  alias: string,
+  resolved: { readonly alwaysThinking?: boolean | undefined },
+  thinkingPinned: boolean,
+): number {
+  if (thinkingPinned && resolved.alwaysThinking !== true) return 1;
+  const declaredAlwaysThinking =
+    resolved.alwaysThinking === true ||
+    (agent.runtimeConfig ?? agent.kimiConfig)?.models?.[alias]?.capabilities?.some(
+      (capability) => capability.trim().toLowerCase() === 'always_thinking',
+    ) === true;
+  return declaredAlwaysThinking ? THINKING_PROBE_COMPLETION_TOKENS : 1;
 }
 
 /** Floor short classifier cooldowns so mid-turn JobCreate retries stay sticky. */

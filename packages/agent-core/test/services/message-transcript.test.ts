@@ -467,6 +467,31 @@ describe('reduceWireRecords', () => {
     expect(foldedLength).toBe(2);
   });
 
+  it('rollback_attempt truncates the failed attempt tail back to the baseline', () => {
+    const { entries, foldedLength } = reduceWireRecords([
+      appendMessage(userMessage('older')),
+      appendMessage(userMessage('retry-me')),
+      appendMessage(
+        userMessage('<system-reminder>Tool workflow still ON</system-reminder>', {
+          kind: 'injection',
+          variant: 'system_reminder',
+        }),
+      ),
+      ...assistantStep('s1', 'partial'),
+      {
+        type: 'context.rollback_attempt',
+        turnId: 0,
+        historyLength: 1,
+      } as AgentRecord,
+      appendMessage(userMessage('retry-me')),
+    ]);
+    // The failed attempt (prompt copy + injection + partial assistant) is cut;
+    // the retried attempt's append is the only 'retry-me' in the live view.
+    expect(foldedLength).toBe(2);
+    expect(entries.map((e) => textOf(e.message))).toEqual(['older', 'retry-me']);
+    expect(entries.at(-1)?.message.role).toBe('user');
+  });
+
   it('wraps tool errors and empty outputs with <system> statuses like agent-core', () => {
     const { entries } = reduceWireRecords([
       loopEvent({ type: 'step.begin', uuid: 's1', turnId: 't', step: 0 }),

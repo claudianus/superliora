@@ -512,13 +512,33 @@ export class LioraMemoryStore {
     if (!this.isEnabled()) return [];
     if (this.config?.()?.captureMode === 'off') return [];
     if (context.agentType !== 'main') return [];
+    // Harness-authored turns (job-desk wakes, injections, hooks) read like
+    // preference directives but are not user intent — never mine them.
+    if (input.originKind !== undefined && input.originKind !== 'user') return [];
     const text = contentPartsToText(input.input).trim();
     if (text.length === 0 || shouldSkipMemoryText(text)) return [];
     const captures = extractMemoryCandidates(text, context, input, this.config?.());
     const saved: MemoryRecord[] = [];
+    const existingSignatures = new Set<string>();
+    let loadedExisting = false;
     for (const capture of captures) {
       try {
-        saved.push(await this.remember(capture));
+        const signature = recordSignatureKey(capture);
+        if (!loadedExisting) {
+          loadedExisting = true;
+          for (const record of await this.list({
+            status: 'active',
+            workspaceKey: context.workDir,
+            sessionId: context.sessionId,
+            limit: MAX_LIMIT,
+          })) {
+            existingSignatures.add(recordSignatureKey(record));
+          }
+        }
+        if (existingSignatures.has(signature)) continue;
+        const savedRecord = await this.remember(capture);
+        existingSignatures.add(signature);
+        saved.push(savedRecord);
       } catch {
         continue;
       }
@@ -699,4 +719,10 @@ class LioraMemoryAgentRuntime implements AgentMemoryRuntime {
     if (scope === 'workspace') return scopeKey === this.context.workDir;
     return scopeKey === this.context.sessionId;
   }
+}
+
+function recordSignatureKey(
+  record: Pick<MemoryCreateInput, 'type' | 'scope' | 'scopeKey' | 'content'>,
+): string {
+  return `${record.type}|${record.scope}|${record.scopeKey ?? ''}|${normalizeComparable(record.content)}`;
 }

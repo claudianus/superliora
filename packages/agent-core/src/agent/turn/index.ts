@@ -362,6 +362,7 @@ export class TurnFlow {
       if (initialGoalStatus === 'active' && !conductorMain) {
         return await this.driveGoal(firstTurnId, input, origin, signal);
       }
+      const contextBaselineLength = this.agent.context.history.length;
       let end = await this.runOneTurn(firstTurnId, input, origin, signal, true);
       if (end.event.reason === 'failed' && shouldEnterProviderRecovery(this.agent, end.event.error)) {
         end = await recoverFromProviderFailure(
@@ -371,6 +372,7 @@ export class TurnFlow {
           origin,
           signal,
           end,
+          contextBaselineLength,
         );
       }
       const goalBecameActive = this.agent.goal.getGoal().goal?.status === 'active';

@@ -66,6 +66,7 @@ export async function driveGoalTurnLoop(
     }
 
     await deps.agent.goal.incrementTurn();
+    const contextBaselineLength = deps.agent.context.history.length;
     let end = await deps.runOneTurn(turnId, turnInput, turnOrigin, signal, false);
     if (end.event.reason === 'failed' && shouldEnterProviderRecovery(deps.agent, end.event.error)) {
       end = await recoverFromProviderFailure(
@@ -75,6 +76,7 @@ export async function driveGoalTurnLoop(
         turnOrigin,
         signal,
         end,
+        contextBaselineLength,
       );
     }
 
@@ -175,9 +177,10 @@ export async function recordTurnMemory(
   turnId: number,
   input: readonly ContentPart[],
   reason: TurnEndReason,
+  originKind?: string,
 ): Promise<void> {
   try {
-    await agent.memory?.recordTurn({ turnId, input, reason });
+    await agent.memory?.recordTurn({ turnId, input, reason, originKind });
   } catch (error) {
     agent.log.warn('liora recall turn capture failed', error);
   }

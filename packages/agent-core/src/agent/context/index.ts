@@ -18,6 +18,7 @@ import {
   reclaimEphemeralUserMessagesFromContext,
   undoContextMessages,
 } from './context-memory-undo';
+import { rollbackAttemptContextMessages } from './context-memory-rollback';
 import {
   appendBashInputToContext,
   appendBashOutputToContext,
@@ -186,6 +187,16 @@ export class ContextMemory {
 
   undo(count: number): void {
     undoContextMessages(this.host, count);
+  }
+
+  /**
+   * Drop messages appended after `historyLength` (a failed turn attempt) so a
+   * recovery retry does not re-append the same prompt on top of the stale copy.
+   * No-op when the history is already at or below the baseline (e.g. a
+   * mid-attempt compaction shrank it).
+   */
+  rollbackAttempt(turnId: number, historyLength: number): boolean {
+    return rollbackAttemptContextMessages(this.host, turnId, historyLength);
   }
 
   reclaimEphemeralUserMessages(): number {

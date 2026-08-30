@@ -425,6 +425,7 @@ describe('provider failover', () => {
           error,
         },
       },
+      agent.context.history.length,
     );
 
     expect(end.event.reason).toBe('failed');
@@ -432,6 +433,93 @@ describe('provider failover', () => {
     expect(aliases.filter((alias) => alias === 'backup').length).toBeGreaterThanOrEqual(1);
     expect(aliases).toContain('last');
     expect(agent.config.modelAlias).toBe('last');
+    vi.restoreAllMocks();
+  });
+
+  it('rolls back the failed attempt context before each recovery re-run', async () => {
+    vi.spyOn(retry, 'sleepForRetry').mockResolvedValue(undefined);
+    const agent = new Agent({
+      kaos: testKaos,
+      config: {
+        providers: {
+          primary: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-test' },
+          backup: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-backup' },
+        },
+        models: {
+          primary: {
+            provider: 'primary',
+            model: 'gpt-test',
+            maxContextSize: 128_000,
+            fallbackModels: ['backup'],
+          },
+          backup: {
+            provider: 'backup',
+            model: 'gpt-backup',
+            maxContextSize: 128_000,
+          },
+        },
+      },
+    });
+    agent.config.update({ modelAlias: 'primary' });
+
+    const error = toKimiErrorPayload(new APIStatusError(500, 'server error', 'req-500'));
+    const input = [{ type: 'text' as const, text: 'retry-me' }];
+
+    // Mirror runOneTurnFlow: every attempt appends the user prompt, then the
+    // attempt fails until the third one (post-switch) completes.
+    let attempts = 0;
+    const runOneTurn = vi.fn(async () => {
+      attempts += 1;
+      agent.context.appendUserMessage(input, USER_PROMPT_ORIGIN);
+      if (attempts < 3) {
+        return {
+          event: {
+            type: 'turn.ended' as const,
+            turnId: 1,
+            reason: 'failed' as const,
+            durationMs: 1,
+            error,
+          },
+        };
+      }
+      return {
+        event: {
+          type: 'turn.ended' as const,
+          turnId: 1,
+          reason: 'completed' as const,
+          durationMs: 1,
+        },
+      };
+    });
+
+    const baseline = agent.context.history.length;
+    const end = await recoverFromProviderFailure(
+      { agent, runOneTurn },
+      1,
+      input,
+      USER_PROMPT_ORIGIN,
+      new AbortController().signal,
+      {
+        event: {
+          type: 'turn.ended',
+          turnId: 1,
+          reason: 'failed',
+          durationMs: 0,
+          error,
+        },
+      },
+      baseline,
+    );
+
+    expect(end.event.reason).toBe('completed');
+    expect(runOneTurn).toHaveBeenCalledTimes(3);
+    // Three attempts, but the recovered context keeps exactly one prompt copy.
+    const promptCopies = agent.context.history.filter(
+      (message) =>
+        message.role === 'user' &&
+        message.content.some((part) => part.type === 'text' && part.text === 'retry-me'),
+    );
+    expect(promptCopies).toHaveLength(1);
     vi.restoreAllMocks();
   });
 

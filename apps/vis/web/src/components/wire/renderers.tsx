@@ -276,6 +276,23 @@ export const WIRE_RENDERERS: RendererMap = {
     }),
   },
 
+  'context.rollback_attempt': {
+    tone: 'warning',
+    label: 'rollback',
+    headline: (r) => ({
+      main: (
+        <span className="flex items-center gap-2">
+          <Pill tone="warning" variant="soft">
+            rollback
+          </Pill>
+          <Dim>
+            turn {r.turnId} → {r.historyLength} msgs
+          </Dim>
+        </span>
+      ),
+    }),
+  },
+
   'tools.register_user_tool': {
     tone: 'tools',
     label: 'tool+',

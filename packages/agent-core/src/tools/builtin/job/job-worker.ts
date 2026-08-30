@@ -23,6 +23,7 @@ import {
 import { classifierDepsFromAgent } from '../../../utils/llm-classifier-utils';
 import { isDebugFixerJob, isExplorePrototypeJob } from './job-store-key';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
+import { removeSessionWorktree } from '../../../session/worktree';
 import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   isSubagentDeadlineError,
@@ -1127,11 +1128,53 @@ export async function cancelJobWorker(input: {
     { agent: input.agent, summary: input.reason },
   );
 
+  maybeRemoveNeverRanWorktree(input, existing);
+
   if (input.agent) {
     pumpSchedulerAfterWorker(input.agent, input.store);
   }
 
   return { ok: true, job, aborted };
+}
+
+/**
+ * A job cancelled before any worker ever bound to it keeps only a pristine
+ * baseline worktree (git bootstrap + empty branch). That is pure debris —
+ * drop it immediately instead of holding it for the failed-worktree TTL.
+ * Jobs that ran a worker keep the 7-day forensics retention.
+ */
+function maybeRemoveNeverRanWorktree(
+  input: { readonly store: ToolStore; readonly agent?: Agent },
+  job: JobRecord,
+): void {
+  if (input.agent === undefined) return;
+  if (job.workerAgentId !== undefined || job.workerResumeAgentId !== undefined) return;
+  if (job.worktreePath === undefined) return;
+  if (job.landReceipt !== undefined || job.resultSummary !== undefined || job.resultContract !== undefined) return;
+  if (job.sessionNamePinned === true) return;
+  const worktreePath = job.worktreePath;
+  const worktreeBranch = job.worktreeBranch;
+  void removeSessionWorktree(input.agent.kaos, { nameOrPath: worktreePath })
+    .then(() => {
+      patchJobAndNotify(
+        input.store,
+        job.id,
+        {
+          worktreePath: undefined,
+          worktreeBranch: undefined,
+          notes: 'cancel: pristine worktree removed (no worker ever ran)',
+        },
+        { agent: input.agent },
+      );
+    })
+    .catch((error: unknown) => {
+      input.agent?.log?.warn('cancel cleanup: pristine worktree removal failed', {
+        jobId: job.id,
+        worktreePath,
+        worktreeBranch,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
 }
 
 /**

@@ -177,6 +177,34 @@ describe('live-probe', () => {
     expect(calls).toBe(1);
   });
 
+  it('fresh real-traffic success proves liveness past a sticky probe failure', async () => {
+    let calls = 0;
+    setLiveProbeRunnerForTests(async () => {
+      calls += 1;
+      throw new APIStatusError(500, 'server error', 'req-500');
+    });
+    const agent = makeAgent(makeConfig());
+
+    // Probe fails: the alias is sticky-dead for the probe_fail TTL.
+    const failed = await probeModelAlias(agent, 'primary', { force: true });
+    expect(failed.ok).toBe(false);
+    const cachedFail = await probeModelAlias(agent, 'primary', { force: true });
+    expect(cachedFail.ok).toBe(false);
+    expect(cachedFail.fromCache).toBe(true);
+    expect(calls).toBe(1);
+    expect(sharedModelRouteHealthStore.isAvailable('primary')).toBe(false);
+
+    // Real traffic then succeeded on the same alias (parent lane mid-turn) —
+    // actual generation is stronger liveness evidence than the failed probe.
+    sharedModelRouteHealthStore.markTrafficSuccess('primary');
+    expect(sharedModelRouteHealthStore.isAvailable('primary')).toBe(true);
+
+    const ok = await probeModelAlias(agent, 'primary', { force: true });
+    expect(ok.ok).toBe(true);
+    expect(ok.fromCache).toBe(true);
+    expect(calls).toBe(1);
+  });
+
   it('invalidates success cache so the next probe hits the network', async () => {
     let calls = 0;
     setLiveProbeRunnerForTests(async () => {
