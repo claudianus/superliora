@@ -1,5 +1,15 @@
 # @superliora/liora
 
+## 0.20.0
+
+### Minor Changes
+
+- Resolve catalog wires per model from metadata and split multi-protocol providers by wire. A gateway that serves several protocols from one API root now picks the wire from the model's `provider.npm` and each protocol receives its own provider entry with the correct API root.
+
+### Patch Changes
+
+- Move the inherit entry to the end of the picker so it preserves the row index when toggling worker inherit-parent.
+
 ## 0.19.0
 
 ### Minor Changes

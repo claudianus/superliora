@@ -1,6 +1,6 @@
 {
   "name": "@superliora/sdk",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "private": true,
   "description": "TypeScript SDK for the SuperLiora Agent",
   "license": "MIT",
