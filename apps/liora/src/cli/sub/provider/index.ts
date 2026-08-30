@@ -410,6 +410,9 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
           const trimmed = options.roles.trim();
           if (trimmed.length === 0 || trimmed.toLowerCase() === 'none' || trimmed.toLowerCase() === 'clear') {
             delete next['workerInheritParentRoles'];
+          } else if (trimmed.toLowerCase() === 'all') {
+            next['workerInheritParentRoles'] = ['compaction','completion','exploration','coding','planning','debugging'];
+          } else {
             const roles = trimmed.split(',').map((s) => s.trim().toLowerCase()).filter((s) => s.length > 0);
             const valid = new Set(['compaction','completion','exploration','coding','planning','debugging']);
             const invalid = roles.filter((r) => !valid.has(r));
@@ -420,6 +423,16 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
         await harness.setConfig({ loopControl: next as never });
         resolved.stdout.write('Worker inherit updated\n');
       });
+    });
+
+
+  route
+    .command('show <modelAlias>')
+    .description(t('cli.sub.provider.cmd.routeShow.desc'))
+    .action(async (modelAlias: string) => {
+      const resolved = resolveDeps(deps);
+      await runAction(resolved, () => handleProviderRouteShow(resolved, modelAlias));
+    });
 
   route
     .command('preview <modelAlias>')
