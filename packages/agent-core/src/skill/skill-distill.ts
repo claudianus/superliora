@@ -36,7 +36,7 @@ const LessonGateSchema = z
       z.enum(LESSON_KINDS).optional(),
     ),
     rationale: z.string(),
-    focus: z.string().optional(),
+    focus: z.string().nullish(),
   })
   .strict();
 
