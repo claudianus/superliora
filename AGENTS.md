@@ -54,7 +54,7 @@ Package boundaries stay as in Project Map. Inside a package:
 
 ## Local test gate (MANDATORY)
 
-**Never push to find out whether tests pass.** GitHub CI is a ~15-minute backstop. The full suite is a few minutes on Linux CI / fast hosts, and about 15 minutes on a typical Windows workstation (import cost dominates, not assertion count). A red CI run that a local run would have caught is a process failure, not bad luck.
+**Never push to find out whether tests pass.** GitHub CI is a ~15-minute backstop (per-push Windows CI runs a Windows-critical subset; the full Windows suite gates the nightly schedule and release tags). The full suite is a few minutes on Linux CI / fast hosts, and about 15 minutes on a typical Windows workstation (import cost dominates, not assertion count). A red CI run that a local run would have caught is a process failure, not bad luck.
 
 | When | Command | Cost |
 |---|---|---|
@@ -115,7 +115,7 @@ Rules:
 - User-visible prose (PR body, changeset, docs): light no-slop pass; skill at `.agents/skills/no-ai-slop/SKILL.md` when needed.
 - Before opening a PR: run `.agents/skills/gen-changesets/SKILL.md` and add `.changeset/` as required. `pnpm run check:changeset` enforces presence against `origin/main` (product code without a changeset fails).
   - **Never write `major` without explicit user approval.** Default `minor`, else `patch` if impact is unclear.
-- **Release reminder (MANDATORY after land):** `commit` → `push` → PR `merge` to `main` does **not** publish a user-facing build. There is **no** auto-release on merge (no `changesets/action` version/publish job). `liora upgrade` tracks the GitHub Release / published `@superliora/liora` version, not arbitrary `main` commits. After merging product work that carries a `@superliora/liora` changeset (or otherwise should ship to CLI users), **remind the operator that a release cut is still required** before `liora upgrade` / install scripts pick it up. Do **not** cut or publish a release unless the user explicitly asks.
+- **Release train (automated):** landing a `@superliora/liora` changeset and getting a green CI run on `main` ships it — `.github/workflows/auto-release.yml` versions the pending changesets, commits `chore(liora): release X.Y.Z`, tags `vX.Y.Z`, and dispatches `publish-native-release.yml`. No manual release cut or reminder is needed. Intervene only when the Auto Release run fails (re-run it via its `workflow_dispatch` after fixing). `major` still requires explicit user approval in the changeset, and pushing a `v*` tag yourself still triggers a publish — do that only when the user explicitly asks.
 
 ## Git commit policy (author + message)
 
@@ -174,7 +174,7 @@ Two independent lines:
 - Upstream-port PRs update `meta/upstream.lock.yaml`, refresh via `pnpm -C apps/liora run prebuild` (or `build`), and mention baseline in the changeset when user-visible.
 - SuperLiora-only work leaves `meta/upstream.lock.yaml` alone.
 - Internal package versions stay internal; only `@superliora/liora` is the release number. `/status` may show the baseline; `--version` stays short.
-- Changesets on `main` are inventory until someone versions/tags/publishes (native assets via `publish-native-release.yml` / related manual workflows). Pending `.changeset/` files ≠ a new `liora --version`.
+- Changesets land as inventory; the auto-release train consumes only files added after the last `chore(liora): release` commit, so long-lived unconsumed `.changeset/` files (older inventory) stay dormant until deliberately released. Pending `.changeset/` files ≠ a new `liora --version`.
 
 ## Nested guides
 
