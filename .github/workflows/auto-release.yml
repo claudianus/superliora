@@ -1,0 +1,101 @@
+name: Auto Release
+
+# Landing product changes on main should ship, not wait for a human. When CI
+# goes green on a main push and pending changesets exist, version + commit the
+# release, then dispatch the native publish workflow for the new tag.
+#
+# Loop guards:
+# - The release commit itself carries no changesets -> next run exits early.
+# - GITHUB_TOKEN pushes do not trigger CI or tag workflows, so the release
+#   commit cannot re-enter this workflow or CI; the publish run is dispatched
+#   explicitly below.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Detect releasable state
+        id: detect
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          head_sha="$(git rev-parse HEAD)"
+          if [[ "$head_sha" != "$EXPECTED_SHA" ]]; then
+            echo "reason=main moved past the green run ($head_sha != $EXPECTED_SHA)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          head_msg="$(git log -1 --pretty=%s)"
+          if [[ "$head_msg" == "chore(liora): release"* ]]; then
+            echo "reason=release commit" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          count="$(find .changeset -maxdepth 1 -name '*.md' ! -name 'README.md' | wc -l)"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Version release
+        id: version
+        if: steps.detect.outputs.count != '' && steps.detect.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          node scripts/release-version.mjs
+          version="$(node -p "require('./apps/liora/package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag
+        if: steps.version.outputs.version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "SuperLiora"
+          git config user.email "superliora@localhost"
+          body="$(awk '/^## '"$VERSION"'$/{flag=1;next}/^## [0-9]/{flag=0}flag' apps/liora/CHANGELOG.md | grep '^- ' | head -5)"
+          git add -A
+          if [ -n "$body" ]; then
+            git commit -m "chore(liora): release $VERSION" -m "$body"
+          else
+            git commit -m "chore(liora): release $VERSION"
+          fi
+          git tag "v$VERSION"
+          git push origin main "v$VERSION"
+
+      - name: Dispatch native publish
+        if: steps.version.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh workflow run publish-native-release.yml --ref main -f "tag=v$VERSION"
+          echo "dispatched publish-native-release for v$VERSION"

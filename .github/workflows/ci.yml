@@ -8,6 +8,13 @@ on:
   push:
     branches:
     - main
+    tags:
+    - 'v*'
+  # Nightly full-matrix pass: per-push Windows CI runs a Windows-critical
+  # subset only, so the full Windows suite runs here as the safety net.
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -45,10 +52,38 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/test-local.mjs --all
-      - run: pnpm run check:test-baseline
+      # The unified run also emits a jest-format results file; the baseline
+      # ratchet consumes it instead of re-running vitest per package (~7 min).
+      - run: node scripts/test-local.mjs --all --failures-json test-results.json
+      - run: node scripts/check-test-baseline.mjs --from-json test-results.json
 
+  # Windows is a first-class platform, but the full suite on windows-latest
+  # costs ~27 min and Linux already covers it on every push. Per-push Windows
+  # CI runs the Windows-critical surfaces (TUI/CLI, renderer, FS/process
+  # abstractions, ACP, in-process e2e); the FULL Windows suite gates the
+  # nightly schedule, release tags, and manual dispatch below.
   test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/test-local.mjs apps/liora/test packages/tui-renderer/test packages/kaos/test packages/acp-adapter/test packages/server-e2e/test --testTimeout=30000 --maxWorkers=2
+
+  test-windows-full:
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 45
 

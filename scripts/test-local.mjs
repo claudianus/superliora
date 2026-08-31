@@ -15,6 +15,7 @@
 //
 // Any other flag is forwarded to vitest (`--bail=1`, `--reporter=dot`, `-t name`, …).
 import { spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -224,7 +225,15 @@ if (baseIdx >= 0 && base === undefined) {
 }
 const baseArgIndices = baseIdx >= 0 ? [baseIdx, baseIdx + 1] : [];
 const LOCAL_FLAGS = new Set(['--all', '--scope', '--self-check', '--direct']);
-const forwarded = argv.filter((arg, i) => !LOCAL_FLAGS.has(arg) && !baseArgIndices.includes(i));
+const failuresJsonIdx = argv.indexOf('--failures-json');
+if (failuresJsonIdx >= 0 && argv[failuresJsonIdx + 1] === undefined) {
+  console.error('test-local: --failures-json requires a file path');
+  process.exit(2);
+}
+const failuresJsonPath = failuresJsonIdx >= 0 ? argv[failuresJsonIdx + 1] : undefined;
+const skipIndices = new Set(baseArgIndices);
+if (failuresJsonIdx >= 0) skipIndices.add(failuresJsonIdx).add(failuresJsonIdx + 1);
+const forwarded = argv.filter((arg, i) => !LOCAL_FLAGS.has(arg) && !skipIndices.has(i));
 const hasExplicitFilter = forwarded.some((arg) => !arg.startsWith('-'));
 const direct = argv.includes('--direct');
 
@@ -243,10 +252,22 @@ if (!argv.includes('--all') && !hasExplicitFilter) {
     console.log(`test-local: scoped — ${affected.reason}`);
   }
 }
-if (scopeOnly || nothingToRun) process.exit(0);
+if (scopeOnly || nothingToRun) {
+  if (failuresJsonPath !== undefined) {
+    // Downstream baseline checks expect a results file even when nothing ran.
+    writeFileSync(failuresJsonPath, JSON.stringify({ numTotalTests: 0, numPassedTests: 0, numFailedTests: 0, testResults: [] }));
+  }
+  process.exit(0);
+}
 
 const started = Date.now();
-const res = spawnSync(pnpmBin, ['exec', 'vitest', 'run', ...filters, ...forwarded], {
+const vitestArgs = [...filters, ...forwarded];
+if (failuresJsonPath !== undefined) {
+  // Extra reporter alongside the default one; jest-format JSON consumed by
+  // scripts/check-test-baseline.mjs --from-json (avoids re-running vitest).
+  vitestArgs.push('--reporter=default', '--reporter=json', `--outputFile.json=${failuresJsonPath}`);
+}
+const res = spawnSync(pnpmBin, ['exec', 'vitest', 'run', ...vitestArgs], {
   cwd: repoRoot,
   env: parityEnv(),
   stdio: 'inherit',

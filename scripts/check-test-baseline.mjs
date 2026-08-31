@@ -115,9 +115,74 @@ if (LIST) {
   process.exit(0);
 }
 
+/**
+ * Consume a unified vitest JSON report (from `test-local.mjs --failures-json`)
+ * instead of re-running vitest per package. Aggregates failed test names per
+ * baseline package by matching result file paths; refuses to judge packages
+ * the report does not cover.
+ */
+function resultsFromJson(path) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(path, 'utf8'));
+  } catch (error) {
+    console.error(`test-baseline: could not read unified results ${path}: ${error.message}`);
+    process.exit(2);
+  }
+  const perPkg = new Map(
+    baseline.packages.map((p) => [
+      p.dir,
+      { failed: [], totals: { total: 0, passed: 0, failed: 0 } },
+    ]),
+  );
+  const roots = baseline.packages.map((p) => ({
+    dir: p.dir,
+    prefix: `${join(repoRoot, p.dir).replaceAll('\\', '/')}/`,
+  }));
+  for (const tr of parsed.testResults ?? []) {
+    const file = String(tr.name ?? '').replaceAll('\\', '/');
+    const owner = roots
+      .filter((r) => file.startsWith(r.prefix))
+      .toSorted((a, b) => b.prefix.length - a.prefix.length)[0];
+    if (owner === undefined) continue;
+    const bucket = perPkg.get(owner.dir);
+    for (const ar of tr.assertionResults ?? []) {
+      if (ar.status === 'skipped') continue;
+      bucket.totals.total += 1;
+      if (ar.status === 'failed') {
+        bucket.failed.push(ar.fullName ?? ar.title ?? '<unknown>');
+        bucket.totals.failed += 1;
+      } else {
+        bucket.totals.passed += 1;
+      }
+    }
+  }
+  const uncovered = baseline.packages.filter((p) => {
+    const pinned = p.failures.length + (p.unstable?.length ?? 0);
+    return pinned > 0 && perPkg.get(p.dir).totals.total === 0;
+  });
+  if (uncovered.length > 0) {
+    console.error(
+      'test-baseline: unified results do not cover baseline package(s): ' +
+        uncovered.map((p) => p.dir).join(', ') +
+        ' — run the full suite (test-local.mjs --all --failures-json <file>)',
+    );
+    process.exit(2);
+  }
+  return perPkg;
+}
+
+const argvAll = process.argv.slice(2);
+const fromJsonIdx = argvAll.indexOf('--from-json');
+if (fromJsonIdx >= 0 && argvAll[fromJsonIdx + 1] === undefined) {
+  console.error('test-baseline: --from-json requires a file path');
+  process.exit(2);
+}
+const results = fromJsonIdx >= 0 ? resultsFromJson(argvAll[fromJsonIdx + 1]) : null;
+
 let problems = 0;
 for (const pkg of baseline.packages) {
-  const { failed, totals } = runVitest(pkg.dir);
+  const { failed, totals } = results !== null ? results.get(pkg.dir) : runVitest(pkg.dir);
   const expected = new Set(pkg.failures);
   const unstable = new Set(pkg.unstable ?? []);
   const known = new Set([...expected, ...unstable]);
