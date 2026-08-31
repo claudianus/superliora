@@ -16,7 +16,12 @@ if (baseIdx >= 0 && !base) {
 }
 
 function git(...args) {
-  const res = spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+  const res = spawnSync('git', args, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    // Large refactors (e.g. dropping a vendored tree) exceed the 1MB default.
+    maxBuffer: 64 * 1024 * 1024,
+  });
   if (res.status !== 0) {
     console.error(`check-changeset: git ${args.join(' ')} failed:\n${res.stderr}`);
     process.exit(2);
