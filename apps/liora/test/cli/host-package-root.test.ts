@@ -33,18 +33,73 @@ describe('host package root fallbacks', () => {
 });
 
 describe('handleBrowserUseCommand packaged host', () => {
-  it('doctor tells the operator to restart from the source GUI when packageRoot is missing', async () => {
-    const info = vi.fn();
+  it('doctor still probes runtimes when packageRoot is missing (no source-restart gate)', async () => {
+    const info = vi.fn().mockResolvedValue({
+      ok: true,
+      code: 0,
+      stdout: 'probes-ok',
+      stderr: '',
+      command: ['info'],
+    });
+    const stdout: string[] = [];
     const stderr: string[] = [];
 
     await expect(handleBrowserUseCommand('doctor', {
-      stdout: { write: () => true },
+      stdout: { write: (chunk: string) => { stdout.push(chunk); return true; } },
       stderr: { write: (chunk: string) => { stderr.push(chunk); return true; } },
       packageRoot: () => undefined,
       info,
-    })).resolves.toBe(1);
+    })).resolves.toBe(0);
 
-    expect(info).not.toHaveBeenCalled();
-    expect(stderr.join('')).toMatch(/source GUI|소스 GUI/i);
+    expect(info).toHaveBeenCalledWith({ packageRoot: undefined, quiet: true });
+    expect(stderr.join('')).not.toMatch(/source GUI|소스 GUI/i);
+    expect(stdout.join('')).toContain('probes-ok');
+  });
+
+  it('install without packageRoot repairs the node_modules sidecars first', async () => {
+    const install = vi.fn().mockResolvedValue({
+      ok: true,
+      code: 0,
+      stdout: 'browsers-ok',
+      stderr: '',
+      command: ['install'],
+    });
+    const installSidecars = vi.fn().mockReturnValue({ ok: true, detail: 'sidecars installed' });
+    const stdout: string[] = [];
+
+    await expect(handleBrowserUseCommand('install', {
+      stdout: { write: (chunk: string) => { stdout.push(chunk); return true; } },
+      stderr: { write: () => true },
+      packageRoot: () => undefined,
+      install,
+      installSidecars,
+    })).resolves.toBe(0);
+
+    expect(installSidecars).toHaveBeenCalledTimes(1);
+    expect(install).toHaveBeenCalledWith({ packageRoot: undefined, quiet: true });
+    expect(stdout.join('')).toContain('sidecars installed');
+  });
+
+  it('install continues with browser setup when sidecar repair fails', async () => {
+    const install = vi.fn().mockResolvedValue({
+      ok: true,
+      code: 0,
+      stdout: 'browsers-ok',
+      stderr: '',
+      command: ['install'],
+    });
+    const installSidecars = vi.fn().mockReturnValue({ ok: false, detail: 'sidecar install failed: boom' });
+    const stderr: string[] = [];
+
+    await expect(handleBrowserUseCommand('install', {
+      stdout: { write: () => true },
+      stderr: { write: (chunk: string) => { stderr.push(chunk); return true; } },
+      packageRoot: () => undefined,
+      install,
+      installSidecars,
+    })).resolves.toBe(0);
+
+    expect(install).toHaveBeenCalledTimes(1);
+    expect(stderr.join('')).toContain('sidecar install failed');
   });
 });

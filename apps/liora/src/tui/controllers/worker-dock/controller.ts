@@ -20,6 +20,7 @@ import { emptyConductorJobsSnapshot } from '../../utils/job/job-strip';
 import type { WorkerDockMode } from '../../features/worker-dock/dock';
 import { workerDockModeOf } from '../../features/worker-dock/dock';
 import { WorkerDockRegistry } from './registry';
+import type { WorkerDockGhostJob } from './registry';
 
 export interface WorkerDockHost {
   readonly state: TUIState;
@@ -42,13 +43,7 @@ export class WorkerDockController {
    */
   hydrateGhostsFromJobs(
     jobs: ReturnType<typeof emptyConductorJobsSnapshot> | {
-      readonly jobs: readonly {
-        readonly id: string;
-        readonly title: string;
-        readonly status: string;
-        readonly workerAgentId?: string;
-        readonly progress?: { readonly phase?: string };
-      }[];
+      readonly jobs: readonly WorkerDockGhostJob[];
     },
   ): void {
     if (this.registry.hydrateJobGhosts(jobs.jobs)) {

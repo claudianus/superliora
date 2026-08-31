@@ -28,6 +28,7 @@ import {
   type CamoufoxBinaryOptions,
 } from './camoufox-binary';
 import { PlaywrightPageHarness } from './playwright-page-harness';
+import { loadPlaywrightCore } from './playwright-core-resolver';
 
 export interface CamoufoxBrowserRuntimeOptions extends CamoufoxBinaryOptions {
   readonly headless?: boolean | undefined;
@@ -109,7 +110,7 @@ export class CamoufoxBrowserRuntime implements BrowserUseRuntime {
 
   private async connectBrowser(signal?: AbortSignal): Promise<Browser> {
     throwIfAborted(signal);
-    const { firefox } = await import('playwright-core');
+    const { firefox } = await loadPlaywrightCore();
     const launch = async () => firefox.launch({
       executablePath: resolveCamoufoxBinaryPath(this.options),
       headless: this.options.headless ?? true,

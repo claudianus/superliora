@@ -32,6 +32,17 @@ describe('parseLessonGate', () => {
     expect(() => parseLessonGate('not json')).toThrow(SkillDistillError);
   });
 
+  it('accepts an explicit null focus (models emit null, not absent)', () => {
+    // Regression: auto-skillify distill failed with
+    // "focus: Invalid input: expected string, received null" when the gate
+    // JSON carried `focus: null` for a no-lesson answer.
+    const gate = parseLessonGate(
+      JSON.stringify({ hasLesson: false, rationale: 'first-try success', focus: null }),
+    );
+    expect(gate.hasLesson).toBe(false);
+    expect(gate.focus ?? undefined).toBeUndefined();
+  });
+
   it('drops an unknown lessonKind instead of failing the gate', () => {
     const gate = parseLessonGate(
       JSON.stringify({

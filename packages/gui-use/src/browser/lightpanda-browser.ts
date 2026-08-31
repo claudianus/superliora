@@ -32,6 +32,7 @@ import {
   type LightpandaBinaryOptions,
 } from './lightpanda-binary';
 import { PlaywrightPageHarness } from './playwright-page-harness';
+import { loadPlaywrightCore } from './playwright-core-resolver';
 
 export interface LightpandaBrowserRuntimeOptions extends LightpandaBinaryOptions {
   readonly host?: string | undefined;
@@ -153,7 +154,7 @@ export class LightpandaBrowserRuntime implements BrowserUseRuntime {
   }
 
   private async launchOverCdp(): Promise<Browser> {
-    const { chromium } = await import('playwright-core');
+    const { chromium } = await loadPlaywrightCore();
     const { spawn } = await import('node:child_process');
     const host = this.options.host ?? '127.0.0.1';
     const port = this.options.port ?? await findFreePort(host);
