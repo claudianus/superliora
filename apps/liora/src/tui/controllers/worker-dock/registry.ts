@@ -115,6 +115,39 @@ export interface DockWorker {
   readonly liveText?: string;
   /** Wall time of the last live-stream delta. */
   readonly liveAtMs?: number;
+  /**
+   * Ledger provenance for ghost rows seeded from the Conductor Job ledger
+   * (`job-ghost:*`). `kind` tells a goal-desk umbrella (no worker behind it)
+   * apart from a real driver; `status` is the raw ledger status at hydrate.
+   */
+  readonly ledger?: { readonly kind: string; readonly status: string };
+}
+
+/**
+ * Job-card subset the ghost hydrator consumes (structural — ConductorJobCard
+ * satisfies it). Telemetry fields make ghost rows show the lane's live state
+ * instead of a bare title.
+ */
+export interface WorkerDockGhostJob {
+  readonly id: string;
+  readonly title: string;
+  readonly status: string;
+  readonly workerAgentId?: string;
+  readonly kind?: string;
+  readonly parentJobId?: string;
+  readonly progress?: {
+    readonly phase?: string;
+    readonly recentTools?: readonly string[];
+    readonly stepsCompleted?: number;
+    readonly stepsTotal?: number;
+  };
+  readonly liveActivity?: {
+    readonly name: string;
+    readonly target?: string;
+    readonly preview?: string;
+    readonly previewKind?: 'stdout' | 'stderr' | 'progress' | 'status';
+  };
+  readonly liveTokens?: number;
 }
 
 export interface DockOpsEntry {
@@ -177,6 +210,8 @@ interface MutableWorker {
   liveAtMs?: number;
   /** `subagent.tool_progress` tail is keyed by this toolCallId. */
   liveToolCallId?: string;
+  /** Ledger provenance (see {@link DockWorker.ledger}). */
+  ledger?: { readonly kind: string; readonly status: string };
 }
 
 const ACTIVE_STATUSES: ReadonlySet<DockWorkerStatus> = new Set([
@@ -210,16 +245,10 @@ export class WorkerDockRegistry {
    * Seed suspended/finishing ghost rows from the Job ledger so Worker Dock
    * is not empty after crash/resume before live subagent events arrive.
    * Ghost ids are `job-ghost:<jobId>`; dropped when a live workerAgentId is present.
+   * Goal-desk ghosts mirror their driver lane (phase/status) so the desk row
+   * reflects live goal state instead of sitting as a bare title.
    */
-  hydrateJobGhosts(
-    jobs: readonly {
-      readonly id: string;
-      readonly title: string;
-      readonly status: string;
-      readonly workerAgentId?: string;
-      readonly progress?: { readonly phase?: string };
-    }[],
-  ): boolean {
+  hydrateJobGhosts(jobs: readonly WorkerDockGhostJob[]): boolean {
     let changed = false;
     const wanted = new Set<string>();
     const nowMs = this.now();
@@ -244,11 +273,39 @@ export class WorkerDockRegistry {
       const status: DockWorkerStatus =
         job.status === 'running' ? 'finishing' : 'suspended';
       const title = job.title.trim();
+      const ledger =
+        job.kind === undefined || job.kind.length === 0
+          ? undefined
+          : { kind: job.kind, status: job.status };
+      // Goal-desk umbrella: mirror the driver lane so the row reads live.
+      const driver =
+        job.kind === 'goal-desk' ? pickDeskDriver(jobs, job.id) : undefined;
+      const driverPhase = driver?.progress?.phase?.trim();
+      const driverLabel =
+        driver !== undefined
+          ? driverPhase !== undefined && driverPhase.length > 0
+            ? `driver · ${driverPhase}`
+            : `driver ${driver.status}`
+          : undefined;
       const phase = job.progress?.phase?.trim();
       // Paint the job title, not a "Resuming…" placeholder — the dock LIVE
       // cell used to look like every worker was stuck resuming.
       const description =
-        phase && phase.length > 0 ? phase : title.length > 0 ? title : job.id;
+        driverLabel ??
+        (phase && phase.length > 0 ? phase : title.length > 0 ? title : job.id);
+      const lastTool = job.liveActivity?.name ?? job.progress?.recentTools?.at(-1);
+      const lastTarget = job.liveActivity?.target;
+      const tokens = job.liveTokens;
+      const stepsTotal = job.progress?.stepsTotal;
+      const todoTotal = stepsTotal !== undefined && stepsTotal > 0 ? stepsTotal : undefined;
+      const todoDone =
+        todoTotal !== undefined ? (job.progress?.stepsCompleted ?? 0) : undefined;
+      const preview = job.liveActivity?.preview;
+      const previewText =
+        preview === undefined || preview.length === 0 ? undefined : preview;
+      const liveKind =
+        previewText === undefined ? undefined : (job.liveActivity?.previewKind ?? 'status');
+      const liveText = previewText === undefined ? undefined : liveTextTail(previewText);
       const existing = this.workers.get(ghostId);
       if (existing !== undefined) {
         const nextName = title.length > 0 ? title.slice(0, 80) : job.id;
@@ -258,11 +315,33 @@ export class WorkerDockRegistry {
         if (
           existing.status !== status ||
           existing.name !== nextName ||
-          existing.description !== nextDescription
+          existing.description !== nextDescription ||
+          !ledgerEqual(existing.ledger, ledger) ||
+          existing.lastTool !== lastTool ||
+          existing.lastTarget !== lastTarget ||
+          existing.tokens !== (tokens ?? existing.tokens) ||
+          existing.todoDone !== todoDone ||
+          existing.todoTotal !== todoTotal ||
+          existing.liveBuffer !== liveText
         ) {
           existing.status = status;
           existing.name = nextName;
           existing.description = nextDescription;
+          if (ledger === undefined) delete existing.ledger;
+          else existing.ledger = ledger;
+          if (lastTool === undefined) delete existing.lastTool;
+          else existing.lastTool = lastTool;
+          if (lastTarget === undefined) delete existing.lastTarget;
+          else existing.lastTarget = lastTarget;
+          if (tokens !== undefined) existing.tokens = tokens;
+          if (todoDone === undefined) delete existing.todoDone;
+          else existing.todoDone = todoDone;
+          if (todoTotal === undefined) delete existing.todoTotal;
+          else existing.todoTotal = todoTotal;
+          if (liveText === undefined) delete existing.liveBuffer;
+          else existing.liveBuffer = liveText;
+          if (liveKind === undefined) delete existing.liveKind;
+          else existing.liveKind = liveKind;
           existing.lastActivityAtMs = nowMs;
           changed = true;
         }
@@ -274,9 +353,18 @@ export class WorkerDockRegistry {
         kind: 'subagent',
         status,
         description,
+        ...(ledger === undefined ? {} : { ledger }),
+        ...(lastTool === undefined ? {} : { lastTool }),
+        ...(lastTarget === undefined ? {} : { lastTarget }),
+        ...(tokens === undefined ? {} : { tokens }),
+        ...(todoDone === undefined ? {} : { todoDone }),
+        ...(todoTotal === undefined ? {} : { todoTotal }),
+        ...(liveKind === undefined || liveText === undefined
+          ? {}
+          : { liveKind, liveBuffer: liveText, liveAtMs: nowMs }),
         runInBackground: true,
         toolCount: 0,
-        tokens: 0,
+        tokens: tokens ?? 0,
         spawnedAtMs: nowMs,
         lastActivityAtMs: nowMs,
       });
@@ -385,6 +473,7 @@ export class WorkerDockRegistry {
           ? {}
           : { liveText: liveTextTail(worker.liveBuffer) }),
         ...(worker.liveAtMs === undefined ? {} : { liveAtMs: worker.liveAtMs }),
+        ...(worker.ledger === undefined ? {} : { ledger: worker.ledger }),
       });
     }
     // Status buckets first; within a bucket keep spawn order so heartbeats
@@ -818,6 +907,28 @@ function clearLiveStream(worker: MutableWorker): void {
   delete worker.liveBuffer;
   delete worker.liveAtMs;
   delete worker.liveToolCallId;
+}
+
+/** Running driver first, else the first driver child of the desk job. */
+function pickDeskDriver(
+  jobs: readonly WorkerDockGhostJob[],
+  deskJobId: string,
+): WorkerDockGhostJob | undefined {
+  let first: WorkerDockGhostJob | undefined;
+  for (const job of jobs) {
+    if (job.kind !== 'goal-driver' || job.parentJobId !== deskJobId) continue;
+    if (job.status === 'running') return job;
+    first ??= job;
+  }
+  return first;
+}
+
+function ledgerEqual(
+  a: { readonly kind: string; readonly status: string } | undefined,
+  b: { readonly kind: string; readonly status: string } | undefined,
+): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return a.kind === b.kind && a.status === b.status;
 }
 
 function appendLiveBuffer(prev: string, delta: string): string {

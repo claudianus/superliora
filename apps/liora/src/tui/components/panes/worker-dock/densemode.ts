@@ -20,6 +20,7 @@ import { applyStreamTailGlow } from '#/tui/features/transcript/transcript-entran
 import { renderPulseCountChip } from '#/tui/components/chrome/chrome-band-motion';
 import type { DockOpsEntry, DockWorker } from '#/tui/controllers/worker-dock/registry';
 import { isToolProgressLiveKind } from '#/tui/controllers/worker-dock/registry';
+import { workerLedgerChip } from '#/tui/features/worker-dock/labels';
 import {
   JOB_STATUS_META,
   shortJobId,
@@ -551,6 +552,9 @@ export function workerRosterLabel(
   const jobTitle = jobs?.jobs.find((card) => card.workerAgentId === worker.id)?.title.trim();
   const description = worker.description?.trim();
   const focus = worker.focusTodo?.trim();
+  // Ledger ghosts keep the bare title here — their mirrored lane text
+  // (description) already fills the LIVE cell; suffixing it would duplicate.
+  if (worker.ledger !== undefined) return role;
   const title =
     jobTitle !== undefined && jobTitle.length > 0
       ? jobTitle
@@ -667,7 +671,13 @@ function buildWorkerRow(args: {
     return `${glyph} ${namePaint} ${elapsed} ${ratePaint} ${livePaint}`;
   }
 
-  const model = currentTheme.fg('textMuted', shortModelAlias(worker.modelAlias).padEnd(8));
+  // Ledger ghosts paint their provenance chip in the MODEL column — a
+  // goal-desk umbrella has no model, so the slot would otherwise sit blank.
+  const ledgerChip = workerLedgerChip(worker);
+  const model = currentTheme.fg(
+    'textMuted',
+    (ledgerChip ?? shortModelAlias(worker.modelAlias)).padEnd(8),
+  );
   const elapsed = currentTheme.fg(
     'textDim',
     compactElapsed(liveWorkerElapsedMs(worker, now)).padStart(4),

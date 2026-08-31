@@ -35,7 +35,10 @@ import {
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { workerDockProductName } from '#/tui/features/worker-dock/labels';
+import {
+  workerDockProductName,
+  workerLedgerChip,
+} from '#/tui/features/worker-dock/labels';
 import {
   isDockWorkerPastLinger,
   isToolProgressLiveKind,
@@ -195,6 +198,30 @@ export function missionDockBorderToken(
     return 'primary';
   }
   return 'border';
+}
+
+/**
+ * Honest status note for ledger ghost rows. The generic worker copy lies for
+ * goal lanes: the desk umbrella never occupies a pool slot, and "suspended"
+ * reads wrong for a driver that never started.
+ */
+export function ledgerNote(
+  worker: Pick<DockWorker, 'ledger' | 'status'>,
+): string | undefined {
+  const ledger = worker.ledger;
+  if (ledger === undefined) return undefined;
+  if (ledger.status === 'interrupted') {
+    return 'paused — /goal resume to continue';
+  }
+  if (ledger.status === 'queued') {
+    return ledger.kind === 'goal-desk'
+      ? 'desk queued — driver starting'
+      : 'queued — waiting for a worker slot';
+  }
+  if (ledger.kind === 'goal-desk') {
+    return 'goal desk live — mirrors the driver worker';
+  }
+  return undefined;
 }
 
 type LayoutMode = 'full' | 'tight' | 'minimal';
@@ -1024,7 +1051,16 @@ export class WorkerDockPanelComponent implements Component {
       );
       return rows;
     }
-    if (worker.status === 'suspended') {
+    // Ledger ghosts keep the generic telemetry flow below — but the note row
+    // replaces the generic "suspended — waiting for a pool slot" claim, which
+    // is false for a goal-desk umbrella (no worker, no pool slot) and reads
+    // "suspended" for a driver that never started.
+    if (worker.ledger !== undefined) {
+      const note = ledgerNote(worker);
+      if (note !== undefined) {
+        rows.push(truncateToWidth(`  ${currentTheme.fg('textDim', note)}`, width, '…'));
+      }
+    } else if (worker.status === 'suspended') {
       rows.push(
         truncateToWidth(
           `  ${currentTheme.fg('textDim', 'suspended — waiting for a pool slot')}`,
@@ -1162,11 +1198,14 @@ export class WorkerDockPanelComponent implements Component {
       worker.modelAlias === undefined
         ? ''
         : currentTheme.fg('textMuted', ` ${worker.modelAlias}`);
+    const ledgerChip = workerLedgerChip(worker);
+    const chipPaint =
+      ledgerChip === undefined ? '' : currentTheme.fg('textMuted', ` ${ledgerChip}`);
     const elapsed = currentTheme.fg(
       'textDim',
       ` ${formatJobDuration(liveWorkerElapsedMs(worker, now))}`,
     );
-    return `${glyph} ${name}${model}${elapsed}`;
+    return `${glyph} ${name}${chipPaint}${model}${elapsed}`;
   }
 
   /** Tight/minimal: glyph name — live stream / intent / short action. */
@@ -1182,7 +1221,10 @@ export class WorkerDockPanelComponent implements Component {
       worker.status === 'completed' || worker.status === 'failed' ? 'textDim' : 'text',
       namePlain,
     );
-    const head = `${glyph} ${name}`;
+    const ledgerChip = workerLedgerChip(worker);
+    const chipPaint =
+      ledgerChip === undefined ? '' : currentTheme.fg('textMuted', ` ${ledgerChip}`);
+    const head = `${glyph} ${name}${chipPaint}`;
     const restBudget = Math.max(12, width - visibleWidth(head) - 1);
     const live = this.hotLiveStream(worker, now);
     if (live !== undefined) {

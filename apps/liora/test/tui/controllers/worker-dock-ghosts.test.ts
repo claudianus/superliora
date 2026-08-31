@@ -62,4 +62,95 @@ describe('WorkerDockRegistry job ghosts', () => {
     ).toBe(false);
     expect(registry.snapshot(2_000).version).toBe(versionAfterSeed);
   });
+
+  it('tags goal lanes with ledger provenance and mirrors the desk driver', () => {
+    const registry = new WorkerDockRegistry(() => 1_000);
+    registry.hydrateJobGhosts([
+      { id: 'job_desk', title: 'Goal Desk: ship checkout', status: 'running', kind: 'goal-desk' },
+      {
+        id: 'job_driver',
+        title: 'Goal: ship checkout',
+        status: 'queued',
+        kind: 'goal-driver',
+        parentJobId: 'job_desk',
+        progress: {
+          phase: 'implement checkout',
+          recentTools: ['Read', 'Edit'],
+          stepsCompleted: 4,
+          stepsTotal: 9,
+        },
+        liveTokens: 12_345,
+      },
+    ]);
+
+    const snap = registry.snapshot(1_000);
+    const desk = snap.workers.find((w) => w.id === 'job-ghost:job_desk');
+    expect(desk?.ledger).toEqual({ kind: 'goal-desk', status: 'running' });
+    // Desk mirrors its driver lane instead of a bare title.
+    expect(desk?.description).toBe('driver · implement checkout');
+
+    const driver = snap.workers.find((w) => w.id === 'job-ghost:job_driver');
+    expect(driver?.ledger).toEqual({ kind: 'goal-driver', status: 'queued' });
+    expect(driver?.description).toBe('implement checkout');
+    expect(driver?.tokens).toBe(12_345);
+    expect(driver?.todoDone).toBe(4);
+    expect(driver?.todoTotal).toBe(9);
+    expect(driver?.lastTool).toBe('Edit');
+  });
+
+  it('bumps when the mirrored driver phase moves', () => {
+    const registry = new WorkerDockRegistry(() => 1_000);
+    const desk = {
+      id: 'job_desk',
+      title: 'Goal Desk: ship checkout',
+      status: 'running',
+      kind: 'goal-desk',
+    } as const;
+    const driver = (phase: string) =>
+      ({
+        id: 'job_driver',
+        title: 'Goal: ship checkout',
+        status: 'queued',
+        kind: 'goal-driver',
+        parentJobId: 'job_desk',
+        progress: { phase },
+      }) as const;
+    registry.hydrateJobGhosts([desk, driver('plan')]);
+    const versionAfterSeed = registry.snapshot(1_000).version;
+    // Unchanged telemetry → no repaint.
+    expect(registry.hydrateJobGhosts([desk, driver('plan')])).toBe(false);
+    expect(registry.snapshot(1_000).version).toBe(versionAfterSeed);
+    // Driver phase moved → the desk row reflects it.
+    expect(registry.hydrateJobGhosts([desk, driver('implement')])).toBe(true);
+    const snap = registry.snapshot(1_000);
+    expect(snap.workers.find((w) => w.id === 'job-ghost:job_desk')?.description).toBe(
+      'driver · implement',
+    );
+  });
+
+  it('maps live activity previews onto the ghost NOW strip', () => {
+    const registry = new WorkerDockRegistry(() => 1_000);
+    registry.hydrateJobGhosts([
+      {
+        id: 'job_driver',
+        title: 'Goal: ship checkout',
+        status: 'running',
+        kind: 'goal-driver',
+        liveActivity: {
+          name: 'Bash',
+          target: 'pnpm test',
+          preview: 'tests 42 passed',
+          previewKind: 'stdout',
+        },
+        liveTokens: 500,
+      },
+    ]);
+    const snap = registry.snapshot(1_000);
+    const ghost = snap.workers.find((w) => w.id === 'job-ghost:job_driver');
+    expect(ghost?.lastTool).toBe('Bash');
+    expect(ghost?.lastTarget).toBe('pnpm test');
+    expect(ghost?.liveKind).toBe('stdout');
+    expect(ghost?.liveText).toBe('tests 42 passed');
+    expect(ghost?.liveAtMs).toBe(1_000);
+  });
 });

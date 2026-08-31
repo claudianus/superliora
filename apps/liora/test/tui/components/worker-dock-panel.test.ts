@@ -9,6 +9,7 @@ import {
   emptyWorkerDockView,
   formatMissionAgeMs,
   formatMissionTokenRate,
+  ledgerNote,
   missionDockBorderToken,
   type WorkerDockView,
 } from '#/tui/components/panes/worker-dock/panel';
@@ -963,6 +964,83 @@ describe('WorkerDockPanelComponent', () => {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
       }
+    }
+  });
+
+  it('gives goal-lane ledger ghosts honest notes', () => {
+    expect(
+      ledgerNote({ ledger: { kind: 'goal-desk', status: 'running' }, status: 'finishing' }),
+    ).toBe('goal desk live — mirrors the driver worker');
+    expect(
+      ledgerNote({ ledger: { kind: 'goal-desk', status: 'queued' }, status: 'suspended' }),
+    ).toBe('desk queued — driver starting');
+    expect(
+      ledgerNote({ ledger: { kind: 'goal-driver', status: 'queued' }, status: 'suspended' }),
+    ).toBe('queued — waiting for a worker slot');
+    expect(
+      ledgerNote({ ledger: { kind: 'goal-driver', status: 'interrupted' }, status: 'suspended' }),
+    ).toBe('paused — /goal resume to continue');
+    expect(ledgerNote({ ledger: undefined, status: 'suspended' })).toBeUndefined();
+  });
+
+  it('tags goal-lane ledger ghosts with a provenance chip instead of a model alias', () => {
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
+    try {
+      const panel = new WorkerDockPanelComponent();
+      panel.setView({
+        snapshot: {
+          version: 1,
+          workers: [
+            {
+              id: 'job-ghost:job_desk',
+              name: 'Goal Desk: ship checkout',
+              kind: 'subagent',
+              status: 'finishing',
+              runInBackground: true,
+              toolCount: 0,
+              tokens: 0,
+              elapsedMs: 5_000,
+              spawnedAtMs: NOW,
+              lastActivityAtMs: NOW,
+              ledger: { kind: 'goal-desk', status: 'running' },
+              description: 'driver · implement checkout',
+            },
+            {
+              id: 'job-ghost:job_driver',
+              name: 'Goal: ship checkout',
+              kind: 'subagent',
+              status: 'suspended',
+              runInBackground: true,
+              toolCount: 0,
+              tokens: 0,
+              elapsedMs: 5_000,
+              spawnedAtMs: NOW,
+              lastActivityAtMs: NOW,
+              ledger: { kind: 'goal-driver', status: 'queued' },
+              description: 'implement checkout',
+            },
+          ],
+          activeCount: 2,
+          totalTokens: 0,
+          ops: [],
+        },
+        jobs: emptyConductorJobsSnapshot(),
+      });
+      const text = plain(panel.render(160)).join('\n');
+      // Provenance chips replace the blank MODEL column for ghost rows.
+      expect(text).toContain('desk');
+      expect(text).toContain('driver');
+      // The desk mirror line is visible in the LIVE cell; the honest queued
+      // copy comes from ledgerNote (unit-tested above) and the misleading
+      // pool-slot claim must never appear for goal lanes.
+      expect(text).toContain('driver · implement checkout');
+      expect(text).not.toContain('suspended — waiting for a pool slot');
+    } finally {
+      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
     }
   });
 });
