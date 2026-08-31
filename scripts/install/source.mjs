@@ -72,7 +72,7 @@ export async function fetchSource(options) {
   } catch (archiveError) {
     const gitDetail = gitError instanceof Error ? summarizeGitFailure(gitError.message) : '';
     const archiveDetail = archiveError instanceof Error ? archiveError.message : String(archiveError);
-    throw new Error(gitDetail ? `${gitDetail} · ${archiveDetail}` : archiveDetail);
+    throw new Error(gitDetail ? `${gitDetail} · ${archiveDetail}` : archiveDetail, { cause: archiveError });
   }
 }
 
@@ -82,8 +82,22 @@ export async function buildSource(installDir, resolved) {
     throw new Error('pnpm bootstrap failed; SuperLiora could not install pnpm automatically');
   }
   runOrThrow(pnpm.cmd, [...pnpm.prefix ?? [], 'install', '--frozen-lockfile'], installDir);
+  runOrWarn(
+    pnpm.cmd,
+    [...pnpm.prefix ?? [], 'run', 'build:skill-catalog'],
+    installDir,
+    'skill catalog fetch failed; SearchSkill falls back to builtin skills (retry: pnpm run build:skill-catalog)',
+  );
   runOrThrow(pnpm.cmd, [...pnpm.prefix ?? [], 'run', 'build:packages'], installDir);
   runOrThrow(pnpm.cmd, [...pnpm.prefix ?? [], '-C', 'apps/liora', 'run', 'build'], installDir);
+}
+
+function runOrWarn(cmd, args, cwd, warning) {
+  const env = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
+  const result = spawnInstall(cmd, args, { cwd, env, encoding: 'utf8', stdio: 'inherit' });
+  if (result.status !== 0) {
+    process.stderr.write(`warning: ${warning}\n`);
+  }
 }
 
 function runOrThrow(cmd, args, cwd) {

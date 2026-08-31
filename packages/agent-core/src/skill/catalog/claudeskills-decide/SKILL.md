@@ -1,1 +1,0 @@
-/var/folders/6l/cwj0x_r55qx7vnzvv_t5d85c0000gn/T/superliora-skills-claudeskills-1783754402151/c-level-advisor/c-level-agents/skills/decide/SKILL.md

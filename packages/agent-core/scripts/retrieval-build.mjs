@@ -7,12 +7,13 @@
  *
  * Writes ~/.superliora/retrieval/{expert,skill}-passages.v1.json (or SUPERLIORA_HOME).
  */
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = import.meta.dirname;
 const root = join(__dirname, '..');
 
 async function buildExpertPassages(retrieval) {
@@ -46,6 +47,10 @@ async function buildExpertPassages(retrieval) {
 
 async function buildSkillPassages(retrieval) {
   const indexPath = join(root, 'src/skill/catalog-search-index.json');
+  if (!existsSync(indexPath)) {
+    console.warn('retrieval-build[skill]: no catalog-search-index (run pnpm run build:skill-catalog) — skipping');
+    return new Map();
+  }
   const raw = await readFile(indexPath, 'utf8');
   const index = JSON.parse(raw);
   const passages = new Map();

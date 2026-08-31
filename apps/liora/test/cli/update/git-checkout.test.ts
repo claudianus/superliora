@@ -88,6 +88,8 @@ describe('gitCheckoutUpdateScript', () => {
     expect(script).not.toContain('${USERPROFILE}/.superliora/runtime/pnpm');
     expect(script).toContain('pnpm_invoke');
     expect(script).toContain('install --frozen-lockfile');
+    expect(script).toContain('build:skill-catalog');
+    expect(script).toContain('SUPERLIORA_SKIP_SKILL_CATALOG');
     expect(script).toContain('run build:packages');
     expect(script).toContain('apps/liora run build');
     expect(script).toContain('retrieval:bootstrap');

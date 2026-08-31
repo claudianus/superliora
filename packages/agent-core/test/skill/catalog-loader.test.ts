@@ -1,5 +1,7 @@
-import { join, resolve } from 'pathe';
-import { afterEach, describe, expect, it } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'pathe';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import { registerBuiltinSkills, registerCatalogSkills } from '../../src/skill/builtin';
 import {
@@ -7,97 +9,153 @@ import {
   resolveCatalogLayoutFrom,
   resolveCatalogLayoutFromCandidates,
   resolveSkillCatalogDir,
-  resolveSkillCatalogSearchIndexPath,
 } from '../../src/skill/catalog-loader';
 import { SessionSkillRegistry } from '../../src/skill/registry';
 import { shouldComposeSkill } from '../../src/skill/skill-composition';
 
-const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
 const CATALOG_ENV = 'SUPERLIORA_SKILL_CATALOG_DIR';
 
-describe('skill catalog loader', () => {
-  it('registers catalog skills from the search index when available', async () => {
-    const catalogDir = await resolveSkillCatalogDir();
-    if (catalogDir === undefined) return;
+/**
+ * The catalog is a gitignored build artifact, so tests exercise the loader
+ * against a synthetic catalog + search index instead of the real vendored
+ * external skills.
+ */
+const fixtureRoot = mkdtempSync(join(tmpdir(), 'superliora-catalog-test-'));
+const fixtureSkillDir = join(fixtureRoot, 'skill');
+const fixtureCatalogDir = join(fixtureSkillDir, 'catalog');
 
-    const indexPath = await resolveSkillCatalogSearchIndexPath();
-    expect(indexPath).toBeDefined();
+function writeFixtureSkill(relDir: string, frontmatter: string, body: string): void {
+  mkdirSync(join(fixtureCatalogDir, relDir), { recursive: true });
+  writeFileSync(
+    join(fixtureCatalogDir, relDir, 'SKILL.md'),
+    `---\n${frontmatter}\ncatalogSource: fixture\ncatalogId: ${relDir}\n---\n${body}\n`,
+    'utf8',
+  );
+}
+
+writeFixtureSkill(
+  'fixture-alpha',
+  'name: fixture-alpha\ndescription: pdf document processing workflow',
+  '# Fixture Alpha\n\nStep one: process the pdf document.',
+);
+writeFixtureSkill(
+  'fixture-beta',
+  'name: fixture-beta\ndescription: git hygiene checklist',
+  '# Fixture Beta\n\nCheck the git status before committing.',
+);
+
+const fixtureIndex = {
+  version: 2,
+  generatedAt: '2026-01-01T00:00:00.000Z',
+  skillCount: 2,
+  failed: 0,
+  skills: [
+    {
+      relDir: 'fixture-alpha',
+      name: 'fixture-alpha',
+      description: 'pdf document processing workflow',
+      catalogSource: 'fixture',
+      catalogId: 'fixture-alpha',
+      contentHash: 'a'.repeat(64),
+    },
+    {
+      relDir: 'fixture-beta',
+      name: 'fixture-beta',
+      description: 'git hygiene checklist',
+      catalogSource: 'fixture',
+      catalogId: 'fixture-beta',
+      contentHash: 'b'.repeat(64),
+    },
+  ],
+};
+writeFileSync(join(fixtureSkillDir, 'catalog-search-index.json'), JSON.stringify(fixtureIndex), 'utf8');
+
+const savedCatalogEnv = process.env[CATALOG_ENV];
+process.env[CATALOG_ENV] = fixtureSkillDir;
+
+afterAll(() => {
+  if (savedCatalogEnv === undefined) delete process.env[CATALOG_ENV];
+  else process.env[CATALOG_ENV] = savedCatalogEnv;
+  rmSync(fixtureRoot, { recursive: true, force: true });
+});
+
+describe('skill catalog loader', () => {
+  it('registers catalog skills from the search index', async () => {
+    const catalogDir = await resolveSkillCatalogDir();
+    expect(catalogDir).toBe(fixtureCatalogDir);
 
     const registry = new SessionSkillRegistry();
     registerBuiltinSkills(registry);
-    const started = performance.now();
     const added = await registerCatalogSkills(registry);
-    const elapsedMs = performance.now() - started;
 
-    expect(added).toBeGreaterThan(1000);
-    // Index load must stay far cheaper than walking thousands of skill dirs.
-    expect(elapsedMs).toBeLessThan(5_000);
+    expect(added).toBe(2);
 
-    const sample = registry.getSkill('anthropic-pdf') ?? registry.getSkill('pdf');
-    if (sample !== undefined) {
-      expect(shouldComposeSkill(sample)).toBe(true);
-      expect(sample.content).toBe('');
-      expect(sample.loadContent).toBeTypeOf('function');
-      const body = await sample.loadContent!();
-      expect(body.trim().length).toBeGreaterThan(0);
-    }
+    const sample = registry.getSkill('fixture-alpha');
+    if (sample === undefined) throw new Error('fixture-alpha was not registered from the search index');
+    expect(shouldComposeSkill(sample)).toBe(true);
+    expect(sample.content).toBe('');
+    const load = sample.loadContent;
+    if (load === undefined) throw new Error('catalog skill is missing loadContent');
+    const body = await load();
+    expect(body).toContain('process the pdf document');
+    expect(sample.metadata['catalogSource']).toBe('fixture');
 
     const hits = await registry.searchByQuery('pdf document processing', 5);
     expect(hits.length).toBeGreaterThan(0);
   });
 
   it('defers catalog registration until ensureCatalogLoaded/search', async () => {
-    const catalogDir = await resolveSkillCatalogDir();
-    if (catalogDir === undefined) return;
-
     const registry = new SessionSkillRegistry();
     registerBuiltinSkills(registry);
 
     const before = registry.listSkills().length;
     expect(before).toBeGreaterThan(0); // builtins only
 
-    const started = performance.now();
     await registry.ensureCatalogLoaded();
     const after = registry.listSkills().length;
-    expect(after).toBeGreaterThan(before + 1000);
-    expect(performance.now() - started).toBeLessThan(5_000);
+    expect(after).toBe(before + 2);
 
     // Second call is a no-op.
-    const againStart = performance.now();
     await registry.ensureCatalogLoaded();
-    expect(performance.now() - againStart).toBeLessThan(50);
+    expect(registry.listSkills().length).toBe(after);
   });
 });
 
 describe('skill catalog layout resolution', () => {
-  const savedEnv = process.env[CATALOG_ENV];
-  afterEach(() => {
-    if (savedEnv === undefined) delete process.env[CATALOG_ENV];
-    else process.env[CATALOG_ENV] = savedEnv;
+  it('prefers the SUPERLIORA_SKILL_CATALOG_DIR override', () => {
+    const candidates = catalogDataDirCandidates('/does/not/matter');
+    expect(candidates[0]).toBe(fixtureSkillDir);
+
+    return expect(resolveCatalogLayoutFrom('/does/not/matter')).resolves.toEqual({
+      catalogDir: fixtureCatalogDir,
+      indexPath: join(fixtureSkillDir, 'catalog-search-index.json'),
+    });
   });
 
   it('finds the catalog from a bundled app dist dir by walking ancestors', async () => {
     // Bundled CLI runs from apps/liora/dist/main.mjs, so import.meta.filename
     // no longer sits inside packages/agent-core/src/skill. The repo-layout
     // ancestor walk must recover the catalog for SearchSkill.
-    const layout = await resolveCatalogLayoutFrom(join(REPO_ROOT, 'apps/liora/dist'));
-    expect(layout?.catalogDir).toBe(join(REPO_ROOT, 'packages/agent-core/src/skill/catalog'));
-    expect(layout?.indexPath).toBe(
-      join(REPO_ROOT, 'packages/agent-core/src/skill/catalog-search-index.json'),
-    );
-  });
+    const tree = mkdtempSync(join(tmpdir(), 'superliora-catalog-walk-'));
+    // The ancestor walk must win on its own — clear the module-level env
+    // override for the duration of this test.
+    delete process.env[CATALOG_ENV];
+    try {
+      const skillDir = join(tree, 'packages/agent-core/src/skill');
+      mkdirSync(join(skillDir, 'catalog/walked-skill'), { recursive: true });
+      writeFileSync(join(skillDir, 'catalog/walked-skill/SKILL.md'), '---\nname: walked\n---\nbody', 'utf8');
+      writeFileSync(join(skillDir, 'catalog-search-index.json'), JSON.stringify(fixtureIndex), 'utf8');
 
-  it('prefers the SUPERLIORA_SKILL_CATALOG_DIR override', async () => {
-    process.env[CATALOG_ENV] = join(REPO_ROOT, 'packages/agent-core/src/skill');
-    const candidates = catalogDataDirCandidates('/does/not/matter');
-    expect(candidates[0]).toBe(join(REPO_ROOT, 'packages/agent-core/src/skill'));
-
-    const layout = await resolveCatalogLayoutFrom('/does/not/matter');
-    expect(layout?.catalogDir).toBe(join(REPO_ROOT, 'packages/agent-core/src/skill/catalog'));
+      const layout = await resolveCatalogLayoutFrom(join(tree, 'apps/liora/dist'));
+      expect(layout?.catalogDir).toBe(join(skillDir, 'catalog'));
+      expect(layout?.indexPath).toBe(join(skillDir, 'catalog-search-index.json'));
+    } finally {
+      rmSync(tree, { recursive: true, force: true });
+      process.env[CATALOG_ENV] = fixtureSkillDir;
+    }
   });
 
   it('returns undefined when no candidate has a catalog tree', async () => {
-    delete process.env[CATALOG_ENV];
     const layout = await resolveCatalogLayoutFromCandidates(['/definitely/missing']);
     expect(layout).toBeUndefined();
   });

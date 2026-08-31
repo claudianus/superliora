@@ -182,6 +182,8 @@ function buildGitCheckoutUpdateShellLines(
     'elif command -v corepack >/dev/null 2>&1; then pnpm_invoke() { corepack pnpm "$@"; }',
     'else echo "error: pnpm bootstrap failed" >&2; exit 1; fi',
     `pnpm_invoke -C ${repoExpr} install --frozen-lockfile`,
+    // Fetch the external skill catalog (gitignored build artifact); soft-fail.
+    `if [ "\${SUPERLIORA_SKIP_SKILL_CATALOG:-0}" != "1" ]; then pnpm_invoke -C ${repoExpr} run build:skill-catalog || echo "warning: skill catalog fetch failed (SearchSkill falls back to builtin skills)"; fi`,
     `pnpm_invoke -C ${repoExpr} run build:packages`,
     `pnpm_invoke -C ${repoExpr}/apps/liora run build`,
     // Match install.sh: warm Granite-97M + passage indexes (soft-fail).
