@@ -76,10 +76,6 @@ export async function resolveSkillCatalogDir(): Promise<string | undefined> {
   return (await resolveCatalogLayout())?.catalogDir;
 }
 
-export async function resolveSkillCatalogSearchIndexPath(): Promise<string | undefined> {
-  return (await resolveCatalogLayout())?.indexPath;
-}
-
 interface CatalogSearchIndexSkill {
   readonly relDir: string;
   readonly name: string;
