@@ -48,13 +48,6 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.export.cancelled': 'Export cancelled.',
   'cli.runtime.export.confirmPrevious': 'Export previous session "{title}"? [Y/n] ',
 
-  // vis
-  'cli.runtime.vis.startFailed': 'Failed to start liora vis: {message}',
-  'cli.runtime.vis.runningAt': 'liora vis is running at {url}',
-  'cli.runtime.vis.pressCtrlC': 'Press Ctrl-C to stop.',
-  'cli.runtime.vis.browserOpenFailed':
-    'Could not open a browser; visit {target} manually.',
-
   // doctor
   'cli.runtime.doctor.title': 'Liora doctor',
   'cli.runtime.doctor.allValid': 'All checked config files are valid.',
@@ -301,12 +294,6 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.export.noPreviousSession': '내보낼 이전 세션이 없습니다.',
   'cli.runtime.export.cancelled': '내보내기를 취소했습니다.',
   'cli.runtime.export.confirmPrevious': '이전 세션 "{title}"을(를) 내보낼까요? [Y/n] ',
-
-  'cli.runtime.vis.startFailed': 'liora vis 시작 실패: {message}',
-  'cli.runtime.vis.runningAt': 'liora vis 실행 중: {url}',
-  'cli.runtime.vis.pressCtrlC': '종료하려면 Ctrl-C를 누르세요.',
-  'cli.runtime.vis.browserOpenFailed':
-    '브라우저를 열 수 없습니다. {target}을(를) 직접 방문하세요.',
 
   'cli.runtime.doctor.title': 'Liora doctor',
   'cli.runtime.doctor.allValid': '검사한 모든 설정 파일이 유효합니다.',

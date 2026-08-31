@@ -19,7 +19,6 @@ All other `@superliora/*` packages are treated as internal packages, including `
 4. **Internal package source changes that enter the CLI bundle must manually list the CLI.** `@superliora/liora` inline-bundles `@superliora/*` source, but those internal packages are devDependencies from the CLI's perspective, so changesets will not automatically propagate bumps. If a change enters the CLI output, list `@superliora/liora`.
    - **Web app (`@superliora/kimi-web`) changes always enter the CLI bundle.** `@superliora/kimi-web` is ignored by changesets (see `.changeset/config.json`) and cannot be mixed with `@superliora/liora` in one changeset frontmatter. Describe the web change in the changelog text, but list `@superliora/liora` so the CLI release carries the bundled `dist-web` output.
 5. **Docs-only and tests-only changes usually do not need a changeset.** README, internal docs, and `test/` changes that do not enter package output do not trigger a CLI bump.
-6. `@superliora/vis` / `vis-server` / `vis-web` are ignored by changesets and should not be handled.
 
 ## Workflow
 

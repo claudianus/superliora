@@ -52,7 +52,7 @@
   },
   "scripts": {
     "build": "tsdown && node scripts/copy-expert-personas.mjs && node scripts/check-cli-bundle.mjs",
-    "prebuild": "node scripts/sync-upstream-baseline.mjs && node scripts/build-vis-asset.mjs",
+    "prebuild": "node scripts/sync-upstream-baseline.mjs",
     "catalog:update": "node scripts/update-catalog.mjs --out dist/built-in-catalog.json",
     "smoke": "node scripts/smoke.mjs",
     "smoke:visual": "node scripts/visual-smoke.mjs",
@@ -100,8 +100,6 @@
     "@superliora/sdk": "workspace:^",
     "@superliora/server": "workspace:^",
     "@superliora/telemetry": "workspace:^",
-    "@superliora/vis-server": "workspace:^",
-    "@superliora/vis-web": "workspace:*",
     "@types/semver": "^7.7.0",
     "@types/yazl": "^2.4.6",
     "chalk": "^5.4.1",

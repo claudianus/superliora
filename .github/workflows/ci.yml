@@ -204,7 +204,3 @@ jobs:
           pnpm dlx --package "${TSGO_PKG}" tsgo -p packages/agent-core/tsconfig.src.json --noEmit
       - name: Agent-core test typecheck ratchet
         run: pnpm run check:agent-core-test-types
-      - name: Typecheck vis-server
-        run: pnpm --filter @superliora/vis-server run typecheck
-      - name: Typecheck vis-web
-        run: pnpm --filter @superliora/vis-web run typecheck

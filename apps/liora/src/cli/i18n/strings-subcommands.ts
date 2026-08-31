@@ -21,12 +21,6 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
     'Use a distinct OAuth storage key, preserving existing accounts as fallback refs.',
   'cli.sub.login.option.oauthHost': 'Override the OAuth host for this login.',
 
-  // vis
-  'cli.sub.vis.option.port': 'Port to bind. Default: auto-pick a free port.',
-  'cli.sub.vis.option.host': 'Host to bind. Default: 127.0.0.1.',
-  'cli.sub.vis.option.noOpen': 'Do not open the browser automatically.',
-  'cli.sub.vis.arg.sessionId': 'Open directly to this session.',
-
   // gc
   'cli.sub.gc.description': 'Reclaim idle cache, worktree temp, and compress closed session wires.',
   'cli.sub.gc.option.dryRun': 'Report candidates without deleting or compressing.',
@@ -294,12 +288,6 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.login.option.oauthKey':
     '별도 OAuth 저장 키를 사용해 기존 계정을 폴백 ref로 유지합니다.',
   'cli.sub.login.option.oauthHost': '이번 로그인의 OAuth 호스트를 재정의합니다.',
-
-  // vis
-  'cli.sub.vis.option.port': '바인드할 포트. 기본값: 사용 가능한 포트를 자동 선택.',
-  'cli.sub.vis.option.host': '바인드할 호스트. 기본값: 127.0.0.1.',
-  'cli.sub.vis.option.noOpen': '브라우저를 자동으로 열지 않습니다.',
-  'cli.sub.vis.arg.sessionId': '이 세션으로 바로 엽니다.',
 
   // gc
   'cli.sub.gc.description': '유휴 캐시·워크트리 임시 파일을 정리하고 종료된 세션 wire를 압축합니다.',

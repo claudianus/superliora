@@ -9,7 +9,7 @@ const windowsMaxWorkers = process.platform === 'win32' ? 2 : undefined;
 
 export default defineConfig({
   test: {
-    projects: ['packages/*', 'apps/liora', 'apps/site', 'apps/vis/server', 'apps/vis/web'],
+    projects: ['packages/*', 'apps/liora', 'apps/site'],
     testTimeout: 30_000,
     hookTimeout: 30_000,
     teardownTimeout: 15_000,

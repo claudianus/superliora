@@ -19,9 +19,6 @@ const VALID_SUPERLIORA_PACKAGES = new Set([
   '@superliora/server',
   '@superliora/server-e2e',
   '@superliora/telemetry',
-  '@superliora/vis',
-  '@superliora/vis-server',
-  '@superliora/vis-web',
 ]);
 
 const FORBIDDEN_SPECIFIER_PATTERNS = [
@@ -33,9 +30,6 @@ const SOURCE_ROOTS = [
   'packages',
   'apps/liora/src',
   'apps/liora/test',
-  'apps/vis/src',
-  'apps/vis/server/src',
-  'apps/vis/web/src',
   'scripts',
 ];
 

@@ -15,7 +15,6 @@ Hot-path only: package map, hard constraints, and release/workflow gates every t
 ## Project Map
 
 - `apps/liora` — CLI / TUI. Depends on `@superliora/sdk` only; **never** import `@superliora/agent-core` from app code. TUI work: `write-tui` skill.
-- `apps/vis`, `apps/vis/server`, `apps/vis/web` — session/replay visual debug tools.
 - `apps/site` — public static site (GitHub Pages). Unpublished reference docs live under `docs/` (see `docs/AGENTS.md`).
 - `packages/agent-core` — agent engine (Agent, Session, tools, plan, DI services under `src/services/`, …).
 - `packages/node-sdk` — public TypeScript SDK / harness (`@superliora/sdk`).

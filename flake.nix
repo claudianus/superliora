@@ -77,9 +77,6 @@
         ./apps/liora
         ./apps/research-bridge-extension
         ./apps/site
-        ./apps/vis
-        ./apps/vis/server
-        ./apps/vis/web
       ];
 
       workspaceNames = [
@@ -98,9 +95,6 @@
         "@superliora/liora"
         "@superliora/research-bridge-extension"
         "@superliora/site"
-        "@superliora/vis"
-        "@superliora/vis-server"
-        "@superliora/vis-web"
       ];
     in
     {
@@ -187,10 +181,6 @@
                     "await runVerifyStep({ requireGatekeeper: false });" \
                     "// runVerifyStep skipped in nix sandbox (sigtool lacks -dv)"
               ''}
-              substituteInPlace apps/liora/scripts/build-vis-asset.mjs \
-                --replace-fail \
-                  "corepack pnpm --filter @superliora/vis-web exec vite build" \
-                  "pnpm --filter @superliora/vis-web exec vite build"
               pnpm --filter=@superliora/liora run build:native:sea
               runHook postBuild
             '';

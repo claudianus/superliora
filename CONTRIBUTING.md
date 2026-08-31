@@ -28,7 +28,6 @@ We only merge PRs aligned with the roadmap. Drive-by refactors without context a
 This is a pnpm monorepo. The most relevant entry points are:
 
 - `apps/liora` — CLI / TUI
-- `apps/vis` — session replay & debugging visualizer
 - `packages/node-sdk` — public TypeScript SDK (`@superliora/sdk`)
 - `packages/agent-core`, `kosong`, `kaos`, `oauth`, `telemetry` — internal engine packages
 - `apps/site/` — the public landing page (deployed to GitHub Pages)

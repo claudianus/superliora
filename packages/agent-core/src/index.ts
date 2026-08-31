@@ -423,7 +423,7 @@ export type {
   VisionAnalyzerDeps,
 } from './session/vision-analyzer';
 
-// ─── Wire records (for in-monorepo consumers like apps/vis) ────────────────
+// ─── Wire records (for in-monorepo debug tooling) ───────────────────────────
 export type {
   AgentRecord,
   AgentRecordEvents,
