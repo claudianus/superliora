@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.20.3
+
+### Patch Changes
+
+- Fix TUI crash `options.lines.slice is not a function` when measuring long thinking blocks during transcript scroll geometry. ThinkingComponent now implements windowed `measureContentRows`/`paintContentRows` and guards large bodies with a length-only stub during measure mode; `projectRendererLineWindow`/`Preview` defensively handle stale placeholder arrays.
+
 ## 0.20.2
 
 ### Patch Changes
