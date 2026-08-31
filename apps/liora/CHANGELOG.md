@@ -1,5 +1,29 @@
 # @superliora/liora
 
+## 0.20.6
+
+### Patch Changes
+
+- Remove the unused `apps/vis` session visualizer and its build plumbing.
+- `liora vis` was a ghost subcommand (registered nowhere), so the app, its
+- `@superliora/vis-server` / `@superliora/vis-web` workspace packages, the
+- `build-vis-asset` prebuild step, the embedded web asset stub, and the vis
+- typecheck CI steps are gone. No shipped CLI surface changes; builds get
+- faster by dropping the vis asset generation from `prebuild`.
+- Stop vendoring the external skill catalog in the repo.
+- `packages/agent-core/src/skill/catalog/` held ~23k files (~187 MB) fetched from
+- seven third-party skill repos and committed as build output. It is now a
+- gitignored build artifact:
+- Fresh checkouts ship builtin skills only; `SearchSkill` degrades gracefully
+- until the catalog is fetched.
+- Source installs (`install.sh`, `~/.superliora/source` upgrades) fetch the
+- catalog automatically after `pnpm install` and skip gracefully when offline
+- (`SUPERLIORA_SKIP_SKILL_CATALOG=1` forces the skip).
+- Manual fetch: `pnpm run build:skill-catalog`.
+- The catalog build script moved to `packages/agent-core/scripts/` so its
+- `js-yaml` dependency resolves, and `retrieval:build` now skips the skill
+- corpus when the index has not been fetched instead of crashing.
+
 ## 0.20.5
 
 ### Patch Changes
