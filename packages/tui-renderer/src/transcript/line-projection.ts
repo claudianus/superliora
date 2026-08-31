@@ -18,6 +18,25 @@ import {
 export function projectRendererLinePreview(
   options: RendererLinePreviewOptions,
 ): RendererLinePreviewProjection {
+  // Large measure-mode stubs from `measurePlaceholderLines` are not real
+  // arrays — they only carry `.length`. Handle them by length alone so
+  // `lines.slice is not a function` never crashes geometry probes.
+  if (!Array.isArray(options.lines)) {
+    const n =
+      typeof (options.lines as unknown as { length?: unknown }).length === 'number'
+        ? Math.max(0, (options.lines as unknown as { length: number }).length)
+        : 0;
+    const maxLines = normalizePreviewLineCount(options.maxLines);
+    if (options.expanded === true || n <= maxLines) {
+      return { lines: options.lines, hiddenLineCount: 0 };
+    }
+    const hiddenLineCount = n - maxLines;
+    const windowLines = { length: maxLines } as unknown as readonly string[];
+    if (options.tail === true) {
+      return { lines: windowLines, hiddenLineCount, hintPosition: 'before' };
+    }
+    return { lines: windowLines, hiddenLineCount, hintPosition: 'after' };
+  }
   const maxLines = normalizePreviewLineCount(options.maxLines);
   if (options.expanded === true || options.lines.length <= maxLines) {
     return { lines: options.lines, hiddenLineCount: 0 };
@@ -42,6 +61,54 @@ export function projectRendererLinePreview(
 export function projectRendererLineWindow<TLine = string>(
   options: RendererLineWindowOptions<TLine>,
 ): RendererLineWindowProjection<TLine> {
+  // Large measure-mode stubs from `measurePlaceholderLines` are not real
+  // arrays — they only carry `.length`. Handle them by length alone so
+  // `lines.slice is not a function` never crashes geometry probes.
+  if (!Array.isArray(options.lines)) {
+    const n =
+      typeof (options.lines as unknown as { length?: unknown }).length === 'number'
+        ? Math.max(0, (options.lines as unknown as { length: number }).length)
+        : 0;
+    const maxLines = normalizeOptionalPreviewLineCount(options.maxLines);
+    if (maxLines === undefined || n <= maxLines) {
+      return {
+        lines: options.lines,
+        hiddenLineCount: 0,
+        startIndex: 0,
+        endIndex: n,
+        anchor: 'all',
+      };
+    }
+    if (maxLines <= 0) {
+      const index = options.tail === true ? n : 0;
+      return {
+        lines: [] as unknown as readonly TLine[],
+        hiddenLineCount: n,
+        startIndex: index,
+        endIndex: index,
+        anchor: options.tail === true ? 'tail' : 'head',
+      };
+    }
+    if (options.tail === true) {
+      const startIndex = Math.max(0, n - maxLines);
+      const windowLines = { length: maxLines } as unknown as readonly TLine[];
+      return {
+        lines: windowLines,
+        hiddenLineCount: startIndex,
+        startIndex,
+        endIndex: n,
+        anchor: 'tail',
+      };
+    }
+    const windowLines = { length: maxLines } as unknown as readonly TLine[];
+    return {
+      lines: windowLines,
+      hiddenLineCount: n - maxLines,
+      startIndex: 0,
+      endIndex: maxLines,
+      anchor: 'head',
+    };
+  }
   const maxLines = normalizeOptionalPreviewLineCount(options.maxLines);
   if (maxLines === undefined || options.lines.length <= maxLines) {
     return {

@@ -6,10 +6,13 @@
  */
 
 import {
+  isTranscriptMeasureMode,
+  measurePlaceholderLines,
   notifyTranscriptChildGeometryDirty,
   RendererWidthRenderCache,
   Text,
   projectRendererLineWindow,
+  TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP,
   truncateToWidth,
   wrapAnsiDisplayText,
   type Component,
@@ -146,6 +149,53 @@ export class ThinkingComponent implements Component {
     notifyTranscriptChildGeometryDirty(this);
   }
 
+  measureContentRows(width: number): number {
+    const contentWidth = Math.max(1, width - MESSAGE_INDENT.length);
+    const bodyRows =
+      this.text.length === 0 ? 1 : this.textComponent.measureContentRows(contentWidth);
+    const detail = getActiveTranscriptDetail();
+    if (detail === 'compact') {
+      const label = formatCompactThinkingLabel({
+        live: this.mode === 'live',
+        elapsedMs: this.elapsedMs(),
+        stalled: this.renderStallSuffix().length > 0,
+      });
+      const labelRows = Math.max(1, wrapAnsiDisplayText(label, Math.max(1, width)).length);
+      if (!this.expanded) return 1 + labelRows;
+      const maxPreview = Math.max(THINKING_PREVIEW_LINES, 4);
+      const visibleBodyRows = this.mode === 'live' ? Math.min(bodyRows, maxPreview) : bodyRows;
+      return 1 + labelRows + visibleBodyRows;
+    }
+    if (this.mode === 'live') {
+      const maxPreview =
+        detail === 'full'
+          ? bodyRows
+          : detail === 'minimal' && !this.expanded
+            ? 0
+            : this.expanded
+              ? Math.max(THINKING_PREVIEW_LINES, 4)
+              : THINKING_PREVIEW_LINES;
+      const visible = maxPreview === 0 ? 0 : detail === 'full' ? bodyRows : Math.min(bodyRows, maxPreview);
+      return 3 + visible;
+    }
+    if (this.expanded || detail === 'full') return 1 + bodyRows;
+    if (detail === 'minimal') return 2;
+    return 3;
+  }
+
+  paintContentRows(width: number, startRow: number, endRow: number): string[] {
+    const start = Math.max(0, Math.floor(startRow));
+    const end = Math.max(start, Math.floor(endRow));
+    if (end <= start) return [];
+    if (isTranscriptMeasureMode()) {
+      const total = this.measureContentRows(width);
+      const s = Math.min(start, total);
+      const e = Math.min(end, total);
+      return measurePlaceholderLines(Math.max(0, e - s));
+    }
+    return this.render(width).slice(start, end);
+  }
+
   render(width: number): string[] {
     // Pure-scroll paint: keep the last cached body (no spinner re-encode).
     const scrollPaint = areLiveToolTicksSuppressed();
@@ -170,6 +220,14 @@ export class ThinkingComponent implements Component {
           : undefined,
       isCacheEnabled: isRenderCacheEnabled,
       render: () => {
+        // Geometry probes of multi-k bodies: Text.render returns a length-only
+        // stub without `.slice`. Never project it through line windows.
+        if (
+          isTranscriptMeasureMode() &&
+          this.text.length > TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP
+        ) {
+          return measurePlaceholderLines(this.measureContentRows(width));
+        }
         const contentWidth = Math.max(1, width - MESSAGE_INDENT.length);
         const contentLines = this.text.length > 0 ? this.textComponent.render(contentWidth) : [''];
         const appearance = getActiveAppearancePreferences();
