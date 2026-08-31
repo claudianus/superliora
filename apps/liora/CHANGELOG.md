@@ -1,5 +1,12 @@
 # @superliora/liora
 
+## 0.20.4
+
+### Patch Changes
+
+- Scope worker model selection to user-selected models: non-auto sessions no longer roam the provider catalog for worker/job models (explicit role models, then the session model), catalog recommendation surfaces (fleet card, Still-live lists) follow the same pool, and the Cursor included-lane hint is only injected when a cursor lane alias is actually configured.
+- Keep per-model 403 region/entitlement rejections alias-scoped instead of poisoning the shared provider credential, weigh fresh main-lane traffic over stale credential marks at spawn gates, and give reasoning-capable models completion headroom in live probes so thinking-first upstreams no longer read as empty.
+
 ## 0.20.3
 
 ### Patch Changes
