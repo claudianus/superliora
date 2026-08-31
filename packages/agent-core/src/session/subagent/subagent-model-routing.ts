@@ -125,6 +125,10 @@ function resolveSubagentModelSelectionCore(
     };
   }
   const pinnedAlias = parentConfig.modelAlias;
+  const sessionPinned =
+    pinnedAlias !== undefined &&
+    pinnedAlias.trim().length > 0 &&
+    pinnedAlias.trim().toLowerCase() !== 'auto';
   const parentAlias =
     pinnedAlias?.trim().toLowerCase() === 'auto'
       ? parentConfig.effectiveModelAlias
@@ -145,6 +149,9 @@ function resolveSubagentModelSelectionCore(
             role,
             config,
             intensity: 'balanced',
+            // Failover chain stays inside the worker pool too.
+            workerScope: true,
+            ...(sessionPinned ? { sessionPinned: true } : {}),
           })
         : undefined;
       return {
@@ -185,6 +192,8 @@ function resolveSubagentModelSelectionCore(
     ...(parentAlias !== undefined && parentAlias.trim().toLowerCase() !== 'auto'
       ? { parentAlias }
       : {}),
+    workerScope: true,
+    ...(sessionPinned ? { sessionPinned: true } : {}),
     signals: {
       profileName,
       profileBaseName,

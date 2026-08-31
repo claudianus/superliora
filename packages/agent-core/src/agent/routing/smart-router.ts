@@ -123,6 +123,48 @@ export function configuredRoleAlias(
   return alias.length > 0 ? alias : undefined;
 }
 
+/** Union of user-configured role-model aliases (`loopControl.*Model`, non-inherit). */
+export function configuredRolePoolAliases(config: LioraConfig): readonly string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const key of Object.values(ROLE_CONFIG_KEYS)) {
+    const raw = config.loopControl?.[key];
+    if (typeof raw !== 'string') continue;
+    const alias = raw.trim();
+    if (alias.length === 0 || alias.toLowerCase() === 'inherit') continue;
+    if (seen.has(alias)) continue;
+    seen.add(alias);
+    out.push(alias);
+  }
+  return out;
+}
+
+/**
+ * Worker candidate pool for recommendation surfaces (fleet catalog, still-live
+ * lists): user-configured role models when present, else the pinned session
+ * model alone. `undefined` = open catalog (auto session, nothing configured).
+ */
+export function resolveWorkerPoolFilter(
+  config: LioraConfig,
+  sessionPinnedAlias: string | undefined,
+): readonly string[] | undefined {
+  const pinned = sessionPinnedAlias?.trim();
+  const pinnedEffective =
+    pinned !== undefined && pinned.length > 0 && !isSmartAutoSessionAlias(pinned)
+      ? pinned
+      : undefined;
+  const roleAliases = configuredRolePoolAliases(config);
+  if (roleAliases.length > 0) {
+    const pool = [...roleAliases];
+    if (pinnedEffective !== undefined && !pool.includes(pinnedEffective)) {
+      pool.push(pinnedEffective);
+    }
+    return pool;
+  }
+  if (pinnedEffective !== undefined) return [pinnedEffective];
+  return undefined;
+}
+
 export function isConfigAliasHealthy(config: LioraConfig, alias: string): boolean {
   const model = config.models?.[alias];
   if (model === undefined) return false;
@@ -234,6 +276,15 @@ export type ResolveSmartRouteInput = {
   readonly sessionSpendUsd?: number;
   readonly minContextTokens?: number;
   readonly isAliasHealthy?: (alias: string) => boolean;
+  /**
+   * Worker-selection scope (subagent / job spawn). When true, the resolver
+   * never ranks the full catalog: an explicit role alias, then the parent
+   * (session) model, then undefined. Catalog roaming is reserved for sessions
+   * whose model is `auto` — pair with `sessionPinned`.
+   */
+  readonly workerScope?: boolean;
+  /** Session model is user-pinned (non-auto); enables the workerScope gate. */
+  readonly sessionPinned?: boolean;
 };
 
 /**
@@ -312,7 +363,33 @@ export function resolveSmartRoute(input: ResolveSmartRouteInput): SmartRoute | u
         reason: `User override degraded · ${explicit} → ${degraded} · ${role}/${intensity}`,
       };
     }
-    // Unhealthy override with empty healthy chain → fall through to auto.
+    // Unhealthy override with empty healthy chain → fall through (auto
+    // sessions scan the catalog; pinned sessions gate below).
+  }
+
+  // Worker scope: workers never roam the full catalog on behalf of a pinned
+  // session. The user picked a session model (or role models) — the only
+  // worker candidates left are that session model, and it must actually be
+  // alive (static health or fresh real traffic) before we hand it back.
+  if (input.workerScope === true && input.sessionPinned === true) {
+    const parent = input.parentAlias?.trim();
+    if (
+      parent !== undefined &&
+      parent.length > 0 &&
+      config.models?.[parent] !== undefined &&
+      (baseHealthy(parent) || sharedModelRouteHealthStore.hasFreshTrafficSuccess(parent))
+    ) {
+      return {
+        role,
+        intensity,
+        alias: parent,
+        chain: [parent],
+        thinkingLevel: thinkingForRole(role, config.models?.[parent]),
+        source: 'parent',
+        reason: `Worker scope · session model · ${role}/${intensity}`,
+      };
+    }
+    return undefined;
   }
 
   let metadata = [...buildLocalModelMetadata(config)];

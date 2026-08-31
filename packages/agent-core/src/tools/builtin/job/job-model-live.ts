@@ -15,6 +15,8 @@ import {
   isLiveProbeFailureFresh,
   probeModelAlias,
   resolveSmartRoute,
+  resolveWorkerPoolFilter,
+  sharedModelRouteHealthStore,
   type SmartRoute,
 } from '../../../agent/routing';
 import { formatModelFailedNote } from '../../../session/subagent/subagent-model-failed-note';
@@ -49,8 +51,17 @@ export async function rejectUnhealthyJobModelAliasLive(
         'omit model_alias or retry after models are loaded.',
     };
   }
-  if (!isConfigAliasHealthy(config, modelAlias)) {
-    const stillLive = listStillLiveJobModelAliases(config, modelAlias);
+  if (
+    !isConfigAliasHealthy(config, modelAlias) &&
+    // Fresh real-traffic success outweighs a stale poisoned credential mark:
+    // the parent lane may literally be streaming on this alias right now.
+    !sharedModelRouteHealthStore.hasFreshTrafficSuccess(modelAlias)
+  ) {
+    const stillLive = listStillLiveJobModelAliases(
+      config,
+      modelAlias,
+      sessionPinnedAlias(agent),
+    );
     const next =
       stillLive.length > 0
         ? `Still live now: ${stillLive.join(', ')}. Pick one of these, or omit model_alias.`
@@ -76,7 +87,11 @@ export async function rejectUnhealthyJobModelAliasLive(
   const kind = probe.failureKind ?? 'probe_fail';
   // Catalog injected at turn start is stale after this probe — list what is
   // still live *now* so Conductor does not re-summon just-failed siblings.
-  const stillLive = listStillLiveJobModelAliases(config, modelAlias);
+  const stillLive = listStillLiveJobModelAliases(
+    config,
+    modelAlias,
+    sessionPinnedAlias(agent),
+  );
   const next =
     stillLive.length > 0
       ? `Still live now: ${stillLive.join(', ')}. Pick one of these, or omit model_alias.`
@@ -89,16 +104,41 @@ export async function rejectUnhealthyJobModelAliasLive(
   };
 }
 
+/** Session model alias when user-pinned (non-auto), else undefined. */
+function sessionPinnedAlias(agent: Agent | undefined): string | undefined {
+  const pinned = agent?.config?.modelAlias?.trim();
+  if (pinned === undefined || pinned.length === 0) return undefined;
+  if (pinned.toLowerCase() === 'auto') return undefined;
+  return pinned;
+}
+
+/** Trailing hint appended to spawn failures when the worker pool is scoped. */
+function workerPoolHint(
+  sessionPinned: string | undefined,
+  config: Parameters<typeof resolveWorkerPoolFilter>[0] | undefined,
+): string {
+  if (sessionPinned === undefined || config === undefined) return '';
+  const pool = resolveWorkerPoolFilter(config, sessionPinned);
+  if (pool === undefined || pool.length === 0) return '';
+  return (
+    ` Worker pool is limited to user-selected models (${pool.join(', ')}) — ` +
+    '/model auto or loopControl role models widen it.'
+  );
+}
+
 /** Fresh-healthy aliases after a probe failure (capped for tool-result size). */
 function listStillLiveJobModelAliases(
   config: NonNullable<Agent['runtimeConfig']>,
   failedAlias: string,
+  sessionPinned: string | undefined,
   max = 6,
 ): readonly string[] {
+  const pool = resolveWorkerPoolFilter(config, sessionPinned);
   const live: string[] = [];
   for (const alias of Object.keys(config.models ?? {})) {
     const trimmed = alias.trim();
     if (trimmed.length === 0 || trimmed === failedAlias) continue;
+    if (pool !== undefined && !pool.includes(trimmed)) continue;
     if (isLiveProbeFailureFresh(trimmed)) continue;
     if (!isConfigAliasHealthy(config, trimmed)) continue;
     live.push(trimmed);
@@ -140,7 +180,12 @@ export async function preflightJobWorkerModel(
 
   if (pinned !== undefined) {
     const config = currentAgentConfig(agent) ?? agent.runtimeConfig ?? agent.kimiConfig;
-    if (config === undefined || !isConfigAliasHealthy(config, pinned)) {
+    if (
+      config === undefined ||
+      // Fresh real traffic outweighs a stale poisoned credential mark.
+      (!isConfigAliasHealthy(config, pinned) &&
+        !sharedModelRouteHealthStore.hasFreshTrafficSuccess(pinned))
+    ) {
       const note = formatModelFailedNote({
         alias: pinned,
         kind: 'unhealthy',
@@ -176,6 +221,7 @@ export async function preflightJobWorkerModel(
   }
 
   const parentAlias = resolveParentWorkerAlias(agent);
+  const sessionPinned = sessionPinnedAlias(agent);
   const signals = {
     prompt: job.prompt ?? job.title,
     profileName,
@@ -194,6 +240,8 @@ export async function preflightJobWorkerModel(
       config,
       intensity: 'balanced',
       ...(parentAlias !== undefined ? { parentAlias } : {}),
+      workerScope: true,
+      ...(sessionPinned !== undefined ? { sessionPinned: true } : {}),
       signals,
     });
   }
@@ -230,6 +278,8 @@ export async function preflightJobWorkerModel(
           role,
           config,
           ...(parentAlias !== undefined ? { parentAlias } : {}),
+          workerScope: true,
+          ...(sessionPinned ? { sessionPinned: true } : {}),
           intensity: current.intensity,
         },
         current,
@@ -264,7 +314,8 @@ export async function preflightJobWorkerModel(
       ok: false,
       error:
         `no live worker model for ${profileName} (tried ${triedLabel}) — ` +
-        'pin a live model with /model (or JobCreate.model_alias), then /goal resume / JobResume.',
+        'pin a live model with /model (or JobCreate.model_alias), then /goal resume / JobResume.' +
+        workerPoolHint(sessionPinned, config),
       note,
     };
   }
@@ -286,7 +337,9 @@ export async function preflightJobWorkerModel(
   });
   return {
     ok: false,
-    error: `worker model ${alias} failed live probe (${kind})`,
+    error:
+      `worker model ${alias} failed live probe (${kind})` +
+      workerPoolHint(sessionPinned, config),
     note,
   };
 }
@@ -304,7 +357,14 @@ function resolveParentWorkerAlias(agent: Agent): string | undefined {
     return undefined;
   }
   const config = currentAgentConfig(agent) ?? agent.runtimeConfig ?? agent.kimiConfig;
-  if (config === undefined || !isConfigAliasHealthy(config, alias)) return undefined;
+  if (
+    config === undefined ||
+    // Fresh real traffic outweighs a stale poisoned credential mark.
+    (!isConfigAliasHealthy(config, alias) &&
+      !sharedModelRouteHealthStore.hasFreshTrafficSuccess(alias))
+  ) {
+    return undefined;
+  }
   return alias;
 }
 
@@ -314,7 +374,12 @@ function appendProbeCandidates(
   config: ReturnType<typeof currentAgentConfig>,
 ): SmartRoute {
   if (parentAlias === undefined || config === undefined) return route;
-  if (!isConfigAliasHealthy(config, parentAlias)) return route;
+  if (
+    !isConfigAliasHealthy(config, parentAlias) &&
+    !sharedModelRouteHealthStore.hasFreshTrafficSuccess(parentAlias)
+  ) {
+    return route;
+  }
   const chain = route.chain.length > 0 ? [...route.chain] : [route.alias];
   if (chain.includes(parentAlias)) return route;
   return { ...route, chain: [...chain, parentAlias] };
@@ -327,6 +392,7 @@ function suggestNextHint(
   preferVision: boolean,
 ): string | undefined {
   const parent = resolveParentWorkerAlias(agent);
+  const pinned = sessionPinnedAlias(agent);
   if (parent !== undefined && parent !== failedAlias && !isLiveProbeFailureFresh(parent)) {
     return parent;
   }
@@ -339,13 +405,20 @@ function suggestNextHint(
       config,
       intensity: 'max',
       ...(parent !== undefined ? { parentAlias: parent } : {}),
+      workerScope: true,
+      ...(pinned !== undefined ? { sessionPinned: true } : {}),
       signals: { prompt: job.prompt ?? job.title, profileName },
     });
     for (const alias of maxRoute?.chain ?? []) {
       const trimmed = alias.trim();
       if (trimmed.length === 0 || trimmed === failedAlias) continue;
       if (isLiveProbeFailureFresh(trimmed)) continue;
-      if (isConfigAliasHealthy(config, trimmed)) return trimmed;
+      if (
+        isConfigAliasHealthy(config, trimmed) ||
+        sharedModelRouteHealthStore.hasFreshTrafficSuccess(trimmed)
+      ) {
+        return trimmed;
+      }
     }
   }
   const selection = resolveSubagentModelSelection(agent, profileName, undefined, {
@@ -357,7 +430,13 @@ function suggestNextHint(
     const trimmed = alias.trim();
     if (trimmed.length === 0 || trimmed === failedAlias) continue;
     if (isLiveProbeFailureFresh(trimmed)) continue;
-    if (config !== undefined && isConfigAliasHealthy(config, trimmed)) return trimmed;
+    if (
+      config !== undefined &&
+      (isConfigAliasHealthy(config, trimmed) ||
+        sharedModelRouteHealthStore.hasFreshTrafficSuccess(trimmed))
+    ) {
+      return trimmed;
+    }
   }
   return undefined;
 }

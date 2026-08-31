@@ -73,6 +73,9 @@ describe('subagent role model routing', () => {
       },
     });
     context.configure();
+    // Catalog auto-picks are a smart-auto session feature; pinned sessions
+    // scope workers to the session model (see the pinned-session test below).
+    context.agent.config.update({ modelAlias: 'auto' });
 
     expect(resolveSubagentModelSelection(context.agent, 'explore')).toMatchObject({
       alias: 'cheap-haiku',
@@ -96,6 +99,32 @@ describe('subagent role model routing', () => {
       alias: 'opus',
       role: 'coding',
       source: 'auto',
+    });
+  });
+
+  it('pins workers to the session model when the session is not auto', () => {
+    const context = testAgent({
+      initialConfig: {
+        providers: { 'test-provider': PROVIDER },
+        models: {
+          'cheap-haiku': model('cheap-haiku', ['tool_use', 'thinking'], 0.1),
+          opus: model('opus', ['tool_use', 'thinking'], 10),
+        },
+      },
+    });
+    context.configure();
+
+    // Session model 'mock-model' is user-pinned (configure default) — workers
+    // must not roam the catalog into models the user never selected.
+    expect(resolveSubagentModelSelection(context.agent, 'explore')).toMatchObject({
+      alias: 'mock-model',
+      role: 'exploration',
+      source: 'parent',
+    });
+    expect(resolveSubagentModelSelection(context.agent, 'coder')).toMatchObject({
+      alias: 'mock-model',
+      role: 'coding',
+      source: 'parent',
     });
   });
 
@@ -191,11 +220,48 @@ describe('subagent role model routing', () => {
       },
     });
     context.configure();
+    // Auto session: an unhealthy override still degrades to the catalog.
+    context.agent.config.update({ modelAlias: 'auto' });
 
     expect(resolveSubagentModelSelection(context.agent, 'plan')).toMatchObject({
       alias: 'opus',
       role: 'planning',
       source: 'auto',
+    });
+  });
+
+  it('pinned session degrades an unhealthy role override to the session model, not the catalog', () => {
+    const context = testAgent({
+      initialConfig: {
+        providers: {
+          'test-provider': PROVIDER,
+          // No apiKey / OAuth token → unavailable for smart routing.
+          deepseek: { type: 'openai', baseUrl: 'https://api.deepseek.example/v1' },
+        },
+        models: {
+          'deepseek/flash': {
+            provider: 'deepseek',
+            model: 'deepseek-v4-flash',
+            maxContextSize: 128_000,
+            capabilities: ['tool_use', 'thinking'],
+            cost: { input: 0.14 },
+          },
+          'cheap-haiku': model('cheap-haiku', ['tool_use', 'thinking'], 0.1),
+          opus: model('opus', ['tool_use', 'thinking'], 10),
+        },
+        loopControl: {
+          planningModel: 'deepseek/flash',
+        },
+      },
+    });
+    context.configure();
+
+    // Pinned session: the dead role override must NOT fall through to a
+    // catalog auto pick — the session model is the only remaining candidate.
+    expect(resolveSubagentModelSelection(context.agent, 'plan')).toMatchObject({
+      alias: 'mock-model',
+      role: 'planning',
+      source: 'parent',
     });
   });
 
@@ -225,6 +291,7 @@ describe('subagent role model routing', () => {
       },
     });
     context.configure();
+    context.agent.config.update({ modelAlias: 'auto' });
 
     expect(resolveSubagentModelSelection(context.agent, 'coder')).toMatchObject({
       alias: 'opus',

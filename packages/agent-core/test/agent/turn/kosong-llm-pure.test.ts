@@ -91,6 +91,29 @@ describe('agent/turn/kosong-llm — classifyProviderRouteFailure', () => {
     expect(result?.kind).toBe('model_unavailable');
   });
 
+  it('classifies a per-model 403 region opt-in as model_unavailable (alias-scoped)', () => {
+    // Observed in the wild: one region-locked SKU on an OpenAI-compatible
+    // gateway returned 403 RegionError while every sibling on the same key
+    // stayed healthy. Reclassifying as auth poisoned the whole provider.
+    const result = classifyProviderRouteFailure(
+      new APIStatusError(
+        403,
+        'RegionError: The latest version of this model is only available hosted in China and requires explicit opt in',
+      ),
+      1000,
+    );
+    expect(result?.kind).toBe('model_unavailable');
+  });
+
+  it('still classifies a plain 403/401 as auth (credential-scoped)', () => {
+    expect(classifyProviderRouteFailure(new APIStatusError(403, 'Forbidden'), 1000)?.kind).toBe(
+      'auth',
+    );
+    expect(classifyProviderRouteFailure(new APIStatusError(401, 'Unauthorized'), 1000)?.kind).toBe(
+      'auth',
+    );
+  });
+
   it('does not treat invalid request body 400 as model_unavailable', () => {
     expect(
       classifyProviderRouteFailure(new APIStatusError(400, 'Invalid request body'), 1000),

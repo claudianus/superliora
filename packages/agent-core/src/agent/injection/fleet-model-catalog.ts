@@ -12,6 +12,7 @@ import { isCursorIncludedLaneModel } from '../routing/provider-failure-scope';
 import {
   buildLocalModelMetadata,
   isConfigAliasHealthy,
+  resolveWorkerPoolFilter,
 } from '../routing/smart-router';
 import { DynamicInjector } from './injector';
 
@@ -23,11 +24,16 @@ export const FLEET_MODEL_CATALOG_MAX_CHARS = 2_400;
 export function selectFleetCatalogRows(
   config: LioraConfig,
   maxRows: number = FLEET_MODEL_CATALOG_MAX_ROWS,
+  sessionPinnedAlias?: string,
 ): readonly ModelMetadata[] {
   const defaultAlias = config.defaultModel?.trim() || undefined;
+  // Non-auto sessions only recommend user-selected models — the Conductor
+  // must not pick workers the user never opted into.
+  const pool = resolveWorkerPoolFilter(config, sessionPinnedAlias);
   const rows = buildLocalModelMetadata(config).filter((model) => {
     const alias = model.alias?.trim();
     if (alias === undefined || alias.length === 0) return false;
+    if (pool !== undefined && !pool.includes(alias)) return false;
     if (!isConfigAliasHealthy(config, alias)) return false;
     // Hide aliases with a fresh live-probe failure even before cooldown lands
     // in the route-health store (same process, same Conductor turn).
@@ -36,7 +42,7 @@ export function selectFleetCatalogRows(
     return true;
   });
   return [...rows]
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       // Session default first when healthy — workers should stick to the user's pick.
       if (defaultAlias !== undefined) {
         const aDef = a.alias === defaultAlias ? 1 : 0;
@@ -60,14 +66,26 @@ export function selectFleetCatalogRows(
 export function renderFleetModelCatalog(
   config: LioraConfig,
   maxChars: number = FLEET_MODEL_CATALOG_MAX_CHARS,
+  sessionPinnedAlias?: string,
 ): string | undefined {
-  const rows = selectFleetCatalogRows(config);
+  const rows = selectFleetCatalogRows(config, FLEET_MODEL_CATALOG_MAX_ROWS, sessionPinnedAlias);
   if (rows.length === 0) return undefined;
+
+  // Only advertise the Cursor included lane when a cursor lane alias is
+  // actually configured — otherwise the hint baits the Conductor into picking
+  // aliases that can never pass the static health gate (no login, no models).
+  const hasCursorLane = Object.keys(config.models ?? {}).some((alias) =>
+    isCursorIncludedLaneModel(alias),
+  );
 
   const lines: string[] = [
     '<fleet_model_catalog>',
     'Live-healthy aliases only (credentials + recent probe). Prefer the session default (listed first when healthy). When role models are auto, set JobCreate.model_alias from this list (omit → harness picks by kind/profile). Never invent aliases; never retry an omitted/failed alias until it reappears; JobCreate live-probes the pick.',
-    'Cursor included lane (not API quota): cursor-oauth/default (Auto), cursor-grok-4.5-*, composer-2.5* — prefer these when other cursor-oauth aliases fail quota/empty.',
+    ...(hasCursorLane
+      ? [
+          'Cursor included lane (not API quota): cursor-oauth/default (Auto), cursor-grok-4.5-*, composer-2.5* — prefer these when other cursor-oauth aliases fail quota/empty.',
+        ]
+      : []),
     'Hints: explore/research → value; implement/goal-driver → quality; verify → different family from maker when possible; UI/screenshots → vision=yes (multimodal session defaults count).',
     'alias | q | value | $/M_in | tools | vision | ctx | fit',
   ];
@@ -121,7 +139,12 @@ export class FleetModelCatalogInjector extends DynamicInjector {
     }
     const config = this.agent.runtimeConfig ?? this.agent.kimiConfig;
     if (config === undefined) return undefined;
+    const pinned = this.agent.config.modelAlias?.trim();
+    const sessionPinnedAlias =
+      pinned !== undefined && pinned.length > 0 && pinned.toLowerCase() !== 'auto'
+        ? pinned
+        : undefined;
     await warmModelsDevData().catch(() => {});
-    return renderFleetModelCatalog(config);
+    return renderFleetModelCatalog(config, FLEET_MODEL_CATALOG_MAX_CHARS, sessionPinnedAlias);
   }
 }

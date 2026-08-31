@@ -2008,7 +2008,7 @@ describe('SessionSubagentHost', () => {
     expect(child.agent.config.modelAlias).not.toBe('stale-model-from-initial-spawn');
   });
 
-  it('routes spawned explore subagents to a cheap model when one is configured', async () => {
+  it('keeps spawned explore subagents on the pinned session model even when a cheap model exists', async () => {
     const models = {
       'cheap-haiku': {
         provider: 'test-provider',
@@ -2037,10 +2037,46 @@ describe('SessionSubagentHost', () => {
     });
     await handle.completion;
 
-    // Exploration is read-only grunt work: the explore child runs on the
-    // cheap configured model while the parent keeps its own model.
-    expect(child.agent.config.modelAlias).toBe('cheap-haiku');
+    // Pinned session: workers stay on the user-selected model — the catalog
+    // cheap pick must not override the model the user explicitly chose.
+    expect(child.agent.config.modelAlias).toBe('mock-model');
     expect(parent.agent.config.modelAlias).toBe('mock-model');
+  });
+
+  it('routes spawned explore subagents to a cheap model in smart-auto sessions', async () => {
+    const models = {
+      'cheap-haiku': {
+        provider: 'test-provider',
+        model: 'cheap-haiku',
+        maxContextSize: 1_000_000,
+      },
+    };
+    const parent = testAgent({ initialConfig: { providers: {}, models } });
+    parent.configure();
+    // Smart-auto session: catalog auto-picks (cheap explore model) are allowed.
+    parent.agent.config.update({ modelAlias: 'auto' });
+
+    const summary =
+      'Explored the repository on the cheap model and reported the findings in a complete and detailed summary that gives the parent agent everything it needs to continue the work without redoing the investigation all over again.';
+    const child = testAgent({ initialConfig: { providers: {}, models } });
+    child.configure();
+    child.mockNextResponse({ type: 'text', text: summary });
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const handle = await host.spawn({
+      profileName: 'explore',
+      parentToolCallId: 'call_agent',
+      prompt: 'Find the cause',
+      description: 'Find cause',
+      runInBackground: false,
+      signal,
+    });
+    await handle.completion;
+
+    // Exploration is read-only grunt work: in a smart-auto session the explore
+    // child runs on the cheap configured model.
+    expect(child.agent.config.modelAlias).toBe('cheap-haiku');
   });
 
   it('keeps the parent model for explore subagents when no cheap model is configured', async () => {

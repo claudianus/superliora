@@ -176,7 +176,12 @@ export async function ensureSmartRouteProbed(
   const chainTotal = chain.length;
   for (let i = 0; i < chain.length; i += 1) {
     const alias = chain[i]!;
-    if (!isConfigAliasHealthy(config, alias)) continue;
+    if (
+      !isConfigAliasHealthy(config, alias) &&
+      !sharedModelRouteHealthStore.hasFreshTrafficSuccess(alias)
+    ) {
+      continue;
+    }
     options?.onAliasProgress?.(alias, i + 1, chainTotal);
     const result = await probeModelAlias(agent, alias, options);
     if (!result.ok) continue;
@@ -301,7 +306,15 @@ async function defaultProbeRunner(
   await withAuth((auth) => generate(provider, system, [], history, undefined, { signal, auth }));
 }
 
-/** Thinking-forced models need completion headroom or the probe reads as empty. */
+/**
+ * Probe completion budget.
+ *
+ * Reasoning-capable models always need headroom: upstreams that ignore a
+ * pinned `off` effort (or cannot disable reasoning at all) spend the budget on
+ * reasoning first, so a 1-token probe reads as an empty response and poisons
+ * the alias with a sticky `(empty)` failure. Only models we can provably keep
+ * non-reasoning get the 1-token fast path.
+ */
 const THINKING_PROBE_COMPLETION_TOKENS = 2048;
 
 function probeCompletionBudget(
@@ -310,13 +323,18 @@ function probeCompletionBudget(
   resolved: { readonly alwaysThinking?: boolean | undefined },
   thinkingPinned: boolean,
 ): number {
-  if (thinkingPinned && resolved.alwaysThinking !== true) return 1;
-  const declaredAlwaysThinking =
+  const model = (agent.runtimeConfig ?? agent.kimiConfig)?.models?.[alias];
+  const capabilities = new Set(
+    (model?.capabilities ?? []).map((capability) => capability.trim().toLowerCase()),
+  );
+  const reasoningCapable =
     resolved.alwaysThinking === true ||
-    (agent.runtimeConfig ?? agent.kimiConfig)?.models?.[alias]?.capabilities?.some(
-      (capability) => capability.trim().toLowerCase() === 'always_thinking',
-    ) === true;
-  return declaredAlwaysThinking ? THINKING_PROBE_COMPLETION_TOKENS : 1;
+    capabilities.has('always_thinking') ||
+    capabilities.has('thinking') ||
+    model?.reasoningKey !== undefined ||
+    model?.adaptiveThinking === true;
+  if (!thinkingPinned || reasoningCapable) return THINKING_PROBE_COMPLETION_TOKENS;
+  return 1;
 }
 
 /** Floor short classifier cooldowns so mid-turn JobCreate retries stay sticky. */

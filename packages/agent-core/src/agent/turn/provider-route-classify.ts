@@ -38,6 +38,22 @@ const MODEL_UNAVAILABLE_MESSAGE_PATTERNS = [
   /model\b.+\bunavailable\b/i,
   /no such model/i,
 ] as const;
+/**
+ * 403 bodies that name the *model*, not the credential: region-hosted SKUs
+ * behind an opt-in wall, per-model entitlement/plan gating. These must stay
+ * alias-scoped — inflating them to `auth` hides every healthy sibling sharing
+ * the same key (observed: one region-locked SKU poisoning a whole
+ * OpenAI-compatible gateway for every other model on it).
+ */
+const MODEL_SCOPED_AUTH_MESSAGE_PATTERNS = [
+  /region[_\s-]?error/i,
+  /hosted in\s+\w+/i,
+  /requires?\s+(?:explicit\s+)?opt[-\s]?in/i,
+  /opt[-\s]?in\s+(?:is\s+)?required/i,
+  /not\s+entitled\s+to\s+(?:this\s+)?model/i,
+  /no\s+access\s+to\s+(?:this\s+)?model/i,
+  /model\s+(?:is\s+)?not\s+(?:available|enabled|accessible)\s+(?:in|for)\s+(?:your\s+)?(?:region|workspace|plan|account|tier)/i,
+] as const;
 const MAX_RETRY_AFTER_COOLDOWN_MS = 24 * 60 * 60_000;
 const RATE_LIMIT_HEADER_BUCKETS = [
   {
@@ -218,7 +234,16 @@ export function classifyProviderRouteFailure(
   }
   if (!(error instanceof APIStatusError)) return undefined;
 
-  if (error.statusCode === 401 || error.statusCode === 403) {
+  if (error.statusCode === 401) {
+    return { kind: 'auth', cooldownMs: cooldownMs(DEFAULT_AUTH_COOLDOWN_MS) };
+  }
+  if (error.statusCode === 403) {
+    if (isModelScopedAuthText(errorSignalText(error))) {
+      return {
+        kind: 'model_unavailable',
+        cooldownMs: cooldownMs(DEFAULT_MODEL_UNAVAILABLE_COOLDOWN_MS),
+      };
+    }
     return { kind: 'auth', cooldownMs: cooldownMs(DEFAULT_AUTH_COOLDOWN_MS) };
   }
   if (error.statusCode === 402) {
@@ -252,6 +277,11 @@ function isModelUnavailableError(error: unknown): boolean {
     if (code !== 400 && code !== 404 && code !== 422) return false;
   }
   return MODEL_UNAVAILABLE_MESSAGE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function isModelScopedAuthText(text: string): boolean {
+  if (text.length === 0) return false;
+  return MODEL_SCOPED_AUTH_MESSAGE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 export function classifyProviderRouteHeaders(headers: unknown): ProviderRouteFailure | undefined {

@@ -163,6 +163,8 @@ describe('JobCreate.model_alias', () => {
     });
     const store = memoryStore();
     const agent = makeAgent({
+      modelAlias: 'auto',
+      effectiveModelAlias: 'worker-a',
       models: {
         'dead-a': {
           provider: 'test-provider',
@@ -226,6 +228,8 @@ describe('JobCreate.model_alias', () => {
     });
     const store = memoryStore();
     const agent = makeAgent({
+      modelAlias: 'auto',
+      effectiveModelAlias: 'cursor-oauth/default',
       models: {
         'cursor-oauth/claude-opus': {
           provider: 'cursor-oauth',
@@ -321,6 +325,56 @@ describe('JobCreate.model_alias', () => {
     expect(result.isError).toBe(true);
     expect(String(result.output)).toMatch(/unknown or unhealthy/);
     expect(String(result.output)).toContain('Still live now: worker-a');
+  });
+
+  it('pinned session scopes Still live list to user-selected models', async () => {
+    setLiveProbeRunnerForTests(async (_agent, alias) => {
+      if (alias === 'dead-a') {
+        throw new APIEmptyResponseError('empty response');
+      }
+    });
+    const store = memoryStore();
+    // Session pinned to 'worker-a' (makeAgent default) — the recovery list
+    // must not recommend catalog models the user never opted into.
+    const agent = makeAgent({
+      models: {
+        'dead-a': {
+          provider: 'test-provider',
+          model: 'dead-a',
+          maxContextSize: 128_000,
+          capabilities: ['tool_use'],
+          cost: { input: 1 },
+        },
+        'live-sibling': {
+          provider: 'test-provider',
+          model: 'live-sibling',
+          maxContextSize: 128_000,
+          capabilities: ['tool_use'],
+          cost: { input: 1 },
+        },
+      },
+    });
+    const tool = new JobCreateTool(store, agent as never);
+    const exec = tool.resolveExecution({
+      title: 'Explore auth',
+      kind: 'explore',
+      prompt: 'Find auth entrypoints',
+      success_criteria: ['paths listed'],
+      model_alias: 'dead-a',
+      staff: false,
+    });
+    expect(exec.isError).toBeFalsy();
+    if (exec.isError) return;
+    const result = await exec.execute({
+      turnId: 't',
+      toolCallId: 'c',
+      signal: new AbortController().signal,
+    });
+    expect(result.isError).toBe(true);
+    const output = String(result.output);
+    expect(output).toMatch(/failed live probe \(empty\)/);
+    expect(output).not.toContain('live-sibling');
+    expect(output).toMatch(/No live catalog aliases remain/);
   });
 });
 
