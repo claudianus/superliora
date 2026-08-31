@@ -107,8 +107,20 @@ describe('subagent role model routing', () => {
       initialConfig: {
         providers: { 'test-provider': PROVIDER },
         models: {
-          'cheap-haiku': model('cheap-haiku', ['tool_use', 'thinking'], 0.1),
-          opus: model('opus', ['tool_use', 'thinking'], 10),
+          'cheap-haiku': {
+            provider: 'test-provider',
+            model: 'cheap-haiku',
+            maxContextSize: 128_000,
+            capabilities: ['tool_use', 'thinking'],
+            cost: { input: 0.1 },
+          },
+          opus: {
+            provider: 'test-provider',
+            model: 'opus',
+            maxContextSize: 128_000,
+            capabilities: ['tool_use', 'thinking'],
+            cost: { input: 10 },
+          },
         },
       },
     });
@@ -246,8 +258,20 @@ describe('subagent role model routing', () => {
             capabilities: ['tool_use', 'thinking'],
             cost: { input: 0.14 },
           },
-          'cheap-haiku': model('cheap-haiku', ['tool_use', 'thinking'], 0.1),
-          opus: model('opus', ['tool_use', 'thinking'], 10),
+          'cheap-haiku': {
+            provider: 'test-provider',
+            model: 'cheap-haiku',
+            maxContextSize: 128_000,
+            capabilities: ['tool_use', 'thinking'],
+            cost: { input: 0.1 },
+          },
+          opus: {
+            provider: 'test-provider',
+            model: 'opus',
+            maxContextSize: 128_000,
+            capabilities: ['tool_use', 'thinking'],
+            cost: { input: 10 },
+          },
         },
         loopControl: {
           planningModel: 'deepseek/flash',
