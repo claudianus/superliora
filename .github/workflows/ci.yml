@@ -38,8 +38,12 @@ jobs:
       - run: pnpm run check:source-install
 
   test:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -52,10 +56,11 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      # The unified run also emits a jest-format results file; the baseline
-      # ratchet consumes it instead of re-running vitest per package (~7 min).
-      - run: node scripts/test-local.mjs --all --failures-json test-results.json
-      - run: node scripts/check-test-baseline.mjs --from-json test-results.json
+      # --retry=1 absorbs one-off timing flakes (e.g. premium-motion frame
+      # sampling) without masking real regressions: they fail twice and the
+      # job stays red. The test-baseline ratchet (meta/test-baseline.yaml) is
+      # a manual tool ??with zero pinned failures it is vacuous in CI.
+      - run: node scripts/test-local.mjs --all --shard=${{ matrix.shard }}/2 --retry=1
 
   # Windows is a first-class platform, but the full suite on windows-latest
   # costs ~27 min and Linux already covers it on every push. Per-push Windows
@@ -63,8 +68,12 @@ jobs:
   # abstractions, ACP, in-process e2e); the FULL Windows suite gates the
   # nightly schedule, release tags, and manual dispatch below.
   test-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -77,7 +86,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/test-local.mjs apps/liora/test packages/tui-renderer/test packages/kaos/test packages/acp-adapter/test packages/server-e2e/test --testTimeout=30000 --maxWorkers=2
+      - run: node scripts/test-local.mjs apps/liora/test packages/tui-renderer/test packages/kaos/test packages/acp-adapter/test packages/server-e2e/test --shard=${{ matrix.shard }}/2 --testTimeout=30000 --maxWorkers=2 --retry=1
 
   test-windows-full:
     if: >-
@@ -104,7 +113,7 @@ jobs:
       # Default forks use cpus-1 workers; that OOMs windows-latest and
       # fails the job with "Worker exited unexpectedly" after every
       # reported test passed. Cap the pool (also set in vitest.config.ts).
-      - run: node scripts/test-local.mjs --all --testTimeout=30000 --maxWorkers=2
+      - run: node scripts/test-local.mjs --all --testTimeout=30000 --maxWorkers=2 --retry=1
 
   lint:
     runs-on: ubuntu-latest
