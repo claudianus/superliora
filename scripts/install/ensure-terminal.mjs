@@ -615,6 +615,9 @@ export async function ensureTerminal(options = {}) {
       zoxideInstalled: vibe.zoxideInstalled === true,
       fzfInstalled: vibe.fzfInstalled === true,
       profilePatched: vibe.profilePatched === true,
+      executionPolicySet: vibe.executionPolicySet === true,
+      executionPolicySkipped: vibe.executionPolicySkipped === true,
+      executionPolicyBlocked: vibe.executionPolicyBlocked === true,
       message: message ?? TERMINAL_INSTALL_HINT,
     };
   }
@@ -734,6 +737,9 @@ export async function ensureTerminal(options = {}) {
     zoxideInstalled: vibe.zoxideInstalled === true,
     fzfInstalled: vibe.fzfInstalled === true,
     profilePatched: vibe.profilePatched === true,
+    executionPolicySet: vibe.executionPolicySet === true,
+    executionPolicySkipped: vibe.executionPolicySkipped === true,
+    executionPolicyBlocked: vibe.executionPolicyBlocked === true,
     wtPath: found?.wtPath,
     source: found?.source,
     ok: Boolean(found),

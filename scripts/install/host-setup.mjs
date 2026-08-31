@@ -288,14 +288,16 @@ export function planHostSetup(options = {}) {
   }
 
   if (platform === 'win32' && !skipVibe) {
+    const noPolicyOptOut =
+      env.SUPERLIORA_NO_EXECUTION_POLICY === '1' || options.noExecutionPolicy === true;
     items.push(item(
       'execution-policy',
       'change',
       'PowerShell execution policy (CurrentUser)',
-      options.allowExecutionPolicy === true
-        ? 'Set RemoteSigned only when current policy is Restricted'
-        : 'Opt-in only: pass --allow-execution-policy (or SUPERLIORA_ALLOW_EXECUTION_POLICY=1); Restricted is left untouched by default',
-      options.allowExecutionPolicy === true ? 'refresh' : 'needed',
+      noPolicyOptOut
+        ? 'Skipped (SUPERLIORA_NO_EXECUTION_POLICY=1); Restricted profile will still error'
+        : 'Auto-set to RemoteSigned when Restricted/Undefined (blocked by Group Policy is left untouched; legacy --allow-execution-policy still accepted)',
+      noPolicyOptOut ? 'refresh' : 'refresh',
     ));
   }
 
@@ -421,6 +423,9 @@ export async function ensureHostSetup(options = {}) {
     zoxideInstalled: vibe.zoxideInstalled === true,
     fzfInstalled: vibe.fzfInstalled === true,
     profilePatched: vibe.profilePatched === true,
+    executionPolicySet: vibe.executionPolicySet === true,
+    executionPolicySkipped: vibe.executionPolicySkipped === true,
+    executionPolicyBlocked: vibe.executionPolicyBlocked === true,
     themeWritten: vibe.themeWritten === true,
     desktopShortcutWritten: desktop.written === true,
     message: vibe.message,

@@ -113,6 +113,7 @@ $opt = @{
   PreferSource = $false
   Main = $false
   ForcePrebuilt = $false
+  AllowExecutionPolicy = $false
   Help = $false
 }
 
@@ -165,6 +166,7 @@ function Show-Usage {
   Write-Host '  -PreferSource / --prefer-source'
   Write-Host '  -Main / --main'
   Write-Host '  -ForcePrebuilt / --force-prebuilt'
+  Write-Host '  -AllowExecutionPolicy / --allow-execution-policy  (legacy alias; auto-fix is now default)'
   Write-Host '  -Help / --help'
 }
 
@@ -220,6 +222,7 @@ function Apply-Flags {
       'prefersource' { $Options.PreferSource = $true }
       'main' { $Options.Main = $true }
       'forceprebuilt' { $Options.ForcePrebuilt = $true }
+      'allowexecutionpolicy' { $Options.AllowExecutionPolicy = $true }
       { $_ -eq 'help' -or $_ -eq 'h' } { $Options.Help = $true }
       default { Fail ('unknown option: ' + $flag) }
     }
@@ -615,6 +618,8 @@ $noTerminalEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_NO_TERMINAL',
 $noHostSetupEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_NO_HOST_SETUP', 'Process')
 $noShellEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_NO_SHELL_RC', 'Process')
 $fromMainEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_FROM_MAIN', 'Process')
+$allowExecEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_ALLOW_EXECUTION_POLICY', 'Process')
+$noExecEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_NO_EXECUTION_POLICY', 'Process')
 if ($skipBrowser -eq '1') { $opt.NoBrowserUse = $true }
 if ($skipComputer -eq '1') { $opt.NoComputerUse = $true }
 if ($skipRetrieval -eq '1') { $opt.NoRetrieval = $true }
@@ -625,6 +630,7 @@ if ($skipTerminal -eq '1' -or $noTerminalEnv -eq '1') { $opt.NoTerminal = $true 
 if ($noHostSetupEnv -eq '1') { $opt.NoHostSetup = $true }
 if ($noShellEnv -eq '1') { $opt.NoPath = $true; $opt.NoShellRc = $true }
 if ($fromMainEnv -eq '1') { $opt.Main = $true }
+if ($allowExecEnv -eq '1') { $opt.AllowExecutionPolicy = $true }
 
 function Resolve-InstallLocale {
   $explicit = [Environment]::GetEnvironmentVariable('SUPERLIORA_LOCALE', 'Process')
@@ -757,6 +763,7 @@ if ($opt.NoHostSetup) { $orchArgs += '--no-host-setup' }
 if ($opt.PreferSource) { $orchArgs += '--prefer-source' }
 if ($opt.Main) { $orchArgs += '--main' }
 if ($opt.ForcePrebuilt) { $orchArgs += '--force-prebuilt' }
+if ($opt.AllowExecutionPolicy) { $orchArgs += '--allow-execution-policy' }
 
 try {
   & $nodeBin @orchArgs

@@ -57,8 +57,12 @@ export const INSTALL_STRINGS_EN = {
   'install.zoxideInstalled': 'Installed zoxide',
   'install.fzfInstalled': 'Installed fzf',
   'install.profilePatched': 'Wrote SuperLiora shell profile',
+  'install.executionPolicyFixed':
+    'PowerShell execution policy set to RemoteSigned (CurrentUser) so the managed profile can load.',
   'install.executionPolicySkipped':
-    'PowerShell execution policy left unchanged (opt-in). If scripts are blocked: run PowerShell as the user and `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or re-run the installer with --allow-execution-policy.',
+    'PowerShell execution policy left unchanged (SUPERLIORA_NO_EXECUTION_POLICY=1). If scripts are blocked: run PowerShell as the user and `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or re-run without that flag (legacy --allow-execution-policy still accepted).',
+  'install.executionPolicyBlocked':
+    'PowerShell execution policy is controlled by Group Policy (MachinePolicy/UserPolicy); CurrentUser RemoteSigned was not applied and the profile may still be blocked.',
   'install.wingetBootstrapped': 'Bootstrapped winget',
   'install.desktopShortcut': 'Wrote SuperLiora desktop shortcut',
   'install.hostSetupFailed':
@@ -143,8 +147,12 @@ export const INSTALL_STRINGS_KO = {
   'install.zoxideInstalled': 'zoxide 설치됨',
   'install.fzfInstalled': 'fzf 설치됨',
   'install.profilePatched': 'SuperLiora 셸 프로필 작성됨',
+  'install.executionPolicyFixed':
+    'PowerShell 실행 정책을 RemoteSigned(CurrentUser)로 설정했습니다. 관리 프로필이 정상 로드됩니다.',
   'install.executionPolicySkipped':
-    'PowerShell 실행 정책은 건드리지 않았습니다(옵트인). 스크립트가 차단되면 사용자 PowerShell에서 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`를 실행하거나 --allow-execution-policy로 설치기를 다시 실행하세요.',
+    'PowerShell 실행 정책은 유지했습니다(SUPERLIORA_NO_EXECUTION_POLICY=1). 스크립트가 차단되면 사용자 PowerShell에서 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`를 실행하거나 해당 플래그 없이 다시 설치하세요(기존 --allow-execution-policy도 동일).',
+  'install.executionPolicyBlocked':
+    'PowerShell 실행 정책이 그룹 정책(MachinePolicy/UserPolicy)으로 제어되어 CurrentUser RemoteSigned를 적용하지 못했습니다. 프로필이 여전히 차단될 수 있습니다.',
   'install.wingetBootstrapped': 'winget 준비됨',
   'install.desktopShortcut': 'SuperLiora 바탕화면 바로가기 작성됨',
   'install.hostSetupFailed':

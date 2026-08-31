@@ -229,8 +229,10 @@ try {
       skipTerminal: args.noTerminal,
       noShellRc: args.noShellRc,
       skipPackages: postInstall.skipHostPackages,
-      // Consent-gated: loosening PowerShell's script policy never happens
-      // without an explicit opt-in (flag or env).
+      // Auto-fix: loosening CurrentUser to RemoteSigned is now default when
+      // the managed profile would be blocked; skip with
+      // SUPERLIORA_NO_EXECUTION_POLICY=1. Legacy --allow-execution-policy
+      // / SUPERLIORA_ALLOW_EXECUTION_POLICY=1 is kept as an alias.
       allowExecutionPolicy:
         args.allowExecutionPolicy === true
         || process.env.SUPERLIORA_ALLOW_EXECUTION_POLICY === '1',
@@ -262,8 +264,12 @@ try {
     if (termInfo.profilePatched) {
       theatre.setDetail(t('install.profilePatched', undefined, installLocale));
     }
-    if (termInfo.executionPolicySkipped === true) {
+    if (termInfo.executionPolicySet === true) {
+      theatre.setDetail(t('install.executionPolicyFixed', undefined, installLocale));
+    } else if (termInfo.executionPolicySkipped === true) {
       theatre.note(t('install.executionPolicySkipped', undefined, installLocale));
+    } else if (termInfo.executionPolicyBlocked === true) {
+      theatre.note(t('install.executionPolicyBlocked', undefined, installLocale));
     }
     if (termInfo.wingetBootstrapped) {
       theatre.setDetail(t('install.wingetBootstrapped', undefined, installLocale));
@@ -496,9 +502,11 @@ Options:
   --no-host-setup       Skip host setup (or SUPERLIORA_NO_HOST_SETUP=1)
   --no-shell-rc         Do not edit shell PATH / User PATH (or SUPERLIORA_NO_SHELL_RC=1)
   --allow-execution-policy
-                        Allow Set-ExecutionPolicy RemoteSigned on Windows (or
-                        SUPERLIORA_ALLOW_EXECUTION_POLICY=1); without it a
-                        Restricted policy is left untouched
+                         On Windows the managed PowerShell profile now auto-sets
+                         CurrentUser RemoteSigned when Restricted/Undefined
+                         (skip with SUPERLIORA_NO_EXECUTION_POLICY=1);
+                         this flag is a legacy alias (also
+                         SUPERLIORA_ALLOW_EXECUTION_POLICY=1)
   --main                Ignore releases; build tip of origin/main from source
   --prefer-source       Skip prebuilt; build from source (--ref, default main)
   --force-prebuilt      Fail if prebuilt unavailable (same as default without --main)

@@ -384,24 +384,32 @@ export async function ensureShellVibe(options = {}) {
 
   let executionPolicySet = false;
   let executionPolicySkipped = false;
+  let executionPolicyBlocked = false;
   if (platform === 'win32' && options.noExecutionPolicy !== true) {
-    const allowed =
-      options.allowExecutionPolicy === true
-      || (options.env ?? process.env).SUPERLIORA_ALLOW_EXECUTION_POLICY === '1';
-    if (allowed) {
+    const env = options.env ?? process.env;
+    if (env.SUPERLIORA_NO_EXECUTION_POLICY === '1') {
+      executionPolicySkipped = true;
+    } else {
+      // Auto-remediate: the managed PowerShell profile (WindowsPowerShell +
+      // PowerShell 7) is blocked on a default Restricted/Undefined host,
+      // producing "cannot be loaded because running scripts is disabled"
+      // on every terminal launch. Fix CurrentUser RemoteSigned
+      // idempotently; skip only when explicitly opted out via
+      // SUPERLIORA_NO_EXECUTION_POLICY=1 / noExecutionPolicy. The legacy
+      // --allow-execution-policy / SUPERLIORA_ALLOW_EXECUTION_POLICY=1
+      // flag is kept as an explicit alias for the same fix.
       const setPolicy = options.setExecutionPolicy ?? defaultSetExecutionPolicy;
+      const isBlocked = options.isExecutionPolicyBlocked ?? defaultIsBlockedByPolicy;
       try {
         executionPolicySet = setPolicy() === true;
+        if (!executionPolicySet && !executionPolicySkipped) {
+          try {
+            if (isBlocked() === true) executionPolicyBlocked = true;
+          } catch {}
+        }
       } catch {
         executionPolicySet = false;
       }
-    } else {
-      // Consent-gated (default): loosening PowerShell's script policy is a
-      // security-relevant host change, so the installer never does it
-      // silently. Opt in with --allow-execution-policy or
-      // SUPERLIORA_ALLOW_EXECUTION_POLICY=1; a Restricted host keeps
-      // working — the CLI can still be started from an existing shell.
-      executionPolicySkipped = true;
     }
   }
 
@@ -417,6 +425,7 @@ export async function ensureShellVibe(options = {}) {
     profilePatched,
     executionPolicySet,
     executionPolicySkipped,
+    executionPolicyBlocked,
     message: omp.message,
   };
 }
@@ -526,6 +535,9 @@ function defaultSetExecutionPolicy() {
   const script = [
     "$p = Get-ExecutionPolicy -Scope CurrentUser -ErrorAction SilentlyContinue",
     "if ($p -in @('RemoteSigned','Unrestricted','Bypass')) { 'UNCHANGED'; exit 0 }",
+    "$mp = Get-ExecutionPolicy -Scope MachinePolicy -ErrorAction SilentlyContinue",
+    "$up = Get-ExecutionPolicy -Scope UserPolicy -ErrorAction SilentlyContinue",
+    "if ($mp -in @('Restricted','AllSigned') -or $up -in @('Restricted','AllSigned')) { 'BLOCKED_BY_POLICY'; exit 0 }",
     "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force",
     "'CHANGED'",
   ].join('; ');
@@ -535,6 +547,16 @@ function defaultSetExecutionPolicy() {
     timeout: 8_000,
   });
   return ps.status === 0 && /CHANGED/i.test(ps.stdout ?? '');
+}
+
+function defaultIsBlockedByPolicy() {
+  if (process.platform !== 'win32') return false;
+  const ps = spawnSync('powershell', ['-NoProfile', '-Command', "$mp = Get-ExecutionPolicy -Scope MachinePolicy -ErrorAction SilentlyContinue; $up = Get-ExecutionPolicy -Scope UserPolicy -ErrorAction SilentlyContinue; if ($mp -in @('Restricted','AllSigned') -or $up -in @('Restricted','AllSigned')) { 'BLOCKED' } else { 'OK' }"], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 5_000,
+  });
+  return /BLOCKED/i.test(ps.stdout ?? '');
 }
 
 function defaultAddUserPath(dir, platform = process.platform) {
@@ -567,7 +589,7 @@ async function defaultWriteUtf8(dest, text) {
 }
 
 function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(value).replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function escapePs(value) {
