@@ -87,8 +87,12 @@ async function withVisualVerdict(
   const ledger = child.verificationSensorLedger;
   // Axes only stick when VerifySurface recorded them; otherwise N/A (TUI smoke
   // and non-visual jobs must not inherit not_run interaction/craft gates).
+  // not_applicable = the surface offered nothing to score (canvas/visual UI) —
+  // sticky, not a pending gate.
   const interaction =
-    ledger.interactionVerdict === 'passed' || ledger.interactionVerdict === 'failed'
+    ledger.interactionVerdict === 'passed' ||
+    ledger.interactionVerdict === 'failed' ||
+    ledger.interactionVerdict === 'not_applicable'
       ? ledger.interactionVerdict
       : visual === 'passed' && ledger.visualVerdict === 'passed' && ledger.interactionVerdict === undefined
         ? 'not_applicable'
@@ -98,7 +102,9 @@ async function withVisualVerdict(
             ? 'not_run'
             : 'not_applicable';
   const craft =
-    ledger.craftVerdict === 'passed' || ledger.craftVerdict === 'failed'
+    ledger.craftVerdict === 'passed' ||
+    ledger.craftVerdict === 'failed' ||
+    ledger.craftVerdict === 'not_applicable'
       ? ledger.craftVerdict
       : visual === 'passed' && ledger.visualVerdict === 'passed' && ledger.craftVerdict === undefined
         ? 'not_applicable'
@@ -128,7 +134,7 @@ function inferPlayable(
   summary: string,
 ): 'yes' | 'unknown' {
   const hay = `${filesChanged.join('\n')}\n${summary}`.toLowerCase();
-  if (filesChanged.some((file) => /(?:^|\/)index\.html?$/i.test(file.replaceAll(/\\/g, '/')))) {
+  if (filesChanged.some((file) => /(?:^|\/)index\.html?$/i.test(file.replaceAll('\\', '/')))) {
     return 'yes';
   }
   if (/https?:\/\/localhost\b|python\s+-m\s+http\.server|file:\/\//i.test(hay)) {

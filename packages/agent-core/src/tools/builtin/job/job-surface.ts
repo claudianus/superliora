@@ -52,14 +52,21 @@ export function verificationVisualBlocksMergeForSurface(
   }
   if (verification?.visual !== 'passed') return true;
   if (surfaceRequiresWebAxes(surfaceKind)) {
-    if (verification.interaction !== undefined && verification.interaction !== 'passed') {
-      return true;
-    }
-    if (verification.craft !== undefined && verification.craft !== 'passed') {
-      return true;
-    }
+    if (axisBlocksMerge(verification.interaction)) return true;
+    if (axisBlocksMerge(verification.craft)) return true;
   }
   return false;
+}
+
+/**
+ * An axis that never ran because the surface offers nothing to score
+ * (canvas/visual UI → `not_applicable`) is not a product fail; only a real
+ * non-pass (`failed` / `not_run`) blocks the merge.
+ */
+function axisBlocksMerge(
+  verdict: 'passed' | 'failed' | 'not_applicable' | 'not_run' | 'skipped_host' | undefined,
+): boolean {
+  return verdict !== undefined && verdict !== 'passed' && verdict !== 'not_applicable';
 }
 
 /** Human-readable MergeJob reject reason for a failed visual proof. */

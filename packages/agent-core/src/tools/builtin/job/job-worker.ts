@@ -102,7 +102,7 @@ function visualDodLines(job: JobRecord): readonly string[] {
   const kind = job.surfaceKind;
   if (kind === 'web' || kind === 'mixed') {
     return [
-      `- Visual DoD (${kind} surface): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface once on the real surface before done (≤2 min fail-fast). VerifySurface requires load+interaction+craft axes; BrowserScreenshot alone does not set visual=passed. If spawn EINVAL / host_browser=einval, stamp visual=skipped_host and stop — do not BrowserAct-explore or reinstall loops. MergeJob requires visual=passed only when host_browser=ok; tests + playable_path may land with skipped_host.`,
+      `- Visual DoD (${kind} surface): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface once on the real surface before done (≤4 min fail-fast, includes cold install). VerifySurface requires load+interaction+craft axes (interaction may report not_applicable on canvas/visual surfaces); BrowserScreenshot alone does not set visual=passed. If spawn EINVAL / host_browser=einval, stamp visual=skipped_host and stop — do not BrowserAct-explore or reinstall loops. MergeJob requires visual=passed only when host_browser=ok; tests + playable_path may land with skipped_host.`,
       ...(kind === 'mixed'
         ? [
             '- Also land TUI visual smoke (`pnpm -C apps/liora run smoke:visual` or equivalent) before done — mixed surfaces need both web and TUI proof.',

@@ -182,7 +182,7 @@ describe('VerifySurfaceTool', () => {
       expect(result.isError).toBe(true);
       const payload = JSON.parse(String(result.output)) as { pass: boolean; notes: string[] };
       expect(payload.pass).toBe(false);
-      expect(payload.notes.join(' ')).toMatch(/timed out after 120s|fail-fast/i);
+      expect(payload.notes.join(' ')).toMatch(/timed out after 240s|fail-fast/i);
     } finally {
       timeoutSpy.mockRestore();
     }
@@ -234,5 +234,82 @@ describe('VerifySurfaceTool', () => {
     expect(payload.visualDescription).toContain('left-heavy');
     expect(payload.notes.join(' ')).toMatch(/vision analyzer/i);
     expect(visionFallback).toHaveBeenCalled();
+  });
+
+  it('marks interaction not_applicable on canvas/visual surfaces without affordances', async () => {
+    const runtime = fakeBrowserRuntime({
+      console: vi.fn().mockResolvedValue({ ok: true, messages: [] }),
+      observe: vi.fn().mockResolvedValue({
+        ok: true,
+        url: 'https://example.test/',
+        title: 'Canvas Studio',
+        snapshot: 'canvas surface',
+        refs: [],
+      }),
+    });
+    const tool = new VerifySurfaceTool(runtime);
+    const result = await executeTool(tool, context({}));
+    expect(result.isError).toBeFalsy();
+    const payload = JSON.parse(String(result.output)) as {
+      pass: boolean;
+      axes: { load: string; interaction: string; craft: string };
+      notes: string[];
+    };
+    expect(payload.pass).toBe(true);
+    expect(payload.axes.interaction).toBe('not_applicable');
+    expect(payload.notes.join(' ')).toMatch(/not_applicable/);
+    expect(runtime.act).not.toHaveBeenCalled();
+  });
+
+  it('prefers a safe affordance over destructive ones for the default smoke', async () => {
+    const runtime = fakeBrowserRuntime({
+      console: vi.fn().mockResolvedValue({ ok: true, messages: [] }),
+      observe: vi.fn().mockResolvedValue({
+        ok: true,
+        url: 'https://example.test/',
+        title: 'Admin',
+        snapshot: '@e1 button "Delete user" @e2 link "View reports"',
+        refs: [
+          { ref: '@e1', selector: 'button', role: 'button', name: 'Delete user', tag: 'button' },
+          { ref: '@e2', selector: 'a', role: 'link', name: 'View reports', tag: 'a' },
+        ],
+      }),
+    });
+    const tool = new VerifySurfaceTool(runtime);
+    const result = await executeTool(tool, context({}));
+    expect(result.isError).toBeFalsy();
+    const payload = JSON.parse(String(result.output)) as { pass: boolean };
+    expect(payload.pass).toBe(true);
+    expect(runtime.act).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actions: expect.arrayContaining([
+          expect.objectContaining({ type: 'click_ref', ref: '@e2' }),
+        ]),
+      }),
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('filters benign favicon/extension console errors but keeps real ones', async () => {
+    const runtime = fakeBrowserRuntime({
+      console: vi.fn().mockResolvedValue({
+        ok: true,
+        messages: [
+          { type: 'error', text: 'Failed to load resource: the server responded with 404 for /favicon.ico' },
+          { type: 'error', text: 'chrome-extension://abcdef/content.js threw an error' },
+          { type: 'error', text: 'real app error' },
+        ],
+      }),
+    });
+    const tool = new VerifySurfaceTool(runtime);
+    const result = await executeTool(tool, context({}));
+    const payload = JSON.parse(String(result.output)) as {
+      pass: boolean;
+      consoleErrors: string[];
+      notes: string[];
+    };
+    expect(payload.pass).toBe(false);
+    expect(payload.consoleErrors).toEqual(['[error] real app error']);
+    expect(payload.notes.join(' ')).toMatch(/benign/i);
   });
 });

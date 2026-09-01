@@ -18,7 +18,7 @@ export interface VerificationFailureRecord {
   readonly recordedAtMs: number;
 }
 
-export type VisualSensorVerdict = 'passed' | 'failed' | 'not_run' | 'skipped_host';
+export type VisualSensorVerdict = 'passed' | 'failed' | 'not_applicable' | 'not_run' | 'skipped_host';
 
 export interface VerificationSensorLedger {
   failures: VerificationFailureRecord[];
@@ -362,10 +362,10 @@ function recordAxisVerdicts(ledger: VerificationSensorLedger, output: string): v
     };
     const axes = parsed.axes;
     if (axes === undefined) return;
-    if (axes.interaction === 'passed' || axes.interaction === 'failed' || axes.interaction === 'not_run') {
+    if (axes.interaction === 'passed' || axes.interaction === 'failed' || axes.interaction === 'not_run' || axes.interaction === 'not_applicable') {
       ledger.interactionVerdict = axes.interaction;
     }
-    if (axes.craft === 'passed' || axes.craft === 'failed' || axes.craft === 'not_run') {
+    if (axes.craft === 'passed' || axes.craft === 'failed' || axes.craft === 'not_run' || axes.craft === 'not_applicable') {
       ledger.craftVerdict = axes.craft;
     }
     // load maps onto visualVerdict when present (overall pass still authoritative).

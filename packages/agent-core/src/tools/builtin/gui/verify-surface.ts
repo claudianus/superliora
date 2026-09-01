@@ -4,6 +4,10 @@
  * Synthetic UI acceptance check. Never reports pass when browser-use is missing.
  * Vision models get the screenshot attached; text-only models get an optional
  * vision-analyzer description in `visualDescription`.
+ * Verdicts are mechanical, not cosmetic: console-error noise the product does
+ * not own (favicon 404, browser extensions) is filtered, surfaces without any
+ * clickable affordance (canvas/visual UI) mark interaction `not_applicable`
+ * instead of failing, and the default smoke avoids destructive targets.
  */
 
 import type { BrowserAction, BrowserRef, BrowserUseRuntime } from '@superliora/gui-use';
@@ -22,10 +26,11 @@ import type { WorkspaceConfig } from '../../support/workspace';
 import { auditSurfaceCraft } from './surface-craft-audit';
 import DESCRIPTION from './verify-surface.md?raw';
 
-/** Fail-fast wall clock for status→observe→screenshot→console (matches auto-verify gate). */
-export const VERIFY_SURFACE_TIMEOUT_MS = 120_000;
+/** Fail-fast wall clock; 240s covers a cold browser-use install (runtime
+ * download) plus the status→observe→act→screenshot pipeline. */
+export const VERIFY_SURFACE_TIMEOUT_MS = 240_000;
 
-export type SurfaceAxisVerdict = 'passed' | 'failed' | 'not_run';
+export type SurfaceAxisVerdict = 'passed' | 'failed' | 'not_applicable' | 'not_run';
 
 const BrowserActionSchema = z.object({
   type: z.enum([
@@ -250,9 +255,9 @@ export class VerifySurfaceTool implements BuiltinTool<VerifySurfaceInput> {
       } else {
         const actions = resolveScenarioActions(args.scenario, refs);
         if (actions.length === 0) {
-          interaction = 'failed';
+          interaction = 'not_applicable';
           notes.push(
-            'Axis interaction: failed — no clickable affordance (button/link/textbox) and no scenario provided.',
+            'Axis interaction: not_applicable — no clickable affordance and no scenario provided (canvas/visual surface); interaction is not scoreable.',
           );
         } else {
           const actResult = await runtime.act({ actions, captureAfter: true }, gate);
@@ -309,7 +314,9 @@ export class VerifySurfaceTool implements BuiltinTool<VerifySurfaceInput> {
 
       const pass =
         load === 'passed' &&
-        (args.skip_interaction === true || interaction === 'passed') &&
+        (args.skip_interaction === true ||
+          interaction === 'passed' ||
+          interaction === 'not_applicable') &&
         (args.craft_audit === false || craft === 'passed');
 
       return resultPayload(
@@ -464,6 +471,12 @@ function resultPayload(
   };
 }
 
+/** Console errors a healthy product never owns: favicon 404s and browser
+ * extensions injected into the page. Everything else stays a hard fail. */
+function isBenignConsoleError(text: string): boolean {
+  return /\bfavicon\b/i.test(text) || /(?:chrome|moz|safari|edge)-extension:\/\//i.test(text);
+}
+
 async function collectConsoleErrors(
   runtime: BrowserUseRuntime,
   gate: AbortSignal,
@@ -473,11 +486,24 @@ async function collectConsoleErrors(
   try {
     const consoleResult = await runtime.console({}, gate);
     if (consoleResult.ok) {
+      let benign = 0;
       for (const message of consoleResult.messages) {
         const type = message.type.toLowerCase();
         if (type === 'error' || type === 'assert' || type === 'exception') {
-          consoleErrors.push(`[${message.type}] ${message.text}`);
+          if (isBenignConsoleError(message.text)) {
+            benign += 1;
+            continue;
+          }
+          // Dedup across re-reads: the console buffer is cumulative, so a
+          // second read replays old messages. Interaction regression checks
+          // compare counts before/after act — duplicates would fake a
+          // regression on any page with a pre-existing console error.
+          const line = `[${message.type}] ${message.text}`;
+          if (!consoleErrors.includes(line)) consoleErrors.push(line);
         }
+      }
+      if (benign > 0) {
+        notes.push(`Filtered ${String(benign)} benign console error(s) (favicon/extension).`);
       }
     } else if (consoleResult.error !== undefined) {
       notes.push(`Console read warning: ${consoleResult.error}`);
@@ -496,12 +522,31 @@ function resolveScenarioActions(
   if (scenario !== undefined && scenario.length > 0) {
     return scenario.map(coerceBrowserAction).filter((a): a is BrowserAction => a !== undefined);
   }
-  const preferred = refs.find((ref) => /button|link|textbox|searchbox/i.test(ref.role));
+  const interactive = refs.filter((ref) => /button|link|textbox|searchbox/i.test(ref.role));
+  const safe = interactive.find(
+    (ref) => SAFE_REF_PATTERN.test(refLabel(ref)) && !DESTRUCTIVE_REF_PATTERN.test(refLabel(ref)),
+  );
+  const nonDestructive = interactive.find(
+    (ref) => !DESTRUCTIVE_REF_PATTERN.test(refLabel(ref)),
+  );
+  const preferred = safe ?? nonDestructive;
   if (preferred === undefined) return [];
   return [
     { type: 'click_ref', ref: preferred.ref },
     { type: 'wait', seconds: 0.4 },
   ];
+}
+
+/** Labels a smoke click must never land on — destructive or irreversible. */
+const DESTRUCTIVE_REF_PATTERN =
+  /\b(delete|remove|destroy|logout|sign\s*out|signout|close|cancel|clear|reset|withdraw|pay|checkout|purchase|confirm|discard|empty|wipe|refund|suspend|ban|unsubscribe|revoke)\b/i;
+
+/** Primary affordances a smoke click should prefer when present. */
+const SAFE_REF_PATTERN =
+  /\b(get\s*started|start|begin|sign\s*in|log\s*in|sign\s*up|register|learn\s*more|read\s*more|docs?|documentation|home|next|continue|open|view|search|menu|settings|about|features|pricing|submit|save|send|share|toggle|expand|play|try|demo|explore|add|new|create)\b/i;
+
+function refLabel(ref: BrowserRef): string {
+  return `${ref.name} ${ref.role}`;
 }
 
 function coerceBrowserAction(
