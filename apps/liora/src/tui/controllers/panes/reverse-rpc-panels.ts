@@ -80,6 +80,12 @@ export class ReverseRpcPanelsController {
       this.host.state.activeDialog === 'center-modal' ||
       this.host.state.centerModalStack.length > 0
     ) {
+      // Deferred does not mean invisible: the agent is parked on this approval,
+      // so raise the same attention notification the mounted panel would show.
+      notifyUserAttentionOnce(this.host.state, `approval:${payload.id}`, {
+        title: ttui('tui.notice.approvalRequired'),
+        body: payload.tool_name,
+      });
       this.host.deferredApproval = payload;
       return;
     }
@@ -146,6 +152,10 @@ export class ReverseRpcPanelsController {
       this.host.state.activeDialog === 'center-modal' ||
       this.host.state.centerModalStack.length > 0
     ) {
+      notifyUserAttentionOnce(this.host.state, `question:${payload.id}`, {
+        title: ttui('tui.notice.needsAnswer'),
+        body: payload.questions[0]?.question,
+      });
       this.host.deferredQuestion = payload;
       this.questionPanelActive = true;
       return;
