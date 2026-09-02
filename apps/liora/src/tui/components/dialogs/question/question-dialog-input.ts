@@ -28,11 +28,6 @@ export interface QuestionDialogInputHost {
 }
 
 export function handleQuestionDialogInput(host: QuestionDialogInputHost, data: string): void {
-  if (matchesKey(data, Key.escape)) {
-    host.onAnswer({ answers: [] });
-    return;
-  }
-
   if (matchesKey(data, Key.ctrl('c')) || matchesKey(data, Key.ctrl('d'))) {
     host.onAnswer({ answers: [] });
     return;
@@ -45,6 +40,11 @@ export function handleQuestionDialogInput(host: QuestionDialogInputHost, data: s
 
   if (host.isEditingOther()) {
     handleOtherInput(host, data);
+    return;
+  }
+
+  if (matchesKey(data, Key.escape)) {
+    host.onAnswer({ answers: [] });
     return;
   }
 
@@ -67,7 +67,7 @@ export function handleQuestionDialogInput(host: QuestionDialogInputHost, data: s
     return;
   }
 
-  if (matchesKey(data, Key.left)) {
+  if (matchesKey(data, Key.left) || matchesKey(data, Key.shift('tab'))) {
     host.gotoTab(host.currentTab - 1);
     return;
   }
@@ -97,10 +97,17 @@ function handleOtherInput(host: QuestionDialogInputHost, data: string): void {
   const questionIdx = host.currentQuestionIndex();
   if (questionIdx === undefined) return;
 
-  if (matchesKey(data, Key.tab)) {
+  if (matchesKey(data, Key.escape)) {
+    // First Esc leaves the text field (draft preserved) instead of discarding
+    // every answered tab with `answers: []`; a second Esc (now outside the
+    // field) still closes the dialog.
+    host.editingOther = false;
+    return;
+  }
+  if (matchesKey(data, Key.tab) || matchesKey(data, Key.shift('tab'))) {
     host.syncOtherDraft(questionIdx);
     host.editingOther = false;
-    host.gotoTab(host.currentTab + 1);
+    host.gotoTab(host.currentTab + (matchesKey(data, Key.shift('tab')) ? -1 : 1));
     return;
   }
   if (matchesKey(data, Key.up)) {
@@ -134,7 +141,7 @@ function handleSubmitInput(host: QuestionDialogInputHost, data: string): void {
     return;
   }
 
-  if (matchesKey(data, Key.left)) {
+  if (matchesKey(data, Key.left) || matchesKey(data, Key.shift('tab'))) {
     host.gotoTab(host.currentTab - 1);
     return;
   }

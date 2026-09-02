@@ -485,7 +485,53 @@ describe('QuestionDialogComponent', () => {
       expect(flat).toContain(longBody);
     });
 
-    it('wraps long option labels and descriptions', () => {
+    it('esc in the Other field exits the field and preserves the dialog', () => {
+    const pending = makePending([
+      {
+        question: 'Q1?',
+        multi_select: false,
+        options: [{ label: 'A1' }, { label: 'B1' }],
+      },
+    ]);
+    const { dialog, collected } = makeDialog(pending);
+
+    // Select the trailing "Other" option → its inline text editor opens.
+    dialog.handleInput('3');
+    dialog.handleInput('h');
+    dialog.handleInput('i');
+
+    // First Esc leaves the field — no irreversible answer is submitted.
+    dialog.handleInput('\u001B');
+    expect(collected).toEqual([]);
+
+    // Second Esc (now on the option list) still closes the dialog.
+    dialog.handleInput('\u001B');
+    expect(collected).toEqual([[]]);
+  });
+
+  it('shift+tab moves back to the previous question tab', () => {
+    const pending = makePending([
+      {
+        question: 'Q1?',
+        multi_select: false,
+        options: [{ label: 'A1' }, { label: 'B1' }],
+      },
+      {
+        question: 'Q2?',
+        multi_select: false,
+        options: [{ label: 'A2' }, { label: 'B2' }],
+      },
+    ]);
+    const { dialog } = makeDialog(pending);
+
+    dialog.handleInput('1'); // answer Q1 → auto-advance to Q2
+    expect(strip(dialog.render(80).join('\n'))).toMatch(/Q2\?/);
+
+    dialog.handleInput('\u001B[Z'); // shift+tab → back to Q1
+    expect(strip(dialog.render(80).join('\n'))).toMatch(/Q1\?/);
+  });
+
+  it('wraps long option labels and descriptions', () => {
       const pending = makePending([
         {
           question: 'Q?',
