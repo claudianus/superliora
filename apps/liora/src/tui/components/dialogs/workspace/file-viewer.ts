@@ -96,7 +96,12 @@ export class FileViewerComponent extends Container implements Focusable {
   handleInput(data: string): void {
     const k = printableChar(data);
 
-    if (matchesKey(data, Key.escape) || k === 'q' || k === 'Q') {
+    if (
+      matchesKey(data, Key.escape) ||
+      matchesKey(data, Key.ctrl('c')) ||
+      k === 'q' ||
+      k === 'Q'
+    ) {
       this.opts.onClose();
       return;
     }

@@ -77,6 +77,7 @@ export class HelpPanelComponent extends Container implements Focusable {
     if (
       matchesKey(data, Key.escape) ||
       matchesKey(data, Key.enter) ||
+      matchesKey(data, Key.ctrl('c')) ||
       printable === 'q' ||
       printable === 'Q'
     ) {

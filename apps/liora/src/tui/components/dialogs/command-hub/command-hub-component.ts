@@ -215,7 +215,7 @@ export class CommandHubComponent extends Container implements Focusable {
       this.moveSelection(this.filtered.length - 1);
       return;
     }
-    if (matchesKey(data, Key.backspace) || matchesKey(data, Key.delete)) {
+    if (matchesKey(data, Key.backspace)) {
       if (this.query.length > 0) {
         this.query = this.query.slice(0, -1);
         this.refilter();
