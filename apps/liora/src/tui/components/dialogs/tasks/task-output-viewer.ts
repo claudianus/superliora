@@ -109,7 +109,12 @@ export class TaskOutputViewer extends Container implements Focusable {
     const visible = this.viewableRows();
     const k = printableChar(data);
 
-    if (matchesKey(data, Key.escape) || k === 'q' || k === 'Q') {
+    if (
+      matchesKey(data, Key.escape) ||
+      matchesKey(data, Key.ctrl('c')) ||
+      k === 'q' ||
+      k === 'Q'
+    ) {
       this.props.onClose();
       return;
     }

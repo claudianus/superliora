@@ -78,7 +78,7 @@ export function dispatchNativeTUIEditorDecodedEvents(
     if (event.type !== 'key') continue;
     if (event.eventType === 'release') continue;
 
-    if (event.key === 'enter' && !event.shift && event.raw === '\r') {
+    if (event.key === 'enter' && !event.shift && !event.ctrl && !event.alt) {
       if (
         !host.getDisablePasteBurst() &&
         host.getPasteBurst().shouldInsertNewlineInsteadOfSubmit(Date.now())

@@ -1,11 +1,11 @@
 /**
  * Decode raw stdin bytes into a comparable printable character.
  *
- * When a terminal (e.g. the VSCode integrated terminal) enables the Kitty
- * keyboard protocol disambiguate flag, ordinary printable keys are sent as
- * CSI-u sequences: pressing `r` arrives as "\x1b[114u", pressing `q` as
- * "\x1b[113u". A bare `data === 'q'` comparison inside a Container's
- * `handleInput` therefore never matches under Kitty-mode terminals.
+ * Some terminals report printable keys as CSI-u escape sequences
+ * (`\x1b[114u` for `r`, `\x1b[113u` for `q`) — the Kitty keyboard protocol
+ * and several terminal emulators' kitty-compat modes do this. A bare
+ * `data === 'q'` comparison inside a Container's `handleInput` therefore
+ * never matches on those terminals.
  *
  * Rules:
  * - Every bare-literal printable-character comparison (letters, digits,
@@ -27,12 +27,18 @@ export function printableChar(data: string): string {
 }
 
 /**
- * True when a decoded key is a single printable character safe to append to a
- * text query (e.g. a search box). Rejects C0 control chars, DEL, and any
- * multi-codepoint escape sequence. Space is accepted.
+ * True when a decoded key is printable text safe to append to a text input
+ * (e.g. a search box). Accepts single code points, surrogate pairs (emoji,
+ * CJK ideographs), and merged multi-character stdin chunks (a busy event
+ * loop can coalesce two hangul syllables into one chunk). Rejects anything
+ * containing C0 control chars, DEL, or an escape byte — i.e. raw escape
+ * sequences never pass. Space is accepted.
  */
 export function isPrintableChar(ch: string): boolean {
-  if (ch.length !== 1) return false;
-  const code = ch.codePointAt(0)!;
-  return code >= 0x20 && code !== 0x7f;
+  if (ch.length === 0) return false;
+  for (const char of ch) {
+    const code = char.codePointAt(0)!;
+    if (code < 0x20 || code === 0x7f) return false;
+  }
+  return true;
 }

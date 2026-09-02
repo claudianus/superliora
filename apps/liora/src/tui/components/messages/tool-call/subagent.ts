@@ -7,6 +7,7 @@
 import {
   projectRendererLineWindow,
   projectRendererNonEmptyLineWindow,
+  truncateToWidth,
 } from '#/tui/renderer';
 import type { ToolResultDisplay } from '@superliora/sdk';
 
@@ -247,7 +248,8 @@ export function truncateSubagentDescription(
   raw: string,
   maxLength: number = MAX_SUBAGENT_DESCRIPTION_LENGTH,
 ): string {
-  return raw.length > maxLength ? `${raw.slice(0, maxLength - 1)}…` : raw;
+  // Width-aware so CJK / wide descriptions truncate at the correct column.
+  return truncateToWidth(raw, maxLength, '…');
 }
 
 /** Parse `agent_id: agent-N` from an AgentTool spawn-success ToolResult body. */

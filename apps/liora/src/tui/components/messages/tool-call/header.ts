@@ -9,6 +9,7 @@ import {
   formatRendererToolHeaderChip,
   projectRendererToolActivityPhase,
   renderRendererToolActivityHeader,
+  truncateToWidth,
 } from '#/tui/renderer';
 import { BRAILLE_SPINNER_FRAMES } from '#/tui/constant/rendering';
 import { SPINNER_GLYPH, STATUS_BULLET } from '#/tui/constant/symbols';
@@ -200,7 +201,8 @@ function buildSingleSubagentHeader(state: ToolCallHeaderState): string {
 // Local copy avoids a cross-import cycle with tool-call-subagent.ts; kept
 // byte-identical to MAX_SUBAGENT_DESCRIPTION_LENGTH truncation there.
 function truncateSubagentDescription(raw: string, maxLength = 60): string {
-  return raw.length > maxLength ? `${raw.slice(0, maxLength - 1)}…` : raw;
+  // Width-aware so CJK / wide descriptions truncate at the correct column.
+  return truncateToWidth(raw, maxLength, '…');
 }
 
 function collectCompactMetricParts(

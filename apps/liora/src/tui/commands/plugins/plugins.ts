@@ -24,7 +24,7 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { formatPluginSourceLabel, isOfficialPluginSource } from '../../utils/plugin-source-label';
 import { refreshPluginThemeCatalog } from '#/tui/theme';
 import { loadPluginMarketplace } from '#/utils/plugin-marketplace';
-import type { AutocompleteItem } from '#/tui/renderer';
+import { truncateToWidth, type AutocompleteItem } from '#/tui/renderer';
 
 import type { SlashCommandHost } from '../hub/dispatch';
 import { completeLeadingArg, type ArgCompletionSpec } from '../hub/complete-args';
@@ -577,7 +577,8 @@ function sourceIdentity(plugin: PluginSummary): string {
 
 function truncateForStatus(input: string): string {
   const max = 80;
-  return input.length > max ? `${input.slice(0, max - 1)}…` : input;
+  // Width-aware so CJK / wide plugin names truncate at the correct column.
+  return truncateToWidth(input, max, '…');
 }
 
 async function reloadPlugins(host: SlashCommandHost): Promise<void> {

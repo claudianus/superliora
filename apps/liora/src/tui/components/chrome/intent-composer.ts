@@ -13,7 +13,7 @@ import {
 } from '#/tui/renderer';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
-import { printableChar } from '#/tui/utils/printable-key';
+import { isPrintableChar, printableChar } from '#/tui/utils/printable-key';
 import {
   intentBriefHasFields,
   intentComposerDefaultsForMode,
@@ -239,7 +239,7 @@ export class IntentComposerComponent extends Container implements Focusable {
       return;
     }
     const ch = printableChar(data);
-    if (ch !== undefined && ch.length === 1) {
+    if (isPrintableChar(ch)) {
       this.draft += ch;
       this.opts.requestRender?.();
     }

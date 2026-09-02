@@ -8,6 +8,7 @@ import {
   Container,
   matchesKey,
   Key,
+  truncateToWidth,
   type Focusable,
   renderRendererPanelChromeRows,
   visibleWidth,
@@ -46,7 +47,8 @@ export interface ApprovalPanelResponse {
 
 function truncateOneLine(text: string, max: number): string {
   const firstLine = text.split('\n')[0] ?? '';
-  return firstLine.length > max ? firstLine.slice(0, max - 1) + '…' : firstLine;
+  // Width-aware so CJK / wide descriptions truncate at the correct column.
+  return truncateToWidth(firstLine, max, '…');
 }
 
 const DIFF_SUMMARY_MAX_LINES = 10;
@@ -326,6 +328,13 @@ export class ApprovalPanelComponent extends Container implements Focusable {
   }
 
   handleInput(data: string): void {
+    // Inside the feedback editor Esc cancels the input (back to the choice
+    // list) instead of rejecting the whole tool call — the response is
+    // irreversible, so a mid-edit Esc must not submit it.
+    if (this.feedbackMode && matchesKey(data, Key.escape)) {
+      this.feedbackInput.onEscape?.();
+      return;
+    }
     if (
       matchesKey(data, Key.escape) ||
       matchesKey(data, Key.ctrl('c')) ||
