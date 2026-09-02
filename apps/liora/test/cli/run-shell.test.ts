@@ -203,7 +203,12 @@ describe('runShell', () => {
     expect(mocks.harnessEnsureConfigFile.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.harnessGetConfig.mock.invocationCallOrder[0]!,
     );
-    expect(execSync).toHaveBeenCalledWith('stty -ixon', { stdio: 'ignore' });
+    if (process.platform !== 'win32') {
+      expect(execSync).toHaveBeenCalledWith('stty -ixon', { stdio: 'ignore' });
+    } else {
+      // stty does not exist on Windows; the call is gated off entirely.
+      expect(execSync).not.toHaveBeenCalled();
+    }
     expect(mocks.kimiTuiConstructor).toHaveBeenCalledTimes(1);
     expect(mocks.createKimiDeviceId).toHaveBeenCalledWith(
       '/tmp/kimi-code-test-home',

@@ -202,10 +202,13 @@ export async function runShell(
     }
     process.exit(exitCode);
   };
-  try {
-    execSync('stty -ixon', { stdio: 'ignore' });
-  } catch {
-    /* ignore */
+  if (process.platform !== 'win32') {
+    // stty does not exist on Windows; the exec would always throw.
+    try {
+      execSync('stty -ixon', { stdio: 'ignore' });
+    } catch {
+      /* ignore */
+    }
   }
   startupTrace('runShell:tui-constructed');
   try {
