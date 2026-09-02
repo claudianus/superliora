@@ -145,6 +145,30 @@ describe('ApprovalPanelComponent', () => {
     expect(out).not.toContain('y/a/n/f');
   });
 
+  it('esc during feedback editing cancels the input instead of rejecting', () => {
+    const { dialog, responses } = makeDialog();
+
+    dialog.handleInput('4'); // "Reject with feedback" → feedback editor
+    dialog.handleInput('n');
+    dialog.handleInput('o');
+    dialog.handleInput('\u001B'); // Esc — cancel the draft, not the tool call
+    expect(responses).toEqual([]);
+
+    // The choice list is still functional after leaving the feedback editor.
+    dialog.handleInput('1');
+    expect(responses).toEqual([
+      { response: 'approved', feedback: undefined, selected_label: undefined },
+    ]);
+  });
+
+  it('esc from the choice list still rejects the tool call', () => {
+    const { dialog, responses } = makeDialog();
+    dialog.handleInput('\u001B');
+    expect(responses).toEqual([
+      { response: 'rejected', feedback: undefined, selected_label: undefined },
+    ]);
+  });
+
   it('renders choice descriptions beneath the label when present', () => {
     const pending: PendingApproval = {
       data: {
