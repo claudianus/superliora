@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'node:fs';
+import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 
 import {
@@ -117,8 +117,7 @@ export class FileMentionProvider implements AutocompleteProvider {
     // Handle slash-command name completion ourselves so that aliases are
     // searchable and visible in the label.
     if (!options.force && textBeforeCursor.startsWith('/')) {
-      const spaceIndex = textBeforeCursor.indexOf(' ');
-      if (spaceIndex === -1) {
+      if (!/\s/.test(textBeforeCursor)) {
         const tokens = textBeforeCursor
           .slice(1)
           .trim()
@@ -280,16 +279,16 @@ function applyPathCompletion(
   };
 }
 
-function getFsMentionSuggestions(
+async function getFsMentionSuggestions(
   workDir: string,
   additionalDirs: readonly string[],
   atPrefix: string,
   signal: AbortSignal,
-): AutocompleteSuggestions | null {
+): Promise<AutocompleteSuggestions | null> {
   if (signal.aborted) return null;
 
   const query = atPrefix.slice(1);
-  const candidates = collectFsMentionCandidates(workDir, additionalDirs, signal);
+  const candidates = await collectFsMentionCandidates(workDir, additionalDirs, signal);
   if (candidates.length === 0 || signal.aborted) return null;
 
   const ranked = rankFsMentionCandidates(candidates, query).slice(0, MAX_FALLBACK_SUGGESTIONS);
@@ -301,11 +300,11 @@ function getFsMentionSuggestions(
   };
 }
 
-function collectFsMentionCandidates(
+async function collectFsMentionCandidates(
   workDir: string,
   additionalDirs: readonly string[],
   signal: AbortSignal,
-): FsMentionCandidate[] {
+): Promise<FsMentionCandidate[]> {
   const candidatesByAbsolutePath = new Map<string, FsMentionCandidate>();
   const roots = [
     { root: normalizePath(resolve(workDir)), isAdditionalDir: false },
@@ -325,7 +324,10 @@ function collectFsMentionCandidates(
       const absoluteDir = relativeDir.length === 0 ? root : join(root, relativeDir);
       let entries;
       try {
-        entries = readdirSync(absoluteDir, { withFileTypes: true });
+        // Async so the keystroke path never blocks the render loop while
+        // walking large trees (the abort check between awaits can actually
+        // stop the walk now).
+        entries = await readdir(absoluteDir, { withFileTypes: true });
       } catch {
         continue;
       }
@@ -342,7 +344,7 @@ function collectFsMentionCandidates(
         let isDirectory = entry.isDirectory();
         if (!isDirectory && isSymlink) {
           try {
-            isDirectory = statSync(absolutePath).isDirectory();
+            isDirectory = (await stat(absolutePath)).isDirectory();
           } catch {
             // Broken symlink or permission error — keep it as a file candidate.
           }
@@ -446,7 +448,7 @@ function parseSlashArgumentContext(
     const [, commandName = '', argumentPrefix = ''] = whitespaceMatch;
     const command = findSlashCommand(slashCommands, commandName);
     if (command === undefined) return null;
-    if (!textBeforeCursor.endsWith(' ') && argumentPrefix.length === 0) return null;
+    if (!/\s$/.test(textBeforeCursor) && argumentPrefix.length === 0) return null;
     return { command, argumentPrefix };
   }
 
@@ -493,7 +495,7 @@ function shouldSuppressSlashArgumentCompletion(
 ): boolean {
   if (force === true) return false;
   if (!textBeforeCursor.startsWith('/')) return false;
-  if (!textBeforeCursor.includes(' ')) return false;
+  if (!/\s/.test(textBeforeCursor)) return false;
   return textAfterCursor.trimStart().length > 0;
 }
 
