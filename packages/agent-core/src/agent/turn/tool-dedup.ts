@@ -35,11 +35,15 @@ const REMINDER_TEXT_3 =
   'Then return a text-only summary to the user that reports the current problem, what has already been tried, and what information or decision is needed next.' +
   '\n</system-reminder>';
 
-/** Structured doom-loop hard-stop notice (Korean user-facing + machine code). */
+/**
+ * Structured doom-loop hard-stop notice (language-neutral + machine code).
+ * Must not prescribe a language: the session response-language directive
+ * already governs how the model addresses the user.
+ */
 const DOOM_LOOP_HARD_STOP_TEXT =
   '\n\n<system-reminder>\n' +
-  'doom_loop_hard_stop: 동일 도구·인자 반복이 임계치를 초과해 턴을 강제 종료합니다.\n' +
-  '더 이상 같은 함수 호출을 반복하지 마세요. 사용자에게 현재 막힘 원인과 이미 시도한 방법, 필요한 결정을 한국어로 요약하세요.\n' +
+  'doom_loop_hard_stop: the same tool call with identical parameters exceeded the repeat threshold; the turn is force-stopped.\n' +
+  'Do not repeat the same function call. Summarize for the user, in the session language: what is blocked, what has been tried, and what decision is needed.\n' +
   'code=DOOM_LOOP_HARD_STOP\n' +
   '\n</system-reminder>';
 
@@ -259,7 +263,7 @@ export class ToolCallDeduplicator {
     let finalResult = result;
     let action: 'none' | 'r1' | 'r2' | 'r3' | 'stop' = 'none';
     if (streak >= REPEAT_FORCE_STOP_STREAK) {
-      // Hard stop: stopTurn + Korean doom_loop notice (not warn-only).
+      // Hard stop: stopTurn + doom_loop notice (not warn-only).
       finalResult = forceStopResult(result, REMINDER_TEXT_3 + DOOM_LOOP_HARD_STOP_TEXT);
       action = 'stop';
     } else if (streak >= REPEAT_REMINDER_3_START) {

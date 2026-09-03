@@ -5,10 +5,13 @@ import {
   createJobId,
   emptyJobLedger,
   getJob,
+  JOB_LEDGER_MAX_JOBS,
   listJobs,
   patchJob,
+  pruneJobLedgerJobs,
   readJobLedger,
   writeJobLedger,
+  type JobRecord,
 } from '../../src/tools/builtin/job/job-ledger';
 import {
   listUnreadJobInbox,
@@ -1269,3 +1272,102 @@ describe('conductor guard draft recorder (V1-3)', () => {
     }
   });
 });
+
+describe('job ledger growth cap', () => {
+  it('returns input untouched under the cap', () => {
+    const records = [
+      makeRecord({ id: 'job_a', status: 'done' }),
+      makeRecord({ id: 'job_b', status: 'running' }),
+    ];
+    const result = pruneJobLedgerJobs(records);
+    expect(result.pruned).toHaveLength(0);
+    expect(result.jobs).toBe(records);
+  });
+
+  it('prunes oldest terminal jobs first when over the cap', () => {
+    const records: ReturnType<typeof makeRecord>[] = [];
+    for (let i = 0; i < JOB_LEDGER_MAX_JOBS + 10; i += 1) {
+      records.push(
+        makeRecord({
+          id: `job_${i.toString().padStart(3, '0')}`,
+          status: i < 20 ? 'done' : 'queued',
+          createdAt: new Date(2026, 0, 1, 0, 0, i).toISOString(),
+          updatedAt: new Date(2026, 0, 1, 0, 0, i).toISOString(),
+        }),
+      );
+    }
+    const result = pruneJobLedgerJobs(records);
+    expect(result.jobs).toHaveLength(JOB_LEDGER_MAX_JOBS);
+    expect(result.pruned).toHaveLength(10);
+    // Oldest 10 done jobs evicted; the 10 newer done jobs survive.
+    const prunedIds = new Set(result.pruned.map((j) => j.id));
+    expect(prunedIds.has('job_000')).toBe(true);
+    expect(prunedIds.has('job_009')).toBe(true);
+    expect(prunedIds.has('job_010')).toBe(false);
+    // No live job is ever evicted.
+    expect([...prunedIds].some((id) => id >= 'job_020')).toBe(false);
+  });
+
+  it('never prunes pending land, pinned sessions, or referenced parents', () => {
+    const records = [
+      makeRecord({ id: 'job_pending_land', status: 'done', landChoice: 'pending' }),
+      makeRecord({ id: 'job_pinned', status: 'failed', sessionNamePinned: true }),
+      makeRecord({ id: 'job_parent', status: 'done' }),
+      makeRecord({ id: 'job_child', status: 'queued', parentJobId: 'job_parent' }),
+    ];
+    for (let i = 0; i < JOB_LEDGER_MAX_JOBS + 5; i += 1) {
+      records.push(makeRecord({ id: `job_old_${i}`, status: 'done' }));
+    }
+    const result = pruneJobLedgerJobs(records);
+    const keptIds = new Set(result.jobs.map((j) => j.id));
+    expect(keptIds.has('job_pending_land')).toBe(true);
+    expect(keptIds.has('job_pinned')).toBe(true);
+    expect(keptIds.has('job_parent')).toBe(true);
+    expect(keptIds.has('job_child')).toBe(true);
+  });
+
+  it('caps persisted ledger length through writeJobLedger', () => {
+    const store = memoryStore();
+    const jobs = [];
+    for (let i = 0; i < JOB_LEDGER_MAX_JOBS + 3; i += 1) {
+      jobs.push(makeRecord({ id: `job_w_${i}`, status: 'done' }));
+    }
+    writeJobLedger(store, { schemaVersion: 1, jobs });
+    expect(listJobs(store)).toHaveLength(JOB_LEDGER_MAX_JOBS);
+  });
+
+  it('keeps marathon sessions capped through createJob', () => {
+    const store = memoryStore();
+    writeJobLedger(store, emptyJobLedger());
+    for (let i = 0; i < 20; i += 1) {
+      const job = createJob(store, { title: `t${i}`, kind: 'task', priority: 1 });
+      patchJob(store, job.id, { status: 'done' });
+    }
+    // Under cap: nothing lost.
+    expect(listJobs(store)).toHaveLength(20);
+  });
+});
+
+function makeRecord(overrides: {
+  readonly id: string;
+  readonly status: 'done' | 'failed' | 'queued' | 'running';
+  readonly parentJobId?: string;
+  readonly landChoice?: 'pending' | 'keep' | 'apply' | 'pr';
+  readonly sessionNamePinned?: boolean;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
+}): JobRecord {
+  const now = new Date(2026, 5, 1).toISOString();
+  return {
+    id: overrides.id,
+    title: overrides.id,
+    status: overrides.status,
+    kind: 'task',
+    priority: 1,
+    createdAt: overrides.createdAt ?? now,
+    updatedAt: overrides.updatedAt ?? now,
+    ...(overrides.parentJobId !== undefined ? { parentJobId: overrides.parentJobId } : {}),
+    ...(overrides.landChoice !== undefined ? { landChoice: overrides.landChoice } : {}),
+    ...(overrides.sessionNamePinned === true ? { sessionNamePinned: true } : {}),
+  };
+}

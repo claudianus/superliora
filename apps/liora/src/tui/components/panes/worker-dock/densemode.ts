@@ -259,7 +259,7 @@ export function formatAttentionJobRow(
       : card.status === 'failed'
         ? 'error'
         : meta.token;
-  const statusLabel = waitingParent ? '대기(부모 단계)' : meta.label;
+  const statusLabel = waitingParent ? 'queued(parent-phase)' : meta.label;
   const label = titlePlain.length > 0 ? titlePlain : shortJobId(idPlain);
   const title = truncateToWidth(label, Math.max(6, width - 24), '…');
   const phase =

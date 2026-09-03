@@ -65,7 +65,7 @@ export class WorkerSpawner {
   private readonly queue: WorkerSpawnTask[] = [];
   private readonly queuedKeys = new Set<string>();
   private readonly budgetMs: number;
-  private readonly maxConcurrent: number;
+  private maxConcurrent: number;
   private readonly spawningKeys = new Set<string>();
   private drainScheduled = false;
   private drainInFlight: Promise<void> | undefined;
@@ -73,6 +73,19 @@ export class WorkerSpawner {
   constructor(options: WorkerSpawnerOptions = {}) {
     this.budgetMs = options.budgetMs ?? JOB_WORKER_SPAWN_BUDGET_MS;
     this.maxConcurrent = Math.max(1, options.maxConcurrent ?? JOB_WORKER_SPAWN_MAX_CONCURRENT);
+  }
+
+  /**
+   * Live concurrency update. The shared spawner is a module singleton, but the
+   * pool cap is store-sensitive (`projectMode` per session): a spawner built
+   * under session A's cap must not serialize session B's handshakes. The drain
+   * loop reads `maxConcurrent` every iteration, so in-flight batches pick up
+   * the new cap without a queue reset.
+   */
+  setMaxConcurrent(maxConcurrent: number): void {
+    if (Number.isFinite(maxConcurrent)) {
+      this.maxConcurrent = Math.max(1, Math.floor(maxConcurrent));
+    }
   }
 
   /**

@@ -1027,6 +1027,56 @@ ${'x'.repeat(200)}
     expect(getJob(store, blocked.id)?.notes).toMatch(/surface_kind=none/);
   });
 
+  it('JobSteer rejected as a state-machine key: terminal, running-promotion, blocked-park, and queued are refused', () => {
+    const store = memoryStore();
+    const base = createJob(store, { title: 'Guard target', kind: 'task' });
+
+    // Terminal states belong to worker completion / JobCancel.
+    for (const status of ['done', 'failed', 'cancelled', 'interrupted'] as const) {
+      const result = steerJobWorker({
+        store,
+        jobId: base.id,
+        message: 'attempt terminal override',
+        status,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/terminal status/);
+    }
+
+    // Forcing running bypasses the scheduler → pool-slot leak.
+    patchJob(store, base.id, { status: 'needs_user' });
+    const forceRunning = steerJobWorker({
+      store,
+      jobId: base.id,
+      message: 'pretend to be running',
+      status: 'running',
+    });
+    expect(forceRunning.ok).toBe(false);
+    expect(forceRunning.error).toMatch(/force status 'running'/);
+
+    // Parking states are owned by the spawner budget / merge gates.
+    const parkBlocked = steerJobWorker({
+      store,
+      jobId: base.id,
+      message: 'pretend to be blocked',
+      status: 'blocked',
+    });
+    expect(parkBlocked.ok).toBe(false);
+    expect(parkBlocked.error).toMatch(/cannot set status 'blocked'/);
+
+    // Requeueing must go through JobResume (scheduler re-runs its gates).
+    patchJob(store, base.id, { status: 'cancelled' });
+    const requeue = steerJobWorker({
+      store,
+      jobId: base.id,
+      message: 'pretend to be queued',
+      status: 'queued',
+    });
+    expect(requeue.ok).toBe(false);
+    expect(requeue.error).toMatch(/cannot set status 'queued'/);
+    expect(getJob(store, base.id)?.status).toBe('cancelled');
+  });
+
   it('pickLiveVerifyModelAlias skips maker, probe_fail, and off-catalog aliases', () => {
     const pick = pickLiveVerifyModelAlias({
       makerModelAlias: 'maker-a',

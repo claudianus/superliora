@@ -61,11 +61,19 @@ let workerSpawner: WorkerSpawner | undefined;
  * handshake concurrency matches the resolved job concurrency (env override
  * included): a lower spawn cap left the 4th..6th promoted job sitting in
  * `running` with no worker attached until an earlier handshake settled.
+ *
+ * The pool cap is store-sensitive (`projectMode` per session), so the resolved
+ * cap is re-checked on every call and pushed into the singleton — a spawner
+ * frozen at session A's cap must not serialize session B's handshakes.
  */
-export function getJobWorkerSpawner(): WorkerSpawner {
-  workerSpawner ??= new WorkerSpawner({
-    maxConcurrent: resolveConductorPoolConfig().maxConcurrentJobs,
-  });
+export function getJobWorkerSpawner(
+  resolution?: { readonly store?: ToolStore },
+): WorkerSpawner {
+  const cap = resolveConductorPoolConfig(process.env, {
+    store: resolution?.store,
+  }).maxConcurrentJobs;
+  workerSpawner ??= new WorkerSpawner({ maxConcurrent: cap });
+  workerSpawner.setMaxConcurrent(cap);
   return workerSpawner;
 }
 
@@ -125,7 +133,7 @@ export function enqueueJobWorkerSpawn(input: {
       });
     return { queued: true, duplicate: false };
   }
-  return getJobWorkerSpawner().enqueue({
+  return getJobWorkerSpawner({ store }).enqueue({
     key: job.id,
     run: ({ signal }) =>
       launchJobWorker({ store, agent, job, signal }).then((result) => {
@@ -203,6 +211,12 @@ async function runSchedule(request: JobSchedulePumpRequest): Promise<void> {
  * runs detached from the interactive ACK path; callers that need promotion
  * (JobResume / fleet recovery) may await the returned promise. Failures stay
  * on this lane (logged), never thrown to the caller.
+ *
+ * Await semantics: the returned promise covers the caller's own request. When
+ * a drain is already in flight, it awaits that drain and, if the request (or
+ * any later one) landed in the tail window for the re-armed follow-up drain,
+ * chains onto it — an awaiting JobResume must never observe its job still
+ * `queued` because it held a stale drain promise.
  */
 export function requestJobSchedulePump(request: JobSchedulePumpRequest): Promise<void> {
   const dup = state.pumpRequests.some(
@@ -213,7 +227,14 @@ export function requestJobSchedulePump(request: JobSchedulePumpRequest): Promise
 }
 
 async function runPumpDrain(): Promise<void> {
-  if (state.pumpInFlight !== undefined) return state.pumpInFlight;
+  const inFlight = state.pumpInFlight;
+  if (inFlight !== undefined) {
+    await inFlight;
+    // Requests that landed while the previous drain was exiting are picked up
+    // by the re-armed follow-up; wait for it so awaiters see their promotion.
+    if (state.pumpRequests.length > 0) return runPumpDrain();
+    return;
+  }
   const drain = (async () => {
     while (state.pumpRequests.length > 0) {
       const request = state.pumpRequests.shift();

@@ -1253,6 +1253,26 @@ export function steerJobWorker(input: {
         "JobSteer cannot force status 'running' — promotion is owned by the scheduler; use JobResume to (re)start the job.",
     };
   }
+  // Park/re-open guards: parked states are owned by the spawner budget or the
+  // blocker that set them, and `queued` must go through JobResume so the
+  // scheduler can re-run ownership/worktree gates — steering it directly
+  // bypasses those checks.
+  if (input.status === 'blocked' && existing.status !== 'blocked') {
+    return {
+      ok: false,
+      steered: false,
+      error:
+        "JobSteer cannot set status 'blocked' — parked states are owned by the spawner/merge gates; use JobResume to (re)start the job.",
+    };
+  }
+  if (input.status === 'queued') {
+    return {
+      ok: false,
+      steered: false,
+      error:
+        "JobSteer cannot set status 'queued' — requeueing is owned by JobResume; the scheduler then re-runs ownership/worktree gates.",
+    };
+  }
 
   let steered = false;
   const workerId = existing.workerAgentId ?? getJobWorkerHandle(input.jobId)?.workerAgentId;

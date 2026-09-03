@@ -35,13 +35,69 @@ export function readJobLedger(store: ToolStore): JobLedger {
 /**
  * Persist the ledger. Unchanged JobRecord references are shared so a single
  * progress heartbeat does not clone every field of every job.
+ *
+ * The write path is also the ledger growth cap: marathon sessions enqueue
+ * hundreds of jobs and every heartbeat/patch otherwise re-persists the whole
+ * array while `getJob`/`nextQueuedJobs` degrade to O(n) scans over records
+ * that can never run again. Pruning happens here so no caller can forget it.
  */
 export function writeJobLedger(store: ToolStore, ledger: JobLedger): void {
+  const pruned = pruneJobLedgerJobs(ledger.jobs);
   store.set(JOB_LEDGER_STORE_KEY, {
     schemaVersion: 1,
     // Shallow array copy only — each JobRecord is treated as immutable.
-    jobs: ledger.jobs.slice(),
+    jobs: pruned.jobs,
   });
+}
+
+/**
+ * Ledger cap: oldest terminal Jobs (done/failed/cancelled/interrupted) are
+ * dropped first when over budget. Never pruned: live statuses, pending land
+ * dispositions, pinned sessions, and any job still referenced as a parent
+ * (parent-chain scheduling + affinity reuse resolve parentJobId from the
+ * ledger — evicting a referenced parent would strand its children).
+ */
+export const JOB_LEDGER_MAX_JOBS = 500;
+
+const PRUNABLE_STATUSES: ReadonlySet<JobStatus> = new Set([
+  'done',
+  'failed',
+  'cancelled',
+  'interrupted',
+]);
+
+export function pruneJobLedgerJobs(
+  jobs: readonly JobRecord[],
+): { readonly jobs: readonly JobRecord[]; readonly pruned: readonly JobRecord[] } {
+  if (jobs.length <= JOB_LEDGER_MAX_JOBS) return { jobs, pruned: [] };
+  const referencedParents = new Set<string>();
+  for (const job of jobs) {
+    if (job.parentJobId !== undefined) referencedParents.add(job.parentJobId);
+  }
+  const evictable: JobRecord[] = [];
+  for (const job of jobs) {
+    if (
+      PRUNABLE_STATUSES.has(job.status) &&
+      job.landChoice !== 'pending' &&
+      job.sessionNamePinned !== true &&
+      !referencedParents.has(job.id)
+    ) {
+      evictable.push(job);
+    }
+  }
+  evictable.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+  const over = jobs.length - JOB_LEDGER_MAX_JOBS;
+  const evict = new Set(
+    evictable.slice(0, Math.max(0, over)).map((j) => j.id),
+  );
+  if (evict.size === 0) return { jobs, pruned: [] };
+  const kept: JobRecord[] = [];
+  const pruned: JobRecord[] = [];
+  for (const job of jobs) {
+    if (evict.has(job.id)) pruned.push(job);
+    else kept.push(job);
+  }
+  return { jobs: kept, pruned };
 }
 
 export function listJobs(store: ToolStore): readonly JobRecord[] {
@@ -385,11 +441,11 @@ export function renderJobLine(job: JobRecord): string {
   return `- ${job.id} [${job.status}] (${job.kind} p${job.priority}) ${job.title}${paths}${model}${live}${wait}`;
 }
 
-/** Queued child of a greenfield parent: "대기(부모 단계)" so idle slots are not mistaken for free workers. */
+/** Queued child of a greenfield parent: marked so idle slots are not mistaken for free workers. */
 export function renderJobWaitLabel(job: Pick<JobRecord, 'status' | 'parentJobId' | 'deliveryPhase'>): string {
   if (job.status !== 'queued' || job.parentJobId === undefined) return '';
   const phase = job.deliveryPhase === undefined ? 'parent' : job.deliveryPhase.replace('_', '-');
-  return ` wait=대기(부모 단계:${phase})`;
+  return ` wait=queued(parent-phase:${phase})`;
 }
 
 /**

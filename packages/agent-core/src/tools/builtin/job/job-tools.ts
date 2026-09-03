@@ -502,7 +502,7 @@ export function renderJobInspect(job: JobRecord): string {
   if (job.explorePrototype === true) push('prototype', 'true');
   push('blocked_by', job.blockedByJobIds?.join(', '));
   if (job.status === 'queued' && job.parentJobId !== undefined) {
-    push('wait', '대기(부모 단계)');
+    push('wait', 'queued(parent-phase)');
   }
   push('delivery_mode', job.deliveryMode);
   push('delivery_phase', job.deliveryPhase);

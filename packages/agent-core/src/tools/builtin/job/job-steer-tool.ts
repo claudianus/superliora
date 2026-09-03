@@ -35,7 +35,7 @@ const JobSteerInputSchema = z
         'Steering instruction for the worker / meta notes. State the delta precisely (what changed, what stays); quote the user when relevant.',
       ),
     status: JobStatusSchema.optional().describe(
-      'Optional status update while steering. Only blocked / needs_user are valid transitions; terminal states are rejected (they belong to worker completion or JobCancel), and forcing running is rejected (the scheduler owns promotion).',
+      "Optional status update while steering. Only needs_user is a valid park; terminal states are rejected (they belong to worker completion or JobCancel), and forcing running / blocked / queued is rejected (the scheduler and spawner gates own those transitions).",
     ),
     surface_kind: z
       .enum(['none', 'web', 'tui', 'mixed'])
