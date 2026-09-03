@@ -441,7 +441,7 @@ export function renderJobLine(job: JobRecord): string {
   return `- ${job.id} [${job.status}] (${job.kind} p${job.priority}) ${job.title}${paths}${model}${live}${wait}`;
 }
 
-/** Queued child of a greenfield parent: marked so idle slots are not mistaken for free workers. */
+/** Queued child of a greenfield parent: `wait=queued(parent-phase)` so idle slots are not mistaken for free workers. */
 export function renderJobWaitLabel(job: Pick<JobRecord, 'status' | 'parentJobId' | 'deliveryPhase'>): string {
   if (job.status !== 'queued' || job.parentJobId === undefined) return '';
   const phase = job.deliveryPhase === undefined ? 'parent' : job.deliveryPhase.replace('_', '-');
