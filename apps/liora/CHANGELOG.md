@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.21.5
+
+### Patch Changes
+
+- chore(agent-core): clarify queued-child wait label in job ledger docs
+
 ## 0.21.4
 
 ### Patch Changes
