@@ -128,7 +128,7 @@ describe('ops harness (unit-ops-harness)', () => {
       }
       expect(last.stopTurn).toBe(true);
       expect(String(last.output)).toContain('DOOM_LOOP_HARD_STOP');
-      expect(String(last.output)).toContain('강제 종료');
+      expect(String(last.output)).toContain('force-stopped');
     });
   });
 });
