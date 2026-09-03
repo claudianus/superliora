@@ -201,7 +201,8 @@ describe('ConductorIdlePulse host', () => {
     expect(prompts[0]?.input[0]?.text).toBe(CONDUCTOR_IDLE_PULSE_PROMPT);
     expect(CONDUCTOR_IDLE_PULSE_PROMPT).toMatch(/JobList/);
     expect(CONDUCTOR_IDLE_PULSE_PROMPT).toMatch(/JobCreate/);
-    expect(CONDUCTOR_IDLE_PULSE_PROMPT).toMatch(/한국어|Korean/i);
+    // Pulse output follows the session language — never a hardcoded locale.
+    expect(CONDUCTOR_IDLE_PULSE_PROMPT).toMatch(/session language/);
 
     // Consecutive pulse while last visible is still the pulse prompt.
     setBusy(false);

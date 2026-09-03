@@ -607,6 +607,23 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     job = { ...job, modelAlias: modelPreflight.modelAlias };
   }
 
+  // Re-check after the async preflight: the spawn budget may have expired
+  // (offload lane already recorded `blocked`) or the user may have cancelled
+  // while the model probe ran. Attaching a worker to a non-live ledger state
+  // double-runs the worktree on the next JobResume.
+  if (controller.signal.aborted) {
+    clearJobWorkerHandle(job.id);
+    return { ok: false, error: 'aborted before spawn' };
+  }
+  const liveJob = getJob(input.store, job.id);
+  if (
+    liveJob !== undefined &&
+    (liveJob.status === 'blocked' || isTerminalOrCancelled(liveJob.status))
+  ) {
+    clearJobWorkerHandle(job.id);
+    return { ok: false, error: `job no longer live before spawn (${liveJob.status})` };
+  }
+
   const baseTaskFields = {
     prompt: jobPrompt(job, input.store),
     description: job.title.slice(0, 80),
@@ -729,8 +746,11 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
       .then(async (completion) => {
         disposeProgressStall();
         const current = getJob(input.store, job.id);
-        // If cancelled/interrupted while running, keep that terminal state.
-        if (current?.status === 'cancelled' || current?.status === 'interrupted') {
+        // Terminal ledger states — including a verification-guard pre-abort
+        // `failed` and an already-recorded `done` — keep their verdict. The
+        // worker may still have been running when the guard fired; its
+        // completion must never overwrite the earlier decision.
+        if (current !== undefined && isTerminalOrCancelled(current.status)) {
           return;
         }
         // Commit backstop: a dirty worktree here means the worker skipped the
@@ -907,7 +927,9 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
       .catch(async (error: unknown) => {
         disposeProgressStall();
         const current = getJob(input.store, job.id);
-        if (current?.status === 'cancelled' || current?.status === 'interrupted') {
+        // Terminal states (cancel/interrupt/failure already recorded) are not
+        // retried or overwritten by a late worker crash.
+        if (current !== undefined && isTerminalOrCancelled(current.status)) {
           return;
         }
         // A crashed worker can leave partial work in the tree — snapshot it
@@ -963,7 +985,14 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
       })
       .finally(() => {
         unbindJobWorkerLedger(handle.agentId);
-        clearJobWorkerHandle(job.id);
+        // Clear only our own registration: after an interrupt-with-resume
+        // burst a successor worker may already own this job's handle. Deleting
+        // it unconditionally would leave the live worker without an abort path
+        // (cancel/interrupt degrade to ledger-only).
+        const liveHandle = getJobWorkerHandle(job.id);
+        if (liveHandle === undefined || liveHandle.controller === controller) {
+          clearJobWorkerHandle(job.id);
+        }
         pumpSchedulerAfterWorker(input.agent, input.store);
       });
 
@@ -1081,9 +1110,11 @@ export function maybeAutoRetryFailedWorker(input: {
       .filter(Boolean)
       .join('\n'),
   });
-  setTimeout(() => {
+  const retryTimer = setTimeout(() => {
     void requestJobSchedulePump({ store: input.store, agent: input.agent });
   }, backoffMs);
+  // The backoff pump alone must not keep the process alive after session close.
+  (retryTimer as { unref?: () => void }).unref?.();
   return attempt;
 }
 
@@ -1196,6 +1227,31 @@ export function steerJobWorker(input: {
   const existing = getJob(input.store, input.jobId);
   if (existing === undefined) {
     return { ok: false, steered: false, error: `Job not found: ${input.jobId}` };
+  }
+
+  // State-machine guard: JobSteer may park or re-open a job, but terminal
+  // verdicts belong to worker completion / JobCancel, and forcing `running`
+  // bypasses the scheduler — a worker-less `running` job leaks a pool slot
+  // forever (no spawner, no stall watchdog).
+  if (
+    input.status === 'done' ||
+    input.status === 'failed' ||
+    input.status === 'cancelled' ||
+    input.status === 'interrupted'
+  ) {
+    return {
+      ok: false,
+      steered: false,
+      error: `JobSteer cannot set terminal status '${input.status}' — terminal states come from worker completion or JobCancel.`,
+    };
+  }
+  if (input.status === 'running' && existing.status !== 'running') {
+    return {
+      ok: false,
+      steered: false,
+      error:
+        "JobSteer cannot force status 'running' — promotion is owned by the scheduler; use JobResume to (re)start the job.",
+    };
   }
 
   let steered = false;

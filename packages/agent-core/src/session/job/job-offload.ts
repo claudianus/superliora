@@ -111,6 +111,15 @@ export function enqueueJobWorkerSpawn(input: {
           });
         }
       })
+      .catch((error: unknown) => {
+        // Failure isolation: a rejected launch (ledger/notify/store error on
+        // the merge/push path) must never become an unhandled rejection.
+        agent.log?.warn?.('conductor non-LLM job launch rejected', {
+          jobId: job.id,
+          kind: job.kind,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      })
       .finally(() => {
         nonLlmLaunchKeys.delete(job.id);
       });
@@ -132,13 +141,17 @@ export function enqueueJobWorkerSpawn(input: {
     },
     onTimeout: () => {
       const current = getJob(store, job.id);
+      // Budget expiry must not resurrect a job that left `running` while the
+      // handshake was hung (user cancel / terminal failure / recovery) —
+      // record a blocked hold only for a still-live spawn.
+      if (current === undefined || current.status !== 'running') return;
       patchJobAndNotify(
         store,
         job.id,
         {
           status: 'blocked',
           notes: [
-            current?.notes ?? job.notes,
+            current.notes,
             `spawn_budget_exceeded: >${JOB_WORKER_SPAWN_BUDGET_MS}ms; held for resume`,
           ]
             .filter(Boolean)
@@ -155,6 +168,12 @@ export function enqueueJobWorkerSpawn(input: {
 
 async function runSchedule(request: JobSchedulePumpRequest): Promise<void> {
   const { store, agent } = request;
+  if (agent === undefined) {
+    // No agent → no spawn path and no stall watchdog. Promoting here flips
+    // jobs to `running` that no worker can ever attach to (zombie pool slots
+    // until manual JobResume). Leave them queued for an agent-backed pump.
+    return;
+  }
   const pool = resolveConductorPoolConfig(process.env, { store });
   const kaos = agent?.kaos;
   const repoPath = agent?.config.cwd;

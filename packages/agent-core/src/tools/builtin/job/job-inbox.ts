@@ -87,8 +87,19 @@ export function pushJobInboxEvent(
     digest: input.digest,
   };
   const inbox = readJobInbox(store);
-  // Cap retained events to keep store small.
-  const events = [...inbox.events, event].slice(-100);
+  // Cap retained events to keep the store small. When over cap, evict the
+  // oldest READ event first: unread notices are the conductor's only routing
+  // signal, and dropping them silently loses terminal job events forever
+  // (wake only fires on push; the idle pulse skips while unread > 0).
+  let events = [...inbox.events, event];
+  if (events.length > 100) {
+    const oldestRead = events.findIndex((e) => e.read);
+    if (oldestRead !== -1) {
+      events.splice(oldestRead, 1);
+    } else {
+      events = events.slice(-100);
+    }
+  }
   writeJobInbox(store, { schemaVersion: 1, events });
   return event;
 }

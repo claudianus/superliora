@@ -14,6 +14,17 @@ export function normalizeOwnershipPath(path: string): string {
   return normalize(path.trim()).replace(/\/+$/, '');
 }
 
+/**
+ * Segment-aware containment: a claim covers the path itself and everything
+ * beneath it. `packages/agent-core` therefore overlaps
+ * `packages/agent-core/src/tools` — exact-string equality missed nested
+ * directory claims and let siblings run concurrently on overlapping trees.
+ */
+function ownershipPathsIntersect(na: string, nb: string): boolean {
+  if (na === nb) return true;
+  return na.startsWith(`${nb}/`) || nb.startsWith(`${na}/`);
+}
+
 /** First overlapping normalized path, or undefined when disjoint / empty. */
 export function ownershipPathsOverlap(
   a: readonly string[] | undefined,
@@ -22,10 +33,11 @@ export function ownershipPathsOverlap(
   if (a === undefined || a.length === 0 || b === undefined || b.length === 0) {
     return undefined;
   }
-  const setB = new Set(b.map(normalizeOwnershipPath));
+  const listB = b.map(normalizeOwnershipPath).filter((p) => p.length > 0);
   for (const raw of a) {
     const n = normalizeOwnershipPath(raw);
-    if (n.length > 0 && setB.has(n)) return n;
+    if (n.length === 0) continue;
+    if (listB.some((p) => ownershipPathsIntersect(n, p))) return n;
   }
   return undefined;
 }

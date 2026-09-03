@@ -35,11 +35,11 @@ export const DEFAULT_IDLE_PULSE_MINUTES = 4;
 export const IDLE_PULSE_POLL_MS = 30_000;
 
 export const CONDUCTOR_IDLE_PULSE_PROMPT = [
-  '[idle progress pulse] 채팅이 조용한 동안 워커가 실행 중입니다. 짧은 현황 보고만 하세요.',
-  'Exactly one JobList call (facts only). Then write 3–6 Korean lines covering:',
-  '- 실행/대기/막힘(needs_user·blocked·failed) 카운트',
-  '- running 잡의 heartbeat / 마지막 도구(있으면)',
-  '- 다음에 풀릴 대기 잡(있으면 id·title)',
+  '[idle progress pulse] Workers are running while the chat lane has been quiet. Post a short status report only.',
+  'Exactly one JobList call (facts only). Then write 3–6 short lines in the session language covering:',
+  '- counts of running / queued / stuck (needs_user·blocked·failed)',
+  '- running jobs: heartbeat / last tool (when available)',
+  '- next queued job to unblock (id·title, if any)',
   'Rules: no guesswork, no re-implementation, do not paste the same heartbeat text verbatim, do NOT call JobCreate.',
   'Route only when JobList shows blocked / failed / needs_user that still needs Conductor action; otherwise end the turn after the report.',
 ].join('\n');

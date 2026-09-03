@@ -930,7 +930,11 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             prompt: a.prompt,
             ownershipPaths: a.ownership_paths,
             contextPaths: a.context_paths,
-            successCriteria,
+            // Raw user-supplied criteria only: the synthesized fallback is a
+            // creation-path convenience, never an anchor finish line. Feeding
+            // it here would replace the anchor's real success criteria (the
+            // brief patch replaces, not merges) with a generic placeholder.
+            successCriteria: nonEmptyStringList(a.success_criteria),
             mustNotTouch,
             verificationCommands,
             testSeams: testSeams.length > 0 ? testSeams : undefined,
