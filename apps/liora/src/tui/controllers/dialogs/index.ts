@@ -105,8 +105,8 @@ export class DialogsController {
     stashPromptToggle(this.host, this);
   }
 
-  showHistorySearch(): void {
-    showHistorySearch(this.host, this);
+  showHistorySearch(initialQuery?: string): void {
+    showHistorySearch(this.host, this, initialQuery);
   }
 
   showCommandHub(options: { readonly initialQuery?: string; readonly intro?: boolean } = {}): void {

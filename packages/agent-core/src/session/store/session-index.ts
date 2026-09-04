@@ -50,8 +50,23 @@ export async function readSessionIndex(
   return result;
 }
 
-function isNotFound(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as { code?: string }).code === 'ENOENT';
+/**
+ * True when the on-disk index is missing or empty. Used by `SessionStore`
+ * callers to decide whether a self-healing `reindex()` scan is worth running
+ * — a lost index file (crash during the old unlink+rename window) otherwise
+ * hides every session from `listSessions` until the server happens to boot.
+ */
+export async function isSessionIndexEmpty(homeDir: string): Promise<boolean> {
+  const indexPath = sessionIndexPath(homeDir);
+  const legacyPath = sessionIndexLegacyPath(homeDir);
+  for (const path of [indexPath, legacyPath]) {
+    try {
+      if ((await readFile(path, 'utf-8')).trim().length > 0) return false;
+    } catch {
+      // Missing file counts as empty for that path.
+    }
+  }
+  return true;
 }
 
 /** Rewrite `sessions/index.jsonl` to last-wins lines and drop the leftover home-root index. */
@@ -76,14 +91,9 @@ export async function writeSessionIndexSnapshot(
     await mkdir(dirname(indexPath), { recursive: true, mode: 0o700 });
     await writeFile(tmpPath, body, 'utf-8');
     try {
-      await unlink(indexPath);
-    } catch (error) {
-      if (!isNotFound(error)) {
-        await unlink(tmpPath).catch(() => undefined);
-        throw error;
-      }
-    }
-    try {
+      // Rename directly over the target — atomic on POSIX and Windows. The
+      // old unlink-then-rename left a crash window where the index did not
+      // exist at all, losing every session entry to a hard kill.
       await rename(tmpPath, indexPath);
     } catch (error) {
       await unlink(tmpPath).catch(() => undefined);

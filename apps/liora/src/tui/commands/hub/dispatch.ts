@@ -83,6 +83,7 @@ import { handleRewindCommand } from '../session/rewind';
 import { handleTranscriptCommand } from '../session/transcript';
 import { handleNeatCommand } from '../session/neat';
 import { handleUndoCommand } from '../session/undo';
+import { handleQueueCommand } from '../session/queue';
 import { handleUpgradeCommand, parseUpgradeSlashArgs } from '../info/upgrade';
 
 // ---------------------------------------------------------------------------
@@ -200,6 +201,7 @@ export interface SlashCommandHost {
   stop(exitCode?: number): Promise<void>;
   setExitOpenUrl(url: string): void;
   retryLastTurn(): Promise<void>;
+  clearQueuedMessages(): void;
   showHelpPanel(args?: string): void;
   showFileExplorer(): void;
   showDiffReview(report: GitDiffReport, filter: string): void;
@@ -518,6 +520,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'compact':
       await handleCompactCommand(host, args);
+      return;
+    case 'queue':
+      handleQueueCommand(host, args);
       return;
     case 'refine':
       await handleRefineCommand(host, args);

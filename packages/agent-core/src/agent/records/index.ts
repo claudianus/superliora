@@ -285,6 +285,16 @@ export class AgentRecords {
         await this.agent.blobStore.rehydrateParts(msg.content);
       }
     }
+    const corruption =
+      this.persistence instanceof FileSystemAgentRecordPersistence
+        ? this.persistence.readCorruption
+        : undefined;
+    if (corruption !== undefined) {
+      warning =
+        `Session journal had a corrupted record at line ${corruption.lineNumber}; ` +
+        `it was recovered up to that point and the damaged tail was dropped.` +
+        (warning === undefined ? '' : ` ${warning}`);
+    }
     return { warning };
   }
 

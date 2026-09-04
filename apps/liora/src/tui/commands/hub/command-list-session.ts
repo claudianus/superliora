@@ -233,6 +233,15 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     argumentHint: '<instruction>',
   },
   {
+    name: 'queue',
+    aliases: ['clear-queue'],
+    description: slashDesc('queue'),
+    priority: 80,
+    argumentHint: 'clear',
+    // Clearing the queue is safe mid-turn: the queue is a TUI-side buffer.
+    availability: 'always',
+  },
+  {
     name: 'refine',
     aliases: [],
     description: slashDesc('refine'),

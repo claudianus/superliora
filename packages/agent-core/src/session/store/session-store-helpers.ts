@@ -16,6 +16,10 @@ export const SessionSummaryStateSchema = z.object({
   lastPrompt: z.string().optional(),
   title: z.string().optional(),
   workDir: z.string().optional(),
+  /** Persisted activity timestamp (ISO); written on prompt/archive/etc. */
+  updatedAt: z.string().optional(),
+  /** Agent id → { homedir, … } map used to locate each agent's wire.jsonl. */
+  agents: z.record(z.string(), z.unknown()).optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -100,6 +104,36 @@ export async function latestAgentWireMtime(sessionDir: string): Promise<number |
     latest = Math.max(latest, wireInfo?.mtimeMs ?? 0);
   }
   return latest > 0 ? latest : undefined;
+}
+
+/**
+ * Latest wire mtime across every agent that actually exists, resolved from
+ * `state.json.agents[*].homedir` instead of assuming a fixed `agents/<id>`
+ * layout. Root-homedir agents (homedir `''` → sessionDir) previously fell
+ * back to the directory mtime, which does not change on appends — their
+ * sessions then appeared stale in `/sessions` ordering after live activity.
+ * The fixed-layout scan stays as a fallback for sessions with no agent map.
+ */
+export async function latestRecordedAgentWireMtime(
+  sessionDir: string,
+  state: SessionSummaryState | undefined,
+): Promise<number | undefined> {
+  const agents = state?.agents;
+  let latest = 0;
+  if (isRecord(agents)) {
+    for (const agentMeta of Object.values(agents)) {
+      if (!isRecord(agentMeta)) continue;
+      const homedir = agentMeta['homedir'];
+      if (typeof homedir !== 'string') continue;
+      const resolved = resolveAgentHomedir(sessionDir, homedir);
+      const wireInfo =
+        (await statIfExists(join(resolved, 'wire.jsonl'))) ??
+        (await statIfExists(join(resolved, 'wire.jsonl.gz')));
+      latest = Math.max(latest, wireInfo?.mtimeMs ?? 0);
+    }
+  }
+  if (latest > 0) return latest;
+  return latestAgentWireMtime(sessionDir);
 }
 
 export function titleFromState(state: SessionSummaryState | undefined): string | undefined {

@@ -33,6 +33,8 @@ export interface SearchableListOptions<T> {
   readonly initialIndex?: number;
   /** When false, typed characters are ignored. Defaults to false. */
   readonly searchable?: boolean;
+  /** Seed the search query (e.g. from the current editor draft). */
+  readonly initialQuery?: string;
   /**
    * Grid columns for 2D navigation (↑↓ move by columns, ←→ move within row).
    * Defaults to 1 (classic list). Callers may update via {@link setColumns}.
@@ -67,6 +69,7 @@ export class SearchableList<T> {
     this.pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
     this.searchable = opts.searchable ?? false;
     this.columns = Math.max(1, opts.columns ?? 1);
+    this.query = opts.initialQuery ?? '';
     this.cursor = Math.max(opts.initialIndex ?? 0, 0);
   }
 

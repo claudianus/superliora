@@ -18,6 +18,8 @@ import {SearchableList} from '#/tui/utils/ui/searchable-list';
 
 export interface HistorySearchDialogOptions {
   readonly items: readonly string[];
+  /** Seed the query with the editor draft when opened with text present. */
+  readonly initialQuery?: string;
   readonly onSelect: (text: string) => void;
   readonly onCancel: () => void;
 }
@@ -35,6 +37,7 @@ export class HistorySearchDialogComponent extends Container implements Focusable
       toSearchText: (entry) => entry,
       initialIndex: 0,
       searchable: true,
+      initialQuery: opts.initialQuery,
     });
   }
 

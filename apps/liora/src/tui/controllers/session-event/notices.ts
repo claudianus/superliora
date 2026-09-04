@@ -213,8 +213,12 @@ export class SessionEventNotices {
     this.host.streamingUI.flushNow();
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.finalizeLiveTextBuffers('idle');
-    // Desktop notification on error
-    notifyError(event.message ?? ttui('tui.notices.sessionError'));
+    // Desktop notification on error (honors [notifications] preference).
+    notifyError(
+      event.message ?? ttui('tui.notices.sessionError'),
+      this.host.state,
+      { key: `error:${event.code}:${this.host.state.appState.sessionId}` },
+    );
     // Mark the last turn as failed so the user can re-send it with Hub Retry
     // or `/retry`.
     this.host.setLastTurnFailed(true);

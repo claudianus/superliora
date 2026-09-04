@@ -8,6 +8,7 @@ import {
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import type { QueuedMessage } from '../../types';
 import { currentTheme } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
@@ -87,10 +88,10 @@ export class QueuePaneComponent extends Container {
       const canSteer = options.canSteerImmediately && hasSteerable;
       this.hint =
         options.isCompacting && !options.isStreaming
-          ? '  ↑ to edit · will send after compaction'
+          ? ttui('tui.queue.hint.afterCompaction')
           : canSteer
-            ? '  ↑ to edit · ctrl-s to steer immediately'
-            : '  ↑ to edit · will send after current task';
+            ? ttui('tui.queue.hint.steer')
+            : ttui('tui.queue.hint.afterTask');
     }
   }
 

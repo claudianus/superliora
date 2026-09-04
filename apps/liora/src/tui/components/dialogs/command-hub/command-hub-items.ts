@@ -53,15 +53,19 @@ export function buildDefaultCommandHubItems(state: {
       hub('now.stop', 'tui.hub.section.now', 'tui.hub.now.stop.label', 'tui.hub.now.stop.desc', {
         kind: 'open',
       }),
-      hub('now.undo', 'tui.hub.section.now', 'tui.hub.now.undo.label', 'tui.hub.now.undo.desc', {
-        kind: 'open',
-      }),
+      hub(
+        'now.undo',
+        'tui.hub.section.now',
+        'tui.hub.now.undo.label',
+        'tui.hub.now.undo.desc',
+        { kind: 'open', keywords: ['revert', 'rollback', 'after turn'] },
+      ),
       hub(
         'now.compact',
         'tui.hub.section.now',
         'tui.hub.now.compact.label',
         'tui.hub.now.compact.desc',
-        { kind: 'open' },
+        { kind: 'open', keywords: ['summarize', 'context', 'after turn'] },
       ),
     );
   }

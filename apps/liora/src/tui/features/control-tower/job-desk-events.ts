@@ -39,12 +39,15 @@ import type {
 } from '../../utils/job/job-strip';
 import { InputAckLatencyTracker } from './input-ack-latency';
 import { ttui } from '../../utils/tui-i18n';
+import type { TUIState } from '../../tui-state';
 import type { JobBoardStore } from './job-board-store';
 import { maybeApplyStaleWorktrees } from './job-hygiene';
 
 export interface JobDeskEventsHost {
   readonly state: {
     readonly appState: AppState;
+    /** Terminal-state access for the notification preference gate. */
+    readonly terminalState: TUIState['terminalState'];
   };
   readonly session?: {
     jobGcWorktrees(input?: {
@@ -114,11 +117,14 @@ export class ControlTowerJobDesk {
     const key = `${event.job.id}:${status}`;
     if (this.notifiedTerminal.has(key)) return;
     this.notifiedTerminal.add(key);
-    notifyJobOutcome({
-      status,
-      title: event.job.title,
-      ...(event.job.resultSummary !== undefined ? { detail: event.job.resultSummary } : {}),
-    });
+    notifyJobOutcome(
+      {
+        status,
+        title: event.job.title,
+        ...(event.job.resultSummary !== undefined ? { detail: event.job.resultSummary } : {}),
+      },
+      this.host.state as TUIState,
+    );
   }
 
   handleInbox(event: JobInboxEvent): void {

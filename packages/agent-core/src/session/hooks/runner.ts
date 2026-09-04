@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { statSync } from 'node:fs';
 
 import { z } from 'zod';
 
@@ -60,12 +61,9 @@ export async function runHook(
           detached: process.platform !== 'win32',
           env: options.env ? { ...process.env, ...options.env } : undefined,
         })
-      : spawn(command, {
-          shell: true,
+      : spawnShellForm(command, {
           cwd: options.cwd,
-          stdio: 'pipe',
-          detached: process.platform !== 'win32',
-          env: options.env ? { ...process.env, ...options.env } : undefined,
+          env: options.env,
         });
   } catch (error) {
     return allowResult({ stderr: errorMessage(error) });
@@ -127,6 +125,100 @@ export async function runHook(
 
 function timeoutSeconds(timeout: number): number {
   return Number.isFinite(timeout) && timeout > 0 ? timeout : DEFAULT_TIMEOUT_SECONDS;
+}
+
+/**
+ * Run a shell-form hook command.
+ *
+ * `spawn(command, { shell: true })` hands the string to cmd.exe / sh as-is:
+ * an executable path containing spaces (`C:\Program Files\...\node.exe`) gets
+ * cut at the first space, so every hook whose command points inside such a
+ * path silently failed with "not recognized" on Windows. Quoting does not
+ * help either — cmd.exe strips the outer quotes around the whole command
+ * line.
+ *
+ * When the command starts with an existing executable path that contains
+ * whitespace (and is not already quoted), split it off and spawn exec-form
+ * instead: the executable is passed as argv[0] (no shell word-splitting) and
+ * the rest of the line is parsed into argv with basic quote grouping.
+ * Commands whose remainder needs real shell syntax (`|`, `&&`, redirection)
+ * keep the shell path with a cmd-safe quoted executable prefix.
+ */
+function spawnShellForm(
+  command: string,
+  options: { readonly cwd?: string; readonly env?: Readonly<Record<string, string>> },
+): ChildProcessWithoutNullStreams {
+  const spawnOptions = {
+    cwd: options.cwd,
+    stdio: 'pipe' as const,
+    detached: process.platform !== 'win32',
+    env: options.env ? { ...process.env, ...options.env } : undefined,
+  };
+
+  const head = leadingExecutablePath(command);
+  if (head !== undefined) {
+    const rest = command.slice(command.indexOf(head) + head.length).trimStart();
+    if (containsShellSyntax(rest)) {
+      return spawn(`"${head}" ${rest}`, { shell: true, ...spawnOptions });
+    }
+    const argv = splitSimpleArgv(head, rest);
+    return spawn(argv[0]!, argv.slice(1), { shell: false, ...spawnOptions });
+  }
+  return spawn(command, { shell: true, ...spawnOptions });
+}
+
+/**
+ * Longest leading run of the command that resolves to an existing file.
+ *
+ * Tokens are merged greedily: a spaced executable (`C:\Program Files\...\node.exe`)
+ * never exists as a single token, so each next token is appended until the
+ * accumulated path exists on disk. Ordinary commands (`sh -c …`,
+ * `python script.py`) stop early because the first token is the executable
+ * and the second (a script name relative to cwd) does not extend it into a
+ * file — those stay on the plain shell path.
+ */
+function leadingExecutablePath(command: string): string | undefined {
+  const trimmed = command.trimStart();
+  if (trimmed.startsWith('"') || trimmed.startsWith("'")) return undefined;
+  const tokens = trimmed.split(/\s+/).filter((token) => token.length > 0);
+  if (tokens.length === 0) return undefined;
+
+  let candidate = tokens[0]!;
+  let found = isFile(candidate);
+  for (let i = 1; !found && i < tokens.length; i++) {
+    const next = `${candidate} ${tokens[i]}`;
+    if (!isFile(next)) break;
+    candidate = next;
+    found = true;
+  }
+  if (!found) return undefined;
+  // Only take over when the path itself carries a space; otherwise the plain
+  // shell form already works and may rely on shell features.
+  if (!candidate.includes(' ')) return undefined;
+  return candidate;
+}
+
+function isFile(path: string): boolean {
+  try {
+    statSync(path).isFile();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function containsShellSyntax(text: string): boolean {
+  return /[|&<>;$]|\$\(/.test(text);
+}
+
+/** Split `head rest` into argv with double-quote grouping; no escapes. */
+function splitSimpleArgv(head: string, rest: string): string[] {
+  const argv: string[] = [head];
+  if (rest.length === 0) return argv;
+  for (const token of rest.match(/"[^"]*"|\S+/g) ?? []) {
+    argv.push(token.startsWith('"') && token.endsWith('"') && token.length > 1 ? token.slice(1, -1) : token);
+  }
+  return argv;
 }
 
 /** Shared by command runner and http dispatch (body treated as stdout). */

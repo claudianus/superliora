@@ -57,33 +57,47 @@ export async function resumeSessionResult(
 ): Promise<ResumeSessionResult> {
   const api = new SessionAPIImpl(session);
   const agents: Record<string, ResumedAgentState> = {};
-  for (const [agentId, entry] of session.agents) {
-    if (!(entry instanceof Agent)) continue;
-    const agent = entry;
-    const config = await api.getConfig({ agentId });
-    const context = await api.getContext({ agentId });
-    const permission = await api.getPermission({ agentId });
-    const plan = await api.getPlan({ agentId });
-    const usage = await api.getUsage({ agentId });
-    const replay = limitReplayRecordsByTurn(
-      agent.replayBuilder.buildResult(),
-      RESUME_REPLAY_TURN_LIMIT,
-    );
-    // Cap the in-memory builder to the payload window without aliasing the
-    // returned array (keepOnly must not clear the payload view).
-    agent.replayBuilder.keepOnly(replay);
-    agents[agentId] = {
-      type: agent.type,
-      config,
-      context,
-      replay,
-      permission,
-      plan,
-      usage,
-      tools: await api.getTools({ agentId }),
-      toolStore: agent.tools.storeData(),
-      background: agent.background.list(false),
-    };
+  // Resume latency scales with subagent count: these six reads per agent used
+  // to run sequentially (6N round-trips before the UI showed the session).
+  // Fetch each agent's API slice concurrently.
+  const resumed = await Promise.all(
+    [...session.agents.entries()].map(async ([agentId, entry]) => {
+      if (!(entry instanceof Agent)) return undefined;
+      const agent = entry;
+      const [config, context, permission, plan, usage, tools] = await Promise.all([
+        api.getConfig({ agentId }),
+        api.getContext({ agentId }),
+        api.getPermission({ agentId }),
+        api.getPlan({ agentId }),
+        api.getUsage({ agentId }),
+        api.getTools({ agentId }),
+      ]);
+      const replay = limitReplayRecordsByTurn(
+        agent.replayBuilder.buildResult(),
+        RESUME_REPLAY_TURN_LIMIT,
+      );
+      // Cap the in-memory builder to the payload window without aliasing the
+      // returned array (keepOnly must not clear the payload view).
+      agent.replayBuilder.keepOnly(replay);
+      const state: ResumedAgentState = {
+        type: agent.type,
+        config,
+        context,
+        replay,
+        permission,
+        plan,
+        usage,
+        tools,
+        toolStore: agent.tools.storeData(),
+        background: agent.background.list(false),
+      };
+      return [agentId, state] as const;
+    }),
+  );
+  for (const pair of resumed) {
+    if (pair !== undefined) {
+      agents[pair[0]] = pair[1];
+    }
   }
   return withAdditionalDirs(
     {

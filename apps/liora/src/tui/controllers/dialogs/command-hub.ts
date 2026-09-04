@@ -119,7 +119,17 @@ function buildCommandHubItems(host: DialogsHost): CommandHubItem[] {
       conductorProjectMode: host.state.appState.conductorProjectMode,
       transcriptRegionMode: host.state.appState.transcriptRegionMode,
     }),
-    ...buildSlashJumpHubItems(host.getSlashCommands('advanced'), skillNames),
+    ...buildSlashJumpHubItems(
+      [
+        // One-search covers every non-hidden command surface: primary
+        // commands were previously absent, making them undiscoverable from
+        // the Hub while diagnostics were searchable.
+        ...host.getSlashCommands('primary'),
+        ...host.getSlashCommands('advanced'),
+        ...host.getSlashCommands('diagnostics'),
+      ],
+      skillNames,
+    ),
   ];
 }
 
@@ -255,12 +265,25 @@ function handleCommandHubSelect(
     requestTUIContentRender(host.state);
     return;
   }
+  if (item.id === 'now.undo' || item.id === 'now.compact') {
+    // /undo and /compact are idle-only at the engine; advertise them as
+    // blocked-with-guidance instead of dispatching into a guaranteed error.
+    host.state.toast.show('Available after the current turn — press Esc or Ctrl-C to stop first', 2600);
+    return;
+  }
   if (item.id === 'now.stop') {
     closeAllCenterModals(host);
     host.cancelRunningShellCommand();
-    void host.session?.cancel({ source: 'ctrl-c' });
-    noteSuccessFeedback();
-    host.state.toast.show('Stopped', 1400);
+    const stop = async (): Promise<void> => {
+      try {
+        await host.session?.cancel({ source: 'ctrl-c' });
+        noteSuccessFeedback();
+        host.state.toast.show('Stopped', 1400);
+      } catch (error) {
+        host.showStatus(`Stop failed: ${formatErrorMessage(error)}`, 'error');
+      }
+    };
+    void stop();
     return;
   }
 

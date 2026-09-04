@@ -1345,7 +1345,7 @@ command = "vim"
     expect(driver.persistInputHistory).toHaveBeenCalledWith('hello');
   });
 
-  it('does not steer queued bash commands, keeping them queued', async () => {
+  it('steers only the editor text, leaving queued messages queued', async () => {
     const session = makeSession();
     const { driver } = await makeDriver(session);
     driver.state.appState.model = 'k2';
@@ -1354,12 +1354,32 @@ command = "vim"
       { text: 'ls', agentId: 'main', mode: 'bash' },
       { text: 'focus on tests', agentId: 'main' },
     ];
+    driver.state.editor.setText('quick correction');
 
     driver.state.editor.onCtrlS?.();
 
-    expect(session.steer).toHaveBeenCalledWith('focus on tests');
+    // UX sweep: Ctrl-S used to sweep every queued prompt into one interjection,
+    // silently consuming follow-ups the user had queued for after the turn.
+    // It now steers exactly the editor text and leaves the queue intact.
+    expect(session.steer).toHaveBeenCalledWith('quick correction');
     expect(driver.state.queuedMessages).toEqual([
       { text: 'ls', agentId: 'main', mode: 'bash' },
+      { text: 'focus on tests', agentId: 'main' },
+    ]);
+  });
+
+  it('keeps the queue untouched when Ctrl-S fires on an empty editor', async () => {
+    const session = makeSession();
+    const { driver } = await makeDriver(session);
+    driver.state.appState.model = 'k2';
+    driver.state.appState.streamingPhase = 'waiting';
+    driver.state.queuedMessages = [{ text: 'focus on tests', agentId: 'main' }];
+
+    driver.state.editor.onCtrlS?.();
+
+    expect(session.steer).not.toHaveBeenCalled();
+    expect(driver.state.queuedMessages).toEqual([
+      { text: 'focus on tests', agentId: 'main' },
     ]);
   });
 

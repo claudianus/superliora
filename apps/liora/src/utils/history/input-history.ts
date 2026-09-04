@@ -72,6 +72,13 @@ export async function appendInputHistory(
 
 /** Maximum entries retained in the global (cross-workdir) history file. */
 const GLOBAL_HISTORY_MAX_ENTRIES = 500;
+/**
+ * Trim slack: rewrite only once the file overshoots the cap by this margin.
+ * The old behavior re-read and rewrote the whole history file on every
+ * prompt submit — a full disk round-trip per keystroke-Enter on slow/Network
+ * filesystems, for a trim that usually had nothing to drop.
+ */
+const GLOBAL_HISTORY_TRIM_SLACK = 50;
 
 /**
  * Load the global (cross-workdir) history file. Shares the JSONL format and
@@ -103,7 +110,9 @@ async function trimGlobalHistoryFile(file: string): Promise<void> {
     return;
   }
   const lines = raw.split('\n').filter((line) => line.trim().length > 0);
-  if (lines.length <= GLOBAL_HISTORY_MAX_ENTRIES) return;
+  // Only pay the full rewrite once the file exceeds the cap + slack, so the
+  // common append path stays O(1) instead of read-trim-write per submit.
+  if (lines.length <= GLOBAL_HISTORY_MAX_ENTRIES + GLOBAL_HISTORY_TRIM_SLACK) return;
   const kept = lines.slice(-GLOBAL_HISTORY_MAX_ENTRIES);
   await writeFile(file, `${kept.join('\n')}\n`, 'utf-8');
 }

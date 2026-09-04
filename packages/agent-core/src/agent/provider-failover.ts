@@ -92,13 +92,19 @@ export function isRetryableProviderFailure(error: LioraErrorPayload | undefined)
   // Permanent quota/billing must never enter the recovery loop, even when a
   // provider mislabels the error as retryable or rate_limit.
   if (isPermanentQuotaOrBillingFailure(error)) return false;
-  // Honor explicit non-retryable payloads (auth, permanent 4xx, etc.).
-  if (!error.retryable) return false;
-  if (error.retryable) return true;
-  return (
+  // An explicit `retryable: false` is the provider saying "never retry this"
+  // (auth, permanent 4xx) — honor it above the code-based default.
+  if (error.retryable === false) return false;
+  // Rate-limit / connection codes stay retryable even when a payload source
+  // omitted the `retryable` flag; the flag used to be required, and these
+  // codes are retryable by definition.
+  if (
     error.code === ErrorCodes.PROVIDER_RATE_LIMIT ||
     error.code === ErrorCodes.PROVIDER_CONNECTION_ERROR
-  );
+  ) {
+    return true;
+  }
+  return error.retryable === true;
 }
 
 /**
@@ -306,17 +312,35 @@ export function extractRetryAfterMs(error: LioraErrorPayload): number | undefine
 
   const retryAfter = details['retryAfter'];
   if (typeof retryAfter === 'number' && Number.isFinite(retryAfter) && retryAfter > 0) {
-    // Providers sometimes report seconds.
-    return retryAfter < 1_000 ? retryAfter * 1000 : retryAfter;
+    return clampRetryDelayMs(retryAfterSecondsToMs(retryAfter));
   }
   if (typeof retryAfter === 'string' && retryAfter.trim().length > 0) {
     const asNumber = Number(retryAfter);
     if (Number.isFinite(asNumber) && asNumber > 0) {
-      return asNumber < 1_000 ? asNumber * 1000 : asNumber;
+      return clampRetryDelayMs(retryAfterSecondsToMs(asNumber));
     }
   }
 
   return undefined;
+}
+
+/**
+ * Classify a raw `Retry-After`-style number as seconds vs milliseconds the
+ * same way the quota header parser does. The old magnitude heuristic
+ * (`< 1000` ⇒ seconds) treated `900` meaning 900 seconds as 900 ms, so the
+ * retry fired ~900× too early and burned the retry budget hammering the
+ * rate-limited provider. Anything below 1000 that is not a sub-second float
+ * is ambiguous; assume seconds (RFC 7231 `Retry-After` semantics) and clamp
+ * at the caller.
+ */
+function retryAfterSecondsToMs(value: number): number {
+  // Sub-second floats (0.5, 0.25) are already seconds per RFC; scale once.
+  if (value < 1) return value * 1000;
+  // Values that look like unix timestamps are absolute ms epochs.
+  if (value > 1e11) return value - Date.now();
+  // 1..1000 could be either unit; seconds is the standard interpretation.
+  if (value <= 1000) return value * 1000;
+  return value;
 }
 
 function clampRetryDelayMs(delayMs: number): number {
@@ -411,5 +435,25 @@ function parseFailoverAnswer(
   if (answers === undefined) return { type: 'pause' };
   const selected = Object.values(answers)[0];
   if (typeof selected !== 'string') return { type: 'pause' };
-  return choiceByLabel.get(selected) ?? { type: 'pause' };
+  // The answer is the option label the host UI rendered. Exact match first;
+  // fall back to case-insensitive and then prefix matching so a host that
+  // localizes, re-punctuates, or truncates the label still resolves the
+  // user's pick instead of silently pausing the goal.
+  const exact = choiceByLabel.get(selected);
+  if (exact !== undefined) return exact;
+
+  const normalized = selected.trim().toLowerCase();
+  for (const [label, outcome] of choiceByLabel) {
+    if (label.trim().toLowerCase() === normalized) return outcome;
+  }
+  for (const [label, outcome] of choiceByLabel) {
+    const labelNorm = label.trim().toLowerCase();
+    if (labelNorm.length > 0 && normalized.startsWith(labelNorm)) return outcome;
+  }
+  // `(Recommended)` suffixes and the like: match on the base label.
+  for (const [label, outcome] of choiceByLabel) {
+    const base = label.replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+    if (base.length > 0 && normalized.startsWith(base)) return outcome;
+  }
+  return { type: 'pause' };
 }

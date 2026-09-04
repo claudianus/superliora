@@ -107,7 +107,8 @@ function createHarness(
     steerMessage: vi.fn(),
     detachCurrentForegroundTask: vi.fn(),
     messageDispatch: { recallLastQueued: vi.fn(() => undefined) },
-    promptStash: { toArray: () => [] },
+    // Recall/clear paths stash the popped draft for Ctrl-X restore.
+    promptStash: { toArray: () => [], push: vi.fn(() => 1) },
     lastUserInput: undefined,
   } as unknown as EditorKeyboardHost;
 
@@ -276,8 +277,8 @@ describe('EditorKeyboardController gated shortcut toasts', () => {
     expect(toastShow).not.toHaveBeenCalled();
   });
 
-  it('toasts when Ctrl-R is pressed with a non-empty prompt', () => {
-    const { editor, toastShow, showHistorySearch } = createHarness({
+  it('opens history search seeded with the current draft', () => {
+    const { editor, showHistorySearch } = createHarness({
       editorText: 'draft',
     });
 
@@ -285,11 +286,10 @@ describe('EditorKeyboardController gated shortcut toasts', () => {
     if (typeof handler !== 'function') throw new Error('onHistorySearch not installed');
     (handler as () => void)();
 
-    expect(showHistorySearch).not.toHaveBeenCalled();
-    expect(toastShow).toHaveBeenCalledWith(
-      `Clear the prompt first (${process.platform === 'darwin' ? 'Cmd-R' : 'Ctrl-R'} searches history)`,
-      2200,
-    );
+    // UX sweep: refusing Ctrl-R with text present threw away the user's
+    // context; the search dialog is pure-local, so it now opens seeded with
+    // the draft instead of toasting.
+    expect(showHistorySearch).toHaveBeenCalledWith('draft');
   });
 
   it('toasts when Ctrl-S is pressed while idle', () => {
