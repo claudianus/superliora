@@ -11,7 +11,7 @@ import {
 } from '@superliora/oauth';
 import type { LioraConfig } from '@superliora/sdk';
 
-import { resolveApiKey } from '../credential';
+import { providerHasOAuth, resolveApiKey } from '../credential';
 import { errorMessage, modelUnit, providerUnit, writeProviderErr, writeProviderOut } from '../shared';
 import type { AddOptions, ProviderDeps } from '../types';
 
@@ -67,12 +67,21 @@ export async function handleProviderAdd(
     .filter((entry) => config.providers[entry.id] !== undefined)
     .map((entry) => entry.id);
   for (const id of staleIds) {
+    // Never delete a live OAuth login for a registry id — report and skip
+    // the entry instead (mirrors the TUI import guard).
+    const existingStale = config.providers[id];
+    if (existingStale !== undefined && providerHasOAuth(existingStale)) {
+      writeProviderOut(deps, 'cli.runtime.provider.registrySkippedOAuth', { id });
+      continue;
+    }
     config = await harness.removeProvider(id);
   }
 
   const addedProviderIds: string[] = [];
   let modelCount = 0;
   for (const entry of entryList) {
+    const existing = config.providers[entry.id];
+    if (existing !== undefined && providerHasOAuth(existing)) continue;
     applyCustomRegistryProvider(asManaged(config), entry, source);
     addedProviderIds.push(entry.id);
     modelCount += Object.keys(entry.models).length;

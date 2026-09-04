@@ -156,6 +156,37 @@ function collectProviderDoctorIssues(
     });
   }
 
+  const providerBaseUrl = nonEmptyString(provider.baseUrl);
+  if (
+    providerBaseUrl !== undefined &&
+    parseEnvReference(providerBaseUrl) === undefined &&
+    !isHttpUrl(providerBaseUrl)
+  ) {
+    addDoctorIssue(issues, {
+      level: 'error',
+      code: 'invalid_provider_base_url',
+      message: t('cli.runtime.provider.doctor.invalidProviderBaseUrl'),
+      providerId,
+    });
+  }
+
+  // A keyless placeholder against a remote host is almost always a forgotten
+  // key (local loopback servers are the legitimate keyless case).
+  if (
+    provider.apiKey === 'no-key-required' &&
+    providerBaseUrl !== undefined &&
+    parseEnvReference(providerBaseUrl) === undefined &&
+    isHttpUrl(providerBaseUrl) &&
+    !isLoopbackUrl(providerBaseUrl)
+  ) {
+    addDoctorIssue(issues, {
+      level: 'warning',
+      code: 'custom_keyless_remote',
+      message: t('cli.runtime.provider.doctor.customKeylessRemote'),
+      providerId,
+    });
+  }
+
   for (const ref of providerEnvReferences(provider)) {
     if (nonEmptyString(env[ref.envVar]) === undefined) {
       addDoctorIssue(issues, {
@@ -297,6 +328,27 @@ function collectModelDoctorIssues(
     });
   }
 
+  if (nonEmptyString(model.model) === undefined) {
+    addDoctorIssue(issues, {
+      level: 'error',
+      code: 'missing_model_id',
+      message: t('cli.runtime.provider.doctor.missingModelId'),
+      modelAlias,
+    });
+  }
+
+  if (
+    model.maxContextSize !== undefined &&
+    (!Number.isInteger(model.maxContextSize) || model.maxContextSize <= 0)
+  ) {
+    addDoctorIssue(issues, {
+      level: 'error',
+      code: 'invalid_max_context',
+      message: t('cli.runtime.provider.doctor.invalidMaxContext'),
+      modelAlias,
+    });
+  }
+
   for (const fallbackAlias of model.fallbackModels ?? []) {
     if (fallbackAlias === modelAlias) {
       addDoctorIssue(issues, {
@@ -353,6 +405,23 @@ function addDoctorIssue(
   issue: ProviderDoctorIssue,
 ): void {
   issues.push(issue);
+}
+
+/** True for localhost / loopback / private-host URLs (legitimate keyless servers). */
+function isLoopbackUrl(value: string): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(value).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+  );
 }
 
 export function formatProviderDoctorReport(report: ProviderDoctorReport): string {

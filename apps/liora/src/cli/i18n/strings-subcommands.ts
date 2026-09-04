@@ -124,6 +124,8 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.provider.cmd.customAdd.option.output': 'Max output tokens for this model.',
   'cli.sub.provider.cmd.customAdd.option.displayName':
     'Friendly model name shown in selectors.',
+  'cli.sub.provider.cmd.customAdd.option.header':
+    'Extra static header as "Name: value". Repeatable, e.g. for gateways or auth proxies.',
   'cli.sub.provider.cmd.customAdd.option.thinking':
     'Mark the model as thinking-capable.',
   'cli.sub.provider.cmd.customAdd.option.setDefault':
@@ -392,6 +394,8 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.provider.cmd.customAdd.option.output': '이 모델의 최대 출력 토큰.',
   'cli.sub.provider.cmd.customAdd.option.displayName':
     '선택기에 표시할 친숙한 모델 이름.',
+  'cli.sub.provider.cmd.customAdd.option.header':
+    '"이름: 값" 형태의 추가 정적 헤더. 반복 가능 (게이트웨이·인증 프록시용).',
   'cli.sub.provider.cmd.customAdd.option.thinking':
     '모델을 사고(thinking) 지원으로 표시합니다.',
   'cli.sub.provider.cmd.customAdd.option.setDefault':

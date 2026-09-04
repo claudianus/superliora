@@ -24,6 +24,7 @@ import {
 } from '@superliora/sdk';
 
 import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
+import { CUSTOM_ENDPOINT_PRESETS } from '#/tui/utils/model/custom-endpoint-presets';
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
 import {
   ALIBABA_TOKEN_PLAN_CATALOG_ID,
@@ -65,6 +66,7 @@ export type ProviderCatalogSelection =
   | { readonly kind: 'catalog'; readonly providerId: string }
   | { readonly kind: 'cloud'; readonly providerId: 'bedrock' | 'vertex_claude' }
   | { readonly kind: 'qwen-token-plan'; readonly region?: 'global' | 'cn' }
+  | { readonly kind: 'custom-preset'; readonly presetId: string }
   | { readonly kind: 'custom-endpoint' }
   | { readonly kind: 'custom-registry' };
 
@@ -222,6 +224,19 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
     modelCount: 0,
   });
 
+  // One-click local-server presets (Ollama, LM Studio, …): same dialog as a
+  // manual custom endpoint, prefilled, so only the model id is left to type.
+  for (const preset of CUSTOM_ENDPOINT_PRESETS) {
+    options.push({
+      value: `preset:${preset.id}`,
+      label: `${preset.displayName} (preset)`,
+      authKind: 'custom',
+      modelCount: 0,
+      baseUrl: preset.baseUrl,
+      docUrl: preset.docUrl,
+    });
+  }
+
   return options.toSorted((a, b) => {
     const pa = priorityFor(a);
     const pb = priorityFor(b);
@@ -246,6 +261,8 @@ function priorityFor(option: ProviderCatalogOption): number {
   // Kimi managed OAuth always leads.
   if (option.value === 'oauth:managed:kimi-api') return -1;
   if (option.value === 'custom-endpoint' || option.value === 'custom-registry') return 200;
+  // Local-server presets sit just above the escape hatches.
+  if (option.value.startsWith('preset:')) return 150;
   // Other OAuth providers sort alongside their pinned catalog ids.
   if (option.value.startsWith('oauth:')) {
     const id = option.value.slice('oauth:'.length);
@@ -261,6 +278,7 @@ function priorityFor(option: ProviderCatalogOption): number {
 /** Resolves a picker `value` back to the structured selection. */
 export function resolveProviderSelection(value: string): ProviderCatalogSelection {
   if (value.startsWith('oauth:')) return { kind: 'oauth', providerId: value.slice('oauth:'.length) };
+  if (value.startsWith('preset:')) return { kind: 'custom-preset', presetId: value.slice('preset:'.length) };
   if (value === 'custom-endpoint') return { kind: 'custom-endpoint' };
   if (value === 'custom-registry') return { kind: 'custom-registry' };
   if (value === 'qwen-token-plan') return { kind: 'qwen-token-plan' };

@@ -11,6 +11,7 @@ import type { CustomAddOptions, ProviderDeps } from '../types';
 import {
   applyCustomEndpointProvider,
   DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE,
+  parseCustomHeaders,
 } from '#/utils/custom-provider';
 
 function parseProviderType(
@@ -66,6 +67,16 @@ export async function handleProviderCustomAdd(
       ? undefined
       : parsePositiveInt(opts.output, 'Max output tokens', deps);
 
+  let customHeaders: Record<string, string> | undefined;
+  if (opts.header !== undefined && opts.header.length > 0) {
+    try {
+      customHeaders = parseCustomHeaders(opts.header.join('\n'), '--header');
+    } catch (error) {
+      deps.stderr.write(`${errorMessage(error)}\n`);
+      deps.exit(1);
+    }
+  }
+
   const harness = deps.getHarness();
   await harness.ensureConfigFile();
   const config = await harness.getConfig();
@@ -87,6 +98,7 @@ export async function handleProviderCustomAdd(
       maxContextSize,
       maxOutputSize,
       displayName: opts.displayName,
+      ...(customHeaders === undefined ? {} : { customHeaders }),
       thinking: opts.thinking === true,
       setDefault: opts.setDefault === true,
     });

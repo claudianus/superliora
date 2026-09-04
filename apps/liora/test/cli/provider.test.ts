@@ -414,6 +414,35 @@ describe('liora provider add', () => {
     expect(current().models?.['kohub/claude-opus-4-7']).toBeDefined();
   });
 
+  it('never deletes a live OAuth login for a colliding registry id', async () => {
+    mockRegistryFetch();
+    const initial: LioraConfig = {
+      providers: {
+        kohub: {
+          type: 'anthropic',
+          baseUrl: 'https://registry.example.test',
+          oauth: { storage: 'file', key: 'kohub' },
+        },
+      },
+      models: {},
+    } as unknown as LioraConfig;
+    const { harness, removeCalls, current } = makeHarness(initial);
+    const { deps, stdout, exitCodes } = makeDeps(harness);
+
+    await tryRun(() =>
+      handleProviderAdd(deps, REGISTRY_URL, { apiKey: 'sk-new' }),
+    );
+
+    expect(exitCodes).toEqual([]);
+    expect(removeCalls).not.toContain('kohub');
+    expect(current().providers['kohub']).toMatchObject({
+      baseUrl: 'https://registry.example.test',
+    });
+    expect(stdout.join('')).toContain('Skipped "kohub"');
+    // The non-colliding sibling still imports.
+    expect(current().providers['kohub-responses']).toBeDefined();
+  });
+
   it('preserves newly-imported providers when a later registry entry replaces an existing id', async () => {
     // Regression test for the codex P1: `harness.removeProvider` re-reads
     // from disk on each call, so applying the loop body without flushing
@@ -759,6 +788,42 @@ describe('liora provider custom add', () => {
     expect(exitCodes).toEqual([1]);
     expect(stderr.join('')).toContain('uses OAuth');
   });
+
+  it('stores repeatable --header values as customHeaders', async () => {
+    const { harness, current } = makeHarness({ providers: {} } as LioraConfig);
+    const { deps, exitCodes } = makeDeps(harness);
+
+    await tryRun(() =>
+      handleProviderCustomAdd(deps, 'gw', {
+        baseUrl: 'https://gw.test/v1',
+        model: 'm',
+        apiKey: 'sk-x',
+        header: ['X-Tenant: acme', 'X-Tag: a=b:c'],
+      }),
+    );
+
+    expect(exitCodes).toEqual([]);
+    expect(current().providers['gw']).toMatchObject({
+      customHeaders: { 'X-Tenant': 'acme', 'X-Tag': 'a=b:c' },
+    });
+  });
+
+  it('rejects malformed --header values', async () => {
+    const { harness } = makeHarness({ providers: {} } as LioraConfig);
+    const { deps, stderr, exitCodes } = makeDeps(harness);
+
+    await tryRun(() =>
+      handleProviderCustomAdd(deps, 'gw', {
+        baseUrl: 'https://gw.test/v1',
+        model: 'm',
+        apiKey: 'sk-x',
+        header: ['not-a-header'],
+      }),
+    );
+
+    expect(exitCodes).toEqual([1]);
+    expect(stderr.join('')).toContain('Name: value');
+  });
 });
 
 describe('liora provider doctor', () => {
@@ -875,6 +940,61 @@ describe('liora provider doctor', () => {
     expect(stderr.join('')).toBe('');
     expect(out).toContain('Provider doctor: 0 errors, 1 warning');
     expect(out).toContain('[warning] unused_route_weight model=primary');
+  });
+
+  it('flags malformed provider base URLs, keyless remotes, and bad model fields', async () => {
+    const { harness } = makeHarness({
+      providers: {
+        broken: {
+          type: 'openai',
+          baseUrl: 'not-a-url',
+          apiKey: 'sk-x',
+        },
+        keylessRemote: {
+          type: 'openai',
+          baseUrl: 'https://remote.test/v1',
+          apiKey: 'no-key-required',
+        },
+        localKeyless: {
+          type: 'openai',
+          baseUrl: 'http://localhost:11434/v1',
+          apiKey: 'no-key-required',
+        },
+      },
+      models: {
+        broken: {
+          provider: 'broken',
+          model: 'm',
+          maxContextSize: 1024,
+          capabilities: [],
+        },
+        nameless: {
+          provider: 'broken',
+          model: '   ',
+          maxContextSize: 1024,
+          capabilities: [],
+        },
+        badctx: {
+          provider: 'broken',
+          model: 'm',
+          maxContextSize: -5,
+          capabilities: [],
+        },
+      },
+      defaultModel: 'broken',
+    } as unknown as LioraConfig);
+    const { deps, stdout, exitCodes } = makeDeps(harness);
+
+    await tryRun(() => handleProviderDoctor(deps, { json: false }));
+
+    const out = stdout.join('');
+    expect(exitCodes).toEqual([1]);
+    expect(out).toContain('[error] invalid_provider_base_url provider=broken');
+    expect(out).toContain('[warning] custom_keyless_remote provider=keylessRemote');
+    expect(out).not.toContain('provider=localKeyless');
+    expect(out).not.toContain('localKeyless');
+    expect(out).toContain('[error] missing_model_id model=nameless');
+    expect(out).toContain('[error] invalid_max_context model=badctx');
   });
 
   it('reports credential pool env, base URL, and duplicate slot problems without secrets', async () => {

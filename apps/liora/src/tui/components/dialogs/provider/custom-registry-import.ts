@@ -33,11 +33,23 @@ export type CustomRegistryImportResult =
 const TITLE = 'Import custom provider registry';
 const SUBTITLE_DEFAULT = 'Paste an api.json URL and its Bearer token.';
 const SUBTITLE_URL_EMPTY = 'Registry URL cannot be empty.';
+const SUBTITLE_URL_INVALID = 'Registry URL must start with http:// or https://.';
 const SUBTITLE_TOKEN_EMPTY = 'Bearer token cannot be empty.';
 const FOOTER_NOT_LAST = 'Tab / ↑↓ to switch  ·  Enter for next field  ·  Esc to cancel';
 const FOOTER_LAST = 'Tab / ↑↓ to switch  ·  Enter to submit  ·  Esc to cancel';
 
 type FieldId = 'url' | 'token';
+
+/** Fail fast on non-URLs so the user never waits on a doomed registry fetch. */
+function isHttpUrl(value: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+}
 
 function maskInputLine(raw: string): string {
   const prefix = '> ';
@@ -72,7 +84,7 @@ export class CustomRegistryImportDialogComponent extends Container implements Fo
   private readonly onDone: (result: CustomRegistryImportResult) => void;
   private activeField: FieldId = 'url';
   private done = false;
-  private hint: 'none' | 'url-empty' | 'token-empty' = 'none';
+  private hint: 'none' | 'url-empty' | 'url-invalid' | 'token-empty' = 'none';
 
   constructor(
     onDone: (result: CustomRegistryImportResult) => void,
@@ -146,9 +158,11 @@ export class CustomRegistryImportDialogComponent extends Container implements Fo
     const subtitleText =
       this.hint === 'url-empty'
         ? SUBTITLE_URL_EMPTY
-        : this.hint === 'token-empty'
-          ? SUBTITLE_TOKEN_EMPTY
-          : SUBTITLE_DEFAULT;
+        : this.hint === 'url-invalid'
+          ? SUBTITLE_URL_INVALID
+          : this.hint === 'token-empty'
+            ? SUBTITLE_TOKEN_EMPTY
+            : SUBTITLE_DEFAULT;
     const subtitleStyled = currentTheme.fg('textDim', subtitleText);
     const footerStyled = currentTheme.fg(
       'textDim',
@@ -226,6 +240,11 @@ export class CustomRegistryImportDialogComponent extends Container implements Fo
 
     if (urlValue.length === 0) {
       this.hint = 'url-empty';
+      this.activeField = 'url';
+      return;
+    }
+    if (!isHttpUrl(urlValue)) {
+      this.hint = 'url-invalid';
       this.activeField = 'url';
       return;
     }

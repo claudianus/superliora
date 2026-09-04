@@ -14,6 +14,8 @@ export const STRINGS_RUNTIME_PROVIDER_EN: Readonly<Record<string, string>> = {
   'cli.runtime.provider.importedHeader':
     'Imported {count} {providerUnit} ({modelCount} {modelUnit}) from {url}:',
   'cli.runtime.provider.importedItem': '  - {id}',
+  'cli.runtime.provider.registrySkippedOAuth':
+    'Skipped "{id}": a live OAuth login already uses that id. Remove the OAuth provider first to let the registry take over.',
 
   // remove / list
   'cli.runtime.provider.notFound': 'Provider "{providerId}" not found.',
@@ -213,6 +215,12 @@ export const STRINGS_RUNTIME_PROVIDER_EN: Readonly<Record<string, string>> = {
     '{source} label must use only letters, numbers, dot, underscore, or dash.',
   'cli.runtime.provider.doctor.invalidCredentialBaseUrl':
     '{source} base_url must start with http:// or https://.',
+  'cli.runtime.provider.doctor.invalidProviderBaseUrl':
+    'Provider base_url must start with http:// or https://.',
+  'cli.runtime.provider.doctor.customKeylessRemote':
+    'Provider uses the keyless placeholder against a remote host; requests will likely fail auth. Set an API key.',
+  'cli.runtime.provider.doctor.missingModelId': 'Model has no upstream model id.',
+  'cli.runtime.provider.doctor.invalidMaxContext': 'Model maxContextSize must be a positive integer.',
   'cli.runtime.provider.doctor.duplicateCredential':
     '{source} duplicates an earlier API key/base_url slot and will be ignored.',
   'cli.runtime.provider.doctor.duplicateCredentialLabel':
@@ -317,6 +325,8 @@ export const STRINGS_RUNTIME_PROVIDER_KO: Readonly<Record<string, string>> = {
   'cli.runtime.provider.importedHeader':
     '{url}에서 {count}개 {providerUnit}({modelCount}개 {modelUnit})을 가져왔습니다:',
   'cli.runtime.provider.importedItem': '  - {id}',
+  'cli.runtime.provider.registrySkippedOAuth':
+    '"{id}" 건너뜀: 해당 id에 활성 OAuth 로그인이 있습니다. 레지스트리로 교체하려면 OAuth 프로바이더를 먼저 제거하세요.',
 
   'cli.runtime.provider.notFound': '프로바이더 "{providerId}"을(를) 찾을 수 없습니다.',
   'cli.runtime.provider.removed': '프로바이더 "{providerId}"을(를) 제거했습니다.',
@@ -511,6 +521,12 @@ export const STRINGS_RUNTIME_PROVIDER_KO: Readonly<Record<string, string>> = {
     '{source} 레이블은 영문, 숫자, 점, 밑줄, 하이픈만 사용할 수 있습니다.',
   'cli.runtime.provider.doctor.invalidCredentialBaseUrl':
     '{source} base_url은 http:// 또는 https://로 시작해야 합니다.',
+  'cli.runtime.provider.doctor.invalidProviderBaseUrl':
+    '프로바이더 base_url은 http:// 또는 https://로 시작해야 합니다.',
+  'cli.runtime.provider.doctor.customKeylessRemote':
+    '프로바이더가 원격 호스트에 keyless 플레이스홀더를 사용합니다. 인증 실패 가능성이 높으니 API 키를 설정하세요.',
+  'cli.runtime.provider.doctor.missingModelId': '모델에 업스트림 모델 id가 없습니다.',
+  'cli.runtime.provider.doctor.invalidMaxContext': '모델 maxContextSize는 양의 정수여야 합니다.',
   'cli.runtime.provider.doctor.duplicateCredential':
     '{source}이(가) 이전 API 키/base_url 슬롯과 중복되어 무시됩니다.',
   'cli.runtime.provider.doctor.duplicateCredentialLabel':
