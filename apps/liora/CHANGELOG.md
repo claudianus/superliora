@@ -1,5 +1,26 @@
 # @superliora/liora
 
+## 0.22.0
+
+### Minor Changes
+
+- Add one-click local endpoint presets and an in-flow model picker to custom endpoint login. Pick Ollama, LM Studio, llama.cpp, vLLM, or similar from /login and only type the model id; when the typed id is not advertised, choose from the endpoint list instead. Run /login to try it.
+- Add the /queue clear command to empty all queued follow-up messages at once. Run /queue clear while messages are queued; the queue pane hint mentions it.
+
+### Patch Changes
+
+- Verify custom endpoints before saving: rejected keys block the save with a clear message, while offline servers and non-OpenAI wires still save with a warning. Also add a headers field and max-output field to the dialog, matching the CLI flags.
+- Fix OAuth and provider routing reliability: per-request endpoint rotation for Responses, Kimi, Anthropic, Cursor, and Google adapters, id-based token refresh routing, abort-aware login polling, and stale-token classification fixes.
+- Extend provider doctor with custom endpoint checks: malformed provider URLs, keyless placeholders against remote hosts, missing model ids, and invalid context windows.
+- Stop drafts and queued messages from being lost silently: Ctrl-C on a non-empty editor now stashes the text for Ctrl-X restore instead of destroying it, recalling a queued message keeps a backup copy, a failed steer re-queues what it drained, and restored queue entries warn when their image attachments were dropped by the restart.
+- Fix Command Hub entries that advertised actions the dispatcher would reject: mid-turn Undo/Compact rows now explain that they run after the turn instead of dispatching into a guaranteed error, Retry says why it is blocked instead of silently doing nothing, and Stop reports a failed cancel. The Hub search now also finds primary and diagnostic slash commands, not just advanced ones, and the queue hints and step-interrupted messages are localized.
+- Show a confirm toast before inserting a very large paste into the editor; paste again to insert it for real. This keeps a giant log paste from freezing the editor or being sent to the model by a stray Enter. Ctrl-S now steers only the editor text and leaves queued messages queued, Ctrl-R history search works mid-turn and opens seeded with the current draft, and the footer shows a session cost badge so spend stays visible on terminals too narrow for the header segment.
+- Honor the notification settings on every notification path: turn-complete bells, error toasts, and job-outcome alerts now respect the `[notifications]` toggle and the unfocused condition instead of ringing on every turn regardless of the setting. Switching or creating a session also clears the previous session's cost, model-failover badge, intervention counters, and cache meter so a fresh session no longer shows stale numbers.
+- Show the Command Hub with a short intro on first run so the search surface is discoverable, and write prompt-input state more efficiently: keystroke debounce no longer re-serializes the whole queued-message buffer on every pause, and the global input history file is trimmed only after it overshoots its cap instead of on every submit.
+- Make provider recovery visible and honest during long waits: rate-limit backoff sleeps and model failovers now surface a retrying cue instead of a silent spinner, `Retry-After: 900` (seconds) is no longer misread as 900 milliseconds, rate-limit and connection errors stay retryable when a payload omits the retryable flag, and the failover question matches the user's answer even when the host UI re-formats the option label. Session lists also sort by the recorded activity time, renaming a session bumps its recency, and resuming a session loads subagent state in parallel for faster open.
+- Recover sessions instead of bricking them: a corrupted record in the middle of a session journal now replays everything before the corruption, drops the damaged tail, and reports the recovery on resume instead of failing the whole session; an unreadable session directory no longer hides every other session from the session list; and a lost session index rebuilds itself on the next listing.
+- Fix shell-form hooks silently failing on Windows when the executable path contains spaces: a `node.exe` under `C:\Program Files` was cut at the first space, so PreToolUse blocking hooks always allowed. Spaced executables now spawn directly as argv[0].
+
 ## 0.21.5
 
 ### Patch Changes
