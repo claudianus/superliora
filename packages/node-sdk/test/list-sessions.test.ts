@@ -368,26 +368,28 @@ describe('LioraHarness.listSessions', () => {
   });
 
   it('resolves relative workDir inputs before filtering', async () => {
+    // Store-level coverage of the same product path the harness exercises:
+    // a relative workDir is resolved against process.cwd() before the bucket
+    // key is derived. The previous harness-based version booted a full agent
+    // lifecycle and took 33–90+s on Linux CI runners (2s on Windows) purely
+    // from the cwd spy interacting with agent startup — it timed out the
+    // release-blocking shard without ever asserting anything the store does
+    // not already cover.
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = createLioraHarness({
-      identity: TEST_IDENTITY,
-      homeDir,
-    });
-    // Never process.chdir() here: cwd is process-global and shared with every
-    // test in the worker, so a timeout + retry (or a deleted temp dir) poisons
-    // sibling tests with ENOENT. pathe's resolve() reads process.cwd()
-    // dynamically, so a spy covers the product path with zero global fallout.
+    const store = new SessionStore(homeDir);
     const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(workDir);
 
     try {
-      const session = await harness.createSession({ id: 'ses_relative_workdir', workDir: '.' });
+      await store.create({ id: 'ses_relative_workdir', workDir: '.' });
 
-      const sessions = await harness.listSessions({ workDir: '.' });
-      expect(sessions.map((item) => item.id)).toEqual([session.id]);
+      const sessions = await store.list({ workDir: '.' });
+      expect(sessions.map((item) => item.id)).toEqual(['ses_relative_workdir']);
+      // The persisted bucket key must be the resolved workDir, not '.'.
+      const resolved = normalizeWorkDir('.');
+      expect(existsSync(join(homeDir, 'sessions', encodeWorkDirKey(resolved)))).toBe(true);
     } finally {
       cwdSpy.mockRestore();
-      await harness.close();
     }
   });
 
