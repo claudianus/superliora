@@ -145,6 +145,20 @@ export interface EnsureGitHubCopilotSessionOptions {
   readonly force?: boolean;
   readonly now?: () => number;
   readonly fetchImpl?: typeof fetch;
+  readonly signal?: AbortSignal;
+  /** Per-request ceiling; defaults to 30s so a hung exchange cannot stall login. */
+  readonly timeoutMs?: number;
+}
+
+/** Default ceiling for Copilot session/model HTTP calls. */
+const DEFAULT_COPILOT_HTTP_TIMEOUT_MS = 30_000;
+
+function copilotRequestSignal(options: {
+  readonly signal?: AbortSignal;
+  readonly timeoutMs?: number;
+}): AbortSignal {
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? DEFAULT_COPILOT_HTTP_TIMEOUT_MS);
+  return options.signal === undefined ? timeout : AbortSignal.any([timeout, options.signal]);
 }
 
 /**
@@ -171,7 +185,10 @@ export async function ensureGitHubCopilotSession(
   ) {
     return cached;
   }
-  const session = await exchangeGitHubCopilotSession(token, options.fetchImpl);
+  const session = await exchangeGitHubCopilotSession(token, options.fetchImpl, {
+    signal: options.signal,
+    timeoutMs: options.timeoutMs,
+  });
   sessionCache.set(token, { ...session, userToken: token });
   return session;
 }
@@ -179,6 +196,7 @@ export async function ensureGitHubCopilotSession(
 export async function exchangeGitHubCopilotSession(
   userToken: string,
   fetchImpl: typeof fetch = fetch,
+  options: { readonly signal?: AbortSignal; readonly timeoutMs?: number } = {},
 ): Promise<GitHubCopilotSession> {
   const res = await fetchImpl(GITHUB_COPILOT_TOKEN_URL, {
     headers: {
@@ -186,6 +204,7 @@ export async function exchangeGitHubCopilotSession(
       Accept: 'application/json',
       ...githubCopilotRequestHeaders(),
     },
+    signal: copilotRequestSignal(options),
   });
   if (res.status === 401 || res.status === 403) {
     throw new OAuthUnauthorizedError(
@@ -311,6 +330,7 @@ export const GITHUB_COPILOT_PROFILE: ProviderProfile = {
 export async function fetchGitHubCopilotModels(
   session: GitHubCopilotSession,
   fetchImpl: typeof fetch = fetch,
+  options: { readonly signal?: AbortSignal; readonly timeoutMs?: number } = {},
 ): Promise<readonly ProviderModelPreset[] | undefined> {
   const base = session.apiBaseUrl.replace(/\/+$/, '');
   const res = await fetchImpl(`${base}/models`, {
@@ -319,6 +339,7 @@ export async function fetchGitHubCopilotModels(
       Accept: 'application/json',
       ...githubCopilotRequestHeaders(),
     },
+    signal: copilotRequestSignal(options),
   });
   if (!res.ok) return undefined;
   return parseGitHubCopilotModelsResponse(await res.json());

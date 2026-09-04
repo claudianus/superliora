@@ -1,11 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
+  applyCustomRegistryEntries,
   applyCustomRegistryProvider,
   capabilitiesFromCustomEntry,
   CUSTOM_REGISTRY_DEFAULT_CAPABILITIES,
   CUSTOM_REGISTRY_DEFAULT_MAX_CONTEXT,
   CustomRegistryApiError,
+  fetchCustomRegistry,
   type CustomRegistryModelEntry,
 } from '../src/registry/custom-registry';
 import type { ManagedKimiConfigShape } from '../src/kimi';
@@ -88,5 +90,80 @@ describe('oauth/custom-registry — pure helpers', () => {
       { kind: 'apiJson', url: 'https://example.test/api.json', apiKey: 'sk-test' },
     );
     expect(config.models?.['xai/grok-4.6']).toMatchObject({ maxContextSize: 200_000 });
+  });
+
+  it('times out a hung registry fetch with a 408 (no indefinite hang)', async () => {
+    const hanging = vi.fn(
+      (_url: unknown, init?: { signal?: AbortSignal }) =>
+        new Promise<never>((_, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('This operation was aborted.', 'AbortError'));
+          });
+        }),
+    );
+    await expect(
+      fetchCustomRegistry(
+        { kind: 'apiJson', url: 'https://hang.test/api.json', apiKey: 'k' },
+        hanging as unknown as typeof fetch,
+        undefined,
+        { timeoutMs: 20 },
+      ),
+    ).rejects.toMatchObject({ name: 'CustomRegistryApiError', status: 408 });
+    expect(hanging).toHaveBeenCalledOnce();
+  });
+
+  it('propagates a caller abort instead of mapping it to a timeout', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetchMock = vi.fn(async () => {
+      throw new DOMException('This operation was aborted.', 'AbortError');
+    });
+    await expect(
+      fetchCustomRegistry(
+        { kind: 'apiJson', url: 'https://x.test/api.json', apiKey: 'k' },
+        fetchMock as unknown as typeof fetch,
+        controller.signal,
+        { timeoutMs: 5_000 },
+      ),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('skips registry entries that collide with OAuth logins (never deletes them)', () => {
+    const config: ManagedKimiConfigShape = {
+      providers: {
+        'cursor-oauth': {
+          type: 'cursor',
+          baseUrl: 'https://api2.cursor.sh',
+          oauth: { storage: 'file', key: 'cursor-oauth' },
+        },
+      },
+      models: {},
+    };
+    const result = applyCustomRegistryEntries(
+      config,
+      {
+        rogue: {
+          id: 'cursor-oauth',
+          name: 'Rogue',
+          api: 'https://rogue.test/v1',
+          type: 'openai',
+          models: {},
+        },
+        fine: {
+          id: 'fine',
+          name: 'Fine',
+          api: 'https://fine.test/v1',
+          type: 'openai',
+          models: {},
+        },
+      },
+      { kind: 'apiJson', url: 'https://example.test/api.json', apiKey: 'k' },
+    );
+    expect(result.skippedOAuthCollisions).toEqual(['cursor-oauth']);
+    expect(result.applied).toEqual(['fine']);
+    expect(config.providers['cursor-oauth']).toMatchObject({
+      baseUrl: 'https://api2.cursor.sh',
+    });
+    expect(config.providers['fine']).toBeDefined();
   });
 });

@@ -9,7 +9,18 @@
 
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeSync,
+} from 'node:fs';
 import { arch, hostname, release, type } from 'node:os';
 import { join } from 'node:path';
 
@@ -53,9 +64,31 @@ export function createKimiDeviceId(
   const id = randomUUID();
   try {
     mkdirSync(homeDir, { recursive: true, mode: 0o700 });
-    writeFileSync(join(homeDir, 'device_id'), id, { encoding: 'utf-8', mode: 0o600 });
+    // Atomic write (tmp + fsync + rename): a crash mid-write must not leave a
+    // torn device_id behind — the next boot would mint a new id and churn the
+    // server-side device record.
+    const target = join(homeDir, 'device_id');
+    const tmp = `${target}.tmp.${String(process.pid)}`;
+    const fd = openSync(tmp, 'w', 0o600);
+    try {
+      writeSync(fd, id, null, 'utf-8');
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    try {
+      chmodSync(tmp, 0o600);
+    } catch {
+      // best-effort; Windows / read-only FS may refuse
+    }
+    renameSync(tmp, target);
   } catch {
     // Best-effort: requests can still use the in-memory id.
+    try {
+      unlinkSync(join(homeDir, `device_id.tmp.${String(process.pid)}`));
+    } catch {
+      /* ignore */
+    }
   }
   if (options.onFirstLaunch !== undefined) {
     try {

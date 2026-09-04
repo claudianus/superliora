@@ -254,15 +254,30 @@ export {
   CustomRegistryApiError,
   CUSTOM_REGISTRY_DEFAULT_CAPABILITIES,
   CUSTOM_REGISTRY_DEFAULT_MAX_CONTEXT,
+  DEFAULT_REGISTRY_TIMEOUT_MS,
   fetchCustomRegistry,
   removeCustomRegistryProvider,
 } from './registry/custom-registry';
 export type {
+  ApplyCustomRegistryEntriesResult,
   CustomRegistryModelEntry,
   CustomRegistryProviderEntry,
   CustomRegistryProviderType,
   CustomRegistrySource,
 } from './registry/custom-registry';
+
+export {
+  API_KEY_PROVIDERS,
+  defaultBaseUrlForProvider,
+  describeMissingApiKey,
+  getApiKeyProvider,
+  isApiKeyProviderId,
+  resolveApiKeyFromEnv,
+} from './registry/api-key-providers';
+export type {
+  ApiKeyProviderDefinition,
+  ApiKeyProviderWire,
+} from './registry/api-key-providers';
 
 export { refreshProviderModels } from './registry/refreshProviderModels';
 export type {

@@ -25,7 +25,18 @@ export interface ProviderUsageSnapshot {
   readonly providerKey: string;
   /** Human-readable provider name. */
   readonly displayName: string;
-  /** Whether the provider exposes a queryable usage API. */
+  /**
+   * Whether the provider exposes a queryable usage API (not whether the
+   * credential itself is valid — auth failures surface via `status` /
+   * credential-health from real requests).
+   *
+   * Convention per fetcher kind:
+   * - usage-stats endpoints (kimi, xai, anthropic, …) fail open
+   *   (`available: true` + `error`): a stats outage must not route away from
+   *   a healthy chat credential.
+   * - key-check endpoints (openrouter `/key`, deepseek balance) fail closed
+   *   (`available: false`): the check IS the credential validation.
+   */
   readonly available: boolean;
   /** Primary summary row (e.g. "Weekly limit"). Null when unavailable. */
   readonly summary: ProviderUsageRow | null;

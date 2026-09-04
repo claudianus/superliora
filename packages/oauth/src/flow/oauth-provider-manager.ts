@@ -192,7 +192,7 @@ export class OAuthProviderManager {
       configDir: this.homeDir,
       onRefresh: this.onRefresh,
       refreshTokenImpl: (config, refreshToken) =>
-        refreshForFlow(flow, config.name, refreshToken),
+        refreshForFlow(profile.id, flow, config.name, refreshToken),
     });
   }
 
@@ -201,7 +201,11 @@ export class OAuthProviderManager {
     callbacks: ProviderLoginCallbacks,
     options: ProviderLoginOptions,
   ): Promise<TokenInfo> {
-    const manager = this.managerFor(profile.id);
+    // Multi-account pools pass a per-account storage key; honor it so a second
+    // Kimi login does not overwrite the default credential file. The manager
+    // cache is keyed by (providerId, storageKey), so requesting the keyed
+    // manager here is what isolates the token file + refresh lock.
+    const manager = this.managerFor(profile.id, options.storageKey);
     // The Kimi manager's default requestDevice/poll/refresh impls already hit
     // the Kimi endpoints via the shared `oauth.ts` wrappers.
     return manager.login({
@@ -215,6 +219,20 @@ export class OAuthProviderManager {
     callbacks: ProviderLoginCallbacks,
     options: ProviderLoginOptions,
   ): Promise<TokenInfo> {
+    // The Codex backend speaks both the custom usercode flow and standard
+    // PKCE. `preferBrowser` selects the loopback-callback variant (no polling
+    // loop, works where the device-poll endpoint is unreachable).
+    if (options.preferBrowser === true) {
+      const token = await runOpenAiBrowserFlow(profile.flow, {
+        onAuthorizeUrl: callbacks.onAuthorizeUrl,
+        onManualCallbackPrompt: callbacks.onManualCallbackPrompt,
+        signal: options.signal,
+      });
+      const tokenInfo = toOpenAiTokenInfo(token);
+      const storageKey = options.storageKey ?? this.storageName(profile.id);
+      await this.storage.save(storageKey, tokenInfo);
+      return tokenInfo;
+    }
     // The OpenAI device flow returns its own code_verifier, so we run it
     // directly and store the resulting token.
     const token = await runOpenAiDeviceFlow(profile.flow, {
@@ -304,13 +322,23 @@ function toGenericPkceConfig(flow: ProviderFlowConfig): GenericPkceFlowConfig {
     clientId: flow.clientId,
     scope: flow.scope,
     callbackPort: flow.callbackPort,
+    callbackHost: flow.callbackHost,
     authorizeUrl: flow.authorizeUrl ?? `${flow.oauthHost}/oauth/authorize`,
     tokenUrl: flow.tokenUrl ?? `${flow.oauthHost}/oauth2/token`,
+    ...(flow.userAgent !== undefined ? { userAgent: flow.userAgent } : {}),
   };
 }
 
-/** Resolves the refresh implementation for a flow kind. */
+/**
+ * Resolves the refresh implementation for a flow kind.
+ *
+ * Branches on the provider id (not on `oauthHost` substrings): custom hosts,
+ * reverse proxies, and case variations must not change which token endpoint or
+ * payload shape is used. Host sniffing previously misrouted proxied xAI/Anthropic
+ * setups into the OpenAI refresh path.
+ */
 async function refreshForFlow(
+  providerId: string,
   flow: ProviderFlowConfig,
   _storageName: string,
   refreshToken: string,
@@ -325,12 +353,12 @@ async function refreshForFlow(
     case 'deep_link_poll':
       return toCursorTokenInfo(await refreshCursorToken(flow, refreshToken));
     case 'pkce_browser': {
-      if (flow.oauthHost.includes('x.ai')) {
+      if (providerId === 'xai-grok') {
         const { tokenUrl } = await resolveXaiEndpoints(flow);
         const token = await refreshXaiToken(flow, refreshToken, tokenUrl);
         return toXaiTokenInfo(token);
       }
-      if (flow.oauthHost.includes('anthropic')) {
+      if (providerId === 'anthropic-oauth') {
         const token = await refreshPkceToken(toGenericPkceConfig(flow), refreshToken);
         return toXaiTokenInfo(token);
       }

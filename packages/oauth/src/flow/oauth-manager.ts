@@ -63,10 +63,17 @@ export interface OAuthManagerOptions {
       ) => Promise<TokenInfo>)
     | undefined;
   readonly requestDeviceImpl?:
-    | ((config: OAuthFlowConfig) => Promise<DeviceAuthorization>)
+    | ((
+        config: OAuthFlowConfig,
+        options?: { readonly signal?: AbortSignal },
+      ) => Promise<DeviceAuthorization>)
     | undefined;
   readonly pollDeviceImpl?:
-    | ((config: OAuthFlowConfig, deviceCode: string) => Promise<DevicePollResult>)
+    | ((
+        config: OAuthFlowConfig,
+        deviceCode: string,
+        options?: { readonly signal?: AbortSignal },
+      ) => Promise<DevicePollResult>)
     | undefined;
   readonly deviceHeaders?: (() => DeviceHeaders | undefined) | undefined;
   /**
@@ -136,15 +143,17 @@ export class OAuthManager {
         }));
     this.requestImpl =
       options.requestDeviceImpl ??
-      ((config) =>
+      ((config, requestOptions) =>
         requestDeviceAuthorization(config, {
           deviceHeaders: this.resolveDeviceHeaders(),
+          signal: requestOptions?.signal,
         }));
     this.pollImpl =
       options.pollDeviceImpl ??
-      ((config, deviceCode) =>
+      ((config, deviceCode, pollOptions) =>
         pollDeviceToken(config, deviceCode, {
           deviceHeaders: this.resolveDeviceHeaders(),
+          signal: pollOptions?.signal,
         }));
     // The `SUPERLIORA_HOME` fallback MUST stay test-only so production
     // entry points can't silently run without a lock just because the
@@ -412,7 +421,7 @@ export class OAuthManager {
     const deadlineAt = startedAt + Math.ceil(this.deviceCodeTimeoutMs / 1000);
 
     while (true) {
-      const auth = await this.requestImpl(this.config);
+      const auth = await this.requestImpl(this.config, { signal: options.signal });
       await options.onDeviceCode?.(auth);
 
       // RFC 8628 §3.5: clients must add at least 5s on `slow_down` and
@@ -428,7 +437,9 @@ export class OAuthManager {
           );
         }
 
-        const result = await this.pollImpl(this.config, auth.deviceCode);
+        const result = await this.pollImpl(this.config, auth.deviceCode, {
+          signal: options.signal,
+        });
         if (result.kind === 'success') {
           await this.storage.save(this.config.name, result.token);
           return result.token;
@@ -446,7 +457,7 @@ export class OAuthManager {
         if (result.errorCode === 'slow_down') {
           currentInterval += 5;
         }
-        await this.sleep(currentInterval * 1000);
+        await this.sleepAbortable(currentInterval * 1000, options.signal);
       }
       if (!deviceExpired) break;
       // Otherwise loop outer to request a new device code.
@@ -470,6 +481,34 @@ export class OAuthManager {
   private throwIfAborted(signal: AbortSignal | undefined): void {
     if (signal?.aborted === true) {
       throw new OAuthError('Login aborted by caller');
+    }
+  }
+
+  /**
+   * Poll-interval sleep that rejects promptly on abort instead of holding the
+   * login until the full interval elapses (Ctrl-C responsiveness).
+   */
+  private async sleepAbortable(ms: number, signal: AbortSignal | undefined): Promise<void> {
+    if (signal?.aborted === true) {
+      throw new OAuthError('Login aborted by caller');
+    }
+    if (signal === undefined) {
+      await this.sleep(ms);
+      return;
+    }
+    let onAbort: (() => void) | undefined;
+    try {
+      await Promise.race([
+        this.sleep(ms),
+        new Promise<never>((_, reject) => {
+          onAbort = () => {
+            reject(new OAuthError('Login aborted by caller'));
+          };
+          signal.addEventListener('abort', onAbort, { once: true });
+        }),
+      ]);
+    } finally {
+      if (onAbort !== undefined) signal.removeEventListener('abort', onAbort);
     }
   }
 }
