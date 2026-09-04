@@ -374,16 +374,19 @@ describe('LioraHarness.listSessions', () => {
       identity: TEST_IDENTITY,
       homeDir,
     });
-    const originalCwd = process.cwd();
+    // Never process.chdir() here: cwd is process-global and shared with every
+    // test in the worker, so a timeout + retry (or a deleted temp dir) poisons
+    // sibling tests with ENOENT. pathe's resolve() reads process.cwd()
+    // dynamically, so a spy covers the product path with zero global fallout.
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(workDir);
 
     try {
-      process.chdir(workDir);
       const session = await harness.createSession({ id: 'ses_relative_workdir', workDir: '.' });
 
       const sessions = await harness.listSessions({ workDir: '.' });
       expect(sessions.map((item) => item.id)).toEqual([session.id]);
     } finally {
-      process.chdir(originalCwd);
+      cwdSpy.mockRestore();
       await harness.close();
     }
   });
