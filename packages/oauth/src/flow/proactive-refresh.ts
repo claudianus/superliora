@@ -39,15 +39,35 @@ export interface StartProactiveRefreshTimerOptions {
 /**
  * Periodically calls ensureFresh during long work. Errors are swallowed unless
  * onError is provided.
+ *
+ * Ticks never overlap: a slow `ensureFresh` (network stall) skips subsequent
+ * ticks until it settles instead of stacking concurrent refreshes against a
+ * rotating refresh_token. `onError` itself is guarded so an observer cannot
+ * turn a tick into an unhandled rejection.
  */
 export function startProactiveRefreshTimer(
   ensureFresh: () => Promise<string>,
   intervalMs: number,
   options: StartProactiveRefreshTimerOptions = {},
 ): ProactiveRefreshTimerHandle {
+  let inFlight = false;
   const timer = setInterval(() => {
-    void ensureFresh().catch((error) => options.onError?.(error));
+    if (inFlight) return;
+    inFlight = true;
+    void ensureFresh()
+      .catch((error) => {
+        try {
+          options.onError?.(error);
+        } catch {
+          // Observer must not affect the refresh loop.
+        }
+      })
+      .finally(() => {
+        inFlight = false;
+      });
   }, intervalMs);
+  // Don't hold the process open for a background warming timer.
+  timer.unref?.();
   return {
     stop: () => {
       clearInterval(timer);

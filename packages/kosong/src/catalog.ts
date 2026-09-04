@@ -178,6 +178,7 @@ const CHAT_COMPLETIONS_NPM = new Set([
   '@ai-sdk/perplexity',
   '@ai-sdk/gateway',
   '@ai-sdk/vercel',
+  '@ai-sdk/deepseek',
   '@ai-sdk/deepinfra',
   '@openrouter/ai-sdk-provider',
   '@qvac/ai-sdk-provider',
@@ -201,6 +202,7 @@ const CHAT_COMPLETIONS_IDS = new Set([
   'aihubmix',
   'merge-gateway',
   'openrouter',
+  'deepseek',
   'deepinfra',
   'qvac',
   'github-copilot',
@@ -210,6 +212,7 @@ const CHAT_COMPLETIONS_IDS = new Set([
 
 /** Official Chat Completions bases used when models.dev omits `api`. */
 const CHAT_COMPLETIONS_DEFAULT_API: Readonly<Record<string, string>> = {
+  openai: 'https://api.openai.com/v1',
   groq: 'https://api.groq.com/openai/v1',
   mistral: 'https://api.mistral.ai/v1',
   togetherai: 'https://api.together.xyz/v1',
@@ -221,6 +224,10 @@ const CHAT_COMPLETIONS_DEFAULT_API: Readonly<Record<string, string>> = {
   v0: 'https://api.v0.dev/v1',
   venice: 'https://api.venice.ai/api/v1',
   aihubmix: 'https://aihubmix.com/v1',
+  openrouter: 'https://openrouter.ai/api/v1',
+  deepseek: 'https://api.deepseek.com/v1',
+  deepinfra: 'https://api.deepinfra.com/v1/openai',
+  qvac: 'https://api.qvac.com/v1',
 };
 
 function looksLikeOpenAIChatCompletions(npm: string, id: string): boolean {

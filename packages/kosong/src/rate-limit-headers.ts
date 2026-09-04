@@ -100,7 +100,10 @@ export function parseResponseRateLimits(
     });
   }
   const retryAfter = headerValue(headers, 'retry-after');
-  if (out.length === 0 && retryAfter !== undefined) {
+  if (retryAfter !== undefined) {
+    // `retry-after` is the server's explicit backoff directive: always surface
+    // it, even when bucket headers are also present (they describe quota state,
+    // not when to retry). Routers prefer this entry for 429 scheduling.
     const resetAt = parseResetAt(retryAfter, nowMs);
     out.push({ name: 'retry-after', ...(resetAt !== undefined ? { resetAt } : {}) });
   }

@@ -285,7 +285,27 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.provider.registryNoProviders': 'Registry contained no providers.',
   'tui.provider.registryImported': 'Imported {count} providers from registry.',
   'tui.provider.registryImportedOne': 'Imported 1 provider from registry.',
+  'tui.provider.registrySkippedOAuth':
+    'Skipped "{id}": a live OAuth login already uses that id. Remove the OAuth provider first to let the registry take over.',
   'tui.provider.customEndpointFailed': 'Failed to add custom endpoint: {message}',
+  'tui.provider.customVerifying': 'Verifying endpoint…',
+  'tui.provider.customVerified': 'Endpoint verified.',
+  'tui.provider.customKeyRejected': 'Endpoint verification failed.',
+  'tui.provider.customKeyRejectedHint':
+    'The endpoint rejected the API key (401) at {base}: {message} Fix the key and try again.',
+  'tui.provider.customKeyForbidden':
+    'Note: {base} refused the models listing (403) — scoped keys may still work for chat. Saved.',
+  'tui.provider.customUnverified':
+    'Saved {alias}, but the endpoint could not be verified ({message}). It may be offline.',
+  'tui.provider.customModelNotListed':
+    'Saved {alias}. Note: "{model}" is not listed by the endpoint{models} — double-check the model id.',
+  'tui.provider.customModelPickerTitle': 'Pick a model from the endpoint',
+  'tui.provider.customModelPickerThinking': 'Reasoning model',
+  'tui.provider.customModelPickerStandard': 'Standard model',
+  'tui.provider.customModelPickerKeepTyped': 'Keep typed id: {model}',
+  'tui.provider.customModelPickerKeepTypedDesc': 'Save exactly what you typed',
+  'tui.provider.customEnvMissing':
+    'API key references an unset variable: {message} Set it and try again.',
   'tui.provider.registryFetchFailed': 'Failed to import registry: {message}',
   'tui.provider.registryApplyFailed': 'Failed to apply registry: {message}',
   'tui.provider.setModelFailed': 'Set default model failed: {message}',
@@ -692,7 +712,27 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.provider.registryNoProviders': '레지스트리에 프로바이더가 없습니다.',
   'tui.provider.registryImported': '레지스트리에서 {count}개 프로바이더를 가져왔습니다.',
   'tui.provider.registryImportedOne': '레지스트리에서 1개 프로바이더를 가져왔습니다.',
+  'tui.provider.registrySkippedOAuth':
+    '"{id}" 건너뜀: 해당 id에 활성 OAuth 로그인이 있습니다. 레지스트리로 교체하려면 OAuth 프로바이더를 먼저 제거하세요.',
   'tui.provider.customEndpointFailed': '커스텀 엔드포인트 추가 실패: {message}',
+  'tui.provider.customVerifying': '엔드포인트 확인 중…',
+  'tui.provider.customVerified': '엔드포인트 확인됨.',
+  'tui.provider.customKeyRejected': '엔드포인트 검증 실패.',
+  'tui.provider.customKeyRejectedHint':
+    '{base}에서 API 키가 거부되었습니다(401): {message} 키를 확인하고 다시 시도하세요.',
+  'tui.provider.customKeyForbidden':
+    '참고: {base}가 모델 목록을 거부했습니다(403) — 제한된 키도 채팅은 될 수 있습니다. 저장했습니다.',
+  'tui.provider.customUnverified':
+    '{alias} 저장됨. 단, 엔드포인트를 확인할 수 없습니다({message}). 오프라인일 수 있습니다.',
+  'tui.provider.customModelNotListed':
+    '{alias} 저장됨. 참고: 엔드포인트에 "{model}"이 없습니다{models} — 모델 id를 확인하세요.',
+  'tui.provider.customModelPickerTitle': '엔드포인트에서 모델 선택',
+  'tui.provider.customModelPickerThinking': '추론 모델',
+  'tui.provider.customModelPickerStandard': '일반 모델',
+  'tui.provider.customModelPickerKeepTyped': '입력한 id 유지: {model}',
+  'tui.provider.customModelPickerKeepTypedDesc': '입력한 그대로 저장',
+  'tui.provider.customEnvMissing':
+    'API 키가 설정되지 않은 변수를 참조합니다: {message} 변수를 설정하고 다시 시도하세요.',
   'tui.provider.registryFetchFailed': '레지스트리 가져오기 실패: {message}',
   'tui.provider.registryApplyFailed': '레지스트리 적용 실패: {message}',
   'tui.provider.setModelFailed': '기본 모델 설정 실패: {message}',

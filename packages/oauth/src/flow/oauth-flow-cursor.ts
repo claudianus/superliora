@@ -20,6 +20,8 @@ import type { ProviderFlowConfig } from '../profiles';
 
 const DEFAULT_POLL_ATTEMPTS = 150;
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
+/** Per-attempt ceiling so one hung connection cannot stall the whole login. */
+const DEFAULT_POLL_TIMEOUT_MS = 30_000;
 const MAX_POLL_INTERVAL_MS = 10_000;
 const POLL_BACKOFF = 1.2;
 const DEFAULT_EXPIRES_IN_SEC = 3_600;
@@ -104,12 +106,18 @@ export async function pollCursorAuth(
     const url = `${host}/auth/poll?uuid=${encodeURIComponent(uuid)}&verifier=${encodeURIComponent(verifier)}`;
     let response: Response;
     try {
+      // Bound each poll attempt: without a timeout a hung connection stalls
+      // the whole login (maxAttempts only counts completed attempts).
+      const attemptSignal =
+        options.signal === undefined
+          ? AbortSignal.timeout(DEFAULT_POLL_TIMEOUT_MS)
+          : AbortSignal.any([AbortSignal.timeout(DEFAULT_POLL_TIMEOUT_MS), options.signal]);
       response = await fetch(url, {
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
         },
-        signal: options.signal,
+        signal: attemptSignal,
       });
     } catch (error) {
       if (options.signal?.aborted) {

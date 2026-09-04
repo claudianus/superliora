@@ -91,6 +91,8 @@ export function toKosongProviderConfig(
         type: 'google-genai',
         model,
         apiKey: providerApiKey(provider),
+        baseUrl: providerValue(provider.baseUrl, provider.env, 'GEMINI_BASE_URL', 'provider base_url'),
+        ...defaultHeadersField(provider.customHeaders),
       };
     case 'openai_responses':
       return {
@@ -112,6 +114,10 @@ export function toKosongProviderConfig(
         apiKey: useServiceAccount ? undefined : providerApiKey(provider),
         project: vertexAIProject(provider),
         location: vertexAILocation(provider),
+        // A configured base URL selects the regional endpoint (location is
+        // derived from it above); credentials still resolve via ADC, never
+        // from request-scoped auth.
+        ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
       };
     }
     case 'bedrock':

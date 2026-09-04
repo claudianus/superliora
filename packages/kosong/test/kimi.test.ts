@@ -1530,3 +1530,65 @@ describe('extractUsage', () => {
     expect(extractUsage(undef)).toBeNull();
   });
 });
+
+describe('KimiChatProvider cache boundaries follow the effective endpoint', () => {
+  function mockFactory(captured: { body?: Record<string, unknown> }) {
+    return () => ({
+      chat: {
+        completions: {
+          create: (params: unknown) => {
+            captured.body = params as Record<string, unknown>;
+            return Promise.resolve(makeChatCompletionResponse('kimi-k2'));
+          },
+        },
+      },
+    });
+  }
+
+  it('marks boundaries when per-request auth rotates onto a cache endpoint', async () => {
+    const captured: { body?: Record<string, unknown> } = {};
+    const provider = new KimiChatProvider({
+      model: 'gpt-4.1',
+      apiKey: 'test-key',
+      baseUrl: 'https://api.openai.com/v1',
+      stream: false,
+      clientFactory: mockFactory(captured) as never,
+    });
+    const stream = await provider.generate(
+      'sys',
+      [],
+      [{ role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] }],
+      { auth: { apiKey: 'k', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' } },
+    );
+    for await (const part of stream) {
+      void part;
+    }
+    const messages = captured.body?.['messages'] as Array<Record<string, unknown>>;
+    expect(messages[0]).toMatchObject({
+      role: 'system',
+      content: [{ type: 'text', cache_control: { type: 'ephemeral' } }],
+    });
+  });
+
+  it('skips markers when per-request auth rotates off a cache endpoint', async () => {
+    const captured: { body?: Record<string, unknown> } = {};
+    const provider = new KimiChatProvider({
+      model: 'gpt-4.1',
+      apiKey: 'test-key',
+      baseUrl: 'https://api.moonshot.ai/v1',
+      stream: false,
+      clientFactory: mockFactory(captured) as never,
+    });
+    const stream = await provider.generate(
+      'sys',
+      [],
+      [{ role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] }],
+      { auth: { apiKey: 'k', baseUrl: 'https://api.openai.com/v1' } },
+    );
+    for await (const part of stream) {
+      void part;
+    }
+    const messages = captured.body?.['messages'] as Array<Record<string, unknown>>;
+    expect(JSON.stringify(messages[0])).not.toContain('cache_control');
+  });
+});

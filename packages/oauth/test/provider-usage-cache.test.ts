@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   clearProviderUsageCache,
+  peekProviderUsageCache,
   usageCacheKey,
   withProviderUsageCache,
 } from '../src/provider-usage/provider-usage-cache';
@@ -69,5 +70,45 @@ describe('withProviderUsageCache', () => {
     release(snap('fresh'));
     const fresh = await withProviderUsageCache(key, 1_000, true, async () => snap('forced'), 6_000);
     expect(fresh.summary?.label).toBe('forced');
+  });
+
+  it('never embeds the plaintext token in the cache key', () => {
+    const key = usageCacheKey('openrouter', 'super-secret-token');
+    expect(key).not.toContain('super-secret-token');
+    expect(key.startsWith('openrouter')).toBe(true);
+    expect(usageCacheKey('openrouter', 'super-secret-token')).toBe(key);
+    expect(usageCacheKey('openrouter', 'other-token')).not.toBe(key);
+    expect(usageCacheKey('openrouter', 'super-secret-token', 'https://x.test')).not.toBe(key);
+  });
+
+  it('coalesces concurrent forced refreshes onto one fetch', async () => {
+    const key = usageCacheKey('openrouter', 'tok');
+    let started = 0;
+    let release!: (value: ProviderUsageSnapshot) => void;
+    const pending = new Promise<ProviderUsageSnapshot>((resolve) => {
+      release = resolve;
+    });
+    const fetch = async () => {
+      started += 1;
+      return pending;
+    };
+    const a = withProviderUsageCache(key, 90_000, true, fetch, 1_000);
+    const b = withProviderUsageCache(key, 90_000, true, fetch, 1_000);
+    release(snap('shared'));
+    const [left, right] = await Promise.all([a, b]);
+    expect(started).toBe(1);
+    expect(left.summary?.label).toBe('shared');
+    expect(right.summary?.label).toBe('shared');
+  });
+
+  it('evicts the stalest entries past the cap', async () => {
+    for (let i = 0; i < 60; i++) {
+      const key = usageCacheKey('openrouter', `tok-${String(i)}`);
+      await withProviderUsageCache(key, 90_000, true, async () => snap(`s-${String(i)}`), 1_000);
+    }
+    expect(peekProviderUsageCache(usageCacheKey('openrouter', 'tok-0'))).toBeUndefined();
+    expect(peekProviderUsageCache(usageCacheKey('openrouter', 'tok-59'))?.summary?.label).toBe(
+      's-59',
+    );
   });
 });

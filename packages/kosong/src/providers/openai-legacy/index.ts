@@ -172,8 +172,10 @@ export class OpenAILegacyChatProvider implements ChatProvider {
 
     // Qwen/DashScope: mark explicit context-cache boundaries (the static
     // system prompt plus a sliding marker before the last message) so the
-    // growing conversation prefix bills at the explicit-cache rate.
-    if (supportsCacheBoundaries(this._baseUrl, this._model)) {
+    // growing conversation prefix bills at the explicit-cache rate. Decide by
+    // the effective request endpoint — per-request auth may rotate the host.
+    const requestBaseUrl = options?.auth?.baseUrl ?? this._baseUrl;
+    if (supportsCacheBoundaries(requestBaseUrl, this._model)) {
       markQwenCacheBoundaries(messages);
     }
 
@@ -195,7 +197,7 @@ export class OpenAILegacyChatProvider implements ChatProvider {
     // array (that format is Responses API only; injecting it yields a 400
     // "'function' is a required property"). Web search is enabled here via
     // `enable_search`; the harness tool list only gates capability.
-    if (isQwenTokenPlanEndpoint(this._baseUrl)) {
+    if (isQwenTokenPlanEndpoint(requestBaseUrl)) {
       const harnessTools = qwenHarnessToolsForModel(this._model);
       if (harnessTools.length > 0) {
         createParams['enable_search'] = true;

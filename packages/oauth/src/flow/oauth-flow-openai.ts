@@ -54,6 +54,29 @@ const defaultSleep: Sleep = (ms) =>
     setTimeout(resolve, ms);
   });
 
+/**
+ * Sleep that rejects promptly on abort instead of holding the login until the
+ * full poll interval elapses (Ctrl-C during device polling).
+ */
+async function sleepAbortable(sleep: Sleep, ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted === true) throw new OAuthError('Authorization aborted');
+  if (signal === undefined) return sleep(ms);
+  let onAbort: (() => void) | undefined;
+  try {
+    await Promise.race([
+      sleep(ms),
+      new Promise<never>((_, reject) => {
+        onAbort = () => {
+          reject(new OAuthError('Authorization aborted'));
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+      }),
+    ]);
+  } finally {
+    if (onAbort !== undefined) signal.removeEventListener('abort', onAbort);
+  }
+}
+
 /** Requests a user code from the OpenAI device-authorization endpoint. */
 export async function requestOpenAiUserCode(
   flow: ProviderFlowConfig,
@@ -105,7 +128,9 @@ export async function pollOpenAiDeviceToken(
       { device_auth_id: deviceCode.deviceAuthId, user_code: deviceCode.userCode },
       { signal: options.signal },
     );
-    // 403/404 → still pending; the user hasn't approved yet.
+    // 403/404 → still pending; the user hasn't approved yet. 429 →
+    // rate-limited poll: back off and keep waiting instead of failing the
+    // login on the server's own slow-down signal.
     if (status === 200) {
       const authorizationCode = data['authorization_code'];
       const codeVerifier = data['code_verifier'];
@@ -114,8 +139,8 @@ export async function pollOpenAiDeviceToken(
       }
       return { authorizationCode, codeVerifier };
     }
-    if (status === 403 || status === 404) {
-      await sleep(Math.max(interval, 1) * 1000);
+    if (status === 403 || status === 404 || status === 429) {
+      await sleepAbortable(sleep, Math.max(interval, 1) * 1000, options.signal);
       continue;
     }
     throw new OAuthError(`OpenAI device token polling failed (HTTP ${status}).`);

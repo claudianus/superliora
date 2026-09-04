@@ -2,6 +2,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { refreshProviderModels, type ManagedKimiConfigShape } from '../src';
 
+vi.mock('../src/profiles/cursor-available-models', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../src/profiles/cursor-available-models')>();
+  return {
+    ...original,
+    fetchCursorAvailableModels: vi.fn(async () => [
+      {
+        id: 'composer-2.5',
+        displayName: 'Composer 2.5',
+        maxContextSize: 200000,
+        capabilities: ['thinking', 'tool_use'],
+      },
+    ]),
+  };
+});
+
 type FetchMock = (
   input: Parameters<typeof fetch>[0],
   init?: Parameters<typeof fetch>[1],
@@ -111,5 +127,62 @@ describe('refreshProviderModels', () => {
     expect(host.setConfig).not.toHaveBeenCalled();
     expect(host.current().providers['b']).toBeUndefined();
     expect(host.current().models?.['b/m1']).toBeUndefined();
+  });
+
+  it("refreshes Cursor OAuth under scope 'oauth' (OAuth-backed, not API-key)", async () => {
+    const host = makeRefreshHost({
+      providers: {
+        'cursor-oauth': {
+          type: 'cursor',
+          baseUrl: 'https://api2.cursor.sh',
+          apiKey: 'sess',
+          oauth: { storage: 'file', key: 'cursor-oauth' },
+        },
+      },
+      models: {},
+    });
+
+    const result = await refreshProviderModels(
+      {
+        getConfig: async () => host.current(),
+        removeProvider: host.removeProvider,
+        setConfig: host.setConfig,
+        resolveOAuthToken: vi.fn(async () => 'tok'),
+      },
+      { scope: 'oauth' },
+    );
+
+    expect(result.failed).toEqual([]);
+    expect(result.changed).toHaveLength(1);
+    expect(result.changed[0]?.providerId).toBe('cursor-oauth');
+    expect(host.setConfig).toHaveBeenCalledTimes(1);
+    expect(host.current().models?.['cursor-oauth/composer-2.5']).toBeDefined();
+  });
+
+  it("stops after OAuth branches for a Cursor-targeted refresh", async () => {
+    const host = makeRefreshHost({
+      providers: {
+        'cursor-oauth': {
+          type: 'cursor',
+          baseUrl: 'https://api2.cursor.sh',
+          apiKey: 'sess',
+          oauth: { storage: 'file', key: 'cursor-oauth' },
+        },
+      },
+      models: {},
+    });
+
+    const result = await refreshProviderModels(
+      {
+        getConfig: async () => host.current(),
+        removeProvider: host.removeProvider,
+        setConfig: host.setConfig,
+        resolveOAuthToken: vi.fn(async () => 'tok'),
+      },
+      { providerId: 'cursor-oauth' },
+    );
+
+    expect(result.failed).toEqual([]);
+    expect(result.changed).toHaveLength(1);
   });
 });

@@ -1968,6 +1968,35 @@ describe('OpenAIResponsesChatProvider', () => {
       expect(caughtError).toMatchObject({ name: 'APIStatusError' });
     });
   });
+
+  describe('usage accounting', () => {
+    it('clamps inputOther at zero when cached_tokens exceeds input_tokens', async () => {
+      const provider = createProvider();
+      (provider as any)._stream = false;
+      const skewed = {
+        ...makeResponsesAPIResponse(),
+        usage: {
+          input_tokens: 10,
+          output_tokens: 5,
+          total_tokens: 15,
+          input_tokens_details: { cached_tokens: 50 },
+        },
+      };
+      ((provider as any)._client.responses as unknown as Record<string, unknown>)['create'] = vi
+        .fn()
+        .mockResolvedValue(skewed);
+
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'Hi' }], toolCalls: [] }],
+      );
+      for await (const part of stream) {
+        void part;
+      }
+      expect(stream.usage).toMatchObject({ inputOther: 0, inputCacheRead: 50, output: 5 });
+    });
+  });
 });
 
 async function collectStreamParts(

@@ -16,8 +16,21 @@ import type { OAuthFlowConfig } from '../types';
  * Wire protocol a provider speaks once authenticated. Kept as a local literal
  * union (mirroring `ProviderType` in `@superliora/kosong`) so this package does
  * not need to depend on kosong.
+ *
+ * Covers every wire `createProvider` implements: OAuth profiles for
+ * API-key-first backends (e.g. a future Google OAuth login on `google-genai`)
+ * must type-check today instead of forcing a union widening at connect time.
  */
-export type OAuthProviderWire = 'anthropic' | 'openai' | 'openai_responses' | 'kimi' | 'cursor';
+export type OAuthProviderWire =
+  | 'anthropic'
+  | 'openai'
+  | 'openai_responses'
+  | 'kimi'
+  | 'cursor'
+  | 'google-genai'
+  | 'vertexai'
+  | 'bedrock'
+  | 'vertex_claude';
 
 /** The OAuth authorization strategy a provider uses. */
 export type OAuthFlowKind =
@@ -105,5 +118,12 @@ export interface ProviderModelPreset {
   readonly defaultEffort?: string;
 }
 
-export const OAUTH_PROVIDER_IDS = ['managed:kimi-api', 'openai-codex', 'xai-grok'] as const;
+export const OAUTH_PROVIDER_IDS = [
+  'managed:kimi-api',
+  'openai-codex',
+  'xai-grok',
+  'anthropic-oauth',
+  'cursor-oauth',
+  'github-copilot',
+] as const;
 export type OAuthProviderId = (typeof OAUTH_PROVIDER_IDS)[number];

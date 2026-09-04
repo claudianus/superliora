@@ -353,6 +353,7 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
     // /models after session exchange), falling back to the profile preset.
     const resolvedModels = await resolveOAuthProviderModels(providerId, profile.models, {
       accessToken,
+      storageKey,
       copilotSession:
         copilotSessionToken === undefined || copilotApiBaseUrl === undefined
           ? undefined
@@ -452,6 +453,12 @@ export interface ResolveOAuthProviderModelsOptions {
   readonly accessToken?: string;
   /** Copilot session token + API host after `ensureGitHubCopilotSession`. */
   readonly copilotSession?: { readonly token: string; readonly apiBaseUrl: string };
+  /**
+   * Credential storage key for the Cursor fallback lookup. Multi-account
+   * logins resolve the access token with this key up front; the fallback must
+   * use the same key instead of the provider default.
+   */
+  readonly storageKey?: string;
 }
 
 /**
@@ -487,7 +494,9 @@ export async function resolveOAuthProviderModels(
     let token = options.accessToken?.trim();
     if (token === undefined || token.length === 0) {
       try {
-        token = await new OAuthProviderManager().ensureFresh(providerId);
+        token = await new OAuthProviderManager().ensureFresh(providerId, {
+          storageKey: options.storageKey,
+        });
       } catch {
         token = undefined;
       }

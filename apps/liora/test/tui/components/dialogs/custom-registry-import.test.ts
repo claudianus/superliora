@@ -69,6 +69,20 @@ describe('CustomRegistryImportDialogComponent', () => {
     });
   });
 
+  it('rejects a non-HTTP URL inline instead of firing a doomed fetch', () => {
+    const onDone = vi.fn();
+    const dialog = new CustomRegistryImportDialogComponent(
+      onDone as unknown as (r: CustomRegistryImportResult) => void,
+      'not-a-url',
+    );
+    dialog.focused = true;
+    dialog.handleInput('\r'); // url -> token
+    for (const ch of 'sk-tok') dialog.handleInput(ch);
+    dialog.handleInput('\r'); // attempt submit
+    expect(onDone).not.toHaveBeenCalled();
+    expect(plain(dialog)).toContain('must start with http');
+  });
+
   it('keeps every line within narrow widths', () => {
     const { dialog } = makeDialog('https://example.com/very/long/registry/path.json');
 

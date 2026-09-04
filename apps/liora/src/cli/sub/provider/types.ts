@@ -52,6 +52,8 @@ export interface CustomAddOptions {
   readonly context?: string;
   readonly output?: string;
   readonly displayName?: string;
+  /** Repeatable `Name: value` static headers (gateways, auth proxies). */
+  readonly header?: string[];
   readonly thinking?: boolean;
   readonly setDefault?: boolean;
 }

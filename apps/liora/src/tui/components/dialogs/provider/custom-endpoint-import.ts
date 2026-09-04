@@ -15,6 +15,7 @@ import {
 import {
   DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE,
   inferCustomEndpointFromUrl,
+  parseCustomHeaders,
 } from '#/utils/custom-provider';
 import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
@@ -43,8 +44,18 @@ export interface CustomEndpointImportValue {
   readonly modelId: string;
   readonly apiKey?: string;
   readonly maxContextSize: number;
+  readonly maxOutputSize?: number;
+  readonly customHeaders?: Record<string, string>;
   readonly thinking: boolean;
   readonly supportEfforts?: readonly string[];
+}
+
+/** Prefill for preset-driven connects (endpoint directory rows). */
+export interface CustomEndpointInitialValues {
+  readonly providerId?: string;
+  readonly baseUrl?: string;
+  readonly providerType?: CustomEndpointWireType;
+  readonly modelId?: string;
 }
 
 export type CustomEndpointImportResult =
@@ -56,8 +67,7 @@ const SUBTITLE_DEFAULT =
   'HTTP endpoint. Path suffixes like /v1/responses set wire type automatically. Leave API key empty only for local/keyless servers.';
 const FOOTER_NOT_LAST = 'Tab / ↑↓ to switch  ·  Enter for next field  ·  Esc to cancel';
 const FOOTER_TYPE = '←→ change type  ·  Tab / ↑↓ to switch  ·  Enter for next field  ·  Esc to cancel';
-const FOOTER_THINKING = '←→ toggle thinking  ·  Tab / ↑↓ to switch  ·  Enter for next field  ·  Esc to cancel';
-const FOOTER_LAST = 'Tab / ↑↓ to switch  ·  Enter to submit  ·  Esc to cancel';
+const FOOTER_THINKING = '←→ toggle thinking  ·  Tab / ↑↓ to switch  ·  Enter to submit  ·  Esc to cancel';
 
 const WIRE_TYPE_HINTS: Record<CustomEndpointWireType, string> = {
   openai: 'Chat Completions · POST /v1/chat/completions',
@@ -68,10 +78,20 @@ const WIRE_TYPE_HINTS: Record<CustomEndpointWireType, string> = {
   vertexai: 'Vertex AI',
 };
 
-type TextFieldId = 'provider' | 'url' | 'model' | 'key' | 'context';
+type TextFieldId = 'provider' | 'url' | 'model' | 'key' | 'context' | 'output' | 'headers';
 type FieldId = TextFieldId | 'type' | 'thinking';
 
-const FIELD_ORDER: readonly FieldId[] = ['provider', 'url', 'type', 'model', 'key', 'context', 'thinking'];
+const FIELD_ORDER: readonly FieldId[] = [
+  'provider',
+  'url',
+  'type',
+  'model',
+  'key',
+  'context',
+  'output',
+  'headers',
+  'thinking',
+];
 
 function maskInputLine(raw: string): string {
   const prefix = '> ';
@@ -94,15 +114,24 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
    * Called when the user leaves the model-id field (or the URL field with a
    * model already entered). The host can use this to trigger an async
    * capability lookup (models.dev catalog / /models probe) and then call
-   * {@link setThinkingDefault} with the result.
+   * {@link setThinkingDefault} with the result. `apiKey` carries whatever is
+   * currently in the key field (often still empty — the key comes later in
+   * field order) so authenticated probes work on re-edits.
    */
-  onModelHintRequest?: (info: { providerId: string; baseUrl: string; modelId: string }) => void;
+  onModelHintRequest?: (info: {
+    providerId: string;
+    baseUrl: string;
+    modelId: string;
+    apiKey: string;
+  }) => void;
 
   private readonly providerInput = new Input();
   private readonly urlInput = new Input();
   private readonly modelInput = new Input();
   private readonly keyInput = new Input();
   private readonly contextInput = new Input();
+  private readonly outputInput = new Input();
+  private readonly headersInput = new Input();
   private readonly onDone: (result: CustomEndpointImportResult) => void;
   private activeField: FieldId = 'provider';
   private providerType: CustomEndpointWireType = 'openai';
@@ -112,20 +141,35 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
   private done = false;
   private hint: string = SUBTITLE_DEFAULT;
 
-  constructor(onDone: (result: CustomEndpointImportResult) => void) {
+  constructor(
+    onDone: (result: CustomEndpointImportResult) => void,
+    initial?: CustomEndpointInitialValues,
+  ) {
     super();
     this.onDone = onDone;
     this.contextInput.setValue(String(DEFAULT_CUSTOM_ENDPOINT_CONTEXT_SIZE));
+    if (initial?.providerId !== undefined) this.providerInput.setValue(initial.providerId);
+    if (initial?.baseUrl !== undefined) this.urlInput.setValue(initial.baseUrl);
+    if (initial?.modelId !== undefined) this.modelInput.setValue(initial.modelId);
+    if (initial?.providerType !== undefined && isCustomEndpointWireType(initial.providerType)) {
+      this.providerType = initial.providerType;
+    }
+    // Start on the first empty field so presets skip straight to the model id.
+    this.activeField = this.firstEmptyField();
     for (const field of FIELD_ORDER) {
       if (field === 'type' || field === 'thinking') continue;
       this.inputFor(field).onSubmit = () => {
-        if (field === 'context') {
-          this.focusField(this.nextField(field));
-        } else {
-          this.focusField(this.nextField(field));
-        }
+        this.focusField(this.nextField(field));
       };
     }
+  }
+
+  /** First field without a value (provider → url → model order). */
+  private firstEmptyField(): FieldId {
+    if (this.providerInput.getValue().trim().length === 0) return 'provider';
+    if (this.urlInput.getValue().trim().length === 0) return 'url';
+    if (this.modelInput.getValue().trim().length === 0) return 'model';
+    return 'provider';
   }
 
   /** Sets the initial thinking state (e.g. from a models.dev catalog lookup). */
@@ -217,9 +261,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
         ? FOOTER_TYPE
         : this.activeField === 'thinking'
           ? FOOTER_THINKING
-          : this.activeField === 'context'
-            ? FOOTER_LAST
-            : FOOTER_NOT_LAST;
+          : FOOTER_NOT_LAST;
 
     const contentLines: string[] = [
       truncateToWidth(currentTheme.boldFg('textStrong', TITLE), innerWidth, '…'),
@@ -232,6 +274,8 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
       ...this.renderField('model', 'Model id', innerWidth, false),
       ...this.renderField('key', 'API key', innerWidth, true),
       ...this.renderField('context', 'Context tokens', innerWidth, false),
+      ...this.renderField('output', 'Max output (optional)', innerWidth, false),
+      ...this.renderField('headers', 'Headers, Name: value per line (optional)', innerWidth, false),
       ...this.renderThinkingField(innerWidth),
       truncateToWidth(currentTheme.fg('textDim', footer), innerWidth, '…'),
     ];
@@ -311,6 +355,8 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
     const modelId = this.modelInput.getValue().trim();
     const apiKey = this.keyInput.getValue().trim();
     const contextRaw = this.contextInput.getValue().trim();
+    const outputRaw = this.outputInput.getValue().trim();
+    const headersRaw = this.headersInput.getValue();
 
     if (providerId.length === 0) {
       this.reject('Provider id is required.', 'provider');
@@ -335,6 +381,24 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
       return;
     }
 
+    let maxOutputSize: number | undefined;
+    if (outputRaw.length > 0) {
+      const parsed = Number(outputRaw);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        this.reject('Max output must be a positive integer (or empty).', 'output');
+        return;
+      }
+      maxOutputSize = parsed;
+    }
+
+    let customHeaders: Record<string, string> | undefined;
+    try {
+      customHeaders = parseCustomHeaders(headersRaw, 'Headers');
+    } catch (error) {
+      this.reject(error instanceof Error ? error.message : String(error), 'headers');
+      return;
+    }
+
     this.done = true;
     this.onDone({
       kind: 'ok',
@@ -345,6 +409,8 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
         modelId,
         apiKey: apiKey.length === 0 ? undefined : apiKey,
         maxContextSize,
+        ...(maxOutputSize === undefined ? {} : { maxOutputSize }),
+        ...(customHeaders === undefined ? {} : { customHeaders }),
         thinking: this.thinkingEnabled,
         ...(this.supportEfforts !== undefined ? { supportEfforts: this.supportEfforts } : {}),
       },
@@ -399,6 +465,7 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
           providerId: this.providerInput.getValue().trim(),
           baseUrl: this.urlInput.getValue().trim(),
           modelId,
+          apiKey: this.keyInput.getValue().trim(),
         });
       }
     }
@@ -421,6 +488,10 @@ export class CustomEndpointImportDialogComponent extends Container implements Fo
         return this.keyInput;
       case 'context':
         return this.contextInput;
+      case 'output':
+        return this.outputInput;
+      case 'headers':
+        return this.headersInput;
     }
   }
 

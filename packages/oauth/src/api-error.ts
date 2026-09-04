@@ -41,6 +41,9 @@ export function extractApiErrorMessage(value: unknown): string | undefined {
   return undefined;
 }
 
+/** Longest error message propagated to UI / failure reasons. */
+const MAX_ERROR_MESSAGE_LENGTH = 500;
+
 export async function readApiErrorMessage(
   response: Response,
   fallback: string,
@@ -52,7 +55,12 @@ export async function readApiErrorMessage(
     return fallback;
   }
 
-  return extractApiErrorMessage(parsed) ?? fallback;
+  const message = extractApiErrorMessage(parsed) ?? fallback;
+  // Cap the surfaced message: error bodies can be multi-MB HTML pages, which
+  // would otherwise pollute TUI output and stored failure reasons verbatim.
+  return message.length > MAX_ERROR_MESSAGE_LENGTH
+    ? `${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}…`
+    : message;
 }
 
 function stringField(record: Record<string, unknown>, key: string): string | undefined {

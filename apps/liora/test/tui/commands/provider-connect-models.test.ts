@@ -11,7 +11,10 @@ vi.mock('@superliora/oauth', async (importOriginal) => {
     fetchCursorAvailableModels: vi.fn(),
     fetchGitHubCopilotModels: vi.fn(),
     OAuthProviderManager: class {
-      async ensureFresh() {
+      static lastEnsureFreshArgs: unknown[] = [];
+      async ensureFresh(...args: unknown[]) {
+        (this.constructor as unknown as { lastEnsureFreshArgs: unknown[] }).lastEnsureFreshArgs =
+          args;
         return 'cursor-token';
       }
     },
@@ -19,7 +22,9 @@ vi.mock('@superliora/oauth', async (importOriginal) => {
 });
 
 const { loadCatalog } = await import('#/utils/catalog-cache');
-const { fetchCursorAvailableModels, fetchGitHubCopilotModels } = await import('@superliora/oauth');
+const { fetchCursorAvailableModels, fetchGitHubCopilotModels, OAuthProviderManager } = await import(
+  '@superliora/oauth'
+);
 const { resolveOAuthProviderModels } = await import('#/tui/commands/provider-connect/oauth');
 
 const XAI_PRESETS = [
@@ -126,6 +131,29 @@ describe('resolveOAuthProviderModels', () => {
     );
 
     expect(result?.map((m) => m.model)).toEqual(['composer-2.5']);
+  });
+
+  it('looks up the fallback Cursor token with the multi-account storage key', async () => {
+    vi.mocked(fetchCursorAvailableModels).mockResolvedValue([
+      {
+        id: 'composer-2.5',
+        displayName: 'Composer 2.5',
+        maxContextSize: 200_000,
+        capabilities: ['tool_use'],
+      },
+    ]);
+
+    const result = await resolveOAuthProviderModels('cursor-oauth', undefined, {
+      storageKey: 'cursor-oauth-2',
+    });
+
+    expect(result?.map((m) => m.model)).toEqual(['composer-2.5']);
+    expect(fetchCursorAvailableModels).toHaveBeenCalledWith({ accessToken: 'cursor-token' });
+    const manager = OAuthProviderManager as unknown as { lastEnsureFreshArgs: unknown[] };
+    expect(manager.lastEnsureFreshArgs).toEqual([
+      'cursor-oauth',
+      { storageKey: 'cursor-oauth-2' },
+    ]);
   });
 
   it('prefers live Copilot models after a session exchange', async () => {

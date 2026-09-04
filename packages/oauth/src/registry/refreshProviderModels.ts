@@ -97,7 +97,9 @@ export interface RefreshProviderOptions {
  * Each branch diffs old vs new and only writes when something actually changed
  * (`removeProvider` then `setConfig`). Failures are collected per-provider and
  * never abort the whole refresh. Pass `providerId` to scope the refresh to a
- * single provider; pass `scope: 'oauth'` to refresh only the managed provider.
+ * single provider; pass `scope: 'oauth'` to refresh only the OAuth-backed
+ * providers (managed SuperLiora + Cursor) and skip API-key platform/registry
+ * branches.
  */
 export async function refreshProviderModels(
   host: RefreshProviderHost,
@@ -185,14 +187,15 @@ export async function refreshProviderModels(
     }
   }
 
-  if (scope === 'oauth' || targetId === SUPERLIORA_PROVIDER_NAME) {
-    return { changed, unchanged, failed };
-  }
-
   // ---------------------------------------------------------------------------
   // 2. Open Platforms (moonshot-cn, moonshot-ai, …)
   // ---------------------------------------------------------------------------
-  const openPlatformIds = Object.keys(config.providers).filter((id) => isOpenPlatformId(id));
+  // `scope: 'oauth'` skips the API-key platform branch (managed + Cursor are
+  // handled above / below; the early return after the Cursor branch exits).
+  const openPlatformIds =
+    scope === 'all'
+      ? Object.keys(config.providers).filter((id) => isOpenPlatformId(id))
+      : [];
   for (const providerId of openPlatformIds) {
     if (targetId !== undefined && targetId !== providerId) continue;
     const platform = getOpenPlatformById(providerId);
@@ -201,7 +204,8 @@ export async function refreshProviderModels(
     const providerConfig = readProvider(config, providerId);
     if (providerConfig === undefined) continue;
     const apiKey = providerConfig.apiKey;
-    if (typeof apiKey !== 'string' || apiKey.length === 0) continue;
+    // Whitespace-only keys must not produce an authenticated fetch.
+    if (typeof apiKey !== 'string' || apiKey.trim().length === 0) continue;
 
     try {
       let models = await fetchOpenPlatformModels(platform, apiKey);
@@ -330,6 +334,16 @@ export async function refreshProviderModels(
   // ---------------------------------------------------------------------------
   // 4. Custom Registry providers (grouped by URL, with API-key candidates)
   // ---------------------------------------------------------------------------
+  // `scope: 'oauth'` covers the OAuth-backed providers above (managed +
+  // Cursor). Single-provider refreshes for those targets also stop here —
+  // branch 4 only serves custom-registry ids.
+  if (
+    scope === 'oauth' ||
+    targetId === SUPERLIORA_PROVIDER_NAME ||
+    targetId === CURSOR_OAUTH_PROVIDER_ID
+  ) {
+    return { changed, unchanged, failed };
+  }
   const customSources = new Map<
     string,
     {

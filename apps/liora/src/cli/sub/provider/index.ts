@@ -195,6 +195,11 @@ export function registerProviderCommand(parent: Command, deps?: Partial<Provider
     )
     .option('--output <tokens>', t('cli.sub.provider.cmd.customAdd.option.output'))
     .option('--display-name <name>', t('cli.sub.provider.cmd.customAdd.option.displayName'))
+    .option(
+      '--header <name: value>',
+      t('cli.sub.provider.cmd.customAdd.option.header'),
+      (value: string, previous: string[] | undefined) => [...(previous ?? []), value],
+    )
     .option('--thinking', t('cli.sub.provider.cmd.customAdd.option.thinking'), false)
     .option('--set-default', t('cli.sub.provider.cmd.customAdd.option.setDefault'), false)
     .action(async (providerId: string, options: Record<string, unknown>) => {

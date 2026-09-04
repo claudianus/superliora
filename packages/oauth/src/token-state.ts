@@ -27,7 +27,10 @@ export type TokenState =
 
 export function classifyToken(token: TokenInfo | undefined): TokenState {
   if (token === undefined) return { kind: 'missing' };
-  if (token.accessToken.length === 0) {
+  // A whitespace-only access token is as unusable as an empty one (the
+  // tombstone check must agree with `hasTokenSync`, which trims). Otherwise a
+  // corrupt file sails through `ensureFresh` and 401-loops against the API.
+  if (token.accessToken.trim().length === 0) {
     return { kind: 'revoked', scope: token.scope, tokenType: token.tokenType };
   }
   return { kind: 'valid', token };

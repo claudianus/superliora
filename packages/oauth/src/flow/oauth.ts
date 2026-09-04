@@ -100,13 +100,18 @@ async function postForm(
 
 export async function requestDeviceAuthorization(
   config: OAuthFlowConfig,
-  options: { readonly deviceHeaders?: DeviceHeaders | undefined },
+  options: {
+    readonly deviceHeaders?: DeviceHeaders | undefined;
+    readonly signal?: AbortSignal | undefined;
+    readonly timeoutMs?: number | undefined;
+  },
 ): Promise<DeviceAuthorization> {
   const url = `${config.oauthHost.replace(/\/$/, '')}/api/oauth/device_authorization`;
   const { status, data } = await postForm(
     url,
     { client_id: config.clientId },
     options.deviceHeaders,
+    { signal: options.signal, timeoutMs: options.timeoutMs },
   );
 
   if (status !== 200) {
@@ -150,7 +155,11 @@ export type DevicePollResult =
 export async function pollDeviceToken(
   config: OAuthFlowConfig,
   deviceCode: string,
-  options: { readonly deviceHeaders?: DeviceHeaders | undefined },
+  options: {
+    readonly deviceHeaders?: DeviceHeaders | undefined;
+    readonly signal?: AbortSignal | undefined;
+    readonly timeoutMs?: number | undefined;
+  },
 ): Promise<DevicePollResult> {
   const url = `${config.oauthHost.replace(/\/$/, '')}/api/oauth/token`;
   const { status, data } = await postForm(
@@ -161,6 +170,7 @@ export async function pollDeviceToken(
       grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
     },
     options.deviceHeaders,
+    { signal: options.signal, timeoutMs: options.timeoutMs },
   );
 
   if (status === 200 && typeof data['access_token'] === 'string') {
@@ -197,6 +207,7 @@ export async function pollDeviceToken(
 export interface RefreshOptions {
   readonly deviceHeaders?: DeviceHeaders | undefined;
   readonly maxRetries?: number | undefined;
+  readonly signal?: AbortSignal | undefined;
   /**
    * Backoff between retries in ms. Defaults to `2 ** attempt * 1000` (1s, 2s).
    * Accepts an attempt-indexed callable for testability (set to `() => 0`).
@@ -221,7 +232,11 @@ export async function refreshAccessToken(
   const url = `${config.oauthHost.replace(/\/$/, '')}/api/oauth/token`;
 
   let lastError: Error | undefined;
+  const signal = options.signal;
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    if (signal?.aborted === true) {
+      throw new OAuthError('Token refresh aborted.');
+    }
     let status: number;
     let data: Record<string, unknown>;
     try {
@@ -233,8 +248,14 @@ export async function refreshAccessToken(
           refresh_token: refreshToken,
         },
         options.deviceHeaders,
+        { signal },
       ));
     } catch (error) {
+      // An abort is caller intent, not a transport blip — never retry it.
+      // (Fresh property read: the loop-top check narrows `signal?.aborted`.)
+      if (signal !== undefined && signal.aborted) {
+        throw new OAuthError('Token refresh aborted.');
+      }
       // Transport-level failure (DNS, connection refused, timeout). Treat
       // as retryable to match Python's `aiohttp.ClientError` handling.
       lastError = error instanceof Error ? error : new OAuthError(String(error));

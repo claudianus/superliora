@@ -82,6 +82,19 @@ describe('buildProviderCatalogOptions', () => {
     expect(bedrock?.authKind).toBe('cloud');
   });
 
+  it('lists local-server presets above the escape hatches', () => {
+    const options = buildProviderCatalogOptions(makeCatalog());
+    const values = options.map((o) => o.value);
+    for (const id of ['preset:ollama', 'preset:lm-studio', 'preset:llamacpp', 'preset:vllm']) {
+      expect(values).toContain(id);
+    }
+    const ollama = options.find((o) => o.value === 'preset:ollama');
+    expect(ollama?.baseUrl).toBe('http://localhost:11434/v1');
+    const order = (value: string): number => values.indexOf(value);
+    expect(order('preset:ollama')).toBeLessThan(order('custom-endpoint'));
+    expect(order('preset:ollama')).toBeGreaterThan(order('catalog:openai'));
+  });
+
   it('hides the Anthropic OAuth option when the experimental flag is off', () => {
     const options = buildProviderCatalogOptions(makeCatalog());
     const values = options.map((o) => o.value);
@@ -261,6 +274,10 @@ describe('resolveProviderSelection', () => {
     expect(resolveProviderSelection('cloud:bedrock')).toEqual({ kind: 'cloud', providerId: 'bedrock' });
     expect(resolveProviderSelection('cloud:vertex_claude')).toEqual({ kind: 'cloud', providerId: 'vertex_claude' });
     expect(resolveProviderSelection('custom-endpoint')).toEqual({ kind: 'custom-endpoint' });
+    expect(resolveProviderSelection('preset:ollama')).toEqual({
+      kind: 'custom-preset',
+      presetId: 'ollama',
+    });
     expect(resolveProviderSelection('custom-registry')).toEqual({ kind: 'custom-registry' });
   });
 });

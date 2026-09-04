@@ -50,6 +50,13 @@ const GEMINI_CATALOGUED_PREFIXES = [
   'gemini-2.0-pro',
   'gemini-2.5-pro',
   'gemini-2.5-flash',
+  // Gemini 3 ships thinking with no off switch (see `withThinking`), so every
+  // 3.x chat id resolves to the thinking multimodal capability below.
+  'gemini-3-pro',
+  'gemini-3-flash',
+  'gemini-3.1-pro',
+  'gemini-3.5-pro',
+  'gemini-3.5-flash',
 ] as const;
 
 const OPENAI_REASONING_CAPABILITY: ModelCapability = Object.freeze({
@@ -194,7 +201,11 @@ export function getGoogleGenAIModelCapability(modelName: string): ModelCapabilit
   if (!normalized.startsWith('gemini-')) return UNKNOWN_CAPABILITY;
   if (!hasPrefix(normalized, GEMINI_CATALOGUED_PREFIXES)) return UNKNOWN_CAPABILITY;
 
-  if (normalized.startsWith('gemini-2.5-') || normalized.includes('thinking')) {
+  if (
+    normalized.startsWith('gemini-2.5-') ||
+    normalized.startsWith('gemini-3') ||
+    normalized.includes('thinking')
+  ) {
     return GEMINI_THINKING_MULTIMODAL_TOOL_CAPABILITY;
   }
   return GEMINI_MULTIMODAL_TOOL_CAPABILITY;

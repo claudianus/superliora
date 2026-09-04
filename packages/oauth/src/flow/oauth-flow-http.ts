@@ -283,17 +283,48 @@ export async function startCallbackServer(
     },
     close: () =>
       new Promise<void>((resolve) => {
-        server.close(() =>{  resolve(); });
+        try {
+          server.close(() => {
+            resolve();
+          });
+        } catch {
+          // Server never started listening (e.g. listen failed after a
+          // fallback) — nothing to tear down.
+          resolve();
+        }
       }),
   };
 }
 
 function listenOnPort(server: Server, preferredPort: number): Promise<number> {
+  // Loopback ports collide with stale CLI instances, browser-held sockets, and
+  // parallel test workers. When the preferred port is busy, fall back to an
+  // ephemeral port so login still proceeds (the redirect_uri is built from the
+  // bound port, so providers accept it) instead of failing with EADDRINUSE.
+  // Only EADDRINUSE falls back — any other listen error still rejects.
   return new Promise((resolve, reject) => {
-    server.once('error', reject);
+    const onError = (error: unknown): void => {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (code === 'EADDRINUSE' && preferredPort !== 0) {
+        server.removeListener('error', onError);
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+          const address = server.address();
+          server.removeListener('error', reject);
+          if (typeof address === 'object' && address !== null) {
+            resolve(address.port);
+          } else {
+            reject(new OAuthError('Failed to start callback server.'));
+          }
+        });
+        return;
+      }
+      reject(error instanceof Error ? error : new OAuthError(String(error)));
+    };
+    server.once('error', onError);
     server.listen(preferredPort, '127.0.0.1', () => {
       const address = server.address();
-      server.removeListener('error', reject);
+      server.removeListener('error', onError);
       if (typeof address === 'object' && address !== null) {
         resolve(address.port);
       } else {
@@ -489,9 +520,18 @@ export interface GenericPkceFlowConfig {
   readonly clientId: string;
   readonly scope?: string;
   readonly callbackPort?: number;
+  /**
+   * Host advertised in the `redirect_uri`. The callback server always binds to
+   * `127.0.0.1`, but providers match redirect URIs by exact string — xAI
+   * registers `127.0.0.1` while others register `localhost`. Defaults to
+   * `localhost`.
+   */
+  readonly callbackHost?: string;
   readonly authorizeUrl: string;
   readonly tokenUrl: string;
   readonly redirectPath?: string;
+  /** User-Agent sent with the token exchange / refresh POSTs. */
+  readonly userAgent?: string;
 }
 
 export interface GenericPkceToken {
@@ -521,10 +561,11 @@ export async function runPkceBrowserFlow(
   const state = generateState();
   const nonce = generateNonce();
   const port = config.callbackPort ?? 0;
-  const server = await startCallbackServer(port, 'localhost', { expectedState: state });
+  const redirectHost = config.callbackHost ?? 'localhost';
+  const server = await startCallbackServer(port, redirectHost, { expectedState: state });
   try {
     const redirectUri = config.redirectPath
-      ? `http://localhost:${getPort(server.redirectUri)}${config.redirectPath}`
+      ? `http://${redirectHost}:${String(getPort(server.redirectUri))}${config.redirectPath}`
       : server.redirectUri;
     const params = new URLSearchParams({
       response_type: 'code',
@@ -552,7 +593,10 @@ export async function runPkceBrowserFlow(
         client_id: config.clientId,
         code_verifier: pkce.verifier,
       },
-      { signal: options.signal },
+      {
+        signal: options.signal,
+        ...(config.userAgent !== undefined ? { headers: { 'User-Agent': config.userAgent } } : {}),
+      },
     );
     if (status !== 200 || typeof data['access_token'] !== 'string') {
       throw new OAuthError(`PKCE token exchange failed (HTTP ${status}).`);
@@ -576,7 +620,10 @@ export async function refreshPkceToken(
       refresh_token: refreshToken,
       client_id: config.clientId,
     },
-    { signal: options.signal },
+    {
+      signal: options.signal,
+      ...(config.userAgent !== undefined ? { headers: { 'User-Agent': config.userAgent } } : {}),
+    },
   );
   if (status !== 200 || typeof data['access_token'] !== 'string') {
     throw new OAuthError(`PKCE token refresh failed (HTTP ${status}).`);

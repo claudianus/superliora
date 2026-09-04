@@ -22,12 +22,17 @@ export interface CustomRegistrySource {
  * The kosong `ProviderConfig` union (`packages/kosong/src/providers/index.ts`)
  * mirrors these literal values. `kimi` is included because the api.json schema
  * permits it even though kokub itself only emits the other three.
+ * `google-genai` is accepted so a custom registry serving Gemini models over
+ * the Generative Language API is not rejected (Cline/opencode both allow a
+ * Gemini custom endpoint); Bedrock/Vertex keep their own credential chains and
+ * stay off this list.
  */
 export type CustomRegistryProviderType =
   | 'anthropic'
   | 'openai'
   | 'openai_responses'
-  | 'kimi';
+  | 'kimi'
+  | 'google-genai';
 
 export interface CustomRegistryModelEntry {
   readonly id: string;
@@ -72,12 +77,21 @@ export interface CustomRegistryProviderEntry {
  */
 export const CUSTOM_REGISTRY_DEFAULT_MAX_CONTEXT = 131072;
 export const CUSTOM_REGISTRY_DEFAULT_CAPABILITIES = ['tool_use'] as const;
+/** Default ceiling for a registry fetch (operator-supplied URL, may hang). */
+export const DEFAULT_REGISTRY_TIMEOUT_MS = 30_000;
+
+function isAbortError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const name = (error as { name?: unknown }).name;
+  return name === 'AbortError' || name === 'TimeoutError';
+}
 
 const ALLOWED_PROVIDER_TYPES: ReadonlySet<CustomRegistryProviderType> = new Set([
   'anthropic',
   'openai',
   'openai_responses',
   'kimi',
+  'google-genai',
 ]);
 
 export class CustomRegistryApiError extends Error {
@@ -215,11 +229,17 @@ function toProviderEntry(value: unknown): CustomRegistryProviderEntry | undefine
  * Fetches and validates an api.json document. The returned record is keyed by
  * the top-level provider key in the document (which may differ from
  * `entry.id`); callers should iterate `Object.values` to apply each entry.
+ *
+ * `options.timeoutMs` bounds the whole fetch (default 30s): registry URLs are
+ * operator input and a hung host must not stall `/login`, the CLI, or
+ * background model refresh indefinitely. Timeouts surface as
+ * {@link CustomRegistryApiError} with status 408.
  */
 export async function fetchCustomRegistry(
   source: CustomRegistrySource,
   fetchImpl: typeof fetch = fetch,
   signal?: AbortSignal,
+  options: { readonly timeoutMs?: number } = {},
 ): Promise<Record<string, CustomRegistryProviderEntry>> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -228,10 +248,23 @@ export async function fetchCustomRegistry(
     headers['Authorization'] = `Bearer ${source.apiKey}`;
   }
 
-  const init: RequestInit = { headers };
-  if (signal !== undefined) init.signal = signal;
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? DEFAULT_REGISTRY_TIMEOUT_MS);
+  const combined =
+    signal === undefined ? timeout : AbortSignal.any([timeout, signal]);
+  const init: RequestInit = { headers, signal: combined };
 
-  const response = await fetchImpl(source.url, init);
+  let response: Response;
+  try {
+    response = await fetchImpl(source.url, init);
+  } catch (error) {
+    // Our own timeout (not a caller abort) reads as a 408 so surfaces can
+    // print "(HTTP 408)" style hints instead of a bare AbortError.
+    if (!isAbortError(error) || signal?.aborted === true) throw error;
+    throw new CustomRegistryApiError(
+      `Timed out fetching custom registry at ${source.url} after ${String(options.timeoutMs ?? DEFAULT_REGISTRY_TIMEOUT_MS)}ms.`,
+      408,
+    );
+  }
   if (!response.ok) {
     const message = await readApiErrorMessage(
       response,
@@ -409,6 +442,17 @@ export function removeCustomRegistryProvider(
   }
 }
 
+export interface ApplyCustomRegistryEntriesResult {
+  /** Entries applied (provider ids). */
+  readonly applied: readonly string[];
+  /**
+   * Registry entry ids skipped because they collide with an OAuth-backed
+   * provider (`oauth` configured). Deleting those would orphan live login
+   * sessions, so the registry entry loses and the caller should report it.
+   */
+  readonly skippedOAuthCollisions: readonly string[];
+}
+
 /**
  * Applies every entry from a single api.json import in memory. Mirrors the
  * "remove if present, then apply" sequence the Add Platform flow used to do
@@ -428,12 +472,16 @@ export function removeCustomRegistryProvider(
  * model aliases behind. Matching is by `source.url` only — the apiKey commonly
  * rotates between imports, but the URL is the stable identity of "the same
  * registry".
+ *
+ * OAuth safety: an entry whose id collides with an OAuth-backed provider is
+ * skipped (reported in `skippedOAuthCollisions`), never deleted. A rogue or
+ * stale registry must not be able to wipe a live login session.
  */
 export function applyCustomRegistryEntries(
   config: ManagedKimiConfigShape,
   entries: Record<string, CustomRegistryProviderEntry>,
   source: CustomRegistrySource,
-): void {
+): ApplyCustomRegistryEntriesResult {
   const surviving = new Set(Object.values(entries).map((entry) => entry.id));
   for (const [providerId, provider] of Object.entries(config.providers)) {
     if (surviving.has(providerId)) continue;
@@ -448,10 +496,23 @@ export function applyCustomRegistryEntries(
     }
   }
 
+  const applied: string[] = [];
+  const skippedOAuthCollisions: string[] = [];
   for (const entry of Object.values(entries)) {
+    if (hasOAuthLogin(config.providers[entry.id])) {
+      skippedOAuthCollisions.push(entry.id);
+      continue;
+    }
     if (entry.id in config.providers) {
       removeCustomRegistryProvider(config, entry.id);
     }
     applyCustomRegistryProvider(config, entry, source);
+    applied.push(entry.id);
   }
+  return { applied, skippedOAuthCollisions };
+}
+
+/** True when the provider record carries a live OAuth login (`oauth` ref). */
+function hasOAuthLogin(provider: unknown): boolean {
+  return isRecord(provider) && isRecord(provider['oauth']);
 }

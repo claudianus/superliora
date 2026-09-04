@@ -40,7 +40,33 @@ export interface WireProfile {
 const SEED_WIRE_PROFILES: readonly WireProfile[] = [
   {
     wire: 'openai',
-    packages: ['@ai-sdk/openai-compatible', '@ai-sdk/azure', 'openai-chat-completions'],
+    packages: [
+      '@ai-sdk/openai-compatible',
+      '@ai-sdk/azure',
+      'openai-chat-completions',
+      // Chat Completions gateways whose models.dev `npm` lacks the `openai`
+      // substring. Without exact entries here, `resolveWireFromPackage` returns
+      // undefined for per-model `provider.npm` overrides and callers drop
+      // usable chat models. Kept in sync with `CHAT_COMPLETIONS_NPM` in
+      // `catalog.ts`. Native non-Chat-Completions SDKs (Cohere, Bedrock,
+      // plain Azure resource-name auth) stay off this list.
+      '@ai-sdk/groq',
+      '@ai-sdk/mistral',
+      '@ai-sdk/togetherai',
+      '@ai-sdk/xai',
+      '@ai-sdk/cerebras',
+      '@ai-sdk/perplexity',
+      '@ai-sdk/gateway',
+      '@ai-sdk/vercel',
+      '@ai-sdk/deepseek',
+      '@ai-sdk/deepinfra',
+      '@openrouter/ai-sdk-provider',
+      '@qvac/ai-sdk-provider',
+      '@qvac/sdk',
+      'venice-ai-sdk-provider',
+      '@aihubmix/ai-sdk-provider',
+      'merge-gateway-ai-sdk-provider',
+    ],
     hints: ['openai-compatible', 'openai-completions'],
   },
   {

@@ -105,9 +105,11 @@ export class CursorChatProvider implements ChatProvider {
 
     let agentOrigin: string;
     try {
+      // Per-request base URL wins (rotated session hosts).
+      const configuredBaseUrl = options?.auth?.baseUrl ?? this._baseUrl;
       agentOrigin = await resolveCursorAgentOrigin({
         token: apiKey,
-        ...(this._baseUrl === undefined ? {} : { configuredBaseUrl: this._baseUrl }),
+        ...(configuredBaseUrl === undefined ? {} : { configuredBaseUrl }),
         apiBaseUrl: this._apiBaseUrl,
         clientVersion: this._clientVersion,
         signal: options?.signal,

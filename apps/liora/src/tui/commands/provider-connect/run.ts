@@ -27,6 +27,7 @@ import {
   loadCatalogWithSpinner,
 } from './catalog';
 import { connectCustomEndpoint, connectCustomRegistry } from './custom';
+import { getCustomEndpointPreset } from '#/tui/utils/model/custom-endpoint-presets';
 import { connectCloudProvider } from './cloud';
 import { connectKimiManaged, connectOAuthProvider, resolveOAuthProviderModels } from './oauth';
 import { connectQwenTokenPlan } from './qwen';
@@ -81,6 +82,9 @@ export async function runUnifiedProviderConnect(
       } else {
         await connectCatalogProvider(host, catalog, selection.providerId);
       }
+      break;
+    case 'custom-preset':
+      await connectCustomEndpoint(host, getCustomEndpointPreset(selection.presetId));
       break;
     case 'custom-endpoint':
       await connectCustomEndpoint(host);

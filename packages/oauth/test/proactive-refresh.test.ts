@@ -45,15 +45,41 @@ describe('tokenNeedsProactiveRefresh', () => {
 });
 
 describe('startProactiveRefreshTimer', () => {
-  it('invokes ensureFresh on the interval and can be stopped', () => {
+  it('invokes ensureFresh on the interval and can be stopped', async () => {
     vi.useFakeTimers();
-    const ensureFresh = vi.fn(async () => 'token');
-    const handle = startProactiveRefreshTimer(ensureFresh, 1_000);
-    vi.advanceTimersByTime(2_500);
-    expect(ensureFresh).toHaveBeenCalledTimes(2);
-    handle.stop();
-    vi.advanceTimersByTime(2_500);
-    expect(ensureFresh).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
+    try {
+      const ensureFresh = vi.fn(async () => 'token');
+      const handle = startProactiveRefreshTimer(ensureFresh, 1_000);
+      await vi.advanceTimersByTimeAsync(2_500);
+      expect(ensureFresh).toHaveBeenCalledTimes(2);
+      handle.stop();
+      await vi.advanceTimersByTimeAsync(2_500);
+      expect(ensureFresh).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('skips ticks while a refresh is still in flight', async () => {
+    vi.useFakeTimers();
+    try {
+      let release!: () => void;
+      const gate = new Promise<string>((resolve) => {
+        release = () => {
+          resolve('token');
+        };
+      });
+      const ensureFresh = vi.fn(() => gate);
+      const handle = startProactiveRefreshTimer(ensureFresh, 1_000);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(ensureFresh).toHaveBeenCalledTimes(1);
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(ensureFresh).toHaveBeenCalledTimes(2);
+      handle.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
