@@ -9,7 +9,7 @@ import type {
 import type { Tool } from '#/tool';
 import { GoogleGenAI as GenAIClient } from '@google/genai';
 
-import { abortPromise, createAbortError } from '#/providers/google/google-genai-abort';
+import { createAbortError, raceWithAbort } from '#/providers/google/google-genai-abort';
 import { convertGoogleGenAIError } from '#/providers/google/google-genai-error';
 import { messagesToGoogleGenAIContents } from '#/providers/google/google-genai-messages';
 import { GoogleGenAIStreamedMessage } from '#/providers/google/google-genai-stream';
@@ -19,7 +19,7 @@ import {
   type ThinkingConfig,
   toolToGoogleGenAI,
 } from '#/providers/google/google-genai-types';
-import { requireProviderApiKey, resolveAuthBackedClient } from '../request-auth';
+import { requireProviderApiKey, mergeRequestHeaders, resolveAuthBackedClient } from '../request-auth';
 
 export { convertGoogleGenAIError };
 export { messagesToGoogleGenAIContents };
@@ -37,6 +37,8 @@ export class GoogleGenAIChatProvider implements ChatProvider {
   private _apiKey: string | undefined;
   private _project: string | undefined;
   private _location: string | undefined;
+  private _baseUrl: string | undefined;
+  private _defaultHeaders: Record<string, string> | undefined;
   private _clientFactory: ((auth: ProviderRequestAuth) => GenAIClient) | undefined;
 
   constructor(options: GoogleGenAIOptions) {
@@ -49,21 +51,44 @@ export class GoogleGenAIChatProvider implements ChatProvider {
     this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
     this._project = options.project;
     this._location = options.location;
+    this._baseUrl = options.baseUrl;
+    this._defaultHeaders = options.defaultHeaders;
     this._clientFactory = options.clientFactory;
     this._client =
-      this._vertexai || this._apiKey !== undefined ? this._buildClient(this._apiKey) : undefined;
+      this._vertexai || this._apiKey !== undefined
+        ? this._buildClient(this._apiKey, undefined)
+        : undefined;
   }
 
-  private _buildClient(apiKey: string | undefined): GenAIClient {
+  private _buildClient(apiKey: string | undefined, auth?: ProviderRequestAuth): GenAIClient {
+    if (this._vertexai) {
+      // Vertex AI auth flows through google-auth-library service credentials,
+      // never a request-scoped apiKey — so only the endpoint override is
+      // honored here (regional hosts). Credential routing stays on ADC.
+      // The SDK forbids apiKey together with project/location, so the key is
+      // only forwarded in project-less (Express-style) configurations.
+      const baseUrl = auth?.baseUrl ?? this._baseUrl;
+      const hasServiceConfig = this._project !== undefined || this._location !== undefined;
+      return new GenAIClient({
+        ...(hasServiceConfig ? {} : { apiKey }),
+        vertexai: true,
+        project: this._project,
+        location: this._location,
+        ...(baseUrl === undefined ? {} : { httpOptions: { baseUrl } }),
+      });
+    }
+    const headers = mergeRequestHeaders(this._defaultHeaders, auth?.headers);
+    const baseUrl = auth?.baseUrl ?? this._baseUrl;
     return new GenAIClient({
       apiKey,
-      ...(this._vertexai
-        ? {
-            vertexai: true,
-            project: this._project,
-            location: this._location,
-          }
-        : {}),
+      ...(baseUrl === undefined && headers === undefined
+        ? {}
+        : {
+            httpOptions: {
+              ...(baseUrl === undefined ? {} : { baseUrl }),
+              ...(headers === undefined ? {} : { headers }),
+            },
+          }),
     });
   }
 
@@ -146,10 +171,10 @@ export class GoogleGenAIChatProvider implements ChatProvider {
       // check the signal at each chunk boundary.
       options?.onRequestSent?.();
       if (this._stream) {
-        const stream = await Promise.race([
+        const stream = await raceWithAbort(
           models.generateContentStream(params),
-          abortPromise(options?.signal),
-        ]);
+          options?.signal,
+        );
         return new GoogleGenAIStreamedMessage(
           stream as AsyncIterable<Record<string, unknown>>,
           true,
@@ -157,10 +182,7 @@ export class GoogleGenAIChatProvider implements ChatProvider {
         );
       }
 
-      const response = await Promise.race([
-        models.generateContent(params),
-        abortPromise(options?.signal),
-      ]);
+      const response = await raceWithAbort(models.generateContent(params), options?.signal);
       return new GoogleGenAIStreamedMessage(
         response as Record<string, unknown>,
         false,
@@ -179,14 +201,11 @@ export class GoogleGenAIChatProvider implements ChatProvider {
       { cachedClient: this._client, clientFactory: this._clientFactory },
       auth,
       (a) => {
-        // Vertex AI auth flows through google-auth-library service credentials,
-        // not a request-scoped apiKey, and the @google/genai SDK has no
-        // perRequest header channel — so neither `auth.apiKey` nor
-        // `auth.headers` is propagated in vertexai mode. Callers that need
-        // request-scoped credentials should instead point their service
-        // account at the right principal.
-        if (this._vertexai) return this._buildClient(this._apiKey);
-        return this._buildClient(requireProviderApiKey('GoogleGenAIChatProvider', a, this._apiKey));
+        if (this._vertexai) return this._buildClient(this._apiKey, a);
+        return this._buildClient(
+          requireProviderApiKey('GoogleGenAIChatProvider', a, this._apiKey),
+          a,
+        );
       },
     );
   }

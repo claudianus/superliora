@@ -889,11 +889,53 @@ describe('GoogleGenAIChatProvider', () => {
   });
 
   describe('base URL forwarding', () => {
-    // SuperLiora's GoogleGenAI provider does not expose a custom baseUrl option.
-    it.skip('forwards baseUrl to the Google GenAI SDK client', () => {});
-    it.skip('leaves the SDK default endpoint in place when no baseUrl is set', () => {});
-    it.skip('forwards baseUrl and defaultHeaders together without dropping either', () => {});
-    it.skip('forwards baseUrl in vertexai mode', () => {});
+    function sdkHttpOptions(provider: GoogleGenAIChatProvider): unknown {
+      const client = (
+        provider as unknown as {
+          _buildClient: (key: string | undefined, auth?: unknown) => unknown;
+        }
+      )._buildClient('test-key', undefined);
+      return (client as { httpOptions?: unknown }).httpOptions;
+    }
+
+    it('forwards baseUrl to the Google GenAI SDK client', () => {
+      const provider = new GoogleGenAIChatProvider({
+        model: 'gemini-2.5-flash',
+        apiKey: 'test-key',
+        baseUrl: 'https://gateway.example.test/v1beta',
+      });
+      expect(sdkHttpOptions(provider)).toMatchObject({
+        baseUrl: 'https://gateway.example.test/v1beta',
+      });
+    });
+
+    it('leaves the SDK default endpoint in place when no baseUrl is set', () => {
+      expect(sdkHttpOptions(createProvider())).toBeUndefined();
+    });
+
+    it('forwards baseUrl and defaultHeaders together without dropping either', () => {
+      const provider = new GoogleGenAIChatProvider({
+        model: 'gemini-2.5-flash',
+        apiKey: 'test-key',
+        baseUrl: 'https://gateway.example.test/v1beta',
+        defaultHeaders: { 'x-tenant': 'acme' },
+      });
+      expect(sdkHttpOptions(provider)).toEqual({
+        baseUrl: 'https://gateway.example.test/v1beta',
+        headers: { 'x-tenant': 'acme' },
+      });
+    });
+
+    it('forwards baseUrl in vertexai mode', () => {
+      const provider = new GoogleGenAIChatProvider({
+        model: 'gemini-2.5-flash',
+        vertexai: true,
+        project: 'p',
+        location: 'us-central1',
+        baseUrl: 'https://region.example.test',
+      });
+      expect(sdkHttpOptions(provider)).toEqual({ baseUrl: 'https://region.example.test' });
+    });
   });
 
   describe('response parsing (non-stream)', () => {
@@ -1759,5 +1801,118 @@ describe('messagesToGoogleGenAIContents - extra branches', () => {
     expect(contents[0]!.parts[0]).toMatchObject({
       fileData: { fileUri: 'data:image/png' },
     });
+  });
+});
+
+describe('GoogleGenAIChatProvider per-request auth (httpOptions)', () => {
+  function httpOptionsOf(client: unknown): { baseUrl?: string; headers?: Record<string, string> } {
+    return (
+      (client as { httpOptions?: { baseUrl?: string; headers?: Record<string, string> } })
+        .httpOptions ?? {}
+    );
+  }
+
+  function buildClient(provider: GoogleGenAIChatProvider, auth?: unknown): unknown {
+    return (provider as unknown as { _buildClient: (key: string | undefined, a?: unknown) => unknown })._buildClient(
+      'test-key',
+      auth,
+    );
+  }
+
+  it('sends no httpOptions by default (SDK behavior unchanged)', () => {
+    const client = buildClient(createProvider());
+    expect(httpOptionsOf(client)).toEqual({});
+  });
+
+  it('honors constructor baseUrl + defaultHeaders', () => {
+    const provider = new GoogleGenAIChatProvider({
+      model: 'gemini-2.5-flash',
+      apiKey: 'test-key',
+      baseUrl: 'https://gateway.example.test/v1beta',
+      defaultHeaders: { 'x-tenant': 'acme' },
+    });
+    expect(httpOptionsOf(buildClient(provider))).toEqual({
+      baseUrl: 'https://gateway.example.test/v1beta',
+      headers: { 'x-tenant': 'acme' },
+    });
+  });
+
+  it('prefers per-request auth baseUrl/headers over constructor values', () => {
+    const provider = new GoogleGenAIChatProvider({
+      model: 'gemini-2.5-flash',
+      apiKey: 'test-key',
+      baseUrl: 'https://static.example.test',
+      defaultHeaders: { 'x-tenant': 'static' },
+    });
+    expect(
+      httpOptionsOf(
+        buildClient(provider, {
+          apiKey: 'rotated',
+          baseUrl: 'https://rotated.example.test',
+          headers: { 'x-extra': 'yes' },
+        }),
+      ),
+    ).toEqual({
+      baseUrl: 'https://rotated.example.test',
+      headers: { 'x-tenant': 'static', 'x-extra': 'yes' },
+    });
+  });
+
+  it('vertex mode honors a baseUrl override without touching ADC credentials', () => {
+    const provider = new GoogleGenAIChatProvider({
+      model: 'gemini-2.5-flash',
+      vertexai: true,
+      project: 'p',
+      location: 'us-central1',
+    });
+    // project/location + apiKey is mutually exclusive in the SDK initializer —
+    // the provider must drop the key instead of crashing construction.
+    const client = buildClient(provider, { baseUrl: 'https://region.example.test' }) as {
+      vertexai: boolean;
+      httpOptions?: { baseUrl?: string; headers?: Record<string, string> };
+    };
+    expect(client.vertexai).toBe(true);
+    expect(client.httpOptions).toEqual({ baseUrl: 'https://region.example.test' });
+  });
+});
+
+describe('raceWithAbort', () => {
+  it('removes its abort listener when the task settles first', async () => {
+    const { raceWithAbort } = await import('#/providers/google/google-genai-abort');
+    const controller = new AbortController();
+    let added = 0;
+    let removed = 0;
+    const target = controller.signal as unknown as Record<string, (...args: never[]) => unknown>;
+    const originalAdd = (target['addEventListener'] as (...args: unknown[]) => unknown).bind(target);
+    const originalRemove = (target['removeEventListener'] as (...args: unknown[]) => unknown).bind(
+      target,
+    );
+    target['addEventListener'] = (...args: never[]) => {
+      added += 1;
+      return originalAdd(...args);
+    };
+    target['removeEventListener'] = (...args: never[]) => {
+      removed += 1;
+      return originalRemove(...args);
+    };
+
+    await expect(raceWithAbort(Promise.resolve('ok'), controller.signal)).resolves.toBe('ok');
+    expect(added).toBe(1);
+    expect(removed).toBe(1);
+  });
+
+  it('rejects with AbortError when the signal fires first', async () => {
+    const { raceWithAbort } = await import('#/providers/google/google-genai-abort');
+    const controller = new AbortController();
+    let release!: () => void;
+    const gate = new Promise<string>((resolve) => {
+      release = () => {
+        resolve('late');
+      };
+    });
+    const pending = raceWithAbort(gate, controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    release();
   });
 });

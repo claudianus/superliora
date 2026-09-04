@@ -59,6 +59,15 @@ describe('getModelCapability: google-genai', () => {
     expect(cap.tool_use).toBe(true);
   });
 
+  it('gemini-3 family → thinking multimodal + tool_use (no off switch)', () => {
+    for (const model of ['gemini-3-pro-preview', 'gemini-3.1-pro', 'gemini-3.5-flash']) {
+      const cap = getModelCapability('google-genai', model);
+      expect(cap.thinking).toBe(true);
+      expect(cap.tool_use).toBe(true);
+      expect(cap.image_in).toBe(true);
+    }
+  });
+
   it('unknown Gemini model → UNKNOWN_CAPABILITY (no throw)', () => {
     expect(getModelCapability('google-genai', 'gemini-not-real-xyz')).toEqual(UNKNOWN_CAPABILITY);
   });

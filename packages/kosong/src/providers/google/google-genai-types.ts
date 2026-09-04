@@ -8,6 +8,10 @@ export interface GoogleGenAIOptions {
   vertexai?: boolean | undefined;
   project?: string | undefined;
   location?: string | undefined;
+  /** Custom / proxy endpoint (e.g. a regional Vertex host or Gemini gateway). */
+  baseUrl?: string | undefined;
+  /** Static headers merged under per-request `auth.headers`. */
+  defaultHeaders?: Record<string, string>;
   stream?: boolean | undefined;
   clientFactory?: (auth: ProviderRequestAuth) => GenAIClient;
 }

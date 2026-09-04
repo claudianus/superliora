@@ -299,7 +299,9 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
   private _buildClient(apiKey: string, auth?: ProviderRequestAuth): OpenAI {
     const clientOpts: Record<string, unknown> = {
       apiKey,
-      baseURL: this._baseUrl,
+      // Per-request base URL wins so hosts can rotate the chat endpoint
+      // (e.g. GitHub Copilot resolves it from the session-token exchange).
+      baseURL: auth?.baseUrl ?? this._baseUrl,
     };
     const defaultHeaders = mergeRequestHeaders(this._defaultHeaders, auth?.headers);
     if (defaultHeaders !== undefined) {

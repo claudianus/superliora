@@ -373,7 +373,7 @@ export class AnthropicChatProvider implements ChatProvider {
     return resolveAuthBackedClient(
       { cachedClient: this._client, clientFactory: this._clientFactory },
       auth,
-      (a) => this._buildClient(this._requireApiKey(a)),
+      (a) => this._buildClient(this._requireApiKey(a), a),
     );
   }
 
@@ -423,11 +423,12 @@ export class AnthropicChatProvider implements ChatProvider {
   // These `null`s — and the nulled headers in _buildDefaultHeaders — are NOT
   // redundant: removing them reintroduces credential leakage. Regression cover:
   // test/e2e/anthropic-adapter.test.ts.
-  private _buildClient(apiKey: string): Anthropic {
+  private _buildClient(apiKey: string, auth?: ProviderRequestAuth): Anthropic {
     return new Anthropic({
       apiKey,
       authToken: null,
-      baseURL: this._baseUrl ?? null,
+      // Per-request base URL wins so custom gateways / rotated hosts apply.
+      baseURL: auth?.baseUrl ?? this._baseUrl ?? null,
       defaultHeaders: this._buildDefaultHeaders(apiKey),
     });
   }

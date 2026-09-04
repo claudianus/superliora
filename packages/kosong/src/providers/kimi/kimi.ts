@@ -276,7 +276,9 @@ export class KimiChatProvider implements ChatProvider {
     for (const msg of normalizedHistory) {
       messages.push(convertMessage(msg));
     }
-    if (supportsCacheBoundaries(this._baseUrl, this._model)) {
+    // Effective request endpoint: per-request auth may rotate the host, and
+    // cache-boundary support is a property of the host being called.
+    if (supportsCacheBoundaries(options?.auth?.baseUrl ?? this._baseUrl, this._model)) {
       markQwenCacheBoundaries(messages);
     }
 
@@ -408,7 +410,8 @@ export class KimiChatProvider implements ChatProvider {
         const defaultHeaders = mergeRequestHeaders(this._defaultHeaders, a?.headers);
         return new OpenAI({
           apiKey: requireProviderApiKey('KimiChatProvider', a, this._apiKey),
-          baseURL: this._baseUrl,
+          // Per-request base URL wins (credential-pool host rotation).
+          baseURL: a?.baseUrl ?? this._baseUrl,
           defaultHeaders,
         });
       },

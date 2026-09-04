@@ -81,7 +81,9 @@ export class OpenAIResponsesStreamedMessage implements StreamedMessage {
     const details = readObjectField(usage, 'input_tokens_details');
     const cached = details ? (readNumberField(details, 'cached_tokens') ?? 0) : 0;
     this._usage = {
-      inputOther: inputTokens - cached,
+      // Clamp: some backends report cached_tokens larger than input_tokens,
+      // which would otherwise drive inputOther negative and corrupt accounting.
+      inputOther: Math.max(0, inputTokens - cached),
       output: outputTokens,
       inputCacheRead: cached,
       inputCacheCreation: 0,
