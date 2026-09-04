@@ -20,7 +20,9 @@ import type { TurnEndResult } from './types';
 import {
   canAttemptProviderRecovery,
   createProviderRecoveryState,
+  GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES,
   resolveProviderRecovery,
+  type ProviderRecoveryState,
 } from '../provider-failover';
 import {
   recordLlmTurnProviderFailure,
@@ -172,6 +174,12 @@ export async function recoverFromProviderFailure(
       return cancelledTurnEndResult(turnId, signal);
     }
 
+    // Turn-level recovery used to run entirely silent: 15–120s backoff sleeps
+    // and model switches were invisible, so a rate-limited user saw a frozen
+    // spinner with no way to tell a wait from a hang. Emit the same
+    // turn.step.retrying cue the per-step retry path already produces.
+    emitTurnRecoveryNotice(ctx.agent, turnId, end.event.error, recoveryState);
+
     let outcome;
     try {
       outcome = await resolveProviderRecovery(ctx.agent, {
@@ -228,4 +236,34 @@ export async function recoverFromProviderFailure(
   }
 
   return end;
+}
+
+/**
+ * Surface turn-level provider recovery (backoff sleeps up to ~2 minutes and
+ * silent model switches) to the UI before the wait starts. Deduped per
+ * attempt so the transcript stays readable on multi-hop recovery.
+ */
+function emitTurnRecoveryNotice(
+  agent: Agent,
+  turnId: number,
+  error: LioraErrorPayload | undefined,
+  state: ProviderRecoveryState,
+): void {
+  if (error === undefined) return;
+  const attempt = state.autoRetryCount + 1;
+  const maxAttempts = GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES;
+  const name = error.code;
+  const detail = (error.message ?? '').replaceAll(/\s+/g, ' ').trim();
+  const shortDetail = detail.length > 90 ? `${detail.slice(0, 89)}…` : detail;
+  agent.emitEvent({
+    type: 'turn.step.retrying',
+    turnId,
+    step: 0,
+    failedAttempt: attempt,
+    nextAttempt: attempt,
+    maxAttempts: Math.max(maxAttempts, attempt),
+    delayMs: 0,
+    errorName: name,
+    errorMessage: shortDetail.length > 0 ? `${name}: ${shortDetail}` : name,
+  });
 }

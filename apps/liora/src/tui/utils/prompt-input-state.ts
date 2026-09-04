@@ -6,6 +6,7 @@
 import type { Session } from '@superliora/sdk';
 
 import {
+  countRestoredAttachmentLosses,
   persistPromptInputState,
   queuedMessagesFromSnapshot,
   readPromptInputState,
@@ -13,6 +14,7 @@ import {
   stashEntriesFromSnapshot,
   type PersistablePromptInputState,
 } from '../prompt-input-state-store';
+import { ttui } from './tui-i18n';
 import type { QueuedMessage } from '../types';
 import type { PromptStash } from './prompt-stash';
 
@@ -32,6 +34,8 @@ export interface PromptInputRuntimeHost {
   updateQueueDisplay(): void;
   updateEditorBorderHighlight?(text?: string): void;
   handleInputModeChange?(mode: 'prompt' | 'bash'): void;
+  /** Optional status surface — used only for the attachment-loss warning. */
+  showStatus?(message: string, color?: 'warning' | 'error' | 'info' | 'success'): void;
 }
 
 export function capturePromptInputState(host: PromptInputRuntimeHost): PersistablePromptInputState {
@@ -97,6 +101,12 @@ export async function restorePromptInputState(host: PromptInputRuntimeHost): Pro
   }
 
   host.updateQueueDisplay();
+  const lostAttachments = countRestoredAttachmentLosses(snapshot);
+  if (lostAttachments > 0) {
+    // The queue text survives, but its media/structured parts point at the
+    // dead process's store. Say so before the model sees bare "[Image #1]".
+    host.showStatus?.(ttui('tui.queue.attachmentsLost', { count: lostAttachments }), 'warning');
+  }
   return {
     restoredQueue: messages.length,
     restoredStash: stash.length,

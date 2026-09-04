@@ -443,6 +443,8 @@ export interface QueuedMessage {
   /** `bash` for a `!` shell command queued while another command is running;
    *  undefined (=`prompt`) for a normal message. */
   readonly mode?: 'prompt' | 'bash';
+  /** Set on restore: the original had media/parts that a restart dropped. */
+  readonly hadAttachments?: boolean;
 }
 
 export const INITIAL_LIVE_PANE: LivePaneState = {

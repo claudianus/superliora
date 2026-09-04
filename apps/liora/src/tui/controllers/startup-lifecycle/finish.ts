@@ -95,11 +95,24 @@ export async function finishStartupSession(
   }
   void host.refreshDynamicSlashCommands(host.session);
   host.usageMonitor.start();
+  maybeShowHubIntro(host);
   if (host.options.startup.resumeGoal === true) {
     void resumeGoalFromQueue(host);
   }
 }
 
+/**
+ * First interactive run: open the Command Hub with the intro toast so the
+ * One-search surface (`?` / Ctrl-K) is discovered instead of resting on a
+ * dead config flag. Skipped when another modal owns the dialog slot.
+ */
+function maybeShowHubIntro(host: StartupLifecycleHost): void {
+  const onboarding = host.state.appState.onboarding;
+  if (onboarding?.hubIntroSeen) return;
+  if (host.state.activeDialog !== null) return;
+  if (host.state.startupState !== 'ready') return;
+  host.showCommandHub({ intro: true });
+}
 export async function showSessionWarnings(
   host: StartupLifecycleHost,
   session: Session,

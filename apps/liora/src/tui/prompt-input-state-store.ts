@@ -38,6 +38,13 @@ const queuedMessageSchema = z.object({
   displayText: z.string().max(MAX_TEXT_LENGTH).optional(),
   agentId: z.string().max(200).optional(),
   mode: modeSchema.optional(),
+  /**
+   * True when the in-memory message carried image/media attachments or
+   * structured parts. Those cannot survive a restart (process-local store),
+   * so restore surfaces a warning instead of silently sending placeholder
+   * text like "[Image #1]" without the image.
+   */
+  hadAttachments: z.boolean().optional(),
 });
 
 const stashEntrySchema = z.object({
@@ -77,6 +84,12 @@ export interface PersistablePromptInputState {
 
 const draftTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const writeLocks = new Map<string, Promise<void>>();
+/**
+ * Last full snapshot written per file. The keystroke path persists only the
+ * draft and merges with this at read time, so typing does not re-serialize
+ * the whole queue (up to 200 × 200 KB) every 250 ms.
+ */
+const lastWrittenSnapshots = new Map<string, PromptInputStateSnapshot>();
 
 export function promptInputStatePath(session: PromptInputSession): string | undefined {
   return sessionUiSidecarPath(session, PROMPT_INPUT_STATE_FILE);
@@ -134,6 +147,7 @@ export async function writePromptInputState(
 
   await withWriteLock(filePath, async () => {
     await writeJsonFile(filePath, fileSchema, snapshot);
+    lastWrittenSnapshots.set(filePath, snapshot);
     const legacyPath = promptInputLegacyPath(session);
     if (legacyPath !== undefined) await unlinkIfExists(legacyPath);
   });
@@ -170,7 +184,32 @@ export function schedulePersistPromptInputDraft(
   if (previous !== undefined) clearTimeout(previous);
   const timer = setTimeout(() => {
     draftTimers.delete(filePath);
-    void writePromptInputState(session, state).catch(() => {});
+    // Keystroke path: reuse the queue/stash/lastUserInput from the last full
+    // snapshot instead of re-serializing the live (potentially huge) queue
+    // arrays on every 250 ms pause. `persistPromptInputState` mutates state
+    // between keystrokes and refreshes the cache, so a stale merge window is
+    // limited to a single debounce tick.
+    const base = lastWrittenSnapshots.get(filePath);
+    const draft = state.draft;
+    const draftSerialized =
+      draft === null
+        ? null
+        : draft.text.length === 0
+          ? null
+          : { text: truncate(draft.text), mode: draft.mode };
+    if (base === undefined) {
+      void writePromptInputState(session, state).catch(() => {});
+      return;
+    }
+    const snapshot: PromptInputStateSnapshot = {
+      ...base,
+      updatedAt: new Date().toISOString(),
+      draft: draftSerialized,
+    };
+    void withWriteLock(filePath, async () => {
+      await writeJsonFile(filePath, fileSchema, snapshot);
+      lastWrittenSnapshots.set(filePath, snapshot);
+    }).catch(() => {});
   }, DRAFT_PERSIST_DEBOUNCE_MS);
   draftTimers.set(filePath, timer);
 }
@@ -183,7 +222,13 @@ export function queuedMessagesFromSnapshot(
     ...(item.displayText !== undefined ? { displayText: item.displayText } : {}),
     ...(item.agentId !== undefined ? { agentId: item.agentId } : {}),
     ...(item.mode !== undefined ? { mode: item.mode } : {}),
+    ...(item.hadAttachments === true ? { hadAttachments: true } : {}),
   }));
+}
+
+/** Count of restored queue items whose attachments were lost to the restart. */
+export function countRestoredAttachmentLosses(snapshot: PromptInputStateSnapshot): number {
+  return snapshot.messages.filter((item) => item.hadAttachments === true).length;
 }
 
 export function stashEntriesFromSnapshot(
@@ -206,11 +251,15 @@ function emptySnapshot(): PromptInputStateSnapshot {
 }
 
 function serializeQueuedMessage(item: QueuedMessage): z.infer<typeof queuedMessageSchema> {
+  const hadAttachments =
+    (item.imageAttachmentIds !== undefined && item.imageAttachmentIds.length > 0) ||
+    item.parts !== undefined;
   return {
     text: truncate(item.text),
     ...(item.displayText !== undefined ? { displayText: truncate(item.displayText) } : {}),
     ...(item.agentId !== undefined ? { agentId: item.agentId.slice(0, 200) } : {}),
     ...(item.mode !== undefined ? { mode: item.mode } : {}),
+    ...(hadAttachments ? { hadAttachments: true } : {}),
   };
 }
 

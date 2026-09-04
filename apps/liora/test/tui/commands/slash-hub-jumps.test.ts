@@ -46,5 +46,11 @@ describe('slash hub jumps', () => {
     const matched = filterHubItems(items, 'compct');
     expect(matched.some((item) => item.id === 'slash.compact')).toBe(true);
   });
+
+  it('dedupes a command listed under multiple visibility surfaces', () => {
+    const command = { name: 'memory', description: 'Memory', aliases: [] };
+    const items = buildSlashJumpHubItems([command, { ...command }]);
+    expect(items).toHaveLength(1);
+  });
 });
 

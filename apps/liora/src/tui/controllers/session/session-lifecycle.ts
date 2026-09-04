@@ -164,7 +164,20 @@ export class SessionLifecycleController {
     host.streamingUI.setTodoList([]);
     host.streamingUI.setTurnId(undefined);
     resetGoalSoftAdvisoryLedger(host.state.appState.sessionId);
-    host.setAppState({ mcpServersSummary: null, goalSoftAdvisory: null });
+    // Session-scoped runtime surfaces must not bleed into the next session:
+    // cost, model-failover badge, intervention counters, cache meter, and
+    // TTFT are all owned by the outgoing session until its events arrive.
+    host.setAppState({
+      mcpServersSummary: null,
+      goalSoftAdvisory: null,
+      sessionCostUsd: undefined,
+      lastModelRouteNotice: null,
+      lastProviderRouteSelection: null,
+      interventionCount: 0,
+      staleInterventionCount: 0,
+      cacheMeter: null,
+      lastStepTtft: undefined,
+    });
     host.streamingUI.setStep(0);
     host.streamingUI.resetLiveText();
     host.updateQueueDisplay();

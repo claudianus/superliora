@@ -13,14 +13,20 @@ export function slashNameFromHubId(id: `slash.${string}`): string {
   return id.slice('slash.'.length);
 }
 
-/** Advanced slash + skill commands as Hub searchOnly rows (idle list stays curated). */
+/** Slash + skill commands as Hub searchOnly rows (idle list stays curated). */
 export function buildSlashJumpHubItems(
   commands: readonly LioraSlashCommand[],
   skillNames: ReadonlySet<string> = new Set(),
 ): CommandHubItem[] {
-  return commands.map((command) => {
+  const seen = new Set<string>();
+  const items: CommandHubItem[] = [];
+  for (const command of commands) {
+    // Callers may concat primary/advanced/diagnostics surfaces; keep one row
+    // per command name so the Hub search list never shows duplicates.
+    if (seen.has(command.name)) continue;
+    seen.add(command.name);
     const isSkill = skillNames.has(command.name);
-    return {
+    items.push({
       id: `slash.${command.name}`,
       section: isSkill ? 'Skills' : 'Commands',
       label: `/${command.name}`,
@@ -32,6 +38,7 @@ export function buildSlashJumpHubItems(
         ...(isSkill ? (['skill'] as const) : []),
         ...(command.aliases ?? []),
       ],
-    };
-  });
+    });
+  }
+  return items;
 }

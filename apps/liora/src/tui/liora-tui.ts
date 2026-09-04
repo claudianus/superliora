@@ -309,7 +309,7 @@ export interface LioraTUIHost {
   restoreEditor(): void;
   restoreInputText(text: string): void;
   stashPromptToggle(): void;
-  showHistorySearch(): void;
+  showHistorySearch(initialQuery?: string): void;
   showCommandHub(options?: { readonly initialQuery?: string; readonly intro?: boolean }): void;
   showTranscriptSearch(): void;
   scrollToTranscriptIndex(index: number): void;

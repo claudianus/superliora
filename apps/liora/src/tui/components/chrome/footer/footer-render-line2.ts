@@ -13,6 +13,7 @@ import { workingSetPressure } from '#/tui/utils/agent/context-working-set';
 import {
   contextUsageSeverity,
   formatProviderQuotaFooterBadge,
+  formatSessionCostFooterBadge,
   formatWorkingSetFooterBadge,
   styleFooterBadge,
 } from '#/tui/components/chrome/footer/footer-badges';
@@ -98,6 +99,14 @@ export function renderFooterLine2(input: RenderFooterLine2Input): string {
   );
   if (footerSlotVisible(prefs.quota, quotaBadge !== null, quotaBadge !== null) && quotaBadge !== null) {
     contextParts.push(styleFooterBadge(quotaBadge, appearance));
+  }
+
+  // Persistent spend visibility: the header density segment (CTX/COST) hides
+  // below 100 columns, so the footer badge is the only cost surface on narrow
+  // and split terminals.
+  const costBadge = formatSessionCostFooterBadge(state.sessionCostUsd);
+  if (costBadge !== null) {
+    contextParts.push(styleFooterBadge(costBadge, appearance));
   }
 
   const contextText =

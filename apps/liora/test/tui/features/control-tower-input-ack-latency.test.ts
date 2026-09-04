@@ -25,6 +25,7 @@ import {
   ControlTowerJobDesk,
   type JobDeskEventsHost,
 } from '#/tui/features/control-tower/job-desk-events';
+import { createTerminalState } from '#/tui/utils/terminal/terminal-state';
 
 import { fakeDispatchHost } from './control-tower-fakes';
 
@@ -50,7 +51,14 @@ function makeJobUpdated(overrides: Record<string, unknown> = {}): JobUpdatedEven
 
 function fakeDesk() {
   const host = {
-    state: { appState: {}, jobBoard: undefined },
+    state: {
+      appState: {
+        // Notification gate: disabled so desktop-notify never fires in tests.
+        notifications: { enabled: false, condition: 'unfocused' as const },
+      },
+      jobBoard: undefined,
+      terminalState: createTerminalState(),
+    },
     setAppState: vi.fn(),
     showStatus: vi.fn(),
     showNotice: vi.fn(),

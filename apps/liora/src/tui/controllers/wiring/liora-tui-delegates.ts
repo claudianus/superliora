@@ -421,8 +421,8 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.stashPromptToggle = function () {
     this.dialogs.stashPromptToggle();
   };
-  proto.showHistorySearch = function () {
-    this.dialogs.showHistorySearch();
+  proto.showHistorySearch = function (initialQuery?: string) {
+    this.dialogs.showHistorySearch(initialQuery);
   };
   proto.showCommandHub = function (
     options: { readonly initialQuery?: string; readonly intro?: boolean } = {},

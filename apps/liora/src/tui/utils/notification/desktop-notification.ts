@@ -11,6 +11,7 @@
  */
 
 import { ttui } from '#/tui/utils/tui-i18n';
+import type { TUIState } from '#/tui/tui-state';
 
 let notificationCounter = 0;
 
@@ -18,6 +19,28 @@ export interface DesktopNotification {
   title: string;
   body?: string;
   urgency?: 'low' | 'normal' | 'critical';
+}
+
+/**
+ * Gate a notification on the user's `[notifications]` preference and the
+ * `unfocused` condition. Turn-complete bells and error toasts used to fire
+ * unconditionally, ringing on every turn even after the user disabled
+ * notifications.
+ */
+export function notificationAllowed(state: TUIState | undefined, key: string): boolean {
+  if (state === undefined) return true;
+  // Tolerate partial test/fake states: a missing config object means "no
+  // preference recorded" — keep the notification rather than crash the host.
+  const notifications = state.appState?.notifications;
+  if (notifications === undefined) return true;
+  const { enabled, condition } = notifications;
+  if (!enabled) return false;
+  const terminalState = state.terminalState;
+  if (terminalState === undefined) return enabled;
+  if (terminalState.notificationKeys.has(key)) return false;
+  terminalState.notificationKeys.add(key);
+  if (condition === 'unfocused' && terminalState.focused) return false;
+  return true;
 }
 
 /**
@@ -49,9 +72,16 @@ export function sendDesktopNotification(notification: DesktopNotification): void
 }
 
 /**
- * Notify that the agent turn completed.
+ * Notify that the agent turn completed. Honors the user's notification
+ * preference (`[notifications] enabled` / `condition = unfocused`) and rings
+ * at most once per turn.
  */
-export function notifyTurnComplete(summary?: string): void {
+export function notifyTurnComplete(
+  state?: TUIState,
+  summary?: string,
+  options: { readonly key?: string } = {},
+): void {
+  if (!notificationAllowed(state, options.key ?? `turn-complete:${Date.now()}`)) return;
   ringBell();
   sendDesktopNotification({
     title: ttui('tui.notification.turnComplete.title'),
@@ -61,9 +91,15 @@ export function notifyTurnComplete(summary?: string): void {
 }
 
 /**
- * Notify that the agent encountered an error.
+ * Notify that the agent encountered an error. Same preference gate and
+ * once-per-error-key dedup as `notifyTurnComplete`.
  */
-export function notifyError(message: string): void {
+export function notifyError(
+  message: string,
+  state?: TUIState,
+  options: { readonly key?: string } = {},
+): void {
+  if (!notificationAllowed(state, options.key ?? `error:${Date.now()}`)) return;
   ringBell();
   sendDesktopNotification({
     title: ttui('tui.notification.error.title'),
@@ -88,11 +124,15 @@ export function notifyNeedsAttention(context: string): void {
  * the bell too — job awareness previously depended on the user staring at
  * the footer strip.
  */
-export function notifyJobOutcome(input: {
-  readonly status: 'done' | 'failed' | 'needs_user' | 'blocked';
-  readonly title: string;
-  readonly detail?: string;
-}): void {
+export function notifyJobOutcome(
+  input: {
+    readonly status: 'done' | 'failed' | 'needs_user' | 'blocked';
+    readonly title: string;
+    readonly detail?: string;
+  },
+  state?: TUIState,
+): void {
+  if (!notificationAllowed(state, `job-outcome:${input.status}`)) return;
   ringBell();
   const title =
     input.status === 'done'

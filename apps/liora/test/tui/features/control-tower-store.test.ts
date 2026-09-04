@@ -17,6 +17,7 @@ import type { JobInboxEvent, JobUpdatedEvent } from '@superliora/protocol';
 import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import { ControlTowerJobDesk } from '#/tui/features/control-tower/job-desk-events';
 import { JobBoardStore } from '#/tui/features/control-tower/job-board-store';
+import { createTerminalState } from '#/tui/utils/terminal/terminal-state';
 import type { AppState } from '#/tui/types';
 
 function jobUpdated(
@@ -207,7 +208,14 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
   function fakeDeskHost() {
     const appStatePatch: Partial<AppState>[] = [];
     const host = {
-      state: { appState: {} as AppState, jobBoard: undefined as unknown },
+      state: {
+        appState: {
+          notifications: { enabled: false, condition: 'unfocused' as const },
+        } as AppState,
+        jobBoard: undefined as unknown,
+        // Notification-gate surface: disabled so desktop-notify never fires.
+        terminalState: createTerminalState(),
+      },
       setAppState: vi.fn((patch: Partial<AppState>) => {
         appStatePatch.push(patch);
       }),

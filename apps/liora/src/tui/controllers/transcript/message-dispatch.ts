@@ -2,6 +2,7 @@ import type { LioraHarness, PromptPart, Session } from '@superliora/sdk';
 
 import {  LLM_NOT_SET_MESSAGE, MAIN_AGENT_ID } from '../../constant/liora-tui';
 import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
+import { slashBusyMessage } from '../../commands/hub/resolve';
 import type { ColorToken } from '../../theme';
 import type { AppState, QueuedMessage, TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
@@ -126,7 +127,12 @@ export class MessageDispatchController {
       host.showError(ttui('tui.retry.none'));
       return;
     }
-    if (host.state.appState.streamingPhase !== 'idle') return;
+    if (host.state.appState.streamingPhase !== 'idle') {
+      // Same guidance the slash dispatcher gives for idle-only commands; a
+      // silent no-op reads as a broken button from the Hub.
+      host.showError(slashBusyMessage('retry', 'streaming'));
+      return;
+    }
     this.lastTurnFailed = false;
     host.showStatus(ttui('tui.retry.resending'), 'primary');
     this.sendMessageInternal(session, host.lastUserInput);
@@ -354,6 +360,12 @@ export class MessageDispatchController {
     void session.steer(input.join('\n\n')).catch((error: unknown) => {
       const message = formatErrorMessage(error);
       host.showError(ttui('tui.transcript.steerFailed', { message }));
+      // The queue-drain removed these parts before steer() ran; restore them
+      // so a failed steer (network drop, engine error) doesn't eat the text.
+      for (const part of input) {
+        this.enqueueMessage(part);
+      }
+      host.updateQueueDisplay();
     });
   }
 

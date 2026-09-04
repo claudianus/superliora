@@ -14,10 +14,12 @@ import {
    CTRL_D_HINT,
   DOUBLE_ESC_WINDOW_MS,
   EXIT_CONFIRM_WINDOW_MS,
+  LARGE_PASTE_CONFIRM_WINDOW_MS,
+  LARGE_PASTE_WARN_CHARS,
    LLM_NOT_SET_MESSAGE,
    NO_ACTIVE_SESSION_MESSAGE,
 } from '../../constant/liora-tui';
-import { primaryChord, shortcutHint } from '../../utils/os-shortcuts';
+import { primaryChord } from '../../utils/os-shortcuts';
 import { formatErrorMessage } from '../../utils/event-payload';
 import {
   flushPromptInputState,
@@ -63,7 +65,7 @@ export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   stop(exitCode?: number): Promise<void>;
   handleInputModeChange(mode: 'prompt' | 'bash'): void;
   clearQueuedMessages(): void;
-  showHistorySearch(): void;
+  showHistorySearch(initialQuery?: string): void;
   showCommandHub(): void;
   showTranscriptSearch(): void;
   stashPromptToggle(): void;
@@ -258,24 +260,18 @@ export class EditorKeyboardController {
       const text = editor.getText().trim();
       const editorIsBash = editor.inputMode === 'bash';
 
-      // Bash commands (`! …`) are not steerable: keep them queued so they run
-      // after the current task instead of being injected into the turn as text.
-      const queued = host.state.queuedMessages;
-      const steerable = queued.filter((m) => m.mode !== 'bash');
-      host.state.queuedMessages = queued.filter((m) => m.mode === 'bash');
-
+      // Steer only what the editor shows. The old behavior swept the entire
+      // queued-message buffer into one interjection, silently consuming
+      // follow-ups the user had queued for after the turn; the queue hint
+      // never said Ctrl-S would eat the whole queue.
       const parts: string[] = [];
-      for (const m of steerable) {
-        const trimmed = m.text.trim();
-        if (trimmed.length > 0) parts.push(trimmed);
-      }
       if (!editorIsBash && text.length > 0) parts.push(text);
 
       if (parts.length === 0) {
         host.state.toast.show(`Type a steer message first, then ${primaryChord('S')}`, 2200);
         return;
       }
-      if (!editorIsBash) editor.setText('');
+      editor.setText('');
       const session = host.session;
       if (host.state.appState.model.trim().length === 0 || session === undefined) {
         host.showError(LLM_NOT_SET_MESSAGE());
@@ -350,7 +346,12 @@ export class EditorKeyboardController {
     editor.onUpArrowEmpty = () => {
       const recalled = host.messageDispatch.recallLastQueued();
       if (recalled !== undefined) {
-        editor.setText(recalled.displayText ?? recalled.text);
+        const text = recalled.displayText ?? recalled.text;
+        // The recall pops the item off the durable queue; without this
+        // backup, clearing the editor afterwards destroyed the message
+        // permanently. Stash keeps it recoverable via Ctrl-X.
+        host.promptStash.push({ text, mode: recalled.mode ?? 'prompt' });
+        editor.setText(text);
         // Restore the queued item's mode so a recalled `!` command runs as a
         // shell command again instead of being submitted as a normal prompt.
         const mode = recalled.mode ?? 'prompt';
@@ -380,12 +381,12 @@ export class EditorKeyboardController {
     editor.onPasteText = (text) => this.handleDroppedMediaPaste(text);
 
     editor.onHistorySearch = () => {
-      if (editor.getText().length > 0) {
-        host.state.toast.show(shortcutHint('tui.history.searchToast'), 2200);
-        return;
-      }
-      if (host.state.appState.streamingPhase !== 'idle') {
-        host.state.toast.show(shortcutHint('tui.history.waitToast'), 2200);
+      // History search is a pure local dialog (reads the history file, edits
+      // the editor); it never touches the session, so it stays usable while a
+      // turn runs. Seed the query with the current draft instead of refusing.
+      const draft = editor.getText();
+      if (draft.length > 0) {
+        host.showHistorySearch(draft);
         return;
       }
       host.showHistorySearch();
@@ -461,10 +462,19 @@ export class EditorKeyboardController {
     requestTUILayoutRender(this.host.state);
   }
 
+  /**
+   * Clear the editor while preserving the draft. The old behavior destroyed
+   * the text silently: a reflexive Ctrl-C mid-turn lost a long draft with no
+   * toast and no Ctrl-X restore path. Stash parity keeps it recoverable.
+   */
   private clearEditorTextIfPresent(): boolean {
     const editor = this.host.state.editor;
-    if (editor.getText().length === 0) return false;
+    const text = editor.getText();
+    if (text.length === 0) return false;
+    this.host.promptStash.push({ text, mode: editor.inputMode });
     editor.setText('');
+    this.host.state.toast.show(ttui('tui.editor.draftClearedStashed'), 2200);
+    flushPromptInputState(this.host);
     return true;
   }
 
@@ -571,7 +581,35 @@ export class EditorKeyboardController {
    * arrives as empty or non-path text. Probe the OS clipboard first so those
    * pastes attach the same way as Ctrl/Cmd+V.
    */
+  /**
+   * Large-paste guard (D2). A paste above {@link LARGE_PASTE_WARN_CHARS} no
+   * longer inserts silently: the first paste shows a size-aware confirm
+   * toast and is claimed; pasting again (or after the confirm window) is
+   * treated as deliberate and inserts. Prevents both the editor freeze from
+   * giant logs and the accidental model send of a whole file.
+   */
+  private guardLargePaste(text: string): boolean {
+    if (text.length <= LARGE_PASTE_WARN_CHARS) return false;
+    const now = Date.now();
+    const withinConfirm = this.largePasteConfirmedAt !== undefined &&
+      now - this.largePasteConfirmedAt < LARGE_PASTE_CONFIRM_WINDOW_MS;
+    if (withinConfirm) {
+      this.largePasteConfirmedAt = undefined;
+      return false;
+    }
+    this.largePasteConfirmedAt = now;
+    const lines = text.split('\n').length;
+    this.host.state.toast.show(
+      ttui('tui.editor.largePaste', { size: formatBytes(text.length), count: lines }),
+      4200,
+    );
+    return true;
+  }
+
+  private largePasteConfirmedAt: number | undefined;
+
   private handleDroppedMediaPaste(text: string): boolean {
+    if (this.guardLargePaste(text)) return true;
     const paths = parseDroppedFilePaths(text);
     if (paths === null || paths.length === 0) {
       if (text.trim().length > 0) return false;

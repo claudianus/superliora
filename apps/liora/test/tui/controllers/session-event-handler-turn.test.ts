@@ -15,6 +15,9 @@ function makeHost() {
         permissionMode: 'auto',
         planMode: false,
         askMode: false,
+        // Notification gate: disabled so turn-complete bell/toast paths never
+        // touch stdout from inside tests.
+        notifications: { enabled: false, condition: 'always' as const },
       },
       queuedMessages: [],
       theme: { palette: getBuiltInPalette('dark') },

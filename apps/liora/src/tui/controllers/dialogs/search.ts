@@ -11,12 +11,20 @@ import type { ModalShellDelegate } from './modal-shell';
 import { mountEditorReplacement, restoreEditor } from './modal-shell';
 import type { DialogsHost } from './types';
 
-export function showHistorySearch(host: DialogsHost, shell: ModalShellDelegate): void {
+export function showHistorySearch(
+  host: DialogsHost,
+  shell: ModalShellDelegate,
+  initialQuery?: string,
+): void {
   if (host.state.activeDialog !== null && host.state.activeDialog !== 'center-modal') return;
-  void openHistorySearch(host, shell);
+  void openHistorySearch(host, shell, initialQuery);
 }
 
-export async function openHistorySearch(host: DialogsHost, shell: ModalShellDelegate): Promise<void> {
+export async function openHistorySearch(
+  host: DialogsHost,
+  shell: ModalShellDelegate,
+  initialQuery?: string,
+): Promise<void> {
   let entries: { content: string }[] = [];
   try {
     entries = await loadInputHistory(getInputHistoryFile(host.state.appState.workDir));
@@ -27,6 +35,7 @@ export async function openHistorySearch(host: DialogsHost, shell: ModalShellDele
   const items = [...new Set(entries.map((e) => e.content))].toReversed();
   const dialog = new HistorySearchDialogComponent({
     items,
+    initialQuery,
     onSelect: (text) => {
       restoreEditor(host);
       host.state.editor.setText(text);

@@ -114,7 +114,7 @@ export class SessionEventTurn {
     this.coordination.scheduleQueuedGoalPromotion();
     // Desktop notification on successful turn completion
     if (event.reason !== 'cancelled' && event.reason !== 'filtered') {
-      notifyTurnComplete();
+      notifyTurnComplete(this.host.state, undefined, { key: `turn-complete:${event.turnId}` });
     }
   }
 
@@ -195,7 +195,13 @@ export class SessionEventTurn {
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.finalizeLiveTextBuffers('idle');
     const reason = event.reason;
-    if (reason === 'error') return;
+    if (reason === 'error') {
+      // A paired `error` event normally carries the message; when it is
+      // missing or filtered, the stream would just die mid-tool with the
+      // phase stuck non-idle and zero feedback. Show a fallback cue.
+      this.host.showStatus(ttui('tui.step.interruptedByError'), 'error');
+      return;
+    }
     if (reason === 'aborted' || reason === undefined || reason === '') {
       const userCancelled = event.cancelledByUser === true;
       const programmaticAbort = event.cancelledByUser === false;

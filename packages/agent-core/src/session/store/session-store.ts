@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'pathe';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import type { SessionIndexEntry } from '#/session/store/session-index';
 import {
+  isSessionIndexEmpty,
   readSessionIndex,
   upsertSessionIndexEntry,
   writeSessionIndexSnapshot,
@@ -19,6 +20,7 @@ import {
   isDirectory,
   isSafeSessionId,
   latestAgentWireMtime,
+  latestRecordedAgentWireMtime,
   metadataFromState,
   normalizeForkTitle,
   normalizeOptionalSessionId,
@@ -28,6 +30,7 @@ import {
   statIfExists,
   timestampOrFallback,
   titleFromState,
+  type SessionSummaryState,
 } from '#/session/store/session-store-helpers';
 import { readRequiredSessionState, writeSessionStateFile } from '#/session/store/session-state-io';
 
@@ -134,10 +137,13 @@ export class SessionStore {
     }
     const entry = await this.findExistingSessionEntry(id);
     const parsed = await readRequiredSessionState(entry.sessionDir, id);
+    // Stamp activity so a rename re-orders the session list like every other
+    // metadata mutation (archive already did; rename silently did not).
     await writeSessionStateFile(join(entry.sessionDir, 'state.json'), {
       ...parsed,
       title: normalized,
       isCustomTitle: true,
+      updatedAt: new Date().toISOString(),
     });
   }
 
@@ -283,7 +289,10 @@ export class SessionStore {
       const id = entry.name;
       if (!isSafeSessionId(id)) continue;
       const dir = join(bucketDir, id);
-      const summary = await this.summaryFromDir(id, dir, workDir);
+      // A single unreadable session directory (AV lock, EPERM, junction
+      // removed mid-scan) must not poison the listing of every other session.
+      const summary = await this.trySummaryFromDir(id, dir, workDir);
+      if (summary === undefined) continue;
       if (!includeArchive && summary.archived === true) continue;
       sessions.push(summary);
     }
@@ -308,11 +317,28 @@ export class SessionStore {
   }
 
   private async listAll(includeArchive: boolean): Promise<readonly SessionSummary[]> {
-    const index = await readSessionIndex(this.homeDir, this.sessionsDir);
+    let index = await readSessionIndex(this.homeDir, this.sessionsDir);
+    if (index.size === 0 && (await isSessionIndexEmpty(this.homeDir))) {
+      // Self-healing scan: an index lost to a crash (or a fresh home with
+      // on-disk sessions from another tool) must not hide every session.
+      try {
+        await this.reindex();
+        index = await readSessionIndex(this.homeDir, this.sessionsDir);
+      } catch {
+        // Best-effort: fall through with whatever the index had.
+      }
+    }
     const sessions: SessionSummary[] = [];
     for (const entry of index.values()) {
       if (!(await isDirectory(entry.sessionDir))) continue;
-      const summary = await this.summaryFromDir(entry.sessionId, entry.sessionDir, entry.workDir);
+      // Same resilience rule as listWorkDir: skip unreadable entries instead
+      // of failing the whole listing.
+      const summary = await this.trySummaryFromDir(
+        entry.sessionId,
+        entry.sessionDir,
+        entry.workDir,
+      );
+      if (summary === undefined) continue;
       if (!includeArchive && summary.archived === true) continue;
       sessions.push(summary);
     }
@@ -385,14 +411,19 @@ export class SessionStore {
     const [stateInfo, wireInfo, agentsWireMtime] = await Promise.all([
       statIfExists(join(sessionDir, 'state.json')),
       statIfExists(join(sessionDir, 'wire.jsonl')),
-      latestAgentWireMtime(sessionDir),
+      latestRecordedAgentWireMtime(sessionDir, state),
     ]);
+    // Prefer the persisted activity stamp: filesystem mtimes lie on network
+    // drives (birthtimeMs = 0) and root-homedir layouts, which previously made
+    // `updatedAt` tie with `createdAt` and fall through to id-string ordering.
+    const stateUpdatedAt = parseStateUpdatedAtMs(state);
     return {
       id,
       workDir: state?.workDir ?? workDir,
       sessionDir,
       createdAt: timestampOrFallback(dirStat.birthtimeMs, dirStat.ctimeMs),
       updatedAt: Math.max(
+        stateUpdatedAt ?? 0,
         dirStat.mtimeMs,
         stateInfo?.mtimeMs ?? 0,
         wireInfo?.mtimeMs ?? 0,
@@ -404,4 +435,28 @@ export class SessionStore {
       metadata: metadataFromState(state),
     };
   }
+
+  /**
+   * `summaryFromDir` for listing contexts: an unreadable directory (AV lock,
+   * EPERM, mid-scan removal) skips the entry instead of aborting the entire
+   * listing and hiding every other session from the picker.
+   */
+  private async trySummaryFromDir(
+    id: string,
+    sessionDir: string,
+    workDir: string,
+  ): Promise<SessionSummary | undefined> {
+    try {
+      return await this.summaryFromDir(id, sessionDir, workDir);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+function parseStateUpdatedAtMs(state: SessionSummaryState | undefined): number | undefined {
+  const raw = state?.updatedAt;
+  if (typeof raw !== 'string' || raw.length === 0) return undefined;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : undefined;
 }

@@ -188,6 +188,25 @@ export function formatWorkingSetFooterBadge(
   return { text, severity };
 }
 
+/**
+ * Session cost badge for the footer (`COST $0.42`). The header density
+ * segment hides below 100 columns, so narrow/split terminals previously had
+ * no persistent cost display at all — the footer badge keeps spend visible
+ * where the header cannot.
+ */
+export function formatSessionCostFooterBadge(
+  sessionCostUsd: number | undefined,
+): FooterBadge | null {
+  if (typeof sessionCostUsd !== 'number' || !(sessionCostUsd > 0)) return null;
+  const usd =
+    sessionCostUsd < 0.01
+      ? `$${sessionCostUsd.toFixed(4)}`
+      : sessionCostUsd < 1
+        ? `$${sessionCostUsd.toFixed(3)}`
+        : `$${sessionCostUsd.toFixed(2)}`;
+  return { text: `COST ≈${usd}`, severity: 'muted' };
+}
+
 function pickActiveQuotaSnapshot(
   quota: AllProvidersUsageSnapshot,
   activeProviderKey: string | undefined,

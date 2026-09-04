@@ -7,7 +7,7 @@ import {
   openSync,
 } from 'node:fs';
 import { existsSync } from 'node:fs';
-import { mkdir, open, rename, unlink } from 'node:fs/promises';
+import { mkdir, open, rename, truncate, unlink } from 'node:fs/promises';
 import { dirname } from 'pathe';
 import { createGunzip } from 'node:zlib';
 import type { Readable } from 'node:stream';
@@ -170,8 +170,17 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
     return raw;
   }
 
+  /**
+   * Set when `read()` stopped at a corrupt mid-file line (recovery mode):
+   * every record after the seam is treated as lost. Consumers surface this as
+   * a resume warning. The wire is truncated at the seam before any new append
+   * so the journal cannot grow a permanent garbage seam mid-file.
+   */
+  readCorruption: { readonly lineNumber: number; readonly truncateBytes: number } | undefined;
+
   async *read(): AsyncIterable<AgentRecord> {
     await this.flush();
+    this.readCorruption = undefined;
 
     // Binary chunks + Buffer.indexOf avoid V8 string rope flatten/OOM on
     // large sessions (`line += chunk` + StringIndexOf was a common crash).
@@ -181,6 +190,7 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
     let partsBytes = 0;
     let lineNumber = 0;
     let yielded = 0;
+    let consumedBytes = 0;
     const resolved = await this.resolveReadablePath();
     if (!resolved) return;
     const stream = this.openReadStream(resolved);
@@ -214,26 +224,45 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
             partsBytes += segment.length;
           }
           const lineBuf = takeLine();
+          const corruptAt = consumedBytes + partsBytes;
           parts.length = 0;
           partsBytes = 0;
+          consumedBytes = corruptAt + 1;
           lineNumber++;
           let rawLine = lineBuf.toString('utf8');
           if (rawLine.endsWith('\r')) rawLine = rawLine.slice(0, -1);
-          const record = parseRecordLine(rawLine, lineNumber, this.filePath, false);
-          if (record !== undefined) {
-            yielded++;
-            yield record;
+          if (rawLine.length === 0) continue;
+          // A corrupt (non-trailing) line used to throw out of replay() and
+          // brick the session forever. Records before the seam are intact —
+          // recover them, record the seam, and stop reading past it.
+          let record: AgentRecord | undefined;
+          try {
+            record = parseRecordLine(rawLine, lineNumber, this.filePath, false);
+          } catch {
+            record = undefined;
           }
+          if (record === undefined) {
+            this.readCorruption = { lineNumber, truncateBytes: corruptAt };
+            break;
+          }
+          yielded++;
+          yield record;
           offset = newlineIndex + 1;
         }
+        if (this.readCorruption !== undefined) break;
       }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') return;
       throw error;
+    } finally {
+      // Recovery mode breaks out of the read loop early; destroy the stream so
+      // the underlying fd does not stay open past the seam. On the normal path
+      // the `for await` has already fully drained and closed it.
+      if (this.readCorruption !== undefined) stream.destroy();
     }
 
-    if (partsBytes > 0) {
+    if (partsBytes > 0 && this.readCorruption === undefined) {
       lineNumber++;
       if (partsBytes > MAX_WIRE_LINE_BYTES) {
         throw oversizeError(lineNumber);
@@ -244,6 +273,13 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
         yielded++;
         yield record;
       }
+    }
+
+    if (this.readCorruption !== undefined) {
+      // Recovery mode: drop everything past the seam so the append offset
+      // stays consistent with the readable prefix.
+      const seam = this.readCorruption.truncateBytes;
+      await truncate(this.appendPath, seam).catch(() => {});
     }
 
     // Seed the committed offset from the records just read, so a freshly
