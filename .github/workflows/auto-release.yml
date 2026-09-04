@@ -90,7 +90,11 @@ jobs:
           set -euo pipefail
           git config user.name "SuperLiora"
           git config user.email "superliora@localhost"
-          body="$(awk '/^## '"$VERSION"'$/{flag=1;next}/^## [0-9]/{flag=0}flag' apps/liora/CHANGELOG.md | grep '^- ' | head -5)"
+          # `head -5` closes the pipe after 5 lines, so grep gets SIGPIPE and
+          # pipefail turns that into a job failure. Read the section first,
+          # then slice.
+          section="$(awk '/^## '"$VERSION"'$/{flag=1;next}/^## [0-9]/{flag=0}flag' apps/liora/CHANGELOG.md)"
+          body="$(printf '%s\n' "$section" | grep '^- ' | head -5 || true)"
           git add -A
           if [ -n "$body" ]; then
             git commit -m "chore(liora): release $VERSION" -m "$body"
