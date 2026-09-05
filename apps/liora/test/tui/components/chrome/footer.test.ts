@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { contextUsageSeverity, FooterComponent } from '#/tui/components/chrome/footer/footer';
+import {
+  setTipRotationSeedForTests,
+  tipsForIndex,
+} from '#/tui/components/chrome/footer/footer-tips';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import type { AppState } from '#/tui/types';
 import {
@@ -42,6 +46,18 @@ const appState: AppState = {
   availableProviders: {},
   mcpServersSummary: null,
 };
+
+/** Pick a rotation seed where consecutive 10s slots show different tip text. Returns previous seed. */
+function pinDistinctTipRotationSeed(): number {
+  let base = 0;
+  while (base < 256 && tipsForIndex(base).primary === tipsForIndex(base + 1).primary) {
+    base += 1;
+  }
+  if (base >= 256) {
+    throw new Error('no tip rotation seed with distinct consecutive slots');
+  }
+  return setTipRotationSeedForTests(base);
+}
 
 describe('FooterComponent', () => {
   const previousChalkLevel = chalk.level;
@@ -302,6 +318,7 @@ describe('FooterComponent tip crossfade', () => {
     NO_COLOR: process.env['NO_COLOR'],
     GITHUB_ACTIONS: process.env['GITHUB_ACTIONS'],
   };
+  let previousRotationSeed = 0;
 
   beforeEach(() => {
     process.env['TERM'] = 'xterm-256color';
@@ -323,9 +340,14 @@ describe('FooterComponent tip crossfade', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
     advanceAppearanceAnimationClock(Date.now());
+    // High-priority tips can land back-to-back in the weighted rotation. Pin a
+    // seed where consecutive 10s slots show different tip text so typewriter
+    // assertions are deterministic (CI #3848 flake at line 385).
+    previousRotationSeed = pinDistinctTipRotationSeed();
   });
 
   afterEach(() => {
+    setTipRotationSeedForTests(previousRotationSeed);
     vi.useRealTimers();
     setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
     for (const [key, value] of Object.entries(previous)) {

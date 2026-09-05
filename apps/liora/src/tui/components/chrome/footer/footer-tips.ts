@@ -43,8 +43,19 @@ const ROTATION: readonly ToolbarTip[] = buildWeightedTips(ALL_TIPS);
  * Per-session starting offset so two sessions do not open on the same tip.
  * Picked once at module load; the wall clock seeds variety here and never
  * advances the rotation itself (see `tipRotationIndex`).
+ *
+ * Mutable so tests can pin a seed where consecutive rotation slots differ —
+ * high-priority tips (e.g. menuHub) can otherwise land back-to-back and make
+ * tip-crossfade assertions flake.
  */
-const ROTATION_SEED = Math.floor(Date.now() / TIP_ROTATE_INTERVAL_MS);
+let rotationSeed = Math.floor(Date.now() / TIP_ROTATE_INTERVAL_MS);
+
+/** Pin the tip rotation seed (tests only). Returns the previous seed for restore. */
+export function setTipRotationSeedForTests(seed: number): number {
+  const previous = rotationSeed;
+  rotationSeed = Math.trunc(seed);
+  return previous;
+}
 
 /**
  * Rotation counter for the shared motion clock (PREMIUM.md §7.1).
@@ -55,7 +66,7 @@ const ROTATION_SEED = Math.floor(Date.now() / TIP_ROTATE_INTERVAL_MS);
  * on unstable transports.
  */
 export function tipRotationIndex(nowMs: number = appearanceAnimationNow()): number {
-  return ROTATION_SEED + Math.floor(Math.max(0, nowMs) / TIP_ROTATE_INTERVAL_MS);
+  return rotationSeed + Math.floor(Math.max(0, nowMs) / TIP_ROTATE_INTERVAL_MS);
 }
 
 /**
