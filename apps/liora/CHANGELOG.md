@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.24.1
+
+### Patch Changes
+
+- Make footer tip rotation seed injectable in tests so weighted tip crossfade assertions stay deterministic when high-priority tips land back-to-back.
+
 ## 0.24.0
 
 ### Minor Changes
