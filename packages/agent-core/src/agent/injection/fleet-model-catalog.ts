@@ -131,6 +131,7 @@ function fitHint(model: ModelMetadata): string {
 
 export class FleetModelCatalogInjector extends DynamicInjector {
   protected override readonly injectionVariant = FLEET_MODEL_CATALOG_VARIANT;
+  protected override dedupeIdenticalBatchContent = true;
 
   protected override async getInjection(): Promise<string | undefined> {
     if (this.agent.type !== 'main') return undefined;

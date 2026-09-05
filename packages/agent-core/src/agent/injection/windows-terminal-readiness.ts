@@ -53,6 +53,7 @@ export function renderWindowsTerminalReadiness(
 
 export class WindowsTerminalReadinessInjector extends DynamicInjector {
   protected override readonly injectionVariant = WINDOWS_TERMINAL_READINESS_VARIANT;
+  protected override dedupeIdenticalBatchContent = true;
 
   protected override getInjection(): string | undefined {
     if (this.agent.type !== 'main') return undefined;

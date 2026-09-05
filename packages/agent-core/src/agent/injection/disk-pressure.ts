@@ -10,6 +10,7 @@ export const DISK_PRESSURE_VARIANT = 'disk_pressure';
 
 export class DiskPressureInjector extends DynamicInjector {
   protected override readonly injectionVariant = DISK_PRESSURE_VARIANT;
+  protected override dedupeIdenticalBatchContent = true;
 
   protected override getInjection(): string | undefined {
     const current = getDiskPressureSnapshot();

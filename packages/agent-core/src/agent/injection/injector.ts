@@ -2,11 +2,24 @@ import type { Agent } from '..';
 
 export abstract class DynamicInjector {
   protected injectedAt: number | null = null;
+  private lastBatchContent: string | null = null;
+
+  /**
+   * Opt-in for cadence-free injectors whose content is a pure function of
+   * state (capability banners, readiness cards): while the previously
+   * injected copy is still live in the append-only history and the content
+   * is byte-identical, the batch collector drops the re-send instead of
+   * re-billing the same tail tokens on every step. Injectors with their own
+   * refresh cadence (plan/ask/premium-quality sparse checkpoints) keep
+   * control and must not enable this.
+   */
+  protected dedupeIdenticalBatchContent = false;
 
   constructor(protected readonly agent: Agent) {}
 
   onContextClear(): void {
     this.injectedAt = null;
+    this.lastBatchContent = null;
   }
 
   onContextCompacted(compactedCount: number, keptHeadCount: number = 0): void {
@@ -51,7 +64,16 @@ export abstract class DynamicInjector {
    */
   async collectForBatch(): Promise<string | undefined> {
     const injection = await this.getInjection();
-    return injection ?? undefined;
+    if (injection === undefined) return undefined;
+    if (this.dedupeIdenticalBatchContent) {
+      // Skip only while the live anchor proves the identical copy is still in
+      // history; compaction or removal nulls the anchor and re-triggers it.
+      if (this.injectedAt !== null && injection === this.lastBatchContent) {
+        return undefined;
+      }
+      this.lastBatchContent = injection;
+    }
+    return injection;
   }
 
   /** Mark this injector as having participated in a batch append at `index`. */
