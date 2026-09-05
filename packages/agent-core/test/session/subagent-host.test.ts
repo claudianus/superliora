@@ -3200,7 +3200,9 @@ describe('resolvePlanDeskDeadlineMs', () => {
     expect(resolveJobWorkerRemainingTimeoutMs('implement', undefined, now)).toBe(
       DEFAULT_SUBAGENT_TIMEOUT_MS,
     );
-    // Fully spent → exhausted 1ms, never 0 (0 is the env kill-switch).
+    // Fully spent → remaining still reports the exhausted 1ms sentinel,
+    // never 0 (0 is the env kill-switch). The launch path re-grants a fresh
+    // kind budget there — pinned by the spent-resume test below.
     expect(
       resolveJobWorkerRemainingTimeoutMs(
         'implement',
@@ -3209,22 +3211,14 @@ describe('resolvePlanDeskDeadlineMs', () => {
       ),
     ).toBe(EXHAUSTED_JOB_WORKER_TIMEOUT_MS);
     expect(EXHAUSTED_JOB_WORKER_TIMEOUT_MS).toBeGreaterThan(0);
+    // Launch path still inherits partially spent wall-clock (no reset).
     expect(
       resolveJobWorkerLaunchTimeoutMs(
         'implement',
         new Date(started).toISOString(),
-        started + DEFAULT_SUBAGENT_TIMEOUT_MS + 60_000,
+        now,
       ),
-    ).toBe(EXHAUSTED_JOB_WORKER_TIMEOUT_MS);
-    expect(
-      resolveSubagentDeadlineMs(
-        resolveJobWorkerLaunchTimeoutMs(
-          'implement',
-          new Date(started).toISOString(),
-          started + DEFAULT_SUBAGENT_TIMEOUT_MS + 60_000,
-        ),
-      ),
-    ).toBe(EXHAUSTED_JOB_WORKER_TIMEOUT_MS);
+    ).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS - 10 * 60 * 1000);
   });
 });
 
@@ -3233,20 +3227,44 @@ describe('runWithActiveChild exhausted remaining', () => {
     delete process.env[SUBAGENT_DEADLINE_ENV];
   });
 
-  it('does not treat launch timeoutMs from spent remaining as the env kill-switch', () => {
+  it('re-grants the full kind budget on a spent resume instead of a stillborn 1ms launch timeout', () => {
     delete process.env[SUBAGENT_DEADLINE_ENV];
+    delete process.env[PLAN_DESK_DEADLINE_ENV];
     const started = new Date('2026-08-15T00:00:00.000Z').getTime();
+    const spentNow = started + DEFAULT_SUBAGENT_TIMEOUT_MS + 1;
     const launchTimeoutMs = resolveJobWorkerLaunchTimeoutMs(
       'implement',
       new Date(started).toISOString(),
-      started + DEFAULT_SUBAGENT_TIMEOUT_MS + 1,
+      spentNow,
     );
-    expect(launchTimeoutMs).toBe(EXHAUSTED_JOB_WORKER_TIMEOUT_MS);
+    // A resume whose inherited wall-clock is spent must relaunch with a
+    // fresh runnable budget — not the 1ms exhausted sentinel, which aborts
+    // the worker before its first turn ("timed out after 1s — aborted by
+    // the 1ms wall-clock deadline").
+    expect(launchTimeoutMs).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS);
     expect(launchTimeoutMs).not.toBe(0);
+    expect(launchTimeoutMs).not.toBe(EXHAUSTED_JOB_WORKER_TIMEOUT_MS);
     // Env kill-switch is still 0 and still disables the deadline.
     expect(resolveSubagentDeadlineMs(0)).toBe(0);
-    // Spent remaining must arm a positive timer.
+    // The re-granted budget arms a positive timer.
     expect(resolveSubagentDeadlineMs(launchTimeoutMs)).toBeGreaterThan(0);
+    // The re-grant honors the kind budget — each kind against its own
+    // spent clock (the implement spentNow above does not exhaust the
+    // longer mission budget, so partially spent wall-clock still inherits).
+    expect(
+      resolveJobWorkerLaunchTimeoutMs(
+        'mission',
+        new Date(started).toISOString(),
+        started + DEFAULT_PLAN_DESK_DEADLINE_MS + 1,
+      ),
+    ).toBe(DEFAULT_PLAN_DESK_DEADLINE_MS);
+    expect(
+      resolveJobWorkerLaunchTimeoutMs(
+        'explore',
+        new Date(started).toISOString(),
+        started + DEFAULT_EXPLORE_DEADLINE_MS + 1,
+      ),
+    ).toBe(DEFAULT_EXPLORE_DEADLINE_MS);
   });
 
   it('aborts a wedged child immediately when remaining budget is exhausted (not unlimited)', async () => {
