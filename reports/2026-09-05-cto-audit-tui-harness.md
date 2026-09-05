@@ -96,7 +96,7 @@
 ### (e) 기타 회수된 버그/개선점 (로그·insights 기반)
 
 1. **APIEmptyResponseError 처리**: thinking-only 응답(finishReason=truncated)을 일반 실패로 처리해 재시도만 반복 — thinking 파트만 있으면 텍스트 재요청 또는 모델 전환으로 즉시 대응. 로그: `01:02:41 … APIEmptyResponseError errorMessage="Th…"`, `02:19:48 ERROR turn failed … agentId=agent-1`.
-2. **JobCreate 명시 별칭 실패 시 omit-alias 재시도 규칙**: 명시적 `model_alias` 프로브 실패("No live catalog aliases remain — omit model_alias for harness role pick") 직후 별칭 생략 재시도로 성공한 사례 존재 — 자동 폴백으로 만들 가치.
+2. **JobCreate 명시 별칭 실패 시 omit-alias 재시도 규칙**: 명시적 `model_alias` 프로브 실패(`No live catalog aliases remain — omit model_alias for harness role pick`) 직후 별칭 생략 재시도로 성공한 사례 존재 — 자동 폴백으로 만들 가치.
 3. **컨텍스트/토큰 폭주**: 감사 세션 하나가 250만 토큰/53+ 도구 호출을 소모(체크포인트 기록). 장기 세션에서 idle pulse·시스템 리마인더가 컨텍스트를 지속적으로 잠식 — 재개 세션에는 "추출물만 읽기" 모드의 경량 프롬프트가 필요.
 4. **워크스페이스 분리 추정**: 감사 중 발견된 `session_ba60897a`(8/27~8/31)는 agents/만 있고 logs/가 없는 반쪽 세션 — 세션 상태 파일 무결성 검사 후롤 필요.
 5. **`context.rollback_attempt` 3회 / `turn.cancel` 1회**: 롤백·취소 경로의 안정성 재검토 대상(빈도 낮으나 무음 손실 위험).
