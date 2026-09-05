@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { contextUsageSeverity, FooterComponent } from '#/tui/components/chrome/footer/footer';
+import {
+  setTipRotationSeedForTests,
+  tipsForIndex,
+} from '#/tui/components/chrome/footer/footer-tips';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import type { AppState } from '#/tui/types';
 import {
@@ -323,6 +327,15 @@ describe('FooterComponent tip crossfade', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
     advanceAppearanceAnimationClock(Date.now());
+    // High-priority tips can land back-to-back in the weighted rotation. Pin a
+    // seed where consecutive 10s slots show different tip text so typewriter
+    // assertions are deterministic (CI #3848 flake at line 385).
+    let base = 0;
+    while (base < 256 && tipsForIndex(base).primary === tipsForIndex(base + 1).primary) {
+      base += 1;
+    }
+    setTipRotationSeedForTests(base);
+    expect(tipsForIndex(base).primary).not.toBe(tipsForIndex(base + 1).primary);
   });
 
   afterEach(() => {
