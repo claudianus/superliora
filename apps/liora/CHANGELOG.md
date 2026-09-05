@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.23.1
+
+### Patch Changes
+
+- Detect mid-turn tool description and schema changes in the prompt-cache drift guard instead of name-only checks.
+- Stop re-sending unchanged system reminders on every step of long turns, cutting repeated input tokens.
+- Relaunch job workers without blocking the event loop on git status collection during resume.
+
 ## 0.23.0
 
 ### Minor Changes
