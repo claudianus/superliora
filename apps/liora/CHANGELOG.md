@@ -1,5 +1,32 @@
 # @superliora/liora
 
+## 0.23.0
+
+### Minor Changes
+
+- feat(providers): send `x-opencode-session` on OpenCode Zen/Go inference requests
+- OpenCode enforces a per-conversation session identity header on
+- `opencode.ai/zen/*` requests (policy lands 09/06). Provider configs now
+- inject `x-opencode-session: <promptCacheKey>` — the stable
+- per-conversation key already used for prompt-cache routing — ahead of
+- user-configured headers on every wire that can point at OpenCode Zen/Go
+- (`openai`, `openai_responses`, `anthropic`). A custom
+- `x-opencode-session` header in provider config still wins; non-OpenCode
+- endpoints are untouched.
+
+### Patch Changes
+
+- chore(deps): bump the npm_and_yarn group (vite 7, tar, fastify)
+- Fix resumed job workers dying instantly with "timed out after 1s — aborted by the 1ms wall-clock deadline": a resume whose inherited wall-clock budget is fully spent now relaunches with a fresh kind budget (implement 30m / mission 45m / explore 20m) instead of the 1ms exhausted sentinel, which aborted the worker before its first turn. Partially spent resumes still inherit the remaining wall-clock.
+- fix(agent-core): reassign fresh wall-clock budget when resuming an exhausted session
+- A job-worker resume whose inherited wall-clock was fully spent launched
+- with the 1ms `EXHAUSTED_JOB_WORKER_TIMEOUT_MS` sentinel, aborting the
+- worker before its first turn. `resolveJobWorkerLaunchTimeoutMs` now
+- re-grants the fresh kind budget on a fully spent resume (implement 30m /
+- mission 45m / explore 20m); partially spent resumes still inherit the
+- remaining wall-clock, and `timeoutMs: 0` stays exclusively the env
+- kill-switch.
+
 ## 0.22.1
 
 ### Patch Changes

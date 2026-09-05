@@ -1,6 +1,6 @@
 {
   "name": "@superliora/server",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "description": "Local REST + WebSocket server exposing the SuperLiora SDK over a stable wire protocol.",
   "license": "MIT",
