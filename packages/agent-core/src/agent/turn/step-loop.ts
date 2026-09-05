@@ -68,7 +68,7 @@ import {
   trailingToolErrorStreak,
 } from './doomed-run-guard';
 import {
-  buildTurnPrefixMaterial,
+  buildTurnToolBlockMaterial,
   CACHE_FREEZE_DRIFT_SENSOR_ORIGIN,
   formatCacheFreezeDriftTip,
 } from '../cache';
@@ -152,7 +152,7 @@ export async function runTurnStepLoop(
             // remains hard-blocked while frozen).
             if (
               !agent.cacheFreezeGuard.checkUnchanged(
-                buildTurnPrefixMaterial(agent.tools.enabledTools),
+                buildTurnToolBlockMaterial(agent.tools.loopTools),
                 'tool list',
               )
             ) {

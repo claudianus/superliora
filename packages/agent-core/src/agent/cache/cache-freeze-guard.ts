@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import type { Tool } from '@superliora/kosong';
+
 /**
  * Snapshots L1/tools prefix material at turn start and rejects mid-turn mutation.
  *
@@ -70,6 +72,47 @@ export function hashPrefixMaterial(material: string): string {
 /** Stable turn-start fingerprint from active builtin tool names. */
 export function buildTurnPrefixMaterial(enabledTools: Iterable<string>): string {
   return [...enabledTools].toSorted().join('\n');
+}
+
+/** Canonical JSON (sorted object keys) so schema fingerprints ignore insertion order. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter((entry) => entry[1] !== undefined)
+    .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries
+    .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`)
+    .join(',')}}`;
+}
+
+const toolFingerprintCache = new WeakMap<object, string>();
+
+function fingerprintTool(tool: Tool): string {
+  const cached = toolFingerprintCache.get(tool);
+  if (cached !== undefined) return cached;
+  const fingerprint = [
+    tool.name,
+    hashPrefixMaterial(tool.description),
+    hashPrefixMaterial(stableStringify(tool.parameters)),
+  ].join('#');
+  toolFingerprintCache.set(tool, fingerprint);
+  return fingerprint;
+}
+
+/**
+ * Turn-start fingerprint over the full serialized tool block: names plus
+ * description/schema content. A name-only fingerprint misses the most
+ * expensive prefix bust — an MCP server rewriting a tool description or
+ * schema mid-session — because the tool block sits first in the request.
+ * Per-tool fingerprints are memoized by object identity; hosts that keep
+ * tool objects stable pay the hashing cost once per tool.
+ */
+export function buildTurnToolBlockMaterial(tools: Iterable<Tool>): string {
+  return [...tools]
+    .toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    .map(fingerprintTool)
+    .join('\n');
 }
 
 /**

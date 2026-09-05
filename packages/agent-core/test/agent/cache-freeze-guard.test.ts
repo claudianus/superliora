@@ -4,6 +4,7 @@ import {
   CACHE_FREEZE_DRIFT_SENSOR_ORIGIN,
   CacheFreezeGuard,
   buildTurnPrefixMaterial,
+  buildTurnToolBlockMaterial,
   formatCacheFreezeDriftTip,
   hashPrefixMaterial,
 } from '../../src/agent/cache/cache-freeze-guard';
@@ -39,6 +40,34 @@ describe('CacheFreezeGuard', () => {
 
   it('buildTurnPrefixMaterial sorts tool names', () => {
     expect(buildTurnPrefixMaterial(['Edit', 'Read', 'Grep'])).toBe('Edit\nGrep\nRead');
+  });
+
+  it('buildTurnToolBlockMaterial fingerprints description and schema bytes', () => {
+    const tool = {
+      name: 'Read',
+      description: 'Reads a file.',
+      parameters: { type: 'object', properties: { path: { type: 'string' } } },
+    };
+    const material = buildTurnToolBlockMaterial([tool]);
+    // Same content, rebuilt object (new identity) → same fingerprint.
+    const rebuilt = {
+      name: 'Read',
+      description: 'Reads a file.',
+      parameters: { properties: { path: { type: 'string' } }, type: 'object' },
+    };
+    expect(buildTurnToolBlockMaterial([rebuilt])).toBe(material);
+    // Description rewrite (same length) → different fingerprint.
+    const reworded = { ...tool, description: 'Reads a file!' };
+    expect(buildTurnToolBlockMaterial([reworded])).not.toBe(material);
+    // Schema change → different fingerprint.
+    const newSchema = { ...tool, parameters: { type: 'object' } };
+    expect(buildTurnToolBlockMaterial([newSchema])).not.toBe(material);
+    // Name set change → different fingerprint.
+    const added = [
+      tool,
+      { name: 'Grep', description: 'Searches.', parameters: { type: 'object' } },
+    ];
+    expect(buildTurnToolBlockMaterial(added)).not.toBe(material);
   });
 
   it('hashPrefixMaterial is stable and truncated', () => {

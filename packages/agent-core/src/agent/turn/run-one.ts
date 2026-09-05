@@ -7,7 +7,7 @@ import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc/events
 import type { TelemetryPropertyValue } from '../../telemetry';
 import { isUserCancellation } from '../../utils/abort';
 import type { StreamingThinkScrubber } from '../../utils/think-scrubber';
-import { buildTurnPrefixMaterial } from '../cache';
+import { buildTurnToolBlockMaterial } from '../cache';
 import type { PromptOrigin } from '../context';
 import { applySessionSmartAutoForTurn } from '../routing';
 import {
@@ -50,7 +50,7 @@ export async function runOneTurnFlow(
   turnTelemetry.resetForTurn(turnId, telemetryMode);
   agent.telemetry.track('turn_started', { mode: telemetryMode });
   agent.fullCompaction.resetForTurn();
-  agent.cacheFreezeGuard.freeze(buildTurnPrefixMaterial(agent.tools.enabledTools));
+  agent.cacheFreezeGuard.freeze(buildTurnToolBlockMaterial(agent.tools.loopTools));
   agent.usage.beginTurn();
   await applySessionSmartAutoForTurn(agent, input);
   agent.emitEvent({ type: 'turn.started', turnId, origin });
