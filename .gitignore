@@ -71,6 +71,8 @@ debug-local.ndjson
 .cursor/
 .devin/
 .qwen/
+.commandcode/
+__pycache__/
 skills-lock.json
 
 # External skill catalog — fetched at build time (`pnpm run build:skill-catalog`).
