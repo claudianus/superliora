@@ -3,7 +3,6 @@
  * Spawns a background subagent in the job worktree and patches the ledger on completion.
  */
 
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'pathe';
 
@@ -12,7 +11,10 @@ export const JOB_AUTO_RETRY_LIMIT = 2;
 /** Backoff before each automatic retry attempt (indexed by attempt-1). */
 export const JOB_AUTO_RETRY_BACKOFF_MS: readonly number[] = [2_000, 8_000];
 
+import type { Kaos } from '@superliora/kaos';
+
 import type { Agent } from '../../../agent/index';
+import { runGit } from '../../../autopilot/git';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
 import { pushJobInboxEvent } from './job-inbox';
 import { emitJobEvents, inboxToWireEvent, jobRecordToUpdatedEvent } from './job-emit';
@@ -127,7 +129,11 @@ function mediaDodLines(job: JobRecord): readonly string[] {
   ];
 }
 
-export function jobPrompt(job: JobRecord, store?: ToolStore): string {
+export function jobPrompt(
+  job: JobRecord,
+  store?: ToolStore,
+  recoveryWorktreeSnapshot?: string | undefined,
+): string {
   const parentFindings = priorFindingsForJob(job, store);
   const expertBlock = renderJobExpertBlock(job);
   const parts = [
@@ -195,7 +201,7 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
             : ''
         }`
       : undefined,
-    renderRecoveryBriefAppendix(job),
+    renderRecoveryBriefAppendix(job, recoveryWorktreeSnapshot),
     job.taskTrack === 'general' && (job.kind === 'task' || job.kind === 'implement')
       ? [
           'Worker contract (general track):',
@@ -248,9 +254,13 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
 /**
  * Soft continuity for crash/resume cold relaunch: last progress, interrupt
  * reason, worktree HEAD/status, and a no-rewrite guard. Shown when notes
- * mention interrupt/resume or a checkpoint id is retained.
+ * mention interrupt/resume or a checkpoint id is retained. `worktreeSnapshot`
+ * is precomputed off the event loop (async git exec) by the spawn path.
  */
-export function renderRecoveryBriefAppendix(job: JobRecord): string | undefined {
+export function renderRecoveryBriefAppendix(
+  job: JobRecord,
+  worktreeSnapshot?: string | undefined,
+): string | undefined {
   const notes = job.notes ?? '';
   const isRecovery =
     /\binterrupt:/i.test(notes) ||
@@ -281,37 +291,34 @@ export function renderRecoveryBriefAppendix(job: JobRecord): string | undefined 
     job.resultSummary?.trim()
       ? `Prior result summary (may be partial):\n${job.resultSummary.trim().slice(0, 1200)}`
       : undefined,
-    snapshotWorktreeForRecovery(job.worktreePath),
+    worktreeSnapshot,
   ];
   return parts.filter(Boolean).join('\n');
 }
 
-function snapshotWorktreeForRecovery(worktreePath: string | undefined): string | undefined {
+/** Async git snapshot so the spawn path never blocks the event loop on git. */
+async function snapshotWorktreeForRecovery(
+  kaos: Kaos | undefined,
+  worktreePath: string | undefined,
+): Promise<string | undefined> {
   if (worktreePath === undefined || worktreePath.trim().length === 0) return undefined;
-  try {
-    const sha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
-      cwd: worktreePath,
-      encoding: 'utf8',
-      timeout: 3_000,
-    }).trim();
-    const status = execFileSync('git', ['status', '--porcelain'], {
-      cwd: worktreePath,
-      encoding: 'utf8',
-      timeout: 3_000,
-      maxBuffer: 64_000,
-    }).trim();
-    const dirty = status
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .slice(0, 20);
-    return [
-      `Worktree HEAD: ${sha}`,
-      dirty.length > 0 ? `Dirty paths:\n${dirty.join('\n')}` : 'Worktree clean.',
-    ].join('\n');
-  } catch {
+  if (kaos === undefined) {
     return `Worktree path retained: ${worktreePath} (git status unavailable).`;
   }
+  const head = await runGit(kaos, worktreePath, ['rev-parse', '--short', 'HEAD']);
+  if (!head.ok) {
+    return `Worktree path retained: ${worktreePath} (git status unavailable).`;
+  }
+  const status = await runGit(kaos, worktreePath, ['status', '--porcelain']);
+  const dirty = status.stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+  return [
+    `Worktree HEAD: ${head.stdout.trim()}`,
+    dirty.length > 0 ? `Dirty paths:\n${dirty.join('\n')}` : 'Worktree clean.',
+  ].join('\n');
 }
 
 function tddContractLines(job: JobRecord): readonly string[] {
@@ -625,7 +632,13 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   }
 
   const baseTaskFields = {
-    prompt: jobPrompt(job, input.store),
+    // Async git snapshot precomputed off the event loop (execFileSync used to
+    // block the shared WorkerSpawner handshake window here).
+    prompt: jobPrompt(
+      job,
+      input.store,
+      await snapshotWorktreeForRecovery(input.agent.kaos, job.worktreePath),
+    ),
     description: job.title.slice(0, 80),
     profileName,
     // verify / explore / research never take exclusive write leases (belt +
