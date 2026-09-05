@@ -114,16 +114,24 @@ export function resolveJobWorkerRemainingTimeoutMs(
 }
 
 /**
- * Fanout / `runWithActiveChild` timeout for a job worker. Maps exhausted
- * remaining onto {@link EXHAUSTED_JOB_WORKER_TIMEOUT_MS} so a spent resume
- * never disables the hard deadline.
+ * Fanout / `runWithActiveChild` timeout for a job worker. A fully spent
+ * resume re-grants the fresh kind budget: mapping it onto
+ * {@link EXHAUSTED_JOB_WORKER_TIMEOUT_MS} here would abort the relaunched
+ * worker before its first turn ("timed out after 1s — aborted by the 1ms
+ * wall-clock deadline"). Partially spent wall-clock is still inherited
+ * (no reset), and `timeoutMs: 0` remains exclusively the
+ * {@link SUBAGENT_DEADLINE_ENV} kill-switch.
  */
 export function resolveJobWorkerLaunchTimeoutMs(
   kind: string | undefined,
   deadlineStartedAt: string | undefined,
   nowMs: number = Date.now(),
 ): number {
-  return resolveJobWorkerRemainingTimeoutMs(kind, deadlineStartedAt, nowMs);
+  const remaining = resolveJobWorkerRemainingTimeoutMs(kind, deadlineStartedAt, nowMs);
+  if (remaining === EXHAUSTED_JOB_WORKER_TIMEOUT_MS) {
+    return resolveJobWorkerTimeoutMs(kind);
+  }
+  return remaining;
 }
 
 function parseDeadlineEnv(raw: string | undefined): number | undefined {
