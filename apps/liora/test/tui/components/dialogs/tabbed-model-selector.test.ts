@@ -110,6 +110,31 @@ describe('TabbedModelSelectorComponent', () => {
     expect(out).not.toContain('Kimi K2');
   });
 
+  it('groups derived wire providers under the user-facing alias prefix', () => {
+    // Multi-wire imports (e.g. Command Code) key aliases `commandcode/<model>`
+    // while Claude rows point at the derived `commandcode-anthropic`
+    // provider; both must land in the single `commandcode` tab.
+    const onSelect = vi.fn();
+    const component = new TabbedModelSelectorComponent({
+      models: {
+        'commandcode/claude-sonnet-5': model('Claude Sonnet 5', 'commandcode-anthropic'),
+        'commandcode/gpt-5.6-luna': model('GPT-5.6 Luna', 'commandcode'),
+        other: model('Other Model', 'openai'),
+      },
+      currentValue: 'commandcode/gpt-5.6-luna',
+      currentThinking: false,
+      onSelect,
+      onCancel: vi.fn(),
+    });
+    component.focused = true;
+    // tabs = [All, commandcode, openai]; one Tab → the commandcode tab.
+    component.handleInput(TAB);
+    const out = strip(component.render(120).join('\n'));
+    expect(out).toContain('Claude Sonnet 5');
+    expect(out).toContain('GPT-5.6 Luna');
+    expect(out).not.toContain('Other Model');
+  });
+
   it('forwards thinking toggle (←/→) and selection (Enter) to the active tab', () => {
     const { component, onSelect } = make();
     component.handleInput(RIGHT); // toggle thinking on for k2

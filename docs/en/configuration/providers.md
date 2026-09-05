@@ -160,6 +160,42 @@ xAI prepaid API keys use the same path (`XAI_API_KEY`, `https://api.x.ai/v1`). A
 /login   # pick Z.AI (GLM Coding Plan)
 ```
 
+### Command Code (Provider API)
+
+[Command Code](https://commandcode.ai/docs/provider) is a SuperLiora-curated gateway that serves 30+ open and closed models (Claude, GPT, Gemini, DeepSeek, GLM, Qwen, Kimi, …) behind one API key. Every plan except the Go plan has API access, metered against plan credits.
+
+- Provider id: `commandcode`
+- `base_url`: `https://api.commandcode.ai/provider/v1`
+- Credential env: `CMD_API_KEY` or `COMMANDCODE_API_KEY` (create a key under [Studio → API keys](https://commandcode.ai/settings/keys); the same key authenticates the Command Code CLI and the API)
+- Model ids follow the upstream slug form, e.g. `commandcode/deepseek/deepseek-v4-flash`, `commandcode/gpt-5.6-luna`
+- Claude models route over Anthropic Messages (`/v1/messages`); everything else uses Chat Completions
+- Connecting refreshes the model list from the public `/provider/v1/models` endpoint, so new Command Code models appear without a SuperLiora update
+
+Interactive:
+
+```bash
+# TUI
+/login   # pick Command Code, paste API key, choose a model
+
+# CLI
+liora provider catalog add commandcode --api-key "$CMD_API_KEY"
+```
+
+Manual `config.toml`:
+
+```toml
+[providers.commandcode]
+type = "openai"
+base_url = "https://api.commandcode.ai/provider/v1"
+api_key = "YOUR_CMD_API_KEY"
+
+[models."commandcode/deepseek/deepseek-v4-flash"]
+provider = "commandcode"
+model = "deepseek/deepseek-v4-flash"
+max_context_size = 1000000
+capabilities = ["tool_use", "thinking"]
+```
+
 ## `openai_responses`
 
 Corresponds to OpenAI's newer Responses API, always operating in streaming mode. Configuration is the same as `openai`.

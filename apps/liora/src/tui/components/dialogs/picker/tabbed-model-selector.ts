@@ -148,8 +148,12 @@ function buildTabs(opts: TabbedModelSelectorOptions): readonly ModelTab[] {
   const entries = Object.entries(opts.models);
   const providerIds: string[] = [];
   const seen = new Set<string>();
-  for (const [, model] of entries) {
-    const provider = model.provider;
+  for (const [alias, model] of entries) {
+    // Group by the alias key's provider prefix, not `model.provider`: the
+    // multi-wire catalog import writes e.g. `commandcode/claude-*` aliases
+    // under a derived `commandcode-anthropic` provider, and the protocol
+    // split must not leak into the picker tabs.
+    const provider = tabProviderFor(alias, model.provider);
     if (!seen.has(provider)) {
       seen.add(provider);
       providerIds.push(provider);
@@ -166,7 +170,7 @@ function buildTabs(opts: TabbedModelSelectorOptions): readonly ModelTab[] {
   for (const providerId of providerIds) {
     const subset: Record<string, ModelAlias> = {};
     for (const [alias, model] of entries) {
-      if (model.provider === providerId) subset[alias] = model;
+      if (tabProviderFor(alias, model.provider) === providerId) subset[alias] = model;
     }
     tabs.push({
       id: providerId,
@@ -175,6 +179,11 @@ function buildTabs(opts: TabbedModelSelectorOptions): readonly ModelTab[] {
     });
   }
   return tabs;
+}
+
+function tabProviderFor(alias: string, modelProvider: string): string {
+  const slash = alias.indexOf('/');
+  return slash > 0 ? alias.slice(0, slash) : modelProvider;
 }
 
 function makeSelector(

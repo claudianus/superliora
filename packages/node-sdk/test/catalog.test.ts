@@ -253,4 +253,73 @@ describe('applyCatalogProvider', () => {
     expect(config.models?.['anthropic/stale']).toBeUndefined();
     expect(config.models?.['other/keep']).toBeDefined();
   });
+
+  it('splits multi-wire gateways into one provider per wire with stable alias keys', () => {
+    const config = { providers: {} } as LioraConfig;
+    const openAiModel: CatalogModel = { ...model, id: 'deepseek-v4-flash' };
+    const claudeModel: CatalogModel = { ...model, id: 'claude-sonnet-5' };
+    const baseUrl = 'https://api.commandcode.ai/provider/v1';
+
+    applyCatalogProvider(config, {
+      providerId: 'commandcode',
+      wire: 'openai',
+      baseUrl,
+      apiKey: 'sk',
+      models: [openAiModel, claudeModel],
+      wireGroups: [
+        { wire: 'openai', baseUrl, models: [openAiModel] },
+        { wire: 'anthropic', baseUrl: 'https://api.commandcode.ai/provider', models: [claudeModel] },
+      ],
+      selectedModelId: 'deepseek-v4-flash',
+      thinking: false,
+    });
+
+    expect(config.providers['commandcode']).toMatchObject({ type: 'openai', baseUrl, apiKey: 'sk' });
+    expect(config.providers['commandcode-anthropic']).toMatchObject({
+      type: 'anthropic',
+      baseUrl: 'https://api.commandcode.ai/provider',
+      apiKey: 'sk',
+    });
+    // Alias keys keep the user-facing provider id even for derived providers.
+    expect(config.models?.['commandcode/deepseek-v4-flash']).toMatchObject({
+      provider: 'commandcode',
+      model: 'deepseek-v4-flash',
+    });
+    expect(config.models?.['commandcode/claude-sonnet-5']).toMatchObject({
+      provider: 'commandcode-anthropic',
+      model: 'claude-sonnet-5',
+    });
+    expect(config.defaultModel).toBe('commandcode/deepseek-v4-flash');
+  });
+
+  it('drops stale derived providers on re-import when no alias references them', () => {
+    const baseUrl = 'https://api.commandcode.ai/provider/v1';
+    const config = {
+      providers: {
+        commandcode: { type: 'openai', apiKey: 'old', baseUrl },
+        // Synthesized by a previous import: shares the import's per-wire root.
+        'commandcode-anthropic': { type: 'anthropic', apiKey: 'old', baseUrl: 'https://api.commandcode.ai/provider' },
+        // Merely looks derived but points elsewhere: a hand-written provider.
+        'commandcode-private': { type: 'openai', apiKey: 'old', baseUrl: 'https://example.test/v1' },
+      },
+      models: {},
+    } as unknown as LioraConfig;
+
+    applyCatalogProvider(config, {
+      providerId: 'commandcode',
+      wire: 'openai',
+      baseUrl,
+      apiKey: 'sk',
+      models: [model],
+      wireGroups: [
+        { wire: 'openai', baseUrl, models: [model] },
+      ],
+      selectedModelId: '',
+      thinking: false,
+    });
+
+    expect(config.providers['commandcode']).toMatchObject({ apiKey: 'sk' });
+    expect(config.providers['commandcode-anthropic']).toBeUndefined();
+    expect(config.providers['commandcode-private']).toBeDefined();
+  });
 });

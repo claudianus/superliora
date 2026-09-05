@@ -3,6 +3,7 @@ import {
   catalogBaseUrl,
   catalogImportThinking,
   catalogProviderModels,
+  catalogWireGroups,
   DEFAULT_CATALOG_URL,
   fetchCatalog,
   inferWireType,
@@ -11,6 +12,7 @@ import {
 
 import { formatErrorMessage } from '../../utils/event-payload';
 import { loadCatalog } from '#/utils/catalog-cache';
+import { resolveConnectCatalogEntry } from '#/utils/local-catalog-providers';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { type ProviderCatalogOption } from '#/tui/utils/model/provider-catalog-options';
 import { promptApiKeyForCatalogProvider } from '../auth/prompts';
@@ -62,7 +64,9 @@ export async function connectCatalogProvider(
   catalog: Catalog,
   providerId: string,
 ): Promise<boolean> {
-  const entry = catalog[providerId];
+  // May refresh the entry from the provider's own models listing (Command
+  // Code) before the metadata is written to config.
+  const entry = await resolveConnectCatalogEntry(catalog, providerId);
   if (entry === undefined) {
     host.showError(ttui('tui.provider.notInCatalog', { provider: providerId }));
     return false;
@@ -107,6 +111,9 @@ export async function connectCatalogProvider(
     baseUrl,
     apiKey,
     models,
+    // Gateways publishing per-model protocols (Command Code serves Claude via
+    // Anthropic Messages) get one provider per wire; alias keys are unchanged.
+    wireGroups: catalogWireGroups(entry, { wire }),
     selectedModelId: '',
     thinking: catalogImportThinking(models),
   });

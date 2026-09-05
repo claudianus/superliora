@@ -5,8 +5,10 @@ import {
   catalogImportThinking,
   catalogModelToCapability,
   catalogProviderModels,
+  catalogWireGroups,
   inferWireType,
   type CatalogModelEntry,
+  type CatalogProviderEntry,
 } from '../src/catalog';
 
 describe('inferWireType', () => {
@@ -242,6 +244,50 @@ describe('catalogModelToCapability', () => {
   ])('derives reasoningKey from interleaved=%j → %j', (interleaved, expected) => {
     const model = catalogModelToCapability({ id: 'm', limit: { context: 1000 }, interleaved });
     expect(model?.reasoningKey).toBe(expected);
+  });
+});
+
+describe('catalogWireGroups', () => {
+  const entry: CatalogProviderEntry = {
+    id: 'commandcode',
+    api: 'https://api.commandcode.ai/provider/v1',
+    type: 'openai',
+    models: {
+      'deepseek-v4-flash': { id: 'deepseek-v4-flash', limit: { context: 1_000_000 } },
+      'claude-sonnet-5': {
+        id: 'claude-sonnet-5',
+        limit: { context: 1_000_000 },
+        provider: { npm: '@ai-sdk/anthropic' },
+      },
+    },
+  };
+
+  it('partitions models by their per-model npm override', () => {
+    const groups = catalogWireGroups(entry, { wire: 'openai' });
+    expect(groups.map((group) => group.wire)).toEqual(['openai', 'anthropic']);
+    expect(groups[0]!.models.map((model) => model.id)).toEqual(['deepseek-v4-flash']);
+    expect(groups[1]!.models.map((model) => model.id)).toEqual(['claude-sonnet-5']);
+  });
+
+  it('adapts the API root per wire (strips /v1 for anthropic)', () => {
+    const groups = catalogWireGroups(entry, { wire: 'openai' });
+    expect(groups[0]!.baseUrl).toBe('https://api.commandcode.ai/provider/v1');
+    expect(groups[1]!.baseUrl).toBe('https://api.commandcode.ai/provider');
+  });
+
+  it('falls back to the provider wire when a model names no package', () => {
+    const groups = catalogWireGroups(
+      {
+        id: 'gw',
+        type: 'openai',
+        models: { m: { id: 'm', limit: { context: 1000 } } },
+      },
+      { wire: 'openai' },
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.wire).toBe('openai');
+    expect(groups[0]!.baseUrl).toBeUndefined();
+    expect(groups[0]!.models.map((model) => model.id)).toEqual(['m']);
   });
 });
 

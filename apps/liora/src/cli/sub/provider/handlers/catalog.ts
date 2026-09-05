@@ -7,6 +7,7 @@ import {
   catalogBaseUrl,
   catalogImportThinking,
   catalogProviderModels,
+  catalogWireGroups,
   CatalogFetchError,
   DEFAULT_CATALOG_URL,
   fetchCatalog,
@@ -16,6 +17,7 @@ import {
 } from '@superliora/sdk';
 
 import { loadCatalog } from '#/utils/catalog-cache';
+import { resolveConnectCatalogEntry } from '#/utils/local-catalog-providers';
 
 import { resolveCatalogProviderApiKeySource } from '../credential';
 import { errorMessage, modelUnit, writeProviderErr, writeProviderOut } from '../shared';
@@ -130,7 +132,9 @@ export async function handleCatalogAdd(
   const url = opts.url ?? DEFAULT_CATALOG_URL;
   const catalog = await loadCatalogOrExit(deps, url);
 
-  const entry = catalog[providerId];
+  // May refresh the entry from the provider's own models listing (Command
+  // Code) before the metadata is written to config.
+  const entry = await resolveConnectCatalogEntry(catalog, providerId);
   if (entry === undefined) {
     writeProviderErr(deps, 'cli.runtime.provider.catalogProviderNotFound', { providerId, url });
     deps.exit(1);
@@ -184,6 +188,9 @@ export async function handleCatalogAdd(
     ...(baseUrl === undefined ? {} : { baseUrl }),
     apiKey,
     models,
+    // Gateways publishing per-model protocols (Command Code serves Claude via
+    // Anthropic Messages) get one provider per wire; alias keys are unchanged.
+    wireGroups: catalogWireGroups(entry, { wire }),
     selectedModelId: opts.defaultModel ?? '',
     thinking: importThinking,
   });

@@ -86,6 +86,8 @@ const PROVIDER_PRIORITY: ReadonlyMap<string, number> = new Map<string, number>([
   ['zai-coding-plan', 10],
   // Qwen Cloud Token Plan — first-class multimodal subscription.
   ['qwen-token-plan', 11],
+  // Command Code Provider API (GOAT/Pro/Max plans, one key for 30+ models).
+  ['commandcode', 12],
 ]);
 
 export function buildProviderCatalogOptions(catalog: Catalog): readonly ProviderCatalogOption[] {

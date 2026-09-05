@@ -134,7 +134,7 @@ export function loadBuiltInCatalog(text?: string): Catalog | undefined {
 
 /** Provider id for a secondary wire split off a multi-protocol catalog entry. */
 function wireProviderId(baseProviderId: string, wire: ProviderType): string {
-  return `${baseProviderId}-${wire.replaceAll(/_/g, '-')}`;
+  return `${baseProviderId}-${wire.replaceAll('_', '-')}`;
 }
 
 /**
@@ -149,33 +149,44 @@ function resolveWireGroups(options: ApplyCatalogProviderOptions): readonly Catal
 }
 
 /**
- * Whether `providerId` is a per-wire provider a previous import of this catalog
- * entry created. Derived ids share the catalog API root, so a hand-written
- * provider that merely looks similar is never swept up.
+ * Provider ids a previous import of this catalog entry synthesized. Derived
+ * ids share one of this import's API roots (per-wire adapted), so a
+ * hand-written provider that merely looks similar is never swept up. A root
+ * that is a strict ancestor of an import root also counts:
+ * `catalogBaseUrl` adapts an api root per wire (e.g. strips a trailing `/v1`
+ * for anthropic), so a previous import's `…/provider` ↔ this import's
+ * `…/provider/v1` describe the same gateway.
  */
-function isDerivedProvider(
+function resolveDerivedProviderIds(
   config: LioraConfig,
   options: ApplyCatalogProviderOptions,
-  providerId: string,
-): boolean {
-  return (
-    providerId !== options.providerId &&
-    providerId.startsWith(`${options.providerId}-`) &&
-    config.providers[providerId]?.baseUrl === options.baseUrl
-  );
+  groupBaseUrls: ReadonlySet<string | undefined>,
+): ReadonlySet<string> {
+  const isDerivedRoot = (candidate: string | undefined): boolean => {
+    if (candidate === undefined) return false;
+    if (groupBaseUrls.has(candidate)) return true;
+    return [...groupBaseUrls].some((root) => root !== undefined && root.startsWith(`${candidate}/`));
+  };
+  const derived = new Set<string>();
+  for (const providerId of Object.keys(config.providers)) {
+    if (providerId === options.providerId || !providerId.startsWith(`${options.providerId}-`)) {
+      continue;
+    }
+    if (isDerivedRoot(config.providers[providerId]?.baseUrl)) derived.add(providerId);
+  }
+  return derived;
 }
 
 /** Removes per-wire providers this import no longer needs. */
 function pruneDerivedProviders(
   config: LioraConfig,
-  options: ApplyCatalogProviderOptions,
+  derivedIds: ReadonlySet<string>,
   activeIds: Iterable<string>,
 ): void {
   const active = new Set(activeIds);
   const referenced = new Set(Object.values(config.models ?? {}).map((alias) => alias.provider));
-  for (const providerId of Object.keys(config.providers)) {
-    if (active.has(providerId) || !isDerivedProvider(config, options, providerId)) continue;
-    if (referenced.has(providerId)) continue;
+  for (const providerId of derivedIds) {
+    if (active.has(providerId) || referenced.has(providerId)) continue;
     delete config.providers[providerId];
   }
 }
@@ -212,6 +223,10 @@ export function applyCatalogProvider(
         : wireProviderId(options.providerId, group.wire),
     ]),
   );
+  const groupBaseUrls = new Set<string | undefined>(
+    groups.map((group) => group.baseUrl ?? options.baseUrl),
+  );
+  const derivedIds = resolveDerivedProviderIds(config, options, groupBaseUrls);
 
   for (const group of groups) {
     const providerId = providerFor.get(group)!;
@@ -231,7 +246,7 @@ export function applyCatalogProvider(
   // Drop this provider's own aliases plus the per-wire providers a previous
   // import synthesized from the same API root; keep unrelated user aliases.
   for (const [key, alias] of Object.entries(models)) {
-    if (alias.provider !== options.providerId && !isDerivedProvider(config, options, alias.provider)) {
+    if (alias.provider !== options.providerId && !derivedIds.has(alias.provider)) {
       continue;
     }
     if (!upstreamKeys.has(key) && (alias as { userManaged?: boolean }).userManaged === true) {
@@ -251,7 +266,7 @@ export function applyCatalogProvider(
     if (models[key] === undefined) models[key] = value;
   }
   config.models = models;
-  pruneDerivedProviders(config, options, providerFor.values());
+  pruneDerivedProviders(config, derivedIds, providerFor.values());
 
   // Only set a default model when a concrete model id was selected. An empty
   // `selectedModelId` would otherwise produce a malformed `providerId/` alias
