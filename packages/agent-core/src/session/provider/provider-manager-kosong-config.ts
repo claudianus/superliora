@@ -2,7 +2,9 @@ import type { ProviderConfig as KosongProviderConfig } from '@superliora/kosong'
 import {
   githubCopilotRequestHeaders,
   isGitHubCopilotBaseUrl,
+  isOpenCodeZenBaseUrl,
   isXaiGrokBuildBaseUrl,
+  opencodeSessionHeaders,
   xaiGrokBuildRequestHeaders,
 } from '@superliora/oauth';
 
@@ -43,6 +45,10 @@ export function toKosongProviderConfig(
         'provider base_url',
       );
       const resolvedBaseUrl = firstCredentialBaseUrlWhenPrimary(provider) ?? baseUrl;
+      const baseHeaders =
+        provider.type === 'kimi' && normalizedProtocol === 'anthropic'
+          ? { ...kimiRequestHeaders, ...provider.customHeaders }
+          : provider.customHeaders;
       return {
         type: 'anthropic',
         model,
@@ -56,9 +62,7 @@ export function toKosongProviderConfig(
         ...(betaApi !== undefined ? { betaApi } : {}),
         ...(promptCacheKey !== undefined ? { metadata: { user_id: promptCacheKey } } : {}),
         ...defaultHeadersField(
-          provider.type === 'kimi' && normalizedProtocol === 'anthropic'
-            ? { ...kimiRequestHeaders, ...provider.customHeaders }
-            : provider.customHeaders,
+          withOpenCodeSessionHeaders([resolvedBaseUrl, provider.baseUrl], promptCacheKey, baseHeaders),
         ),
       };
     }
@@ -73,7 +77,7 @@ export function toKosongProviderConfig(
         reasoningKey,
         // Sticky prompt-cache routing for OpenAI-compatible endpoints (xAI Grok).
         generationKwargs: { prompt_cache_key: promptCacheKey },
-        ...defaultHeadersField(openaiProviderHeaders(provider, model)),
+        ...defaultHeadersField(openaiProviderHeaders(provider, model, promptCacheKey)),
       };
     case 'kimi':
       return {
@@ -94,17 +98,21 @@ export function toKosongProviderConfig(
         baseUrl: providerValue(provider.baseUrl, provider.env, 'GEMINI_BASE_URL', 'provider base_url'),
         ...defaultHeadersField(provider.customHeaders),
       };
-    case 'openai_responses':
+    case 'openai_responses': {
+      const baseUrl =
+        firstCredentialBaseUrlWhenPrimary(provider) ??
+        providerValue(provider.baseUrl, provider.env, 'OPENAI_BASE_URL', 'provider base_url');
       return {
         type: 'openai_responses',
         model,
-        baseUrl:
-          firstCredentialBaseUrlWhenPrimary(provider) ??
-          providerValue(provider.baseUrl, provider.env, 'OPENAI_BASE_URL', 'provider base_url'),
+        baseUrl,
         apiKey: providerApiKey(provider),
         generationKwargs: { prompt_cache_key: promptCacheKey },
-        ...defaultHeadersField(provider.customHeaders),
+        ...defaultHeadersField(
+          withOpenCodeSessionHeaders([baseUrl, provider.baseUrl], promptCacheKey, provider.customHeaders),
+        ),
       };
+    }
     case 'vertexai': {
       const useServiceAccount = hasVertexAIServiceEnv(provider);
       return {
@@ -180,12 +188,14 @@ function defaultHeadersField(
 /**
  * OpenAI-compatible providers that use the Grok Build chat proxy need the
  * CLI session auth marker and a model-override header so traffic bills to
- * Grok Build instead of the public API. Public-API and non-xAI providers
+ * Grok Build instead of the public API. OpenCode Zen/Go endpoints need the
+ * per-conversation session identity header. Public-API and other providers
  * keep only the configured custom headers.
  */
 function openaiProviderHeaders(
   provider: ProviderConfig,
   model: string,
+  promptCacheKey: string | undefined,
 ): Record<string, string> | undefined {
   const baseUrl =
     firstCredentialBaseUrlWhenPrimary(provider) ??
@@ -196,6 +206,9 @@ function openaiProviderHeaders(
       ...provider.customHeaders,
     };
   }
+  if (isOpenCodeZenBaseUrl(baseUrl) || isOpenCodeZenBaseUrl(provider.baseUrl)) {
+    return { ...opencodeSessionHeaders(promptCacheKey), ...provider.customHeaders };
+  }
   if (!isXaiGrokBuildBaseUrl(baseUrl) && !isXaiGrokBuildBaseUrl(provider.baseUrl)) {
     return provider.customHeaders;
   }
@@ -203,6 +216,23 @@ function openaiProviderHeaders(
     ...xaiGrokBuildRequestHeaders(model),
     ...provider.customHeaders,
   };
+}
+
+/**
+ * Merges the `x-opencode-session` header OpenCode Zen/Go endpoints expect
+ * ahead of user-configured headers whenever any candidate base URL points at
+ * opencode.ai. Returns `customHeaders` untouched otherwise (the no-session
+ * merge is a no-op, so headerless configs still omit `defaultHeaders`).
+ */
+function withOpenCodeSessionHeaders(
+  baseUrlCandidates: ReadonlyArray<string | undefined>,
+  promptCacheKey: string | undefined,
+  customHeaders: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!baseUrlCandidates.some((baseUrl) => isOpenCodeZenBaseUrl(baseUrl))) {
+    return customHeaders;
+  }
+  return { ...opencodeSessionHeaders(promptCacheKey), ...customHeaders };
 }
 
 function hasVertexAIServiceEnv(provider: ProviderConfig): boolean {

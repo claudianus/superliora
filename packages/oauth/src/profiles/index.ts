@@ -58,6 +58,7 @@ import {
   resolveCursorClientVersion,
 } from './cursor';
 import { KIMI_PROFILE } from './kimi';
+import { isOpenCodeZenBaseUrl, opencodeSessionHeaders } from './opencode';
 import { OPENAI_PROFILE } from './openai';
 import type { OAuthProviderId, ProviderProfile } from './provider-profile';
 import {
@@ -187,6 +188,7 @@ export {
   KIMI_PROFILE,
   normalizeAvailableModels,
   OPENAI_PROFILE,
+  opencodeSessionHeaders,
   parseGetServerConfigAgentUrl,
   resolveCursorClientVersion,
   rewriteCursorLegacyFastSuffix,
@@ -200,6 +202,7 @@ export {
   XAI_GROK_BUILD_CLIENT_SURFACE,
   XAI_GROK_BUILD_CLIENT_VERSION_DEFAULT,
   XAI_GROK_BUILD_TOKEN_AUTH,
+  isOpenCodeZenBaseUrl,
   isXaiGrokApiBaseUrl,
   isXaiGrokBuildBaseUrl,
   resolveXaiGrokRoute,
