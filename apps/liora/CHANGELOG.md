@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.22.1
+
+### Patch Changes
+
+- chore(deps): bump the npm_and_yarn group (vite, js-yaml, tar, undici, ws)
+
 ## 0.22.0
 
 ### Minor Changes

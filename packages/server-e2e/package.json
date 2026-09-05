@@ -1,6 +1,6 @@
 {
   "name": "@superliora/server-e2e",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Wire-level E2E test client for the SuperLiora server (HTTP + WS). Powers scenario scripts and self-tests against a real server process.",
   "license": "MIT",
