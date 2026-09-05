@@ -8,6 +8,7 @@
 
 - **Conductor** — write the outcome; implementation runs as isolated git worktree Jobs
 - **Job Deck + Inbox** — `Alt+J` watches progress, `Alt+I` answers questions, then Land locally what passed
+- **Server, SDK & IDEs** — `liora server run` hosts the engine over REST + WebSocket, `@superliora/sdk` embeds it programmatically, and `liora acp` plugs it into Zed/JetBrains
 - **Smart Auto** — model fallback, login pools, and Never-Halt retries (HTTP 5xx, not only 504) keep a turn alive when a model or account blips
 - **Command Hub** — `Ctrl+K` (Cmd on macOS; also `Ctrl+Space` / `?`) for settings, modes, sessions, and upgrade
 - **Host setup** — `/host-setup` plus a Desktop shortcut on every OS. Windows may auto-pick a roomier drive (~100 GB). Pin the home on any OS with `SUPERLIORA_HOME` or `--home`
@@ -43,18 +44,22 @@ After a GitHub Release, `liora upgrade` (or `/upgrade` in the TUI) updates the i
 liora                 # interactive Conductor session
 liora --continue      # resume last session in this directory
 liora --plan          # start with Plan Desk steering
+liora -p "outcome"    # headless: describe the outcome, no TUI
 ```
 
 Inside the TUI: `/login` and `/model` to connect a provider. Catalog login includes Groq, Mistral, Together, xAI API keys, Cerebras, Perplexity, and Vercel AI Gateway. `/quota` (or Command Hub → Quota) shows live remaining credits (footer chip is the active provider). `/host-setup` if the terminal is thin, then describe the outcome. Conductor creates a Job. Watch with `/jobs` or `Alt+J` (Job Deck). Answer prompts in Inbox (`Alt+I`). Command Hub is `Ctrl+K` (Cmd on macOS).
 
 ## CLI
 
-Optional hygiene:
-
 ```bash
 liora upgrade         # update to the latest GitHub Release
 liora doctor          # check config; --storage reports local disk use
 liora gc              # reclaim idle local storage (not the same as /job gc)
+liora provider list   # multi-provider catalog, keys, and routing
+liora worktree gc     # clean job worktrees (list / rm / gc / hygiene)
+liora export          # bundle a session for bug reports
+liora server run      # REST + WebSocket host for the agent engine
+liora acp             # Agent Client Protocol adapter for IDEs
 ```
 
 ## Docs & develop

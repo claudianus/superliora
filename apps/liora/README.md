@@ -20,7 +20,7 @@ SuperLiora is designed for software work where provider availability, route heal
 | Quota handling | Classifies auth, quota, rate-limit, timeout, server, connection, and empty-response failures, then cools down unhealthy candidates. |
 | Long context | Uses Context OS compaction, structured working memory, repair, and bounded rehydration. |
 | Memory | Uses one canonical SQLite Liora Memory store for fact, event, procedure, task, and rule records; operate it with `/memory inspect|remember|recall|reflect|forget`. |
-| Workflow | Runs UltraWork planning, research, goal creation, swarm execution, integration, verification, and learning. |
+| Workflow | Runs the Conductor harness — outcome briefs become Jobs in isolated git worktrees, with verify chains and deterministic land-to-main. |
 | TUI | Provides premium themes, bundled terminal palettes, syntax-aware colors, and clearer status surfaces. |
 
 ## Install
@@ -69,10 +69,10 @@ liora provider route preview <modelAlias>
 liora provider route status <sessionId>
 ```
 
-Run a larger task through UltraWork:
+Run a task headless (describe the outcome; no TUI):
 
 ```sh
-liora -p "/ultrawork Plan, implement, verify, and summarize the release risk for this change."
+liora -p "Fix the failing login test and verify the suite passes."
 ```
 
 ## Links

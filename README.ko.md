@@ -8,6 +8,7 @@
 
 - **Conductor** — 끝난 모습을 적으면 격리 git worktree Job이 실행합니다
 - **Job Deck · Inbox** — `Alt+J`로 진행을 보고, `Alt+I`에서 질문에 답한 뒤, 통과분만 로컬에 Land
+- **서버 · SDK · IDE** — `liora server run`으로 REST + WebSocket 호스팅, `@superliora/sdk`로 프로그램 임베딩, `liora acp`로 Zed/JetBrains 연결
 - **Smart Auto** — 모델 폴백, 로그인 풀, Never-Halt 재시도(HTTP 5xx, 504만이 아님)로 계정·모델이 흔들려도 턴이 이어집니다
 - **Command Hub** — `Ctrl+K`(macOS는 Cmd, 또는 `Ctrl+Space` / `?`)에서 설정, 모드, 세션, 업그레이드를 찾습니다
 - **Host setup** — `/host-setup`과 모든 OS의 바탕 화면 바로가기. Windows는 여유 있는 드라이브(약 100 GB)를 고를 수 있습니다. 홈 고정은 모든 OS에서 `SUPERLIORA_HOME` 또는 `--home`
@@ -43,18 +44,22 @@ GitHub Release가 나오면 `liora upgrade`(또는 TUI의 `/upgrade`)로 설치�
 liora                 # Conductor 인터랙티브 세션
 liora --continue      # 현재 디렉터리 최근 세션 이어하기
 liora --plan          # Plan Desk로 시작
+liora -p "결과"        # 헤드리스: TUI 없이 원하는 결과를 한 줄로
 ```
 
 TUI에서 `/login` · `/model`로 프로바이더를 연결합니다. 카탈로그 로그인에는 Groq, Mistral, Together, xAI API 키, Cerebras, Perplexity, Vercel AI Gateway가 있습니다. `/quota`(또는 Command Hub → Quota)로 실시간 남은 크레딧을 봅니다(푸터 칩은 활성 프로바이더). 터미널이 얇으면 `/host-setup`을 쓴 뒤 원하는 결과를 적으세요. Conductor가 Job을 만듭니다. `/jobs` 또는 `Alt+J`(Job Deck)로 보고, Inbox(`Alt+I`)에서 질문에 답하세요. Command Hub는 `Ctrl+K`(macOS는 Cmd)입니다.
 
 ## CLI
 
-선택 정리:
-
 ```bash
 liora upgrade         # 최신 GitHub Release로 갱신
 liora doctor          # 설정 점검. --storage는 로컬 용량
 liora gc              # 쉬는 로컬 저장소를 회수 (/job gc와는 다름)
+liora provider list   # 멀티 프로바이더 카탈로그·키·라우팅
+liora worktree gc     # Job worktree 정리 (list / rm / gc / hygiene)
+liora export          # 버그 리포트용 세션 번들
+liora server run      # 에이전트 엔진의 REST + WebSocket 호스트
+liora acp             # IDE용 Agent Client Protocol 어댑터
 ```
 
 ## 문서 · 개발
