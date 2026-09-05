@@ -47,6 +47,19 @@ const appState: AppState = {
   mcpServersSummary: null,
 };
 
+/** Pick a rotation seed where consecutive 10s slots show different tip text. */
+function pinDistinctTipRotationSeed(): number {
+  let base = 0;
+  while (base < 256 && tipsForIndex(base).primary === tipsForIndex(base + 1).primary) {
+    base += 1;
+  }
+  if (base >= 256) {
+    throw new Error('no tip rotation seed with distinct consecutive slots');
+  }
+  setTipRotationSeedForTests(base);
+  return base;
+}
+
 describe('FooterComponent', () => {
   const previousChalkLevel = chalk.level;
 
@@ -330,12 +343,7 @@ describe('FooterComponent tip crossfade', () => {
     // High-priority tips can land back-to-back in the weighted rotation. Pin a
     // seed where consecutive 10s slots show different tip text so typewriter
     // assertions are deterministic (CI #3848 flake at line 385).
-    let base = 0;
-    while (base < 256 && tipsForIndex(base).primary === tipsForIndex(base + 1).primary) {
-      base += 1;
-    }
-    setTipRotationSeedForTests(base);
-    expect(tipsForIndex(base).primary).not.toBe(tipsForIndex(base + 1).primary);
+    pinDistinctTipRotationSeed();
   });
 
   afterEach(() => {
