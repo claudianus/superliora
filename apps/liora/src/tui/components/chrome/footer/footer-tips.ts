@@ -50,9 +50,11 @@ const ROTATION: readonly ToolbarTip[] = buildWeightedTips(ALL_TIPS);
  */
 let rotationSeed = Math.floor(Date.now() / TIP_ROTATE_INTERVAL_MS);
 
-/** Pin the tip rotation seed (tests only). */
-export function setTipRotationSeedForTests(seed: number): void {
+/** Pin the tip rotation seed (tests only). Returns the previous seed for restore. */
+export function setTipRotationSeedForTests(seed: number): number {
+  const previous = rotationSeed;
   rotationSeed = Math.trunc(seed);
+  return previous;
 }
 
 /**
