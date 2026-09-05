@@ -1,1 +1,439 @@
-__LOAD_FROM_FILE__
+import chalk from 'chalk';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import { contextUsageSeverity, FooterComponent } from '#/tui/components/chrome/footer/footer';
+import {
+  setTipRotationSeedForTests,
+  tipsForIndex,
+} from '#/tui/components/chrome/footer/footer-tips';
+import { currentTheme, darkColors, lightColors } from '#/tui/theme';
+import type { AppState } from '#/tui/types';
+import {
+  advanceAppearanceAnimationClock,
+  motionEffectsAllowed,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+  setAppearanceTransportStability,
+} from '#/tui/features/appearance/appearance-effects';
+
+const appState: AppState = {
+  version: '1.2.3',
+  workDir: '/tmp/project',
+  additionalDirs: [],
+  sessionId: 'ses-1',
+  sessionTitle: null,
+  model: 'kimi-k2',
+  permissionMode: 'manual',
+  thinking: false,
+  contextUsage: 0,
+  contextTokens: 0,
+  maxContextTokens: 0,
+  isCompacting: false,
+  isBackgroundCompacting: false,
+  isReplaying: false,
+  streamingPhase: 'idle',
+  streamingStartTime: 0,
+  planMode: false,
+  askMode: false,
+  inputMode: 'prompt',
+  theme: 'dark',
+  editorCommand: null,
+  notifications: { enabled: true, condition: 'unfocused' },
+  upgrade: { autoInstall: true },
+  availableModels: {},
+  availableProviders: {},
+  mcpServersSummary: null,
+};
+
+/** Pick a rotation seed where consecutive 10s slots show different tip text. Returns previous seed. */
+function pinDistinctTipRotationSeed(): number {
+  let base = 0;
+  while (base < 256 && tipsForIndex(base).primary === tipsForIndex(base + 1).primary) {
+    base += 1;
+  }
+  if (base >= 256) {
+    throw new Error('no tip rotation seed with distinct consecutive slots');
+  }
+  return setTipRotationSeedForTests(base);
+}
+
+describe('FooterComponent', () => {
+  const previousChalkLevel = chalk.level;
+
+  beforeEach(() => {
+    chalk.level = 3;
+    // Disable ambient effects so ANSI animations don't split text tokens
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+  });
+
+  afterEach(() => {
+    chalk.level = previousChalkLevel;
+  });
+
+  it('renders the premium badge when premium quality mode is on', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      premiumQualityMode: true,
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
+    });
+    const rendered = footer.render(120).join('\n');
+    expect(rendered).toContain('Premium');
+  });
+
+  it('does not surface transcript density on the status bar', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      // Hide rotating tips so idle copy cannot false-positive the chip check.
+      streamingPhase: 'thinking',
+      appearance: {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off',
+        transcriptDetail: 'minimal',
+      },
+    });
+    const rendered = footer.render(120).join('\n').replaceAll(/\u001B\[[0-9;]*m/g, '');
+    // Density lives in appearance prefs only — never a status-bar chip.
+    // Avoid bare "minimal" substring checks: footer presets also use that id.
+    expect(rendered).not.toContain('tx:');
+    expect(rendered).not.toMatch(/transcriptDetail|tx-detail|density:\s*minimal/i);
+  });
+
+  it('renders the model name in the footer', () => {
+    const footer = new FooterComponent(appState);
+
+    const rendered = footer.render(120).join('\n');
+
+    expect(rendered).toContain('kimi-k2');
+  });
+
+  it('does not surface a completion-role badge (ghost complete is already visible in-editor)', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      model: 'kimi-k2',
+      availableModels: {
+        'kimi-k2': {
+          provider: 'managed:kimi-api',
+          model: 'kimi-k2',
+          maxContextSize: 200_000,
+          displayName: 'Kimi K2',
+        } as AppState['availableModels'][string],
+        turbo: {
+          provider: 'managed:kimi-api',
+          model: 'kimi-turbo',
+          maxContextSize: 200_000,
+          displayName: 'Kimi Turbo',
+        } as AppState['availableModels'][string],
+      },
+      lastModelRouteNotice: {
+        kind: 'selection',
+        fromAlias: 'kimi-k2',
+        toAlias: 'turbo',
+        reason: 'completion:inline',
+        atMs: Date.now(),
+      },
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
+    });
+
+    const rendered = footer.render(160).join('\n');
+    expect(rendered).not.toMatch(/Completing with|complete /);
+    expect(rendered).toContain('Kimi K2');
+    expect(rendered).not.toContain('Kimi Turbo');
+  });
+
+  it('surfaces an effective route and failover badge when the step model differs', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      model: 'kimi-k2',
+      availableModels: {
+        'kimi-k2': {
+          provider: 'managed:kimi-api',
+          model: 'kimi-k2',
+          maxContextSize: 200_000,
+          displayName: 'Kimi K2',
+        } as AppState['availableModels'][string],
+        turbo: {
+          provider: 'managed:kimi-api',
+          model: 'kimi-turbo',
+          maxContextSize: 200_000,
+          displayName: 'Kimi Turbo',
+        } as AppState['availableModels'][string],
+      },
+      lastProviderRouteSelection: {
+        modelAlias: 'turbo',
+        providerName: 'managed:kimi-api',
+        credentialLabel: 'acct-a',
+        providerModel: 'kimi-turbo',
+      },
+      lastModelRouteNotice: {
+        kind: 'failover',
+        fromAlias: 'kimi-k2',
+        toAlias: 'turbo',
+        reason: 'provider-failover',
+        atMs: Date.now(),
+      },
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
+    });
+
+    const rendered = footer.render(160).join('\n');
+    // Session alias → effective step model
+    expect(rendered).toMatch(/Kimi K2|kimi-k2/);
+    expect(rendered).toContain('Kimi Turbo');
+    expect(rendered).toMatch(/Failover|failover/);
+  });
+
+  it('renders the thinking effort level next to the model name', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      thinking: true,
+      thinkingLevel: 'high',
+    });
+
+    const rendered = footer.render(120).join('\n');
+
+    expect(rendered).toContain('kimi-k2 high');
+    expect(rendered).not.toContain('thinking');
+  });
+
+  it('shows wire clamp when request effort differs from transport', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      thinking: true,
+      thinkingLevel: 'max',
+      availableModels: {
+        'kimi-k2': {
+          provider: 'managed:kimi-api',
+          model: 'kimi-k2',
+          maxContextSize: 200_000,
+          displayName: 'Kimi K2',
+          capabilities: ['thinking'],
+          supportEfforts: ['low', 'high', 'max'],
+        } as AppState['availableModels'][string],
+      },
+    });
+
+    const rendered = footer.render(120).join('\n');
+    expect(rendered).toContain('Kimi K2 max→high');
+  });
+
+  it('repaints from the active palette on the next render (no setColors needed)', () => {
+    const footer = new FooterComponent(appState);
+    const before = footer.render(120).join('\n');
+
+    currentTheme.setPalette(lightColors);
+    try {
+      const after = footer.render(120).join('\n');
+      // Reads currentTheme live, so a palette swap changes the emitted colours.
+      expect(after).not.toBe(before);
+    } finally {
+      currentTheme.setPalette(darkColors);
+    }
+  });
+
+  it('suggests media keys in the next-action line when no image/video key is set', () => {
+    const previous = {
+      OPENAI_API_KEY: process.env['OPENAI_API_KEY'],
+      GOOGLE_API_KEY: process.env['GOOGLE_API_KEY'],
+      GEMINI_API_KEY: process.env['GEMINI_API_KEY'],
+    };
+    delete process.env['OPENAI_API_KEY'];
+    delete process.env['GOOGLE_API_KEY'];
+    delete process.env['GEMINI_API_KEY'];
+    try {
+      const footer = new FooterComponent(appState);
+      const [, line2 = ''] = footer.render(160);
+      expect(line2).toMatch(/OPENAI_API_KEY|GOOGLE_API_KEY|image\/video|\/status/i);
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it('keeps the default next-action when media keys are already present', () => {
+    const previous = {
+      OPENAI_API_KEY: process.env['OPENAI_API_KEY'],
+      GOOGLE_API_KEY: process.env['GOOGLE_API_KEY'],
+      GEMINI_API_KEY: process.env['GEMINI_API_KEY'],
+    };
+    process.env['OPENAI_API_KEY'] = 'test-key';
+    delete process.env['GOOGLE_API_KEY'];
+    delete process.env['GEMINI_API_KEY'];
+    try {
+      const footer = new FooterComponent(appState);
+      const [, line2 = ''] = footer.render(160);
+      // Only assert the next-action line — rotating tips may mention media keys.
+      expect(line2).toMatch(/Shift-Tab switches Build\/Ask|\/plan to plan first/i);
+      expect(line2).not.toMatch(/OPENAI_API_KEY or GOOGLE_API_KEY for image\/video/);
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it('suggests /compact once usage reaches the soft reclaim threshold', () => {
+    const previous = process.env['OPENAI_API_KEY'];
+    process.env['OPENAI_API_KEY'] = 'test-key';
+    try {
+      const footer = new FooterComponent({ ...appState, contextUsage: 0.70 });
+      const [, line2 = ''] = footer.render(160);
+      expect(line2).toMatch(/\/compact before long work/i);
+    } finally {
+      if (previous === undefined) delete process.env['OPENAI_API_KEY'];
+      else process.env['OPENAI_API_KEY'] = previous;
+    }
+  });
+
+  it('shows Approved dopamine badge after permission approval', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      permissionApproveFlourish: { atMs: Date.now() },
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
+    });
+    const rendered = footer.render(120).join('\n');
+    expect(rendered).toContain('Approved');
+  });
+});
+
+describe('contextUsageSeverity', () => {
+  it('maps soft/hard/danger bands without dead branches', () => {
+    expect(contextUsageSeverity(0.0)).toBe('muted');
+    expect(contextUsageSeverity(0.50)).toBe('muted');
+    expect(contextUsageSeverity(0.69)).toBe('muted');
+    expect(contextUsageSeverity(0.70)).toBe('info');
+    expect(contextUsageSeverity(0.90)).toBe('warning');
+    expect(contextUsageSeverity(0.94)).toBe('warning');
+    expect(contextUsageSeverity(0.95)).toBe('danger');
+  });
+});
+
+describe('FooterComponent tip crossfade', () => {
+  const previous = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+    GITHUB_ACTIONS: process.env['GITHUB_ACTIONS'],
+  };
+  let previousRotationSeed = 0;
+
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['GITHUB_ACTIONS'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setAppearanceTransportStability('synchronized');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    chalk.level = 3;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    // High-priority tips can land back-to-back in the weighted rotation. Pin a
+    // seed where consecutive 10s slots show different tip text so typewriter
+    // assertions are deterministic (CI #3848 flake at line 385).
+    previousRotationSeed = pinDistinctTipRotationSeed();
+  });
+
+  afterEach(() => {
+    setTipRotationSeedForTests(previousRotationSeed);
+    vi.useRealTimers();
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('keeps session_resume enter beat at two footer lines', () => {
+    const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+    const footer = new FooterComponent({
+      ...appState,
+      appearance: {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+      },
+    });
+    footer.setMotionBeatSource(() => ({
+      name: 'session_resume',
+      seed: 'resume',
+      title: 'Resuming session',
+      startedAtMs: Date.now() - 200,
+      kind: 'enter',
+    }));
+    const lines = footer.render(120);
+    expect(lines).toHaveLength(2);
+    expect(strip(lines.join('\n'))).toMatch(/Resuming/i);
+  });
+
+  it('types rotating tips in left-to-right instead of hard-swapping under premium', () => {
+    expect(motionEffectsAllowed()).toBe(true);
+    const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+    // The footer line is padded to full width, so compare the tip portion only
+    // by trimming the trailing fill spaces.
+    const tipLen = (text: string): number => strip(text).trimEnd().length;
+    const footer = new FooterComponent({
+      ...appState,
+      appearance: {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+      },
+    });
+    // Shared motion clock is ms since process start, not Unix epoch. Pin
+    // small values so typewriter elapsed and the 10s tip rotation stay aligned
+    // even when the runner set NO_COLOR and this test cleared it.
+    advanceAppearanceAnimationClock(0);
+    footer.render(200);
+    advanceAppearanceAnimationClock(2_000);
+    const settledFirst = footer.render(200)[0] ?? '';
+    // Advance past tip rotation interval (10s) so the tip index changes; the
+    // new tip begins typing from a short prefix rather than hard-swapping in.
+    advanceAppearanceAnimationClock(12_000);
+    const early = footer.render(200)[0] ?? '';
+    expect(early.length).toBeGreaterThan(0);
+    expect(strip(early)).not.toBe(strip(settledFirst));
+    expect(tipLen(early)).toBeLessThan(tipLen(settledFirst));
+    // After the TYPEWRITER window the new tip settles in full.
+    advanceAppearanceAnimationClock(14_000);
+    const settled = footer.render(200)[0] ?? '';
+    expect(tipLen(settled)).toBeGreaterThan(tipLen(early));
+    expect(strip(settled)).not.toBe(strip(settledFirst));
+  });
+
+  it('sweeps the context meter colors without changing the eighths glyphs', () => {
+    const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+    const footer = new FooterComponent({
+      ...appState,
+      contextUsage: 0.5,
+      appearance,
+    });
+    advanceAppearanceAnimationClock(200);
+    const first = footer.render(160)[1] ?? '';
+    advanceAppearanceAnimationClock(750);
+    const second = footer.render(160)[1] ?? '';
+    expect(strip(first)).toMatch(/Context █████░░░░░ 50\.0%/);
+    expect(strip(second)).toMatch(/Context █████░░░░░ 50\.0%/);
+    const firstBar = first.match(/█[\s\S]*?░/)?.[0] ?? first;
+    const secondBar = second.match(/█[\s\S]*?░/)?.[0] ?? second;
+    expect(firstBar).not.toBe(secondBar);
+    expect(new Set(firstBar.match(/38;2;\d+;\d+;\d+/g) ?? []).size).toBeGreaterThanOrEqual(4);
+  });
+});
