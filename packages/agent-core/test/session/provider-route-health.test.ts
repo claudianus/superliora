@@ -53,8 +53,11 @@ describe('ProviderManager route health + expansion', () => {
 
   it('honors an explicit fallback_models list without auto-expansion', () => {
     const config = baseConfig() as unknown as Record<string, unknown>;
-    const models = config.models as Record<string, Record<string, unknown>>;
-    models['grok-main'].fallbackModels = ['gpt-fallback'];
+    const models = config['models'] as Record<string, { fallbackModels?: string[] } | undefined>;
+    const grokMain = models['grok-main'];
+    expect(grokMain).toBeDefined();
+    if (grokMain === undefined) throw new Error('grok-main missing from test config');
+    grokMain.fallbackModels = ['gpt-fallback'];
 
     const manager = new ProviderManager({ config: () => config as unknown as LioraConfig });
     const route = manager.resolveProviderRoute('grok-main');
