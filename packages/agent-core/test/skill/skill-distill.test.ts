@@ -79,6 +79,25 @@ describe('parseDistilledSkill', () => {
     expect(skill.triggers).toContain('test-local');
   });
 
+  it('accepts an explicit null updateOf (models emit null, not absent)', () => {
+    // Regression: auto-skillify distill failed with
+    // "updateOf: Invalid input: expected string, received null" when the
+    // distill JSON carried `updateOf: null` for a brand-new skill.
+    const skill = parseDistilledSkill(
+      JSON.stringify({
+        name: 'new-playbook',
+        description: 'A playbook distilled from a fresh lesson.',
+        whenToUse: 'When the fresh lesson applies',
+        triggers: ['fresh lesson'],
+        body: '1. Do the thing.',
+        evidence: 'The thing worked after the fix',
+        updateOf: null,
+      }),
+    );
+    expect(skill.name).toBe('new-playbook');
+    expect(skill.updateOf ?? undefined).toBeUndefined();
+  });
+
   it('rejects a retry-slug name', () => {
     expect(() =>
       parseDistilledSkill(

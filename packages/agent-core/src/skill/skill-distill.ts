@@ -48,7 +48,9 @@ const DistilledSkillSchema = z
     triggers: z.array(z.string().min(1)).max(16),
     body: z.string().min(1),
     evidence: z.string().min(1),
-    updateOf: z.string().optional(),
+    // Models emit explicit nulls for "no existing skill" despite the prompt
+    // saying optional — accept nullish so a whole distillation is not lost.
+    updateOf: z.string().nullish(),
   })
   .strict();
 
@@ -211,11 +213,12 @@ async function distillLessonToSkill(
     .join('\n');
 
   let distilled = parseDistilledSkill(await generateJsonText(agent, DISTILL_SYSTEM_PROMPT, distillUser));
+  const updateOf = distilled.updateOf?.trim();
   const name =
-    distilled.updateOf !== undefined &&
-    distilled.updateOf.length > 0 &&
-    agent.skills?.registry.getSkill(distilled.updateOf) !== undefined
-      ? distilled.updateOf
+    updateOf !== undefined &&
+    updateOf.length > 0 &&
+    agent.skills?.registry.getSkill(updateOf) !== undefined
+      ? updateOf
       : distilled.name;
 
   const commit = async (
