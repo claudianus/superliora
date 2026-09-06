@@ -1908,6 +1908,7 @@ function mediaCapabilities(): ModelCapability {
     image_in: true,
     video_in: true,
     audio_in: false,
+    pdf_in: false,
     thinking: false,
     tool_use: true,
     max_context_tokens: 1_000_000,

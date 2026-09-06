@@ -2045,6 +2045,7 @@ function makeCapability(maxContextTokens: number): ModelCapability {
     image_in: false,
     video_in: false,
     audio_in: false,
+    pdf_in: false,
     thinking: false,
     tool_use: true,
     max_context_tokens: maxContextTokens,
