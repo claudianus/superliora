@@ -26,8 +26,15 @@ export const JOB_WORKER_SPAWN_BUDGET_MS = 30_000;
  * lands within this window the job is marked blocked + inbox so Conductor can
  * retry/cancel. Must stay off the spawner queue — lengthening the handshake
  * budget would serialize the fleet.
+ *
+ * Must stay clearly above the LLM stream idle timeout (120s): a worker waiting
+ * on a slow model's first token has made no "progress" yet, and a stall window at
+ * or below the idle timeout falsely flags those live workers. The Conductor then
+ * resumes them (replacing the still-healthy worker), which discards the in-flight
+ * model call and seeds a blocked → resume → replace loop (observed: 39 "replaced
+ * by newer worker launch" events in one session).
  */
-export const JOB_WORKER_PROGRESS_STALL_MS = 120_000;
+export const JOB_WORKER_PROGRESS_STALL_MS = 5 * 60 * 1000;
 
 /**
  * Parallel spawn handshakes. Keys are deduped per job and each handshake owns

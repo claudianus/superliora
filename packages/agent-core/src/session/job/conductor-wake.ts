@@ -35,6 +35,13 @@ export const CONDUCTOR_WAKE_PROMPT = [
  * Collapses a burst of notices during one turn into a single re-check.
  */
 const wakeRecheckArmed = new WeakSet<Agent>();
+/**
+ * Coalescing window: a burst of blocked/failed job notices landing within this
+ * window collapses into a single wake turn instead of one turn per notice
+ * (otherwise a multi-job stall floods the Conductor with routing passes).
+ */
+const WAKE_COALESCE_WINDOW_MS = 30_000;
+let lastWakeTurnAtMs = 0;
 
 export function requestConductorWake(input: {
   readonly agent: Agent;
@@ -44,6 +51,12 @@ export function requestConductorWake(input: {
   if (agent.type !== 'main') return;
   try {
     if (listUnreadJobInbox(store).length === 0) return;
+    // Time-based coalescing: suppress follow-up wakes within the window so a
+    // burst of job notices triggers one routing turn, not one per notice.
+    const nowMs = Date.now();
+    if (nowMs - lastWakeTurnAtMs < WAKE_COALESCE_WINDOW_MS && agent.turn.hasActiveTurn === false) {
+      return;
+    }
     if (agent.turn.hasActiveTurn) {
       // Coalescing: the running turn's per-step inject cycle usually surfaces
       // the notice. For the gap between the final inject and turn end, arm a
@@ -66,6 +79,7 @@ export function requestConductorWake(input: {
       void settled.then(recheck, recheck);
       return;
     }
+    lastWakeTurnAtMs = nowMs;
     agent.turn.prompt([{ type: 'text', text: CONDUCTOR_WAKE_PROMPT }], CONDUCTOR_WAKE_ORIGIN);
   } catch {
     // Wake is best-effort: never throw into ledger/inbox/completion paths.
