@@ -182,3 +182,390 @@ describe('compaction — guard tests', () => {
     expect(historyTexts(ctx).join('\n')).toContain('DEFERRED-STEER');
   });
 });
+
+describe('compaction — probe tests (high-risk scenarios)', () => {
+  // PROBE #1 / CMP-02 — messages appended while the summarizer request is in
+  // flight (async / live-step race). applyCompaction keeps
+  // history.slice(compactedCount), so an append-only tail must complete and
+  // retain the raced messages — cancelling would thrash Conductor wakes.
+  it('completes and keeps an assistant turn appended while the summarizer call is in flight', async () => {
+    let ctx!: TestAgentContext;
+    const appendDuringGenerate: GenerateFn = async () => {
+      // Simulate the turn loop completing a step while compaction awaits.
+      ctx.agent.context.appendLoopEvent({
+        type: 'step.begin',
+        uuid: 'race-step',
+        turnId: '',
+        step: 9,
+      });
+      ctx.agent.context.appendLoopEvent({
+        type: 'content.part',
+        uuid: 'race-part',
+        turnId: '',
+        step: 9,
+        stepUuid: 'race-step',
+        part: { type: 'text', text: 'RACE-ASSISTANT-OUTPUT' },
+      });
+      ctx.agent.context.appendLoopEvent({
+        type: 'step.end',
+        uuid: 'race-step',
+        turnId: '',
+        step: 9,
+        finishReason: 'end_turn',
+      });
+      return textResult('Compacted summary.');
+    };
+    ctx = testAgent({ generate: appendDuringGenerate });
+    ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
+    ctx.appendExchange(1, 'user one', 'assistant one', 40);
+
+    await ctx.rpc.beginCompaction({});
+    await ctx.once('compaction.completed');
+
+    expect(historyTexts(ctx).join('\n')).toContain('RACE-ASSISTANT-OUTPUT');
+  });
+
+  // Manual compaction includes a trailing open assistant in the compacted
+  // prefix; in-place streaming into that message must cancel (summary is stale).
+  it('cancels when a compacted-prefix assistant is mutated in place during summarization', async () => {
+    let ctx!: TestAgentContext;
+    const appendDuringGenerate: GenerateFn = async () => {
+      ctx.agent.context.appendLoopEvent({
+        type: 'content.part',
+        uuid: 'race-part',
+        turnId: '',
+        step: 9,
+        stepUuid: 'live-step',
+        part: { type: 'text', text: 'RACE-IN-PLACE-OUTPUT' },
+      });
+      return textResult('Compacted summary.');
+    };
+    ctx = testAgent({ generate: appendDuringGenerate });
+    ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
+    ctx.appendExchange(1, 'user one', 'assistant one', 40);
+    ctx.agent.context.appendLoopEvent({
+      type: 'step.begin',
+      uuid: 'live-step',
+      turnId: '',
+      step: 9,
+    });
+
+    await ctx.rpc.beginCompaction({});
+    await ctx.once('compaction.cancelled');
+
+    expect(historyTexts(ctx).join('\n')).toContain('RACE-IN-PLACE-OUTPUT');
+  });
+
+  // PROBE #1b — background-task (and other non-real-user) tails appended
+  // mid-summary stay in retainedSuffix; completing must not drop them.
+  it('completes and keeps a droppable user-role tail appended mid-summary', async () => {
+    let ctx!: TestAgentContext;
+    const appendDuringGenerate: GenerateFn = async () => {
+      ctx.agent.context.appendUserMessage([{ type: 'text', text: 'BG-NOTIFY-OUTPUT' }], {
+        kind: 'background_task',
+        taskId: 't',
+        status: 'completed',
+        notificationId: 'n',
+      });
+      return textResult('Compacted summary.');
+    };
+    ctx = testAgent({ generate: appendDuringGenerate });
+    ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
+    ctx.appendExchange(1, 'user one', 'assistant one', 40);
+
+    await ctx.rpc.beginCompaction({});
+    await ctx.once('compaction.completed');
+
+    expect(historyTexts(ctx).join('\n')).toContain('BG-NOTIFY-OUTPUT');
+  });
+
+  // PROBE #2 — empty/truncated summarizer responses drop one oldest message and
+  // retry. A dedicated shrink counter, bounded by MAX_COMPACTION_RETRY_ATTEMPTS,
+  // keeps a model that always returns empty from issuing ~one call per message.
+  it('bounds summarizer calls by the retry limit when the model keeps returning empty', async () => {
+    let calls = 0;
+    // Empty 7 times, then a valid summary. The bounded shrink counter gives up by
+    // ~call 6, so compaction errors out before ever reaching the 8th (valid)
+    // response; an unbounded impl would tolerate all 7 and complete on the 8th.
+    const flakyEmpty: GenerateFn = async () => {
+      calls += 1;
+      return calls <= 7 ? textResult('') : textResult('Compacted summary.');
+    };
+    const ctx = testAgent({ generate: flakyEmpty });
+    ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
+    for (let i = 1; i <= 5; i++) {
+      ctx.appendExchange(i, `user ${String(i)}`, `assistant ${String(i)}`, 40);
+    }
+
+    await ctx.rpc.beginCompaction({});
+    await Promise.race([ctx.once('compaction.completed'), ctx.once('error')]);
+
+    // A retry budget of MAX_COMPACTION_RETRY_ATTEMPTS(5) should bound calls.
+    expect(calls).toBeLessThanOrEqual(6);
+  });
+
+  // PROBE #3 / CMP-08 — the kept-user budget is a fixed 20k and ignores the
+  // model window, so on a small-window model the post-compaction context can
+  // still exceed the trigger, re-compacting every turn without converging.
+  it('keeps the post-compaction context below the auto-compaction trigger on a small window', async () => {
+    const SMALL_WINDOW = 16_000;
+    const ctx = testAgent();
+    ctx.configure({
+      provider: PROVIDER,
+      modelCapabilities: { ...CAPS, max_context_tokens: SMALL_WINDOW },
+    });
+    // ~7.5k tokens of user text per message (30k ascii chars / 4).
+    for (let i = 1; i <= 3; i++) {
+      ctx.appendExchange(i, 'u'.repeat(30_000), `assistant ${String(i)}`, 40);
+    }
+
+    ctx.mockNextResponse({ type: 'text', text: 'Compacted summary.' });
+    await ctx.rpc.beginCompaction({});
+    await ctx.once('compaction.completed');
+
+    // tokenCount after compaction should leave headroom below the 85% trigger,
+    // otherwise the next turn immediately re-compacts and never converges.
+    expect(ctx.agent.context.tokenCount).toBeLessThan(SMALL_WINDOW * 0.85);
+  });
+
+  // CMP-01 (was PROBE #4) — compaction started while a tool exchange is still
+  // open (SDK/REST caller mid-tool) used to clear pendingToolResultIds, so a
+  // tool.result arriving afterwards was treated as an orphan and silently
+  // dropped. applyCompaction now preserves previously-pending ids in
+  // lateAcceptedToolCallIds so the late result lands in history.
+  it('does not drop a tool result that arrives after a compaction started mid-exchange', async () => {
+    const ctx = testAgent();
+    ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
+    ctx.appendUnresolvedToolExchange(0); // assistant with 2 tool calls, no results yet
+
+    ctx.mockNextResponse({ type: 'text', text: 'Compacted summary.' });
+    await ctx.rpc.beginCompaction({});
+    await ctx.once('compaction.completed');
+
+    // The tool finishes after compaction; its result must not vanish.
+    ctx.agent.context.appendLoopEvent({
+      type: 'tool.result',
+      parentUuid: 'call_unresolved_one',
+      toolCallId: 'call_unresolved_one',
+      result: { output: 'LATE-TOOL-RESULT' },
+    });
+
+    expect(historyTexts(ctx).join('\n')).toContain('LATE-TOOL-RESULT');
+  });
+
+  // CMP-12 fix — restoring a legacy `context.apply_compaction` record (pre-rework:
+  // no keptUserMessageCount; the old `[summary, ...history.slice(compactedCount)]`
+  // semantics kept a verbatim recent tail). On restore we reproduce that shape so
+  // an upgraded session does not lose its recent assistant/tool tail.
+  it('preserves the verbatim tail when restoring a legacy compaction record', () => {
+    const ctx = testAgent();
+    ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
+    ctx.appendExchange(1, 'summarized user', 'TAIL-ASSISTANT', 40);
+
+    // Goes through the real restore path so `records.restoring` gates the legacy
+    // reconstruction. No keptUserMessageCount + compactedCount < length marks the
+    // pre-rework record that kept history.slice(compactedCount) as a tail.
+    ctx.agent.records.restore({
+      type: 'context.apply_compaction',
+      summary: 'Legacy summary.',
+      compactedCount: 1,
+      tokensBefore: 100,
+      tokensAfter: 50,
+    });
+
+    expect(historyTexts(ctx).join('\n')).toContain('TAIL-ASSISTANT');
+  });
+
+  // PROBE #7 / CMP-07 — when the oldest kept user message overflows the budget it
+  // is truncated to text only, dropping any image/audio/video it carried: media
+  // can't be partially truncated, and keeping it whole would overshoot the
+  // budget. Recent messages that fit keep their media; only this boundary message
+  // loses its attachments. Documented as an accepted limitation rather than fixed.
+  it('keeps media on the oldest kept user message instead of dropping it on truncation', () => {
+    const ctx = testAgent();
+    ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
+    // Oldest user message: an image + long text that will overflow the budget.
+    ctx.agent.context.appendUserMessage(
+      [
+        { type: 'image_url', imageUrl: { url: 'data:image/png;base64,AAAA' } },
+        { type: 'text', text: 'x'.repeat(120_000) }, // ~30k tokens of text
+      ],
+      { kind: 'user' },
+    );
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'recent user' }], { kind: 'user' });
+
+    ctx.agent.context.applyCompaction({
+      summary: 'Summary.',
+      compactedCount: 2,
+      tokensBefore: 100,
+    });
+
+    const keptParts = ctx.agent.context.history.flatMap((message) => message.content);
+    expect(keptParts.some((part) => part.type === 'image_url')).toBe(true);
+  });
+});
+
+describe('compaction — head/tail user-message retention', () => {
+  const FIRST = `FIRST ${'a'.repeat(4_000)}`; // ~1k tokens
+  const MIDDLE = 'b'.repeat(88_000); // ~22k tokens, over the 20k budget on its own
+  const LAST = `LAST ${'c'.repeat(4_000)}`; // ~1k tokens
+
+  async function compactedOversizedPool() {
+    const ctx = testAgent();
+    ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
+    for (const text of [FIRST, MIDDLE, LAST]) {
+      ctx.agent.context.appendUserMessage([{ type: 'text', text }]);
+    }
+    ctx.mockNextResponse({ type: 'text', text: 'Summary.' });
+    await ctx.rpc.beginCompaction({});
+    await ctx.once('compaction.completed');
+    return ctx;
+  }
+
+  it(
+    'splits an oversized user pool into head + elision marker + tail',
+    async () => {
+    const ctx = await compactedOversizedPool();
+
+    const history = ctx.agent.context.history;
+    const texts = historyTexts(ctx);
+    // [FIRST, head slice of MIDDLE, marker, tail slice of MIDDLE, LAST, summary,
+    //  current-time, resume-recheck] — the structured-scaffold pass turns the
+    // free-form summary into v2 memory whose verified claims carry
+    // needs_revalidation=true, so the T1-5 resume-recheck reminder is appended.
+    expect(history).toHaveLength(8);
+    expect(texts[0]).toBe(FIRST);
+    expect(/^b+$/.test(texts[1]!)).toBe(true);
+    expect(MIDDLE.startsWith(texts[1]!)).toBe(true);
+    expect(history[2]!.origin).toEqual({ kind: 'injection', variant: COMPACTION_ELISION_VARIANT });
+    expect(texts[2]).toContain('<system-reminder>');
+    expect(texts[2]).toContain('omitted');
+    expect(/^b+$/.test(texts[3]!)).toBe(true);
+    expect(MIDDLE.endsWith(texts[3]!)).toBe(true);
+    expect(texts[4]).toBe(LAST);
+    expect(history[5]!.origin?.kind).toBe('compaction_summary');
+    expect(history[7]!.origin).toEqual({
+      kind: 'injection',
+      variant: 'compaction_resume_recheck',
+    });
+
+    const completedEvent = ctx.allEvents.find((entry) => entry.event === 'compaction.completed');
+    expect(completedEvent?.args).toEqual({
+      result: expect.objectContaining({
+        keptUserMessageCount: 4,
+        keptHeadUserMessageCount: 2,
+      }),
+    });
+
+    await ctx.expectResumeMatches();
+  },
+    180_000,
+  );
+
+  it(
+    'does not stack elision markers or re-summarize them across repeated compactions',
+    async () => {
+    const ctx = await compactedOversizedPool();
+
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'd'.repeat(8_000) }]);
+    // Second pass can take the parallel summarize path (block + merge generates).
+    // Queue enough responses so the test does not hang waiting on the mock LLM.
+    for (let i = 0; i < 8; i++) {
+      ctx.mockNextResponse({ type: 'text', text: `Second summary ${String(i)}.` });
+    }
+    await ctx.rpc.beginCompaction({});
+    await ctx.once('compaction.completed');
+
+    const markers = ctx.agent.context.history.filter(
+      (message) =>
+        message.origin?.kind === 'injection' && message.origin.variant === COMPACTION_ELISION_VARIANT,
+    );
+    expect(markers).toHaveLength(1);
+    const summaries = ctx.agent.context.history.filter(
+      (message) => message.origin?.kind === 'compaction_summary',
+    );
+    expect(summaries).toHaveLength(1);
+  },
+    180_000,
+  );
+
+  it('keeps everything verbatim (no marker) when the user pool fits the budget', async () => {
+    const ctx = testAgent();
+    ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'small question' }]);
+    ctx.mockNextResponse({ type: 'text', text: 'Summary.' });
+    await ctx.rpc.beginCompaction({});
+    await ctx.once('compaction.completed');
+
+    expect(historyTexts(ctx)[0]).toBe('small question');
+    expect(
+      ctx.agent.context.history.some(
+        (message) =>
+          message.origin?.kind === 'injection' &&
+          message.origin.variant === COMPACTION_ELISION_VARIANT,
+      ),
+    ).toBe(false);
+
+    const completedEvent = ctx.allEvents.find((entry) => entry.event === 'compaction.completed');
+    expect(completedEvent?.args).toEqual({
+      result: expect.not.objectContaining({ keptHeadUserMessageCount: expect.anything() }),
+    });
+  });
+
+  it('restores a pre-split wire record with the tail-only selection and no marker', async () => {
+    // A record written before the head/tail split (no `keptHeadUserMessageCount`)
+    // must restore with the original tail-only selection, or the rebuilt live
+    // history would diverge from the persisted keptUserMessageCount that the
+    // wire-transcript reducer uses for its folded length.
+    const big = 'x'.repeat(88_000); // ~22k tokens: over budget under the old algorithm too
+    const records = [
+      { type: 'metadata', protocol_version: AGENT_WIRE_PROTOCOL_VERSION, created_at: 1 },
+      {
+        type: 'context.append_message',
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: big }],
+          toolCalls: [],
+          origin: { kind: 'user' },
+        },
+      },
+      {
+        type: 'context.append_message',
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'recent question' }],
+          toolCalls: [],
+          origin: { kind: 'user' },
+        },
+      },
+      {
+        type: 'context.apply_compaction',
+        summary: 'OLD SUMMARY',
+        contextSummary: 'OLD SUMMARY',
+        compactedCount: 2,
+        tokensBefore: 22_007,
+        tokensAfter: 20_005,
+        keptUserMessageCount: 2,
+      },
+    ] as unknown as AgentRecord[];
+    const ctx = testAgent({ persistence: new InMemoryAgentRecordPersistence(records) });
+    await ctx.agent.resume();
+
+    const history = ctx.agent.context.history;
+    const texts = historyTexts(ctx);
+    // Old tail-only shape: [truncated big message, recent question, summary].
+    expect(history).toHaveLength(3);
+    expect(
+      history.some(
+        (message) =>
+          message.origin?.kind === 'injection' &&
+          message.origin.variant === COMPACTION_ELISION_VARIANT,
+      ),
+    ).toBe(false);
+    // The legacy truncation keeps the boundary message's beginning.
+    expect(texts[0]!.length).toBeGreaterThan(0);
+    expect(big.startsWith(texts[0]!)).toBe(true);
+    expect(texts[1]).toBe('recent question');
+    expect(history.at(-1)!.origin?.kind).toBe('compaction_summary');
+  });
+});
