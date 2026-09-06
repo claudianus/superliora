@@ -1891,6 +1891,67 @@ describe('KosongLLM provider routing', () => {
     );
   });
 
+  it('does not cool down later candidates killed instantly by a shared pre-dead abort', async () => {
+    // Observed incident: the primary hung for its full idle timeout, then
+    // every fallback candidate "failed" as a timeout abort within
+    // milliseconds of each other — a shared pre-dead signal, not real
+    // attempts. The chain must not record cooldowns for candidates that
+    // never got a network window, and hopping must stop.
+    const primaryProvider = makeProvider('primary', 'primary-model');
+    const backupProvider = makeProvider('backup', 'backup-model');
+    const thirdProvider = makeProvider('third', 'third-model');
+    const state = new InMemoryProviderRouteState();
+    const now = Date.UTC(2026, 0, 1);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const attemptedModels: string[] = [];
+    const generate: GenerateFn = async (nextProvider) => {
+      attemptedModels.push(nextProvider.modelName);
+      if (nextProvider.modelName === 'primary-model') {
+        // Real attempt: hung for the full idle watchdog window.
+        vi.setSystemTime(now + 120_000);
+        throw new APITimeoutError('Stream idle timeout: no data received for 120000ms.');
+      }
+      // Shared pre-dead abort: instant timeout-classified failure, no I/O.
+      throw new APITimeoutError('Request was aborted.');
+    };
+    const route = {
+      key: 'primary',
+      strategy: 'fallback' as const,
+      candidates: [
+        { modelAlias: 'primary', providerName: 'primary', provider: primaryProvider },
+        { modelAlias: 'backup', providerName: 'backup', provider: backupProvider },
+        { modelAlias: 'third', providerName: 'third', provider: thirdProvider },
+      ],
+    };
+    const llm = new KosongLLM({
+      provider: primaryProvider,
+      systemPrompt: 'system',
+      generate,
+      route,
+      routeState: state,
+    });
+
+    try {
+      await expect(
+        llm.chat({ messages: [], tools: [], signal: new AbortController().signal }),
+      ).rejects.toThrow('aborted');
+
+      // The real primary failure is recorded; the instantly-killed backup is
+      // not, and hopping stopped before the third candidate.
+      expect(attemptedModels).toEqual(['primary-model', 'backup-model']);
+      expect(state.snapshot(route).candidates[0]).toMatchObject({
+        modelAlias: 'primary',
+        lastFailureKind: 'timeout',
+      });
+      expect(state.snapshot(route).candidates[1]?.lastFailureKind).toBeUndefined();
+      expect(state.snapshot(route).candidates[1]?.cooldownUntil).toBeUndefined();
+      expect(state.snapshot(route).candidates[2]?.lastFailureKind).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('records the last candidate failure before surfacing the provider error', async () => {
     const primaryProvider = makeProvider('primary', 'primary-model');
     const backupProvider = makeProvider('backup', 'backup-model');

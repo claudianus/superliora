@@ -68,6 +68,14 @@ import type {
   ProviderRouteUnavailable,
 } from './provider-route-types';
 
+/**
+ * Floor below which a timeout-classified candidate failure cannot be a real
+ * network attempt (idle/open watchdogs fire at 30s+; SDK connect timeouts at
+ * 10s+). Anything faster is a pre-dead abort signal shared from a previous
+ * hop — see the guard in {@link KosongLLM.chatWithRoute}.
+ */
+const MIN_REAL_ATTEMPT_MS = 1_000;
+
 export type { Message };
 
 export type {
@@ -159,6 +167,7 @@ export class KosongLLM implements LLM {
       // (user Esc, session close). Hoping to the next candidate would just
       // hit the pre-flight abort in kosong and poison it with a cooldown.
       params.signal.throwIfAborted();
+      const attemptStartedAt = Date.now();
       try {
         const startedAt = Date.now();
         const response = await this.chatWithCandidate(params, candidate, attempt);
@@ -198,10 +207,23 @@ export class KosongLLM implements LLM {
           throw error;
         }
         const failure = classifyProviderRouteFailure(error, route.cooldownMs);
-        // Always cool down classified failures — including mid-stream — so the
-        // next outer retry skips this candidate. In-route hop stays disabled
-        // once stream output was already pushed to the UI.
-        if (failure !== undefined) {
+        // A pre-dead abort signal shared across hops (already-fired request
+        // deadline or watchdog) kills every following candidate in
+        // milliseconds with a timeout-classified error and no network I/O.
+        // Recording those as real failures poisoned the whole fallback
+        // chain: one hung primary cooled down every healthy alternate for
+        // the full window (observed: 8 route switches in 28 ms, all
+        // "timeout"), leaving the route single-candidate and every turn
+        // failing for the cooldown duration. After a real attempt, an
+        // instant timeout abort means the next candidate was never really
+        // attempted: record nothing, stop hopping, and let the retry layer
+        // start a fresh attempt with fresh deadlines. (A first candidate
+        // failing instantly keeps the existing fail-over semantics.)
+        const instantAbort =
+          index > 0 &&
+          failure?.kind === 'timeout' &&
+          Date.now() - attemptStartedAt < MIN_REAL_ATTEMPT_MS;
+        if (failure !== undefined && !instantAbort) {
           if (this.routeState?.recordFailure(route, candidate, failure) === true) {
             this.onRouteStatusChanged?.();
           }
@@ -253,7 +275,7 @@ export class KosongLLM implements LLM {
             }
           }
         }
-        if (failure === undefined || attempt.sawStreamOutput) {
+        if (failure === undefined || attempt.sawStreamOutput || instantAbort) {
           throw error;
         }
         if (index === orderedCandidates.length - 1) {
