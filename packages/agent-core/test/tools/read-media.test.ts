@@ -9,6 +9,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ToolAccesses } from '../../src/loop';
 import type { ExecutableToolResult } from '../../src/loop';
+import type {
+  ReadMediaVisionFallback,
+  ReadMediaVisionFallbackInput,
+} from '../../src/tools/builtin/file/read-media';
 import {
   ReadMediaFileInputSchema,
   ReadMediaFileTool,

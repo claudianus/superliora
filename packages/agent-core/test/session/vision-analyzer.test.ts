@@ -742,7 +742,7 @@ describe('SessionAPIImpl.prompt vision transform (integration)', () => {
   });
 
   it('emits a path-only warning when no analyzer candidate is available', async () => {
-    const promptSpy = vi.fn(async () => ({ result: 'ok' }));
+    const promptSpy = vi.fn(async (_payload: unknown) => ({ result: 'ok' }));
     const agent = {
       generate: successGenerate('never used'),
       config: { modelAlias: 'text-model', modelCapabilities: capabilities() },
@@ -764,7 +764,7 @@ describe('SessionAPIImpl.prompt vision transform (integration)', () => {
     } as unknown as Session;
 
     const api = new SessionAPIImpl(session);
-    await api.prompt({ agentId: 'main', sessionId: 's1', requestId: 'r1', input: [imagePart] });
+    await api.prompt({ agentId: 'main', input: [imagePart] });
 
     const payload = promptSpy.mock.calls[0]?.[0] as { input: readonly ContentPart[] };
     expect(payload.input.some((part) => part.type === 'image_url')).toBe(false);
