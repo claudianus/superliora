@@ -135,6 +135,9 @@ export class KosongLLM implements LLM {
     params: LLMChatParams,
     route: KosongLLMRoute,
   ): Promise<LLMChatResponse> {
+    // A cancelled turn is not a provider failure. Fail fast before the
+    // unavailable check could masquerade the cancellation as a rate limit.
+    params.signal.throwIfAborted();
     const unavailable = this.routeState?.unavailable(route);
     if (unavailable !== undefined) {
       this.log?.warn('llm route unavailable; all candidates are cooling down or locally limited', {
@@ -152,6 +155,10 @@ export class KosongLLM implements LLM {
     for (let index = 0; index < orderedCandidates.length; index += 1) {
       const candidate = orderedCandidates[index]!;
       const attempt = { sawStreamOutput: false };
+      // The signal may have aborted while the previous candidate was running
+      // (user Esc, session close). Hoping to the next candidate would just
+      // hit the pre-flight abort in kosong and poison it with a cooldown.
+      params.signal.throwIfAborted();
       try {
         const startedAt = Date.now();
         const response = await this.chatWithCandidate(params, candidate, attempt);
@@ -180,6 +187,16 @@ export class KosongLLM implements LLM {
         return response;
       } catch (error) {
         lastError = error;
+        if (params.signal.aborted) {
+          // The turn signal died mid-candidate (user Esc, session close).
+          // Rethrow without classifying or recording: cooldowns and shared
+          // health marks must never be poisoned by the caller's own
+          // cancellation — otherwise every candidate of the route becomes
+          // "cooling down" for the configured cooldown window even though
+          // only the cancellation was observed. Mirrors the guard in
+          // side-generate-failover.ts.
+          throw error;
+        }
         const failure = classifyProviderRouteFailure(error, route.cooldownMs);
         // Always cool down classified failures — including mid-stream — so the
         // next outer retry skips this candidate. In-route hop stays disabled

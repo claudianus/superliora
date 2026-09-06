@@ -100,7 +100,9 @@ describe('e2e: abort signal', () => {
         { signal: controller.signal },
       );
 
-      await expect(promise).rejects.toThrow('The operation was aborted.');
+      // The caller's abort reason propagates (Node's default AbortError when
+      // abort() carries no explicit reason) rather than a synthetic message.
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
     });
   });
 

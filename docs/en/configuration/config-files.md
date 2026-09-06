@@ -130,6 +130,8 @@ Each entry in the `models` table defines a model alias (the name used in `defaul
 | `display_name` | `string` | No | Name shown in the UI; falls back to `model` when unset |
 | `reasoning_key` | `string` | No | `openai` provider only. Override the field name used for reasoning content when the gateway returns it under a non-standard name; by default `reasoning_content`, `reasoning_details`, and `reasoning` are auto-detected |
 | `adaptive_thinking` | `boolean` | No | `anthropic` provider only. Force adaptive thinking on or off, overriding the version inference based on the model name. Omit to infer automatically (Claude ≥ 4.6 uses adaptive) |
+| `fallback_models` | `array<string>` | No | Ordered model aliases to fail over to when the primary request fails (auth, quota, rate limit, timeout, server errors). Empty by default — no model fallback happens unless you list aliases here |
+| `routing` | `table` | No | Route tuning: `strategy`, `cooldown_ms`, `weights`, `session_affinity`, `preferred_credential`, `auto_fallback`. See [Model fallback](#model-fallback) |
 
 When an alias contains `.`, use a quoted key:
 
@@ -141,6 +143,30 @@ max_context_size = 1047576
 ```
 
 You can also switch models temporarily without touching the config file — by setting `KIMI_MODEL_*` environment variables, the CLI synthesizes a temporary provider in memory that does not persist after restart. See [Define a model from environment variables](./env-vars.md#define-a-model-from-environment-variables-kimi_model).
+
+### Model fallback
+
+By default a model never silently falls back to another model: requests that fail are retried on the same model only. Fallback happens only when you opt in:
+
+```toml
+[models."openai/gpt-4.1"]
+provider = "openai"
+model = "gpt-4.1"
+max_context_size = 272000
+# Explicit, ordered fallback list — always honored exactly as written.
+fallback_models = ["anthropic/claude-opus", "openai/gpt-4.1-mini"]
+
+[models."openai/gpt-4.1".routing]
+# Append every same-capability model from your other credentialed providers
+# as candidates (in config declaration order). Off by default.
+auto_fallback = true
+# Optional override for the cooldown applied to a candidate after a failed
+# request. Unset, each failure kind uses its own default (rate limit 60s,
+# timeout/connection/server 30s, auth 5min, quota 60min).
+cooldown_ms = 30000
+```
+
+A failed candidate is put on cooldown and skipped for that window; when every candidate is cooling down, the turn reports how long until the route is retryable. The same fields can be managed with `liora provider route set ... --fallback ...`.
 
 ## `thinking`
 
