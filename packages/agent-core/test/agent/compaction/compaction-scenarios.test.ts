@@ -1,1 +1,1 @@
-LOAD_FROM:/workspace/ci3862-fixes/READY_scenarios.test.ts
+file:///workspace/ci3862-fixes/READY_scenarios.test.ts
