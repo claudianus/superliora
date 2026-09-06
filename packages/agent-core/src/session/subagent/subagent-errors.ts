@@ -16,6 +16,15 @@ export const DEFAULT_SUBAGENT_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_SUBAGENT_TIMEOUT_DESCRIPTION = '30 minutes';
 
 /**
+ * One-shot finishing grace for job workers: when the hard wall-clock deadline
+ * fires, the deadline re-arms once for this long so a worker already in its
+ * finishing phase can commit and summarize instead of being killed with all
+ * work still uncommitted. The failure path also snapshots the worktree, but
+ * the grace is what keeps a healthy finish from dying at the line.
+ */
+export const JOB_WORKER_DEADLINE_GRACE_MS = 5 * 60 * 1000;
+
+/**
  * Hard wall-clock deadline (ms) for a single subagent run. Unlike the soft
  * `timeoutMs` budget (which only steers finishing mode and telemetry),
  * exceeding this aborts the run so a wedged child cannot block the parent

@@ -29,6 +29,12 @@ export interface FanoutTask {
   readonly preferVisionModel?: boolean;
   /** Conductor-pinned worker model alias (JobCreate.model_alias). */
   readonly modelAlias?: string;
+  /** One-shot finishing grace when the hard wall-clock deadline fires. */
+  readonly deadlineGraceOnceMs?: number;
+  /** Called once when the finishing grace is granted. */
+  readonly notifyDeadlineGrace?: () => void;
+  /** Permission mode for the spawned child (job workers run yolo). */
+  readonly permissionMode?: 'yolo' | 'auto' | 'manual';
   /** Resume an existing agent instead of spawning (manual/template modes). */
   readonly resumeAgentId?: string;
   readonly swarmIndex?: number;
@@ -79,6 +85,9 @@ export function runOptionsForTask(spec: FanoutSpec, task: FanoutTask): RunSubage
     forcePremiumQuality: task.forcePremiumQuality,
     preferVisionModel: task.preferVisionModel,
     modelAlias: task.modelAlias,
+    deadlineGraceOnceMs: task.deadlineGraceOnceMs,
+    notifyDeadlineGrace: task.notifyDeadlineGrace,
+    permissionMode: task.permissionMode,
   };
 }
 

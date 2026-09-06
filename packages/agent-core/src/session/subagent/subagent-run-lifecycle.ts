@@ -53,6 +53,10 @@ export type RunWithActiveChildOptions = {
   readonly signal: AbortSignal;
   readonly runInBackground: boolean;
   readonly timeoutMs?: number;
+  /** One-shot finishing grace when the hard deadline fires (job workers). */
+  readonly deadlineGraceOnceMs?: number;
+  /** Called once when the finishing grace is granted. */
+  readonly notifyDeadlineGrace?: () => void;
 };
 
 /**
@@ -194,8 +198,23 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
     }
   };
 
+  let deadlineGraceUsed = false;
   const fireDeadline = (): void => {
     if (deadlineError !== undefined) return;
+    // One-shot finishing grace: a job worker hit by the deadline mid-finish
+    // gets a single re-arm so it can land commits and a summary. Without it
+    // the guillotine kills healthy runs at the finish line.
+    const graceMs = options.deadlineGraceOnceMs;
+    if (!deadlineGraceUsed && graceMs !== undefined && graceMs > 0) {
+      deadlineGraceUsed = true;
+      armDeadlineTimer(graceMs);
+      try {
+        options.notifyDeadlineGrace?.();
+      } catch {
+        // The notice is best-effort; the grace itself is already armed.
+      }
+      return;
+    }
     deadlineError = new SubagentDeadlineError(deadlineMs);
     controller.abort(deadlineError);
   };

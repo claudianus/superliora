@@ -83,6 +83,22 @@ export interface RunSubagentOptions {
   readonly preferVisionModel?: boolean;
   /** Conductor-chosen worker model alias; skips profile/role auto when healthy. */
   readonly modelAlias?: string;
+  /**
+   * One-shot finishing grace: when the hard wall-clock deadline fires, re-arm
+   * once for this long instead of aborting. Job workers use it so a run in
+   * its finishing phase can land commits and a summary instead of being cut
+   * down at the finish line (observed: 30m deadline killed jobs in
+   * `last_phase: finishing`).
+   */
+  readonly deadlineGraceOnceMs?: number;
+  /** Called once when the finishing grace is granted (user-visible notice). */
+  readonly notifyDeadlineGrace?: () => void;
+  /**
+   * Permission mode for the spawned child. Job workers run yolo inside their
+   * isolated worktree so a forgotten approval cannot stall an autonomous job;
+   * tools with their own gates (PushJob force_user_confirm) stay gated.
+   */
+  readonly permissionMode?: 'yolo' | 'auto' | 'manual';
   readonly onReady?: () => void;
   readonly suppressRateLimitFailureEvent?: boolean;
 }

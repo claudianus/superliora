@@ -29,6 +29,7 @@ import { removeSessionWorktree } from '../../../session/worktree';
 import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   isSubagentDeadlineError,
+  JOB_WORKER_DEADLINE_GRACE_MS,
   resetActiveChildDeadline,
   resolveJobWorkerLaunchTimeoutMs,
 } from '../../../session/subagent/subagent-host';
@@ -670,6 +671,32 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             budgetLimits: job.goalBudgetLimits,
           }
         : undefined,
+    // One-shot finishing grace: the 30m wall-clock re-arms once so a healthy
+    // finish is not guillotined at the line (snapshot-on-abort stays as the
+    // backstop).
+    deadlineGraceOnceMs: JOB_WORKER_DEADLINE_GRACE_MS,
+    notifyDeadlineGrace: () => {
+      try {
+        const current = getJob(input.store, job.id) ?? job;
+        const next = patchJob(input.store, job.id, {
+          notes: [
+            current.notes,
+            `deadline_grace: wall-clock limit hit — one-shot ${Math.round(JOB_WORKER_DEADLINE_GRACE_MS / 60_000)}m finishing window granted (commit and summarize now)`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        });
+        if (next !== undefined) {
+          emitJobEvents(input.agent, [jobRecordToUpdatedEvent(next)]);
+        }
+      } catch {
+        // Notice is best-effort; the grace is armed in the spawn spec.
+      }
+    },
+    // Isolated worktree + brief-scoped work: run yolo so an unattended
+    // approval request cannot stall the job (observed 582s waits). PushJob
+    // and other self-gated tools keep their own confirmation gates.
+    permissionMode: 'yolo',
     // Plan Desk: plan mode on the plan-profile worker (not Conductor).
     plan:
       job.kind === 'mission'

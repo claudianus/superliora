@@ -150,6 +150,12 @@ export async function configureSubagentChild(
     modelAlias: modelSelection.alias,
     thinkingLevel: modelSelection.thinkingLevel,
   });
+  if (options.permissionMode !== undefined) {
+    // Job workers run yolo inside their isolated worktree so an unattended
+    // approval request cannot stall the job; tools with their own gates
+    // (PushJob force_user_confirm) stay gated regardless of mode.
+    child.permission.setMode(options.permissionMode);
+  }
   if (options.worktreeDir !== undefined) {
     child.setKaos(parent.kaos.withCwd(cwd));
   }
