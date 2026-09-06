@@ -49,6 +49,7 @@ function overrideLabel(alias: string | undefined): string {
 export function showMediaSettings(host: SlashCommandHost): void {
   const policy = host.state.appState.nonVisionFallbackPolicy ?? 'analyze';
   const overrides = host.state.appState.mediaAnalyzerModels;
+  const autoScan = host.state.appState.mediaAnalyzerAutoScan === true;
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
@@ -67,11 +68,17 @@ export function showMediaSettings(host: SlashCommandHost): void {
           label: `Change policy · ${policy}`,
           description: 'analyze | path | block — when the chat model is text-only.',
         },
+        {
+          value: 'auto-scan',
+          label: `Catalog auto-scan · ${autoScan ? 'on' : 'off'}`,
+          description:
+            'When off (default), only your configured analyzers and the current model are used. On lets any credentialed catalog model analyze media.',
+        },
         ...ANALYZER_KINDS.map(({ kind, label }) => ({
           value: `analyzer-${kind}`,
           label: `${label} · ${overrideLabel(overrides?.[kind])}`,
           description:
-            'Model used to render this media kind when the chat model cannot read it. Auto picks a capable catalog model.',
+            'Model used to render this media kind when the chat model cannot read it. Auto = configured analyzers + current model only unless catalog auto-scan is on.',
         })),
         {
           value: 'change-model',
@@ -111,6 +118,10 @@ export function showMediaSettings(host: SlashCommandHost): void {
         }
         if (value === 'change-policy') {
           showMediaFallbackPicker(host);
+          return;
+        }
+        if (value === 'auto-scan') {
+          void toggleMediaAutoScan(host);
           return;
         }
         if (value.startsWith('analyzer-')) {
@@ -168,7 +179,7 @@ function showAnalyzerModelPicker(
           value: AUTO_ANALYZER,
           label: mark(AUTO_ANALYZER, 'Auto (clear override)'),
           description:
-            'Deterministic catalog selection: current model first, then same provider, then the first capable model.',
+            'Configured analyzers + current model only. Enable catalog auto-scan to let the harness pick from every credentialed model.',
         },
         ...candidates,
       ],
@@ -203,6 +214,25 @@ async function applyAnalyzerOverride(
   } catch (error) {
     host.showError(
       `Failed to set ${entry.label.toLowerCase()}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+/** Toggle `media.analyzer_auto_scan` — opt-in cross-model multimodal routing. */
+async function toggleMediaAutoScan(host: SlashCommandHost): Promise<void> {
+  const next = !(host.state.appState.mediaAnalyzerAutoScan === true);
+  try {
+    await host.harness.setConfig({ media: { analyzerAutoScan: next } });
+    host.setAppState({ mediaAnalyzerAutoScan: next });
+    host.showStatus(
+      next
+        ? 'Catalog auto-scan enabled — the harness may pick any credentialed capable model for media.'
+        : 'Catalog auto-scan disabled — only your configured analyzers and the current model are used.',
+      'success',
+    );
+  } catch (error) {
+    host.showError(
+      `Failed to set catalog auto-scan: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }

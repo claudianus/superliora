@@ -706,10 +706,13 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.model.routing.title': 'Model routing',
   'tui.model.routing.hint': '↑↓ navigate · Enter select · Esc cancel',
   'tui.model.routing.notice':
-    'Overrides apply on next worker spawn / role resolution. Unset roles use smart auto.',
+    'Overrides apply on next worker spawn / role resolution. Unset roles inherit the session model.',
   'tui.model.routing.smartAuto': 'Smart auto routing',
   'tui.model.routing.smartAutoDesc':
     'Clear role overrides, live-probe each role chain, and pin only models that respond.',
+  'tui.model.routing.media': 'Media routing (multimodal)',
+  'tui.model.routing.mediaDesc':
+    'Image/video/audio/PDF analyzers and catalog auto-scan for text-only models.',
   'tui.model.reset.title': 'Reset model settings',
   'tui.model.reset.hint': '↑↓ navigate · Enter select · Esc cancel',
   'tui.model.reset.notice': 'Provider credentials and discovered model catalog are kept.',
@@ -1943,10 +1946,13 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.model.routing.title': '모델 라우팅',
   'tui.model.routing.hint': '↑↓ 이동 · Enter 선택 · Esc 취소',
   'tui.model.routing.notice':
-    '재정의는 다음 워커 생성 / 역할 해석부터 적용됩니다. 비운 역할은 smart auto를 씁니다.',
+    '재정의는 다음 워커 생성 / 역할 해석부터 적용됩니다. 비운 역할은 세션 모델을 상속합니다.',
   'tui.model.routing.smartAuto': 'Smart auto routing',
   'tui.model.routing.smartAutoDesc':
     '역할 재정의를 지우고 각 역할 체인을 프로브한 뒤 응답하는 모델만 고정합니다.',
+  'tui.model.routing.media': '미디어 라우팅 (멀티모달)',
+  'tui.model.routing.mediaDesc':
+    '텍스트 전용 모델을 위한 이미지/영상/오디오/PDF 분석기와 카탈로그 자동 스캔 설정.',
   'tui.model.reset.title': '모델 설정 초기화',
   'tui.model.reset.hint': '↑↓ 이동 · Enter 선택 · Esc 취소',
   'tui.model.reset.notice': '프로바이더 자격 증명과 발견된 모델 카탈로그는 유지됩니다.',

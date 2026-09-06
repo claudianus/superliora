@@ -91,5 +91,6 @@ function applyRuntimeConfig(host: SlashCommandHost, config: LioraConfig): void {
     availableProviders: config.providers ?? {},
     nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
     mediaAnalyzerModels: config.media?.analyzerModels,
+    mediaAnalyzerAutoScan: config.media?.analyzerAutoScan === true,
   });
 }

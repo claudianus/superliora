@@ -163,6 +163,12 @@ export interface AppState {
    * are model aliases; empty/missing means auto-select.
    */
   mediaAnalyzerModels?: MediaAnalyzerModelsConfig | undefined;
+  /**
+   * Opt-in catalog-wide auto model selection for multimodal work
+   * (config.toml `[media] analyzer_auto_scan`, default off): media analysis
+   * and vision-preferred workers only use user-configured models unless set.
+   */
+  mediaAnalyzerAutoScan?: boolean;
   providerRouteStatus?: ProviderRouteStatus | null;
   /**
    * Last successful step-level provider route selection (effective model +

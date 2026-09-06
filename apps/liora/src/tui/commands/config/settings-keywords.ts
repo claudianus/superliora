@@ -4,7 +4,7 @@
  */
 export const SETTINGS_SEARCH_KEYWORDS = {
   model: ['llm', 'thinking', 'provider'],
-  'model-routing': ['loop', 'routing', 'role'],
+  'model-routing': ['loop', 'routing', 'role', 'multimodal', '멀티모달', 'media'],
   'model-fallback': ['failover', 'fallback', 'chain'],
   'model-reset': ['reset', 'default', 'restore', 'auto', 'factory'],
   permission: ['yolo', 'auto', 'manual', 'approve', 'approval'],
@@ -31,7 +31,18 @@ export const SETTINGS_SEARCH_KEYWORDS = {
   keybindings: ['keyboard', 'shortcuts', 'keymap', 'keys'],
   context: ['working-set', 'workingset', 'memory', 'instruction', 'learning'],
   compaction: ['compact', 'threshold', 'keep-tokens', 'template'],
-  media: ['text-only', 'vision', 'image', 'fallback', 'analyzer', 'audio', 'pdf', 'video'],
+  media: [
+    'text-only',
+    'vision',
+    'image',
+    'fallback',
+    'analyzer',
+    'audio',
+    'pdf',
+    'video',
+    'multimodal',
+    '멀티모달',
+  ],
   harness: ['hands', 'control-plane'],
   tools: ['inventory', 'profile', 'core', 'waist', 'toolset'],
   eyes: ['browser', 'computer-use', 'browser-use', 'gui-use'],

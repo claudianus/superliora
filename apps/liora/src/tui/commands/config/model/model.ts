@@ -128,6 +128,7 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
     host.state.appState.availableProviders,
   );
   const autoRoutingValue = '__smart_auto__';
+  const mediaRoutingValue = '__media_routing__';
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
@@ -145,11 +146,25 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
           label: row.label,
           description: `${row.state} — ${row.description}`,
         })),
+        {
+          value: mediaRoutingValue,
+          label: ttui('tui.model.routing.media'),
+          description: ttui('tui.model.routing.mediaDesc'),
+        },
       ],
       onSelect: (value) => {
         if (value === autoRoutingValue) {
           dismissPickerDialog(host);
           void resetAllLoopModelRouting(host);
+          return;
+        }
+        if (value === mediaRoutingValue) {
+          dismissPickerDialog(host);
+          // Dynamic import: media-settings imports handleModelCommand from
+          // this module, so a static edge would be a cycle.
+          void import('../media/media-settings').then(({ showMediaSettings }) => {
+            showMediaSettings(host);
+          });
           return;
         }
         const row = rows.find((candidate) => candidate.key === value);
