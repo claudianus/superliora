@@ -60,6 +60,7 @@ Package boundaries stay as in Project Map. Inside a package:
 | One file / one case | `node scripts/test-local.mjs <path> -t "case"` | ~5s |
 | Iterate the packages you edited | `node scripts/test-local.mjs --direct` | seconds–1 min |
 | Iterate plus pnpm dependents | `pnpm run test:local` | seconds–several min; oauth/core/liora graphs approach the full suite |
+| Fast pre-commit gate (no package rebuild) | `pnpm run gate:fast` — lint + `typecheck:fast` + `--direct` tests | skips `build:packages`; full `gate` still required before push |
 | Before every push | `pnpm run gate` — lint + typecheck + full suite | Linux CI a few minutes; Windows workstation ~15 min for tests |
 | Whole suite only | `pnpm run test:all` | same as the test half of `gate` |
 
