@@ -70,6 +70,8 @@ export type {
   LioraConfig,
   LioraConfigPatch,
   LoopControl,
+  MediaAnalyzerModelsConfig,
+  MediaConfig,
   MemoryCreateInput,
   MemoryExportResult,
   MemoryImportResult,
@@ -137,7 +139,10 @@ export interface CreateGoalInput {
 }
 
 export type TextPromptPart = Extract<ContentPart, { type: 'text' }>;
-export type PromptPart = Extract<ContentPart, { type: 'text' | 'image_url' | 'video_url' }>;
+export type PromptPart = Extract<
+  ContentPart,
+  { type: 'text' | 'image_url' | 'video_url' | 'audio_url' | 'file_url' }
+>;
 
 export type PromptInput = readonly PromptPart[];
 

@@ -21,17 +21,34 @@ describe('ReadMediaFileTool description by capabilities', () => {
   it('mentions image but flags video unsupported when only image_in is present', () => {
     const tool = makeTool({ image_in: true, video_in: false });
     expect(tool.description).toContain('supports image files for the current model');
-    expect(tool.description).toContain('Video files are not supported');
+    expect(tool.description).not.toContain('supports video files');
   });
 
   it('mentions video but flags image unsupported when only video_in is present', () => {
     const tool = makeTool({ image_in: false, video_in: true });
     expect(tool.description).toContain('supports video files for the current model');
-    expect(tool.description).toContain('Image files are not supported');
+    expect(tool.description).not.toContain('supports image files');
   });
 
-  it('throws when no image/video capability is present', () => {
-    expect(() => makeTool({ image_in: false, video_in: false })).toThrow(/image_in or video_in/);
+  it('mentions pdf support when pdf_in is present', () => {
+    const tool = makeTool({ image_in: true, video_in: true, pdf_in: true });
+    expect(tool.description).toContain('supports PDF files for the current model');
+  });
+
+  it('flags pdf unsupported when pdf_in is absent', () => {
+    const tool = makeTool({ image_in: true, video_in: true, pdf_in: false });
+    expect(tool.description).toContain('PDF files are not supported');
+  });
+
+  it('mentions audio support when audio_in is present', () => {
+    const tool = makeTool({ image_in: true, video_in: true, audio_in: true });
+    expect(tool.description).toContain('supports audio files for the current model');
+  });
+
+  it('throws when no media capability is present', () => {
+    expect(() =>
+      makeTool({ image_in: false, video_in: false, audio_in: false, pdf_in: false }),
+    ).toThrow(/image_in, video_in, audio_in, or pdf_in/);
   });
 
   it('description pins the stable contract phrases: image+video, 100MB, parallel reads, Read pointer', () => {

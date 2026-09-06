@@ -26,14 +26,25 @@ export interface VideoURLPart {
   videoUrl: { url: string; id?: string | undefined };
 }
 
+export interface FileURLPart {
+  type: 'file_url';
+  fileUrl: { url: string; filename?: string; id?: string };
+}
+
 /**
  * A single piece of content within a {@link Message}.
  *
- * The union covers text, model reasoning ("think"), images, audio, and video.
- * Providers convert these to their native content-block format during
- * {@link ChatProvider.generate}.
+ * The union covers text, model reasoning ("think"), images, audio, video, and
+ * documents (PDF). Providers convert these to their native content-block
+ * format during {@link ChatProvider.generate}.
  */
-export type ContentPart = TextPart | ThinkPart | ImageURLPart | AudioURLPart | VideoURLPart;
+export type ContentPart =
+  | TextPart
+  | ThinkPart
+  | ImageURLPart
+  | AudioURLPart
+  | VideoURLPart
+  | FileURLPart;
 
 export interface ToolCall {
   type: 'function';
@@ -102,11 +113,16 @@ export interface Message {
   readonly partial?: boolean;
 }
 
-/** Check if a streamed part is a ContentPart (text, think, image_url, audio_url, video_url). */
+/** Check if a streamed part is a ContentPart (text, think, image_url, audio_url, video_url, file_url). */
 export function isContentPart(part: StreamedMessagePart): part is ContentPart {
   const t = part.type;
   return (
-    t === 'text' || t === 'think' || t === 'image_url' || t === 'audio_url' || t === 'video_url'
+    t === 'text' ||
+    t === 'think' ||
+    t === 'image_url' ||
+    t === 'audio_url' ||
+    t === 'video_url' ||
+    t === 'file_url'
   );
 }
 

@@ -210,6 +210,33 @@ retention_days = 180
 
 `keep_alive_on_exit` can be overridden by the `SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT` environment variable, which takes higher priority than `config.toml`.
 
+## `media`
+
+`media` controls what happens when the current chat model cannot read an attached media kind (image, video, audio, or PDF).
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `non_vision_fallback` | `analyze \| path \| block` | `analyze` | What happens to media the active model cannot consume. `analyze` renders the attachment to text with a capable catalog model before the prompt is sent, `path` replaces it with a pointer note, and `block` refuses the send |
+| `analyzer_models.image` | `string` | — | Model alias preferred as the image analyzer |
+| `analyzer_models.video` | `string` | — | Model alias preferred as the video analyzer |
+| `analyzer_models.audio` | `string` | — | Model alias preferred as the audio analyzer |
+| `analyzer_models.pdf` | `string` | — | Model alias preferred as the PDF (document) analyzer |
+
+Each `analyzer_models.*` value is a model alias such as `commandcode/z-ai/glm-5.3-flash`. A configured alias wins over automatic analyzer selection for that kind. If the alias cannot serve the kind — unknown alias, provider without credentials, unhealthy route, or missing input capability — SuperLiora silently falls back to automatic selection (current model first, then same provider, then the first capable model), so a stale entry never blocks a prompt. An empty string means auto.
+
+Example:
+
+```toml
+[media]
+non_vision_fallback = "analyze"
+
+[media.analyzer_models]
+pdf = "commandcode/z-ai/glm-5.3-flash"
+audio = "commandcode/gemini-3.8-flash"
+```
+
+The same settings are editable in the TUI under Settings → Media (`/settings`), and `/media` changes the fallback policy directly.
+
 ## `experimental`
 
 `experimental` stores persistent overrides for experimental-feature flags. Keys are flag ids from the registry (for example `async_compaction`).

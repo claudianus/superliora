@@ -12,6 +12,7 @@ describe('ModelCapability / UNKNOWN_CAPABILITY', () => {
     expect(UNKNOWN_CAPABILITY.image_in).toBe(false);
     expect(UNKNOWN_CAPABILITY.video_in).toBe(false);
     expect(UNKNOWN_CAPABILITY.audio_in).toBe(false);
+    expect(UNKNOWN_CAPABILITY.pdf_in).toBe(false);
     expect(UNKNOWN_CAPABILITY.thinking).toBe(false);
     expect(UNKNOWN_CAPABILITY.tool_use).toBe(false);
   });
@@ -25,11 +26,13 @@ describe('ModelCapability / UNKNOWN_CAPABILITY', () => {
       image_in: true,
       video_in: false,
       audio_in: false,
+      pdf_in: true,
       thinking: true,
       tool_use: true,
       max_context_tokens: 128_000,
     };
     expect(cap.image_in).toBe(true);
+    expect(cap.pdf_in).toBe(true);
     expect(cap.max_context_tokens).toBe(128_000);
   });
 
@@ -53,6 +56,7 @@ describe('ModelCapability / UNKNOWN_CAPABILITY', () => {
       image_in: false,
       video_in: false,
       audio_in: false,
+      pdf_in: false,
       thinking: false,
       tool_use: false,
       max_context_tokens: 0,

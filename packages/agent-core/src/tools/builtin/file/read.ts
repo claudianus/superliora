@@ -223,7 +223,7 @@ function containsNulByte(text: string): boolean {
 function notReadableFileOutput(path: string): string {
   return (
     `"${path}" is not readable as UTF-8 text. ` +
-    'If it is an image or video, use ReadMediaFile. ' +
+    'If it is an image, video, audio file, or PDF, use ReadMediaFile. ' +
     'For other binary formats, use Bash or an MCP tool if available.'
   );
 }
@@ -290,10 +290,15 @@ export class ReadTool implements BuiltinTool<ReadInput> {
 
       const header = await readTextHeader(this.kaos, safePath, MEDIA_SNIFF_BYTES);
       const fileType = detectFileType(safePath, header);
-      if (fileType.kind === 'image' || fileType.kind === 'video') {
+      if (
+        fileType.kind === 'image' ||
+        fileType.kind === 'video' ||
+        fileType.kind === 'audio' ||
+        fileType.kind === 'document'
+      ) {
         return {
           isError: true,
-          output: `"${args.path}" is a ${fileType.kind} file. Use ReadMediaFile to read image or video files.`,
+          output: `"${args.path}" is a ${fileType.kind} file. Use ReadMediaFile to read image, video, audio, or PDF files.`,
         };
       }
       if (fileType.kind === 'unknown') {

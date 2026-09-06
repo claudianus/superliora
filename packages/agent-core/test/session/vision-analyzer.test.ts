@@ -39,10 +39,11 @@ function capabilities(overrides: Partial<ModelCapability> = {}): ModelCapability
     image_in: false,
     video_in: false,
     audio_in: false,
+    pdf_in: false,
     reasoning: false,
     cache_control: false,
     ...overrides,
-  };
+  } as unknown as ModelCapability;
 }
 
 const KOSONG_PROVIDER = {
@@ -80,7 +81,10 @@ function textResolved(modelAlias: string, providerName: string): ResolvedRuntime
   };
 }
 
-function fakeProviderManager(models: Record<string, FakeModelEntry>): ProviderManager {
+function fakeProviderManager(
+  models: Record<string, FakeModelEntry>,
+  configOverrides: { readonly media?: LioraConfig['media'] } = {},
+): ProviderManager {
   const providers: Record<string, { type: string; apiKey?: string }> = {};
   for (const entry of Object.values(models)) {
     providers[entry.providerName] =
@@ -94,6 +98,7 @@ function fakeProviderManager(models: Record<string, FakeModelEntry>): ProviderMa
       ]),
     ),
     providers,
+    ...(configOverrides.media !== undefined ? { media: configOverrides.media } : {}),
   } as unknown as LioraConfig;
   return {
     currentConfig: () => config,
@@ -151,6 +156,103 @@ describe('selectVisionModel', () => {
     });
 
     expect(selected?.modelAlias).toBe('beta-vision');
+  });
+
+  it('prefers the configured analyzer_models override for the kind', () => {
+    const providerManager = fakeProviderManager(
+      {
+        'pdf-specialist': {
+          providerName: 'tools',
+          resolved: visionResolved('pdf-specialist', 'tools', {
+            modelCapabilities: capabilities({ pdf_in: true }),
+          }),
+        },
+        'alpha-vision': { providerName: 'alpha', resolved: visionResolved('alpha-vision', 'alpha') },
+      },
+      { media: { analyzerModels: { pdf: 'pdf-specialist' } } },
+    );
+
+    const selected = selectVisionModel(providerManager, {
+      kind: 'pdf',
+      currentModelAlias: 'alpha-vision',
+    });
+
+    expect(selected?.modelAlias).toBe('pdf-specialist');
+  });
+
+  it('falls back to automatic selection when the configured alias lacks the capability', () => {
+    const providerManager = fakeProviderManager(
+      {
+        'pdf-specialist': {
+          providerName: 'tools',
+          resolved: visionResolved('pdf-specialist', 'tools', {
+            modelCapabilities: capabilities({ pdf_in: false }),
+          }),
+        },
+        'alpha-vision': { providerName: 'alpha', resolved: visionResolved('alpha-vision', 'alpha') },
+      },
+      { media: { analyzerModels: { image: 'pdf-specialist' } } },
+    );
+
+    const selected = selectVisionModel(providerManager, {
+      kind: 'image',
+      currentModelAlias: 'alpha-vision',
+    });
+
+    expect(selected?.modelAlias).toBe('alpha-vision');
+  });
+
+  it('falls back to automatic selection when the configured alias is unknown', () => {
+    const providerManager = fakeProviderManager(
+      {
+        'alpha-vision': { providerName: 'alpha', resolved: visionResolved('alpha-vision', 'alpha') },
+      },
+      { media: { analyzerModels: { image: 'gone-model' } } },
+    );
+
+    const selected = selectVisionModel(providerManager, {
+      kind: 'image',
+      currentModelAlias: 'alpha-vision',
+    });
+
+    expect(selected?.modelAlias).toBe('alpha-vision');
+  });
+
+  it('falls back to automatic selection when the configured alias has no credential', () => {
+    const providerManager = fakeProviderManager(
+      {
+        'no-cred': {
+          providerName: 'tools',
+          resolved: visionResolved('no-cred', 'tools'),
+          withCredential: false,
+        },
+        'alpha-vision': { providerName: 'alpha', resolved: visionResolved('alpha-vision', 'alpha') },
+      },
+      { media: { analyzerModels: { image: 'no-cred' } } },
+    );
+
+    const selected = selectVisionModel(providerManager, {
+      kind: 'image',
+      currentModelAlias: 'alpha-vision',
+    });
+
+    expect(selected?.modelAlias).toBe('alpha-vision');
+  });
+
+  it('treats an empty-string override as unset', () => {
+    const providerManager = fakeProviderManager(
+      {
+        'alpha-vision': { providerName: 'alpha', resolved: visionResolved('alpha-vision', 'alpha') },
+      },
+      { media: { analyzerModels: { image: '' } } },
+    );
+
+    const selected = selectVisionModel(providerManager, {
+      kind: 'image',
+      currentModelAlias: 'alpha-vision',
+    });
+
+    expect(selected?.modelAlias).toBe('alpha-vision');
   });
 
   it('keeps the current alias when it already has image_in', () => {
@@ -240,6 +342,10 @@ describe('modelSupportsMediaKind (fail-open)', () => {
     expect(modelSupportsMediaKind(capabilities(), 'image')).toBe(false);
     expect(modelSupportsMediaKind(capabilities({ image_in: true }), 'image')).toBe(true);
     expect(modelSupportsMediaKind(capabilities({ image_in: true }), 'video')).toBe(false);
+    expect(modelSupportsMediaKind(capabilities({ video_in: true }), 'video')).toBe(true);
+    expect(modelSupportsMediaKind(capabilities({ audio_in: true }), 'audio')).toBe(true);
+    expect(modelSupportsMediaKind(capabilities({ pdf_in: true }), 'pdf')).toBe(true);
+    expect(modelSupportsMediaKind(undefined, 'pdf')).toBe(true);
   });
 });
 
@@ -298,7 +404,7 @@ describe('transformMediaForNonVisionModel', () => {
     const replacement = result.parts[0];
     if (replacement?.type !== 'text') throw new Error('expected text part');
     expect(replacement.text).toMatch(
-      /^\[Image attached but model is text-only: .+ — analyze with a vision-capable tool\]$/u,
+      /^\[Image attached but model cannot read it directly: .+ — analyze with a capable tool\]$/u,
     );
   });
 
@@ -313,7 +419,7 @@ describe('transformMediaForNonVisionModel', () => {
     expect(result.pathOnlyCount).toBe(1);
     const replacement = result.parts[0];
     if (replacement?.type !== 'text') throw new Error('expected text part');
-    expect(replacement.text).toContain('model is text-only');
+    expect(replacement.text).toContain('model cannot read it directly');
   });
 
   it('passes parts through when the current model supports the media', async () => {
@@ -407,14 +513,16 @@ describe('ReadMediaFileTool vision fallback', () => {
     return new ReadMediaFileTool(
       kaos,
       PERMISSIVE_WORKSPACE,
-      capabilities({ image_in: false, video_in: false }),
+      capabilities({ image_in: false, video_in: false, audio_in: false, pdf_in: false }),
       undefined,
       fallback,
     );
   }
 
   it('still throws SkipThisTool without capability and without fallback', () => {
-    expect(() => makeTextOnlyTool(undefined)).toThrow(/image_in or video_in/);
+    expect(() => makeTextOnlyTool(undefined)).toThrow(
+      /image_in, video_in, audio_in, or pdf_in/,
+    );
   });
 
   it('returns analyzer text when the fallback succeeds', async () => {
@@ -451,7 +559,7 @@ describe('ReadMediaFileTool vision fallback', () => {
     expect(result.isError).toBeFalsy();
     const parts = result.output as ContentPart[];
     expect((parts[0] as { text: string }).text).toBe(
-      '[Image attached but model is text-only: /workspace/sample.png — analyze with a vision-capable tool]',
+      '[Image attached but model cannot read it directly: /workspace/sample.png — analyze with a capable tool]',
     );
   });
 });

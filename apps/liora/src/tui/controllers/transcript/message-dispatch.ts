@@ -451,7 +451,15 @@ export class MessageDispatchController {
     const videoUnsupported =
       extraction.videoAttachmentIds.length > 0 &&
       !host.appStateController.supportsCurrentModelCapability('video_in');
-    if (!imageUnsupported && !videoUnsupported) return true;
+    const fileUnsupported =
+      extraction.fileAttachmentIds.length > 0 &&
+      !host.appStateController.supportsCurrentModelCapability('pdf_in');
+    const audioUnsupported =
+      extraction.audioAttachmentIds.length > 0 &&
+      !host.appStateController.supportsCurrentModelCapability('audio_in');
+    if (!imageUnsupported && !videoUnsupported && !fileUnsupported && !audioUnsupported) {
+      return true;
+    }
 
     // 'block' keeps the legacy hard error. 'analyze'/'path' send anyway: the
     // core transforms media (analyzer text or path note) before the model
@@ -460,12 +468,24 @@ export class MessageDispatchController {
       host.showError(
         imageUnsupported
           ? 'Current model does not support image input.'
-          : 'Current model does not support video input.',
+          : videoUnsupported
+            ? 'Current model does not support video input.'
+            : fileUnsupported
+              ? 'Current model does not support PDF input.'
+              : 'Current model does not support audio input.',
       );
       return false;
     }
     if ((host.state.appState.nonVisionFallbackPolicy ?? 'analyze') === 'analyze') {
-      const analyzer = this.findVisionAnalyzerModel(videoUnsupported && !imageUnsupported);
+      const wantsKind: 'image' | 'video' | 'pdf' | 'audio' =
+        videoUnsupported && !imageUnsupported
+          ? 'video'
+          : fileUnsupported && !imageUnsupported && !videoUnsupported
+            ? 'pdf'
+            : audioUnsupported && !imageUnsupported && !videoUnsupported && !fileUnsupported
+              ? 'audio'
+              : 'image';
+      const analyzer = this.findVisionAnalyzerModel(wantsKind);
       if (analyzer !== undefined) {
         host.showStatus(
           ttui('tui.media.textOnlyAnalyze', { analyzer }),
@@ -477,14 +497,22 @@ export class MessageDispatchController {
   }
 
   /**
-   * Catalog heuristic for the pre-send toast: a vision-capable model whose
-   * provider entry exists, preferring the current model's provider. The core
-   * makes the authoritative (credential-aware) selection at send time.
+   * Catalog heuristic for the pre-send toast: a model capable of the media
+   * kind whose provider entry exists, preferring the current model's provider.
+   * A configured per-kind override (`[media.analyzer_models]`) wins when it is
+   * present and capable. The core makes the authoritative (credential-aware)
+   * selection at send time.
    */
-  private findVisionAnalyzerModel(video: boolean): string | undefined {
+  private findVisionAnalyzerModel(kind: 'image' | 'video' | 'pdf' | 'audio'): string | undefined {
     const models = this.host.state.appState.availableModels;
-    const wanted = video ? 'video_in' : 'image_in';
+    const wanted =
+      kind === 'video' ? 'video_in' : kind === 'pdf' ? 'pdf_in' : kind === 'audio' ? 'audio_in' : 'image_in';
     const currentProvider = models[this.host.state.appState.model]?.provider;
+    const configured = this.host.state.appState.mediaAnalyzerModels?.[kind]?.trim();
+    if (configured !== undefined && configured.length > 0) {
+      const overrideEntry = models[configured];
+      if (overrideEntry?.capabilities?.includes(wanted) === true) return configured;
+    }
     let first: string | undefined;
     for (const alias of Object.keys(models).toSorted()) {
       const entry = models[alias];

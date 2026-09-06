@@ -197,6 +197,8 @@ export type {
   LioraConfig,
   LoopControl,
   McpServerConfig,
+  MediaAnalyzerModelsConfig,
+  MediaConfig,
   ModelAlias,
   MoonshotServiceConfig,
   OAuthRef,

@@ -107,6 +107,49 @@ const OMITTED_MEDIA_PLACEHOLDER = {
 
 const SUPPORTED_B64_MEDIA_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
+// Document blocks (PDFs, plain text) — the Messages API accepts these media
+// types for `document` blocks.
+const SUPPORTED_DOCUMENT_MEDIA_TYPES = new Set(['application/pdf', 'text/plain']);
+
+interface AnthropicDocumentBlock {
+  type: 'document';
+  title?: string;
+  source:
+    | { type: 'base64'; data: string; media_type: string }
+    | { type: 'url'; url: string };
+  cache_control?: { type: 'ephemeral' };
+}
+
+function fileUrlPartToAnthropic(
+  url: string,
+  filename: string | undefined,
+): AnthropicDocumentBlock {
+  if (url.startsWith('data:')) {
+    const withoutScheme = url.slice(5);
+    const parts = withoutScheme.split(';base64,', 2);
+    if (parts.length !== 2 || parts[0] === undefined || parts[1] === undefined) {
+      throw new ChatProviderError(`Invalid data URL for document: ${url}`);
+    }
+    const mediaType = parts[0];
+    const data = parts[1];
+    if (!SUPPORTED_DOCUMENT_MEDIA_TYPES.has(mediaType)) {
+      throw new ChatProviderError(
+        `Unsupported media type for base64 document: ${mediaType}, url: ${url}`,
+      );
+    }
+    return {
+      type: 'document',
+      ...(filename !== undefined ? { title: filename } : {}),
+      source: { type: 'base64', data, media_type: mediaType },
+    };
+  }
+  return {
+    type: 'document',
+    ...(filename !== undefined ? { title: filename } : {}),
+    source: { type: 'url', url },
+  };
+}
+
 function imageUrlPartToAnthropic(url: string): AnthropicImageBlock {
   if (url.startsWith('data:')) {
     const withoutScheme = url.slice(5);
@@ -133,7 +176,7 @@ function imageUrlPartToAnthropic(url: string): AnthropicImageBlock {
 }
 
 function toolResultToBlock(toolCallId: string, content: ContentPart[]): ToolResultBlockParam {
-  const blocks: Array<TextBlockParam | AnthropicImageBlock> = [];
+  const blocks: Array<TextBlockParam | AnthropicImageBlock | AnthropicDocumentBlock> = [];
   for (const part of content) {
     if (part.type === 'text') {
       if (part.text) {
@@ -141,6 +184,8 @@ function toolResultToBlock(toolCallId: string, content: ContentPart[]): ToolResu
       }
     } else if (part.type === 'image_url') {
       blocks.push(imageUrlPartToAnthropic(part.imageUrl.url));
+    } else if (part.type === 'file_url') {
+      blocks.push(fileUrlPartToAnthropic(part.fileUrl.url, part.fileUrl.filename));
     } else if (part.type === 'audio_url' || part.type === 'video_url') {
       const placeholder = OMITTED_MEDIA_PLACEHOLDER[part.type];
       const last = blocks.at(-1);
@@ -187,6 +232,10 @@ export function convertMessage(message: Message, model: string): MessageParam {
       blocks.push({ type: 'text', text: part.text } satisfies TextBlockParam);
     } else if (part.type === 'image_url') {
       blocks.push(imageUrlPartToAnthropic(part.imageUrl.url) as unknown as ContentBlockParam);
+    } else if (part.type === 'file_url') {
+      blocks.push(
+        fileUrlPartToAnthropic(part.fileUrl.url, part.fileUrl.filename) as unknown as ContentBlockParam,
+      );
     } else if (part.type === 'think') {
       // ThinkPart -> ThinkingBlockParam.
       //

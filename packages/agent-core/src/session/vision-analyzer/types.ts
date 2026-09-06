@@ -15,7 +15,7 @@ export type NonVisionFallbackPolicy = 'analyze' | 'path' | 'block';
 
 export const DEFAULT_NON_VISION_FALLBACK: NonVisionFallbackPolicy = 'analyze';
 
-export type MediaKind = 'image' | 'video';
+export type MediaKind = 'image' | 'video' | 'audio' | 'pdf';
 
 /**
  * One-shot dependencies, mirroring the response-language LLM detector: the

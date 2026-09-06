@@ -1,6 +1,7 @@
 import type {
   GoalChange,
   GoalSnapshot,
+  MediaAnalyzerModelsConfig,
   ModelAlias,
   PermissionMode,
   ProviderRouteSelection,
@@ -156,6 +157,12 @@ export interface AppState {
    * note; 'block' refuses the send. Fail-open default: 'analyze'.
    */
   nonVisionFallbackPolicy?: 'analyze' | 'path' | 'block';
+  /**
+   * Per-kind analyzer model overrides (config.toml
+   * `[media.analyzer_models]`). Keys: image | video | audio | pdf; values
+   * are model aliases; empty/missing means auto-select.
+   */
+  mediaAnalyzerModels?: MediaAnalyzerModelsConfig | undefined;
   providerRouteStatus?: ProviderRouteStatus | null;
   /**
    * Last successful step-level provider route selection (effective model +

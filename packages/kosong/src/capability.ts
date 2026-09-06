@@ -12,6 +12,7 @@ export interface ModelCapability {
   readonly image_in: boolean;
   readonly video_in: boolean;
   readonly audio_in: boolean;
+  readonly pdf_in: boolean;
   readonly thinking: boolean;
   readonly tool_use: boolean;
   readonly max_context_tokens: number;
@@ -30,6 +31,7 @@ export const UNKNOWN_CAPABILITY: ModelCapability = Object.freeze(
       image_in: false,
       video_in: false,
       audio_in: false,
+      pdf_in: false,
       thinking: false,
       tool_use: false,
       max_context_tokens: 0,
@@ -48,6 +50,7 @@ export function isUnknownCapability(capability: ModelCapability): boolean {
     !capability.image_in &&
     !capability.video_in &&
     !capability.audio_in &&
+    !capability.pdf_in &&
     !capability.thinking &&
     !capability.tool_use &&
     capability.max_context_tokens === 0

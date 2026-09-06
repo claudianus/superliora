@@ -77,6 +77,7 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
     availableModels: {},
     availableProviders: {},
     nonVisionFallbackPolicy: 'analyze',
+    mediaAnalyzerModels: undefined,
     providerRouteStatus: null,
     lastProviderRouteSelection: null,
     lastModelRouteNotice: null,

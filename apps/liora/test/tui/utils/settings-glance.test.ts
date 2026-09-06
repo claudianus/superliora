@@ -115,6 +115,7 @@ import {
 import { buildMcpSettingsLines, formatMcpLiveSessionLine } from '#/tui/utils/mcp/mcp-glance';
 import {
   buildMediaSettingsLines,
+  formatAnalyzerOverridesLine,
   formatFallbackEffectiveLine,
   loadMediaSettingsGlance,
   resolveModelVisionSupport,
@@ -1425,7 +1426,32 @@ describe('media-glance', () => {
       expect(text).toContain('Fallback policy: path');
       expect(text).toContain('Current model: gpt-text');
       expect(text).toContain('nonVisionFallback');
-      expect(text).toContain('/media');
+    });
+
+    it('formats per-kind analyzer overrides (auto vs configured)', () => {
+      expect(formatAnalyzerOverridesLine(undefined)).toContain('none (auto for every kind)');
+      expect(formatAnalyzerOverridesLine({})).toContain('image: auto');
+      expect(
+        formatAnalyzerOverridesLine({
+          image: 'commandcode/z-ai/glm-5.3-flash',
+          pdf: 'commandcode/claude-sonnet-5',
+          video: '  ',
+        }),
+      ).toContain('image: commandcode/z-ai/glm-5.3-flash');
+      expect(
+        formatAnalyzerOverridesLine({
+          image: 'commandcode/z-ai/glm-5.3-flash',
+          pdf: 'commandcode/claude-sonnet-5',
+          video: '  ',
+        }),
+      ).toContain('pdf: commandcode/claude-sonnet-5');
+      expect(
+        formatAnalyzerOverridesLine({
+          image: 'commandcode/z-ai/glm-5.3-flash',
+          pdf: 'commandcode/claude-sonnet-5',
+          video: '  ',
+        }),
+      ).toContain('video: auto');
     });
   });
 });

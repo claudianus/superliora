@@ -352,6 +352,8 @@ function contentPartToText(part: ContentPart): string {
       return mediaUrlPartToText('video', part.videoUrl.url);
     case 'audio_url':
       return mediaUrlPartToText('audio', part.audioUrl.url);
+    case 'file_url':
+      return mediaUrlPartToText('file', part.fileUrl.url);
   }
 }
 

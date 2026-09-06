@@ -177,6 +177,14 @@ function mapContentPart(part: ContextMessage['content'][number]): MessageContent
         type: 'text',
         text: `[video:${part.videoUrl.url}]`,
       };
+    case 'file_url':
+      // SCHEMAS §3 `file` content carries an uploaded `file_id` only; a
+      // url/data-url document has no protocol variant, so flatten to a
+      // `text` marker like audio/video.
+      return {
+        type: 'text',
+        text: `[file:${part.fileUrl.filename ?? ''}${part.fileUrl.url}]`,
+      };
   }
 }
 

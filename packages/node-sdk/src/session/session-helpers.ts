@@ -40,6 +40,22 @@ export function normalizePromptInput(input: string | PromptInput): PromptInput {
           );
         }
         break;
+      case 'audio_url':
+        if (part.audioUrl.url.trim().length === 0) {
+          throw new LioraError(
+            ErrorCodes.REQUEST_PROMPT_INPUT_EMPTY,
+            'Prompt input cannot contain empty audio URLs',
+          );
+        }
+        break;
+      case 'file_url':
+        if (part.fileUrl.url.trim().length === 0) {
+          throw new LioraError(
+            ErrorCodes.REQUEST_PROMPT_INPUT_EMPTY,
+            'Prompt input cannot contain empty file URLs',
+          );
+        }
+        break;
     }
   }
   return input;

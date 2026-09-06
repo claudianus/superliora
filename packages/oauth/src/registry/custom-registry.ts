@@ -309,6 +309,8 @@ export function capabilitiesFromCustomEntry(model: CustomRegistryModelEntry): st
   if (model.interleaved !== undefined) caps.add('thinking');
   if (model.modalities?.input?.includes('image') === true) caps.add('image_in');
   if (model.modalities?.input?.includes('video') === true) caps.add('video_in');
+  if (model.modalities?.input?.includes('audio') === true) caps.add('audio_in');
+  if (model.modalities?.input?.includes('pdf') === true) caps.add('pdf_in');
   if (model.modalities?.output?.includes('image') === true) caps.add('image_out');
   if (model.modalities?.output?.includes('audio') === true) caps.add('audio_out');
   return [...caps];

@@ -228,6 +228,20 @@ export const NonVisionFallbackPolicySchema = z.enum(['analyze', 'path', 'block']
 
 export type NonVisionFallbackPolicyConfig = z.infer<typeof NonVisionFallbackPolicySchema>;
 
+/**
+ * Per-media-kind analyzer model overrides (`media.analyzer_models`). The
+ * value is a model alias (e.g. `commandcode/z-ai/glm-5.3-flash`); an empty
+ * string or an omitted kind means "auto-select".
+ */
+export const MediaAnalyzerModelsSchema = z.object({
+  image: z.string().optional(),
+  video: z.string().optional(),
+  audio: z.string().optional(),
+  pdf: z.string().optional(),
+});
+
+export type MediaAnalyzerModelsConfig = z.infer<typeof MediaAnalyzerModelsSchema>;
+
 export const MediaConfigSchema = z.object({
   /**
    * What happens when the current chat model cannot consume attached
@@ -236,6 +250,14 @@ export const MediaConfigSchema = z.object({
    * the send like before.
    */
   nonVisionFallback: NonVisionFallbackPolicySchema.optional(),
+  /**
+   * Explicit analyzer model per media kind. When the active model cannot
+   * consume a kind, the configured alias is preferred over automatic
+   * catalog selection; if the alias cannot serve the kind (unknown,
+   * missing credential, unhealthy, wrong capability) selection silently
+   * falls back to the automatic path.
+   */
+  analyzerModels: MediaAnalyzerModelsSchema.optional(),
 });
 
 export type MediaConfig = z.infer<typeof MediaConfigSchema>;

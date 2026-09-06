@@ -25,6 +25,7 @@ const model: CatalogModel = {
     image_in: true,
     video_in: false,
     audio_in: false,
+    pdf_in: false,
     thinking: true,
     tool_use: true,
     max_context_tokens: 200000,

@@ -18,6 +18,7 @@ interface ResponseInputItem {
 // the model still learns an attachment existed instead of silently losing it.
 const OMITTED_AUDIO_PLACEHOLDER = '(audio omitted: unsupported audio format)';
 const OMITTED_VIDEO_PLACEHOLDER = '(video omitted: not supported by this provider)';
+const OMITTED_FILE_PLACEHOLDER = '(file omitted: unsupported file reference)';
 
 function contentPartsToInputItems(parts: ContentPart[]): unknown[] {
   const items: unknown[] = [];
@@ -40,6 +41,9 @@ function contentPartsToInputItems(parts: ContentPart[]): unknown[] {
         items.push(mapped ?? { type: 'input_text', text: OMITTED_AUDIO_PLACEHOLDER });
         break;
       }
+      case 'file_url':
+        items.push(mapFileUrlToInputItem(part.fileUrl));
+        break;
       case 'video_url':
         items.push({ type: 'input_text', text: OMITTED_VIDEO_PLACEHOLDER });
         break;
@@ -83,6 +87,9 @@ function messageContentToFunctionOutputItems(content: ContentPart[]): unknown[] 
         items.push(mapped ?? { type: 'input_text', text: OMITTED_AUDIO_PLACEHOLDER });
         break;
       }
+      case 'file_url':
+        items.push(mapFileUrlToInputItem(part.fileUrl));
+        break;
       case 'video_url':
         items.push({ type: 'input_text', text: OMITTED_VIDEO_PLACEHOLDER });
         break;
@@ -92,6 +99,20 @@ function messageContentToFunctionOutputItems(content: ContentPart[]): unknown[] 
     }
   }
   return items;
+}
+
+function mapFileUrlToInputItem(file: { url: string; filename?: string }): unknown {
+  if (file.url.startsWith('data:')) {
+    return {
+      type: 'input_file',
+      ...(file.filename !== undefined ? { filename: file.filename } : {}),
+      file_data: file.url,
+    };
+  }
+  if (file.url.startsWith('http://') || file.url.startsWith('https://')) {
+    return { type: 'input_file', ...(file.filename !== undefined ? { filename: file.filename } : {}), file_url: file.url };
+  }
+  return { type: 'input_text', text: OMITTED_FILE_PLACEHOLDER };
 }
 
 function mapAudioUrlToInputItem(url: string): unknown {

@@ -1715,9 +1715,28 @@ describe('media-settings', () => {
         'presets',
         'status',
         'change-policy',
+        'analyzer-image',
+        'analyzer-video',
+        'analyzer-audio',
+        'analyzer-pdf',
         'change-model',
       ]);
       expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
+    });
+
+    it('lists per-kind analyzer rows with the current override', () => {
+      const host = makeMediaHost();
+      host.state.appState.mediaAnalyzerModels = { pdf: 'commandcode/z-ai/glm-5.3-flash' };
+      showMediaSettings(host);
+      const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+        | ChoicePickerComponent
+        | undefined;
+      const options = (picker as unknown as { opts: { options: readonly { value: string; label: string }[] } })
+        .opts.options;
+      const pdfRow = options.find((o) => o.value === 'analyzer-pdf');
+      const imageRow = options.find((o) => o.value === 'analyzer-image');
+      expect(pdfRow?.label).toContain('commandcode/z-ai/glm-5.3-flash');
+      expect(imageRow?.label).toContain('Auto');
     });
 
     it('mounts read-only media panel with live config policy', async () => {

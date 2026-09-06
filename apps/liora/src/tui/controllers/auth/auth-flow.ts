@@ -135,6 +135,7 @@ export class AuthFlowController {
         availableModels,
         availableProviders,
         nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
+        mediaAnalyzerModels: config.media?.analyzerModels,
       });
       return;
     }
@@ -148,6 +149,7 @@ export class AuthFlowController {
       availableModels,
       availableProviders,
       nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
+      mediaAnalyzerModels: config.media?.analyzerModels,
       model: defaultModel,
       maxContextTokens: applyXaiPricingSafeContextTokens(selected.maxContextSize, {
         provider: selected.provider,
@@ -176,6 +178,7 @@ export class AuthFlowController {
       availableModels: config.models ?? {},
       availableProviders: config.providers ?? {},
       nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
+      mediaAnalyzerModels: config.media?.analyzerModels,
       model: '',
       thinking: false,
       thinkingLevel: 'off',

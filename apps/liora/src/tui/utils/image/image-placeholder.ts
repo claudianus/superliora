@@ -6,24 +6,30 @@
  *   - Only placeholders that resolve against `store` get extracted.
  *     A literal `[image #999 ...]` the user typed themselves stays in
  *     the text (we can't hallucinate files for it).
- *   - Order is preserved for text/image/video segments. Image placeholders
+ *   - Order is preserved for text/image/video/file segments. Image placeholders
  *     expand to image content parts so the prompt reaches the provider
  *     without relying on a model tool call. Video placeholders still expand
  *     to file-path tags so `ReadMediaFile` can own video upload behavior.
+ *     File placeholders (PDF) expand to file content parts for models that
+ *     accept document input.
  *   - Adjacent text segments are flattened — empty / whitespace-only
  *     segments drop out so we never emit `{type:'text', text:' '}`
  *     noise between two media parts.
  */
 
+import { readFileSync } from 'node:fs';
+
 import type { PromptPart } from '@superliora/sdk';
 
 import type {
+  AudioAttachment,
+  FileAttachment,
   ImageAttachment,
   ImageAttachmentStore,
   VideoAttachment,
 } from './image-attachment-store';
 
-const PLACEHOLDER_REGEX = /\[(image|video) #(\d+) (?:(\(\d+×\d+\))|([^\]]+))\]/g;
+const PLACEHOLDER_REGEX = /\[(image|video|file|audio) #(\d+) (?:(\(\d+×\d+\))|([^\]]+))\]/g;
 
 export interface ExtractionResult {
   /** Flat list of parts in input order; empty array when no media matched. */
@@ -37,6 +43,10 @@ export interface ExtractionResult {
   imageAttachmentIds: number[];
   /** Video attachment ids matched, in the order they appeared. */
   videoAttachmentIds: number[];
+  /** File (PDF) attachment ids matched, in the order they appeared. */
+  fileAttachmentIds: number[];
+  /** Audio attachment ids matched, in the order they appeared. */
+  audioAttachmentIds: number[];
 }
 
 export function extractMediaAttachments(
@@ -46,6 +56,8 @@ export function extractMediaAttachments(
   const parts: PromptPart[] = [];
   const imageAttachmentIds: number[] = [];
   const videoAttachmentIds: number[] = [];
+  const fileAttachmentIds: number[] = [];
+  const audioAttachmentIds: number[] = [];
   let cursor = 0;
   let hasMedia = false;
 
@@ -53,7 +65,7 @@ export function extractMediaAttachments(
   let match: RegExpExecArray | null;
   while ((match = PLACEHOLDER_REGEX.exec(text)) !== null) {
     const [literal, kind, idStr] = match;
-    if (kind !== 'image' && kind !== 'video') continue;
+    if (kind !== 'image' && kind !== 'video' && kind !== 'file' && kind !== 'audio') continue;
     if (idStr === undefined) continue;
     const id = Number.parseInt(idStr, 10);
     const attachment = store.get(id);
@@ -65,6 +77,12 @@ export function extractMediaAttachments(
       const mediaText = tagTextForVideo(attachment);
       pushText(parts, mediaText);
       videoAttachmentIds.push(id);
+    } else if (attachment.kind === 'file') {
+      parts.push(filePartForAttachment(attachment));
+      fileAttachmentIds.push(id);
+    } else if (attachment.kind === 'audio') {
+      parts.push(audioPartForAttachment(attachment));
+      audioAttachmentIds.push(id);
     } else {
       parts.push(imagePartForAttachment(attachment));
       imageAttachmentIds.push(id);
@@ -84,6 +102,8 @@ export function extractMediaAttachments(
     hasMedia,
     imageAttachmentIds,
     videoAttachmentIds,
+    fileAttachmentIds,
+    audioAttachmentIds,
   };
 }
 
@@ -106,6 +126,24 @@ function imagePartForAttachment(att: ImageAttachment): PromptPart {
   return {
     type: 'image_url',
     imageUrl: { url: `data:${att.mime};base64,${base64}` },
+  };
+}
+
+function filePartForAttachment(att: FileAttachment): PromptPart {
+  const bytes = readFileSync(att.sourcePath);
+  const base64 = bytes.toString('base64');
+  return {
+    type: 'file_url',
+    fileUrl: { url: `data:${att.mime};base64,${base64}`, filename: att.filename },
+  };
+}
+
+function audioPartForAttachment(att: AudioAttachment): PromptPart {
+  const bytes = readFileSync(att.sourcePath);
+  const base64 = bytes.toString('base64');
+  return {
+    type: 'audio_url',
+    audioUrl: { url: `data:${att.mime};base64,${base64}` },
   };
 }
 

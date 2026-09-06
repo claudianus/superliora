@@ -23,6 +23,7 @@ export interface OpenAIContentPart {
   image_url?: { url: string; id?: string | null } | undefined;
   audio_url?: { url: string; id?: string | null } | undefined;
   video_url?: { url: string; id?: string | null } | undefined;
+  file?: { filename?: string; file_data?: string } | undefined;
 }
 
 /**
@@ -60,6 +61,24 @@ export function convertContentPart(part: ContentPart): OpenAIContentPart | null 
             ? { url: part.videoUrl.url }
             : { url: part.videoUrl.url, id: part.videoUrl.id },
       };
+    case 'file_url': {
+      // Chat Completions carries PDF documents as `file` parts with a
+      // data: URL in `file_data`. Remote http(s) file references have no
+      // Chat Completions representation, so degrade to a note (mirrors the
+      // audio/video degradation on wires without a native shape).
+      const isBase64DataUrl = part.fileUrl.url.startsWith('data:') &&
+        part.fileUrl.url.includes(';base64,');
+      if (!isBase64DataUrl) {
+        return { type: 'text', text: '(file omitted: unsupported file reference)' };
+      }
+      return {
+        type: 'file',
+        file: {
+          ...(part.fileUrl.filename !== undefined ? { filename: part.fileUrl.filename } : {}),
+          file_data: part.fileUrl.url,
+        },
+      };
+    }
     default:
       throw new Error(`Unknown content part type: ${(part as ContentPart).type}`);
   }

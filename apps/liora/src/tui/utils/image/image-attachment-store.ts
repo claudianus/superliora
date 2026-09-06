@@ -37,7 +37,27 @@ export interface VideoAttachment {
   readonly placeholder: string;
 }
 
-export type MediaAttachment = ImageAttachment | VideoAttachment;
+export interface FileAttachment {
+  readonly id: number;
+  readonly kind: 'file';
+  readonly mime: string;
+  readonly filename: string;
+  readonly sourcePath: string;
+  /** Rendered placeholder string, e.g. `[file #1 report.pdf]`. */
+  readonly placeholder: string;
+}
+
+export interface AudioAttachment {
+  readonly id: number;
+  readonly kind: 'audio';
+  readonly mime: string;
+  readonly filename: string;
+  readonly sourcePath: string;
+  /** Rendered placeholder string, e.g. `[audio #1 notes.mp3]`. */
+  readonly placeholder: string;
+}
+
+export type MediaAttachment = ImageAttachment | VideoAttachment | FileAttachment | AudioAttachment;
 
 export class ImageAttachmentStore {
   private nextId = 1;
@@ -79,6 +99,42 @@ export class ImageAttachmentStore {
     return attachment;
   }
 
+  addFile(mime: string, sourcePath: string, filename?: string | undefined): FileAttachment {
+    const id = this.nextId;
+    this.nextId += 1;
+    const normalizedFilename = basenameLike(
+      filename !== undefined && filename !== '' ? filename : sourcePath,
+    );
+    const attachment: FileAttachment = {
+      id,
+      kind: 'file',
+      mime,
+      filename: normalizedFilename,
+      sourcePath,
+      placeholder: formatFilePlaceholder(id, normalizedFilename.length > 0 ? normalizedFilename : mime),
+    };
+    this.byId.set(id, attachment);
+    return attachment;
+  }
+
+  addAudio(mime: string, sourcePath: string, filename?: string | undefined): AudioAttachment {
+    const id = this.nextId;
+    this.nextId += 1;
+    const normalizedFilename = basenameLike(
+      filename !== undefined && filename !== '' ? filename : sourcePath,
+    );
+    const attachment: AudioAttachment = {
+      id,
+      kind: 'audio',
+      mime,
+      filename: normalizedFilename,
+      sourcePath,
+      placeholder: formatAudioPlaceholder(id, normalizedFilename.length > 0 ? normalizedFilename : mime),
+    };
+    this.byId.set(id, attachment);
+    return attachment;
+  }
+
   get(id: number): MediaAttachment | undefined {
     return this.byId.get(id);
   }
@@ -99,6 +155,14 @@ export function formatPlaceholder(id: number, width: number, height: number): st
 
 export function formatVideoPlaceholder(id: number, label: string): string {
   return `[video #${String(id)} ${sanitizeVideoLabel(label)}]`;
+}
+
+export function formatFilePlaceholder(id: number, label: string): string {
+  return `[file #${String(id)} ${sanitizeVideoLabel(label)}]`;
+}
+
+export function formatAudioPlaceholder(id: number, label: string): string {
+  return `[audio #${String(id)} ${sanitizeVideoLabel(label)}]`;
 }
 
 function sanitizeVideoLabel(raw: string): string {

@@ -23,8 +23,16 @@ export function resolveModelCapabilities(
   return {
     image_in:
       declared.has('image_in') || wire.image_in || catalog?.supportsVision === true,
-    video_in: declared.has('video_in') || wire.video_in,
-    audio_in: declared.has('audio_in') || wire.audio_in,
+    video_in:
+      declared.has('video_in') ||
+      wire.video_in ||
+      catalog?.supportsVideo === true,
+    audio_in:
+      declared.has('audio_in') ||
+      wire.audio_in ||
+      catalog?.supportsAudio === true,
+    pdf_in:
+      declared.has('pdf_in') || wire.pdf_in || catalog?.supportsPdf === true,
     thinking:
       declared.has('thinking') ||
       declared.has('always_thinking') ||

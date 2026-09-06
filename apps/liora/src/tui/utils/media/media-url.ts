@@ -1,4 +1,4 @@
-export type MediaUrlKind = 'audio' | 'image' | 'video';
+export type MediaUrlKind = 'audio' | 'file' | 'image' | 'video';
 
 export function mediaUrlPartToText(kind: MediaUrlKind, url: string): string {
   const summary = summarizeDataUrl(url);

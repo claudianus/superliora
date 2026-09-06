@@ -22,12 +22,59 @@ import {
   MEDIA_SNIFF_BYTES,
   IMAGE_MIME_BY_SUFFIX,
   VIDEO_MIME_BY_SUFFIX,
+  DOCUMENT_MIME_BY_SUFFIX,
+  AUDIO_MIME_BY_SUFFIX,
   NON_TEXT_SUFFIXES,
   type FileType,
   type ImageDimensions,
 } from '../../src/tools/support/file-type';
 
 describe('sniffMediaFromMagic', () => {
+  it('recognises PDF magic bytes as a document', () => {
+    expect(sniffMediaFromMagic(Buffer.from('%PDF-1.7\n rest'))).toEqual<FileType>({
+      kind: 'document',
+      mimeType: 'application/pdf',
+    });
+  });
+
+  it('recognises ID3-tagged MP3 as audio', () => {
+    expect(sniffMediaFromMagic(Buffer.concat([Buffer.from('ID3'), Buffer.from('\u0003\u0000')]))).toEqual<FileType>({
+      kind: 'audio',
+      mimeType: 'audio/mpeg',
+    });
+  });
+
+  it('recognises bare MP3 frame sync as audio', () => {
+    expect(sniffMediaFromMagic(Buffer.from([0xff, 0xfb, 0x90, 0x00]))).toEqual<FileType>({
+      kind: 'audio',
+      mimeType: 'audio/mpeg',
+    });
+  });
+
+  it('recognises RIFF WAVE as audio', () => {
+    expect(sniffMediaFromMagic(Buffer.from('RIFF\u0024\u0000\u0000\u0000WAVEfmt '))).toEqual<FileType>({
+      kind: 'audio',
+      mimeType: 'audio/wav',
+    });
+  });
+
+  it('recognises Ogg and FLAC as audio', () => {
+    expect(sniffMediaFromMagic(Buffer.from('OggS\u0000\u0002'))).toEqual<FileType>({
+      kind: 'audio',
+      mimeType: 'audio/ogg',
+    });
+    expect(sniffMediaFromMagic(Buffer.from('fLaC\u0000\u0000\u0000\u0022'))).toEqual<FileType>({
+      kind: 'audio',
+      mimeType: 'audio/flac',
+    });
+  });
+
+  it('recognises M4A via ftyp brand as audio', () => {
+    expect(
+      sniffMediaFromMagic(Buffer.from('\u0000\u0000\u0000\u0020ftypM4A \u0000\u0000\u0000\u0000mp42isom')),
+    ).toEqual<FileType>({ kind: 'audio', mimeType: 'audio/mp4' });
+  });
+
   it('recognises PNG magic bytes', () => {
     const header = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
     expect(sniffMediaFromMagic(header)).toEqual<FileType>({
@@ -230,6 +277,37 @@ describe('detectFileType', () => {
     expect(result.kind).toBe('unknown');
   });
 
+  it('resolves .pdf by extension (document) and confirms it via the %PDF magic', () => {
+    expect(detectFileType('spec.pdf')).toEqual<FileType>({
+      kind: 'document',
+      mimeType: 'application/pdf',
+    });
+    expect(detectFileType('spec.pdf', Buffer.from('%PDF-1.7\n...'))).toEqual<FileType>({
+      kind: 'document',
+      mimeType: 'application/pdf',
+    });
+    // In Read (text) mode the document kind is still returned so Read can
+    // redirect to ReadMediaFile instead of dumping binary PDF bytes.
+    expect(detectFileType('spec.pdf', Buffer.from('%PDF-1.7'), 'text').kind).toBe('document');
+    // PDF magic is mandatory: a .pdf suffix whose bytes fail to sniff is
+    // mislabeled and must not reach the model as an attachment.
+    expect(detectFileType('spec.pdf', Buffer.from('plain text'), 'media').kind).toBe('unknown');
+  });
+
+  it('resolves audio extensions and confirms them via magic in media mode', () => {
+    expect(detectFileType('song.mp3')).toEqual<FileType>({
+      kind: 'audio',
+      mimeType: 'audio/mpeg',
+    });
+    expect(
+      detectFileType('song.mp3', Buffer.from([0xff, 0xfb, 0x90, 0x00]), 'media'),
+    ).toEqual<FileType>({ kind: 'audio', mimeType: 'audio/mpeg' });
+    expect(detectFileType('clip.wav', Buffer.from('RIFFxxxxWAVE'), 'media')).toEqual<FileType>({
+      kind: 'audio',
+      mimeType: 'audio/wav',
+    });
+  });
+
   it('falls back to plain text for unknown suffix with no magic bytes', () => {
     const result = detectFileType('README');
     expect(result.kind).toBe('text');
@@ -254,7 +332,8 @@ describe('detectFileType', () => {
     expect(detectFileType('.env').kind).toBe('text');
     expect(detectFileType('icon.svg').kind).toBe('text');
     expect(detectFileType('archive.tar.gz').kind).toBe('unknown');
-    expect(detectFileType('my file.pdf').kind).toBe('unknown');
+    // .pdf is a first-class document kind (PDF input support), not unknown.
+    expect(detectFileType('my file.pdf').kind).toBe('document');
   });
 
   it('keeps TypeScript suffixes as text rather than MPEG-TS video', () => {

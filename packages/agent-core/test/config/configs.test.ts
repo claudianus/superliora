@@ -389,6 +389,40 @@ profile = "core"
     });
   });
 
+  it('round-trips [media.analyzer_models] per-kind overrides', async () => {
+    const dir = makeTempDir();
+    const configPath = join(dir, 'analyzer-models.toml');
+    const config = parseConfigString(
+      `
+[media]
+non_vision_fallback = "analyze"
+
+[media.analyzer_models]
+image = "commandcode/claude-sonnet-5"
+pdf = "commandcode/z-ai/glm-5.3-flash"
+audio = ""
+`,
+      configPath,
+    );
+    expect(config.media).toEqual({
+      nonVisionFallback: 'analyze',
+      analyzerModels: {
+        image: 'commandcode/claude-sonnet-5',
+        pdf: 'commandcode/z-ai/glm-5.3-flash',
+        audio: '',
+      },
+    });
+
+    await writeConfigFile(configPath, config);
+    const text = await readFile(configPath, 'utf-8');
+    const reloaded = parseConfigString(text, configPath);
+    expect(reloaded.media?.analyzerModels).toEqual({
+      image: 'commandcode/claude-sonnet-5',
+      pdf: 'commandcode/z-ai/glm-5.3-flash',
+      audio: '',
+    });
+  });
+
   it('parses and round-trips provider api key pools', async () => {
     const dir = makeTempDir();
     const configPath = join(dir, 'provider-api-keys.toml');

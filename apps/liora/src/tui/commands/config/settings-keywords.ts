@@ -31,7 +31,7 @@ export const SETTINGS_SEARCH_KEYWORDS = {
   keybindings: ['keyboard', 'shortcuts', 'keymap', 'keys'],
   context: ['working-set', 'workingset', 'memory', 'instruction', 'learning'],
   compaction: ['compact', 'threshold', 'keep-tokens', 'template'],
-  media: ['text-only', 'vision', 'image', 'fallback'],
+  media: ['text-only', 'vision', 'image', 'fallback', 'analyzer', 'audio', 'pdf', 'video'],
   harness: ['hands', 'control-plane'],
   tools: ['inventory', 'profile', 'core', 'waist', 'toolset'],
   eyes: ['browser', 'computer-use', 'browser-use', 'gui-use'],

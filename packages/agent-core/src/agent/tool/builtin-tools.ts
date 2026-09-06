@@ -233,6 +233,8 @@ function createFileAndContextTools(
     shouldCreateBuiltin(host, 'ReadMediaFile') &&
       (modelCapabilities.image_in ||
         modelCapabilities.video_in ||
+        modelCapabilities.audio_in ||
+        modelCapabilities.pdf_in ||
         readMediaVisionFallback !== undefined) &&
       new b.ReadMediaFileTool(
         kaos,
@@ -270,7 +272,9 @@ function buildReadMediaVisionFallback(agent: Agent): b.ReadMediaVisionFallback |
     const part: ContentPart =
       kind === 'video'
         ? { type: 'video_url', videoUrl: { url: dataUrl } }
-        : { type: 'image_url', imageUrl: { url: dataUrl } };
+        : kind === 'audio'
+          ? { type: 'audio_url', audioUrl: { url: dataUrl } }
+          : { type: 'image_url', imageUrl: { url: dataUrl } };
     const result = await analyzeMediaPart(
       {
         generate: agent.generate,

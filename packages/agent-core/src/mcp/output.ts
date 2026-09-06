@@ -57,7 +57,10 @@ const MCP_OUTPUT_TRUNCATED_TEXT = `\n\n[Output truncated: exceeded ${String(
 export const MCP_MAX_BINARY_PART_BYTES = 10 * 1024 * 1024;
 const MCP_MAX_BINARY_PART_CHARS = Math.ceil((MCP_MAX_BINARY_PART_BYTES * 4) / 3);
 
-function binaryPartTooLargeNotice(kind: 'image' | 'audio' | 'video', urlLength: number): string {
+function binaryPartTooLargeNotice(
+  kind: 'image' | 'audio' | 'video' | 'document',
+  urlLength: number,
+): string {
   const approxMb = ((urlLength * 3) / 4 / (1024 * 1024)).toFixed(1);
   const capMb = String(MCP_MAX_BINARY_PART_BYTES / (1024 * 1024));
   return `[${kind}_url dropped: ~${approxMb} MB exceeds ${capMb} MB per-part limit. Try a smaller resource.]`;
@@ -308,10 +311,18 @@ function applyBinaryPartCap(parts: readonly ContentPart[]): {
         ? part.imageUrl.url
         : part.type === 'audio_url'
           ? part.audioUrl.url
-          : part.videoUrl.url;
+          : part.type === 'video_url'
+            ? part.videoUrl.url
+            : part.fileUrl.url;
     if (url.length > MCP_MAX_BINARY_PART_CHARS) {
       const kind =
-        part.type === 'image_url' ? 'image' : part.type === 'audio_url' ? 'audio' : 'video';
+        part.type === 'image_url'
+          ? 'image'
+          : part.type === 'audio_url'
+            ? 'audio'
+            : part.type === 'video_url'
+              ? 'video'
+              : 'document';
       out.push({ type: 'text', text: binaryPartTooLargeNotice(kind, url.length) });
       truncated = true;
       continue;

@@ -25,6 +25,8 @@ const ANALYZE_TIMEOUT_MS = 60_000;
 export function mediaKind(part: ContentPart): MediaKind | undefined {
   if (part.type === 'image_url') return 'image';
   if (part.type === 'video_url') return 'video';
+  if (part.type === 'audio_url') return 'audio';
+  if (part.type === 'file_url') return 'pdf';
   return undefined;
 }
 
@@ -41,7 +43,10 @@ export function modelSupportsMediaKind(
   kind: MediaKind,
 ): boolean {
   if (capabilities === undefined || isUnknownCapability(capabilities)) return true;
-  return kind === 'video' ?  capabilities.video_in :  capabilities.image_in;
+  if (kind === 'video') return capabilities.video_in;
+  if (kind === 'audio') return capabilities.audio_in;
+  if (kind === 'pdf') return capabilities.pdf_in;
+  return capabilities.image_in;
 }
 
 /**
@@ -49,6 +54,11 @@ export function modelSupportsMediaKind(
  * credentials, preferring the current model's provider. Deterministic:
  * catalog keys are visited in sorted order. Returns undefined when no
  * candidate exists — callers fall back to path-only behavior.
+ *
+ * `media.analyzer_models.<kind>` in the runtime config overrides the
+ * automatic choice for that kind. An unusable override (unknown alias,
+ * missing credential, unhealthy route, wrong capability) silently falls
+ * back to the automatic path so a stale entry can never block a prompt.
  */
 export function selectVisionModel(
   providerManager: ProviderManager,
@@ -59,6 +69,21 @@ export function selectVisionModel(
 ): ResolvedRuntimeProvider | undefined {
   const config = providerManager.currentConfig();
   const models = config.models ?? {};
+
+  const configuredAlias = configuredAnalyzerAlias(config, options.kind);
+  if (configuredAlias !== undefined) {
+    try {
+      const resolved = providerManager.resolveProviderConfig(configuredAlias);
+      if (
+        hasVisionCapability(resolved, options.kind) &&
+        isSelectableVisionAlias(config, configuredAlias, resolved)
+      ) {
+        return resolved;
+      }
+    } catch {
+      // Unknown alias / unresolvable provider — fall through to automatic.
+    }
+  }
 
   const currentAlias = options.currentModelAlias?.trim() || undefined;
   let currentProviderName: string | undefined;
@@ -119,14 +144,26 @@ function isSelectableVisionAlias(
   return true;
 }
 
+/** Normalized per-kind analyzer override; empty/whitespace values mean auto. */
+function configuredAnalyzerAlias(
+  config: LioraConfig,
+  kind: MediaKind,
+): string | undefined {
+  const raw = config.media?.analyzerModels?.[kind];
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function hasVisionCapability(
   resolved: ResolvedRuntimeProvider,
   kind: MediaKind,
 ): boolean {
   const capabilities = resolved.modelCapabilities;
-  return kind === 'video'
-    ?  capabilities.video_in
-    :  capabilities.image_in;
+  if (kind === 'video') return capabilities.video_in;
+  if (kind === 'audio') return capabilities.audio_in;
+  if (kind === 'pdf') return capabilities.pdf_in;
+  return capabilities.image_in;
 }
 
 export interface AnalyzeMediaPartOptions {
@@ -232,8 +269,7 @@ export async function transformMediaForNonVisionModel(
   const analyzedKinds: MediaKind[] = [];
   let analyzedCount = 0;
   let pathOnlyCount = 0;
-  let imageIndex = 0;
-  let videoIndex = 0;
+  const kindIndexes: Record<MediaKind, number> = { image: 0, video: 0, audio: 0, pdf: 0 };
 
   for (const part of parts) {
     const kind = mediaKind(part);
@@ -242,10 +278,7 @@ export async function transformMediaForNonVisionModel(
       continue;
     }
 
-    const label =
-      kind === 'image'
-        ? defaultMediaLabel('image', ++imageIndex)
-        : defaultMediaLabel('video', ++videoIndex);
+    const label = defaultMediaLabel(kind, ++kindIndexes[kind]);
     const originalPath = await persistOriginalPart(part, options.originalsDir);
 
     if (options.policy === 'analyze') {
@@ -270,7 +303,10 @@ export async function transformMediaForNonVisionModel(
 }
 
 export function defaultMediaLabel(kind: MediaKind, index: number): string {
-  return kind === 'video' ? `video #${index}` : `image #${index}`;
+  if (kind === 'video') return `video #${index}`;
+  if (kind === 'audio') return `audio #${index}`;
+  if (kind === 'pdf') return `pdf #${index}`;
+  return `image #${index}`;
 }
 
 export function formatAnalysisText(
@@ -280,7 +316,8 @@ export function formatAnalysisText(
   analysis: string,
   originalPath: string | null,
 ): string {
-  const noun = kind === 'video' ? 'Video' : 'Image';
+  const noun =
+    kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : kind === 'pdf' ? 'PDF' : 'Image';
   const lines = [`[${noun} analysis — ${analyzerModel} (${label})]`, analysis];
   if (originalPath !== null) {
     lines.push(`[Original: ${originalPath}]`);
@@ -293,9 +330,10 @@ export function pathOnlyText(
   label: string,
   originalPath: string | null,
 ): string {
-  const noun = kind === 'video' ? 'Video' : 'Image';
+  const noun =
+    kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : kind === 'pdf' ? 'PDF' : 'Image';
   const target = originalPath ?? label;
-  return `[${noun} attached but model is text-only: ${target} — analyze with a vision-capable tool]`;
+  return `[${noun} attached but model cannot read it directly: ${target} — analyze with a capable tool]`;
 }
 
 function analyzeSignal(outer: AbortSignal | undefined): AbortSignal {
@@ -329,6 +367,8 @@ async function persistOriginalPart(
 function mediaUrl(part: ContentPart): string | undefined {
   if (part.type === 'image_url') return part.imageUrl.url;
   if (part.type === 'video_url') return part.videoUrl.url;
+  if (part.type === 'audio_url') return part.audioUrl.url;
+  if (part.type === 'file_url') return part.fileUrl.url;
   return undefined;
 }
 

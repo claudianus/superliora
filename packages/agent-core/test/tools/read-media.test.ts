@@ -46,6 +46,7 @@ function capabilities(overrides: Partial<ModelCapability> = {}): ModelCapability
     image_in: true,
     video_in: true,
     audio_in: false,
+    pdf_in: true,
     thinking: false,
     tool_use: true,
     max_context_tokens: 0,
@@ -112,15 +113,104 @@ describe('ReadMediaFileTool', () => {
     expect(description).toMatch(/text file/i);
   });
 
-  it('throws when constructed without image or video capability', () => {
+  it('throws when constructed without any media capability', () => {
     expect(
       () =>
         new ReadMediaFileTool(
           createFakeKaos(),
           PERMISSIVE_WORKSPACE,
-          capabilities({ image_in: false, video_in: false }),
+          capabilities({ image_in: false, video_in: false, audio_in: false, pdf_in: false }),
         ),
-    ).toThrow(/image_in or video_in/);
+    ).toThrow(/image_in, video_in, audio_in, or pdf_in/);
+  });
+
+  it('returns a file_url wrap for PDF files and names the source file', async () => {
+    const data = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.from('%fake pdf bytes')]);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: data.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(data),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_pdf',
+      args: { path: '/workspace/spec.pdf' },
+      signal,
+    });
+
+    const parts = outputParts(result);
+    expect(parts[1]).toEqual({ type: 'text', text: '<file path="/workspace/spec.pdf">' });
+    expect(parts[2]).toMatchObject({
+      type: 'file_url',
+      fileUrl: { filename: 'spec.pdf' },
+    });
+    expect((parts[2] as { fileUrl: { url: string } }).fileUrl.url).toBe(
+      `data:application/pdf;base64,${data.toString('base64')}`,
+    );
+    expect(parts[3]).toEqual({ type: 'text', text: '</file>' });
+    expect((parts[0] as { text: string }).text).toContain('application/pdf');
+  });
+
+  it('refuses PDFs when the model lacks pdf_in', async () => {
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: 1024 }),
+      readBytes: vi
+        .fn<Kaos['readBytes']>()
+        .mockResolvedValue(Buffer.from('%PDF-1.7\nfake')),
+      modelCapabilities: capabilities({ pdf_in: false }),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_nopdf',
+      args: { path: '/workspace/spec.pdf' },
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(String(result.output)).toMatch(/does not support PDF input/);
+  });
+
+  it('returns an audio_url wrap for MP3 files', async () => {
+    const data = Buffer.concat([Buffer.from('ID3'), Buffer.from('fake mp3 bytes')]);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: data.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(data),
+      modelCapabilities: capabilities({ audio_in: true }),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_mp3',
+      args: { path: '/workspace/notes.mp3' },
+      signal,
+    });
+
+    const parts = outputParts(result);
+    expect(parts[1]).toEqual({ type: 'text', text: '<audio path="/workspace/notes.mp3">' });
+    expect(parts[2]).toMatchObject({ type: 'audio_url' });
+    expect((parts[2] as { audioUrl: { url: string } }).audioUrl.url).toBe(
+      `data:audio/mpeg;base64,${data.toString('base64')}`,
+    );
+    expect(parts[3]).toEqual({ type: 'text', text: '</audio>' });
+  });
+
+  it('falls back to the analyzer error when audio_in is missing and no fallback exists', async () => {
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: 1024 }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(Buffer.from('ID3fake')),
+      modelCapabilities: capabilities({ audio_in: false }),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_noaudio',
+      args: { path: '/workspace/notes.mp3' },
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(String(result.output)).toMatch(/does not support audio input/);
   });
 
   it('returns a system/text/image/text wrap for PNG files', async () => {
@@ -414,7 +504,7 @@ describe('ReadMediaFileTool', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toBe(
-      '"/workspace/blob.bin" is not a supported image or video file. Use Read for text files, or Bash or an MCP tool for other binary formats.',
+      '"/workspace/blob.bin" is not a supported image, video, or PDF file. Use Read for text files, or Bash or an MCP tool for other binary formats.',
     );
     expect(result.output).not.toContain('Python tools');
   });
@@ -534,7 +624,7 @@ describe('ReadMediaFileTool', () => {
     expect(tool.description).toContain('supports image and video files for the current model');
   });
 
-  it('omits the tool from the toolset when the model has neither image_in nor video_in', () => {
+  it('omits the tool from the toolset when the model has no media input capability', () => {
     // Strict skip semantics: construction returns a sentinel the loader can
     // use to drop the tool entirely, instead of registering a tool that
     // always errors. Currently TS throws a regular Error — fail-unimplemented
@@ -544,7 +634,12 @@ describe('ReadMediaFileTool', () => {
       new ReadMediaFileTool(
         createFakeKaos(),
         PERMISSIVE_WORKSPACE,
-        capabilities({ image_in: false, video_in: false }),
+        capabilities({
+          image_in: false,
+          video_in: false,
+          audio_in: false,
+          pdf_in: false,
+        }),
       );
     try {
       construct();
@@ -632,7 +727,7 @@ describe('ReadMediaFileTool', () => {
 
   it('rejects a media-extension file whose bytes are not a supported image', async () => {
     // `.png` path with garbage bytes (no NUL) fails to sniff; the tool must
-    // report "not a supported image or video file" instead of building a
+    // report "not a supported image, video, or PDF file" instead of building a
     // mismatched data URL.
     const data = Buffer.from('this is not an image, just plain ascii text');
     const tool = makeReadMediaTool({
@@ -649,7 +744,7 @@ describe('ReadMediaFileTool', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toBe(
-      '"/workspace/fake.png" is not a supported image or video file. Use Read for text files, or Bash or an MCP tool for other binary formats.',
+      '"/workspace/fake.png" is not a supported image, video, or PDF file. Use Read for text files, or Bash or an MCP tool for other binary formats.',
     );
   });
 

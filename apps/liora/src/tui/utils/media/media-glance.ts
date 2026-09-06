@@ -4,9 +4,20 @@
 
 import { resolveConfigPath } from '@superliora/sdk';
 
+import type { MediaAnalyzerModelsConfig } from '@superliora/sdk';
 import type { AppState } from '#/tui/types';
 
 export type MediaFallbackPolicy = NonNullable<AppState['nonVisionFallbackPolicy']>;
+
+const ANALYZER_KIND_LABELS: readonly {
+  readonly kind: keyof MediaAnalyzerModelsConfig;
+  readonly label: string;
+}[] = [
+  { kind: 'image', label: 'image' },
+  { kind: 'video', label: 'video' },
+  { kind: 'audio', label: 'audio' },
+  { kind: 'pdf', label: 'pdf' },
+];
 
 export interface MediaSettingsGlance {
   readonly policy: MediaFallbackPolicy;
@@ -14,6 +25,7 @@ export interface MediaSettingsGlance {
   readonly supportsImageIn: boolean;
   readonly supportsVideoIn: boolean;
   readonly fallbackActive: boolean;
+  readonly analyzerModels?: MediaAnalyzerModelsConfig | undefined;
   readonly configPath: string;
   readonly configError?: string;
 }
@@ -54,6 +66,7 @@ export function loadMediaSettingsGlance(input: {
   readonly policy: MediaFallbackPolicy | undefined;
   readonly model: string;
   readonly availableModels: AppState['availableModels'];
+  readonly analyzerModels?: MediaAnalyzerModelsConfig | undefined;
   readonly configPath: string;
   readonly configError?: string;
 }): MediaSettingsGlance {
@@ -68,6 +81,7 @@ export function loadMediaSettingsGlance(input: {
     supportsImageIn: vision.supportsImageIn,
     supportsVideoIn: vision.supportsVideoIn,
     fallbackActive: !supportsAll,
+    analyzerModels: input.analyzerModels,
     configPath: input.configPath,
     configError: input.configError,
   };
@@ -96,31 +110,45 @@ export function formatFallbackEffectiveLine(glance: MediaSettingsGlance): string
   return 'Effective: analyze — core picks a vision-capable catalog model before send.';
 }
 
+export function formatAnalyzerOverridesLine(
+  analyzerModels: MediaAnalyzerModelsConfig | undefined,
+): string {
+  if (analyzerModels === undefined) return 'Analyzer overrides: none (auto for every kind)';
+  const parts = ANALYZER_KIND_LABELS.map(({ kind, label }) => {
+    const alias = analyzerModels[kind]?.trim();
+    return `${label}: ${alias !== undefined && alias.length > 0 ? alias : 'auto'}`;
+  });
+  return `Analyzer overrides · ${parts.join(' · ')}`;
+}
+
 export function buildMediaSettingsLines(glance: MediaSettingsGlance): readonly string[] {
   const configLine =
     glance.configError !== undefined
       ? `Config: (unavailable — ${glance.configError})`
-      : `Config: ${glance.configPath} · [media] nonVisionFallback`;
+      : `Config: ${glance.configPath} · [media] nonVisionFallback · [media.analyzer_models]`;
 
   return [
     '── Media fallback (read-only) ───────────────',
-    'Text-only model policy for attached images/videos — §9.2.',
+    'Text-only model policy for attached media (image/video/audio/pdf) — §9.2.',
     '',
     '── Session (live) ───────────────────────────',
     formatMediaPolicyLine(glance),
     formatModelVisionLine(glance),
     formatFallbackEffectiveLine(glance),
+    formatAnalyzerOverridesLine(glance.analyzerModels),
     configLine,
     '',
     '── Change policy ────────────────────────────',
     '  /media                         picker (analyze · path · block)',
     '  config.toml [media]           nonVisionFallback = analyze | path | block',
+    '  config.toml [media.analyzer_models]  image | video | audio | pdf = "<model alias>"',
     '  /reload                       apply after manual edit',
     '',
     '── Tips ─────────────────────────────────────',
     '· analyze: vision analyzer text is injected before the chat model sees the prompt',
     '· path: keeps send alive; a vision tool can read the attachment later',
     '· block: hard error when image_in/video_in missing on the active model',
+    '· Per-kind analyzer overrides win over automatic selection; unusable entries silently fall back',
     '· Clipboard paste and drag-drop use the same policy at send time',
     '· Switch to a vision-capable model to skip fallback entirely',
   ];

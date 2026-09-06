@@ -399,7 +399,7 @@ describe('ReadTool', () => {
     const output = toolContentString(result);
 
     expect(result.isError).toBe(true);
-    expect(output).toMatch(/image file/i);
+    expect(output).toMatch(/ReadMediaFile to read image, video, audio, or PDF files/i);
     expect(output).toMatch(/ReadMediaFile|media/i);
     expect(readText).not.toHaveBeenCalled();
   });
@@ -426,7 +426,7 @@ describe('ReadTool', () => {
 
     expect(result.isError).toBe(true);
     expect(output).toBe(
-      '"/tmp/fake.png" is not readable as UTF-8 text. If it is an image or video, use ReadMediaFile. For other binary formats, use Bash or an MCP tool if available.',
+      '"/tmp/fake.png" is not readable as UTF-8 text. If it is an image, video, audio file, or PDF, use ReadMediaFile. For other binary formats, use Bash or an MCP tool if available.',
     );
     expect(readText).not.toHaveBeenCalled();
   });
@@ -449,7 +449,7 @@ describe('ReadTool', () => {
     const output = toolContentString(result);
 
     expect(result.isError).toBe(true);
-    expect(output).toMatch(/image file/i);
+    expect(output).toMatch(/ReadMediaFile to read image, video, audio, or PDF files/i);
     expect(readText).not.toHaveBeenCalled();
   });
 
@@ -501,7 +501,7 @@ describe('ReadTool', () => {
 
     expect(result.isError).toBe(true);
     expect(output).toBe(
-      '"/tmp/blob.bin" is not readable as UTF-8 text. If it is an image or video, use ReadMediaFile. For other binary formats, use Bash or an MCP tool if available.',
+      '"/tmp/blob.bin" is not readable as UTF-8 text. If it is an image, video, audio file, or PDF, use ReadMediaFile. For other binary formats, use Bash or an MCP tool if available.',
     );
     expect(output).not.toContain('Python tools');
     expect(readText).not.toHaveBeenCalled();
@@ -527,7 +527,7 @@ describe('ReadTool', () => {
 
     expect(result.isError).toBe(true);
     expect(output).toBe(
-      '"/tmp/blob-with-late-nul" is not readable as UTF-8 text. If it is an image or video, use ReadMediaFile. For other binary formats, use Bash or an MCP tool if available.',
+      '"/tmp/blob-with-late-nul" is not readable as UTF-8 text. If it is an image, video, audio file, or PDF, use ReadMediaFile. For other binary formats, use Bash or an MCP tool if available.',
     );
     expect(output).not.toContain('Python tools');
   });
@@ -557,7 +557,7 @@ describe('ReadTool', () => {
 
     expect(result.isError).toBe(true);
     expect(output).toBe(
-      '"/tmp/not-utf8.txt" is not readable as UTF-8 text. If it is an image or video, use ReadMediaFile. For other binary formats, use Bash or an MCP tool if available.',
+      '"/tmp/not-utf8.txt" is not readable as UTF-8 text. If it is an image, video, audio file, or PDF, use ReadMediaFile. For other binary formats, use Bash or an MCP tool if available.',
     );
     expect(output).not.toContain('Python tools');
     expect(output).not.toContain(replacement);

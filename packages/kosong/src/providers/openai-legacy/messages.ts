@@ -38,16 +38,16 @@ function convertToolMessageContentForChat(
   return lines.join('\n');
 }
 
-function toolResultImageParts(message: Message): OpenAIContentPart[] {
-  const images: OpenAIContentPart[] = [];
+function toolResultMediaParts(message: Message): OpenAIContentPart[] {
+  const media: OpenAIContentPart[] = [];
   for (const part of message.content) {
-    if (part.type !== 'image_url') continue;
+    if (part.type !== 'image_url' && part.type !== 'file_url') continue;
     const converted = convertContentPart(part);
     if (converted !== null) {
-      images.push(converted);
+      media.push(converted);
     }
   }
-  return images;
+  return media;
 }
 
 function appendToolResultMediaMessage(
@@ -83,8 +83,8 @@ function convertMessage(
 
   if (message.role === 'tool') {
     // OpenAI Chat Completions `tool` messages only accept text content.
-    // Any non-text content parts (image_url, audio_url, video_url) would be
-    // rejected by the API with a 400. Detect multimodal tool output and
+    // Any non-text content parts (image_url, audio_url, video_url, file_url)
+    // would be rejected by the API with a 400. Detect multimodal tool output and
     // force the `extract_text` path in that case, regardless of the caller's
     // `toolMessageConversion` setting. For pure-text tool results we honor
     // the configured strategy (or fall through to the default content-part
@@ -162,7 +162,7 @@ export function convertHistoryMessages(
     }
     messages.push(convertMessage(msg, reasoningKey, toolMessageConversion));
     if (msg.role === 'tool') {
-      pendingToolResultMedia.push(...toolResultImageParts(msg));
+      pendingToolResultMedia.push(...toolResultMediaParts(msg));
     }
   }
 

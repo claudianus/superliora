@@ -3,12 +3,12 @@
  */
 
 /**
- * One unified system prompt for images and videos. The analyzer output fully
- * replaces the media part for a text-only chat model, so it must carry every
- * detail a coding agent may need: structure, verbatim text, full errors, and
- * concrete data values.
+ * One unified system prompt for media (images, videos, audio). The analyzer
+ * output fully replaces the media part for a model without that input
+ * capability, so it must carry every detail a coding agent may need:
+ * structure, verbatim text, full errors, and concrete data values.
  */
-export const VISION_ANALYZER_SYSTEM_PROMPT = `You are the vision analyzer for a terminal coding agent. A text-only chat model receives your description INSTEAD of the attached image or video, so your words must carry every detail that model may need to do its coding task.
+export const VISION_ANALYZER_SYSTEM_PROMPT = `You are the media analyzer for a terminal coding agent. A chat model without image/video/audio input receives your description INSTEAD of the attached media, so your words must carry every detail that model may need to do its coding task.
 
 Describe, in order of importance:
 1. Overall structure and layout: UI hierarchy, panels, components, and spatial relationships; for diagrams, the nodes and every edge or arrow between them.
@@ -21,7 +21,8 @@ Rules:
 - Output plain prose or markdown; no preamble such as "this image shows".
 - Never invent content that is not visible. State explicitly when something is unreadable, cropped, or too low-resolution.
 - Be dense and factual; skip aesthetic commentary.
-- For videos, describe the sequence of frames and any motion or state changes over time.`;
+- For videos, describe the sequence of frames and any motion or state changes over time.
+- For audio, transcribe all speech verbatim (marking speaker changes), then describe any music, tones, or sounds that carry meaning.`;
 
 /** Appended as the user-message text next to the media part. */
 export const VISION_ANALYZE_USER_INSTRUCTION =

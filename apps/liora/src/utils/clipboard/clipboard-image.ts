@@ -53,7 +53,21 @@ export interface ClipboardVideo {
   sourcePath: string;
 }
 
-export type ClipboardMedia = ClipboardImage | ClipboardVideo;
+export interface ClipboardDocument {
+  kind: 'document';
+  mimeType: string;
+  filename: string;
+  sourcePath: string;
+}
+
+export interface ClipboardAudio {
+  kind: 'audio';
+  mimeType: string;
+  filename: string;
+  sourcePath: string;
+}
+
+export type ClipboardMedia = ClipboardImage | ClipboardVideo | ClipboardDocument | ClipboardAudio;
 
 export class ClipboardMediaError extends Error {
   constructor(message: string) {
@@ -63,6 +77,22 @@ export class ClipboardMediaError extends Error {
 }
 
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
+
+const DOCUMENT_MIME_BY_SUFFIX: Readonly<Record<string, string>> = Object.freeze({
+  '.pdf': 'application/pdf',
+});
+
+const AUDIO_MIME_BY_SUFFIX: Readonly<Record<string, string>> = Object.freeze({
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.flac': 'audio/flac',
+  '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  '.opus': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+});
 
 const VIDEO_MIME_BY_SUFFIX: Readonly<Record<string, string>> = Object.freeze({
   '.mp4': 'video/mp4',
@@ -137,6 +167,20 @@ function videoMimeFromPath(path: string): string | null {
   if (dot < 0) return null;
   const suffix = path.slice(dot).toLowerCase();
   return VIDEO_MIME_BY_SUFFIX[suffix] ?? null;
+}
+
+function documentMimeFromPath(path: string): string | null {
+  const dot = path.lastIndexOf('.');
+  if (dot < 0) return null;
+  const suffix = path.slice(dot).toLowerCase();
+  return DOCUMENT_MIME_BY_SUFFIX[suffix] ?? null;
+}
+
+function audioMimeFromPath(path: string): string | null {
+  const dot = path.lastIndexOf('.');
+  if (dot < 0) return null;
+  const suffix = path.slice(dot).toLowerCase();
+  return AUDIO_MIME_BY_SUFFIX[suffix] ?? null;
 }
 
 function parseClipboardPaths(text: string): string[] {
@@ -216,15 +260,69 @@ function readVideoPath(path: string): ClipboardVideo | null {
 }
 
 /**
- * Read the media (image or video) at a filesystem path. Exported for the
- * terminal file-drop path, which attaches dropped/pasted files the same way
- * the clipboard paste path attaches clipboard media.
+ * Read the media (image, video, audio, or document) at a filesystem path.
+ * Exported for the terminal file-drop path, which attaches dropped/pasted
+ * files the same way the clipboard paste path attaches clipboard media.
  */
 export function readMediaPath(path: string): ClipboardMedia | null {
-  // Video files are never opened as images.
+  // Video files are never opened as images. Documents/audio are checked
+  // before images so a large PDF is not read into memory just to fail the
+  // image metadata parse.
   const video = readVideoPath(path);
   if (video !== null) return video;
-  return readImagePath(path);
+  return readSidecarPath(path) ?? readImagePath(path);
+}
+
+function readSidecarPath(path: string): ClipboardDocument | ClipboardAudio | null {
+  return readDocumentPath(path) ?? readAudioPath(path);
+}
+
+function readDocumentPath(path: string): ClipboardDocument | null {
+  const mimeType = documentMimeFromPath(path);
+  if (mimeType === null) return null;
+  let stat: ReturnType<typeof statSync>;
+  try {
+    stat = statSync(path);
+  } catch {
+    return null;
+  }
+  if (!stat.isFile()) return null;
+  if (stat.size === 0) return null;
+  if (stat.size > MAX_DOCUMENT_BYTES) {
+    throw new ClipboardMediaError(
+      `Document is ${(stat.size / 1024 / 1024).toFixed(1)} MB; maximum supported size is 100 MB.`,
+    );
+  }
+  return {
+    kind: 'document',
+    mimeType,
+    filename: basename(path),
+    sourcePath: path,
+  };
+}
+
+function readAudioPath(path: string): ClipboardAudio | null {
+  const mimeType = audioMimeFromPath(path);
+  if (mimeType === null) return null;
+  let stat: ReturnType<typeof statSync>;
+  try {
+    stat = statSync(path);
+  } catch {
+    return null;
+  }
+  if (!stat.isFile()) return null;
+  if (stat.size === 0) return null;
+  if (stat.size > MAX_DOCUMENT_BYTES) {
+    throw new ClipboardMediaError(
+      `Audio is ${(stat.size / 1024 / 1024).toFixed(1)} MB; maximum supported size is 100 MB.`,
+    );
+  }
+  return {
+    kind: 'audio',
+    mimeType,
+    filename: basename(path),
+    sourcePath: path,
+  };
 }
 
 function readMediaFromPaths(paths: readonly string[]): ClipboardMedia | null {

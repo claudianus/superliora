@@ -52,6 +52,7 @@ function convertMediaUrl(
     else if (pathname.endsWith('.jpg') || pathname.endsWith('.jpeg')) mimeType = 'image/jpeg';
     else if (pathname.endsWith('.gif')) mimeType = 'image/gif';
     else if (pathname.endsWith('.webp')) mimeType = 'image/webp';
+    else if (pathname.endsWith('.pdf')) mimeType = 'application/pdf';
     else if (pathname.endsWith('.mp3') || pathname.endsWith('.mpeg')) mimeType = 'audio/mpeg';
     else if (pathname.endsWith('.wav')) mimeType = 'audio/wav';
     else if (pathname.endsWith('.ogg')) mimeType = 'audio/ogg';
@@ -89,6 +90,9 @@ function messageToGoogleGenAI(message: Message): GoogleContent {
         break;
       case 'video_url':
         parts.push(convertMediaUrl(part.videoUrl.url, 'video/mp4'));
+        break;
+      case 'file_url':
+        parts.push(convertMediaUrl(part.fileUrl.url, 'application/pdf'));
         break;
     }
   }
@@ -164,6 +168,9 @@ function toolMessageToFunctionResponseParts(
         break;
       case 'video_url':
         mediaParts.push(convertMediaUrl(part.videoUrl.url, 'video/mp4'));
+        break;
+      case 'file_url':
+        mediaParts.push(convertMediaUrl(part.fileUrl.url, 'application/pdf'));
         break;
       case 'think':
         // Skip — handled separately via reasoning channel.

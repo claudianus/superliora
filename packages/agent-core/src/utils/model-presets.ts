@@ -184,6 +184,9 @@ export interface ModelsDevModelEntry {
   readonly supportsReasoning?: boolean;
   readonly supportsTools?: boolean;
   readonly supportsVision?: boolean;
+  readonly supportsVideo?: boolean;
+  readonly supportsAudio?: boolean;
+  readonly supportsPdf?: boolean;
   readonly family?: string;
   readonly knowledgeCutoff?: string;
   /** Weighted 0–100 coding-bench index from models.dev benchmarks. */
@@ -305,6 +308,9 @@ function mergeModelEntries(a: ModelsDevModelEntry, b: ModelsDevModelEntry): Mode
     supportsReasoning: mergeCapabilityFlag(a.supportsReasoning, b.supportsReasoning),
     supportsTools: mergeCapabilityFlag(a.supportsTools, b.supportsTools),
     supportsVision: mergeCapabilityFlag(a.supportsVision, b.supportsVision),
+    supportsVideo: mergeCapabilityFlag(a.supportsVideo, b.supportsVideo),
+    supportsAudio: mergeCapabilityFlag(a.supportsAudio, b.supportsAudio),
+    supportsPdf: mergeCapabilityFlag(a.supportsPdf, b.supportsPdf),
     family: a.family ?? b.family,
     knowledgeCutoff: a.knowledgeCutoff ?? b.knowledgeCutoff,
     benchmarkScore: b.benchmarkScore ?? a.benchmarkScore,
@@ -410,9 +416,10 @@ async function fetchModelsDevData(): Promise<ModelsDevApiData> {
 function parseModelsDevModel(model: ModelsDevModel): ModelsDevModelEntry {
   const contextWindow = model.limit?.context ?? model.context_window;
   const supportsTools = model.tool_call === true || model.tools === true;
-  const supportsVision =
-    model.vision === true ||
-    (model.modalities?.input?.some((m) => m === 'image' || m === 'pdf') ?? false);
+  const inputs = model.modalities?.input;
+  // `image` is the vision signal; `video`/`audio`/`pdf` get their own flags so
+  // media gating never rides on image support.
+  const supportsVision = model.vision === true || (inputs?.includes('image') ?? false);
   const bench = scoreFromBenchmarks(model.benchmarks);
   return {
     inputCostPerM: model.cost?.input,
@@ -421,6 +428,9 @@ function parseModelsDevModel(model: ModelsDevModel): ModelsDevModelEntry {
     supportsReasoning: model.reasoning === true,
     supportsTools,
     supportsVision,
+    supportsVideo: inputs?.includes('video') ?? undefined,
+    supportsAudio: inputs?.includes('audio') ?? undefined,
+    supportsPdf: inputs?.includes('pdf') ?? undefined,
     family: model.family,
     knowledgeCutoff: model.knowledge,
     ...(bench !== undefined

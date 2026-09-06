@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, describe, it, expect } from 'vitest';
 
 import { ImageAttachmentStore } from '#/tui/utils/image/image-attachment-store';
 import { extractMediaAttachments } from '#/tui/utils/image/image-placeholder';
@@ -68,9 +72,60 @@ describe('extractMediaAttachments', () => {
 
   it('leaves unresolved (typed by hand) placeholders as literal text', () => {
     const store = new ImageAttachmentStore();
-    const r = extractMediaAttachments('try [image #999 (1×1)] and [video #42 clip.mov] now', store);
+    const r = extractMediaAttachments(
+      'try [image #999 (1×1)] and [video #42 clip.mov] and [file #7 a.pdf] and [audio #8 b.mp3] now',
+      store,
+    );
     expect(r.hasMedia).toBe(false);
     expect(r.parts).toEqual([]);
+  });
+
+  describe('file (PDF) and audio placeholders backed by disk files', () => {
+    const tempDirs: string[] = [];
+
+    afterEach(() => {
+      for (const dir of tempDirs.splice(0)) {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    function tempFile(name: string, bytes: Uint8Array): string {
+      const dir = mkdtempSync(join(tmpdir(), 'liora-placeholder-'));
+      tempDirs.push(dir);
+      const path = join(dir, name);
+      writeFileSync(path, bytes);
+      return path;
+    }
+
+    it('expands a file placeholder to a file_url part with bytes from disk', () => {
+      const store = new ImageAttachmentStore();
+      const path = tempFile('report.pdf', new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]));
+      const att = store.addFile('application/pdf', path, 'report.pdf');
+      const r = extractMediaAttachments(att.placeholder, store);
+      expect(r.hasMedia).toBe(true);
+      expect(r.fileAttachmentIds).toEqual([att.id]);
+      expect(r.parts).toEqual([
+        {
+          type: 'file_url',
+          fileUrl: {
+            url: 'data:application/pdf;base64,JVBERi0=',
+            filename: 'report.pdf',
+          },
+        },
+      ]);
+    });
+
+    it('expands an audio placeholder to an audio_url part with bytes from disk', () => {
+      const store = new ImageAttachmentStore();
+      const path = tempFile('notes.mp3', new Uint8Array([0x49, 0x44, 0x33]));
+      const att = store.addAudio('audio/mpeg', path, 'notes.mp3');
+      const r = extractMediaAttachments(att.placeholder, store);
+      expect(r.hasMedia).toBe(true);
+      expect(r.audioAttachmentIds).toEqual([att.id]);
+      expect(r.parts).toEqual([
+        { type: 'audio_url', audioUrl: { url: 'data:audio/mpeg;base64,SUQz' } },
+      ]);
+    });
   });
 
   it('uses pasted image bytes in data URLs', () => {

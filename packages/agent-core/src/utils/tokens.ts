@@ -83,6 +83,7 @@ export function estimateTokensForContentPart(part: ContentPart): number {
     case 'image_url':
     case 'audio_url':
     case 'video_url':
+    case 'file_url':
       return MEDIA_TOKEN_ESTIMATE;
     default: {
       const _exhaustive: never = part;

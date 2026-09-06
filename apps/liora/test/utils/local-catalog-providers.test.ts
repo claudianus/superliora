@@ -132,6 +132,21 @@ describe('Command Code catalog entry', () => {
     }
   });
 
+  it('curates GLM-5.3-Flash as a reasoning model with image+pdf input', () => {
+    // Regression: the snapshot shipped `reasoning: false`, so the CommandCode
+    // picker showed GLM-5.3-Flash as non-reasoning. models.dev consensus is
+    // always-on reasoning with an effort ladder plus image/pdf input.
+    const model = catalogProviderModels(COMMANDCODE_CATALOG_ENTRY).find(
+      (row) => row.id === 'z-ai/glm-5.3-flash',
+    );
+    expect(model).toBeDefined();
+    expect(model?.capability.thinking).toBe(true);
+    expect(model?.alwaysThinking).toBe(true);
+    expect(model?.supportEfforts).toEqual(['low', 'high', 'max']);
+    expect(model?.capability.image_in).toBe(true);
+    expect(model?.capability.pdf_in).toBe(true);
+  });
+
   it('routes Claude models over the Anthropic Messages wire and the rest over Chat Completions', () => {
     const groups = catalogWireGroups(COMMANDCODE_CATALOG_ENTRY, { wire: 'openai' });
     const byWire = new Map(groups.map((group) => [group.wire, group]));

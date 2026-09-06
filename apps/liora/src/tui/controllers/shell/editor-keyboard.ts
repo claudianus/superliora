@@ -85,6 +85,25 @@ export function nextShiftTabMode(askMode: boolean): 'build' | 'ask' {
   return askMode ? 'build' : 'ask';
 }
 
+function pasteKind(
+  imageCount: number,
+  videoCount: number,
+  fileCount: number,
+  audioCount: number,
+): string {
+  const kinds = [
+    imageCount > 0,
+    videoCount > 0,
+    fileCount > 0,
+    audioCount > 0,
+  ].filter(Boolean).length;
+  if (kinds > 1) return 'mixed';
+  if (videoCount > 0) return 'video';
+  if (fileCount > 0) return 'file';
+  if (audioCount > 0) return 'audio';
+  return 'image';
+}
+
 export class EditorKeyboardController {
   private pendingExit: PendingExit | null = null;
   private pendingUndoEsc: { readonly timer: ReturnType<typeof setTimeout> } | null = null;
@@ -513,11 +532,15 @@ export class EditorKeyboardController {
     const segments: string[] = [];
     let imageCount = 0;
     let videoCount = 0;
+    let fileCount = 0;
+    let audioCount = 0;
     for (const media of items) {
       const segment = await this.attachClipboardMedia(media);
       if (segment === null) continue;
       segments.push(segment);
       if (media.kind === 'video') videoCount += 1;
+      else if (media.kind === 'document') fileCount += 1;
+      else if (media.kind === 'audio') audioCount += 1;
       else imageCount += 1;
     }
     if (segments.length === 0) {
@@ -530,7 +553,7 @@ export class EditorKeyboardController {
     this.host.state.editor.insertTextAtCursor?.(`${segments.join(' ')} `);
     requestTUILayoutRender(this.host.state);
     this.host.track('shortcut_paste', {
-      kind: imageCount > 0 && videoCount > 0 ? 'mixed' : imageCount > 0 ? 'image' : 'video',
+      kind: pasteKind(imageCount, videoCount, fileCount, audioCount),
       count: segments.length,
     });
     return true;
@@ -543,6 +566,14 @@ export class EditorKeyboardController {
   private async attachClipboardMedia(media: ClipboardMedia): Promise<string | null> {
     if (media.kind === 'video') {
       const attachment = this.imageStore.addVideo(media.mimeType, media.sourcePath, media.filename);
+      return attachment.placeholder;
+    }
+    if (media.kind === 'document') {
+      const attachment = this.imageStore.addFile(media.mimeType, media.sourcePath, media.filename);
+      return attachment.placeholder;
+    }
+    if (media.kind === 'audio') {
+      const attachment = this.imageStore.addAudio(media.mimeType, media.sourcePath, media.filename);
       return attachment.placeholder;
     }
     const prepared = await preparePastedImage(media.bytes);
@@ -661,11 +692,15 @@ export class EditorKeyboardController {
     const segments: string[] = [];
     let imageCount = 0;
     let videoCount = 0;
+    let fileCount = 0;
+    let audioCount = 0;
     for (const media of items) {
       const segment = await this.attachClipboardMedia(media);
       if (segment === null) continue;
       segments.push(segment);
       if (media.kind === 'video') videoCount += 1;
+      else if (media.kind === 'document') fileCount += 1;
+      else if (media.kind === 'audio') audioCount += 1;
       else imageCount += 1;
     }
     if (segments.length === 0) {
@@ -676,7 +711,7 @@ export class EditorKeyboardController {
     this.host.state.editor.insertTextAtCursor?.(`${segments.join(' ')} `);
     requestTUILayoutRender(this.host.state);
     this.host.track('shortcut_paste', {
-      kind: imageCount > 0 && videoCount > 0 ? 'mixed' : imageCount > 0 ? 'image' : 'video',
+      kind: pasteKind(imageCount, videoCount, fileCount, audioCount),
       count: segments.length,
     });
   }

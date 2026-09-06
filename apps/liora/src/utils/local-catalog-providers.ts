@@ -71,7 +71,11 @@ const COMMANDCODE_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
   'moonshotai/Kimi-K2.7-Code-Highspeed': model('moonshotai/Kimi-K2.7-Code-Highspeed', 'Kimi K2.7 Code HighSpeed', 262_000, 0, false, { cost: { input: 1.9, output: 8, cache_read: 0.38 } }),
   'moonshotai/Kimi-K2.6': model('moonshotai/Kimi-K2.6', 'Kimi K2.6', 256_000, 0, true, { toggleThinking: true, cost: { input: 0.95, output: 4, cache_read: 0.16 } }),
   'moonshotai/Kimi-K2.5': model('moonshotai/Kimi-K2.5', 'Kimi K2.5', 256_000, 0, true, { toggleThinking: true, cost: { input: 0.6, output: 3, cache_read: 0.1 } }),
-  'z-ai/glm-5.3-flash': model('z-ai/glm-5.3-flash', 'GLM-5.3 Flash', 1_048_576, 0, false, { cost: { input: 0.15, output: 0.5, cache_read: 0.03 } }),
+  // models.dev consensus for GLM-5.3-Flash: reasoning always on with an
+  // effort ladder (low/high/max), plus image and PDF input. The snapshot
+  // previously shipped `reasoning: false`, which showed the model as
+  // non-reasoning in the CommandCode provider picker.
+  'z-ai/glm-5.3-flash': model('z-ai/glm-5.3-flash', 'GLM-5.3 Flash', 1_048_576, 0, true, { imageIn: true, pdfIn: true, alwaysThinking: true, cost: { input: 0.15, output: 0.5, cache_read: 0.03 } }),
   'zai-org/GLM-5.3': model('zai-org/GLM-5.3', 'GLM-5.3', 1_000_000, 0, true, { toggleThinking: true, cost: { input: 1.4, output: 4.4, cache_read: 0.26 } }),
   'zai-org/GLM-5.2': model('zai-org/GLM-5.2', 'GLM-5.2', 1_000_000, 0, true, { toggleThinking: true, cost: { input: 1.4, output: 4.4, cache_read: 0.26 } }),
   'zai-org/GLM-5.2-Fast': model('zai-org/GLM-5.2-Fast', 'GLM-5.2 Fast', 1_000_000, 0, false, { cost: { input: 3, output: 10.25, cache_read: 0.5 } }),
@@ -221,6 +225,8 @@ function model(
   reasoning: boolean,
   options?: {
     imageIn?: boolean;
+    videoIn?: boolean;
+    pdfIn?: boolean;
     alwaysThinking?: boolean;
     supportEfforts?: readonly string[];
     free?: boolean;
@@ -238,6 +244,12 @@ function model(
         ? [{ type: 'toggle' as const }]
         : undefined;
   const cost = options?.free === true ? { input: 0, output: 0 } : options?.cost;
+  const inputs = [
+    'text',
+    ...(options?.imageIn === true ? ['image'] : []),
+    ...(options?.videoIn === true ? ['video'] : []),
+    ...(options?.pdfIn === true ? ['pdf'] : []),
+  ];
   return {
     id,
     name,
@@ -248,6 +260,6 @@ function model(
     reasoning_options,
     ...(cost !== undefined ? { cost } : {}),
     ...(options?.npm !== undefined ? { provider: { npm: options.npm } } : {}),
-    modalities: { input: options?.imageIn === true ? ['text', 'image'] : ['text'], output: ['text'] },
+    modalities: { input: inputs, output: ['text'] },
   };
 }

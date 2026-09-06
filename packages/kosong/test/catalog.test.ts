@@ -132,11 +132,22 @@ describe('catalogModelToCapability', () => {
         image_in: true,
         video_in: false,
         audio_in: false,
+        pdf_in: false,
         thinking: true,
         tool_use: true,
         max_context_tokens: 200000,
       },
     });
+  });
+
+  it('maps pdf input modality into pdf_in', () => {
+    expect(
+      catalogModelToCapability({
+        id: 'm-pdf',
+        limit: { context: 1000 },
+        modalities: { input: ['text', 'pdf'], output: ['text'] },
+      })?.capability,
+    ).toMatchObject({ pdf_in: true, image_in: false });
   });
 
   it('preserves declared reasoning efforts and marks effort-only models always-on', () => {

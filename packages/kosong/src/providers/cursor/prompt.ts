@@ -59,6 +59,8 @@ function renderContentPart(part: ContentPart): string | undefined {
       return `[audio: ${part.audioUrl.url}]`;
     case 'video_url':
       return `[video: ${part.videoUrl.url}]`;
+    case 'file_url':
+      return `[file: ${part.fileUrl.url}]`;
     default: {
       const exhaustive: never = part;
       void exhaustive;

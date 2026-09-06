@@ -316,6 +316,7 @@ export function catalogModelToCapability(
       image_in: inputs.includes('image'),
       video_in: inputs.includes('video'),
       audio_in: inputs.includes('audio'),
+      pdf_in: inputs.includes('pdf'),
       thinking: Boolean(model.reasoning),
       tool_use: model.tool_call ?? true,
       max_context_tokens: context,

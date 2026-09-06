@@ -60,7 +60,7 @@ export type VideoUploadInput = ProviderVideoUploadInput;
 export type VideoUploader = (input: VideoUploadInput) => Promise<VideoURLPart>;
 
 export interface ReadMediaVisionFallbackInput {
-  readonly kind: 'image' | 'video';
+  readonly kind: 'image' | 'video' | 'audio';
   /** Data URL of the media payload read from disk. */
   readonly dataUrl: string;
   readonly mimeType: string;
@@ -82,7 +82,7 @@ export const ReadMediaFileInputSchema = z.object({
   path: z
     .string()
     .describe(
-      'Path to an image or video file. Relative paths resolve against the working directory; ' +
+      'Path to an image, video, audio, or PDF file. Relative paths resolve against the working directory; ' +
         'a path outside the working directory must be absolute. ' +
         'Directories and text files are not supported.',
     ),
@@ -118,21 +118,26 @@ function buildDescription(capabilities: ModelCapability): string {
   const lines: string[] = [head];
   const hasImage = capabilities.image_in;
   const hasVideo = capabilities.video_in;
-  if (hasImage && hasVideo) {
-    lines.push('- This tool supports image and video files for the current model.');
-  } else if (hasImage) {
-    lines.push(
-      '- This tool supports image files for the current model.',
-      '- Video files are not supported by the current model.',
-    );
-  } else if (hasVideo) {
-    lines.push(
-      '- This tool supports video files for the current model.',
-      '- Image files are not supported by the current model.',
-    );
-  } else {
-    lines.push('- The current model does not support image or video input.');
-  }
+  const hasAudio = capabilities.audio_in;
+  const hasPdf = capabilities.pdf_in;
+  const mediaSummary = hasImage && hasVideo
+    ? '- This tool supports image and video files for the current model.'
+    : hasImage
+      ? '- This tool supports image files for the current model.'
+      : hasVideo
+        ? '- This tool supports video files for the current model.'
+        : '- The current model does not support image or video input.';
+  lines.push(mediaSummary);
+  lines.push(
+    hasAudio
+      ? '- This tool supports audio files for the current model.'
+      : '- Audio files are not supported by the current model.',
+  );
+  lines.push(
+    hasPdf
+      ? '- This tool supports PDF files for the current model.'
+      : '- PDF files are not supported by the current model.',
+  );
   return lines.join('\n');
 }
 
@@ -167,7 +172,7 @@ interface ImageDelivery {
  * model to re-read any media it generates or edits.
  */
 function buildSystemSummary(input: {
-  readonly kind: 'image' | 'video';
+  readonly kind: 'image' | 'video' | 'audio' | 'document';
   readonly mimeType: string;
   readonly byteSize: number;
   readonly dimensions: { readonly width: number; readonly height: number } | null;
@@ -239,9 +244,13 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
     if (
       !capabilities.image_in &&
       !capabilities.video_in &&
+      !capabilities.audio_in &&
+      !capabilities.pdf_in &&
       visionFallback === undefined
     ) {
-      const skip = new Error('ReadMediaFile requires image_in or video_in capability');
+      const skip = new Error(
+        'ReadMediaFile requires image_in, video_in, audio_in, or pdf_in capability',
+      );
       skip.name = 'SkipThisTool';
       throw skip;
     }
@@ -290,7 +299,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
    * fails. Never errors — the tool stays useful on text-only models.
    */
   private async runVisionFallback(
-    kind: 'image' | 'video',
+    kind: 'image' | 'video' | 'audio',
     mimeType: string,
     safePath: string,
   ): Promise<ExecutableToolResult> {
@@ -298,7 +307,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
     if (fallback === undefined) {
       // Legacy behavior when the feature is not wired (policy 'block' or no
       // provider manager): keep the explicit capability error.
-      const capability = kind === 'video' ? 'video' : 'image';
+      const capability = kind;
       return {
         isError: true,
         output:
@@ -322,12 +331,12 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
         return { output: [{ type: 'text', text: analysis }], isError: false };
       }
     }
-    const noun = kind === 'video' ? 'Video' : 'Image';
+    const noun = kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : 'Image';
     return {
       output: [
         {
           type: 'text',
-          text: `[${noun} attached but model is text-only: ${safePath} — analyze with a vision-capable tool]`,
+          text: `[${noun} attached but model cannot read it directly: ${safePath} — analyze with a capable tool]`,
         },
       ],
       isError: false,
@@ -358,7 +367,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
         return {
           isError: true,
           output:
-            `"${args.path}" is not a supported image or video file. ` +
+            `"${args.path}" is not a supported image, video, or PDF file. ` +
             'Use Read for text files, or Bash or an MCP tool for other binary formats.',
         };
       }
@@ -368,6 +377,17 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
       }
       if (fileType.kind === 'video' && !this.capabilities.video_in) {
         return await this.runVisionFallback('video', fileType.mimeType, safePath);
+      }
+      if (fileType.kind === 'audio' && !this.capabilities.audio_in) {
+        return await this.runVisionFallback('audio', fileType.mimeType, safePath);
+      }
+      if (fileType.kind === 'document' && !this.capabilities.pdf_in) {
+        return {
+          isError: true,
+          output:
+            `The current model does not support PDF input. ` +
+            `Tell the user to use a model with PDF input capability.`,
+        };
       }
 
       const stat = await this.kaos.stat(safePath);
@@ -383,7 +403,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
         };
       }
 
-      if (fileType.kind === 'video' && (args.region !== undefined || args.full_resolution === true)) {
+      if (fileType.kind !== 'image' && (args.region !== undefined || args.full_resolution === true)) {
         return {
           isError: true,
           output: 'region and full_resolution apply only to image files.',
@@ -470,6 +490,21 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
             mimeType: compressed.mimeType,
           };
         }
+      } else if (fileType.kind === 'document') {
+        const base64 = data.toString('base64');
+        mediaPart = {
+          type: 'file_url',
+          fileUrl: {
+            url: `data:${fileType.mimeType};base64,${base64}`,
+            filename: safePath.split(/[\\/]/).at(-1),
+          },
+        };
+      } else if (fileType.kind === 'audio') {
+        const base64 = data.toString('base64');
+        mediaPart = {
+          type: 'audio_url',
+          audioUrl: { url: `data:${fileType.mimeType};base64,${base64}` },
+        };
       } else if (this.videoUploader !== undefined) {
         mediaPart = await this.videoUploader({
           data,
@@ -484,7 +519,14 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
         };
       }
 
-      const tag = fileType.kind === 'image' ? 'image' : 'video';
+      const tag =
+        fileType.kind === 'image'
+          ? 'image'
+          : fileType.kind === 'document'
+            ? 'file'
+            : fileType.kind === 'audio'
+              ? 'audio'
+              : 'video';
       const openText = `<${tag} path="${safePath}">`;
       const closeText = `</${tag}>`;
 

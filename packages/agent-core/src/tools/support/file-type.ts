@@ -5,7 +5,7 @@
 export const MEDIA_SNIFF_BYTES = 512;
 
 export interface FileType {
-  readonly kind: 'text' | 'image' | 'video' | 'unknown';
+  readonly kind: 'text' | 'image' | 'video' | 'audio' | 'document' | 'unknown';
   readonly mimeType: string;
 }
 
@@ -41,6 +41,21 @@ export const VIDEO_MIME_BY_SUFFIX: Readonly<Record<string, string>> = Object.fre
   '.flv': 'video/x-flv',
   '.3gp': 'video/3gpp',
   '.3g2': 'video/3gpp2',
+});
+
+export const DOCUMENT_MIME_BY_SUFFIX: Readonly<Record<string, string>> = Object.freeze({
+  '.pdf': 'application/pdf',
+});
+
+export const AUDIO_MIME_BY_SUFFIX: Readonly<Record<string, string>> = Object.freeze({
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.flac': 'audio/flac',
+  '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  '.opus': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
 });
 
 const TEXT_MIME_BY_SUFFIX: Readonly<Record<string, string>> = Object.freeze({
@@ -157,6 +172,12 @@ const FTYP_VIDEO_BRANDS: Readonly<Record<string, string>> = Object.freeze({
   '3g2': 'video/3gpp2',
 });
 
+// Keys are lowercase: sniffFtypBrand normalizes the brand before lookup.
+const FTYP_AUDIO_BRANDS: Readonly<Record<string, string>> = Object.freeze({
+  m4a: 'audio/mp4',
+  m4b: 'audio/mp4',
+});
+
 function toBuffer(data: Buffer | Uint8Array): Buffer {
   return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 }
@@ -185,6 +206,24 @@ export function sniffMediaFromMagic(data: Buffer | Uint8Array): FileType | null 
   const buf = toBuffer(data);
   const header = buf.length > MEDIA_SNIFF_BYTES ? buf.subarray(0, MEDIA_SNIFF_BYTES) : buf;
 
+  // PDF: header magic is authoritative and cheap; check it first.
+  if (startsWith(header, Buffer.from('%PDF-'))) {
+    return { kind: 'document', mimeType: 'application/pdf' };
+  }
+  // Audio containers / codecs with reliable signatures.
+  if (startsWith(header, Buffer.from('ID3'))) {
+    return { kind: 'audio', mimeType: 'audio/mpeg' };
+  }
+  if (header.length >= 2 && header[0] === 0xff && (header[1]! & 0xe0) === 0xe0) {
+    // MPEG audio frame sync (bare MP3 without an ID3 tag).
+    return { kind: 'audio', mimeType: 'audio/mpeg' };
+  }
+  if (startsWith(header, Buffer.from('OggS'))) {
+    return { kind: 'audio', mimeType: 'audio/ogg' };
+  }
+  if (startsWith(header, Buffer.from('fLaC'))) {
+    return { kind: 'audio', mimeType: 'audio/flac' };
+  }
   if (startsWith(header, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
     return { kind: 'image', mimeType: 'image/png' };
   }
@@ -210,6 +249,7 @@ export function sniffMediaFromMagic(data: Buffer | Uint8Array): FileType | null 
     const chunk = header.subarray(8, 12).toString('latin1');
     if (chunk === 'WEBP') return { kind: 'image', mimeType: 'image/webp' };
     if (chunk === 'AVI ') return { kind: 'video', mimeType: 'video/x-msvideo' };
+    if (chunk === 'WAVE') return { kind: 'audio', mimeType: 'audio/wav' };
   }
   if (startsWith(header, Buffer.from('FLV'))) {
     return { kind: 'video', mimeType: 'video/x-flv' };
@@ -229,6 +269,9 @@ export function sniffMediaFromMagic(data: Buffer | Uint8Array): FileType | null 
     }
     if (brand in FTYP_VIDEO_BRANDS) {
       return { kind: 'video', mimeType: FTYP_VIDEO_BRANDS[brand]! };
+    }
+    if (brand in FTYP_AUDIO_BRANDS) {
+      return { kind: 'audio', mimeType: FTYP_AUDIO_BRANDS[brand]! };
     }
   }
   return null;
@@ -355,6 +398,10 @@ export function detectFileType(
     mediaHint = { kind: 'image', mimeType: IMAGE_MIME_BY_SUFFIX[suffix]! };
   } else if (suffix in VIDEO_MIME_BY_SUFFIX) {
     mediaHint = { kind: 'video', mimeType: VIDEO_MIME_BY_SUFFIX[suffix]! };
+  } else if (suffix in DOCUMENT_MIME_BY_SUFFIX) {
+    mediaHint = { kind: 'document', mimeType: DOCUMENT_MIME_BY_SUFFIX[suffix]! };
+  } else if (suffix in AUDIO_MIME_BY_SUFFIX) {
+    mediaHint = { kind: 'audio', mimeType: AUDIO_MIME_BY_SUFFIX[suffix]! };
   }
 
   // When a header is supplied, cross-validate against the ext hint by
@@ -383,11 +430,17 @@ export function detectFileType(
     if (mediaHint?.kind === 'image') {
       return { kind: 'unknown', mimeType: '' };
     }
-    // In media mode, fall back to the extension for video: some containers
-    // (e.g. MPEG-PS `.mpg`) have no magic we recognise, so the extension is
-    // the only signal. Runs before the NUL check so a video extension wins
-    // even when the header happens to contain a 0x00 byte.
-    if (type === 'media' && mediaHint?.kind === 'video') {
+    // PDF behaves like the image formats: `%PDF-` magic is mandatory, so a
+    // document extension whose bytes fail to sniff is mislabeled, not a
+    // reader-quirk. Report unknown instead of attaching arbitrary bytes.
+    if (mediaHint?.kind === 'document' && header !== undefined) {
+      return { kind: 'unknown', mimeType: '' };
+    }
+    // In media mode, fall back to the extension for video/audio: some
+    // containers (e.g. MPEG-PS `.mpg`) have no magic we recognise, so the
+    // extension is the only signal. Runs before the NUL check so a video
+    // extension wins even when the header happens to contain a 0x00 byte.
+    if (type === 'media' && (mediaHint?.kind === 'video' || mediaHint?.kind === 'audio')) {
       return mediaHint;
     }
     if (buf.includes(0x00)) {
