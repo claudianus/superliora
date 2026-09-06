@@ -9,7 +9,9 @@ import {
   parsePublishTargetJudgment,
   pushJobToRemote,
   remoteRefFromPublishJudgment,
+  runMultiRepoPush,
   validatePushRefToken,
+  validatePushTargetRepo,
 } from '../../src/tools/builtin/job/job-push';
 import { PushJobTool } from '../../src/tools/builtin/job/job-tools';
 import { guardWorkerShellCommand } from '../../src/tools/builtin/job/job-worker-guards';
@@ -349,5 +351,138 @@ describe('PushJobTool + dispatch', () => {
     await Promise.resolve();
     await new Promise((r) => setTimeout(r, 0));
     expect(listJobs(store).some((j) => j.kind === 'push')).toBe(true);
+  });
+});
+
+describe('multi-repo batch push', () => {
+  function gitRepoRunner(opts?: { readonly repoExists?: boolean }) {
+    const remotes = new Map<string, string>();
+    return {
+      remotes,
+      runGit: vi.fn(async (_cwd: string, args: readonly string[]) => {
+        if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') {
+          return { code: 0, stdout: 'true\n', stderr: '' };
+        }
+        if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
+          return { code: 0, stdout: 'main\n', stderr: '' };
+        }
+        if (args[0] === 'remote') {
+          if (args[1] === 'get-url') {
+            const url = remotes.get(args[2] ?? '');
+            return url !== undefined
+              ? { code: 0, stdout: `${url}\n`, stderr: '' }
+              : { code: 128, stdout: '', stderr: 'error: No such remote' };
+          }
+          if (args[1] === 'add') {
+            remotes.set(args[2] ?? '', args[3] ?? '');
+            return { code: 0, stdout: '', stderr: '' };
+          }
+        }
+        if (args[0] === 'push') {
+          return opts?.repoExists === false
+            ? { code: 128, stdout: '', stderr: 'ERROR: Repository not found.' }
+            : { code: 0, stdout: 'ok\n', stderr: '' };
+        }
+        return { code: 0, stdout: '', stderr: '' };
+      }),
+      runGh: vi.fn(async (args: readonly string[]) => {
+        if (args[0] === 'repo' && args[1] === 'view') {
+          return opts?.repoExists === false
+            ? { code: 1, stdout: '', stderr: 'Could not resolve to a Repository' }
+            : { code: 0, stdout: '{"url":"https://github.com/claudianus/webgpu-raytracer"}', stderr: '' };
+        }
+        if (args[0] === 'repo' && args[1] === 'create') {
+          return { code: 0, stdout: 'https://github.com/claudianus/created\n', stderr: '' };
+        }
+        return { code: 0, stdout: '', stderr: '' };
+      }),
+    };
+  }
+
+  it('creates missing repos, adds origin, and pushes each target', async () => {
+    const store = memoryStore();
+    const source = createJob(store, { title: 'portfolio batch', kind: 'implement' });
+    patchJob(store, source.id, { worktreePath: '/tmp/wt-multi' });
+    const runGit = vi.fn(async (cwd: string, args: readonly string[]) => {
+      // Each source_dir is its own repo; the worktree root itself is not.
+      if (cwd.endsWith('webgpu-raytracer') || cwd.endsWith('gpu-fluid-sim')) {
+        return { code: 0, stdout: 'true\n', stderr: '' };
+      }
+      return { code: 128, stdout: '', stderr: 'not a repo' };
+    });
+    const createdRepos = new Set<string>();
+    const runGh = vi.fn(async (callArgs: readonly string[]) => {
+      if (callArgs[0] === 'repo' && callArgs[1] === 'view') {
+        const repoArg = callArgs[2] ?? '';
+        if (createdRepos.has(repoArg)) {
+          return { code: 0, stdout: `{"url":"https://github.com/${repoArg}"}`, stderr: '' };
+        }
+        return { code: 1, stdout: '', stderr: 'Could not resolve to a Repository' };
+      }
+      if (callArgs[0] === 'repo' && callArgs[1] === 'create') {
+        const nameArg = callArgs[2] ?? '';
+        const ownerIdx = callArgs.indexOf('--owner');
+        const owner = ownerIdx >= 0 ? callArgs[ownerIdx + 1] ?? '' : 'claudianus';
+        createdRepos.add(owner === '' ? nameArg : `${owner}/${nameArg}`);
+        return { code: 0, stdout: 'created\n', stderr: '' };
+      }
+      return { code: 0, stdout: '{"url":"https://github.com/claudianus/x"}', stderr: '' };
+    });
+
+    const result = await runMultiRepoPush({
+      pushJob: source,
+      sourceJob: getJob(store, source.id)!,
+      targets: [
+        { repo: 'claudianus/webgpu-raytracer', source_dir: 'webgpu-raytracer' },
+        { repo: 'claudianus/gpu-fluid-sim', source_dir: 'gpu-fluid-sim', branch: 'main' },
+      ],
+      runGit,
+      runGh,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.results).toHaveLength(2);
+    expect(result.results.every((r) => r.ok)).toBe(true);
+    const pushed = runGit.mock.calls.filter((call) => call[1][0] === 'push');
+    expect(pushed).toHaveLength(2);
+    expect(runGh.mock.calls.some((call) => call[0].includes('create'))).toBe(true);
+  });
+
+  it('isolates per-target failures without aborting the batch', async () => {
+    const store = memoryStore();
+    const source = createJob(store, { title: 'portfolio batch', kind: 'implement' });
+    patchJob(store, source.id, { worktreePath: '/tmp/wt-multi' });
+    const good = gitRepoRunner();
+    const runGit = vi.fn(async (cwd: string, args: readonly string[]) => {
+      if (cwd.endsWith('bad-dir')) {
+        return { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
+      }
+      return good.runGit(cwd, args);
+    });
+    const runGh = vi.fn(async (args: readonly string[]) => good.runGh(args));
+
+    const result = await runMultiRepoPush({
+      pushJob: source,
+      sourceJob: getJob(store, source.id)!,
+      targets: [
+        { repo: 'claudianus/good-repo', source_dir: 'good-repo' },
+        { repo: 'claudianus/bad-repo', source_dir: 'bad-dir' },
+      ],
+      runGit,
+      runGh,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.results[0]?.ok).toBe(true);
+    expect(result.results[1]?.ok).toBe(false);
+    expect(result.results[1]?.detail).toMatch(/not a git repository/);
+  });
+
+  it('validates repo slugs', () => {
+    expect(validatePushTargetRepo('webgpu-raytracer')).toBeUndefined();
+    expect(validatePushTargetRepo('claudianus/webgpu-raytracer')).toBeUndefined();
+    expect(validatePushTargetRepo('https://github.com/a/b')).toBeDefined();
+    expect(validatePushTargetRepo('a/b/c')).toBeDefined();
+    expect(validatePushTargetRepo('')).toBeDefined();
   });
 });

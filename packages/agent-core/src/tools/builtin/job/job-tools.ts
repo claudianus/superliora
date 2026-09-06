@@ -59,7 +59,12 @@ import {
 import { dispatchMergeLand, type LandJobToMainInput } from './job-land';
 import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
-import { dispatchPushRemote, evaluatePushTrust } from './job-push';
+import {
+  dispatchPushRemote,
+  evaluatePushTrust,
+  validatePushRefToken,
+  validatePushTargetRepo,
+} from './job-push';
 import { splitUserMessageIntoJobIntents } from './job-split';
 import { jobTaskTrackCreateFields, resolveJobTaskTrack } from './job-task-track';
 import {
@@ -280,7 +285,7 @@ const JobCreateInputSchema = z
       .min(1)
       .optional()
       .describe(
-        'Worker model alias from <fleet_model_catalog> when role models are auto. Pick by Job kind/risk/cost (explore→value, implement→quality, verify→different family when possible). Omit to let the harness pick by profile/role. Must pass a live probe (quota/auth) — unknown, unhealthy, or probe-failing aliases are rejected.',
+        'Omit by default — workers inherit the Conductor model. Only set a worker model alias from <fleet_model_catalog> when the user configured role models or the session runs Smart Auto; then pick by Job kind/risk/cost (explore→value, implement→quality, verify→different family when possible). Must pass a live probe (quota/auth) — unknown, unhealthy, or probe-failing aliases are rejected.',
       ),
     surface_kind: z
       .enum(['none', 'web', 'tui', 'mixed'])
@@ -421,6 +426,29 @@ const MergeJobInputSchema = z
   })
   .strict();
 
+const PushTargetSchema = z
+  .object({
+    repo: z
+      .string()
+      .trim()
+      .min(1)
+      .describe('GitHub "name" (auth user) or "owner/name". Created when missing.'),
+    source_dir: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe('Directory inside the job worktree that is its own git repo (multi-project jobs).'),
+    branch: z.string().trim().min(1).optional().describe('Branch to push (default: current HEAD).'),
+    create_if_missing: z
+      .boolean()
+      .optional()
+      .describe('Create the GitHub repo when missing (default true).'),
+    private_repo: z.boolean().optional().describe('Create as private (default public).'),
+    pages: z.boolean().optional().describe('Enable GitHub Pages on the pushed branch.'),
+  })
+  .strict();
+
 const PushJobInputSchema = z
   .object({
     job_id: z.string().trim().min(1),
@@ -446,7 +474,14 @@ const PushJobInputSchema = z
       .min(1)
       .optional()
       .describe(
-        'Remote ref name. When omitted, a cheap publish-effect judgment may set a Pages branch; else same as local ref. Never auto-infers main. Never classified from title wording.',
+        'Remote ref name. When omitted, a publish-effect judgment may choose a Pages branch (never from title keywords) and enables GitHub Pages after a successful gh-pages push (best-effort via gh). Requires force_user_confirm=true (Push Preview). Auto/yolo never waives.',
+      ),
+    targets: z
+      .array(PushTargetSchema)
+      .max(10)
+      .optional()
+      .describe(
+        'Batch publish (multi-repo). One entry per repo: each is pushed from its own git repo (source_dir under the job worktree), missing repos are created via gh, pages can be enabled per target.',
       ),
     force_user_confirm: z
       .boolean()
@@ -830,7 +865,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
     'One session explores, implements, and self-checks. Do not split a deliverable into explore/plan/verify/debug Jobs. ' +
     'Bind a goal-shaped contract at spawn: success_criteria is the finish line (synthesized from title when omitted). Pass must_not_touch / verification_commands / test_seams / tdd_mode / ownership_paths / context_paths when known. ' +
     'Same-context follow-up: continue_from_job_id steers/folds a live or queued session, or reattaches the same job_id on a terminal unlanded coding session. Classify first; default affinity is off. ' +
-    'When role models are auto, set model_alias from <fleet_model_catalog> for this Job (omit → harness role pick). ' +
+    'Omit model_alias by default — workers inherit the Conductor model; only pin model_alias when the user configured role models or the session runs Smart Auto. ' +
     'Greenfield: delivery_mode=greenfield (one session, TodoList phases — not three Jobs). Long unattended loops: kind=goal-driver with goal_completion_criterion. ' +
     'Multi-intent: auto_split=true or several calls, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobCreateInputSchema);
@@ -1517,7 +1552,7 @@ export interface PushJobToolOptions {
 export class PushJobTool implements BuiltinTool<z.infer<typeof PushJobInputSchema>> {
   readonly name = 'PushJob' as const;
   readonly description =
-    'Publish or hold a Job ref to a git remote under an explicit user gate. Workers and Conductor Bash cannot push; this tool records the verdict and offloads `git push` to a kind=push worker (no force-push). When remote_ref is omitted, a publish-effect judgment may choose a Pages branch (never from title keywords) and enables GitHub Pages after a successful gh-pages push (best-effort via gh). Requires force_user_confirm=true (Push Preview). Auto/yolo never waives.';
+    'Publish or hold a Job ref to a git remote under an explicit user gate. Workers and Conductor Bash cannot push; this tool records the verdict and offloads `git push` to a kind=push worker (no force-push). With targets[], batch-publishes several repos (creating missing GitHub repos via gh) from their own git repos inside the job worktree. When remote_ref is omitted, a publish-effect judgment may choose a Pages branch (never from title keywords) and enables GitHub Pages after a successful gh-pages push (best-effort via gh). Requires force_user_confirm=true (Push Preview). Auto/yolo never waives.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(PushJobInputSchema);
 
   constructor(
@@ -1592,6 +1627,27 @@ export class PushJobTool implements BuiltinTool<z.infer<typeof PushJobInputSchem
           };
         }
 
+        if (a.targets !== undefined) {
+          for (const target of a.targets) {
+            const repoErr = validatePushTargetRepo(target.repo);
+            if (repoErr !== undefined) {
+              return {
+                isError: true,
+                output: `Invalid PushJob target ${JSON.stringify(target.repo)}: ${repoErr}`,
+              };
+            }
+            if (target.branch !== undefined) {
+              const branchErr = validatePushRefToken(target.branch, 'target branch');
+              if (branchErr !== undefined) {
+                return {
+                  isError: true,
+                  output: `Invalid PushJob target branch ${JSON.stringify(target.branch)}: ${branchErr}`,
+                };
+              }
+            }
+          }
+        }
+
         const dispatch = dispatchPushRemote({
           store: this.store,
           sourceJob: existing,
@@ -1604,6 +1660,7 @@ export class PushJobTool implements BuiltinTool<z.infer<typeof PushJobInputSchem
           repoPath: existing.repoRoot ?? this.agent?.config.cwd,
           agent: this.agent,
           runGit: this.options?.runGit,
+          targets: a.targets,
         });
 
         const latest = getJob(this.store, a.job_id) ?? existing;

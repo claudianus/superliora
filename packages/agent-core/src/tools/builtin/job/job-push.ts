@@ -10,6 +10,8 @@
 
 import type { Kaos } from '@superliora/kaos';
 
+import { join } from 'node:path';
+
 import { runGh as kaosRunGh, runGit as kaosRunGit } from '#/autopilot/git';
 import { redactSecretsInText } from '#/security/redaction';
 
@@ -633,6 +635,8 @@ export interface DispatchPushRemoteInput {
   readonly runGit?: PushJobToRemoteInput['runGit'];
   readonly runGh?: PushJobToRemoteInput['runGh'];
   readonly enablePages?: boolean;
+  /** Batch publish (multi-repo). Presence switches the push job to batch mode. */
+  readonly targets?: readonly JobPushTarget[];
 }
 
 export interface DispatchPushRemoteResult {
@@ -669,9 +673,11 @@ export function dispatchPushRemote(input: DispatchPushRemoteInput): DispatchPush
   });
 
   const pushTitle =
-    remoteRef === 'gh-pages'
-      ? `Push ${sourceJob.id} → ${remote}/gh-pages (Pages)`
-      : `Push ${sourceJob.id} to ${remote}`;
+    input.targets !== undefined && input.targets.length > 0
+      ? `Push ${sourceJob.id} → ${input.targets.length} repo(s) (batch)`
+      : remoteRef === 'gh-pages'
+        ? `Push ${sourceJob.id} → ${remote}/gh-pages (Pages)`
+        : `Push ${sourceJob.id} to ${remote}`;
 
   const pushJob = createJob(store, {
     title: pushTitle,
@@ -685,7 +691,13 @@ export function dispatchPushRemote(input: DispatchPushRemoteInput): DispatchPush
       input.localRef ? `localRef: ${input.localRef}` : undefined,
       remoteRef ? `remoteRef: ${remoteRef}` : undefined,
       (sourceJob.repoRoot ?? input.repoPath) ? `repo: ${sourceJob.repoRoot ?? input.repoPath}` : undefined,
+      input.targets !== undefined && input.targets.length > 0
+        ? `targets:\n${JSON.stringify(input.targets, null, 2)}`
+        : undefined,
       'Executor: pushJobToRemote on the offload lane (no force-push).',
+      input.targets !== undefined && input.targets.length > 0
+        ? 'Executor: runMultiRepoPush batch (create_if_missing repos via gh; no force-push).'
+        : 'Executor: pushJobToRemote on the offload lane (no force-push).',
       remoteRef === 'gh-pages'
         ? 'After push: best-effort GitHub Pages enable (source=gh-pages/).'
         : undefined,
@@ -713,6 +725,7 @@ export function dispatchPushRemote(input: DispatchPushRemoteInput): DispatchPush
       localRef: input.localRef,
       remoteRef,
       enablePages: input.enablePages,
+      targets: input.targets,
     });
   });
 
@@ -736,7 +749,241 @@ export interface RunPushRemoteJobInput {
   readonly localRef?: string;
   readonly remoteRef?: string;
   readonly enablePages?: boolean;
+  /** Batch publish (multi-repo): one entry per repo, executed in order. */
+  readonly targets?: readonly JobPushTarget[];
 }
+
+/**
+ * One batch-publish unit. `repo` is a GitHub `"name"` (auth user) or
+ * `"owner/name"`; `source_dir` points at the git repo inside the job
+ * worktree when a job produced several projects. Creation and push are
+ * user-gated upstream (PushJob force_user_confirm) — the executor never
+ * re-prompts and never force-pushes.
+ */
+export interface JobPushTarget {
+  readonly repo: string;
+  readonly source_dir?: string;
+  readonly branch?: string;
+  readonly create_if_missing?: boolean;
+  readonly private_repo?: boolean;
+  readonly pages?: boolean;
+}
+
+export function validatePushTargetRepo(repo: string): string | undefined {
+  const t = repo.trim();
+  if (t.length === 0) return 'repo required';
+  if (t.includes('/')) {
+    const parts = t.split('/');
+    if (parts.length !== 2) return 'repo must be "name" or "owner/name"';
+    const [owner, name] = parts;
+    const okToken = (s: string | undefined): boolean =>
+      s !== undefined && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(s);
+    if (!okToken(owner) || !okToken(name)) {
+      return 'owner and name must be alnum/._- tokens';
+    }
+    return undefined;
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(t)) {
+    return 'repo must be a GitHub "name" or "owner/name" (no URL, no spaces)';
+  }
+  return undefined;
+}
+
+export interface MultiRepoPushTargetResult {
+  readonly repo: string;
+  readonly ok: boolean;
+  readonly detail: string;
+  readonly created?: boolean;
+  readonly url?: string;
+}
+
+/**
+ * Batch-publish executor: one GitHub repo per target, each pushed from its
+ * own git repo (a subdirectory of the job worktree for multi-project jobs).
+ * Missing repos are created via `gh` (user-gated upstream), the origin remote
+ * is added when missing, and `git push -u` lands the branch. No force-push;
+ * per-target failures do not stop later targets.
+ */
+export async function runMultiRepoPush(input: {
+  readonly pushJob: JobRecord;
+  readonly sourceJob: JobRecord;
+  readonly targets: readonly JobPushTarget[];
+  readonly kaos?: Kaos;
+  readonly repoPath?: string;
+  readonly runGit?: RunGitFn;
+  readonly runGh?: RunGhFn;
+}): Promise<{
+  readonly ok: boolean;
+  readonly summary: string;
+  readonly results: readonly MultiRepoPushTargetResult[];
+}> {
+  const runGit =
+    input.runGit ?? ((dir: string, args: readonly string[]) => defaultRunGit(input.kaos, dir, args));
+  const runGh = input.runGh ?? ((args: readonly string[]) => defaultRunGh(input.kaos, args));
+  const base = input.sourceJob.worktreePath ?? input.repoPath;
+  const results: MultiRepoPushTargetResult[] = [];
+
+  if (base === undefined || base.length === 0) {
+    return {
+      ok: false,
+      summary: 'multi-repo push: worktreePath or repoPath required',
+      results: [],
+    };
+  }
+
+  for (const target of input.targets) {
+    const repo = target.repo.trim();
+    const repoErr = validatePushTargetRepo(repo);
+    if (repoErr !== undefined) {
+      results.push({ repo, ok: false, detail: repoErr });
+      continue;
+    }
+    const cwd = target.source_dir === undefined ? base : join(base, target.source_dir);
+
+    const inside = await runGit(cwd, ['rev-parse', '--is-inside-work-tree']);
+    if (inside.code !== 0 || !inside.stdout.trim().includes('true')) {
+      results.push({
+        repo,
+        ok: false,
+        detail: `${cwd} is not a git repository (run git init in the project first)`,
+      });
+      continue;
+    }
+
+    let branchName: string;
+    const explicitBranch = target.branch?.trim();
+    if (explicitBranch !== undefined && explicitBranch.length > 0) {
+      branchName = explicitBranch;
+    } else {
+      const head = await runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
+      const headName = head.code === 0 ? head.stdout.trim() : '';
+      if (headName.length === 0 || headName === 'HEAD') {
+        results.push({
+          repo,
+          ok: false,
+          detail: 'detached HEAD — pass an explicit branch to push',
+        });
+        continue;
+      }
+      branchName = headName;
+    }
+    const branchErr = validatePushRefToken(branchName, 'branch');
+    if (branchErr !== undefined) {
+      results.push({ repo, ok: false, detail: branchErr });
+      continue;
+    }
+
+    const view = await runGh(['repo', 'view', repo, '--json', 'url']);
+    let url: string | undefined;
+    let created = false;
+    if (view.code === 0) {
+      try {
+        url = (JSON.parse(view.stdout) as { url?: string }).url;
+      } catch {
+        url = undefined;
+      }
+    } else if (target.create_if_missing === false) {
+      results.push({ repo, ok: false, detail: 'repo missing and create_if_missing=false' });
+      continue;
+    } else {
+      const detail = `${view.stderr} ${view.stdout}`.toLowerCase();
+      const authIssue =
+        detail.includes('gh auth') || detail.includes('authentication') || detail.includes('login');
+      if (authIssue) {
+        results.push({ repo, ok: false, detail: 'gh not authenticated — run gh auth login' });
+        continue;
+      }
+      const createArgs = ['repo', 'create'];
+      if (repo.includes('/')) {
+        const [owner, name] = repo.split('/');
+        createArgs.push(name!, '--owner', owner!);
+      } else {
+        createArgs.push(repo);
+      }
+      createArgs.push(target.private_repo === true ? '--private' : '--public');
+      const createdRes = await runGh(createArgs);
+      if (createdRes.code !== 0) {
+        const detail = formatPushFailureDetail(
+          createdRes.stderr || createdRes.stdout || 'gh repo create failed',
+        );
+        results.push({ repo, ok: false, detail: `create failed: ${detail}` });
+        continue;
+      }
+      created = true;
+      const urlRes = await runGh(['repo', 'view', repo, '--json', 'url']);
+      try {
+        url = (JSON.parse(urlRes.stdout) as { url?: string }).url;
+      } catch {
+        url = undefined;
+      }
+      if (url === undefined || url.length === 0) {
+        results.push({
+          repo,
+          ok: false,
+          detail: 'repo created but the remote URL could not be resolved via gh',
+        });
+        continue;
+      }
+    }
+
+    if (url === undefined || url.length === 0) {
+      results.push({ repo, ok: false, detail: 'could not resolve the repo remote URL' });
+      continue;
+    }
+
+    const remoteCheck = await runGit(cwd, ['remote', 'get-url', 'origin']);
+    if (remoteCheck.code !== 0) {
+      const add = await runGit(cwd, ['remote', 'add', 'origin', url]);
+      if (add.code !== 0) {
+        results.push({
+          repo,
+          ok: false,
+          detail: `remote add failed: ${formatPushFailureDetail(add.stderr || add.stdout)}`,
+        });
+        continue;
+      }
+    }
+
+    const push = await runGit(cwd, ['push', '-u', 'origin', branchName]);
+    if (push.code !== 0) {
+      results.push({
+        repo,
+        ok: false,
+        detail: `push failed: ${formatPushFailureDetail(push.stderr || push.stdout)}`,
+      });
+      continue;
+    }
+
+    let detail = `pushed ${branchName} → ${repo}`;
+    if (target.pages === true) {
+      const pages = await enableGitHubPages({
+        cwd,
+        remote: 'origin',
+        branch: branchName,
+        runGit,
+        runGh,
+      });
+      detail = `${detail}; ${pages.note}`;
+    }
+
+    results.push({
+      repo,
+      ok: true,
+      created,
+      url,
+      detail,
+    });
+  }
+
+  const okCount = results.filter((r) => r.ok).length;
+  const allOk = okCount === results.length && results.length > 0;
+  const summary = [
+    `multi-repo push: ${okCount}/${results.length} ok`,
+    ...results.map((r) => `- ${r.repo}: ${r.ok ? 'ok' : 'failed'} — ${r.detail}`),
+  ].join('\n');
+  return { ok: allOk, summary, results };
+}
+
 
 /** Deterministic push executor for kind=push jobs — never spawns an LLM worker. */
 export async function runPushRemoteJob(input: RunPushRemoteJobInput): Promise<PushJobToRemoteResult> {
@@ -774,6 +1021,44 @@ export async function runPushRemoteJob(input: RunPushRemoteJobInput): Promise<Pu
   const remoteRef =
     resolvePushRemoteRef({ explicit: input.remoteRef, job: pushJob }) ??
     resolvePushRemoteRef({ job: source });
+
+  // Batch publish (multi-repo): each target is its own repo + push.
+  if (input.targets !== undefined && input.targets.length > 0) {
+    const batch = await runMultiRepoPush({
+      pushJob,
+      sourceJob: source,
+      targets: input.targets,
+      kaos: input.kaos,
+      repoPath: source.repoRoot ?? input.repoPath,
+      runGit: input.runGit,
+      runGh: input.runGh,
+    });
+    const status: JobStatus = batch.ok ? 'done' : 'failed';
+    patchJobAndNotify(
+      store,
+      pushJob.id,
+      {
+        status,
+        resultSummary: batch.summary.slice(0, 4000),
+        notes: [
+          pushJob.notes,
+          batch.ok
+            ? `push-remote: batch ok — ${batch.summary.split('\n')[0] ?? ''}`
+            : `push-remote_failed: batch — ${batch.summary.split('\n')[0] ?? ''}`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      },
+      { agent: input.agent, summary: batch.summary.split('\n')[0] ?? batch.summary },
+    );
+    return {
+      ok: batch.ok,
+      job: pushJob,
+      pushed: batch.ok,
+      message: batch.summary,
+      error: batch.ok ? undefined : batch.summary,
+    };
+  }
 
   let result: PushJobToRemoteResult;
   try {
