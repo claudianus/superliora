@@ -198,6 +198,7 @@ export type {
   LoopControl,
   McpServerConfig,
   MediaAnalyzerModelsConfig,
+  MediaAnalyzerFallbacksConfig,
   MediaConfig,
   ModelAlias,
   MoonshotServiceConfig,

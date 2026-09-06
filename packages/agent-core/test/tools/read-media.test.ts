@@ -9,6 +9,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ToolAccesses } from '../../src/loop';
 import type { ExecutableToolResult } from '../../src/loop';
+import type {
+  ReadMediaVisionFallback,
+  ReadMediaVisionFallbackInput,
+} from '../../src/tools/builtin/file/read-media';
 import {
   ReadMediaFileInputSchema,
   ReadMediaFileTool,
@@ -59,6 +63,7 @@ function makeReadMediaTool(
     readonly stat?: Kaos['stat'] | undefined;
     readonly readBytes?: Kaos['readBytes'] | undefined;
     readonly modelCapabilities?: ModelCapability | undefined;
+    readonly visionFallback?: ReadMediaVisionFallback | undefined;
   } = {},
 ): ReadMediaFileTool {
   const kaos = createFakeKaos({
@@ -69,6 +74,8 @@ function makeReadMediaTool(
     kaos,
     PERMISSIVE_WORKSPACE,
     input.modelCapabilities ?? capabilities(),
+    undefined,
+    input.visionFallback,
   );
 }
 
@@ -169,6 +176,63 @@ describe('ReadMediaFileTool', () => {
 
     expect(result.isError).toBe(true);
     expect(String(result.output)).toMatch(/does not support PDF input/);
+  });
+
+  it('analyzes PDFs through the vision fallback when the model lacks pdf_in', async () => {
+    const data = Buffer.from('%PDF-1.7\nfake');
+    const seenKinds: ReadMediaVisionFallbackInput['kind'][] = [];
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: data.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(data),
+      modelCapabilities: capabilities({ pdf_in: false }),
+      visionFallback: async (input) => {
+        seenKinds.push(input.kind);
+        expect(input.mimeType).toBe('application/pdf');
+        expect(input.path).toBe('/workspace/spec.pdf');
+        expect(input.dataUrl).toBe(
+          `data:application/pdf;base64,${data.toString('base64')}`,
+        );
+        return '[PDF analysis — vision-model (spec.pdf)]';
+      },
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_pdffallback',
+      args: { path: '/workspace/spec.pdf' },
+      signal,
+    });
+
+    expect(seenKinds).toEqual(['pdf']);
+    expect(result.isError).toBe(false);
+    expect(outputParts(result)[0]).toEqual({
+      type: 'text',
+      text: '[PDF analysis — vision-model (spec.pdf)]',
+    });
+  });
+
+  it('leaves a path note when the PDF vision fallback fails', async () => {
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: 1024 }),
+      readBytes: vi
+        .fn<Kaos['readBytes']>()
+        .mockResolvedValue(Buffer.from('%PDF-1.7\nfake')),
+      modelCapabilities: capabilities({ pdf_in: false }),
+      visionFallback: async () => undefined,
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_pdffail',
+      args: { path: '/workspace/spec.pdf' },
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(outputParts(result)[0]).toEqual({
+      type: 'text',
+      text: '[PDF attached but model cannot read it directly: /workspace/spec.pdf — analyze with a capable tool]',
+    });
   });
 
   it('returns an audio_url wrap for MP3 files', async () => {

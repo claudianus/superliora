@@ -20,6 +20,7 @@ import {
   analyzeMediaPart,
   modelSupportsMediaKind,
   selectVisionModel,
+  selectVisionModelCandidates,
   transformMediaForNonVisionModel,
 } from '../../src/session/vision-analyzer';
 import type { VisionAnalyzerDeps } from '../../src/session/vision-analyzer';
@@ -178,6 +179,116 @@ describe('selectVisionModel', () => {
     });
 
     expect(selected?.modelAlias).toBe('pdf-specialist');
+  });
+
+  it('orders the configured analyzer_fallbacks list before automatic selection', () => {
+    const providerManager = fakeProviderManager(
+      {
+        'pdf-a': {
+          providerName: 'tools',
+          resolved: visionResolved('pdf-a', 'tools', {
+            modelCapabilities: capabilities({ pdf_in: true }),
+          }),
+        },
+        'pdf-b': {
+          providerName: 'alpha',
+          resolved: visionResolved('pdf-b', 'alpha', {
+            modelCapabilities: capabilities({ pdf_in: true }),
+          }),
+        },
+        'alpha-vision': { providerName: 'alpha', resolved: visionResolved('alpha-vision', 'alpha') },
+      },
+      { media: { analyzerFallbacks: { pdf: ['pdf-a', 'pdf-b'] } } },
+    );
+
+    const candidates = selectVisionModelCandidates(providerManager, {
+      kind: 'pdf',
+      currentModelAlias: 'alpha-vision',
+    });
+
+    expect(candidates.map((candidate) => candidate.modelAlias)).toEqual(['pdf-a', 'pdf-b']);
+  });
+
+  it('skips fallback entries that cannot serve the kind or lack credentials', () => {
+    const providerManager = fakeProviderManager(
+      {
+        'text-only': {
+          providerName: 'tools',
+          resolved: visionResolved('text-only', 'tools', {
+            modelCapabilities: capabilities({ pdf_in: false }),
+          }),
+        },
+        'no-cred': {
+          providerName: 'beta',
+          resolved: visionResolved('no-cred', 'beta', {
+            modelCapabilities: capabilities({ pdf_in: true }),
+          }),
+          withCredential: false,
+        },
+        'pdf-ok': {
+          providerName: 'alpha',
+          resolved: visionResolved('pdf-ok', 'alpha', {
+            modelCapabilities: capabilities({ pdf_in: true }),
+          }),
+        },
+      },
+      { media: { analyzerFallbacks: { pdf: ['text-only', 'no-cred', 'pdf-ok'] } } },
+    );
+
+    const candidates = selectVisionModelCandidates(providerManager, {
+      kind: 'pdf',
+      currentModelAlias: undefined,
+    });
+
+    expect(candidates.map((candidate) => candidate.modelAlias)).toEqual(['pdf-ok']);
+  });
+
+  it('fails over to the next candidate when an analyzer call fails or returns nothing', async () => {
+    const providerManager = fakeProviderManager(
+      {
+        'pdf-a': {
+          providerName: 'tools',
+          resolved: visionResolved('pdf-a', 'tools', {
+            modelCapabilities: capabilities({ pdf_in: true }),
+          }),
+        },
+        'pdf-b': {
+          providerName: 'alpha',
+          resolved: visionResolved('pdf-b', 'alpha', {
+            modelCapabilities: capabilities({ pdf_in: true }),
+          }),
+        },
+        'pdf-c': {
+          providerName: 'beta',
+          resolved: visionResolved('pdf-c', 'beta', {
+            modelCapabilities: capabilities({ pdf_in: true }),
+          }),
+        },
+      },
+      { media: { analyzerFallbacks: { pdf: ['pdf-a', 'pdf-b', 'pdf-c'] } } },
+    );
+    const generate = vi.fn(async (...args: unknown[]) => {
+      const options = args[5] as { runtimeModelAlias?: string } | undefined;
+      if (options?.runtimeModelAlias === 'pdf-a') throw new Error('rate limited');
+      if (options?.runtimeModelAlias === 'pdf-b') {
+        return { message: { content: [{ type: 'text', text: '' }] } };
+      }
+      return { message: { content: [{ type: 'text', text: 'PDF summary text' }] } };
+    }) as unknown as VisionAnalyzerDeps['generate'];
+
+    const result = await analyzeMediaPart(
+      {
+        generate,
+        providerManager,
+        currentModelAlias: undefined,
+        currentCapabilities: capabilities(),
+      },
+      { type: 'file_url', fileUrl: { url: 'data:application/pdf;base64,JVBERi0xLjcK' } },
+    );
+
+    expect(result?.analyzerModel).toBe('pdf-c');
+    expect(result?.text).toContain('PDF summary text');
+    expect(generate).toHaveBeenCalledTimes(3);
   });
 
   it('falls back to automatic selection when the configured alias lacks the capability', () => {
@@ -628,6 +739,44 @@ describe('SessionAPIImpl.prompt vision transform (integration)', () => {
     const warning = events.find((event) => event.type === 'warning');
     expect(warning?.code).toBe('vision_analyzer.analyzed');
     expect(warning?.details).toMatchObject({ analyzerModel: 'vision-model', kind: 'image', count: 1 });
+  });
+
+  it('emits a path-only warning when no analyzer candidate is available', async () => {
+    const promptSpy = vi.fn(async (_payload: unknown) => ({ result: 'ok' }));
+    const agent = {
+      generate: successGenerate('never used'),
+      config: { modelAlias: 'text-model', modelCapabilities: capabilities() },
+      goal: { getGoal: () => ({ goal: undefined }) },
+      rpcMethods: { prompt: promptSpy },
+    };
+    const emitEvent = vi.fn();
+    const session = {
+      options: {
+        providerManager: fakeProviderManager({}),
+        homedir: originalsDir,
+        responseLanguage: undefined,
+        interruptedWork: undefined,
+      },
+      metadata: { title: 'Custom', isCustomTitle: true, custom: {} },
+      writeMetadata: vi.fn(async () => undefined),
+      ensureAgentResumed: vi.fn(async () => agent),
+      rpc: { emitEvent },
+    } as unknown as Session;
+
+    const api = new SessionAPIImpl(session);
+    await api.prompt({ agentId: 'main', input: [imagePart] });
+
+    const payload = promptSpy.mock.calls[0]?.[0] as { input: readonly ContentPart[] };
+    expect(payload.input.some((part) => part.type === 'image_url')).toBe(false);
+
+    const events = emitEvent.mock.calls.map((call) => call[0]) as Array<{
+      type: string;
+      code?: string;
+      details?: Record<string, unknown>;
+    }>;
+    const pathOnly = events.find((event) => event.code === 'vision_analyzer.path_only');
+    expect(pathOnly?.type).toBe('warning');
+    expect(pathOnly?.details).toMatchObject({ kind: 'image', count: 1 });
   });
 
   it('keeps media untouched for a vision-capable current model', async () => {

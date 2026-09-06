@@ -71,6 +71,7 @@ export type {
   LioraConfigPatch,
   LoopControl,
   MediaAnalyzerModelsConfig,
+  MediaAnalyzerFallbacksConfig,
   MediaConfig,
   MemoryCreateInput,
   MemoryExportResult,

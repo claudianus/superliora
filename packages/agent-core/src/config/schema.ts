@@ -242,6 +242,21 @@ const MediaAnalyzerModelsSchema = z.object({
 
 export type MediaAnalyzerModelsConfig = z.infer<typeof MediaAnalyzerModelsSchema>;
 
+/**
+ * Ordered per-kind fallback analyzer aliases (`media.analyzer_fallbacks`).
+ * Tried in order after the primary `analyzerModels` entry for the kind and
+ * before automatic selection; entries that cannot serve the kind are
+ * silently skipped, and a call-time failure moves to the next candidate.
+ */
+const MediaAnalyzerFallbacksSchema = z.object({
+  image: z.array(z.string().min(1)).optional(),
+  video: z.array(z.string().min(1)).optional(),
+  audio: z.array(z.string().min(1)).optional(),
+  pdf: z.array(z.string().min(1)).optional(),
+});
+
+export type MediaAnalyzerFallbacksConfig = z.infer<typeof MediaAnalyzerFallbacksSchema>;
+
 export const MediaConfigSchema = z.object({
   /**
    * What happens when the current chat model cannot consume attached
@@ -258,6 +273,13 @@ export const MediaConfigSchema = z.object({
    * falls back to the automatic path.
    */
   analyzerModels: MediaAnalyzerModelsSchema.optional(),
+  /**
+   * Ordered fallback analyzer model per media kind. Tried in order after
+   * the primary `analyzerModels` alias (and before automatic selection);
+   * each entry must be capable of the kind, otherwise it is skipped, and a
+   * call-time failure moves to the next candidate.
+   */
+  analyzerFallbacks: MediaAnalyzerFallbacksSchema.optional(),
 });
 
 export type MediaConfig = z.infer<typeof MediaConfigSchema>;

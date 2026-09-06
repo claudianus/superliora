@@ -265,13 +265,21 @@ export class SessionEventNotices {
           ? 'tui.notices.mediaAnalyzed.video'
           : kind === 'image'
             ? 'tui.notices.mediaAnalyzed.image'
-            : 'tui.notices.mediaAnalyzed.generic';
+            : kind === 'audio'
+              ? 'tui.notices.mediaAnalyzed.audio'
+              : kind === 'pdf'
+                ? 'tui.notices.mediaAnalyzed.pdf'
+                : 'tui.notices.mediaAnalyzed.generic';
       this.host.showStatus(
         model !== undefined
           ? ttui('tui.notices.mediaAnalyzed.withModel', { noun: ttui(nounKey), model })
           : ttui('tui.notices.mediaAnalyzed.fallback'),
         'success',
       );
+      return;
+    }
+    if (event.code === 'vision_analyzer.path_only') {
+      this.host.showStatus(ttui('tui.notices.mediaPathOnly'), 'warning');
       return;
     }
     // Loop28b: step-budget soft tip is a named notice, not a generic "Warning:".

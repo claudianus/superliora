@@ -52,13 +52,15 @@ export function modelSupportsMediaKind(
 /**
  * Pick a catalog model that can consume `kind`, whose provider has
  * credentials, preferring the current model's provider. Deterministic:
- * catalog keys are visited in sorted order. Returns undefined when no
- * candidate exists — callers fall back to path-only behavior.
+ * catalog keys are visited in sorted order.
  *
- * `media.analyzer_models.<kind>` in the runtime config overrides the
- * automatic choice for that kind. An unusable override (unknown alias,
- * missing credential, unhealthy route, wrong capability) silently falls
- * back to the automatic path so a stale entry can never block a prompt.
+ * `media.analyzer_models.<kind>` overrides the automatic choice for that
+ * kind, and `media.analyzer_fallbacks.<kind>` supplies an ordered fallback
+ * list tried between the primary alias and the automatic path. Unusable
+ * entries (unknown alias, missing credential, unhealthy route, wrong
+ * capability) are silently skipped so a stale entry can never block a
+ * prompt. The first usable candidate wins; see
+ * `selectVisionModelCandidates` for the full ordered list.
  */
 export function selectVisionModel(
   providerManager: ProviderManager,
@@ -67,64 +69,85 @@ export function selectVisionModel(
     readonly currentModelAlias?: string | undefined;
   },
 ): ResolvedRuntimeProvider | undefined {
+  return selectVisionModelCandidates(providerManager, options)[0];
+}
+
+/**
+ * Ordered analyzer candidates for a media kind: configured primary alias
+ * (`analyzer_models`), then configured fallbacks (`analyzer_fallbacks`),
+ * then the current chat model when capable, then the automatic catalog
+ * scan (same provider as the current model first). Duplicates are removed;
+ * every entry passes capability + selectability checks.
+ */
+export function selectVisionModelCandidates(
+  providerManager: ProviderManager,
+  options: {
+    readonly kind: MediaKind;
+    readonly currentModelAlias?: string | undefined;
+  },
+): ResolvedRuntimeProvider[] {
   const config = providerManager.currentConfig();
   const models = config.models ?? {};
 
-  const configuredAlias = configuredAnalyzerAlias(config, options.kind);
-  if (configuredAlias !== undefined) {
+  const candidates: ResolvedRuntimeProvider[] = [];
+  const seen = new Set<string>();
+  const pushUsable = (alias: string, resolved: ResolvedRuntimeProvider): void => {
+    if (seen.has(alias)) return;
+    if (!hasVisionCapability(resolved, options.kind)) return;
+    if (!isSelectableVisionAlias(config, alias, resolved)) return;
+    seen.add(alias);
+    candidates.push(resolved);
+  };
+
+  for (const alias of configuredAnalyzerAliases(config, options.kind)) {
     try {
-      const resolved = providerManager.resolveProviderConfig(configuredAlias);
-      if (
-        hasVisionCapability(resolved, options.kind) &&
-        isSelectableVisionAlias(config, configuredAlias, resolved)
-      ) {
-        return resolved;
-      }
+      pushUsable(alias, providerManager.resolveProviderConfig(alias));
     } catch {
-      // Unknown alias / unresolvable provider — fall through to automatic.
+      // Unknown alias / unresolvable provider — skip to the next candidate.
     }
   }
 
   const currentAlias = options.currentModelAlias?.trim() || undefined;
+  if (currentAlias !== undefined) {
+    try {
+      pushUsable(currentAlias, providerManager.resolveProviderConfig(currentAlias));
+    } catch {
+      // Unresolvable current alias — the catalog scan still runs.
+    }
+  }
+
+  const scan: { readonly alias: string; readonly resolved: ResolvedRuntimeProvider }[] = [];
+  for (const alias of Object.keys(models).toSorted()) {
+    if (seen.has(alias)) continue;
+    try {
+      const resolved = providerManager.resolveProviderConfig(alias);
+      if (!hasVisionCapability(resolved, options.kind)) continue;
+      if (!isSelectableVisionAlias(config, alias, resolved)) continue;
+      scan.push({ alias, resolved });
+    } catch {
+      continue;
+    }
+  }
   let currentProviderName: string | undefined;
   if (currentAlias !== undefined) {
     try {
-      const current = providerManager.resolveProviderConfig(currentAlias);
-      currentProviderName = current.providerName;
-      // Prefer the session/current alias when it already consumes the media kind
-      // and is not on a fresh live-probe / route-health cooldown.
-      if (
-        hasVisionCapability(current, options.kind) &&
-        isSelectableVisionAlias(config, currentAlias, current)
-      ) {
-        return current;
-      }
+      currentProviderName = providerManager.resolveProviderConfig(currentAlias).providerName;
     } catch {
       currentProviderName = undefined;
     }
   }
-
-  let first: ResolvedRuntimeProvider | undefined;
-  let sameProvider: ResolvedRuntimeProvider | undefined;
-  for (const alias of Object.keys(models).toSorted()) {
-    let resolved: ResolvedRuntimeProvider;
-    try {
-      resolved = providerManager.resolveProviderConfig(alias);
-    } catch {
-      continue;
-    }
-    if (!hasVisionCapability(resolved, options.kind)) continue;
-    if (!isSelectableVisionAlias(config, alias, resolved)) continue;
-    first ??= resolved;
-    if (
-      sameProvider === undefined &&
-      currentProviderName !== undefined &&
-      resolved.providerName === currentProviderName
-    ) {
-      sameProvider = resolved;
-    }
+  const sameProvider =
+    currentProviderName === undefined
+      ? undefined
+      : scan.find((candidate) => candidate.resolved.providerName === currentProviderName);
+  const orderedScan =
+    sameProvider === undefined
+      ? scan
+      : [sameProvider, ...scan.filter((candidate) => candidate !== sameProvider)];
+  for (const candidate of orderedScan) {
+    pushUsable(candidate.alias, candidate.resolved);
   }
-  return sameProvider ?? first;
+  return candidates;
 }
 
 function isSelectableVisionAlias(
@@ -155,6 +178,22 @@ function configuredAnalyzerAlias(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/** Primary override first, then the ordered fallback list, deduplicated. */
+function configuredAnalyzerAliases(
+  config: LioraConfig,
+  kind: MediaKind,
+): readonly string[] {
+  const primary = configuredAnalyzerAlias(config, kind);
+  const fallbacks = config.media?.analyzerFallbacks?.[kind] ?? [];
+  const out: string[] = primary === undefined ? [] : [primary];
+  for (const raw of fallbacks) {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) continue;
+    if (!out.includes(trimmed)) out.push(trimmed);
+  }
+  return out;
+}
+
 function hasVisionCapability(
   resolved: ResolvedRuntimeProvider,
   kind: MediaKind,
@@ -179,9 +218,10 @@ export interface AnalyzeMediaPartOptions {
 }
 
 /**
- * One-shot analysis of a single media part. Returns undefined when no
- * analyzer model is available or the call fails — callers then emit the
- * path-only note. Never throws.
+ * One-shot analysis of a single media part. Tries the ordered analyzer
+ * candidates in turn (configured aliases, then the automatic path) until
+ * one succeeds; returns undefined when no analyzer model is available or
+ * every call fails — callers then emit the path-only note. Never throws.
  */
 export async function analyzeMediaPart(
   deps: VisionAnalyzerDeps,
@@ -191,12 +231,25 @@ export async function analyzeMediaPart(
   const kind = mediaKind(part);
   if (kind === undefined) return undefined;
 
-  const selection = selectVisionModel(deps.providerManager, {
+  const candidates = selectVisionModelCandidates(deps.providerManager, {
     kind,
     currentModelAlias: deps.currentModelAlias,
   });
-  if (selection === undefined) return undefined;
+  for (const selection of candidates) {
+    const analyzed = await analyzeWithProvider(deps, part, selection, kind, options);
+    if (analyzed !== undefined) return analyzed;
+  }
+  return undefined;
+}
 
+/** Single analyzer attempt; undefined on provider failure or empty reply. */
+async function analyzeWithProvider(
+  deps: VisionAnalyzerDeps,
+  part: ContentPart,
+  selection: ResolvedRuntimeProvider,
+  kind: MediaKind,
+  options: AnalyzeMediaPartOptions,
+): Promise<AnalyzeMediaResult | undefined> {
   try {
     const provider = createProvider(selection.provider);
     const message: Message = {
@@ -247,6 +300,8 @@ export interface TransformMediaResult {
   readonly analyzedCount: number;
   /** Media parts replaced by a path-only note (no analyzer or failure). */
   readonly pathOnlyCount: number;
+  /** Media kinds degraded to path-only notes, in first-use order. */
+  readonly pathOnlyKinds: readonly MediaKind[];
   /** Analyzer model aliases actually used, in first-use order. */
   readonly analyzerModels: readonly string[];
   /** Media kinds actually analyzed, in first-use order. */
@@ -267,6 +322,7 @@ export async function transformMediaForNonVisionModel(
   const out: ContentPart[] = [];
   const analyzerModels: string[] = [];
   const analyzedKinds: MediaKind[] = [];
+  const pathOnlyKinds: MediaKind[] = [];
   let analyzedCount = 0;
   let pathOnlyCount = 0;
   const kindIndexes: Record<MediaKind, number> = { image: 0, video: 0, audio: 0, pdf: 0 };
@@ -297,9 +353,19 @@ export async function transformMediaForNonVisionModel(
     }
     out.push({ type: 'text', text: pathOnlyText(kind, label, originalPath) });
     pathOnlyCount += 1;
+    if (!pathOnlyKinds.includes(kind)) {
+      pathOnlyKinds.push(kind);
+    }
   }
 
-  return { parts: out, analyzedCount, pathOnlyCount, analyzerModels, analyzedKinds };
+  return {
+    parts: out,
+    analyzedCount,
+    pathOnlyCount,
+    pathOnlyKinds,
+    analyzerModels,
+    analyzedKinds,
+  };
 }
 
 export function defaultMediaLabel(kind: MediaKind, index: number): string {
