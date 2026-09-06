@@ -1,5 +1,37 @@
 # @superliora/liora
 
+## 0.26.0
+
+### Minor Changes
+
+- Add per-kind analyzer fallback lists with call-time failover.
+- `media.analyzer_fallbacks` accepts an ordered model-alias list per media kind
+- (image/video/audio/pdf). Analyzer selection now tries the configured primary
+- alias, then each fallback, then automatic catalog selection, and a failed or
+- empty analyzer call moves to the next candidate instead of degrading the
+- attachment immediately. ReadMediaFile routes PDFs through the same analyzer
+- fallback instead of refusing on text-only models, and the session emits a
+- `vision_analyzer.path_only` warning (with a TUI notice) when attachments
+- finally degrade to path notes.
+
+### Patch Changes
+
+- Speed up the dev iteration gate and align local typecheck with CI.
+- `typecheck` now runs through a shared driver (`scripts/typecheck.mjs`) that
+- mirrors the CI loop and uses the pinned `tsgo` native compiler everywhere
+- (CI previously re-downloaded it per job via `pnpm dlx`); the vestigial
+- `build:packages` prefix is gone.
+- New `typecheck:fast` scopes typechecking to the workspaces owning the diff
+- vs `origin/main` (workspace sources are transitive through package
+- exports), so `gate:fast` no longer typechecks all 13 configs per edit.
+- Linux CI test shards split 2 → 3 ways for shorter wall time; `pnpm test`
+- now routes through the CI-parity runner instead of bare vitest.
+- Vitest `isolate: false` wave 2: kaos, acp-adapter, gui-use, tui-renderer
+- (no vi.mock in those packages).
+- CI typecheck job now runs the kosong negative type-safety assertions
+- (`tsconfig.type-negative.json`, previously unwired) and surfaces the
+- agent-core test-type ratchet count in the Actions annotations panel.
+
 ## 0.25.0
 
 ### Minor Changes
