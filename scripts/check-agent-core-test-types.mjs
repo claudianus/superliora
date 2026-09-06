@@ -59,19 +59,34 @@ if (!Number.isInteger(expected) || expected < 0) {
   process.exit(2);
 }
 
-console.log(
-  `agent-core test typecheck: ${errorCount} errors (baseline ${expected})`,
-);
+const summary = `agent-core test typecheck: ${errorCount} errors (baseline ${expected})`;
+console.log(summary);
+// Surface the count in the public Actions annotations panel (logs may be auth-gated).
+if (process.env.GITHUB_ACTIONS === 'true') {
+  console.log(`::notice title=agent-core-test-types::${summary}`);
+}
 if (errorCount > expected) {
   console.error('NEW type errors in packages/agent-core/test — fix them or do not add more.');
-  for (const line of errorLines.slice(0, 20)) console.error(`  ${line}`);
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    console.log(
+      `::error title=agent-core-test-types::NEW type errors — ${errorCount} > baseline ${expected}`,
+    );
+  }
+  for (const line of errorLines.slice(0, 20)) {
+    console.error(`  ${line}`);
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      console.log(`::error title=agent-core-test-types::${line}`);
+    }
+  }
   if (errorLines.length > 20) console.error(`  ... and ${errorLines.length - 20} more`);
   process.exit(1);
 }
 if (errorCount < expected) {
-  console.error(
-    `FIXED type errors (${errorCount} < ${expected}) — ratchet down with: node scripts/check-agent-core-test-types.mjs --update`,
-  );
+  const fixed = `FIXED type errors (${errorCount} < ${expected}) — ratchet down with: node scripts/check-agent-core-test-types.mjs --update`;
+  console.error(fixed);
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    console.log(`::error title=agent-core-test-types::${fixed}`);
+  }
   process.exit(1);
 }
 console.log('agent-core test typecheck ratchet: held');
