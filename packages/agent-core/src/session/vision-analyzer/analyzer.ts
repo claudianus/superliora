@@ -1,11 +1,15 @@
 /**
  * Vision analyzer fallback core logic.
  *
- * Renders attached images/videos into text with a vision-capable model from
- * the catalog when the current chat model cannot consume them. Selection is
- * deterministic (same provider as the current model first, then catalog
- * order) and credential-aware; every failure degrades to a path-only note so
- * a prompt is never blocked by the analyzer itself.
+ * Renders attached images/videos into text with a vision-capable model when
+ * the current chat model cannot consume them. By default only models the
+ * user configured (per-kind `analyzer_models` / `analyzer_fallbacks`) and the
+ * current chat model are considered; the whole-catalog scan is opt-in via
+ * `media.analyzer_auto_scan` so the default state never bills a model the
+ * user did not choose. Selection is deterministic (same provider as the
+ * current model first, then catalog order) and credential-aware; every
+ * failure degrades to a path-only note so a prompt is never blocked by the
+ * analyzer itself.
  */
 import { createProvider, isUnknownCapability } from '@superliora/kosong';
 import type { ContentPart, Message } from '@superliora/kosong';
@@ -67,6 +71,8 @@ export function selectVisionModel(
   options: {
     readonly kind: MediaKind;
     readonly currentModelAlias?: string | undefined;
+    /** Force-enable the catalog scan (explicit smart-auto sessions). */
+    readonly allowCatalogScan?: boolean;
   },
 ): ResolvedRuntimeProvider | undefined {
   return selectVisionModelCandidates(providerManager, options)[0];
@@ -75,15 +81,19 @@ export function selectVisionModel(
 /**
  * Ordered analyzer candidates for a media kind: configured primary alias
  * (`analyzer_models`), then configured fallbacks (`analyzer_fallbacks`),
- * then the current chat model when capable, then the automatic catalog
- * scan (same provider as the current model first). Duplicates are removed;
- * every entry passes capability + selectability checks.
+ * then the current chat model when capable, then — only when the user opted
+ * in (`media.analyzer_auto_scan`, or an explicit smart-auto session) — the
+ * automatic catalog scan (same provider as the current model first).
+ * Duplicates are removed; every entry passes capability + selectability
+ * checks.
  */
 export function selectVisionModelCandidates(
   providerManager: ProviderManager,
   options: {
     readonly kind: MediaKind;
     readonly currentModelAlias?: string | undefined;
+    /** Force-enable the catalog scan (explicit smart-auto sessions). */
+    readonly allowCatalogScan?: boolean;
   },
 ): ResolvedRuntimeProvider[] {
   const config = providerManager.currentConfig();
@@ -116,36 +126,42 @@ export function selectVisionModelCandidates(
     }
   }
 
-  const scan: { readonly alias: string; readonly resolved: ResolvedRuntimeProvider }[] = [];
-  for (const alias of Object.keys(models).toSorted()) {
-    if (seen.has(alias)) continue;
-    try {
-      const resolved = providerManager.resolveProviderConfig(alias);
-      if (!hasVisionCapability(resolved, options.kind)) continue;
-      if (!isSelectableVisionAlias(config, alias, resolved)) continue;
-      scan.push({ alias, resolved });
-    } catch {
-      continue;
+  // Opt-in catalog scan: the default state must never bill a model the user
+  // did not configure. Explicit `analyzer_models` entries and the current
+  // chat model above are always allowed; roaming the rest of the catalog
+  // requires `media.analyzer_auto_scan` (or an explicit smart-auto session).
+  if (options.allowCatalogScan === true || config.media?.analyzerAutoScan === true) {
+    const scan: { readonly alias: string; readonly resolved: ResolvedRuntimeProvider }[] = [];
+    for (const alias of Object.keys(models).toSorted()) {
+      if (seen.has(alias)) continue;
+      try {
+        const resolved = providerManager.resolveProviderConfig(alias);
+        if (!hasVisionCapability(resolved, options.kind)) continue;
+        if (!isSelectableVisionAlias(config, alias, resolved)) continue;
+        scan.push({ alias, resolved });
+      } catch {
+        continue;
+      }
     }
-  }
-  let currentProviderName: string | undefined;
-  if (currentAlias !== undefined) {
-    try {
-      currentProviderName = providerManager.resolveProviderConfig(currentAlias).providerName;
-    } catch {
-      currentProviderName = undefined;
+    let currentProviderName: string | undefined;
+    if (currentAlias !== undefined) {
+      try {
+        currentProviderName = providerManager.resolveProviderConfig(currentAlias).providerName;
+      } catch {
+        currentProviderName = undefined;
+      }
     }
-  }
-  const sameProvider =
-    currentProviderName === undefined
-      ? undefined
-      : scan.find((candidate) => candidate.resolved.providerName === currentProviderName);
-  const orderedScan =
-    sameProvider === undefined
-      ? scan
-      : [sameProvider, ...scan.filter((candidate) => candidate !== sameProvider)];
-  for (const candidate of orderedScan) {
-    pushUsable(candidate.alias, candidate.resolved);
+    const sameProvider =
+      currentProviderName === undefined
+        ? undefined
+        : scan.find((candidate) => candidate.resolved.providerName === currentProviderName);
+    const orderedScan =
+      sameProvider === undefined
+        ? scan
+        : [sameProvider, ...scan.filter((candidate) => candidate !== sameProvider)];
+    for (const candidate of orderedScan) {
+      pushUsable(candidate.alias, candidate.resolved);
+    }
   }
   return candidates;
 }

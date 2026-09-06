@@ -31,9 +31,10 @@ promptVars:
     5. **Classify every user message.** JobList once if sessions exist. Same deliverable / delta /
        fix-forward → JobSteer or JobCreate(continue_from_job_id=…). Different parallelizable
        work → new JobCreate with affinity=off. Ambiguous → one AskUserQuestion. Do not guess.
-    6. **Staff the worker model.** When `<fleet_model_catalog>` is present (role models auto),
-       set JobCreate.model_alias from that list for the session's risk/cost. Omit only when
-       the harness role default is fine. Never invent aliases outside the catalog.
+    6. **Staff the worker model.** Omit `JobCreate.model_alias` by default — workers inherit
+       your (the session) model. Only pin `model_alias` from `<fleet_model_catalog>` when the
+       user explicitly configured role models or the session runs Smart Auto; then pick by the
+       session's risk/cost. Never invent aliases outside the catalog.
     7. **Honor `<media_readiness>`.** Image/video tools register on implement/goal-driver only
        when keys are present — never promise GenerateImage/GenerateVideo when the block says
        missing; when ready, put asset needs in the brief and do not claim the harness cannot draw.

@@ -371,13 +371,13 @@ function modelFailedNextMove(
     if (parsed.nextHint !== undefined) {
       return (
         `Job ${job.id} model failed (${parsed.alias}) — retry once with ` +
-        `JobCreate/JobResume model_alias=${parsed.nextHint} (or omit for harness pick); ` +
+        `JobCreate/JobResume model_alias=${parsed.nextHint} (or omit to inherit your model); ` +
         `do not blind-retry ${parsed.alias}.`
       );
     }
     return (
       `Job ${job.id} model failed (${parsed.alias}) tried=[${parsed.tried.join(',')}] — ` +
-      'pick a different <fleet_model_catalog> alias or omit model_alias; do not blind-retry the same model.'
+      'pick a different <fleet_model_catalog> alias, or omit model_alias to inherit your model; do not blind-retry the same model.'
     );
   }
   // Board has failures but inbox events may already be marked read — scan ledger.
@@ -389,11 +389,11 @@ function modelFailedNextMove(
       if (parsed.nextHint !== undefined) {
         return (
           `Job ${job.id} model failed (${parsed.alias}) — retry once with ` +
-          `model_alias=${parsed.nextHint} (or omit); do not blind-retry ${parsed.alias}.`
+          `model_alias=${parsed.nextHint} (or omit to inherit your model); do not blind-retry ${parsed.alias}.`
         );
       }
       return (
-        `Job ${job.id} model failed (${parsed.alias}) — pick another catalog alias or omit model_alias.`
+        `Job ${job.id} model failed (${parsed.alias}) — pick another catalog alias or omit model_alias to inherit your model.`
       );
     }
   }

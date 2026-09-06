@@ -169,6 +169,8 @@ describe('subagent role model routing', () => {
         loopControl: {
           codingModel: 'code-text',
         },
+        // Opt-in cross-model multimodal routing.
+        media: { analyzerAutoScan: true },
       },
     });
     context.configure();
@@ -177,6 +179,54 @@ describe('subagent role model routing', () => {
       alias: 'code-text',
       source: 'explicit',
     });
+    expect(
+      resolveSubagentModelSelection(context.agent, 'coder', undefined, { preferVision: true }),
+    ).toMatchObject({
+      alias: 'vision-pro',
+      source: 'vision',
+    });
+  });
+
+  it('preferVision keeps the user-selected alias when catalog auto-scan is off (default)', () => {
+    const context = testAgent({
+      initialConfig: {
+        providers: { 'test-provider': PROVIDER },
+        models: {
+          'code-text': model('code-text', ['tool_use', 'thinking'], 8),
+          'vision-pro': model('vision-pro', ['tool_use', 'thinking', 'image_in'], 9),
+        },
+        loopControl: {
+          codingModel: 'code-text',
+        },
+      },
+    });
+    context.configure();
+
+    // Default state: a pinned session must not send workers to a model the
+    // user never configured, even for vision-preferred Jobs.
+    expect(
+      resolveSubagentModelSelection(context.agent, 'coder', undefined, { preferVision: true }),
+    ).toMatchObject({
+      alias: 'code-text',
+      source: 'explicit',
+    });
+  });
+
+  it('preferVision swaps on a smart-auto session even without auto-scan', () => {
+    const context = testAgent({
+      initialConfig: {
+        providers: { 'test-provider': PROVIDER },
+        models: {
+          // Pricier text model wins the coding role; the swap then finds the
+          // cheaper vision alias for image-carrying Jobs.
+          'code-text': model('code-text', ['tool_use', 'thinking'], 9),
+          'vision-pro': model('vision-pro', ['tool_use', 'thinking', 'image_in'], 8),
+        },
+      },
+    });
+    context.configure();
+    context.agent.config.update({ modelAlias: 'auto' });
+
     expect(
       resolveSubagentModelSelection(context.agent, 'coder', undefined, { preferVision: true }),
     ).toMatchObject({

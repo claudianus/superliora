@@ -287,6 +287,15 @@ export const MediaConfigSchema = z.object({
    * call-time failure moves to the next candidate.
    */
   analyzerFallbacks: MediaAnalyzerFallbacksSchema.optional(),
+  /**
+   * Opt in to catalog-wide automatic model selection for multimodal work.
+   * Off by default: media analysis and vision-preferred workers only ever use
+   * models the user configured (explicit `analyzer_models` / role overrides /
+   * the current session model), so the harness can never silently bill a
+   * model the user did not choose. `true` lets the harness scan every
+   * credentialed catalog model for a capable analyzer / vision worker.
+   */
+  analyzerAutoScan: z.boolean().optional(),
 });
 
 export type MediaConfig = z.infer<typeof MediaConfigSchema>;

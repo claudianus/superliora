@@ -64,8 +64,8 @@ export async function rejectUnhealthyJobModelAliasLive(
     );
     const next =
       stillLive.length > 0
-        ? `Still live now: ${stillLive.join(', ')}. Pick one of these, or omit model_alias.`
-        : 'omit model_alias for harness role pick (do not invent aliases).';
+        ? `Still live now: ${stillLive.join(', ')}. Pick one of these, or omit model_alias — workers inherit your model.`
+        : 'omit model_alias — workers inherit your model (do not invent aliases).';
     return {
       isError: true,
       output:
@@ -94,8 +94,8 @@ export async function rejectUnhealthyJobModelAliasLive(
   );
   const next =
     stillLive.length > 0
-      ? `Still live now: ${stillLive.join(', ')}. Pick one of these, or omit model_alias.`
-      : 'No live catalog aliases remain — omit model_alias for harness role pick (do not invent aliases).';
+      ? `Still live now: ${stillLive.join(', ')}. Pick one of these, or omit model_alias — workers inherit your model.`
+      : 'No live catalog aliases remain — omit model_alias to inherit your model (do not invent aliases).';
   return {
     isError: true,
     output:
@@ -241,7 +241,9 @@ export async function preflightJobWorkerModel(
       intensity: 'balanced',
       ...(parentAlias !== undefined ? { parentAlias } : {}),
       workerScope: true,
-      ...(sessionPinned !== undefined ? { sessionPinned: true } : {}),
+      // Explicit: on `auto` sessions parentAlias is the smart-route pick
+      // (non-auto string) — derivation alone would misread it as pinned.
+      sessionPinned: sessionPinned !== undefined,
       signals,
     });
   }
@@ -279,7 +281,7 @@ export async function preflightJobWorkerModel(
           config,
           ...(parentAlias !== undefined ? { parentAlias } : {}),
           workerScope: true,
-          ...(sessionPinned ? { sessionPinned: true } : {}),
+          sessionPinned: sessionPinned !== undefined,
           intensity: current.intensity,
         },
         current,
@@ -406,7 +408,7 @@ function suggestNextHint(
       intensity: 'max',
       ...(parent !== undefined ? { parentAlias: parent } : {}),
       workerScope: true,
-      ...(pinned !== undefined ? { sessionPinned: true } : {}),
+      sessionPinned: pinned !== undefined,
       signals: { prompt: job.prompt ?? job.title, profileName },
     });
     for (const alias of maxRoute?.chain ?? []) {

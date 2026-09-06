@@ -364,6 +364,38 @@ describe('smart-router', () => {
     ).toBeUndefined();
   });
 
+  it('inherits the session model for unset roles on a pinned session (any scope)', () => {
+    const cfg = config({
+      models: {
+        'session-model': model('session-model', 5),
+        'cheap-haiku': model('cheap-haiku', 0.1),
+        opus: model('opus', 10),
+      },
+    });
+
+    // No workerScope — compaction resolves exactly like this. A pinned
+    // session must not roam the catalog for unset roles: the default state
+    // never bills a model the user did not configure.
+    expect(
+      resolveSmartRoute({ role: 'compaction', config: cfg, parentAlias: 'session-model' }),
+    ).toMatchObject({ alias: 'session-model', source: 'parent' });
+
+    // Explicit `auto` parent keeps the catalog ranking.
+    const autoRoute = resolveSmartRoute({ role: 'compaction', config: cfg, parentAlias: 'auto' });
+    expect(autoRoute?.source).toBe('auto');
+    expect(autoRoute?.alias).not.toBe('session-model');
+
+    // Explicit sessionPinned=false (derived parent on an auto session) also roams.
+    expect(
+      resolveSmartRoute({
+        role: 'compaction',
+        config: cfg,
+        parentAlias: 'session-model',
+        sessionPinned: false,
+      })?.source,
+    ).toBe('auto');
+  });
+
   describe('quota-exhausted provider health', () => {
     afterEach(() => {
       sharedCredentialHealthStore.clear();

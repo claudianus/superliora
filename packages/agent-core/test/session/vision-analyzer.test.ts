@@ -99,7 +99,10 @@ function fakeProviderManager(
       ]),
     ),
     providers,
-    ...(configOverrides.media !== undefined ? { media: configOverrides.media } : {}),
+    // Catalog scan is opt-in in production; these tests exercise the opted-in
+    // mode (same-provider preference, deterministic order). Default-off
+    // behavior is covered in the dedicated tests below.
+    media: { analyzerAutoScan: true, ...configOverrides.media },
   } as unknown as LioraConfig;
   return {
     currentConfig: () => config,
@@ -154,6 +157,45 @@ describe('selectVisionModel', () => {
     const selected = selectVisionModel(providerManager, {
       kind: 'image',
       currentModelAlias: 'text-current',
+    });
+
+    expect(selected?.modelAlias).toBe('beta-vision');
+  });
+
+  it('does not scan the catalog when analyzer_auto_scan is off (default)', () => {
+    const providerManager = fakeProviderManager(
+      {
+        'alpha-vision': { providerName: 'alpha', resolved: visionResolved('alpha-vision', 'alpha') },
+        'beta-vision': { providerName: 'beta', resolved: visionResolved('beta-vision', 'beta') },
+        'text-current': { providerName: 'beta', resolved: textResolved('text-current', 'beta') },
+      },
+      { media: { analyzerAutoScan: false } },
+    );
+
+    // Default state: the current text-only model is the only allowed
+    // candidate — the harness must never bill an unconfigured analyzer.
+    expect(
+      selectVisionModelCandidates(providerManager, {
+        kind: 'image',
+        currentModelAlias: 'text-current',
+      }),
+    ).toEqual([]);
+  });
+
+  it('allowCatalogScan forces the catalog scan for explicit smart-auto sessions', () => {
+    const providerManager = fakeProviderManager(
+      {
+        'alpha-vision': { providerName: 'alpha', resolved: visionResolved('alpha-vision', 'alpha') },
+        'beta-vision': { providerName: 'beta', resolved: visionResolved('beta-vision', 'beta') },
+        'text-current': { providerName: 'beta', resolved: textResolved('text-current', 'beta') },
+      },
+      { media: { analyzerAutoScan: false } },
+    );
+
+    const selected = selectVisionModel(providerManager, {
+      kind: 'image',
+      currentModelAlias: 'text-current',
+      allowCatalogScan: true,
     });
 
     expect(selected?.modelAlias).toBe('beta-vision');

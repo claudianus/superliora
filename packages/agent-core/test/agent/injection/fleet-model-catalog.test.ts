@@ -69,7 +69,8 @@ describe('fleet model catalog', () => {
     expect(rows.length).toBeGreaterThanOrEqual(1);
     const text = renderFleetModelCatalog(cfg);
     expect(text).toContain('<fleet_model_catalog>');
-    expect(text).toContain('JobCreate.model_alias');
+    expect(text).toContain('OMIT model_alias');
+    expect(text).toContain('workers inherit your (the session) model');
     expect(text).toMatch(/cheap|strong/);
   });
 

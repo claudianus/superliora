@@ -2,8 +2,11 @@
  * Turn-level smart model router: role scorer + fallback chain + intensity.
  *
  * Explicit `loopControl.*Model` wins when healthy; unhealthy overrides degrade
- * to fallback chain / auto. Unset roles use `buildFallbackChain` (same truth
- * as Settings preview) and return a hop chain for auth/credit failover.
+ * to fallback chain / parent. Pinned sessions (user picked a model) inherit
+ * the session model for unset roles — catalog roaming is reserved for explicit
+ * `auto` sessions, so the default state never bills a model the user did not
+ * configure. Unset roles on `auto` sessions use `buildFallbackChain` (same
+ * truth as Settings preview) and return a hop chain for auth/credit failover.
  */
 
 import {
@@ -283,7 +286,14 @@ export type ResolveSmartRouteInput = {
    * whose model is `auto` — pair with `sessionPinned`.
    */
   readonly workerScope?: boolean;
-  /** Session model is user-pinned (non-auto); enables the workerScope gate. */
+  /**
+   * Session model is user-pinned (non-auto). When omitted, derived from
+   * `parentAlias`: a non-auto parent model means the session is pinned. On a
+   * pinned session the resolver NEVER ranks the full catalog — unset roles
+   * inherit the session model, so the default state never bills a model the
+   * user did not configure. Pass an explicit `false` when a non-auto parent
+   * alias was derived (e.g. a smart-route pick) rather than user-pinned.
+   */
   readonly sessionPinned?: boolean;
 };
 
@@ -367,26 +377,36 @@ export function resolveSmartRoute(input: ResolveSmartRouteInput): SmartRoute | u
     // sessions scan the catalog; pinned sessions gate below).
   }
 
-  // Worker scope: workers never roam the full catalog on behalf of a pinned
-  // session. The user picked a session model (or role models) — the only
-  // worker candidates left are that session model, and it must actually be
-  // alive (static health or fresh real traffic) before we hand it back.
-  if (input.workerScope === true && input.sessionPinned === true) {
-    const parent = input.parentAlias?.trim();
+  // Pinned session (user picked a model): unset roles inherit the session
+  // model, at any scope. Workers never roam the full catalog on behalf of a
+  // pinned session, and neither do internal slices (compaction, completion)
+  // that resolve without `workerScope`. Catalog roaming is reserved for
+  // explicit `auto` sessions. `minContextTokens` is intentionally ignored
+  // here: staying on the user's model beats silently billing another one,
+  // and the session model is already the final fallback when resolution
+  // fails.
+  const parentCandidate = input.parentAlias?.trim();
+  const sessionPinned =
+    input.sessionPinned ??
+    (parentCandidate !== undefined &&
+      parentCandidate.length > 0 &&
+      parentCandidate.toLowerCase() !== SMART_AUTO_SESSION_ALIAS);
+  if (sessionPinned) {
     if (
-      parent !== undefined &&
-      parent.length > 0 &&
-      config.models?.[parent] !== undefined &&
-      (baseHealthy(parent) || sharedModelRouteHealthStore.hasFreshTrafficSuccess(parent))
+      parentCandidate !== undefined &&
+      parentCandidate.length > 0 &&
+      config.models?.[parentCandidate] !== undefined &&
+      (baseHealthy(parentCandidate) ||
+        sharedModelRouteHealthStore.hasFreshTrafficSuccess(parentCandidate))
     ) {
       return {
         role,
         intensity,
-        alias: parent,
-        chain: [parent],
-        thinkingLevel: thinkingForRole(role, config.models?.[parent]),
+        alias: parentCandidate,
+        chain: [parentCandidate],
+        thinkingLevel: thinkingForRole(role, config.models?.[parentCandidate]),
         source: 'parent',
-        reason: `Worker scope · session model · ${role}/${intensity}`,
+        reason: `Session model inherit · ${role}/${intensity}`,
       };
     }
     return undefined;

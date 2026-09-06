@@ -57,11 +57,16 @@ export function providerHasAnyCredential(provider: ProviderConfig): boolean {
   return false;
 }
 
+/**
+ * Fail-closed capability parity for auto-fallback expansion: when either
+ * side's capabilities are unknown, the candidate is rejected — auto-fallback
+ * must never widen the pool to a model whose fitness we cannot verify.
+ */
 export function sameCapability(
   primary: ModelCapability | undefined,
   other: ModelCapability | undefined,
 ): boolean {
-  if (primary === undefined || other === undefined) return true;
+  if (primary === undefined || other === undefined) return false;
   // Vision parity when primary accepts images
   if (primary.image_in && ! other.image_in) return false;
   return true;

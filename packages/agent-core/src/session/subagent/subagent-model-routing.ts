@@ -1,8 +1,9 @@
 /**
  * Role-aware model selection for subagent workers.
  *
- * Explicit loop-control aliases remain user-owned settings. When a role is
- * unset, the shared smart router picks from local aliases (+ failover chain).
+ * Explicit loop-control aliases remain user-owned settings. Pinned sessions
+ * inherit the session (Conductor) model for unset roles; only sessions pinned
+ * to `auto` roam the shared smart-router catalog.
  */
 
 import type { Agent } from '../../agent';
@@ -151,7 +152,9 @@ function resolveSubagentModelSelectionCore(
             intensity: 'balanced',
             // Failover chain stays inside the worker pool too.
             workerScope: true,
-            ...(sessionPinned ? { sessionPinned: true } : {}),
+            // Explicit: on `auto` sessions parentAlias is the smart-route
+            // pick (non-auto string) — derivation alone would misread it.
+            sessionPinned,
           })
         : undefined;
       return {
@@ -193,7 +196,9 @@ function resolveSubagentModelSelectionCore(
       ? { parentAlias }
       : {}),
     workerScope: true,
-    ...(sessionPinned ? { sessionPinned: true } : {}),
+    // Explicit: on `auto` sessions parentAlias is the smart-route pick
+    // (non-auto string) — derivation alone would misread it as pinned.
+    sessionPinned,
     signals: {
       profileName,
       profileBaseName,
@@ -225,17 +230,26 @@ function resolveSubagentModelSelectionCore(
  * When the role-selected alias cannot consume images, switch to a credentialed
  * vision model from the catalog (same-provider preference). No candidate → keep
  * the original selection; VerifySurface then falls back to analyzer text/path.
+ *
+ * Opt-in only: the default state must never send a worker to a model the user
+ * did not configure. The catalog swap runs when the session itself is pinned
+ * to `auto` (explicit smart-auto opt-in) or the user enabled
+ * `media.analyzer_auto_scan`; otherwise the original selection stands.
  */
 export function preferVisionModelSelection(
   parent: Agent,
   selection: SubagentModelSelection,
 ): SubagentModelSelection {
   if (selectionSupportsVision(parent, selection)) return selection;
+  const sessionAuto = parent.config.modelAlias?.trim().toLowerCase() === 'auto';
+  const config = currentAgentConfig(parent);
+  if (!sessionAuto && config?.media?.analyzerAutoScan !== true) return selection;
   const providerManager = parent.modelProvider;
   if (!(providerManager instanceof ProviderManager)) return selection;
   const vision = selectVisionModel(providerManager, {
     kind: 'image',
     currentModelAlias: selection.alias ?? parent.config.modelAlias,
+    allowCatalogScan: sessionAuto,
   });
   if (vision === undefined) return selection;
   return {

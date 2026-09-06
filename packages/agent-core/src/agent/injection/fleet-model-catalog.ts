@@ -1,7 +1,8 @@
 /**
  * Capped fleet model catalog for Conductor — healthy aliases + models.dev
- * scores so the orchestrator can pick worker `model_alias` on JobCreate.
- * Harness ranks and filters; Conductor chooses per Job.
+ * scores for the rare cases a worker `model_alias` should be pinned on
+ * JobCreate (user-configured role models, Smart Auto sessions). Harness ranks
+ * and filters; the default is to omit the alias and inherit the session model.
  */
 
 import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '#/profile/main-profile';
@@ -80,7 +81,7 @@ export function renderFleetModelCatalog(
 
   const lines: string[] = [
     '<fleet_model_catalog>',
-    'Live-healthy aliases only (credentials + recent probe). Prefer the session default (listed first when healthy). When role models are auto, set JobCreate.model_alias from this list (omit → harness picks by kind/profile). Never invent aliases; never retry an omitted/failed alias until it reappears; JobCreate live-probes the pick.',
+    'Live-healthy aliases only (credentials + recent probe). Default: OMIT model_alias — workers inherit your (the session) model. Only set model_alias from this list when the user configured role models or the session runs Smart Auto; then pick by Job kind/risk/cost. Never invent aliases; never retry a failed alias until it reappears; JobCreate live-probes the pick.',
     ...(hasCursorLane
       ? [
           'Cursor included lane (not API quota): cursor-oauth/default (Auto), cursor-grok-4.5-*, composer-2.5* — prefer these when other cursor-oauth aliases fail quota/empty.',
