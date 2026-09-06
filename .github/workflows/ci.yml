@@ -41,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -59,8 +59,8 @@ jobs:
       # --retry=1 absorbs one-off timing flakes (e.g. premium-motion frame
       # sampling) without masking real regressions: they fail twice and the
       # job stays red. The test-baseline ratchet (meta/test-baseline.yaml) is
-      # a manual tool ??with zero pinned failures it is vacuous in CI.
-      - run: node scripts/test-local.mjs --all --shard=${{ matrix.shard }}/2 --retry=1
+      # a manual tool — with zero pinned failures it is vacuous in CI.
+      - run: node scripts/test-local.mjs --all --shard=${{ matrix.shard }}/3 --retry=1
 
   # Windows is a first-class platform, but the full suite on windows-latest
   # costs ~27 min and Linux already covers it on every push. Per-push Windows
@@ -189,18 +189,29 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - name: Typecheck
-        env:
-          TSGO_PKG: '@typescript/native-preview@7.0.0-dev.20260707.2'
+        # tsgo is pinned in devDependencies (same compiler as local
+        # `pnpm run typecheck`); installed from the pnpm store cache instead
+        # of re-downloaded per job via `pnpm dlx`.
         run: |
-          pnpm dlx --package "${TSGO_PKG}" tsgo --version
+          pnpm exec tsgo --version
           for config in packages/*/tsconfig.json apps/liora/tsconfig.json; do
             if [ "${config}" = "packages/agent-core/tsconfig.json" ]; then
               continue
             fi
             echo "Typechecking ${config}"
-            pnpm dlx --package "${TSGO_PKG}" tsgo -p "${config}" --noEmit
+            pnpm exec tsgo -p "${config}" --noEmit
           done
           echo "Typechecking packages/agent-core/tsconfig.src.json"
-          pnpm dlx --package "${TSGO_PKG}" tsgo -p packages/agent-core/tsconfig.src.json --noEmit
+          pnpm exec tsgo -p packages/agent-core/tsconfig.src.json --noEmit
       - name: Agent-core test typecheck ratchet
         run: pnpm run check:agent-core-test-types
+      - name: Kosong negative type-safety tests must fail
+        # tsconfig.type-negative.json asserts that deliberately invalid
+        # kosong usage does NOT typecheck. The check passes when the compile
+        # fails — a green compile here means the negative tests regressed.
+        run: |
+          if pnpm exec tsgo -p packages/kosong/tsconfig.type-negative.json --noEmit; then
+            echo "::error::kosong type-negative tests compiled cleanly — negative assertions no longer fail"
+            exit 1
+          fi
+          echo "kosong type-negative tests: expected failures present"
