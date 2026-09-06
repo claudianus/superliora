@@ -15,6 +15,6 @@ Speed up the dev iteration gate and align local typecheck with CI.
   now routes through the CI-parity runner instead of bare vitest.
 - Vitest `isolate: false` wave 2: kaos, acp-adapter, gui-use, tui-renderer
   (no vi.mock in those packages).
-- CI typecheck job now enforces the kosong negative type-safety tests
-  (they must fail to compile) and the agent-core test-type ratchet count is
-  visible in the Actions annotations panel.
+- CI typecheck job now runs the kosong negative type-safety assertions
+  (`tsconfig.type-negative.json`, previously unwired) and surfaces the
+  agent-core test-type ratchet count in the Actions annotations panel.

@@ -205,13 +205,11 @@ jobs:
           pnpm exec tsgo -p packages/agent-core/tsconfig.src.json --noEmit
       - name: Agent-core test typecheck ratchet
         run: pnpm run check:agent-core-test-types
-      - name: Kosong negative type-safety tests must fail
-        # tsconfig.type-negative.json asserts that deliberately invalid
-        # kosong usage does NOT typecheck. The check passes when the compile
-        # fails — a green compile here means the negative tests regressed.
+      - name: Kosong negative type-safety assertions hold
+        # Every @ts-expect-error in test/type-safety-negative.ts marks code
+        # that must keep being REJECTED. While the type system rejects it,
+        # the compile is clean; a type-system gap turns a directive unused
+        # and fails this compile — so a green run is the pass condition.
         run: |
-          if pnpm exec tsgo -p packages/kosong/tsconfig.type-negative.json --noEmit; then
-            echo "::error::kosong type-negative tests compiled cleanly — negative assertions no longer fail"
-            exit 1
-          fi
-          echo "kosong type-negative tests: expected failures present"
+          pnpm exec tsc -p packages/kosong/tsconfig.type-negative.json --noEmit
+          echo "kosong negative type-safety: all expected rejections hold"
