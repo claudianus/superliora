@@ -15,7 +15,7 @@
 import { createHash } from 'node:crypto';
 import { createWriteStream, existsSync } from 'node:fs';
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rename, rm, stat } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { basename, join } from 'pathe';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -24,6 +24,7 @@ import { extract as extractTar } from 'tar';
 import { type Entry, fromBuffer as yauzlFromBuffer } from 'yauzl';
 
 import { abortable } from '../../utils/abort';
+import { resolveLioraHome } from '../../config/path';
 
 const RG_VERSION = '15.0.0';
 // Fetched straight from ripgrep's own GitHub releases (SHA256-verified below),
@@ -127,9 +128,8 @@ function rgBinaryName(): string {
 }
 
 function getShareDir(): string {
-  const override = process.env['SUPERLIORA_HOME'];
-  if (override !== undefined && override !== '') return override;
-  return join(homedir(), '.superliora');
+  // Respect the redirected data home (env → home.redirect → ~/.superliora).
+  return resolveLioraHome();
 }
 
 function getVendorRgPath(_binName: string): string | undefined {

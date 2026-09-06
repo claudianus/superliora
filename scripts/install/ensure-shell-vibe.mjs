@@ -14,7 +14,7 @@ import { ensureOhMyPosh, findOhMyPosh, ohMyPoshRuntimeDir } from './ensure-oh-my
 import { findWinget } from './ensure-winget.mjs';
 import { hostJoin } from './host-path.mjs';
 import { applyUserPathWin } from './path.mjs';
-import { OPTIONAL_INSTALL_TIMEOUT_MS, archId, defaultHome, hostPathExists } from './platform.mjs';
+import { OPTIONAL_INSTALL_TIMEOUT_MS, archId, defaultHome, hostPathExists, resolveInstallHomeFromEnv } from './platform.mjs';
 
 export const ZOXIDE_WINGET_ID = 'ajeetdsouza.zoxide';
 export const FZF_WINGET_ID = 'junegunn.fzf';
@@ -52,8 +52,10 @@ export function skipShellVibeRequested(env = process.env, options = {}) {
 }
 
 export function vibeRuntimeDir(name, env = process.env, platform = process.platform) {
-  const home = env.HOME ?? env.USERPROFILE ?? defaultHome();
-  return hostJoin(platform, home, '.superliora', 'runtime', name);
+  // Shell-vibe binaries ride the relocated data home, not the OS profile.
+  const override = env.SUPERLIORA_HOME?.trim();
+  const base = override !== undefined && override.length > 0 ? override : resolveInstallHomeFromEnv(env);
+  return hostJoin(platform, base, 'runtime', name);
 }
 
 export function defaultPowerShellProfilePaths(env = process.env) {

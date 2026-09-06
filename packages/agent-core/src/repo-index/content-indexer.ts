@@ -7,12 +7,13 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { accessSync, constants, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 
 import { resolveLioraHome } from '#/config/path';
+import { isDirWritable } from '#/utils/dir-writable';
 import type { MemoryLink } from '#/memory';
 import { trackSqliteDatabase } from '#/runtime/sqlite-handles';
 
@@ -463,7 +464,7 @@ export function resolveContentIndexDbPath(workspaceDir: string): string {
   try {
     const dir = join(resolveLioraHome(), 'repo-index');
     mkdirSync(dir, { recursive: true });
-    accessSync(dir, constants.W_OK);
+    if (!isDirWritable(dir)) throw new Error('repo-index dir is not writable');
     return join(dir, fileName);
   } catch {
     return join(tmpdir(), 'superliora-repo-index', fileName);

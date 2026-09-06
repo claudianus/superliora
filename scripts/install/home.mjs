@@ -262,7 +262,13 @@ export function formatGiB(bytes) {
 export async function planAndApplyInstallHome(options = {}) {
   const osHome = options.osHome ?? defaultHome();
   const platform = options.platform ?? process.platform;
-  const explicitHome = options.explicitHome ?? process.env.SUPERLIORA_HOME;
+  // Respect an existing redirect even when SUPERLIORA_HOME is not in this
+  // process env: re-running the installer must not relocate the data home to
+  // a different volume and orphan the previously populated tree.
+  const explicitHome =
+    options.explicitHome
+    ?? process.env.SUPERLIORA_HOME
+    ?? readHomeRedirect(pointerDir(osHome));
   let volumes = options.volumes;
   if (volumes === undefined) {
     volumes = platform === 'win32' ? await listWindowsVolumes() : [];

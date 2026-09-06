@@ -14,7 +14,7 @@
  */
 
 import { execFile as nodeExecFile } from 'node:child_process';
-import { constants as fsConstants } from 'node:fs';
+import { constants as fsConstants, readFileSync } from 'node:fs';
 import { access } from 'node:fs/promises';
 import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
@@ -223,10 +223,28 @@ export function superlioraRuntimeGitBashCandidates(
     const home = env[key]?.trim();
     if (home !== undefined && home.length > 0) homes.push(home);
   }
+  // Redirected data homes (env → home.redirect → profile pointer dir) also
+  // carry `runtime/git`; looking only at the OS profile misses them.
+  const dataHomes: string[] = [];
+  const override = env['SUPERLIORA_HOME']?.trim();
+  if (override !== undefined && override.length > 0) dataHomes.push(override);
+  for (const home of homes) {
+    const pointer = nodePath.win32.join(home, '.superliora');
+    try {
+      const raw = readFileSync(nodePath.win32.join(pointer, 'home.redirect'), 'utf8');
+      const redirected = parseHomeRedirectTextKaos(raw);
+      if (redirected !== undefined && redirected.toLowerCase() !== pointer.toLowerCase()) {
+        dataHomes.push(redirected);
+      }
+    } catch {
+      // No redirect file.
+    }
+    dataHomes.push(pointer);
+  }
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const home of homes) {
-    const root = nodePath.win32.join(home, '.superliora', 'runtime', 'git');
+  for (const base of dataHomes) {
+    const root = nodePath.win32.join(base, 'runtime', 'git');
     for (const rel of [
       ['bin', 'bash.exe'],
       ['usr', 'bin', 'bash.exe'],
@@ -239,6 +257,15 @@ export function superlioraRuntimeGitBashCandidates(
     }
   }
   return out;
+}
+
+function parseHomeRedirectTextKaos(text: string): string | undefined {
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.length === 0 || line.startsWith('#')) continue;
+    return line;
+  }
+  return undefined;
 }
 
 function gitBashCandidatesFromGitRoot(root: string): readonly string[] {

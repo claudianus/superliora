@@ -17,7 +17,7 @@ import { CASKAYDIA_FONT_FACE, ensureNerdFont, findNerdFont } from './ensure-nerd
 import { findOhMyPosh } from './ensure-oh-my-posh.mjs';
 import { ensureShellVibe } from './ensure-shell-vibe.mjs';
 import { ensureWinget, findWinget } from './ensure-winget.mjs';
-import { OPTIONAL_INSTALL_TIMEOUT_MS, defaultHome, hostPathExists } from './platform.mjs';
+import { OPTIONAL_INSTALL_TIMEOUT_MS, defaultHome, hostPathExists, resolveInstallHomeFromEnv } from './platform.mjs';
 
 export const SUPERLIORA_WT_PROFILE_NAME = 'SuperLiora';
 export const SUPERLIORA_SHELL_PROFILE_NAME = 'SuperLiora Shell';
@@ -804,7 +804,7 @@ async function installTerminalMsix(options = {}) {
     return { installed: false, ok: false, via: 'msix', message: TERMINAL_INSTALL_HINT };
   }
   const dest = options.msixPath ?? join(
-    options.runtimeDir ?? join(defaultHomeFrom(options.env ?? process.env), '.superliora', 'runtime', 'terminal'),
+    options.runtimeDir ?? join(resolveInstallHomeFromEnv(options.env ?? process.env), 'runtime', 'terminal'),
     'WindowsTerminal.msixbundle',
   );
   const download = options.downloadToFile ?? downloadToFile;

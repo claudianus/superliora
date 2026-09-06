@@ -6,10 +6,11 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
-import { OPTIONAL_INSTALL_TIMEOUT_MS, defaultHome, hostPathExists } from './platform.mjs';
+import { OPTIONAL_INSTALL_TIMEOUT_MS, hostPathExists, resolveInstallHomeFromEnv } from './platform.mjs';
 
 export const WINGET_RELEASE = 'v1.29.280';
 export const WINGET_BUNDLE_URL =
@@ -25,7 +26,7 @@ export function skipWingetRequested(env = process.env, options = {}) {
 
 export function wellKnownWingetCandidates(env = process.env) {
   const localAppData = (env.LOCALAPPDATA ?? '').trim();
-  const home = env.HOME ?? env.USERPROFILE ?? defaultHome();
+  const home = env.HOME ?? env.USERPROFILE ?? homedir();
   const list = [];
   if (localAppData) {
     list.push(winJoin(localAppData, 'Microsoft', 'WindowsApps', 'winget.exe'));
@@ -101,8 +102,10 @@ export async function ensureWinget(options = {}) {
 
 async function bootstrapWinget(options = {}) {
   const env = options.env ?? process.env;
+  // 400 MB of winget payload must land on the relocated data home, not the
+  // OS-profile drive.
   const runtimeDir = options.runtimeDir
-    ?? join(env.HOME ?? env.USERPROFILE ?? defaultHome(), '.superliora', 'runtime', 'winget');
+    ?? join(resolveInstallHomeFromEnv(env), 'runtime', 'winget');
   const download = options.downloadToFile ?? downloadToFile;
   const addAppx = options.addAppxPackage ?? defaultAddAppxPackage;
   const expandZip = options.expandZip ?? defaultExpandZip;

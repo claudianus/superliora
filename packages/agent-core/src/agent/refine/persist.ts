@@ -6,11 +6,11 @@
  * a JSON file under the liora home dir shared by every session.
  */
 
-import { homedir } from 'node:os';
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'pathe';
 
 import { atomicWrite } from '../../utils/fs';
+import { resolveLioraHome } from '../../config/path';
 import {
   HARNESS_STATE_SCHEMA,
   emptyHarnessState,
@@ -19,11 +19,9 @@ import {
 
 export const GLOBAL_HARNESS_RELATIVE_PATH = join('harness', 'harness_state.json');
 
-/** Same resolution as the oauth toolkit: SUPERLIORA_HOME, else ~/.superliora. */
+/** Redirect-aware: SUPERLIORA_HOME, then home.redirect, then ~/.superliora. */
 export function resolveGlobalLioraHome(): string {
-  const override = process.env['SUPERLIORA_HOME'];
-  if (override !== undefined && override.length > 0) return override;
-  return join(homedir(), '.superliora');
+  return resolveLioraHome();
 }
 
 export function globalHarnessStatePath(homeDir: string): string {

@@ -26,10 +26,10 @@ import {
   unlinkSync,
   writeSync,
 } from 'node:fs';
-import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
 import type { TokenInfo, TokenInfoWire } from './types';
+import { resolveOAuthDataHome } from './home';
 import { tokenFromWire, tokenToWire } from './types';
 import { isRecord } from './utils';
 
@@ -61,14 +61,9 @@ export interface TokenStorage {
   list(): Promise<string[]>;
 }
 
-/** Default `~/.superliora/credentials` (honors `SUPERLIORA_HOME`). */
+/** Default `<data-home>/credentials` (env → home.redirect → ~/.superliora). */
 export function defaultOAuthCredentialsDir(): string {
-  const override = process.env['SUPERLIORA_HOME'];
-  const home =
-    override !== undefined && override.trim().length > 0
-      ? override.trim()
-      : join(homedir(), '.superliora');
-  return join(home, 'credentials');
+  return join(resolveOAuthDataHome(), 'credentials');
 }
 
 /**

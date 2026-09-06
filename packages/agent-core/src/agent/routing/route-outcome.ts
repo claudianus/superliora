@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
 import type { ModelMetadata, ModelRole } from '../../utils/model-presets';
+import { resolveLioraHome } from '../../config/path';
 
 type OutcomeKey = `${ModelRole}::${string}`;
 
@@ -38,7 +39,7 @@ function defaultPersistPath(): string | undefined {
     return undefined;
   }
   if (configured === '1') {
-    return join(homedir(), '.superliora', 'smart-router-outcomes.json');
+    return join(resolveLioraHome(), 'smart-router-outcomes.json');
   }
   return configured;
 }

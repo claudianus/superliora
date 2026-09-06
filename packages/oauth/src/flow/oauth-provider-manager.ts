@@ -10,7 +10,6 @@
  * providers route through here with the simpler token-only lifecycle.
  */
 
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { OAuthError } from '../errors';
@@ -40,6 +39,7 @@ import {
 import { OAuthManager, type LoginOptions, type OAuthRefreshOutcome } from './oauth-manager';
 import { requestDeviceAuthorization, pollDeviceToken, refreshAccessToken } from './oauth';
 import { FileTokenStorage, type TokenStorage } from '../storage';
+import { resolveOAuthDataHome } from '../home';
 import type { DeviceAuthorization, TokenInfo } from '../types';
 import {
   ensureGitHubCopilotSession,
@@ -97,10 +97,7 @@ export class OAuthProviderManager {
   private readonly managers = new Map<string, OAuthManager>();
 
   constructor(options: OAuthProviderManagerOptions = {}) {
-    const override = process.env['SUPERLIORA_HOME'];
-    this.homeDir =
-      options.homeDir ??
-      (override !== undefined && override.length > 0 ? override : join(homedir(), '.superliora'));
+    this.homeDir = options.homeDir ?? resolveOAuthDataHome();
     this.storage = options.storage ?? new FileTokenStorage(join(this.homeDir, 'credentials'));
     this.onRefresh = options.onRefresh;
   }

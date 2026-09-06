@@ -3,7 +3,7 @@
 // symbol index on first use (git workspaces only), degrades to "not ready"
 // instead of throwing, and offers a live per-file outline that needs no index.
 import { createHash } from 'node:crypto';
-import { accessSync, constants, mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,6 +11,7 @@ import { extractSymbols } from '#/codemap/extract';
 import { CodeIndexer, type IndexReport } from '#/codemap/indexer';
 import { SymbolIndexStore, type SymbolHit } from '#/codemap/store';
 import { resolveLioraHome } from '#/config/path';
+import { isDirWritable } from '#/utils/dir-writable';
 import type { MemoryLink } from '#/memory';
 
 export interface CodeMapHit {
@@ -179,7 +180,7 @@ export function resolveCodemapDbPath(workspaceDir: string): string {
   try {
     const dir = join(resolveLioraHome(), 'codemap');
     mkdirSync(dir, { recursive: true });
-    accessSync(dir, constants.W_OK);
+    if (!isDirWritable(dir)) throw new Error('codemap dir is not writable');
     return join(dir, fileName);
   } catch {
     return join(tmpdir(), 'superliora-codemap', fileName);

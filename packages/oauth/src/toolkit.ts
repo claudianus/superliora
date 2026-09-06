@@ -1,4 +1,3 @@
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { SUPERLIORA_FLOW_CONFIG } from './constants';
@@ -33,6 +32,7 @@ import {
   type ParsedManagedUsage,
 } from './kimi/managed-usage';
 import { OAuthManager, type LoginOptions, type OAuthManagerOptions } from './flow/oauth-manager';
+import { resolveOAuthDataHome } from './home';
 import { FileTokenStorage, type TokenStorage } from './storage';
 import type { OAuthFlowConfig } from './types';
 
@@ -441,9 +441,7 @@ export function resolveKimiTokenStorageName(input: {
 }
 
 function defaultKimiHome(): string {
-  const override = process.env['SUPERLIORA_HOME'];
-  if (override !== undefined && override.length > 0) return override;
-  return join(homedir(), '.superliora');
+  return resolveOAuthDataHome();
 }
 
 function managedUsageUrl(baseUrl: string | undefined): string {

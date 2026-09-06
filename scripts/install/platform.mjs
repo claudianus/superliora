@@ -111,9 +111,19 @@ function parseHomeRedirect(text) {
 
 /** Data root: SUPERLIORA_HOME, then ~/.superliora/home.redirect, then ~/.superliora. */
 export function resolveInstallHome() {
-  const override = process.env.SUPERLIORA_HOME?.trim();
+  return resolveInstallHomeFromEnv(process.env);
+}
+
+/**
+ * Data-root resolution for an injected env (installer scripts pass explicit
+ * envs). Keeps every sizable write (runtime tools, downloads, indexes) on the
+ * relocated home instead of leaking to the OS-profile drive.
+ */
+export function resolveInstallHomeFromEnv(env = process.env) {
+  const override = env.SUPERLIORA_HOME?.trim();
   if (override) return override;
-  const pointer = join(defaultHome(), '.superliora');
+  const osHome = env.HOME ?? env.USERPROFILE ?? defaultHome();
+  const pointer = join(osHome, '.superliora');
   try {
     const redirected = parseHomeRedirect(
       readFileSync(join(pointer, 'home.redirect'), 'utf8'),
@@ -123,6 +133,11 @@ export function resolveInstallHome() {
     // No redirect.
   }
   return pointer;
+}
+
+/** Runtime tools dir under the data home (`<home>/runtime/<name>`). */
+export function defaultRuntimeDir(name) {
+  return join(resolveInstallHome(), 'runtime', name);
 }
 
 /**
