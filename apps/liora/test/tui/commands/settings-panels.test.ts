@@ -1715,6 +1715,7 @@ describe('media-settings', () => {
         'presets',
         'status',
         'change-policy',
+        'auto-scan',
         'analyzer-image',
         'analyzer-video',
         'analyzer-audio',

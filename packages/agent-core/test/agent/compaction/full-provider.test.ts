@@ -124,7 +124,7 @@ describe('full-provider.ts — compaction summarizer provider', () => {
     expect(host.compactionModelAlias).toBe('cheap-model');
   });
 
-  it('falls back to the main model when an inferred cheap alias fails to resolve', () => {
+  it('inherits the session model for compaction on a pinned session (no catalog roam, no warn)', () => {
     const host = makeHost({
       models: {
         'main-model': { provider: 'p', model: 'kimi-k2' },
@@ -138,9 +138,10 @@ describe('full-provider.ts — compaction summarizer provider', () => {
         };
       },
     });
-    // Auto picks cheap-fast for compaction; resolve throws → warn + main model.
+    // Pinned session: inherit the session model directly instead of roaming
+    // the catalog (which would warn on the unresolvable cheap alias).
     createCompactionProvider(host, 2_000);
     expect(host.compactionModelAlias).toBe('main-model');
-    expect(host.agent.log.warn).toHaveBeenCalled();
+    expect(host.agent.log.warn).not.toHaveBeenCalled();
   });
 });
