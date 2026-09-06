@@ -1251,4 +1251,71 @@ describe('generate()', () => {
       ).rejects.toMatchObject({ name: 'AbortError' });
     });
   });
+
+  describe('caller abort reason propagation', () => {
+    it('throws the caller abort reason from the pre-flight check', async () => {
+      const provider = createMockProvider(createMockStream([{ type: 'text', text: 'nope' }]));
+      const controller = new AbortController();
+      const reason = new Error('user pressed esc');
+      controller.abort(reason);
+
+      await expect(
+        generate(provider, '', [], [], undefined, { signal: controller.signal }),
+      ).rejects.toBe(reason);
+    });
+
+    it('propagates the caller abort reason when abort lands during stream open', async () => {
+      const hangingProvider: ChatProvider = {
+        ...createMockProvider(createMockStream([])),
+        generate: (
+          _systemPrompt: string,
+          _tools: Tool[],
+          _history: Message[],
+          options?: { signal?: AbortSignal },
+        ): Promise<StreamedMessage> =>
+          new Promise<StreamedMessage>((_resolve, reject) => {
+            const signal = options?.signal;
+            if (signal?.aborted === true) {
+              reject(signal.reason);
+              return;
+            }
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+          }),
+      };
+      const controller = new AbortController();
+      const reason = new Error('session closing');
+      const pending = generate(hangingProvider, '', [], [], undefined, {
+        signal: controller.signal,
+      });
+
+      controller.abort(reason);
+      await expect(pending).rejects.toBe(reason);
+    });
+
+    it('propagates the caller abort reason when abort lands mid-stream', async () => {
+      const stream: StreamedMessage = {
+        get id(): string | null {
+          return null;
+        },
+        get usage(): TokenUsage | null {
+          return null;
+        },
+        finishReason: null,
+        rawFinishReason: null,
+        async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          yield { type: 'text', text: 'first' };
+          await new Promise(() => {});
+        },
+      };
+      const provider = createMockProvider(stream);
+      const controller = new AbortController();
+      const reason = new Error('user cancelled');
+      const pending = generate(provider, '', [], [], undefined, { signal: controller.signal });
+
+      // Let the first part drain, then cancel mid-stream.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      controller.abort(reason);
+      await expect(pending).rejects.toBe(reason);
+    });
+  });
 });

@@ -101,6 +101,11 @@ export class ProviderManager implements ModelProvider {
     }
 
     const fallbackModels = alias.fallbackModels ?? [];
+    // Auto-expansion (every same-capability model from other credentialed
+    // providers) silently changed which model serves a turn and what it cost.
+    // It is now opt-in via [models."x".routing] auto_fallback = true; an
+    // explicit fallback_models list is always honored as given.
+    const autoFallback = alias.routing?.autoFallback === true;
 
     const candidateAliases = uniqueModelAliases([model, ...fallbackModels]);
     const routingWeights = alias.routing?.weights;
@@ -111,35 +116,30 @@ export class ProviderManager implements ModelProvider {
       ),
     );
 
-    candidates = this.expandSameCapabilityCandidates(model, candidates);
+    if (autoFallback) {
+      candidates = this.expandSameCapabilityCandidates(model, candidates);
+    }
     candidates = this.filterHealthyCandidates(candidates);
 
     if (candidates.length === 0) {
       return undefined;
     }
+    // Route machinery (failover hops, cooldown state) only earns its keep when
+    // the user opted into more than the plain primary: explicit fallback
+    // models, multiple credentials, or any [models."x".routing] config.
+    // Otherwise return no route so the agent talks to the provider directly.
     if (
       fallbackModels.length === 0 &&
       alias.routing === undefined &&
       candidates.length <= 1 &&
-      !candidates.some((candidate) => candidate.localLimits !== undefined) &&
-      this.expandSameCapabilityCandidates(model, [
-        this.resolveModelAlias(model),
-      ]).length <= 1
+      !candidates.some((candidate) => candidate.localLimits !== undefined)
     ) {
-      const baseline = candidateAliases.flatMap((candidateAlias) =>
-        this.resolveModelAliasCandidates(
-          candidateAlias,
-          routeWeightForAlias(candidateAlias, routingWeights),
-        ),
-      );
-      if (baseline.length <= 1 && !baseline.some((c) => c.localLimits !== undefined)) {
-        if (candidates.length <= 1) return undefined;
-      }
+      return undefined;
     }
     return {
       modelAlias: model,
       strategy: alias.routing?.strategy ?? 'auto',
-      cooldownMs: alias.routing?.cooldownMs ?? 5 * 60_000,
+      cooldownMs: alias.routing?.cooldownMs,
       sessionAffinity: alias.routing?.sessionAffinity,
       preferredCredential: alias.routing?.preferredCredential,
       candidates,

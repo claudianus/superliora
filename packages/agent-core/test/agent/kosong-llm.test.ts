@@ -1810,6 +1810,87 @@ describe('KosongLLM provider routing', () => {
     }
   });
 
+  it('throws the caller abort before any candidate without recording cooldowns', async () => {
+    const primaryProvider = makeProvider('primary', 'primary-model');
+    const backupProvider = makeProvider('backup', 'backup-model');
+    const state = new InMemoryProviderRouteState();
+    const generate = vi.fn<GenerateFn>();
+    const route = {
+      key: 'primary',
+      strategy: 'fallback' as const,
+      candidates: [
+        { modelAlias: 'primary', providerName: 'primary', provider: primaryProvider },
+        { modelAlias: 'backup', providerName: 'backup', provider: backupProvider },
+      ],
+    };
+    const controller = new AbortController();
+    controller.abort();
+    const llm = new KosongLLM({
+      provider: primaryProvider,
+      systemPrompt: 'system',
+      generate,
+      route,
+      routeState: state,
+    });
+
+    await expect(
+      llm.chat({ messages: [], tools: [], signal: controller.signal }),
+    ).rejects.toThrow();
+    expect(generate).not.toHaveBeenCalled();
+    // A dead turn signal is not a provider failure: no candidate may be
+    // cooled down or health-poisoned by it.
+    expect(state.unavailable(route)).toBeUndefined();
+    expect(state.snapshot(route).candidates.every((c) => c.lastFailureKind === undefined)).toBe(
+      true,
+    );
+  });
+
+  it('stops the route loop without poisoning candidates when the signal aborts mid-candidate', async () => {
+    const primaryProvider = makeProvider('primary', 'primary-model');
+    const backupProvider = makeProvider('backup', 'backup-model');
+    const state = new InMemoryProviderRouteState();
+    const attemptedModels: string[] = [];
+    const controller = new AbortController();
+    const generate: GenerateFn = async (nextProvider, _s, _t, _h, _c, options) => {
+      attemptedModels.push(nextProvider.modelName);
+      const signal = (options as { signal?: AbortSignal } | undefined)?.signal;
+      await new Promise<void>((resolve, reject) => {
+        if (signal?.aborted === true) {
+          reject(signal.reason);
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+      throw new Error('unreachable');
+    };
+    const route = {
+      key: 'primary',
+      strategy: 'fallback' as const,
+      candidates: [
+        { modelAlias: 'primary', providerName: 'primary', provider: primaryProvider },
+        { modelAlias: 'backup', providerName: 'backup', provider: backupProvider },
+      ],
+    };
+    const llm = new KosongLLM({
+      provider: primaryProvider,
+      systemPrompt: 'system',
+      generate,
+      route,
+      routeState: state,
+    });
+
+    const pending = llm.chat({ messages: [], tools: [], signal: controller.signal });
+    controller.abort();
+    await expect(pending).rejects.toThrow();
+    // Only the primary was attempted; the backup never ran and never got a
+    // cooldown record from the caller's cancellation.
+    expect(attemptedModels).toEqual(['primary-model']);
+    expect(state.unavailable(route)).toBeUndefined();
+    expect(state.snapshot(route).candidates.every((c) => c.lastFailureKind === undefined)).toBe(
+      true,
+    );
+  });
+
   it('records the last candidate failure before surfacing the provider error', async () => {
     const primaryProvider = makeProvider('primary', 'primary-model');
     const backupProvider = makeProvider('backup', 'backup-model');

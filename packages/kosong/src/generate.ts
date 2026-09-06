@@ -136,7 +136,7 @@ export async function generate(
   // themselves honor `signal` would otherwise emit a network call that the
   // caller has explicitly cancelled.
   if (options?.signal?.aborted) {
-    throwAbortError();
+    throwCallerAbortReason(options.signal);
   }
 
   const streamLabel = `Provider: ${provider.name}, model: ${provider.modelName}`;
@@ -419,12 +419,26 @@ function throwAbortError(): never {
   throw new DOMException('The operation was aborted.', 'AbortError');
 }
 
+/**
+ * Rethrow the abort signal's own reason instead of a synthetic AbortError.
+ * Preserving the reason lets downstream classification tell a caller cancel
+ * (Esc, session close) apart from a transport timeout, so cancellations are
+ * never recorded as provider cooldowns.
+ */
+function throwCallerAbortReason(signal: AbortSignal): never {
+  const reason: unknown = signal.reason;
+  if (reason instanceof Error) {
+    throw reason;
+  }
+  throwAbortError();
+}
+
 function rethrowIfCallerCancelled(
   signal: AbortSignal | undefined,
   openTimedOut: boolean,
 ): void {
   if (signal?.aborted === true && !openTimedOut) {
-    throwAbortError();
+    throwCallerAbortReason(signal);
   }
 }
 
@@ -449,7 +463,7 @@ async function throwIfAborted(signal?: AbortSignal, stream?: StreamedMessage): P
     await cancelStream(stream);
   }
 
-  throwAbortError();
+  throwCallerAbortReason(signal);
 }
 
 /** True when `pending` is a ToolCall whose _streamIndex equals `index`. */

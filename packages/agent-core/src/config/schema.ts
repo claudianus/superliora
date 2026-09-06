@@ -81,6 +81,13 @@ export const ModelRoutingConfigSchema = z.object({
   weights: z.record(z.string().min(1), z.number().int().min(1)).optional(),
   sessionAffinity: z.boolean().optional(),
   preferredCredential: z.string().min(1).optional(),
+  /**
+   * Opt in to appending every same-capability model from other credentialed
+   * providers as route candidates. Off by default: without an explicit
+   * `fallback_models` list the route never silently falls back to models the
+   * user did not choose (unexpected cost/quality changes).
+   */
+  autoFallback: z.boolean().optional(),
 });
 
 export type ModelRoutingConfig = z.infer<typeof ModelRoutingConfigSchema>;

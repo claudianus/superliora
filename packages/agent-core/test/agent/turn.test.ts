@@ -1496,10 +1496,9 @@ describe('Agent turn flow', () => {
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hello' }] });
     const events = await ctx.untilTurnEnd();
 
-    // NOTE: The retry mechanism at the loop level does not re-resolve
-    // request-scoped OAuth auth, so the second attempt sees '<missing>'.
-    // This is a known limitation; the first attempt correctly receives auth.
-    expect(authKeys).toEqual(['fresh-token', '<missing>']);
+    // The retry stays on the same model and re-resolves request-scoped OAuth
+    // auth, so both attempts see the fresh token.
+    expect(authKeys).toEqual(['fresh-token', 'fresh-token']);
     // The turn should complete successfully after the retry.
     expect(events).toContainEqual(
       expect.objectContaining({
