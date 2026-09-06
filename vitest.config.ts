@@ -7,13 +7,21 @@ import { defineConfig } from 'vitest/config';
 // Windows only. Linux stays at the default.
 const windowsMaxWorkers = process.platform === 'win32' ? 2 : undefined;
 
+// Local escape hatch: beefier Windows boxes can raise the cap without
+// touching CI (which never sets the variable). Example: VITEST_MAX_WORKERS=6.
+const envMaxWorkers = Number(process.env['VITEST_MAX_WORKERS'] ?? '');
+const maxWorkers =
+  Number.isFinite(envMaxWorkers) && envMaxWorkers > 0
+    ? Math.floor(envMaxWorkers)
+    : windowsMaxWorkers;
+
 export default defineConfig({
   test: {
     projects: ['packages/*', 'apps/liora', 'apps/site'],
     testTimeout: 30_000,
     hookTimeout: 30_000,
     teardownTimeout: 15_000,
-    ...(windowsMaxWorkers !== undefined ? { maxWorkers: windowsMaxWorkers } : {}),
+    ...(maxWorkers !== undefined ? { maxWorkers } : {}),
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
