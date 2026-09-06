@@ -60,6 +60,9 @@ export const ScriptToolInputSchema = z
 
 export type ScriptToolInput = z.infer<typeof ScriptToolInputSchema>;
 
+/** Fallback when a raw/replayed call bypasses the schema default. */
+const DEFAULT_SCRIPT_TIMEOUT_MS = 120_000;
+
 const OUTPUT_MAX_CHARS = 8_000;
 const EXEC_OUTPUT_MAX_CHARS = 32_000;
 const GLOB_MAX_RESULTS = 1_000;
@@ -125,9 +128,13 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
 
   private async run(
     code: string,
-    timeoutMs: number,
+    timeoutMs: number | undefined,
     ctx: ExecutableToolContext,
   ): Promise<string> {
+    // Callers that bypass schema parsing (PTC replay, persisted envelopes) can
+    // hand undefined through — an undefined setTimeout delay fires immediately
+    // and the failure message read "timed out after undefinedms".
+    const effectiveTimeoutMs = timeoutMs ?? DEFAULT_SCRIPT_TIMEOUT_MS;
     if (this.context === null) {
       // The sandbox is built once, but every ctx-dependent closure reads
       // `this.currentCtx`, re-bound below — a context built on the first
@@ -140,7 +147,7 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
     this.logBuffer = [];
     const wrapped = `(async () => {\n${code}\n})()`;
     const script = new vm.Script(wrapped, { filename: 'script-tool.js' });
-    const result: unknown = script.runInContext(context, { timeout: timeoutMs });
+    const result: unknown = script.runInContext(context, { timeout: effectiveTimeoutMs });
     // Cross-realm: the async wrapper returns the CONTEXT's Promise, so
     // instanceof checks fail — thenable check is the honest test.
     if (typeof (result as { then?: unknown } | null)?.then !== 'function') {
@@ -154,8 +161,11 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
     let timer: NodeJS.Timeout | undefined;
     const onOuterAbort = (): void => controller.abort(new Error('script aborted'));
     timer = setTimeout(
-      () => controller.abort(new Error(`script timed out after ${String(timeoutMs)}ms`)),
-      timeoutMs,
+      () =>
+        controller.abort(
+          new Error(`script timed out after ${String(effectiveTimeoutMs)}ms`),
+        ),
+      effectiveTimeoutMs,
     );
     if (ctx.signal.aborted) onOuterAbort();
     else ctx.signal.addEventListener('abort', onOuterAbort, { once: true });
