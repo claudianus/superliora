@@ -1,1 +1,1 @@
-PLACEHOLDER
+LOAD_FROM_FILE:/workspace/superliora/packages/agent-core/test/agent/harness/agent.ts
