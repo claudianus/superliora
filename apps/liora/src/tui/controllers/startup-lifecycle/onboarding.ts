@@ -108,6 +108,24 @@ export async function refreshProviderModelsInBackground(
   }
   // Best-effort prune of stale free aliases that are no longer in live catalog.
   void pruneStaleFreeModelsInBackground(host);
+  // Best-effort capability refresh for catalog aliases written by older builds
+  // (e.g. Command Code rows that predate models.dev enrichment).
+  void refreshCatalogAliasCapabilitiesInBackground(host);
+}
+
+async function refreshCatalogAliasCapabilitiesInBackground(host: StartupLifecycleHost): Promise<void> {
+  try {
+    const { loadCatalog } = await import('#/utils/catalog-cache');
+    const catalog = await loadCatalog().catch(() => undefined);
+    if (catalog === undefined) return;
+    const { catalogAliasCapabilityPatch } = await import('#/utils/refresh-catalog-alias-capabilities');
+    const config = await host.harness.getConfig({ reload: true });
+    const patch = catalogAliasCapabilityPatch(config, catalog);
+    if (patch === undefined) return;
+    await host.harness.setConfig(patch);
+  } catch {
+    // best-effort
+  }
 }
 
 async function pruneStaleFreeModelsInBackground(host: StartupLifecycleHost): Promise<void> {

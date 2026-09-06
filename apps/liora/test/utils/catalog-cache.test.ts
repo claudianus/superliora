@@ -79,4 +79,33 @@ describe('loadCatalog', () => {
     expect(catalog['cline-pass']?.api).toBe('https://api.cline.bot/api/v1');
     expect(catalog['opencode']?.name).toBe('OpenCode Zen');
   });
+
+  it('maps OpenRouter reasoning support into the live fallback catalog', async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.startsWith('https://openrouter.ai/')) {
+        return catalogResponse({
+          data: [
+            {
+              id: 'z-ai/glm-5.3-flash',
+              name: 'GLM-5.3 Flash',
+              context_length: 1_048_576,
+              supported_parameters: ['tools', 'reasoning'],
+            },
+            {
+              id: 'plain/non-reasoning',
+              name: 'Plain',
+              context_length: 8_192,
+              supported_parameters: ['tools'],
+            },
+          ],
+        });
+      }
+      throw new Error('network down');
+    });
+    const catalog = await loadCatalog(undefined, fetchImpl as unknown as typeof fetch);
+    const models = catalog['openrouter']?.models ?? {};
+    expect(models['z-ai/glm-5.3-flash']?.reasoning).toBe(true);
+    expect(models['plain/non-reasoning']?.reasoning).toBeUndefined();
+  });
 });

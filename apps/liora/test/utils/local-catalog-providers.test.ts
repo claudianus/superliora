@@ -179,6 +179,79 @@ describe('Command Code catalog entry', () => {
   });
 });
 
+describe('models.dev capability enrichment', () => {
+  const devCatalog: Catalog = {
+    'nano-gpt': {
+      id: 'nano-gpt',
+      name: 'NanoGPT',
+      models: {
+        'meta/muse-spark-1.3': {
+          id: 'meta/muse-spark-1.3',
+          reasoning: true,
+          tool_call: true,
+          reasoning_options: [{ type: 'effort', values: ['minimal', 'low', 'medium', 'high', 'xhigh'] }],
+          modalities: { input: ['text', 'image'], output: ['text'] },
+          cost: { input: 9, output: 90 },
+        },
+      },
+    },
+    meta: {
+      id: 'meta',
+      models: {
+        // Bare id — only reachable through the bare-name index fallback.
+        'muse-spark-1.1': { id: 'muse-spark-1.1', reasoning: true, tool_call: true },
+      },
+    },
+  };
+
+  it('upgrades stale curated reasoning flags from models.dev rows', () => {
+    const merged = mergeLocalCatalogProviders(devCatalog);
+    const spark = merged[COMMANDCODE_PROVIDER_ID]?.models?.['meta/muse-spark-1.3'];
+    expect(spark?.reasoning).toBe(true);
+    expect(spark?.reasoning_options).toEqual([
+      { type: 'effort', values: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
+    ]);
+    // Gateway pricing stays curated even when models.dev prices the SKU.
+    expect(spark?.cost).toMatchObject({ input: 1.25, output: 4.25 });
+  });
+
+  it('normalizes enriched rows into reasoning-capable aliases', () => {
+    const merged = mergeLocalCatalogProviders(devCatalog);
+    const models = catalogProviderModels(merged[COMMANDCODE_PROVIDER_ID]!);
+    const spark = models.find((candidate) => candidate.id === 'meta/muse-spark-1.3');
+    expect(spark?.capability.thinking).toBe(true);
+    expect(spark?.capability.image_in).toBe(true);
+    expect(spark?.alwaysThinking).toBe(true);
+    expect(spark?.supportEfforts).toEqual(['low', 'medium', 'high', 'xhigh']);
+    expect(spark?.reasoningKey).toBe('reasoning_content');
+  });
+
+  it('resolves curated ids through the bare-name index fallback', () => {
+    const merged = mergeLocalCatalogProviders(devCatalog);
+    expect(merged[COMMANDCODE_PROVIDER_ID]?.models?.['meta/muse-spark-1.1']?.reasoning).toBe(true);
+  });
+
+  it('keeps curated metadata for ids models.dev does not know', () => {
+    const merged = mergeLocalCatalogProviders(devCatalog);
+    const fast = merged[COMMANDCODE_PROVIDER_ID]?.models?.['deepseek/deepseek-v4-flash-fast'];
+    expect(fast?.reasoning).toBe(false);
+    expect(fast?.interleaved).toBeUndefined();
+  });
+
+  it('enriches live CommandCode rows through the catalog index', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ data: [{ id: 'meta/muse-spark-1.3', context_length: 1_048_576 }] }),
+    );
+    const entry = await resolveConnectCatalogEntry(
+      devCatalog,
+      COMMANDCODE_PROVIDER_ID,
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(entry?.models?.['meta/muse-spark-1.3']).toMatchObject({ reasoning: true });
+  });
+});
+
 describe('fetchCommandCodeModels', () => {
   it('maps the live listing and enriches rows with curated capabilities', async () => {
     const fetchMock = vi.fn(async () =>

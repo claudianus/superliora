@@ -1,7 +1,12 @@
 /**
  * Curated catalog providers that are not (yet) in models.dev.
  */
-import type { Catalog, CatalogProviderEntry } from '@superliora/sdk';
+import type {
+  Catalog,
+  CatalogModelEntry,
+  CatalogProviderEntry,
+  CatalogReasoningOption,
+} from '@superliora/sdk';
 export const CLINEPASS_API_BASE = 'https://api.cline.bot/api/v1';
 export const CLINEPASS_PROVIDER_ID = 'cline-pass';
 export const CLINEPASS_API_KEY_ENV = 'CLINE_API_KEY';
@@ -44,8 +49,11 @@ export const COMMANDCODE_DOC_URL = 'https://commandcode.ai/settings/keys';
 const COMMANDCODE_ANTHROPIC_NPM = '@ai-sdk/anthropic';
 // Offline fallback snapshot of the public /provider/v1/models listing (67
 // models, 2026-09). The live fetch is the source of truth at connect time;
-// these rows keep /login, /model, and `provider catalog` usable offline and
-// fill in capabilities (reasoning toggle, vision, pricing) live metadata omits.
+// these rows keep /login, /model, and `provider catalog` usable offline.
+// Capability fields (reasoning, efforts, modalities, tool calling) are
+// re-derived from models.dev at merge time (see
+// {@link enrichModelFromModelsDev}), so this table never grows stale flags —
+// it only fills ids models.dev does not know plus gateway-specific pricing.
 const COMMANDCODE_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
   'claude-sonnet-5': model('claude-sonnet-5', 'Claude Sonnet 5', 1_000_000, 0, true, { imageIn: true, toggleThinking: true, npm: COMMANDCODE_ANTHROPIC_NPM }),
   'claude-sonnet-4-6': model('claude-sonnet-4-6', 'Claude Sonnet 4.6', 1_000_000, 0, true, { imageIn: true, toggleThinking: true, npm: COMMANDCODE_ANTHROPIC_NPM }),
@@ -147,21 +155,141 @@ export function detectedConnectEnvHints(env: NodeJS.Dict<string> = process.env):
   for (const row of CONNECT_ENV_HINTS) { const value = env[row.env]?.trim(); if (value === undefined || value.length === 0) continue; if (seen.has(row.label)) continue; seen.add(row.label); out.push(row); }
   return out;
 }
+/** True wins; otherwise keep the defined false/undefined over the other. */
+function capabilityFlag(a: boolean | undefined, b: boolean | undefined): boolean | undefined {
+  if (a === true || b === true) return true;
+  if (a === false || b === false) return false;
+  return undefined;
+}
+
+/** Union of `effort` ladders plus every other declared option kind. */
+function mergeReasoningOptions(
+  a: readonly CatalogReasoningOption[] | undefined,
+  b: readonly CatalogReasoningOption[] | undefined,
+): readonly CatalogReasoningOption[] | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  const effortValues: (string | null)[] = [];
+  let sawEffort = false;
+  const others: CatalogReasoningOption[] = [];
+  for (const option of [...a, ...b]) {
+    if (option?.type !== 'effort') {
+      if (option !== undefined && !others.some((row) => row.type === option.type)) others.push(option);
+      continue;
+    }
+    sawEffort = true;
+    for (const value of option.values ?? []) {
+      if (!effortValues.includes(value)) effortValues.push(value);
+    }
+  }
+  if (!sawEffort) return [...a, ...b];
+  return [...others, { type: 'effort' as const, values: effortValues }];
+}
+
+function mergeModalities(
+  a: CatalogModelEntry['modalities'],
+  b: CatalogModelEntry['modalities'],
+): CatalogModelEntry['modalities'] {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return {
+    input: [...new Set([...(a.input ?? []), ...(b.input ?? [])])],
+    output: [...new Set([...(a.output ?? []), ...(b.output ?? [])])],
+  };
+}
+
+function mergeModelsDevRows(a: CatalogModelEntry, b: CatalogModelEntry): CatalogModelEntry {
+  return {
+    reasoning: capabilityFlag(a.reasoning, b.reasoning),
+    tool_call: capabilityFlag(a.tool_call, b.tool_call),
+    reasoning_options: mergeReasoningOptions(a.reasoning_options, b.reasoning_options),
+    interleaved: a.interleaved ?? b.interleaved,
+    modalities: mergeModalities(a.modalities, b.modalities),
+  };
+}
+
+/**
+ * Aggregate models.dev index across every provider row of a catalog snapshot.
+ * The same gateway model appears under many providers (openrouter, nano-gpt,
+ * vercel, …); rows merge with positive evidence winning so one stale provider
+ * row cannot deny a capability models.dev reports elsewhere. Keys are
+ * lowercase full ids plus the bare name after the last `/`.
+ */
+export function buildModelsDevModelIndex(catalog: Catalog): ReadonlyMap<string, CatalogModelEntry> {
+  const index = new Map<string, CatalogModelEntry>();
+  for (const provider of Object.values(catalog)) {
+    for (const [id, entryModel] of Object.entries(provider.models ?? {})) {
+      const keys = [id.toLowerCase()];
+      const slash = id.lastIndexOf('/');
+      if (slash >= 0) keys.push(id.slice(slash + 1).toLowerCase());
+      for (const key of keys) {
+        const existing = index.get(key);
+        index.set(key, existing === undefined ? entryModel : mergeModelsDevRows(existing, entryModel));
+      }
+    }
+  }
+  return index;
+}
+
+/**
+ * Capability truth bridge: models.dev (live snapshot) wins for what a model
+ * *is* — reasoning, reasoning ladder, modalities, tool calling — while the
+ * curated row keeps what belongs to the gateway: display name, pricing, and
+ * context limits. `interleaved` follows the curated `model()` invariant
+ * (reasoning ⇒ `reasoning_content` round-trip) when neither source names a
+ * field explicitly.
+ */
+function enrichModelFromModelsDev(
+  entryModel: LocalCatalogModel,
+  index: ReadonlyMap<string, CatalogModelEntry> | undefined,
+): LocalCatalogModel {
+  if (index === undefined || index.size === 0) return entryModel;
+  const id = typeof entryModel.id === 'string' ? entryModel.id : '';
+  if (id.length === 0) return entryModel;
+  const slash = id.lastIndexOf('/');
+  const dev =
+    index.get(id.toLowerCase()) ??
+    (slash >= 0 ? index.get(id.slice(slash + 1).toLowerCase()) : undefined);
+  if (dev === undefined) return entryModel;
+  const reasoning = dev.reasoning ?? entryModel.reasoning;
+  const interleaved = dev.interleaved ?? entryModel.interleaved ?? (reasoning === true ? true : undefined);
+  return {
+    ...entryModel,
+    ...(reasoning !== undefined ? { reasoning } : {}),
+    ...(dev.tool_call !== undefined ? { tool_call: dev.tool_call } : {}),
+    ...(dev.reasoning_options !== undefined ? { reasoning_options: dev.reasoning_options } : {}),
+    ...(interleaved !== undefined ? { interleaved } : {}),
+    ...(dev.modalities !== undefined ? { modalities: dev.modalities } : {}),
+  };
+}
+
 export function mergeLocalCatalogProviders(catalog: Catalog): Catalog {
+  const modelsDev = buildModelsDevModelIndex(catalog);
   const merged: Catalog = { ...catalog };
   for (const [id, local] of Object.entries(LOCAL_CATALOG_PROVIDERS)) {
-    const remote = catalog[id]; if (remote === undefined) { merged[id] = local; } else { merged[id] = { ...remote, ...local, models: { ...remote.models, ...local.models } }; }
+    const localEntry: CatalogProviderEntry = {
+      ...local,
+      models: Object.fromEntries(
+        Object.entries(local.models ?? {}).map(([modelId, entryModel]) => [
+          modelId,
+          enrichModelFromModelsDev(entryModel, modelsDev),
+        ]),
+      ),
+    };
+    const remote = catalog[id]; if (remote === undefined) { merged[id] = localEntry; } else { merged[id] = { ...remote, ...localEntry, models: { ...remote.models, ...localEntry.models } }; }
   }
   return merged;
 }
 /**
  * The offline Command Code snapshot is the metadata donor; the live listing is
- * authoritative for which ids exist. Returns `undefined` when the network (or
+ * authoritative for which ids exist, and models.dev (via `modelsDevIndex`)
+ * supplies capability truth on top. Returns `undefined` when the network (or
  * the payload shape) disappoints so callers keep the curated rows.
  */
 export async function fetchCommandCodeModels(
   signal?: AbortSignal,
   fetchImpl: typeof fetch = fetch,
+  modelsDevIndex?: ReadonlyMap<string, CatalogModelEntry>,
 ): Promise<Readonly<Record<string, LocalCatalogModel>> | undefined> {
   try {
     const res = await fetchImpl(COMMANDCODE_MODELS_URL, {
@@ -184,12 +312,15 @@ export async function fetchCommandCodeModels(
           ? row.context_length
           : curated?.limit?.context;
       if (context === undefined) continue;
-      models[row.id] = {
-        ...curated,
-        id: row.id,
-        ...(typeof row.name === 'string' && row.name.length > 0 ? { name: row.name } : {}),
-        limit: { context },
-      };
+      models[row.id] = enrichModelFromModelsDev(
+        {
+          ...curated,
+          id: row.id,
+          ...(typeof row.name === 'string' && row.name.length > 0 ? { name: row.name } : {}),
+          limit: { context },
+        },
+        modelsDevIndex,
+      );
     }
     return Object.keys(models).length > 0 ? models : undefined;
   } catch {
@@ -199,9 +330,10 @@ export async function fetchCommandCodeModels(
 
 /**
  * Catalog entry the connect flows import from. Command Code's row is
- * refreshed from its public models listing when reachable (live ids win,
- * curated capabilities fill the gaps); every other provider passes through.
- * Returns `undefined` when `catalog` has no such entry and no curated shell.
+ * refreshed from its public models listing when reachable (live ids win;
+ * models.dev supplies capability truth, curated rows fill the gaps); every
+ * other provider passes through. Returns `undefined` when `catalog` has no
+ * such entry and no curated shell.
  */
 export async function resolveConnectCatalogEntry(
   catalog: Catalog,
@@ -212,7 +344,7 @@ export async function resolveConnectCatalogEntry(
   const entry = catalog[providerId];
   if (providerId !== COMMANDCODE_PROVIDER_ID) return entry;
   const base = entry ?? COMMANDCODE_CATALOG_ENTRY;
-  const live = await fetchCommandCodeModels(signal, fetchImpl);
+  const live = await fetchCommandCodeModels(signal, fetchImpl, buildModelsDevModelIndex(catalog));
   if (live === undefined) return base;
   return { ...base, models: { ...live } };
 }

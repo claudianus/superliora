@@ -32,7 +32,9 @@ export {
 export type {
   Catalog,
   CatalogModel,
+  CatalogModelEntry,
   CatalogProviderEntry,
+  CatalogReasoningOption,
   CatalogWireGroup,
   WireProfile,
 } from '@superliora/kosong';

@@ -95,13 +95,17 @@ async function fetchOpenRouterCatalog(
         prompt !== undefined && Number.isFinite(prompt) && completion !== undefined && Number.isFinite(completion)
           ? { input: prompt * 1_000_000, output: completion * 1_000_000 }
           : undefined;
-      const hasTools = Array.isArray(m.supported_parameters) && m.supported_parameters.includes('tools');
+      const supportedParams = Array.isArray(m.supported_parameters) ? m.supported_parameters : [];
+      const hasTools = supportedParams.includes('tools');
       models[m.id] = {
         id: m.id,
         name: typeof m.name === 'string' && m.name.length > 0 ? m.name : undefined,
         limit: ctx !== undefined ? { context: ctx } : undefined,
         tool_call: hasTools ? true : undefined,
-        reasoning: undefined,
+        // OpenRouter advertises reasoning support via the `reasoning`
+        // parameter; without this the fallback catalog shows every model as
+        // non-reasoning while models.dev is down.
+        reasoning: supportedParams.includes('reasoning') ? true : undefined,
         modalities: undefined,
         cost,
       };

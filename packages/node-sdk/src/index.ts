@@ -50,7 +50,9 @@ export type {
   ApplyCatalogProviderOptions,
   Catalog,
   CatalogModel,
+  CatalogModelEntry,
   CatalogProviderEntry,
+  CatalogReasoningOption,
   CatalogWireGroup,
   WireProfile,
 } from '#/catalog';
