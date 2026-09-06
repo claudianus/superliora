@@ -1,1 +1,1 @@
-PLACEHOLDER
+LOAD_FROM:/workspace/ci3862-fixes/READY_scenarios.test.ts
