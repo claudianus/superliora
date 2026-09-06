@@ -1,5 +1,17 @@
 # @superliora/liora
 
+## 0.25.0
+
+### Minor Changes
+
+- Add per-kind analyzer model overrides under [media.analyzer_models] for image, video, audio, and pdf. Pick them in Settings → Media; if the chosen alias cannot serve the kind, selection falls back to the automatic capable model.
+- Add PDF and audio input end to end: drop or paste a .pdf or audio file into the prompt, or read one with ReadMediaFile, and capable models receive it as a native document or audio part.
+
+### Patch Changes
+
+- Unexport unused media helpers and MediaAnalyzerModelsSchema; add ModelCapability.pdf_in to agent-core test fixtures so unused-exports and the test-typecheck ratchet stay green after pdf/audio input.
+- Fix the CommandCode catalog listing GLM-5.3-Flash as non-reasoning; the model is always-on reasoning with low/high/max effort plus image and PDF input.
+
 ## 0.24.1
 
 ### Patch Changes
