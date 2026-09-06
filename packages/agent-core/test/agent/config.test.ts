@@ -1,1 +1,1 @@
-file:///workspace/ci3862-fixes/config_PUSH.ts
+@/tmp/config_restore_content.ts
