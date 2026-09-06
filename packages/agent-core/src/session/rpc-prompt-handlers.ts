@@ -144,6 +144,19 @@ export async function maybeTransformNonVisionMedia(
       },
     });
   }
+  if (result.pathOnlyCount > 0) {
+    await session.rpc.emitEvent({
+      type: 'warning',
+      agentId,
+      code: 'vision_analyzer.path_only',
+      message: `Could not analyze ${result.pathOnlyCount} media attachment(s): no capable analyzer model was available, so path notes were left instead.`,
+      details: {
+        kind:
+          result.pathOnlyKinds.length === 1 ? (result.pathOnlyKinds[0] as string) : 'mixed',
+        count: result.pathOnlyCount,
+      },
+    });
+  }
   return result.parts;
 }
 

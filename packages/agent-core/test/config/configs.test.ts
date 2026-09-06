@@ -423,6 +423,37 @@ audio = ""
     });
   });
 
+  it('round-trips [media.analyzer_fallbacks] per-kind lists', async () => {
+    const dir = makeTempDir();
+    const configPath = join(dir, 'analyzer-fallbacks.toml');
+    const config = parseConfigString(
+      `
+[media]
+non_vision_fallback = "analyze"
+
+[media.analyzer_models]
+pdf = "commandcode/z-ai/glm-5.3-flash"
+
+[media.analyzer_fallbacks]
+pdf = ["commandcode/gemini-3.8-flash", "moonshot/kimi-k2"]
+image = []
+`,
+      configPath,
+    );
+    expect(config.media?.analyzerFallbacks).toEqual({
+      pdf: ['commandcode/gemini-3.8-flash', 'moonshot/kimi-k2'],
+      image: [],
+    });
+
+    await writeConfigFile(configPath, config);
+    const text = await readFile(configPath, 'utf-8');
+    const reloaded = parseConfigString(text, configPath);
+    expect(reloaded.media?.analyzerFallbacks).toEqual({
+      pdf: ['commandcode/gemini-3.8-flash', 'moonshot/kimi-k2'],
+      image: [],
+    });
+  });
+
   it('parses and round-trips provider api key pools', async () => {
     const dir = makeTempDir();
     const configPath = join(dir, 'provider-api-keys.toml');

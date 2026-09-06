@@ -7,6 +7,7 @@ export {
   modelSupportsMediaKind,
   pathOnlyText,
   selectVisionModel,
+  selectVisionModelCandidates,
   transformMediaForNonVisionModel,
 } from './analyzer';
 export type {

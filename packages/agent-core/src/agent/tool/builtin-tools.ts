@@ -274,7 +274,9 @@ function buildReadMediaVisionFallback(agent: Agent): b.ReadMediaVisionFallback |
         ? { type: 'video_url', videoUrl: { url: dataUrl } }
         : kind === 'audio'
           ? { type: 'audio_url', audioUrl: { url: dataUrl } }
-          : { type: 'image_url', imageUrl: { url: dataUrl } };
+          : kind === 'pdf'
+            ? { type: 'file_url', fileUrl: { url: dataUrl } }
+            : { type: 'image_url', imageUrl: { url: dataUrl } };
     const result = await analyzeMediaPart(
       {
         generate: agent.generate,

@@ -221,8 +221,14 @@ retention_days = 180
 | `analyzer_models.video` | `string` | — | Model alias preferred as the video analyzer |
 | `analyzer_models.audio` | `string` | — | Model alias preferred as the audio analyzer |
 | `analyzer_models.pdf` | `string` | — | Model alias preferred as the PDF (document) analyzer |
+| `analyzer_fallbacks.image` | `string[]` | — | Ordered fallback aliases for image analysis, tried after `analyzer_models.image` |
+| `analyzer_fallbacks.video` | `string[]` | — | Ordered fallback aliases for video analysis, tried after `analyzer_models.video` |
+| `analyzer_fallbacks.audio` | `string[]` | — | Ordered fallback aliases for audio analysis, tried after `analyzer_models.audio` |
+| `analyzer_fallbacks.pdf` | `string[]` | — | Ordered fallback aliases for PDF analysis, tried after `analyzer_models.pdf` |
 
 Each `analyzer_models.*` value is a model alias such as `commandcode/z-ai/glm-5.3-flash`. A configured alias wins over automatic analyzer selection for that kind. If the alias cannot serve the kind — unknown alias, provider without credentials, unhealthy route, or missing input capability — SuperLiora silently falls back to automatic selection (current model first, then same provider, then the first capable model), so a stale entry never blocks a prompt. An empty string means auto.
+
+Each `analyzer_fallbacks.*` value is an ordered alias list. Candidates are tried in order: the primary `analyzer_models.*` alias, then each fallback, then automatic selection. An entry that cannot serve the kind is skipped, and if an analyzer call fails or returns nothing, the next candidate is tried. Only when every candidate fails does the attachment degrade to a path note.
 
 Example:
 
@@ -233,6 +239,9 @@ non_vision_fallback = "analyze"
 [media.analyzer_models]
 pdf = "commandcode/z-ai/glm-5.3-flash"
 audio = "commandcode/gemini-3.8-flash"
+
+[media.analyzer_fallbacks]
+pdf = ["commandcode/gemini-3.8-flash", "moonshot/kimi-k2"]
 ```
 
 The same settings are editable in the TUI under Settings → Media (`/settings`), and `/media` changes the fallback policy directly.

@@ -55,12 +55,19 @@ import readMediaDescriptionHead from './read-media.md?raw';
 const MAX_MEDIA_MEGABYTES = 100;
 const MAX_MEDIA_BYTES = MAX_MEDIA_MEGABYTES * 1024 * 1024;
 
+const MEDIA_KIND_NOUN: Record<'image' | 'video' | 'audio' | 'pdf', string> = {
+  image: 'Image',
+  video: 'Video',
+  audio: 'Audio',
+  pdf: 'PDF',
+};
+
 export type VideoUploadInput = ProviderVideoUploadInput;
 
 export type VideoUploader = (input: VideoUploadInput) => Promise<VideoURLPart>;
 
 export interface ReadMediaVisionFallbackInput {
-  readonly kind: 'image' | 'video' | 'audio';
+  readonly kind: 'image' | 'video' | 'audio' | 'pdf';
   /** Data URL of the media payload read from disk. */
   readonly dataUrl: string;
   readonly mimeType: string;
@@ -299,7 +306,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
    * fails. Never errors — the tool stays useful on text-only models.
    */
   private async runVisionFallback(
-    kind: 'image' | 'video' | 'audio',
+    kind: 'image' | 'video' | 'audio' | 'pdf',
     mimeType: string,
     safePath: string,
   ): Promise<ExecutableToolResult> {
@@ -307,7 +314,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
     if (fallback === undefined) {
       // Legacy behavior when the feature is not wired (policy 'block' or no
       // provider manager): keep the explicit capability error.
-      const capability = kind;
+      const capability = kind === 'pdf' ? 'PDF' : kind;
       return {
         isError: true,
         output:
@@ -331,7 +338,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
         return { output: [{ type: 'text', text: analysis }], isError: false };
       }
     }
-    const noun = kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : 'Image';
+    const noun = MEDIA_KIND_NOUN[kind];
     return {
       output: [
         {
@@ -382,12 +389,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
         return await this.runVisionFallback('audio', fileType.mimeType, safePath);
       }
       if (fileType.kind === 'document' && !this.capabilities.pdf_in) {
-        return {
-          isError: true,
-          output:
-            `The current model does not support PDF input. ` +
-            `Tell the user to use a model with PDF input capability.`,
-        };
+        return await this.runVisionFallback('pdf', fileType.mimeType, safePath);
       }
 
       const stat = await this.kaos.stat(safePath);
