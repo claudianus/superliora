@@ -157,11 +157,11 @@ export function formatVideoPlaceholder(id: number, label: string): string {
   return `[video #${String(id)} ${sanitizeVideoLabel(label)}]`;
 }
 
-export function formatFilePlaceholder(id: number, label: string): string {
+function formatFilePlaceholder(id: number, label: string): string {
   return `[file #${String(id)} ${sanitizeVideoLabel(label)}]`;
 }
 
-export function formatAudioPlaceholder(id: number, label: string): string {
+function formatAudioPlaceholder(id: number, label: string): string {
   return `[audio #${String(id)} ${sanitizeVideoLabel(label)}]`;
 }
 
