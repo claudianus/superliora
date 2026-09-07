@@ -85,13 +85,17 @@ export interface RunSubagentOptions {
   readonly modelAlias?: string;
   /**
    * One-shot finishing grace: when the hard wall-clock deadline fires, re-arm
-   * once for this long instead of aborting. Job workers use it so a run in
-   * its finishing phase can land commits and a summary instead of being cut
-   * down at the finish line (observed: 30m deadline killed jobs in
-   * `last_phase: finishing`).
+   * once for this long instead of aborting. Job workers use it because the
+   * observed kill landed at 30m with the job in `last_phase: finishing` and
+   * its work uncommitted. Note this is a deadline extension, not a phase
+   * gate: whatever child is still running at the hard deadline gets the one
+   * window — a healthy worker was already steered into finishing mode at
+   * T-5m of the soft budget (subagent-telemetry), so the grace is its
+   * wrap-up time. A wedged child also gets it, and is still killed at
+   * deadline + grace: the wedge guarantee stays bounded, only longer.
    */
   readonly deadlineGraceOnceMs?: number;
-  /** Called once when the finishing grace is granted (user-visible notice). */
+  /** Called once when the grace is granted (conductor-visible job notice). */
   readonly notifyDeadlineGrace?: () => void;
   /**
    * Permission mode for the spawned child. Job workers run yolo inside their
