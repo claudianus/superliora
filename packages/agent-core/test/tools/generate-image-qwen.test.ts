@@ -205,6 +205,7 @@ describe('GenerateImageTool end-to-end (mock fetch)', () => {
       writeBytes: async (path: string, bytes: Uint8Array) => {
         written.path = path;
         written.bytes = Buffer.from(bytes);
+        return bytes.length;
       },
     });
     const tool = new GenerateImageTool(kaos, PERMISSIVE_WORKSPACE, {

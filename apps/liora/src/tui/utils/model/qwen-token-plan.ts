@@ -94,7 +94,7 @@ export const QWEN_TOKEN_PLAN_CN_ANTHROPIC_BASE_URL =
   'https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic';
 
 /** URL path segment identifying the Anthropic-compatible endpoint. */
-export const QWEN_TOKEN_PLAN_ANTHROPIC_PATH = '/apps/anthropic';
+const QWEN_TOKEN_PLAN_ANTHROPIC_PATH = '/apps/anthropic';
 
 /**
  * Returns the provider wire (`type`) a Token Plan base URL implies: the
