@@ -30,7 +30,7 @@
  */
 
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -1724,9 +1724,25 @@ describe('PromptService durable queue', () => {
 
     const crashed = newSvc(bridge, bus);
     await crashed.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'one' }] }));
-    await crashed.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'two' }] }));
-    await crashed.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'three' }] }));
-    await waitUntil(() => existsSync(sidecarPath()), 'sidecar written');
+    const second = await crashed.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'two' }] }));
+    const third = await crashed.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'three' }] }));
+    // The sidecar write is fire-and-forget; "file exists" can observe the
+    // intermediate [two] state before the [two,three] rename lands. Under
+    // some scheduler timings the restarted instance would then hydrate a
+    // short queue and let 'four' jump it. Wait for the durable state that
+    // this recovery test is actually about: both queued prompts present.
+    await waitUntil(() => {
+      if (!existsSync(sidecarPath())) return false;
+      try {
+        const raw = JSON.parse(readFileSync(sidecarPath(), 'utf-8')) as {
+          prompts: Array<{ promptId: string }>;
+        };
+        const ids = new Set(raw.prompts.map((entry) => entry.promptId));
+        return ids.has(second.prompt_id) && ids.has(third.prompt_id);
+      } catch {
+        return false;
+      }
+    }, 'sidecar holds two + three');
 
     // Fresh instance = simulated restart: empty in-memory queues, same
     // session dir. The sidecar still holds prompts two and three.

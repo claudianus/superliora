@@ -79,6 +79,14 @@ export class PromptService
   private readonly _hydratedSids = new Set<string>();
 
   /**
+   * Tail of the serialized sidecar-persist chain. Rapid submits enqueue
+   * several fire-and-forget writes; without ordering, concurrent
+   * tmp→rename passes interleave on the shared tmp path and the durable
+   * queue can end up corrupt or rolled back to a stale snapshot.
+   */
+  private _persistTail: Promise<void> = Promise.resolve();
+
+  /**
    * Per-session shadow of `model` / `thinking` / `permissionMode` /
    * `planMode`. Absent until first `submit` bootstraps. See
    * `_bootstrapAgentState` + `_applyAgentState`.
@@ -694,12 +702,17 @@ export class PromptService
       if (!key.startsWith(`${sid}\u0000`)) continue;
       states.push(...queue);
     }
-    void writeQueuedPrompts(sessionDir, states).catch((error: unknown) => {
-      this._logger.warn(
-        { sid, err: (error as Error)?.message ?? error },
-        '[prompt-queue] sidecar write failed',
-      );
-    });
+    // Best-effort — an undeletable sidecar must not break the submit path —
+    // but ordered: each snapshot's write starts only after the previous one
+    // settled, so the on-disk queue always reflects the newest snapshot.
+    this._persistTail = this._persistTail
+      .then(() => writeQueuedPrompts(sessionDir, states))
+      .catch((error: unknown) => {
+        this._logger.warn(
+          { sid, err: (error as Error)?.message ?? error },
+          '[prompt-queue] sidecar write failed',
+        );
+      });
   }
 
   private async _startNextQueued(sid: string, agentId = MAIN_AGENT_ID): Promise<void> {
