@@ -17,14 +17,14 @@ function model(
   provider: string;
   model: string;
   maxContextSize: number;
-  capabilities: readonly string[];
+  capabilities: string[];
   cost: { input: number };
 } {
   return {
     provider: 'test-provider',
     model: name,
     maxContextSize: 128_000,
-    capabilities,
+    capabilities: [...capabilities],
     cost: { input: inputCost },
   };
 }

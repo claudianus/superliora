@@ -760,7 +760,7 @@ export interface RunPushRemoteJobInput {
  * user-gated upstream (PushJob force_user_confirm) — the executor never
  * re-prompts and never force-pushes.
  */
-export interface JobPushTarget {
+interface JobPushTarget {
   readonly repo: string;
   readonly source_dir?: string;
   readonly branch?: string;
@@ -789,7 +789,7 @@ export function validatePushTargetRepo(repo: string): string | undefined {
   return undefined;
 }
 
-export interface MultiRepoPushTargetResult {
+interface MultiRepoPushTargetResult {
   readonly repo: string;
   readonly ok: boolean;
   readonly detail: string;

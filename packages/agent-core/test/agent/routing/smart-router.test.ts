@@ -37,7 +37,7 @@ function model(
   provider: string;
   model: string;
   maxContextSize: number;
-  capabilities: readonly string[];
+  capabilities: string[];
   cost: { input: number };
   fallbackModels?: string[];
 } {
