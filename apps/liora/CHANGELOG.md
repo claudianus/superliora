@@ -1,5 +1,16 @@
 # @superliora/liora
 
+## 0.29.1
+
+### Patch Changes
+
+- Clear the open dependency advisories: transitive-patch overrides lift protobufjs, tar, ws, hono, fast-uri, adm-zip, brace-expansion, browserslist, ip-address, qs, @xmldom/xmldom, body-parser, @hono/node-server, @protobufjs/utf8 and esbuild in the shipped CLI graph; sharp moves to 0.35; the static site's vite/plugin pair moves to the patched vite 8 line so the vitest-resolved vite lands on a non-vulnerable version too (vitest itself stays pinned); and ssh2's unbuilt optional native `cpu-features` is excluded so CLI bundling stays intact. Audit reports zero advisories across production and dev.
+- Treat a successful write-probe creation as the verdict in `isDirWritable`: a probe directory that could not be removed (AV hold, immutable flags) no longer reports the volume as unwritable, keeping sqlite indexes off the OS temp drive.
+- Clarify the job-worker finishing-grace contract: the one-shot re-arm extends the hard wall-clock deadline for whatever child is still running at it, so it is a bounded extension (wedged children still die at deadline + grace), not a `last_phase` gate. Adds lifecycle tests for the re-arm and the plain-guillotine path.
+- Serialize the durable prompt-queue sidecar writes: rapid submissions previously raced several best-effort writes on the same tmp file, and the persisted queue could end up corrupt or rolled back to a stale snapshot, losing restart recovery of the newest prompts.
+- Validate PushJob batch `source_dir` values: each must be a relative path inside the job worktree, so one approved batch can no longer aim the push executor at an arbitrary directory through absolute paths or `..` segments.
+- Sync the Alibaba Token Plan (Qwen Cloud) provider with the current plan docs: add qwen3.8-flash, deepseek-v4-pro-0813, and the qwen-image-3.0-pro / qwen-image-2.0 image models to the offline presets and the image tool, record native video and PDF input on the Qwen vision models, and register the provider on the Anthropic-compatible wire when `QWEN_TOKEN_PLAN_BASE_URL` points at the `/apps/anthropic` endpoint.
+
 ## 0.29.0
 
 ### Minor Changes
