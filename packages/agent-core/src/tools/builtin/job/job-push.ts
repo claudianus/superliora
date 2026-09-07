@@ -789,6 +789,35 @@ export function validatePushTargetRepo(repo: string): string | undefined {
   return undefined;
 }
 
+/**
+ * A batch target's `source_dir` must stay inside the job worktree: `join()`
+ * accepts absolute paths and `..` segments, so one unvalidated target could
+ * point the push machinery (gh repo create, git push) at any directory on
+ * disk — and in batch mode a single Push Preview approval covers the whole
+ * list. Enforce a plain relative worktree path: no drive letter, no UNC, no
+ * leading separator, no `.`/`..` segments, path-safe charset.
+ */
+export function validatePushTargetSourceDir(dir: string): string | undefined {
+  const t = dir.trim();
+  if (t.length === 0) return 'source_dir must not be empty';
+  if (t.length > 512) return 'source_dir too long';
+  if (/^[a-zA-Z]:/.test(t)) return 'source_dir must be relative to the job worktree (no drive letter)';
+  if (t.startsWith('/') || t.startsWith('\\')) {
+    return 'source_dir must be relative to the job worktree (no absolute or UNC path)';
+  }
+  const segments = t.split(/[\\/]/);
+  for (const segment of segments) {
+    if (segment === '..' || segment === '.') {
+      return 'source_dir must stay inside the job worktree (no "." or ".." segments)';
+    }
+    if (segment.length === 0) return 'source_dir must not contain empty path segments';
+    if (!/^[A-Za-z0-9._ -]+$/.test(segment)) {
+      return 'source_dir segments must use letters, digits, dot, dash, underscore, space';
+    }
+  }
+  return undefined;
+}
+
 interface MultiRepoPushTargetResult {
   readonly repo: string;
   readonly ok: boolean;
@@ -838,7 +867,18 @@ export async function runMultiRepoPush(input: {
       results.push({ repo, ok: false, detail: repoErr });
       continue;
     }
-    const cwd = target.source_dir === undefined ? base : join(base, target.source_dir);
+    let cwd = base;
+    if (target.source_dir !== undefined) {
+      // Defense in depth: the tool schema validates each target, but the
+      // executor must never join an untrusted path even when called from
+      // the offload lane directly.
+      const dirErr = validatePushTargetSourceDir(target.source_dir);
+      if (dirErr !== undefined) {
+        results.push({ repo, ok: false, detail: dirErr });
+        continue;
+      }
+      cwd = join(base, target.source_dir);
+    }
 
     const inside = await runGit(cwd, ['rev-parse', '--is-inside-work-tree']);
     if (inside.code !== 0 || !inside.stdout.trim().includes('true')) {

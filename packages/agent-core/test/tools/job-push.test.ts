@@ -12,6 +12,7 @@ import {
   runMultiRepoPush,
   validatePushRefToken,
   validatePushTargetRepo,
+  validatePushTargetSourceDir,
 } from '../../src/tools/builtin/job/job-push';
 import { PushJobTool } from '../../src/tools/builtin/job/job-tools';
 import { guardWorkerShellCommand } from '../../src/tools/builtin/job/job-worker-guards';
@@ -333,6 +334,29 @@ describe('PushJobTool + dispatch', () => {
     expect(String(out.output)).toMatch(/Push held|force_user_confirm/i);
   });
 
+  it('rejects an escaping source_dir target before dispatching any push', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'ship', kind: 'implement' });
+    patchJob(store, job.id, { worktreePath: '/tmp/wt' });
+    const tool = new PushJobTool(store);
+    const exec = tool.resolveExecution({
+      job_id: job.id,
+      approve: true,
+      force_user_confirm: true,
+      targets: [{ repo: 'owner/x', source_dir: '../../etc' }],
+    });
+    if (exec.isError) throw new Error('resolve failed');
+    const out = await exec.execute({
+      turnId: 't',
+      toolCallId: 'c',
+      signal: new AbortController().signal,
+    });
+    expect(out.isError).toBe(true);
+    expect(String(out.output)).toMatch(/source_dir must stay inside the job worktree/);
+    // No kind=push job was created — the bad target aborted the dispatch.
+    expect(listJobs(store).some((j) => j.kind === 'push')).toBe(false);
+  });
+
   it('dispatches kind=push offload on user approve', async () => {
     const store = memoryStore();
     const source = createJob(store, { title: 'ship', kind: 'implement' });
@@ -484,5 +508,44 @@ describe('multi-repo batch push', () => {
     expect(validatePushTargetRepo('https://github.com/a/b')).toBeDefined();
     expect(validatePushTargetRepo('a/b/c')).toBeDefined();
     expect(validatePushTargetRepo('')).toBeDefined();
+  });
+
+  it('validates source_dir stays inside the worktree', () => {
+    expect(validatePushTargetSourceDir('webgpu-raytracer')).toBeUndefined();
+    expect(validatePushTargetSourceDir('packages/cli')).toBeUndefined();
+    expect(validatePushTargetSourceDir('apps/my project')).toBeUndefined();
+    expect(validatePushTargetSourceDir('..')).toBeDefined();
+    expect(validatePushTargetSourceDir('../outside')).toBeDefined();
+    expect(validatePushTargetSourceDir('a/../../b')).toBeDefined();
+    expect(validatePushTargetSourceDir('/etc/passwd')).toBeDefined();
+    expect(validatePushTargetSourceDir('C:\\evil')).toBeDefined();
+    expect(validatePushTargetSourceDir('\\\\nas\\share')).toBeDefined();
+    expect(validatePushTargetSourceDir('a//b')).toBeDefined();
+    expect(validatePushTargetSourceDir('.hidden')).toBeUndefined();
+    expect(validatePushTargetSourceDir('')).toBeDefined();
+  });
+
+  it('rejects escaping source_dir targets without touching the escaped path', async () => {
+    const store = memoryStore();
+    const source = createJob(store, { title: 'portfolio batch', kind: 'implement' });
+    patchJob(store, source.id, { worktreePath: '/tmp/wt-multi' });
+    const good = gitRepoRunner();
+    const result = await runMultiRepoPush({
+      pushJob: source,
+      sourceJob: getJob(store, source.id)!,
+      targets: [
+        { repo: 'claudianus/escape', source_dir: '../../outside' },
+        { repo: 'claudianus/abs', source_dir: 'D:\\sneaky' },
+      ],
+      runGit: good.runGit,
+      runGh: good.runGh,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.results.every((r) => !r.ok)).toBe(true);
+    expect(result.results[0]?.detail).toMatch(/worktree/);
+    // No git command was ever run — the escape was rejected before join().
+    expect(good.runGit).not.toHaveBeenCalled();
+    expect(good.runGh).not.toHaveBeenCalled();
   });
 });

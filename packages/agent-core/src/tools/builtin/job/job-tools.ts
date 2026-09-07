@@ -64,6 +64,7 @@ import {
   evaluatePushTrust,
   validatePushRefToken,
   validatePushTargetRepo,
+  validatePushTargetSourceDir,
 } from './job-push';
 import { splitUserMessageIntoJobIntents } from './job-split';
 import { jobTaskTrackCreateFields, resolveJobTaskTrack } from './job-task-track';
@@ -1635,6 +1636,15 @@ export class PushJobTool implements BuiltinTool<z.infer<typeof PushJobInputSchem
                 isError: true,
                 output: `Invalid PushJob target ${JSON.stringify(target.repo)}: ${repoErr}`,
               };
+            }
+            if (target.source_dir !== undefined) {
+              const dirErr = validatePushTargetSourceDir(target.source_dir);
+              if (dirErr !== undefined) {
+                return {
+                  isError: true,
+                  output: `Invalid PushJob target source_dir ${JSON.stringify(target.source_dir)}: ${dirErr}`,
+                };
+              }
             }
             if (target.branch !== undefined) {
               const branchErr = validatePushRefToken(target.branch, 'target branch');
