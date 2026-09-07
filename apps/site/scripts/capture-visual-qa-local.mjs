@@ -19,7 +19,8 @@ const base = process.env.BASE_URL ?? 'http://127.0.0.1:4176/superliora/';
 const chrome =
   process.env.CHROME_PATH ??
   'C:\\Users\\Administrator\\.cloakbrowser\\chromium-146.0.7680.177.5\\chrome.exe';
-const heroWait = '.hero-band--cinematic, .hero-layout, .product-band, .product-frame__body, .tui-chrome';
+// Landing is mounted once the fixed header and the first scroll-revealed section exist.
+const mountedWait = 'header, #flow, #install';
 
 mkdirSync(out, { recursive: true });
 
@@ -40,23 +41,21 @@ async function shot(name, opts = {}) {
     throw new Error(`${name}: HTTP ${String(res.status())}`);
   }
   if (opts.wait) await page.waitForSelector(opts.wait, { timeout: 15000 });
-  if (opts.scrollY) await page.evaluate((y) => window.scrollBy(0, y), opts.scrollY);
-  if (opts.click) {
-    await page.locator(opts.click).first().click({ timeout: 10000 });
-    await page.waitForTimeout(400);
+  if (opts.scrollTo) {
+    await page.locator(opts.scrollTo).scrollIntoViewIfNeeded();
   }
   await page.waitForTimeout(opts.delay ?? 800);
   if (opts.probe) {
     const probe = await page.evaluate(() => ({
-      theme: document.documentElement.dataset.theme,
-      colorScheme: getComputedStyle(document.documentElement).colorScheme,
-      bg: getComputedStyle(document.documentElement).backgroundColor,
+      lang: document.documentElement.lang,
+      title: document.title,
       bodyBg: getComputedStyle(document.body).backgroundColor,
-      hasNoir: Boolean(document.querySelector('.noir-field:not([hidden])')),
-      hasLiving: Boolean(document.querySelector('.living-field:not([hidden])')),
-      productInHero: Boolean(
-        document.querySelector('.hero-band--cinematic .product-frame, .hero-band--cinematic .tui-chrome'),
-      ),
+      hasHeader: Boolean(document.querySelector('header')),
+      hasNoise: Boolean(document.querySelector('.noise')),
+      hasTui: Boolean(document.querySelector('.tui')),
+      hiddenReveals: Array.from(document.querySelectorAll('.rv:not(.on)')).filter(
+        (el) => el.getBoundingClientRect().top < window.innerHeight,
+      ).length,
     }));
     console.log(name, 'probe', JSON.stringify(probe));
   }
@@ -66,47 +65,22 @@ async function shot(name, opts = {}) {
 }
 
 for (const s of [
-  { name: 'mobile-390.png', viewport: { width: 390, height: 844 }, wait: heroWait },
-  { name: 'tablet-768.png', viewport: { width: 768, height: 1024 }, wait: heroWait },
-  { name: 'desktop-1440.png', viewport: { width: 1440, height: 900 }, wait: heroWait, probe: true },
-  { name: 'wide-2560.png', viewport: { width: 2560, height: 1440 }, wait: heroWait },
+  { name: 'mobile-390.png', viewport: { width: 390, height: 844 }, wait: mountedWait },
+  { name: 'tablet-768.png', viewport: { width: 768, height: 1024 }, wait: mountedWait },
+  { name: 'desktop-1440.png', viewport: { width: 1440, height: 900 }, wait: mountedWait, probe: true },
+  { name: 'wide-2560.png', viewport: { width: 2560, height: 1440 }, wait: mountedWait },
 ]) {
   await shot(s.name, s);
 }
 
-await shot('mobile-390-menu.png', {
-  viewport: { width: 390, height: 844 },
-  wait: heroWait,
-  click: 'button.nav-burger, [data-nav-toggle]',
-});
-await shot('dark-first-paint-1440.png', { wait: heroWait, probe: true });
-await shot('light-home-1440.png', {
-  wait: heroWait,
-  probe: true,
-  init: () => {
-    try {
-      localStorage.setItem('superliora-theme', 'light');
-    } catch {
-      // ignore
-    }
-  },
-});
-await shot('verify-surface.png', { wait: heroWait, scrollY: 420 });
-await shot('en-desktop-1440.png', { url: `${base}en/`, wait: heroWait });
+await shot('first-paint-1440.png', { wait: mountedWait, delay: 0, probe: true });
+await shot('en-desktop-1440.png', { url: `${base}en/`, wait: mountedWait });
+await shot('demo-console-1440.png', { wait: mountedWait, scrollTo: '#demo', delay: 1400 });
+await shot('install-section-1440.png', { wait: mountedWait, scrollTo: '#install', delay: 1200 });
 await shot('docs-getting-started-1440.png', {
   url: `${base}docs/getting-started.html`,
   wait: 'main, article, .mesh-bg',
 });
-
-{
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  await page.goto(base, { waitUntil: 'networkidle' });
-  await page.locator('#features').scrollIntoViewIfNeeded();
-  await page.waitForTimeout(700);
-  await page.screenshot({ path: join(out, 'features-bento-1440.png'), fullPage: false });
-  await page.close();
-  console.log('wrote features-bento-1440.png');
-}
 
 await browser.close();
 console.log('done ->', out);

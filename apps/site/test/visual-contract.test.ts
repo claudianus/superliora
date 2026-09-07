@@ -9,52 +9,52 @@ function read(rel: string): string {
   return readFileSync(resolve(src, rel), 'utf8');
 }
 
-describe('landing visual contract', () => {
-  it('ships a cinematic full-bleed first viewport without ProductFrame card-hero', () => {
-    const css = read('index.css');
-    const sections = read('components/Sections.tsx');
-    expect(sections).toMatch(/hero-band--cinematic|hero-band hero-band--cinematic/);
-    expect(sections).toMatch(/className="hero-copy" eager/);
-    expect(sections).toMatch(/product-band/);
-    expect(sections).toMatch(/ProductFrame/);
-    // ProductFrame lives outside the cinematic hero band.
-    const heroStart = sections.indexOf('hero-band');
-    const heroEnd = sections.indexOf('</section>', heroStart);
-    const heroChunk = sections.slice(heroStart, heroEnd);
-    expect(heroChunk).not.toContain('ProductFrame');
-    expect(heroChunk).toContain('hero-copy');
-    expect(css).toMatch(/\.hero-band--cinematic/);
-    expect(css).toMatch(/\.product-band/);
-    // Old split-hero grid that forced ProductFrame beside copy is retired.
-    expect(css).not.toContain('grid-template-columns: minmax(0, 0.88fr) minmax(32rem, 1.12fr)');
+describe('conductor landing visual contract', () => {
+  it('mounts the story in section order under a locale provider and fixed header', () => {
+    const app = read('landing/App.tsx');
+    expect(app).toContain('LocaleProvider');
+    let pos = -1;
+    for (const comp of ['Header', 'Hero', 'Flow', 'ControlRoom', 'Systems', 'Surfaces', 'Install', 'Footer']) {
+      const at = app.indexOf(`<${comp}`);
+      expect(at, `${comp} mounted`).toBeGreaterThan(pos);
+      pos = at;
+    }
+    const header = read('landing/components/Header.tsx');
+    expect(header).toContain('fixed inset-x-0 top-0');
+    expect(header).toContain('scroll progress');
   });
 
-  it('separates Features / Usage / Workflow / Install as distinct bands', () => {
-    const sections = read('components/Sections.tsx');
-    expect(sections).toContain('section-band--features');
-    expect(sections).toContain('section-band--usage');
-    expect(sections).toContain('section-band--workflow');
-    expect(sections).toContain('section-band--install');
-    expect(sections).toContain('data-cta="install"');
-    expect(sections).toContain('btn-pulse');
+  it('reveals sections on scroll and never leaves them stuck invisible', () => {
+    const css = read('landing/landing.css');
+    const reveal = read('landing/components/shared.tsx');
+    expect(reveal).toContain('IntersectionObserver');
+    expect(reveal).toMatch(/cn\(\s*"rv", on && "on"/);
+    expect(css).toMatch(/\.rv\.on\s*\{[^}]*opacity:\s*1/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.rv\s*\{[^}]*opacity:\s*1/s);
   });
 
-  it('wires motion, copy reward, and reduced-motion kill switches', () => {
-    const css = read('index.css');
-    const copy = read('components/CopyButton.tsx');
-    const reveal = read('components/Reveal.tsx');
-    expect(copy).toContain('copy-reward');
-    expect(copy).toContain('data-copied');
-    expect(reveal).toContain('motionEnabled');
-    expect(css).toContain('@media (prefers-reduced-motion: reduce)');
-    expect(css).toContain("html[data-motion='off']");
-    expect(css).toContain('copy-burst');
-    expect(css).toMatch(/animation:\s*none/);
+  it('wires install copy through the clipboard hook with a focus fallback', () => {
+    const shared = read('landing/components/shared.tsx');
+    expect(shared).toContain('navigator.clipboard.writeText');
+    expect(shared).toContain('execCommand("copy")');
+    expect(read('landing/components/Hero.tsx')).toContain('useCopy');
+    expect(read('landing/components/Install.tsx')).toContain('useCopy');
   });
 
-  it('honors forced-colors fallbacks for atmosphere layers', () => {
-    const css = read('index.css');
-    expect(css).toContain('@media (forced-colors: active)');
-    expect(css).toMatch(/forced-colors:\s*active[\s\S]*\.noir-field/);
+  it('pauses the TUI replay for reduced-motion visitors', () => {
+    const tui = read('landing/tui/TuiEmulator.tsx');
+    expect(tui).toContain('prefers-reduced-motion');
+    expect(tui).toMatch(/if \(cancelled \|\| reduced\) return/);
+  });
+
+  it('runs the hero replay and the demo console on the same gold stage', () => {
+    expect(read('landing/components/Hero.tsx')).toContain('t.hero.installCmd');
+    expect(read('landing/components/Hero.tsx')).toContain('<TuiEmulator');
+    const css = read('landing/landing.css');
+    expect(css).toContain('.noise');
+    expect(css).toContain('.tui');
+    const demo = read('landing/components/ControlRoom.tsx');
+    expect(demo).toContain('"tui scan');
+    expect(demo).toContain('OverlayShell');
   });
 });

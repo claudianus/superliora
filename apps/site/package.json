@@ -22,9 +22,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "motion": "^13.0.0",
+    "clsx": "2.1.1",
+    "lucide-react": "^1.42.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "tailwind-merge": "3.4.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.4",
