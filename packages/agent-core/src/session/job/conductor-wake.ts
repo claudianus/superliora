@@ -9,7 +9,7 @@
 
 import type { Agent } from '../../agent';
 import type { PromptOrigin } from '../../agent/context';
-import { listUnreadJobInbox } from '../../tools/builtin/job/job-inbox';
+import { listUnreadJobInbox, type JobInboxEvent } from '../../tools/builtin/job/job-inbox';
 import type { ToolStore } from '../../tools/store';
 
 export const CONDUCTOR_WAKE_ORIGIN: PromptOrigin = {
@@ -36,12 +36,18 @@ export const CONDUCTOR_WAKE_PROMPT = [
  */
 const wakeRecheckArmed = new WeakSet<Agent>();
 /**
- * Coalescing window: a burst of blocked/failed job notices landing within this
- * window collapses into a single wake turn instead of one turn per notice
- * (otherwise a multi-job stall floods the Conductor with routing passes).
+ * Coalescing record: the unread-inbox signature each agent's last wake turn
+ * claimed. A burst of blocked/failed job notices triggers one routing turn —
+ * requests while that same unread set is still pending (wake turn running, or
+ * its desk injector failed to mark the cards read) cannot start another turn.
+ * A genuinely new notice changes the signature and wakes again immediately.
+ * Keyed per agent so concurrent sessions never suppress each other's wakes.
  */
-const WAKE_COALESCE_WINDOW_MS = 30_000;
-let lastWakeTurnAtMs = 0;
+const lastWokenInboxSignature = new WeakMap<Agent, string>();
+
+function unreadInboxSignature(events: readonly JobInboxEvent[]): string {
+  return events.map((event) => event.id).join(',');
+}
 
 export function requestConductorWake(input: {
   readonly agent: Agent;
@@ -50,13 +56,14 @@ export function requestConductorWake(input: {
   const { agent, store } = input;
   if (agent.type !== 'main') return;
   try {
-    if (listUnreadJobInbox(store).length === 0) return;
-    // Time-based coalescing: suppress follow-up wakes within the window so a
-    // burst of job notices triggers one routing turn, not one per notice.
-    const nowMs = Date.now();
-    if (nowMs - lastWakeTurnAtMs < WAKE_COALESCE_WINDOW_MS && agent.turn.hasActiveTurn === false) {
-      return;
-    }
+    const unread = listUnreadJobInbox(store);
+    if (unread.length === 0) return;
+    // Coalescing: one wake turn per unread set, not one per notice. The wake
+    // turn's desk injector marks these cards read in the same turn, so an
+    // unchanged signature means a turn already claimed (or is running for)
+    // exactly these notices.
+    const signature = unreadInboxSignature(unread);
+    if (lastWokenInboxSignature.get(agent) === signature) return;
     if (agent.turn.hasActiveTurn) {
       // Coalescing: the running turn's per-step inject cycle usually surfaces
       // the notice. For the gap between the final inject and turn end, arm a
@@ -79,7 +86,7 @@ export function requestConductorWake(input: {
       void settled.then(recheck, recheck);
       return;
     }
-    lastWakeTurnAtMs = nowMs;
+    lastWokenInboxSignature.set(agent, signature);
     agent.turn.prompt([{ type: 'text', text: CONDUCTOR_WAKE_PROMPT }], CONDUCTOR_WAKE_ORIGIN);
   } catch {
     // Wake is best-effort: never throw into ledger/inbox/completion paths.
