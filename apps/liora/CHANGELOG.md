@@ -1,5 +1,23 @@
 # @superliora/liora
 
+## 0.29.0
+
+### Minor Changes
+
+- Route model selection to models the user configured: unset loop roles inherit the session model, workers inherit the Conductor model by default, and media analysis only uses configured analyzers unless `media.analyzer_auto_scan` is on. Smart Auto (`/model auto`) keeps catalog roaming.
+- Add batch publish to PushJob: pass `targets[]` (repo, branch, source_dir, pages) to create missing GitHub repos and push several repos from one job, still under the user confirmation gate.
+
+### Patch Changes
+
+- Keep sizable runtime data on the relocated data home: installer sidecars (winget, shell-vibe, terminal), ripgrep, credentials, and smart-router outcomes now follow `home.redirect`, and repo-index / codemap stay on the data home when the drive accepts writes.
+- Stop exporting the batch-push types that no module imports.
+- Stop job workers from stalling and dying mid-finish: workers run with auto-approval inside their isolated worktree, and the 30m wall-clock deadline now grants a one-shot 5-minute finishing window before aborting.
+- Break the job-worker blocked → resume → replace loop: the spawn progress stall window now exceeds the LLM idle timeout so workers waiting on a slow model are no longer falsely flagged as stalled, and conductor wakes coalesce per unread inbox set so a burst of job notices triggers one routing turn instead of one per notice, while genuinely new notices still wake the conductor immediately.
+- Add Media routing (multimodal) to the Model routing settings picker. Search "multimodal" or "멀티모달" in settings to find it.
+- Stop provider fallback hops from cooling down every alternate model when a shared timeout abort kills the route, so healthy fallbacks stay usable after a hung primary.
+- Fix the Script tool reporting "script timed out after undefinedms" when invoked through paths that bypass schema defaults.
+- Fix auto skill distillation failing when the model returns an explicit null for the existing-skill reference.
+
 ## 0.28.0
 
 ### Minor Changes
