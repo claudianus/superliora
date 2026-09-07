@@ -206,10 +206,17 @@ describe('Oh My Posh inbox PSReadLine guard', () => {
     );
 
     try {
-      const result = spawnSync(exe, ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', script], {
-        encoding: 'utf8',
-        timeout: 20_000,
-      });
+      // -ExecutionPolicy Bypass: a stock Windows host runs Restricted, which
+      // blocks -File on any local script; the guard logic under test must not
+      // depend on the host's policy (CI images happen to run RemoteSigned).
+      const result = spawnSync(
+        exe,
+        ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script],
+        {
+          encoding: 'utf8',
+          timeout: 20_000,
+        },
+      );
       const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
       if (output.includes('SKIP_NO_PSREADLINE') || output.includes('SKIP_POSITIONAL')) return;
       expect(result.status, output).toBe(0);
