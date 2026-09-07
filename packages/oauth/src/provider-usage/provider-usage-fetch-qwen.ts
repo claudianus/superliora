@@ -8,7 +8,15 @@ export async function fetchQwenTokenPlanUsage(
   baseUrl?: string,
   opts: { timeoutMs?: number } = {},
 ): Promise<ProviderUsageSnapshot> {
-  const base = (baseUrl ?? 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '');
+  // The /models probe lives on the OpenAI-compatible root. When the user
+  // connected through the Anthropic-compatible endpoint, derive the same
+  // region's compatible-mode base so quota headers still resolve.
+  const raw =
+    baseUrl ?? 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
+  const normalized = raw.includes('/apps/anthropic')
+    ? raw.replace('/apps/anthropic', '/compatible-mode/v1')
+    : raw;
+  const base = normalized.replace(/\/+$/, '');
   const controller = new AbortController();
   const timer = setTimeout(() =>{  controller.abort(); }, opts.timeoutMs ?? 8000);
   try {

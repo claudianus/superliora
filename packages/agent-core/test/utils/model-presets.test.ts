@@ -409,6 +409,18 @@ describe('model-presets — models.dev benchmarks', () => {
     assert.equal(classifyModelTier('kimi-k2.5', { inputCostPerM: 0 }), 'cheap');
   });
 
+  it('scoreModelQuality keeps qwen flash SKUs below their series flagship', () => {
+    const flash = scoreModelQuality('qwen3.8-flash', {
+      supportsTools: true,
+      supportsReasoning: true,
+    });
+    const max = scoreModelQuality('qwen3.8-max', {
+      supportsTools: true,
+      supportsReasoning: true,
+    });
+    assert.ok(max > flash, `expected qwen3.8-max (${max}) > qwen3.8-flash (${flash})`);
+  });
+
   it('scoreModelQuality demotes stale kimi-k2.5 below newer kimi', () => {
     const stale = scoreModelQuality('kimi-k2.5', { supportsTools: true, supportsReasoning: true });
     const newer = scoreModelQuality('kimi-k2.6', { supportsTools: true, supportsReasoning: true });

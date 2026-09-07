@@ -20,11 +20,13 @@ import { openModelPickerForProvider } from './model-picker';
 
 /**
  * Connects Alibaba Token Plan (Qwen Cloud) — a first-class multimodal
- * subscription supporting text generation, image generation (wan2.7-image),
+ * subscription supporting text generation (qwen3.8-max default, qwen3.8-flash,
+ * qwen3.7, GLM, DeepSeek), image generation (wan2.7 / qwen-image series),
  * video generation (happyhorse-1.1), server-side harness tools
  * (web_search via enable_search on Chat Completions, …), and visual
  * understanding. The user only needs to provide their dedicated API key
- * (sk-sp-xxxxx format).
+ * (sk-sp-xxxxx format). The provider registers on the Anthropic wire when
+ * the effective base URL points at the `/apps/anthropic` endpoint.
  *
  * Model names and metadata resolve live from the models.dev catalog
  * (`alibaba-token-plan` / `alibaba-token-plan-cn`); the built-in presets are

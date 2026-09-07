@@ -595,6 +595,9 @@ const FAMILY_QUALITY: readonly { readonly pattern: RegExp; readonly score: numbe
   { pattern: /grok[-_]?3\b/i, score: 70 },
   { pattern: /grok[-_]?4\b|grok/i, score: 70 },
   { pattern: /mistral[-_]?large|codestral/i, score: 72 },
+  // Flash SKUs are the cheap/fast end of their series — score them before
+  // the series-wide patterns so they never ride the flagship prior.
+  { pattern: /qwen[-_.]?3\.[5-8][-_.]?flash/i, score: 66 },
   { pattern: /qwen3\.8|qwen.*coder|qwen.*max/i, score: 82 },
   { pattern: /qwen3\.7/i, score: 76 },
   { pattern: /glm[-_]?5/i, score: 80 },

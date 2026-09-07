@@ -81,6 +81,30 @@ export const QWEN_TOKEN_PLAN_BASE_URL =
 export const QWEN_TOKEN_PLAN_CN_BASE_URL =
   'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1';
 
+/**
+ * Anthropic-compatible Messages API base URL (global region). Token Plan
+ * speaks both the OpenAI and the Anthropic protocol; point a provider at
+ * this URL (via `QWEN_TOKEN_PLAN_BASE_URL`) to use the Anthropic wire.
+ */
+export const QWEN_TOKEN_PLAN_ANTHROPIC_BASE_URL =
+  'https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic';
+
+/** Anthropic-compatible Messages API base URL (China region). */
+export const QWEN_TOKEN_PLAN_CN_ANTHROPIC_BASE_URL =
+  'https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic';
+
+/** URL path segment identifying the Anthropic-compatible endpoint. */
+export const QWEN_TOKEN_PLAN_ANTHROPIC_PATH = '/apps/anthropic';
+
+/**
+ * Returns the provider wire (`type`) a Token Plan base URL implies: the
+ * Anthropic Messages API under `/apps/anthropic`, otherwise the
+ * OpenAI-compatible Chat Completions endpoint.
+ */
+export function qwenTokenPlanWireForBaseUrl(baseUrl: string): 'anthropic' | 'openai' {
+  return baseUrl.includes(QWEN_TOKEN_PLAN_ANTHROPIC_PATH) ? 'anthropic' : 'openai';
+}
+
 /** Multimodal generation (image) API endpoint. */
 export const QWEN_TOKEN_PLAN_IMAGE_API_URL =
   'https://token-plan.ap-southeast-1.maas.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
@@ -134,23 +158,39 @@ const CORE_HARNESS_TOOLS: readonly string[] = [
   QWEN_HARNESS_TOOLS.webExtractor,
 ];
 
-/** Text generation models available on Token Plan. */
+/**
+ * Text generation models available on Token Plan (Personal plan allowlist,
+ * official docs). Input modalities mirror the models.dev
+ * `alibaba-token-plan` entry: the qwen3.8 series and the plus/flash Qwen
+ * models accept image (and video, and PDF on qwen3.8-max) input directly;
+ * qwen3.7-max and the non-Qwen models are text-only — media attached to
+ * those is delegated by the vision analyzer to a capable model.
+ */
 export const QWEN_TOKEN_PLAN_TEXT_MODELS: readonly QwenTokenPlanModelDef[] = [
   {
     id: 'qwen3.8-max',
     displayName: 'Qwen 3.8 Max',
     maxContextSize: 1_000_000,
     maxOutputSize: 131_072,
-    capabilities: ['thinking', 'tool_use', 'image_in'],
+    capabilities: ['thinking', 'tool_use', 'image_in', 'video_in', 'pdf_in'],
     harnessTools: ALL_HARNESS_TOOLS,
   },
   {
-    // Legacy id; Token Plan still accepts it and routes to qwen3.8-max.
+    // Legacy id; the preview period ended — Token Plan still accepts it and
+    // routes to qwen3.8-max. Prefer configuring `qwen3.8-max` directly.
     id: 'qwen3.8-max-preview',
     displayName: 'Qwen 3.8 Max Preview',
     maxContextSize: 1_000_000,
     maxOutputSize: 131_072,
-    capabilities: ['thinking', 'tool_use', 'image_in'],
+    capabilities: ['thinking', 'tool_use', 'image_in', 'video_in'],
+    harnessTools: ALL_HARNESS_TOOLS,
+  },
+  {
+    id: 'qwen3.8-flash',
+    displayName: 'Qwen 3.8 Flash',
+    maxContextSize: 1_000_000,
+    maxOutputSize: 65_536,
+    capabilities: ['thinking', 'tool_use', 'image_in', 'video_in'],
     harnessTools: ALL_HARNESS_TOOLS,
   },
   {
@@ -166,7 +206,7 @@ export const QWEN_TOKEN_PLAN_TEXT_MODELS: readonly QwenTokenPlanModelDef[] = [
     displayName: 'Qwen 3.7 Plus',
     maxContextSize: 256_000,
     maxOutputSize: 64_000,
-    capabilities: ['thinking', 'tool_use', 'image_in'],
+    capabilities: ['thinking', 'tool_use', 'image_in', 'video_in'],
     harnessTools: ALL_HARNESS_TOOLS,
   },
   {
@@ -174,7 +214,7 @@ export const QWEN_TOKEN_PLAN_TEXT_MODELS: readonly QwenTokenPlanModelDef[] = [
     displayName: 'Qwen 3.6 Flash',
     maxContextSize: 256_000,
     maxOutputSize: 65_536,
-    capabilities: ['thinking', 'tool_use', 'image_in'],
+    capabilities: ['thinking', 'tool_use', 'image_in', 'video_in'],
     harnessTools: [],
   },
   {
@@ -194,6 +234,14 @@ export const QWEN_TOKEN_PLAN_TEXT_MODELS: readonly QwenTokenPlanModelDef[] = [
     harnessTools: [],
   },
   {
+    id: 'deepseek-v4-pro-0813',
+    displayName: 'DeepSeek V4 Pro 0813',
+    maxContextSize: 1_000_000,
+    maxOutputSize: 384_000,
+    capabilities: ['thinking', 'tool_use'],
+    harnessTools: [],
+  },
+  {
     id: 'deepseek-v4-flash-0731',
     displayName: 'DeepSeek V4 Flash',
     maxContextSize: 1_000_000,
@@ -203,10 +251,18 @@ export const QWEN_TOKEN_PLAN_TEXT_MODELS: readonly QwenTokenPlanModelDef[] = [
   },
 ];
 
-/** Image generation models available on Token Plan (Personal plan). */
+/**
+ * Image generation models available on Token Plan. `wan2.7-image` is the
+ * default backend; the `qwen-image-*` series shares the same
+ * multimodal-generation endpoint. The 3.0 flagship is on the Personal
+ * allowlist; the 2.0 series is listed by the Team Edition.
+ */
 export const QWEN_TOKEN_PLAN_IMAGE_MODELS = [
   'wan2.7-image',
   'wan2.7-image-pro',
+  'qwen-image-3.0-pro',
+  'qwen-image-2.0',
+  'qwen-image-2.0-pro',
 ] as const;
 
 /** Video generation models available on Token Plan. */
@@ -326,7 +382,10 @@ export function tokenPlanTextModelsFromCatalog(
     const capabilities: string[] = [];
     if (model.reasoning === true) capabilities.push('thinking');
     if (model.tool_call !== false) capabilities.push('tool_use');
-    if (model.modalities?.input?.includes('image') === true) capabilities.push('image_in');
+    const inputs = model.modalities?.input;
+    if (inputs?.includes('image') === true) capabilities.push('image_in');
+    if (inputs?.includes('video') === true) capabilities.push('video_in');
+    if (inputs?.includes('pdf') === true) capabilities.push('pdf_in');
 
     const output = model.limit?.output;
     defs.push({
@@ -388,12 +447,15 @@ export function applyQwenTokenPlanProvider(
       ? envBaseUrl
       : options.baseUrl ?? QWEN_TOKEN_PLAN_BASE_URL;
   const textModels = options.models ?? QWEN_TOKEN_PLAN_TEXT_MODELS;
+  // Token Plan serves both the OpenAI-compatible Chat Completions endpoint
+  // and the Anthropic Messages API; the configured URL picks the wire.
+  const wire = qwenTokenPlanWireForBaseUrl(baseUrl);
 
   // Register provider.
   config.providers = {
     ...config.providers,
     [QWEN_TOKEN_PLAN_PROVIDER_ID]: {
-      type: 'openai',
+      type: wire,
       baseUrl,
       apiKey,
       apiKeys: [],

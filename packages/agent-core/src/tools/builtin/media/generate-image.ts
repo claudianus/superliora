@@ -6,7 +6,8 @@
  * skill catalog required.
  *
  * Qwen Cloud Token Plan support: uses the multimodal-generation API with
- * wan2.7-image (default) or wan2.7-image-pro. Keys are read from
+ * wan2.7-image (default), wan2.7-image-pro, or the qwen-image series
+ * (qwen-image-3.0-pro, qwen-image-2.0, qwen-image-2.0-pro). Keys are read from
  * QWEN_TOKEN_PLAN_API_KEY or ALIBABA_TOKEN_PLAN_API_KEY (the same service,
  * see models.dev `alibaba-token-plan`).
  */
@@ -50,9 +51,17 @@ export const GenerateImageInputSchema = z.object({
       'Prefer auto. Force only a ready backend (xai → qwen → codex → openai → google). Unavailable force falls back to auto — do not guess qwen/openai.',
     ),
   model: z
-    .enum(['wan2.7-image', 'wan2.7-image-pro'])
+    .enum([
+      'wan2.7-image',
+      'wan2.7-image-pro',
+      'qwen-image-3.0-pro',
+      'qwen-image-2.0',
+      'qwen-image-2.0-pro',
+    ])
     .optional()
-    .describe('Qwen image model (qwen provider only). Defaults to wan2.7-image.'),
+    .describe(
+      'Qwen image model (qwen provider only). Defaults to wan2.7-image; qwen-image-3.0-pro is the newest flagship.',
+    ),
   aspect_ratio: z
     .enum(['1:1', '16:9', '9:16', '3:2', '2:3', '4:3', '3:4', 'auto'])
     .optional()

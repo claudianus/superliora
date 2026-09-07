@@ -13,7 +13,10 @@ import {
   isQwenTokenPlanBaseUrl,
   isTokenPlanCatalogId,
   isTokenPlanProviderId,
+  qwenTokenPlanWireForBaseUrl,
+  QWEN_TOKEN_PLAN_ANTHROPIC_BASE_URL,
   QWEN_TOKEN_PLAN_BASE_URL,
+  QWEN_TOKEN_PLAN_CN_ANTHROPIC_BASE_URL,
   QWEN_TOKEN_PLAN_CN_BASE_URL,
   QWEN_TOKEN_PLAN_IMAGE_MODELS,
   QWEN_TOKEN_PLAN_PROVIDER_ID,
@@ -105,6 +108,13 @@ describe('Qwen Token Plan utilities', () => {
       expect(tools).toContain('t2i_search');
     });
 
+    it('returns all tools for qwen3.8-flash', () => {
+      const tools = getQwenHarnessToolsForModel('qwen3.8-flash');
+      expect(tools).toContain('web_search');
+      expect(tools).toContain('i2i_search');
+      expect(tools).toContain('t2i_search');
+    });
+
     it('returns core tools for qwen3.7-max', () => {
       const tools = getQwenHarnessToolsForModel('qwen3.7-max');
       expect(tools).toContain('web_search');
@@ -127,20 +137,68 @@ describe('Qwen Token Plan utilities', () => {
       expect(QWEN_TOKEN_PLAN_TEXT_MODELS.map((m) => m.id)).toEqual([
         'qwen3.8-max',
         'qwen3.8-max-preview',
+        'qwen3.8-flash',
         'qwen3.7-max',
         'qwen3.7-plus',
         'qwen3.6-flash',
         'glm-5.2',
         'deepseek-v4-pro',
+        'deepseek-v4-pro-0813',
         'deepseek-v4-flash-0731',
       ]);
+    });
+
+    it('mirrors the official input-modality matrix on the presets', () => {
+      const byId = new Map(QWEN_TOKEN_PLAN_TEXT_MODELS.map((m) => [m.id, m.capabilities]));
+      // qwen3.8-max takes image, video, and PDF; the other vision Qwen
+      // models take image and video; qwen3.7-max and non-Qwen are text-only.
+      expect(byId.get('qwen3.8-max')).toEqual(
+        expect.arrayContaining(['image_in', 'video_in', 'pdf_in']),
+      );
+      expect(byId.get('qwen3.8-flash')).toEqual(expect.arrayContaining(['image_in', 'video_in']));
+      expect(byId.get('qwen3.7-plus')).toEqual(expect.arrayContaining(['image_in', 'video_in']));
+      expect(byId.get('qwen3.6-flash')).toEqual(expect.arrayContaining(['image_in', 'video_in']));
+      expect(byId.get('qwen3.7-max')).not.toContain('image_in');
+      expect(byId.get('glm-5.2')).not.toContain('image_in');
+      expect(byId.get('deepseek-v4-pro-0813')).not.toContain('image_in');
     });
 
     it('lists Personal plan image models', () => {
       expect([...QWEN_TOKEN_PLAN_IMAGE_MODELS]).toEqual([
         'wan2.7-image',
         'wan2.7-image-pro',
+        'qwen-image-3.0-pro',
+        'qwen-image-2.0',
+        'qwen-image-2.0-pro',
       ]);
+    });
+  });
+
+  describe('Anthropic-compatible endpoint', () => {
+    it('resolves the wire from the base URL', () => {
+      expect(qwenTokenPlanWireForBaseUrl(QWEN_TOKEN_PLAN_BASE_URL)).toBe('openai');
+      expect(qwenTokenPlanWireForBaseUrl(QWEN_TOKEN_PLAN_ANTHROPIC_BASE_URL)).toBe('anthropic');
+      expect(qwenTokenPlanWireForBaseUrl(QWEN_TOKEN_PLAN_CN_ANTHROPIC_BASE_URL)).toBe('anthropic');
+    });
+
+    it('registers the provider on the Anthropic wire for /apps/anthropic URLs', () => {
+      const config = { providers: {}, models: {} } as never;
+      applyQwenTokenPlanProvider(config, 'sk-sp-test', {
+        baseUrl: QWEN_TOKEN_PLAN_ANTHROPIC_BASE_URL,
+      });
+      const typed = config as {
+        providers: Record<string, { type?: string; baseUrl?: string }>;
+      };
+      const provider = typed.providers[QWEN_TOKEN_PLAN_PROVIDER_ID];
+      expect(provider?.type).toBe('anthropic');
+      expect(provider?.baseUrl).toBe(QWEN_TOKEN_PLAN_ANTHROPIC_BASE_URL);
+    });
+
+    it('keeps the OpenAI wire for the default chat endpoint', () => {
+      const config = { providers: {}, models: {} } as never;
+      applyQwenTokenPlanProvider(config, 'sk-sp-test');
+      const typed = config as { providers: Record<string, { type?: string }> };
+      expect(typed.providers[QWEN_TOKEN_PLAN_PROVIDER_ID]?.type).toBe('openai');
     });
   });
 
@@ -207,7 +265,7 @@ describe('Qwen Token Plan utilities', () => {
               reasoning: true,
               tool_call: true,
               limit: { context: 1_000_000, output: 131_072 },
-              modalities: { input: ['text', 'image'], output: ['text'] },
+              modalities: { input: ['text', 'image', 'video', 'pdf'], output: ['text'] },
             },
             'glm-5.2': {
               id: 'glm-5.2',
@@ -243,6 +301,8 @@ describe('Qwen Token Plan utilities', () => {
       expect(flagship?.capabilities).toContain('thinking');
       expect(flagship?.capabilities).toContain('tool_use');
       expect(flagship?.capabilities).toContain('image_in');
+      expect(flagship?.capabilities).toContain('video_in');
+      expect(flagship?.capabilities).toContain('pdf_in');
       expect(flagship?.maxOutputSize).toBe(131_072);
       // qwen3.8 models get every server-side harness tool.
       expect(flagship?.harnessTools).toContain('web_search');

@@ -279,7 +279,7 @@ Run `liora provider doctor` after editing config or importing providers. It vali
 
 ## Qwen Cloud Token Plan
 
-Qwen Cloud Token Plan is a subscription with a dedicated API key (`sk-sp-` prefix) that covers text chat, image generation, video generation, and visual understanding under one Credits quota.
+Qwen Cloud Token Plan is a subscription with a dedicated API key (`sk-sp-` prefix) that covers text chat, image generation, video generation, visual understanding, speech synthesis / recognition, and Harness tools under one Credits quota.
 
 Set the dedicated key, then connect from the TUI (`/login` → Qwen Cloud (Token Plan)) or let it auto-configure on startup:
 
@@ -287,12 +287,21 @@ Set the dedicated key, then connect from the TUI (`/login` → Qwen Cloud (Token
 export QWEN_TOKEN_PLAN_API_KEY=sk-sp-xxxxxxxxxxxx
 ```
 
-The provider uses the OpenAI-compatible endpoint `https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1` (Singapore / Global; the official Personal Edition region). A China catalog entry (`alibaba-token-plan-cn`) remains available for models.dev compatibility.
+The provider uses the OpenAI-compatible endpoint `https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1` (Singapore / Global; the official Personal Edition region). A China catalog entry (`alibaba-token-plan-cn`) remains available for models.dev compatibility. Token Plan also serves an **Anthropic-compatible** Messages API under the same credentials — point `QWEN_TOKEN_PLAN_BASE_URL` at `https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic` to register the provider on the Anthropic wire instead:
 
-- **Text models** — `qwen3.8-max` (default; `qwen3.8-max-preview` still works and routes to production), `qwen3.7-max`, `qwen3.7-plus`, `qwen3.6-flash`, `glm-5.2`, `deepseek-v4-pro`, `deepseek-v4-flash-0731`.
-- **Harness tools** — On Chat Completions, web search is enabled via `enable_search` for qwen3.7/3.8 harness models. Other server tools (`code_interpreter`, `web_extractor`, image search) require the Responses API and are mutually exclusive with client function calling, so the CLI does not inject them into the agent tool loop.
-- **Image generation** — the `generate_image` tool targets `wan2.7-image` by default; `wan2.7-image-pro` is available through the `model` argument. Media API hosts follow the configured Token Plan chat base URL.
+```sh
+export QWEN_TOKEN_PLAN_BASE_URL=https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic
+```
+
+- **Text models** — `qwen3.8-max` (default), `qwen3.8-flash`, `qwen3.7-max`, `qwen3.7-plus`, `qwen3.6-flash`, `glm-5.2`, `deepseek-v4-pro`, `deepseek-v4-pro-0813`, `deepseek-v4-flash-0731`. The retired id `qwen3.8-max-preview` still works and is routed to production `qwen3.8-max`; prefer the production id in new configs.
+- **Visual understanding** — the qwen3.8 series and `qwen3.7-plus` / `qwen3.6-flash` accept image and video input directly (`qwen3.8-max` also accepts PDF). For text-only plan models (`glm-5.2`, DeepSeek) attach a vision-capable analyzer so screenshots and diagrams are transcribed by a plan model instead of failing: `media.analyzer_models.image = qwen-token-plan/qwen3.7-plus` (see [Configuration files](./config-files.md)).
+- **Harness tools** — the plan ships server-side web search, code interpreter, web scraping, and image search. On Chat Completions, web search is enabled via `enable_search` for the qwen3.7/3.8 harness models (`qwen3.8-max`, `qwen3.8-flash`, `qwen3.7-plus` get the full set; `qwen3.7-max` the core three). The remaining server tools require the Responses API tool entries and are mutually exclusive with client function calling, so the CLI does not inject them into the agent tool loop — the agent's own `WebSearch`/`Bash` tools stay in charge.
+- **Image generation** — the `generate_image` tool targets `wan2.7-image` by default; `wan2.7-image-pro`, `qwen-image-3.0-pro`, `qwen-image-2.0`, and `qwen-image-2.0-pro` are available through the `model` argument. Media API hosts follow the configured Token Plan chat base URL.
 - **Video generation** — the `generate_video` tool uses `happyhorse-1.1` (720P/1080P, 3–15 s, 24 fps MP4): text-to-video by default, `image_path` for image-to-video (first frame), `reference_image_paths` (1–9) for reference-to-video.
+- **Speech models** — `qwen-audio-3.0-tts-plus` (synthesis), `qwen-audio-3.0-asr-flash` (recognition), and `qwen-audio-3.0-realtime-plus` (realtime voice) are part of the plan's Credits pool but are exposed only through the DashScope WebSocket/SDK APIs; SuperLiora does not (yet) call them natively. Multimodal image/video models must use the dedicated `services/aigc/...` endpoints — sending them to the chat endpoint returns `url error` / `model_not_supported`, which is why the media tools above exist.
+- **Quota and billing** — Personal Edition uses a 7-day fixed-window Credits limit (paused until the window resets when exhausted; unused quota does not carry over); Team Edition is monthly per seat. Calls on plan models draw down Credits; `429 Allocated quota exceeded` marks the pause, and the router skips the credential until the window resets. Half-price nights (22:00–08:00 UTC+8) apply to `qwen3.8-max`, `deepseek-v4-pro-0813`, and `deepseek-v4-flash-0731` on the Personal plan.
+
+Keep to the plan rules: Token Plan keys are for interactive use inside agent/coding tools only (no backend automation), the `sk-sp-` key is not interchangeable with regular `sk-`/`sk-ws-` keys, and mixing the plan key with the standard `dashscope-intl.aliyuncs.com` base URL silently re-routes your calls to pay-as-you-go billing.
 
 Credits and plan windows are visible in the Qwen Cloud console; the CLI surfaces rate-limit headers on a best-effort basis. See the [Token Plan overview](https://docs.qwencloud.com/token-plan/overview).
 

@@ -75,6 +75,22 @@ describe('fetchQwenTokenPlanUsage', () => {
     );
   });
 
+  it('derives the compatible-mode base from the Anthropic endpoint URL', async () => {
+    const spy = vi.fn(async () => modelsResponse({}));
+    vi.stubGlobal('fetch', spy);
+
+    await fetchQwenTokenPlanUsage(
+      'qwen-token-plan',
+      'sk-sp-test',
+      'https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic',
+    );
+
+    const [url] = spy.mock.calls[0] as unknown as [string];
+    expect(url).toBe(
+      'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/models',
+    );
+  });
+
   it('reports a friendly error on 401', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 401 })));
 

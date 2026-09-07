@@ -1,7 +1,11 @@
 // ── Qwen Token Plan harness tools ─────────────────────────────────────
-// Official server-side built-in tools (Responses API) that qwen3.7/3.8
-// models invoke automatically. The Chat Completions API cannot carry
-// these tool entries; web search is enabled via `enable_search` instead.
+// Official server-side built-in tools (web_search, code_interpreter,
+// web_extractor, i2i_search, t2i_search). Full tool entries are Responses
+// API only; the Chat Completions API cannot carry them and 400s on
+// injection, so web search is enabled via the documented `enable_search`
+// parameter instead. Matrix per the Token Plan "Integrate Harness tools"
+// doc: qwen3.8-max / qwen3.8-flash / qwen3.7-plus support every tool,
+// qwen3.7-max the core three.
 
 const QWEN_TOKEN_PLAN_URL_MARKER = 'token-plan';
 const QWEN_TOKEN_PLAN_DOMAIN = 'maas.aliyuncs.com';
