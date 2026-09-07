@@ -11,11 +11,20 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 export function isDirWritable(dir: string): boolean {
+  let probe: string;
   try {
-    const probe = mkdtempSync(join(dir, 'writable-probe-'));
-    rmSync(probe, { recursive: true, force: true });
-    return true;
+    probe = mkdtempSync(join(dir, 'writable-probe-'));
   } catch {
     return false;
   }
+  // Creation succeeding is the verdict; removal is cleanup, not a second
+  // gate. An AV hold or immutable-flag race on the just-created probe must
+  // not read as "unwritable" — that would re-park sqlite on the OS temp,
+  // the exact failure this probe replaced. A leftover probe dir is cheap.
+  try {
+    rmSync(probe, { recursive: true, force: true });
+  } catch {
+    // Best-effort cleanup only.
+  }
+  return true;
 }
