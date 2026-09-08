@@ -44,7 +44,11 @@ describe('conductor landing visual contract', () => {
   it('pauses the TUI replay for reduced-motion visitors', () => {
     const tui = read('landing/tui/TuiEmulator.tsx');
     expect(tui).toContain('prefers-reduced-motion');
-    expect(tui).toMatch(/if \(cancelled \|\| reduced\) return/);
+    // reduced-motion visitors must still get a painted terminal: the runner
+    // renders the session end-state as a static frame instead of dead-ending.
+    expect(tui).toMatch(/if \(reduced\) \{/);
+    expect(tui).toMatch(/finalFrame\(locale\)/);
+    expect(tui).not.toMatch(/if \(cancelled \|\| reduced\) return/);
   });
 
   it('runs the hero replay and the demo console on the same gold stage', () => {

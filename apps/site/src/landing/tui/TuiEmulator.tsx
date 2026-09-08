@@ -10,6 +10,25 @@ interface Line {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/* Final on-screen state of the session: reduced-motion users get this as a
+   static frame instead of a dead prompt, so the terminal always shows work. */
+function finalFrame(locale: Parameters<typeof buildSession>[0]): { chips: Chips; lines: Span[][] } {
+  const steps = buildSession(locale) as Step[];
+  const chips: Chips = {
+    model: "opencode-go/kimi-k3",
+    quota: 82,
+    inbox: 0,
+    latency: "—",
+    branch: "main*",
+  };
+  const lines: Span[][] = [];
+  for (const step of steps) {
+    if (step.k === "chips") Object.assign(chips, step.patch);
+    if (step.k === "line") lines.push(step.spans);
+  }
+  return { chips, lines };
+}
+
 export default function TuiEmulator({ className }: { className?: string }) {
   const { locale, t } = useLocale();
   const [lines, setLines] = useState<Line[]>([]);
@@ -27,9 +46,13 @@ export default function TuiEmulator({ className }: { className?: string }) {
   const [jitter, setJitter] = useState(0);
   const idRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const reducedRef = useRef(false);
 
-  /* spinner + ambient latency jitter */
+  /* spinner + ambient latency jitter (skipped entirely under reduced motion) */
   useEffect(() => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    reducedRef.current = reduced;
+    if (reduced) return;
     const iv = setInterval(() => setSpin((s) => (s + 1) % SPINNER.length), 72);
     const jv = setInterval(() => setJitter(Math.floor(Math.random() * 24)), 1400);
     return () => {
@@ -38,14 +61,26 @@ export default function TuiEmulator({ className }: { className?: string }) {
     };
   }, []);
 
-  /* session runner */
+  /* session runner — paints the session end-state as a static frame when the
+     user prefers reduced motion, and runs the animated loop otherwise. */
   useEffect(() => {
     let cancelled = false;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduced = reducedRef.current;
 
     const push = (spans: Span[]) => setLines((ls) => [...ls, { id: ++idRef.current, spans }]);
 
     const run = async () => {
+      if (reduced) {
+        const { chips: fc, lines: fl } = finalFrame(locale);
+        setChips((c) => ({ ...c, ...fc }));
+        setPending(null);
+        setTyped("");
+        setPhase("run");
+        setLines([]);
+        for (const spans of fl) push(spans);
+        return;
+      }
+
       for (;;) {
         const steps = buildSession(locale);
         setLines([]);
@@ -61,11 +96,6 @@ export default function TuiEmulator({ className }: { className?: string }) {
               break;
 
             case "type": {
-              if (reduced) {
-                currentTyped = step.text;
-                setTyped(step.text);
-                break;
-              }
               await sleep(380);
               for (let i = 1; i <= step.text.length; i++) {
                 if (cancelled) return;
@@ -88,14 +118,10 @@ export default function TuiEmulator({ className }: { className?: string }) {
 
             case "line":
               push(step.spans);
-              if (!reduced) await sleep(150);
+              await sleep(150);
               break;
 
             case "task": {
-              if (reduced) {
-                push([["  ✓ ", "mint"], ...step.spans]);
-                break;
-              }
               setPending(step.spans);
               await sleep(step.dur ?? 700);
               if (cancelled) return;
@@ -105,11 +131,11 @@ export default function TuiEmulator({ className }: { className?: string }) {
             }
 
             case "pause":
-              await sleep(reduced ? 0 : step.ms);
+              await sleep(step.ms);
               break;
 
             case "clear":
-              await sleep(reduced ? 0 : 300);
+              await sleep(300);
               setLines([]);
               setTyped("");
               setPhase("typing");
@@ -117,7 +143,7 @@ export default function TuiEmulator({ className }: { className?: string }) {
               break;
           }
         }
-        if (cancelled || reduced) return;
+        if (cancelled) return;
       }
     };
 
