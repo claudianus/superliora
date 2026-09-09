@@ -38,6 +38,56 @@ export interface StaffJobsInput {
 export const STAFF_MIN_EXPERT_SCORE = 0.08;
 
 /**
+ * Coding Job kinds staff only from technical divisions. Without this gate,
+ * sparse fuzzy ranking can surface non-coding personas (marketing, meeting
+ * notes, …) as the top expert for an implement brief.
+ */
+const CODING_STAFF_PREFERRED_DIVISIONS = [
+  'engineering',
+  'testing',
+  'security',
+  'product',
+  'design',
+] as const;
+
+const CODING_STAFF_EXCLUDED_DIVISIONS = [
+  'sales',
+  'marketing',
+  'paid-media',
+  'finance',
+  'support',
+  'project-management',
+  'legal',
+  'academic',
+] as const;
+
+/** Cap for the text fed to lexical expert search after noise removal. */
+const STAFF_QUERY_MAX_CHARS = 1200;
+
+/**
+ * Strip harness scaffolding from the search text. JobCreate prompts echo the
+ * user message, which in Conductor sessions carries `<system-reminder>`
+ * blocks (current time, tool workflow reminders, job desk) — none of it is
+ * signal for expert selection, and its generic filler tokens measurably
+ * distort sparse ranking (a meeting-notes persona topping a coding brief).
+ */
+export function cleanStaffQueryText(raw: string): string {
+  let text = raw;
+  // Remove whole reminder blocks (they nest markup like <current_time>).
+  for (const tag of ['system-reminder', 'current_time', 'conductor_job_desk']) {
+    text = text.replaceAll(new RegExp(`<${tag}>[\\s\\S]*?</${tag}>`, 'g'), ' ');
+  }
+  // Leftover tags plus clock boilerplate that is not brief content.
+  text = text
+    .replaceAll(/<[^>]{1,200}>/g, ' ')
+    .replaceAll(/Authoritative host clock[\s\S]*?stale\./g, ' ')
+    .replaceAll(/User asked:\s*/g, ' ')
+    .replaceAll(/\s+/g, ' ')
+    .trim();
+  return text.slice(0, STAFF_QUERY_MAX_CHARS);
+}
+
+/**
  * Staff a single objective. Uses SearchExpert hybrid retrieval; never fails
  * closed on low scores — falls back to a generic slice. Always returns 0 or 1
  * slice (empty objective → []).
@@ -56,12 +106,24 @@ export async function staffJobsFromObjective(
 
   await globalExpertSearchEngine.initialize();
 
-  const query = [title, objective, ...(input.successCriteria ?? [])].join('\n');
+  const query = cleanStaffQueryText(
+    [title, objective, ...(input.successCriteria ?? [])].join('\n'),
+  );
+  const isCodingStaff =
+    kind === 'task' || kind === 'implement' || kind === 'verify';
   const hits = await globalExpertSearchEngine.search({
     query,
     topK: 3,
     taskDescription: query,
     signal: input.signal,
+    // Coding kinds must not staff a sales/marketing/notes persona; keep the
+    // sparse fallback inside technical divisions for implement/task/verify.
+    ...(isCodingStaff
+      ? {
+          preferredDivisions: [...CODING_STAFF_PREFERRED_DIVISIONS],
+          excludedDivisions: [...CODING_STAFF_EXCLUDED_DIVISIONS],
+        }
+      : {}),
   });
   const best = hits[0];
   const bindExpert = best !== undefined && best.score >= minScore;
@@ -86,6 +148,6 @@ function withCriteria(prompt: string, criteria: readonly string[] | undefined): 
 }
 
 function truncateTitle(text: string): string {
-  const oneLine = text.replace(/\s+/g, ' ').trim();
+  const oneLine = text.replaceAll(/\s+/g, ' ').trim();
   return oneLine.length <= 72 ? oneLine : `${oneLine.slice(0, 69)}…`;
 }

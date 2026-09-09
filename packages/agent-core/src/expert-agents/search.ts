@@ -23,6 +23,43 @@ import type { ExpertCatalogEntry, ExpertSearchResult } from './types';
 
 const ALL_EXPERTS: readonly ExpertCatalogEntry[] = [...EXPERT_CATALOG_META, ...EXPERT_CATALOG_EXTENSIONS];
 
+/**
+ * English function-word / filler noise that MiniSearch would otherwise score
+ * across every persona description and capability list. With `fuzzy` +
+ * `prefix` enabled, 1–3 letter filler tokens match hundreds of documents and
+ * can out-rank real signal (e.g. a meeting-notes persona topping a coding
+ * brief). Filtered at tokenize time so index and query agree.
+ */
+const EXPERT_SEARCH_STOPWORDS: ReadonlySet<string> = new Set([
+  'a', 'an', 'the', 'and', 'or', 'but', 'nor', 'for', 'to', 'of', 'with',
+  'without', 'by', 'from', 'into', 'onto', 'upon', 'on', 'at', 'in', 'is',
+  'are', 'was', 'were', 'be', 'been', 'being', 'it', 'its', 'this', 'that',
+  'these', 'those', 'you', 'your', 'yours', 'we', 'our', 'ours', 'us', 'they',
+  'their', 'them', 'as', 'so', 'if', 'then', 'than', 'not', 'no', 'do', 'does',
+  'did', 'done', 'doing', 'have', 'has', 'had', 'having', 'can', 'could',
+  'should', 'would', 'will', 'shall', 'may', 'might', 'must', 'who', 'whom',
+  'whose', 'which', 'what', 'when', 'where', 'why', 'how', 'all', 'any',
+  'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'only',
+  'own', 'same', 'too', 'very', 'just', 'also', 'well', 'about', 'above',
+  'below', 'under', 'over', 'again', 'once', 'here', 'there', 'out', 'up',
+  'down', 'off', 'during', 'before', 'after', 'while', 'since', 'until',
+  'against', 'between', 'through', 'among', 'across', 'along', 'around',
+  'behind', 'beyond', 'via', 'per', 'etc', 'eg', 'ie', 'oh', 'hey', 'hi',
+  'ok', 'please', 'thanks', 'thank', 'kindly', 'would', 'could',
+]);
+
+/**
+ * Tokenizer shared by index build and query: keep the default split on
+ * spaces/punctuation, but drop single characters and filler noise so generic
+ * tokens cannot dominate lexical expert ranking.
+ */
+function tokenizeExpertSearchText(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((term) => term.length > 1 && !EXPERT_SEARCH_STOPWORDS.has(term));
+}
+
 export interface ExpertSearchOptions {
   readonly query: string;
   readonly topK?: number;
@@ -53,6 +90,7 @@ export class ExpertSearchEngine {
     this.index = new MiniSearch({
       fields: ['name', 'description', 'vibe', 'tags', 'capabilities', 'division', 'divisionLabel'],
       storeFields: ['id'],
+      tokenize: tokenizeExpertSearchText,
       searchOptions: {
         boost: { name: 3, description: 2, tags: 2, vibe: 1.5, capabilities: 1.5, division: 1 },
         fuzzy: 0.2,

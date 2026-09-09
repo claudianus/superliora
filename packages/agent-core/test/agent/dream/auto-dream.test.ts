@@ -77,3 +77,16 @@ describe('AutoDreamService', () => {
     expect(snap.lastDreamAt).toBeNull();
   });
 
+  it('skips reflection quietly when the memory store is already closed', async () => {
+    // Regression: short headless runs fired turn-end learning after the
+    // session memory DB was closed, logging a warn on every exit
+    // ("database is not open").
+    const { store } = createStore();
+    store.close();
+    const agent = fakeAgent();
+    const svc = new AutoDreamService(agent, store, { minActiveRecords: 1, minHoursSinceLastDream: 0 });
+    svc.maybeSchedule();
+    await vi.waitFor(() => expect(agent.log.debug).toHaveBeenCalled());
+    expect(agent.log.warn).not.toHaveBeenCalled();
+  });
+

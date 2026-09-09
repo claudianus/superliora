@@ -189,4 +189,19 @@ describe('ExpertSearchEngine initialize single-flight', () => {
     });
     expect(results.length).toBeGreaterThan(0);
   });
+
+  it('does not let filler tokens put a meeting-notes persona on top of a coding brief', async () => {
+    await globalExpertSearchEngine.initialize();
+    // Regression: sparse fuzzy/prefix ranking used to score generic function
+    // words ("a", "and", "as", "ask") across every capability list, so a
+    // project-management meeting-notes persona won implement-brief staffing
+    // with a score above the 0.08 floor.
+    const query = 'Add a kebab-case utility function and a unit test for it (plain ESM JS, no build step)';
+    const results = await globalExpertSearchEngine.search({ query, topK: 5, taskDescription: query });
+
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0]?.expert.division).not.toBe('project-management');
+    expect(results[0]?.expert.division).not.toBe('marketing');
+    expect(results.some((r) => r.expert.id === 'project-management-meeting-notes-specialist')).toBe(false);
+  });
 });
