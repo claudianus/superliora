@@ -1,5 +1,16 @@
 # @superliora/liora
 
+## 0.29.3
+
+### Patch Changes
+
+- Dress the GitHub Pages landing in the terminal's own colors: the palette now copies
+- `superliora-neon-noir`, the default TUI theme, and `theme-contract.test.ts` pins every
+- landing token to it so the two cannot drift apart.
+- Drop the hard-coded nine-provider list from the landing page. `/login` reads models.dev, so
+- the hero stat, the provider strip, and the docs blurb now quote a snapshot written by
+- `pnpm -C apps/site run catalog:sync` — which the Pages workflow runs on every deploy.
+
 ## 0.29.2
 
 ### Patch Changes
