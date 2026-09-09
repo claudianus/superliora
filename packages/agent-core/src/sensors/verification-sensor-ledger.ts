@@ -20,9 +20,22 @@ export interface VerificationFailureRecord {
 
 export type VisualSensorVerdict = 'passed' | 'failed' | 'not_applicable' | 'not_run' | 'skipped_host';
 
+/** Result-contract check slots (plural: tests/typecheck/lint). */
+type CheckKindSlot = 'tests' | 'typecheck' | 'lint';
+/** Last observed outcome per check slot from live tool results. */
+export type CheckKindVerdicts = Partial<Record<CheckKindSlot, 'passed' | 'failed'>>;
+
 export interface VerificationSensorLedger {
   failures: VerificationFailureRecord[];
   lastPassAtMs?: number | undefined;
+  /**
+   * Last outcome per check slot, stamped from live Bash / RunProjectChecks
+   * results. Read by the completion verification gate as evidence when the
+   * package-script gate cannot run (scriptless projects, direct test
+   * runners). Last observation wins, so a red-then-green worker run lands
+   * green and a run that ends red lands failed.
+   */
+  kindVerdicts?: CheckKindVerdicts | undefined;
   /** Last VerifySurface outcome observed this agent run (not_run until called). */
   visualVerdict?: VisualSensorVerdict;
   /** VerifySurface interaction axis (default scenario / explicit actions). */
@@ -111,6 +124,66 @@ export function isCheckLikeBashCommand(command: unknown): boolean {
   return BASH_CHECK_PATTERN.test(trimmed);
 }
 
+/**
+ * Segment-level kind markers. Commands are split on shell separators so
+ * `pnpm test && pnpm run typecheck` stamps both slots.
+ */
+const BASH_KIND_PATTERNS: Readonly<Record<CheckKindSlot, RegExp>> = {
+  // Runner/binary invocations plus `pnpm|npm|yarn|bun (exec|run)? test(:suffix)?`.
+  tests:
+    /(?:^|[\s;&|(/])(?:(?:vitest|jest|mocha|deno\s+test|playwright\s+test|pytest|cargo\s+test|go\s+test|make\s+test|bun\s+test|node\s+--test)(?=$|[\s;&|)])|(?:pnpm|npm|yarn|bun)(?:\s+-[Cw]\s+\S+)?(?:\s+(?:exec|run))?\s+test(?=$|[\s;&|):/]))/i,
+  typecheck:
+    /(?:^|[\s;&|(/])(?:(?:\btsc\b|\btsgo\b|vue-tsc|svelte-check|tsd)(?=$|[\s;&|):/])|(?:pnpm|npm|yarn|bun)(?:\s+-[Cw]\s+\S+)?(?:\s+(?:exec|run))?\s+(?:typecheck|type-check|check:types|tsc|types)(?=$|[\s;&|):/]))/i,
+  lint:
+    /(?:^|[\s;&|(/])(?:(?:oxlint|eslint|biome\s+check|prettier\s+--check|stylelint)(?=$|[\s;&|)])|(?:pnpm|npm|yarn|bun)(?:\s+-[Cw]\s+\S+)?(?:\s+(?:exec|run))?\s+(?:lint|eslint|check:lint)(?=$|[\s;&|):/]))/i,
+};
+
+/**
+ * Which result-contract slots a check-like Bash command exercises. Returns an
+ * empty set for check-like commands that map to no slot (`pnpm build`,
+ * `pnpm smoke`); those still feed the pass/fail sensor but cannot verify a
+ * test/typecheck/lint slot on their own.
+ */
+export function classifyBashCheckKind(command: unknown): ReadonlySet<CheckKindSlot> {
+  const kinds = new Set<CheckKindSlot>();
+  if (typeof command !== 'string') return kinds;
+  for (const segment of command.split(/&&|\|\||;|\n/)) {
+    const trimmed = segment.trim();
+    if (trimmed.length === 0) continue;
+    for (const [kind, pattern] of Object.entries(BASH_KIND_PATTERNS)) {
+      if (pattern.test(trimmed)) kinds.add(kind as CheckKindSlot);
+    }
+  }
+  return kinds;
+}
+
+/** Stamp the last observed outcome for a check slot. */
+export function recordCheckKindVerdict(
+  ledger: VerificationSensorLedger,
+  kind: CheckKindSlot,
+  verdict: 'passed' | 'failed',
+): void {
+  ledger.kindVerdicts = { ...ledger.kindVerdicts, [kind]: verdict };
+}
+
+/** Stamp RunProjectChecks slot verdicts from its structured output (if any). */
+function stampRunProjectChecksKinds(ledger: VerificationSensorLedger, output: string): void {
+  try {
+    const parsed = JSON.parse(output) as RunProjectChecksResult;
+    if (parsed.checks === undefined) return;
+    for (const check of parsed.checks) {
+      if (check.skipped === true) continue;
+      if (check.name !== 'test' && check.name !== 'typecheck' && check.name !== 'lint') {
+        continue;
+      }
+      const slot: CheckKindSlot = check.name === 'test' ? 'tests' : check.name;
+      recordCheckKindVerdict(ledger, slot, check.exitCode === 0 ? 'passed' : 'failed');
+    }
+  } catch {
+    // Unstructured output — aggregate pass/fail records still apply.
+  }
+}
+
 export function filterRecentVerificationFailures(
   failures: readonly VerificationFailureRecord[],
   nowMs: number = Date.now(),
@@ -187,11 +260,12 @@ export function observeVerificationToolResult(
   }
 
   if (toolName === 'RunProjectChecks') {
+    const output = toolOutputText(result.output);
+    stampRunProjectChecksKinds(ledger, output);
     if (result.isError !== true) {
       recordVerificationPass(ledger);
       return;
     }
-    const output = toolOutputText(result.output);
     recordVerificationFailure(ledger, {
       toolName,
       summary: summarizeRunProjectChecksFailure(output),
@@ -218,7 +292,12 @@ export function observeVerificationToolResult(
       return;
     }
     if (!isCheckLikeBashCommand(command)) return;
-    if (result.isError !== true) {
+    const passed = result.isError !== true;
+    const kinds = classifyBashCheckKind(command);
+    for (const kind of kinds) {
+      recordCheckKindVerdict(ledger, kind, passed ? 'passed' : 'failed');
+    }
+    if (passed) {
       // Green check-like Bash clears sticky failure evidence (same as RunProjectChecks).
       recordVerificationPass(ledger);
       return;

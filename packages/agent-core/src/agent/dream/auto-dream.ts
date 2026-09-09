@@ -15,6 +15,14 @@ interface DreamResult {
   readonly merged: number;
 }
 
+/** Errors raised once the underlying SQLite handle has been closed. */
+function isMemoryStoreClosingError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /database is not open/.test(error.message)
+  );
+}
+
 export interface AutoDreamSnapshot {
   readonly enabled: boolean;
   readonly inFlight: boolean;
@@ -69,6 +77,13 @@ export class AutoDreamService {
     if (this.inFlight) return;
     if ((Date.now() - this.lastDreamAt) / 3_600_000 < this.minHours) return;
     void this.runDream().catch((error) => {
+      // The memory store closes with the session; a reflection racing the
+      // final teardown is expected (short headless runs hit it on every
+      // turn-end) and not a failure worth a warn-level entry.
+      if (isMemoryStoreClosingError(error)) {
+        this.agent.log.debug('memory reflection skipped: store closing', error);
+        return;
+      }
       this.agent.log.warn('memory reflection failed', error);
     });
   }

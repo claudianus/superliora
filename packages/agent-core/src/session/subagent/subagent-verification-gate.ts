@@ -13,6 +13,7 @@
 import type { Kaos } from '@superliora/kaos';
 
 import type { Agent } from '../../agent';
+import type { CheckKindVerdicts } from '../../sensors/verification-sensor-ledger';
 import { RunProjectChecksTool } from '../../tools/builtin/ops/run-project-checks';
 import {
   isRenderableStaticSiteChangeSet,
@@ -29,6 +30,7 @@ import {
   type ProjectCheckOutcomeLike,
   type SubagentResultContract,
   type SubagentVerificationStatus,
+  type VerificationVerdict,
   type VisualVerificationVerdict,
 } from './subagent-result-contract';
 import { maybeAutoVerifySurface } from './subagent-visual-completion';
@@ -162,6 +164,62 @@ async function resolveVisualVerdict(
   return 'not_applicable';
 }
 
+/** True when the script/static gate produced no verdict for any check slot. */
+function gateRanNothing(verification: SubagentVerificationStatus): boolean {
+  return (
+    verification.tests === 'not_run' &&
+    verification.typecheck === 'not_run' &&
+    verification.lint === 'not_run'
+  );
+}
+
+/**
+ * Evidence backfill is for implement-style workers whose own final checks
+ * prove their change. `verify` workers run checks to FIND failures (a red
+ * repro is the deliverable — judged by the structured verifyVerdict, not by
+ * the contract) and `plan` workers analyze without shipping; both keep the
+ * script-gate-only semantics.
+ */
+const EVIDENCE_BACKFILL_EXEMPT_PROFILES = new Set(['verify', 'plan']);
+
+/**
+ * Evidence fallback for change sets the script gate cannot run at all
+ * (scriptless projects without package.json, or ambiguous multi-package
+ * scopes where a repo-wide gate would be too expensive).
+ *
+ * The worker's own check-like Bash commands were observed live by the
+ * verification sensor ledger (`node --test`, `pnpm test`, `tsc`, `oxlint`,
+ * RunProjectChecks …), with the last outcome per kind winning — so a
+ * red-then-green worker run lands `passed` and a run that ends red lands
+ * `failed` instead of the previous misleading `done` + "checks did not run".
+ *
+ * Scoped change sets (no `packages/|apps/` layout): missing kinds are
+ * `not_applicable` (no script exists in a package-less project), so a fully
+ * Bash-proven green clears the unverified label. Ambiguous scopes only
+ * surface recorded kinds — partial evidence keeps the remaining slots
+ * `not_run`, which preserves the honest "unverified" label for partial
+ * coverage while still surfacing a final red run as a hard failure.
+ */
+export function verificationFromCheckEvidence(
+  kindVerdicts: CheckKindVerdicts | undefined,
+  scope: 'scoped' | 'ambiguous',
+): SubagentVerificationStatus | undefined {
+  const verdicts = kindVerdicts ?? {};
+  const hasEvidence = Object.keys(verdicts).length > 0;
+  if (!hasEvidence) return undefined;
+  const resolve = (slot: 'tests' | 'typecheck' | 'lint'): VerificationVerdict => {
+    const verdict = verdicts[slot];
+    if (verdict === undefined) return scope === 'scoped' ? 'not_applicable' : 'not_run';
+    return verdict;
+  };
+  return {
+    tests: resolve('tests'),
+    typecheck: resolve('typecheck'),
+    lint: resolve('lint'),
+    visual: 'not_run',
+  };
+}
+
 /**
  * Read-only profiles and ambiguous scopes skip the gate (verdicts stay
  * `not_run`) rather than paying for a repo-wide run.
@@ -174,23 +232,30 @@ export async function runCompletionVerification(
 ): Promise<SubagentVerificationStatus> {
   if (profileName === 'explore') return VERIFICATION_NOT_RUN;
   const packageDir = deriveVerificationPackageDir(filesChanged);
+  let verification: SubagentVerificationStatus;
   if (packageDir === undefined) {
     // Static-site contract: only renderable HTML/CSS/JS sets (not docs/json alone)
     // may stamp checks green via existence + node --check.
-    if (isRenderableStaticSiteChangeSet(filesChanged)) {
-      return runStaticCompletionVerification(child.kaos, child.config.cwd, filesChanged);
-    }
-    return VERIFICATION_NOT_RUN;
+    verification = isRenderableStaticSiteChangeSet(filesChanged)
+      ? await runStaticCompletionVerification(child.kaos, child.config.cwd, filesChanged)
+      : VERIFICATION_NOT_RUN;
+  } else {
+    const fromPackage = await runPackageCompletionVerification(child, packageDir, signal);
+    verification =
+      fromPackage !== undefined
+        ? fromPackage
+        : packageDir === '.' && isRenderableStaticSiteChangeSet(filesChanged)
+          ? await runStaticCompletionVerification(child.kaos, child.config.cwd, filesChanged)
+          : VERIFICATION_NOT_RUN;
   }
-
-  const fromPackage = await runPackageCompletionVerification(child, packageDir, signal);
-  if (fromPackage !== undefined) return fromPackage;
-
-  // Root HTML/JS sites often have no package.json — keep the static contract.
-  if (packageDir === '.' && isRenderableStaticSiteChangeSet(filesChanged)) {
-    return runStaticCompletionVerification(child.kaos, child.config.cwd, filesChanged);
+  if (gateRanNothing(verification) && !EVIDENCE_BACKFILL_EXEMPT_PROFILES.has(profileName)) {
+    const fromEvidence = verificationFromCheckEvidence(
+      child.verificationSensorLedger?.kindVerdicts,
+      packageDir === undefined ? 'ambiguous' : 'scoped',
+    );
+    if (fromEvidence !== undefined) return fromEvidence;
   }
-  return VERIFICATION_NOT_RUN;
+  return verification;
 }
 
 async function runPackageCompletionVerification(

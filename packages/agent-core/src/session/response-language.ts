@@ -167,6 +167,53 @@ function promptText(input: readonly ContentPart[]): string | undefined {
   return text.length === 0 ? undefined : text;
 }
 
+export function promptTextOf(input: readonly ContentPart[]): string | undefined {
+  return promptText(input);
+}
+
+/**
+ * Deterministic guard that decides whether an LLM language re-detection is
+ * worth paying for when a language preference is already locked.
+ *
+ * Once a session's response language is known, re-running the detection LLM
+ * on every user prompt is pure waste (one small call per message). A locked
+ * preference can only be moved by an *explicit* demand anyway (the resolver
+ * ignores non-explicit detections while locked), so re-detect only when the
+ * message plausibly demands one:
+ *
+ * - explicit markers — `/lang`, “answer in French”, `한국어로 답변해줘`,
+ *   `日本語で` …; or
+ * - a bare “in <language>” directive that names a language other than the
+ *   locked one.
+ *
+ * Best-effort by construction: a missed trigger costs a locked session one
+ * wrong-language reply; a false trigger costs one redundant 1-request detect
+ * that resolves to the current preference again.
+ */
+export function mayRequestLanguageSwitch(text: string, currentCode: string): boolean {
+  const stripped = stripPromptTextForLanguageDetection(text);
+  if (stripped.trim().length === 0) return false;
+  if (LANGUAGE_SWITCH_MARKER_PATTERN.test(stripped)) return true;
+  // Bare “in <language>” directives only signal a switch when they name a
+  // language other than the locked one (“한국어로 계속 진행해줘” while already
+  // locked to Korean is same-language chatter, not a switch request).
+  for (const [code, pattern] of BARE_LANGUAGE_DIRECTIVES) {
+    if (code !== currentCode && pattern.test(stripped)) return true;
+  }
+  return false;
+}
+
+const LANGUAGE_SWITCH_MARKER_PATTERN =
+  /(?:^|\s)\/(?:lang|language|locale|언어)(?:\s|$)|\b(?:answer|respond|reply|speak|write|talk)\b[^.\n]{0,40}\b(?:in|using)\b|(?:한국어|영어|일본어|중국어|프랑스어|독일어|스페인어|러시아어|베트남어|태국어|아랍어|히브리어|포르투갈어|이탈리아어|터키어|인도네시아어|힌디어)(?:로|으로)?\s*(?:대답|답변|응답|말해|말씀|해줘|해주세요)|(?:대답|답변|응답)\s*(?:은|는)\s*(?:한국어|영어|일본어|중국어)(?:로)?|на\s+(?:русском|украинском)|по-русски|по-українськи|tiếng\s+(?:việt|anh|hàn|nhật|trung)|bahasa\s+\w+|(?:^|\s)(?:korean|english|japanese|chinese|french|german|spanish|portuguese|italian|russian|vietnamese|thai|arabic|hebrew|hindi|turkish|indonesian|dutch|swedish|ukrainian)\b/iu;
+
+/** “in <language>” phrases that only matter when they name a different language. */
+const BARE_LANGUAGE_DIRECTIVES: ReadonlyArray<readonly [string, RegExp]> = [
+  ['ko', /한국어로/u],
+  ['ja', /日本語で/u],
+  ['en', /(?:영어로|英語で)/u],
+  ['zh', /(?:중국어로|中国語で)/u],
+];
+
 function createPreference(
   code: string,
   source: ResponseLanguageSource,
