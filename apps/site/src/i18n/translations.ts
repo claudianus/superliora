@@ -105,11 +105,26 @@ export interface ClusterItem {
   features: FeatureItem[];
 }
 
+export interface DocSection {
+  heading: string;
+  body: string;
+  /** Single terminal block under the body. */
+  code?: string;
+  /** Label shown in the code block header. Falls back to docsShell.terminal. */
+  codeLabel?: string;
+  /** Tabbed terminal blocks (e.g. per-OS install commands). Replaces `code` when present. */
+  tabs?: { label: string; code: string }[];
+  /** Checklist rows rendered under the body. */
+  list?: string[];
+  /** Info callout rendered after the body/list. */
+  note?: string;
+}
+
 export interface DocPage {
   slug: DocSlug;
   title: string;
   lead: string;
-  sections: { heading: string; body: string; code?: string }[];
+  sections: DocSection[];
 }
 
 export interface Translation {
@@ -221,6 +236,19 @@ export interface Translation {
   docsShell: {
     home: string;
     onThisSite: string;
+    /** Sidebar heading above the guide index. */
+    guide: string;
+    /** Right-rail heading above the section links. */
+    toc: string;
+    prev: string;
+    next: string;
+    copy: string;
+    copied: string;
+    terminal: string;
+    /** Suffix for the reading-time meta, e.g. "분 읽기" / "min read". */
+    minRead: string;
+    /** "Section X of Y" meta. */
+    of: string;
   };
 }
 
@@ -742,7 +770,19 @@ export const translations: Record<Lang, Translation> = {
     },
     visuals: visualsKo,
     docsNav: docsNavKo,
-    docsShell: { home: '홈', onThisSite: '가이드' },
+    docsShell: {
+      home: '홈',
+      onThisSite: '가이드',
+      guide: '가이드 목차',
+      toc: '이 페이지',
+      prev: '이전',
+      next: '다음',
+      copy: '복사',
+      copied: '복사됨',
+      terminal: '터미널',
+      minRead: '분 읽기',
+      of: '/',
+    },
     docs: {
       'getting-started': {
         slug: 'getting-started',
@@ -751,12 +791,24 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: '설치법',
-            body: `${NODE_REQUIREMENT}. 운영체제에 맞는 한 줄을 실행합니다. 호스트에 Node가 없으면 데이터 홈에 Node.js 24.15.0을 받습니다. Windows에서 프로필 디스크가 빠듯하면 여유 있는 드라이브(약 100 GB)를 고릅니다. SUPERLIORA_HOME은 모든 OS에서 됩니다. 파이프된 irm | iex는 플래그를 무시합니다. 먼저 $env:SUPERLIORA_HOME을 두거나, 받아서 .\\install.ps1 --home D:\\SuperLiora를 실행하세요. Unix는 install.sh --home 또는 SUPERLIORA_HOME.`,
-            code: `${INSTALL_SH}\n${INSTALL_PS}\n${INSTALL_CMD}`,
+            body: `${NODE_REQUIREMENT}. 운영체제에 맞는 한 줄을 실행합니다. 호스트에 Node가 없으면 데이터 홈에 Node.js 24.15.0을 받습니다.`,
+            tabs: [
+              { label: 'macOS / Linux', code: INSTALL_SH },
+              { label: 'Windows PowerShell', code: INSTALL_PS },
+              { label: 'Windows cmd', code: INSTALL_CMD },
+            ],
+            note: 'Windows에서 프로필 디스크가 빠듯하면 여유 있는 드라이브(약 100 GB)를 고릅니다. SUPERLIORA_HOME은 모든 OS에서 됩니다. 파이프된 irm | iex는 플래그를 무시합니다. 먼저 $env:SUPERLIORA_HOME을 두거나, 받아서 .\\install.ps1 --home D:\\SuperLiora를 실행하세요. Unix는 install.sh --home 또는 SUPERLIORA_HOME.',
           },
           {
             heading: '설치 후',
-            body: '설치가 끝나면 바탕 화면의 SuperLiora를 더블클릭해 실제 터미널에서 TUI를 엽니다. /host-setup은 확인 목록을 보여 준 뒤 Windows Terminal(Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf를 적용합니다. Windows Terminal은 스플래시까지 풀 TUI 모션입니다. 클래식 콘솔은 시네마틱 스플래시 없이 에디터·orb·허브 크롬만 움직입니다. GitHub Release가 나오면 liora upgrade 또는 /upgrade로 설치를 갱신합니다. 추적은 공개 Release이고, main 최신은 --main. UI 언어는 SUPERLIORA_LOCALE=ko|en, Settings → Language, 또는 /locale.',
+            body: '설치가 끝나면 아래 순서대로 환경을 맞춥니다.',
+            list: [
+              '바탕 화면의 SuperLiora를 더블클릭해 실제 터미널에서 TUI를 엽니다.',
+              '/host-setup은 확인 목록을 보여 준 뒤 Windows Terminal(Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf를 적용합니다.',
+              '클래식 콘솔은 시네마틱 스플래시 없이 에디터·orb·허브 크롬만 움직이고, Windows Terminal은 스플래시까지 풀 TUI 모션입니다.',
+              'GitHub Release가 나오면 liora upgrade 또는 /upgrade로 설치를 갱신합니다. 추적은 공개 Release이고, main 최신은 --main.',
+              'UI 언어는 SUPERLIORA_LOCALE=ko|en, Settings → Language, 또는 /locale.',
+            ],
           },
           {
             heading: '사용법',
@@ -765,7 +817,12 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '워크플로우',
-            body: 'SuperLiora가 격리된 작업 공간(git worktree)에서 작업(Job)을 만듭니다. Alt+J Job Deck으로 보고, Alt+I Inbox에서 답하고, 테스트를 통과한 것만 로컬에 합칩니다.',
+            body: '첫 작업의 흐름은 이렇습니다.',
+            list: [
+              'SuperLiora가 격리된 작업 공간(git worktree)에서 작업(Job)을 만듭니다.',
+              'Alt+J Job Deck으로 보고, Alt+I Inbox에서 답합니다.',
+              '테스트를 통과한 것만 로컬에 합칩니다.',
+            ],
           },
         ],
       },
@@ -776,15 +833,20 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: '역할 나누기',
-            body: '채팅 쪽은 읽고 정리하고 작업을 맡깁니다. 파일 수정·빌드·테스트는 분리된 작업에서 돌아갑니다.',
+            body: '대화와 실행은 분리됩니다. 각자 맡은 일만 합니다.',
+            list: [
+              '채팅 쪽은 읽고 정리하고 작업을 맡깁니다.',
+              '파일 수정·빌드·테스트는 분리된 작업(Job)에서 돌아갑니다.',
+            ],
           },
           {
             heading: '기다리지 않기',
-            body: '작업을 맡기면 바로 접수됩니다. 결과는 나중에 알림으로 옵니다.',
+            body: '작업을 맡기면 바로 접수됩니다. 결과는 나중에 알림으로 옵니다. 채팅은 비어 있으니 다음 일을 지시할 수 있습니다.',
           },
           {
             heading: '브랜치가 나뉨',
-            body: '작업마다 따로 떨어진 브랜치에서 돌아갑니다. 세션 전체를 옮기는 --worktree와는 다릅니다.',
+            body: '작업마다 따로 떨어진 브랜치에서 돌아갑니다. 지금 작업 중인 파일과 섞이지 않습니다.',
+            note: '세션 전체를 옮기는 liora --worktree와는 다릅니다. 여기는 작업 단위로 분리됩니다.',
           },
           {
             heading: 'Ask / Build',
@@ -809,7 +871,8 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '합치기',
-            body: '검사가 통과하면 로컬로 합칩니다. 원격 배포는 별도 단계입니다.',
+            body: '검사가 통과한 것만 로컬로 합칩니다.',
+            note: '원격 배포는 별도 단계입니다. push는 원할 때 합니다.',
           },
           {
             heading: '정리',
@@ -825,7 +888,12 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: '기본',
-            body: 'Alt+J 진행 · Alt+I 질문함 · Alt+B 빠른 요청서 · Ctrl+K Command Hub (macOS는 Cmd). Hub는 Ctrl+Space, ?, /help로도 엽니다.',
+            body: '처음엔 이 목록만으로 충분합니다.',
+            list: [
+              'Alt+J 진행 · Alt+I 질문함 · Alt+B 빠른 요청서',
+              'Ctrl+K Command Hub (macOS는 Cmd)',
+              'Hub는 Ctrl+Space, ?, /help로도 엽니다.',
+            ],
           },
           {
             heading: '작업 분위기',
@@ -851,7 +919,15 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '슬래시',
-            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /quota · /help · /upgrade · /resume · /locale · /permission. /resume는 /sessions의 별칭. /permission은 manual|auto|yolo. 저사양은 Settings → Appearance 또는 /performance. /quota는 실시간 남은 크레딧. 푸터 칩은 활성 프로바이더이고, 남은 양이 불명이면 숨깁니다.',
+            body: '세션 안에서 쓰는 명령입니다.',
+            list: [
+              '/login · /model · /host-setup — 계정·모델·터미널 설정',
+              '/jobs · /job — 작업 목록과 조향',
+              '/agents · /plan · /ask · /goal — 실행 방식 고르기',
+              '/status · /quota · /help · /upgrade — 상태·잔량·도움·갱신',
+              '/resume · /locale · /permission — 이어하기·언어·권한',
+            ],
+            note: '/resume는 /sessions의 별칭. /permission은 manual|auto|yolo. 저사양은 Settings → Appearance 또는 /performance. /quota는 실시간 남은 크레딧. 푸터 칩은 활성 프로바이더이고, 남은 양이 불명이면 숨깁니다.',
           },
           {
             heading: 'Ask 모드',
@@ -1063,7 +1139,19 @@ export const translations: Record<Lang, Translation> = {
     },
     visuals: visualsEn,
     docsNav: docsNavEn,
-    docsShell: { home: 'Home', onThisSite: 'Guide' },
+    docsShell: {
+      home: 'Home',
+      onThisSite: 'Guide',
+      guide: 'Guide index',
+      toc: 'On this page',
+      prev: 'Previous',
+      next: 'Next',
+      copy: 'Copy',
+      copied: 'Copied',
+      terminal: 'Terminal',
+      minRead: 'min read',
+      of: 'of',
+    },
     docs: {
       'getting-started': {
         slug: 'getting-started',
@@ -1072,12 +1160,24 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: 'Install',
-            body: `${NODE_REQUIREMENT}. Run the one-liner for your OS. If the host has no Node, it downloads Node.js 24.15.0 into the data home. On Windows, a tight profile disk picks a roomier drive (~100 GB free). SUPERLIORA_HOME works on every OS. Piped irm | iex ignores flags — set $env:SUPERLIORA_HOME first, or download and run .\\install.ps1 --home D:\\SuperLiora. On Unix, install.sh --home or SUPERLIORA_HOME.`,
-            code: `${INSTALL_SH}\n${INSTALL_PS}\n${INSTALL_CMD}`,
+            body: `${NODE_REQUIREMENT}. Run the one-liner for your OS. If the host has no Node, it downloads Node.js 24.15.0 into the data home.`,
+            tabs: [
+              { label: 'macOS / Linux', code: INSTALL_SH },
+              { label: 'Windows PowerShell', code: INSTALL_PS },
+              { label: 'Windows cmd', code: INSTALL_CMD },
+            ],
+            note: 'On Windows, a tight profile disk picks a roomier drive (~100 GB free). SUPERLIORA_HOME works on every OS. Piped irm | iex ignores flags — set $env:SUPERLIORA_HOME first, or download and run .\\install.ps1 --home D:\\SuperLiora. On Unix, install.sh --home or SUPERLIORA_HOME.',
           },
           {
             heading: 'After install',
-            body: 'After install, double-click SuperLiora on the Desktop to open the TUI in a real terminal. Run /host-setup to see a confirm list, then apply Windows Terminal (Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, and fzf. Windows Terminal keeps full TUI motion (including splash). Classic consoles keep chrome (editor, orb, hub) moving without the cinematic splash. After a GitHub Release, liora upgrade or /upgrade updates the install. That tracks published releases, not arbitrary main commits. Use --main for tip of main. UI language: SUPERLIORA_LOCALE=ko|en, Settings → Language, or /locale.',
+            body: 'After install, set up the environment in this order.',
+            list: [
+              'Double-click SuperLiora on the Desktop to open the TUI in a real terminal.',
+              'Run /host-setup to see a confirm list, then apply Windows Terminal (Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, and fzf.',
+              'Classic consoles keep chrome (editor, orb, hub) moving without the cinematic splash; Windows Terminal keeps full TUI motion (including splash).',
+              'After a GitHub Release, liora upgrade or /upgrade updates the install. That tracks published releases, not arbitrary main commits. Use --main for tip of main.',
+              'UI language: SUPERLIORA_LOCALE=ko|en, Settings → Language, or /locale.',
+            ],
           },
           {
             heading: 'Usage',
@@ -1086,7 +1186,12 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Workflow',
-            body: 'SuperLiora creates a task in an isolated copy of your project (a git worktree). Watch it on the Job Deck (Alt+J), answer in the Inbox (Alt+I), and merge in locally what passed.',
+            body: 'Your first job goes like this.',
+            list: [
+              'SuperLiora creates a task in an isolated copy of your project (a git worktree).',
+              'Watch it on the Job Deck (Alt+J); answer in the Inbox (Alt+I).',
+              'Merge in locally what passed.',
+            ],
           },
         ],
       },
@@ -1097,15 +1202,20 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: 'Split roles',
-            body: 'Chat reads, plans, and delegates. File edits, builds, and tests run in isolated jobs.',
+            body: 'Talking and doing are separate. Each side does only its job.',
+            list: [
+              'Chat reads, plans, and delegates.',
+              'File edits, builds, and tests run in isolated jobs.',
+            ],
           },
           {
             heading: 'Do not wait',
-            body: 'Jobs are accepted immediately. Results come back as notices.',
+            body: 'Jobs are accepted immediately. Results come back as notices. Chat stays free, so you can direct the next thing.',
           },
           {
             heading: 'Separate branches',
-            body: 'Each job runs on its own branch. That is different from liora --worktree, which moves the whole session.',
+            body: 'Each job runs on its own branch. It never mixes with the files you are working on.',
+            note: 'That is different from liora --worktree, which moves the whole session. Here the split is per job.',
           },
           {
             heading: 'Ask / Build',
@@ -1130,7 +1240,8 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Merge',
-            body: 'When checks pass, merge in locally. Publishing to a remote is a separate step.',
+            body: 'Merge in locally what passed its checks.',
+            note: 'Publishing to a remote is a separate step. Push when you want.',
           },
           {
             heading: 'Clean up',
@@ -1146,7 +1257,12 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: 'Basics',
-            body: 'Alt+J progress · Alt+I inbox · Alt+B quick brief · Ctrl+K hub (Cmd on macOS). Command Hub also opens with Ctrl+Space, ?, or /help.',
+            body: 'This list alone is enough for the first week.',
+            list: [
+              'Alt+J progress · Alt+I inbox · Alt+B quick brief',
+              'Ctrl+K hub (Cmd on macOS)',
+              'Command Hub also opens with Ctrl+Space, ?, or /help.',
+            ],
           },
           {
             heading: 'Modes',
@@ -1172,7 +1288,15 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Slash',
-            body: '/login · /model · /host-setup · /jobs · /job · /agents · /plan · /ask · /goal · /status · /quota · /help · /upgrade · /resume · /locale · /permission. /resume is an alias of /sessions. /permission is manual|auto|yolo. For low-spec machines, Settings → Appearance or /performance. /quota shows live remaining credits; the footer chip is the active provider; unknown remaining stays hidden.',
+            body: 'Commands you type inside a session.',
+            list: [
+              '/login · /model · /host-setup — accounts, models, terminal setup',
+              '/jobs · /job — the job list and steering',
+              '/agents · /plan · /ask · /goal — how work runs',
+              '/status · /quota · /help · /upgrade — status, credits, help, updates',
+              '/resume · /locale · /permission — resume, language, permissions',
+            ],
+            note: '/resume is an alias of /sessions. /permission is manual|auto|yolo. For low-spec machines, Settings → Appearance or /performance. /quota shows live remaining credits; the footer chip is the active provider; unknown remaining stays hidden.',
           },
           {
             heading: 'Ask mode',
