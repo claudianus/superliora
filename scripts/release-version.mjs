@@ -128,7 +128,8 @@ for (const entry of changesets) {
 // Resolve each named package's package.json without assuming the layout.
 function packageJsonPath(name) {
   const candidates = [
-    join(repoRoot, 'apps', 'liora', 'package.json'),
+    ...readdirSync(join(repoRoot, 'apps'))
+      .map((dir) => join(repoRoot, 'apps', dir, 'package.json')),
     ...readdirSync(join(repoRoot, 'packages'))
       .map((dir) => join(repoRoot, 'packages', dir, 'package.json')),
   ];
