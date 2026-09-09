@@ -21,6 +21,10 @@ const docsInput = Object.fromEntries(
 export default defineConfig({
   base: '/superliora/',
   plugins: [react(), tailwindcss()],
+  server: {
+    // Dev-only: allow sandboxed/cloud preview hosts. No production impact.
+    allowedHosts: true,
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

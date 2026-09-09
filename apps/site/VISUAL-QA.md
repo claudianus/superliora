@@ -9,8 +9,9 @@ cyan baton accents, live Job-console storytelling (Flow → Control Room demo �
 Palette SSOT: `apps/liora/src/tui/theme/bundled-themes.ts` → `superliora-neon-noir`, mirrored by the
 `@theme` block in `src/landing/landing.css`; `test/theme-contract.test.ts` pins the hexes so the two
 cannot drift.
-Type: Space Grotesk + IBM Plex Mono + Pretendard. Landing is dark-only; docs pages keep the legacy
-theme bootstrap (they are a separate entry with their own stylesheet).
+Type: Space Grotesk + IBM Plex Mono + Pretendard. Landing is dark-only; docs pages keep the
+dark/light theme bootstrap (they are a separate entry with their own stylesheet) on the same
+token hexes, header, and footer as the landing.
 
 ## Checklist
 
