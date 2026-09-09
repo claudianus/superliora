@@ -16,6 +16,13 @@ import { CLI_SHUTDOWN_TIMEOUT_MS, PROMPT_CLEANUP_TIMEOUT_MS } from '#/constant/a
 import { createMarketplaceSourceResolver } from '#/utils/plugin-marketplace-resolver';
 import { parseHeadlessGoalCreate } from './goal-prompt';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
+import {
+  captureJobBaseline,
+  collectJobsCreatedDuringRun,
+  formatHeadlessJobSummaryText,
+  headlessJobExitCode,
+  summarizeHeadlessJobs,
+} from './headless-jobs';
 import type { CLIOptions } from './options';
 import { applyNoProcessSandboxFlag } from './options';
 import { resolveSessionWorkDir } from './resolve-worktree';
@@ -150,6 +157,10 @@ export async function runPrompt(
       parsedGoal !== undefined && opts.autonomousGate !== undefined
         ? { ...parsedGoal, gateCommand: opts.autonomousGate }
         : parsedGoal;
+    // Conductor jobs are spawned asynchronously from the main turn, so a plain
+    // `-p` run used to print nothing about the jobs it created. Capture the
+    // ledger baseline first, then report the jobs created during this run.
+    const jobBaseline = await captureJobBaseline(session);
     if (goalCreate !== undefined) {
       await runHeadlessGoal(
         session,
@@ -169,6 +180,20 @@ export async function runPrompt(
         stdout,
         stderr,
       );
+    }
+    const createdJobs = await collectJobsCreatedDuringRun(session, jobBaseline);
+    if (createdJobs.length > 0) {
+      const summary = summarizeHeadlessJobs(createdJobs);
+      if (outputFormat === 'stream-json') {
+        stdout.write(`${JSON.stringify(summary)}\n`);
+      } else {
+        stderr.write(`${formatHeadlessJobSummaryText(summary)}\n`);
+      }
+      // The goal path already maps its terminal status to an exit code; keep
+      // that authoritative. Plain prompts get the job exit-code contract.
+      if (goalCreate === undefined) {
+        process.exitCode = headlessJobExitCode(summary);
+      }
     }
     writeResumeHint(session.id, outputFormat, stdout, stderr);
 
