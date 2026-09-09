@@ -163,6 +163,22 @@ export const KEYMAP_IDLE: readonly KeymapBinding[] = [
     surface: 'idle',
     category: 'edit',
   },
+  {
+    id: 'quota',
+    key: 'Q',
+    descriptionKey: 'tui.help.shortcut.quota',
+    surface: 'idle',
+    category: 'menu',
+    relatedSlash: ['/quota'],
+  },
+  {
+    id: 'plan-desk',
+    key: 'P',
+    descriptionKey: 'tui.help.shortcut.plan',
+    surface: 'idle',
+    category: 'session',
+    relatedSlash: ['/plan'],
+  },
 ];
 
 /** Streaming-only bindings. */

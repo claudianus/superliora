@@ -11,6 +11,12 @@ import {
   createStatusFieldMotionState,
 } from '../../components/messages/status-panel/index';
 import { buildUsageReportLines, buildContextCompositionLines, UsagePanelComponent, type ManagedUsageReport } from '../../components/messages/usage-panel/index';
+import { QuotaOverlayComponent } from '../../components/messages/usage-panel/quota-overlay';
+import {
+  rememberOpenSurface,
+  SURFACE_QUOTA,
+  toggleOffOpenSurface,
+} from '../../features/surfaces/editor-surface-toggle';
 import { isManagedUsageProvider } from '../../constant/liora-tui';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
@@ -122,6 +128,9 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
 }
 
 export async function showQuota(host: SlashCommandHost): Promise<void> {
+  // Bare repeat Q toggles an already-open Quota overlay shut (editor has been
+  // replaced), instead of re-fetching and stacking a duplicate report.
+  if (toggleOffOpenSurface(host, SURFACE_QUOTA)) return;
   const sessionUsage = await loadSessionUsageReport(host);
   let quota: AllProvidersUsageSnapshot | null = host.state.appState.providerQuota ?? null;
   try {
@@ -162,14 +171,19 @@ export async function showQuota(host: SlashCommandHost): Promise<void> {
   };
 
   playStatusOpenBeat(host, 'Quota', 'quota');
-  const panel = new UsagePanelComponent({
+  const panel = new QuotaOverlayComponent({
     buildLines,
     borderToken: 'primary',
     title: ttui('tui.panel.quotas'),
-    enterBeatSeed: 'quota',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    onCancel: () => {
+      host.restoreEditor();
+    },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
-  host.state.transcriptContainer.addChild(panel);
+  host.mountEditorReplacement(panel);
+  rememberOpenSurface(SURFACE_QUOTA, panel);
   requestTUILayoutRender(host.state);
 }
 

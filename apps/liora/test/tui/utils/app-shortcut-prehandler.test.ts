@@ -265,4 +265,43 @@ describe('OS primary-modifier app shortcuts', () => {
       Object.defineProperty(process, 'platform', { value: original });
     }
   });
+
+  it('opens Quota on bare Q when the editor is empty, idle, and wired', () => {
+    const state = createState();
+    const openQuota = vi.fn();
+    state.editor.onOpenQuota = openQuota;
+    expect(state.editor.tryHandleAppShortcut?.('q')).toBe(true);
+    expect(openQuota).toHaveBeenCalledOnce();
+    expect(state.editor.getText()).toBe('');
+  });
+
+  it('does not open Quota on Q when a draft exists (the letter types)', () => {
+    const state = createState();
+    const openQuota = vi.fn();
+    state.editor.onOpenQuota = openQuota;
+    state.editor.setText('hello');
+    expect(state.editor.tryHandleAppShortcut?.('q')).toBe(false);
+    expect(openQuota).not.toHaveBeenCalled();
+  });
+
+  it('never swallows Q/P while a turn is streaming or compacting', () => {
+    const state = createState();
+    const openQuota = vi.fn();
+    const openPlan = vi.fn();
+    state.editor.onOpenQuota = openQuota;
+    state.editor.onOpenPlan = openPlan;
+    state.editor.canActivateIdleShortcut = () => false; // streaming / compacting
+    expect(state.editor.tryHandleAppShortcut?.('q')).toBe(false);
+    expect(state.editor.tryHandleAppShortcut?.('p')).toBe(false);
+    expect(openQuota).not.toHaveBeenCalled();
+    expect(openPlan).not.toHaveBeenCalled();
+  });
+
+  it('opens Plan on bare P when the editor is empty, idle, and wired', () => {
+    const state = createState();
+    const openPlan = vi.fn();
+    state.editor.onOpenPlan = openPlan;
+    expect(state.editor.tryHandleAppShortcut?.('p')).toBe(true);
+    expect(openPlan).toHaveBeenCalledOnce();
+  });
 });

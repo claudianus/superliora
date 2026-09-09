@@ -24,6 +24,11 @@ import { setAppearanceTransportStability } from '../../features/appearance/appea
 import { handleFooterJobsStripMouse } from '../../features/control-tower/footer-jobs-mouse';
 import { handleActivityCueMouse } from '../../features/transcript/activity-cue-mouse';
 import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
+import {
+  SURFACE_JOB_DECK,
+  SURFACE_JOB_INBOX,
+  toggleOffOpenSurface,
+} from '../../features/surfaces/editor-surface-toggle';
 import { handleWorkerDockMouse } from '../../features/worker-dock/worker-dock-mouse';
 import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
 import {
@@ -148,6 +153,21 @@ export function ensureStartupNativeInputRouter(
         },
         event,
       ),
+  });
+  // Alt+J / Alt+I while a Conductor surface (Job Deck / Inbox) is already the
+  // focused editor child toggles it shut. These must run as global handlers:
+  // once a surface is open the editor pre-input path no longer sees the key
+  // (focus is on the mounted surface), so close-on-repeat falls through here.
+  host.nativeInputRouter.router.registerGlobalHandler({
+    id: 'conductor-surface-toggle',
+    onInput: (event) => {
+      if (event.type !== 'key' || event.eventType === 'release') return false;
+      if (!event.alt || event.key !== 'character' || event.text === undefined) return false;
+      const letter = event.text.toLowerCase();
+      if (letter === 'j') return toggleOffOpenSurface(host, SURFACE_JOB_DECK);
+      if (letter === 'i') return toggleOffOpenSurface(host, SURFACE_JOB_INBOX);
+      return false;
+    },
   });
   // F07: footer Conductor jobs strip click → Inbox (unread) or Job Deck.
   host.nativeInputRouter.router.registerGlobalHandler({

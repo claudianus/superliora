@@ -34,6 +34,7 @@ import {
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 import { openJobDeckViewer } from '../../commands/jobs-deck';
 import { openInbox } from '../../features/control-tower/inbox-controller';
+import { openPlanBrowserFromCurrentPlan } from '../../features/surfaces/plan-browser-controller';
 import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
 import { maybeDefaultTimelineOnce } from '../../features/control-tower/conductor-ux';
 import { openMergePreview } from '../../features/control-tower/merge-preview-controller';
@@ -494,6 +495,17 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
       return;
     }
     openInbox(this);
+  };
+  // P shortcut (empty idle prompt). When plan mode is already active, P opens
+  // (or reopens) the Plan browser overlay; when off, P switches plan mode on
+  // via /plan — which mounts the browser once an inline plan lands. P/Esc on
+  // the open browser only closes it; turning plan mode off stays with /plan.
+  proto.openPlan = function () {
+    if (this.state.appState.planMode === true) {
+      void openPlanBrowserFromCurrentPlan(this);
+    } else {
+      this.dispatchSlash('/plan');
+    }
   };
   proto.openMergePreviewForJob = function (jobId: string) {
     const snap = this.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();

@@ -1251,7 +1251,13 @@ describe('keybindings-glance', () => {
     });
 
     it('tags Plan / Agents / Jobs slash samples', () => {
-      expect(keymapBindingsForSlash('/plan').map((b) => b.id)).toEqual(['interrupt', 'steer']);
+      // Order follows KEYMAP_ALL (always → idle → streaming): Ctrl-C (interrupt),
+      // then P (plan-desk idle shortcut), then Ctrl-S (steer).
+      expect(keymapBindingsForSlash('/plan').map((b) => b.id)).toEqual([
+        'interrupt',
+        'plan-desk',
+        'steer',
+      ]);
       expect(keymapBindingsForSlash('/jobs dock').map((b) => b.id)).toEqual([
         'interrupt',
         'steer',
@@ -1261,6 +1267,7 @@ describe('keybindings-glance', () => {
         'job-deck',
         'background',
       ]);
+      expect(keymapBindingsForSlash('/quota').map((b) => b.id)).toEqual(['quota']);
       expect(keymapBindingsForSlash('/mission')).toEqual([]);
       expect(formatKeymapBindingSample(keymapBindingsForSlash('/plan')[0]!)).toContain(
         process.platform === 'darwin' ? 'Cmd-C' : 'Ctrl-C',

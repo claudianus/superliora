@@ -330,6 +330,8 @@ export interface LioraTUIHost {
   openUndoSelector(): void;
   openJobDeck(jobId?: string): void;
   openJobInbox(): void;
+  /** P shortcut: open (or enter + open) the Plan browser overlay. */
+  openPlan(): void;
   openMergePreviewForJob(jobId: string): void;
   maybeDefaultConductorTimeline(): void;
   showApprovalPanel(payload: ApprovalPanelData): void;

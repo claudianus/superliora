@@ -75,6 +75,10 @@ export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   setAskMode(enabled: boolean): void;
   readonly jobBoardController: { openDeck(jobId?: string): void };
   openJobInbox?(): void;
+  /** P: open the Plan browser (entering Plan mode first if it is off). */
+  openPlan?(): void;
+  /** Route a slash command, reusing the exact Command Hub / prompt path. */
+  dispatchSlash?(command: string): void;
 }
 
 /**
@@ -434,6 +438,21 @@ export class EditorKeyboardController {
         showStatus: (msg, color) => host.showStatus(msg, color),
         jobBoardController: host.jobBoardController,
       });
+    };
+    // Q / P (empty prompt, idle only). Reuse the slash-command path so the
+    // existing busy/streaming/compacting gating (and its toasts) applies for
+    // free. The idle predicate below keeps the low-level handler from ever
+    // swallowing a keystroke while a turn streams or compacts.
+    editor.canActivateIdleShortcut = () =>
+      host.state.appState.streamingPhase === 'idle' && !host.state.appState.isCompacting;
+    editor.onOpenQuota = () => {
+      host.track('shortcut_quota');
+      host.dispatchSlash?.('/quota');
+    };
+    editor.onOpenPlan = () => {
+      host.track('shortcut_plan');
+      if (host.openPlan !== undefined) host.openPlan();
+      else host.dispatchSlash?.('/plan');
     };
     editor.onTranscriptSearch = () => {
       host.showTranscriptSearch();

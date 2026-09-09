@@ -63,6 +63,8 @@ export interface StartupLifecycleHost extends PromptInputRuntimeHost {
   readonly editorKeyboard: EditorKeyboardController;
   readonly tasksBrowserController: TasksBrowserController;
   readonly jobBoardController: { openDeck(jobId?: string): void };
+  /** Return focus to the free editor after a mounted surface closes. */
+  restoreEditor(): void;
   readonly controlTowerDesk?: import('../../features/control-tower/job-desk-events').ControlTowerJobDesk;
   readonly workerDock?: import('../worker-dock/controller').WorkerDockController;
   openJobInbox?(): void;

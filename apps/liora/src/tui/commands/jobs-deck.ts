@@ -29,11 +29,19 @@ import {
   isConductorUxV2Enabled,
 } from './job-hotpath';
 import { resyncJobBoardFromSession } from '../features/control-tower/job-resync';
+import {
+  rememberOpenSurface,
+  SURFACE_JOB_DECK,
+  toggleOffOpenSurface,
+} from '../features/surfaces/editor-surface-toggle';
 import { openMergePreview } from '../features/control-tower/merge-preview-controller';
 import { openPushPreview } from '../features/control-tower/push-preview-controller';
 import { ttui } from '../utils/tui-i18n';
 
 export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void {
+  // Alt+J on an empty deck request toggles the already-open viewer shut so it
+  // behaves like the overlay the homepage demo shows, instead of remounting.
+  if (jobId === undefined && toggleOffOpenSurface(host, SURFACE_JOB_DECK)) return;
   if (host.session === undefined) {
     host.showError(ttui('tui.jobs.deckNoSession'));
     return;
@@ -68,6 +76,7 @@ export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void 
     },
   });
   host.mountEditorReplacement(panel);
+  rememberOpenSurface(SURFACE_JOB_DECK, panel);
 
   // F18: pull authoritative jobList into the store while the deck is open.
   if (isConductorUxV2Enabled()) {

@@ -36,6 +36,8 @@ export const WORKING_TIPS: readonly ToolbarTip[] = [
   { key: 'tui.tip.ctrlB', priority: 2 },
   { key: 'tui.tip.conductorJobs', priority: 3, solo: true },
   { key: 'tui.tip.altJ', priority: 3, solo: true },
+  { key: 'tui.tip.altI', priority: 3, solo: true },
+  { key: 'tui.tip.altB', priority: 2, solo: true },
 ];
 
 export const ALL_TIPS: readonly ToolbarTip[] = [
@@ -43,6 +45,10 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   // Hub discovery dominates idle footer rotation; Menu ? badge is always visible.
   { key: 'tui.tip.menuHub', priority: 8, solo: true },
   { key: 'tui.tip.ctrlK', priority: 5, solo: true },
+  // Homepage advertises Q (Quota) / P (Plan) as real shortcuts; teach them at
+  // idle so first-run users can discover them (both fire on an empty prompt).
+  { key: 'tui.tip.quota', priority: 3, solo: true },
+  { key: 'tui.tip.plan', priority: 3, solo: true },
   { key: 'tui.tip.shiftEnter' },
   { key: 'tui.tip.ctrlC' },
   { key: 'tui.tip.theme' },

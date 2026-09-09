@@ -104,6 +104,9 @@ export class NativeTUIEditor implements TUIEditor {
   onOpenJobDeck?: () => void;
   onOpenJobInbox?: () => void;
   onOpenIntentComposer?: () => void;
+  onOpenQuota?: () => void;
+  onOpenPlan?: () => void;
+  canActivateIdleShortcut?: () => boolean;
   onTranscriptSearch?: () => void;
   onStashToggle?: () => void;
   onAcceptGhost?: () => void;
