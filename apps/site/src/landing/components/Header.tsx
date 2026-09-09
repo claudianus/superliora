@@ -19,7 +19,7 @@ export function Wordmark({ className }: { className?: string }) {
           stroke="currentColor"
           strokeWidth="2.6"
           strokeLinecap="round"
-          className="text-gold"
+          className="text-primary"
         />
       </svg>
       <span className="font-[family-name:var(--font-mono)] text-[15px] font-medium tracking-tight text-ink">
@@ -83,7 +83,7 @@ export default function Header() {
                 onClick={() => setLocale(l)}
                 className={cn(
                   "rounded-full px-2.5 py-1 font-[family-name:var(--font-mono)] text-[10.5px] tracking-wide transition-all",
-                  locale === l ? "bg-gold text-black" : "text-faint hover:text-dim",
+                  locale === l ? "bg-primary text-black" : "text-faint hover:text-dim",
                 )}
                 aria-pressed={locale === l}
               >
@@ -96,7 +96,7 @@ export default function Header() {
             href="https://github.com/claudianus/superliora"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2 rounded-full border border-line px-3.5 py-1.5 text-[12.5px] text-dim transition-colors hover:border-gold/50 hover:text-ink"
+            className="flex items-center gap-2 rounded-full border border-line px-3.5 py-1.5 text-[12.5px] text-dim transition-colors hover:border-primary/50 hover:text-ink"
           >
             <GithubIcon className="size-3.5" />
             <span className="hidden sm:inline">{t.header.github}</span>
@@ -106,7 +106,7 @@ export default function Header() {
       {/* scroll progress — the baton */}
       <div className="absolute inset-x-0 bottom-0 h-[2px]">
         <div
-          className="h-full bg-gradient-to-r from-golddeep to-gold transition-[width] duration-150 ease-out"
+          className="h-full bg-gradient-to-r from-primary-deep to-primary transition-[width] duration-150 ease-out"
           style={{ width: `${prog * 100}%` }}
         />
       </div>

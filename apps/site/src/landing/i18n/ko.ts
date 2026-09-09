@@ -1,3 +1,4 @@
+import { PROVIDER_CATALOG } from "../../data/provider-catalog.generated";
 import type { Dict } from "./types";
 
 export const ko: Dict = {
@@ -10,7 +11,7 @@ export const ko: Dict = {
       { label: "인터페이스", href: "#surfaces" },
       { label: "설치", href: "#install" },
     ],
-    version: "v0.29.1",
+    version: "v0.29.2",
     github: "GitHub",
     docs: "문서",
   },
@@ -29,7 +30,7 @@ export const ko: Dict = {
     platforms: ["macOS", "Linux", "Windows"],
     stats: [
       { k: "런타임 언어", v: "한국어 / English" },
-      { k: "프로바이더 카탈로그", v: "9+" },
+      { k: "프로바이더 카탈로그", v: `${String(PROVIDER_CATALOG.providerCount)}개 · models.dev` },
       { k: "푸시당 테스트", v: "16.5k" },
       { k: "Job 격리", v: "git worktree" },
     ],
@@ -198,24 +199,15 @@ export const ko: Dict = {
         icon: "compass",
       },
     ],
-    providersLabel: "카탈로그 로그인 — Anthropic / OpenAI 환경 변수와 OAuth 풀은 그 외에도",
-    providers: [
-      "Anthropic",
-      "OpenAI",
-      "Groq",
-      "Mistral",
-      "Together",
-      "xAI",
-      "Cerebras",
-      "Perplexity",
-      "Vercel AI Gateway",
-    ],
+    providersLabel: "카탈로그는 손으로 고른 목록이 아닙니다 — /login이 models.dev에서 실시간으로 읽습니다",
+    providersNote: "프로바이더 {providers}개 · 모델 {models}개 · {date} 스냅샷",
+    providersMore: "+{count}개 더",
     failover: {
       label: "Never-Halt 폴체인 — 실제 로그 형식",
       steps: [
         { tag: "attempt 1", text: "kimi-k3 → HTTP 500 · same-model retry", cls: "red" },
         { tag: "attempt 2", text: "kimi-k3 → HTTP 502 · rotate account in pool", cls: "red" },
-        { tag: "attempt 3", text: "qwen3.8-flash (live-healthy) → streaming resumes", cls: "gold" },
+        { tag: "attempt 3", text: "qwen3.8-flash (live-healthy) → streaming resumes", cls: "primary" },
         { tag: "finally", text: "turn completes · verify run · ledger stamped green", cls: "mint" },
       ],
     },

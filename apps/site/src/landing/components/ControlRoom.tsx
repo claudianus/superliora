@@ -27,8 +27,8 @@ const seedJobs: Job[] = [
 ];
 
 const baseTranscript: Span[][] = [
-  [["◆ ", "gold"], ["ACK ", "faint"], ["job_1x9m4qt", "azure"], [" [running] kind=implement model=", "dim"], ["opencode-go/kimi-k3", "gold"]],
-  [["◆ ", "gold"], ["ACK ", "faint"], ["job_4dd81x0", "azure"], [" [needs_user] ", "dim"], ["1 question in inbox", "gold"]],
+  [["◆ ", "primary"], ["ACK ", "faint"], ["job_1x9m4qt", "azure"], [" [running] kind=implement model=", "dim"], ["opencode-go/kimi-k3", "primary"]],
+  [["◆ ", "primary"], ["ACK ", "faint"], ["job_4dd81x0", "azure"], [" [needs_user] ", "dim"], ["1 question in inbox", "primary"]],
   [["  ✓ ", "mint"], ["job_9z2k7aa", "azure"], [" done · verify=green · sha 9be31d7", "faint"]],
 ];
 
@@ -42,13 +42,13 @@ function subseq(q: string, s: string) {
 
 const stateTone: Record<string, string> = {
   queued: "text-faint",
-  running: "text-gold",
+  running: "text-primary",
   needs_user: "text-azure",
   done: "text-mint",
 };
 const stateDot: Record<string, string> = {
   queued: "bg-faint",
-  running: "bg-gold animate-pulse",
+  running: "bg-primary animate-pulse",
   needs_user: "bg-azure animate-pulse",
   done: "bg-mint",
 };
@@ -86,8 +86,8 @@ export default function ControlRoom() {
     if (inbox !== "open") return;
     setInbox("answered");
     push([
-      ["◆ ", "gold"],
-      [locale === "ko" ? "인박스에 답변 — " : "inbox answered — ", "gold"],
+      ["◆ ", "primary"],
+      [locale === "ko" ? "인박스에 답변 — " : "inbox answered — ", "primary"],
       [opt, "w"],
     ]);
     // job resumes, then completes
@@ -184,8 +184,8 @@ export default function ControlRoom() {
                       className={cn(
                         "flex w-full items-center gap-4 rounded-xl border px-4 py-3 text-left transition-all",
                         overlay === k.action
-                          ? "border-gold/60 bg-gold/[0.07]"
-                          : "border-line bg-panel hover:border-gold/30",
+                          ? "border-primary/60 bg-primary/[0.07]"
+                          : "border-line bg-panel hover:border-primary/30",
                       )}
                     >
                       <KeyCap className="min-w-[64px] text-center">{k.chord}</KeyCap>
@@ -193,7 +193,7 @@ export default function ControlRoom() {
                       <span
                         className={cn(
                           "ml-auto size-1.5 rounded-full transition-colors",
-                          overlay === k.action ? "bg-gold" : "bg-transparent",
+                          overlay === k.action ? "bg-primary" : "bg-transparent",
                         )}
                       />
                     </button>
@@ -220,14 +220,14 @@ export default function ControlRoom() {
               onMouseDown={() => setAttach(true)}
               className={cn(
                 "tui scan relative flex h-[560px] cursor-text flex-col overflow-hidden rounded-2xl outline-none transition-shadow",
-                attach && "shadow-[0_0_0_1px_rgba(242,185,75,0.5),0_30px_80px_-20px_rgba(0,0,0,0.8)]",
+                attach && "shadow-[0_0_0_1px_rgba(0,213,255,0.5),0_30px_80px_-20px_rgba(0,0,0,0.8)]",
               )}
             >
               {/* titlebar */}
               <div className="relative flex items-center gap-2 border-b border-line px-4 py-2.5">
-                <span className="size-2.5 rounded-full bg-[#3a3e45]" />
-                <span className="size-2.5 rounded-full bg-[#3a3e45]" />
-                <span className="size-2.5 rounded-full bg-gold/70" />
+                <span className="size-2.5 rounded-full bg-line-strong" />
+                <span className="size-2.5 rounded-full bg-line-strong" />
+                <span className="size-2.5 rounded-full bg-primary/70" />
                 <span className="ml-3 font-[family-name:var(--font-mono)] text-[11px] text-faint">
                   liora — ~/projects/paygate
                 </span>
@@ -249,7 +249,7 @@ export default function ControlRoom() {
                 ))}
                 {running && (
                   <div className="mt-1 animate-pulse whitespace-pre-wrap">
-                    <span className="text-gold">  ⠿ </span>
+                    <span className="text-primary">  ⠿ </span>
                     <span className="text-azure">{running.id}</span>
                     <span className="text-dim"> {running.title[locale]}</span>
                     <span className="text-faint"> · {running.progress}%</span>
@@ -282,7 +282,7 @@ export default function ControlRoom() {
                       </p>
                       {j.state === "running" || j.state === "needs_user" ? (
                         <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/5">
-                          <div className="h-full rounded-full bg-gold transition-all duration-300" style={{ width: `${j.progress}%` }} />
+                          <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${j.progress}%` }} />
                         </div>
                       ) : null}
                       {j.state === "needs_user" && (
@@ -316,7 +316,7 @@ export default function ControlRoom() {
                         <button
                           key={opt}
                           onClick={() => answer(opt)}
-                          className="flex items-center justify-between rounded-lg border border-line bg-white/[0.03] px-3.5 py-2.5 text-left text-[12.5px] text-dim transition-colors hover:border-gold/50 hover:text-ink"
+                          className="flex items-center justify-between rounded-lg border border-line bg-white/[0.03] px-3.5 py-2.5 text-left text-[12.5px] text-dim transition-colors hover:border-primary/50 hover:text-ink"
                         >
                           {opt}
                           <CornerDownLeft className="size-3.5 opacity-50" />
@@ -374,10 +374,10 @@ export default function ControlRoom() {
                       onClick={() => hubEnter(i)}
                       className={cn(
                         "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left",
-                        hubIdx === i ? "bg-gold/[0.09]" : "",
+                        hubIdx === i ? "bg-primary/[0.09]" : "",
                       )}
                     >
-                      <span className={cn("size-1 rounded-full", hubIdx === i ? "bg-gold" : "bg-white/15")} />
+                      <span className={cn("size-1 rounded-full", hubIdx === i ? "bg-primary" : "bg-white/15")} />
                       <span className="text-[12.5px] text-ink">{it.label}</span>
                       <span className="ml-auto font-[family-name:var(--font-mono)] text-[10.5px] text-faint">{it.hint}</span>
                     </button>
@@ -392,11 +392,11 @@ export default function ControlRoom() {
                     <div key={r.provider}>
                       <div className="flex items-baseline justify-between gap-2">
                         <p className="text-[12px] text-ink">{r.provider}</p>
-                        <p className="tick-num font-[family-name:var(--font-mono)] text-[11px] text-gold">{r.pct}%</p>
+                        <p className="tick-num font-[family-name:var(--font-mono)] text-[11px] text-primary">{r.pct}%</p>
                       </div>
                       <p className="font-[family-name:var(--font-mono)] text-[10px] text-faint">{r.detail}</p>
                       <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/5">
-                        <div className="h-full rounded-full bg-gradient-to-r from-golddeep to-gold" style={{ width: `${r.pct}%` }} />
+                        <div className="h-full rounded-full bg-gradient-to-r from-primary-deep to-primary" style={{ width: `${r.pct}%` }} />
                       </div>
                     </div>
                   ))}
@@ -421,14 +421,14 @@ export default function ControlRoom() {
               </OverlayShell>
 
               {/* status bar */}
-              <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-[#0b0d10]/95 px-4 py-2 font-[family-name:var(--font-mono)] text-[10.5px] backdrop-blur sm:px-5">
-                <span className={cn("flex items-center gap-1.5", planOn ? "text-violet" : "text-gold")}>
-                  <span className={cn("inline-block size-1.5 animate-pulse rounded-full", planOn ? "bg-violet" : "bg-gold")} />
+              <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-sunken/95 px-4 py-2 font-[family-name:var(--font-mono)] text-[10.5px] backdrop-blur sm:px-5">
+                <span className={cn("flex items-center gap-1.5", planOn ? "text-violet" : "text-primary")}>
+                  <span className={cn("inline-block size-1.5 animate-pulse rounded-full", planOn ? "bg-violet" : "bg-primary")} />
                   {planOn ? "PLAN" : "CONDUCT"}
                 </span>
                 <span className="text-dim">main*</span>
                 <span className="hidden text-faint sm:inline">opencode-go/kimi-k3</span>
-                {inbox === "open" && <span className="rounded bg-gold/15 px-1.5 py-0.5 text-gold">▣1 inbox</span>}
+                {inbox === "open" && <span className="rounded bg-primary/15 px-1.5 py-0.5 text-primary">▣1 inbox</span>}
                 <span className="ml-auto text-faint">{t.tui.hints}</span>
               </div>
             </div>
@@ -458,18 +458,18 @@ function OverlayShell({
   return (
     <div
       className={cn(
-        "ov absolute z-20 overflow-hidden rounded-xl border border-line bg-[#101318]/97 shadow-[0_24px_70px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl",
+        "ov absolute z-20 overflow-hidden rounded-xl border border-line bg-panel/97 shadow-[0_24px_70px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl",
         on && "on",
         side === "right" && "top-12 right-3 bottom-14 w-[min(330px,86%)] overflow-y-auto",
         side === "left" && "bottom-14 left-3 w-[min(320px,86%)]",
         side === "center" && (wide ? "top-12 inset-x-0 mx-auto w-[min(430px,92%)]" : "top-14 inset-x-0 mx-auto w-[min(400px,92%)]"),
       )}
     >
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-[#101318] px-4 py-2.5">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-raise px-4 py-2.5">
         <p className="font-[family-name:var(--font-mono)] text-[10px] tracking-[0.18em] text-faint uppercase">{label}</p>
         <button
           onClick={onClose}
-          className="rounded-md border border-line bg-white/[0.04] px-2.5 py-1 font-[family-name:var(--font-mono)] text-[10px] text-faint transition-colors hover:border-gold/50 hover:text-ink"
+          className="rounded-md border border-line bg-white/[0.04] px-2.5 py-1 font-[family-name:var(--font-mono)] text-[10px] text-faint transition-colors hover:border-primary/50 hover:text-ink"
         >
           esc
         </button>

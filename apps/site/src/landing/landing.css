@@ -1,20 +1,31 @@
+/*
+ * Art direction: the landing wears the same palette as the terminal.
+ * SSOT: apps/liora/src/tui/theme/bundled-themes.ts → superliora-neon-noir, the
+ * CLI's default theme. TUI token names are kept in the comments beside each
+ * value; when the product palette moves, this file moves with it — it is not a
+ * second brand palette.
+ * Dark-only stage; the docs entry (src/index.css) shares the same tokens.
+ */
+
 @import "tailwindcss";
 
 @theme {
-  --color-paper: #0a0b0d;
-  --color-panel: #0e1013;
-  --color-raise: #14171c;
-  --color-raise2: #1a1e24;
-  --color-ink: #ece7dc;
-  --color-dim: #a39d91;
-  --color-faint: #6f6a61;
-  --color-gold: #f2b94b;
-  --color-golddeep: #b9862a;
-  --color-mint: #8fd9a0;
-  --color-red: #f2766b;
-  --color-azure: #83b7f0;
-  --color-violet: #b49af0;
-  --color-line: rgba(236, 231, 220, 0.09);
+  --color-paper: #0d1422; /* background */
+  --color-panel: #162033; /* surface */
+  --color-raise: #1e2c42; /* surfaceRaised */
+  --color-sunken: #060a12; /* surfaceSunken */
+  --color-ink: #e6edf3; /* text */
+  --color-ink-strong: #ffffff; /* textStrong */
+  --color-dim: #9aa7b2; /* textDim */
+  --color-faint: #6f7a86; /* textMuted */
+  --color-primary: #00d5ff; /* primary · borderFocus */
+  --color-primary-deep: #06b6d4; /* gradientStart */
+  --color-mint: #36d399; /* success · diffAdded */
+  --color-red: #ff5c7a; /* error · diffRemoved */
+  --color-azure: #22d3ee; /* glow */
+  --color-violet: #a78bfa; /* accent · particle */
+  --color-line: #334155; /* border */
+  --color-line-strong: #475569; /* border, hover */
   --font-display: "Space Grotesk", "Pretendard Variable", Pretendard, -apple-system, sans-serif;
   --font-sans: "Pretendard Variable", Pretendard, "Space Grotesk", -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", "Pretendard Variable", Pretendard, ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -38,8 +49,8 @@ body {
 }
 
 ::selection {
-  background: rgba(242, 185, 75, 0.28);
-  color: #fff8e8;
+  background: #123b5a; /* selectionBg */
+  color: #ffffff; /* selectionText */
 }
 
 /* ------- global texture ------- */
@@ -55,8 +66,8 @@ body {
 
 .grid-bg {
   background-image:
-    linear-gradient(rgba(236, 231, 220, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(236, 231, 220, 0.035) 1px, transparent 1px);
+    linear-gradient(rgba(230, 237, 243, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(230, 237, 243, 0.035) 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 30%, transparent 75%);
 }
@@ -66,8 +77,8 @@ body {
     180deg,
     transparent 0,
     transparent 46px,
-    rgba(236, 231, 220, 0.05) 46px,
-    rgba(236, 231, 220, 0.05) 47px
+    rgba(230, 237, 243, 0.05) 46px,
+    rgba(230, 237, 243, 0.05) 47px
   );
 }
 
@@ -106,22 +117,22 @@ body {
 /* ------- terminal ------- */
 .tui {
   background:
-    radial-gradient(120% 100% at 50% 0%, rgba(242, 185, 75, 0.045), transparent 55%),
-    linear-gradient(180deg, #101216, #0c0e11);
+    radial-gradient(120% 100% at 50% 0%, rgba(0, 213, 255, 0.05), transparent 55%),
+    linear-gradient(180deg, #162033, #0d1422);
   box-shadow:
-    0 0 0 1px rgba(236, 231, 220, 0.1),
+    0 0 0 1px rgba(51, 65, 85, 0.9),
     0 30px 80px -20px rgba(0, 0, 0, 0.8),
-    0 0 120px -30px rgba(242, 185, 75, 0.18);
+    0 0 120px -30px rgba(0, 213, 255, 0.22);
 }
 .tui-lines {
   scrollbar-width: thin;
-  scrollbar-color: rgba(236, 231, 220, 0.16) transparent;
+  scrollbar-color: rgba(154, 167, 178, 0.28) transparent;
 }
 .tui-lines::-webkit-scrollbar {
   width: 8px;
 }
 .tui-lines::-webkit-scrollbar-thumb {
-  background: rgba(236, 231, 220, 0.14);
+  background: rgba(154, 167, 178, 0.24);
   border-radius: 8px;
 }
 .scan {
@@ -182,8 +193,8 @@ body {
 }
 
 @keyframes pingdot {
-  0% { box-shadow: 0 0 0 0 rgba(242, 185, 75, 0.5); }
-  100% { box-shadow: 0 0 0 9px rgba(242, 185, 75, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(0, 213, 255, 0.5); }
+  100% { box-shadow: 0 0 0 9px rgba(0, 213, 255, 0); }
 }
 .pingdot {
   animation: pingdot 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
@@ -210,15 +221,16 @@ body {
   line-height: 1;
   padding: 3px 6px 4px;
   border-radius: 5px;
-  border: 1px solid rgba(236, 231, 220, 0.18);
+  border: 1px solid rgba(230, 237, 243, 0.18);
   border-bottom-width: 2px;
-  background: rgba(236, 231, 220, 0.05);
+  background: rgba(230, 237, 243, 0.05);
   color: var(--color-dim);
   white-space: nowrap;
 }
 
-.gold-text {
-  background: linear-gradient(160deg, #ffe9b8 10%, #f2b94b 45%, #c98f22 90%);
+/* Headline wash: primary → gradientStart, the TUI's own two-tone. */
+.brand-text {
+  background: linear-gradient(160deg, #dff6ff 10%, #00d5ff 45%, #06b6d4 90%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -226,7 +238,7 @@ body {
 
 .outline-word {
   color: transparent;
-  -webkit-text-stroke: 1px rgba(236, 231, 220, 0.22);
+  -webkit-text-stroke: 1px rgba(230, 237, 243, 0.22);
 }
 
 .tick-num {
@@ -234,16 +246,16 @@ body {
 }
 
 .hr-fade {
-  background: linear-gradient(90deg, transparent, rgba(236, 231, 220, 0.14), transparent);
+  background: linear-gradient(90deg, transparent, rgba(230, 237, 243, 0.14), transparent);
   height: 1px;
 }
 
-.btn-gold {
-  background: linear-gradient(160deg, #f6c968, #dd9c2c);
+.btn-primary {
+  background: linear-gradient(160deg, #5ee7ff, #00b9e0);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 8px 24px -8px rgba(242, 185, 75, 0.55);
+    0 8px 24px -8px rgba(0, 213, 255, 0.55);
 }
-.btn-gold:hover {
+.btn-primary:hover {
   filter: brightness(1.06);
 }

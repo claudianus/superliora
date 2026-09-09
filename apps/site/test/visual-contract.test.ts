@@ -51,14 +51,19 @@ describe('conductor landing visual contract', () => {
     expect(tui).not.toMatch(/if \(cancelled \|\| reduced\) return/);
   });
 
-  it('runs the hero replay and the demo console on the same gold stage', () => {
+  it('runs the hero replay and the demo console on the TUI-colored stage', () => {
     expect(read('landing/components/Hero.tsx')).toContain('t.hero.installCmd');
     expect(read('landing/components/Hero.tsx')).toContain('<TuiEmulator');
+    expect(read('landing/components/Hero.tsx')).toContain('brand-text');
     const css = read('landing/landing.css');
     expect(css).toContain('.noise');
     expect(css).toContain('.tui');
     const demo = read('landing/components/ControlRoom.tsx');
     expect(demo).toContain('"tui scan');
     expect(demo).toContain('OverlayShell');
+    // The fake terminal speaks the same tokens as the real TUI chrome.
+    const emulator = read('landing/tui/TuiEmulator.tsx');
+    expect(emulator).toContain('text-primary');
+    expect(read('landing/tui/session.ts')).toContain('primary: "text-primary"');
   });
 });

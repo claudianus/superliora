@@ -110,7 +110,7 @@ export default function TuiEmulator({ className }: { className?: string }) {
             case "enter":
               setPhase("run");
               push([
-                ["❯ ", "gold"],
+                ["❯ ", "primary"],
                 [currentTyped, "w"],
               ]);
               await sleep(140);
@@ -163,14 +163,14 @@ export default function TuiEmulator({ className }: { className?: string }) {
     <div className={cn("tui scan relative overflow-hidden rounded-2xl", className)}>
       {/* titlebar */}
       <div className="relative flex items-center gap-2 border-b border-line px-4 py-2.5">
-        <span className="size-2.5 rounded-full bg-[#3a3e45]" />
-        <span className="size-2.5 rounded-full bg-[#3a3e45]" />
-        <span className="size-2.5 rounded-full bg-gold/70" />
+        <span className="size-2.5 rounded-full bg-line-strong" />
+        <span className="size-2.5 rounded-full bg-line-strong" />
+        <span className="size-2.5 rounded-full bg-primary/70" />
         <span className="ml-3 font-[family-name:var(--font-mono)] text-[11px] text-faint">
           {t.tui.windowTitle}
         </span>
-        <span className="ml-auto flex items-center gap-2 font-[family-name:var(--font-mono)] text-[10px] tracking-wider text-gold/90 uppercase">
-          <span className="pingdot inline-block size-1.5 rounded-full bg-gold" />
+        <span className="ml-auto flex items-center gap-2 font-[family-name:var(--font-mono)] text-[10px] tracking-wider text-primary/90 uppercase">
+          <span className="pingdot inline-block size-1.5 rounded-full bg-primary" />
           {t.tui.liveTag}
         </span>
       </div>
@@ -193,7 +193,7 @@ export default function TuiEmulator({ className }: { className?: string }) {
         {/* pending task spinner line */}
         {pending && (
           <div className="whitespace-pre-wrap break-words">
-            <span className="text-gold">  {SPINNER[spin]} </span>
+            <span className="text-primary">  {SPINNER[spin]} </span>
             {pending.map((s, i) => (
               <span key={i} className={toneClass[s[1]]}>
                 {s[0]}
@@ -205,17 +205,17 @@ export default function TuiEmulator({ className }: { className?: string }) {
         {/* prompt */}
         {phase === "typing" && (
           <div className="mt-1 whitespace-pre-wrap break-words">
-            <span className="text-gold">❯ </span>
-            <span className="text-[#fff6e3]">{typed}</span>
-            <span className="caret ml-0.5 inline-block h-[14px] w-[7px] translate-y-[2px] bg-gold" />
+            <span className="text-primary">❯ </span>
+            <span className="text-ink-strong">{typed}</span>
+            <span className="caret ml-0.5 inline-block h-[14px] w-[7px] translate-y-[2px] bg-primary" />
           </div>
         )}
       </div>
 
       {/* status bar */}
       <div className="relative flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-black/30 px-4 py-2 font-[family-name:var(--font-mono)] text-[10.5px] sm:px-5">
-        <span className="flex items-center gap-1.5 text-gold">
-          <span className="inline-block size-1.5 animate-pulse rounded-full bg-gold" />
+        <span className="flex items-center gap-1.5 text-primary">
+          <span className="inline-block size-1.5 animate-pulse rounded-full bg-primary" />
           CONDUCT
         </span>
         <span className="text-dim">{chips.branch}</span>
@@ -225,7 +225,7 @@ export default function TuiEmulator({ className }: { className?: string }) {
           {chips.quota}%
         </span>
         {chips.inbox > 0 && (
-          <span className="flex items-center gap-1 rounded bg-gold/15 px-1.5 py-0.5 text-gold">▣{chips.inbox} inbox</span>
+          <span className="flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-primary">▣{chips.inbox} inbox</span>
         )}
         <span className="tick-num text-faint">{chips.latency === "—" ? `~${38 + jitter}ms` : chips.latency}</span>
         <span className="ml-auto text-faint">{t.tui.hints}</span>
