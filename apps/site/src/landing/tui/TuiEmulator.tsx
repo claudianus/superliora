@@ -216,7 +216,7 @@ export default function TuiEmulator({ className }: { className?: string }) {
       <div className="relative flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-black/30 px-4 py-2 font-[family-name:var(--font-mono)] text-[10.5px] sm:px-5">
         <span className="flex items-center gap-1.5 text-primary">
           <span className="inline-block size-1.5 animate-pulse rounded-full bg-primary" />
-          CONDUCT
+          BUILD
         </span>
         <span className="text-dim">{chips.branch}</span>
         <span className="hidden text-faint sm:inline">{chips.model}</span>

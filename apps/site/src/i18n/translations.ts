@@ -311,10 +311,10 @@ const visualsKo: SiteVisuals = {
     chrome: 'Flow',
     badge: 'one lap',
     steps: [
-      { title: '결과 적기', body: '끝난 모습을 한 줄로' },
-      { title: '백그라운드 Job', body: 'git worktree에서 진행' },
+      { title: '결과 적기', body: '원하는 결과를 한 줄로' },
+      { title: '백그라운드 작업', body: '별도 공간(worktree)에서 진행' },
       { title: 'Inbox', body: 'Alt+I에서 한 줄로 답' },
-      { title: 'Land', body: '통과분만 로컬 합치기' },
+      { title: '합치기', body: '통과한 것만 로컬에 합치기' },
     ],
   },
 };
@@ -403,10 +403,10 @@ const visualsEn: SiteVisuals = {
     chrome: 'Flow',
     badge: 'one lap',
     steps: [
-      { title: 'Describe', body: 'Write the finished state' },
-      { title: 'Background Job', body: 'Isolated git worktree' },
+      { title: 'Describe', body: 'Write the result you want' },
+      { title: 'Background task', body: 'Runs in a separate copy (worktree)' },
       { title: 'Inbox', body: 'Answer in Alt+I' },
-      { title: 'Land', body: 'Merge locally' },
+      { title: 'Merge', body: 'Merge in locally' },
     ],
   },
 };
@@ -453,7 +453,7 @@ const clustersKo: ClusterItem[] = [
       { id: 'worktree', title: '작업별 브랜치', body: '작업마다 분리된 브랜치라 병렬로 맡겨도 트리가 안 섞입니다.' },
       { id: 'job-deck', title: 'Job Deck', body: 'Alt+J로 diff·테스트·진행을 엽니다. 힌트는 한 줄이고, 입력하면 Search:가 뜹니다.' },
       { id: 'inbox', title: 'Inbox', body: '질문이 뜨면 Alt+I에서 한 줄로 답합니다. 다른 목록처럼 입력하면 검색·페이지가 됩니다.' },
-      { id: 'land', title: 'Land', body: '통과한 것만 로컬에 합칩니다. push는 원할 때.' },
+      { id: 'land', title: '합치기', body: '통과한 것만 로컬에 합칩니다. push는 원할 때.' },
     ],
   },
   {
@@ -509,7 +509,7 @@ const clustersEn: ClusterItem[] = [
       { id: 'worktree', title: 'Per-job branches', body: 'Each job gets its own branch so parallel work does not collide.' },
       { id: 'job-deck', title: 'Job Deck', body: 'Alt+J opens diffs, tests, and progress. One hint line; type to Search: like other lists.' },
       { id: 'inbox', title: 'Inbox', body: 'When it asks, answer in Alt+I. Type to search, same paging as other lists.' },
-      { id: 'land', title: 'Land', body: 'Merge what passed locally. Push when you want.' },
+      { id: 'land', title: 'Merge', body: 'Merge in what passed, locally. Push when you want.' },
     ],
   },
   {
@@ -544,9 +544,9 @@ export const translations: Record<Lang, Translation> = {
     lang: 'ko',
     dir: 'ltr',
     meta: {
-      title: 'SuperLiora — 코딩 에이전트를 지휘하는 터미널',
+      title: 'SuperLiora — 코딩 에이전트를 돌리는 터미널',
       description:
-        '결과를 적으면 Conductor가 격리 Job을 띄웁니다. Job Deck으로 보고, Inbox에서 답하고, 통과분만 로컬에 Land하세요.',
+        '원하는 결과를 적으면 SuperLiora가 격리된 작업(Job)을 실행합니다. Job Deck에서 보고, Inbox에서 답하고, 테스트를 통과한 것만 로컬에 합치세요.',
       ogLocale: 'ko_KR',
     },
     skip: '본문으로 건너뛰기',
@@ -561,20 +561,20 @@ export const translations: Record<Lang, Translation> = {
     },
     hero: {
       brand: 'SuperLiora',
-      eyebrow: 'CONDUCTOR · LOCAL FIRST',
-      h1: '코딩 에이전트를 지휘하는 터미널.',
-      lead: '결과를 적으면 격리 Job이 돌아갑니다. 필요할 때만 Inbox에서 답하세요.',
+      eyebrow: 'AI 코딩 에이전트 · 로컬 우선',
+      h1: '코딩 에이전트를 돌리는 터미널.',
+      lead: '원하는 결과를 적으면 격리된 작업이 실행됩니다. 필요할 때만 Inbox에서 답하세요.',
       command: '$ liora',
       proof: [
-        { value: 'Conductor', label: '대화와 실행 분리' },
-        { value: 'Isolated Jobs', label: 'git worktree 격리' },
-        { value: 'Model-agnostic', label: '라우팅·폴백·풀링' },
+        { value: '대화·실행 분리', label: '지시와 작업을 나눠서' },
+        { value: '격리 실행', label: '작업마다 git worktree' },
+        { value: '모델 자유', label: '모델 선택·전환·묶음' },
       ],
       install: '설치법',
       github: 'GitHub',
       docs: '가이드',
       frame: {
-        conductor: 'CONDUCTOR / CONTROL PLANE',
+        conductor: 'SESSION · CONTROL PLANE',
         conductorState: '3 jobs · 1 needs you',
         inbox: 'INBOX 01',
         jobLabel: 'Job',
@@ -606,8 +606,8 @@ export const translations: Record<Lang, Translation> = {
     },
     clusters: {
       kicker: '주요 기능',
-      title: '끊겨도 지휘는 남습니다.',
-      body: '모델 폴백, 작업별 worktree, 권한. 한 터미널에서 이어집니다.',
+      title: '끊겨도 작업은 이어집니다.',
+      body: '모델 자동 전환, 작업마다 분리된 작업 공간, 권한 관리. 한 터미널에서 이어집니다.',
       items: clustersKo,
     },
     usage: {
@@ -619,7 +619,7 @@ export const translations: Record<Lang, Translation> = {
           id: 'liora',
           cmd: USAGE_COMMANDS[0].cmd,
           title: '세션 열기',
-          body: '프로젝트 폴더에서 Conductor 세션을 엽니다.',
+          body: '프로젝트 폴더에서 세션을 엽니다.',
         },
         {
           id: 'continue',
@@ -631,7 +631,7 @@ export const translations: Record<Lang, Translation> = {
           id: 'plan',
           cmd: USAGE_COMMANDS[2].cmd,
           title: '계획으로 시작',
-          body: 'Plan Desk로 큰 작업을 조향한 뒤 실행합니다.',
+          body: 'Plan 모드로 큰 작업을 먼저 정리한 뒤 실행합니다.',
         },
         {
           id: 'login',
@@ -649,13 +649,13 @@ export const translations: Record<Lang, Translation> = {
     },
     workflow: {
       kicker: '워크플로우',
-      title: '적고, 맡기고, 답하고, Land.',
-      body: 'Job Deck은 Alt+J, Inbox는 Alt+I. 통과분만 로컬에 Land합니다.',
+      title: '적고, 맡기고, 답하고, 합치기.',
+      body: 'Job Deck은 Alt+J, Inbox는 Alt+I. 통과한 것만 로컬에 합칩니다.',
       steps: [
         {
           id: 'write',
           title: '결과를 적기',
-          body: '“로그인 후 /app으로 가게 해줘”처럼 끝난 모습을 적습니다. Conductor가 Job을 만듭니다.',
+          body: '“로그인 후 /app으로 가게 해줘”처럼 원하는 결과를 적습니다. SuperLiora가 작업(Job)을 만듭니다.',
         },
         {
           id: 'job',
@@ -669,7 +669,7 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           id: 'land',
-          title: '로컬에 Land',
+          title: '로컬에 합치기',
           body: '통과한 것만 로컬에 합칩니다. push는 원할 때 합니다.',
         },
       ],
@@ -765,7 +765,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '워크플로우',
-            body: 'Conductor가 git worktree Job을 만듭니다. Alt+J Job Deck으로 보고, Alt+I Inbox에서 답하고, 통과분만 로컬에 Land합니다.',
+            body: 'SuperLiora가 격리된 작업 공간(git worktree)에서 작업(Job)을 만듭니다. Alt+J Job Deck으로 보고, Alt+I Inbox에서 답하고, 테스트를 통과한 것만 로컬에 합칩니다.',
           },
         ],
       },
@@ -865,9 +865,9 @@ export const translations: Record<Lang, Translation> = {
     lang: 'en',
     dir: 'ltr',
     meta: {
-      title: 'SuperLiora — Command coding agents from your terminal',
+      title: 'SuperLiora — Run coding agents from your terminal',
       description:
-        'Write the outcome. Conductor starts isolated Jobs. Watch the Job Deck, answer in Inbox, Land locally what passed.',
+        'Describe what you want. SuperLiora runs isolated tasks. Watch the Job Deck, answer in the Inbox, and merge in locally what passed.',
       ogLocale: 'en_US',
     },
     skip: 'Skip to content',
@@ -882,20 +882,20 @@ export const translations: Record<Lang, Translation> = {
     },
     hero: {
       brand: 'SuperLiora',
-      eyebrow: 'CONDUCTOR · LOCAL FIRST',
-      h1: 'Command coding agents from your terminal.',
-      lead: 'Write the outcome. Isolated Jobs run. Answer in Inbox only when asked.',
+      eyebrow: 'AI CODING AGENT · LOCAL FIRST',
+      h1: 'Run coding agents from your terminal.',
+      lead: 'Describe what you want. Isolated tasks run on their own. Answer in the Inbox only when asked.',
       command: '$ liora',
       proof: [
-        { value: 'Conductor', label: 'separate talk from execution' },
-        { value: 'Isolated Jobs', label: 'one git worktree each' },
-        { value: 'Model-agnostic', label: 'route, pool, and fail over' },
+        { value: 'Talk vs. work', label: 'directing is separate from doing' },
+        { value: 'Isolated tasks', label: 'one git worktree each' },
+        { value: 'Any model', label: 'pick, switch, and fail over' },
       ],
       install: 'Install',
       github: 'GitHub',
       docs: 'Guide',
       frame: {
-        conductor: 'CONDUCTOR / CONTROL PLANE',
+        conductor: 'SESSION · CONTROL PLANE',
         conductorState: '3 jobs · 1 needs you',
         inbox: 'INBOX 01',
         jobLabel: 'Job',
@@ -940,7 +940,7 @@ export const translations: Record<Lang, Translation> = {
           id: 'liora',
           cmd: USAGE_COMMANDS[0].cmd,
           title: 'Open a session',
-          body: 'Start a Conductor session in this project folder.',
+          body: 'Start a session in this project folder.',
         },
         {
           id: 'continue',
@@ -951,8 +951,8 @@ export const translations: Record<Lang, Translation> = {
         {
           id: 'plan',
           cmd: USAGE_COMMANDS[2].cmd,
-          title: 'Start in Plan Desk',
-          body: 'Steer a large piece of work before it runs.',
+          title: 'Start in Plan mode',
+          body: 'Think through a large piece of work before it runs.',
         },
         {
           id: 'login',
@@ -970,13 +970,13 @@ export const translations: Record<Lang, Translation> = {
     },
     workflow: {
       kicker: 'Workflow',
-      title: 'Write, run, answer, Land.',
-      body: 'Job Deck is Alt+J. Inbox is Alt+I. Land locally what passed.',
+      title: 'Write, run, answer, merge.',
+      body: 'Job Deck is Alt+J. Inbox is Alt+I. Merge in locally what passed.',
       steps: [
         {
           id: 'write',
-          title: 'Write the outcome',
-          body: '“After login, go to /app.” Conductor creates a Job.',
+          title: 'Describe the result',
+          body: '“After login, go to /app.” SuperLiora creates a task.',
         },
         {
           id: 'job',
@@ -990,8 +990,8 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           id: 'land',
-          title: 'Land locally',
-          body: 'Merge what passed. Push when you want.',
+          title: 'Merge locally',
+          body: 'Merge in what passed. Push when you want.',
         },
       ],
     },
@@ -1086,7 +1086,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Workflow',
-            body: 'Conductor creates a git worktree Job. Watch it on the Job Deck (Alt+J), answer in Inbox (Alt+I), and Land locally what passed.',
+            body: 'SuperLiora creates a task in an isolated copy of your project (a git worktree). Watch it on the Job Deck (Alt+J), answer in the Inbox (Alt+I), and merge in locally what passed.',
           },
         ],
       },
@@ -1116,7 +1116,7 @@ export const translations: Record<Lang, Translation> = {
       jobs: {
         slug: 'jobs',
         title: 'Jobs',
-        lead: 'List, watch, answer, land.',
+        lead: 'List, watch, answer, and merge.',
         sections: [
           {
             heading: 'Watch',
@@ -1129,8 +1129,8 @@ export const translations: Record<Lang, Translation> = {
             code: '/job inbox\n/job answer <id> <text>\n/job resume\n/job cancel <id>',
           },
           {
-            heading: 'Land',
-            body: 'When checks pass, merge locally. Remote publish is a separate step.',
+            heading: 'Merge',
+            body: 'When checks pass, merge in locally. Publishing to a remote is a separate step.',
           },
           {
             heading: 'Clean up',

@@ -17,7 +17,7 @@ export default function Hero() {
       />
 
       <div className="relative mx-auto max-w-6xl px-5">
-        {/* baton beat divider */}
+        {/* accent divider */}
         <div className="relative mx-auto mt-10 h-px max-w-3xl bg-line">
           <span className="beat-dot absolute -top-[2.5px] left-0 size-[6px] rounded-full bg-primary shadow-[0_0_12px_rgba(0,213,255,0.9)]" />
         </div>
