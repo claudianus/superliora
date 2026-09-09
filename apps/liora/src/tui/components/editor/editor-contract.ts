@@ -72,6 +72,12 @@ export interface TUIEditor
   onOpenJobInbox?: () => void;
   /** Focus Intent Composer brief slots (Alt+B) when conductor_ux_v2 is on. */
   onOpenIntentComposer?: () => void;
+  /** Opens the live Quota report (Q on an empty prompt). */
+  onOpenQuota?: () => void;
+  /** Toggles Plan mode (P on an empty prompt). */
+  onOpenPlan?: () => void;
+  /** True when idle-only single-key shortcuts (Q / P) may fire. */
+  canActivateIdleShortcut?: () => boolean;
   /** Opens the transcript search overlay (Ctrl-F). */
   onTranscriptSearch?: () => void;
   /** Stashes the current draft, or restores the latest stash when the editor is empty (Ctrl-X). */

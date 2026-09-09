@@ -84,7 +84,7 @@ export const ko: Dict = {
       { chord: "Alt+I", label: "Inbox", action: "inbox" },
       { chord: "Ctrl+K", label: "Command Hub", action: "hub" },
       { chord: "Q", label: "Quota", action: "quota" },
-      { chord: "P", label: "Plan Desk", action: "plan" },
+      { chord: "P", label: "Plan 모드", action: "plan" },
     ],
     deck: {
       title: "Job Deck",

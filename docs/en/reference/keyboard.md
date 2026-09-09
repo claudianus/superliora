@@ -12,6 +12,8 @@ SuperLiora CLI's TUI interactive mode keeps a small main-prompt keymap and route
 | `Shift-Tab` | Switch Ask / Build mode |
 | `Esc` | Close a popup / cancel completion / interrupt streaming; press twice while idle for **session undo** |
 | `Ctrl-C` | Stop the current turn, or clear input / confirm exit when idle |
+| `Ctrl-O` | Cycle transcript density (minimal → compact → standard → full) |
+| `Ctrl-T` | Expand / collapse the todo list |
 
 Pressing `Ctrl-C` **during streaming** cancels immediately — no second confirmation needed.
 
@@ -29,6 +31,13 @@ Pressing `Ctrl-C` **during streaming** cancels immediately — no second confirm
 | `↑` / `↓` | Browse input history (empty prompt) |
 | `PgUp` / `PgDn` | Scroll the transcript (empty prompt) |
 | `!` | Enter shell mode (empty prompt) |
+| `Alt-J` | Open the Conductor Job Deck monitor (worker transcripts, tokens, elapsed). Press `Alt-J` again while it is open to close it. Same entry as `/jobs deck` or clicking a Job Desk card. In Kitty on macOS, set `macos_option_as_alt yes` (or `left`) so Option sends Alt |
+| `Alt-I` | Open the Conductor Inbox drawer (questions waiting on you). Press `Alt-I` again to close it. Same entry as `/job inbox` |
+| `Alt-B` | Focus the Intent Composer brief slots above the editor |
+| `Q` | Open the live Quota (remaining-credits) report as an overlay — empty prompt only. Press `Q` again (or `Esc`) while it is open to close it |
+| `P` | Start Plan mode and open the plan in a scrollable overlay — empty prompt only. Press `P` or `Esc` while it is open to close it; `/plan` exits Plan mode |
+
+`Q` / `P` are single-key and fire only when the prompt is empty and idle, so they never steal letters from a draft you are typing. (`q`/`Q` inside an already-open help popup still means "close", which is a different context.)
 
 If a gated key cannot run (for example Hub while a turn is streaming, or `Ctrl-R` with a non-empty prompt), the TUI shows a short toast instead of doing nothing.
 
@@ -67,11 +76,7 @@ When pasting an image or video, a placeholder is shown in the input box — the 
 
 ## Hub & slash (not main chords)
 
-Tool-output expansion, todo expansion, Plan steering, and retry live in Command Hub or slash commands (`/plan`, `/retry`, …) — not as separate main-prompt chords.
-
-| Shortcut | Function |
-| --- | --- |
-| `Alt-J` | Open the Conductor Job Deck monitor (worker transcripts, tokens, elapsed). Same entry as `/jobs deck` or clicking a Job Desk card. In Kitty on macOS, set `macos_option_as_alt yes` (or `left`) so Option sends Alt |
+Plan mode and retry are toggled from the Command Hub or slash commands (`/plan`, `/retry`, …), and tool-output / todo expansion are the `Ctrl-O` / `Ctrl-T` chords above. Beyond that, most workflow actions live in Command Hub (`Ctrl-K`) or slash commands rather than dedicated main-prompt chords.
 
 ## Approval Panel
 

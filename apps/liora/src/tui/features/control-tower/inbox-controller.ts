@@ -23,12 +23,20 @@ import {
   resolveNeedsUserQuestionText,
 } from '../../utils/job/needs-user-preview';
 import { resyncJobBoardFromSession } from './job-resync';
+import {
+  rememberOpenSurface,
+  SURFACE_JOB_INBOX,
+  toggleOffOpenSurface,
+} from '../surfaces/editor-surface-toggle';
 import { canOpenMergePreview, openMergePreview } from './merge-preview-controller';
 import { openLandChoicePicker } from './land-choice-controller';
 import { canOpenPushPreview, openPushPreview } from './push-preview-controller';
 import { ttui } from '../../utils/tui-i18n';
 
 export function openInbox(host: SlashCommandHost): void {
+  // Alt+I toggles the already-open Inbox drawer shut (homepage demo overlay
+  // model) rather than mounting a second copy.
+  if (toggleOffOpenSurface(host, SURFACE_JOB_INBOX)) return;
   if (!isConductorUxV2Enabled()) {
     host.showStatus(ttui('tui.conductor.inboxNeedsUx'), 'textMuted');
     return;
@@ -72,6 +80,7 @@ export function openInbox(host: SlashCommandHost): void {
     },
   });
   host.mountEditorReplacement(panel);
+  rememberOpenSurface(SURFACE_JOB_INBOX, panel);
 
   // F18: resync ledger, then mark-read + refresh drawer rows.
   void resyncJobBoardFromSession(host)

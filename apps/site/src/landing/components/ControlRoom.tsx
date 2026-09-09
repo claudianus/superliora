@@ -404,7 +404,7 @@ export default function ControlRoom() {
                 </div>
               </OverlayShell>
 
-              {/* Plan Desk */}
+              {/* Plan mode */}
               <OverlayShell on={overlay === "plan"} side="right" label={t.demo.plan.title} onClose={() => setOverlay("none")}>
                 <div className="rounded-lg border border-line bg-black/40 p-4">
                   <p className="font-[family-name:var(--font-mono)] text-[11px] text-violet">{t.demo.plan.unspecified}</p>

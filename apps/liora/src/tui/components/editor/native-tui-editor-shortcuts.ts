@@ -22,6 +22,10 @@ export interface NativeTUIEditorShortcutHost {
   onOpenJobDeck?: () => void;
   onOpenJobInbox?: () => void;
   onOpenIntentComposer?: () => void;
+  onOpenQuota?: () => void;
+  onOpenPlan?: () => void;
+  /** True when idle-only single-key shortcuts (Q / P) may fire. Absent → allowed. */
+  canActivateIdleShortcut?: () => boolean;
   onTranscriptSearch?: () => void;
   onStashToggle?: () => void;
   onTranscriptPageUp?: () => boolean;
@@ -125,6 +129,31 @@ export function handleNativeTUIEditorAppShortcut(
   if (host.getText().length === 0 && printableChar(data) === '?') {
     host.onCommandHub?.();
     return true;
+  }
+  // Q / P: on an empty prompt and only while idle, open the live Quota report
+  // / toggle Plan mode. Three gates keep this safe: (a) the editor must be
+  // empty so the letters still type normally once a draft exists, (b) an idle
+  // check ensures we never swallow a keystroke while a turn is streaming or
+  // compacting (when the user may be typing a queued follow-up), and (c) we
+  // only consume when a real action is wired, so plain-text editors/tests that
+  // type a leading q/p still insert the letter.
+  if (
+    host.getText().length === 0 &&
+    host.inputMode === 'prompt' &&
+    host.canActivateIdleShortcut?.() !== false
+  ) {
+    const printable = printableChar(data).toLowerCase();
+    if (printable === 'q') {
+      if (host.onOpenQuota !== undefined) {
+        host.onOpenQuota();
+        return true;
+      }
+    } else if (printable === 'p') {
+      if (host.onOpenPlan !== undefined) {
+        host.onOpenPlan();
+        return true;
+      }
+    }
   }
   // Cmd/Ctrl-F: transcript search.
   if (matchesPrimaryMod(data, 'f')) {
