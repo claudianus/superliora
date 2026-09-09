@@ -103,7 +103,7 @@ export default function Header() {
           </a>
         </div>
       </div>
-      {/* scroll progress — the baton */}
+      {/* scroll progress bar */}
       <div className="absolute inset-x-0 bottom-0 h-[2px]">
         <div
           className="h-full bg-gradient-to-r from-primary-deep to-primary transition-[width] duration-150 ease-out"

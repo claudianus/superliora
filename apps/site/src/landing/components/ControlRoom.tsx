@@ -424,7 +424,7 @@ export default function ControlRoom() {
               <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-sunken/95 px-4 py-2 font-[family-name:var(--font-mono)] text-[10.5px] backdrop-blur sm:px-5">
                 <span className={cn("flex items-center gap-1.5", planOn ? "text-violet" : "text-primary")}>
                   <span className={cn("inline-block size-1.5 animate-pulse rounded-full", planOn ? "bg-violet" : "bg-primary")} />
-                  {planOn ? "PLAN" : "CONDUCT"}
+                  {planOn ? "PLAN" : "BUILD"}
                 </span>
                 <span className="text-dim">main*</span>
                 <span className="hidden text-faint sm:inline">opencode-go/kimi-k3</span>
