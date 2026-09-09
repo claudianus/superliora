@@ -1,5 +1,15 @@
 # @superliora/liora
 
+## 0.29.2
+
+### Patch Changes
+
+- Replace the GitHub Pages landing with the Conductor design: dark gold stage, live Job-console demo, Flow/Systems/Surfaces/Install story, and an in-page Korean/English toggle. Docs pages keep their current theme.
+- Honor worker-run checks in completion verification: the verification sensor now records the last outcome per check slot from live Bash/RunProjectChecks results, and the completion gate reads that evidence when the package-script gate cannot run. A scriptless-project worker that proves its change with a green `node --test` run is no longer labelled `unverified (checks did not run)`, and a worker that ends on a red test run now lands the job `failed` instead of `done`.
+- Fix expert staffing for coding jobs: filter filler tokens from MiniSearch and strip agent reminder boilerplate from the staffing query, and gate implement/task/verify staffing to technical divisions so a meeting-notes or marketing persona can no longer win a coding brief. Quiet the turn-end memory-reflection log when the session memory store is already closed (expected during teardown, previously a warn on every short run).
+- Headless `-p` runs now report the jobs the conductor created during the run: a `[jobs] …` block (or `{"type":"jobs.summary",…}` JSON line in stream-json mode) listing each job id/kind/status/title, plus a deterministic exit code — 0 when every created job is done, 4 when work is still queued/running/blocked or a coding job awaits a land decision, 5 when a job failed. Previously a plain prompt run that delegated everything to jobs printed nothing about them and always exited 0.
+- Stop paying a language-detection LLM call on every user message. Once a session's response language is locked, a locked preference can only move on an explicit demand, so the per-message detection now only runs when the message plausibly asks for a language switch (`/lang`, "answer in French", `한국어로 답변해줘`, `日本語で`, …); otherwise the locked preference is reused deterministically. Long interactive sessions drop from one detection call per prompt to one per session plus explicit switch requests.
+
 ## 0.29.1
 
 ### Patch Changes
