@@ -103,6 +103,12 @@ describe('runCompletionVerification evidence backfill', () => {
     expect(status).toEqual(VERIFICATION_NOT_RUN);
   });
 
+  it('tolerates agents without a verification sensor ledger (host/mock shapes)', async () => {
+    const bare = { kaos: createFakeKaos(), config: { cwd: '/workspace' } } as unknown as Agent;
+    const status = await runCompletionVerification(bare, 'coder', scriptlessFiles, signal);
+    expect(status).toEqual(VERIFICATION_NOT_RUN);
+  });
+
   it('verify profile is exempt: a red repro run is the deliverable, not a failure', async () => {
     const status = await runCompletionVerification(
       childWithVerdicts({ tests: 'failed' }),

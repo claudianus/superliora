@@ -21,7 +21,7 @@ export interface VerificationFailureRecord {
 export type VisualSensorVerdict = 'passed' | 'failed' | 'not_applicable' | 'not_run' | 'skipped_host';
 
 /** Result-contract check slots (plural: tests/typecheck/lint). */
-export type CheckKindSlot = 'tests' | 'typecheck' | 'lint';
+type CheckKindSlot = 'tests' | 'typecheck' | 'lint';
 /** Last observed outcome per check slot from live tool results. */
 export type CheckKindVerdicts = Partial<Record<CheckKindSlot, 'passed' | 'failed'>>;
 

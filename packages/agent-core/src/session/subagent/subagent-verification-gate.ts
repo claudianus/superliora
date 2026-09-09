@@ -250,7 +250,7 @@ export async function runCompletionVerification(
   }
   if (gateRanNothing(verification) && !EVIDENCE_BACKFILL_EXEMPT_PROFILES.has(profileName)) {
     const fromEvidence = verificationFromCheckEvidence(
-      child.verificationSensorLedger.kindVerdicts,
+      child.verificationSensorLedger?.kindVerdicts,
       packageDir === undefined ? 'ambiguous' : 'scoped',
     );
     if (fromEvidence !== undefined) return fromEvidence;
