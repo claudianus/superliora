@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildTestFailureSoftTips,
+  classifyBashCheckKind,
   createVerificationSensorLedger,
   filterRecentVerificationFailures,
   formatGoalSoftAdvisoryOpsLine,
@@ -82,6 +83,89 @@ describe('verification-sensor-ledger', () => {
     observeVerificationToolResult(ledger, 'RunProjectChecks', {}, { output: '{"exitCode":0}' });
     expect(ledger.failures).toHaveLength(0);
     expect(ledger.lastPassAtMs).toBeTypeOf('number');
+  });
+
+  it('classifies check-like Bash commands onto contract check slots', () => {
+    expect([...classifyBashCheckKind('node --test test/kebab.test.mjs')]).toEqual(['tests']);
+    expect([...classifyBashCheckKind('pnpm test apps/liora')]).toEqual(['tests']);
+    expect([...classifyBashCheckKind('pnpm run test:unit')]).toEqual(['tests']);
+    expect([...classifyBashCheckKind('pnpm -C packages/agent-core exec vitest run foo')]).toEqual([
+      'tests',
+    ]);
+    expect([...classifyBashCheckKind('tsc -p packages/agent-core')]).toEqual(['typecheck']);
+    expect([...classifyBashCheckKind('pnpm run check:types')]).toEqual(['typecheck']);
+    expect([...classifyBashCheckKind('oxlint src/')]).toEqual(['lint']);
+    expect([...classifyBashCheckKind('pnpm run lint')]).toEqual(['lint']);
+    expect([...classifyBashCheckKind('pnpm test && pnpm run typecheck')].toSorted()).toEqual([
+      'tests',
+      'typecheck',
+    ]);
+    // Check-like but no result-contract slot (build/smoke) → empty set.
+    expect(classifyBashCheckKind('pnpm build')).toEqual(new Set());
+    expect(classifyBashCheckKind('git status')).toEqual(new Set());
+  });
+
+  it('stamps last-outcome kind verdicts from check-like Bash results', () => {
+    const ledger = createVerificationSensorLedger();
+    observeVerificationToolResult(
+      ledger,
+      'Bash',
+      { command: 'node --test test/kebab.test.mjs' },
+      { isError: true, output: 'FAIL' },
+    );
+    expect(ledger.kindVerdicts).toEqual({ tests: 'failed' });
+    // Red then green: last observation wins.
+    observeVerificationToolResult(
+      ledger,
+      'Bash',
+      { command: 'node --test test/kebab.test.mjs' },
+      { output: 'ok' },
+    );
+    expect(ledger.kindVerdicts).toEqual({ tests: 'passed' });
+    // Unrelated non-check Bash never stamps.
+    observeVerificationToolResult(
+      ledger,
+      'Bash',
+      { command: 'git log --oneline' },
+      { isError: true, output: 'fatal' },
+    );
+    expect(ledger.kindVerdicts).toEqual({ tests: 'passed' });
+  });
+
+  it('stamps per-kind verdicts from structured RunProjectChecks output', () => {
+    const ledger = createVerificationSensorLedger();
+    observeVerificationToolResult(
+      ledger,
+      'RunProjectChecks',
+      {},
+      {
+        isError: true,
+        output: JSON.stringify({
+          exitCode: 1,
+          checks: [
+            { name: 'test', exitCode: 1, durationMs: 10 },
+            { name: 'typecheck', exitCode: 0, durationMs: 10 },
+          ],
+          summary: 'Project checks failed (2 check(s), 1 passed, 1 failed).',
+        }),
+      },
+    );
+    expect(ledger.kindVerdicts).toEqual({ tests: 'failed', typecheck: 'passed' });
+    // Skipped checks never stamp (no evidence).
+    observeVerificationToolResult(
+      ledger,
+      'RunProjectChecks',
+      {},
+      {
+        isError: true,
+        output: JSON.stringify({
+          exitCode: 1,
+          checks: [{ name: 'lint', exitCode: 1, durationMs: 0, skipped: true }],
+          summary: 'skipped',
+        }),
+      },
+    );
+    expect(ledger.kindVerdicts).toEqual({ tests: 'failed', typecheck: 'passed' });
   });
 
   it('records only check-like Bash failures', () => {
