@@ -13,6 +13,8 @@ import {
   titleFromPromptMetadataText,
 } from './prompt-metadata';
 import {
+  mayRequestLanguageSwitch,
+  promptTextOf,
   resolveResponseLanguagePreference,
   responseLanguagePreferenceFromUnknown,
 } from './response-language';
@@ -168,23 +170,34 @@ export async function updateResponseLanguagePreference(
     session.metadata.custom['responseLanguage'],
   );
   const mainAgent = await session.ensureAgentResumed('main');
+  // A locked preference is the session's language contract. Re-running the
+  // detection LLM on every user message is pure waste — only pay for a
+  // re-detect when the new message plausibly demands a language switch
+  // (explicit markers or a script shift); otherwise reuse the locked
+  // preference deterministically.
+  const text = promptTextOf(input);
+  const reuseLocked =
+    current !== undefined && text !== undefined && !mayRequestLanguageSwitch(text, current.code);
   const next = await resolveResponseLanguagePreference(current, input, {
     env: process.env,
-    detectWithLlm: async (text, currentPreference, hostLocale) => {
-      // Smart-auto (`auto`) has no concrete provider until turn-start routing
-      // pins one — config.provider throws model.not_configured in that window.
-      if (!mainAgent.config.hasProvider) return undefined;
-      const provider = mainAgent.config.provider;
-      return detectResponseLanguageWithLlm(
-        { generate: mainAgent.generate, provider },
-        {
-          text,
-          current: currentPreference,
-          hostLocale,
-          signal: AbortSignal.timeout(8_000),
-        },
-      );
-    },
+    detectWithLlm:
+      reuseLocked || text === undefined
+        ? undefined
+        : async (detectText, currentPreference, hostLocale) => {
+            // Smart-auto (`auto`) has no concrete provider until turn-start routing
+            // pins one — config.provider throws model.not_configured in that window.
+            if (!mainAgent.config.hasProvider) return undefined;
+            const provider = mainAgent.config.provider;
+            return detectResponseLanguageWithLlm(
+              { generate: mainAgent.generate, provider },
+              {
+                text: detectText,
+                current: currentPreference,
+                hostLocale,
+                signal: AbortSignal.timeout(8_000),
+              },
+            );
+          },
   });
   if (next === current || responseLanguagePreferencesEqual(next, current)) return;
 

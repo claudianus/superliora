@@ -8,6 +8,7 @@ import { SessionAPIImpl } from '../../src/session/rpc';
 import { detectResponseLanguageWithLlm } from '../../src/session/response-language-llm';
 import {
   detectHostLocaleTag,
+  mayRequestLanguageSwitch,
   normalizeResponseLanguageCode,
   resolveResponseLanguagePreference,
   responseLanguageLabelForCode,
@@ -253,6 +254,102 @@ describe('response language preference', () => {
   });
 });
 
+describe('mayRequestLanguageSwitch', () => {
+  it('reuses a locked language for ordinary same-language messages', () => {
+    expect(mayRequestLanguageSwitch('한국어로 계속 진행해줘. 파일 수정하고 테스트 돌려봐.', 'ko')).toBe(
+      false,
+    );
+    expect(mayRequestLanguageSwitch('please continue and run the tests', 'en')).toBe(false);
+    expect(mayRequestLanguageSwitch('ok', 'en')).toBe(false);
+  });
+
+  it('catches explicit language demands', () => {
+    expect(mayRequestLanguageSwitch('From now on answer in French.', 'en')).toBe(true);
+    expect(mayRequestLanguageSwitch('이제부터는 영어로 답변해줘', 'ko')).toBe(true);
+    expect(mayRequestLanguageSwitch('답변은 한국어로 해줘', 'en')).toBe(true);
+    expect(mayRequestLanguageSwitch('/lang ko', 'en')).toBe(true);
+    expect(mayRequestLanguageSwitch('日本語で返事して', 'en')).toBe(true);
+    expect(mayRequestLanguageSwitch('다음부터 일본어로 말해줘', 'en')).toBe(true);
+  });
+
+  it('does not re-detect for plain same-script prose (only explicit demands move a lock)', () => {
+    // Hangul prose while locked to English: no explicit demand → keep lock.
+    expect(
+      mayRequestLanguageSwitch('테스트가 실패하는 것 같아. 로그를 보여줄까? 그리고 이어서 계속 진행하자.', 'en'),
+    ).toBe(false);
+    // English prose while locked to Korean: same.
+    expect(
+      mayRequestLanguageSwitch('The build broke after my change, here is the stack trace of the failure.', 'ko'),
+    ).toBe(false);
+    // But a real demand inside prose still counts.
+    expect(mayRequestLanguageSwitch('계속 진행하는데 이제 영어로 답변해줘', 'ko')).toBe(true);
+    // Fenced code is stripped before any marker check (no false positive).
+    expect(
+      mayRequestLanguageSwitch('Please fix this: ```js\nconst hi = "안녕하세요";\n```', 'en'),
+    ).toBe(false);
+  });
+
+  it('does not re-detect for code-only noise', () => {
+    expect(mayRequestLanguageSwitch('`src/main.ts` L12 → L40', 'ko')).toBe(false);
+    expect(mayRequestLanguageSwitch('npm run build -- --filter=@x/y', 'en')).toBe(false);
+  });
+});
+
+  it('reuses the locked language without an LLM call on same-language follow-ups', async () => {
+    const prompt = vi.fn(async () => {});
+    const generate = vi.fn(async () => ({
+      message: { content: [{ type: 'text', text: 'x' }] },
+    }));
+    const session = fakeSession({
+      prompt,
+      generate,
+      seededLanguage: { code: 'en', label: 'English', source: 'explicit' },
+    });
+    const api = new SessionAPIImpl(session as unknown as Session);
+
+    await api.prompt({
+      agentId: 'main',
+      input: textInput('please continue with the refactor and run the tests'),
+    });
+
+    // The preference is locked and nothing demands a switch — no detection call
+    // (updatePromptMetadata may still persist metadata; only the LLM matters).
+    expect(generate).not.toHaveBeenCalled();
+    expect(prompt).toHaveBeenCalledOnce();
+  });
+
+  it('re-detects only when a follow-up message demands a different language', async () => {
+    const prompt = vi.fn(async () => {});
+    const generate = vi.fn(async () => ({
+      message: {
+        content: [
+          {
+            type: 'text',
+            text: '{"language_code":"ko","language_name":"Korean","explicit_override":true,"confidence":0.95}',
+          },
+        ],
+      },
+    }));
+    const session = fakeSession({
+      prompt,
+      generate,
+      seededLanguage: { code: 'en', label: 'English', source: 'detected' },
+    });
+    const api = new SessionAPIImpl(session as unknown as Session);
+
+    await api.prompt({
+      agentId: 'main',
+      input: textInput('이제부터는 한국어로 진행할게. 빌드가 깨져서 로그를 보여줄게.'),
+    });
+
+    expect(generate).toHaveBeenCalledOnce();
+    expect((session.metadata.custom as Record<string, unknown>)['responseLanguage']).toMatchObject({
+      code: 'ko',
+      source: 'explicit',
+      locked: true,
+    });
+  });
+
 function textInput(text: string): readonly ContentPart[] {
   return [{ type: 'text', text }];
 }
@@ -269,6 +366,7 @@ function fakeSession(input: {
     readonly explicit: boolean;
     readonly confidence: number;
   };
+  readonly seededLanguage?: { readonly code: string; readonly label: string; readonly source: string };
 }) {
   const hasProvider = input.hasProvider ?? true;
   const agent = {
@@ -309,6 +407,16 @@ function fakeSession(input: {
     },
   };
 
+  const custom: Record<string, unknown> = {};
+  if (input.seededLanguage !== undefined) {
+    custom['responseLanguage'] = {
+      code: input.seededLanguage.code,
+      label: input.seededLanguage.label,
+      source: input.seededLanguage.source,
+      locked: true,
+      updatedAt: NOW.toISOString(),
+    };
+  }
   return {
     metadata: {
       createdAt: '2030-01-01T00:00:00.000Z',
@@ -316,7 +424,7 @@ function fakeSession(input: {
       title: 'New Session',
       isCustomTitle: false,
       agents: {},
-      custom: {},
+      custom,
     },
     writeMetadata: vi.fn(async () => {}),
     ensureAgentResumed: vi.fn(async () => agent),
