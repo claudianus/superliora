@@ -6,7 +6,7 @@ export type Tone =
   | "w"
   | "dim"
   | "faint"
-  | "gold"
+  | "primary"
   | "mint"
   | "red"
   | "azure"
@@ -49,7 +49,7 @@ export function buildSession(locale: Locale): Step[] {
     {
       k: "line",
       spans: [
-        ["◆ ", "gold"],
+        ["◆ ", "primary"],
         [reply, "ink"],
       ],
     },
@@ -60,7 +60,7 @@ export function buildSession(locale: Locale): Step[] {
         ["  ACK ", "faint"],
         ["job_1x9m4qt", "azure"],
         [" [queued] kind=implement model=", "dim"],
-        ["opencode-go/kimi-k3", "gold"],
+        ["opencode-go/kimi-k3", "primary"],
         [" owns=", "dim"],
         ["src/webhooks", "ink"],
       ],
@@ -141,8 +141,8 @@ export function buildSession(locale: Locale): Step[] {
     {
       k: "line",
       spans: [
-        ["     ◆ ", "gold"],
-        [inboxMsg, "gold"],
+        ["     ◆ ", "primary"],
+        [inboxMsg, "primary"],
       ],
     },
     {
@@ -176,8 +176,8 @@ export function buildSession(locale: Locale): Step[] {
     {
       k: "line",
       spans: [
-        ["⏎ ", "gold"],
-        [koLang ? "Land" : "Land", "gold"],
+        ["⏎ ", "primary"],
+        [koLang ? "Land" : "Land", "primary"],
         [" job_1x9m4qt", "azure"],
         [" → main", "dim"],
       ],
@@ -212,10 +212,10 @@ export const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", 
 
 export const toneClass: Record<string, string> = {
   ink: "text-ink",
-  w: "text-[#fff6e3]",
+  w: "text-ink-strong",
   dim: "text-dim",
   faint: "text-faint",
-  gold: "text-gold",
+  primary: "text-primary",
   mint: "text-mint",
   red: "text-red",
   azure: "text-azure",

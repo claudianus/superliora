@@ -103,7 +103,9 @@ export interface Dict {
     lede: string;
     cards: { no: string; title: string; body: string; foot: string; icon: string }[];
     providersLabel: string;
-    providers: string[];
+    /** Templates filled with the live catalog counts: {providers} {models} {date} {count}. */
+    providersNote: string;
+    providersMore: string;
     failover: { label: string; steps: { tag: string; text: string; cls: string }[] };
   };
   surfaces: {

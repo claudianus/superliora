@@ -1,3 +1,4 @@
+import { PROVIDER_CATALOG } from "../../data/provider-catalog.generated";
 import type { Dict } from "./types";
 
 export const en: Dict = {
@@ -10,7 +11,7 @@ export const en: Dict = {
       { label: "Surfaces", href: "#surfaces" },
       { label: "Install", href: "#install" },
     ],
-    version: "v0.29.1",
+    version: "v0.29.2",
     github: "GitHub",
     docs: "Docs",
   },
@@ -29,7 +30,7 @@ export const en: Dict = {
     platforms: ["macOS", "Linux", "Windows"],
     stats: [
       { k: "Runtime locales", v: "한국어 / English" },
-      { k: "Provider catalog", v: "9+" },
+      { k: "Provider catalog", v: `${String(PROVIDER_CATALOG.providerCount)} providers · models.dev` },
       { k: "Tests per push", v: "16.5k" },
       { k: "Job isolation", v: "git worktree" },
     ],
@@ -198,24 +199,15 @@ export const en: Dict = {
         icon: "compass",
       },
     ],
-    providersLabel: "Catalog login — Anthropic / OpenAI env keys and OAuth pools besides",
-    providers: [
-      "Anthropic",
-      "OpenAI",
-      "Groq",
-      "Mistral",
-      "Together",
-      "xAI",
-      "Cerebras",
-      "Perplexity",
-      "Vercel AI Gateway",
-    ],
+    providersLabel: "The catalog is no hand-picked list — /login reads providers live from models.dev",
+    providersNote: "{providers} providers · {models} models · snapshot {date}",
+    providersMore: "+{count} more",
     failover: {
       label: "The Never-Halt chain — actual log shape",
       steps: [
         { tag: "attempt 1", text: "kimi-k3 → HTTP 500 · same-model retry", cls: "red" },
         { tag: "attempt 2", text: "kimi-k3 → HTTP 502 · rotate account in pool", cls: "red" },
-        { tag: "attempt 3", text: "qwen3.8-flash (live-healthy) → streaming resumes", cls: "gold" },
+        { tag: "attempt 3", text: "qwen3.8-flash (live-healthy) → streaming resumes", cls: "primary" },
         { tag: "finally", text: "turn completes · verify run · ledger stamped green", cls: "mint" },
       ],
     },

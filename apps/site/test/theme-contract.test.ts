@@ -23,6 +23,26 @@ function collectHtml(dir: string): string[] {
 const htmlFiles = collectHtml(siteRoot).filter((p) => !p.includes(`${join('dist')}`));
 const relOf = (p: string) => p.slice(siteRoot.length + 1).replaceAll('\\', '/');
 const LANDING_ENTRIES = ['index.html', 'en/index.html'];
+const repoRoot = resolve(siteRoot, '../..');
+
+/** Landing token -> `superliora-neon-noir` token it must copy, hex for hex. */
+const LANDING_TO_TUI_TOKEN: readonly [string, string][] = [
+  ['paper', 'background'],
+  ['panel', 'surface'],
+  ['raise', 'surfaceRaised'],
+  ['sunken', 'surfaceSunken'],
+  ['ink', 'text'],
+  ['ink-strong', 'textStrong'],
+  ['dim', 'textDim'],
+  ['faint', 'textMuted'],
+  ['primary', 'primary'],
+  ['primary-deep', 'gradientStart'],
+  ['mint', 'success'],
+  ['red', 'error'],
+  ['azure', 'glow'],
+  ['violet', 'accent'],
+  ['line', 'border'],
+];
 
 describe('theme paint bootstrap contract', () => {
   it('covers the twelve Pages HTML entries', () => {
@@ -46,11 +66,13 @@ describe('theme paint bootstrap contract', () => {
     );
   });
 
-  it('pins the landing entries to the dark Gold Noir stage without the legacy bootstrap', () => {
+  it('pins the landing entries to the TUI default (Neon Noir) stage without the legacy bootstrap', () => {
     for (const rel of LANDING_ENTRIES) {
       const html = readFileSync(resolve(siteRoot, rel), 'utf8');
       expect(html, rel).toMatch(/<meta\s+name=["']color-scheme["']\s+content=["']dark["']\s*\/?>/i);
-      expect(html, rel).toContain('#0a0b0d');
+      // theme-color and the favicon mark both carry the Neon Noir background/accent.
+      expect(html, rel).toContain('#0d1422');
+      expect(html, rel).toContain('%2300d5ff');
       expect(html, rel).not.toContain('superliora-theme');
       expect(html, rel).not.toMatch(/dataset\.theme/);
     }
@@ -87,12 +109,19 @@ describe('theme paint bootstrap contract', () => {
     expect(hook).toMatch(/applyTheme\s*\(\s*getInitialTheme\s*\(\s*\)\s*\)|applyTheme\s*\(\s*theme\s*\)/);
   });
 
-  it('keeps the landing stylesheet a dark-only Gold Noir stage', () => {
+  it('keeps the landing stylesheet a dark-only stage on the TUI palette', () => {
     const css = readFileSync(resolve(siteRoot, 'src/landing/landing.css'), 'utf8');
-    expect(css).toContain('--color-paper: #0a0b0d');
-    expect(css).toContain('--color-gold: #f2b94b');
+    const tui = readFileSync(resolve(repoRoot, 'apps/liora/src/tui/theme/bundled-themes.ts'), 'utf8');
+    const neonNoir = tui.slice(tui.indexOf("'superliora-neon-noir'"));
+    // Every landing token is a TUI token: same hex, same theme, no second palette.
+    for (const [token, tuiToken] of LANDING_TO_TUI_TOKEN) {
+      const value = new RegExp(`--color-${token}:\\s*(#[0-9a-f]{6})`).exec(css)?.[1];
+      expect(value, `--color-${token}`).toBeTruthy();
+      const fromTui = new RegExp(`${tuiToken}: '${value!.toUpperCase()}'`).exec(neonNoir);
+      expect(fromTui, `--color-${token} ${value} must equal the TUI's ${tuiToken}`).toBeTruthy();
+    }
     expect(css).toMatch(/body\s*\{[^}]*background:\s*var\(--color-paper\)/s);
-    expect(css).not.toMatch(/0D1422|00D5FF/i);
+    expect(css).not.toMatch(/f2b94b|0a0b0d|b9862a/i);
     expect(css).not.toMatch(/html\[data-theme=["']light["']\]/);
   });
 });

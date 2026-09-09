@@ -7,6 +7,7 @@ import {
   type UsageCommandId,
   type WorkflowStepId,
 } from '../content';
+import { PROVIDER_CATALOG } from '../data/provider-catalog.generated';
 
 export type Lang = 'ko' | 'en';
 
@@ -636,7 +637,7 @@ export const translations: Record<Lang, Translation> = {
           id: 'login',
           cmd: USAGE_COMMANDS[3].cmd,
           title: '계정 연결',
-          body: 'OAuth, 카탈로그 키(Groq, Mistral, Together, xAI, Cerebras, Perplexity, Vercel AI Gateway), 또는 커스텀 엔드포인트를 붙입니다.',
+          body: `OAuth, 카탈로그 키(models.dev 카탈로그 — 프로바이더 ${String(PROVIDER_CATALOG.providerCount)}개, 예: Groq, Mistral, Together, xAI), 또는 커스텀 엔드포인트를 붙입니다.`,
         },
         {
           id: 'model',
@@ -759,7 +760,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '사용법',
-            body: '프로젝트 폴더에서 세션을 열고 /login과 /model로 모델을 연결한 뒤, 원하는 결과를 적습니다. /login에는 OAuth, 카탈로그 키(Groq, Mistral, Together, xAI, Cerebras, Perplexity, Vercel AI Gateway), 커스텀 엔드포인트가 있습니다.',
+            body: `프로젝트 폴더에서 세션을 열고 /login과 /model로 모델을 연결한 뒤, 원하는 결과를 적습니다. /login에는 OAuth, 카탈로그 키(models.dev 카탈로그 — 프로바이더 ${String(PROVIDER_CATALOG.providerCount)}개, 예: Groq, Mistral, Together, xAI), 커스텀 엔드포인트가 있습니다.`,
             code: 'liora\nliora --continue\nliora --plan\n/login\n/model\n/host-setup',
           },
           {
@@ -957,7 +958,7 @@ export const translations: Record<Lang, Translation> = {
           id: 'login',
           cmd: USAGE_COMMANDS[3].cmd,
           title: 'Connect an account',
-          body: 'Attach OAuth, a catalog key (Groq, Mistral, Together, xAI, Cerebras, Perplexity, Vercel AI Gateway), or a custom endpoint.',
+          body: `Attach OAuth, a catalog key from the models.dev catalog (${String(PROVIDER_CATALOG.providerCount)} providers — Groq, Mistral, Together, xAI, …), or a custom endpoint.`,
         },
         {
           id: 'model',
@@ -1080,7 +1081,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Usage',
-            body: 'Open a session in a project folder, connect a model with /login and /model, then write the outcome. /login lists OAuth, catalog keys (Groq, Mistral, Together, xAI, Cerebras, Perplexity, Vercel AI Gateway), and custom endpoints.',
+            body: `Open a session in a project folder, connect a model with /login and /model, then write the outcome. /login lists OAuth, catalog keys from models.dev (${String(PROVIDER_CATALOG.providerCount)} providers — Groq, Mistral, Together, xAI, …), and custom endpoints.`,
             code: 'liora\nliora --continue\nliora --plan\n/login\n/model\n/host-setup',
           },
           {

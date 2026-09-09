@@ -33,7 +33,7 @@ export default function Footer() {
                         href={l.href}
                         target="_blank"
                         rel="noreferrer"
-                        className="group inline-flex items-center gap-1 text-[13.5px] text-dim transition-colors hover:text-gold"
+                        className="group inline-flex items-center gap-1 text-[13.5px] text-dim transition-colors hover:text-primary"
                       >
                         {l.label}
                         <ArrowUpRight className="size-3 opacity-0 transition-opacity group-hover:opacity-100" />
@@ -61,7 +61,7 @@ export default function Footer() {
             href="https://github.com/claudianus/superliora"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2 text-faint transition-colors hover:text-gold"
+            className="flex items-center gap-2 text-faint transition-colors hover:text-primary"
           >
             <GithubIcon className="size-4" />
           </a>

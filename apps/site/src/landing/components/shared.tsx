@@ -61,7 +61,7 @@ export function SectionHead({
   return (
     <div className={cn("max-w-3xl", align === "center" && "mx-auto text-center")}>
       <Reveal>
-        <p className="font-[family-name:var(--font-mono)] text-[11px] tracking-[0.28em] text-gold uppercase">
+        <p className="font-[family-name:var(--font-mono)] text-[11px] tracking-[0.28em] text-primary uppercase">
           {eyebrow}
         </p>
       </Reveal>
@@ -108,7 +108,7 @@ export function useCopy(timeout = 1600) {
 export function RailMarker({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-3 font-[family-name:var(--font-mono)] text-[10.5px] tracking-[0.22em] text-faint uppercase">
-      <span className="h-px w-8 bg-gold/60" />
+      <span className="h-px w-8 bg-primary/60" />
       {children}
     </div>
   );

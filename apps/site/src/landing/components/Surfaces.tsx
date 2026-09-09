@@ -5,7 +5,7 @@ import { Reveal, SectionHead } from "./shared";
 import { cn } from "../utils/cn";
 
 const KW = "text-violet";
-const STR = "text-gold";
+const STR = "text-primary";
 const TY = "text-azure";
 const FN = "text-ink";
 const CM = "text-faint";
@@ -95,8 +95,8 @@ export default function Surfaces() {
                 className={cn(
                   "rounded-full border px-5 py-2 text-[13px] transition-all",
                   tab === i
-                    ? "border-gold bg-gold text-black font-semibold"
-                    : "border-line bg-panel text-dim hover:border-gold/40 hover:text-ink",
+                    ? "border-primary bg-primary text-black font-semibold"
+                    : "border-line bg-panel text-dim hover:border-primary/40 hover:text-ink",
                 )}
               >
                 {label}
@@ -111,13 +111,13 @@ export default function Surfaces() {
             {tab === 0 && (
               <div>
                 <p className="mb-6 flex items-center gap-2 font-[family-name:var(--font-mono)] text-[11px] tracking-[0.18em] text-faint uppercase">
-                  <TerminalSquare className="size-4 text-gold" />
+                  <TerminalSquare className="size-4 text-primary" />
                   argv keep-list
                 </p>
                 <div className="divide-y divide-line">
                   {t.surfaces.cli.map((c) => (
                     <div key={c.cmd} className="grid gap-1 py-3.5 sm:grid-cols-[280px_1fr] sm:gap-6">
-                      <code className="font-[family-name:var(--font-mono)] text-[12.5px] text-gold">{c.cmd}</code>
+                      <code className="font-[family-name:var(--font-mono)] text-[12.5px] text-primary">{c.cmd}</code>
                       <p className="text-[13.5px] text-dim">{c.desc}</p>
                     </div>
                   ))}
@@ -146,7 +146,7 @@ export default function Surfaces() {
                   <div className="space-y-1.5 px-4 py-4 font-[family-name:var(--font-mono)] text-[12px] leading-relaxed">
                     {t.surfaces.server.lines.map((l, i) => (
                       <p key={i}>
-                        <span className={l.p === "$" ? "text-gold" : "text-faint"}>{l.p} </span>
+                        <span className={l.p === "$" ? "text-primary" : "text-faint"}>{l.p} </span>
                         <span className={l.p === "$" ? "text-ink" : "text-dim"}>{l.text}</span>
                       </p>
                     ))}
@@ -203,7 +203,7 @@ export default function Surfaces() {
                     </div>
                     <div className="space-y-1.5 px-4 py-4 font-[family-name:var(--font-mono)] text-[12px]">
                       <p>
-                        <span className="text-gold">$ </span>
+                        <span className="text-primary">$ </span>
                         <span className="text-ink">liora acp</span>
                       </p>
                       <p className="text-faint">→ acp: listening on stdio · agent-client-protocol v1</p>
