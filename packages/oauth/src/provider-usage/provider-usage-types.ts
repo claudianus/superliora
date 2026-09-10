@@ -51,7 +51,22 @@ export interface ProviderUsageSnapshot {
   readonly kind?: ProviderUsageKind;
   readonly status?: ProviderUsageStatus;
   readonly source?: ProviderUsageSource;
+  /** Friendly account name for pool members (user label or account email). */
   readonly accountLabel?: string;
+  /**
+   * Storage key of the pool account this snapshot belongs to. Only set when
+   * the snapshot came from one member of a multi-account OAuth pool, so the
+   * TUI can group and disambiguate accounts under the same provider.
+   */
+  readonly accountKey?: string;
+  /** True when this snapshot belongs to the pool's primary account. */
+  readonly isPrimary?: boolean | undefined;
+  /**
+   * Subscription plan the provider reports for this account (e.g. ChatGPT
+   * `plus` / `pro`, `go`, `free`). Display-only — never used to fabricate a
+   * remaining figure.
+   */
+  readonly plan?: string | undefined;
 }
 
 /** Aggregate snapshot across all configured providers. */

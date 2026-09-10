@@ -94,6 +94,11 @@ export { parseAnthropicOAuthUsage } from './provider-usage-fetch-anthropic';
 export { parseOpenRouterKeyPayload } from './provider-usage-fetch-openrouter';
 export { parseDeepSeekBalancePayload } from './provider-usage-fetch-deepseek';
 export { parseGroqRateLimitHeaders } from './provider-usage-fetch-groq';
+export { parseOpenAiCodexWhamUsage } from './provider-usage-fetch-codex';
+export {
+  parseXaiGrokBillingCredits,
+  xaiGrokUserIdFromAccessToken,
+} from './provider-usage-fetch-xai';
 
 async function fetchProviderUsageUncached(
   providerKey: string,

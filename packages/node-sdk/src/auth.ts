@@ -14,6 +14,7 @@ import {
   isOAuthProviderId,
   KimiOAuthToolkit,
   listManagedKimiOAuthRefs,
+  listProviderOAuthRefs,
   OAuthProviderManager,
   resolveKimiCodeLoginAuth,
   resolveKimiCodeRuntimeAuth,
@@ -22,6 +23,7 @@ import {
   envUsageAccessToken,
   fetchProviderUsage,
   finalizeUsageSnapshot,
+  providerDisplayName,
   type AllProvidersUsageSnapshot,
   type AuthManagedUsageResult,
   type AuthStatus,
@@ -320,41 +322,37 @@ export class LioraAuthFacade {
       return buildAllProvidersUsageSnapshot([]);
     }
 
-    const snapshots = await Promise.all(
-      providerKeys.map(async (key) => {
-        const provider = config.providers?.[key];
-        const baseUrl = provider?.baseUrl;
-        try {
-          const accessToken = await this.resolveProviderAccessToken(key);
-          if (accessToken === undefined) {
-            return finalizeUsageSnapshot({
-              providerKey: key,
-              displayName: key,
-              available: false,
-              summary: null,
-              limits: [],
-              error: 'No token. Run /login.',
-              fetchedAtMs: Date.now(),
-              status: 'auth-required',
-            });
+    const snapshots = (
+      await Promise.all(
+        providerKeys.map(async (key) => {
+          const provider = config.providers?.[key];
+          const baseUrl = provider?.baseUrl;
+          // Multi-account OAuth pools (xAI Grok, OpenAI Codex, …) keep one
+          // usage entry PER ACCOUNT, mirroring opencodex's account-pool quota
+          // dashboard. The per-token usage cache already fingerprints the
+          // credential, so each account's fetch is cached and refreshed
+          // independently.
+          const refs = this.isNonKimiOAuthProvider(key)
+            ? listProviderOAuthRefs(provider as Record<string, unknown> | undefined)
+            : [];
+          if (refs.length === 0) {
+            return [
+              await this.fetchProviderUsageSnapshot(key, baseUrl, options.refresh === true),
+            ];
           }
-          return await fetchProviderUsage(key, accessToken, baseUrl, {
-            refresh: options.refresh === true,
-          });
-        } catch (error) {
-          return finalizeUsageSnapshot({
-            providerKey: key,
-            displayName: key,
-            available: false,
-            summary: null,
-            limits: [],
-            error: error instanceof Error ? error.message : String(error),
-            fetchedAtMs: Date.now(),
-            status: 'error',
-          });
-        }
-      }),
-    );
+          return Promise.all(
+            refs.map(async (ref, index) =>
+              this.fetchProviderUsageSnapshot(key, baseUrl, options.refresh === true, {
+                oauthRef: ref,
+                accountKey: ref.key,
+                accountLabel: ref.label,
+                isPrimary: index === 0,
+              }),
+            ),
+          );
+        }),
+      )
+    ).flat();
 
     const aggregate = buildAllProvidersUsageSnapshot(snapshots);
     try {
@@ -366,16 +364,76 @@ export class LioraAuthFacade {
   }
 
   /**
+   * Fetch the usage snapshot for ONE credential: either the provider's
+   * default credential or a named pool account. Pool accounts carry their
+   * storage key / label / primary marker so the TUI can group them.
+   */
+  private async fetchProviderUsageSnapshot(
+    providerKey: string,
+    baseUrl: string | undefined,
+    refresh: boolean,
+    account?: { readonly oauthRef?: OAuthRef; readonly accountKey?: string; readonly accountLabel?: string; readonly isPrimary?: boolean },
+  ): Promise<ProviderUsageSnapshot> {
+    try {
+      const accessToken = await this.resolveProviderAccessToken(providerKey, account?.oauthRef);
+      if (accessToken === undefined) {
+        return finalizeUsageSnapshot({
+          providerKey,
+          displayName: providerDisplayName(providerKey),
+          available: false,
+          summary: null,
+          limits: [],
+          error: 'No token. Run /login.',
+          fetchedAtMs: Date.now(),
+          status: 'auth-required',
+          ...(account?.accountKey !== undefined ? { accountKey: account.accountKey } : {}),
+          ...(account?.accountLabel !== undefined ? { accountLabel: account.accountLabel } : {}),
+          ...(account?.isPrimary !== undefined ? { isPrimary: account.isPrimary } : {}),
+        });
+      }
+      const snapshot = await fetchProviderUsage(providerKey, accessToken, baseUrl, { refresh });
+      if (account === undefined) return snapshot;
+      const accountLabel = account.accountLabel?.trim();
+      return {
+        ...snapshot,
+        ...(account.accountKey !== undefined ? { accountKey: account.accountKey } : {}),
+        ...(accountLabel !== undefined && accountLabel.length > 0
+          ? { accountLabel: accountLabel }
+          : {}),
+        ...(account.isPrimary !== undefined ? { isPrimary: account.isPrimary } : {}),
+      };
+    } catch (error) {
+      return finalizeUsageSnapshot({
+        providerKey,
+        displayName: providerDisplayName(providerKey),
+        available: false,
+        summary: null,
+        limits: [],
+        error: error instanceof Error ? error.message : String(error),
+        fetchedAtMs: Date.now(),
+        status: 'error',
+        ...(account?.accountKey !== undefined ? { accountKey: account.accountKey } : {}),
+        ...(account?.accountLabel !== undefined ? { accountLabel: account.accountLabel } : {}),
+        ...(account?.isPrimary !== undefined ? { isPrimary: account.isPrimary } : {}),
+      });
+    }
+  }
+
+  /**
    * Resolve a valid access token for any configured provider (Kimi managed,
    * non-Kimi OAuth, or API-key-based like ClinePass / Qwen Token Plan).
    * Returns `undefined` when no token is persisted.
    */
-  private async resolveProviderAccessToken(providerKey: string): Promise<string | undefined> {
+  private async resolveProviderAccessToken(
+    providerKey: string,
+    oauthRef?: OAuthRef,
+  ): Promise<string | undefined> {
     if (this.isNonKimiOAuthProvider(providerKey)) {
+      const storageKey = oauthRef?.key;
       try {
-        return await this.providerManager.ensureFresh(providerKey);
+        return await this.providerManager.ensureFresh(providerKey, { storageKey });
       } catch {
-        return this.providerManager.getCachedAccessToken(providerKey);
+        return this.providerManager.getCachedAccessToken(providerKey, storageKey);
       }
     }
     // API-key-based providers (cline-pass, qwen-token-plan, …): use the
