@@ -364,3 +364,63 @@ describe('UsagePanelComponent', () => {
     });
   });
 });
+
+describe('UsagePanelComponent — multi-account quota pool', () => {
+  it('renders each pool account with plan chips and a primary marker', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const lines = buildUsageReportLines({
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+      providerQuotaOnly: true,
+      providerQuota: {
+        providers: [
+          {
+            providerKey: 'openai-codex',
+            displayName: 'OpenAI Codex',
+            available: true,
+            summary: { label: 'Weekly limit', used: 42, limit: 100 },
+            limits: [{ label: '5-hour limit', used: 61, limit: 100 }],
+            fetchedAtMs: Date.now(),
+            accountKey: 'codex-main',
+            accountLabel: 'alpha@example.com',
+            isPrimary: true,
+            plan: 'plus',
+            kind: 'subscription',
+            source: 'oauth-api',
+            status: 'ok',
+          },
+          {
+            providerKey: 'openai-codex',
+            displayName: 'OpenAI Codex',
+            available: true,
+            summary: { label: 'Weekly limit', used: 77, limit: 100 },
+            limits: [],
+            fetchedAtMs: Date.now(),
+            accountKey: 'codex-backup',
+            accountLabel: 'Beta',
+            isPrimary: false,
+            plan: 'plus',
+            kind: 'subscription',
+            source: 'oauth-api',
+            status: 'ok',
+          },
+        ],
+        primaryProviderKey: 'openai-codex',
+        worstRatio: 0.77,
+        fetchedAtMs: Date.now(),
+      },
+    }).map(stripAnsi);
+    const body = lines.join('\n');
+    expect(body).toContain('Provider quotas');
+    expect(body).toContain('OpenAI Codex');
+    expect(body).toContain('alpha@example.com');
+    expect(body).toContain('Beta');
+    expect(body).toContain('plus · primary');
+    expect(body.match(/Weekly limit/g)).toHaveLength(2);
+    expect(body.match(/5-hour limit/g)).toHaveLength(1);
+    // Both accounts keep their own rows — the pool never collapses to one entry.
+    expect(body).toContain('58% left');
+    expect(body).toContain('23% left');
+  });
+});

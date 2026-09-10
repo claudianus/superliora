@@ -265,6 +265,8 @@ liora login --oauth-key kimi-work
 liora provider oauth add kimi --key kimi-work --label work --auto-route
 ```
 
+OAuth pools (OpenAI Codex / ChatGPT, xAI Grok, …) report quota **per account**: `/quota` (or `Q` on an empty prompt) shows every account with its label, plan, and primary marker, then that account's real windows — ChatGPT's 5-hour / weekly / 30-day usage from `wham/usage`, Grok Build's weekly credits window, and so on. The footer chip always reflects the pool's primary account.
+
 Routes can use `auto`, `fallback`, `fill_first`, `round_robin`, `weighted_round_robin`, `least_used`, `lowest_latency`, `rate_limit_aware`, or `random`. The `auto` strategy prefers healthy credentials with available rate-limit headroom, recent low latency, and configured weights before falling back to the next model alias.
 
 Model fallback is opt-in: without an explicit `fallback_models` list (or `routing.auto_fallback = true` in `config.toml`), a model never silently serves requests on a different model. See [Model fallback](./config-files.md#model-fallback).
