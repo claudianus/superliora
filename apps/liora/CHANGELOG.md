@@ -1,5 +1,15 @@
 # @superliora/liora
 
+## 0.29.5
+
+### Patch Changes
+
+- Keep the `/plan` mode announcement ("Plan mode: ON … Plan file: …") intact and open the Plan browser only from the mode-aware `P` shortcut. `P` on an empty idle prompt still starts Plan mode and surfaces the current plan once planning lands inline; the browser is no longer auto-mounted by `/plan`, so enabling planning always announces as documented.
+- `P` (empty idle prompt) now matches the homepage demo: it starts Plan mode and opens the current plan in a scrollable Plan browser overlay (Markdown-rendered, `↑/↓/PgUp/PgDn/Home/End` scroll, `P`/`Esc` closes). `/plan` still exits Plan mode; leaving plan mode also closes the browser.
+- Quota is now a proper overlay, matching the homepage demo: `Q` (empty idle prompt) opens the remaining-credits report as an editor-replacement overlay, and pressing `Q` again or `Esc` closes it and returns to the prompt. This also removes the old behaviour where a repeat `Q` stacked a second duplicate transcript report.
+- Make the advertised Q (Quota) and P (Plan) shortcuts real on an empty idle prompt, and teach Alt+I / Alt+B / Q / P in the idle tips so first-run users can discover them. Press Q for the live remaining-credits report and P to toggle Plan mode before describing a task.
+- Alt+J (Job Deck) and Alt+I (Inbox) now toggle: pressing the same key while the surface is open closes it and returns to the prompt, matching the overlay model the homepage demo shows instead of remounting a fresh copy.
+
 ## 0.29.4
 
 ### Patch Changes
