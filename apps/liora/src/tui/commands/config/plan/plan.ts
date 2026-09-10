@@ -9,7 +9,6 @@ import {
   SURFACE_PLAN,
   toggleOffOpenSurface,
 } from '#/tui/features/surfaces/editor-surface-toggle';
-import { mountPlanBrowser } from '#/tui/features/surfaces/plan-browser-controller';
 
 export async function handlePlanCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
@@ -67,11 +66,6 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
     });
     if (activation === 'inline') {
       const plan = await session.getPlan().catch(() => null);
-      if (plan !== null && plan.content.trim().length > 0) {
-        // Show the plan in a scrollable overlay (homepage-demo parity for P).
-        mountPlanBrowser(host, plan.content, plan.path);
-        return;
-      }
       host.showNotice(
         ultra ? 'Plan mode: ON (structured pipeline)' : 'Plan mode: ON (free-form)',
         plan?.path !== undefined ? `Plan file: ${plan.path}` : undefined,
