@@ -1,3 +1,5 @@
+import { Readable, type Writable } from 'node:stream';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Kaos } from '@superliora/kaos';
@@ -5,23 +7,9 @@ import type { Kaos } from '@superliora/kaos';
 import { checkGhCliAuth } from '../../../src/autopilot/git';
 
 function fakeKaos(execResult: { readonly code: number | null; readonly stdout: string; readonly stderr: string }): Kaos {
-  const stdout = {
-    setEncoding: () => undefined,
-    on: (_event: string, cb: (chunk: string) => void) => {
-      if (_event === 'data') cb(execResult.stdout);
-      if (_event === 'end') setTimeout(() => cb(''), 0);
-      return stdout;
-    },
-  } as unknown as NodeJS.ReadableStream;
-  const stderr = {
-    setEncoding: () => undefined,
-    on: (_event: string, cb: (chunk: string) => void) => {
-      if (_event === 'data') cb(execResult.stderr);
-      if (_event === 'end') setTimeout(() => cb(''), 0);
-      return stderr;
-    },
-  } as unknown as NodeJS.ReadableStream;
-  const stdin = { end: () => undefined } as unknown as NodeJS.Writable;
+  const stdout = Readable.from([execResult.stdout]);
+  const stderr = Readable.from([execResult.stderr]);
+  const stdin = { end: () => undefined } as unknown as Writable;
   return {
     exec: vi.fn(async () => ({
       stdin,
