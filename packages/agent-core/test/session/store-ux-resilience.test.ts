@@ -58,6 +58,8 @@ describe('session listing resilience (UX sweep)', () => {
     await store.create({ id: 'ses_new_stale', workDir: WORK_DIR });
 
     // The "older" session has a fresher persisted activity stamp.
+    // Use a relative offset — a fixed calendar date ages out once wall-clock
+    // passes it (shard 1/3 red on tip after 2026-09-04).
     const oldDir = await store.assertDirectory('ses_old_active');
     await writeFile(
       join(oldDir, 'state.json'),
@@ -65,7 +67,7 @@ describe('session listing resilience (UX sweep)', () => {
         version: 2,
         workDir: WORK_DIR,
         title: 'old but active',
-        updatedAt: new Date('2026-09-04T12:00:00Z').toISOString(),
+        updatedAt: new Date(Date.now() + 60_000).toISOString(),
       }),
       'utf-8',
     );
