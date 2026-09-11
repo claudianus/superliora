@@ -482,4 +482,101 @@ describe('NativeInputDecoder', () => {
       }),
     ).toBeUndefined();
   });
+
+  it('consumes OSC replies without decoding their payload as text', () => {
+    // Root cause of garbage-in-prompt on paste: the startup OSC 11 theme query
+    // returns `ESC ] 11 ; rgb:…` and the decoder used to treat it as Alt+]
+    // followed by printable characters, inserting `11;rgb:…` into the editor.
+    const decoder = new NativeInputDecoder();
+
+    expect(decoder.decode('\u001B]11;rgb:1e1e/1e1e/1e1e\u001B\\')).toEqual([
+      { type: 'unknown', raw: '\u001B]11;rgb:1e1e/1e1e/1e1e\u001B\\' },
+    ]);
+    expect(decoder.decode('\u001B]11;rgb:0000/0000/0000\u0007')).toEqual([
+      { type: 'unknown', raw: '\u001B]11;rgb:0000/0000/0000\u0007' },
+    ]);
+  });
+
+  it('buffers a split OSC reply until its terminator arrives', () => {
+    const decoder = new NativeInputDecoder({ escapeResolveMs: -1 });
+
+    expect(decoder.decode('\u001B]11;rgb:1')).toEqual([]);
+    expect(decoder.decode('e1e/1e1e/1e1e\u001B\\ok')).toEqual([
+      { type: 'unknown', raw: '\u001B]11;rgb:1e1e/1e1e/1e1e\u001B\\' },
+      { type: 'key', key: 'character', raw: 'o', text: 'o', ctrl: false, alt: false, shift: false, super: false },
+      { type: 'key', key: 'character', raw: 'k', text: 'k', ctrl: false, alt: false, shift: false, super: false },
+    ]);
+  });
+
+  it('drops an OSC prefix followed by a bare ESC instead of treating it as Alt+]', () => {
+    const decoder = new NativeInputDecoder({ escapeResolveMs: -1 });
+
+    expect(decoder.decode('\u001B]0;title\u001B\\')).toEqual([
+      { type: 'unknown', raw: '\u001B]0;title\u001B\\' },
+    ]);
+  });
+
+  it('recovers mouse events that arrive behind a truncated OSC reply', () => {
+    // Root cause of broken drag selection: a theme reply can lose its
+    // terminator mid-stream; the mouse events that follow used to be decoded
+    // as payload text (inserted into the editor) and the drag never completed.
+    const decoder = new NativeInputDecoder({ escapeResolveMs: -1 });
+
+    expect(decoder.decode('\u001B[<0;11;6M')).toEqual([
+      {
+        type: 'mouse',
+        raw: '\u001B[<0;11;6M',
+        button: 'left',
+        action: 'press',
+        x: 10,
+        y: 5,
+        ctrl: false,
+        alt: false,
+        shift: false,
+      },
+    ]);
+    // Truncated OSC (no terminator yet) buffers.
+    expect(decoder.decode('\u001B]11;rgb:1e1')).toEqual([]);
+    // Mouse drag arrives while the OSC is still pending: consume the OSC
+    // prefix as unknown and decode the drag as a mouse event.
+    expect(decoder.decode('\u001B[<32;15;8M')).toEqual([
+      { type: 'unknown', raw: '\u001B]11;rgb:1e1' },
+      {
+        type: 'mouse',
+        raw: '\u001B[<32;15;8M',
+        button: 'left',
+        action: 'drag',
+        x: 14,
+        y: 7,
+        ctrl: false,
+        alt: false,
+        shift: false,
+      },
+    ]);
+    expect(decoder.decode('\u001B[<0;15;8m')).toEqual([
+      {
+        type: 'mouse',
+        raw: '\u001B[<0;15;8m',
+        button: 'left',
+        action: 'release',
+        x: 14,
+        y: 7,
+        ctrl: false,
+        alt: false,
+        shift: false,
+      },
+    ]);
+  });
+
+  it('keeps OSC bytes inside a bracketed paste as pasted text', () => {
+    const decoder = new NativeInputDecoder();
+
+    expect(decoder.decode('\u001B[200~hi\u001B]11;rgb:aa/bb/cc\u0007there\u001B[201~')).toEqual([
+      {
+        type: 'paste',
+        raw: '\u001B[200~hi\u001B]11;rgb:aa/bb/cc\u0007there\u001B[201~',
+        text: 'hi\u001B]11;rgb:aa/bb/cc\u0007there',
+      },
+    ]);
+  });
 });

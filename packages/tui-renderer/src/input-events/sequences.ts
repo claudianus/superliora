@@ -8,6 +8,67 @@ import type {
 export const BRACKETED_PASTE_START = '\u001B[200~';
 export const BRACKETED_PASTE_END = '\u001B[201~';
 
+export const OSC_START = '\u001B]';
+export const OSC_BEL_TERMINATOR = '\u0007';
+export const OSC_STRING_TERMINATOR = '\u001B\\';
+
+/**
+ * Safety cap on a buffered OSC payload. Real replies (theme color, title) are
+ * tens of bytes; a lost terminator must not buffer unbounded input forever.
+ */
+const MAX_OSC_PAYLOAD_LENGTH = 4096;
+
+export type OscMatch =
+  | { readonly raw: string; readonly incomplete: false }
+  | { readonly incomplete: true };
+
+/**
+ * Consume an OSC sequence (`ESC ] payload (BEL | ESC \)`) starting at `index`.
+ * OSC replies (theme color, clipboard, title, hyperlink) carry arbitrary
+ * printable payload text — decoding them as key events would paste that
+ * payload into the editor.
+ *
+ * Returns the raw sequence, or `'incomplete'` when the payload continues in
+ * a later chunk, or `undefined` when the bytes at `index` do not open an OSC.
+ *
+ * - A non-terminator ESC (or other control byte) inside a non-empty payload
+ *   aborts the OSC: the reply was truncated, and the bytes that follow (often
+ *   mouse events) must still decode normally instead of being swallowed as
+ *   payload text.
+ * - With an empty payload the same bytes are not an OSC at all — `ESC ]` here
+ *   is the legacy Alt+] chord, so fall through to the normal escape path.
+ */
+export function matchOsc(
+  input: string,
+  index: number,
+): OscMatch | undefined {
+  if (!input.startsWith(OSC_START, index)) return undefined;
+  const payloadStart = index + OSC_START.length;
+  for (let cursor = payloadStart; cursor < input.length; cursor++) {
+    const char = input[cursor]!;
+    if (char === OSC_BEL_TERMINATOR || char === OSC_STRING_TERMINATOR) {
+      return { raw: input.slice(index, cursor + 1), incomplete: false };
+    }
+    if (char === '\u001B') {
+      if (input[cursor + 1] === '\\') {
+        return { raw: input.slice(index, cursor + 2), incomplete: false };
+      }
+      return cursor === payloadStart
+        ? undefined
+        : { raw: input.slice(index, cursor), incomplete: false };
+    }
+    if (char < '\u0020') {
+      return cursor === payloadStart
+        ? undefined
+        : { raw: input.slice(index, cursor), incomplete: false };
+    }
+    if (cursor - payloadStart >= MAX_OSC_PAYLOAD_LENGTH) {
+      return { raw: input.slice(index, cursor), incomplete: false };
+    }
+  }
+  return { incomplete: true };
+}
+
 const LEGACY_KEY_SEQUENCES: Partial<Record<NativeInputKey, string>> = {
   up: '\u001B[A',
   down: '\u001B[B',

@@ -6,6 +6,7 @@ import {
   BRACKETED_PASTE_END,
   BRACKETED_PASTE_START,
   matchKnownSequence,
+  matchOsc,
   sequenceEvent,
 } from './sequences';
 import type { NativeInputEvent, NativeInputPasteEvent } from './types';
@@ -82,6 +83,19 @@ export class NativeInputDecoder {
       if (sgrMouse !== undefined) {
         events.push(sgrMouse.event);
         index += sgrMouse.raw.length;
+        continue;
+      }
+
+      const osc = matchOsc(input, index);
+      if (osc?.incomplete === true) {
+        this.pendingControl = input.slice(index);
+        break;
+      }
+      if (osc !== undefined) {
+        // OSC replies (theme color, clipboard, title, …) are host chatter, not
+        // key input; consume them so their payload never reaches the editor.
+        events.push({ type: 'unknown', raw: osc.raw });
+        index += osc.raw.length;
         continue;
       }
 

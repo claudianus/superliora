@@ -47,7 +47,11 @@ export function encodeNativeInputAsLegacySequence(event: NativeInputEvent): stri
     case 'terminal-mode-report':
       return undefined;
     case 'focus':
+      return event.raw;
     case 'unknown':
+      // OSC sequences are host replies, not keystrokes. Forwarding the raw
+      // payload would let legacy string-input dialogs insert it as text.
+      if (event.raw.startsWith('\u001B]')) return undefined;
       return event.raw;
     case 'paste':
       return `${BRACKETED_PASTE_START}${event.text}${BRACKETED_PASTE_END}`;
