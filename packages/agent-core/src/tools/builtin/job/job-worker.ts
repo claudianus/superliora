@@ -97,6 +97,23 @@ export interface LaunchJobWorkerResult {
   readonly error?: string;
 }
 
+/**
+ * Cap for accumulated JobSteer `notes` / `prompt` text. Stall-detection loops
+ * steer the same worker repeatedly; without a cap the append chain grows the
+ * job_ledger store snapshot unboundedly (observed 2.6MB single wire records).
+ */
+const JOB_STEER_NOTES_MAX_CHARS = 8_000;
+const JOB_STEER_PROMPT_MAX_CHARS = 32_000;
+
+/** Trim an append tail to `maxChars`, keeping the newest content and a marker. */
+function capAppendTail(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const trimmed = text.slice(text.length - maxChars);
+  const firstNewline = trimmed.indexOf('\n');
+  const body = firstNewline >= 0 ? trimmed.slice(firstNewline + 1) : trimmed;
+  return `[…earlier steer history trimmed, ${String(text.length - body.length)} chars omitted]\n${body}`;
+}
+
 /** Cap for the parent job's result summary carried into a child worker prompt. */
 export const JOB_PRIOR_FINDINGS_MAX_CHARS = 2000;
 
@@ -1370,9 +1387,15 @@ export function steerJobWorker(input: {
     input.store,
     input.jobId,
     {
-      notes: note,
+      // Cap steer notes / prompt tail: stall-detection loops steer repeatedly
+      // and the unbounded append chain is what grew job_ledger wire records
+      // to megabytes. The trimmed head marker keeps the truncation visible.
+      notes: capAppendTail(note, JOB_STEER_NOTES_MAX_CHARS),
       status: nextStatus,
-      prompt: existing.prompt ? `${existing.prompt}\n\n[steer] ${input.message}` : input.message,
+      prompt: capAppendTail(
+        existing.prompt ? `${existing.prompt}\n\n[steer] ${input.message}` : input.message,
+        JOB_STEER_PROMPT_MAX_CHARS,
+      ),
       workerDeadlineStartedAt: new Date().toISOString(),
       ...(input.surfaceKind !== undefined ? { surfaceKind: input.surfaceKind } : {}),
     },

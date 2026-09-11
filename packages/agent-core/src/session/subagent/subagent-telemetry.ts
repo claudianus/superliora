@@ -21,11 +21,11 @@ import { TODO_STORE_KEY, type TodoItem } from '../../tools/builtin/state/todo-li
 import { snapshotChildWork } from './subagent-result-contract';
 import { writeSubagentCheckpoint } from './subagent-checkpoint';
 import {
-  collectSubagentProgressStats,
   describeSubagentToolDetail,
   previewSubagentToolArgs,
   previewSubagentToolProgress,
   previewSubagentToolResult,
+  summarizeToolTarget,
   type SubagentProgressStats,
 } from './subagent-progress-preview';
 import type { RunSubagentOptions } from './subagent-host-types';
@@ -60,6 +60,11 @@ const SUBAGENT_EXPLORE_HANDOFF_REMINDER = [
  * `subagent.progress` every few seconds with the last tool, tool count,
  * elapsed time, and token spend, plus a one-shot `subagent.stalled` when
  * no tool call has happened for the stall window.
+ *
+ * Stats are maintained incrementally from `tool.call.started` events instead
+ * of walking the full context history every tick — a long subagent with
+ * thousands of tool calls made each 5s tick a full O(history) pass with
+ * per-call JSON.parse, which saturated a CPU core for the whole run.
  */
 export function startProgressReporter(
   parent: Agent,
@@ -67,6 +72,7 @@ export function startProgressReporter(
   childId: string,
   profileName: string,
   budgetMs: number,
+  onToolProgress?: () => void,
 ): () => void {
   const startedAt = Date.now();
   let lastToolCount = -1;
@@ -76,10 +82,39 @@ export function startProgressReporter(
   let exploreHandoffNotified = false;
   let lastCheckpointToolCount = 0;
   let checkpointInFlight = false;
+  // Incremental mirror of collectSubagentProgressStats: toolCount/lastTool/
+  // lastTarget update on `tool.call.started`; tokens read from the usage
+  // accumulator (already O(1)).
+  let toolCount = 0;
+  let lastTool: string | undefined;
+  let lastTarget: string | undefined;
+  const originalEmit = child.emitEvent.bind(child);
+  child.emitEvent = (event: AgentEvent) => {
+    if (event.type === 'tool.call.started') {
+      toolCount += 1;
+      lastTool = event.name;
+      lastTarget = summarizeToolTargetFromEvent(event);
+      try {
+        onToolProgress?.();
+      } catch {
+        // Progress marking is best-effort telemetry.
+      }
+    }
+    originalEmit(event);
+  };
   const isExploreProfile =
     profileName === 'explore' || profileName === 'research' || profileName.startsWith('explore');
   const timer = setInterval(() => {
-    const stats = collectSubagentProgressStats(child);
+    const total = child.usage.data().total;
+    const stats: SubagentProgressStats = {
+      toolCount,
+      lastTool,
+      lastTarget,
+      tokens:
+        total === undefined
+          ? 0
+          : total.inputOther + total.output + total.inputCacheRead + total.inputCacheCreation,
+    };
     const now = Date.now();
     const elapsedMs = now - startedAt;
     const budgetRemainingMs = Math.max(0, budgetMs - elapsedMs);
@@ -162,7 +197,43 @@ export function startProgressReporter(
   }, SUBAGENT_PROGRESS_INTERVAL_MS);
   // Progress reporting must never keep the event loop alive on its own.
   timer.unref?.();
-  return () =>{  clearInterval(timer); };
+  return () => {
+    clearInterval(timer);
+    child.emitEvent = originalEmit;
+  };
+}
+
+/**
+ * Extract a bounded target preview from a `tool.call.started` event. Tool
+ * args arrive as an object (not the JSON string the old history walk saw),
+ * so probe the same well-known keys and fall back to a raw slice.
+ */
+function summarizeToolTargetFromEvent(event: {
+  readonly name: string;
+  readonly args?: unknown;
+}): string | undefined {
+  const args = event.args;
+  if (args === undefined || args === null) return undefined;
+  if (typeof args === 'string') return summarizeToolTarget(args);
+  if (typeof args !== 'object') return undefined;
+  try {
+    const parsed = args as Record<string, unknown>;
+    for (const key of ['path', 'command', 'pattern', 'query', 'url', 'description']) {
+      const value = parsed[key];
+      if (typeof value === 'string' && value.length > 0) {
+        return value.length > 80 ? `${value.slice(0, 80)}…` : value;
+      }
+    }
+  } catch {
+    // Fall through to the raw snippet below.
+  }
+  let raw: string;
+  try {
+    raw = JSON.stringify(args) ?? '';
+  } catch {
+    return undefined;
+  }
+  return raw.length > 80 ? `${raw.slice(0, 80)}…` : raw;
 }
 
 /** Compact phase label for the job ledger snapshot, e.g. `Bash: pnpm test`. */

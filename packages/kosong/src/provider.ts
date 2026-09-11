@@ -192,6 +192,23 @@ export interface GenerateOptions {
    */
   streamOpenTimeoutMs?: number;
   /**
+   * Maximum time (ms) to wait for the FIRST substantive streamed part after
+   * the stream is open. Thinking-model turns still emit reasoning tokens
+   * early, so a first-token stall means the provider accepted the request
+   * but never started generating. When omitted, falls back to
+   * `SUPERLIORA_LLM_FIRST_TOKEN_TIMEOUT_MS`, then to the idle budget.
+   * Set to `0` to disable the separate first-token phase.
+   */
+  firstTokenTimeoutMs?: number;
+  /**
+   * Maximum total wall-clock (ms) for one streamed response — the backstop
+   * against streams that drip activity forever (stuck reasoning loops,
+   * keepalive-forwarding gateways) which the idle watchdog cannot catch.
+   * When omitted, falls back to `SUPERLIORA_LLM_STREAM_MAX_DURATION_MS`,
+   * then to the shared default (10 minutes). Set to `0` to disable.
+   */
+  streamMaxDurationMs?: number;
+  /**
    * Layered system prompt for cache-optimized providers.
    * When provided, providers that support multi-block system prompts
    * (e.g., Anthropic) will use this instead of the string systemPrompt

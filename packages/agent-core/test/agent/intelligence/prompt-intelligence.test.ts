@@ -7,6 +7,7 @@ import {
   looksLikeCheapCompletionModel,
   parseSuggestionLines,
   pinCompletionThinking,
+  SideCallFailureBreaker,
   summarizeHistory,
   type InlineCompletePayload,
 } from '../../../src/agent/intelligence/prompt-intelligence';
@@ -91,5 +92,40 @@ describe('agent/intelligence/prompt-intelligence.ts — parseSuggestionLines', (
   it('returns an empty list for empty or whitespace-only input', () => {
     expect(parseSuggestionLines('')).toEqual([]);
     expect(parseSuggestionLines('   \n\n  ')).toEqual([]);
+  });
+});
+
+describe('agent/intelligence/prompt-intelligence.ts — SideCallFailureBreaker', () => {
+  it('opens after the failure threshold and blocks calls without a timestamp', () => {
+    const breaker = new SideCallFailureBreaker();
+    expect(breaker.allow(0)).toBe(true);
+    breaker.recordFailure(0);
+    breaker.recordFailure(1);
+    expect(breaker.allow(2)).toBe(true); // 2 < 3: still probing.
+    breaker.recordFailure(2);
+    // Threshold reached: the circuit is open until the cooldown elapses.
+    expect(breaker.allow(3)).toBe(false);
+    expect(breaker.allow(1000)).toBe(false);
+  });
+
+  it('allows a half-open probe after the cooldown and reopens on its failure', () => {
+    const breaker = new SideCallFailureBreaker();
+    breaker.recordFailure(0);
+    breaker.recordFailure(1);
+    breaker.recordFailure(2);
+    const afterCooldown = 2 + 10 * 60 * 1000 + 1;
+    expect(breaker.allow(afterCooldown)).toBe(true); // half-open probe
+    breaker.recordFailure(afterCooldown);
+    expect(breaker.allow(afterCooldown + 1)).toBe(false); // reopened
+  });
+
+  it('a success resets the failure count and closes an open circuit', () => {
+    const breaker = new SideCallFailureBreaker();
+    breaker.recordFailure(0);
+    breaker.recordFailure(1);
+    breaker.recordSuccess();
+    expect(breaker.allow(2)).toBe(true);
+    breaker.recordFailure(2);
+    expect(breaker.allow(3)).toBe(true); // count restarted from 0, now 1.
   });
 });

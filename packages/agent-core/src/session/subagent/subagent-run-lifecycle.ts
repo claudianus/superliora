@@ -44,8 +44,17 @@ export type ActiveChildEntry = {
   /** Pause/resume the wall-clock deadline (interview / needs_user stalls). */
   pauseDeadline?: () => void;
   resumeDeadline?: () => void;
-  /** Replace remaining wall-clock (session steer resets the 30m budget). */
+  /**
+   * Replace remaining wall-clock (session steer resets the 30m budget).
+   * No-op without new child tool progress since the last reset — a wedged
+   * child must not extend its deadline by merely being steered again.
+   */
   resetDeadline?: (ms: number) => void;
+  /**
+   * Record that the child made observable progress (a tool call started).
+   * Wired by callers that own the child agent; deadline resets consult it.
+   */
+  markToolProgress?: () => void;
 };
 
 /** Minimal options shape required by {@link runWithActiveChild}. */
@@ -68,9 +77,18 @@ const deadlineControlsByChildId = new Map<
   {
     readonly pause: () => void;
     readonly resume: () => void;
-    readonly reset: (ms: number) => void;
+    readonly reset: (ms: number) => boolean;
+    readonly markToolProgress: () => void;
   }
 >();
+
+/** Record observable tool progress for a live child (deadline-reset gate). */
+export function markActiveChildToolProgress(childId: string): boolean {
+  const control = deadlineControlsByChildId.get(childId);
+  if (control === undefined) return false;
+  control.markToolProgress();
+  return true;
+}
 
 /** Pause the hard wall-clock deadline for an active child (needs_user interview). */
 export function pauseActiveChildDeadline(childId: string): boolean {
@@ -88,12 +106,15 @@ export function resumeActiveChildDeadline(childId: string): boolean {
   return true;
 }
 
-/** Replace remaining wall-clock for a live child (session steer budget reset). */
+/**
+ * Replace remaining wall-clock for a live child (session steer budget reset).
+ * Refused (false) when the child has made no tool progress since the last
+ * reset — a wedged child must not extend its deadline by being steered again.
+ */
 export function resetActiveChildDeadline(childId: string, ms: number): boolean {
   const control = deadlineControlsByChildId.get(childId);
   if (control === undefined) return false;
-  control.reset(ms);
-  return true;
+  return control.reset(ms);
 }
 
 export function isModelAliasHealthy(
@@ -257,18 +278,41 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
     }
   };
 
+  // Deadline resets (session steer / JobSteer) must not let a wedged child
+  // live forever: a stall-detection loop that keeps steering a child whose
+  // LLM request is hung re-arms the full budget on every steer, so the hard
+  // deadline never fires (observed: 30m budget overrun with zombie heartbeats
+  // for hours). A reset only extends the run when the child has produced
+  // new tool progress since the last reset.
+  let lastResetProgressMark = 0;
+  let toolProgressMark = 0;
+  const resetDeadlineWithProgress = (ms: number): boolean => {
+    if (toolProgressMark <= lastResetProgressMark) return false;
+    lastResetProgressMark = toolProgressMark;
+    resetDeadline(ms);
+    return true;
+  };
+
   const entry: ActiveChildEntry = {
     controller,
     runInBackground: options.runInBackground,
     pauseDeadline,
     resumeDeadline,
-    resetDeadline,
+    resetDeadline: (ms: number) => {
+      resetDeadlineWithProgress(ms);
+    },
+    markToolProgress: () => {
+      toolProgressMark += 1;
+    },
   };
   activeChildren.set(childId, entry);
   deadlineControlsByChildId.set(childId, {
     pause: pauseDeadline,
     resume: resumeDeadline,
-    reset: resetDeadline,
+    reset: resetDeadlineWithProgress,
+    markToolProgress: () => {
+      toolProgressMark += 1;
+    },
   });
 
   if (deadlineMs > 0) {

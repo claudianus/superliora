@@ -37,6 +37,15 @@ export const MAX_SUGGESTIONS = 5;
 const HISTORY_CONTEXT_CHARS = 800;
 /** Per-message truncation when compacting history. */
 const PER_MESSAGE_CHARS = 400;
+/**
+ * Consecutive-failure circuit breaker for side calls. A completion model that
+ * burns its whole budget on reasoning (thinking-only, finishReason=length)
+ * fails EVERY ghost/suggest request; without a breaker the TUI retried on
+ * every prompt-box tick and flooded the request log. After this many straight
+ * failures the feature goes dark until the cooldown elapses, then probes once.
+ */
+const SIDE_CALL_FAILURE_BREAKER_THRESHOLD = 3;
+const SIDE_CALL_FAILURE_BREAKER_COOLDOWN_MS = 10 * 60 * 1000;
 
 export interface InlineCompletePayload {
   readonly text: string;
@@ -158,12 +167,47 @@ export function pinCompletionThinking(provider: ChatProvider): ChatProvider | un
   return undefined;
 }
 
+/**
+ * Consecutive-failure circuit breaker for the prompt-intelligence side calls.
+ * Extracted so the state machine can be unit-tested without a full Agent.
+ */
+export class SideCallFailureBreaker {
+  private consecutiveFailures = 0;
+  private breakerOpenedAt: number | undefined;
+
+  /** True when a call may proceed; after the cooldown a probe is allowed. */
+  allow(now: number = Date.now()): boolean {
+    if (this.breakerOpenedAt !== undefined) {
+      if (now - this.breakerOpenedAt < SIDE_CALL_FAILURE_BREAKER_COOLDOWN_MS) return false;
+      // Cooldown elapsed: half-open probe — allow one call to test recovery.
+      this.breakerOpenedAt = undefined;
+      this.consecutiveFailures = SIDE_CALL_FAILURE_BREAKER_THRESHOLD - 1;
+    }
+    return true;
+  }
+
+  recordSuccess(): void {
+    this.consecutiveFailures = 0;
+    this.breakerOpenedAt = undefined;
+  }
+
+  recordFailure(now: number = Date.now()): void {
+    this.consecutiveFailures += 1;
+    if (this.consecutiveFailures >= SIDE_CALL_FAILURE_BREAKER_THRESHOLD) {
+      this.breakerOpenedAt = now;
+    }
+  }
+}
+
 export class PromptIntelligenceService {
+  private readonly sideCallBreaker = new SideCallFailureBreaker();
+
   constructor(private readonly agent: Agent) {}
 
   async inlineComplete(payload: InlineCompletePayload): Promise<InlineCompleteResult> {
     const empty: InlineCompleteResult = { completion: '' };
     if (!this.isEnabled()) return empty;
+    if (!this.sideCallBreaker.allow()) return empty;
     const draft = extractDraft(payload);
     if (draft.length === 0) return empty;
 
@@ -193,9 +237,13 @@ export class PromptIntelligenceService {
         options,
       );
       const completion = cleanInlineCompletion(extractText(response), draft);
+      this.sideCallBreaker.recordSuccess();
       return { completion, modelAlias };
     } catch (error) {
-      if (!isAbortError(error)) this.agent.log.warn('inline completion failed', error);
+      if (!isAbortError(error)) {
+        this.sideCallBreaker.recordFailure();
+        this.agent.log.warn('inline completion failed', error);
+      }
       return empty;
     }
   }
@@ -203,6 +251,7 @@ export class PromptIntelligenceService {
   async suggestPrompts(payload: SuggestPromptsPayload = {}): Promise<SuggestPromptsResult> {
     const empty: SuggestPromptsResult = { suggestions: [] };
     if (!this.isEnabled()) return empty;
+    if (!this.sideCallBreaker.allow()) return empty;
 
     const resolved = await this.resolveProvider(SUGGEST_MAX_TOKENS);
     if (resolved === undefined) return empty;
@@ -234,9 +283,13 @@ export class PromptIntelligenceService {
         options,
       );
       const suggestions = parseSuggestionLines(extractText(response));
+      this.sideCallBreaker.recordSuccess();
       return { suggestions, modelAlias };
     } catch (error) {
-      if (!isAbortError(error)) this.agent.log.warn('prompt suggestions failed', error);
+      if (!isAbortError(error)) {
+        this.sideCallBreaker.recordFailure();
+        this.agent.log.warn('prompt suggestions failed', error);
+      }
       return empty;
     }
   }

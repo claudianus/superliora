@@ -27,6 +27,34 @@ export const DEFAULT_LLM_OPEN_TIMEOUT_MS = 120_000;
 /** Environment variable that overrides the default stream-open budget. */
 export const LLM_OPEN_TIMEOUT_ENV = 'SUPERLIORA_LLM_OPEN_TIMEOUT_MS';
 
+/**
+ * Default upper bound (ms) on waiting for the first substantive chunk once
+ * the stream is open. Long thinking-model generations emit reasoning tokens
+ * early, so even heavy turns produce a first token well inside this window;
+ * a provider that accepts the request but never starts generating is a hung
+ * stream, not a slow one. Override per request with `firstTokenTimeoutMs`,
+ * or globally with `SUPERLIORA_LLM_FIRST_TOKEN_TIMEOUT_MS` (`0` disables —
+ * the idle budget then covers the first chunk too).
+ */
+export const DEFAULT_LLM_FIRST_TOKEN_TIMEOUT_MS = 120_000;
+
+/** Environment variable that overrides the default first-token budget. */
+export const LLM_FIRST_TOKEN_TIMEOUT_ENV = 'SUPERLIORA_LLM_FIRST_TOKEN_TIMEOUT_MS';
+
+/**
+ * Default upper bound (ms) on the TOTAL wall-clock of one streamed response.
+ * This is the backstop for streams that drip activity forever (a reasoning
+ * model stuck emitting thinking tokens, a gateway forwarding keepalive-like
+ * payloads): the idle watchdog never fires because chunks keep arriving, yet
+ * the turn makes no progress. Override per request with
+ * `streamMaxDurationMs`, or globally with
+ * `SUPERLIORA_LLM_STREAM_MAX_DURATION_MS` (`0` disables).
+ */
+export const DEFAULT_LLM_STREAM_MAX_DURATION_MS = 600_000;
+
+/** Environment variable that overrides the default stream duration budget. */
+export const LLM_STREAM_MAX_DURATION_ENV = 'SUPERLIORA_LLM_STREAM_MAX_DURATION_MS';
+
 export interface IdleTimeoutOptions<T = unknown> {
   /**
    * Maximum time (ms) to wait for the next chunk before aborting with an
@@ -38,6 +66,19 @@ export interface IdleTimeoutOptions<T = unknown> {
    * {@link DEFAULT_LLM_IDLE_TIMEOUT_MS}.
    */
   readonly idleMs?: number;
+  /**
+   * Maximum time (ms) to wait for the FIRST substantive chunk. When omitted,
+   * falls back to `SUPERLIORA_LLM_FIRST_TOKEN_TIMEOUT_MS`, then to the idle
+   * budget. Only applies before the first activity chunk; afterwards the
+   * idle budget governs each subsequent wait.
+   */
+  readonly firstTokenMs?: number;
+  /**
+   * Maximum total wall-clock (ms) for the whole stream, measured from the
+   * first `next()` call. `0` disables the cap. When omitted, falls back to
+   * `SUPERLIORA_LLM_STREAM_MAX_DURATION_MS`.
+   */
+  readonly maxDurationMs?: number;
   /** Human-readable stream description appended to the timeout message. */
   readonly label?: string;
   /** Aborts a pending chunk wait immediately when the caller cancels. */
@@ -70,6 +111,20 @@ export function resolveOpenTimeoutMs(explicit?: number): number {
   return resolveTimeoutMs(explicit, LLM_OPEN_TIMEOUT_ENV, DEFAULT_LLM_OPEN_TIMEOUT_MS);
 }
 
+/**
+ * Resolve the effective first-token budget. Unlike the other resolvers there
+ * is no baked-in fallback: when unset the caller's idle budget applies, so
+ * `undefined` means "no separate first-token phase".
+ */
+export function resolveFirstTokenTimeoutMs(explicit?: number): number | undefined {
+  return resolveOptionalTimeoutMs(explicit, LLM_FIRST_TOKEN_TIMEOUT_ENV);
+}
+
+/** Resolve the effective whole-stream duration cap. */
+export function resolveStreamMaxDurationMs(explicit?: number): number {
+  return resolveTimeoutMs(explicit, LLM_STREAM_MAX_DURATION_ENV, DEFAULT_LLM_STREAM_MAX_DURATION_MS);
+}
+
 function resolveTimeoutMs(
   explicit: number | undefined,
   envKey: string,
@@ -80,6 +135,23 @@ function resolveTimeoutMs(
   if (raw === undefined || raw.trim().length === 0) return fallback;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return parsed;
+}
+
+/**
+ * Resolve an optional budget: explicit value (including `0` = disabled) wins,
+ * then the environment variable; `undefined` when neither is set so callers
+ * can apply their own fallback.
+ */
+function resolveOptionalTimeoutMs(
+  explicit: number | undefined,
+  envKey: string,
+): number | undefined {
+  if (explicit !== undefined) return explicit;
+  const raw = process.env[envKey];
+  if (raw === undefined || raw.trim().length === 0) return undefined;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return undefined;
   return parsed;
 }
 
@@ -107,7 +179,11 @@ export function withIdleTimeout<T>(
   options: IdleTimeoutOptions<T> = {},
 ): AsyncIterable<T> {
   const idleMs = resolveIdleTimeoutMs(options.idleMs);
-  if (idleMs <= 0) return stream;
+  const firstTokenMs = resolveFirstTokenTimeoutMs(options.firstTokenMs);
+  const maxDurationMs = resolveStreamMaxDurationMs(options.maxDurationMs);
+  if (idleMs <= 0 && (firstTokenMs === undefined || firstTokenMs <= 0) && maxDurationMs <= 0) {
+    return stream;
+  }
 
   const label = options.label;
   const signal = options.signal;
@@ -117,8 +193,45 @@ export function withIdleTimeout<T>(
     [Symbol.asyncIterator](): AsyncIterator<T> {
       const iterator = stream[Symbol.asyncIterator]();
       // Absolute deadline for the next *activity* chunk. Empty keepalives do
-      // not push this forward when countsAsActivity is set.
-      let activityDeadlineMs = Date.now() + idleMs;
+      // not push this forward when countsAsActivity is set. Before the first
+      // activity chunk the first-token budget (when set) tightens it.
+      const streamStartedAtMs = Date.now();
+      let sawFirstActivity = false;
+      let activityDeadlineMs = computeDeadline(Date.now(), false);
+
+      function computeDeadline(fromMs: number, afterActivity: boolean): number {
+        const idleDeadline =
+          idleMs > 0 && afterActivity ? fromMs + idleMs : firstTokenDeadline(fromMs);
+        const durationDeadline =
+          maxDurationMs > 0 ? streamStartedAtMs + maxDurationMs : Number.POSITIVE_INFINITY;
+        return Math.min(idleDeadline, durationDeadline);
+      }
+
+      function firstTokenDeadline(fromMs: number): number {
+        if (firstTokenMs !== undefined && firstTokenMs > 0 && !sawFirstActivity) {
+          return fromMs + firstTokenMs;
+        }
+        return idleMs > 0 ? fromMs + idleMs : Number.POSITIVE_INFINITY;
+      }
+
+      function timeoutError(): APITimeoutError {
+        const nowMs = Date.now();
+        if (maxDurationMs > 0 && nowMs - streamStartedAtMs >= maxDurationMs) {
+          return new APITimeoutError(
+            `Stream duration timeout: stream exceeded ${String(maxDurationMs)}ms total.` +
+              formatLabel(label),
+          );
+        }
+        if (firstTokenMs !== undefined && firstTokenMs > 0 && !sawFirstActivity) {
+          return new APITimeoutError(
+            `Stream first-token timeout: no first token for ${String(firstTokenMs)}ms.` +
+              formatLabel(label),
+          );
+        }
+        return new APITimeoutError(
+          `Stream idle timeout: no data received for ${String(idleMs)}ms.` + formatLabel(label),
+        );
+      }
 
       return {
         next(): Promise<IteratorResult<T>> {
@@ -128,12 +241,7 @@ export function withIdleTimeout<T>(
 
           const remainingMs = Math.max(0, activityDeadlineMs - Date.now());
           if (remainingMs <= 0) {
-            return Promise.reject(
-              new APITimeoutError(
-                `Stream idle timeout: no data received for ${String(idleMs)}ms.` +
-                  formatLabel(label),
-              ),
-            );
+            return Promise.reject(timeoutError());
           }
 
           const pending = iterator.next();
@@ -161,12 +269,7 @@ export function withIdleTimeout<T>(
 
             timer = setTimeout(() => {
               cleanup();
-              reject(
-                new APITimeoutError(
-                  `Stream idle timeout: no data received for ${String(idleMs)}ms.` +
-                    formatLabel(label),
-                ),
-              );
+              reject(timeoutError());
             }, remainingMs);
 
             pending.then(
@@ -176,7 +279,8 @@ export function withIdleTimeout<T>(
                   const active =
                     countsAsActivity === undefined ? true : countsAsActivity(result.value);
                   if (active) {
-                    activityDeadlineMs = Date.now() + idleMs;
+                    sawFirstActivity = true;
+                    activityDeadlineMs = computeDeadline(Date.now(), true);
                   }
                 }
                 resolve(result);

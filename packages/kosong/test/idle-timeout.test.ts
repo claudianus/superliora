@@ -119,9 +119,13 @@ describe('withIdleTimeout', () => {
     expect(Date.now() - started).toBeGreaterThanOrEqual(25);
   });
 
-  it('returns the original stream untouched when disabled with idleMs 0', async () => {
+  it('returns the original stream untouched when all budgets are disabled', async () => {
     const stream = chunksWithGaps([{ value: 7, delayMs: 20 }]);
-    const wrapped = withIdleTimeout(stream, { idleMs: 0 });
+    const wrapped = withIdleTimeout(stream, {
+      idleMs: 0,
+      firstTokenMs: 0,
+      maxDurationMs: 0,
+    });
     expect(wrapped).toBe(stream);
     await expect(collect(wrapped)).resolves.toEqual([7]);
   });
@@ -133,16 +137,75 @@ describe('withIdleTimeout', () => {
     expect((error as Error).message).toContain('no data received for 25ms');
   });
 
-  it('treats env 0 as disabled', async () => {
+  it('treats env 0 as disabled when the other budgets are disabled too', async () => {
     process.env[LLM_IDLE_TIMEOUT_ENV] = '0';
     const stream = stalledStream();
-    expect(withIdleTimeout(stream)).toBe(stream);
+    expect(withIdleTimeout(stream, { firstTokenMs: 0, maxDurationMs: 0 })).toBe(stream);
   });
 
   it('lets an explicit idleMs win over the env default', async () => {
     process.env[LLM_IDLE_TIMEOUT_ENV] = '5';
     const stream = chunksWithGaps([{ value: 9, delayMs: 30 }]);
     await expect(collect(withIdleTimeout(stream, { idleMs: 1000 }))).resolves.toEqual([9]);
+  });
+
+  it('aborts a never-first-token stream at firstTokenMs even when idle budget is longer', async () => {
+    const started = Date.now();
+    // The stream opens but never emits any chunk — a provider that accepted
+    // the request and never started generating.
+    const silentStream: AsyncIterable<number> = {
+      // eslint-disable-next-line require-yield -- never yielding is the point
+      async *[Symbol.asyncIterator](): AsyncGenerator<number> {
+        await new Promise<void>(() => {});
+      },
+    };
+    const error = await collect(
+      withIdleTimeout(silentStream, { idleMs: 60_000, firstTokenMs: 30 }),
+    ).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(APITimeoutError);
+    expect((error as Error).message).toContain('Stream first-token timeout');
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it('does not re-apply the first-token budget after the first activity chunk', async () => {
+    // First chunk arrives instantly; the next gap is long but inside the idle
+    // budget, and the first-token budget is far smaller — the stream must
+    // survive past the first-token window because activity already happened.
+    const stream = chunksWithGaps([
+      { value: 1, delayMs: 5 },
+      { value: 2, delayMs: 200 },
+    ]);
+    await expect(
+      collect(withIdleTimeout(stream, { idleMs: 1_000, firstTokenMs: 50 })),
+    ).resolves.toEqual([1, 2]);
+  });
+
+  it('aborts a stream that exceeds the whole-stream duration cap', async () => {
+    const started = Date.now();
+    // The stream yields one activity chunk (so the first-token phase passes
+    // and the idle budget resets), then holds the connection open forever.
+    // Only the whole-stream duration cap can stop it.
+    const error = await collect(
+      withIdleTimeout(stalledStream(), { idleMs: 60_000, maxDurationMs: 40 }),
+    ).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(APITimeoutError);
+    expect((error as Error).message).toContain('Stream duration timeout');
+    expect(Date.now() - started).toBeLessThan(10_000);
+  });
+
+  it('passes empty keepalives through without resetting the first-token budget', async () => {
+    // countsAsActivity rejects the first chunk (keepalive); the first-token
+    // clock must keep running until a substantive chunk arrives.
+    const stream = chunksWithGaps([{ value: 0, delayMs: 5 }, { value: 1, delayMs: 200 }]);
+    const error = await collect(
+      withIdleTimeout(stream, {
+        idleMs: 60_000,
+        firstTokenMs: 60,
+        countsAsActivity: (chunk: number) => chunk !== 0,
+      }),
+    ).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(APITimeoutError);
+    expect((error as Error).message).toContain('Stream first-token timeout');
   });
 
   it('rejects a pending chunk wait immediately when the signal aborts', async () => {
