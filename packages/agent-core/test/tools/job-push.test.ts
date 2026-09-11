@@ -4,6 +4,7 @@ import { createJob, getJob, listJobs, patchJob } from '../../src/tools/builtin/j
 import {
   diagnoseAuthFailure,
   dispatchPushRemote,
+  enrichDetailWithGhStatus,
   evaluatePushTrust,
   inferPublishRemoteRef,
   looksLikeAuthFailure,
@@ -135,6 +136,21 @@ describe('push auth diagnosis', () => {
       runGh,
     });
     expect(detail).toContain('gh auth login');
+  });
+
+  it('maps each gh login state to its fix hint', () => {
+    expect(
+      enrichDetailWithGhStatus('push failed', { state: 'ok', account: 'octocat' }),
+    ).toContain('octocat');
+    expect(
+      enrichDetailWithGhStatus('push failed', { state: 'logged_out' }),
+    ).toContain('gh auth login');
+    expect(
+      enrichDetailWithGhStatus('push failed', { state: 'binary_missing' }),
+    ).toContain('https://cli.github.com');
+    expect(
+      enrichDetailWithGhStatus('push failed', { state: 'unknown' }),
+    ).toBe('push failed');
   });
 
   it('records the gh login guidance in blocked push notes', async () => {

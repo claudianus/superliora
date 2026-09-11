@@ -24,10 +24,8 @@ export async function removeWorktree(kaos: Kaos, root: string, target: string): 
 // in the user's gh config (hosts.yml), which tools must never read directly
 // (sensitive path policy) — `gh auth status` is the only sanctioned probe.
 
-export type GhCliAuthState = 'ok' | 'logged_out' | 'binary_missing' | 'unknown';
-
 export interface GhCliAuthStatus {
-  readonly state: GhCliAuthState;
+  readonly state: 'ok' | 'logged_out' | 'binary_missing' | 'unknown';
   /** Logged-in account from `gh auth status` when available. */
   readonly account?: string;
   /** Compact human-readable reason for non-ok states. */
@@ -35,7 +33,7 @@ export interface GhCliAuthStatus {
 }
 
 /** Parse `gh api user --jq .login` output; empty login is logged_out. */
-export function parseGhAccountLogin(stdout: string): string | undefined {
+function parseGhAccountLogin(stdout: string): string | undefined {
   const login = stdout.trim();
   return login.length > 0 && !login.startsWith('{') ? login : undefined;
 }

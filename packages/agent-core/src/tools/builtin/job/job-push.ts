@@ -49,16 +49,24 @@ export async function diagnoseAuthFailure(input: {
   }
   if (input.kaos === undefined) return input.detail;
   const status = await checkGhCliAuth(input.kaos);
-  if (status.state === 'ok') {
-    return `${input.detail} — gh is logged in as ${status.account ?? 'unknown account'}; the token may lack repo scope or the remote credential helper rejected it`;
+  return enrichDetailWithGhStatus(input.detail, status);
+}
+
+/** Map a gh login probe result onto the fix hint appended to the failure detail. */
+export function enrichDetailWithGhStatus(
+  detail: string,
+  status: GhCliAuthStatus,
+): string {
+  switch (status.state) {
+    case 'ok':
+      return `${detail} — gh is logged in as ${status.account ?? 'unknown account'}; the token may lack repo scope or the remote credential helper rejected it`;
+    case 'logged_out':
+      return `${detail} — GitHub CLI is not logged in; run \`gh auth login\` (or /github-connect in the TUI), then retry the push`;
+    case 'binary_missing':
+      return `${detail} — gh CLI is not installed (https://cli.github.com); install it, run \`gh auth login\`, and retry the push`;
+    default:
+      return detail;
   }
-  if (status.state === 'logged_out') {
-    return `${input.detail} — GitHub CLI is not logged in; run \`gh auth login\` (or /github-connect in the TUI), then retry the push`;
-  }
-  if (status.state === 'binary_missing') {
-    return `${input.detail} — gh CLI is not installed (https://cli.github.com); install it, run \`gh auth login\`, and retry the push`;
-  }
-  return input.detail;
 }
 
 /**
@@ -75,7 +83,12 @@ import type { Kaos } from '@superliora/kaos';
 
 import { join } from 'node:path';
 
-import { runGh as kaosRunGh, runGit as kaosRunGit, checkGhCliAuth } from '#/autopilot/git';
+import {
+  checkGhCliAuth,
+  runGh as kaosRunGh,
+  runGit as kaosRunGit,
+  type GhCliAuthStatus,
+} from '#/autopilot/git';
 import { redactSecretsInText } from '#/security/redaction';
 
 import { createUserMessage } from '@superliora/kosong';
