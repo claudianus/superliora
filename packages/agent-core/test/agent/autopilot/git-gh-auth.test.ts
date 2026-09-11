@@ -21,7 +21,7 @@ function fakeKaos(execResult: { readonly code: number | null; readonly stdout: s
       return stderr;
     },
   } as unknown as NodeJS.ReadableStream;
-  const stdin = { end: () => undefined } as unknown as NodeJS.Writable;
+  const stdin = { end: () => undefined };
   return {
     exec: vi.fn(async () => ({
       stdin,
