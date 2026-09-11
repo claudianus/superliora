@@ -1292,8 +1292,12 @@ describe('keybindings-glance', () => {
       expect(lines).toContain(
         `${process.platform === 'darwin' ? 'Cmd-C' : 'Ctrl-C'} — Stop the current turn`,
       );
-      expect(lines).toContain('Ctrl-O — Cycle transcript density');
-      expect(lines).toContain('Ctrl-B — Background the current work');
+      expect(lines).toContain(
+        `${process.platform === 'darwin' ? 'Cmd-O' : 'Ctrl-O'} — Cycle transcript density`,
+      );
+      expect(lines).toContain(
+        `${process.platform === 'darwin' ? 'Cmd-B' : 'Ctrl-B'} — Background the current work`,
+      );
       expect(lines).toContain('No keybinding editor here');
     });
   });

@@ -28,6 +28,19 @@ import { resolveToolHelpVisibility } from './help-visibility';
 import { scheduleJobLedgerCrashMirror } from '../../tools/builtin/job/job-crash-mirror';
 import { scheduleWorkspaceCatalogSync } from '../../tools/builtin/job/job-workspace-bind';
 
+/**
+ * Coalescing window for job_ledger `tools.update_store` wire records. The
+ * ledger is written whole on every patch; patch storms (progress mirroring,
+ * steer loops) only need the latest snapshot to survive.
+ */
+const JOB_LEDGER_WIRE_FLUSH_MS = 500;
+/**
+ * Hard cap on one serialized `tools.update_store` payload. Beyond this the
+ * record is skipped for the wire log (in-memory store and the job-ledger
+ * crash mirror remain the durable sources).
+ */
+const MAX_STORE_RECORD_JSON_CHARS = 512 * 1024;
+
 export * from './types';
 export {
   COMPAT_BRANDING_TOOL_HELP,
@@ -55,6 +68,8 @@ export class ToolManager {
   mcpAccessPatterns: string[] = [];
   protected readonly store: Partial<ToolStoreData> = {};
   private mcpToolStatusUnsubscribe: (() => void) | undefined;
+  /** Deferred job_ledger wire flush (coalescing window, latest-wins). */
+  private pendingLedgerWireFlush: ReturnType<typeof setTimeout> | undefined;
 
   /** Abort controllers for in-flight `!` shell commands, keyed by commandId so
    *  the TUI can cancel (Esc / Ctrl+C) a running command. */
@@ -94,11 +109,7 @@ export class ToolManager {
   }
 
   updateStore<K extends ToolStoreKey>(key: K, value: ToolStoreData[K]): void {
-    this.agent.records.logRecord({
-      type: 'tools.update_store',
-      key,
-      value,
-    });
+    this.logStoreUpdateRecord(key, value);
     this.store[key] = value;
     if (key === 'todo') {
       this.agent.emitEvent({
@@ -111,6 +122,59 @@ export class ToolManager {
       scheduleJobLedgerCrashMirror(this.toolStore);
       scheduleWorkspaceCatalogSync(this.toolStore);
     }
+  }
+
+  /**
+   * Wire-record a store update with ledger bloat guards. The job ledger is a
+   * whole-store snapshot on every patch: a long notes tail (stall-steer
+   * loops append to `notes` on every steer) grew one line to 2.6MB and one
+   * agent's wire.jsonl to 157MB. Guards:
+   * - Ledger coalescing: job_ledger patches within the window collapse to
+   *   one latest-wins wire record (the crash mirror keeps full durability
+   *   at its own 100ms cadence; replay only needs the final snapshot).
+   * - Oversize skip: a serialized record beyond the hard cap is not
+   *   recorded; the in-memory store and crash mirror stay authoritative.
+   */
+  private logStoreUpdateRecord<K extends ToolStoreKey>(key: K, value: ToolStoreData[K]): void {
+    if (key === 'job_ledger') {
+      if (this.pendingLedgerWireFlush === undefined) {
+        const timer = setTimeout(() => {
+          this.pendingLedgerWireFlush = undefined;
+          const latest = this.store['job_ledger'];
+          if (latest !== undefined) {
+            this.appendStoreUpdateRecord('job_ledger', latest);
+          }
+        }, JOB_LEDGER_WIRE_FLUSH_MS);
+        timer.unref?.();
+        this.pendingLedgerWireFlush = timer;
+      }
+      // Patch storms fall through without an immediate wire record; the
+      // scheduled flush logs the freshest snapshot once per window.
+      return;
+    }
+    this.appendStoreUpdateRecord(key, value);
+  }
+
+  private appendStoreUpdateRecord<K extends ToolStoreKey>(key: K, value: ToolStoreData[K]): void {
+    try {
+      const serialized = JSON.stringify(value);
+      if (serialized === undefined) return;
+      if (serialized.length > MAX_STORE_RECORD_JSON_CHARS) {
+        this.agent.log.warn(
+          `tools.update_store: skipped ${String(key)} wire record (serialized ${String(serialized.length)} chars > cap ${String(MAX_STORE_RECORD_JSON_CHARS)})`,
+        );
+        return;
+      }
+    } catch {
+      // Unserializable values cannot be replayed anyway; the in-memory store
+      // and the job-ledger crash mirror remain the sources of truth.
+      return;
+    }
+    this.agent.records.logRecord({
+      type: 'tools.update_store',
+      key,
+      value,
+    });
   }
 
   /**

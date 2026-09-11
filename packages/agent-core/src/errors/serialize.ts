@@ -86,7 +86,9 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
       (error.statusCode === 429 || isQuotaOrRateLimitMessage(message));
 
     let resolvedCode: LioraErrorCode;
-    if (error.statusCode === 401) {
+    if (error.statusCode === 401 || error.statusCode === 402) {
+      // 402 payment required (insufficient balance) is as permanent as a
+      // bad key until the account is topped up — surface auth, never auto-retry.
       resolvedCode = ErrorCodes.PROVIDER_AUTH_ERROR;
     } else if (permanentQuota) {
       // Exhausted plan/credits/payment — surface as API error, never auto-retry.

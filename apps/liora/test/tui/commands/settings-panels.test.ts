@@ -1504,7 +1504,9 @@ describe('keybindings-settings', () => {
       expect(KEYBINDINGS_REGISTRY_TIP).toContain('keymap.ts');
       expect(KEYBINDINGS_REGISTRY_TIP).toContain('SSOT');
       expect(KEYBINDINGS_HELP_TIP).toContain('/help');
-      expect(KEYBINDINGS_COMMAND_HUB_TIP).toContain('Ctrl-K');
+      expect(KEYBINDINGS_COMMAND_HUB_TIP).toContain(
+        process.platform === 'darwin' ? 'Cmd-K' : 'Ctrl-K',
+      );
       expect(KEYBINDINGS_COMMAND_HUB_TIP).toContain('?');
       expect(KEYBINDINGS_FUTURE_EDITOR_TIP).toContain('Custom keybinding editor');
       expect(KEYBINDINGS_FUTURE_EDITOR_TIP).toContain('Settings → Editor');
@@ -1539,7 +1541,7 @@ describe('keybindings-settings', () => {
       expect(lines).toContain('Live registry (keymap.ts)');
       expect(lines).toContain('Plan / Agents / Transcript samples');
       expect(lines).toContain('/help');
-      expect(lines).toContain('Ctrl-C');
+      expect(lines).toContain(process.platform === 'darwin' ? 'Cmd-C' : 'Ctrl-C');
     });
   });
 });

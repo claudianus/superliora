@@ -39,6 +39,7 @@ import {
 import {
   isModelAliasHealthy,
   isRetryableSubagentProviderFailure,
+  markActiveChildToolProgress,
   markModelAliasAuthRejected,
   markModelAliasUnavailable,
   runChildTurnToCompletion,
@@ -398,6 +399,11 @@ export async function waitForChildCompletion(
     childId,
     profileName,
     options.timeoutMs ?? DEFAULT_SUBAGENT_TIMEOUT_MS,
+    // Tool progress gates deadline resets (Fix B): a wedged child that only
+    // receives repeated stall-steers must not keep extending its budget.
+    () => {
+      markActiveChildToolProgress(childId);
+    },
   );
   const disposeToolStream = attachToolStreamBridge(parent, child, childId, profileName, options);
   try {

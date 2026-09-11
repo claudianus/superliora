@@ -10,7 +10,11 @@ import {
   SubagentDeadlineError,
   SUBAGENT_DEADLINE_ENV,
 } from '../../src/session/subagent/subagent-errors';
-import { runWithActiveChild } from '../../src/session/subagent/subagent-run-lifecycle';
+import {
+  markActiveChildToolProgress,
+  resetActiveChildDeadline,
+  runWithActiveChild,
+} from '../../src/session/subagent/subagent-run-lifecycle';
 
 function wedgedRun(): Promise<never> {
   // A wedged child (stuck network, unresponsive gateway): the promise never
@@ -86,5 +90,64 @@ describe('runWithActiveChild finishing grace', () => {
     const error = await captured;
     expect(error).toBeInstanceOf(SubagentDeadlineError);
     expect(notice).not.toHaveBeenCalled();
+  });
+
+  it('a stall-steer deadline reset without tool progress does not extend the run', async () => {
+    const activeChildren = new Map();
+
+    const completion = runWithActiveChild(
+      activeChildren,
+      'child_wedged_steer',
+      {
+        signal: new AbortController().signal,
+        runInBackground: false,
+        timeoutMs: 1_000,
+      },
+      wedgedRun,
+    );
+    const captured = completion.catch((error: unknown) => error);
+
+    vi.advanceTimersByTime(500);
+    // Stall detection steers the wedged child repeatedly; without new tool
+    // progress each reset must be a no-op so the deadline still fires.
+    expect(resetActiveChildDeadline('child_wedged_steer', 30_000)).toBe(false);
+    vi.advanceTimersByTime(500);
+    const error = await captured;
+    expect(error).toBeInstanceOf(SubagentDeadlineError);
+  });
+
+  it('a deadline reset after real tool progress re-arms the budget', async () => {
+    const activeChildren = new Map();
+
+    const completion = runWithActiveChild(
+      activeChildren,
+      'child_active_steer',
+      {
+        signal: new AbortController().signal,
+        runInBackground: false,
+        timeoutMs: 1_000,
+      },
+      wedgedRun,
+    );
+    const captured = completion.catch((error: unknown) => error);
+
+    vi.advanceTimersByTime(500);
+    markActiveChildToolProgress('child_active_steer');
+    expect(resetActiveChildDeadline('child_active_steer', 30_000)).toBe(true);
+    vi.advanceTimersByTime(1_000);
+    let settled: unknown = 'pending';
+    void captured.then((error: unknown) => {
+      settled = error;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    // Reset re-armed: the run is still alive past the original deadline.
+    expect(settled).toBe('pending');
+
+    // A second reset without further progress is refused; the re-armed
+    // deadline then still ends the wedged run.
+    expect(resetActiveChildDeadline('child_active_steer', 30_000)).toBe(false);
+    vi.advanceTimersByTime(30_000);
+    const error = await captured;
+    expect(error).toBeInstanceOf(SubagentDeadlineError);
   });
 });

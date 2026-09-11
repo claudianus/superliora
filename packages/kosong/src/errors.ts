@@ -172,7 +172,10 @@ const PERMANENT_AUTH_MESSAGE_PATTERNS = [
 
 export function isPermanentAuthError(error: unknown): boolean {
   const statusCode = getStatusCode(error);
-  if (statusCode === 401 || statusCode === 403) return true;
+  // 402 = payment required (billing exhausted / insufficient balance). It is
+  // permanent until the account is topped up, so retrying only burns tokens
+  // and delays the operator-facing failure.
+  if (statusCode === 401 || statusCode === 402 || statusCode === 403) return true;
   if (!(error instanceof Error)) return false;
   return PERMANENT_AUTH_MESSAGE_PATTERNS.some((pattern) => pattern.test(error.message));
 }
@@ -204,7 +207,12 @@ export function isTransientNoBodyStatusError(error: unknown): boolean {
  * in production worker logs.
  */
 export function isStreamIdleTimeoutError(error: unknown): boolean {
-  return error instanceof APITimeoutError && error.message.startsWith('Stream idle timeout:');
+  return (
+    error instanceof APITimeoutError &&
+    (error.message.startsWith('Stream idle timeout:') ||
+      error.message.startsWith('Stream first-token timeout:') ||
+      error.message.startsWith('Stream duration timeout:'))
+  );
 }
 
 export function isRetryableGenerateError(error: unknown): boolean {
@@ -214,7 +222,9 @@ export function isRetryableGenerateError(error: unknown): boolean {
   // connection/timeout wrapper around an auth refusal stays non-retryable.
   if (isPermanentAuthError(error)) return false;
   if (isPermanentQuotaOrBillingError(error)) return false;
-  // A stalled stream is not a dropped handshake. Fail the step once.
+  // A stalled stream is not a dropped handshake. Fail the step once. The
+  // first-token and whole-duration timeouts share this classification: the
+  // provider already held the request far past any healthy generation time.
   if (isStreamIdleTimeoutError(error)) return false;
   // Custom OpenAI-compatible gateways abort hung streams as APIUserAbortError
   // / "Request was aborted." — retry and hop, unlike a user Esc.

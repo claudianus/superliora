@@ -542,6 +542,52 @@ describe('Agent tools', () => {
     }
   });
 
+  it('coalesces job_ledger wire records and skips oversize payloads', async () => {
+    vi.useFakeTimers();
+    const ctx = testAgent();
+    ctx.configure();
+    const logged: Array<{ type: string; key: string; value?: unknown }> = [];
+    const agent = ctx.agent as unknown as {
+      records: { logRecord: (record: Record<string, unknown>) => void };
+    };
+    const originalLogRecord = agent.records.logRecord.bind(agent.records);
+    agent.records.logRecord = (record) => {
+      if (record['type'] === 'tools.update_store') {
+        logged.push(record as { type: string; key: string; value?: unknown });
+      }
+    };
+    const restore = () => {
+      agent.records.logRecord = originalLogRecord;
+    };
+
+    try {
+      // Patch storm: three job_ledger patches inside the coalescing window
+      // must produce at most one deferred wire record (latest-wins), not one
+      // per patch (the pattern that grew wire.jsonl to 157MB).
+      ctx.agent.tools.updateStore('job_ledger' as never, { version: 1 } as never);
+      ctx.agent.tools.updateStore('job_ledger' as never, { version: 2 } as never);
+      ctx.agent.tools.updateStore('job_ledger' as never, { version: 3 } as never);
+      expect(logged).toHaveLength(0); // Deferred: nothing lands synchronously.
+      await vi.advanceTimersByTimeAsync(600);
+      expect(logged.filter((entry) => entry.key === 'job_ledger')).toHaveLength(1);
+      expect(logged[0]!.value).toEqual({ version: 3 }); // latest snapshot wins
+
+      // Oversize skip: a payload beyond the cap is never wire-recorded.
+      const huge = 'x'.repeat(600_000);
+      ctx.agent.tools.updateStore('job_ledger' as never, { blob: huge } as never);
+      await vi.advanceTimersByTimeAsync(600);
+      const ledgerRecords = logged.filter((entry) => entry.key === 'job_ledger');
+      expect(ledgerRecords).toHaveLength(1); // unchanged: oversize skipped
+
+      // Non-ledger keys still record immediately (no throttling).
+      ctx.agent.tools.updateStore('todo' as never, [] as never);
+      expect(logged.some((entry) => entry.key === 'todo')).toBe(true);
+    } finally {
+      restore();
+      vi.useRealTimers();
+    }
+  });
+
 });
 
 function bashCall(): ToolCall {

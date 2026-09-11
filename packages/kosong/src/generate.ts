@@ -244,9 +244,14 @@ export async function generate(
   // agent loop indefinitely. Empty keepalives do not reset the budget.
   // The per-request `streamIdleTimeoutMs` option wins; otherwise the
   // SUPERLIORA_LLM_IDLE_TIMEOUT_MS env var, then the shared default.
+  // Two further budgets ride the same watchdog: a tighter first-token phase
+  // (before the first substantive part) and a whole-stream duration cap
+  // that catches streams which drip activity forever.
   const idleTimeoutMs = resolveIdleTimeoutMs(options?.streamIdleTimeoutMs);
   const watchedStream = withIdleTimeout(stream, {
     idleMs: idleTimeoutMs,
+    firstTokenMs: options?.firstTokenTimeoutMs,
+    maxDurationMs: options?.streamMaxDurationMs,
     label: streamLabel,
     signal: activeSignal,
     countsAsActivity: isSubstantiveStreamPart,

@@ -35,15 +35,17 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Open the Command Hub menu/);
     expect(out).toMatch(/Shift-Tab/);
     expect(out).toMatch(/Switch Build \/ Ask mode/);
-    expect(out).toMatch(/Ctrl-S/);
-    expect(out).toMatch(/Ctrl-B/);
-    expect(out).toMatch(/Ctrl-X/);
+    // Streaming/idle chords follow the OS primary modifier (Cmd on darwin).
+    const primary = process.platform === 'darwin' ? 'Cmd' : 'Ctrl';
+    expect(out).toMatch(new RegExp(`${primary}-S`));
+    expect(out).toMatch(new RegExp(`${primary}-B`));
+    expect(out).toMatch(new RegExp(`${primary}-X`));
     expect(out).toMatch(/Shift-Enter/);
     expect(out).toMatch(/session undo/);
     expect(out).not.toMatch(/Ctrl-Shift-Tab/);
-    expect(out).toMatch(/Ctrl-O/);
+    expect(out).toMatch(new RegExp(`${primary}-O`));
     expect(out).toMatch(/Cycle transcript density/);
-    expect(out).toMatch(/Ctrl-T/);
+    expect(out).toMatch(new RegExp(`${primary}-T`));
     expect(out).not.toMatch(/Ctrl-Y/);
     expect(out).toMatch(/Alt\+J/);
     expect(out).toMatch(/Alt\+I/);

@@ -6,6 +6,7 @@ import {
   formatKeymapBindingSample,
   keymapBindingsForSlash,
   keymapSurfaceCounts,
+  primaryChord,
 } from '../../keymap';
 
 /** Compact keymap registry SSOT tip — Settings → Keyboard picker + status panel. */
@@ -16,13 +17,11 @@ export const KEYBINDINGS_REGISTRY_TIP =
 export const KEYBINDINGS_HELP_TIP =
   '/help — full keyboard shortcut reference in the TUI. Plan / Agents / Transcript samples in Settings → Keyboard status mirror live registry bindings.';
 
-/** Compact Command Hub tip — Ctrl-K menu and ? when the prompt is empty. */
-export const KEYBINDINGS_COMMAND_HUB_TIP =
-  'Ctrl-K — Command Hub (One-search: settings, slash, skills). ? — Hub when the prompt is empty.';
+/** Compact Command Hub tip — primary-modifier K menu and ? when the prompt is empty. */
+export const KEYBINDINGS_COMMAND_HUB_TIP = `${primaryChord('K')} — Command Hub (One-search: settings, slash, skills). ? — Hub when the prompt is empty.`;
 
 /** Compact future editor tip — custom keybinding editor not yet available. */
-export const KEYBINDINGS_FUTURE_EDITOR_TIP =
-  'Custom keybinding editor — future slice (not editable here). Settings → Editor covers external editor command (Ctrl-G); Settings → Appearance covers motion / Visual Quality.';
+export const KEYBINDINGS_FUTURE_EDITOR_TIP = `Custom keybinding editor — future slice (not editable here). Settings → Editor covers external editor command (${primaryChord('G')}); Settings → Appearance covers motion / Visual Quality.`;
 
 export interface KeybindingsGlanceInput {
   readonly bindingCount: number;
