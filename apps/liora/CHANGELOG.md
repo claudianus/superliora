@@ -1,5 +1,12 @@
 # @superliora/liora
 
+## 0.29.7
+
+### Patch Changes
+
+- Fix wedged agent sessions: add LLM stream first-token and whole-stream timeouts, stop retrying billing-exhausted (401/402/403) provider errors, refuse subagent deadline extensions without new tool progress, and stop the recurring side-call (ghost/suggest) retries against a broken completion model.
+- Cut runaway session logs and CPU: coalesce job-ledger wire records to one snapshot per window, cap steer note/prompt tails, and make subagent progress telemetry incremental instead of rescanning the full history every tick.
+
 ## 0.29.6
 
 ### Patch Changes
