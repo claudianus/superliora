@@ -392,6 +392,13 @@ export {
   XAI_PRICING_SAFE_WORKING_SET_TOKENS,
   xaiLongContextPricingThresholdTokens,
 } from './profiles';
+export {
+  classifyGhAuthStatus,
+  isGhBinaryMissingError,
+  parseGhAuthStatusAccount,
+  probeGhCliLogin,
+} from './profiles';
+export type { GhCliLoginState, GhCliLoginStatus } from './profiles';
 export type {
   CopilotQuotaRow,
   CursorDiscoveredModel,

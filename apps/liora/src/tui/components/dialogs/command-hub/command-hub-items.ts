@@ -370,6 +370,13 @@ export function buildDefaultCommandHubItems(state: {
       'tui.hub.account.accounts.desc',
     ),
     hub(
+      'account.githubConnect',
+      'tui.hub.section.account',
+      'tui.hub.account.githubConnect.label',
+      'tui.hub.account.githubConnect.desc',
+      { keywords: ['github', 'gh', 'deploy', 'push', 'pages', 'login', 'auth'] },
+    ),
+    hub(
       'account.logout',
       'tui.hub.section.account',
       'tui.hub.account.logout.label',

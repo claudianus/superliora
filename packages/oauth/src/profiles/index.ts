@@ -58,6 +58,12 @@ import {
   resolveCursorClientVersion,
 } from './cursor';
 import { KIMI_PROFILE } from './kimi';
+import {
+  classifyGhAuthStatus,
+  isGhBinaryMissingError,
+  parseGhAuthStatusAccount,
+  probeGhCliLogin,
+} from './gh-cli-login';
 import { isOpenCodeZenBaseUrl, opencodeSessionHeaders } from './opencode';
 import { OPENAI_PROFILE } from './openai';
 import type { OAuthProviderId, ProviderProfile } from './provider-profile';
@@ -239,6 +245,13 @@ export type {
   EnsureGitHubCopilotSessionOptions,
   GitHubCopilotSession,
 } from './github-copilot';
+export {
+  classifyGhAuthStatus,
+  isGhBinaryMissingError,
+  parseGhAuthStatusAccount,
+  probeGhCliLogin,
+} from './gh-cli-login';
+export type { GhCliLoginState, GhCliLoginStatus } from './gh-cli-login';
 export type { XaiGrokRoute, XaiGrokRouteConfig } from './xai';
 export type {
   PricingCatalogCost,

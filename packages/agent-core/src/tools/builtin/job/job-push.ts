@@ -1,3 +1,66 @@
+/** True when git/gh failure text points at missing or rejected credentials. */
+export function looksLikeAuthFailure(text: string): boolean {
+  const blob = text.toLowerCase();
+  return (
+    blob.includes('authentication failed') ||
+    blob.includes('could not read username') ||
+    blob.includes('terminal prompts disabled') ||
+    blob.includes('gh auth login') ||
+    blob.includes('gh not authenticated') ||
+    blob.includes('401') ||
+    blob.includes('unauthorized') ||
+    blob.includes('permission denied (publickey)') ||
+    blob.includes('fatal: could not read from remote')
+  );
+}
+
+/**
+ * When a push/gh failure looks like a credentials problem, enrich the detail
+ * with the gh login state (probed via `gh api user`, never hosts.yml). The
+ * enriched detail lands in job notes and the blocked summary so the operator
+ * sees the exact fix instead of raw git stderr.
+ */
+export async function diagnoseAuthFailure(input: {
+  readonly detail: string;
+  readonly kaos?: Kaos;
+  readonly runGh?: RunGhFn;
+}): Promise<string> {
+  if (!looksLikeAuthFailure(input.detail)) return input.detail;
+  if (input.runGh !== undefined) {
+    // Test seams use the injected gh runner; parse its failure shape the same
+    // way checkGhCliAuth parses the real one.
+    const res = await input.runGh(['api', 'user', '--jq', '.login']);
+    if (res.code === 0) {
+      const account = res.stdout.trim();
+      return account.length > 0
+        ? `${input.detail} — gh is logged in as ${account}; the token may lack repo scope or the remote credential helper rejected it`
+        : `${input.detail} — gh probe returned no account`;
+    }
+    const probe = `${res.stderr}\n${res.stdout}`.toLowerCase();
+    if (
+      probe.includes('gh auth login') ||
+      probe.includes('401') ||
+      probe.includes('unauthorized') ||
+      probe.includes('not logged in')
+    ) {
+      return `${input.detail} — GitHub CLI is not logged in; run \`gh auth login\` (or /github-connect in the TUI), then retry the push`;
+    }
+    return `${input.detail} — gh auth probe failed: ${(res.stderr || res.stdout || 'unknown').trim().slice(0, 160)}`;
+  }
+  if (input.kaos === undefined) return input.detail;
+  const status = await checkGhCliAuth(input.kaos);
+  if (status.state === 'ok') {
+    return `${input.detail} — gh is logged in as ${status.account ?? 'unknown account'}; the token may lack repo scope or the remote credential helper rejected it`;
+  }
+  if (status.state === 'logged_out') {
+    return `${input.detail} — GitHub CLI is not logged in; run \`gh auth login\` (or /github-connect in the TUI), then retry the push`;
+  }
+  if (status.state === 'binary_missing') {
+    return `${input.detail} — gh CLI is not installed (https://cli.github.com); install it, run \`gh auth login\`, and retry the push`;
+  }
+  return input.detail;
+}
+
 /**
  * Push a finished Job worktree (or main checkout) ref to a remote.
  * Deterministic offload lane — never runs on worker Bash / Conductor Bash.
@@ -12,7 +75,7 @@ import type { Kaos } from '@superliora/kaos';
 
 import { join } from 'node:path';
 
-import { runGh as kaosRunGh, runGit as kaosRunGit } from '#/autopilot/git';
+import { runGh as kaosRunGh, runGit as kaosRunGit, checkGhCliAuth } from '#/autopilot/git';
 import { redactSecretsInText } from '#/security/redaction';
 
 import { createUserMessage } from '@superliora/kosong';
@@ -541,7 +604,12 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
   const refspec = `${localRef}:${remoteRef}`;
   const push = await runGit(cwd, ['push', remote, refspec]);
   if (push.code !== 0) {
-    const detail = formatPushFailureDetail(push.stderr || push.stdout || 'push failed');
+    const rawDetail = formatPushFailureDetail(push.stderr || push.stdout || 'push failed');
+    const detail = await diagnoseAuthFailure({
+      detail: rawDetail,
+      kaos: input.kaos,
+      runGh: input.runGh,
+    });
     const err = `git push failed: ${detail}`;
     const next = patchJobAndNotify(
       store,
@@ -930,7 +998,14 @@ export async function runMultiRepoPush(input: {
       const authIssue =
         detail.includes('gh auth') || detail.includes('authentication') || detail.includes('login');
       if (authIssue) {
-        results.push({ repo, ok: false, detail: 'gh not authenticated — run gh auth login' });
+        results.push({
+          repo,
+          ok: false,
+          detail: await diagnoseAuthFailure({
+            detail: 'gh not authenticated — run gh auth login',
+            kaos: input.kaos,
+          }),
+        });
         continue;
       }
       const createArgs = ['repo', 'create'];

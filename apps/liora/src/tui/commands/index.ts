@@ -8,6 +8,7 @@ export * from './types';
 
 export { dispatchInput, type SlashCommandHost } from './hub/dispatch';
 export { handleAccountsCommand, openAccountsManager } from './auth/accounts';
+export { handleGithubConnectCommand } from './auth/github-connect';
 export { handleLoginCommand, handleLogoutCommand } from './auth/login';
 export { handleBtwCommand } from './btw';
 export { handleAskCommand, setAskMode } from './config/plan/ask';

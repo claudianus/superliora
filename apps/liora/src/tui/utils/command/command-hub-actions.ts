@@ -85,6 +85,8 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/login';
     case 'account.accounts':
       return '/accounts';
+    case 'account.githubConnect':
+      return '/github-connect';
     case 'account.logout':
       return '/logout';
     case 'account.upgrade':

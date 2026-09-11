@@ -44,6 +44,7 @@ export type CommandHubActionId =
   | 'appearance.appearance'
   | 'account.login'
   | 'account.accounts'
+  | 'account.githubConnect'
   | 'account.logout'
   | 'account.upgrade'
   | 'help.shortcuts'

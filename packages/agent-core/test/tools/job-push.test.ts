@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createJob, getJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import {
+  diagnoseAuthFailure,
   dispatchPushRemote,
   evaluatePushTrust,
   inferPublishRemoteRef,
+  looksLikeAuthFailure,
   parseGithubOwnerRepo,
   parsePublishTargetJudgment,
   pushJobToRemote,
@@ -92,6 +94,93 @@ describe('job-push trust + refs', () => {
       '{"pages_publish":false,"confidence":0.8,"rationale":"same as local ref"}',
     );
     expect(remoteRefFromPublishJudgment(skip!)).toBeUndefined();
+  });
+});
+
+describe('push auth diagnosis', () => {
+  it('recognizes credential-style git/gh failures', () => {
+    expect(looksLikeAuthFailure('fatal: Authentication failed for https://github.com/o/r')).toBe(true);
+    expect(looksLikeAuthFailure('git: "terminal prompts disabled"')).toBe(true);
+    expect(looksLikeAuthFailure('Permission denied (publickey).')).toBe(true);
+    expect(looksLikeAuthFailure('gh not authenticated')).toBe(true);
+    expect(looksLikeAuthFailure('everything up-to-date')).toBe(false);
+  });
+
+  it('passes non-auth failures through untouched', async () => {
+    const detail = await diagnoseAuthFailure({
+      detail: 'non-fast-forward: fetch first',
+      runGh: vi.fn(),
+    });
+    expect(detail).toBe('non-fast-forward: fetch first');
+  });
+
+  it('enriches auth failures with a gh logged-in probe result', async () => {
+    const runGh = vi.fn(async () => ({ code: 0, stdout: 'octocat\n', stderr: '' }));
+    const detail = await diagnoseAuthFailure({
+      detail: 'fatal: Authentication failed for https://github.com/o/r',
+      runGh,
+    });
+    expect(detail).toContain('octocat');
+    expect(detail).toContain('repo scope');
+  });
+
+  it('adds the login fix when the gh probe confirms logged_out', async () => {
+    const runGh = vi.fn(async () => ({
+      code: 1,
+      stdout: '',
+      stderr: 'gh: To get started with GitHub CLI, run gh auth login',
+    }));
+    const detail = await diagnoseAuthFailure({
+      detail: 'fatal: could not read Username for https://github.com',
+      runGh,
+    });
+    expect(detail).toContain('gh auth login');
+  });
+
+  it('records the gh login guidance in blocked push notes', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'ship site', kind: 'implement' });
+    patchJob(store, job.id, {
+      status: 'done',
+      worktreePath: '/tmp/wt',
+      worktreeBranch: 'deploy-me',
+    });
+    const runGit = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
+        return { code: 0, stdout: 'deploy-me\n', stderr: '' };
+      }
+      if (args[0] === 'rev-parse') {
+        return { code: 0, stdout: 'abcdef0123456789\n', stderr: '' };
+      }
+      if (args[0] === 'push') {
+        return {
+          code: 128,
+          stdout: '',
+          stderr: "fatal: Authentication failed for 'https://github.com/o/r.git/'\n",
+        };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    });
+    const runGh = vi.fn(async () => ({
+      code: 1,
+      stdout: '',
+      stderr: 'gh: To log in, run: gh auth login',
+    }));
+
+    const result = await pushJobToRemote({
+      store,
+      job: getJob(store, job.id)!,
+      remote: 'origin',
+      localRef: 'deploy-me',
+      runGit,
+      runGh,
+      enablePages: false,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('gh auth login');
+    expect(getJob(store, job.id)?.status).toBe('blocked');
+    expect(getJob(store, job.id)?.notes).toContain('gh auth login');
   });
 });
 

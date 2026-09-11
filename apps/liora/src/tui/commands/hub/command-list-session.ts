@@ -507,6 +507,13 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     priority: 40,
   },
   {
+    name: 'github-connect',
+    aliases: [],
+    description: slashDesc('github-connect'),
+    priority: 40,
+    availability: 'always',
+  },
+  {
     name: 'accounts',
     aliases: [],
     description: slashDesc('accounts'),

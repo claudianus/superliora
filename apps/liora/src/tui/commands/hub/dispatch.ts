@@ -29,6 +29,7 @@ import type {
 import { formatErrorMessage } from '../../utils/event-payload';
 import { ttui } from '../../utils/tui-i18n';
 import { handleAccountsCommand } from '../auth/accounts';
+import { handleGithubConnectCommand } from '../auth/github-connect';
 import { handleLoginCommand, handleLogoutCommand } from '../auth/login';
 import { handleBtwCommand } from '../btw';
 import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
@@ -91,6 +92,7 @@ import { handleUpgradeCommand, parseUpgradeSlashArgs } from '../info/upgrade';
 // ---------------------------------------------------------------------------
 
 export { handleLoginCommand, handleLogoutCommand } from '../auth/login';
+export { handleGithubConnectCommand } from '../auth/github-connect';
 export { handleBtwCommand } from '../btw';
 export { handleAddDirCommand } from '../session/add-dir';
 export { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
@@ -541,6 +543,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'login':
       await handleLoginCommand(host);
+      return;
+    case 'github-connect':
+      await handleGithubConnectCommand(host);
       return;
     case 'logout':
       await handleLogoutCommand(host);
