@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.29.8
+
+### Patch Changes
+
+- Fix pasted text picking up stray terminal reply bytes (such as theme color responses) and mouse drag selection breaking when a terminal report arrives mid-drag.
+
 ## 0.29.7
 
 ### Patch Changes
