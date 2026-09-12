@@ -404,7 +404,7 @@ describe('ApprovalPanelComponent', () => {
         display: [
           {
             type: 'brief',
-            text: '경로: /tmp/long-plan.md\n40 lines · ctrl+e preview\n라인 코멘트: L12: 수정 요청 형식',
+            text: '경로: /tmp/long-plan.md\n40 lines · Ctrl+E preview\n라인 코멘트: L12: 수정 요청 형식',
           },
           planBlock,
         ],
@@ -425,7 +425,7 @@ describe('ApprovalPanelComponent', () => {
     expect(out).toContain('line-1');
     expect(out).toContain('more line');
     expect(out).not.toContain('line-40');
-    expect(out).toContain('ctrl+e preview');
+    expect(out).toContain('Ctrl+E preview');
 
     dialog.handleInput('\u0005'); // Ctrl+E
     expect(previewCalls).toEqual([planBlock]);
@@ -474,7 +474,7 @@ describe('ApprovalPanelComponent', () => {
     const before = strip(dialog.render(120).join('\n'));
     expect(before).toContain('+30');
     expect(before).toContain('-30');
-    expect(before).toContain('ctrl+e preview');
+    expect(before).toContain('Ctrl+E preview');
     expect(before).not.toContain('new30'); // compact view stays compact
 
     dialog.handleInput('\u0005'); // Ctrl+E
@@ -482,7 +482,7 @@ describe('ApprovalPanelComponent', () => {
     // The panel itself does not expand; it delegates to the host.
     const after = strip(dialog.render(120).join('\n'));
     expect(after).not.toContain('new30');
-    expect(after).toContain('ctrl+e preview');
+    expect(after).toContain('Ctrl+E preview');
     expect(previewCalls).toEqual([diffBlock]);
     // The unrelated forward-only callback must not fire for ctrl+e.
     expect(toolOutputToggles).toBe(0);
@@ -515,7 +515,7 @@ describe('ApprovalPanelComponent', () => {
 
     const after = strip(dialog.render(120).join('\n'));
     expect(globalToggleCalls).toBe(1);
-    expect(after).toContain('ctrl+e preview');
+    expect(after).toContain('Ctrl+E preview');
     expect(after).not.toContain('new30');
   });
 
@@ -579,8 +579,8 @@ describe('ApprovalPanelComponent', () => {
     expect(collapsed).toContain('const x1 = 1;');
     expect(collapsed).toContain('const x10 = 10;');
     expect(collapsed).not.toContain('const x25 = 25;');
-    expect(collapsed).toContain('20 more lines hidden (ctrl+e to preview)');
-    expect(collapsed).toContain('ctrl+e preview');
+    expect(collapsed).toContain('20 more lines hidden (Ctrl+E preview)');
+    expect(collapsed).toContain('Ctrl+E preview');
 
     dialog.handleInput('\u0005'); // Ctrl+E hands off to the host preview.
     const after = strip(dialog.render(120).join('\n'));

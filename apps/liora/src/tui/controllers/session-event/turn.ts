@@ -89,14 +89,11 @@ export class SessionEventTurn {
     if (event.reason === 'filtered') {
       // Loop37a: status alone is easy to miss; named notice + goal-pause implication.
       this.host.showNotice(
-        'Provider safety filter',
-        'The provider blocked this response (turn reason=filtered). The active Goal is paused for safety policy — change approach, switch model, or resume after reviewing the prompt.',
+        ttui('tui.step.providerFiltered.title'),
+        ttui('tui.step.providerFiltered.detail'),
         { coalesceKey: 'provider-filtered' },
       );
-      this.host.showStatus(
-        'Turn stopped: provider safety policy blocked the response (goal paused).',
-        'error',
-      );
+      this.host.showStatus(ttui('tui.step.providerFiltered.status'), 'error');
     }
     // A cleanly-ended turn clears the retry flag (only errors set it).
     this.host.setLastTurnFailed(false);
@@ -131,11 +128,18 @@ export class SessionEventTurn {
           : name
         : shortDetail.length > 0
           ? shortDetail
-          : 'a transient error';
+          : ttui('tui.step.retryingTransient');
     const delay =
-      event.delayMs > 0 ? ` — next attempt in ${formatRetryDelay(event.delayMs)}` : '';
+      event.delayMs > 0
+        ? ttui('tui.step.retryingDelay', { delay: formatRetryDelay(event.delayMs) })
+        : '';
     this.host.showStatus(
-      `Retrying step ${String(event.step)} (attempt ${String(event.nextAttempt)}/${String(event.maxAttempts)}) after ${reason}${delay}`,
+      ttui('tui.step.retrying', {
+        step: event.step,
+        attempt: event.nextAttempt,
+        max: event.maxAttempts,
+        reason,
+      }) + delay,
       'warning',
     );
   }
@@ -167,8 +171,10 @@ export class SessionEventTurn {
 
     if (event.providerFinishReason === 'filtered') {
       this.host.showNotice(
-        'Provider safety policy blocked the response.',
-        `The model output was filtered (${event.rawFinishReason ?? 'content_filter'}).`,
+        ttui('tui.step.providerFilteredStep.title'),
+        ttui('tui.step.providerFilteredStep.detail', {
+          reason: event.rawFinishReason ?? 'content_filter',
+        }),
       );
       return;
     }
@@ -182,10 +188,10 @@ export class SessionEventTurn {
 
     const title =
       truncatedCount > 0
-        ? 'Model hit max_tokens — tool call was truncated before it could run.'
-        : 'Model hit max_tokens — no tool call was emitted.';
+        ? ttui('tui.step.maxTokens.truncated')
+        : ttui('tui.step.maxTokens.noTool');
     const detail = this.isAnthropicSessionActive()
-      ? 'If this limit is wrong for your model, set `max_output_size` on the model alias in your kimi-code config.'
+      ? ttui('tui.step.maxTokens.anthropicHint')
       : undefined;
     this.host.showNotice(title, detail);
   }
@@ -207,10 +213,10 @@ export class SessionEventTurn {
       const programmaticAbort = event.cancelledByUser === false;
       this.host.showStatus(
         userCancelled
-          ? 'Interrupted by user'
+          ? ttui('tui.step.interruptedByUser')
           : programmaticAbort
-            ? 'Turn aborted'
-            : 'Turn stopped',
+            ? ttui('tui.step.turnAborted')
+            : ttui('tui.step.turnStopped'),
         'error',
       );
       return;

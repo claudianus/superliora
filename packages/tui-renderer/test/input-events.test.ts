@@ -157,6 +157,20 @@ describe('NativeInputDecoder', () => {
     expect(matchesKey('\u001B[97;6:3;65u', Key.ctrlShift('a'))).toBe(true);
     expect(matchesKey('\u001B[97;6:3;65u', Key.ctrl('a'))).toBe(false);
 
+    // Modifier CSI family beyond the enumerated table: xterm-style
+    // `\x1B[1;<mod><final>` arrows and `\x1B[<n>;<mod>~` page keys.
+    expect(matchesKey('\u001B[1;3A', Key.alt('up'))).toBe(true);
+    expect(matchesKey('\u001B[1;5B', Key.ctrl('down'))).toBe(true);
+    expect(matchesKey('\u001B[1;5C', Key.ctrl('right'))).toBe(true);
+    expect(matchesKey('\u001B[1;5D', Key.ctrl('left'))).toBe(true);
+    expect(matchesKey('\u001B[1;6A', Key.ctrlShift('up'))).toBe(true);
+    expect(matchesKey('\u001B[1;5H', Key.ctrl('home'))).toBe(true);
+    expect(matchesKey('\u001B[1;5F', Key.ctrl('end'))).toBe(true);
+    expect(matchesKey('\u001B[5;5~', Key.ctrl('pageUp'))).toBe(true);
+    expect(matchesKey('\u001B[6;3~', Key.alt('pageDown'))).toBe(true);
+    // Unmodified matchers stay modifier-exact.
+    expect(matchesKey('\u001B[1;5A', Key.up)).toBe(false);
+
     expect(parseKey('\u001B[1;5A')).toBe('ctrl+up');
     expect(parseKey('\u001B[113u')).toBe('q');
     expect(decodeKittyPrintable('\u001B[113u')).toBe('q');

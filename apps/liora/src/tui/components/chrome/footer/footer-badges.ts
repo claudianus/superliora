@@ -221,7 +221,9 @@ function pickActiveQuotaSnapshot(
   if (quota.primaryProviderKey !== null) {
     return quota.providers.find((p) => p.providerKey === quota.primaryProviderKey);
   }
-  return quota.providers.find((p) => p.available && (p.remainingDisplay ?? '').length > 0);
+  // No active provider identity: hide the chip rather than show some other
+  // provider's remaining quota (PREMIUM §8 — active provider only).
+  return undefined;
 }
 
 function worstRatioSeverity(ratio: number): FooterBadgeSeverity {

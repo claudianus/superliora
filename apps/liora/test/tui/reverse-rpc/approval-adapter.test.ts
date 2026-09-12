@@ -233,7 +233,7 @@ describe('approval adapter', () => {
     expect(adapted.display[0]).toMatchObject({ type: 'brief' });
     if (adapted.display[0]?.type === 'brief') {
       expect(adapted.display[0].text).toContain(ttui('tui.approval.planReview.path', { path: '/tmp/kimi-plan.md' }).trim());
-      expect(adapted.display[0].text).toContain('lines · ctrl+e preview');
+      expect(adapted.display[0].text).toContain('lines · Ctrl+E preview');
       expect(adapted.display[0].text).toContain(ttui('tui.approval.planReview.lineCommentHint'));
       expect(adapted.display[0].text).not.toContain('1│');
     }

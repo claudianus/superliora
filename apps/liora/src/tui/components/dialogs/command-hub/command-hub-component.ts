@@ -360,7 +360,12 @@ export class CommandHubComponent extends Container implements Focusable {
     this.windowStart = page.start;
 
     if (page.page > 0) {
-      body.push(truncateToWidth(theme.fg('textMuted', `  ▲ ${String(page.start)} more`), inner));
+      body.push(
+        truncateToWidth(
+          theme.fg('textMuted', ttui('tui.hub.more.above', { count: page.start })),
+          inner,
+        ),
+      );
     }
     let lastSection = '';
     for (let i = page.start; i < page.end; i += 1) {
@@ -376,7 +381,10 @@ export class CommandHubComponent extends Container implements Focusable {
     if (page.page < page.pageCount - 1) {
       body.push(
         truncateToWidth(
-          theme.fg('textMuted', `  ▼ ${String(this.filtered.length - page.end)} more`),
+          theme.fg(
+            'textMuted',
+            ttui('tui.hub.more.below', { count: this.filtered.length - page.end }),
+          ),
           inner,
         ),
       );
@@ -505,7 +513,11 @@ export class CommandHubComponent extends Container implements Focusable {
     if (item.badge === undefined || item.badge.length === 0) return '';
     const theme = currentTheme;
     const display =
-      item.badge === 'ON' ? '● On' : item.badge === 'off' ? '○ off' : item.badge;
+      item.badge === 'ON'
+        ? ttui('tui.hub.badge.on')
+        : item.badge === 'off'
+          ? ttui('tui.hub.badge.off')
+          : item.badge;
     if (this.flashId === item.id) {
       return renderSettleFlash(display, `hub:flash:${item.id}`, this.flashAtMs, appearance);
     }
@@ -525,7 +537,7 @@ export class CommandHubComponent extends Container implements Focusable {
     const theme = currentTheme;
     const chips: string[] = [];
     const push = (label: string, on: boolean, id: CommandHubActionId): void => {
-      const led = on ? '● on' : '○ off';
+      const led = ttui(on ? 'tui.hub.strip.on' : 'tui.hub.strip.off');
       if (this.flashId === id) {
         chips.push(renderSettleFlash(`${label} ${led}`, `hub:chip:${label}`, this.flashAtMs, appearance));
         return;
@@ -541,14 +553,19 @@ export class CommandHubComponent extends Container implements Focusable {
     const premium = this.items.find((i) => i.id === 'modes.premium');
     const perm = this.items.find((i) => i.id === 'modes.permission');
     const ask = this.items.find((i) => i.id === 'modes.ask');
-    push('Plan', plan?.badge === 'ON', 'modes.plan');
-    push('Ask', ask?.badge === 'ON', 'modes.ask');
-    push('Visual', premium?.badge === 'ON', 'modes.premium');
+    push(ttui('tui.hub.strip.plan'), plan?.badge === 'ON', 'modes.plan');
+    push(ttui('tui.hub.strip.ask'), ask?.badge === 'ON', 'modes.ask');
+    push(ttui('tui.hub.strip.visual'), premium?.badge === 'ON', 'modes.premium');
     const permLabel = formatPermissionChip(perm?.badge);
     chips.push(
       this.flashId === 'modes.permission'
-        ? renderSettleFlash(`Perm ${permLabel}`, 'hub:chip:perm', this.flashAtMs, appearance)
-        : theme.fg('textMuted', 'Perm ') +
+        ? renderSettleFlash(
+            `${ttui('tui.hub.strip.perm')} ${permLabel}`,
+            'hub:chip:perm',
+            this.flashAtMs,
+            appearance,
+          )
+        : theme.fg('textMuted', `${ttui('tui.hub.strip.perm')} `) +
             renderPulseText(permLabel, 'hub:chip:perm', 'primary', appearance),
     );
     return truncateToWidth(chips.join('  '), Math.max(8, width));

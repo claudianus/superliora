@@ -80,6 +80,7 @@ Only set tokens from this set — unknown keys are silently ignored at load. If 
 | `success` | Success state: `✓`, "enabled", completed |
 | `warning` | Warning state: auto/yolo badges, stale markers, plan-mode hint |
 | `error` | Error state: error messages, failed tool output |
+| `info` | Info state: neutral notices (failover, recovered, idempotent replays) |
 | `diffAdded` | Diff added lines |
 | `diffRemoved` | Diff removed lines |
 | `diffAddedStrong` | Diff intra-line changed words, added (bold) |
@@ -91,6 +92,7 @@ Only set tokens from this set — unknown keys are silently ignored at load. If 
 | `glow` | Glow / halo accent for focus effects |
 | `particle` | Particle accent for event bursts and ambient effects |
 | `gradientStart` | Start of premium gradient treatments |
+| `gradientMid` | Middle stop of premium gradient treatments |
 | `gradientEnd` | End of premium gradient treatments |
 | `syntaxText` | Code highlight default / identifiers |
 | `syntaxKeyword` | Code highlight keywords, constants, and built-ins |

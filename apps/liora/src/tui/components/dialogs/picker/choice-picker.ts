@@ -369,7 +369,11 @@ export class ChoicePickerComponent extends Container implements Focusable {
               ? renderAnimatedGradientText(cellOpt.label, `choice:cell:${cellOpt.value}`, appearance)
               : labelStyle(cellOpt.label));
           if (isCurrent) cell += ' ' + currentTheme.fg('success', CURRENT_MARK);
-          const padded = truncateToWidth(cell, cellWidth - 1).padEnd(cellWidth - 1, ' ');
+          // Pad by visible width: String.padEnd counts ANSI escape bytes, so
+          // styled cells (pointer/mark styles) would never receive padding
+          // and grid columns would misalign.
+          const truncated = truncateToWidth(cell, cellWidth - 1);
+          const padded = truncated + ' '.repeat(Math.max(0, cellWidth - 1 - visibleWidth(truncated)));
           // Selected cell: soft raised surface so the focus island is obvious in a grid.
           parts.push(
             isSelected

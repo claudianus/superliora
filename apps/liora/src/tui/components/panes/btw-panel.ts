@@ -131,10 +131,12 @@ export class BtwPanelComponent implements Component {
     const animated = shouldRenderAmbientEffects(appearance);
     const paint = (s: string): string => currentTheme.fg('border', s);
     const hint = truncated && this.options.canUseScrollKeys()
-      ? 'Esc close · ↑↓ scroll · /btw '
-      : 'Esc close · /btw ';
+      ? 'Esc cancel · ↑↓ scroll · /btw '
+      : 'Esc cancel · /btw ';
+    // Keep the label padding identical across animated/static so toggling
+    // motion does not shift the divider alignment.
     const titleLabel = animated
-      ? renderPremiumHeadline('BTW', 'btw:title', appearance)
+      ? renderPremiumHeadline(' BTW ', 'btw:title', appearance)
       : currentTheme.boldFg('accent', ' BTW ');
     const title =
       titleLabel +

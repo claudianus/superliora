@@ -36,6 +36,8 @@ function formatWelcomeModelLabel(state: AppState, activeModel: ModelAlias | unde
 }
 
 export class WelcomeComponent implements Component {
+  /** Marks pure empty-state chrome for `isEmptyTranscriptChrome` (minification-safe). */
+  readonly isEmptyTranscriptChrome = true;
   private state: AppState;
   /** First boxed paint — entry bloom for the live frame, then idle chase. */
   private openedAtMs: number | undefined;
@@ -59,10 +61,10 @@ export class WelcomeComponent implements Component {
     if (safeWidth < 24 || layout === 'tiny') {
       const banner = renderWelcomeBanner(layout, appearance, safeWidth);
       const prompt = isLoggedOut
-        ? chalk.hex(currentTheme.palette.warning)(loggedOutPrompt)
-        : chalk.hex(currentTheme.palette.textDim)(loggedInPrompt);
+        ? currentTheme.fg('warning', loggedOutPrompt)
+        : currentTheme.fg('textDim', loggedInPrompt);
       const model = isLoggedOut
-        ? chalk.hex(currentTheme.palette.warning)(modelUnset)
+        ? currentTheme.fg('warning', modelUnset)
         : formatWelcomeModelLabel(this.state, activeModel);
       return ['', ...banner, prompt, `${ttui('tui.welcome.modelPrefix')}${model}`].map((line) =>
         truncateToWidth(line, safeWidth, '…'),
@@ -71,8 +73,8 @@ export class WelcomeComponent implements Component {
 
     const innerWidth = Math.max(1, safeWidth - 4);
     const bannerLines = renderWelcomeBanner(layout, appearance, innerWidth);
-    const dim = chalk.hex(currentTheme.palette.textDim);
-    const labelStyle = chalk.bold.hex(currentTheme.palette.textDim);
+    const dim = (text: string): string => currentTheme.fg('textDim', text);
+    const labelStyle = (text: string): string => currentTheme.boldFg('textDim', text);
     const promptLine = truncateToWidth(
       dim(isLoggedOut ? loggedOutPrompt : loggedInPrompt),
       innerWidth,
@@ -80,7 +82,7 @@ export class WelcomeComponent implements Component {
     );
 
     const modelValue = isLoggedOut
-      ? chalk.hex(currentTheme.palette.warning)(modelUnset)
+      ? currentTheme.fg('warning', modelUnset)
       : formatWelcomeModelLabel(this.state, activeModel);
 
     const infoLines = [

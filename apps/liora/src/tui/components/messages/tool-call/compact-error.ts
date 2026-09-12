@@ -2,7 +2,7 @@
  * One-line density failure punch-through (PREMIUM.md rule 11).
  */
 
-import { Text, type Component } from '#/tui/renderer';
+import { Text, truncateToWidth, type Component } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import type { ToolResultBlockData } from '#/tui/types';
 
@@ -14,6 +14,8 @@ export function buildCompactErrorLineComponent(result: ToolResultBlockData | und
     .find((line) => line.trim().length > 0);
   if (firstLine === undefined) return undefined;
   const trimmed = firstLine.trim();
-  const text = trimmed.length > 120 ? `${trimmed.slice(0, 119)}…` : trimmed;
+  // truncateToWidth is ANSI- and wide-char-aware; a raw code-unit slice could
+  // split SGR sequences or surrogate pairs mid-glyph.
+  const text = truncateToWidth(trimmed, 120, '…');
   return new Text(currentTheme.fg('error', text), 2, 0);
 }

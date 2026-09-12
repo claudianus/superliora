@@ -63,6 +63,7 @@
         "glow": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Glow / halo accent" },
         "particle": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Particle accent" },
         "gradientStart": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Premium gradient start" },
+        "gradientMid": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Premium gradient middle stop" },
         "gradientEnd": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Premium gradient end" },
         "syntaxText": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax default / identifiers" },
         "syntaxKeyword": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Syntax keywords, constants, and built-ins" },

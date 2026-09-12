@@ -193,7 +193,11 @@ function resolveMcpDisplay(toolName: string, display: ToolInputDisplay): Resolve
     blocks: [
       {
         type: 'brief',
-        text: `MCP server: ${mcp.serverName}\nTool: ${mcp.toolName}\nArguments: ${argumentSummary}`,
+        text: ttui('tui.approval.mcpBrief', {
+          server: mcp.serverName,
+          tool: mcp.toolName,
+          args: argumentSummary,
+        }),
       },
     ],
     description: '',
@@ -299,25 +303,32 @@ function describeApproval(display: ToolInputDisplay, action: string): string {
     case 'command':
       return display.description ?? display.command ?? action;
     case 'diff':
-      return `edit ${display.path ?? ''}`.trim();
+      return ttui('tui.approval.desc.edit', { path: display.path ?? '' }).trim();
     case 'file_io':
-      return `${display.operation ?? 'file'} ${display.path ?? ''}`.trim();
+      return ttui('tui.approval.desc.fileIo', {
+        operation: display.operation ?? 'file',
+        path: display.path ?? '',
+      }).trim();
     case 'task_stop':
-      return `stop task: ${display.task_description ?? display.task_id ?? ''}`.trim();
+      return ttui('tui.approval.desc.taskStop', {
+        target: display.task_description ?? display.task_id ?? '',
+      }).trim();
     case 'agent_call':
-      return `spawn ${display.agent_name ?? 'agent'}`;
+      return ttui('tui.approval.desc.agentCall', { agent: display.agent_name ?? 'agent' });
     case 'skill_call':
-      return `invoke skill ${display.skill_name ?? ''}`.trim();
+      return ttui('tui.approval.desc.skillCall', { name: display.skill_name ?? '' }).trim();
     case 'url_fetch':
-      return `fetch ${display.url ?? ''}`.trim();
+      return ttui('tui.approval.desc.urlFetch', { url: display.url ?? '' }).trim();
     case 'search':
-      return `search: ${display.query ?? ''}`.trim();
+      return ttui('tui.approval.desc.search', { query: display.query ?? '' }).trim();
     case 'todo_list':
-      return `update todo list (${String(display.items?.length ?? 0)} items)`;
+      return ttui('tui.approval.desc.todoList', { count: display.items?.length ?? 0 });
     case 'background_task':
-      return `${display.status ?? 'background'} task ${display.task_id ?? ''}: ${
-        display.description ?? ''
-      }`.trim();
+      return ttui('tui.approval.desc.backgroundTask', {
+        status: display.status ?? 'background',
+        id: display.task_id ?? '',
+        description: display.description ?? '',
+      }).trim();
     default:
       return action;
   }
@@ -430,7 +441,10 @@ function adaptDisplay(display: ToolInputDisplay): DisplayBlock[] {
       return [
         {
           type: 'brief',
-          text: `Stop task ${display.task_id ?? ''}: ${display.task_description ?? ''}`,
+          text: ttui('tui.approval.stopTaskBrief', {
+            id: display.task_id ?? '',
+            description: display.task_description ?? '',
+          }),
         },
       ];
     case 'plan_review': {
@@ -447,7 +461,7 @@ function adaptDisplay(display: ToolInputDisplay): DisplayBlock[] {
       return [
         {
           type: 'brief',
-          text: `${pathLine}${String(lineCount)} lines · ctrl+e preview\n${ttui('tui.approval.planReview.lineCommentHint')}`,
+          text: `${pathLine}${ttui('tui.approval.planReview.lineCount', { count: lineCount })}\n${ttui('tui.approval.planReview.lineCommentHint')}`,
         },
         {
           type: 'file_content',
@@ -458,9 +472,9 @@ function adaptDisplay(display: ToolInputDisplay): DisplayBlock[] {
       ];
     }
     case 'goal_start': {
-      const lines = [`Start goal: ${display.objective}`];
+      const lines = [ttui('tui.approval.goalStart.objective', { objective: display.objective })];
       if (typeof display.completionCriterion === 'string' && display.completionCriterion.length > 0) {
-        lines.push(`Done when: ${display.completionCriterion}`);
+        lines.push(ttui('tui.approval.goalStart.doneWhen', { criterion: display.completionCriterion }));
       }
       return [{ type: 'brief', text: lines.join('\n') }];
     }

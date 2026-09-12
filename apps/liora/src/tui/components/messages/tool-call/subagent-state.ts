@@ -25,6 +25,7 @@ import {
   parseAgentIdFromToolResultOutput,
   subagentSpawnEntranceStartedAt,
   type FinishedSubCall,
+  MAX_SINGLE_SUBAGENT_TOOL_ROWS,
   type OngoingSubCall,
   type SubagentPhase,
   type SubagentTextKind,
@@ -33,6 +34,9 @@ import {
 } from './subagent';
 
 const MAX_SUB_TOOL_CALLS_SHOWN = 4;
+
+/** Keep a few extra payloads beyond the recent window so quick scroll-back still has data. */
+const SUB_TOOL_RETAIN_SPARE = 12;
 
 export class ToolCallSubagentState {
   agentId: string | undefined;
@@ -481,6 +485,7 @@ export class ToolCallSubagentState {
       existing.phase = phase;
       if (output !== undefined) existing.output = output;
       if (display !== undefined) existing.display = display;
+      this.pruneRetiredSubToolActivityOutputs();
       return;
     }
     this.subToolActivities.set(id, {
@@ -492,5 +497,25 @@ export class ToolCallSubagentState {
       ...(display !== undefined ? { display } : {}),
       orderSeq: ++this.subToolOrderSeq,
     });
+    this.pruneRetiredSubToolActivityOutputs();
+  }
+
+  /**
+   * Drop the (up to 50 KB) `output`/`display` payloads of finished activities
+   * that fell out of the recent render window. Only the newest few render, but
+   * a child running hundreds of sub-tools would otherwise retain every output
+   * string for the agent's lifetime — tens of MB per swarm parent.
+   */
+  private pruneRetiredSubToolActivityOutputs(): void {
+    const retain = MAX_SINGLE_SUBAGENT_TOOL_ROWS + SUB_TOOL_RETAIN_SPARE;
+    if (this.subToolActivities.size <= retain) return;
+    const sorted = [...this.subToolActivities.values()].toSorted(
+      (a, b) => b.orderSeq - a.orderSeq,
+    );
+    for (const activity of sorted.slice(retain)) {
+      if (activity.phase === 'ongoing') continue;
+      activity.output = undefined;
+      activity.display = undefined;
+    }
   }
 }

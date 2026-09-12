@@ -61,8 +61,11 @@ describe('QueuePaneComponent', () => {
     const output = stripAnsi(component.render(120).join('\n'));
 
     expect(output).toContain('queue 2 · 2 prompts');
-    expect(output).toContain('❯ first message');
+    // The pointer marks the selected row only (default = last); unselected
+    // rows keep the same leading alignment without a pointer.
     expect(output).toContain('❯ /skill:review src/app.ts');
+    expect(output).not.toContain('❯ first message');
+    expect(output).toContain('first message');
     expect(output).toContain('ctrl-s to steer immediately');
   });
 

@@ -192,12 +192,12 @@ export class SplashComponent implements Component {
 
   /** Active-theme primary hex — never a hard-coded palette. */
   get activePrimaryHex(): string {
-    return currentTheme.palette.primary;
+    return currentTheme.color('primary');
   }
 
   /** Alias for active theme primary. */
   get activePalettePrimary(): string {
-    return currentTheme.palette.primary;
+    return currentTheme.color('primary');
   }
 
   invalidate(): void {

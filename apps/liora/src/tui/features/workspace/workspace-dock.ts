@@ -21,7 +21,7 @@ import {
   promoteRendererRegionLinesToCells,
   type RendererFrameRegion,
   type RendererRect,
-} from '@harness-kit/tui-renderer';
+} from '#/tui/renderer';
 
 import { isExperimentalFlagEnabled } from '../../commands/experimental-flags';
 import { WorkerTranscriptViewerComponent } from '../../components/dialogs/worker-dock/worker-transcript-viewer';

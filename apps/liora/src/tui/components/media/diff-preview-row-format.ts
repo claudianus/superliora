@@ -4,6 +4,9 @@ import { visibleWidth } from '#/tui/renderer';
 import type { ColorPalette } from '#/tui/theme';
 
 import { highlightLines, langFromPath } from './code-highlight';
+
+/** Max unique changed lines to tokenize synchronously for the approval viewer. */
+const SYNTAX_LOOKUP_LINE_BUDGET = 400;
 import type { DiffLine, DiffStyles, WordSpan } from './diff-preview';
 
 export function buildSyntaxLookup(
@@ -25,6 +28,10 @@ export function buildSyntaxLookup(
     unique.push(line.code);
   }
   if (unique.length === 0) return map;
+  // Budget the synchronous shiki tokenize: the only caller (approval viewer)
+  // can hand us a whole rewritten file; above the soft cap the rows render
+  // plain instead of stalling the panel open (PREMIUM §7.9 windowing).
+  if (unique.length > SYNTAX_LOOKUP_LINE_BUDGET) return map;
 
   const joined = unique.join('\n');
   const highlighted = highlightLines(joined, lang, palette);

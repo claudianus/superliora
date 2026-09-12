@@ -129,7 +129,7 @@ function renderDisplayBlock(
     case 'diff':
       return renderDiffLinesClustered(block.old_text, block.new_text, block.path, {
         contextLines: 3,
-        expandKeyHint: 'ctrl+e to preview',
+        expandKeyHint: 'Ctrl+E preview',
         maxLines: DIFF_SUMMARY_MAX_LINES,
         fullRowBackground: true,
         width: contentWidth,
@@ -146,7 +146,7 @@ function renderDisplayBlock(
       if (remaining > 0) {
         lines.push(
           s.dim(
-            `     … ${String(remaining)} more line${remaining > 1 ? 's' : ''} hidden (ctrl+e to preview)`,
+            `     … ${String(remaining)} more line${remaining > 1 ? 's' : ''} hidden (Ctrl+E preview)`,
           ),
         );
       }
@@ -463,13 +463,13 @@ export class ApprovalPanelComponent extends Container implements Focusable {
 
     body.push('');
     if (this.feedbackMode) {
-      body.push(indent(dim('Type feedback · ↵ submit.')));
+      body.push(indent(dim('Type feedback · Enter submit.')));
     } else {
-      const expandHint = hasPreviewable ? ' · ctrl+e preview' : '';
+      const expandHint = hasPreviewable ? ' · Ctrl+E preview' : '';
       body.push(
         indent(
           dim(
-            `↑/↓ select · ${buildNumericHint(data.choices.length)} choose · ↵ confirm${expandHint}`,
+            `↑↓ select · ${buildNumericHint(data.choices.length)} choose · Enter confirm${expandHint}`,
           ),
         ),
       );
