@@ -42,6 +42,42 @@ export const FLAG_DEFINITIONS = [
     surface: 'core',
   },
   {
+    id: 'glm_zcode_oauth',
+    title: 'GLM ZCode OAuth login',
+    description:
+      'Show a GLM ZCode login option in the provider picker. Unofficial: reuses the ZCode desktop app authorize page and broker to provision a Z.AI API key; it may break at any time or violate ZCode/Z.AI Terms of Service. Disable with SUPERLIORA_EXPERIMENTAL_GLM_ZCODE_OAUTH=false.',
+    env: 'SUPERLIORA_EXPERIMENTAL_GLM_ZCODE_OAUTH',
+    default: true,
+    surface: 'core',
+  },
+  {
+    id: 'google_gemini_cli_oauth',
+    title: 'Google Gemini (Code Assist) login',
+    description:
+      'Show a Google Gemini Code Assist login option in the provider picker. Standard Google OAuth with the Gemini CLI client; free-tier accounts get a Cloud Code Assist project provisioned automatically. Disable with SUPERLIORA_EXPERIMENTAL_GOOGLE_GEMINI_CLI_OAUTH=false.',
+    env: 'SUPERLIORA_EXPERIMENTAL_GOOGLE_GEMINI_CLI_OAUTH',
+    default: true,
+    surface: 'core',
+  },
+  {
+    id: 'kiro_oauth',
+    title: 'Kiro (Amazon Q) login',
+    description:
+      'Show a Kiro / Amazon Q Developer login option in the provider picker. AWS SSO OIDC device flow with Browser Builder ID; model requests run through the CodeWhisperer streaming service. Disable with SUPERLIORA_EXPERIMENTAL_KIRO_OAUTH=false.',
+    env: 'SUPERLIORA_EXPERIMENTAL_KIRO_OAUTH',
+    default: true,
+    surface: 'core',
+  },
+  {
+    id: 'gitlab_duo_oauth',
+    title: 'GitLab Duo login',
+    description:
+      'Show a GitLab Duo login option in the provider picker. Standard GitLab OAuth (PKCE) against gitlab.com; model requests run through the GitLab Duo proxy. Disable with SUPERLIORA_EXPERIMENTAL_GITLAB_DUO_OAUTH=false.',
+    env: 'SUPERLIORA_EXPERIMENTAL_GITLAB_DUO_OAUTH',
+    default: true,
+    surface: 'core',
+  },
+  {
     id: 'micro_compaction',
     title: 'Micro compaction',
     description:

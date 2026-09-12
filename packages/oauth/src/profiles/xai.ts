@@ -172,6 +172,7 @@ export const XAI_PROFILE: ProviderProfile = {
     oauthHost: XAI_OAUTH_HOST,
     clientId: XAI_CLIENT_ID,
     kind: 'pkce_browser',
+    variant: 'xai',
     scope: XAI_SCOPE,
     callbackPort: XAI_CALLBACK_PORT,
     callbackHost: XAI_CALLBACK_HOST,

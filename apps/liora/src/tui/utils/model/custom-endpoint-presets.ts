@@ -31,6 +31,7 @@ const PRESET_REGISTRY_IDS = [
   'vllm',
   'textgen-webui',
   'localai',
+  'sglang',
 ] as const;
 
 function presetProviderId(registryId: string): string {

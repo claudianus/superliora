@@ -30,6 +30,7 @@ export const ANTHROPIC_PROFILE: ProviderProfile = {
     oauthHost: ANTHROPIC_OAUTH_HOST,
     clientId: ANTHROPIC_CLIENT_ID,
     kind: 'pkce_browser',
+    variant: 'generic',
     scope: ANTHROPIC_SCOPE,
     callbackPort: ANTHROPIC_CALLBACK_PORT,
     authorizeUrl: 'https://claude.ai/oauth/authorize',

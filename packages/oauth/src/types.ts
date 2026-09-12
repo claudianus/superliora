@@ -20,6 +20,11 @@ export interface TokenInfo {
   readonly tokenType: string;
   /** Original expires_in from server response (seconds). */
   readonly expiresIn: number;
+  /**
+   * Provider-specific credential metadata (Google Cloud Code Assist project
+   * id). Optional so every existing producer stays valid.
+   */
+  readonly projectId?: string;
 }
 
 /** RFC 8628 §3.2 device authorization response. */
@@ -62,6 +67,7 @@ export interface TokenInfoWire {
   readonly scope: string;
   readonly token_type: string;
   readonly expires_in: number;
+  readonly project_id?: string;
 }
 
 export function tokenToWire(token: TokenInfo): TokenInfoWire {
@@ -72,6 +78,7 @@ export function tokenToWire(token: TokenInfo): TokenInfoWire {
     scope: token.scope,
     token_type: token.tokenType,
     expires_in: token.expiresIn,
+    ...(token.projectId === undefined ? {} : { project_id: token.projectId }),
   };
 }
 
@@ -83,5 +90,8 @@ export function tokenFromWire(wire: Partial<TokenInfoWire>): TokenInfo {
     scope: wire.scope ?? '',
     tokenType: wire.token_type ?? '',
     expiresIn: typeof wire.expires_in === 'number' ? wire.expires_in : 0,
+    ...(typeof wire.project_id === 'string' && wire.project_id.length > 0
+      ? { projectId: wire.project_id }
+      : {}),
   };
 }

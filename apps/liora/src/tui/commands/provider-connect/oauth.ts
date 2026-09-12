@@ -13,6 +13,7 @@ import {
   cursorModelsToPresets,
   ensureGitHubCopilotSession,
   fetchCursorAvailableModels,
+  GOOGLE_GEMINI_CLI_PROVIDER_ID,
   GITHUB_COPILOT_PROVIDER_ID,
   GITHUB_COPILOT_TOKEN_ENVS,
   getProviderProfile,
@@ -241,7 +242,10 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
         onManualCallbackPrompt: async ({ signal, lastError }) => {
           // Give the loopback redirect a short head start so local browser
           // logins that complete automatically never flash the paste dialog.
-          if (lastError === undefined) {
+          // `code_paste` flows have no loopback server — the paste dialog is
+          // the primary input — so show it immediately.
+          const hasLoopback = profile.flow.kind !== 'code_paste';
+          if (hasLoopback && lastError === undefined) {
             const delayMs = 8_000;
             await new Promise<void>((resolve) => {
               if (signal.aborted) {
@@ -336,6 +340,16 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
         // Keep the individual-host default when the cached session cannot be read.
       }
     }
+    // Google Code Assist stores the discovered Cloud project id with the
+    // token; the runtime needs it in every request envelope.
+    let codeAssistProject: string | undefined;
+    if (providerId === GOOGLE_GEMINI_CLI_PROVIDER_ID) {
+      try {
+        codeAssistProject = (await manager.loadToken(providerId, storageKey))?.projectId;
+      } catch {
+        // Catalog fallback still works; project can be re-discovered on the next login.
+      }
+    }
     const mergedProvider = mergeProviderOAuthLogin(
       freshConfig.providers[providerId] as Record<string, unknown> | undefined,
       loginRef,
@@ -344,6 +358,7 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
         type: profile.wire,
         baseUrl: routeBaseUrl,
         ...(routeCustomHeaders !== undefined ? { customHeaders: routeCustomHeaders } : {}),
+        ...(codeAssistProject === undefined ? {} : { project: codeAssistProject }),
       },
     );
     freshConfig.providers[providerId] = mergedProvider as (typeof freshConfig.providers)[string];

@@ -64,6 +64,20 @@ import {
   parseGhAuthStatusAccount,
   probeGhCliLogin,
 } from './gh-cli-login';
+import {
+  GITLAB_DUO_ANTHROPIC_PROXY_URL,
+  GITLAB_DUO_CALLBACK_PORT,
+  GITLAB_DUO_CLIENT_ID,
+  GITLAB_DUO_OAUTH_HOST,
+  GITLAB_DUO_PROFILE,
+  GITLAB_DUO_SCOPE,
+} from './gitlab-duo';
+import { GLM_ZCODE_PROFILE } from './glm-zcode';
+import {
+  GOOGLE_GEMINI_CLI_PROFILE,
+  GOOGLE_GEMINI_CLI_PROVIDER_ID,
+} from './google-gemini-cli';
+import { KIRO_PROFILE, KIRO_PROVIDER_ID } from './kiro';
 import { isOpenCodeZenBaseUrl, opencodeSessionHeaders } from './opencode';
 import { OPENAI_PROFILE } from './openai';
 import type { OAuthProviderId, ProviderProfile } from './provider-profile';
@@ -108,7 +122,7 @@ import {
   xaiLongContextPricingThresholdTokens,
 } from './long-context-pricing';
 
-export type { OAuthFlowKind, OAuthProviderId, OAuthProviderWire, ProviderFlowConfig, ProviderModelPreset, ProviderProfile } from './provider-profile';
+export type { OAuthFlowKind, OAuthProviderId, OAuthProviderWire, PkceFlowVariant, ProviderFlowConfig, ProviderModelPreset, ProviderProfile, ProviderWireAuth } from './provider-profile';
 
 /**
  * Profiles that are always available in the provider picker.
@@ -117,6 +131,7 @@ export const PROVIDER_PROFILES: readonly ProviderProfile[] = [
   KIMI_PROFILE,
   OPENAI_PROFILE,
   XAI_PROFILE,
+  GITLAB_DUO_PROFILE,
 ];
 
 /**
@@ -128,6 +143,9 @@ export const EXPERIMENTAL_PROVIDER_PROFILES: readonly { readonly profile: Provid
   { profile: ANTHROPIC_PROFILE, flag: 'anthropic_oauth' },
   { profile: CURSOR_PROFILE, flag: 'cursor_oauth' },
   { profile: GITHUB_COPILOT_PROFILE, flag: 'github_copilot' },
+  { profile: GLM_ZCODE_PROFILE, flag: 'glm_zcode_oauth' },
+  { profile: GOOGLE_GEMINI_CLI_PROFILE, flag: 'google_gemini_cli_oauth' },
+  { profile: KIRO_PROFILE, flag: 'kiro_oauth' },
 ];
 
 /** All profiles (always-on + experimental), for id-based lookup. */
@@ -208,6 +226,17 @@ export {
   XAI_GROK_BUILD_CLIENT_SURFACE,
   XAI_GROK_BUILD_CLIENT_VERSION_DEFAULT,
   XAI_GROK_BUILD_TOKEN_AUTH,
+  GITLAB_DUO_ANTHROPIC_PROXY_URL,
+  GITLAB_DUO_CALLBACK_PORT,
+  GITLAB_DUO_CLIENT_ID,
+  GITLAB_DUO_OAUTH_HOST,
+  GITLAB_DUO_PROFILE,
+  GITLAB_DUO_SCOPE,
+  GLM_ZCODE_PROFILE,
+  GOOGLE_GEMINI_CLI_PROFILE,
+  GOOGLE_GEMINI_CLI_PROVIDER_ID,
+  KIRO_PROFILE,
+  KIRO_PROVIDER_ID,
   isOpenCodeZenBaseUrl,
   isXaiGrokApiBaseUrl,
   isXaiGrokBuildBaseUrl,

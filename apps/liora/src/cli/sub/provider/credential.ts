@@ -443,6 +443,10 @@ export function providerDefaultApiKeyEnv(
       return 'KIMI_API_KEY';
     case 'google-genai':
       return 'GOOGLE_API_KEY';
+    case 'code-assist':
+    case 'codewhisperer':
+      // OAuth-only wires; the access token resolves at request time.
+      return undefined;
     case 'vertexai':
       return 'VERTEXAI_API_KEY';
     case 'bedrock':

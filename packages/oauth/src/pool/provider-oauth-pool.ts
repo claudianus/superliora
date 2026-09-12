@@ -88,6 +88,8 @@ export function mergeProviderOAuthLogin(
     readonly baseUrl?: string | undefined;
     readonly type?: string | undefined;
     readonly customHeaders?: Readonly<Record<string, string>> | undefined;
+    /** Code Assist project id (Google Code Assist logins). */
+    readonly project?: string | undefined;
   } = {},
 ): Record<string, unknown> {
   const existing = isRecord(existingProvider) ? { ...existingProvider } : {};
@@ -119,6 +121,11 @@ export function mergeProviderOAuthLogin(
     ...(options.baseUrl === undefined ? {} : { baseUrl: options.baseUrl }),
     oauth: nextPrimary,
   };
+  if (options.project !== undefined) {
+    next['project'] = options.project;
+  } else {
+    delete next['project'];
+  }
   if (options.customHeaders !== undefined) {
     next['customHeaders'] = { ...options.customHeaders };
   }
