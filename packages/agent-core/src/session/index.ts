@@ -599,5 +599,6 @@ export {
   type FileProvenanceMutation,
   type FileProvenanceOp,
   type FileProvenanceRecord,
+  type FileProvenanceRecorderOptions,
   type ProvenanceMutationContext,
 } from './file-provenance';

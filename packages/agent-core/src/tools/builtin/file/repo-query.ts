@@ -49,17 +49,11 @@ export {
   provenancePathFilter,
   softFailRepoQuery,
   validateRepoQueryModeInput,
-  type ProvenanceRecordLike,
   type RepoQueryIndexStatus,
   type RepoQueryInput,
   type RepoQueryMode,
   type RepoQueryResultEnvelope,
 } from './repo-query-core';
-
-export interface RepoQueryToolOptions {
-  /** Session provenance recorder; provenance mode soft-fails without one. */
-  readonly provenance?: FileProvenanceRecorder | undefined;
-}
 
 export class RepoQueryTool implements BuiltinTool<RepoQueryInput> {
   readonly name = 'RepoQuery' as const;
@@ -73,7 +67,7 @@ export class RepoQueryTool implements BuiltinTool<RepoQueryInput> {
     private readonly kaos: Kaos,
     private readonly workspace: WorkspaceConfig,
     telemetry: TelemetryClient = noopTelemetryClient,
-    options?: RepoQueryToolOptions,
+    options?: { readonly provenance?: FileProvenanceRecorder | undefined },
   ) {
     this.grep = new GrepTool(kaos, workspace, telemetry);
     this.glob = new GlobTool(kaos, workspace, telemetry);

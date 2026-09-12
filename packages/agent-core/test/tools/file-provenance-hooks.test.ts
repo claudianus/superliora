@@ -16,6 +16,33 @@ import type { Agent } from '../../src/agent';
 import { createFakeKaos, PERMISSIVE_WORKSPACE, toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
 
+/** Full Kaos StatResult stub — the interface has more required fields than tools read. */
+function statResult(stMode: number): {
+  stMode: number;
+  stIno: number;
+  stDev: number;
+  stNlink: number;
+  stUid: number;
+  stGid: number;
+  stSize: number;
+  stAtime: number;
+  stMtime: number;
+  stCtime: number;
+} {
+  return {
+    stMode,
+    stIno: 1,
+    stDev: 1,
+    stNlink: 1,
+    stUid: 0,
+    stGid: 0,
+    stSize: 0,
+    stAtime: 0,
+    stMtime: 0,
+    stCtime: 0,
+  };
+}
+
 function hookFor(recorder: FileProvenanceRecorder): FileProvenanceHook {
   const agent = {
     fileProvenance: recorder,
@@ -71,15 +98,15 @@ describe('file tool provenance hooks', () => {
       }),
       writeText: vi.fn(async (path: string, content: string) => {
         files.set(path, (files.get(path) ?? '') + content);
+        return Buffer.byteLength(content, 'utf8');
       }),
       unlink: vi.fn(async (path: string) => {
         files.delete(path);
       }),
       mkdir: vi.fn(async () => undefined),
-      stat: vi.fn(async (path: string) => ({
-        stMode: path.replaceAll('\\', '/').endsWith('.ts') ? 0o100644 : 0o040755,
-        stMtime: 0,
-      })),
+      stat: vi.fn(async (path: string) =>
+        statResult(path.replaceAll('\\', '/').endsWith('.ts') ? 0o100644 : 0o040755),
+      ),
     });
   }
 
@@ -122,7 +149,7 @@ describe('file tool provenance hooks', () => {
   it('Write does not record a failed mutation', async () => {
     const provenance = hook();
     const kaos = createFakeKaos({
-      stat: vi.fn(async () => ({ stMode: 0o100644, stMtime: 0 })),
+      stat: vi.fn(async () => statResult(0o100644)),
       writeAtomic: vi.fn(async () => {
         throw new Error('disk exploded');
       }),

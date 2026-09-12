@@ -40,6 +40,7 @@ describe('resumePersistedAgent early publish', () => {
       telemetry: {} as never,
       experimentalFlags: {} as never,
       fileSnapshots: {} as never,
+      fileProvenance: {} as never,
       log: { createChild: () => ({}) } as never,
       rpc: {} as never,
       getToolKaos: () => ({ withCwd: () => ({ getcwd: () => '/tmp' }) }) as never,
