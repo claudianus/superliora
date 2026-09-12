@@ -2,11 +2,13 @@ import { z } from 'zod';
 
 import type { MemoryLink } from '#/memory';
 
-export const REPO_QUERY_MODES = ['symbol', 'content', 'path', 'outline'] as const;
+export const REPO_QUERY_MODES = ['symbol', 'content', 'path', 'outline', 'provenance'] as const;
 export type RepoQueryMode = (typeof REPO_QUERY_MODES)[number];
 
 export const RepoQueryInputSchema = z.object({
-  mode: z.enum(REPO_QUERY_MODES).describe('Search mode: symbol, content, path, or outline.'),
+  mode: z
+    .enum(REPO_QUERY_MODES)
+    .describe('Search mode: symbol, content, path, outline, or provenance.'),
   query: z.string().min(1).describe('Search pattern, symbol name, glob, or outline filter.'),
   path: z
     .string()
@@ -74,6 +76,39 @@ export function validateRepoQueryModeInput(
     };
   }
   return { ok: true };
+}
+
+/** Normalize a provenance query into a path-substring filter ('*' = all). */
+export function provenancePathFilter(query: string): string {
+  const trimmed = query.trim().replaceAll('\\', '/');
+  return trimmed.length === 0 || trimmed === '*' || trimmed === '/' ? '*' : trimmed;
+}
+
+/** Structural subset of FileProvenanceRecord the formatter needs. */
+export interface ProvenanceRecordLike {
+  readonly path: string;
+  readonly op: string;
+  readonly ts: number;
+  readonly added: readonly { readonly start: number; readonly end: number }[];
+  readonly agentType: string;
+  readonly model?: string;
+  readonly turn?: string;
+}
+
+/** One-line, agent-readable provenance summary of a recorded mutation. */
+export function formatProvenanceResultLine(record: ProvenanceRecordLike): string {
+  const ranges = record.added
+    .map((range) => `L${String(range.start)}-L${String(range.end)}`)
+    .join(',');
+  const when = new Date(record.ts).toISOString();
+  const model = record.model ?? 'unknown-model';
+  const turn = record.turn === undefined ? '' : `, turn ${record.turn}`;
+  const author = `${model} (${record.agentType}${turn})`;
+  if (record.op === 'delete' && ranges.length === 0) {
+    return `${record.path} deleted by ${author} at ${when}`;
+  }
+  const addedLabel = ranges.length === 0 ? 'no line changes' : `+${ranges}`;
+  return `${record.path} ${addedLabel} [${record.op}] by ${author} at ${when}`;
 }
 
 function looksLikeFilePath(value: string): boolean {

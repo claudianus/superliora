@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { BlamePanelComponent } from '#/tui/components/dialogs/workspace/blame-panel';
 import { currentTheme } from '#/tui/theme';
 import type { BlameCommit, BlameLine } from '#/utils/git/git-blame';
+import type { ProvenanceAnnotation } from '#/utils/git/git-provenance';
 
 const previousChalkLevel = chalk.level;
 beforeAll(() => {
@@ -78,6 +79,7 @@ function makeLines(): BlameLine[] {
 interface MakeOptions {
   readonly lines?: BlameLine[];
   readonly title?: string;
+  readonly annotations?: ReadonlyMap<number, ProvenanceAnnotation>;
   readonly onClose?: () => void;
   readonly maxVisible?: number;
 }
@@ -86,6 +88,7 @@ function makePanel(options: MakeOptions = {}): BlamePanelComponent {
   return new BlamePanelComponent({
     lines: options.lines ?? makeLines(),
     title: options.title,
+    annotations: options.annotations,
     onClose: options.onClose ?? vi.fn(),
     maxVisible: options.maxVisible,
   });
@@ -214,5 +217,35 @@ describe('BlamePanelComponent', () => {
   it('shows the empty message when there are no lines', () => {
     const joined = renderedLines(makePanel({ lines: [] })).join('\n');
     expect(joined).toContain('No blame data');
+  });
+
+  it('marks provenance-annotated lines with the AI marker and model', () => {
+    const annotations = new Map<number, ProvenanceAnnotation>([
+      [2, { model: 'glm-5.3', agentType: 'main', ts: TIME_B * 1000 }],
+    ]);
+    const lines = renderedLines(makePanel({ annotations }));
+    const annotated = lines.find((line) => line.includes('1234567')) ?? '';
+    const plain = lines.find((line) => line.includes('abcdef1')) ?? '';
+    expect(annotated).toContain('✦ glm-5.3');
+    expect(annotated).not.toContain('Bartholomew…');
+    expect(plain).toContain('Alice');
+    expect(plain).not.toContain('✦');
+  });
+
+  it('falls back to the agent type when no model is recorded', () => {
+    const annotations = new Map<number, ProvenanceAnnotation>([
+      [1, { agentType: 'sub', ts: TIME_A * 1000 }],
+    ]);
+    const lines = renderedLines(makePanel({ annotations }));
+    expect(lines.find((line) => line.includes(POINTER)) ?? '').toContain('✦ sub');
+  });
+
+  it('counts annotated lines in the header', () => {
+    const annotations = new Map<number, ProvenanceAnnotation>([
+      [1, { agentType: 'main', ts: TIME_A * 1000 }],
+      [2, { agentType: 'main', ts: TIME_B * 1000 }],
+    ]);
+    const header = renderedLines(makePanel({ annotations }))[0] ?? '';
+    expect(header).toContain('2 ✦');
   });
 });

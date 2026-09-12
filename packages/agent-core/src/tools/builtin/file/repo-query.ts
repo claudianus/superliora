@@ -17,6 +17,7 @@ import {
   parseRepoIndexEngineEnv,
   REPO_INDEX_ENGINE_ENV,
 } from '../../../repo-index/status';
+import type { FileProvenanceRecorder } from '../../../session/file-provenance';
 import { noopTelemetryClient, type TelemetryClient } from '../../../telemetry';
 import { policyFromWorkspace, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -25,9 +26,11 @@ import { collectContextFiles } from '../context/context-discovery';
 import { GlobTool } from './glob';
 import { GrepTool } from './grep';
 import {
+  formatProvenanceResultLine,
   formatRepoQueryOutput,
   normalizeRepoQueryLimit,
   parseRepoQueryInput,
+  provenancePathFilter,
   softFailRepoQuery,
   type RepoQueryIndexStatus,
   type RepoQueryInput,
@@ -39,9 +42,11 @@ export {
   DEFAULT_REPO_QUERY_LIMIT,
   REPO_QUERY_MODES,
   RepoQueryInputSchema,
+  formatProvenanceResultLine,
   formatRepoQueryOutput,
   normalizeRepoQueryLimit,
   parseRepoQueryInput,
+  provenancePathFilter,
   softFailRepoQuery,
   validateRepoQueryModeInput,
   type RepoQueryIndexStatus,
@@ -56,14 +61,17 @@ export class RepoQueryTool implements BuiltinTool<RepoQueryInput> {
   readonly parameters: Record<string, unknown> = toInputJsonSchema(RepoQueryInputSchema);
   private readonly grep: GrepTool;
   private readonly glob: GlobTool;
+  private readonly provenance: FileProvenanceRecorder | undefined;
 
   constructor(
     private readonly kaos: Kaos,
     private readonly workspace: WorkspaceConfig,
     telemetry: TelemetryClient = noopTelemetryClient,
+    options?: { readonly provenance?: FileProvenanceRecorder | undefined },
   ) {
     this.grep = new GrepTool(kaos, workspace, telemetry);
     this.glob = new GlobTool(kaos, workspace, telemetry);
+    this.provenance = options?.provenance;
   }
 
   resolveExecution(args: RepoQueryInput): ToolExecution {
@@ -129,6 +137,8 @@ export class RepoQueryTool implements BuiltinTool<RepoQueryInput> {
           return await this.runSymbol(input, limit, scopePath, started);
         case 'outline':
           return await this.runOutline(input, limit, scopePath, started);
+        case 'provenance':
+          return await this.runProvenance(input, limit, started);
       }
     } catch (error) {
       return {
@@ -360,6 +370,62 @@ export class RepoQueryTool implements BuiltinTool<RepoQueryInput> {
     };
   }
 
+  /**
+   * mode=provenance — what did this session's agents mutate, where, when.
+   * Reads the session provenance NDJSON; never throws to the loop.
+   */
+  private async runProvenance(
+    input: RepoQueryInput,
+    limit: number,
+    started: number,
+  ): Promise<ExecutableToolResult> {
+    if (this.provenance === undefined || !this.provenance.enabled) {
+      return {
+        output: softFailRepoQuery(
+          'provenance',
+          'No provenance recorder is attached to this session.',
+          'Provenance mode needs a session with file tracking enabled (default in liora sessions).',
+          Date.now() - started,
+        ),
+      };
+    }
+    const records = await this.provenance.read();
+    const needle = provenancePathFilter(input.query);
+    const filtered = records
+      .filter((record) => needle === '*' || record.path.replaceAll('\\', '/').includes(needle))
+      .toSorted((a, b) => b.ts - a.ts);
+    const results = filtered.slice(0, limit).map(formatProvenanceResultLine);
+    const truncated = filtered.length > limit;
+
+    if (results.length === 0) {
+      return {
+        output: softFailRepoQuery(
+          'provenance',
+          records.length === 0
+            ? 'No provenance records yet for this session.'
+            : `No provenance records match "${input.query}".`,
+          records.length === 0
+            ? 'Records appear as the agent edits files; retry after the next edit.'
+            : 'Broaden the query (a path fragment or "*" lists everything).',
+          Date.now() - started,
+        ),
+      };
+    }
+
+    return {
+      output: formatRepoQueryOutput({
+        mode: 'provenance',
+        results,
+        index_status: 'warm',
+        took_ms: Date.now() - started,
+        truncated,
+        next_step: truncated
+          ? 'Narrow the query to a path fragment to see older records.'
+          : 'Use Read on a listed path; ranges match the recorded post-edit state.',
+      }),
+    };
+  }
+
   private async runOutline(
     input: RepoQueryInput,
     limit: number,
@@ -432,7 +498,13 @@ export class RepoQueryTool implements BuiltinTool<RepoQueryInput> {
 function inferMode(args: RepoQueryInput): RepoQueryInput['mode'] {
   if (typeof args === 'object' && args !== null && 'mode' in args) {
     const mode = (args as { mode?: unknown }).mode;
-    if (mode === 'symbol' || mode === 'content' || mode === 'path' || mode === 'outline') {
+    if (
+      mode === 'symbol' ||
+      mode === 'content' ||
+      mode === 'path' ||
+      mode === 'outline' ||
+      mode === 'provenance'
+    ) {
       return mode;
     }
   }
@@ -489,7 +561,9 @@ function nextStepForMode(mode: RepoQueryInput['mode']): string {
       return 'Try Glob with the same pattern or narrow path.';
     case 'outline':
       return 'Pass path to a file and retry, or use Read for raw content.';
-    default:
+    case 'provenance':
+      return 'Retry mode=provenance with a path fragment or "*".';
+    case 'symbol':
       return 'Try Grep or RepoQuery mode=symbol, then Read for exact bytes.';
   }
 }
