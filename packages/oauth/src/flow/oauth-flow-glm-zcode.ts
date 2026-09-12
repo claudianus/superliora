@@ -386,6 +386,20 @@ async function provisionFromUpstream(
   return tokenFromApiKey(apiKey, upstreamZaiAccess, identity);
 }
 
+/**
+ * True when a broker rejection means the single-use authorization code is gone
+ * (consumed by the ZCode desktop app opening from the browser redirect, or
+ * expired). Such codes can never be pasted successfully — the flow must be
+ * restarted with a fresh authorize URL.
+ */
+export function isGlmZcodeCodeConsumedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return GLM_ZCODE_CODE_CONSUMED_PATTERN.test(message);
+}
+
+const GLM_ZCODE_CODE_CONSUMED_PATTERN =
+  /2007|already\s+(been\s+)?used|single.use|invalid_grant|expired/i;
+
 export interface GlmZcodeExchangeOptions {
   readonly signal?: AbortSignal;
   readonly fetch?: FetchImpl;

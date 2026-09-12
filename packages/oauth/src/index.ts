@@ -110,6 +110,7 @@ export {
   GLM_ZCODE_USERINFO_URL,
   GLM_ZCODE_ZAI_API_BASE,
   GLM_ZCODE_ZAI_LOGIN_URL,
+  isGlmZcodeCodeConsumedError,
   redactGlmZcodeSecrets,
   refreshGlmZcodeToken,
   resolveGlmZcodeEndpoints,

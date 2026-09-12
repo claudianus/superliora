@@ -267,14 +267,24 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
 
           spinner?.stop({ ok: false, label: '' });
           spinner = undefined;
+          // GLM ZCode uses a custom-protocol redirect the ZCode desktop app
+          // may grab; tell the user up front to cancel the app-open prompt,
+          // otherwise the app consumes the one-time code before the paste.
+          const pasteHints =
+            profile.id === 'glm-zcode'
+              ? [
+                  ttui('tui.provider.pasteCallbackGlmZcode1'),
+                  ttui('tui.provider.pasteCallbackGlmZcode2'),
+                ]
+              : [
+                  ttui('tui.provider.pasteCallbackHint1'),
+                  ttui('tui.provider.pasteCallbackHint2'),
+                ];
           const pasted = await promptOAuthCallback(host, {
             signal,
             errorHint: lastError,
             title: ttui('tui.provider.pasteCallbackTitle'),
-            subtitleLines: [
-              ttui('tui.provider.pasteCallbackHint1'),
-              ttui('tui.provider.pasteCallbackHint2'),
-            ],
+            subtitleLines: pasteHints,
           });
           if (pasted === undefined && !signal.aborted) {
             // User cancelled the paste dialog; keep waiting for loopback.
