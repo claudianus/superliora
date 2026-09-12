@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.32.0
+
+### Minor Changes
+
+- Record which agent and model wrote which lines during a session. See it via RepoQuery mode=provenance or the ✦ markers in /blame.
+
 ## 0.31.1
 
 ### Patch Changes
