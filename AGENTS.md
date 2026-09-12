@@ -58,13 +58,24 @@ Package boundaries stay as in Project Map. Inside a package:
 | When | Command | Cost |
 |---|---|---|
 | One file / one case | `node scripts/test-local.mjs <path> -t "case"` | ~5s |
-| Iterate the packages you edited | `node scripts/test-local.mjs --direct` | seconds–1 min |
-| Iterate plus pnpm dependents | `pnpm run test:local` | seconds–several min; oauth/core/liora graphs approach the full suite |
-| Fast pre-commit gate (no package rebuild) | `pnpm run gate:fast` — lint + `typecheck:fast` + `--direct` tests | skips `build:packages`; full `gate` still required before push |
-| Before every push | `pnpm run gate` — lint + typecheck + full suite | Linux CI a few minutes; Windows workstation ~15 min for tests |
-| Whole suite only | `pnpm run test:all` | same as the test half of `gate` |
+| Default: tests related to your diff | `node scripts/test-local.mjs` (or `pnpm run test:local`) | seconds — see below |
+| Workspace granularity (no name matching) | `node scripts/test-local.mjs --closure` / `--direct` | seconds–1 min |
+| Fast pre-commit gate (no package rebuild) | `pnpm run gate:fast` — lint + `typecheck:fast` + related tests | skips `build:packages` |
+| Before every push | `pnpm run gate` — lint + typecheck + related tests | Linux CI a few minutes; Windows workstation minutes |
+| Whole suite | `pnpm run test:all` | ~2.5 min on Linux/macOS, ~15 min on Windows; CI runs it on every PR |
 
-`test:local` widens to the full suite when a shared file (root config, `scripts/`) changes and skips the run entirely when only docs/changesets changed; `--scope` prints the decision without running, `--direct` limits to workspaces that own the diff (no dependents), `--all` forces everything.
+The default mode selects tests from the changed files' reverse import graph
+(`scripts/test-scope.mjs`): a test runs when its module chain reaches a changed
+file, or when it imports an export name the change can influence — so editing a
+leaf module runs only the tests that actually use it instead of every importer
+of the package barrel. Deleted files and package meta (`package.json`,
+`vitest.config.ts`, `tsconfig*`) widen to the workspace closure; a shared file
+(root config, `scripts/`) widens to the full suite; unresolvable states always
+fail open toward *more* coverage. Known blind spots: tests that reach a module
+only through runtime `import()` indirection or string-based lookup are not
+graph-visible — run `pnpm run test:all` after sweeping refactors, and GitHub CI
+runs the full suite on every PR as the backstop. `--scope` prints the decision
+without running, `--all` forces everything.
 
 **Always run tests through `scripts/test-local.mjs`, not bare `vitest`.** A dev shell is not a runner: `NO_COLOR` / `TERM=dumb` silently disable TUI motion, a local timezone hides UTC clock assertions, `init.defaultBranch=main` hides bare-repo HEAD assumptions, and provider keys in your shell let network paths pass that CI cannot reach. The runner strips that state; `node scripts/test-local.mjs --env` prints exactly what it changes. Bare `pnpm exec vitest` is for `--watch` only, and its green result proves nothing about CI.
 
