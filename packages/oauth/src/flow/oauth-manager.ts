@@ -247,6 +247,11 @@ export class OAuthManager {
     }
   }
 
+  /** Returns the persisted token bundle, without refreshing. */
+  async loadToken(): Promise<TokenInfo | undefined> {
+    return this.storage.load(this.config.name);
+  }
+
   async hasToken(): Promise<boolean> {
     return (await this.loadState()).kind === 'valid';
   }

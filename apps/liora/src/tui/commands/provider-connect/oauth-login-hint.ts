@@ -17,5 +17,10 @@ export function oauthLoginFollowUp(providerId: string, error: unknown): string |
   if (providerId === 'xai-grok' && /outdated|x-grok-client-version|grok cli/.test(message)) {
     return ttui('tui.provider.oauthXaiVersion');
   }
+  // Broker error 2007: the ZCode desktop app consumed the single-use code
+  // before the paste could reach the broker.
+  if (providerId === 'glm-zcode' && /2007|broker|single.use|already.*(used|consumed)/.test(message)) {
+    return ttui('tui.provider.oauthGlmZcodeBroker');
+  }
   return undefined;
 }

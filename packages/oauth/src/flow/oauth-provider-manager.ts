@@ -19,6 +19,23 @@ import {
   toCursorTokenInfo,
 } from './oauth-flow-cursor';
 import {
+  buildGlmZcodeAuthorizeUrl,
+  exchangeGlmZcodeCode,
+  refreshGlmZcodeToken,
+} from './oauth-flow-glm-zcode';
+import {
+  pollKiroDeviceToken,
+  refreshKiroToken,
+  requestKiroDeviceAuthorization,
+} from './oauth-flow-kiro';
+import {
+  discoverGoogleCodeAssistProject,
+  refreshGoogleToken,
+  resolveGoogleGeminiCliOauthConfig,
+  runGoogleOauthLogin,
+} from './oauth-flow-google';
+import {
+  generateState,
   refreshPkceToken,
   runPkceBrowserFlow,
   type GenericPkceFlowConfig,
@@ -43,9 +60,10 @@ import { resolveOAuthDataHome } from '../home';
 import type { DeviceAuthorization, TokenInfo } from '../types';
 import {
   ensureGitHubCopilotSession,
-  getProviderProfile,
+  GITHUB_COPILOT_TOKEN_ENVS,
   githubCopilotUserTokenInfo,
-  readGitHubCopilotEnvToken,
+  isGitHubCopilotProviderId,
+  getProviderProfile,
   type ProviderFlowConfig,
   type ProviderProfile,
 } from '../profiles';
@@ -133,6 +151,11 @@ export class OAuthProviderManager {
     await this.managerFor(providerId, storageKey).logout();
   }
 
+  /** Returns the persisted token bundle for the provider/storage key. */
+  async loadToken(providerId: string, storageKey?: string): Promise<TokenInfo | undefined> {
+    return this.managerFor(providerId, storageKey).loadToken();
+  }
+
   /**
    * Runs the provider's OAuth login flow. Device-code providers call
    * `callbacks.onDeviceCode`; PKCE-browser providers call
@@ -152,12 +175,18 @@ export class OAuthProviderManager {
         return this.loginDeviceCodeKimi(profile, callbacks, options);
       case 'device_code_openai':
         return this.loginDeviceCodeOpenai(profile, callbacks, options);
+      case 'device_code_kiro':
+        return this.loginDeviceCodeKiro(profile, callbacks, options);
       case 'pkce_browser':
         return this.loginPkceBrowser(profile, callbacks, options);
       case 'deep_link_poll':
         return this.loginDeepLinkPoll(profile, callbacks, options);
       case 'paste_token':
         return this.loginPasteToken(profile, options);
+      case 'code_paste':
+        return this.loginCodePaste(profile, callbacks, options);
+      case 'google_oauth':
+        return this.loginGoogleOauth(profile, callbacks, options);
     }
   }
 
@@ -248,8 +277,9 @@ export class OAuthProviderManager {
     callbacks: ProviderLoginCallbacks,
     options: ProviderLoginOptions,
   ): Promise<TokenInfo> {
+    const variant = profile.flow.variant ?? 'openai';
     const token =
-      profile.id === 'xai-grok'
+      variant === 'xai'
         ? toXaiTokenInfo(
             await runXaiBrowserFlow(profile.flow, {
               onAuthorizeUrl: callbacks.onAuthorizeUrl,
@@ -257,7 +287,7 @@ export class OAuthProviderManager {
               signal: options.signal,
             }),
           )
-        : profile.id === 'anthropic-oauth'
+        : variant === 'generic'
           ? toXaiTokenInfo(
               await runPkceBrowserFlow(toGenericPkceConfig(profile.flow), {
                 onAuthorizeUrl: callbacks.onAuthorizeUrl,
@@ -272,6 +302,89 @@ export class OAuthProviderManager {
                 signal: options.signal,
               }),
             );
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, token);
+    return token;
+  }
+
+  /**
+   * Runs a `code_paste` flow: open the provider's authorize URL, then collect
+   * the final redirect URL (custom-protocol redirect a CLI cannot catch) or the
+   * bare authorization code from the user and run the provider's exchange on
+   * it. Parse/exchange failures re-prompt with the error so a bad paste or an
+   * expired single-use code can be corrected without restarting the flow.
+   */
+  private async loginCodePaste(
+    profile: ProviderProfile,
+    callbacks: ProviderLoginCallbacks,
+    options: ProviderLoginOptions,
+  ): Promise<TokenInfo> {
+    const signal = options.signal;
+    if (signal?.aborted) throw new OAuthError('Login cancelled.');
+    const state = generateState();
+    await callbacks.onAuthorizeUrl?.(buildGlmZcodeAuthorizeUrl(state));
+    let lastError: string | undefined;
+    for (;;) {
+      const pasted = await callbacks.onManualCallbackPrompt?.({
+        signal: signal ?? new AbortController().signal,
+        ...(lastError === undefined ? {} : { lastError }),
+      });
+      if (pasted === undefined) throw new OAuthError('Login cancelled.');
+      try {
+        const token = await exchangeGlmZcodeCode(pasted, state, { signal });
+        const storageKey = options.storageKey ?? this.storageName(profile.id);
+        await this.storage.save(storageKey, token);
+        return token;
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+    }
+  }
+
+  /**
+   * Runs the Google Code Assist login (Gemini CLI): consent screen → loopback
+   * callback → token exchange → Cloud project discovery. The discovered
+   * project id is persisted with the token and written into the provider
+   * config by the connect flow.
+   */
+  private async loginGoogleOauth(
+    profile: ProviderProfile,
+    callbacks: ProviderLoginCallbacks,
+    options: ProviderLoginOptions,
+  ): Promise<TokenInfo> {
+    void profile;
+    const token = await runGoogleOauthLogin({
+      config: resolveGoogleGeminiCliOauthConfig(),
+      signal: options.signal,
+      onAuthorizeUrl: callbacks.onAuthorizeUrl,
+      onManualCallbackPrompt: callbacks.onManualCallbackPrompt,
+      discoverProject: (accessToken, signal) =>
+        discoverGoogleCodeAssistProject(accessToken, { signal }),
+    });
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, token);
+    return token;
+  }
+
+  /** AWS SSO OIDC device flow: prompt the user code, poll until approved. */
+  private async loginDeviceCodeKiro(
+    profile: ProviderProfile,
+    callbacks: ProviderLoginCallbacks,
+    options: ProviderLoginOptions,
+  ): Promise<TokenInfo> {
+    const manager = this.managerFor(profile.id, options.storageKey);
+    void manager;
+    const { authorization, region } = await requestKiroDeviceAuthorization({ signal: options.signal });
+    await callbacks.onDeviceCode?.({
+      userCode: authorization.userCode,
+      deviceCode: authorization.deviceCode,
+      verificationUri: authorization.verificationUri,
+      verificationUriComplete: authorization.verificationUriComplete,
+      expiresIn: authorization.expiresIn,
+      interval: authorization.interval,
+    });
+    const token = await pollKiroDeviceToken(authorization, region, { signal: options.signal });
     const storageKey = options.storageKey ?? this.storageName(profile.id);
     await this.storage.save(storageKey, token);
     return token;
@@ -298,15 +411,26 @@ export class OAuthProviderManager {
     options: ProviderLoginOptions,
   ): Promise<TokenInfo> {
     const pasted = options.pastedToken?.trim();
-    const token = pasted !== undefined && pasted.length > 0 ? pasted : readGitHubCopilotEnvToken();
+    const envNames = profile.pasteTokenEnvs ?? GITHUB_COPILOT_TOKEN_ENVS;
+    const token =
+      pasted !== undefined && pasted.length > 0 ? pasted : readPasteTokenEnv(envNames);
     if (token === undefined || token.length === 0) {
       throw new OAuthError(
-        `No token for "${profile.id}". Paste a GitHub token or set GITHUB_TOKEN / GH_TOKEN / GITHUB_COPILOT_TOKEN.`,
+        `No token for "${profile.id}". Paste a token or set ${envNames.join(' / ')}.`,
       );
     }
-    // Fail closed on a dead user token so /login does not persist a useless credential.
-    await ensureGitHubCopilotSession(token, { force: true });
-    const tokenInfo = githubCopilotUserTokenInfo(token);
+    // Copilot user tokens must be validated (fail closed on a dead token) and
+    // exchange to a session at request time. Other paste-token providers store
+    // the credential as a long-lived bearer.
+    if (isGitHubCopilotProviderId(profile.id)) {
+      // Fail closed on a dead user token so /login does not persist a useless credential.
+      await ensureGitHubCopilotSession(token, { force: true });
+      const tokenInfo = githubCopilotUserTokenInfo(token);
+      const storageKey = options.storageKey ?? this.storageName(profile.id);
+      await this.storage.save(storageKey, tokenInfo);
+      return tokenInfo;
+    }
+    const tokenInfo = staticPasteTokenInfo(token);
     const storageKey = options.storageKey ?? this.storageName(profile.id);
     await this.storage.save(storageKey, tokenInfo);
     return tokenInfo;
@@ -329,10 +453,10 @@ function toGenericPkceConfig(flow: ProviderFlowConfig): GenericPkceFlowConfig {
 /**
  * Resolves the refresh implementation for a flow kind.
  *
- * Branches on the provider id (not on `oauthHost` substrings): custom hosts,
- * reverse proxies, and case variations must not change which token endpoint or
- * payload shape is used. Host sniffing previously misrouted proxied xAI/Anthropic
- * setups into the OpenAI refresh path.
+ * Branches on the flow's declared variant (not on `oauthHost` substrings):
+ * custom hosts, reverse proxies, and case variations must not change which
+ * token endpoint or payload shape is used. Host sniffing previously misrouted
+ * proxied xAI/Anthropic setups into the OpenAI refresh path.
  */
 async function refreshForFlow(
   providerId: string,
@@ -350,12 +474,12 @@ async function refreshForFlow(
     case 'deep_link_poll':
       return toCursorTokenInfo(await refreshCursorToken(flow, refreshToken));
     case 'pkce_browser': {
-      if (providerId === 'xai-grok') {
+      if ((flow.variant ?? 'openai') === 'xai') {
         const { tokenUrl } = await resolveXaiEndpoints(flow);
         const token = await refreshXaiToken(flow, refreshToken, tokenUrl);
         return toXaiTokenInfo(token);
       }
-      if (providerId === 'anthropic-oauth') {
+      if (flow.variant === 'generic') {
         const token = await refreshPkceToken(toGenericPkceConfig(flow), refreshToken);
         return toXaiTokenInfo(token);
       }
@@ -363,9 +487,42 @@ async function refreshForFlow(
       return toOpenAiTokenInfo(token);
     }
     case 'paste_token':
-      // User token is long-lived; session exchange happens at request time.
-      return githubCopilotUserTokenInfo(refreshToken);
+      // User token is long-lived; session exchange happens at request time
+      // (GitHub Copilot). Other paste-token providers keep the same credential.
+      if (isGitHubCopilotProviderId(providerId)) {
+        return githubCopilotUserTokenInfo(refreshToken);
+      }
+      return staticPasteTokenInfo(refreshToken);
+    case 'code_paste':
+      // Re-provisions the Z.AI API key from the stored upstream token.
+      return refreshGlmZcodeToken(refreshToken);
+    case 'google_oauth':
+      return refreshGoogleToken(resolveGoogleGeminiCliOauthConfig(), refreshToken);
+    case 'device_code_kiro':
+      return refreshKiroToken(refreshToken);
   }
+}
+
+/** Reads the first non-empty credential env var from the given list. */
+function readPasteTokenEnv(envNames: readonly string[]): string | undefined {
+  for (const name of envNames) {
+    const value = process.env[name]?.trim();
+    if (value !== undefined && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+/** Wraps a non-refreshing pasted credential as a long-lived token bundle. */
+function staticPasteTokenInfo(token: string): TokenInfo {
+  const tenYearsSec = 10 * 365 * 24 * 60 * 60;
+  return {
+    accessToken: token,
+    refreshToken: '',
+    expiresAt: Math.floor(Date.now() / 1000) + tenYearsSec,
+    scope: '',
+    tokenType: 'Bearer',
+    expiresIn: tenYearsSec,
+  };
 }
 
 function openAiDeviceCodeToAuthorization(deviceCode: OpenAIDeviceCode): DeviceAuthorization {

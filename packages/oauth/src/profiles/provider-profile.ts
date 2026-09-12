@@ -28,6 +28,8 @@ export type OAuthProviderWire =
   | 'kimi'
   | 'cursor'
   | 'google-genai'
+  | 'code-assist'
+  | 'codewhisperer'
   | 'vertexai'
   | 'bedrock'
   | 'vertex_claude';
@@ -38,6 +40,8 @@ export type OAuthFlowKind =
   | 'device_code_kimi'
   /** OpenAI Codex custom device-code flow (usercode → poll → token exchange). */
   | 'device_code_openai'
+  /** AWS SSO OIDC device-code grant (Kiro / Amazon Q). */
+  | 'device_code_kiro'
   /** OAuth 2.0 PKCE authorization-code with a loopback browser callback. */
   | 'pkce_browser'
   /** Cursor deep-link PKCE: open login URL, poll `/auth/poll` (no loopback). */
@@ -46,7 +50,37 @@ export type OAuthFlowKind =
    * No third-party OAuth app. Persist a user-pasted / env token, then exchange
    * it at request time (GitHub Copilot session tokens).
    */
-  | 'paste_token';
+  | 'paste_token'
+  /** Google authorization-code flow (client secret + Code Assist project discovery). */
+  | 'google_oauth'
+  /**
+   * Browser authorize URL with a custom-protocol redirect a CLI cannot catch:
+   * the user pastes the final redirect URL (or bare code) and a
+   * provider-specific exchange runs on it (GLM ZCode).
+   */
+  | 'code_paste';
+
+/**
+ * Which implementation runs a `pkce_browser` flow. Providers sharing the
+ * standard authorization-code shape use the generic loopback path; providers
+ * with bespoke token-exchange payloads keep their dedicated impl.
+ */
+export type PkceFlowVariant =
+  /** Standard OAuth 2.0 PKCE (Anthropic, GitLab Duo). */
+  | 'generic'
+  /** OpenAI-style token exchange payload. */
+  | 'openai'
+  /** xAI token exchange with OIDC endpoint discovery. */
+  | 'xai';
+
+/**
+ * How the resolved OAuth token is attached to wire requests. `undefined`
+ * (default) means the wire's native credential style — e.g. `x-api-key` for
+ * the `anthropic` wire. `'bearer'` providers (Z.AI, GitLab Duo proxy) expect
+ * `Authorization: Bearer` instead, so the runtime injects that header and the
+ * anthropic adapter suppresses `x-api-key`.
+ */
+export type ProviderWireAuth = 'bearer';
 
 /**
  * Configuration needed to run an OAuth flow. The base {@link OAuthFlowConfig}
@@ -73,6 +107,8 @@ export interface ProviderFlowConfig extends OAuthFlowConfig {
   readonly discoveryUrl?: string;
   /** User-agent sent with OAuth HTTP requests. */
   readonly userAgent?: string;
+  /** Which `pkce_browser` implementation runs the flow. Defaults to `'openai'`. */
+  readonly variant?: PkceFlowVariant;
 }
 
 /**
@@ -88,6 +124,8 @@ export interface ProviderProfile {
   readonly flow: ProviderFlowConfig;
   /** Wire protocol the provider speaks once authenticated. */
   readonly wire: OAuthProviderWire;
+  /** Overrides the wire's default credential style (e.g. Bearer on `anthropic`). */
+  readonly wireAuth?: ProviderWireAuth;
   /** Base URL persisted into the provider config for runtime requests. */
   readonly apiBaseUrl?: string;
   /**
@@ -95,6 +133,11 @@ export interface ProviderProfile {
    * (for example Grok Build's `X-XAI-Token-Auth` CLI session marker).
    */
   readonly customHeaders?: Readonly<Record<string, string>>;
+  /**
+   * Env vars carrying a paste-token credential (`paste_token` flows), in
+   * lookup order. Defaults to the GitHub Copilot set when omitted.
+   */
+  readonly pasteTokenEnvs?: readonly string[];
   /** Where a user signs up / obtains access. */
   readonly signupUrl?: string;
   /** Favicon/docs link shown in the picker. */
@@ -125,5 +168,9 @@ export const OAUTH_PROVIDER_IDS = [
   'anthropic-oauth',
   'cursor-oauth',
   'github-copilot',
+  'gitlab-duo',
+  'glm-zcode',
+  'google-gemini-cli',
+  'kiro',
 ] as const;
 export type OAuthProviderId = (typeof OAUTH_PROVIDER_IDS)[number];

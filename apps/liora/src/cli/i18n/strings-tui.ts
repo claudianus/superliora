@@ -331,6 +331,8 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'Cursor rejected this client version. Set SUPERLIORA_CURSOR_CLIENT_VERSION to match a current Cursor CLI.',
   'tui.provider.oauthXaiVersion':
     'Grok Build rejected this client version. Set SUPERLIORA_XAI_GROK_CLIENT_VERSION to match a current grok CLI.',
+  'tui.provider.oauthGlmZcodeBroker':
+    'ZCode login rejected by the broker (error 2007). If the ZCode desktop app is installed, cancel the browser prompt to open it — the app consumes the single-use code — then retry and paste the redirect URL or code here before the app opens.',
   'tui.provider.kimiConsole': 'Kimi console: https://www.kimi.com/code/console',
   'tui.provider.loginCancelled': 'Login cancelled.',
   'tui.provider.refreshFailed':
@@ -776,6 +778,8 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     'Cursor가 이 클라이언트 버전을 거절했습니다. SUPERLIORA_CURSOR_CLIENT_VERSION을 현재 Cursor CLI에 맞추세요.',
   'tui.provider.oauthXaiVersion':
     'Grok Build가 이 클라이언트 버전을 거절했습니다. SUPERLIORA_XAI_GROK_CLIENT_VERSION을 현재 grok CLI에 맞추세요.',
+  'tui.provider.oauthGlmZcodeBroker':
+    'ZCode 로그인이 브로커에서 거절되었습니다 (오류 2007). ZCode 데스크톱 앱이 설치되어 있다면 브라우저의 앱 열기 프롬프트를 취소하세요(앱이 일회성 코드를 소모합니다). 다시 시도한 뒤 앱이 열리기 전에 리디렉트 URL이나 코드를 여기에 붙여넣으세요.',
   'tui.provider.kimiConsole': 'Kimi 콘솔: https://www.kimi.com/code/console',
   'tui.provider.loginCancelled': '로그인 취소됨.',
   'tui.provider.refreshFailed': '인증은 성공했으나 설정 새로고침 실패: {message}',
