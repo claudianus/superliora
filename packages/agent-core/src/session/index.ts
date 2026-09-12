@@ -8,6 +8,7 @@ import { Agent, type AgentOptions } from '../agent';
 import { type ConversationLoopState } from '../agent/conversation-loop';
 import { HookEngine } from './hooks';
 import { FileSnapshotStore } from './file-snapshot';
+import { FileProvenanceRecorder } from './file-provenance';
 import {
   appendWorkspaceAdditionalDir,
   normalizeAdditionalDirs,
@@ -72,6 +73,8 @@ export class Session {
   readonly log: ReturnType<typeof log.createChild> | typeof log;
   /** Session-scoped write/edit snapshots shared by all agents for `/rewind`. */
   readonly fileSnapshots: FileSnapshotStore;
+  /** Session-scoped file-provenance recorder shared by all agents. */
+  readonly fileProvenance: FileProvenanceRecorder;
   private readonly logHandle: SessionLogHandle | undefined;
   readonly hookEngine: HookEngine;
   readonly experimentalFlags: NonNullable<SessionOptions['experimentalFlags']>;
@@ -130,6 +133,10 @@ export class Session {
     this.fileSnapshots = new FileSnapshotStore({
       kaos: this.toolKaos,
       snapshotDir: FileSnapshotStore.snapshotDirForSession(options.homedir),
+    });
+    this.fileProvenance = new FileProvenanceRecorder({
+      filePath: FileProvenanceRecorder.provenancePathForSession(options.homedir),
+      cwd: options.kaos.getcwd(),
     });
     this.metadataPersistence = new SessionMetadataPersistence({
       sessionHomedir: options.homedir,
@@ -190,6 +197,7 @@ export class Session {
       telemetry: this.telemetry,
       experimentalFlags: this.experimentalFlags,
       fileSnapshots: this.fileSnapshots,
+      fileProvenance: this.fileProvenance,
       log: this.log,
       rpc: this.rpc,
       getToolKaos: () => this.toolKaos,
@@ -583,3 +591,13 @@ export {
   type FileSnapshotStoreOptions,
   type TurnFileSnapshot,
 } from './file-snapshot';
+export {
+  FileProvenanceRecorder,
+  readProvenanceFile,
+  FILE_PROVENANCE_ENV,
+  type FileProvenanceHook,
+  type FileProvenanceMutation,
+  type FileProvenanceOp,
+  type FileProvenanceRecord,
+  type ProvenanceMutationContext,
+} from './file-provenance';

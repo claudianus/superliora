@@ -14,6 +14,7 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
+import type { FileProvenanceHook } from '../../../session/file-provenance';
 import type { FileSnapshotStore } from '../../../session/file-snapshot';
 import { checkSwarmFileLease } from '#/fleet';
 import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
@@ -265,6 +266,8 @@ export class EditTool implements BuiltinTool<EditInput> {
       readonly onFileMutated?:
         | ((path: string, content: string) => Promise<string | undefined> | string | undefined)
         | undefined;
+      /** Optional file-provenance recorder (session attribution trail). */
+      readonly provenance?: FileProvenanceHook | undefined;
     },
   ) {}
 
@@ -362,6 +365,14 @@ export class EditTool implements BuiltinTool<EditInput> {
         const newContent = replaceOnceLiteral(content, args.old_string, args.new_string);
         const written = materializeModelText(newContent, modelView.lineEndingStyle);
         await this.kaos.writeAtomic(safePath, written);
+        await this.options?.provenance?.record({
+          path: safePath,
+          tool: this.name,
+          op: 'edit',
+          before: content,
+          after: newContent,
+          hashSource: written,
+        });
         return {
           output: await this.withMutationDiagnostics(
             safePath,
@@ -383,6 +394,14 @@ export class EditTool implements BuiltinTool<EditInput> {
       const newContent = parts.join(args.new_string);
       const written = materializeModelText(newContent, modelView.lineEndingStyle);
       await this.kaos.writeAtomic(safePath, written);
+      await this.options?.provenance?.record({
+        path: safePath,
+        tool: this.name,
+        op: 'edit',
+        before: content,
+        after: newContent,
+        hashSource: written,
+      });
       return {
         output: await this.withMutationDiagnostics(
           safePath,
