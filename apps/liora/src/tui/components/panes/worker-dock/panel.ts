@@ -743,6 +743,7 @@ export class WorkerDockPanelComponent implements Component {
         });
       }
     }
+    let minimalContent: string[] | undefined;
     for (const mode of ['full', 'tight', 'minimal'] as const) {
       const content = this.buildContent(mode, interior, contentBudget, now);
       if (content.length <= contentBudget) {
@@ -753,8 +754,13 @@ export class WorkerDockPanelComponent implements Component {
           borderToken: this.borderToken(now),
         });
       }
+      if (mode === 'minimal') minimalContent = content;
     }
-    const content = this.buildContent('minimal', interior, contentBudget, now).slice(0, contentBudget);
+    // Reuse the minimal build from the loop instead of rendering a 4th time.
+    const content = (minimalContent ?? this.buildContent('minimal', interior, contentBudget, now)).slice(
+      0,
+      contentBudget,
+    );
     return renderRoundedPanel({
       ...frameOpts,
       title: this.title('minimal', now),

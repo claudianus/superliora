@@ -57,12 +57,17 @@ export interface StreamingRevealContext {
   settleThinkingReveal?(): void;
 }
 
-/** Context currently armed for ambient-driven catch-up ticks. */
-let armedRevealCtx: StreamingRevealContext | undefined;
+/**
+ * Contexts currently armed for ambient-driven catch-up ticks. A Set (not a
+ * single slot) so two TUI instances in one process arm independently — a
+ * second instance's reschedule used to disarm the first, stalling its
+ * type-on mid-drain until a user input forced a frame.
+ */
+const armedRevealContexts = new Set<StreamingRevealContext>();
 
-/** True while a reveal channel still lags and needs shared-clock ticks. */
+/** True while any reveal channel still lags and needs shared-clock ticks. */
 export function isStreamRevealArmed(): boolean {
-  return armedRevealCtx !== undefined;
+  return armedRevealContexts.size > 0;
 }
 
 export function shouldSmoothStreamReveal(isReplaying: boolean): boolean {
@@ -93,7 +98,7 @@ export function resetRevealChannels(
 export function clearRevealTimer(ctx: StreamingRevealContext): void {
   ctx.runtime.revealArmed = false;
   ctx.runtime.lastRevealTickMs = 0;
-  if (armedRevealCtx === ctx) armedRevealCtx = undefined;
+  armedRevealContexts.delete(ctx);
 }
 
 function channelsStillLagging(ctx: StreamingRevealContext): boolean {
@@ -116,7 +121,7 @@ export function rescheduleRevealTimer(ctx: StreamingRevealContext): void {
     clearRevealTimer(ctx);
     return;
   }
-  armedRevealCtx = ctx;
+  armedRevealContexts.add(ctx);
   ctx.runtime.revealArmed = true;
   requestTUIContentRender(ctx.state);
 }
@@ -126,20 +131,27 @@ export function rescheduleRevealTimer(ctx: StreamingRevealContext): void {
  * Called from the native frame callback after `advanceAppearanceAnimationClock`.
  */
 export function tickArmedStreamReveal(): void {
-  const ctx = armedRevealCtx;
-  if (ctx === undefined || !ctx.runtime.revealArmed) return;
-  if (!shouldSmoothStreamReveal(ctx.isReplaying)) {
-    snapAllActiveReveals(ctx);
-    return;
+  // Each context guards its own STREAM_REVEAL_TICK_MS interval, so multiple
+  // armed instances share a frame without over-ticking. Deleting the current
+  // entry mid-iteration is safe for Set iteration.
+  for (const ctx of armedRevealContexts) {
+    if (!ctx.runtime.revealArmed) {
+      armedRevealContexts.delete(ctx);
+      continue;
+    }
+    if (!shouldSmoothStreamReveal(ctx.isReplaying)) {
+      snapAllActiveReveals(ctx);
+      continue;
+    }
+    const nowMs = appearanceAnimationNow();
+    if (
+      ctx.runtime.lastRevealTickMs > 0 &&
+      nowMs - ctx.runtime.lastRevealTickMs < STREAM_REVEAL_TICK_MS
+    ) {
+      continue;
+    }
+    onRevealTick(ctx, { inFrame: true });
   }
-  const nowMs = appearanceAnimationNow();
-  if (
-    ctx.runtime.lastRevealTickMs > 0 &&
-    nowMs - ctx.runtime.lastRevealTickMs < STREAM_REVEAL_TICK_MS
-  ) {
-    return;
-  }
-  onRevealTick(ctx, { inFrame: true });
 }
 
 export function onRevealTick(
@@ -197,7 +209,7 @@ export function onRevealTick(
   }
 
   if (channelsStillLagging(ctx)) {
-    armedRevealCtx = ctx;
+    armedRevealContexts.add(ctx);
     ctx.runtime.revealArmed = true;
     if (options.inFrame === true) {
       // Ensure another frame lands after STREAM_REVEAL_TICK_MS even if ambient

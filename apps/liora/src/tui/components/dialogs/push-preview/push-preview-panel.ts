@@ -14,7 +14,7 @@ import {
 import { currentTheme } from '#/tui/theme';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
-import { printableChar } from '#/tui/utils/printable-key';
+import { isPrintableChar, printableChar } from '#/tui/utils/printable-key';
 import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
 import type { ConductorJobCard } from '#/tui/utils/job/job-strip';
 
@@ -76,11 +76,16 @@ export class PushPreviewPanelComponent extends Container implements Focusable {
       return;
     }
     if (matchesKey(data, Key.backspace) || matchesKey(data, Key.delete)) {
-      this.summaryDraft = this.summaryDraft.slice(0, -1);
+      // Operate on code points so astral characters delete in one keystroke.
+      const chars = Array.from(this.summaryDraft);
+      chars.pop();
+      this.summaryDraft = chars.join('');
       this.opts.requestRender?.();
       return;
     }
-    if (ch !== undefined && ch.length === 1 && ch !== '\n') {
+    // Gate on isPrintableChar: printableChar passes raw bytes through for
+    // non-Kitty input, and control characters must not reach the summary.
+    if (isPrintableChar(ch) && ch !== '\n') {
       if (this.summaryDraft.length < 400) {
         this.summaryDraft += ch;
         this.opts.requestRender?.();

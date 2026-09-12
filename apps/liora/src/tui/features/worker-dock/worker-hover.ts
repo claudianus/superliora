@@ -4,6 +4,8 @@
  * then rest without raw timers (PREMIUM.md §7 — appearance clock only).
  */
 
+import { monotonicMotionNowMs } from '../appearance/appearance-state';
+
 export type HoverRegionId = string;
 
 export interface HoverRegionState {
@@ -18,18 +20,20 @@ export function getHoverRegionId(): HoverRegionId | undefined {
   return hoverState.regionId;
 }
 
-/** Wall time when the current hover region was entered (0 when none). */
+/** Motion-clock time when the current hover region was entered (0 when none). */
 export function getHoverEnteredAtMs(): number {
   return hoverState.enteredAtMs;
 }
 
 /**
  * Set the active hover region. Returns true when the id changed so callers
- * can request a content repaint. `nowMs` is the appearance / Date.now clock.
+ * can request a content repaint. `nowMs` must come from the shared motion
+ * clock (`monotonicMotionNowMs()` / `appearanceAnimationNow()`) — a `Date.now()`
+ * epoch stamp would pin every settle flash and stick the repaint memo on.
  */
 export function setHoverRegion(
   regionId: HoverRegionId | undefined,
-  nowMs: number = Date.now(),
+  nowMs: number = monotonicMotionNowMs(),
 ): boolean {
   if (hoverState.regionId === regionId) return false;
   hoverState =

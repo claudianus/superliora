@@ -43,7 +43,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
 
   // ── Transcript search (Ctrl-F) ───────────────────────────────────────────
   'tui.search.title': 'Search transcript',
-  'tui.search.hint': 'Enter next · Shift-Enter prev · Esc close',
+  'tui.search.hint': '↑↓ navigate · Enter next · Shift-Enter prev · Esc cancel',
   'tui.search.matches': '{count} matches',
   'tui.search.noMatches': 'No matches',
   'tui.search.placeholder': 'Type to search the conversation',
@@ -141,6 +141,18 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.exitConfirmPrimaryC': 'Press {chord} again to exit',
   'tui.footer.exitConfirmPrimaryD': 'Press {chord} again to exit',
   'tui.footer.detachHint': 'Detached. Output continues in background (/jobs bg).',
+  'tui.footer.noShellRunning': 'No shell command running.',
+  'tui.footer.shellStillStarting': 'Command is still starting — try again.',
+  'tui.footer.shellAlreadyFinished': 'Command already finished.',
+  'tui.footer.noForegroundTask': 'No foreground task running.',
+  'tui.footer.imageInClipboard': 'Image in clipboard · {chord} to paste',
+  'tui.footer.next.compactEvidence': 'durable evidence missing after compaction — verify IDs before resume',
+  'tui.footer.taskAlreadyFinishedOne': 'Task already finished.',
+  'tui.footer.taskAlreadyFinishedMany': '{count} tasks already finished.',
+  'tui.footer.movedToBackgroundOne': 'Moved 1 task to background.',
+  'tui.footer.movedToBackgroundMany': 'Moved {count} tasks to background.',
+  'tui.footer.movedPartial': 'Moved {detached} of {total} tasks to background.',
+  'tui.footer.jobsBgSuffix': ' /jobs bg to view.',
 
   // ── Permission mode notices ──────────────────────────────────────────────
   'tui.permission.yolo.on.title': 'YOLO mode: ON',
@@ -480,7 +492,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Transcript search (Ctrl-F) ───────────────────────────────────────────
   'tui.search.title': '대화 검색',
-  'tui.search.hint': 'Enter 다음 · Shift-Enter 이전 · Esc 닫기',
+  'tui.search.hint': '↑↓ 이동 · Enter 다음 · Shift-Enter 이전 · Esc 취소',
   'tui.search.matches': '{count}개 일치',
   'tui.search.noMatches': '일치 항목 없음',
   'tui.search.placeholder': '대화 내용을 검색하려면 입력',
@@ -504,7 +516,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.errors.noMatches': '일치하는 오류가 없습니다',
   'tui.errors.footer.move': '이동',
   'tui.errors.footer.jump': '점프',
-  'tui.errors.footer.close': '닫기',
+  'tui.errors.footer.close': '취소',
   'tui.errors.footer.filter': '입력하면 필터링',
 
   // ── Web content viewer (/web) ────────────────────────────────────────────
@@ -578,6 +590,18 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.footer.exitConfirmPrimaryC': '종료하려면 {chord}를 다시 누르세요',
   'tui.footer.exitConfirmPrimaryD': '종료하려면 {chord}를 다시 누르세요',
   'tui.footer.detachHint': '분리됨. 백그라운드 출력 계속 (/jobs bg).',
+  'tui.footer.noShellRunning': '실행 중인 셸 명령이 없습니다.',
+  'tui.footer.shellStillStarting': '명령이 아직 시작 중입니다 — 다시 시도하세요.',
+  'tui.footer.shellAlreadyFinished': '명령이 이미 종료되었습니다.',
+  'tui.footer.noForegroundTask': '실행 중인 포그라운드 작업이 없습니다.',
+  'tui.footer.imageInClipboard': '클립보드에 이미지가 있습니다 · {chord}로 붙여넣기',
+  'tui.footer.next.compactEvidence': '압축 후 영구 증거가 없습니다 — 재개 전에 ID를 확인하세요',
+  'tui.footer.taskAlreadyFinishedOne': '작업이 이미 종료되었습니다.',
+  'tui.footer.taskAlreadyFinishedMany': '{count}개 작업이 이미 종료되었습니다.',
+  'tui.footer.movedToBackgroundOne': '작업 1개를 백그라운드로 이동했습니다.',
+  'tui.footer.movedToBackgroundMany': '작업 {count}개를 백그라운드로 이동했습니다.',
+  'tui.footer.movedPartial': '{total}개 중 {detached}개 작업을 백그라운드로 이동했습니다.',
+  'tui.footer.jobsBgSuffix': ' /jobs bg로 확인하세요.',
 
   // ── Permission mode notices ──────────────────────────────────────────────
   'tui.permission.yolo.on.title': 'YOLO 모드: ON',

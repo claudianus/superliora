@@ -409,6 +409,9 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
   updateToolCall(toolCall: ToolCallBlockData): void {
     this.toolCall = toolCall;
     this.paintHeader();
+    // Re-arm: the name may resolve after mount ('Tool' placeholder), and the
+    // hint is idempotent (timer + visible guards) for already-armed cards.
+    this.detachHint.start(this.toolCall.name, this.ui !== undefined);
     rebuildToolCallComponentBody(this.internalsHost());
     this.internalsHost().onSnapshotChange?.();
     this.ui?.requestRender();
@@ -450,8 +453,16 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     this.ui?.requestRender();
   }
 
+  private disposed = false;
+
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
     this.detachHint.dispose();
+    // Eviction must drop the retained per-tool scroll state or the map grows
+    // unboundedly over long sessions (and recycled ids would restore stale
+    // scroll positions).
+    this.outputViewport.dispose();
   }
 
   setPlanInfo(info: { plan?: string; path?: string }): void {

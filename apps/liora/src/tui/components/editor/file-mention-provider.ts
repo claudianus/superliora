@@ -300,7 +300,48 @@ async function getFsMentionSuggestions(
   };
 }
 
+/**
+ * How long a completed filesystem walk stays valid. Typing `@src/comp…` fires
+ * a suggestion pass per debounce tick; without the cache each pass re-walked
+ * up to MAX_FALLBACK_SCAN entries. Short TTL: fresh enough for new files,
+ * long enough to make a typing session cost one walk.
+ */
+const FS_MENTION_CACHE_TTL_MS = 3_000;
+
+interface FsMentionCacheEntry {
+  readonly key: string;
+  readonly candidates: FsMentionCandidate[];
+  readonly expiresAtMs: number;
+}
+let fsMentionCache: FsMentionCacheEntry | undefined;
+
 async function collectFsMentionCandidates(
+  workDir: string,
+  additionalDirs: readonly string[],
+  signal: AbortSignal,
+): Promise<FsMentionCandidate[]> {
+  const cacheKey = JSON.stringify([workDir, ...additionalDirs]);
+  const now = Date.now();
+  if (
+    fsMentionCache !== undefined &&
+    fsMentionCache.key === cacheKey &&
+    now < fsMentionCache.expiresAtMs
+  ) {
+    return fsMentionCache.candidates;
+  }
+  const candidates = await collectFsMentionCandidatesUncached(
+    workDir,
+    additionalDirs,
+    signal,
+  );
+  // Aborted walks return partial results — do not cache them.
+  if (!signal.aborted) {
+    fsMentionCache = { key: cacheKey, candidates, expiresAtMs: Date.now() + FS_MENTION_CACHE_TTL_MS };
+  }
+  return candidates;
+}
+
+async function collectFsMentionCandidatesUncached(
   workDir: string,
   additionalDirs: readonly string[],
   signal: AbortSignal,

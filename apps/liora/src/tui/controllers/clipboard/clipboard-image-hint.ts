@@ -4,6 +4,7 @@ import { clipboardHasImage } from '#/utils/clipboard/clipboard-has-image';
 
 import { FOCUS_DEBOUNCE_MS, HINT_DISPLAY_MS } from '../../constant/clipboard-image-hint';
 import { TERMINAL_FOCUS_IN, TERMINAL_FOCUS_OUT } from '../../utils/terminal/terminal-focus';
+import { ttui } from '../../utils/tui-i18n';
 import type { FooterComponent } from '../../components/chrome/footer/footer';
 
 export interface ClipboardImageHintHost {
@@ -153,7 +154,7 @@ export class ClipboardImageHintController {
     // Same image we already notified about — stay quiet until it changes.
     if (!this.armed) return;
 
-    const hintText = `Image in clipboard · ${getPasteImageShortcut()} to paste`;
+    const hintText = ttui('tui.footer.imageInClipboard', { chord: getPasteImageShortcut() });
     this.clearClearHintTimer();
     this.lastHintText = hintText;
     this.armed = false;

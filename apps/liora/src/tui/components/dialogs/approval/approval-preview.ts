@@ -38,6 +38,8 @@ import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
 
 const ELLIPSIS = '…';
+/** Above this, approval file bodies skip shiki (rows stay scrollable, plain). */
+const APPROVAL_FILE_HIGHLIGHT_BUDGET = 400;
 
 export type ApprovalPreviewBlock = DiffDisplayBlock | FileContentDisplayBlock;
 
@@ -91,11 +93,12 @@ export class ApprovalPreviewViewer extends Container implements Focusable {
       this.scrollViewport('line-down');
       return;
     }
-    if (matchesKey(data, Key.pageUp) || k === ' ' || data === '\u0002') {
+    if (matchesKey(data, Key.pageUp) || data === '\u0002') {
       this.scrollViewport('page-up', Math.max(1, visible - 1));
       return;
     }
-    if (matchesKey(data, Key.pageDown) || data === '\u0006') {
+    // Space pages forward, like every standard pager (`less`), not backward.
+    if (matchesKey(data, Key.pageDown) || k === ' ' || data === '\u0006') {
       this.scrollViewport('page-down', Math.max(1, visible - 1));
       return;
     }
@@ -215,7 +218,15 @@ function buildDiffBody(block: DiffDisplayBlock): BuiltBody {
 
 function buildFileContentBody(block: FileContentDisplayBlock): BuiltBody {
   const lang = block.language ?? langFromPath(block.path);
-  const highlighted = highlightLines(block.content, lang);
+  // The rows stay complete (the viewer scrolls), but the synchronous shiki
+  // tokenize is budgeted: a Write approval of a multi-kiloline file must not
+  // tokenize the whole blob in the panel constructor (multi-second hang).
+  // Oversized files render plain — highlighting is decoration, approval is not.
+  const sourceLines = block.content.split('\n');
+  const highlighted =
+    sourceLines.length <= APPROVAL_FILE_HIGHLIGHT_BUDGET
+      ? highlightLines(block.content, lang)
+      : sourceLines;
   const lines = highlighted.map(
     (line, i) => currentTheme.fg('diffGutter', String(i + 1).padStart(4) + '  ') + line,
   );

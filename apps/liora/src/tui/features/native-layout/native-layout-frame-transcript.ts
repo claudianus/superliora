@@ -48,7 +48,7 @@ export function resetTranscriptPromoteWindowCacheForTest(): void {
 export function promoteTranscriptRegionLinesToCells(
   lines: readonly RendererRegionLine[],
 ): readonly RendererRegionLine[] {
-  const defaultFg = currentTheme.palette.text;
+  const defaultFg = currentTheme.color('text');
   return promoteRendererRegionLinesToCells(lines).map((line) => {
     if (typeof line === 'string') return line;
     return backfillTranscriptLineForeground(line, defaultFg);
@@ -67,7 +67,7 @@ export function promoteTranscriptRegionLinesToCellsCached(
     readonly selectionKey: string;
   },
 ): readonly RendererRegionLine[] {
-  const defaultFg = currentTheme.palette.text;
+  const defaultFg = currentTheme.color('text');
   const hit = promoteWindowCache;
   if (
     hit !== undefined &&

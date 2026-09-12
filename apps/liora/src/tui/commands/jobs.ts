@@ -97,11 +97,6 @@ export function handleJobsCommand(host: SlashCommandHost, rawArgs: string): void
     );
     return;
   }
-  // /jobs <id> → inspect
-  if (args.startsWith('job_') || !args.includes(' ')) {
-    handleJobCommand(host, args);
-    return;
-  }
   handleJobCommand(host, args);
 }
 

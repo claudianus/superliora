@@ -121,6 +121,7 @@ export function scheduleFlush(
     state.scheduledFlushAt = undefined;
     runFlush();
   }, delay);
+  state.flushTimer.unref?.();
 }
 
 export function flushNow(

@@ -75,6 +75,14 @@ export class ErrorNavigatorComponent extends Container implements Focusable {
 
   handleInput(data: string): void {
     if (matchesKey(data, Key.escape)) {
+      // Two-stage Esc (PREMIUM §3): first press clears the type-to-filter
+      // query, second press leaves the dialog.
+      if (this.filter.length > 0) {
+        this.filter = '';
+        this.viewport.select(0);
+        this.invalidate();
+        return;
+      }
       this.opts.onCancel();
       return;
     }

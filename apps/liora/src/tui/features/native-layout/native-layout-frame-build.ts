@@ -270,7 +270,7 @@ export function buildTUIStateNativeFrame(
       const vfx =
         region.id === 'editor' && state.editor.borderHighlighted && !skipDecorative
           ? createTUIStateNativeRegionVfx(state, 'focus-pulse', {
-              color: currentTheme.palette.primary,
+              color: currentTheme.color('primary'),
               seed: 'native-editor-focus',
             })
           : undefined;

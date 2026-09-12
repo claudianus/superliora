@@ -36,7 +36,7 @@ import {
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { printableChar } from '#/tui/utils/printable-key';
+import { isPrintableChar, printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { SearchableList } from '#/tui/utils/ui/searchable-list';
 import {
@@ -900,13 +900,18 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     }
     if (matchesKey(data, Key.backspace) || matchesKey(data, Key.delete)) {
       if (this.draft.length > 0) {
-        this.draft = this.draft.slice(0, -1);
+        // Operate on code points so astral characters delete in one keystroke.
+        const chars = Array.from(this.draft);
+        chars.pop();
+        this.draft = chars.join('');
         this.repaint();
       }
       return;
     }
+    // Gate on isPrintableChar: printableChar passes raw bytes through for
+    // non-Kitty input, and control characters must not reach the draft.
     const ch = printableChar(data);
-    if (ch !== undefined && ch.length > 0) {
+    if (isPrintableChar(ch) && ch !== '\n') {
       this.draft += ch;
       this.repaint();
     }

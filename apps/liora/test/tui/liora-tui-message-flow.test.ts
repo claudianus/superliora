@@ -1859,7 +1859,7 @@ command = "vim"
     const transcript = stripSgr(renderTranscript(driver));
     const panel = stripSgr(renderBtwPanel(driver));
     const editorTopBorder = stripSgr(driver.state.editor.render(80)[0] ?? '');
-    expect(panel).toContain('BTW ─ Esc close');
+    expect(panel).toContain('BTW ─ Esc cancel');
     expect(panel).not.toContain('ctrl+o expand');
     expect(editorTopBorder.startsWith('├')).toBe(true);
     expect(editorTopBorder.endsWith('┤')).toBe(true);
@@ -2047,7 +2047,7 @@ command = "vim"
 
     const collapsed = panel.render(80).map(stripSgr);
     expect(collapsed).toHaveLength(5);
-    expect(collapsed.join('\n')).toContain('BTW ─ Esc close · ↑↓ scroll');
+    expect(collapsed.join('\n')).toContain('BTW ─ Esc cancel · ↑↓ scroll');
     expect(collapsed.join('\n')).not.toContain('ctrl+o expand');
     expect(collapsed.join('\n')).toContain('question 8');
     expect(collapsed.join('\n')).toContain('answer 8');
@@ -2055,7 +2055,7 @@ command = "vim"
 
     driver.state.editor.setText('draft main input');
     const collapsedWithInput = panel.render(80).map(stripSgr);
-    expect(collapsedWithInput.join('\n')).toContain('BTW ─ Esc close');
+    expect(collapsedWithInput.join('\n')).toContain('BTW ─ Esc cancel');
     expect(collapsedWithInput.join('\n')).not.toContain('↑↓ scroll');
     driver.state.editor.setText('');
 
@@ -2705,7 +2705,7 @@ command = "vim"
       const approval = stripSgr(driver.state.editorContainer.render(120).join('\n'));
       expect(approval).toContain('Ready to build with this plan?');
       expect(approval).toContain('Path: /tmp/no-duplicate-plan.md');
-      expect(approval).toContain('ctrl+e preview');
+      expect(approval).toContain('Ctrl+E preview');
       expect(approval).toContain('Line comment: L12');
       // Compact file_content summary still shows early lines; full book is transcript.
       expect(approval).toContain('non-duplicated plan work');

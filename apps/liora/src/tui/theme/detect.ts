@@ -13,7 +13,11 @@
  * the OSC reply gets eaten by the input loop.
  */
 
-import { OSC11_QUERY, TERMINAL_THEME_DETECT_TIMEOUT_MS } from "#/tui/constant/terminal";
+import {
+  OSC11_QUERY,
+  TERMINAL_THEME_DETECT_TIMEOUT_MS,
+  TERMINAL_THEME_INPUT_BUFFER_MAX_LENGTH,
+} from "#/tui/constant/terminal";
 
 import type { ResolvedTheme } from "./colors";
 import { parseOsc11BackgroundTheme } from "./terminal-background";
@@ -74,6 +78,13 @@ async function queryOsc11(opts: { timeoutMs: number }): Promise<ResolvedTheme | 
     const result = await new Promise<ResolvedTheme | null>((resolve) => {
       listener = (chunk: Buffer): void => {
         buffer += chunk.toString("utf8");
+        // Cap the accumulation: a terminal streaming paste data during the
+        // probe window must not grow the buffer without bound, and bytes that
+        // clearly are not an OSC 11 reply should stop being held hostage.
+        if (buffer.length > TERMINAL_THEME_INPUT_BUFFER_MAX_LENGTH) {
+          resolve(null);
+          return;
+        }
         const theme = parseOsc11BackgroundTheme(buffer);
         if (theme !== null) resolve(theme);
       };
@@ -114,7 +125,10 @@ export function parseColorFgBg(value: string | undefined): ResolvedTheme | null 
   const bgRaw = parts.at(-1);
   if (bgRaw === undefined) return null;
   const bg = parseInt(bgRaw, 10);
-  if (!Number.isInteger(bg)) return null;
+  // Only an ANSI 16-color index classifies the background; garbage, negative,
+  // and out-of-range values (e.g. `15;9999`, `-1`) fall through to the safe
+  // `dark` default like every other failed detection path.
+  if (!Number.isInteger(bg) || bg < 0 || bg > 15) return null;
   // ANSI 0=black, 1=red, 2=green, 3=yellow, 4=blue, 5=magenta, 6=cyan, 8=bright black.
   const darkBgs = new Set([0, 1, 2, 3, 4, 5, 6, 8]);
   return darkBgs.has(bg) ? "dark" : "light";

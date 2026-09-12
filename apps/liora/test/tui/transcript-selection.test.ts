@@ -12,6 +12,7 @@ import {
 } from '#/tui/features/transcript/transcript-hit-test';
 import * as transcriptHitTest from '#/tui/features/transcript/transcript-hit-test';
 import { handleTranscriptSelectionMouseInput } from '#/tui/features/transcript/transcript-selection-mouse';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { createTUIStateNativeInputRouter } from '#/tui/features/native-layout/native-input-router';
 import { resetStageResizeDragForTests } from '#/tui/features/stage/stage-resize-mouse';
 import {
@@ -202,7 +203,7 @@ describe('transcript selection mouse routing', () => {
 
     await vi.waitFor(() => {
       expect(copyTextToClipboardMock).toHaveBeenCalledWith('Hello');
-      expect(state.toast.visible?.message).toBe('Copied to clipboard');
+      expect(state.toast.visible?.message).toBe(ttui('tui.clipboard.copiedToClipboard'));
     });
     // Drag-release copy keeps the highlight so the user can re-copy or Ctrl+C.
     expect(state.transcriptSelection.hasSelection).toBe(true);
@@ -251,7 +252,7 @@ describe('transcript selection mouse routing', () => {
 
     await vi.waitFor(() => {
       expect(copyTextToClipboardMock).toHaveBeenCalled();
-      expect(state.toast.visible?.message).toBe('Copied to clipboard');
+      expect(state.toast.visible?.message).toBe(ttui('tui.clipboard.copiedToClipboard'));
     });
     expect(state.transcriptSelection.hasSelection).toBe(true);
   });
@@ -401,7 +402,7 @@ describe('native router + transcript selection', () => {
 
     await vi.waitFor(() => {
       expect(copyTextToClipboardMock).toHaveBeenCalled();
-      expect(state.toast.visible?.message).toBe('Copied to clipboard');
+      expect(state.toast.visible?.message).toBe(ttui('tui.clipboard.copiedToClipboard'));
     });
     expect(state.transcriptSelection.hasSelection).toBe(true);
   });

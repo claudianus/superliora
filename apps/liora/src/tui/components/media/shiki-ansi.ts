@@ -199,8 +199,23 @@ function shikiLangId(langId: string): string {
   }
 }
 
-/** Languages we already know are missing from the Shiki bundle. */
+/**
+ * Languages we already know are missing from the Shiki bundle. Insertion
+ * ordered with a FIFO cap: a quirky transcript can feed unbounded distinct
+ * fence tags, and the set should not grow for the whole process lifetime.
+ * Re-evicted languages just retry the (cheap, failing) load probe.
+ */
+const KNOWN_MISSING_LANGS_MAX = 256;
 const knownMissingLangs = new Set<string>();
+
+function rememberMissingLang(shikiId: string): void {
+  if (knownMissingLangs.has(shikiId)) return;
+  knownMissingLangs.add(shikiId);
+  if (knownMissingLangs.size > KNOWN_MISSING_LANGS_MAX) {
+    const oldest = knownMissingLangs.values().next().value;
+    if (oldest !== undefined) knownMissingLangs.delete(oldest);
+  }
+}
 
 function ensureLanguageLoaded(instance: ShikiInstance, langId: string): boolean {
   const shikiId = shikiLangId(langId);
@@ -216,7 +231,7 @@ function ensureLanguageLoaded(instance: ShikiInstance, langId: string): boolean 
           pendingLangLoads.delete(shikiId);
         })
         .catch(() => {
-          knownMissingLangs.add(shikiId);
+          rememberMissingLang(shikiId);
           pendingLangLoads.delete(shikiId);
         }),
     );

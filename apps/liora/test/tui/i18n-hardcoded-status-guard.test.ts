@@ -3,12 +3,12 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const PACKAGE_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '../..');
+const PACKAGE_ROOT = join(import.meta.dirname, '../..');
 const TUI_ROOT = join(PACKAGE_ROOT, 'src/tui');
 const ALLOWLIST_PATH = join(PACKAGE_ROOT, 'test/tui/i18n-hardcoded-allowlist.txt');
 
 const SHOW_LITERAL_RE =
-  /show(?:Status|Error|Notice)\(\s*(['"])(?:\\.|(?!\1)[^\\])*\1/g;
+  /show(?:Status|Error|Notice)\(\s*(['"`])(?:\\.|(?!\1)[^\\])*\1/g;
 
 function walkTsFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -49,7 +49,7 @@ function scanHardcodedLiterals(): string[] {
       }
     }
   }
-  return hits.sort();
+  return hits.toSorted();
 }
 
 describe('i18n hardcoded status guard', () => {

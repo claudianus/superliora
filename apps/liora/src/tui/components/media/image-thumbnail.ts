@@ -56,6 +56,16 @@ const IMAGE_PREVIEW_WIDTH_BY_TIER = {
  * alternate screen is torn down.
  */
 const transmittedImageIds = new Set<number>();
+/** FIFO cap: ids are small ints, but a long session should not grow the set forever. */
+const TRANSMITTED_IMAGE_IDS_MAX = 256;
+
+function rememberTransmittedImageId(id: number): void {
+  transmittedImageIds.add(id);
+  if (transmittedImageIds.size > TRANSMITTED_IMAGE_IDS_MAX) {
+    const oldest = transmittedImageIds.values().next().value;
+    if (oldest !== undefined) transmittedImageIds.delete(oldest);
+  }
+}
 
 /** Test support: forget recorded transmissions so tests re-transmit. */
 export function resetKittyPlaceholderTransmissions(): void {
@@ -172,7 +182,7 @@ export class ImageThumbnail implements Component {
         encodeKittyPlaceholderTransmit({ id: this.attachment.id, base64, columns, rows }),
       );
       if (!sent) return undefined;
-      transmittedImageIds.add(this.attachment.id);
+      rememberTransmittedImageId(this.attachment.id);
     }
     return encodeKittyPlaceholderLines({ id: this.attachment.id, columns, rows });
   }
@@ -207,7 +217,7 @@ export class ImageThumbnail implements Component {
       });
       const sent = emitKittyGraphics(encoded.output);
       if (!sent) return undefined;
-      transmittedImageIds.add(this.attachment.id);
+      rememberTransmittedImageId(this.attachment.id);
     }
     // Reserve vertical space with blank rows so the inline image is not
     // immediately overwritten by the next transcript cell.

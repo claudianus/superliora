@@ -18,7 +18,7 @@ describe('footer plain labels', () => {
     expect(labelMedia('plain', true, true)).toBe('Media ready');
     expect(labelMedia('compact', true, true)).toBe('img·vid');
     expect(labelBackgroundBash('plain', 2)).toBe('2 shell jobs');
-    expect(labelBackgroundBash('compact', 2)).toBe('[2 tasks running]');
+    expect(labelBackgroundBash('compact', 2)).toBe('2 shell jobs running');
     expect(labelWorkingSet('plain', { maxWorkingSetTokens: 256_000 })).toMatch(
       /Working set /,
     );

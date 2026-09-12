@@ -58,11 +58,11 @@ export function labelMedia(
   return 'vid';
 }
 
-export function labelHistoryViewport(labels: FooterLabels, rowsBehind: number, compactCount: string): string {
+export function labelHistoryViewport(labels: FooterLabels, rowsBehind: number): string {
   if (isPlainLabels(labels)) {
-    return `History · ${compactCount} lines up`;
+    return `History · ${String(rowsBehind)} rows up`;
   }
-  return `history +${compactCount} rows`;
+  return `history +${String(rowsBehind)} rows`;
 }
 
 export function labelGoalXp(labels: FooterLabels): string {
@@ -167,8 +167,8 @@ export function labelBackgroundBash(labels: FooterLabels, count: number): string
   if (isPlainLabels(labels)) {
     return count === 1 ? '1 shell job' : `${String(count)} shell jobs`;
   }
-  const noun = count === 1 ? 'task' : 'tasks';
-  return `[${String(count)} ${noun} running]`;
+  const noun = count === 1 ? 'shell job' : 'shell jobs';
+  return `${String(count)} ${noun} running`;
 }
 
 export function labelBackgroundAgent(labels: FooterLabels, count: number): string {
@@ -176,7 +176,7 @@ export function labelBackgroundAgent(labels: FooterLabels, count: number): strin
     return count === 1 ? '1 agent' : `${String(count)} agents`;
   }
   const noun = count === 1 ? 'agent' : 'agents';
-  return `[${String(count)} ${noun} running]`;
+  return `${String(count)} ${noun} running`;
 }
 
 /** Compact Conductor Job strip for footer (E1). */
@@ -260,8 +260,8 @@ export function labelModelRoute(
   return `via ${toLabel}`;
 }
 
-export function labelMenu(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Menu ?' : 'Menu ?';
+export function labelMenu(_labels: FooterLabels): string {
+  return 'Menu ?';
 }
 
 export function labelContextPrefix(labels: FooterLabels): string {

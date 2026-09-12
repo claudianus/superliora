@@ -2,6 +2,7 @@ import {Container, Key, matchesKey, renderRendererPanelChromeRows, type Focusabl
 import type { PluginSummary } from '@superliora/sdk';
 import chalk from 'chalk';
 
+import {pageView} from '#/tui/utils/ui/paging';
 import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';
 import {currentTheme} from '#/tui/theme';
 import {printableChar} from '#/tui/utils/printable-key';
@@ -9,6 +10,9 @@ import {renderTabStrip} from '#/tui/utils/ui/tab-strip';
 import {computeUpdateStatus, type PluginMarketplaceEntry} from '#/utils/plugin-marketplace';
 
 import { ttui } from '#/tui/utils/tui-i18n';
+
+/** Rows visible per page in the plugin lists — taller lists page with ▲/▼ indicators. */
+const PLUGIN_LIST_PAGE_ROWS = 8;
 
 import {Input} from '../shared/input';
 import {
@@ -196,6 +200,14 @@ export class PluginsPanelComponent extends Container implements Focusable {
       this.selectedIndex = Math.min(plugins.length - 1, this.selectedIndex + 1);
       return;
     }
+    if (matchesKey(data, Key.pageUp) || matchesKey(data, Key.pageDown)) {
+      const delta = matchesKey(data, Key.pageUp) ? -PLUGIN_LIST_PAGE_ROWS : PLUGIN_LIST_PAGE_ROWS;
+      this.selectedIndex = Math.min(
+        Math.max(0, plugins.length - 1),
+        Math.max(0, this.selectedIndex + delta),
+      );
+      return;
+    }
     const plugin = plugins[this.selectedIndex];
     const ch = printableChar(data);
     // Decode Space for terminals that send printable keys via Kitty/CSI-u
@@ -244,6 +256,13 @@ export class PluginsPanelComponent extends Container implements Focusable {
       // Clamp to 0 while the catalog is still loading (entries empty); otherwise
       // `entries.length - 1` is -1 and a later Enter reads `entries[-1]`.
       this.selectedIndex = entries.length === 0 ? 0 : Math.min(entries.length - 1, this.selectedIndex + 1);
+      return;
+    }
+    if (matchesKey(data, Key.pageUp) || matchesKey(data, Key.pageDown)) {
+      const delta = matchesKey(data, Key.pageUp) ? -PLUGIN_LIST_PAGE_ROWS : PLUGIN_LIST_PAGE_ROWS;
+      this.selectedIndex = entries.length === 0
+        ? 0
+        : Math.min(Math.max(0, entries.length - 1), Math.max(0, this.selectedIndex + delta));
       return;
     }
     if (matchesKey(data, Key.enter)) {
@@ -304,8 +323,15 @@ export class PluginsPanelComponent extends Container implements Focusable {
     if (installed.length === 0) {
       lines.push(chalk.hex(colors.textMuted)('  No plugins installed.'));
     } else {
-      for (let i = 0; i < installed.length; i++) {
+      const view = pageView(installed.length, this.selectedIndex, PLUGIN_LIST_PAGE_ROWS);
+      if (view.start > 0) {
+        lines.push(mutedHintLine(`  ▲ ${String(view.start)} more`, colors));
+      }
+      for (let i = view.start; i < view.end; i++) {
         lines.push(...this.renderInstalledRow(installed[i]!, i, width));
+      }
+      if (view.end < installed.length) {
+        lines.push(mutedHintLine(`  ▼ ${String(installed.length - view.end)} more`, colors));
       }
     }
     lines.push('');
@@ -376,8 +402,15 @@ export class PluginsPanelComponent extends Container implements Focusable {
     if (entries.length === 0) {
       lines.push(chalk.hex(colors.textMuted)('  No plugins found.'));
     } else {
-      for (let i = 0; i < entries.length; i++) {
+      const view = pageView(entries.length, this.selectedIndex, PLUGIN_LIST_PAGE_ROWS);
+      if (view.start > 0) {
+        lines.push(mutedHintLine(`  ▲ ${String(view.start)} more`, colors));
+      }
+      for (let i = view.start; i < view.end; i++) {
         lines.push(...this.renderMarketplaceRow(entries[i]!, i, width));
+      }
+      if (view.end < entries.length) {
+        lines.push(mutedHintLine(`  ▼ ${String(entries.length - view.end)} more`, colors));
       }
     }
     const installedCount = entries.filter((e) => this.opts.installedIds.has(e.id)).length;

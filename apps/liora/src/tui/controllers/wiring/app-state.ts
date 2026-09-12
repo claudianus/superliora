@@ -9,6 +9,9 @@ import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/ren
 import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { hasPatchChanges } from '../../utils/object-patch';
 import type { AppearanceController } from '../appearance/index';
+import { DEFAULT_APPEARANCE_PREFERENCES, DEFAULT_PERFORMANCE_MODE } from '../../config';
+import { resolveEffectiveAppearance } from '../../features/appearance/performance-mode';
+import type { TranscriptDetailLevel } from '../../types';
 import type { DialogsController } from '../dialogs/index';
 import type { PromptIntelligenceController } from '../prompt/prompt-intelligence';
 import type { SessionEventHandler } from '../session-event/handler';
@@ -64,6 +67,8 @@ export interface AppStateHost {
   updateActivityPane(): void;
   updateQueueDisplay(): void;
   setupAutocomplete(): void;
+  setTranscriptDetail(level: TranscriptDetailLevel): void;
+  setNeatMode(enabled: boolean): void;
 }
 
 /**
@@ -121,6 +126,18 @@ export class AppStateController {
       // `mission_control` rides the appearance prefs; keep the panel's
       // pinned placeholder in sync no matter which command set it.
       host.workerDock.syncPreferences();
+      // Mirror the boot-time overlay sync: when the performance mode flips
+      // through a bare setAppState (config reload, session restore), the
+      // effective density/neat must follow the overlay, not just the motion
+      // pack. /performance goes through setTranscriptDetail itself; this
+      // covers every other writer.
+      if ('performanceMode' in patch) {
+        const stored = host.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
+        const mode = host.state.appState.performanceMode ?? DEFAULT_PERFORMANCE_MODE;
+        const effective = resolveEffectiveAppearance(mode, stored);
+        host.setTranscriptDetail(effective.transcriptDetail);
+        host.setNeatMode(effective.neat);
+      }
     }
     // Resync ambient schedule when busy state flips so live clocks keep ticking
     // (and stop) without waiting for an appearance change.

@@ -268,7 +268,7 @@ export const STRINGS_TUI_HANDLERS_KO: Readonly<Record<string, string>> = {
   'tui.jobs.deckEmptyStep1': "1. 채팅에 작업을 입력하면 Job이 생깁니다",
   'tui.jobs.deckEmptyStep2': "2. Jobs 보드(이 덱) · 워커는 Dock(/jobs dock)",
   'tui.jobs.deckEmptyStep3': "3. Alt+J로 Jobs를 다시 엽니다",
-  'tui.jobs.deckEmptyFooter': "Esc 닫기 · 결과(outcome)를 말로 적어 시작하세요",
+  'tui.jobs.deckEmptyFooter': "Esc 취소 · 결과(outcome)를 말로 적어 시작하세요",
   'tui.jobs.deckNoMatch': "검색과 맞는 Job이 없습니다.",
   'tui.jobs.outcomeJobsSubheader': "Job 상세",
   'tui.jobs.outcomeJobsUnit': "개",

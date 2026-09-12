@@ -481,7 +481,6 @@ export class TodoPanelComponent implements Component {
     const stabilizeRows = (rows: number): number => this.stabilizeBoardRows(rows);
     const laneFlashes = this.motion.currentLaneFlashes();
     let hasScroll = false;
-    let renderedForReveal: readonly TodoItem[] = this.todos;
     if (this.expanded) {
       this.motion.refreshMotionCues(this.todos, this.expanded, this.todos, changedAtMs);
       const motions = this.motion.currentMotionCues();
@@ -512,7 +511,6 @@ export class TodoPanelComponent implements Component {
         const offset = clampScrollOffset(this.scrollOffset, laneRows, viewport);
         this.scrollOffset = offset;
         const rows = windowTodos(this.todos, offset, viewport);
-        renderedForReveal = rows;
         this.motion.refreshMotionCues(this.todos, this.expanded, rows, changedAtMs);
         const motions = this.motion.currentMotionCues();
         const revealed = this.syncEnterReveals(motions);
@@ -536,7 +534,6 @@ export class TodoPanelComponent implements Component {
         }
       } else {
         const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
-        renderedForReveal = rows;
         this.motion.refreshMotionCues(this.todos, this.expanded, rows, changedAtMs);
         const motions = this.motion.currentMotionCues();
         const revealed = this.syncEnterReveals(motions);
@@ -564,7 +561,6 @@ export class TodoPanelComponent implements Component {
         }
       }
     }
-    void renderedForReveal;
     lines.push(
       renderTodoDenseFooter(this.callsSinceUpdate, summary, this.expanded, hasScroll),
     );

@@ -153,15 +153,17 @@ export class FooterComponent implements Component {
       activeBeat,
     });
 
-    return [truncateToWidth(line1, width), truncateToWidth(line2, width)];
+    return [truncateToWidth(line1, width, '…'), truncateToWidth(line2, width, '…')];
   }
 
   /**
-   * Tear down owned resources. Goal wall-clock advances on ambient/chrome
-   * rebuilds while a live goal keeps chrome dynamic (PREMIUM §7.1).
+   * Tear down owned resources. The git cache must not fire `onChange` →
+   * requestRender after the footer is gone (in-flight async refreshes).
    * Idempotent.
    */
-  dispose(): void {}
+  dispose(): void {
+    this.gitCache.dispose();
+  }
 
   private syncGoalClock(goal: AppState['goal']): void {
     // Re-anchor only on identity/status flips — progress ticks must not zero elapsed.

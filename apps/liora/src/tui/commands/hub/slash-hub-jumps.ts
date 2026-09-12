@@ -28,7 +28,10 @@ export function buildSlashJumpHubItems(
     const isSkill = skillNames.has(command.name);
     items.push({
       id: `slash.${command.name}`,
+      // Localized section key (not a raw English label) so the row description
+      // prefix and the section sort rank agree with the curated rows.
       section: isSkill ? 'Skills' : 'Commands',
+      sectionKey: isSkill ? 'tui.hub.section.skills' : 'tui.hub.section.commands',
       label: `/${command.name}`,
       description: command.description,
       searchOnly: true,

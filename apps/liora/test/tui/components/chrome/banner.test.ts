@@ -143,11 +143,12 @@ describe('BannerComponent', () => {
     expect(tagPrefixVisibleWidth).toBeGreaterThan(visibleWidth('✦ '));
   });
 
-  it('drops the tag when it does not fit', () => {
+  it('renders the tag truncated on its own line when it does not fit inline', () => {
+    // The old behavior dropped the tag entirely on narrow terminals — silent
+    // content loss. It now leads on its own line, truncated to the width.
     const width = 5;
     const lines = new BannerComponent(banner).render(width);
-    expect(lines[0]).not.toContain('✦');
-    expect(lines[0]).not.toContain("What's new");
+    expect(lines[0]).toContain('✦');
     for (const line of lines) {
       expect(visibleWidth(line)).toBeLessThanOrEqual(width);
     }

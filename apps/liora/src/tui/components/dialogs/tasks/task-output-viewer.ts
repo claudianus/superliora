@@ -126,18 +126,15 @@ export class TaskOutputViewer extends Container implements Focusable {
       this.scrollViewport('line-down');
       return;
     }
-    if (
-      matchesKey(data, Key.pageUp) ||
-      matchesKey(data, Key.ctrl('u')) ||
-      k === ' ' ||
-      data === '\u0002' /* C-b */
-    ) {
+    if (matchesKey(data, Key.pageUp) || matchesKey(data, Key.ctrl('u')) || data === '\u0002' /* C-b */) {
       this.scrollViewport('page-up', Math.max(1, visible - 1));
       return;
     }
+    // Space pages forward, like every standard pager (`less`), not backward.
     if (
       matchesKey(data, Key.pageDown) ||
       matchesKey(data, Key.ctrl('d')) ||
+      k === ' ' ||
       data === '\u0006' /* C-f */
     ) {
       this.scrollViewport('page-down', Math.max(1, visible - 1));
