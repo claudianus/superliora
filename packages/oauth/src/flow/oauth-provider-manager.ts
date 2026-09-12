@@ -21,6 +21,7 @@ import {
 import {
   buildGlmZcodeAuthorizeUrl,
   exchangeGlmZcodeCode,
+  isGlmZcodeCodeConsumedError,
   refreshGlmZcodeToken,
 } from './oauth-flow-glm-zcode';
 import {
@@ -321,9 +322,10 @@ export class OAuthProviderManager {
   ): Promise<TokenInfo> {
     const signal = options.signal;
     if (signal?.aborted) throw new OAuthError('Login cancelled.');
-    const state = generateState();
+    let state = generateState();
     await callbacks.onAuthorizeUrl?.(buildGlmZcodeAuthorizeUrl(state));
     let lastError: string | undefined;
+    let restarts = 0;
     for (;;) {
       const pasted = await callbacks.onManualCallbackPrompt?.({
         signal: signal ?? new AbortController().signal,
@@ -338,6 +340,14 @@ export class OAuthProviderManager {
       } catch (error) {
         if (signal?.aborted) throw error;
         lastError = error instanceof Error ? error.message : String(error);
+        // The ZCode desktop app consumes the single-use code when the browser
+        // redirect opens it; a dead code can never be pasted successfully.
+        // Restart with a fresh authorize URL instead of re-prompting forever.
+        if (restarts < 2 && isGlmZcodeCodeConsumedError(lastError)) {
+          restarts += 1;
+          state = generateState();
+          await callbacks.onAuthorizeUrl?.(buildGlmZcodeAuthorizeUrl(state));
+        }
       }
     }
   }

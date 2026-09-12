@@ -119,6 +119,80 @@ describe('OAuthProviderManager variant dispatch', () => {
     expect(body).not.toContain('client_secret');
   });
 
+  it('restarts the glm-zcode flow when the ZCode app consumes the code (broker 2007)', async () => {
+    const { storage } = memoryStorage();
+    let brokerCalls = 0;
+    const fetchMock = vi.fn<FetchMock>(async (input, init) => {
+      const url = String(input);
+      if (url.includes('/api/v1/oauth/token')) {
+        brokerCalls += 1;
+        if (brokerCalls === 1) {
+          return new Response('error 2007: code already used by the ZCode app', { status: 500 });
+        }
+        expect(JSON.parse(String(init?.body))['state']).toBe(authorizeStates.at(-1));
+        return jsonResponse({ data: { token: 'zcode-jwt', zai: { access_token: 'upstream' } } });
+      }
+      if (url.includes('/api/auth/z/login')) return jsonResponse({ data: { access_token: 'biz' } });
+      if (url.includes('/getCustomerInfo')) {
+        return jsonResponse({
+          data: {
+            organizations: [
+              { organizationId: 'o', isDefault: true, projects: [{ projectId: 'p', isDefault: true }] },
+            ],
+          },
+        });
+      }
+      if (url.includes('/api_keys/copy/key-1')) return jsonResponse({ data: { secretKey: 'sec-1' } });
+      if (url.includes('/api_keys')) {
+        return jsonResponse({ data: brokerCalls > 1 ? [{ name: 'zcode-api-key', apiKey: 'key-1' }] : [] });
+      }
+      return jsonResponse({ error: 'unexpected' }, 500);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const manager = new OAuthProviderManager({ storage });
+    const authorizeStates: string[] = [];
+    let pasteCount = 0;
+    const token = await manager.login('glm-zcode', {
+      onAuthorizeUrl: (url) => {
+        authorizeStates.push(new URL(url).searchParams.get('state') ?? '');
+      },
+      onManualCallbackPrompt: async () => {
+        pasteCount += 1;
+        return `zcode://oauth/callback?code=auth-code-${String(pasteCount)}&state=${authorizeStates.at(-1)}`;
+      },
+    });
+
+    expect(authorizeStates).toHaveLength(2);
+    expect(token.accessToken).toBe('key-1.sec-1');
+  });
+
+  it('stops restarting the glm-zcode flow after two consumed-code attempts', async () => {
+    const { storage } = memoryStorage();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<FetchMock>(async () => new Response('error 2007: code already used', { status: 500 })),
+    );
+
+    const manager = new OAuthProviderManager({ storage });
+    const authorizeStates: string[] = [];
+    let pasteCount = 0;
+    await expect(
+      manager.login('glm-zcode', {
+        onAuthorizeUrl: (url) => {
+          authorizeStates.push(new URL(url).searchParams.get('state') ?? '');
+        },
+        onManualCallbackPrompt: async () => {
+          pasteCount += 1;
+          // End the loop once restarts are exhausted so the flow can unwind.
+          return pasteCount > 3 ? undefined : 'authorization-code-abc123';
+        },
+      }),
+    ).rejects.toThrow(/cancelled/i);
+    // Initial authorize + two restarts; the third failure re-prompts (no new URL).
+    expect(authorizeStates).toHaveLength(3);
+  });
+
   it('runs the glm-zcode code_paste login through the paste callback', async () => {
     const { storage, saved } = memoryStorage();
     const fetchMock = vi.fn<FetchMock>();
