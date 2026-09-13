@@ -1,3 +1,5 @@
+import { stat } from 'node:fs/promises';
+
 import { errorMessage, isAbortError } from './errors';
 import {
   coerceToolResult,
@@ -77,6 +79,34 @@ function isIdempotentMutationTool(toolName: string): boolean {
   return IDEMPOTENT_MUTATION_TOOLS.has(toolName);
 }
 
+/**
+ * Extract the primary mutated file path from mutation-tool args (Edit/Write
+ * use `path`; ApplyPatch's first patch header). Returns undefined when no
+ * single target can be identified.
+ */
+function idempotencyTargetPath(args: unknown): string | undefined {
+  if (typeof args !== 'object' || args === null) return undefined;
+  const path = (args as { path?: unknown }).path;
+  if (typeof path === 'string' && path.length > 0) return path;
+  // ApplyPatch: grab the first `*** Update File: <path>` / Add File header.
+  const patch = (args as { patch?: unknown }).patch;
+  if (typeof patch === 'string') {
+    const match = patch.match(/^\*\*\*\s+(?:Update|Add|Delete)\s+File:\s+(.+)$/m);
+    if (match !== null) return match[1]?.trim();
+  }
+  return undefined;
+}
+
+/** `mtimeMs:size` fingerprint of a file, or undefined when it cannot be stat'ed. */
+async function fingerprintTarget(path: string): Promise<string | undefined> {
+  try {
+    const st = await stat(path);
+    return `${String(st.mtimeMs)}:${String(st.size)}`;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function runRunnableToolCall(
   step: ToolCallStepContext,
   call: RunnableToolCall,
@@ -150,20 +180,36 @@ export async function runRunnableToolCall(
   if (idempotencyKey !== undefined) {
     const prior = step.guards.checkToolCallIdempotency(idempotencyKey);
     if (prior !== undefined && prior.result !== undefined) {
-      step.log?.info('idempotent mutation replay; skipping re-execution', {
+      // Replay only while the mutated file is byte-for-byte what the original
+      // call left behind. A formatter/linter/user rewrite in between means
+      // the cached "success" no longer describes the disk; re-execute.
+      const target = idempotencyTargetPath(effectiveArgs);
+      let targetUnchanged = true;
+      if (target !== undefined && prior.targetFingerprint !== undefined) {
+        const current = await fingerprintTarget(target);
+        targetUnchanged = current === prior.targetFingerprint;
+      }
+      if (targetUnchanged) {
+        step.log?.info('idempotent mutation replay; skipping re-execution', {
+          toolName,
+          toolCallId: toolCall.id,
+          ageMs: Date.now() - prior.executedAt,
+          code: IDEMPOTENCY_REPLAY_CODE,
+        });
+        const priorOut = prior.result;
+        const tip =
+          `\n\n${IDEMPOTENCY_REPLAY_CODE}: identical ${toolName} args already applied ` +
+          `${String(Date.now() - prior.executedAt)}ms ago. ` +
+          `Replayed prior result — no second write.`;
+        return makeToolResult(call, effectiveArgs, {
+          output: priorOut.length > 0 ? `${priorOut}${tip}` : tip.trim(),
+          isError: false,
+        });
+      }
+      step.log?.info('idempotent mutation replay skipped; target changed since record', {
         toolName,
         toolCallId: toolCall.id,
         ageMs: Date.now() - prior.executedAt,
-        code: IDEMPOTENCY_REPLAY_CODE,
-      });
-      const priorOut = prior.result;
-      const tip =
-        `\n\n${IDEMPOTENCY_REPLAY_CODE}: identical ${toolName} args already applied ` +
-        `${String(Date.now() - prior.executedAt)}ms ago. ` +
-        `Replayed prior result — no second write.`;
-      return makeToolResult(call, effectiveArgs, {
-        output: priorOut.length > 0 ? `${priorOut}${tip}` : tip.trim(),
-        isError: false,
       });
     }
   }
@@ -259,7 +305,16 @@ export async function runRunnableToolCall(
         typeof toolResult.output === 'string'
           ? toolResult.output
           : String(toolResult.output ?? '');
-      step.guards.recordToolCallExecution(idempotencyKey, toolName, effectiveArgs, out);
+      const target = idempotencyTargetPath(effectiveArgs);
+      const fingerprint =
+        target !== undefined ? await fingerprintTarget(target) : undefined;
+      step.guards.recordToolCallExecution(
+        idempotencyKey,
+        toolName,
+        effectiveArgs,
+        out,
+        fingerprint,
+      );
     }
   }
 

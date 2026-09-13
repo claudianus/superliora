@@ -89,7 +89,7 @@ export function startProgressReporter(
   let lastTool: string | undefined;
   let lastTarget: string | undefined;
   const originalEmit = child.emitEvent.bind(child);
-  child.emitEvent = (event: AgentEvent) => {
+  child.emitEvent = function subagentProgressEmitEvent(event: AgentEvent) {
     if (event.type === 'tool.call.started') {
       toolCount += 1;
       lastTool = event.name;
@@ -199,7 +199,12 @@ export function startProgressReporter(
   timer.unref?.();
   return () => {
     clearInterval(timer);
-    child.emitEvent = originalEmit;
+    // Remove only our own wrapper; if a later bridge wrapped us, deleting
+    // here would strand that bridge. Deleting the own property restores the
+    // prototype method instead of leaving a redundant bound function.
+    if (child.emitEvent?.name === 'subagentProgressEmitEvent') {
+      delete child.emitEvent;
+    }
   };
 }
 
@@ -266,7 +271,7 @@ export function attachToolStreamBridge(
   // longer carry a swarm run id.
   const runId: string | undefined = undefined;
   const toolNames = new Map<string, string>();
-  child.emitEvent = (event: AgentEvent) => {
+  child.emitEvent = function subagentToolStreamEmitEvent(event: AgentEvent) {
     originalEmitEvent(event);
     if (event.type === 'tool.call.started') {
       toolNames.set(event.toolCallId, event.name);
@@ -316,7 +321,11 @@ export function attachToolStreamBridge(
     }
   };
   return () => {
-    child.emitEvent = originalEmitEvent;
+    // Remove only our own wrapper; if a later bridge wrapped us, deleting
+    // here would strand that bridge.
+    if (child.emitEvent?.name === 'subagentToolStreamEmitEvent') {
+      delete child.emitEvent;
+    }
   };
 }
 

@@ -425,6 +425,69 @@ describe('SessionSubagentHost', () => {
     );
   });
 
+  it('restores the base emitEvent after both bridges attach and dispose (no wrapper stacking)', () => {
+    const parent = testAgent();
+    parent.configure();
+    const child = testAgent();
+    fakeSession(parent.agent, child.agent);
+    const options: RunSubagentOptions = {
+      parentToolCallId: 'tc-1',
+      prompt: 'work',
+      description: 'test subagent',
+      runInBackground: true,
+      signal,
+    };
+
+    // Snapshot the base behavior through the prototype chain: emitEvent is a
+    // prototype method, so the bridges install an own-property wrapper and a
+    // correct full dispose must DELETE it (not leave any own property).
+    const hasOwnEmit = () =>
+      Object.prototype.hasOwnProperty.call(child.agent, 'emitEvent');
+    expect(hasOwnEmit()).toBe(false);
+
+    const disposeProgress = startProgressReporter(
+      parent.agent,
+      child.agent,
+      'agent-0',
+      'coder',
+      1_000,
+    );
+    const disposeToolStream = attachToolStreamBridge(
+      parent.agent,
+      child.agent,
+      'agent-0',
+      'coder',
+      options,
+    );
+    // Both wrappers installed: own property present, no longer the base.
+    expect(hasOwnEmit()).toBe(true);
+
+    // LIFO disposal (completion flow order) must remove the own property so
+    // later emits run the prototype method again — no wrapper stacking.
+    disposeToolStream();
+    disposeProgress();
+    expect(hasOwnEmit()).toBe(false);
+
+    // Re-attaching (resume/retry) installs and removes exactly one layer.
+    const dispose2 = attachToolStreamBridge(
+      parent.agent,
+      child.agent,
+      'agent-0',
+      'coder',
+      options,
+    );
+    const disposeProgress2 = startProgressReporter(
+      parent.agent,
+      child.agent,
+      'agent-0',
+      'coder',
+      1_000,
+    );
+    disposeProgress2();
+    dispose2();
+    expect(hasOwnEmit()).toBe(false);
+  });
+
   it('mirrors child tool.progress as truncated subagent.tool_progress while the tool is still running', () => {
     const parent = testAgent();
     parent.configure();

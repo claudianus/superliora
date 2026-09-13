@@ -72,7 +72,10 @@ describe('turn/tool-result-budget — budgetToolResultForModel', () => {
     expect(out.truncated).toBe(true);
   });
 
-  it('returns the original result when the result is already truncated', async () => {
+  it('still bounds oversized results that self-mark truncated', async () => {
+    // `truncated` is advisory metadata, not a bypass: an oversized paged body
+    // must be archived/bounded like any other, or a tool could eat the
+    // context window by setting the flag.
     const big = 'x'.repeat(TOOL_RESULT_MAX_CHARS + 1);
     const result: ExecutableToolResult = { isError: false, output: big, truncated: true };
     const out = await budgetToolResultForModel({
@@ -81,7 +84,9 @@ describe('turn/tool-result-budget — budgetToolResultForModel', () => {
       result,
       homedir,
     });
-    expect(out).toBe(result);
+    expect(out).not.toBe(result);
+    expect(typeof out.output).toBe('string');
+    expect((out.output as string).length).toBeLessThan(big.length);
   });
 
   it('returns the original result when the output is a non-text content-part array', async () => {

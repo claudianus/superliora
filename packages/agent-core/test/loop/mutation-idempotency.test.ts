@@ -1,6 +1,16 @@
+import nodeFs from 'node:fs/promises';
+import * as nodePath from 'node:path';
+import * as os from 'node:os';
+
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { IDEMPOTENCY_REPLAY_CODE, ToolGuardState } from '../../src/loop';
+// Local mirror of the loop's target fingerprint (not exported): same shape.
+async function fingerprintTarget(path: string): Promise<string | undefined> {
+  const st = await nodeFs.stat(path).catch(() => undefined);
+  if (st === undefined) return undefined;
+  return `${String(st.mtimeMs)}:${String(st.size)}`;
+}
 
 describe('mutation tool idempotency (Loop26a)', () => {
   let guards: ToolGuardState;
@@ -54,5 +64,47 @@ describe('mutation tool idempotency (Loop26a)', () => {
     const key = guards.toolCallIdempotencyKey('Write', args);
     guards.recordToolCallExecution(key, 'Write', args, 'wrote a.ts');
     expect(new ToolGuardState().checkToolCallIdempotency(key)).toBeUndefined();
+  });
+});
+
+describe('mutation idempotency target fingerprint', () => {
+  let guards: ToolGuardState;
+
+  beforeEach(() => {
+    guards = new ToolGuardState();
+  });
+
+  it('replays only while the mutated file still matches the recorded fingerprint', async () => {
+    const dir = await nodeFs.mkdtemp(nodePath.join(os.tmpdir(), 'liora-idem-'));
+    const file = nodePath.join(dir, 'a.ts');
+    await nodeFs.writeFile(file, 'hello', 'utf8');
+    const args = { path: file, content: 'hello' };
+    const key = guards.toolCallIdempotencyKey('Write', args);
+    const fingerprint = await fingerprintTarget(file);
+    expect(fingerprint).toBeDefined();
+    guards.recordToolCallExecution(key, 'Write', args, 'wrote a.ts', fingerprint);
+
+    // Unchanged file → replay stays valid.
+    expect(guards.checkToolCallIdempotency(key)?.targetFingerprint).toBe(
+      await fingerprintTarget(file),
+    );
+
+    // External rewrite (formatter/linter/user) → fingerprint changes, so the
+    // caller's verify step must treat the cached success as stale.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await nodeFs.writeFile(file, 'changed externally', 'utf8');
+    expect(await fingerprintTarget(file)).not.toBe(fingerprint);
+    expect(guards.checkToolCallIdempotency(key)?.targetFingerprint).not.toBe(
+      await fingerprintTarget(file),
+    );
+    await nodeFs.rm(dir, { recursive: true, force: true });
+  });
+
+  it('records entries without a fingerprint when no target can be identified', () => {
+    const args = { note: 'no path field' };
+    const key = guards.toolCallIdempotencyKey('Edit', args);
+    guards.recordToolCallExecution(key, 'Edit', args, 'ok');
+    const prior = guards.checkToolCallIdempotency(key);
+    expect(prior?.targetFingerprint).toBeUndefined();
   });
 });

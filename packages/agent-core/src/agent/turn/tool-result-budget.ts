@@ -49,7 +49,6 @@ export async function budgetToolResultForModel(
   const maxChars = resolveMaxChars(options.contextWindowTokens);
   const text = persistableToolResultText(options.result.output);
   if (text === undefined || text.length <= maxChars) return options.result;
-  if (options.result.truncated === true) return options.result;
   if (options.homedir === undefined) {
     // No session home: still bound the model-visible body so context cannot
     // balloon when disk spill is unavailable.

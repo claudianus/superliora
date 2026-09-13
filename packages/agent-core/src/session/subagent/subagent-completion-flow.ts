@@ -416,8 +416,14 @@ export async function waitForChildCompletion(
       workSnapshot,
     );
   } finally {
-    disposeProgress();
+    // Unwrap in LIFO order. Both bridges patched child.emitEvent and each
+    // dispose restores what IT wrapped; disposing toolstream (the outermost
+    // wrapper) first leaves the base emitter installed. The old FIFO order
+    // re-installed the progress wrapper permanently, so every resume/retry
+    // stacked another progress marker and multiplied the deadline-reset
+    // signals — exactly the runs most likely to be wedged.
     disposeToolStream();
+    disposeProgress();
   }
 }
 

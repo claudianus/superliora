@@ -418,7 +418,7 @@ describe('runTurn — finalizeToolResult hook', () => {
     expect(sink.byType('tool.result')[0]?.result.output).toBe('redacted');
   });
 
-  it('hook throw on success records an error result and never persists raw output', async () => {
+  it('hook throw on success keeps the real outcome and warns the model the change may be applied', async () => {
     const echo = new EchoTool();
     const hooks: LoopHooks = {
       finalizeToolResult: async () => {
@@ -429,16 +429,20 @@ describe('runTurn — finalizeToolResult hook', () => {
       hooks,
       tools: [echo],
       responses: [
-        makeToolUseResponse([makeToolCall('echo', { text: 'secret' }, 'tc-1')]),
+        makeToolUseResponse([makeToolCall('echo', { text: 'applied-change' }, 'tc-1')]),
         makeEndTurnResponse('done'),
       ],
     });
     const persisted = context.toolResults()[0]?.result;
+    // The turn outcome stays an error (the hook boundary failed) …
     expect(persisted?.isError).toBe(true);
-    // Output never leaks the original tool content
-    expect(persisted?.output).not.toContain('secret');
-    // Live event also marked as error
     expect(sink.byType('tool.result')[0]?.result.isError).toBe(true);
+    // … but the model still sees the tool's real output so it does NOT
+    // re-apply a mutation that already landed on disk, plus an explicit
+    // FINALIZE_HOOK_FAILED marker telling it to verify before re-running.
+    expect(persisted?.output).toContain('applied-change');
+    expect(persisted?.output).toContain('code=FINALIZE_HOOK_FAILED');
+    expect(persisted?.output).toContain('may already be applied');
   });
 
   it('execute failure passes the error result through finalizeToolResult', async () => {
