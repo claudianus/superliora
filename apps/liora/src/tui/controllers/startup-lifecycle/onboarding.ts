@@ -79,6 +79,15 @@ export async function maybeStartOnboarding(host: StartupLifecycleHost): Promise<
           { coalesceKey: 'onboarding.envKeyHint' },
         );
         host.showStatus(ttui('tui.onboarding.envKeyHintStatus', { labels }), 'info');
+      } else {
+        // A bare /login modal with no explanation left first-run users
+        // staring at a dead session with no idea why nothing worked. Name
+        // the problem and the two ways out before the dialog opens.
+        host.showNotice(
+          ttui('tui.onboarding.noProviderTitle'),
+          ttui('tui.onboarding.noProviderDetail'),
+          { coalesceKey: 'onboarding.noProvider' },
+        );
       }
       slashCommands.dispatchInput(host as never, '/login');
       return;

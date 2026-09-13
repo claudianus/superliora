@@ -786,6 +786,9 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.onboarding.envKeyHint':
     '{vars} is set ({labels}). Pick that provider in /login — SuperLiora will not copy the key into the file unless you paste it.',
   'tui.onboarding.envKeyHintStatus': '{labels} env is set. Run /login to connect.',
+  'tui.onboarding.noProviderTitle': 'No provider configured yet',
+  'tui.onboarding.noProviderDetail':
+    'No model is configured, so prompts cannot run yet. Open the login dialog (opening now) and pick a provider — or set an API key env var like OPENAI_API_KEY / ANTHROPIC_API_KEY and restart.',
   'tui.finish.resumeGoal': '🎯 Resuming goal: {objective}...',
   'tui.finish.resumeGoalFailed': 'Failed to resume goal from queue: {string}',
   'tui.windowsSetup.usage': 'Usage: /host-setup [status|apply]',
@@ -2103,6 +2106,9 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.onboarding.envKeyHint':
     '{vars}가 설정되어 있습니다 ({labels}). /login에서 해당 프로바이더를 고르세요. 붙여넣지 않는 한 파일에 키를 복사하지 않습니다.',
   'tui.onboarding.envKeyHintStatus': '{labels} 환경 변수가 있습니다. /login으로 연결하세요.',
+  'tui.onboarding.noProviderTitle': '아직 프로바이더가 설정되지 않았습니다',
+  'tui.onboarding.noProviderDetail':
+    '모델이 설정되지 않아 프롬프트를 실행할 수 없습니다. 로그인 대화상자(지금 열립니다)에서 프로바이더를 고르거나, OPENAI_API_KEY / ANTHROPIC_API_KEY 같은 API 키 환경 변수를 설정하고 다시 시작하세요.',
   'tui.finish.resumeGoal': '🎯 목표 재개: {objective}...',
   'tui.finish.resumeGoalFailed': '대기 목표 재개 실패: {string}',
   'tui.windowsSetup.usage': '사용법: /host-setup [status|apply]',
