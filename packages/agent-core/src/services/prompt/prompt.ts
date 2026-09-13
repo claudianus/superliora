@@ -76,6 +76,8 @@ import type {
   PromptSubmitResult,
 } from '@superliora/protocol';
 
+import type { LioraErrorPayload } from '../../errors';
+
 export interface PromptAbortResult {
   /** True iff this call performed the cancel (false on idempotent already-completed). */
   aborted: boolean;
@@ -309,6 +311,13 @@ export interface SyntheticPromptCompletedEvent {
   readonly promptId: string;
   readonly finishedAt: string;
   readonly reason: 'completed' | 'failed';
+  /**
+   * Copied from the failed turn's `error` payload when `reason === 'failed'`.
+   * Without it, prompt-level listeners (SDK consumers, server WS clients)
+   * cannot tell a 401 from a 500 from a context-filter — they would have to
+   * also subscribe to raw `turn.ended` and correlate ids themselves.
+   */
+  readonly error?: LioraErrorPayload;
 }
 
 /**

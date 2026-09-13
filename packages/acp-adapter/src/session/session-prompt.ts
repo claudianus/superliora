@@ -83,6 +83,17 @@ export interface PromptTurnDeps {
  *    rejection is propagated as a `prompt` request error so the client
  *    sees a JSON-RPC error rather than a hung request.
  */
+/**
+ * A turn that emits NO events at all for this long is treated as wedged
+ * (hung provider stream, dead agent loop) and the prompt request fails with
+ * an internal error instead of pending forever in the IDE. Any event
+ * (deltas, tool calls, turn lifecycle) resets the timer, so long-but-active
+ * turns are never killed. Override via ACP_PROMPT_INACTIVITY_TIMEOUT_MS.
+ */
+const PROMPT_INACTIVITY_TIMEOUT_MS = Number(
+  process.env['ACP_PROMPT_INACTIVITY_TIMEOUT_MS'] ?? '600000',
+);
+
 export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
   const { session, conn, sessionId, kick, getCurrentTurnId, setCurrentTurnId } = deps;
   return new Promise<PromptResponse>((resolve, reject) => {
@@ -120,7 +131,37 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
     const subagentOutputByToolCall = new Map<string, { output: string }>();
     const initialActiveTurnId = getCurrentTurnId();
     let hasReceivedOwnTurnStarted = false;
+    const inactivityTimer = { current: null as ReturnType<typeof setTimeout> | null };
+    const armInactivityWatchdog = (): void => {
+      if (inactivityTimer.current !== null) clearTimeout(inactivityTimer.current);
+      if (!Number.isFinite(PROMPT_INACTIVITY_TIMEOUT_MS) || PROMPT_INACTIVITY_TIMEOUT_MS <= 0) {
+        return;
+      }
+      inactivityTimer.current = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        unsub();
+        clearInactivityWatchdog();
+        log.warn('acp: prompt wedged; no turn events observed; failing request', {
+          sessionId,
+          timeoutMs: PROMPT_INACTIVITY_TIMEOUT_MS,
+        });
+        reject(
+          RequestError.internalError(
+            undefined,
+            `session prompt stalled: no agent events for ${String(PROMPT_INACTIVITY_TIMEOUT_MS)}ms`,
+          ),
+        );
+      }, PROMPT_INACTIVITY_TIMEOUT_MS);
+    };
+    const clearInactivityWatchdog = (): void => {
+      if (inactivityTimer.current !== null) {
+        clearTimeout(inactivityTimer.current);
+        inactivityTimer.current = null;
+      }
+    };
     const unsub = session.onEvent((event) => {
+      armInactivityWatchdog();
       if (
         event.type === 'turn.started' &&
         isFromMainAgent(event) &&
@@ -420,6 +461,7 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         if (settled) return;
         if (!isFromMainAgent(event)) return;
         settled = true;
+        clearInactivityWatchdog();
         if (event.reason === 'failed') {
           // Failures bubble up via the SDK `error` payload. Phase 11.1
           // upgrades the prior "log + resolve end_turn" behaviour to
@@ -467,10 +509,12 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
       }
     });
 
+    armInactivityWatchdog();
     kick().catch((error) => {
       if (settled) return;
       settled = true;
       unsub();
+      clearInactivityWatchdog();
       reject(mapPromptError(error, sessionId));
     });
   });

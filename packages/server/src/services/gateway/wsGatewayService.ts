@@ -33,6 +33,7 @@ export class WSGateway extends Disposable implements IWSGateway {
   private readonly upgradeListener: (req: IncomingMessage, sock: Socket, head: Buffer) => void;
   private readonly server: HttpServer;
   private abortHandler: AbortHandler | undefined;
+  private sessionExists: ((sid: string) => Promise<boolean> | boolean) | undefined;
   private fsWatchHandler: FsWatchHandler | undefined;
   private terminalHandler: TerminalHandler | undefined;
   private authTokenService: IAuthTokenService | undefined;
@@ -86,6 +87,15 @@ export class WSGateway extends Disposable implements IWSGateway {
 
   setAuthTokenService(service: IAuthTokenService): void {
     this.authTokenService = service;
+  }
+
+  /**
+   * Install the session-existence probe used by subscribe/client_hello sync
+   * to report phantom session ids as `not_found`. Installed by the host after
+   * DI wiring (same lifecycle as setAbortHandler); unset = accept all ids.
+   */
+  setSessionExists(probe: (sid: string) => Promise<boolean> | boolean): void {
+    this.sessionExists = probe;
   }
 
   private async onUpgrade(req: IncomingMessage, socket: Socket, head: Buffer): Promise<void> {
@@ -156,6 +166,11 @@ export class WSGateway extends Disposable implements IWSGateway {
       userAgent,
       sessionClients: this.sessionClients,
       wsBroadcast: this.wsBroadcast,
+      // Existence probe is opt-in (options or setSessionExists) so test
+      // harnesses that publish events for synthetic session ids keep working.
+      ...((this.options.sessionExists ?? this.sessionExists) !== undefined
+        ? { sessionExists: this.options.sessionExists ?? this.sessionExists }
+        : {}),
       ...(this.abortHandler !== undefined ? { abortHandler: this.abortHandler } : {}),
       ...(this.fsWatchHandler !== undefined ? { fsWatchHandler: this.fsWatchHandler } : {}),
       ...(this.terminalHandler !== undefined ? { terminalHandler: this.terminalHandler } : {}),

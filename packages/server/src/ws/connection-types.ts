@@ -77,6 +77,9 @@ export interface WsConnectionOptions {
 
   wsBroadcast: BufferReplaySource;
 
+  /** Optional session-existence probe forwarded to the host. */
+  sessionExists?: (sid: string) => Promise<boolean> | boolean;
+
   abortHandler?: AbortHandler;
 
   fsWatchHandler?: FsWatchHandler;
@@ -140,4 +143,11 @@ export interface WsConnectionHost {
   subscribe(sid: string): void;
   unsubscribe(sid: string): void;
   markClientHelloReceived(): void;
+  /**
+   * Existence probe used by subscribe/client_hello sync so phantom session
+   * ids are reported as `not_found` instead of silently getting a valid
+   * cursor for a journal that was never real. Undefined when the host
+   * cannot check (behavior stays as before).
+   */
+  sessionExists?(sid: string): Promise<boolean> | boolean;
 }

@@ -91,6 +91,17 @@ export function wireCoreProcessServices(
     const built = a.get(ICoreProcessService);
 
     const sessionService = a.get(ISessionService);
+    // Existence probe: subscribe/client_hello sync reports phantom session
+    // ids as `not_found` instead of handing the client a cursor for a
+    // journal that was never real.
+    wsGw.setSessionExists(async (sid: string) => {
+      try {
+        await sessionService.get(sid);
+        return true;
+      } catch {
+        return false;
+      }
+    });
     a.get(IMessageService);
 
     a.get(IAuthSummaryService);

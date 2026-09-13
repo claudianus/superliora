@@ -108,4 +108,13 @@ export interface WSGatewayOptions {
    * pre-M5.1 boots), the WS Origin check is skipped.
    */
   allowedOrigins?: readonly string[];
+
+  /**
+   * Optional session-existence probe used during subscribe/client_hello
+   * sync. When set, phantom session ids are reported back as `not_found`
+   * instead of silently receiving a valid cursor for a journal that was
+   * never real. When unset, all requested ids are accepted (tests and
+   * harnesses publish events for synthetic ids without registering them).
+   */
+  sessionExists?: (sid: string) => Promise<boolean> | boolean;
 }
