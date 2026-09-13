@@ -147,9 +147,12 @@ export function highlightLines(
   // Engine tag keeps cli-highlight and Shiki results from colliding in the
   // same cache generation when the async Shiki singleton comes online.
   // Path sticky segment keeps large file highlights pinned under thrash.
+  // The body hash uses the streaming continuation (O(append) instead of
+  // O(n)) because streaming fences call this on every ~30ms flush with a
+  // strictly growing draft.
   const engine = shikiReady() ? 's' : 'c';
   const pathTag = sticky ? `\0p:${options.pathHint}` : '';
-  const key = `${engine}\0${normalizedLang}\0${paletteCacheKey(palette)}\0${code.length}\0${hashText(code)}${pathTag}`;
+  const key = `${engine}\0${normalizedLang}\0${paletteCacheKey(palette)}\0${code.length}\0${hashTextStreaming(code, lang)}${pathTag}`;
   const cached = cacheGet(key);
   if (cached !== undefined) return cached;
 
@@ -236,6 +239,60 @@ function hashText(text: string): string {
     h = Math.imul(h, 0x01000193);
   }
   return (h >>> 0).toString(16);
+}
+
+/**
+ * Streaming hash continuity: FNV-1a is an incremental rolling hash, so a
+ * `text` that strictly extends a previously hashed `prefix` can continue
+ * from the saved (hash, length) instead of re-walking the whole blob.
+ * Streaming highlights append constantly — without this every 30ms flush
+ * re-hashed the entire open fence (O(n) per token, O(n²) per turn).
+ */
+const rollingHashes = new Map<string, { h: number; len: number; tail: string }>();
+
+function extendRollingHash(key: string, text: string): string {
+  const prior = rollingHashes.get(key);
+  let h: number;
+  let start: number;
+  // Continue only when the stored state provably belongs to a strict prefix
+  // of this text: length fits AND the stored tail matches at the boundary.
+  // (Guards against a different draft that merely shares the slot key.)
+  const tailStart = prior !== undefined ? prior.len - 32 : 0;
+  const continues =
+    prior !== undefined &&
+    prior.len <= text.length &&
+    text.slice(Math.max(0, tailStart), prior.len) === prior.tail;
+  if (continues) {
+    h = prior!.h;
+    start = prior!.len;
+  } else {
+    h = 0x811c9dc5;
+    start = 0;
+  }
+  for (let i = start; i < text.length; i++) {
+    h ^= text.codePointAt(i) ?? 0;
+    h = Math.imul(h, 0x01000193);
+  }
+  // Keep a small ring: streaming sessions hold a handful of live fences.
+  if (rollingHashes.size > 16) {
+    const firstKey = rollingHashes.keys().next().value;
+    if (firstKey !== undefined) rollingHashes.delete(firstKey);
+  }
+  rollingHashes.set(key, {
+    h,
+    len: text.length,
+    tail: text.slice(Math.max(0, text.length - 32)),
+  });
+  return (h >>> 0).toString(16);
+}
+
+function hashTextStreaming(code: string, lang: string | undefined): string {
+  const normalizedLang = normalizeLangId(lang);
+  if (normalizedLang === undefined) return hashText(code);
+  // One rolling slot per (lang, first 64 chars) draft — good continuity for
+  // the one growing fence per message without unbounded key growth.
+  const slot = `${normalizedLang}\0${code.slice(0, 64)}`;
+  return extendRollingHash(slot, code);
 }
 
 // ─── Shell command highlighting ─────────────────────────────────────────────

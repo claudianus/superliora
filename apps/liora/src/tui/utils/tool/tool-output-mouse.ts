@@ -114,6 +114,50 @@ function resolveToolOutputMouseHit(
   state: TUIState,
   event: NativeInputMouseEvent,
 ): ToolOutputMouseHit | undefined {
+  // Moves spam the same (x, y) between real pointer changes; the full walk
+  // (childRowRangeAt + nested viewport geometry) is unnecessary per event.
+  // Reuse the last result while position and layout fingerprint match; the
+  // fingerprint covers everything that changes which child a row maps to
+  // (scroll offset, terminal geometry) so a stale hit is impossible.
+  if (event.action === 'move' && lastHitCache !== undefined) {
+    const fingerprint = toolOutputHitFingerprint(state);
+    if (
+      lastHitCache.x === event.x &&
+      lastHitCache.y === event.y &&
+      lastHitCache.fingerprint === fingerprint
+    ) {
+      return lastHitCache.hit;
+    }
+  }
+  const hit = resolveToolOutputMouseHitUncached(state, event);
+  if (event.action === 'move') {
+    lastHitCache = {
+      x: event.x,
+      y: event.y,
+      fingerprint: toolOutputHitFingerprint(state),
+      hit,
+    };
+  }
+  return hit;
+}
+
+interface ToolOutputHitCache {
+  readonly x: number;
+  readonly y: number;
+  readonly fingerprint: string;
+  readonly hit: ToolOutputMouseHit | undefined;
+}
+
+let lastHitCache: ToolOutputHitCache | undefined;
+
+function toolOutputHitFingerprint(state: TUIState): string {
+  return `${String(state.transcriptViewport.start())}:${String(state.terminal.rows)}x${String(state.terminal.cols)}`;
+}
+
+function resolveToolOutputMouseHitUncached(
+  state: TUIState,
+  event: NativeInputMouseEvent,
+): ToolOutputMouseHit | undefined {
   const context = resolveTranscriptLayoutContext(state);
   if (context === undefined) return undefined;
   const { rect } = context;
