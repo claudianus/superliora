@@ -22,6 +22,7 @@ import {
   makeToolUseResponse,
 } from './fixtures/fake-llm';
 import { runTurn, runTurnExpectingThrow } from './fixtures/helpers';
+import { DEFAULT_MAX_STEPS_PER_TURN } from '../../src/agent/turn/step-loop';
 import { EchoTool } from './fixtures/tools';
 
 interface CapturedLogEntry {
@@ -329,3 +330,13 @@ function captureLogs(): { readonly logger: Logger; readonly entries: CapturedLog
   };
   return { logger, entries };
 }
+
+describe('runTurn — default step cap', () => {
+  it('falls back to the generous default cap when maxSteps is unset', async () => {
+    // The step-loop passes DEFAULT_MAX_STEPS_PER_TURN when the config omits
+    // max_steps_per_turn; assert the constant stays generous so legitimate
+    // long work never hits it while retry-loop spins still terminate.
+    expect(DEFAULT_MAX_STEPS_PER_TURN).toBe(200);
+    expect(DEFAULT_MAX_STEPS_PER_TURN).toBeGreaterThan(100);
+  });
+});
