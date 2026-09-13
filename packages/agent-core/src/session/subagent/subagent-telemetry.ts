@@ -203,7 +203,7 @@ export function startProgressReporter(
     // here would strand that bridge. Deleting the own property restores the
     // prototype method instead of leaving a redundant bound function.
     if (child.emitEvent?.name === 'subagentProgressEmitEvent') {
-      delete child.emitEvent;
+      delete (child as { emitEvent?: unknown }).emitEvent;
     }
   };
 }
@@ -324,7 +324,7 @@ export function attachToolStreamBridge(
     // Remove only our own wrapper; if a later bridge wrapped us, deleting
     // here would strand that bridge.
     if (child.emitEvent?.name === 'subagentToolStreamEmitEvent') {
-      delete child.emitEvent;
+      delete (child as { emitEvent?: unknown }).emitEvent;
     }
   };
 }

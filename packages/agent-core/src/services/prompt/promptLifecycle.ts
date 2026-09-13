@@ -6,6 +6,7 @@ import type {
   SyntheticPromptAbortedEvent,
   SyntheticPromptCompletedEvent,
 } from './prompt';
+import type { LioraErrorPayload } from '../../errors';
 import { isAgentStatusUpdated, isTurnEnded, isTurnStarted } from './promptEventGuards';
 import { MAIN_AGENT_ID, promptKey, type PromptState } from './promptState';
 
@@ -59,7 +60,7 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
   // prompt behind it. Treat it as terminal and fail the prompt with the
   // error payload attached.
   if ((event as { type?: string }).type === 'error' && state.turnId === undefined) {
-    const error = (event as { error?: { code: string; message?: string } }).error;
+    const error = (event as { error?: LioraErrorPayload }).error;
     // TURN_AGENT_BUSY on submit is a transport-level rejection handled by
     // the submit path itself; it is not a turn failure.
     if (error?.code === 'turn.agent_busy') return;
