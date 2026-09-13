@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.32.2
+
+### Patch Changes
+
+- Update bundled js-yaml (to a build with hard merge-key limits) and smol-toml dependency versions.
+
 ## 0.32.1
 
 ### Patch Changes
