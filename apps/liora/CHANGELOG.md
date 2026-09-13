@@ -1,5 +1,14 @@
 # @superliora/liora
 
+## 0.32.1
+
+### Patch Changes
+
+- Fix silent hangs and lag: editor (ACP) and server requests now time out instead of pending forever, headless runs skip the update check, unknown CLI commands suggest the closest match, streaming code blocks highlight without re-processing the whole block, and the prompt history no longer grows without bound.
+- Fix provider reliability: show the real retry wait with a countdown instead of a frozen "Retrying…" status, honor the provider's Retry-After header, and stop endless token refresh loops by routing revoked Google/Kiro/GLM ZCode credentials to re-login.
+- Keep agent tool outcomes honest: a crashed post-tool hook no longer reports a successful file edit as failed, repeated edits re-verify the file on disk before replaying a cached result, and a partially applied multi-file patch reports which files were written.
+- Show a notice when the model's reply was cut off by its output token limit, stop agent turns that spin on failing tool calls, and cap turns at a generous 200 steps so unattended runs cannot grind to a context overflow.
+
 ## 0.32.0
 
 ### Minor Changes
