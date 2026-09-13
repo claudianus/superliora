@@ -213,3 +213,51 @@ describe('kiro aws sso oidc device flow', () => {
     expect(saved.has('kiro')).toBe(true);
   });
 });
+
+describe('google oauth unauthorized promotion', () => {
+  it('raises OAuthUnauthorizedError on refresh when the token endpoint answers 401/403/invalid_grant', async () => {
+    const cases: Array<{ status: number; body: unknown }> = [
+      { status: 401, body: { error: 'invalid_client' } },
+      { status: 403, body: {} },
+      { status: 400, body: { error: 'invalid_grant', error_description: 'Token has been expired or revoked.' } },
+    ];
+    for (const { status, body } of cases) {
+      vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(body, status)));
+      const error = await refreshGoogleToken(
+        {
+          clientId: 'cid',
+          clientSecret: 'sec',
+          scopes: [],
+          callbackPort: 8085,
+          callbackPath: '/oauth2callback',
+          authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+          tokenUrl: 'https://oauth2.googleapis.com/token',
+        },
+        'rt',
+      ).catch((error: unknown) => error);
+      expect(error.constructor.name).toBe('OAuthUnauthorizedError');
+      expect((error as Error).message).toContain('unauthorized');
+    }
+  });
+});
+
+describe('kiro oauth unauthorized promotion', () => {
+  it('raises OAuthUnauthorizedError on refresh when the oidc endpoint answers 401', async () => {
+    const fetchMock = vi.fn(async (url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+      if (String(url).endsWith('/client/register')) {
+        return jsonResponse({
+          clientId: 'kc', clientSecret: 'ks', clientName: 'n', clientType: 't',
+          grantTypes: [], scopes: [], issuerUrl: 'https://example.test',
+        });
+      }
+      if (body['grantType'] === 'refresh_token') {
+        return jsonResponse({ error: 'invalid_grant' }, 401);
+      }
+      return jsonResponse({ accessToken: 'tok' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const error = await refreshKiroToken('rt').catch((error: unknown) => error);
+    expect(error.constructor.name).toBe('OAuthUnauthorizedError');
+  });
+});

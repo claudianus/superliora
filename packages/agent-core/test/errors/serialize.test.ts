@@ -93,3 +93,37 @@ describe('toKimiErrorPayload provider-declared transient signals', () => {
   });
 });
 
+
+describe('toKimiErrorPayload Retry-After propagation', () => {
+  it('copies the provider Retry-After header (seconds) into details.retryAfterMs', () => {
+    const payload = toKimiErrorPayload(
+      new APIStatusError(429, 'Too Many Requests', 'req-429', { 'retry-after': '30' }),
+    );
+    expect(payload.details?.['retryAfterMs']).toBe(30_000);
+  });
+
+  it('supports the millisecond variants providers send', () => {
+    const payload = toKimiErrorPayload(
+      new APIStatusError(429, 'Too Many Requests', 'req-429', { 'retry-after-ms': '2500' }),
+    );
+    expect(payload.details?.['retryAfterMs']).toBe(2500);
+  });
+
+  it('parses HTTP-date Retry-After into remaining milliseconds', () => {
+    const date = new Date(Date.now() + 60_000).toUTCString();
+    const payload = toKimiErrorPayload(
+      new APIStatusError(429, 'Too Many Requests', 'req-429', { 'retry-after': date }),
+    );
+    const retryAfterMs = payload.details?.['retryAfterMs'];
+    expect(typeof retryAfterMs).toBe('number');
+    expect(retryAfterMs as number).toBeGreaterThan(50_000);
+    expect(retryAfterMs as number).toBeLessThan(70_000);
+  });
+
+  it('omits retryAfterMs when the provider sent no usable header', () => {
+    const payload = toKimiErrorPayload(
+      new APIStatusError(500, 'server error', 'req-500', { 'content-type': 'application/json' }),
+    );
+    expect(payload.details?.['retryAfterMs']).toBeUndefined();
+  });
+});

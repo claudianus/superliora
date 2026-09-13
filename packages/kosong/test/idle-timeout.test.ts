@@ -1,10 +1,13 @@
 import { APITimeoutError } from '#/errors';
 import {
   createGenerateAbortScope,
+  DEFAULT_LLM_FIRST_TOKEN_TIMEOUT_MS,
   DEFAULT_LLM_IDLE_TIMEOUT_MS,
   DEFAULT_LLM_OPEN_TIMEOUT_MS,
+  LLM_FIRST_TOKEN_TIMEOUT_ENV,
   LLM_IDLE_TIMEOUT_ENV,
   LLM_OPEN_TIMEOUT_ENV,
+  resolveFirstTokenTimeoutMs,
   resolveIdleTimeoutMs,
   resolveOpenTimeoutMs,
   withIdleTimeout,
@@ -73,6 +76,36 @@ describe('resolveIdleTimeoutMs', () => {
 
   it('defaults to 120 seconds', () => {
     expect(DEFAULT_LLM_IDLE_TIMEOUT_MS).toBe(120_000);
+  });
+});
+
+describe('resolveFirstTokenTimeoutMs', () => {
+  const originalEnv = process.env[LLM_FIRST_TOKEN_TIMEOUT_ENV];
+
+  beforeEach(() => {
+    delete process.env[LLM_FIRST_TOKEN_TIMEOUT_ENV];
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env[LLM_FIRST_TOKEN_TIMEOUT_ENV];
+    else process.env[LLM_FIRST_TOKEN_TIMEOUT_ENV] = originalEnv;
+  });
+
+  it('falls back to the documented 120s default, not to the idle budget', () => {
+    // A user relaxing the idle budget for a slow reasoning model must not
+    // silently stretch the first-token guard; the default is now real.
+    expect(resolveFirstTokenTimeoutMs(undefined)).toBe(DEFAULT_LLM_FIRST_TOKEN_TIMEOUT_MS);
+  });
+
+  it('still lets an explicit 0 disable the first-token phase', () => {
+    expect(resolveFirstTokenTimeoutMs(0)).toBe(0);
+    process.env[LLM_FIRST_TOKEN_TIMEOUT_ENV] = '0';
+    expect(resolveFirstTokenTimeoutMs(undefined)).toBe(0);
+  });
+
+  it('prefers the environment variable over the default', () => {
+    process.env[LLM_FIRST_TOKEN_TIMEOUT_ENV] = '4500';
+    expect(resolveFirstTokenTimeoutMs(undefined)).toBe(4500);
   });
 });
 

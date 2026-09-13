@@ -121,6 +121,11 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
         statusCode: error.statusCode,
         requestId: error.requestId,
         ...(permanentQuota ? { permanentQuota: true } : {}),
+        // Plumb the provider's Retry-After hint into the payload so
+        // resolveProviderRetryDelayMs honors it; without this the turn-level
+        // recovery always uses the fixed 15s→120s ladder and burns the retry
+        // budget while the provider is still telling us to wait.
+        ...extractRetryAfterDetails(error),
       },
       retryable,
     };
@@ -252,4 +257,35 @@ export function fromKimiErrorPayload(payload: LioraErrorPayload): LioraError {
   return new LioraError(payload.code, payload.message, {
     details: payload.details,
   });
+}
+
+/**
+ * Copy a provider `Retry-After` header (seconds, ms variants, or HTTP-date)
+ * into `details.retryAfterMs` — the only shape `extractRetryAfterMs` in
+ * agent-core's provider-failover reads. Header names arrive lowercased from
+ * kosong's `asApiStatusHeaders`.
+ */
+function extractRetryAfterDetails(
+  error: InstanceType<typeof APIStatusError>,
+): { retryAfterMs?: number } {
+  const headers = error.headers;
+  if (headers === undefined) return {};
+  const rawSeconds = headers['retry-after'];
+  const rawMs = headers['retry-after-ms'] ?? headers['x-ratelimit-reset-requests-ms'];
+  if (rawMs !== undefined) {
+    const ms = Number(rawMs);
+    if (Number.isFinite(ms) && ms > 0) return { retryAfterMs: ms };
+  }
+  if (rawSeconds === undefined) return {};
+  const asNumber = Number(rawSeconds);
+  if (Number.isFinite(asNumber) && asNumber > 0) {
+    // Retry-After is seconds per RFC 7231, including sub-second floats.
+    return { retryAfterMs: asNumber * 1000 };
+  }
+  const asDate = Date.parse(rawSeconds);
+  if (Number.isFinite(asDate)) {
+    const remaining = asDate - Date.now();
+    if (remaining > 0) return { retryAfterMs: remaining };
+  }
+  return {};
 }

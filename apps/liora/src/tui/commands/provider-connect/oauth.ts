@@ -231,8 +231,15 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
           spinner?.stop({ ok: false, label: '' });
           spinner = host.showLoginAuthorizationPrompt(auth);
         },
-        onAuthorizeUrl: (url) => {
+        onAuthorizeUrl: (url, context) => {
           spinner?.stop({ ok: false, label: '' });
+          // A restart replaces a dead single-use code mid-flow: the user
+          // already has the flow open in their browser, so show the fresh
+          // URL for manual copy instead of popping another tab on them.
+          if (context?.isRestart === true) {
+            spinner = host.showProgressSpinner(ttui('tui.provider.restartedUrl', { url }));
+            return;
+          }
           // Open the browser automatically; fall back to showing the URL.
           openUrl(url);
           spinner = host.showProgressSpinner(

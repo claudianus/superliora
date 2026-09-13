@@ -275,6 +275,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'Tip: OPENAI_API_KEY / GOOGLE_API_KEY enable image/video · /status checks media/web readiness',
   'tui.provider.apiKeyPrompt': 'Enter API key for {name}',
   'tui.provider.openingBrowser': 'Opening browser to authorize…\nIf it did not open, visit:\n{url}',
+  'tui.provider.restartedUrl': 'The previous code was already used. Fresh URL (copy it into the same browser tab):\n{url}',
   'tui.provider.waitingAuthorization': 'Waiting for authorization…',
   'tui.provider.pasteCallbackTitle': 'Paste OAuth callback',
   'tui.provider.pasteCallbackHint1':
@@ -727,6 +728,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     '팁: OPENAI_API_KEY / GOOGLE_API_KEY로 이미지·영상 · /status로 미디어/웹 준비 상태 확인',
   'tui.provider.apiKeyPrompt': '{name}의 API 키를 입력하세요',
   'tui.provider.openingBrowser': '인증을 위해 브라우저를 여는 중…\n열리지 않으면 방문하세요:\n{url}',
+  'tui.provider.restartedUrl': '이전 코드가 이미 사용되었습니다. 새 URL (같은 브라우저 탭에 붙여넣으세요):\n{url}',
   'tui.provider.waitingAuthorization': '인증 완료를 기다리는 중…',
   'tui.provider.pasteCallbackTitle': 'OAuth 콜백 붙여넣기',
   'tui.provider.pasteCallbackHint1': '브라우저가 자동으로 돌아오지 않으면 로그인 후 표시된',
