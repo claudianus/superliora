@@ -77,12 +77,12 @@ export class HistorySearchDialogComponent extends Container implements Focusable
       renderParticleDivider(width, 'history:top', appearance),
       title,
       currentTheme.fg('textMuted', ` ${ttui('tui.history.hint')}`),
+      '',
     ];
 
     if (view.query.length > 0) {
       lines.push(currentTheme.fg('primary', ` Search: `) + currentTheme.fg('text', view.query));
     }
-    lines.push('');
 
     if (items.length === 0) {
       const message =

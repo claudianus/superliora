@@ -4,7 +4,8 @@
 // scripts/debug-local.mjs — this runner kills motion on purpose.
 //
 // Usage:
-//   node scripts/test-local.mjs                 # affected workspaces + dependents (vs origin/main + worktree)
+//   node scripts/test-local.mjs                 # tests related to the changed files (import-graph + export-name matching)
+//   node scripts/test-local.mjs --closure       # affected workspaces + dependents (workspace granularity, no name matching)
 //   node scripts/test-local.mjs --direct        # changed workspaces only (no dependents)
 //   node scripts/test-local.mjs --all           # whole monorepo
 //   node scripts/test-local.mjs <path|pattern>  # vitest filters, e.g. apps/liora/test/tui
@@ -16,11 +17,17 @@
 // Any other flag is forwarded to vitest (`--bail=1`, `--reporter=dot`, `-t name`, …).
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { buildGraph, selectRelatedTests } from './test-scope.mjs';
+
 const repoRoot = resolve(import.meta.dirname, '..');
+
+// Fake package name for the self-check fixture graph. Split so the
+// workspace-import checker does not parse it as a real `@superliora/*` import.
+const FAKE_PKG_A = '@superliora' + '/a';
 
 // --- CI parity -------------------------------------------------------------
 // Every one of these has produced a "green locally, red in CI" failure in this
@@ -172,6 +179,91 @@ function affectedFilters(base, options = {}) {
   });
 }
 
+// --- related-test selection (file-level graph + export-name matching) ------
+const WORKSPACE_DIRS = (() => {
+  const dirs = [];
+  for (const root of ['packages', 'apps']) {
+    const rootDir = join(repoRoot, root);
+    if (existsSync(rootDir) === false) continue;
+    for (const entry of readdirSync(rootDir)) {
+      const dir = `${root}/${entry}`;
+      if (statSync(join(rootDir, entry)).isDirectory() === true && existsSync(join(repoRoot, dir, 'package.json')) === true) {
+        dirs.push(dir);
+      }
+    }
+  }
+  return dirs;
+})();
+
+function workspaceMetas() {
+  return WORKSPACE_DIRS.map((dir) => {
+    const pkg = JSON.parse(readFileSync(join(repoRoot, dir, 'package.json'), 'utf8'));
+    const exportsField = pkg.exports?.['.'];
+    const entry =
+      typeof exportsField === 'string'
+        ? join(repoRoot, dir, exportsField).slice(repoRoot.length + 1)
+        : typeof exportsField?.default === 'string'
+          ? join(repoRoot, dir, exportsField.default).slice(repoRoot.length + 1)
+          : `${dir}/src/index.ts`;
+    return { dir, name: pkg.name ?? dir, imports: pkg.imports ?? {}, entry };
+  });
+}
+
+/** Map<repoPath, content> over each workspace's src/ + test/ trees. */
+function readTree() {
+  const tree = new Map();
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir)) {
+      const path = join(dir, entry);
+      if (statSync(path).isDirectory() === true) walk(path);
+      else if (/\.(ts|tsx|mts)$/.test(entry) === true) {
+        tree.set(path.slice(repoRoot.length + 1), readFileSync(path, 'utf8'));
+      }
+    }
+  };
+  for (const dir of WORKSPACE_DIRS) {
+    for (const sub of ['src', 'test']) {
+      const path = join(repoRoot, dir, sub);
+      if (existsSync(path) === true) walk(path);
+    }
+  }
+  return tree;
+}
+
+const isPackageMeta = (file) =>
+  /(^|\/)(package\.json|vitest\.config\.ts|tsconfig[^/]*\.json)$/.test(file);
+function relatedScope(base, options = {}) {
+  const changed = changedFiles(base);
+  if (changed === undefined) return { kind: 'full', reason: `git could not diff against ${base}` };
+  const files = changed.filter((file) => isInertForTests(file) === false);
+  if (files.length === 0) return { kind: 'none', reason: 'no code changes' };
+  if (files.some((file) => ownerWorkspace(file) === undefined)) {
+    return { kind: 'full', reason: `shared file changed (${files.find((file) => ownerWorkspace(file) === undefined)})` };
+  }
+  const fallbackToClosure = (reason) => {
+    const closure = changedWorkspaceClosure(base);
+    if (closure === undefined) return { kind: 'full', reason: `${reason}; pnpm could not resolve the graph` };
+    const testable = closure.filter(hasTests);
+    if (testable.length === 0) return { kind: 'none', reason: `${reason}; no test dir in the affected graph` };
+    return { kind: 'filters', filters: testable.map(testDirFilter), reason: `${reason} -> ${testable.join(', ')}` };
+  };
+  const meta = files.find(isPackageMeta);
+  if (meta !== undefined) return fallbackToClosure(`package meta changed (${meta})`);
+  const deleted = files.filter((file) => existsSync(join(repoRoot, file)) === false);
+  if (deleted.length > 0) return fallbackToClosure(`files deleted (${deleted[0]})`);
+
+  const graph = buildGraph(readTree(), workspaceMetas());
+  const selection = selectRelatedTests(graph, files, undefined);
+  if (selection.kind === 'closure') return fallbackToClosure(selection.reason);
+  if (selection.kind === 'full') return { kind: 'full', reason: selection.reason };
+  if (selection.kind === 'none') return { kind: 'none', reason: selection.reason };
+  const testFiles = selection.testFiles;
+  if (testFiles.length === 0) return { kind: 'none', reason: 'no related test files' };
+  // Very wide selections lose to the coarser but cheaper path filter form.
+  if (testFiles.length > 400) return fallbackToClosure(`related set too wide (${String(testFiles.length)} files)`);
+  return { kind: 'filters', filters: testFiles, reason: `related: ${String(testFiles.length)} test files` };
+}
+
 function selfCheck() {
   const closure = () => ['packages/telemetry', 'packages/agent-core', 'apps/liora'];
   const withTests = (dir) => dir !== 'packages/telemetry';
@@ -199,7 +291,35 @@ function selfCheck() {
     failed++;
     console.error('self-check FAIL: an unresolvable base did not fall back to the full suite');
   }
-  const total = cases.length + 1;
+
+  // Related-mode fixtures: a synthetic two-package graph exercising the name
+  // level (barrel re-exports, deep imports, star re-exports, dependent src).
+  const fx = fixtureGraph();
+  const select = (changed) => {
+    const result = selectRelatedTests(fx.graph, changed, undefined);
+    return result.kind === 'related' ? result.testFiles : result.kind;
+  };
+  const fixtureCases = [
+    { want: ['packages/a/test/a.test.ts', 'packages/a/test/deep.test.ts', 'packages/b/test/b.test.ts', 'packages/b/test/uses.test.ts'], changed: ['packages/a/src/greet.ts'] },
+    // b/src/uses.ts star-imports the whole package, so b's suite runs too.
+    { want: ['packages/a/test/u.test.ts', 'packages/b/test/uses.test.ts'], changed: ['packages/a/src/util.ts'] },
+    { want: ['packages/a/test/a.test.ts', 'packages/a/test/deep.test.ts', 'packages/b/test/b.test.ts', 'packages/b/test/uses.test.ts'], changed: ['packages/a/src/greet.ts', 'packages/a/test/deep.test.ts'] },
+    // util's public name is unused by b, so b stays out; greet is used there.
+    { want: ['packages/a/test/a.test.ts', 'packages/a/test/deep.test.ts', 'packages/a/test/u.test.ts', 'packages/b/test/b.test.ts', 'packages/b/test/uses.test.ts'], changed: ['packages/a/src/greet.ts', 'packages/a/src/util.ts'] },
+    { want: 'closure', changed: ['packages/a/package.json'] },
+    { want: 'full', changed: ['scripts/other.mjs'] },
+  ];
+  for (const { want, changed } of fixtureCases) {
+    const actual = select(changed);
+    const same = Array.isArray(want)
+      ? Array.isArray(actual) && actual.length === want.length && want.every((entry) => actual.includes(entry))
+      : actual === want;
+    if (same === false) {
+      failed++;
+      console.error(`self-check FAIL fixture ${JSON.stringify(changed)}: expected ${JSON.stringify(want)}, got ${JSON.stringify(actual)}`);
+    }
+  }
+  const total = cases.length + 1 + fixtureCases.length;
   console.log(failed === 0 ? `self-check OK (${total} cases)` : `self-check FAILED (${failed})`);
   process.exit(failed === 0 ? 0 : 1);
 }
@@ -221,7 +341,7 @@ if (baseIdx >= 0 && base === undefined) {
   process.exit(2);
 }
 const baseArgIndices = baseIdx >= 0 ? [baseIdx, baseIdx + 1] : [];
-const LOCAL_FLAGS = new Set(['--all', '--scope', '--self-check', '--direct']);
+const LOCAL_FLAGS = new Set(['--all', '--scope', '--self-check', '--direct', '--closure']);
 const failuresJsonIdx = argv.indexOf('--failures-json');
 if (failuresJsonIdx >= 0 && argv[failuresJsonIdx + 1] === undefined) {
   console.error('test-local: --failures-json requires a file path');
@@ -233,19 +353,33 @@ if (failuresJsonIdx >= 0) skipIndices.add(failuresJsonIdx).add(failuresJsonIdx +
 const forwarded = argv.filter((arg, i) => !LOCAL_FLAGS.has(arg) && !skipIndices.has(i));
 const hasExplicitFilter = forwarded.some((arg) => !arg.startsWith('-'));
 const direct = argv.includes('--direct');
+const closure = argv.includes('--closure');
 
 const scopeOnly = argv.includes('--scope');
 let filters = [];
 let nothingToRun = false;
 if (!argv.includes('--all') && !hasExplicitFilter) {
-  const affected = affectedFilters(base, { direct });
-  if (affected.filters === undefined) {
+  const affected =
+    closure === true
+      ? affectedFilters(base, { direct })
+      : direct === true
+        ? affectedFilters(base, { direct: true })
+        : relatedScope(base);
+  const label =
+    affected.kind === 'full'
+      ? undefined
+      : affected.kind === 'none'
+        ? []
+        : affected.kind === 'filters'
+          ? affected.filters
+          : undefined;
+  if (affected.kind === 'full') {
     console.log(`test-local: full suite — ${affected.reason}`);
-  } else if (affected.filters.length === 0) {
+  } else if (label !== undefined && label.length === 0) {
     nothingToRun = true;
     console.log(`test-local: nothing to run — ${affected.reason} (use --all for the full suite)`);
   } else {
-    filters = affected.filters;
+    filters = label;
     console.log(`test-local: scoped — ${affected.reason}`);
   }
 }
@@ -282,3 +416,27 @@ console.error(
     '  node scripts/test-local.mjs --env   # what CI parity changes about your shell',
 );
 process.exit(res.status ?? 1);
+
+
+// --- self-check fixture graph ----------------------------------------------
+function fixtureGraph() {
+  const tree = new Map([
+    ['packages/a/src/index.ts', "export { greet } from './greet';\nexport * from './util';\n"],
+    ['packages/a/src/greet.ts', 'export function greet() { return 1; }\n'],
+    ['packages/a/src/util.ts', 'export function util() { return 2; }\n'],
+    ['packages/a/test/a.test.ts', "import { greet } from '../src/index';\n"],
+    ['packages/a/test/u.test.ts', "import { util } from '../src/index';\n"],
+    ['packages/a/test/deep.test.ts', "import { greet } from '../src/greet';\n"],
+    ['packages/b/src/index.ts', 'export const b = 1;\n'],
+    ['packages/b/src/uses.ts', `import * as alpha from '${FAKE_PKG_A}';\nexport const x = alpha.greet();\n`],
+    ['packages/b/test/b.test.ts', `import { greet } from '${FAKE_PKG_A}';\n`],
+    ['packages/b/test/uses.test.ts', "import { x } from '../src/uses';\nimport { describe } from 'vitest';\n"],
+    ['packages/b/package.json', '{}'],
+  ]);
+  const workspaces = [
+    { dir: 'packages/a', name: FAKE_PKG_A, imports: {}, entry: 'packages/a/src/index.ts' },
+    { dir: 'packages/b', name: '@superliora/b', imports: {}, entry: 'packages/b/src/index.ts' },
+  ];
+  const graph = buildGraph(tree, workspaces);
+  return { graph, tree, workspaces };
+}

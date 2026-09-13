@@ -6,13 +6,10 @@
  */
 
 import chalk from 'chalk';
-import sliceAnsi from 'slice-ansi';
 
-import { projectRendererLineWindow, visibleWidth } from '#/tui/renderer';
+import { mixHexColor, projectRendererLineWindow } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import type { ColorPalette } from '#/tui/theme';
 
-import { highlightLines, langFromPath } from './code-highlight';
 import { buildSyntaxLookup, formatDiffRow } from './diff-preview-row-format';
 
 export type DiffLineKind = 'context' | 'add' | 'delete';
@@ -38,25 +35,6 @@ export interface DiffStyles {
   delWordBg: (s: string) => string;
 }
 
-/** Linear blend of two #RRGGBB colors; `t` is the weight of `b`. */
-function mixHex(a: string, b: string, t: number): string {
-  const parse = (hex: string): [number, number, number] => {
-    const raw = hex.replace('#', '');
-    return [
-      Number.parseInt(raw.slice(0, 2), 16),
-      Number.parseInt(raw.slice(2, 4), 16),
-      Number.parseInt(raw.slice(4, 6), 16),
-    ];
-  };
-  const [ar, ag, ab] = parse(a);
-  const [br, bg, bb] = parse(b);
-  const channel = (x: number, y: number): string =>
-    Math.round(x + (y - x) * t)
-      .toString(16)
-      .padStart(2, '0');
-  return `#${channel(ar, br)}${channel(ag, bg)}${channel(ab, bb)}`;
-}
-
 export function makeDiffStyles(): DiffStyles {
   const palette = currentTheme.palette;
   const canvas = palette.background;
@@ -68,11 +46,11 @@ export function makeDiffStyles(): DiffStyles {
     gutter: (s) => chalk.hex(palette.diffGutter)(s),
     meta: (s) => chalk.hex(palette.diffMeta)(s),
     // ~16% tint of the semantic color over the canvas.
-    addLineBg: (s) => chalk.bgHex(mixHex(palette.diffAdded, canvas, 0.84))(s),
-    delLineBg: (s) => chalk.bgHex(mixHex(palette.diffRemoved, canvas, 0.84))(s),
+    addLineBg: (s) => chalk.bgHex(mixHexColor(palette.diffAdded, canvas, 0.84))(s),
+    delLineBg: (s) => chalk.bgHex(mixHexColor(palette.diffRemoved, canvas, 0.84))(s),
     // ~45% tint for the exact changed words inside a paired row.
-    addWordBg: (s) => chalk.bgHex(mixHex(palette.diffAddedStrong, canvas, 0.55))(s),
-    delWordBg: (s) => chalk.bgHex(mixHex(palette.diffRemovedStrong, canvas, 0.55))(s),
+    addWordBg: (s) => chalk.bgHex(mixHexColor(palette.diffAddedStrong, canvas, 0.55))(s),
+    delWordBg: (s) => chalk.bgHex(mixHexColor(palette.diffRemovedStrong, canvas, 0.55))(s),
   };
 }
 
@@ -187,6 +165,52 @@ export interface DiffLine {
  */
 export const DIFF_LCS_SOFT_CAP_LINES = 400;
 
+/**
+ * Added/removed line counts for a text pair, LCS-capped exactly like
+ * {@link computeDiffLines}. Feeds the per-turn chain diff chip
+ * (`+42/−10`) — the preview renderer and the summary share one diff.
+ */
+export function countDiffLines(
+  oldText: string,
+  newText: string,
+): { readonly added: number; readonly removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const line of computeDiffLines(oldText, newText)) {
+    if (line.kind === 'add') added++;
+    else if (line.kind === 'delete') removed++;
+  }
+  return { added, removed };
+}
+
+/** One source line kept for the LCS, carrying its original 1-based number. */
+interface KeptDiffLine {
+  readonly text: string;
+  readonly num: number;
+}
+
+/**
+ * Keep a head+tail window under `cap`. Tail-only windows (the old behavior)
+  * mis-render a settled edit whose hunk sits near the top: the surviving tail
+ * shares nothing with the other side and the LCS paints a full delete+add
+ * wall instead of the surgical hunk.
+ */
+function keepDiffWindow(lines: string[], cap: number, start: number): KeptDiffLine[] {
+  if (lines.length <= cap) {
+    return lines.map((text, i) => ({ text, num: start + i }));
+  }
+  const head = Math.floor(cap / 2);
+  const tail = cap - head;
+  const kept: KeptDiffLine[] = [];
+  for (let i = 0; i < head; i++) {
+    kept.push({ text: lines[i]!, num: start + i });
+  }
+  for (let i = lines.length - tail; i < lines.length; i++) {
+    kept.push({ text: lines[i]!, num: start + i });
+  }
+  return kept;
+}
+
 export function computeDiffLines(
   oldText: string,
   newText: string,
@@ -194,20 +218,12 @@ export function computeDiffLines(
   newStart: number = 1,
   isIncomplete: boolean = false,
 ): DiffLine[] {
-  let oldLines = oldText ? oldText.split('\n') : [];
-  let newLines = newText ? newText.split('\n') : [];
-  let oldStartAdj = oldStart;
-  let newStartAdj = newStart;
-  if (oldLines.length > DIFF_LCS_SOFT_CAP_LINES) {
-    const drop = oldLines.length - DIFF_LCS_SOFT_CAP_LINES;
-    oldLines = oldLines.slice(drop);
-    oldStartAdj = oldStart + drop;
-  }
-  if (newLines.length > DIFF_LCS_SOFT_CAP_LINES) {
-    const drop = newLines.length - DIFF_LCS_SOFT_CAP_LINES;
-    newLines = newLines.slice(drop);
-    newStartAdj = newStart + drop;
-  }
+  const oldSource = oldText ? oldText.split('\n') : [];
+  const newSource = newText ? newText.split('\n') : [];
+  const oldKept = keepDiffWindow(oldSource, DIFF_LCS_SOFT_CAP_LINES, oldStart);
+  const newKept = keepDiffWindow(newSource, DIFF_LCS_SOFT_CAP_LINES, newStart);
+  const oldLines = oldKept.map((line) => line.text);
+  const newLines = newKept.map((line) => line.text);
   const m = oldLines.length;
   const n = newLines.length;
 
@@ -229,14 +245,14 @@ export function computeDiffLines(
   let j = n;
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-      reversed.push({ kind: 'context', lineNum: newStartAdj + j - 1, code: newLines[j - 1]! });
+      reversed.push({ kind: 'context', lineNum: newKept[j - 1]!.num, code: newLines[j - 1]! });
       i--;
       j--;
     } else if (j > 0 && (i === 0 || dp[i]![j - 1]! >= dp[i - 1]![j]!)) {
-      reversed.push({ kind: 'add', lineNum: newStartAdj + j - 1, code: newLines[j - 1]! });
+      reversed.push({ kind: 'add', lineNum: newKept[j - 1]!.num, code: newLines[j - 1]! });
       j--;
     } else {
-      reversed.push({ kind: 'delete', lineNum: oldStartAdj + i - 1, code: oldLines[i - 1]! });
+      reversed.push({ kind: 'delete', lineNum: oldKept[i - 1]!.num, code: oldLines[i - 1]! });
       i--;
     }
   }

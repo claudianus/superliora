@@ -558,7 +558,7 @@ describe('createTUIState', () => {
     state.transcriptViewport.sync(100, 10);
     state.transcriptViewport.scroll('line-up');
 
-    expect(stripAnsi(state.footer.render(140)[0] ?? '')).toContain('[History · 3 lines up]');
+    expect(stripAnsi(state.footer.render(140)[0] ?? '')).toContain('[History · 3 rows up]');
 
     state.transcriptViewport.scroll('bottom');
 

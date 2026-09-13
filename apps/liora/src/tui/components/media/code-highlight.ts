@@ -519,13 +519,24 @@ export function formatShellCommandPreview(
     readonly continuationPrompt?: string;
   } = {},
 ): string[] {
-  const highlighted = highlightShellCommand(command, options.palette);
+  // Heredoc / generated-script commands can carry thousands of lines. Cap the
+  // synchronous bash tokenize and the mounted preview at the soft cap with a
+  // tail-keep (the interesting edge is usually the tail), never unbounded.
+  const lines = command.split('\n');
+  const overCap = lines.length > HIGHLIGHT_WINDOW_SOFT_CAP;
+  const capped = overCap ? lines.slice(lines.length - HIGHLIGHT_WINDOW_SOFT_CAP) : lines;
+  const highlighted = highlightShellCommand(capped.join('\n'), options.palette);
   const prompt = options.prompt ?? '$ ';
   const cont = options.continuationPrompt ?? '  ';
-  return highlighted.map((line, i) => {
-    const prefix = i === 0 ? prompt : cont;
-    return currentTheme.dim(prefix) + line;
-  });
+  const out: string[] = [];
+  if (overCap) {
+    out.push(currentTheme.dim(prompt) + `… ${String(lines.length - HIGHLIGHT_WINDOW_SOFT_CAP)} earlier command lines`);
+  }
+  for (let i = 0; i < highlighted.length; i++) {
+    const prefix = i === 0 && !overCap ? prompt : cont;
+    out.push(currentTheme.dim(prefix) + highlighted[i]!);
+  }
+  return out;
 }
 
 

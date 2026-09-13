@@ -82,6 +82,7 @@ export class TranscriptSearchDialogComponent extends Container implements Focusa
       renderParticleDivider(width, 'search:top', appearance),
       title,
       currentTheme.fg('textMuted', ` ${ttui('tui.search.hint')}`),
+      '',
     ];
 
     if (view.query.length > 0) {
@@ -92,7 +93,6 @@ export class TranscriptSearchDialogComponent extends Container implements Focusa
       lines.push(currentTheme.fg('primary', ` Search: `) + currentTheme.fg('text', view.query));
       lines.push(currentTheme.fg('textMuted', ` ${countLabel}`));
     }
-    lines.push('');
 
     for (let i = view.page.start; i < view.page.end; i++) {
       const entry = items[i]!;
@@ -104,8 +104,8 @@ export class TranscriptSearchDialogComponent extends Container implements Focusa
       const maxTextWidth = Math.max(1, width - 5);
       const displayText =
         visibleWidth(entry.text) <= maxTextWidth
-          ? entry.text.replaceAll(/\n/g, ' ')
-          : truncateToWidth(entry.text.replaceAll(/\n/g, ' '), maxTextWidth, '…');
+          ? entry.text.replaceAll('\n', ' ')
+          : truncateToWidth(entry.text.replaceAll('\n', ' '), maxTextWidth, '…');
       lines.push(prefix + currentTheme.fg(isSelected ? 'primary' : 'text', displayText));
     }
 

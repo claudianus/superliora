@@ -1,9 +1,9 @@
 import { Text } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 /** Delay before a long-running foreground Bash/Agent card advertises Ctrl+B. */
 const DETACH_HINT_DELAY_MS = 6_000;
-const DETACH_HINT_TEXT = 'Press Ctrl+B to background this task · /jobs bg to inspect';
 
 export function isDetachHintEligible(toolName: string): boolean {
   return toolName === 'Bash' || toolName === 'Agent';
@@ -60,6 +60,6 @@ export class ToolCallDetachHint {
   buildChild(): Text | undefined {
     if (!this.visible) return undefined;
     if (this.host.hasResult()) return undefined;
-    return new Text(currentTheme.dim(DETACH_HINT_TEXT), 2, 0);
+    return new Text(currentTheme.dim(ttui('tui.tool.detachHint')), 2, 0);
   }
 }

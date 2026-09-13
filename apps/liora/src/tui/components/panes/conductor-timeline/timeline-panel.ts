@@ -106,8 +106,13 @@ export class ConductorTimelinePanelComponent extends Container implements Focusa
     if (this.selectedIndex >= entries.length) {
       this.selectedIndex = Math.max(0, entries.length - 1);
     }
+    // Focus ring (PREMIUM §8.1): the focused panel owns the bright title;
+    // unfocused, the pane reads dim so exactly one surface reads active.
+    const title = this.focused
+      ? renderPremiumHeadline('Conductor Timeline', 'conductor-timeline:title')
+      : theme.fg('textMuted', 'Conductor Timeline');
     const lines: string[] = [
-      renderPremiumHeadline('Conductor Timeline', 'conductor-timeline:title'),
+      title,
       theme.fg('textMuted', ' ↑↓ navigate · Enter select · Esc cancel'),
       '',
     ];

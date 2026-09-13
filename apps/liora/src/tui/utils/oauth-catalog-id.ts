@@ -9,5 +9,9 @@ export function oauthProviderCatalogId(id: string): string {
   if (id === 'xai-grok') return 'xai';
   // Cursor OAuth uses AvailableModels RPC, not models.dev.
   if (id === 'cursor-oauth') return 'cursor-oauth';
+  // GLM ZCode provisions a Z.AI API key, so the GLM model catalog is shared.
+  if (id === 'glm-zcode') return 'zai';
+  // Code Assist login speaks the same Gemini model catalog.
+  if (id === 'google-gemini-cli') return 'google';
   return id;
 }

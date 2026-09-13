@@ -98,6 +98,17 @@ export function toKosongProviderConfig(
         baseUrl: providerValue(provider.baseUrl, provider.env, 'GEMINI_BASE_URL', 'provider base_url'),
         ...defaultHeadersField(provider.customHeaders),
       };
+    case 'code-assist':
+      return {
+        type: 'code-assist',
+        model,
+        apiKey: providerApiKey(provider),
+        baseUrl: providerValue(provider.baseUrl, provider.env, 'GEMINI_BASE_URL', 'provider base_url'),
+        ...(typeof provider.project === 'string' && provider.project.length > 0
+          ? { project: provider.project }
+          : {}),
+        ...defaultHeadersField(provider.customHeaders),
+      };
     case 'openai_responses': {
       const baseUrl =
         firstCredentialBaseUrlWhenPrimary(provider) ??
@@ -128,6 +139,16 @@ export function toKosongProviderConfig(
         ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
       };
     }
+    case 'codewhisperer':
+      return {
+        type: 'codewhisperer',
+        model,
+        apiKey: providerApiKey(provider),
+        baseUrl: provider.baseUrl,
+        ...(typeof provider.customHeaders === 'object' && provider.customHeaders !== null
+          ? { defaultHeaders: provider.customHeaders }
+          : {}),
+      };
     case 'bedrock':
       return {
         type: 'bedrock',

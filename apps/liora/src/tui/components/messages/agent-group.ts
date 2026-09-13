@@ -31,12 +31,11 @@ import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 import type { ToolCallComponent, ToolCallSubagentSnapshot } from './tool-call';
 
 const THROTTLE_MS = 200;
-
-const DETACH_HINT_TEXT = 'Press Ctrl+B to background this task · /jobs bg to inspect';
 
 interface AgentEntry {
   readonly toolCallId: string;
@@ -156,7 +155,7 @@ export class AgentGroupComponent extends Container {
       this.appendLines(snap, isLast);
     });
     if (this.shouldShowDetachHint(snapshots)) {
-      this.bodyContainer.addChild(new Text(currentTheme.dim(DETACH_HINT_TEXT), 2, 0));
+      this.bodyContainer.addChild(new Text(currentTheme.dim(ttui('tui.tool.detachHint')), 2, 0));
     }
 
     this.lastFlushPhases.clear();

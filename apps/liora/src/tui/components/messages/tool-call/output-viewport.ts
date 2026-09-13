@@ -110,6 +110,12 @@ export class ToolCallOutputViewportMount {
     this.host.toolOutputViewports?.set(this.host.toolCallId, state);
     if (previous?.height !== state.height) this.host.persistSessionUiState?.();
   }
+
+  /** Called when the owning tool card is evicted: drop the retained state. */
+  dispose(): void {
+    this.viewport = undefined;
+    this.host.toolOutputViewports?.delete(this.host.toolCallId);
+  }
 }
 
 /**

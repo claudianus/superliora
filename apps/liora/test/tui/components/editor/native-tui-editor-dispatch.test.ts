@@ -57,6 +57,71 @@ function enterEvent(raw: string, overrides: Partial<NativeInputKeyEvent> = {}): 
   };
 }
 
+function keyEvent(
+  key: NativeInputKeyEvent['key'],
+  raw: string,
+  overrides: Partial<NativeInputKeyEvent> = {},
+): NativeInputKeyEvent {
+  return {
+    type: 'key',
+    key,
+    raw,
+    eventType: 'press',
+    ctrl: false,
+    alt: false,
+    shift: false,
+    ...overrides,
+  };
+}
+
+describe('coalesced chunk dispatch with autocomplete open', () => {
+  it('processes every event in a chunk, not only the first handled one', () => {
+    const { host } = makeHost();
+    const menu = {
+      isOpen: () => true,
+      handleNativeInput: vi.fn((event: NativeInputKeyEvent) =>
+        event.key === 'up' ? { handled: true } : { handled: false },
+      ),
+    };
+    (host as unknown as { getAutocompleteController: () => typeof menu }).getAutocompleteController =
+      () => menu;
+    const textInput = { handleInput: vi.fn() };
+    (host as unknown as { getTextInput: () => typeof textInput }).getTextInput = () => textInput;
+    (host as unknown as {
+      applyPromptAwareMutation: (mutate: () => boolean) => boolean;
+    }).applyPromptAwareMutation = (mutate) => mutate();
+
+    // Chunk coalesced from fast typing: menu handled ↑, plain char fell through.
+    dispatchNativeTUIEditorDecodedEvents(host, [
+      keyEvent('up', '\u001B[A'),
+      keyEvent('character', 'a', { text: 'a' }),
+    ]);
+
+    expect(menu.handleNativeInput).toHaveBeenCalledTimes(2);
+    // The unhandled printable char still reached the text input (old behavior
+    // discarded it after the first handled event).
+    expect(textInput.handleInput).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not double-process events the menu already consumed', () => {
+    const { host } = makeHost();
+    const menu = {
+      isOpen: () => true,
+      handleNativeInput: vi.fn(() => ({ handled: true })),
+    };
+    (host as unknown as { getAutocompleteController: () => typeof menu }).getAutocompleteController =
+      () => menu;
+    const submit = vi.fn();
+    (host as unknown as { submit: typeof submit }).submit = submit;
+
+    dispatchNativeTUIEditorDecodedEvents(host, [enterEvent('\r')]);
+
+    expect(menu.handleNativeInput).toHaveBeenCalledTimes(1);
+    // Enter was consumed by the menu (select completion) — not submitted.
+    expect(submit).not.toHaveBeenCalled();
+  });
+});
+
 describe('native editor enter submission', () => {
   it('submits a CR enter event', () => {
     const { host, submit } = makeHost();

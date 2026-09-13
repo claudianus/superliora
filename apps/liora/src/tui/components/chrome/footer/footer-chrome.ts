@@ -22,7 +22,7 @@ export type FooterTranscriptViewportSnapshot = Pick<
 >;
 
 function posixPath(value: string): string {
-  let normalized = value.replace(/\\/g, '/');
+  let normalized = value.replaceAll(/\\/g, '/');
   const msys = /^\/([a-zA-Z])(\/|$)/.exec(normalized);
   const drive = msys?.[1];
   if (drive !== undefined) {
@@ -83,9 +83,9 @@ export function formatTranscriptViewportBadge(
 ): string | null {
   const status = projectRendererViewportHistoryStatus(viewport);
   if (status === undefined) return null;
-  // status.label is like "history +42 rows" — rebuild plain text from rowsBehind
-  const compact = status.label.replace(/^history \+/, '').replace(/ rows$/, '');
-  const text = labelHistoryViewport(labels, status.rowsBehind, compact);
+  // Both wordings read the structured count — parsing the renderer's label
+  // back apart would silently break on any wording change.
+  const text = labelHistoryViewport(labels, status.rowsBehind);
   return currentTheme.boldFg('warning', `[${text}]`);
 }
 
@@ -100,7 +100,7 @@ export function footerNextAction(state: AppState, git: GitStatus | null): string
     state.contextOS !== null &&
     state.contextOS.missingEvidencePageCount > 0
   ) {
-    return 'durable evidence missing after compaction — verify IDs before resume';
+    return ttui('tui.footer.next.compactEvidence');
   }
   if (state.premiumQualityMode) {
     return ttui('tui.footer.premium');

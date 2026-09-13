@@ -1,5 +1,6 @@
 import type { NativeInputEvent, NativeInputMouseEvent } from '#/tui/renderer';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 import type { TUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
@@ -119,10 +120,10 @@ async function copyTranscriptSelectionOnRelease(state: TUIState): Promise<void> 
   if (text === undefined) return;
   try {
     await copyTextToClipboard(text);
-    state.toast.show('Copied to clipboard');
+    state.toast.show(ttui('tui.clipboard.copiedToClipboard'));
   } catch {
     // Keep highlight so Ctrl+C / retry can still work; surface a clear status.
-    state.toast.show('Copy failed — try Ctrl+C');
+    state.toast.show(ttui('tui.clipboard.copyFailedCtrlC'));
   }
   requestTUILayoutRender(state);
 }

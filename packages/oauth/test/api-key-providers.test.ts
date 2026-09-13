@@ -72,4 +72,56 @@ describe('api-key-providers registry', () => {
     expect(getApiKeyProvider('ollama')?.local).toBe(true);
     expect(getApiKeyProvider('openai')?.local).toBeUndefined();
   });
+
+  it('covers the gajae-code parity providers absent from the models.dev catalog', () => {
+    const expected: readonly (readonly [string, string])[] = [
+      ['firepass', 'https://api.fireworks.ai/inference/v1'],
+      ['fugu', 'https://api.sakana.ai/v1'],
+      ['nanogpt', 'https://nano-gpt.com/api/v1'],
+      ['mara', 'https://api.cloud.mara.com/v1'],
+      ['opengateway', 'https://apis.opengateway.ai/v1'],
+      ['bizrouter', 'https://api.bizrouter.ai/v1'],
+      ['qianfan', 'https://qianfan.baidubce.com/v2'],
+      ['sglang', 'http://127.0.0.1:30000/v1'],
+    ];
+    for (const [id, baseUrl] of expected) {
+      const def = getApiKeyProvider(id);
+      expect(def, `missing provider ${id}`).toBeDefined();
+      expect(def?.defaultBaseUrl, `${id} base URL`).toBe(baseUrl);
+      expect(def?.wire, `${id} wire`).toBe('openai');
+      expect(def?.envVars.length, `${id} env vars`).toBeGreaterThan(0);
+    }
+    expect(getApiKeyProvider('sglang')?.local).toBe(true);
+  });
+
+  it('does not duplicate providers the models.dev catalog already carries', () => {
+    // models.dev ships env hints + base URLs for these ids (or the curated
+    // local overlay surfaces them); a registry entry here would conflict or
+    // double-source the same credential. Keep the catalog authoritative.
+    const coveredByCatalog = [
+      'alibaba-token-plan',
+      'xiaomi',
+      'xiaomi-token-plan-sgp',
+      'xiaomi-token-plan-ams',
+      'xiaomi-token-plan-cn',
+      'nvidia',
+      'synthetic',
+      'huggingface',
+      'zenmux',
+      'minimax-cn',
+      'ollama-cloud',
+      // Curated local overlay row (apps/liora local-catalog-providers).
+      'commandcode',
+    ];
+    for (const id of coveredByCatalog) {
+      expect(getApiKeyProvider(id), `${id} should stay catalog-only`).toBeUndefined();
+      expect(isApiKeyProviderId(id)).toBe(false);
+    }
+  });
+
+  it('resolves huggingface credentials from HF_TOKEN via the catalog, not the registry', () => {
+    // HF_TOKEN belongs to the models.dev huggingface entry; the registry must
+    // not shadow it with a second definition.
+    expect(getApiKeyProvider('huggingface')).toBeUndefined();
+  });
 });

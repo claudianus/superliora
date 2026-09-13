@@ -33,7 +33,6 @@ export class HeaderComponent implements Component {
   /** Kept for call-site compatibility; chrome rebuilds drive the clock label. */
   private readonly onRefresh: () => void;
   private readonly nowMs: () => number;
-  private lastClockLabel = '';
 
   constructor(
     state: AppState,
@@ -43,7 +42,6 @@ export class HeaderComponent implements Component {
     this.state = state;
     this.onRefresh = onRefresh;
     this.nowMs = nowMs;
-    this.lastClockLabel = formatLocalClock(this.nowMs());
     void this.onRefresh;
   }
 
@@ -84,7 +82,6 @@ export class HeaderComponent implements Component {
           })
         : '';
     const clockLabel = formatLocalClock(this.nowMs());
-    this.lastClockLabel = clockLabel;
 
     const modelText =
       modelLabel.length > 0

@@ -58,8 +58,17 @@ export class ActivityPaneComponent extends Container {
   }
 
   override render(width: number): string[] {
-    if (this.spinnerRef && 'setAvailableWidth' in this.spinnerRef) {
-      this.spinnerRef.setAvailableWidth(width);
+    // Quiet setter: we are inside render() — the refreshing width setter
+    // calls requestRender() again and would recurse into the render loop.
+    const spinner = this.spinnerRef;
+    if (spinner !== undefined) {
+      if (typeof spinner.setAvailableWidthQuiet === 'function') {
+        spinner.setAvailableWidthQuiet(width);
+      } else if (typeof spinner.setAvailableWidth === 'function') {
+        // Test stubs may only expose the refreshing setter; a stub does not
+        // recurse, so calling it is safe.
+        spinner.setAvailableWidth(width);
+      }
     }
     const statusLine = this.renderTurnStatusLine(width);
     const lines = statusLine !== undefined ? [statusLine] : super.render(width);

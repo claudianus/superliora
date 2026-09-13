@@ -14,6 +14,7 @@ import {
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
 import { syncAmbientAnimatedText } from '#/tui/utils/render/render-cache';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 const ARGS_PREVIEW_MAX = 200;
 
@@ -68,9 +69,10 @@ export class PluginCommandComponent extends Container {
   private renderHead(): string {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
+    const label = ttui('tui.plugin.ranPrefix');
     const prefix = animated
-      ? renderPulseText('▶', 'plugin-cmd:arrow', 'primary') + ' ' + renderPremiumHeadline('Ran command:', 'plugin-cmd:prefix', appearance)
-      : currentTheme.boldFg('primary', '▶ Ran command: ');
+      ? renderPulseText('▶', 'plugin-cmd:arrow', 'primary') + ' ' + renderPremiumHeadline(label, 'plugin-cmd:prefix', appearance)
+      : currentTheme.boldFg('primary', `▶ ${label} `);
     const command = animated
       ? renderPremiumHeadline(`/${this.commandLabel}`, `plugin-cmd:${this.commandLabel}`, appearance)
       : currentTheme.boldFg('roleUser', `/${this.commandLabel}`);

@@ -1,6 +1,6 @@
 import { CURSOR_MARKER, Key, matchesKey, truncateToWidth, visibleWidth } from '#/tui/renderer';
-import chalk from 'chalk';
 
+import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
 
 const MAX_EDIT_INPUT_LINES = 8;
@@ -313,8 +313,12 @@ function renderCursorLine(
     Math.max(0, textWidth - visibleWidth(beforeView) - cursorWidth),
   );
   const marker = focused ? CURSOR_MARKER : '';
+  // Palette-aware cursor block: bg/fg from the theme's selection tokens instead
+  // of chalk.inverse, which paints with the terminal's default colors and
+  // ignores the active palette on light themes.
+  const cursorBlock = currentTheme.bg('selectionBg', currentTheme.fg('selectionText', cursorText));
   return padInputLine(
-    prefix + beforeView + marker + chalk.inverse(cursorText) + afterView,
+    prefix + beforeView + marker + cursorBlock + afterView,
     width,
   );
 }

@@ -119,6 +119,11 @@ Baseline: `model-selector.ts`. Top-to-bottom fixed layout:
 | Move | `↑` / `↓` | `matchesKey(data, Key.Up/Down)` — grid: step by columns |
 | Move (grid) | `←` / `→` | column step when `layout: 'grid'` and columns > 1 |
 | Page | `PgUp` / `PgDn` | `matchesKey(data, Key.PageUp/Down)` (list-mode ←→ may still page) |
+
+Scroll/paging indicators use two sanctioned families, never a third:
+`▲/▼ N more` for windowed page lists (Command Hub, plugin lists, pickers)
+and `↑/↓ N more` for scrollable boards (todo board). Do not invent new
+arrows for overflow indicators.
 | Select | `Enter` | `matchesKey(data, Key.Return)` |
 | Cancel | `Esc` | `matchesKey(data, Key.Escape)` — two-stage in searchable lists: first clears query, then closes |
 | Delete | `D` | `printableChar(data) === 'D'` (also accepts `'d'`) |
@@ -212,8 +217,12 @@ renderer quality level.
 
 Hard-off sinks (decorative motion vanishes; functional spinners may remain):
 
-- `TERM=dumb` and a non-empty `NO_COLOR` — `motionEffectsAllowed` /
-  `progressMotionActive` (plain-text sinks cannot repaint a cell in place).
+- `TERM=dumb` **or** a non-empty `NO_COLOR` — `motionEffectsAllowed` /
+  `progressMotionActive`. Either alone marks a plain-text sink: `dumb`
+  cannot repaint cells at all, and under `NO_COLOR` the color-driven
+  decorative effects have nothing to paint. (Reads as OR in code — that is
+  intentional; the two env vars describe the same "no in-place repaint"
+  sink from different angles.)
 - `CI` and SSH — decorative only (`motionEffectsAllowed`); live spinners
   still rotate so a remote session does not look hung.
 - User pin: Appearance profile / particles `off`.
@@ -494,9 +503,22 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
 
 ### 7.4 State scope
 
-Appearance preferences, animation clock, render quality, and render health are
-**instance-scoped**, not module-level `let` globals. This prevents state leakage
-between TUI instances and enables unit testing.
+The **theme palette is a process-global singleton by design** (`currentTheme`,
+mirroring the terminal's single canvas), and the appearance/animation-clock
+module state in `features/appearance/appearance-state.ts` follows the same
+model: one appearance per process. Product-wise the CLI runs one interactive
+TUI per process; two live instances in one process are a test-only scenario.
+
+Rules that follow from this:
+
+- Per-instance *runtime* (stream reveal arming, viewport scroll states,
+  component caches) stays on the owning instance/controller — never a module
+  `let`. Multi-instance bugs of this class (e.g. a single-slot reveal arm
+  overwriting another instance's) are real and get fixed on sight.
+- Streaming-canvas state (transcript detail, neat mode) is process-global and
+  seeded at wiring; components read it at render time.
+- Any new module-level mutable appearance state needs a comment justifying why
+  process-global is correct.
 
 See `src/tui/utils/tab-strip.ts` for the shared renderer.
 
@@ -535,20 +557,20 @@ switching (Ctrl+O toast confirms the level).
 - `/transcript <minimal|compact|standard|full>` — quick switch.
 - `/appearance transcript-detail <level>` — same path, shown in the
   Appearance status block.
-- `tui.toml` → `[appearance] transcript_detail = "compact"` — persisted
+- `tui.toml` → `[appearance] transcript_detail = "standard"` — persisted
   default; seeded into session state at startup.
 
 Levels:
 
-- `compact` (default): **quiet activity log** — each tool is a **title**
+- `standard` (default): **chain phase bar** + preview tool cards + soft phase
+  tints (you / thinking / tools / answer work-units).
+- `compact`: **quiet activity log** — each tool is a **title**
   (`Reading foo.ts`) plus an optional **dim metrics** line (`42 lines`,
   `+12 −3`). No Used/Using verbs, no ▌ gutter, no work-block tint.
   File/symbol names sit in a surface pill; diffs are green/red.
   Thinking collapses to `Thought briefly` / a live thought-orb + `Thinking…`.
   A dim chain metrics line stays clickable for expand-all.
   Click a card to expand locally.
-- `standard`: **chain phase bar** + preview tool cards + soft phase
-  tints (you / thinking / tools / answer work-units).
 - `minimal`: **chain-only** tools — individual tool rows stay hidden until
   local expand (failures punch through). Aggregate chain summary per turn
   (`▌ tools · 7 tools · +42/−10` live; `Worked for …` settled).

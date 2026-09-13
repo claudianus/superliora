@@ -13,6 +13,7 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
+import type { FileProvenanceHook } from '../../../session/file-provenance';
 import type { FileSnapshotStore } from '../../../session/file-snapshot';
 import { checkSwarmFileLease } from '#/fleet';
 import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
@@ -83,6 +84,8 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       readonly onFileMutated?:
         | ((path: string, content: string) => Promise<string | undefined> | string | undefined)
         | undefined;
+      /** Optional file-provenance recorder (session attribution trail). */
+      readonly provenance?: FileProvenanceHook | undefined;
     },
   ) {}
 
@@ -137,6 +140,18 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       await snapshots.captureBeforeWrite(turnId, safePath);
     }
 
+    // Provenance needs the real before-state per mutation (the snapshot
+    // capture is first-write-wins per turn, not per call).
+    const provenance = this.options?.provenance;
+    let beforeContent: string | null = null;
+    if (provenance !== undefined) {
+      try {
+        beforeContent = await this.kaos.readText(safePath);
+      } catch {
+        beforeContent = null;
+      }
+    }
+
     try {
       const mode = args.mode ?? 'overwrite';
       if (mode === 'append') {
@@ -144,6 +159,18 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       } else {
         await this.kaos.writeAtomic(safePath, args.content);
       }
+      await provenance?.record({
+        path: safePath,
+        tool: this.name,
+        op:
+          beforeContent === null
+            ? 'create'
+            : mode === 'append'
+              ? 'append'
+              : 'overwrite',
+        before: beforeContent,
+        after: args.content,
+      });
       // Report the number of UTF-8 bytes this call wrote to disk. The string
       // length would only equal the byte count for pure ASCII content, so it
       // is not used here.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { getCliLocale, setCliLocale } from '#/cli/i18n';
 import {
   createToolChainStats,
   DEFAULT_TRANSCRIPT_DETAIL,
@@ -91,12 +92,19 @@ describe('nextTranscriptDetailLevel (Ctrl+O cycle)', () => {
   });
 
   it('labels each level for the density-cycle toast', () => {
-    for (const level of TRANSCRIPT_DETAIL_LEVELS) {
-      expect(formatTranscriptDetailCycleLabel(level)).toMatch(/Transcript ·/);
+    // Pin the locale: the label is localized copy and CI runs with a stripped env.
+    const previous = getCliLocale();
+    setCliLocale('en');
+    try {
+      for (const level of TRANSCRIPT_DETAIL_LEVELS) {
+        expect(formatTranscriptDetailCycleLabel(level)).toMatch(/Transcript ·/);
+      }
+      expect(formatTranscriptDetailCycleLabel('compact')).toBe(
+        'Transcript · compact (activity titles · dim metrics · no chrome)',
+      );
+    } finally {
+      setCliLocale(previous);
     }
-    expect(formatTranscriptDetailCycleLabel('compact')).toBe(
-      'Transcript · compact (activity titles · dim metrics · no chrome)',
-    );
   });
 });
 

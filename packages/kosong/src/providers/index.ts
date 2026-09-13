@@ -8,8 +8,10 @@ import {
   getOpenAILegacyModelCapability,
   getOpenAIResponsesModelCapability,
 } from './capability-registry';
+import { CodeAssistChatProvider, type CodeAssistOptions } from './google/code-assist';
 import { GoogleGenAIChatProvider, type GoogleGenAIOptions } from './google-genai';
 import { KimiChatProvider, type LioraOptions } from './kimi';
+import { KiroCodeWhispererChatProvider, type KiroCodeWhispererOptions } from './kiro/codewhisperer';
 import { CursorChatProvider, type CursorOptions } from '#/providers/cursor/index';
 import { OpenAILegacyChatProvider, type OpenAILegacyOptions } from '#/providers/openai-legacy/index';
 import { OpenAIResponsesChatProvider, type OpenAIResponsesOptions } from './openai-responses';
@@ -20,8 +22,10 @@ export type ProviderConfig =
   | ({ type: 'openai' } & OpenAILegacyOptions)
   | ({ type: 'kimi' } & LioraOptions)
   | ({ type: 'google-genai' } & GoogleGenAIOptions)
+  | ({ type: 'code-assist' } & CodeAssistOptions)
   | ({ type: 'openai_responses' } & OpenAIResponsesOptions)
   | ({ type: 'vertexai' } & GoogleGenAIOptions)
+  | ({ type: 'codewhisperer' } & KiroCodeWhispererOptions)
   | ({ type: 'bedrock' } & BedrockOptions)
   | ({ type: 'vertex_claude' } & VertexClaudeOptions)
   | ({ type: 'cursor' } & CursorOptions);
@@ -38,10 +42,14 @@ export function createProvider(config: ProviderConfig): ChatProvider {
       return new KimiChatProvider(config);
     case 'google-genai':
       return new GoogleGenAIChatProvider(config);
+    case 'code-assist':
+      return new CodeAssistChatProvider(config);
     case 'openai_responses':
       return new OpenAIResponsesChatProvider(config);
     case 'vertexai':
       return new GoogleGenAIChatProvider(config);
+    case 'codewhisperer':
+      return new KiroCodeWhispererChatProvider(config);
     case 'bedrock':
       return new BedrockChatProvider(config);
     case 'vertex_claude':
@@ -75,9 +83,11 @@ export function getModelCapability(wire: ProviderType, modelName: string): Model
       return getOpenAIResponsesModelCapability(modelName);
     case 'google-genai':
     case 'vertexai':
+    case 'code-assist':
       return getGoogleGenAIModelCapability(modelName);
     case 'kimi':
     case 'cursor':
+    case 'codewhisperer':
       // Host catalogs (models.dev / Cursor AvailableModels) own these wires.
       return UNKNOWN_CAPABILITY;
     default: {

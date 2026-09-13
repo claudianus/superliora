@@ -1,10 +1,12 @@
 import type { Component, Focusable } from '#/tui/renderer';
+import type { Session } from '@superliora/sdk';
 import { loadFileForViewer } from '#/utils/fs/file-content';
 import { buildFileTree, listProjectFiles } from '#/utils/fs/file-tree';
 import type { SearchResults } from '#/utils/fs/project-search';
 import { collectGitBlame } from '#/utils/git/git-blame';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 import { collectCommitDiff, type GitLogReport } from '#/utils/git/git-log';
+import { loadProvenanceAnnotations } from '#/utils/git/git-provenance';
 import { fetchWebContent } from '#/utils/web/web-content';
 import { resolve } from 'pathe';
 
@@ -27,6 +29,8 @@ import { ttui } from '../../utils/tui-i18n';
 /** Host surface for workspace file / git / search browser dialogs. */
 export interface WorkspaceBrowserHost {
   state: TUIState;
+  /** Current SDK session; session-scoped dialogs (blame provenance) read from it. */
+  readonly session?: Session | undefined;
 
   showError(message: string): void;
   showStatus(message: string, color?: ColorToken): void;
@@ -246,11 +250,21 @@ export class WorkspaceBrowserController {
     void (async () => {
       try {
         const lines = await collectGitBlame(target, { cwd: this.host.state.appState.workDir });
+        const sessionDir = this.host.session?.summary?.sessionDir;
+        const annotations =
+          sessionDir === undefined
+            ? undefined
+            : await loadProvenanceAnnotations({
+                sessionDir,
+                target,
+                workDir: this.host.state.appState.workDir,
+              }).catch(() => undefined);
         if (this.host.state.activeDialog !== null) return;
         this.host.state.activeDialog = 'blame';
         this.host.mountEditorReplacement(
           new BlamePanelComponent({
             lines,
+            annotations,
             title: target,
             palette: currentTheme.palette,
             onClose: () => {

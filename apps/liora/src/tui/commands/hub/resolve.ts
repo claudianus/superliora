@@ -5,6 +5,7 @@ import {
   type BuiltinSlashCommandName,
 } from './registry';
 import { isExperimentalFlagEnabled } from '../experimental-flags';
+import { ttui } from '../../utils/tui-i18n';
 import { parseSlashInput } from './parse';
 import type {
   LioraSlashCommand,
@@ -163,7 +164,7 @@ export function slashBusyMessage(
   reason: SlashCommandBusyReason,
 ): string {
   if (reason === 'streaming') {
-    return `Cannot /${commandName} while streaming — press Esc or Ctrl-C first.`;
+    return ttui('tui.hub.busy.streaming', { name: commandName });
   }
-  return `Cannot /${commandName} while compacting — wait for compaction to finish first.`;
+  return ttui('tui.hub.busy.compacting', { name: commandName });
 }

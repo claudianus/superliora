@@ -8,13 +8,13 @@ Custom themes can override the tokens below. The `dark` and `light` columns show
 
 | Token | `dark` | `light` | What it controls |
 | --- | --- | --- | --- |
-| `primary` | `#4FA8FF` | `#1565C0` | The most-used color. Links, inline code, the selected item in nearly every dialog, the focused editor border, Plan/"running" badges, spinners |
-| `accent` | `#5BC0BE` | `#00838F` | Secondary highlight. Approval `▶` prefix, device-code box, image placeholder, BTW / queue panes, registry import |
+| `primary` | `#3D9BFF` | `#1565C0` | The most-used color. Links, inline code, the selected item in nearly every dialog, the focused editor border, Plan/"running" badges, spinners |
+| `accent` | `#2DD4BF` | `#0F766E` | Secondary highlight. Approval `▶` prefix, device-code box, image placeholder, BTW / queue panes, registry import |
 | `text` | `#E0E0E0` | `#1A1A1A` | Body text. Dialog bodies, todo titles, footer model label, Markdown headings, assistant/tool message bullets, list bullets |
 | `textStrong` | `#F5F5F5` | `#1A1A1A` | Emphasized / bold text. Input dialogs, status messages |
 | `textDim` | `#888888` | `#454545` | Secondary, dimmed text. Thinking, hints, descriptions, completed todos, Markdown quotes, footer status bar |
 | `textMuted` | `#6B6B6B` | `#5F5F5F` | Faintest text. Counters, scroll info, descriptions, Markdown link URLs, code-block borders |
-| `ghostText` | `#616161` | `#767676` | Dimmed inline ghost text. Autocomplete / next-task suggestion preview after the editor cursor (Tab to accept) |
+| `ghostText` | `#616161` | `#6E6E6E` | Dimmed inline ghost text. Autocomplete / next-task suggestion preview after the editor cursor (Tab to accept) |
 | `background` | `#0B0F14` | `#FFFFFF` | Root TUI canvas background |
 | `surface` | `#111827` | `#F4F7FB` | Default panel and dialog surface |
 | `surfaceRaised` | `#182233` | `#E8F0FA` | Raised surface for focused or premium chrome |
@@ -27,18 +27,20 @@ Custom themes can override the tokens below. The `dark` and `light` columns show
 | `success` | `#4EC87E` | `#0E7A38` | Success state. `✓`, "enabled", completed |
 | `warning` | `#E8A838` | `#92660A` | Warning state. auto/yolo badges, stale markers, Plan mode hint |
 | `error` | `#E85454` | `#B91C1C` | Error state. Error messages, failed tool output |
+| `info` | `#3D9BFF` | `#1565C0` | Info state. Neutral notices (failover, recovered, idempotent replays) |
 | `diffAdded` | `#4EC87E` | `#0E7A38` | Diff added lines |
 | `diffRemoved` | `#E85454` | `#B91C1C` | Diff removed lines |
 | `diffAddedStrong` | `#7AD99B` | `#0E7A38` | Diff intra-line changed words, added and bold |
 | `diffRemovedStrong` | `#F08585` | `#B91C1C` | Diff intra-line changed words, removed and bold |
 | `diffGutter` | `#6B6B6B` | `#737373` | Diff line-number gutter |
 | `diffMeta` | `#888888` | `#5F5F5F` | Diff meta / hunk headers |
-| `roleUser` | `#FFCB6B` | `#9A4A00` | User message bullet and text, skill-activation name |
-| `shellMode` | `#BD93F9` | `#7C3AED` | Shell mode (`!`) prompt, editor border, and the echoed `$ command` line |
-| `glow` | `#7DD3FC` | `#075985` | Glow / halo accent for focus effects |
-| `particle` | `#B784FF` | `#7C3AED` | Particle accent for event bursts and ambient effects |
-| `gradientStart` | `#00D5FF` | `#075985` | Start of premium gradient treatments |
-| `gradientEnd` | `#B784FF` | `#0F766E` | End of premium gradient treatments |
+| `roleUser` | `#FBBF24` | `#9A4A00` | User message bullet and text, skill-activation name |
+| `shellMode` | `#E879F9` | `#7C3AED` | Shell mode (`!`) prompt, editor border, and the echoed `$ command` line |
+| `glow` | `#67E8F9` | `#075985` | Glow / halo accent for focus effects |
+| `particle` | `#A78BFA` | `#6D28D9` | Particle accent for event bursts and ambient effects |
+| `gradientStart` | `#06B6D4` | `#0E7490` | Start of premium gradient treatments |
+| `gradientMid` | `#6366F1` | `#4338CA` | Middle stop of premium gradient treatments |
+| `gradientEnd` | `#8B5CF6` | `#6D28D9` | End of premium gradient treatments |
 | `syntaxText` | `#E0E0E0` | `#1A1A1A` | Code highlight default / identifiers |
 | `syntaxKeyword` | `#C792EA` | `#6D28D9` | Code highlight keywords, constants, and built-ins |
 | `syntaxFunction` | `#82AAFF` | `#075985` | Code highlight function and method names |

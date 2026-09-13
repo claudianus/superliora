@@ -229,6 +229,11 @@ export class QuestionDialogComponent
       if (set.has(otherIdx) && otherText !== undefined && otherText.length > 0) {
         labels.push(otherText);
       }
+      // Multi-select contract: answers flatten to one comma-joined string per
+      // question (the SDK answer shape is Record<string, string | true>, and
+      // structured arrays are not representable). Labels containing commas
+      // are therefore ambiguous to the consumer — the question author must
+      // avoid commas in multi-select option labels.
       this.answers[questionIdx] = labels.length > 0 ? labels.join(', ') : undefined;
       return;
     }

@@ -1,5 +1,10 @@
 import { OSC11_RESPONSE } from "#/tui/constant/terminal";
 
+import {
+  isLightBackgroundLuminance,
+  relativeLuminanceSrgb,
+} from "./luminance";
+
 import type { ResolvedTheme } from "./colors";
 
 export function parseOsc11BackgroundTheme(data: string): ResolvedTheme | null {
@@ -14,10 +19,10 @@ export function themeFromHexChannels(rHex: string, gHex: string, bHex: string): 
   const r = normalizeChannel(rHex);
   const g = normalizeChannel(gHex);
   const b = normalizeChannel(bHex);
-  // Relative luminance, sRGB-linearised. Threshold 0.5 splits dark/light
-  // backgrounds reliably for both pure-black (#000) and pure-white (#fff).
-  const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luma > 0.5 ? "light" : "dark";
+  // WCAG relative luminance: channels must be linearized before the weighted
+  // sum. Gamma-encoded sums mis-classified mid grays (#808080 → "light").
+  const luma = relativeLuminanceSrgb(r, g, b);
+  return isLightBackgroundLuminance(luma) ? "light" : "dark";
 }
 
 function normalizeChannel(hex: string): number {

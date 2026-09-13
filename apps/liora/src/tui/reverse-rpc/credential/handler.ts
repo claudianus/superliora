@@ -1,6 +1,7 @@
 import type { CredentialHandler, CredentialRequest, CredentialResponse } from '@superliora/sdk';
 
 import { promptApiKey } from '#/tui/commands/auth/prompts';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 export interface CredentialPromptHost {
@@ -8,10 +9,16 @@ export interface CredentialPromptHost {
   restoreEditor(): void;
 }
 
-const DEFAULT_CONTEXT7_SUBTITLE = [
-  'Free API keys: https://context7.com/dashboard',
-  'Saved to ~/.superliora/config.toml',
-] as const;
+/** Locale-neutral literal (URL / path); the prose around it is localized. */
+const CONTEXT7_DASHBOARD_URL = 'https://context7.com/dashboard';
+const CONFIG_TOML_PATH = '~/.superliora/config.toml';
+
+function defaultContext7Subtitle(): string[] {
+  return [
+    ttui('tui.cred.freeKeys', { url: CONTEXT7_DASHBOARD_URL }),
+    ttui('tui.cred.savedTo', { path: CONFIG_TOML_PATH }),
+  ];
+}
 
 const SEARCH_PROVIDER_SIGNUP = [
   {
@@ -19,28 +26,28 @@ const SEARCH_PROVIDER_SIGNUP = [
     title: 'Brave Search',
     env: 'BRAVE_API_KEY',
     signupUrl: 'https://api-dashboard.search.brave.com/',
-    freeTier: 'free plan available',
+    freeTierKey: 'tui.cred.freeTier.brave',
   },
   {
     kind: 'tavily',
     title: 'Tavily',
     env: 'TAVILY_API_KEY',
     signupUrl: 'https://app.tavily.com/home',
-    freeTier: 'free credits for agents',
+    freeTierKey: 'tui.cred.freeTier.tavily',
   },
   {
     kind: 'exa',
     title: 'Exa',
     env: 'EXA_API_KEY',
     signupUrl: 'https://dashboard.exa.ai/',
-    freeTier: 'free trial credits',
+    freeTierKey: 'tui.cred.freeTier.exa',
   },
   {
     kind: 'serper',
     title: 'Serper (Google)',
     env: 'SERPER_API_KEY',
     signupUrl: 'https://serper.dev/',
-    freeTier: '2,500 free queries',
+    freeTierKey: 'tui.cred.freeTier.serper',
   },
 ] as const;
 
@@ -55,7 +62,7 @@ export function createResearchCredentialHandler(host: CredentialPromptHost): Cre
       const value = await promptApiKey(
         host as SlashCommandHost,
         request.title.length > 0 ? request.title : 'Context7',
-        request.subtitleLines ?? DEFAULT_CONTEXT7_SUBTITLE,
+        request.subtitleLines ?? defaultContext7Subtitle(),
       );
       if (value === undefined) return { value: undefined };
       return { value };
@@ -69,8 +76,8 @@ export function createResearchCredentialHandler(host: CredentialPromptHost): Cre
         host as SlashCommandHost,
         request.title.length > 0 ? request.title : searchProvider.title,
         request.subtitleLines ?? [
-          `${searchProvider.freeTier} · ${searchProvider.signupUrl}`,
-          `Or export ${searchProvider.env} and restart · saved to ~/.superliora/config.toml`,
+          ttui(searchProvider.freeTierKey, { url: searchProvider.signupUrl }),
+          ttui('tui.cred.orExport', { env: searchProvider.env, path: CONFIG_TOML_PATH }),
         ],
       );
       if (value === undefined) return { value: undefined };

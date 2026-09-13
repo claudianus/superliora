@@ -88,7 +88,7 @@ async function promptCustomModelForProvider(host: SlashCommandHost, providerId: 
             await host.authFlow.refreshConfigAfterLogin();
             await setDefaultModel(host, alias, thinking);
           } catch (error) {
-            host.showError(`Failed to add custom model: ${formatErrorMessage(error)}`);
+            host.showError(ttui('tui.model.customAddFailed', { message: formatErrorMessage(error) }));
           }
         })();
       },

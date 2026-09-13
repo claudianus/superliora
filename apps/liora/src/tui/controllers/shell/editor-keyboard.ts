@@ -145,7 +145,7 @@ export class EditorKeyboardController {
     editor.onCtrlC = () => {
       if (host.state.transcriptSelection.hasSelection) {
         void copyTranscriptSelectionToClipboard(host.state).then((copied) => {
-          if (copied) host.state.toast.show('Copied to clipboard');
+          if (copied) host.state.toast.show(ttui('tui.clipboard.copiedToClipboard'));
         });
         return;
       }
@@ -277,7 +277,7 @@ export class EditorKeyboardController {
         host.state.appState.streamingPhase === 'shell' ||
         host.state.appState.isCompacting
       ) {
-        host.state.toast.show('Steer works while a turn is running', 2200);
+        host.state.toast.show(ttui('tui.editor.steerIdleHint'), 2200);
         return;
       }
       const text = editor.getText().trim();
@@ -291,7 +291,7 @@ export class EditorKeyboardController {
       if (!editorIsBash && text.length > 0) parts.push(text);
 
       if (parts.length === 0) {
-        host.state.toast.show(`Type a steer message first, then ${primaryChord('S')}`, 2200);
+        host.state.toast.show(ttui('tui.editor.steerTypeFirst', { chord: primaryChord('S') }), 2200);
         return;
       }
       editor.setText('');
@@ -310,7 +310,7 @@ export class EditorKeyboardController {
       // Shell command execution is treated as a streaming phase ('shell'), so
       // this gate already covers it; idle gets a tip instead of a silent miss.
       if (host.state.appState.streamingPhase === 'idle' || host.state.appState.isCompacting) {
-        host.state.toast.show('Background works while a turn is running', 2200);
+        host.state.toast.show(ttui('tui.editor.backgroundIdleHint'), 2200);
         return false;
       }
       host.track('shortcut_background_task');

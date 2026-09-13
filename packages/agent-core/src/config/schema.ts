@@ -15,6 +15,8 @@ export const ProviderTypeSchema = z.enum([
   'openai',
   'kimi',
   'google-genai',
+  'code-assist',
+  'codewhisperer',
   'openai_responses',
   'vertexai',
   'bedrock',
@@ -52,6 +54,8 @@ export const ProviderConfigSchema = z.object({
   credentials: z.array(ProviderCredentialConfigSchema).optional(),
   baseUrl: z.string().optional(),
   defaultModel: z.string().optional(),
+  /** Cloud Code Assist project id (Google Code Assist OAuth logins). */
+  project: z.string().optional(),
   oauth: OAuthRefSchema.optional(),
   oauths: z.array(OAuthRefSchema).optional(),
   env: StringRecordSchema.optional(),

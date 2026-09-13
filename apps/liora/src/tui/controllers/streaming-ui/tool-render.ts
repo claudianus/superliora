@@ -4,6 +4,7 @@ import type { SearchGroupComponent } from '../../components/messages/search-grou
 import { isSearchFamilyTool } from '../../features/transcript/verb-group';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import { isGenericToolResult } from '../../components/messages/tool-renderers/registry';
+import { countDiffLines } from '../../components/media/diff-preview';
 import {
   appearanceAnimationNow,
 } from '../../features/appearance/appearance-effects';
@@ -151,11 +152,13 @@ export function onToolCallEnd(
             : typeof args['path'] === 'string'
               ? (args['path'])
               : undefined;
+        const diff = chainDiffFromToolArgs(matchedCall?.name, args);
         active.record({
           isError: result.is_error === true,
           errorText: result.is_error === true ? result.output : undefined,
           file,
           name: matchedCall?.name,
+          ...diff,
         });
       }
     }
@@ -187,6 +190,30 @@ export function onToolCallEnd(
     requestTUILayoutRender(state);
   }
   ctx.host.mergeCurrentTurnSteps();
+}
+
+/**
+ * Chain-summary diff counts for code-producing tools, straight from the call
+ * args — Edit via the same LCS the preview renders, Write as fully-added
+ * content. Everything else contributes no `+N/−M` chip.
+ */
+function chainDiffFromToolArgs(
+  toolName: string | undefined,
+  args: Record<string, unknown>,
+): { readonly linesAdded: number; readonly linesRemoved: number } | undefined {
+  if (toolName === 'Edit') {
+    const oldStr = typeof args['old_string'] === 'string' ? args['old_string'] : '';
+    const newStr = typeof args['new_string'] === 'string' ? args['new_string'] : '';
+    if (oldStr.length === 0 && newStr.length === 0) return undefined;
+    const { added, removed } = countDiffLines(oldStr, newStr);
+    return { linesAdded: added, linesRemoved: removed };
+  }
+  if (toolName === 'Write') {
+    const content = typeof args['content'] === 'string' ? args['content'] : '';
+    if (content.length === 0) return undefined;
+    return { linesAdded: content.split('\n').length, linesRemoved: 0 };
+  }
+  return undefined;
 }
 
 function tryAttachAgentToolCall(

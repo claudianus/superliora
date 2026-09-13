@@ -314,26 +314,31 @@ export class BannerProvider {
     fetchImpl: typeof fetch = fetch,
     options: BannerProviderLoadOptions = {},
   ): Promise<BannerState | null> {
+    // Always clear the abort timer — an unhandled error path used to leave the
+    // 3s handle dangling on the event loop (PREMIUM §7.1).
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => {
         controller.abort();
       }, 3000);
-      const response = await fetchImpl(this.url, { signal: controller.signal });
-      clearTimeout(timeout);
-      if (!response.ok) return null;
-      const json = await response.json();
-      const now = options.now ?? new Date();
-      const random = options.random ?? Math.random;
-      return options.state === undefined
-        ? selectBannerState(json, this.clientVersion, now, random)
-        : selectDisplayableBanner({
-            json,
-            clientVersion: this.clientVersion,
-            now,
-            random,
-            state: options.state,
-          });
+      try {
+        const response = await fetchImpl(this.url, { signal: controller.signal });
+        if (!response.ok) return null;
+        const json = await response.json();
+        const now = options.now ?? new Date();
+        const random = options.random ?? Math.random;
+        return options.state === undefined
+          ? selectBannerState(json, this.clientVersion, now, random)
+          : selectDisplayableBanner({
+              json,
+              clientVersion: this.clientVersion,
+              now,
+              random,
+              state: options.state,
+            });
+      } finally {
+        clearTimeout(timeout);
+      }
     } catch {
       return null;
     }

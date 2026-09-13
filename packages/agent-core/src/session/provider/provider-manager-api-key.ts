@@ -43,6 +43,10 @@ export function providerApiKeyCredentials(provider: ProviderConfig): ApiKeyCrede
         fallbackProviderApiKeyCredential(provider, 'GOOGLE_API_KEY', 'provider api_key'),
         ...credentials,
       ]);
+    case 'code-assist':
+    case 'codewhisperer':
+      // Google Code Assist / Kiro are OAuth-only; no credential pool to build.
+      return [];
     case 'vertexai':
       return uniqueApiKeyCredentials([
         fallbackProviderApiKeyCredential(
@@ -144,6 +148,10 @@ function hasLegacyApiKeySource(provider: ProviderConfig): boolean {
       return nonEmptyString(provider.env?.['KIMI_API_KEY']) !== undefined;
     case 'google-genai':
       return nonEmptyString(provider.env?.['GOOGLE_API_KEY']) !== undefined;
+    case 'code-assist':
+    case 'codewhisperer':
+      // Google Code Assist / Kiro are OAuth-only; no static API-key source exists.
+      return false;
     case 'vertexai':
       return (
         nonEmptyString(provider.env?.['VERTEXAI_API_KEY']) !== undefined ||
@@ -242,6 +250,10 @@ export function hasConfiguredApiKeySource(provider: ProviderConfig): boolean {
       return nonEmptyString(provider.env?.['KIMI_API_KEY']) !== undefined;
     case 'google-genai':
       return nonEmptyString(provider.env?.['GOOGLE_API_KEY']) !== undefined;
+    case 'code-assist':
+    case 'codewhisperer':
+      // Google Code Assist / Kiro are OAuth-only; no static API-key source exists.
+      return false;
     case 'vertexai':
       return (
         nonEmptyString(provider.env?.['VERTEXAI_API_KEY']) !== undefined ||

@@ -6,6 +6,7 @@ import {
 } from '#/tui/renderer';
 
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
+import { SELECT_POINTER } from '#/tui/constant/symbols';
 import type { QueuedMessage } from '../../types';
 import { currentTheme } from '#/tui/theme';
 import { ttui } from '#/tui/utils/tui-i18n';
@@ -144,11 +145,15 @@ export class QueuePaneComponent extends Container {
     for (const [index, item] of this.messages.entries()) {
       const displayText = item.displayText ?? item.text;
       const singleLine = displayText.replaceAll(/\s+/g, ' ').trim();
-      const pointer = renderSelectPointer('queue:pointer');
+      const isSelected = index === this.selectedIndex;
+      // The pointer marks the selected row only (PREMIUM §2) — painting it on
+      // every row read as a multi-selection.
+      const pointer = isSelected
+        ? renderSelectPointer('queue:pointer')
+        : ' '.repeat(Math.max(1, visibleWidth(SELECT_POINTER)));
       const prefixPlain = '  ';
       // pointer is already ambient-styled; do not wrap it in accent/spectacular again.
       const chromeWidth = visibleWidth(`${prefixPlain}${pointer} `);
-      const isSelected = index === this.selectedIndex;
       if (item.mode === 'bash') {
         // Shell commands get a `$ ` prompt and the shell-mode hue so they read
         // as commands, not as plain text that would be sent to the model.

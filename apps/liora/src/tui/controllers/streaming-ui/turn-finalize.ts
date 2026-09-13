@@ -29,6 +29,13 @@ export function finalizeStreamingTurn(args: {
   chainSummary?: ChainSummaryState;
 }): void {
   const { state } = args.host;
+  // Settle the chain summary BEFORE the idle guard: on aborted turns the
+  // session event handler may already have parked the phase at 'idle', and
+  // bailing first left a stale live `Running …` bar into the next turn.
+  // settle() is idempotent for already-settled summaries.
+  if (args.chainSummary !== undefined) {
+    settleActiveChainSummary(args.chainSummary);
+  }
   if (state.appState.streamingPhase === 'idle') return;
   args.host.deferUserMessages = false;
   const completedTurnKey =
@@ -38,9 +45,6 @@ export function finalizeStreamingTurn(args: {
   if (closingAssistantBlock !== undefined) {
     closingAssistantBlock.markTurnEndCue(appearanceAnimationNow());
   }
-  if (args.chainSummary !== undefined) {
-    settleActiveChainSummary(args.chainSummary);
-  }
   args.resetToolCallState();
   args.setCurrentTurnId(undefined);
 
@@ -48,9 +52,10 @@ export function finalizeStreamingTurn(args: {
   if (next !== undefined) {
     args.host.setAppState({ streamingPhase: 'idle' });
     args.host.resetLivePane();
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       args.sendQueued(next);
     }, 0);
+    timer.unref?.();
     return;
   }
 
@@ -96,15 +101,17 @@ export function runStreamingCompactionAction(
     case 'begin':
       return beginCompactionHelper(host, activeCompactionBlock, action.instruction, action.options);
     case 'end':
-      {  endCompactionHelper(
+      endCompactionHelper(
         host,
         activeCompactionBlock,
         action.tokensBefore,
         action.tokensAfter,
         action.detail,
-      );; return; }
+      );
+      return;
     case 'cancel':
-      {  cancelCompactionHelper(host, activeCompactionBlock);; return; }
+      cancelCompactionHelper(host, activeCompactionBlock);
+      return;
     case 'promote':
       promoteCompactionToBlockingHelper(host, activeCompactionBlock);
       return activeCompactionBlock;

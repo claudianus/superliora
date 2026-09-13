@@ -48,19 +48,26 @@ export function dispatchNativeTUIEditorDecodedEvents(
   events: readonly NativeInputEvent[],
   rawInput?: string,
 ): void {
+  // Fast typing coalesces several key events into one stdin chunk. While the
+  // autocomplete menu is open, the menu consumes the events it handles and the
+  // remaining ones must still reach the normal editor path below — the old
+  // `return` after the first handled event silently dropped the rest of the
+  // chunk (lost keystrokes mid-composition).
+  const menuConsumed = new Set<NativeInputEvent>();
   if (host.getAutocompleteController().isOpen()) {
     for (const event of events) {
       if (event.type !== 'key' || event.eventType === 'release') continue;
       const result = host.getAutocompleteController().handleNativeInput(event, host);
       if (!result.handled) continue;
+      menuConsumed.add(event);
       if (result.completion !== undefined) {
         host.applyAutocompleteCompletion(result.completion);
       }
-      return;
     }
   }
 
   for (const event of events) {
+    if (menuConsumed.has(event)) continue;
     if (event.type === 'paste') {
       // Terminal file drops arrive as a bracketed paste of file paths
       // (iTerm2 / Ghostty / WezTerm / Kitty default mode all insert the

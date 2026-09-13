@@ -737,10 +737,10 @@ export async function promptCustomModel(host: SlashCommandHost): Promise<void> {
               thinking,
               supportEfforts,
             });
-            host.showStatus(`Added custom model ${providerId}/${modelId}`, 'success');
+            host.showStatus(ttui('tui.model.customAdded', { provider: providerId, model: modelId }), 'success');
             showModelPicker(host, `${providerId}/${modelId}`);
           } catch (error) {
-            host.showError(`Failed to add custom model: ${formatErrorMessage(error)}`);
+            host.showError(ttui('tui.model.customAddFailed', { message: formatErrorMessage(error) }));
             showModelPicker(host);
           }
         })();

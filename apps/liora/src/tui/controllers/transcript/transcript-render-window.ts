@@ -11,6 +11,7 @@ import { UserMessageComponent } from '../../components/messages/user-message';
 import { WelcomeComponent } from '../../components/chrome/welcome';
 import {
   TRANSCRIPT_HYSTERESIS,
+  TRANSCRIPT_REPLAY_MAX_TURNS,
   TRANSCRIPT_WINDOW_ENABLED,
   groupTurns,
   resolveTranscriptMaxTurns,
@@ -60,6 +61,9 @@ export function trimTranscriptWindow(host: TranscriptRenderHost): boolean {
   const caps = performanceTranscriptCaps(host);
   const maxTurns = resolveTranscriptMaxTurns(host.state.appState.isReplaying, {
     maxTurns: caps.maxTurns,
+    // The performance overlay's tighter 24-turn cap must also apply while
+    // hydrating, not only live. An env-pinned replay cap still wins via min().
+    replayMaxTurns: Math.min(TRANSCRIPT_REPLAY_MAX_TURNS, caps.maxTurns),
   });
   if (maxTurns <= 0) return false;
 

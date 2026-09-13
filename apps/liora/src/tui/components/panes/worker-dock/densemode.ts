@@ -523,14 +523,39 @@ function renderBudgetBar(ratio: number, width: number): string {
   return bar;
 }
 
+/**
+ * Header labels positioned from the SAME column math as the dense rows
+ * (`buildDenseWorkerLine`): glyph(1) + sep + name + sep + each padded field.
+ * The old hand-typed literals drifted 2–3 columns off and advertised an `ST`
+ * status column that no row ever fills (status reads through the glyph).
+ */
 function buildHeaderLine(narrow: boolean): string {
-  if (narrow) {
-    return currentTheme.fg('textMuted', 'WKR                 ST ELAP /s   LIVE');
+  const cols: Array<readonly [number, string]> = narrow
+    ? [
+        [2, 'WKR'],
+        [21, 'ELAP'],
+        [26, '/s'],
+        [32, 'LIVE'],
+      ]
+    : [
+        [2, 'WKR'],
+        [23, 'MODEL'],
+        [32, 'ELAP'],
+        [37, 'TOOLS'],
+        [43, 'TOK'],
+        [50, '/s'],
+        [56, 'SPARK'],
+        [60, 'TODO'],
+        [66, 'LIVE'],
+      ];
+  let out = '';
+  let cursor = 0;
+  for (const [at, label] of cols) {
+    out += ' '.repeat(Math.max(0, at - cursor));
+    out += label;
+    cursor = at + label.length;
   }
-  return currentTheme.fg(
-    'textMuted',
-    'WKR                  ST MODEL    ELAP TOOLS   TOK    /s  SPARK TODO LIVE',
-  );
+  return currentTheme.fg('textMuted', out);
 }
 
 const RESUME_PLACEHOLDERS = new Set([

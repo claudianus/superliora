@@ -72,14 +72,33 @@ export class ModelFallbackSelectorComponent extends Container implements Focusab
       return;
     }
 
-    if (matchesKey(data, Key.up) && data !== '\x1B[1;5A') {
+    // Reorder chords match first; with modifier-aware decoding, `Key.up` no
+    // longer collides with Ctrl+Up across legacy (`\x1B[1;5A`) and Kitty
+    // (`\x1b[65;5u`) encodings.
+    if (matchesKey(data, Key.ctrl('up'))) {
+      if (this.selectedIndex > 0) {
+        this.opts.onSelect({ type: 'moveUp', index: this.selectedIndex });
+        this.selectedIndex = Math.max(0, this.selectedIndex - 1);
+      }
+      return;
+    }
+
+    if (matchesKey(data, Key.ctrl('down'))) {
+      if (this.selectedIndex < count - 1) {
+        this.opts.onSelect({ type: 'moveDown', index: this.selectedIndex });
+        this.selectedIndex = Math.min(count - 1, this.selectedIndex + 1);
+      }
+      return;
+    }
+
+    if (matchesKey(data, Key.up)) {
       if (count > 0) {
         this.selectedIndex = Math.max(0, this.selectedIndex - 1);
       }
       return;
     }
 
-    if (matchesKey(data, Key.down) && data !== '\x1B[1;5B') {
+    if (matchesKey(data, Key.down)) {
       if (count > 0) {
         this.selectedIndex = Math.min(count - 1, this.selectedIndex + 1);
       }
@@ -101,24 +120,6 @@ export class ModelFallbackSelectorComponent extends Container implements Focusab
     if (ch === 'd') {
       if (count > 0) {
         this.opts.onSelect({ type: 'remove', index: this.selectedIndex });
-      }
-      return;
-    }
-
-    // Ctrl+Up (move up)
-    if (data === '\x1B[1;5A') {
-      if (this.selectedIndex > 0) {
-        this.opts.onSelect({ type: 'moveUp', index: this.selectedIndex });
-        this.selectedIndex = Math.max(0, this.selectedIndex - 1);
-      }
-      return;
-    }
-
-    // Ctrl+Down (move down)
-    if (data === '\x1B[1;5B') {
-      if (this.selectedIndex < count - 1) {
-        this.opts.onSelect({ type: 'moveDown', index: this.selectedIndex });
-        this.selectedIndex = Math.min(count - 1, this.selectedIndex + 1);
       }
       return;
     }
@@ -177,9 +178,9 @@ export class ModelFallbackSelectorComponent extends Container implements Focusab
   private buildHint(count: number): string {
     const parts: string[] = ['↑↓ select'];
     if (count > 0) {
-      parts.push('Enter edit', 'd remove', 'Ctrl+↑↓ reorder', 'r clear');
+      parts.push('Enter edit', 'D remove', 'Ctrl+↑↓ reorder', 'R clear');
     }
-    parts.push('a add', 'Esc back');
+    parts.push('A add', 'Esc cancel');
     return parts.join(' · ');
   }
 }

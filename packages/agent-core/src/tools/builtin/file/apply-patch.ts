@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
+import type { FileProvenanceHook } from '../../../session/file-provenance';
 import type { FileSnapshotStore } from '../../../session/file-snapshot';
 import { checkSwarmFileLease } from '#/fleet';
 import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
@@ -48,6 +49,8 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
       readonly onFileMutated?:
         | ((path: string, content: string) => Promise<string | undefined> | string | undefined)
         | undefined;
+      /** Optional file-provenance recorder (session attribution trail). */
+      readonly provenance?: FileProvenanceHook | undefined;
     },
   ) {}
 
@@ -97,6 +100,7 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
     const lease = this.options?.getSwarmLease?.();
     const snapshots = this.options?.fileSnapshots;
     const turnId = this.options?.getTurnId?.();
+    const provenance = this.options?.provenance;
 
     const pending: Array<{
       shownPath: string;
@@ -104,6 +108,8 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
       kind: 'update' | 'add' | 'delete';
       content?: string;
       lineEndingStyle?: ReturnType<typeof toModelTextView>['lineEndingStyle'];
+      /** Model-view content before the mutation; null when the file did not exist. */
+      beforeText?: string | null;
     }> = [];
 
     for (const file of parsed.files) {
@@ -132,12 +138,23 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
       }
 
       let modelView: ReturnType<typeof toModelTextView>;
+      let beforeText: string | null = null;
       try {
         if (file.kind === 'update') {
           const raw = await this.kaos.readText(safePath);
           modelView = toModelTextView(raw);
+          beforeText = modelView.text;
         } else {
           modelView = toModelTextView('');
+          // Preserve add semantics (no read on the hot path); only probe the
+          // prior content when provenance needs the before-state.
+          if (provenance !== undefined) {
+            try {
+              beforeText = toModelTextView(await this.kaos.readText(safePath)).text;
+            } catch {
+              beforeText = null;
+            }
+          }
         }
       } catch (error) {
         const code = (error as { code?: unknown } | null)?.code;
@@ -167,6 +184,7 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
         kind: file.kind,
         content: applied.content,
         lineEndingStyle: modelView.lineEndingStyle,
+        beforeText,
       });
     }
 
@@ -177,7 +195,22 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
       }
       try {
         if (item.kind === 'delete') {
+          let beforeDelete: string | null = null;
+          if (provenance !== undefined) {
+            try {
+              beforeDelete = await this.kaos.readText(item.safePath);
+            } catch {
+              beforeDelete = null;
+            }
+          }
           await this.kaos.unlink(item.safePath);
+          await provenance?.record({
+            path: item.safePath,
+            tool: this.name,
+            op: 'delete',
+            before: beforeDelete,
+            after: null,
+          });
           summaries.push(`Deleted ${item.shownPath}`);
           continue;
         }
@@ -185,6 +218,14 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
         await this.kaos.mkdir(parent, { parents: true, existOk: true });
         const written = materializeModelText(item.content ?? '', item.lineEndingStyle ?? 'lf');
         await this.kaos.writeAtomic(item.safePath, written);
+        await provenance?.record({
+          path: item.safePath,
+          tool: this.name,
+          op: item.beforeText == null ? 'create' : 'patch',
+          before: item.beforeText ?? null,
+          after: item.content ?? '',
+          hashSource: written,
+        });
         const base = `${item.kind === 'add' ? 'Created' : 'Updated'} ${item.shownPath}`;
         summaries.push(await this.withMutationDiagnostics(item.safePath, written, base));
       } catch (error) {

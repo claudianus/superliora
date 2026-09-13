@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   computeDiffLines,
+  countDiffLines,
   renderDiffLines,
   renderDiffLinesClustered,
   renderDiffLinesClusteredRows,
@@ -357,5 +358,35 @@ describe('tail follow mode', () => {
     const text = rows.map((row) => stripAnsi(row.text)).join('\n');
     expect(text).toContain('L1');
     expect(text).not.toContain('L30X');
+  });
+});
+
+describe('countDiffLines', () => {
+  it('counts pure adds, pure deletes, and mixed edits', () => {
+    expect(countDiffLines('', 'a\nb\nc')).toEqual({ added: 3, removed: 0 });
+    expect(countDiffLines('a\nb\nc', '')).toEqual({ added: 0, removed: 3 });
+    // Shared lines are context: 2 removed, 2 added around the same prefix.
+    expect(countDiffLines('keep\nold1\nold2\nend', 'keep\nnew1\nnew2\nend')).toEqual({
+      added: 2,
+      removed: 2,
+    });
+  });
+
+  it('reports zero for identical texts', () => {
+    expect(countDiffLines('same\nlines', 'same\nlines')).toEqual({ added: 0, removed: 0 });
+  });
+
+  it('keeps top-of-file hunks correct for oversized inputs (head+tail window)', () => {
+    // 500 shared lines with the actual edit in the FIRST lines: a tail-only
+    // window rendered this as a full rewrite; head+tail keeps it surgical.
+    const filler = Array.from({ length: 500 }, (_, i) => `filler ${String(i)}`);
+    const oldText = ['old-head-a', 'old-head-b', ...filler].join('\n');
+    const newText = ['new-head-a', 'new-head-b', ...filler].join('\n');
+    const { added, removed } = countDiffLines(oldText, newText);
+    expect(added).toBe(2);
+    expect(removed).toBe(2);
+    const lines = computeDiffLines(oldText, newText);
+    expect(lines.filter((l) => l.kind === 'add').every((l) => l.lineNum <= 2)).toBe(true);
+    expect(lines.filter((l) => l.kind === 'delete').every((l) => l.lineNum <= 2)).toBe(true);
   });
 });

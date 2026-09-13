@@ -11,18 +11,16 @@
 import type { ThemeRegistrationRaw } from 'shiki';
 
 import type { ColorPalette } from './colors';
+import { hexRelativeLuminance, isLightBackgroundLuminance } from './luminance';
 
 /** Registered Shiki theme name; stable across palette refreshes. */
 export const SHIKI_PALETTE_THEME_NAME = 'superliora-palette';
 
-/** True when the palette's background reads as dark (WCAG-ish luminance). */
+/** True when the palette's background reads as dark (WCAG-relative luminance). */
 export function paletteIsDark(palette: ColorPalette): boolean {
-  const raw = (palette.background ?? '#0B0F14').replace('#', '');
-  const r = Number.parseInt(raw.slice(0, 2), 16) / 255;
-  const g = Number.parseInt(raw.slice(2, 4), 16) / 255;
-  const b = Number.parseInt(raw.slice(4, 6), 16) / 255;
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luminance <= 0.55;
+  const luminance = hexRelativeLuminance(palette.background ?? '#0B0F14');
+  if (luminance === undefined) return true;
+  return !isLightBackgroundLuminance(luminance);
 }
 
 export function buildShikiPaletteTheme(palette: ColorPalette): ThemeRegistrationRaw {

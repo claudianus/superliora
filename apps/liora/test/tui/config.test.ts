@@ -37,7 +37,7 @@ describe('TUI config', () => {
 
     expect(result).toEqual(DEFAULT_TUI_CONFIG);
     const text = readFileSync(filePath, 'utf-8');
-    expect(text).toContain('Client preferences for kimi-code.');
+    expect(text).toContain('Client preferences for SuperLiora.');
     expect(text).toContain(`theme = "${DEFAULT_TUI_THEME}"`);
     expect(text).toContain('command = ""');
     expect(text).toContain('[upgrade]');

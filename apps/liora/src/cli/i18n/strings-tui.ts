@@ -43,7 +43,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
 
   // ── Transcript search (Ctrl-F) ───────────────────────────────────────────
   'tui.search.title': 'Search transcript',
-  'tui.search.hint': 'Enter next · Shift-Enter prev · Esc close',
+  'tui.search.hint': '↑↓ navigate · Enter next · Shift-Enter prev · Esc cancel',
   'tui.search.matches': '{count} matches',
   'tui.search.noMatches': 'No matches',
   'tui.search.placeholder': 'Type to search the conversation',
@@ -141,6 +141,18 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.exitConfirmPrimaryC': 'Press {chord} again to exit',
   'tui.footer.exitConfirmPrimaryD': 'Press {chord} again to exit',
   'tui.footer.detachHint': 'Detached. Output continues in background (/jobs bg).',
+  'tui.footer.noShellRunning': 'No shell command running.',
+  'tui.footer.shellStillStarting': 'Command is still starting — try again.',
+  'tui.footer.shellAlreadyFinished': 'Command already finished.',
+  'tui.footer.noForegroundTask': 'No foreground task running.',
+  'tui.footer.imageInClipboard': 'Image in clipboard · {chord} to paste',
+  'tui.footer.next.compactEvidence': 'durable evidence missing after compaction — verify IDs before resume',
+  'tui.footer.taskAlreadyFinishedOne': 'Task already finished.',
+  'tui.footer.taskAlreadyFinishedMany': '{count} tasks already finished.',
+  'tui.footer.movedToBackgroundOne': 'Moved 1 task to background.',
+  'tui.footer.movedToBackgroundMany': 'Moved {count} tasks to background.',
+  'tui.footer.movedPartial': 'Moved {detached} of {total} tasks to background.',
+  'tui.footer.jobsBgSuffix': ' /jobs bg to view.',
 
   // ── Permission mode notices ──────────────────────────────────────────────
   'tui.permission.yolo.on.title': 'YOLO mode: ON',
@@ -319,6 +331,12 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'Cursor rejected this client version. Set SUPERLIORA_CURSOR_CLIENT_VERSION to match a current Cursor CLI.',
   'tui.provider.oauthXaiVersion':
     'Grok Build rejected this client version. Set SUPERLIORA_XAI_GROK_CLIENT_VERSION to match a current grok CLI.',
+  'tui.provider.pasteCallbackGlmZcode1':
+    'Finish the Z.AI login in your browser. If the browser asks to open the ZCode desktop app, choose Cancel — the app consumes the one-time code and the paste fails.',
+  'tui.provider.pasteCallbackGlmZcode2':
+    'Then paste the full redirect URL (zcode://oauth/callback?code=…) or just the code here.',
+  'tui.provider.oauthGlmZcodeBroker':
+    'ZCode login rejected by the broker (error 2007). If the ZCode desktop app is installed, cancel the browser prompt to open it — the app consumes the single-use code — then retry and paste the redirect URL or code here before the app opens.',
   'tui.provider.kimiConsole': 'Kimi console: https://www.kimi.com/code/console',
   'tui.provider.loginCancelled': 'Login cancelled.',
   'tui.provider.refreshFailed':
@@ -480,7 +498,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Transcript search (Ctrl-F) ───────────────────────────────────────────
   'tui.search.title': '대화 검색',
-  'tui.search.hint': 'Enter 다음 · Shift-Enter 이전 · Esc 닫기',
+  'tui.search.hint': '↑↓ 이동 · Enter 다음 · Shift-Enter 이전 · Esc 취소',
   'tui.search.matches': '{count}개 일치',
   'tui.search.noMatches': '일치 항목 없음',
   'tui.search.placeholder': '대화 내용을 검색하려면 입력',
@@ -504,7 +522,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.errors.noMatches': '일치하는 오류가 없습니다',
   'tui.errors.footer.move': '이동',
   'tui.errors.footer.jump': '점프',
-  'tui.errors.footer.close': '닫기',
+  'tui.errors.footer.close': '취소',
   'tui.errors.footer.filter': '입력하면 필터링',
 
   // ── Web content viewer (/web) ────────────────────────────────────────────
@@ -578,6 +596,18 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.footer.exitConfirmPrimaryC': '종료하려면 {chord}를 다시 누르세요',
   'tui.footer.exitConfirmPrimaryD': '종료하려면 {chord}를 다시 누르세요',
   'tui.footer.detachHint': '분리됨. 백그라운드 출력 계속 (/jobs bg).',
+  'tui.footer.noShellRunning': '실행 중인 셸 명령이 없습니다.',
+  'tui.footer.shellStillStarting': '명령이 아직 시작 중입니다 — 다시 시도하세요.',
+  'tui.footer.shellAlreadyFinished': '명령이 이미 종료되었습니다.',
+  'tui.footer.noForegroundTask': '실행 중인 포그라운드 작업이 없습니다.',
+  'tui.footer.imageInClipboard': '클립보드에 이미지가 있습니다 · {chord}로 붙여넣기',
+  'tui.footer.next.compactEvidence': '압축 후 영구 증거가 없습니다 — 재개 전에 ID를 확인하세요',
+  'tui.footer.taskAlreadyFinishedOne': '작업이 이미 종료되었습니다.',
+  'tui.footer.taskAlreadyFinishedMany': '{count}개 작업이 이미 종료되었습니다.',
+  'tui.footer.movedToBackgroundOne': '작업 1개를 백그라운드로 이동했습니다.',
+  'tui.footer.movedToBackgroundMany': '작업 {count}개를 백그라운드로 이동했습니다.',
+  'tui.footer.movedPartial': '{total}개 중 {detached}개 작업을 백그라운드로 이동했습니다.',
+  'tui.footer.jobsBgSuffix': ' /jobs bg로 확인하세요.',
 
   // ── Permission mode notices ──────────────────────────────────────────────
   'tui.permission.yolo.on.title': 'YOLO 모드: ON',
@@ -752,6 +782,12 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     'Cursor가 이 클라이언트 버전을 거절했습니다. SUPERLIORA_CURSOR_CLIENT_VERSION을 현재 Cursor CLI에 맞추세요.',
   'tui.provider.oauthXaiVersion':
     'Grok Build가 이 클라이언트 버전을 거절했습니다. SUPERLIORA_XAI_GROK_CLIENT_VERSION을 현재 grok CLI에 맞추세요.',
+  'tui.provider.oauthGlmZcodeBroker':
+    'ZCode 로그인이 브로커에서 거절되었습니다 (오류 2007). ZCode 데스크톱 앱이 설치되어 있다면 브라우저의 앱 열기 프롬프트를 취소하세요(앱이 일회성 코드를 소모합니다). 다시 시도한 뒤 앱이 열리기 전에 리디렉트 URL이나 코드를 여기에 붙여넣으세요.',
+  'tui.provider.pasteCallbackGlmZcode1':
+    '브라우저에서 Z.AI 로그인을 완료하세요. 브라우저가 ZCode 데스크톱 앱 열기를 묻으면 반드시 취소를 누르세요 — 앱이 일회성 코드를 소모해 붙여넣기가 실패합니다.',
+  'tui.provider.pasteCallbackGlmZcode2':
+    '그다음 전체 리디렉트 URL(zcode://oauth/callback?code=…)이나 코드만 여기에 붙여넣으세요.',
   'tui.provider.kimiConsole': 'Kimi 콘솔: https://www.kimi.com/code/console',
   'tui.provider.loginCancelled': '로그인 취소됨.',
   'tui.provider.refreshFailed': '인증은 성공했으나 설정 새로고침 실패: {message}',

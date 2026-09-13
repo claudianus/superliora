@@ -74,7 +74,7 @@ export function promptLogoutProviderSelection(
 export function promptApiKey(
   host: SlashCommandHost,
   platformName: string,
-  subtitleLines: readonly string[] = ['Your key will be saved to ~/.superliora/config.toml'],
+  subtitleLines: readonly string[] = [ttui('tui.cred.keySavedTo')],
   options: { readonly prefill?: string } = {},
 ): Promise<string | undefined> {
   return new Promise((resolve) => {

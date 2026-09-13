@@ -28,6 +28,7 @@ import {
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
 import { renderCacheEpoch } from '#/tui/utils/render/render-cache';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 const ARGS_PREVIEW_MAX = 200;
 
@@ -97,9 +98,10 @@ export class SkillActivationComponent extends Container {
   private renderHead(): string {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
+    const label = ttui('tui.skill.activatedPrefix');
     const prefix = animated
-      ? renderPulseText('▶', 'skill:arrow', 'primary') + ' ' + renderPremiumHeadline('Activated skill:', 'skill:prefix', appearance)
-      : currentTheme.boldFg('primary', '▶ Activated skill: ');
+      ? renderPulseText('▶', 'skill:arrow', 'primary') + ' ' + renderPremiumHeadline(label, 'skill:prefix', appearance)
+      : currentTheme.boldFg('primary', `▶ ${label} `);
     const name = animated
       ? renderPremiumHeadline(this.name, `skill:name:${this.name}`, appearance)
       : currentTheme.boldFg('roleUser', this.name);

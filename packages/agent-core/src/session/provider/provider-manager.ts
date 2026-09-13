@@ -2,6 +2,7 @@ import type { ProviderRequestAuth } from '@superliora/kosong';
 import { APIStatusError } from '@superliora/kosong';
 import {
   ensureGitHubCopilotSession,
+  getProviderProfile,
   githubCopilotRequestHeaders,
   isGitHubCopilotProviderId,
   readGitHubCopilotEnvToken,
@@ -357,7 +358,7 @@ export class ProviderManager implements ModelProvider {
         throw error;
       }
       if (apiKey.trim().length === 0) throw loginRequired();
-      return { apiKey };
+      return { apiKey, ...oauthRequestAuthHeaders(providerName, providerConfig.type, apiKey) };
     };
 
     return async (request) => {
@@ -464,6 +465,24 @@ function routeWeightForAlias(
   weights: Readonly<Record<string, number>> | undefined,
 ): number | undefined {
   return weights?.[modelAlias];
+}
+
+/**
+ * Request-scoped auth headers for OAuth providers whose profile opts into a
+ * non-default wire credential style. Bearer-style `anthropic` providers (GLM
+ * ZCode, GitLab Duo proxy) authenticate via `Authorization: Bearer` instead of
+ * the wire's native `x-api-key`; the anthropic adapter suppresses the default
+ * `x-api-key` when it sees this header.
+ */
+function oauthRequestAuthHeaders(
+  providerName: string,
+  wire: ProviderConfig['type'],
+  apiKey: string,
+): { readonly headers: Record<string, string> } | undefined {
+  if (wire !== 'anthropic') return undefined;
+  const profile = getProviderProfile(providerName);
+  if (profile?.wireAuth !== 'bearer') return undefined;
+  return { headers: { Authorization: `Bearer ${apiKey}` } };
 }
 
 function addRouteWeight(

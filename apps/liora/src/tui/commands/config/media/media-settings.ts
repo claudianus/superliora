@@ -210,10 +210,13 @@ async function applyAnalyzerOverride(
       },
     });
     const summary = alias.length > 0 ? alias : 'Auto';
-    host.showStatus(`${entry.label} set to ${summary}`, 'success');
+    host.showStatus(ttui('tui.media.analyzerSet', { label: entry.label, summary }), 'success');
   } catch (error) {
     host.showError(
-      `Failed to set ${entry.label.toLowerCase()}: ${error instanceof Error ? error.message : String(error)}`,
+      ttui('tui.media.analyzerSetFailed', {
+        label: entry.label.toLowerCase(),
+        message: error instanceof Error ? error.message : String(error),
+      }),
     );
   }
 }

@@ -472,12 +472,12 @@ export class PanesController {
     // Only one `!` command runs at a time (input is queued while busy).
     const next = host.shellOutputStreams.entries().next();
     if (next.done) {
-      this.showDetachHint('No shell command running.');
+      this.showDetachHint(ttui('tui.footer.noShellRunning'));
       return;
     }
     const [commandId, stream] = next.value;
     if (stream.taskId === undefined) {
-      this.showDetachHint('Command is still starting — try again.');
+      this.showDetachHint(ttui('tui.footer.shellStillStarting'));
       return;
     }
     const session = host.session;
@@ -485,7 +485,7 @@ export class PanesController {
     try {
       const info = await session.detachBackgroundTask(stream.taskId);
       if (info === undefined) {
-        this.showDetachHint('Command already finished.');
+        this.showDetachHint(ttui('tui.footer.shellAlreadyFinished'));
         return;
       }
     } catch (error) {
@@ -530,7 +530,7 @@ export class PanesController {
 
     const targets = pickForegroundTasks(tasks);
     if (targets.length === 0) {
-      this.showDetachHint('No foreground task running.');
+      this.showDetachHint(ttui('tui.footer.noForegroundTask'));
       return;
     }
 
@@ -548,13 +548,19 @@ export class PanesController {
 
     let hint: string;
     if (detached === 0 && alreadyFinished > 0) {
-      hint = alreadyFinished === 1 ? 'Task already finished.' : 'Tasks already finished.';
+      hint =
+        alreadyFinished === 1
+          ? ttui('tui.footer.taskAlreadyFinishedOne')
+          : ttui('tui.footer.taskAlreadyFinishedMany', { count: alreadyFinished });
     } else if (detached === targets.length) {
-      hint = detached === 1 ? 'Moved 1 task to background.' : `Moved ${detached} tasks to background.`;
+      hint =
+        detached === 1
+          ? ttui('tui.footer.movedToBackgroundOne')
+          : ttui('tui.footer.movedToBackgroundMany', { count: detached });
     } else {
-      hint = `Moved ${detached} of ${targets.length} tasks to background.`;
+      hint = ttui('tui.footer.movedPartial', { detached, total: targets.length });
     }
-    if (detached > 0) hint = `${hint} /jobs bg to view.`;
+    if (detached > 0) hint = `${hint}${ttui('tui.footer.jobsBgSuffix')}`;
     this.showDetachHint(hint);
   }
 

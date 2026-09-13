@@ -1,4 +1,4 @@
-import { Text, visibleWidth } from '#/tui/renderer';
+import { Text, truncateToWidth, visibleWidth } from '#/tui/renderer';
 import type { RendererRootUI } from '#/tui/renderer';
 
 import {
@@ -106,6 +106,15 @@ export class MoonLoader extends Text {
     this.refreshDisplay();
   }
 
+  /**
+   * Width update without a `requestRender()` side effect. For callers that
+   * already sit inside a `render()` pass (e.g. the activity pane) — refreshing
+   * from inside render would queue another render and recurse.
+   */
+  setAvailableWidthQuiet(width: number): void {
+    this.availableWidth = width;
+  }
+
   renderInline(): string {
     if (!this.stopped) this.computeDisplay();
     return this.inlineText;
@@ -196,6 +205,10 @@ export class MoonLoader extends Text {
       if (this.availableWidth === 0 || visibleWidth(withTip) <= this.availableWidth) {
         text = withTip;
       }
+    }
+    // The base row can also exceed a narrow slot (long label + stall suffix).
+    if (this.availableWidth > 0 && visibleWidth(text) > this.availableWidth) {
+      text = truncateToWidth(text, Math.max(1, this.availableWidth), '…');
     }
     this.displayText = text;
     this.setText(this.displayText);

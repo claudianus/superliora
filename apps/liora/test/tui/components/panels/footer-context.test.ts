@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import chalk from 'chalk';
 
 import {
@@ -192,7 +192,7 @@ describe('FooterComponent — context NaN resilience', () => {
       () => ({ followOutput, offsetFromBottom: 42 }),
     );
 
-    expect(strip(footer.render(120)[0] ?? '')).toContain('[History · 42 lines up]');
+    expect(strip(footer.render(120)[0] ?? '')).toContain('[History · 42 rows up]');
 
     followOutput = true;
     expect(strip(footer.render(120)[0] ?? '')).not.toContain('[history');
@@ -207,15 +207,21 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(strip(line2 ?? '')).not.toContain('next: describe task');
   });
 
-  it('points idle dirty worktrees at review instead of new tasks', () => {
+  it('points idle dirty worktrees at review instead of new tasks', async () => {
     const workDir = dirtyGitWorktree();
     try {
       const footer = new FooterComponent(baseState({ workDir }));
 
-      const [, line2] = footer.render(120);
-
-      expect(strip(line2 ?? '')).toContain('next: review changes');
-      expect(strip(line2 ?? '')).not.toContain('next: describe task');
+      // Git status now refreshes asynchronously off the render path — poll
+      // until the first refresh lands and the badge/hint pick up `dirty`.
+      await vi.waitFor(
+        () => {
+          const [, line2] = footer.render(120);
+          expect(strip(line2 ?? '')).toContain('next: review changes');
+        },
+        { timeout: 5_000, interval: 50 },
+      );
+      expect(strip(footer.render(120)[1] ?? '')).not.toContain('next: describe task');
     } finally {
       try {
         rmSync(workDir, { recursive: true, force: true });

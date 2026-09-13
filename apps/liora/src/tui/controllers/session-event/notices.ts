@@ -26,7 +26,6 @@ import {
   stringValue,
 } from '../../utils/event-payload';
 import { formatHookResultMarkdown } from '../../utils/hook-result-format';
-import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { ttui } from '../../utils/tui-i18n';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyError } from '../../utils/notification/desktop-notification';
@@ -381,8 +380,8 @@ export class SessionEventNotices {
       }
       this.host.showStatus(
         event.message.includes('hard injection cap')
-          ? 'AGENTS.md hard-capped — trim project instructions'
-          : 'AGENTS.md oversized — consider trimming',
+          ? ttui('tui.notice.agentsMd.hardCapStatus')
+          : ttui('tui.notice.agentsMd.overSizeStatus'),
         'warning',
       );
       return;
@@ -391,16 +390,21 @@ export class SessionEventNotices {
   }
 
   handleSkillCreated(event: SkillCreatedEvent): void {
-    const verb = event.updated ? 'Updated' : 'Created';
+    const title = event.updated
+      ? ttui('tui.skill.updatedTitle', { name: event.skillName })
+      : ttui('tui.skill.createdTitle', { name: event.skillName });
+    const status = event.updated
+      ? ttui('tui.skill.updatedStatus', { name: event.skillName })
+      : ttui('tui.skill.createdStatus', { name: event.skillName });
     const detail =
       event.description !== undefined && event.description.trim().length > 0
         ? event.description.trim()
         : event.skillPath;
     this.host.showNotice?.(
-      `${verb} skill: ${event.skillName}`,
-      `${detail} · Skill("${event.skillName}") or /skill:${event.skillName}`,
+      title,
+      ttui('tui.skill.createdDetail', { detail, name: event.skillName }),
     );
-    this.host.showStatus(`${verb} skill ${event.skillName}`);
+    this.host.showStatus(status);
   }
 
   handleSkillActivated(event: SkillActivatedEvent): void {

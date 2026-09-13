@@ -1,5 +1,7 @@
 import type { TranscriptDetailLevel } from '#/tui/types';
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 import { formatVerbGroupLabel } from './verb-group';
 
 /**
@@ -80,8 +82,13 @@ export function isChainOnlyToolLevel(level: TranscriptDetailLevel): boolean {
 }
 
 /** Whether phase tint backgrounds are painted (standard+). Compact still tints headers. */
+/**
+ * Whether phase tint backgrounds are painted. Per PREMIUM §7.9 the work-block
+ * tint band is a standard/full feature: compact drops it (quiet activity log)
+ * and minimal stays dense (chain-only).
+ */
 export function isPhaseTintLevel(level: TranscriptDetailLevel): boolean {
-  return level === 'compact' || level === 'standard' || level === 'full' || level === 'minimal';
+  return level === 'standard' || level === 'full';
 }
 
 /** All levels in display order (densest first) — used by /transcript and Ctrl+O. */
@@ -108,13 +115,13 @@ export function nextTranscriptDetailLevel(
 export function formatTranscriptDetailCycleLabel(level: TranscriptDetailLevel): string {
   switch (level) {
     case 'minimal':
-      return 'Transcript · minimal (chain-only · click bar to expand tools)';
+      return ttui('tui.transcript.detailMinimal');
     case 'compact':
-      return 'Transcript · compact (activity titles · dim metrics · no chrome)';
+      return ttui('tui.transcript.detailCompact');
     case 'standard':
-      return 'Transcript · standard (chain bar · preview cards · phase tints)';
+      return ttui('tui.transcript.detailStandard');
     case 'full':
-      return 'Transcript · full (expanded · no chain bar)';
+      return ttui('tui.transcript.detailFull');
   }
 }
 
@@ -227,9 +234,16 @@ export function formatChainLiveSummary(stats: ToolChainStats, currentLabel?: str
  * Settled turn summary: `Worked for 10m 4s · 7 tools · +42/−10`.
  * Copy is intentionally English-structural here; the rendering component may
  * localize the leading phrase.
+ *
+ * Wall-clock contract: `startedAt`/`settledAt` are `Date.now()` stamps, never
+ * animation-clock values (the epoch mismatch would print astronomic
+ * durations). Callers must settle via {@link settleToolChain} before this
+ * runs — an unsettled stats object falls back to `startedAt` instead of
+ * re-reading the wall clock, so the duration stays frozen instead of growing
+ * on every repaint.
  */
 export function formatChainSettledSummary(stats: ToolChainStats): string {
-  const end = stats.settledAt ?? Date.now();
+  const end = stats.settledAt ?? stats.startedAt;
   const parts: string[] = [
     `Worked for ${formatDurationShort(end - stats.startedAt)}`,
     toolCountPhrase(stats.toolCount),

@@ -40,9 +40,9 @@ export const TerminalBackgroundSchema = z.enum(['off', 'session']);
  * How much detail the transcript shows for tool activity:
  * - `minimal`: collapse each tool chain into one live summary line until the
  *   assistant replies; on turn end it becomes a `Worked for …` line.
- * - `compact`: one line per tool (name · target · ±stats), input/output hidden
- *   — default for new sessions / unset config.
- * - `standard`: per-tool preview (up to 5 lines) with highlighting.
+ * - `compact`: one line per tool (name · target · ±stats), input/output hidden.
+ * - `standard`: per-tool preview (up to 5 lines) with highlighting — default
+ *   for new sessions / unset config.
  * - `full`: no truncation, equivalent to the Ctrl+O expanded state.
  */
 export const TranscriptDetailSchema = z.enum(['minimal', 'compact', 'standard', 'full']);
@@ -648,7 +648,7 @@ export function renderTuiConfig(config: TuiConfig): string {
   const onboarding = config.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
   const conductor = config.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES;
   return `# ~/.superliora/tui.toml
-# Client preferences for kimi-code.
+# Client preferences for SuperLiora.
 # Agent/runtime settings stay in ~/.superliora/config.toml.
 
 theme = "${escapeTomlBasicString(config.theme)}" # "auto" | "dark" | "light" | custom theme name

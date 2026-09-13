@@ -402,7 +402,10 @@ export class AnthropicChatProvider implements ChatProvider {
     return names;
   }
 
-  private _buildDefaultHeaders(apiKey: string): Record<string, string | null> {
+  private _buildDefaultHeaders(
+    apiKey: string,
+    requestHeaders: Record<string, string> | undefined,
+  ): Record<string, string | null> {
     const defaultHeaders: Record<string, string | null> = { authorization: null };
     for (const name of this._anthropicCustomHeaderEnvNames()) {
       defaultHeaders[name] = null;
@@ -410,7 +413,11 @@ export class AnthropicChatProvider implements ChatProvider {
     for (const [name, value] of Object.entries(this._defaultHeaders ?? {})) {
       defaultHeaders[name.toLowerCase()] = value;
     }
-    defaultHeaders['x-api-key'] = apiKey;
+    // Bearer-style anthropic-compatible endpoints (Z.AI, GitLab Duo proxy)
+    // authenticate via the request-scoped `Authorization` header. Suppress the
+    // `x-api-key` default so the request carries exactly one credential style;
+    // the SDK deletes headers whose default value is `null`.
+    defaultHeaders['x-api-key'] = hasRequestAuthorizationHeader(requestHeaders) ? null : apiKey;
     return defaultHeaders;
   }
 
@@ -429,7 +436,7 @@ export class AnthropicChatProvider implements ChatProvider {
       authToken: null,
       // Per-request base URL wins so custom gateways / rotated hosts apply.
       baseURL: auth?.baseUrl ?? this._baseUrl ?? null,
-      defaultHeaders: this._buildDefaultHeaders(apiKey),
+      defaultHeaders: this._buildDefaultHeaders(apiKey, auth?.headers),
     });
   }
 
@@ -517,4 +524,13 @@ export class AnthropicChatProvider implements ChatProvider {
     clone._generationKwargs = { ...this._generationKwargs };
     return clone;
   }
+}
+
+/** True when the request-scoped headers carry an `Authorization` credential. */
+function hasRequestAuthorizationHeader(headers: Record<string, string> | undefined): boolean {
+  if (headers === undefined) return false;
+  for (const name of Object.keys(headers)) {
+    if (name.toLowerCase() === 'authorization') return true;
+  }
+  return false;
 }

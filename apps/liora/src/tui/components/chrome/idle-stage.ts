@@ -89,9 +89,11 @@ export interface IdleStageOptions {
  */
 export function isEmptyTranscriptChrome(component: Component): boolean {
   if (component instanceof IdleStageComponent) return true;
-  // Constructor-name check avoids circular imports with welcome/banner modules.
-  const name = component.constructor?.name;
-  return name === 'WelcomeComponent' || name === 'BannerComponent';
+  // Marker-field check avoids circular imports with welcome/banner modules and
+  // survives bundler class-name mangling (a constructor.name check did not).
+  return (
+    (component as { isEmptyTranscriptChrome?: boolean }).isEmptyTranscriptChrome === true
+  );
 }
 
 /**

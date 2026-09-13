@@ -20,6 +20,9 @@ import {
   THINKING_PREVIEW_LINES,
 } from '#/tui/constant/rendering';
 import { BACKGROUND_GLYPH, PENDING_GLYPH, SPINNER_GLYPH } from '#/tui/constant/symbols';
+
+/** Window cap for mounted multi-agent failure bodies (kiloline errors must not freeze the TUI). */
+const SUBAGENT_ERROR_WINDOW_LINES = 24;
 import { currentTheme } from '#/tui/theme';
 import type { TokenUsage } from '@superliora/sdk';
 import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
@@ -215,10 +218,27 @@ export function buildMultiSubagentBlockComponents(state: MultiSubagentBlockState
     }
   }
 
-  // Full error text from subagent.failed; do not collapse it.
+  // Full error text from subagent.failed. Failure punch-through keeps the
+  // error visible, but a swarm child error can carry kilolines of stack +
+  // embedded log — window it (tail-keep, the live edge) instead of mounting
+  // one unbounded Text child per line on every rebuild (PREMIUM §7.9).
   if (state.subagentPhase === 'failed' && state.subagentError !== undefined) {
     const errLines = state.subagentError.split('\n');
-    for (const line of errLines) {
+    const errorWindow = projectRendererLineWindow({
+      lines: errLines,
+      maxLines: SUBAGENT_ERROR_WINDOW_LINES,
+      tail: true,
+    });
+    if (errorWindow.startIndex > 0) {
+      items.push(
+        new Text(
+          `    ${currentTheme.fg('error', '└')} … ${String(errorWindow.startIndex)} earlier error lines`,
+          0,
+          0,
+        ),
+      );
+    }
+    for (const line of errorWindow.lines) {
       items.push(new Text(`    ${currentTheme.fg('error', '└')} ${line}`, 0, 0));
     }
   }

@@ -53,8 +53,8 @@
     "test:direct": "node scripts/test-local.mjs --direct",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "gate": "corepack pnpm run lint && corepack pnpm run typecheck && node scripts/test-local.mjs --all",
-    "gate:fast": "corepack pnpm run lint && node scripts/typecheck.mjs --direct && node scripts/test-local.mjs --direct",
+    "gate": "corepack pnpm run lint && corepack pnpm run typecheck && node scripts/test-local.mjs",
+    "gate:fast": "corepack pnpm run lint && node scripts/typecheck.mjs --direct && node scripts/test-local.mjs",
     "clean": "corepack pnpm -r run clean",
     "prepare": "simple-git-hooks"
   },

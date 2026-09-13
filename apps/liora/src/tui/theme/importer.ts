@@ -8,6 +8,10 @@ import { getDataDir } from '#/utils/paths';
 import type { CustomThemeDefinition } from './custom-theme-loader';
 import type { ColorPalette, ResolvedTheme } from './colors';
 import { darkColors, lightColors } from './colors';
+import { hexRelativeLuminance, isLightBackgroundLuminance } from './luminance';
+// Direct package import, same grandfathered path as `colors.ts` (importing the
+// facade here would pull theme consumers back into theme internals).
+import { mixHexColor } from '@harness-kit/tui-renderer';
 
 export interface ThemeImportResult {
   readonly themeName: string;
@@ -260,18 +264,18 @@ function terminalPaletteToTheme(palette: TerminalPalette): CustomThemeDefinition
   const background = palette.background ?? fallback.background;
   const colors: Partial<ColorPalette> = {
     background,
-    surface: mixHex(background, foreground, base === 'light' ? 0.06 : 0.08),
-    surfaceRaised: mixHex(background, foreground, base === 'light' ? 0.1 : 0.14),
-    surfaceSunken: mixHex(background, '#000000', base === 'light' ? 0.03 : 0.18),
+    surface: mixHexColor(background, foreground, base === 'light' ? 0.06 : 0.08),
+    surfaceRaised: mixHexColor(background, foreground, base === 'light' ? 0.1 : 0.14),
+    surfaceSunken: mixHexColor(background, '#000000', base === 'light' ? 0.03 : 0.18),
     text: foreground,
     textStrong: base === 'light' ? '#0B1020' : '#FFFFFF',
     textDim: normal[7] ?? fallback.textDim,
     textMuted: normal[8 - 1] ?? fallback.textMuted,
     primary: normal[4] ?? fallback.primary,
     accent: normal[6] ?? fallback.accent,
-    border: mixHex(background, foreground, 0.28),
+    border: mixHexColor(background, foreground, 0.28),
     borderFocus: normal[3] ?? fallback.borderFocus,
-    selectionBg: palette.selection ?? mixHex(background, normal[4] ?? fallback.primary, 0.35),
+    selectionBg: palette.selection ?? mixHexColor(background, normal[4] ?? fallback.primary, 0.35),
     selectionText: foreground,
     cursor: palette.cursor ?? foreground,
     success: normal[2] ?? fallback.success,
@@ -439,10 +443,9 @@ function slugify(value: string): string {
 
 function inferBase(background: string | undefined): ResolvedTheme {
   if (background === undefined) return 'dark';
-  const rgb = parseHex(background);
-  if (rgb === undefined) return 'dark';
-  const luminance = (0.2126 * rgb.red + 0.7152 * rgb.green + 0.0722 * rgb.blue) / 255;
-  return luminance > 0.55 ? 'light' : 'dark';
+  const luminance = hexRelativeLuminance(background);
+  if (luminance === undefined) return 'dark';
+  return isLightBackgroundLuminance(luminance) ? 'light' : 'dark';
 }
 
 function parseHex(
@@ -454,15 +457,4 @@ function parseHex(
     green: Number.parseInt(hex.slice(3, 5), 16),
     blue: Number.parseInt(hex.slice(5, 7), 16),
   };
-}
-
-function mixHex(fromHex: string, toHex: string, ratio: number): string {
-  const from = parseHex(fromHex);
-  const to = parseHex(toHex);
-  if (from === undefined || to === undefined) return fromHex;
-  const mix = (a: number, b: number): string =>
-    Math.round(a + (b - a) * Math.max(0, Math.min(1, ratio)))
-      .toString(16)
-      .padStart(2, '0');
-  return `#${mix(from.red, to.red)}${mix(from.green, to.green)}${mix(from.blue, to.blue)}`.toUpperCase();
 }

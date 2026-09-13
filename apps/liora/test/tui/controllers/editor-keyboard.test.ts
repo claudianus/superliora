@@ -299,7 +299,7 @@ describe('EditorKeyboardController gated shortcut toasts', () => {
     if (typeof handler !== 'function') throw new Error('onCtrlS not installed');
     (handler as () => void)();
 
-    expect(toastShow).toHaveBeenCalledWith('Steer works while a turn is running', 2200);
+    expect(toastShow).toHaveBeenCalledWith(ttui('tui.editor.steerIdleHint'), 2200);
   });
 
   it('toasts when Ctrl-B is pressed while idle', () => {
@@ -309,7 +309,7 @@ describe('EditorKeyboardController gated shortcut toasts', () => {
     if (typeof handler !== 'function') throw new Error('onCtrlB not installed');
     (handler as () => boolean)();
 
-    expect(toastShow).toHaveBeenCalledWith('Background works while a turn is running', 2200);
+    expect(toastShow).toHaveBeenCalledWith(ttui('tui.editor.backgroundIdleHint'), 2200);
   });
 });
 

@@ -247,7 +247,7 @@ export const lightColors: ColorPalette = {
   textStrong: '#1A1A1A',
   textDim: '#454545',
   textMuted: '#5F5F5F',
-  ghostText: '#767676',
+  ghostText: '#6E6E6E',
 
   background: '#FFFFFF',
   surface: '#F4F7FB',

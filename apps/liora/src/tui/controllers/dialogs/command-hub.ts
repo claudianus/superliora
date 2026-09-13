@@ -15,6 +15,7 @@ import {
   setTranscriptRegionMode,
 } from '../../features/control-tower/conductor-ux';
 import { ConductorHowtoPanelComponent } from '../../components/dialogs/command-hub/conductor-howto-panel';
+import { resolveHubItem } from '../../components/dialogs/command-hub/resolve-hub-item';
 import {
   showHubCronPicker,
   showHubJobOpsPicker,
@@ -96,7 +97,7 @@ export function showCommandHub(
   mountCenterModal(host, delegate, hub, { mode: 'push', label: 'Hub' });
   if (options.intro === true) {
     noteSuccessFeedback();
-    host.state.toast.show('Command Hub — Space toggles modes · type to search', 3200);
+    host.state.toast.show(ttui('tui.hub.introToast'), 3200);
   }
 }
 
@@ -191,7 +192,7 @@ function handleCommandHubSelect(
       });
       host.openCommandHub?.noteToggleFlash(item.id);
       noteSuccessFeedback();
-      host.state.toast.show(`Project mode → ${next}`, 1600);
+      host.state.toast.show(ttui('tui.hub.cycledProjectMode', { next }), 1600);
       if (mode === 'enter') closeCenterModal(host, delegate);
       return;
     }
@@ -208,7 +209,7 @@ function handleCommandHubSelect(
       );
       host.openCommandHub?.noteToggleFlash(item.id);
       noteSuccessFeedback();
-      host.state.toast.show(`Region → ${next}`, 1600);
+      host.state.toast.show(ttui('tui.hub.cycledRegion', { next }), 1600);
       if (mode === 'enter') closeCenterModal(host, delegate);
       return;
     }
@@ -217,7 +218,7 @@ function handleCommandHubSelect(
       host.dispatchSlash(`/permission ${next}`);
       host.openCommandHub?.noteToggleFlash(item.id);
       noteSuccessFeedback();
-      host.state.toast.show(`Permission → ${next}`, 1600);
+      host.state.toast.show(ttui('tui.hub.cycledPermission', { next }), 1600);
       return;
     }
     host.dispatchSlash('/permission');
@@ -235,7 +236,7 @@ function handleCommandHubSelect(
       'hotfix',
     );
     noteSuccessFeedback();
-    host.state.toast.show('Parallelism → hotfix (pool=2)', 1600);
+    host.state.toast.show(ttui('tui.hub.parallelismHotfix'), 1600);
     closeCenterModal(host, delegate);
     return;
   }
@@ -245,10 +246,12 @@ function handleCommandHubSelect(
     if (slash !== undefined) {
       host.dispatchSlash(slash);
     }
-    const label = item.label;
+    // Curated rows carry labelKey, not label — resolve through the locale or
+    // the toggle toast renders as " → ON".
+    const label = resolveHubItem(item).label;
     const nextOn = item.badge !== 'ON';
     noteSuccessFeedback();
-    host.state.toast.show(`${label} → ${nextOn ? 'ON' : 'off'}`, 1400);
+    host.state.toast.show(ttui('tui.hub.toggledTo', { label, state: nextOn ? 'ON' : 'off' }), 1400);
     // Space: stay in Hub and flip more. Enter: apply and return to chat.
     if (mode === 'enter') {
       closeCenterModal(host, delegate);
@@ -260,15 +263,15 @@ function handleCommandHubSelect(
 
   if (item.id === 'now.steer') {
     closeAllCenterModals(host);
-    host.state.footer.setTransientHint('Steer: type, then Ctrl-S');
-    host.state.toast.show('Type steer text · Ctrl-S to send', 2800);
+    host.state.footer.setTransientHint(ttui('tui.hub.steerFooterHint'));
+    host.state.toast.show(ttui('tui.hub.steerHint'), 2800);
     requestTUIContentRender(host.state);
     return;
   }
   if (item.id === 'now.undo' || item.id === 'now.compact') {
     // /undo and /compact are idle-only at the engine; advertise them as
     // blocked-with-guidance instead of dispatching into a guaranteed error.
-    host.state.toast.show('Available after the current turn — press Esc or Ctrl-C to stop first', 2600);
+    host.state.toast.show(ttui('tui.hub.blockedUntilIdle'), 2600);
     return;
   }
   if (item.id === 'now.stop') {
@@ -278,9 +281,9 @@ function handleCommandHubSelect(
       try {
         await host.session?.cancel({ source: 'ctrl-c' });
         noteSuccessFeedback();
-        host.state.toast.show('Stopped', 1400);
+        host.state.toast.show(ttui('tui.hub.stopped'), 1400);
       } catch (error) {
-        host.showStatus(`Stop failed: ${formatErrorMessage(error)}`, 'error');
+        host.showStatus(ttui('tui.hub.stopFailed', { message: formatErrorMessage(error) }), 'error');
       }
     };
     void stop();
@@ -380,12 +383,12 @@ function handleCommandHubAction(
   }
   if (item.id === 'workspace.search') {
     restoreInputText(host, delegate, '/search ');
-    host.state.toast.show('Type a search pattern after /search', 2200);
+    host.state.toast.show(ttui('tui.hub.searchPatternHint'), 2200);
     return;
   }
   if (item.id === 'chat.btw') {
     restoreInputText(host, delegate, '/btw ');
-    host.state.toast.show('Type your side question after /btw', 2200);
+    host.state.toast.show(ttui('tui.hub.btwHint'), 2200);
     return;
   }
 

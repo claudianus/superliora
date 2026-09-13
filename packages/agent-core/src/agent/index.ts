@@ -28,6 +28,7 @@ import type { PreparedSystemPromptContext, ResolvedAgentProfile } from '../profi
 import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '../profile/main-profile';
 import { ConductorDirectWorkGuard } from './conductor-guard';
 import type { FileSnapshotStore } from '../session/file-snapshot';
+import type { FileProvenanceRecorder } from '../session/file-provenance';
 import type { ModelProvider } from '../session/provider/provider-manager';
 import type { SessionSubagentHost } from '../session/subagent/subagent-host';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
@@ -171,6 +172,8 @@ export interface AgentOptions {
   readonly dreamStore?: LioraMemoryStore;
   /** Shared session file-snapshot store for `/rewind` (optional; agent-standalone safe). */
   readonly fileSnapshots?: FileSnapshotStore | undefined;
+  /** Shared session file-provenance recorder (optional; agent-standalone safe). */
+  readonly fileProvenance?: FileProvenanceRecorder | undefined;
   /** Path sandbox profile for file tools (`off` | `workspace` | `read-only`). */
   readonly sandboxProfile?: SandboxProfile | undefined;
   /** Process vs lexical enforcement (optional; default lexical). */
@@ -276,6 +279,8 @@ export class Agent {
   readonly circuitBreakerRegistry: CircuitBreakerRegistry;
   /** Session-shared file snapshots for write/edit capture + `/rewind`. */
   readonly fileSnapshots: FileSnapshotStore | undefined;
+  /** Session-shared file provenance recorder (which agent/model/turn wrote which lines). */
+  readonly fileProvenance: FileProvenanceRecorder | undefined;
   /** Sandbox profile applied when constructing file-tool workspaces. */
   readonly sandboxProfile: SandboxProfile | undefined;
   /** Desired process/lexical enforcement. */
@@ -330,6 +335,7 @@ export class Agent {
     this.responseLanguagePreference = options.responseLanguagePreference;
     this.additionalDirs = normalizeAdditionalDirs(options.additionalDirs ?? []);
     this.fileSnapshots = options.fileSnapshots;
+    this.fileProvenance = options.fileProvenance;
     this.sandboxProfile = options.sandboxProfile;
     this.sandboxEnforcement = options.sandboxEnforcement;
     this.processSandboxStatus = undefined;

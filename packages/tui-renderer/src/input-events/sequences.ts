@@ -155,6 +155,75 @@ export function matchKnownSequence(
   for (const [sequence, event] of KNOWN_SEQUENCES) {
     if (input.startsWith(sequence, index)) return { sequence, event };
   }
+  return matchCsiModifierSequence(input, index);
+}
+
+/**
+ * xterm modifier CSI encoding: `\x1B[1;<mod><final>` for arrows/home/end and
+ * `\x1B[<n>;<mod>~` for insert/delete/page keys, where `mod = 1 + shift(1) +
+ * alt(2) + ctrl(4)`. Terminals send Ctrl+Up as `\x1B[1;5A` — without this
+ * matcher the sequence decodes as `unknown` and modifier chords (e.g. the
+ * model-fallback reorder) are silently dead. The exact `1;2A-D` entries in
+ * KNOWN_SEQUENCES above take precedence; this covers the rest of the family.
+ */
+const CSI_MODIFIER_FINAL_RE = /^\u001B\[1;([2-9])([ABCDHF])/;
+const CSI_MODIFIER_TILDE_RE = /^\u001B\[(\d+);([2-9])~/;
+
+const MODIFIER_FINAL_KEYS: Readonly<Record<string, NativeInputKey>> = {
+  A: 'up',
+  B: 'down',
+  C: 'right',
+  D: 'left',
+  H: 'home',
+  F: 'end',
+};
+
+const MODIFIER_TILDE_KEYS: Readonly<Record<string, NativeInputKey>> = {
+  '1': 'home',
+  '2': 'insert',
+  '3': 'delete',
+  '4': 'end',
+  '5': 'pageup',
+  '6': 'pagedown',
+};
+
+function modifierEvent(modParam: number, key: NativeInputKey): KnownInputEvent {
+  const mod = modParam - 1;
+  return {
+    type: 'key',
+    key,
+    shift: (mod & 1) !== 0,
+    alt: (mod & 2) !== 0,
+    ctrl: (mod & 4) !== 0,
+  };
+}
+
+export function matchCsiModifierSequence(
+  input: string,
+  index: number,
+): { readonly sequence: string; readonly event: KnownInputEvent } | undefined {
+  // Longest covered sequence is `\x1B[24;8~` (9 chars); 16 leaves headroom.
+  const rest = input.slice(index, index + 16);
+  const finalMatch = CSI_MODIFIER_FINAL_RE.exec(rest);
+  if (finalMatch !== null) {
+    const key = MODIFIER_FINAL_KEYS[finalMatch[2]!];
+    if (key !== undefined) {
+      return {
+        sequence: finalMatch[0],
+        event: modifierEvent(Number.parseInt(finalMatch[1]!, 10), key),
+      };
+    }
+  }
+  const tildeMatch = CSI_MODIFIER_TILDE_RE.exec(rest);
+  if (tildeMatch !== null) {
+    const key = MODIFIER_TILDE_KEYS[tildeMatch[1]!];
+    if (key !== undefined) {
+      return {
+        sequence: tildeMatch[0],
+        event: modifierEvent(Number.parseInt(tildeMatch[2]!, 10), key),
+      };
+    }
+  }
   return undefined;
 }
 

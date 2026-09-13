@@ -18,6 +18,28 @@ import {
   isHideLegacyToolNamesEnabled,
 } from '../../profile/sovereign-soft-gates';
 import type { BuiltinTool } from './types';
+import type { FileProvenanceHook } from '../../session/file-provenance';
+
+/**
+ * Bind a file-provenance hook to this agent's identity (type/model/turn are
+ * read at record time — they change across turns and `/model` switches).
+ * Undefined when the session attached no recorder. Lives here because the
+ * session layer must not import the agent layer.
+ */
+export function createFileProvenanceHook(agent: Agent): FileProvenanceHook | undefined {
+  const recorder = agent.fileProvenance;
+  if (recorder === undefined) return undefined;
+  return {
+    record: (mutation) =>
+      recorder
+        .record(mutation, {
+          agentType: agent.type,
+          model: agent.config.modelAlias,
+          turn: agent.turn.currentId !== undefined ? String(agent.turn.currentId) : undefined,
+        })
+        .catch(() => {}),
+  };
+}
 import {
   hostBrowserCircuitSessionKey,
   hostBrowserCircuitShouldSkip,
@@ -166,6 +188,7 @@ function createFileAndContextTools(
   videoUploader: b.VideoUploader | undefined,
 ): Array<BuiltinTool | false | undefined> {
   const readMediaVisionFallback = buildReadMediaVisionFallback(host.agent);
+  const provenanceHook = createFileProvenanceHook(host.agent);
   return [
     shouldCreateBuiltin(host, 'Read') && new b.ReadTool(kaos, workspace),
     shouldCreateBuiltin(host, 'Write') &&
@@ -175,6 +198,7 @@ function createFileAndContextTools(
           host.agent.turn.currentId !== undefined ? String(host.agent.turn.currentId) : undefined,
         getSwarmLease: () => host.agent.swarmFileLease,
         onFileMutated: (path, content) => host.agent.fileMutationHook?.(path, content),
+        provenance: provenanceHook,
       }),
     shouldCreateBuiltin(host, 'Edit') &&
       new b.EditTool(kaos, workspace, {
@@ -183,6 +207,7 @@ function createFileAndContextTools(
           host.agent.turn.currentId !== undefined ? String(host.agent.turn.currentId) : undefined,
         getSwarmLease: () => host.agent.swarmFileLease,
         onFileMutated: (path, content) => host.agent.fileMutationHook?.(path, content),
+        provenance: provenanceHook,
       }),
     shouldCreateBuiltin(host, 'ApplyPatch') &&
       new b.ApplyPatchTool(kaos, workspace, {
@@ -191,10 +216,14 @@ function createFileAndContextTools(
           host.agent.turn.currentId !== undefined ? String(host.agent.turn.currentId) : undefined,
         getSwarmLease: () => host.agent.swarmFileLease,
         onFileMutated: (path, content) => host.agent.fileMutationHook?.(path, content),
+        provenance: provenanceHook,
       }),
     shouldCreateBuiltin(host, 'Grep') && new b.GrepTool(kaos, workspace, host.agent.telemetry),
     shouldCreateBuiltin(host, 'Glob') && new b.GlobTool(kaos, workspace, host.agent.telemetry),
-    shouldCreateBuiltin(host, 'RepoQuery') && new b.RepoQueryTool(kaos, workspace, host.agent.telemetry),
+    shouldCreateBuiltin(host, 'RepoQuery') &&
+      new b.RepoQueryTool(kaos, workspace, host.agent.telemetry, {
+        provenance: host.agent.fileProvenance,
+      }),
     shouldCreateRetiredLiora(host, 'LioraRead') &&
       new b.LioraReadTool(kaos, workspace, host.toolStore),
     shouldCreateRetiredLiora(host, 'LioraTree') && new b.LioraTreeTool(kaos, workspace),

@@ -242,6 +242,75 @@ export const API_KEY_PROVIDERS: readonly ApiKeyProviderDefinition[] = [
     defaultBaseUrl: 'http://localhost:8080/v1',
     local: true,
   },
+  // --- Providers absent from the models.dev catalog (gajae-code parity). ---
+  // --- Ids the catalog (or the curated local overlay) already carries are ---
+  // --- deliberately not repeated here: the picker reads env + base URL ---
+  // --- straight from the catalog entry. ---
+  {
+    id: 'firepass',
+    displayName: 'Fire Pass (Fireworks Kimi K2 subscription)',
+    wire: 'openai',
+    envVars: ['FIREPASS_API_KEY', 'FIREWORKS_API_KEY'],
+    docUrl: 'https://app.fireworks.ai/settings/users/api-keys',
+    defaultBaseUrl: 'https://api.fireworks.ai/inference/v1',
+  },
+  {
+    id: 'fugu',
+    displayName: 'Sakana Fugu',
+    wire: 'openai',
+    envVars: ['FUGU_API_KEY', 'SAKANA_API_KEY'],
+    docUrl: 'https://console.sakana.ai/api-keys',
+    defaultBaseUrl: 'https://api.sakana.ai/v1',
+  },
+  {
+    id: 'nanogpt',
+    displayName: 'NanoGPT',
+    wire: 'openai',
+    envVars: ['NANOGPT_API_KEY', 'NANO_GPT_API_KEY'],
+    docUrl: 'https://nano-gpt.com/api',
+    defaultBaseUrl: 'https://nano-gpt.com/api/v1',
+  },
+  {
+    id: 'mara',
+    displayName: 'Mara Cloud',
+    wire: 'openai',
+    envVars: ['MARA_API_KEY'],
+    docUrl: 'https://cloud.mara.com/apis',
+    defaultBaseUrl: 'https://api.cloud.mara.com/v1',
+  },
+  {
+    id: 'opengateway',
+    displayName: 'OpenGateway (Sionic AI)',
+    wire: 'openai',
+    envVars: ['OPENGATEWAY_API_KEY', 'SIONIC_API_KEY'],
+    docUrl: 'https://opengateway.ai/dashboard',
+    defaultBaseUrl: 'https://apis.opengateway.ai/v1',
+  },
+  {
+    id: 'bizrouter',
+    displayName: 'BizRouter',
+    wire: 'openai',
+    envVars: ['BIZROUTER_API_KEY'],
+    docUrl: 'https://bizrouter.ai/settings/keys',
+    defaultBaseUrl: 'https://api.bizrouter.ai/v1',
+  },
+  {
+    id: 'qianfan',
+    displayName: 'Qianfan (Baidu)',
+    wire: 'openai',
+    envVars: ['QIANFAN_API_KEY', 'BAIDU_API_KEY'],
+    docUrl: 'https://console.bce.baidu.com/qianfan/ais/console/apiKey',
+    defaultBaseUrl: 'https://qianfan.baidubce.com/v2',
+  },
+  {
+    id: 'sglang',
+    displayName: 'SGLang server (local)',
+    wire: 'openai',
+    envVars: ['SGLANG_API_KEY'],
+    docUrl: 'https://docs.sglang.io/docs/advanced_features/server_arguments.html',
+    defaultBaseUrl: 'http://127.0.0.1:30000/v1',
+    local: true,
+  },
 ];
 
 /** Lowercase id / alias → definition. Aliases cover models.dev naming drift. */

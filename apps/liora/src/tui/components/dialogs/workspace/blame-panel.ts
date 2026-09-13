@@ -26,11 +26,13 @@ import { ttui } from '#/tui/utils/tui-i18n';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { isUncommittedBlameHash, type BlameLine } from '#/utils/git/git-blame';
+import type { ProvenanceAnnotation } from '#/utils/git/git-provenance';
 
 const ELLIPSIS = '…';
 const HASH_WIDTH = 7;
 const AUTHOR_WIDTH = 12;
 const DATE_WIDTH = 10;
+const AI_MARKER = '✦';
 
 /** Format unix seconds as `YYYY-MM-DD` (UTC, fixed width); 0/invalid → `—`. */
 function formatBlameDate(authorTime: number): string {
@@ -64,6 +66,8 @@ export interface BlamePanelOptions {
   /** File path (or label) shown in the header. */
   readonly title?: string;
   readonly palette?: ColorPalette;
+  /** Per-line AI attribution from the session provenance log (line number → marker). */
+  readonly annotations?: ReadonlyMap<number, ProvenanceAnnotation>;
   readonly onClose: () => void;
   /** Body frame height (including its two border rows). Defaults to 24. */
   readonly maxVisible?: number;
@@ -147,7 +151,16 @@ export class BlamePanelComponent extends Container implements Focusable {
     const left =
       t.boldFg('primary', ' Blame ') +
       (this.opts.title !== undefined ? t.fg('textMuted', `${this.opts.title} `) : '');
-    const meta = t.fg('textDim', `${this.opts.lines.length.toLocaleString('en-US')} lines `);
+    const aiCount =
+      this.opts.annotations === undefined
+        ? 0
+        : this.opts.lines.filter((line) => this.opts.annotations?.has(line.lineNumber)).length;
+    const meta = t.fg(
+      'textDim',
+      aiCount > 0
+        ? `${this.opts.lines.length.toLocaleString('en-US')} lines · ${String(aiCount)} ${AI_MARKER} `
+        : `${this.opts.lines.length.toLocaleString('en-US')} lines `,
+    );
     const leftWidth = visibleWidth(left);
     const metaWidth = visibleWidth(meta);
     if (leftWidth + metaWidth <= width) {
@@ -210,10 +223,14 @@ export class BlamePanelComponent extends Container implements Focusable {
     const pointerStyled = selected
       ? `${renderSelectPointer('blame-panel:pointer')} `
       : t.fg('textDim', '  ');
+    const annotation = this.opts.annotations?.get(line.lineNumber);
     const uncommitted = isUncommittedBlameHash(line.commit.hash);
     const gutterToken = uncommitted ? 'warning' : 'textMuted';
     const hash = t.fg(gutterToken, line.commit.hash.slice(0, HASH_WIDTH));
-    const author = t.fg(gutterToken, fitAuthor(line.commit.author));
+    const author =
+      annotation !== undefined
+        ? t.fg('success', fitAuthor(`${AI_MARKER} ${annotation.model ?? annotation.agentType}`))
+        : t.fg(gutterToken, fitAuthor(line.commit.author));
     const date = t.fg(gutterToken, formatBlameDate(line.commit.authorTime));
     const separator = t.fg('textDim', '│');
     const gutter = `${pointerStyled}${hash} ${author} ${date} ${separator} `;

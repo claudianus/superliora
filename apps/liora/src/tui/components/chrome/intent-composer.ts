@@ -171,9 +171,15 @@ export class IntentComposerComponent extends Container implements Focusable {
   override render(width: number): string[] {
     const theme = currentTheme;
     const filled = countFilled(this.fields);
+    // Focus ring (PREMIUM §8.1): bright accent head while focused, dim when
+    // another surface owns the keys so exactly one panel reads active.
     const head = this.expanded
-      ? theme.fg('accent', '▾ Intent brief')
-      : theme.fg('accent', '▸ Intent brief');
+      ? this.focused
+        ? theme.boldFg('accent', '▾ Intent brief')
+        : theme.fg('accent', '▾ Intent brief')
+      : this.focused
+        ? theme.boldFg('accent', '▸ Intent brief')
+        : theme.fg('textMuted', '▸ Intent brief');
     const meta = theme.fg(
       'textMuted',
       filled > 0 ? ` · ${String(filled)} slot${filled === 1 ? '' : 's'} · Alt+B` : ' · Alt+B expand',
@@ -196,7 +202,13 @@ export class IntentComposerComponent extends Container implements Focusable {
             '…',
           ),
         );
-        lines.push(theme.fg('textDim', '   Enter save · Esc cancel · ; separates bullets'));
+        lines.push(
+          truncateToWidth(
+            theme.fg('textDim', '   Enter save · Esc cancel · ; separates bullets'),
+            Math.max(1, width),
+            '…',
+          ),
+        );
       } else {
         const preview =
           items.length === 0
@@ -206,7 +218,11 @@ export class IntentComposerComponent extends Container implements Focusable {
       }
     }
     lines.push(
-      theme.fg('textMuted', ' ↑↓ navigate · Enter edit · E collapse · Esc cancel'),
+      truncateToWidth(
+        theme.fg('textMuted', ' ↑↓ navigate · Enter edit · E collapse · Esc cancel'),
+        Math.max(1, width),
+        '…',
+      ),
     );
     return lines;
   }

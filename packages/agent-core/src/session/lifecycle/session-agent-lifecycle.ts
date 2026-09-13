@@ -20,6 +20,7 @@ import type { TelemetryClient } from '../../telemetry';
 import type { SandboxEnforcement } from '../../config/sandbox-enforcement';
 import type { SandboxProfile } from '../../tools/policies/path-access';
 import { FileSnapshotStore } from '../file-snapshot';
+import type { FileProvenanceRecorder } from '../file-provenance';
 import type { ExperimentalFlagResolver } from '../../flags';
 import { responseLanguagePreferenceFromUnknown } from '../response-language';
 import { ProviderManager } from '../provider/provider-manager';
@@ -44,6 +45,7 @@ export interface SessionAgentLifecycleOptions {
   readonly telemetry: TelemetryClient;
   readonly experimentalFlags: ExperimentalFlagResolver;
   readonly fileSnapshots: FileSnapshotStore;
+  readonly fileProvenance: FileProvenanceRecorder;
   readonly log: Logger;
   readonly rpc: SDKSessionRPC;
   getToolKaos: () => Kaos;
@@ -124,6 +126,7 @@ export class SessionAgentLifecycle {
         responseLanguagePreferenceFromUnknown(this.opts.getMetadata().custom['responseLanguage']),
       dreamStore: type === 'main' ? this.opts.options.dreamStore : undefined,
       fileSnapshots: config.fileSnapshots ?? this.opts.fileSnapshots,
+      fileProvenance: config.fileProvenance ?? this.opts.fileProvenance,
       sandboxProfile: config.sandboxProfile ?? this.resolveSandboxProfile(),
       sandboxEnforcement: config.sandboxEnforcement ?? this.resolveSandboxEnforcement(),
     });
