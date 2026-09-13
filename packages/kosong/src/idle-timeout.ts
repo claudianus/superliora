@@ -112,12 +112,15 @@ export function resolveOpenTimeoutMs(explicit?: number): number {
 }
 
 /**
- * Resolve the effective first-token budget. Unlike the other resolvers there
- * is no baked-in fallback: when unset the caller's idle budget applies, so
- * `undefined` means "no separate first-token phase".
+ * Resolve the effective first-token budget. Explicit value (including `0` =
+ * disabled) wins, then the environment variable, then the documented
+ * {@link DEFAULT_LLM_FIRST_TOKEN_TIMEOUT_MS}. Without the baked-in default,
+ * tuning `SUPERLIORA_LLM_IDLE_TIMEOUT_MS` would silently stretch the
+ * first-token guard too, contradicting the env var docs.
  */
 export function resolveFirstTokenTimeoutMs(explicit?: number): number | undefined {
-  return resolveOptionalTimeoutMs(explicit, LLM_FIRST_TOKEN_TIMEOUT_ENV);
+  const optional = resolveOptionalTimeoutMs(explicit, LLM_FIRST_TOKEN_TIMEOUT_ENV);
+  return optional ?? DEFAULT_LLM_FIRST_TOKEN_TIMEOUT_MS;
 }
 
 /** Resolve the effective whole-stream duration cap. */
@@ -209,7 +212,10 @@ export function withIdleTimeout<T>(
 
       function firstTokenDeadline(fromMs: number): number {
         if (firstTokenMs !== undefined && firstTokenMs > 0 && !sawFirstActivity) {
-          return fromMs + firstTokenMs;
+          // The first-token budget only ever TIGHTENS the pre-activity wait;
+          // a firstTokenMs looser than the idle budget must not relax the
+          // watchdog for keepalive-only streams (idleMs still applies).
+          return idleMs > 0 ? fromMs + Math.min(firstTokenMs, idleMs) : fromMs + firstTokenMs;
         }
         return idleMs > 0 ? fromMs + idleMs : Number.POSITIVE_INFINITY;
       }

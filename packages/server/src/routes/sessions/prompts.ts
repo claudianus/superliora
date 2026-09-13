@@ -124,7 +124,7 @@ export function registerPromptsRoutes(
       try {
         const { session_id } = req.params;
         const body = req.body;
-        const result = await ix.invokeFunction(async (a) => {
+        const submission = ix.invokeFunction(async (a) => {
           // Grab service references synchronously — the accessor is only
           // valid until the first await inside invokeFunction.
           const promptService = a.get(IPromptService);
@@ -144,6 +144,16 @@ export function registerPromptsRoutes(
           });
           return promptService.submit(session_id, resolved);
         });
+        // A wedged agent (hung provider stream, dead loop) used to hold the
+        // HTTP request open forever and pin the session's busy lane. Race a
+        // generous deadline — submit only waits for turn START, not the whole
+        // turn — so genuinely slow-but-alive submissions still succeed.
+        const PROMPT_SUBMIT_DEADLINE_MS = 60_000;
+        const result = await withDeadline(
+          submission,
+          PROMPT_SUBMIT_DEADLINE_MS,
+          `prompt submit timed out after ${String(PROMPT_SUBMIT_DEADLINE_MS)}ms`,
+        );
         reply.send(okEnvelope(result, req.id));
       } catch (error) {
         sendMappedError(reply, req.id, error);
@@ -529,4 +539,16 @@ function sendMappedError(
     return;
   }
   throw err;
+}
+
+/** Race `p` against a deadline; rejects with an Error(message) on expiry. */
+function withDeadline<T>(p: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+    timer.unref?.();
+  });
+  return Promise.race([p, deadline]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
 }

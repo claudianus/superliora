@@ -25,12 +25,23 @@ export async function syncSessions(
   accepted: string[];
   resyncRequired: string[];
   serverCursors: CursorsBySession;
+  notFound: string[];
 }> {
   const accepted: string[] = [];
   const resyncRequired: string[] = [];
   const serverCursors: CursorsBySession = {};
+  const notFound: string[] = [];
+  const exists = (sid: string): Promise<boolean> | boolean =>
+    host.sessionExists?.(sid) ?? true;
 
   for (const sid of sessionIds) {
+    // Phantom id (typo, deleted session): still subscribe (the id may be
+    // created later, and broadcast tolerates empty journals) but report it
+    // in `not_found` so the client knows there is no backing session yet
+    // instead of mistaking a fresh journal cursor for real history.
+    if (!(await exists(sid)) && !notFound.includes(sid)) {
+      notFound.push(sid);
+    }
     if (!host.subscriptions.has(sid)) {
       host.subscribe(sid);
     }
@@ -39,6 +50,9 @@ export async function syncSessions(
 
   if (cursors) {
     for (const [sid, cursor] of Object.entries(cursors)) {
+      if (!(await exists(sid)) && !notFound.includes(sid)) {
+        notFound.push(sid);
+      }
       host.cursorsBySession.set(sid, cursor);
       if (!host.subscriptions.has(sid)) {
         host.subscribe(sid);
@@ -67,7 +81,7 @@ export async function syncSessions(
     }
   }
 
-  return { accepted, resyncRequired, serverCursors };
+  return { accepted, resyncRequired, serverCursors, notFound };
 }
 
 export async function handleClientHello(
@@ -133,7 +147,7 @@ export async function handleSubscribe(
   host.send(
     buildAck(msg.id, 0, 'success', {
       accepted: sync.accepted,
-      not_found: [],
+      not_found: sync.notFound,
       resync_required: sync.resyncRequired,
       cursors: sync.serverCursors,
     }),

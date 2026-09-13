@@ -22,6 +22,13 @@ export interface TurnEndedEvent {
   readonly error?: LioraErrorPayload;
   readonly durationMs?: number;
   readonly cancelledByUser?: boolean;
+  /**
+   * Terminal step stop reason when the turn ended while the model was still
+   * producing content — most importantly `'max_tokens'` when the provider cut
+   * the output at its token budget. Without this, truncation masquerades as a
+   * normal `reason: 'completed'` turn and no client can tell.
+   */
+  readonly stopReason?: string;
 }
 
 export interface TurnStepStartedEvent {
@@ -115,6 +122,7 @@ export const turnEndedEventSchema = z.object({
   error: kimiErrorPayloadSchema.optional(),
   durationMs: z.number().optional(),
   cancelledByUser: z.boolean().optional(),
+  stopReason: z.string().optional(),
 }) satisfies z.ZodType<TurnEndedEvent>;
 
 export const turnStepStartedEventSchema = z.object({

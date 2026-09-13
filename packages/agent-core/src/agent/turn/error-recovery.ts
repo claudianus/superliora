@@ -20,8 +20,13 @@ import type { TurnEndResult } from './types';
 import {
   canAttemptProviderRecovery,
   createProviderRecoveryState,
+  GOAL_PROVIDER_AUTO_RETRIES,
   GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES,
+  isPermanentQuotaOrBillingFailure,
+  isProviderAuthFailure,
+  isRateLimitOrQuotaFailure,
   resolveProviderRecovery,
+  resolveProviderRetryDelayMs,
   type ProviderRecoveryState,
 } from '../provider-failover';
 import {
@@ -242,6 +247,11 @@ export async function recoverFromProviderFailure(
  * Surface turn-level provider recovery (backoff sleeps up to ~2 minutes and
  * silent model switches) to the UI before the wait starts. Deduped per
  * attempt so the transcript stays readable on multi-hop recovery.
+ *
+ * The delay shown mirrors exactly what {@link resolveProviderRecovery} will
+ * sleep for an auto-retry — including a provider-supplied Retry-After — so the
+ * UI can count down instead of showing a frozen "Retrying…". Non-sleep
+ * outcomes (auth pause, silent switch) stay at delayMs 0.
  */
 function emitTurnRecoveryNotice(
   agent: Agent,
@@ -250,8 +260,20 @@ function emitTurnRecoveryNotice(
   state: ProviderRecoveryState,
 ): void {
   if (error === undefined) return;
+  const rateLimited = isRateLimitOrQuotaFailure(error);
+  const maxAttempts = rateLimited
+    ? GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES
+    : GOAL_PROVIDER_AUTO_RETRIES;
   const attempt = state.autoRetryCount + 1;
-  const maxAttempts = GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES;
+  // Permanent quota/auth failures pause or switch without sleeping; only an
+  // auto-retry arm implies an upcoming backoff wait.
+  const delaysSleep =
+    !isPermanentQuotaOrBillingFailure(error) &&
+    !isProviderAuthFailure(error) &&
+    state.autoRetryCount < maxAttempts;
+  const delayMs = delaysSleep
+    ? resolveProviderRetryDelayMs(error, state.autoRetryCount, rateLimited)
+    : 0;
   const name = error.code;
   const detail = (error.message ?? '').replaceAll(/\s+/g, ' ').trim();
   const shortDetail = detail.length > 90 ? `${detail.slice(0, 89)}…` : detail;
@@ -262,7 +284,7 @@ function emitTurnRecoveryNotice(
     failedAttempt: attempt,
     nextAttempt: attempt,
     maxAttempts: Math.max(maxAttempts, attempt),
-    delayMs: 0,
+    delayMs,
     errorName: name,
     errorMessage: shortDetail.length > 0 ? `${name}: ${shortDetail}` : name,
   });

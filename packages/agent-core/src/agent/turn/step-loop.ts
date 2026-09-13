@@ -81,6 +81,14 @@ import type { createTurnLoopDispatch } from './loop-dispatch';
 import { budgetToolResultForModel } from './tool-result-budget';
 import { CONDUCTOR_GUARD_CODES } from '../conductor-guard';
 
+/**
+ * Default per-turn step cap when `loop_control.max_steps_per_turn` is unset.
+ * Generous enough that no legitimate long task hits it; exists so a model
+ * stuck in varied-argument retry loops cannot spin a turn to context
+ * overflow. Set `max_steps_per_turn: 0` to disable.
+ */
+export const DEFAULT_MAX_STEPS_PER_TURN = 200;
+
 export interface StepLoopDeps {
   readonly agent: Agent;
   readonly turnTelemetry: TurnTelemetry;
@@ -126,7 +134,11 @@ export async function runTurnStepLoop(
         dispatchEvent: deps.buildDispatchEvent(turnId),
         tools: agent.tools.loopTools,
         log: agent.log,
-        maxSteps: loopControl?.maxStepsPerTurn,
+        // A turn without a configured step cap can loop forever on a
+        // model that keeps emitting slightly-varied failing calls (context
+        // overflow is the only backstop). Default generously: legit long
+        // task work stays far under this; explicit 0 still disables the cap.
+        maxSteps: loopControl?.maxStepsPerTurn ?? DEFAULT_MAX_STEPS_PER_TURN,
         maxRetryAttempts: loopControl?.maxRetriesPerStep,
         toolParallelStatus: agent.toolParallelStatus,
         guards: agent.toolGuards,
@@ -225,9 +237,18 @@ export async function runTurnStepLoop(
             if (stopForGoalBudget) return { stopTurn: true };
             // E4 doomed-run guard: unattended runs must not burn their whole
             // budget on a losing streak. Warn once, then force-stop the turn.
-            if (agent.type === 'sub') {
+            // Subagents always qualify (no human at the wheel). Main agents
+            // get the warn too; the hard stop applies only when nobody can
+            // interrupt (headless -p has no interactive question channel) —
+            // an interactive user can Esc out themselves.
+            {
               const streak = trailingToolErrorStreak(agent.context.history);
-              if (streak >= DOOMED_RUN_HARD_STOP_STREAK) {
+              // Independent background agents and subagents have no human;
+              // a main agent is unattended when no interactive question
+              // channel exists (headless -p).
+              const unattended =
+                agent.type !== 'main' || agent.rpc?.requestQuestion === undefined;
+              if (unattended && streak >= DOOMED_RUN_HARD_STOP_STREAK) {
                 agent.log.warn('doomed run hard stop: consecutive tool failures', { streak });
                 agent.telemetry.track('doomed_run_hard_stop', {
                   error_streak: streak,

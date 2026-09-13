@@ -16,6 +16,7 @@ export function isTurnEnded(e: Event): e is Event & {
   type: 'turn.ended';
   turnId: number;
   reason: 'completed' | 'cancelled' | 'failed' | 'filtered';
+  readonly error?: { code: string; message?: string };
 } {
   return (e as { type?: string }).type === 'turn.ended';
 }

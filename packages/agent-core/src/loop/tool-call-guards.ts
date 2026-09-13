@@ -57,6 +57,12 @@ export interface IdempotencyEntry {
   readonly argsHash: string;
   readonly executedAt: number;
   readonly result?: string;
+  /**
+   * `mtimeMs:size` of the mutated file at record time (when the tool's args
+   * named one). Replay is only valid while this still matches — an external
+   * rewrite (formatter, hook, user edit) invalidates the cached success.
+   */
+  readonly targetFingerprint?: string;
 }
 
 /** Maximum entries before LRU eviction. */
@@ -215,7 +221,13 @@ export class ToolGuardState {
   }
 
   /** Record a tool call execution for idempotency tracking. */
-  recordToolCallExecution(key: string, toolName: string, args: unknown, result?: string): void {
+  recordToolCallExecution(
+    key: string,
+    toolName: string,
+    args: unknown,
+    result?: string,
+    targetFingerprint?: string,
+  ): void {
     // LRU eviction if at capacity.
     if (this.executedToolCalls.size >= MAX_IDEMPOTENCY_ENTRIES) {
       const firstKey = this.executedToolCalls.keys().next().value;
@@ -226,6 +238,7 @@ export class ToolGuardState {
       argsHash: hashToolArgs(args),
       executedAt: Date.now(),
       result,
+      ...(targetFingerprint !== undefined ? { targetFingerprint } : {}),
     });
   }
 

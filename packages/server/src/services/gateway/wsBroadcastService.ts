@@ -2,7 +2,7 @@
 
 import { join } from 'node:path';
 
-import { Disposable, IEnvironmentService, IEventService, ILogService } from '@superliora/agent-core';
+import { Disposable, IEnvironmentService, IEventService, ILogService, ISessionService } from '@superliora/agent-core';
 import { isVolatileEventType, type Event, type SessionCursor } from '@superliora/protocol';
 import { IConnectionRegistry } from './connectionRegistry';
 import { InFlightTurnTracker } from './inFlightTurnTracker';
@@ -47,6 +47,7 @@ export class WSBroadcastService extends Disposable implements IWSBroadcastServic
     @ISessionClientsService private readonly sessionClients: ISessionClientsService,
     @IConnectionRegistry private readonly connectionRegistry: IConnectionRegistry,
     @IEnvironmentService env: IEnvironmentService,
+    @ISessionService sessionService: ISessionService,
   ) {
     super();
     this._maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
@@ -57,6 +58,24 @@ export class WSBroadcastService extends Disposable implements IWSBroadcastServic
         this._onEvent(event);
       }),
     );
+    // Deleted sessions must not pin their journal handle + tail + queue
+    // promise forever: a long-running daemon serving many short-lived
+    // sessions would otherwise grow `_sessions` without bound (restart was
+    // the only cleanup). Flush the pending queue, then drop the entry.
+    // Optional: unit tests construct this service with partial DI.
+    if (sessionService?.onDidClose !== undefined) {
+      this._register(
+        sessionService.onDidClose(({ sessionId }) => {
+          const state = this._sessions.get(sessionId);
+          if (state === undefined) return;
+          void state.queue
+            .catch(() => {})
+            .then(() => {
+              this._sessions.delete(sessionId);
+            });
+        }),
+      );
+    }
   }
 
   private _onEvent(event: Event): void {

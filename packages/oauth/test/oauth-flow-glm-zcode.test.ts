@@ -6,7 +6,7 @@ import {
   redactGlmZcodeSecrets,
   refreshGlmZcodeToken,
 } from '../src/flow/oauth-flow-glm-zcode';
-import { OAuthError } from '../src/errors';
+import { OAuthError, OAuthUnauthorizedError } from '../src/errors';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -118,6 +118,16 @@ describe('glm-zcode OAuth flow', () => {
     );
     await expect(exchangeGlmZcodeCode('authorization-code-abc123', 'state-123')).rejects.toThrow(
       /GLM ZCode broker request failed: 500.*\[redacted-jwt\]/,
+    );
+  });
+
+  it('raises OAuthUnauthorizedError on refresh when the upstream token is rejected (401)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ error: 'token expired' }, 401)),
+    );
+    await expect(refreshGlmZcodeToken('revoked-upstream-token')).rejects.toBeInstanceOf(
+      OAuthUnauthorizedError,
     );
   });
 

@@ -523,6 +523,55 @@ describe('provider failover', () => {
     vi.restoreAllMocks();
   });
 
+  it('announces the real backoff delay in the recovery notice (and 0 when no sleep follows)', async () => {
+    vi.spyOn(retry, 'sleepForRetry').mockResolvedValue(undefined);
+    const agent = new Agent({
+      kaos: testKaos,
+      config: {
+        providers: {
+          primary: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-test' },
+        },
+        models: {
+          primary: { provider: 'primary', model: 'gpt-test', maxContextSize: 128_000 },
+        },
+      },
+    });
+    agent.config.update({ modelAlias: 'primary' });
+    const emitted: { delayMs: number; maxAttempts: number }[] = [];
+    vi.spyOn(agent, 'emitEvent').mockImplementation((event) => {
+      if (event.type === 'turn.step.retrying' && event.step === 0) {
+        emitted.push({ delayMs: event.delayMs, maxAttempts: event.maxAttempts });
+      }
+    });
+
+    const rateLimited = toKimiErrorPayload(
+      new APIStatusError(429, 'Too Many Requests', 'req-429'),
+    );
+    const signal = new AbortController().signal;
+    await recoverFromProviderFailure(
+      {
+        agent,
+        runOneTurn: async () => ({
+          event: { type: 'turn.ended' as const, turnId: 1, reason: 'completed' as const, durationMs: 1 },
+        }),
+      },
+      1,
+      [],
+      USER_PROMPT_ORIGIN,
+      signal,
+      {
+        event: { type: 'turn.ended', turnId: 1, reason: 'failed', durationMs: 0, error: rateLimited },
+      },
+      0,
+    );
+
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0]!.delayMs).toBe(resolveProviderRetryDelayMs(rateLimited, 0, true));
+    expect(emitted[0]!.delayMs).toBeGreaterThan(0);
+    expect(emitted[0]!.maxAttempts).toBe(GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES);
+    vi.restoreAllMocks();
+  });
+
   it('keeps canAttemptProviderRecovery true for switch-only while queue remains', () => {
     const quota = toKimiErrorPayload(
       new APIStatusError(402, 'No payment method', 'req-pay'),

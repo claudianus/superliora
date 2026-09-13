@@ -61,6 +61,9 @@ export class WsConnection implements WsConnectionHost {
   readonly logger: ILogService;
   private readonly sessionClients: ISessionClientsService;
   readonly wsBroadcast: BufferReplaySource;
+  private readonly sessionExistsImpl:
+    | ((sid: string) => Promise<boolean> | boolean)
+    | undefined;
   readonly abortHandler: AbortHandler | undefined;
   readonly fsWatchHandler: FsWatchHandler | undefined;
   readonly terminalHandler: TerminalHandler | undefined;
@@ -91,6 +94,7 @@ export class WsConnection implements WsConnectionHost {
     this.logger = opts.logger.child({ connId: this.id });
     this.sessionClients = opts.sessionClients;
     this.wsBroadcast = opts.wsBroadcast;
+    this.sessionExistsImpl = opts.sessionExists;
     this.abortHandler = opts.abortHandler;
     this.fsWatchHandler = opts.fsWatchHandler;
     this.terminalHandler = opts.terminalHandler;
@@ -165,6 +169,10 @@ export class WsConnection implements WsConnectionHost {
     if (!this.subscriptions.has(sid)) return;
     this.subscriptions.delete(sid);
     this.sessionClients.unsubscribe(this, sid);
+  }
+
+  sessionExists(sid: string): Promise<boolean> | boolean {
+    return this.sessionExistsImpl?.(sid) ?? true;
   }
 
   private onClose(code: number, reason: string): void {

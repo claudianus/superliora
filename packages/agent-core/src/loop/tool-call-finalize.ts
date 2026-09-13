@@ -36,7 +36,12 @@ export async function finalizePendingToolResult(
     };
   } catch (error) {
     // This is the redaction/truncation boundary. If it fails, do not persist
-    // the raw tool output; write an error result instead.
+    // the raw tool output unredacted — but never misreport a mutation that
+    // already happened on disk as failed: a hook crash on a successful
+    // Edit/Write used to make the model re-apply the write (double-apply or
+    // "old_string not found" spirals). Keep the original outcome, append a
+    // warning that the hook crashed, and say explicitly that side effects
+    // may already be applied.
     const aborted = isAbortError(error) || signal.aborted;
     if (!aborted) {
       step.log?.warn('finalizeToolResult hook failed', {
@@ -45,13 +50,37 @@ export async function finalizePendingToolResult(
         error,
       });
     }
-    const output = aborted
-      ? `Tool "${pendingResult.toolName}" aborted during finalizeToolResult hook.`
-      : `finalizeToolResult hook failed for "${pendingResult.toolName}": ${errorMessage(error)}`;
+    if (aborted) {
+      return {
+        ...pendingResult,
+        stopTurn: pendingResult.stopTurn,
+        result: {
+          output: `Tool "${pendingResult.toolName}" aborted during finalizeToolResult hook.`,
+          isError: true,
+        },
+      };
+    }
+    const original = pendingResult.result;
+    const originalOutput =
+      typeof original === 'object' && original !== null && 'output' in original
+        ? String(original.output)
+        : '';
+    const hookWarning =
+      `finalizeToolResult hook failed for "${pendingResult.toolName}": ${errorMessage(error)} ` +
+      'The hook crashed AFTER the tool completed; the tool result above is from the tool itself, ' +
+      'but post-processing (redaction, verification, mutation sensors) may be incomplete. ';
+    const tail =
+      'code=FINALIZE_HOOK_FAILED. Do not blindly re-run a mutating tool: the change may already be applied — verify the on-disk state first.';
+    const combinedOutput =
+      (originalOutput.length > 0 ? `${originalOutput}\n\n${hookWarning}${tail}` : `${hookWarning}${tail}`);
     return {
       ...pendingResult,
       stopTurn: pendingResult.stopTurn,
-      result: { output, isError: true },
+      result: {
+        ...(typeof original === 'object' && original !== null ? original : {}),
+        output: combinedOutput,
+        isError: true,
+      },
     };
   }
 }

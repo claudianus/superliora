@@ -97,8 +97,16 @@ export interface ProviderLoginOptions extends LoginOptions {
 export interface ProviderLoginCallbacks {
   /** Called with the device code / verification URL for device flows. */
   readonly onDeviceCode?: (auth: DeviceAuthorization) => Promise<void> | void;
-  /** Called with the authorize URL for browser flows; the caller opens it. */
-  readonly onAuthorizeUrl?: (url: string) => Promise<void> | void;
+  /**
+   * Called with the authorize URL for browser flows; the caller opens it.
+   * `isRestart` is true when a fresh URL replaces a dead single-use code
+   * mid-flow — the user already saw the previous URL, so callers should
+   * update their prompt inline instead of opening another browser tab.
+   */
+  readonly onAuthorizeUrl?: (
+    url: string,
+    context?: { readonly isRestart?: boolean },
+  ) => Promise<void> | void;
   /**
    * Optional fallback for PKCE browser flows when the loopback callback cannot
    * reach this process. Prompt the user to paste the callback URL/code.
@@ -346,7 +354,9 @@ export class OAuthProviderManager {
         if (restarts < 2 && isGlmZcodeCodeConsumedError(lastError)) {
           restarts += 1;
           state = generateState();
-          await callbacks.onAuthorizeUrl?.(buildGlmZcodeAuthorizeUrl(state));
+          await callbacks.onAuthorizeUrl?.(buildGlmZcodeAuthorizeUrl(state), {
+            isRestart: true,
+          });
         }
       }
     }

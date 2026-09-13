@@ -22,7 +22,7 @@ import {
   renderGithubCheckoutInstallSuccessMessage,
   renderInstallSuccessMessage,
 } from './install-messages';
-import { rolloutTelemetryFor, trackUpdateEvent, type RolloutTelemetry, type UpdateLogger } from './install-runtime';
+import { logUpdateWarn, rolloutTelemetryFor, trackUpdateEvent, type RolloutTelemetry, type UpdateLogger } from './install-runtime';
 import { canAutoInstall, installCommandFor, spawnForSource, spawnOptionsForSource } from './install-spawn';
 import { emptyUpdateInstallState, readUpdateInstallState } from './install-state';
 import {
@@ -189,30 +189,33 @@ export async function runUpdatePreflight(
   try {
     const isInteractive =
       options.isTTY ?? (process.stdin.isTTY && process.stdout.isTTY);
+    if (!isInteractive) {
+      // Headless `-p` runs (CI, scripts, pipes) can never answer a prompt and
+      // must not auto-install or touch the network: every update path below is
+      // either interactive-only or a blocking refresh that would just tax each
+      // invocation with up to seconds of dead time. Skip the preflight.
+      return 'continue';
+    }
     const deviceId = resolveUpdateDeviceId();
     const bypassRollout = isRolloutBypassedByExperimentalEnv();
     let installState = await readUpdateInstallState().catch(() => emptyUpdateInstallState());
-    let pendingLifecycle: UpdateLifecycleNotice | null = null;
     // Always surface completed/failed background install notices, even when
     // further auto-update work is disabled by env.
-    if (isInteractive) {
-      const consumed = await consumeBackgroundInstallNotices(
-        installState,
-        currentVersion,
-        stdout,
-        options.track,
-        logger,
-      );
-      installState = consumed.state;
-      pendingLifecycle = consumed.lifecycle;
-    }
+    const consumed = await consumeBackgroundInstallNotices(
+      installState,
+      currentVersion,
+      stdout,
+      options.track,
+      logger,
+    );
+    installState = consumed.state;
+    const pendingLifecycle = consumed.lifecycle;
 
     if (isAutoUpdateDisabledByEnv()) {
       return continueWith({ lifecycle: pendingLifecycle });
     }
 
-    const githubCheckoutRoot =
-      isInteractive ? await detectSuperLioraGithubCheckout().catch(() => null) : null;
+    const githubCheckoutRoot = await detectSuperLioraGithubCheckout().catch(() => null);
     if (githubCheckoutRoot !== null) {
       const source: InstallSource = 'github-checkout';
       const refreshResult = await refreshGitCheckoutUpdateTarget(githubCheckoutRoot).catch(
@@ -324,10 +327,7 @@ export async function runUpdatePreflight(
       return continueWith({ lifecycle: pendingLifecycle });
     }
 
-    const source: InstallSource =
-      isInteractive
-        ? await detectInstallSource().catch(() => 'unsupported' as const)
-        : 'unsupported';
+    const source: InstallSource = await detectInstallSource().catch(() => 'unsupported' as const);
     const decision = decideUpdateAction(target, isInteractive, source, platform);
     if (decision === 'none') {
       refreshInBackground();
@@ -419,7 +419,13 @@ export async function runUpdatePreflight(
       );
       return continueWith({ lifecycle: pendingLifecycle });
     }
-  } catch {
+  } catch (error) {
+    // The preflight is best-effort by design, but a fully silent failure made
+    // real problems (state-file EACCES, wedged installer locks) undiagnosable.
+    // Keep continuing; just leave a breadcrumb in the debug log.
+    logUpdateWarn(logger, 'update preflight failed; continuing', {
+      error: formatErrorMessage(error),
+    });
     return 'continue';
   }
 }

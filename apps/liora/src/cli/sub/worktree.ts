@@ -64,7 +64,7 @@ export function registerWorktreeCommand(
           t('cli.sub.worktree.rm.ok', { name: removed.name, path: removed.path }) + '\n',
         );
       } catch (error) {
-        resolved.stderr.write(`${formatError(error)}\n`);
+        resolved.stderr.write(`${formatWorktreeActionError(error, 'rm', nameOrPath)}\n`);
         resolved.exit(1);
       }
     });
@@ -97,7 +97,7 @@ export function registerWorktreeCommand(
           resolved.stdout.write(`  - ${entry.name}  ${entry.path}\n`);
         }
       } catch (error) {
-        resolved.stderr.write(`${formatError(error)}\n`);
+        resolved.stderr.write(`${formatWorktreeActionError(error, 'gc')}\n`);
         resolved.exit(1);
       }
     });
@@ -203,4 +203,19 @@ function writeList(stdout: NodeJS.WritableStream, entries: readonly WorktreeReco
 function formatError(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+/**
+ * Raw git stderr ("fatal: not a git repository") told the user nothing about
+ * what the worktree command expected. Lead with a one-line actionable
+ * message; keep the underlying detail on a second indented line.
+ */
+function formatWorktreeActionError(error: unknown, action: 'rm' | 'gc', nameOrPath?: string): string {
+  const detail = formatError(error);
+  const subject = action === 'rm' ? `"${nameOrPath ?? ''}"` : 'stale worktrees';
+  const hint =
+    action === 'rm'
+      ? `Could not remove ${subject}. Check the name with \`liora worktree list\` — worktrees are tracked per repository.`
+      : 'Could not garbage-collect worktrees here — the command operates on the current git repository.';
+  return `${hint}\n    ${detail}`;
 }

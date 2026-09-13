@@ -95,6 +95,16 @@ export class SessionEventTurn {
       );
       this.host.showStatus(ttui('tui.step.providerFiltered.status'), 'error');
     }
+    if (event.stopReason === 'max_tokens') {
+      // The provider cut the output at its token budget; the turn otherwise
+      // looks completed. Tell the user the reply may be incomplete so they
+      // can ask the agent to continue instead of trusting a truncated answer.
+      this.host.showNotice(
+        ttui('tui.step.outputTruncated.title'),
+        ttui('tui.step.outputTruncated.detail'),
+        { coalesceKey: 'output-truncated' },
+      );
+    }
     // A cleanly-ended turn clears the retry flag (only errors set it).
     this.host.setLastTurnFailed(false);
     const todos = this.host.state.todoPanel.getTodos();

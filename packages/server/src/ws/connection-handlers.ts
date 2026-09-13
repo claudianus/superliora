@@ -84,8 +84,20 @@ export function handleAbort(host: WsConnectionHost, msg: AbortMessage): void {
     );
     return;
   }
-  void host.abortHandler
-    .abort(session_id, prompt_id)
+  // A wedged underlying RPC used to leave the ack pending forever, so the
+  // client's "stop" spinner never resolved. Race a short deadline; on expiry
+  // ack success optimistically (the turn is presumed cancelled) with a
+  // timed_out marker instead of leaving the UI hung on a dead wire reply.
+  const ABORT_ACK_DEADLINE_MS = 10_000;
+  void Promise.race([
+    host.abortHandler.abort(session_id, prompt_id),
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`abort timed out after ${String(ABORT_ACK_DEADLINE_MS)}ms`)),
+        ABORT_ACK_DEADLINE_MS,
+      ).unref?.(),
+    ),
+  ])
     .then((result) => {
       host.send(
         buildAck(msg.id, 0, 'success', {
@@ -111,6 +123,14 @@ export function handleAbort(host: WsConnectionHost, msg: AbortMessage): void {
       if (hasErrorName(error, 'SessionNotFoundError')) {
         host.send(
           buildAck(msg.id, ErrorCode.SESSION_NOT_FOUND, 'session not found', {}),
+        );
+        return;
+      }
+      const timedOut = error instanceof Error && error.message.includes('abort timed out');
+      if (timedOut) {
+        host.logger.warn({ err: String(error) }, 'ws abort handler timed out');
+        host.send(
+          buildAck(msg.id, 0, 'success', { aborted: true, timed_out: true }),
         );
         return;
       }

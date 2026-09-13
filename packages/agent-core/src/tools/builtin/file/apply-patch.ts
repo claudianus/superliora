@@ -229,11 +229,26 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
         const base = `${item.kind === 'add' ? 'Created' : 'Updated'} ${item.shownPath}`;
         summaries.push(await this.withMutationDiagnostics(item.safePath, written, base));
       } catch (error) {
+        // Partial multi-file apply: files processed before this one are
+        // ALREADY on disk and the rest were never written. Report both sides
+        // so the model can reconcile state instead of double-applying or
+        // assuming nothing changed.
         const disk = await diskFullToolError(error);
-        return {
-          isError: true,
-          output: disk ?? (error instanceof Error ? error.message : String(error)),
-        };
+        const failure = disk ?? (error instanceof Error ? error.message : String(error));
+        const applied = summaries.length > 0 ? summaries.join('\n') : undefined;
+        const remaining = pending
+          .slice(pending.indexOf(item) + 1)
+          .map((entry) => entry.shownPath);
+        const parts = [
+          `ApplyPatch failed on ${item.shownPath}: ${failure}`,
+          applied !== undefined
+            ? `Already applied before the failure:\n${applied}`
+            : 'No files were written before the failure.',
+          remaining.length > 0
+            ? `Never written (apply these first):\n${remaining.join('\n')}`
+            : 'All files in the patch were processed before the failure.',
+        ];
+        return { isError: true, output: parts.join('\n\n') };
       }
     }
 

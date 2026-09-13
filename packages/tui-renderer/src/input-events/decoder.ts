@@ -20,6 +20,22 @@ import { codePointAt, consumeUnknownControlSequence, isPrintable, splitDecodable
  */
 export const DEFAULT_ESCAPE_RESOLVE_MS = 35;
 
+/**
+ * Environment override for the bare-ESC resolve delay (ms). Users on
+ * Kitty/WezTerm/CSI-u terminals whose sequences complete quickly can lower
+ * this for snappier Escape; raising it helps hosts that split sequences
+ * across slow links. Values below 0 are ignored.
+ */
+export const ESCAPE_RESOLVE_ENV = 'SUPERLIORA_TUI_ESCAPE_RESOLVE_MS';
+
+function resolveEscapeMsFromEnv(): number | undefined {
+  const raw = process.env[ESCAPE_RESOLVE_ENV];
+  if (raw === undefined || raw.trim().length === 0) return undefined;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return undefined;
+  return parsed;
+}
+
 export interface NativeInputDecoderOptions {
   /**
    * Called when a previously buffered incomplete control resolves asynchronously
@@ -45,7 +61,8 @@ export class NativeInputDecoder {
 
   constructor(options: NativeInputDecoderOptions = {}) {
     this.onResolvedEvents = options.onResolvedEvents;
-    this.escapeResolveMs = options.escapeResolveMs ?? DEFAULT_ESCAPE_RESOLVE_MS;
+    this.escapeResolveMs =
+      options.escapeResolveMs ?? resolveEscapeMsFromEnv() ?? DEFAULT_ESCAPE_RESOLVE_MS;
     this.setTimer = options.setTimer ?? setTimeout;
     this.clearTimer = options.clearTimer ?? clearTimeout;
   }

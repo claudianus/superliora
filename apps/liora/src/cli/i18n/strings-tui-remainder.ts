@@ -786,6 +786,9 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.onboarding.envKeyHint':
     '{vars} is set ({labels}). Pick that provider in /login — SuperLiora will not copy the key into the file unless you paste it.',
   'tui.onboarding.envKeyHintStatus': '{labels} env is set. Run /login to connect.',
+  'tui.onboarding.noProviderTitle': 'No provider configured yet',
+  'tui.onboarding.noProviderDetail':
+    'No model is configured, so prompts cannot run yet. Open the login dialog (opening now) and pick a provider — or set an API key env var like OPENAI_API_KEY / ANTHROPIC_API_KEY and restart.',
   'tui.finish.resumeGoal': '🎯 Resuming goal: {objective}...',
   'tui.finish.resumeGoalFailed': 'Failed to resume goal from queue: {string}',
   'tui.windowsSetup.usage': 'Usage: /host-setup [status|apply]',
@@ -827,6 +830,8 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.step.maxTokens.truncated': 'Model hit max_tokens — tool call was truncated before it could run.',
   'tui.step.maxTokens.noTool': 'Model hit max_tokens — no tool call was emitted.',
   'tui.step.maxTokens.anthropicHint': 'If this limit is wrong for your model, set `max_output_size` on the model alias in your SuperLiora config.',
+  'tui.step.outputTruncated.title': 'Output truncated',
+  'tui.step.outputTruncated.detail': 'The reply stopped because the model hit its output token limit (max_tokens), not because it finished. It may be incomplete — ask the agent to continue, or raise `max_output_size` for the model.',
   'tui.step.interruptedByUser': 'Interrupted by user',
   'tui.step.turnAborted': 'Turn aborted',
   'tui.step.turnStopped': 'Turn stopped',
@@ -2101,6 +2106,9 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.onboarding.envKeyHint':
     '{vars}가 설정되어 있습니다 ({labels}). /login에서 해당 프로바이더를 고르세요. 붙여넣지 않는 한 파일에 키를 복사하지 않습니다.',
   'tui.onboarding.envKeyHintStatus': '{labels} 환경 변수가 있습니다. /login으로 연결하세요.',
+  'tui.onboarding.noProviderTitle': '아직 프로바이더가 설정되지 않았습니다',
+  'tui.onboarding.noProviderDetail':
+    '모델이 설정되지 않아 프롬프트를 실행할 수 없습니다. 로그인 대화상자(지금 열립니다)에서 프로바이더를 고르거나, OPENAI_API_KEY / ANTHROPIC_API_KEY 같은 API 키 환경 변수를 설정하고 다시 시작하세요.',
   'tui.finish.resumeGoal': '🎯 목표 재개: {objective}...',
   'tui.finish.resumeGoalFailed': '대기 목표 재개 실패: {string}',
   'tui.windowsSetup.usage': '사용법: /host-setup [status|apply]',
@@ -2142,6 +2150,8 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.step.maxTokens.truncated': '모델이 max_tokens에 도달 — 도구 호출이 실행 전에 잘렸습니다.',
   'tui.step.maxTokens.noTool': '모델이 max_tokens에 도달 — 도구 호출이 없었습니다.',
   'tui.step.maxTokens.anthropicHint': '이 한도가 모델에 맞지 않으면 SuperLiora 설정에서 모델 별칭의 `max_output_size`를 지정하세요.',
+  'tui.step.outputTruncated.title': '출력이 잘렸습니다',
+  'tui.step.outputTruncated.detail': '모델이 출력 토큰 한도(max_tokens)에 걸려 응답이 끝나지 않은 채 멈췄습니다. 완성되지 않았을 수 있으니 에이전트에게 이어서 작성을 요청하거나, 모델의 `max_output_size`를 늘리세요.',
   'tui.step.interruptedByUser': '사용자가 중단했습니다',
   'tui.step.turnAborted': '턴이 중단되었습니다',
   'tui.step.turnStopped': '턴이 중지되었습니다',

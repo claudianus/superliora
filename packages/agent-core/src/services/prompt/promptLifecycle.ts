@@ -6,6 +6,7 @@ import type {
   SyntheticPromptAbortedEvent,
   SyntheticPromptCompletedEvent,
 } from './prompt';
+import type { LioraErrorPayload } from '../../errors';
 import { isAgentStatusUpdated, isTurnEnded, isTurnStarted } from './promptEventGuards';
 import { MAIN_AGENT_ID, promptKey, type PromptState } from './promptState';
 
@@ -53,6 +54,33 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
     return;
   }
 
+  // A main-agent `error` event that arrives BEFORE any turn.started can
+  // never be followed by a matching turn.ended (the turn never opened), so
+  // waiting would wedge the prompt lane forever and queue every later
+  // prompt behind it. Treat it as terminal and fail the prompt with the
+  // error payload attached.
+  if ((event as { type?: string }).type === 'error' && state.turnId === undefined) {
+    const error = (event as { error?: LioraErrorPayload }).error;
+    // TURN_AGENT_BUSY on submit is a transport-level rejection handled by
+    // the submit path itself; it is not a turn failure.
+    if (error?.code === 'turn.agent_busy') return;
+    state.completed = true;
+    const synth: SyntheticPromptCompletedEvent = {
+      type: 'prompt.completed',
+      agentId: state.agentId,
+      sessionId: sid,
+      promptId: state.promptId,
+      finishedAt: new Date().toISOString(),
+      reason: 'failed',
+      ...(error !== undefined ? { error } : {}),
+    };
+    deps.active.delete(key);
+    deps.onDidCompleteFire(synth);
+    deps.eventService.publish(synth as unknown as Event);
+    deps.startNextQueued(sid, state.agentId);
+    return;
+  }
+
   if (isTurnEnded(event)) {
     // Only fire on the top-level turn end. Nested turn.ended events fly
     // through without prompt-level synthesis.
@@ -88,13 +116,18 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
     }
 
     state.completed = true;
+    const failed = reason === 'failed' || reason === 'filtered';
+    const turnError = event.error;
     const synth: SyntheticPromptCompletedEvent = {
       type: 'prompt.completed',
       agentId: state.agentId,
       sessionId: sid,
       promptId: state.promptId,
       finishedAt: new Date().toISOString(),
-      reason: reason === 'failed' || reason === 'filtered' ? 'failed' : 'completed',
+      reason: failed ? 'failed' : 'completed',
+      // Carry the underlying failure so prompt-level listeners can drive a
+      // re-auth/retry UX without also subscribing to raw turn.ended events.
+      ...(failed && turnError !== undefined ? { error: turnError } : {}),
     };
     deps.active.delete(key);
     // Fire typed listeners BEFORE publishing the synth event.

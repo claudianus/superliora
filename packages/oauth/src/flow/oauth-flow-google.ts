@@ -12,7 +12,7 @@
  * proxied setups.
  */
 
-import { OAuthError } from '../errors';
+import { OAuthError, OAuthUnauthorizedError } from '../errors';
 import type { TokenInfo } from '../types';
 import {
   startCallbackServer,
@@ -114,8 +114,22 @@ async function fetchJson(
     if (signal?.aborted) throw error;
     throw new OAuthError(`Google ${label} request failed: ${String(error)}`);
   }
+  if (response.status === 401 || response.status === 403) {
+    // 401/403 (or invalid_grant below) means the credential is revoked or
+    // rotated elsewhere — raise the unauthorized subtype so OAuthManager
+    // tombstones the token and routes the user to re-login instead of
+    // repeating the same failing refresh on every turn.
+    throw new OAuthUnauthorizedError(
+      `Google ${label} unauthorized (HTTP ${response.status}).`,
+    );
+  }
   if (!response.ok) {
-    throw new OAuthError(`Google ${label} request failed: ${String(response.status)} ${await response.text()}`);
+    const body = await response.text();
+    // OAuth-standard permanent failure: refresh token expired/revoked.
+    if (body.includes('invalid_grant')) {
+      throw new OAuthUnauthorizedError(`Google ${label} unauthorized (invalid_grant).`);
+    }
+    throw new OAuthError(`Google ${label} request failed: ${String(response.status)} ${body}`);
   }
   return (await response.json()) as Record<string, unknown>;
 }

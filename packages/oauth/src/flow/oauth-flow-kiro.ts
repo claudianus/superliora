@@ -9,7 +9,7 @@
  * registration is free and avoids persisting client secrets.
  */
 
-import { OAuthError } from '../errors';
+import { OAuthError, OAuthUnauthorizedError } from '../errors';
 import type { TokenInfo } from '../types';
 
 const KIRO_TOKEN_TIMEOUT_MS = 30_000;
@@ -91,6 +91,17 @@ async function postOidc(
   }
   const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
+    // 401/403 or the OAuth-standard invalid_grant marks a revoked/rotated
+    // credential on refresh grants. Raise the unauthorized subtype so the
+    // OAuthManager tombstones the token and sends the user to /login
+    // instead of re-failing the same refresh on every turn.
+    const error = typeof data['error'] === 'string' ? data['error'] : '';
+    if (
+      (response.status === 401 || response.status === 403) ||
+      (error === 'invalid_grant' && body['grantType'] === 'refresh_token')
+    ) {
+      throw new OAuthUnauthorizedError(`Kiro ${label} unauthorized (HTTP ${String(response.status)}).`);
+    }
     throw new OAuthError(`Kiro ${label} request failed: ${String(response.status)} ${JSON.stringify(data)}`);
   }
   return data;

@@ -28,7 +28,7 @@
  *     is pinned far in the future.
  */
 
-import { OAuthError } from '../errors';
+import { OAuthError, OAuthUnauthorizedError } from '../errors';
 import type { TokenInfo } from '../types';
 import { parseOAuthCallbackInput } from './oauth-flow-http';
 
@@ -146,6 +146,16 @@ async function postJson(
     throw new OAuthError(`GLM ZCode ${label} request failed: ${redactGlmZcodeSecrets(String(error))}`);
   }
   if (!response.ok) {
+    // 401/403 during refresh means the upstream Z.AI token was revoked or
+    // rotated elsewhere; raise the unauthorized subtype so the credential is
+    // tombstoned and the user is sent to re-login instead of an endless
+    // refresh loop. Exchange-time failures (broker/authorize codes) also
+    // route here but the paste flow surfaces them as actionable restarts.
+    if (response.status === 401 || response.status === 403) {
+      throw new OAuthUnauthorizedError(
+        `GLM ZCode ${label} unauthorized (HTTP ${response.status}).`,
+      );
+    }
     throw new OAuthError(
       `GLM ZCode ${label} request failed: ${response.status} ${redactGlmZcodeSecrets(await response.text())}`,
     );
@@ -171,6 +181,16 @@ async function getJson(
     throw new OAuthError(`GLM ZCode ${label} request failed: ${redactGlmZcodeSecrets(String(error))}`);
   }
   if (!response.ok) {
+    // 401/403 during refresh means the upstream Z.AI token was revoked or
+    // rotated elsewhere; raise the unauthorized subtype so the credential is
+    // tombstoned and the user is sent to re-login instead of an endless
+    // refresh loop. Exchange-time failures (broker/authorize codes) also
+    // route here but the paste flow surfaces them as actionable restarts.
+    if (response.status === 401 || response.status === 403) {
+      throw new OAuthUnauthorizedError(
+        `GLM ZCode ${label} unauthorized (HTTP ${response.status}).`,
+      );
+    }
     throw new OAuthError(
       `GLM ZCode ${label} request failed: ${response.status} ${redactGlmZcodeSecrets(await response.text())}`,
     );
@@ -454,6 +474,14 @@ export async function refreshGlmZcodeToken(
       resolveGlmZcodeEndpoints(),
     );
   } catch (error) {
+    if (error instanceof OAuthUnauthorizedError) {
+      // Keep the unauthorized subtype intact so OAuthManager tombstones the
+      // credential and routes the user to re-login instead of retrying the
+      // same failing re-provision on every turn.
+      throw new OAuthUnauthorizedError(
+        `GLM ZCode credentials require re-login; re-provisioning the Z.AI API key failed (${error.message})`,
+      );
+    }
     if (error instanceof OAuthError) {
       throw new OAuthError(
         `GLM ZCode credentials require re-login; re-provisioning the Z.AI API key failed (${error.message})`,

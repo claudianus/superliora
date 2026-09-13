@@ -121,6 +121,15 @@ export class NativeTUIEditor implements TUIEditor {
   private readonly input = new RendererTextInput({ focused: true });
   private readonly autocomplete: RendererEditorAutocompleteController;
   private readonly history: string[] = [];
+
+  /**
+   * Upper bound on prompt-recall entries. Large pasted prompts are stored
+   * verbatim, so an uncapped list grows without bound over a long session.
+   */
+  private static readonly MAX_HISTORY = 500;
+
+  /** True while the double-deferred IME submit window is open. */
+  private submitInFlight = false;
   private historyIndex: number | undefined;
   private argumentHints: ReadonlyMap<string, string> = new Map();
   private layoutRowCountCache:
@@ -266,6 +275,12 @@ export class NativeTUIEditor implements TUIEditor {
     if (trimmed.length === 0) return;
     if (this.history.at(-1) === trimmed) return;
     this.history.push(trimmed);
+    // Cap the recall list so a multi-week session doesn't grow the array
+    // without bound (each persisted multi-KB paste lives here for the
+    // process lifetime otherwise) and Up-arrow stays fast.
+    if (this.history.length > NativeTUIEditor.MAX_HISTORY) {
+      this.history.splice(0, this.history.length - NativeTUIEditor.MAX_HISTORY);
+    }
     this.historyIndex = undefined;
   }
 
@@ -373,15 +388,24 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   private submit(): void {
+    // Re-entry guard: a keystroke landing inside the defer window used to
+    // start a second submit and double-fire onSubmit.
+    if (this.submitInFlight) return;
     const text = this.getExpandedText();
     this.closeAutocomplete(false);
     if (text.trim().length > 0 && this.inputMode !== 'bash') this.addToHistory(text);
     this.setTextInternal('', true);
     this.historyIndex = undefined;
+    this.submitInFlight = true;
     // IME: double-defer so macOS hangul composition has time to flush any
     // pending character to stdin before we hand the text downstream.
     // See https://github.com/anomalyco/opencode/pull/22041 for the same fix.
-    setTimeout(() => setTimeout(() => this.onSubmit?.(text), 0), 0);
+    setTimeout(() =>
+      setTimeout(() => {
+        this.submitInFlight = false;
+        this.onSubmit?.(text);
+      }, 0),
+    0);
   }
 
   private navigateHistory(direction: -1 | 1): void {

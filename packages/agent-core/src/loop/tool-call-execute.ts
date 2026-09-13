@@ -1,3 +1,5 @@
+import { stat } from 'node:fs/promises';
+
 import { errorMessage, isAbortError } from './errors';
 import {
   coerceToolResult,
@@ -77,6 +79,34 @@ function isIdempotentMutationTool(toolName: string): boolean {
   return IDEMPOTENT_MUTATION_TOOLS.has(toolName);
 }
 
+/**
+ * Extract the primary mutated file path from mutation-tool args (Edit/Write
+ * use `path`; ApplyPatch's first patch header). Returns undefined when no
+ * single target can be identified.
+ */
+function idempotencyTargetPath(args: unknown): string | undefined {
+  if (typeof args !== 'object' || args === null) return undefined;
+  const path = (args as { path?: unknown }).path;
+  if (typeof path === 'string' && path.length > 0) return path;
+  // ApplyPatch: grab the first `*** Update File: <path>` / Add File header.
+  const patch = (args as { patch?: unknown }).patch;
+  if (typeof patch === 'string') {
+    const match = patch.match(/^\*\*\*\s+(?:Update|Add|Delete)\s+File:\s+(.+)$/m);
+    if (match !== null) return match[1]?.trim();
+  }
+  return undefined;
+}
+
+/** `mtimeMs:size` fingerprint of a file, or undefined when it cannot be stat'ed. */
+async function fingerprintTarget(path: string): Promise<string | undefined> {
+  try {
+    const st = await stat(path);
+    return `${String(st.mtimeMs)}:${String(st.size)}`;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function runRunnableToolCall(
   step: ToolCallStepContext,
   call: RunnableToolCall,
@@ -131,7 +161,12 @@ export async function runRunnableToolCall(
       code: 'DOOM_LOOP_HARD_STOP',
     });
     return makeToolResult(call, effectiveArgs, {
-      output: `doom_loop_hard_stop: 동일 도구·인자 반복(${String(patternCount)}회)으로 실행을 차단했습니다. code=DOOM_LOOP_HARD_STOP. 다른 접근을 시도하거나 사용자에게 막힘 요약을 보고하세요.`,
+      // Language-neutral like the REMINDER_TEXT/DOOM_LOOP_HARD_STOP_TEXT in
+      // tool-dedup.ts: the session response-language directive owns wording.
+      output:
+        `doom_loop_hard_stop: the same tool call with identical arguments repeated ${String(patternCount)} times; ` +
+        'execution is blocked. code=DOOM_LOOP_HARD_STOP. ' +
+        'Do not repeat the same call — try a different approach, or report what is blocked to the user in the session language.',
       isError: true,
       stopTurn: true,
     });
@@ -145,20 +180,36 @@ export async function runRunnableToolCall(
   if (idempotencyKey !== undefined) {
     const prior = step.guards.checkToolCallIdempotency(idempotencyKey);
     if (prior !== undefined && prior.result !== undefined) {
-      step.log?.info('idempotent mutation replay; skipping re-execution', {
+      // Replay only while the mutated file is byte-for-byte what the original
+      // call left behind. A formatter/linter/user rewrite in between means
+      // the cached "success" no longer describes the disk; re-execute.
+      const target = idempotencyTargetPath(effectiveArgs);
+      let targetUnchanged = true;
+      if (target !== undefined && prior.targetFingerprint !== undefined) {
+        const current = await fingerprintTarget(target);
+        targetUnchanged = current === prior.targetFingerprint;
+      }
+      if (targetUnchanged) {
+        step.log?.info('idempotent mutation replay; skipping re-execution', {
+          toolName,
+          toolCallId: toolCall.id,
+          ageMs: Date.now() - prior.executedAt,
+          code: IDEMPOTENCY_REPLAY_CODE,
+        });
+        const priorOut = prior.result;
+        const tip =
+          `\n\n${IDEMPOTENCY_REPLAY_CODE}: identical ${toolName} args already applied ` +
+          `${String(Date.now() - prior.executedAt)}ms ago. ` +
+          `Replayed prior result — no second write.`;
+        return makeToolResult(call, effectiveArgs, {
+          output: priorOut.length > 0 ? `${priorOut}${tip}` : tip.trim(),
+          isError: false,
+        });
+      }
+      step.log?.info('idempotent mutation replay skipped; target changed since record', {
         toolName,
         toolCallId: toolCall.id,
         ageMs: Date.now() - prior.executedAt,
-        code: IDEMPOTENCY_REPLAY_CODE,
-      });
-      const priorOut = prior.result;
-      const tip =
-        `\n\n${IDEMPOTENCY_REPLAY_CODE}: identical ${toolName} args already applied ` +
-        `${String(Date.now() - prior.executedAt)}ms ago. ` +
-        `Replayed prior result — no second write.`;
-      return makeToolResult(call, effectiveArgs, {
-        output: priorOut.length > 0 ? `${priorOut}${tip}` : tip.trim(),
-        isError: false,
       });
     }
   }
@@ -254,7 +305,16 @@ export async function runRunnableToolCall(
         typeof toolResult.output === 'string'
           ? toolResult.output
           : String(toolResult.output ?? '');
-      step.guards.recordToolCallExecution(idempotencyKey, toolName, effectiveArgs, out);
+      const target = idempotencyTargetPath(effectiveArgs);
+      const fingerprint =
+        target !== undefined ? await fingerprintTarget(target) : undefined;
+      step.guards.recordToolCallExecution(
+        idempotencyKey,
+        toolName,
+        effectiveArgs,
+        out,
+        fingerprint,
+      );
     }
   }
 

@@ -34,6 +34,12 @@ export interface IWSGateway {
    * M3/M4 unit tests that construct the gateway directly.
    */
   setAuthTokenService(service: IAuthTokenService): void;
+
+  /**
+   * Install the session-existence probe used by subscribe/client_hello sync
+   * to report phantom session ids as `not_found`. Wired by start after DI.
+   */
+  setSessionExists(probe: (sid: string) => Promise<boolean> | boolean): void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -108,4 +114,13 @@ export interface WSGatewayOptions {
    * pre-M5.1 boots), the WS Origin check is skipped.
    */
   allowedOrigins?: readonly string[];
+
+  /**
+   * Optional session-existence probe used during subscribe/client_hello
+   * sync. When set, phantom session ids are reported back as `not_found`
+   * instead of silently receiving a valid cursor for a journal that was
+   * never real. When unset, all requested ids are accepted (tests and
+   * harnesses publish events for synthetic ids without registering them).
+   */
+  sessionExists?: (sid: string) => Promise<boolean> | boolean;
 }
