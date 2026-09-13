@@ -56,6 +56,7 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.upgrade.option.main':
     'Ignore published releases; install the tip of origin/main from source.',
   'cli.error.unknownCommand': "unknown command '{arg}'. See '{cmd} --help'.",
+  'cli.error.didYouMean': "Did you mean '{cmd}'?",
 
   'cli.sub.export.description': 'Export a session as a ZIP archive.',
   'cli.sub.provider.description': 'Manage LLM providers non-interactively.',
@@ -120,6 +121,7 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.upgrade.option.main':
     '게시된 릴리즈를 무시하고 origin/main 최신 소스로 설치합니다.',
   'cli.error.unknownCommand': "알 수 없는 명령 '{arg}'. '{cmd} --help'를 참고하세요.",
+  'cli.error.didYouMean': "'{cmd}' 명령을 찾으셨나요?",
 
   'cli.sub.export.description': '세션을 ZIP 아카이브로 내보냅니다.',
   'cli.sub.provider.description': 'LLM 프로바이더를 비대화형으로 관리합니다.',

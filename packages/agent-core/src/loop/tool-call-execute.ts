@@ -131,7 +131,12 @@ export async function runRunnableToolCall(
       code: 'DOOM_LOOP_HARD_STOP',
     });
     return makeToolResult(call, effectiveArgs, {
-      output: `doom_loop_hard_stop: 동일 도구·인자 반복(${String(patternCount)}회)으로 실행을 차단했습니다. code=DOOM_LOOP_HARD_STOP. 다른 접근을 시도하거나 사용자에게 막힘 요약을 보고하세요.`,
+      // Language-neutral like the REMINDER_TEXT/DOOM_LOOP_HARD_STOP_TEXT in
+      // tool-dedup.ts: the session response-language directive owns wording.
+      output:
+        `doom_loop_hard_stop: the same tool call with identical arguments repeated ${String(patternCount)} times; ` +
+        'execution is blocked. code=DOOM_LOOP_HARD_STOP. ' +
+        'Do not repeat the same call — try a different approach, or report what is blocked to the user in the session language.',
       isError: true,
       stopTurn: true,
     });

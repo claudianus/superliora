@@ -408,7 +408,9 @@ describe('runUpdatePreflight', () => {
     expect(detectInstallSource).not.toHaveBeenCalled();
   });
 
-  it('does not start a fresh-check background install when non-interactive', async () => {
+  it('does no update work at all when non-interactive', async () => {
+    // Headless `-p` (CI, scripts, pipes) must be deterministic and never pay
+    // for update I/O: no cache read, no network refresh, no background install.
     mocks.readUpdateCache.mockResolvedValue(emptyUpdateCache());
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     const { options } = captureOutput();
@@ -416,7 +418,8 @@ describe('runUpdatePreflight', () => {
     await expectPreflightContinue(runUpdatePreflight('0.4.0', { ...options, isTTY: false }));
     await flushBackgroundInstall();
 
-    expect(refreshUpdateCache).toHaveBeenCalledTimes(1);
+    expect(mocks.readUpdateCache).not.toHaveBeenCalled();
+    expect(refreshUpdateCache).not.toHaveBeenCalled();
     expect(detectInstallSource).not.toHaveBeenCalled();
     expect(promptForInstallChoice).not.toHaveBeenCalled();
     expect(mocks.spawn).not.toHaveBeenCalled();

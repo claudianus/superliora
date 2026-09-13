@@ -175,7 +175,12 @@ export function createProgram(
 
   program.argument('[args...]').action((args: string[]) => {
     if (args.length > 0) {
-      program.error(t('cli.error.unknownCommand', { arg: args[0]!, cmd: CLI_COMMAND_NAME }));
+      const suggestion = suggestSimilarCommand(args[0]!, program.commands);
+      const hint =
+        suggestion === undefined ? '' : ` ${t('cli.error.didYouMean', { cmd: suggestion })}`;
+      program.error(
+        `${t('cli.error.unknownCommand', { arg: args[0]!, cmd: CLI_COMMAND_NAME })}${hint}`,
+      );
     }
 
     const raw = program.opts<Record<string, unknown>>();
@@ -213,4 +218,49 @@ export function createProgram(
   });
 
   return program;
+}
+
+/**
+ * Levenshtein over short command names ("sessio" → "session"). Kept local and
+ * tiny: commander emits suggestions only for its own parse errors, not for the
+ * catch-all `[args...]` path used here.
+ */
+export function suggestSimilarCommand(
+  input: string,
+  commands: readonly Command[],
+): string | undefined {
+  const typed = input.toLowerCase();
+  if (typed.length < 2) return undefined;
+  let best: string | undefined;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const command of commands) {
+    // Skip hidden plumbing commands so suggestions only name real verbs.
+    if ((command as unknown as { _hidden?: boolean })._hidden === true) continue;
+    for (const name of [command.name(), ...command.aliases()]) {
+      if (name === typed) continue;
+      const distance = commandEditDistance(typed, name);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = name;
+      }
+    }
+  }
+  // Tolerate ~1 edit per 4 characters ("servre"→"server", "sessio"→"session").
+  const threshold = Math.max(1, Math.floor((best?.length ?? 0) / 3));
+  return best !== undefined && bestDistance <= threshold ? best : undefined;
+}
+
+function commandEditDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  let prev = Array.from({ length: a.length + 1 }, (_, idx) => idx);
+  let curr = Array.from({ length: a.length + 1 }, () => 0);
+  for (let j = 1; j <= b.length; j++) {
+    curr[0] = j;
+    for (let i = 1; i <= a.length; i++) {
+      const cost = a.codePointAt(i - 1) === b.codePointAt(j - 1) ? 0 : 1;
+      curr[i] = Math.min((prev[i] ?? 0) + 1, (curr[i - 1] ?? 0) + 1, (prev[i - 1] ?? 0) + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[a.length] ?? 0;
 }
