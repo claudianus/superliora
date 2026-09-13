@@ -25,6 +25,7 @@ export async function syncSessions(
   accepted: string[];
   resyncRequired: string[];
   serverCursors: CursorsBySession;
+  notFound: string[];
 }> {
   const accepted: string[] = [];
   const resyncRequired: string[] = [];

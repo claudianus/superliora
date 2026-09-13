@@ -151,7 +151,7 @@ interface ToolOutputHitCache {
 let lastHitCache: ToolOutputHitCache | undefined;
 
 function toolOutputHitFingerprint(state: TUIState): string {
-  return `${String(state.transcriptViewport.start())}:${String(state.terminal.rows)}x${String(state.terminal.cols)}`;
+  return `${String(state.transcriptViewport.start())}:${String(state.terminal.rows)}x${String(state.terminal.columns)}`;
 }
 
 function resolveToolOutputMouseHitUncached(

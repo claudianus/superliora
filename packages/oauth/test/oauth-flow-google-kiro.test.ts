@@ -235,7 +235,7 @@ describe('google oauth unauthorized promotion', () => {
         },
         'rt',
       ).catch((error: unknown) => error);
-      expect(error.constructor.name).toBe('OAuthUnauthorizedError');
+      expect((error as Error).constructor.name).toBe('OAuthUnauthorizedError');
       expect((error as Error).message).toContain('unauthorized');
     }
   });
@@ -257,7 +257,9 @@ describe('kiro oauth unauthorized promotion', () => {
       return jsonResponse({ accessToken: 'tok' });
     });
     vi.stubGlobal('fetch', fetchMock);
-    const error = await refreshKiroToken('rt').catch((error: unknown) => error);
+    const error = (await refreshKiroToken('rt').catch(
+      (error: unknown) => error,
+    )) as Error;
     expect(error.constructor.name).toBe('OAuthUnauthorizedError');
   });
 });

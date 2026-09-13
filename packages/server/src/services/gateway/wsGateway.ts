@@ -34,6 +34,12 @@ export interface IWSGateway {
    * M3/M4 unit tests that construct the gateway directly.
    */
   setAuthTokenService(service: IAuthTokenService): void;
+
+  /**
+   * Install the session-existence probe used by subscribe/client_hello sync
+   * to report phantom session ids as `not_found`. Wired by start after DI.
+   */
+  setSessionExists(probe: (sid: string) => Promise<boolean> | boolean): void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare

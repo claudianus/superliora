@@ -1,4 +1,8 @@
 
+// WSBroadcastService subscribes to session close events when a session
+// service is present; tests pass a stub with no emitter (feature stays off).
+const stubSessionService = {} as unknown as import('@superliora/agent-core').ISessionService;
+
 
 import { mkdtempSync, rmSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -163,6 +167,7 @@ afterEach(() => {
 describe('WSBroadcastService (WS transport pump)', () => {
   let homeDir: string;
 
+
   const makeEnv = (): IEnvironmentService => ({
     _serviceBrand: undefined,
     homeDir,
@@ -185,7 +190,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     clients.subscribe(c2, 'sid_test');
 
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     bus.publish({ type: 'fake.x', sessionId: 'sid_test', agentId: 'main' } as unknown as Event);
     bus.publish({ type: 'fake.y', sessionId: 'sid_test', agentId: 'main' } as unknown as Event);
     await broadcast._drainForTest('sid_test');
@@ -212,7 +217,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     clients.subscribe(cB, 'sid_b');
 
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     bus.publish({ type: 'e1', sessionId: 'sid_a', agentId: 'main' } as unknown as Event);
     bus.publish({ type: 'e1', sessionId: 'sid_b', agentId: 'main' } as unknown as Event);
     bus.publish({ type: 'e2', sessionId: 'sid_a', agentId: 'main' } as unknown as Event);
@@ -237,7 +242,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     clients.subscribe(onOther, 'sid_other');
 
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     bus.publish({ type: 'evt', sessionId: 'sid_a', agentId: 'main' } as unknown as Event);
     await broadcast._drainForTest('sid_a');
     expect(onA.sent.length).toBe(1);
@@ -258,6 +263,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
       clients,
       new FakeConnectionRegistry([subscribed, listOnly]),
       makeEnv(),
+      stubSessionService,
     );
 
     bus.publish({
@@ -282,7 +288,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     const warnSpy = vi.spyOn(testLogger, 'warn');
 
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     bus.publish({ type: 'no_sid' } as unknown as Event);
 
     expect(c.sent.length).toBe(0);
@@ -296,7 +302,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     const c = fakeConn();
     clients.subscribe(c, 'sid_x');
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     broadcast.dispose();
     bus.publish({ type: 'late', sessionId: 'sid_x', agentId: 'main' } as unknown as Event);
     await new Promise((r) => setTimeout(r, 10));
@@ -309,7 +315,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     const c = fakeConn();
     clients.subscribe(c, 'sid_test');
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     for (let i = 0; i < 5; i++) {
       bus.publish({ type: `e${i}`, sessionId: 'sid_test', agentId: 'main' } as unknown as Event);
     }
@@ -325,7 +331,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
 
   it('getBufferedSince forces a resync for a cursor ahead of the journal (stale v1 cursor)', async () => {
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     const replay = await broadcast.getBufferedSince('sid_new', { seq: 5 });
     expect(replay.events).toEqual([]);
     expect(replay.resyncRequired).toBe('epoch_changed');
@@ -336,7 +342,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
 
   it('getBufferedSince forces a resync on epoch mismatch', async () => {
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     bus.publish({ type: 'e', sessionId: 'sid_e', agentId: 'main' } as unknown as Event);
     await broadcast._drainForTest('sid_e');
     const replay = await broadcast.getBufferedSince('sid_e', { seq: 0, epoch: 'ep_other' });
@@ -347,7 +353,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
 
   it('seq and epoch survive a server restart (journal recovery) and serve replay from disk', async () => {
     const bus1 = new EventService();
-    const b1 = new WSBroadcastService(bus1, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv());
+    const b1 = new WSBroadcastService(bus1, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     for (let i = 0; i < 3; i++) {
       bus1.publish({ type: `e${i}`, sessionId: 'sid_p', agentId: 'main' } as unknown as Event);
     }
@@ -358,7 +364,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     bus1.dispose();
 
     const bus2 = new EventService();
-    const b2 = new WSBroadcastService(bus2, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv());
+    const b2 = new WSBroadcastService(bus2, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     const after = await b2.getCursor('sid_p');
     expect(after.seq).toBe(3);
     expect(after.epoch).toBe(before.epoch);
@@ -381,7 +387,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     const c = fakeConn();
     clients.subscribe(c, 'sid_v');
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), makeEnv(), stubSessionService);
 
     bus.publish({
       type: 'turn.started',
@@ -432,7 +438,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
 
   it('getSnapshotState clears the in-flight turn after turn.ended', async () => {
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, new FakeSessionClients(), new FakeConnectionRegistry(), makeEnv(), stubSessionService);
     bus.publish({
       type: 'turn.started',
       sessionId: 'sid_t',
@@ -530,7 +536,7 @@ describe('ApprovalService (broadcasts + resolve-by-approval_id)', () => {
     const conn = fakeConn('conn_subscriber');
     clients.subscribe(conn, 'sess_1');
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), tmpEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), tmpEnv(), stubSessionService);
     const broker = new ApprovalService(testLogger, bus);
     return { broker, bus, broadcast, clients, conn };
   }
@@ -626,7 +632,7 @@ describe('QuestionService (broadcasts + dismiss)', () => {
     const conn = fakeConn('conn_q_subscriber');
     clients.subscribe(conn, 's');
     const bus = new EventService();
-    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), tmpEnv());
+    const broadcast = new WSBroadcastService(bus, testLogger, clients, new FakeConnectionRegistry(), tmpEnv(), stubSessionService);
     const broker = new QuestionService(testLogger, bus);
     return { broker, bus, broadcast, clients, conn };
   }
