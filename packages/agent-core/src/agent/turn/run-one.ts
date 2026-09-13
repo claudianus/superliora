@@ -105,6 +105,10 @@ export async function runOneTurnFlow(
         ...(reason === 'cancelled'
           ? { cancelledByUser: isUserCancellation(signal.reason) }
           : {}),
+        // Fold the terminal step stop reason onto the wire event: without it
+        // a provider max_tokens cut ends as reason 'completed' and every
+        // client renders truncation as success.
+        ...(stopReason === 'max_tokens' ? { stopReason } : {}),
       };
     }
   } catch (error) {
