@@ -5,6 +5,7 @@ import { TurnTelemetry } from '../../../src/agent/turn/telemetry';
 import { runOneTurnFlow } from '../../../src/agent/turn/run-one';
 import * as stepLoop from '../../../src/agent/turn/step-loop';
 import { USER_PROMPT_ORIGIN } from '../../../src/agent/context';
+import { StreamingThinkScrubber } from '../../../src/utils/think-scrubber';
 import { testKaos } from '../../fixtures/test-kaos';
 
 vi.mock('../../../src/agent/turn/step-loop', async (importOriginal) => {
@@ -25,7 +26,7 @@ describe('runOneTurnFlow — turn.ended stopReason propagation', () => {
       {
         agent,
         turnTelemetry: new TurnTelemetry(agent),
-        assistantThinkScrubber: { reset: () => {} },
+        assistantThinkScrubber: new StreamingThinkScrubber(),
         flushSteerBuffer: () => false,
         getActiveTurn: () => null,
         releaseActiveTurn: () => {},
@@ -59,7 +60,7 @@ describe('runOneTurnFlow — turn.ended stopReason propagation', () => {
       {
         agent,
         turnTelemetry: new TurnTelemetry(agent),
-        assistantThinkScrubber: { reset: () => {} },
+        assistantThinkScrubber: new StreamingThinkScrubber(),
         flushSteerBuffer: () => false,
         getActiveTurn: () => null,
         releaseActiveTurn: () => {},
