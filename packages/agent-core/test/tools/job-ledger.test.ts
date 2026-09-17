@@ -937,6 +937,68 @@ describe('worker context handoff', () => {
     expect(job.resultSummary).toContain('verification failed');
     expect(job.resultSummary).toContain('implemented the fix');
     expect(job.resultContract?.files_changed).toEqual(['src/auth/session.ts']);
+    // H3: passing slots stay legible next to the failing one — the ledger must
+    // not collapse a green check run into a bare `verification failed`.
+    expect(job.resultSummary).toContain('test=FAILED');
+    expect(job.resultSummary).toContain('typecheck=pass');
+    expect(job.resultSummary).toMatch(/visual=(unavailable\([^)]*\)|n\/a|FAILED|pass)/);
+  });
+
+  it('H3: records why visual could not run instead of folding it into the failure', async () => {
+    const store = memoryStore();
+    const contract = {
+      agent_id: 'agent_h3',
+      profile: 'coder',
+      deviations: [],
+      summary: 'implemented the fix',
+      files_changed: ['src/auth/session.ts'],
+      verification: {
+        tests: 'passed',
+        typecheck: 'passed',
+        lint: 'not_run',
+        visual: 'skipped_host',
+        host_browser: 'einval',
+      },
+      verification_failed: true,
+    };
+    let resolveCompletion!: (value: { result: string; contract: typeof contract }) => void;
+    const completion = new Promise<{ result: string; contract: typeof contract }>((resolve) => {
+      resolveCompletion = resolve;
+    });
+    const host = {
+      spawn: async (options: { prompt: string; profileName?: string }) => ({
+        agentId: 'agent_h3',
+        profileName: options.profileName ?? 'coder',
+        resumed: false,
+        completion,
+      }),
+    };
+    const agent = { subagentHost: host, config: { cwd: undefined } } as never;
+    const tool = new JobCreateTool(store, agent);
+    const exec = tool.resolveExecution({
+      title: 'visual-unavailable closeout',
+      kind: 'implement',
+      surface_kind: 'web',
+      success_criteria: ['focused checks pass for the change'],
+    });
+    if (exec.isError) throw new Error('resolve failed');
+    await exec.execute({
+      turnId: 't',
+      toolCallId: 'c_h3',
+      signal: new AbortController().signal,
+    });
+    resolveCompletion({ result: 'done', contract });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const job = listJobs(store)[0];
+    if (!job) throw new Error('job missing');
+    // Green mechanical slots survive.
+    expect(job.resultSummary).toContain('test=pass');
+    expect(job.resultSummary).toContain('typecheck=pass');
+    // Visual says *why* it could not run rather than reading as a product fail.
+    expect(job.resultSummary).toContain('visual=unavailable(skipped_host, host_browser=einval)');
+    expect(job.notes).toContain('verification: check=pass test=pass');
+    expect(job.notes).toContain('visual=unavailable(skipped_host, host_browser=einval)');
   });
 
   it('propagates structured contract facts into child prior findings', () => {
@@ -1117,9 +1179,10 @@ describe('conductor non-blocking job path (regression)', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(getJob(store, jobId)?.status).toBe('done');
     // No result contract came back, so the completion carries no verification
-    // evidence and the summary says so (P1-5).
+    // evidence, and the summary says so *with every slot named* (P1-5 + H3):
+    // the reader must not have to guess which check was missing.
     expect(getJob(store, jobId)?.resultSummary).toBe(
-      'unverified (checks did not run) — worker summary',
+      'unverified (checks did not run) — verification: check=not_run test=not_run typecheck=not_run lint=not_run visual=not_run(no_contract) — worker summary',
     );
     const unread = listUnreadJobInbox(store);
     // Implement done → review-chain enqueue may add sibling inbox events.

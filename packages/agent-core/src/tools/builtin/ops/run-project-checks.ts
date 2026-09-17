@@ -202,7 +202,17 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
         continue;
       }
 
-      const commandArgs = buildCommandArgs(packageDir, scriptName, scriptBody);
+      const declaredDir = declaredTestDir(scriptBody);
+      const declaredDirExists =
+        declaredDir === undefined
+          ? undefined
+          : await this.dirExists(packageRoot, declaredDir);
+      const commandArgs = buildCommandArgs(
+        packageDir,
+        scriptName,
+        scriptBody,
+        declaredDirExists,
+      );
       const commandLabel = commandArgs.join(' ');
       const started = Date.now();
       try {
@@ -238,6 +248,22 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
       isError: payload.exitCode !== 0,
       output: JSON.stringify(payload, undefined, 2),
     };
+  }
+
+  /**
+   * H2: probe whether the script's declared test directory exists, without
+   * inventing one. `undefined` on probe failure keeps the declared arg rather
+   * than silently rewriting the command.
+   */
+  private async dirExists(packageRoot: string, relativeDir: string): Promise<boolean> {
+    try {
+      const absolute = resolve(packageRoot, relativeDir);
+      const stat = await this.kaos.stat(absolute);
+      // Kaos.StatResult exposes raw stMode — S_IFDIR bit, not an isDirectory helper.
+      return (stat.stMode & 0o170000) === 0o040000;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -325,7 +351,10 @@ function scriptRunsWithoutInstall(script: string | undefined): boolean {
   return /^(?:node(?:\.exe)?)\s+--(?:test|check)\b/.test(t);
 }
 
-function rewriteDirectNodeScript(script: string): string[] | undefined {
+function rewriteDirectNodeScript(
+  script: string,
+  declaredDirExists?: boolean,
+): string[] | undefined {
   const t = script.trim();
   const testMatch = /^(?:node(?:\.exe)?)\s+--test(?:\s+(.+))?$/.exec(t);
   if (testMatch !== null) {
@@ -336,10 +365,13 @@ function rewriteDirectNodeScript(script: string): string[] | undefined {
     // `tests=failed` for green code (harness defect H2).
     if (rawSpec === undefined || rawSpec.trim().length === 0) return ['node', '--test'];
     const spec = rawSpec.replaceAll('\\', '/').replaceAll(/^["']|["']$/g, '');
-    const dir = spec.replace(/\/\*[^/]*$/, '').trim();
-    // Only pass a directory the script actually declared; otherwise fall back
-    // to bare discovery instead of inventing a name.
-    return dir.length > 0 ? ['node', '--test', dir] : ['node', '--test'];
+    const dir = spec.replace(/\/\*[^/]*$/, '').replace(/\/+$/, '').trim();
+    if (dir.length === 0) return ['node', '--test'];
+    // H2 follow-up: a *declared* directory that is absent on disk fails the
+    // run just like an invented one. When the caller probed the filesystem and
+    // the directory is missing, drop the arg and let discovery decide.
+    if (declaredDirExists === false) return ['node', '--test'];
+    return ['node', '--test', dir];
   }
   const checkMatch = /^(?:node(?:\.exe)?)\s+--check\s+(.+)$/.exec(t);
   if (checkMatch?.[1] !== undefined) {
@@ -357,12 +389,35 @@ function packageLooksLikeNoInstallSite(pkg: {
   return test === undefined || scriptRunsWithoutInstall(test);
 }
 
+/**
+ * H2: the test directory a `node --test <spec>` script actually declares —
+ * `undefined` for a bare script. Used to probe existence before passing an
+ * argument, so a stale/absent directory never becomes a false `tests=failed`.
+ */
+export function declaredTestDir(script: string | undefined): string | undefined {
+  if (script === undefined) return undefined;
+  const match = /^(?:node(?:\.exe)?)\s+--test(?:\s+(.+))?$/.exec(script.trim());
+  const rawSpec = match?.[1];
+  if (rawSpec === undefined || rawSpec.trim().length === 0) return undefined;
+  const spec = rawSpec.replaceAll('\\', '/').replaceAll(/^["']|["']$/g, '');
+  const dir = spec.replace(/\/\*[^/]*$/, '').replace(/\/+$/, '').trim();
+  return dir.length > 0 ? dir : undefined;
+}
+
 export function buildCommandArgs(
   packageDir: string | undefined,
   scriptName: string,
   scriptBody?: string,
+  /**
+   * H2: whether the directory declared by the script exists on disk.
+   * `undefined` = caller did not probe — keep the declared arg as-is.
+   */
+  declaredDirExists?: boolean,
 ): string[] {
-  const direct = scriptBody !== undefined ? rewriteDirectNodeScript(scriptBody) : undefined;
+  const direct =
+    scriptBody !== undefined
+      ? rewriteDirectNodeScript(scriptBody, declaredDirExists)
+      : undefined;
   if (direct !== undefined) return direct;
   if (packageDir !== undefined && packageDir.trim().length > 0) {
     return ['pnpm', '-C', packageDir.trim(), 'run', scriptName];

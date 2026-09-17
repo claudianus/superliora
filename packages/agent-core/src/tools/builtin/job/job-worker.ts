@@ -36,6 +36,7 @@ import {
 import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
 import { renderFrictionSection } from '../../../session/subagent/subagent-friction';
 import {
+  renderVerificationSlots,
   UNVERIFIED_SUMMARY_PREFIX,
   verificationIsUnverified,
 } from '../../../session/subagent/subagent-result-contract';
@@ -903,13 +904,13 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             ? `{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","standards":{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","findings":[]},"spec":{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","findings":[]}}\n\n`
             : '';
         const baseSummary = verificationFailed
-          ? `verification failed — ${summary}`
+          ? `verification failed — ${renderVerificationSlots(contract?.verification)} — ${summary}`
           : verifyMissingStructured
             ? `structured verifyVerdict missing — ${summary}`
             : goalStopped
               ? `goal ${completion.goalStatus}${goalReason} — ${summary}`
               : unverified
-                ? `${UNVERIFIED_SUMMARY_PREFIX}${summary}`
+                ? `${UNVERIFIED_SUMMARY_PREFIX}${renderVerificationSlots(contract?.verification)} — ${summary}`
                 : `${verifyStampLine}${summary}`;
         // Feed worker struggle stats into Conductor inbox so auto-refine sees them.
         const frictionBlock =
@@ -950,6 +951,9 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             commitNote,
             hostBrowserEinval ? 'host_browser=einval' : undefined,
             playableLine,
+            // H3: always record which slots passed and which did not, so no
+            // summary word ("failed" / "unverified") hides a green check run.
+            contract !== undefined ? renderVerificationSlots(contract.verification) : undefined,
             verificationFailed
               ? 'worker: completed but verification failed'
               : verifyMissingStructured

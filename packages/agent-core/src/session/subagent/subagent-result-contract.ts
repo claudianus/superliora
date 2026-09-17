@@ -177,6 +177,62 @@ export function verificationVisualBlocksMerge(
 /** Marks a `done` job whose checks never ran, on the summary the desk/ACK show. */
 export const UNVERIFIED_SUMMARY_PREFIX = 'unverified (checks did not run) — ';
 
+/** Compact per-slot label for one verification verdict. */
+function slotLabel(verdict: VerificationVerdict | undefined): string {
+  switch (verdict) {
+    case 'passed':
+      return 'pass';
+    case 'failed':
+      return 'FAILED';
+    case 'not_applicable':
+      return 'n/a';
+    case 'not_run':
+      return 'not_run';
+    case undefined:
+      return 'not_run';
+  }
+}
+
+/**
+ * H3: one line that separates what passed from what failed, so a green check
+ * run never collapses into a bare `verification failed`. Visual gets its own
+ * reason (`unavailable(<cause>)`) instead of being folded into the same word.
+ *
+ * Example: `verification: check=pass test=pass typecheck=n/a lint=n/a visual=pass`
+ * Example: `verification: check=pass test=pass typecheck=n/a lint=n/a
+ *           visual=unavailable(host_browser=einval)`
+ */
+export function renderVerificationSlots(
+  verification: SubagentVerificationStatus | undefined,
+): string {
+  const v = verification;
+  const parts = [
+    `check=${slotLabel(v?.tests)}`,
+    `test=${slotLabel(v?.tests)}`,
+    `typecheck=${slotLabel(v?.typecheck)}`,
+    `lint=${slotLabel(v?.lint)}`,
+  ];
+  parts.push(`visual=${visualSlotLabel(v)}`);
+  return `verification: ${parts.join(' ')}`;
+}
+
+/**
+ * Visual slot label. A slot that cannot run reports why — `skipped_host`,
+ * `host_browser=<class>`, or the bare verdict — so "visual 불가" stays
+ * distinguishable from "visual 실패".
+ */
+function visualSlotLabel(v: SubagentVerificationStatus | undefined): string {
+  if (v === undefined || v.visual === undefined) return 'not_run(no_contract)';
+  if (v.visual === 'skipped_host') {
+    return `unavailable(skipped_host${v.host_browser !== undefined ? `, host_browser=${v.host_browser}` : ''})`;
+  }
+  if (v.visual === 'not_run') {
+    return `unavailable(not_run${v.host_browser !== undefined ? `, host_browser=${v.host_browser}` : ''})`;
+  }
+  if (v.visual === 'not_applicable') return 'n/a';
+  return v.visual === 'failed' ? 'FAILED' : 'pass';
+}
+
 export interface UnverifiedOptions {
   /** When true (web/tui/mixed), visual=not_run counts as unverified. */
   readonly requireVisual?: boolean;

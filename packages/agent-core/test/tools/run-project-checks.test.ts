@@ -6,6 +6,7 @@ import type { Kaos, KaosProcess } from '@superliora/kaos';
 import {
   buildCommandArgs,
   buildResultPayload,
+  declaredTestDir,
   pickScript,
   RunProjectChecksInputSchema,
   RunProjectChecksTool,
@@ -66,6 +67,20 @@ describe('RunProjectChecksTool', () => {
     // directory. Projects that keep their tests in `test/` were being run as
     // `node --test tests` and recorded a false tests=failed.
     expect(buildCommandArgs(undefined, 'test', 'node --test')).toEqual(['node', '--test']);
+    // H2 follow-up: a *declared* directory that is absent on disk also falls
+    // back to Node's own discovery instead of failing on a missing path.
+    expect(buildCommandArgs(undefined, 'test', 'node --test tests/*.test.js', false)).toEqual([
+      'node',
+      '--test',
+    ]);
+    expect(buildCommandArgs(undefined, 'test', 'node --test test/', true)).toEqual([
+      'node',
+      '--test',
+      'test',
+    ]);
+    expect(declaredTestDir('node --test')).toBeUndefined();
+    expect(declaredTestDir('node --test tests/*.test.js')).toBe('tests');
+    expect(declaredTestDir('node --test test/')).toBe('test');
     expect(buildCommandArgs('packages/agent-core', 'test')).toEqual([
       'pnpm',
       '-C',
@@ -162,6 +177,7 @@ describe('RunProjectChecksTool', () => {
           scripts: { test: 'node --test tests/*.test.js' },
         }),
       exec: exec as Kaos['exec'],
+      stat: async () => ({ stMode: 0o040755 }) as never,
     });
     const tool = new RunProjectChecksTool(kaos, '/work');
     const result = await executeTool(
@@ -282,6 +298,69 @@ describe('RunProjectChecksTool', () => {
     const payload = JSON.parse(String(result.output)) as { exitCode: number; summary: string };
     expect(result.isError).toBe(true);
     expect(payload.summary).toContain('Failed to read package.json');
+  });
+
+  it('H2: a sibling `tests/` directory does not change how `test/` projects are judged', async () => {
+    // The H2 defect: the harness invented a `tests` arg for a bare
+    // `node --test` script. Node v24 loads a directory positional as an entry
+    // module, so the declared script and the harness run disagree. This pins
+    // both halves: the emitted command, and that the *declared* script remains
+    // the source of truth whichever sibling directories exist.
+    const runs: string[][] = [];
+    const exec = vi.fn(async (...args: string[]) => {
+      runs.push(args);
+      // Present only when the command matches the project's own declaration.
+      const ok = args.join(' ') === 'node --test';
+      return fakeProcess(ok ? 0 : 1, ok ? 'pass 33\n' : 'no test files found\n');
+    });
+    const kaos = createFakeKaos({
+      getcwd: () => '/work',
+      readText: async () => JSON.stringify({ name: 'particle-atlas', scripts: { test: 'node --test' } }),
+      exec: exec as Kaos['exec'],
+      // `test/` exists, `tests/` exists too — the sibling must not matter.
+      stat: async () => ({ stMode: 0o040755 }) as never,
+    });
+
+    const tool = new RunProjectChecksTool(kaos, '/work');
+    const result = await executeTool(tool, context({ checks: ['test'] }));
+    const payload = JSON.parse(String(result.output)) as {
+      exitCode: number;
+      checks: Array<{ name: string; exitCode: number; command?: string }>;
+    };
+
+    expect(runs.some((args) => args.includes('tests'))).toBe(false);
+    expect(payload.checks[0]?.command).toBe('node --test');
+    expect(payload.exitCode).toBe(0);
+  });
+
+  it('H2: a declared test dir missing on disk falls back to bare discovery', async () => {
+    const runs: string[][] = [];
+    const exec = vi.fn(async (...args: string[]) => {
+      runs.push(args);
+      return fakeProcess(args.includes('tests') ? 1 : 0, 'ok\n');
+    });
+    const kaos = createFakeKaos({
+      getcwd: () => '/work',
+      readText: async () =>
+        JSON.stringify({ name: 'neon-lock', scripts: { test: 'node --test tests/*.test.js' } }),
+      exec: exec as Kaos['exec'],
+      // `tests/` is declared but absent; `test/` is where the tests actually are.
+      stat: async (path: string) => {
+        if (path.includes('tests')) throw new Error('ENOENT');
+        return { stMode: 0o040755 } as never;
+      },
+    });
+
+    const tool = new RunProjectChecksTool(kaos, '/work');
+    const result = await executeTool(tool, context({ checks: ['test'] }));
+    const payload = JSON.parse(String(result.output)) as {
+      exitCode: number;
+      checks: Array<{ name: string; command?: string }>;
+    };
+
+    expect(runs.some((args) => args.includes('tests'))).toBe(false);
+    expect(payload.checks[0]?.command).toBe('node --test');
+    expect(payload.exitCode).toBe(0);
   });
 
   it('buildResultPayload aggregates exit codes', () => {
