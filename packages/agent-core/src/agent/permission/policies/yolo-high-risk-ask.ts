@@ -1,10 +1,17 @@
 import type { Agent } from '../..';
+import { PERMISSION_HIGH_RISK_GUARD_ENV } from '../types';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 
 /**
- * Under YOLO, high-risk Bash (destructive deletes / credential material) must
- * still ask a human. Runs before YoloModeApprove so silent auto-approve cannot
- * swallow delete/secret commands.
+ * High-risk Bash guard for the unattended permission modes (`auto`, `yolo`).
+ *
+ * **Opt-in (H4).** Earlier this policy fired on every `yolo` session, so an
+ * auto-mode run that spawned a child with `permissionMode: yolo`
+ * (`subagent-child-config.ts`) stalled on a confirmation dialog it could never
+ * answer. `auto` and `yolo` mean "run without asking", so the guard is off
+ * unless {@link PERMISSION_HIGH_RISK_GUARD_ENV} is set; then it asks before the
+ * destructive command runs. Manual mode is untouched — it already asks for
+ * anything not explicitly allowed.
  */
 export class YoloHighRiskAskPermissionPolicy implements PermissionPolicy {
   readonly name = 'yolo-high-risk-ask';
@@ -12,7 +19,8 @@ export class YoloHighRiskAskPermissionPolicy implements PermissionPolicy {
   constructor(private readonly agent: Agent) {}
 
   evaluate(context: PermissionPolicyContext): PermissionPolicyResult | undefined {
-    if (this.agent.permission.mode !== 'yolo') return;
+    if (!isHighRiskGuardEnabled()) return;
+    if (!isUnattendedMode(this.agent.permission.mode)) return;
     if (context.toolCall.name !== 'Bash') return;
 
     const command = bashCommand(context);
@@ -29,6 +37,20 @@ export class YoloHighRiskAskPermissionPolicy implements PermissionPolicy {
       },
     };
   }
+}
+
+/** Guard activation flag — default off; only an explicit truthy env turns it on. */
+export function isHighRiskGuardEnabled(): boolean {
+  const raw = process.env[PERMISSION_HIGH_RISK_GUARD_ENV]?.trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'on' || raw === 'yes';
+}
+
+/**
+ * Modes that must never raise an unattended confirmation dialog. Both `auto`
+ * and `yolo` are prompt-free postures (H4 mode-parity requirement).
+ */
+export function isUnattendedMode(mode: string): boolean {
+  return mode === 'auto' || mode === 'yolo';
 }
 
 export function classifyYoloHighRiskBash(command: string): string | undefined {

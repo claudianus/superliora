@@ -71,6 +71,21 @@ export const PERMISSION_AUTO_EXPIRE_ENV = 'SUPERLIORA_PERMISSION_AUTO_EXPIRE_MS'
 export const PERMISSION_ALLOW_WITHOUT_APPROVAL_ENV =
   'SUPERLIORA_PERMISSION_ALLOW_WITHOUT_APPROVAL';
 
+/**
+ * Opt-in high-risk Bash guard (H4). **Default OFF.**
+ *
+ * Historically the destructive-command guard (`rm -rf`, `mkfs`, `terraform
+ * destroy`, credential reads) was on for every `yolo` session, which meant
+ * auto-mode runs stalled on a confirmation dialog whenever a child agent was
+ * spawned with `permissionMode: yolo`. Auto/yolo are unattended postures: a
+ * prompt there is a hang, not a safety win.
+ *
+ * Setting this to a truthy value (`1`/`true`/`on`/`yes`) turns the guard back
+ * on for both `auto` and `yolo`, where it asks before the destructive command
+ * is allowed to run. Manual mode is unaffected — it already asks.
+ */
+export const PERMISSION_HIGH_RISK_GUARD_ENV = 'SUPERLIORA_PERMISSION_HIGH_RISK_GUARD';
+
 export interface PermissionData {
   mode: PermissionMode;
   rules: PermissionRule[];
