@@ -1,1 +1,705 @@
-PLACEHOLDER_WILL_FAIL_VERIFY
+/**
+ * RunProjectChecks — discover package.json scripts and run structured checks.
+ *
+ * Does not invent ad-hoc test commands. Prefers declared scripts; uses
+ * `pnpm -C <packageDir>` for monorepo SuperLiora-style package targeting.
+ */
+
+import type { Kaos, KaosProcess } from '@superliora/kaos';
+import { join, normalize, relative, resolve } from 'pathe';
+import type { Readable } from 'node:stream';
+import { z } from 'zod';
+
+import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
+import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
+import { toInputJsonSchema } from '../../support/input-schema';
+import { literalRulePattern } from '../../support/rule-match';
+import type { ToolStore } from '../../store';
+import { archiveContent } from '../context/context-archive';
+import DESCRIPTION from './run-project-checks.md?raw';
+import { MAX_STATIC_JS_CHECKS, runStaticSiteChecks } from './static-site-checks';
+
+const DEFAULT_TIMEOUT_MS = 120_000;
+const MAX_TIMEOUT_MS = 10 * 60 * 1000;
+const MAX_LOG_CHARS = 12_000;
+const STREAM_CAP_BYTES = 512 * 1024;
+
+export const PROJECT_CHECK_KINDS = ['test', 'typecheck', 'build', 'smoke', 'lint', 'static'] as const;
+export type ProjectCheckKind = (typeof PROJECT_CHECK_KINDS)[number];
+
+export const RunProjectChecksInputSchema = z.object({
+  cwd: z
+    .string()
+    .optional()
+    .describe(
+      "Working directory for discovery and commands. Defaults to the session's working directory.",
+    ),
+  checks: z
+    .array(z.enum(PROJECT_CHECK_KINDS))
+    .optional()
+    .describe(
+      "Checks to run. Defaults to ['test','typecheck','build'] when omitted.",
+    ),
+  scriptOverrides: z
+    .partialRecord(z.enum(PROJECT_CHECK_KINDS), z.string())
+    .optional()
+    .describe(
+      'H6 judgement slot: map a check kind to the package.json script name that actually verifies it, ' +
+        'e.g. {"typecheck":"type-check","lint":"eslint:ci"}. Use this only when the project declares a ' +
+        'script the harness cannot infer — there are no built-in name aliases. A name that is not declared ' +
+        'is recorded as undecidable (exit code 1), never silently passed.',
+    ),
+  packageDir: z
+    .string()
+    .optional()
+    .describe(
+      'Package directory relative to cwd (or absolute). Uses `pnpm -C <packageDir> run <script>` when set.',
+    ),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      `Per-check timeout in milliseconds. Default ${String(DEFAULT_TIMEOUT_MS)}, max ${String(MAX_TIMEOUT_MS)}.`,
+    ),
+});
+
+export type RunProjectChecksInput = z.infer<typeof RunProjectChecksInputSchema>;
+
+export interface ProjectCheckResult {
+  readonly name: ProjectCheckKind;
+  readonly exitCode: number;
+  readonly durationMs: number;
+  readonly command?: string | undefined;
+  readonly logPath?: string | undefined;
+  readonly skipped?: boolean | undefined;
+  readonly reason?: string | undefined;
+  readonly logPreview?: string | undefined;
+  /**
+   * H6: where this check's command came from. `declared` = the project's own
+   * package.json script; `heuristic` = a caller-supplied judgement that the
+   * manifest confirms; `undecidable` = neither, recorded honestly instead of
+   * being passed silently.
+   */
+  readonly provenance?: ScriptSelectionProvenance | undefined;
+}
+
+export interface RunProjectChecksResult {
+  readonly exitCode: number;
+  readonly checks: readonly ProjectCheckResult[];
+  readonly summary: string;
+}
+
+/**
+ * H6: how a check kind maps onto a script name.
+ *
+ * `declared` — the project declares a script under the canonical name, so no
+ * judgement is needed; the declaration is authoritative.
+ *
+ * `heuristic` — the name was chosen for the kind. Since H6 there is no built-in
+ * alias table: the only way a non-canonical name gets here is the caller's
+ * `scriptOverrides` judgement slot. The provenance is recorded so a ledger can
+ * tell a declared run from an interpreted one.
+ *
+ * `undecidable` — nothing usable was declared and no judgement was supplied.
+ * The check must be recorded as such; it never becomes a silent pass.
+ */
+type ScriptSelectionProvenance = 'declared' | 'heuristic' | 'undecidable';
+
+interface ScriptSelection {
+  readonly scriptName?: string | undefined;
+  readonly provenance: ScriptSelectionProvenance;
+  readonly reason?: string | undefined;
+}
+
+const CANONICAL_SCRIPT_NAME: Record<ProjectCheckKind, string> = {
+  test: 'test',
+  typecheck: 'typecheck',
+  build: 'build',
+  smoke: 'smoke',
+  lint: 'lint',
+  // Static sites have no scripts by definition; the static fallback verifies
+  // them directly when package.json is missing.
+  static: '',
+};
+
+const DEFAULT_CHECKS: readonly ProjectCheckKind[] = ['test', 'typecheck', 'build'];
+
+export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> {
+  readonly name = 'RunProjectChecks' as const;
+  readonly description = DESCRIPTION;
+  readonly parameters: Record<string, unknown> = toInputJsonSchema(RunProjectChecksInputSchema);
+
+  constructor(
+    private readonly kaos: Kaos,
+    private readonly cwd: string,
+    private readonly options?: {
+      readonly store?: ToolStore | undefined;
+    },
+  ) {}
+
+  resolveExecution(args: RunProjectChecksInput): ToolExecution {
+    const checks = args.checks ?? [...DEFAULT_CHECKS];
+    const target = args.packageDir ?? args.cwd ?? this.cwd;
+    return {
+      accesses: ToolAccesses.all(),
+      description: `Running project checks: ${checks.join(', ')}`,
+      display: {
+        kind: 'generic',
+        summary: `RunProjectChecks (${checks.join(', ')})`,
+        detail: target,
+      },
+      approvalRule: literalRulePattern(this.name, checks.join(',')),
+      execute: ({ signal }) => this.execution(args, signal),
+    };
+  }
+
+  private async execution(
+    args: RunProjectChecksInput,
+    signal: AbortSignal,
+  ): Promise<ExecutableToolResult> {
+    if (signal.aborted) {
+      return { isError: true, output: 'Aborted before project checks started.' };
+    }
+
+    const rootCwd = resolveCwd(args.cwd ?? this.cwd, this.kaos.getcwd());
+    const packageDir = args.packageDir?.trim();
+    const packageRoot = packageDir
+      ? resolvePackageRoot(rootCwd, packageDir)
+      : rootCwd;
+    const timeoutMs = clampTimeoutMs(args.timeoutMs);
+    const kinds = args.checks ?? [...DEFAULT_CHECKS];
+    const overrides = args.scriptOverrides;
+
+    let scripts: Record<string, string> = {};
+    let noInstall = false;
+    try {
+      const pkg = await readPackageManifest(this.kaos, packageRoot);
+      scripts = pkg.scripts;
+      noInstall = packageLooksLikeNoInstallSite(pkg);
+    } catch (error) {
+      // No readable package.json: a static site (HTML/CSS/JS) can still
+      // verify itself — file existence + `node --check` on shipped JS —
+      // instead of erroring out as "no checks applicable".
+      const staticPayload = await this.staticSiteFallback(packageRoot, signal);
+      if (staticPayload !== undefined) {
+        return {
+          isError: staticPayload.exitCode !== 0,
+          output: JSON.stringify(staticPayload, undefined, 2),
+        };
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      const payload: RunProjectChecksResult = {
+        exitCode: 1,
+        checks: [],
+        summary: `Failed to read package.json at ${packageRoot}: ${message}`,
+      };
+      return { isError: true, output: JSON.stringify(payload, undefined, 2) };
+    }
+
+    const results: ProjectCheckResult[] = [];
+    for (const kind of kinds) {
+      if (signal.aborted) {
+        results.push({
+          name: kind,
+          exitCode: 1,
+          durationMs: 0,
+          skipped: true,
+          reason: 'Aborted',
+        });
+        continue;
+      }
+
+      const selection = resolveCheckScript(kind, scripts, overrides);
+      if (selection.scriptName === undefined) {
+        const noInstallSkip =
+          noInstall && kind !== 'test' && kind !== 'static'
+            ? 0
+            : 1;
+        results.push({
+          name: kind,
+          exitCode: noInstallSkip,
+          durationMs: 0,
+          skipped: true,
+          provenance: 'undecidable',
+          reason:
+            noInstallSkip === 0
+              ? `no-install static site — skipped '${kind}' (no script, would pull pnpm/node_modules)`
+              : `undecidable: ${selection.reason ?? `no script for '${kind}'`}`,
+        });
+        continue;
+      }
+      const { scriptName } = selection;
+      const scriptBody = scripts[scriptName];
+      if (noInstall && kind !== 'test' && kind !== 'static') {
+        results.push({
+          name: kind,
+          exitCode: 0,
+          durationMs: 0,
+          skipped: true,
+          reason: `no-install static site — skipped '${kind}' (would pull pnpm/node_modules)`,
+        });
+        continue;
+      }
+
+      const declaredDir = declaredTestDir(scriptBody);
+      const declaredDirExists =
+        declaredDir === undefined
+          ? undefined
+          : await this.dirExists(packageRoot, declaredDir);
+      const commandArgs = buildCommandArgs(
+        packageDir,
+        scriptName,
+        scriptBody,
+        declaredDirExists,
+      );
+      const commandLabel = commandArgs.join(' ');
+      const started = Date.now();
+      try {
+        const runCwd = commandArgs[0] === 'node' ? packageRoot : rootCwd;
+        const run = await runCommand(this.kaos, runCwd, commandArgs, timeoutMs, signal);
+        const durationMs = Date.now() - started;
+        const combined = formatCombinedLog(run.stdout, run.stderr);
+        const { preview, logPath } = this.capAndMaybeArchive(kind, commandLabel, combined);
+        results.push({
+          name: kind,
+          exitCode: run.exitCode,
+          durationMs,
+          command: commandLabel,
+          logPreview: preview,
+          logPath,
+          provenance: selection.provenance,
+        });
+      } catch (error) {
+        const durationMs = Date.now() - started;
+        const message = error instanceof Error ? error.message : String(error);
+        results.push({
+          name: kind,
+          exitCode: 1,
+          durationMs,
+          command: commandLabel,
+          reason: message,
+        });
+      }
+    }
+
+    const payload = buildResultPayload(results);
+    // Keep output pure JSON so callers can parse without trailing error text.
+    return {
+      isError: payload.exitCode !== 0,
+      output: JSON.stringify(payload, undefined, 2),
+    };
+  }
+
+  /**
+   * H2: probe whether the script's declared test directory exists, without
+   * inventing one. `undefined` on probe failure keeps the declared arg rather
+   * than silently rewriting the command.
+   */
+  private async dirExists(packageRoot: string, relativeDir: string): Promise<boolean> {
+    try {
+      const absolute = resolve(packageRoot, relativeDir);
+      const stat = await this.kaos.stat(absolute);
+      // Kaos.StatResult exposes raw stMode — S_IFDIR bit, not an isDirectory helper.
+      return (stat.stMode & 0o170000) === 0o040000;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Static-site fallback when package.json is unreadable: verify the site the
+   * way a static deliverable can be verified — every shipped JS file parses.
+   * Returns undefined when the directory does not look like a static site.
+   */
+  private async staticSiteFallback(
+    packageRoot: string,
+    signal: AbortSignal,
+  ): Promise<RunProjectChecksResult | undefined> {
+    const jsFiles: string[] = [];
+    let sawHtml = false;
+    for (const ext of ['.js', '.mjs', '.cjs']) {
+      for await (const match of this.kaos.glob(packageRoot, `**/*${ext}`)) {
+        if (signal.aborted) return undefined;
+        if (match.includes('node_modules')) continue;
+        jsFiles.push(relative(packageRoot, match));
+        if (jsFiles.length >= MAX_STATIC_JS_CHECKS) break;
+      }
+      if (jsFiles.length >= MAX_STATIC_JS_CHECKS) break;
+    }
+    for await (const match of this.kaos.glob(packageRoot, '**/*.html')) {
+      if (match.includes('node_modules')) continue;
+      sawHtml = true;
+      break;
+    }
+    if (!sawHtml && jsFiles.length === 0) return undefined;
+
+    const started = Date.now();
+    const outcome = await runStaticSiteChecks(this.kaos, packageRoot, jsFiles);
+    const detail = [
+      ...outcome.missingFiles.map((file) => `missing: ${file}`),
+      ...outcome.failures.map((failure) => `${failure.file}: ${failure.detail}`),
+    ].join('\n');
+    const check: ProjectCheckResult = {
+      name: 'static',
+      exitCode: outcome.ok ? 0 : 1,
+      durationMs: Date.now() - started,
+      command: `node --check (${String(outcome.jsChecked)} js file(s))`,
+      ...(detail.length > 0 ? { logPreview: detail } : {}),
+    };
+    const payload = buildResultPayload([check]);
+    return { ...payload, summary: `Static site checks (no package.json): ${payload.summary}` };
+  }
+
+  private capAndMaybeArchive(
+    kind: ProjectCheckKind,
+    command: string,
+    log: string,
+  ): { preview: string; logPath?: string } {
+    if (log.length <= MAX_LOG_CHARS) {
+      return { preview: log };
+    }
+    const preview = `${log.slice(0, MAX_LOG_CHARS)}\n[...truncated ${String(log.length - MAX_LOG_CHARS)} chars]`;
+    const store = this.options?.store;
+    if (store === undefined) {
+      return { preview };
+    }
+    const archived = archiveContent({
+      store,
+      content: log,
+      label: `run-project-checks:${kind}:${command.slice(0, 60)}`,
+    });
+    return {
+      preview: `${preview}\n${archived.marker}\nrecover: Expand(id="${archived.id}")`,
+      logPath: `archive:${archived.id}`,
+    };
+  }
+}
+
+export function resolveCheckScript(
+  kind: ProjectCheckKind,
+  scripts: Record<string, string>,
+  overrides?: Partial<Record<ProjectCheckKind, string>> | undefined,
+): ScriptSelection {
+  const canonical = CANONICAL_SCRIPT_NAME[kind];
+  // 1. Declaration wins. A project that declares the canonical script name is
+  //    taken at its word — no string matching, no alias table, no guesswork.
+  if (canonical.length === 0) {
+    return {
+      provenance: 'undecidable',
+      reason: `'${kind}' is not a package.json script kind`,
+    };
+  }
+  if (Object.hasOwn(scripts, canonical)) {
+    return { scriptName: canonical, provenance: 'declared' };
+  }
+  // 2. Judgement slot. An explicitly supplied name is honoured only when the
+  //    project actually declares it; a hallucinated name must not become a run.
+  const supplied = overrides?.[kind]?.trim();
+  if (supplied !== undefined && supplied.length > 0) {
+    if (Object.hasOwn(scripts, supplied)) {
+      return { scriptName: supplied, provenance: 'heuristic' };
+    }
+    return {
+      provenance: 'undecidable',
+      reason:
+        `judgement supplied '${supplied}' for '${kind}', but package.json does not declare that script ` +
+        `(declared: ${Object.keys(scripts).toSorted().join(', ') || 'none'})`,
+    };
+  }
+  // 3. No declaration, no judgement → undecidable. Never a silent pass, and
+  //    never a name the harness invents on the project's behalf (H2's root).
+  return {
+    provenance: 'undecidable',
+    reason:
+      `no package.json script named '${canonical}' and no judgement supplied for '${kind}' ` +
+      `(declared: ${Object.keys(scripts).toSorted().join(', ') || 'none'})`,
+  };
+}
+
+/**
+ * @deprecated H6 kept this as a thin adapter over `resolveCheckScript` so
+ * existing callers keep working. It returns the script name only; use
+ * `resolveCheckScript` when the provenance (declared vs judged vs undecidable)
+ * matters.
+ */
+export function pickScript(
+  kind: ProjectCheckKind,
+  scripts: Record<string, string>,
+): string | undefined {
+  return resolveCheckScript(kind, scripts).scriptName;
+}
+
+function scriptRunsWithoutInstall(script: string | undefined): boolean {
+  if (script === undefined) return false;
+  const t = script.trim();
+  return /^(?:node(?:\.exe)?)\s+--(?:test|check)\b/.test(t);
+}
+
+function rewriteDirectNodeScript(
+  script: string,
+  declaredDirExists?: boolean,
+): string[] | undefined {
+  const t = script.trim();
+  const testMatch = /^(?:node(?:\.exe)?)\s+--test(?:\s+(.+))?$/.exec(t);
+  if (testMatch !== null) {
+    const rawSpec = testMatch[1];
+    // Bare `node --test`: let Node's own file discovery pick the tests. Never
+    // synthesize a `tests` directory the project never declared — doing so ran
+    // `node --test tests` against projects that use `test/`, recording a false
+    // `tests=failed` for green code (harness defect H2).
+    if (rawSpec === undefined || rawSpec.trim().length === 0) return ['node', '--test'];
+    // H6: the declared spec is passed through *verbatim*. Node's test runner
+    // resolves glob patterns itself (`node --test 'tests/*.test.js'`), while
+    // collapsing the spec to its base directory does not work at all on Node
+    // 24 — `node --test tests` dies with MODULE_NOT_FOUND and turns a green
+    // project red. Rewriting the declaration was the same mistake as inventing
+    // one, one step smaller.
+    const spec = rawSpec.replaceAll(/^["']|["']$/g, '');
+    if (spec.trim().length === 0) return ['node', '--test'];
+    // H2 follow-up: a *declared* path that is absent on disk fails the run just
+    // like an invented one. When the caller probed the filesystem and the base
+    // directory is missing, drop the arg and let discovery decide.
+    if (declaredDirExists === false) return ['node', '--test'];
+    return ['node', '--test', spec];
+  }
+  const checkMatch = /^(?:node(?:\.exe)?)\s+--check\s+(.+)$/.exec(t);
+  if (checkMatch?.[1] !== undefined) {
+    return ['node', '--check', checkMatch[1].replaceAll(/^["']|["']$/g, '')];
+  }
+  return undefined;
+}
+
+function packageLooksLikeNoInstallSite(pkg: {
+  readonly scripts: Record<string, string>;
+  readonly hasDependencies: boolean;
+}): boolean {
+  if (pkg.hasDependencies) return false;
+  const test = pkg.scripts['test'];
+  return test === undefined || scriptRunsWithoutInstall(test);
+}
+
+/**
+ * H2: the path a `node --test <spec>` script actually declares — `undefined`
+ * for a bare script. Used only to probe existence before passing the spec, so
+ * a stale/absent path never becomes a false `tests=failed`. H6: for a glob spec
+ * the probe base is the directory part, but the *command* keeps the full spec.
+ */
+export function declaredTestDir(script: string | undefined): string | undefined {
+  if (script === undefined) return undefined;
+  const match = /^(?:node(?:\.exe)?)\s+--test(?:\s+(.+))?$/.exec(script.trim());
+  const rawSpec = match?.[1];
+  if (rawSpec === undefined || rawSpec.trim().length === 0) return undefined;
+  const spec = rawSpec.replaceAll('\\', '/').replaceAll(/^["']|["']$/g, '');
+  const dir = spec.replace(/\/\*[^/]*$/, '').replace(/\/+$/, '').trim();
+  return dir.length > 0 ? dir : undefined;
+}
+
+export function buildCommandArgs(
+  packageDir: string | undefined,
+  scriptName: string,
+  scriptBody?: string,
+  /**
+   * H2: whether the directory declared by the script exists on disk.
+   * `undefined` = caller did not probe — keep the declared arg as-is.
+   */
+  declaredDirExists?: boolean,
+): string[] {
+  const direct =
+    scriptBody !== undefined
+      ? rewriteDirectNodeScript(scriptBody, declaredDirExists)
+      : undefined;
+  if (direct !== undefined) return direct;
+  if (packageDir !== undefined && packageDir.trim().length > 0) {
+    return ['pnpm', '-C', packageDir.trim(), 'run', scriptName];
+  }
+  return ['pnpm', 'run', scriptName];
+}
+
+export function buildResultPayload(checks: readonly ProjectCheckResult[]): RunProjectChecksResult {
+  const failed = checks.filter((check) => check.exitCode !== 0);
+  const skipped = checks.filter((check) => check.skipped === true);
+  const exitCode = failed.length === 0 ? 0 : 1;
+  const parts: string[] = [
+    `${String(checks.length)} check(s)`,
+    `${String(checks.length - failed.length)} passed`,
+  ];
+  if (failed.length > 0) parts.push(`${String(failed.length)} failed`);
+  if (skipped.length > 0) parts.push(`${String(skipped.length)} skipped`);
+  const failedNames = failed.map((check) => check.name).join(', ');
+  const summary =
+    exitCode === 0
+      ? `All project checks passed (${parts.join(', ')}).`
+      : `Project checks failed (${parts.join(', ')})${failedNames.length > 0 ? `: ${failedNames}` : ''}.`;
+  return { exitCode, checks, summary };
+}
+
+function resolveCwd(requested: string, fallback: string): string {
+  const trimmed = requested.trim();
+  if (trimmed.length === 0) return normalize(fallback);
+  if (trimmed.startsWith('/') || /^[A-Za-z]:[\\/]/.test(trimmed)) {
+    return normalize(trimmed);
+  }
+  return normalize(resolve(fallback, trimmed));
+}
+
+function resolvePackageRoot(rootCwd: string, packageDir: string): string {
+  const trimmed = packageDir.trim();
+  if (trimmed.startsWith('/') || /^[A-Za-z]:[\\/]/.test(trimmed)) {
+    return normalize(trimmed);
+  }
+  return normalize(join(rootCwd, trimmed));
+}
+
+function clampTimeoutMs(timeoutMs: number | undefined): number {
+  const value = timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  return Math.min(Math.max(1, value), MAX_TIMEOUT_MS);
+}
+
+async function readPackageManifest(
+  kaos: Kaos,
+  packageRoot: string,
+): Promise<{ readonly scripts: Record<string, string>; readonly hasDependencies: boolean }> {
+  const packageJsonPath = join(packageRoot, 'package.json');
+  const raw = await kaos.readText(packageJsonPath);
+  const parsed: unknown = JSON.parse(raw);
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { scripts: {}, hasDependencies: false };
+  }
+  const record = parsed as {
+    scripts?: unknown;
+    dependencies?: unknown;
+    devDependencies?: unknown;
+  };
+  const scripts: Record<string, string> = {};
+  if (record.scripts !== null && typeof record.scripts === 'object' && !Array.isArray(record.scripts)) {
+    for (const [key, value] of Object.entries(record.scripts as Record<string, unknown>)) {
+      if (typeof value === 'string' && value.length > 0) {
+        scripts[key] = value;
+      }
+    }
+  }
+  const hasDependencies =
+    hasNonEmptyMap(record.dependencies) || hasNonEmptyMap(record.devDependencies);
+  return { scripts, hasDependencies };
+}
+
+function hasNonEmptyMap(value: unknown): boolean {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.keys(value as Record<string, unknown>).length > 0;
+}
+
+async function runCommand(
+  kaos: Kaos,
+  cwd: string,
+  args: string[],
+  timeoutMs: number,
+  signal: AbortSignal,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  const scoped = kaos.withCwd(cwd);
+  let proc: KaosProcess;
+  try {
+    proc = await scoped.exec(...args);
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error), { cause: error });
+  }
+
+  try {
+    proc.stdin.end();
+  } catch {
+    /* best-effort */
+  }
+
+  const stdoutPromise = readStreamWithCap(proc.stdout, STREAM_CAP_BYTES);
+  const stderrPromise = readStreamWithCap(proc.stderr, STREAM_CAP_BYTES);
+
+  let timedOut = false;
+  let abortHandler: (() => void) | undefined;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    void proc.kill('SIGTERM');
+  }, timeoutMs);
+
+  if (signal.aborted) {
+    void proc.kill('SIGTERM');
+  } else {
+    abortHandler = () => {
+      void proc.kill('SIGTERM');
+    };
+    signal.addEventListener('abort', abortHandler, { once: true });
+  }
+
+  try {
+    const [exitCode, stdout, stderr] = await Promise.all([
+      proc.wait(),
+      stdoutPromise,
+      stderrPromise,
+    ]);
+    if (timedOut) {
+      return {
+        exitCode: exitCode === 0 ? 124 : exitCode,
+        stdout: stdout.text,
+        stderr: `${stderr.text}${stderr.text.length > 0 ? '\n' : ''}Command timed out after ${String(timeoutMs)}ms`,
+      };
+    }
+    if (signal.aborted) {
+      return {
+        exitCode: exitCode === 0 ? 130 : exitCode,
+        stdout: stdout.text,
+        stderr: `${stderr.text}${stderr.text.length > 0 ? '\n' : ''}Aborted`,
+      };
+    }
+    return { exitCode, stdout: stdout.text, stderr: stderr.text };
+  } finally {
+    clearTimeout(timeout);
+    if (abortHandler !== undefined) {
+      signal.removeEventListener('abort', abortHandler);
+    }
+    try {
+      await proc.dispose();
+    } catch {
+      /* best-effort */
+    }
+  }
+}
+
+function formatCombinedLog(stdout: string, stderr: string): string {
+  const parts: string[] = [];
+  if (stdout.length > 0) parts.push(stdout);
+  if (stderr.length > 0) parts.push(stderr);
+  return parts.join('\n');
+}
+
+async function readStreamWithCap(
+  stream: Readable,
+  maxBytes: number,
+): Promise<{ text: string; truncated: boolean }> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  let truncated = false;
+  try {
+    for await (const chunk of stream) {
+      const buf: Buffer =
+        typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : (chunk as Buffer);
+      if (truncated) continue;
+      if (total + buf.length > maxBytes) {
+        const remaining = maxBytes - total;
+        if (remaining > 0) chunks.push(buf.subarray(0, remaining));
+        total = maxBytes;
+        truncated = true;
+        continue;
+      }
+      chunks.push(buf);
+      total += buf.length;
+    }
+  } catch {
+    /* stream closed mid-read — return what we have */
+  }
+  const text = Buffer.concat(chunks).toString('utf8');
+  return {
+    text: truncated ? `${text}\n[stdout/stderr truncated at ${String(maxBytes)} bytes]` : text,
+    truncated,
+  };
+}
