@@ -1425,7 +1425,7 @@ export interface MergeJobToolOptions {
 export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSchema>> {
   readonly name = 'MergeJob' as const;
   readonly description =
-    'Land or hold a Job under Conductor trust rules (small∧no conflict∧checks green∧non-dangerous + summary). Never merge on green alone. On approve, records the verdict and offloads the actual merge to a kind=merge landing worker (no remote push); the interactive turn never runs git merge.';
+    'Land or hold a Job under Conductor trust rules (no conflict ∧ checks green ∧ no sensitive path ∧ summary ∧ your risk_judgment). Never merge on green alone. You judge the change (risky / sensitive_paths / wide_change) and pass it as risk_judgment — the tool applies it mechanically and holds as 판정 불가 when no judgment and no declaration exist. On approve, records the verdict and offloads the actual merge to a kind=merge landing worker (no remote push); the interactive turn never runs git merge.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(MergeJobInputSchema);
 
   constructor(
