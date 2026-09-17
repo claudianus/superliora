@@ -42,6 +42,11 @@ export interface BrowserUseCommandDeps {
    * `<installDir>/node_modules` when no source packageRoot exists.
    */
   readonly installSidecars?: () => SidecarInstallResult;
+  /**
+   * H1: readiness probe for the disk sidecars. Injectable so tests can pin
+   * "sidecars missing" without depending on the machine's node_modules layout.
+   */
+  readonly probeSidecars?: () => { readonly ready: boolean };
   readonly cwd?: () => string;
   /** Test seam for Aside CLI/mcp.json resolution. */
   readonly asideContext?: () => AsideSidecarContext;
@@ -134,7 +139,11 @@ export async function handleBrowserUseCommand(
   // reported ok — every launch then failed with "no cloakbrowser package found
   // on disk". Gate on the real precondition instead: do the sidecars resolve?
   const needsSidecarRepair = action === 'install' || action === 'update';
-  if (needsSidecarRepair && shouldRepairBrowserUseSidecars()) {
+  const shouldRepair =
+    resolved.probeSidecars === undefined
+      ? shouldRepairBrowserUseSidecars()
+      : !resolved.probeSidecars().ready;
+  if (needsSidecarRepair && shouldRepair) {
     const repair = (resolved.installSidecars ?? installBrowserUseSidecars)();
     if (repair.ok) {
       resolved.stdout.write(`${repair.detail}\n`);
@@ -238,6 +247,7 @@ function resolveDeps(deps: Partial<BrowserUseCommandDeps> | undefined): BrowserU
     update: deps?.update ?? updateBrowserUseRuntimes,
     info: deps?.info ?? infoBrowserUseRuntimes,
     installSidecars: deps?.installSidecars,
+    ...(deps?.probeSidecars === undefined ? {} : { probeSidecars: deps.probeSidecars }),
     cwd: deps?.cwd ?? (() => process.cwd()),
     asideContext: deps?.asideContext,
   };

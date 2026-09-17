@@ -71,6 +71,8 @@ describe('handleBrowserUseCommand packaged host', () => {
       stdout: { write: (chunk: string) => { stdout.push(chunk); return true; } },
       stderr: { write: () => true },
       packageRoot: () => undefined,
+      // H1: the gate is the disk-sidecar probe, not packageRoot.
+      probeSidecars: () => ({ ready: false }),
       install,
       installSidecars,
     })).resolves.toBe(0);
@@ -78,6 +80,35 @@ describe('handleBrowserUseCommand packaged host', () => {
     expect(installSidecars).toHaveBeenCalledTimes(1);
     expect(install).toHaveBeenCalledWith({ packageRoot: undefined, quiet: true });
     expect(stdout.join('')).toContain('sidecars installed');
+  });
+
+  // H1 regression: a stray package.json on the walk-up path (e.g.
+  // $HOME/package.json or ~/.local/package.json left by an npx/pnpm run) used to
+  // make tryGetHostPackageRoot() return a non-checkout directory, which skipped
+  // this repair while doctor kept passing — every launch then failed with
+  // "no cloakbrowser package found on disk".
+  it('skips sidecar repair when the sidecars already resolve from disk', async () => {
+    const install = vi.fn().mockResolvedValue({
+      ok: true,
+      code: 0,
+      stdout: 'browsers-ok',
+      stderr: '',
+      command: ['install'],
+    });
+    const installSidecars = vi.fn().mockReturnValue({ ok: true, detail: 'should not run' });
+
+    await expect(handleBrowserUseCommand('install', {
+      stdout: { write: () => true },
+      stderr: { write: () => true },
+      // Non-undefined packageRoot is exactly the case the old gate broke on.
+      packageRoot: () => '/Users/someone/.local',
+      probeSidecars: () => ({ ready: true }),
+      install,
+      installSidecars,
+    })).resolves.toBe(0);
+
+    expect(installSidecars).not.toHaveBeenCalled();
+    expect(install).toHaveBeenCalledTimes(1);
   });
 
   it('install continues with browser setup when sidecar repair fails', async () => {
@@ -95,6 +126,7 @@ describe('handleBrowserUseCommand packaged host', () => {
       stdout: { write: () => true },
       stderr: { write: (chunk: string) => { stderr.push(chunk); return true; } },
       packageRoot: () => undefined,
+      probeSidecars: () => ({ ready: false }),
       install,
       installSidecars,
     })).resolves.toBe(0);
