@@ -17,6 +17,10 @@ import {
   reportJobWorkerProgress,
   reportJobWorkerStalled,
 } from '../../tools/builtin/job/job-worker-ledger-bridge';
+import {
+  markActiveChildFinishing,
+  recordActiveChildFinishingProgress,
+} from './subagent-run-lifecycle';
 import { TODO_STORE_KEY, type TodoItem } from '../../tools/builtin/state/todo-list';
 import { snapshotChildWork } from './subagent-result-contract';
 import { writeSubagentCheckpoint } from './subagent-checkpoint';
@@ -166,6 +170,18 @@ export function startProgressReporter(
         name: 'subagent-finishing',
       });
       persistJobWorkerPreAbortHandoff(childId, { reason: 'finishing' });
+      // H8: announce the phase so the lifecycle arms the finite finishing cap.
+      markActiveChildFinishing(childId);
+    }
+    if (finishingNotified) {
+      // H8: keep the cap's progress snapshot current, so an interrupted
+      // finishing phase reports how far it got instead of dying empty.
+      recordActiveChildFinishingProgress(childId, {
+        toolCount: stats.toolCount,
+        ...(stats.lastTool !== undefined ? { lastTool: stats.lastTool } : {}),
+        ...(stats.lastTarget !== undefined ? { lastTarget: stats.lastTarget } : {}),
+        elapsedMs,
+      });
     }
     if (stats.toolCount !== lastToolCount) {
       lastToolCount = stats.toolCount;

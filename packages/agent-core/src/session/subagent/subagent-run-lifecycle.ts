@@ -33,9 +33,11 @@ import {
 } from '../../utils/abort';
 import {
   SUBAGENT_MAX_TOKENS_ERROR,
+  SubagentFinishingCapError,
   SubagentDeadlineError,
   SubagentMaxTokensError,
   resolveSubagentDeadlineMs,
+  type SubagentFinishingProgress,
 } from './subagent-errors';
 
 export type ActiveChildEntry = {
@@ -55,6 +57,8 @@ export type ActiveChildEntry = {
    * Wired by callers that own the child agent; deadline resets consult it.
    */
   markToolProgress?: () => void;
+  /** H8: announce the finishing phase — arms the finite finishing cap. */
+  markFinishing?: () => void;
 };
 
 /** Minimal options shape required by {@link runWithActiveChild}. */
@@ -66,6 +70,21 @@ export type RunWithActiveChildOptions = {
   readonly deadlineGraceOnceMs?: number;
   /** Called once when the finishing grace is granted. */
   readonly notifyDeadlineGrace?: () => void;
+  /**
+   * Finite cap on the finishing phase (H8). When the child announces it has
+   * entered finishing (`notifyFinishingStart`), the run gets at most this long
+   * to land commits and a summary; past it the run ends with a
+   * {@link SubagentFinishingCapError} carrying the progress snapshot instead of
+   * silently consuming wall-clock until the deadline. `0`/undefined disables it.
+   */
+  readonly finishingCapMs?: number;
+  /** Called once when the child enters the finishing phase (starts the cap). */
+  readonly notifyFinishingStart?: () => void;
+  /**
+   * Progress snapshot read when the finishing cap is breached, so the returned
+   * error states how far the run had come (last tool/target, tool count).
+   */
+  readonly readFinishingProgress?: () => SubagentFinishingProgress | undefined;
 };
 
 /**
@@ -79,14 +98,47 @@ const deadlineControlsByChildId = new Map<
     readonly resume: () => void;
     readonly reset: (ms: number) => boolean;
     readonly markToolProgress: () => void;
+    readonly markFinishing: () => void;
   }
 >();
+
+/**
+ * H8: progress snapshot per live child, recorded by the finishing-phase
+ * telemetry. The finishing cap embeds this in the returned error so an
+ * interrupted run reports how far it got instead of dying empty.
+ */
+const finishingProgressByChildId = new Map<string, SubagentFinishingProgress>();
+
+/**
+ * Record the finishing-phase progress snapshot for a live child (H8). Called
+ * by the telemetry reporter; the snapshot rides the finishing-cap error.
+ */
+export function recordActiveChildFinishingProgress(
+  childId: string,
+  progress: SubagentFinishingProgress,
+): boolean {
+  if (!deadlineControlsByChildId.has(childId)) return false;
+  finishingProgressByChildId.set(childId, progress);
+  return true;
+}
 
 /** Record observable tool progress for a live child (deadline-reset gate). */
 export function markActiveChildToolProgress(childId: string): boolean {
   const control = deadlineControlsByChildId.get(childId);
   if (control === undefined) return false;
   control.markToolProgress();
+  return true;
+}
+
+/**
+ * Announce that a live child entered its finishing phase (H8) — arms the
+ * finite finishing cap. Returns false when the child has no armed cap, so the
+ * caller can skip wiring the signal.
+ */
+export function markActiveChildFinishing(childId: string): boolean {
+  const control = deadlineControlsByChildId.get(childId);
+  if (control === undefined) return false;
+  control.markFinishing();
   return true;
 }
 
@@ -212,6 +264,66 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
   let deadlineStartedAt = Date.now();
   let deadlinePaused = false;
 
+  // H8: finite cap on the finishing phase. The wall-clock deadline stays the
+  // outer bound; this inner gate ends a finishing phase that stops making
+  // progress, so the run returns a diagnostic (interrupted reason + progress
+  // snapshot + resume handoff) instead of dying silently at the deadline with
+  // an empty report. Unref'd like the deadline timer — telemetry never keeps
+  // the event loop alive.
+  const finishingCapMs = options.finishingCapMs ?? 0;
+  let finishingIdleTimer: ReturnType<typeof setTimeout> | undefined;
+  let finishingStartedAt: number | undefined;
+  let finishingLastProgressAt: number | undefined;
+  const clearFinishingIdleTimer = (): void => {
+    if (finishingIdleTimer !== undefined) {
+      clearTimeout(finishingIdleTimer);
+      finishingIdleTimer = undefined;
+    }
+  };
+  const finishWithFinishingCap = (): void => {
+    if (deadlineError !== undefined) return;
+    const progress = options.readFinishingProgress?.() ?? finishingProgressByChildId.get(childId);
+    deadlineError = new SubagentFinishingCapError({
+      finishingCapMs,
+      finishingMs: Date.now() - (finishingStartedAt ?? Date.now()),
+      deadlineMs,
+      ...(progress !== undefined ? { progress } : {}),
+    });
+    controller.abort(deadlineError);
+  };
+  /**
+   * Arm the finishing cap. The cap is an *idle* bound inside the finishing
+   * phase, matching the observed failure exactly: the worker entered
+   * finishing, tool activity stopped for 3-7 minutes, and the run was then
+   * guillotined at the deadline with no report. A finishing run that keeps
+   * producing tool progress is still bounded by the wall-clock deadline, so
+   * resetting on progress never makes the run unbounded.
+   */
+  const armFinishingIdleTimer = (): void => {
+    clearFinishingIdleTimer();
+    finishingIdleTimer = setTimeout(() => {
+      finishWithFinishingCap();
+    }, finishingCapMs);
+    finishingIdleTimer.unref?.();
+  };
+  const enterFinishing = (): void => {
+    if (finishingCapMs <= 0 || finishingStartedAt !== undefined) return;
+    finishingStartedAt = Date.now();
+    finishingLastProgressAt = finishingStartedAt;
+    try {
+      options.notifyFinishingStart?.();
+    } catch {
+      // Notice is best-effort; the cap itself is already armed below.
+    }
+    armFinishingIdleTimer();
+  };
+  /** Finishing + tool progress: the cap is finite, not idle-only. */
+  const noteProgressDuringFinishing = (): void => {
+    if (finishingStartedAt === undefined || deadlineError !== undefined) return;
+    finishingLastProgressAt = Date.now();
+    armFinishingIdleTimer();
+  };
+
   const clearDeadlineTimer = (): void => {
     if (deadlineTimer !== undefined) {
       clearTimeout(deadlineTimer);
@@ -303,7 +415,11 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
     },
     markToolProgress: () => {
       toolProgressMark += 1;
+      noteProgressDuringFinishing();
     },
+    // H8: the child announced it reached its finishing phase — start the
+    // finite cap so a silent finishing phase ends with a diagnostic result.
+    markFinishing: enterFinishing,
   };
   activeChildren.set(childId, entry);
   deadlineControlsByChildId.set(childId, {
@@ -312,7 +428,9 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
     reset: resetDeadlineWithProgress,
     markToolProgress: () => {
       toolProgressMark += 1;
+      noteProgressDuringFinishing();
     },
+    markFinishing: enterFinishing,
   });
 
   if (deadlineMs > 0) {
@@ -340,6 +458,8 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
     })
     .finally(() => {
       clearDeadlineTimer();
+      clearFinishingIdleTimer();
+      finishingProgressByChildId.delete(childId);
       deadlineControlsByChildId.delete(childId);
       unlinkAbortSignal();
       activeChildren.delete(childId);

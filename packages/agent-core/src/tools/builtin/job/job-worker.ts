@@ -30,6 +30,7 @@ import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   isSubagentDeadlineError,
   JOB_WORKER_DEADLINE_GRACE_MS,
+  JOB_WORKER_FINISHING_CAP_MS,
   resetActiveChildDeadline,
   resolveJobWorkerLaunchTimeoutMs,
 } from '../../../session/subagent/subagent-host';
@@ -693,6 +694,13 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     // finish is not guillotined at the line (snapshot-on-abort stays as the
     // backstop).
     deadlineGraceOnceMs: JOB_WORKER_DEADLINE_GRACE_MS,
+    // H8: finite cap on the finishing phase. Observed failure: the worker
+    // entered `finishing`, tool activity stopped for 3-7 minutes, and the run
+    // was killed at the 30m wall-clock with `reason: deadline`, no report, and
+    // uncommitted work. The cap ends such a silent finishing phase early with
+    // a diagnostic result (interrupted reason + progress + resume handoff);
+    // the worktree snapshot below stays as the dirty-tree backstop.
+    finishingCapMs: JOB_WORKER_FINISHING_CAP_MS,
     notifyDeadlineGrace: () => {
       try {
         const current = getJob(input.store, job.id) ?? job;
