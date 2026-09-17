@@ -54,8 +54,9 @@ export class LocalResearchCache {
 
   constructor(path: string, options: LocalResearchCacheOptions = {}) {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-    const require = createRequire(import.meta.url);
-    const sqlite = require('node:sqlite') as SqliteModule;
+    // H5: keep the binding off the name `require` (esbuild CJS TDZ shim).
+    const requireFromHere = createRequire(import.meta.url);
+    const sqlite = requireFromHere('node:sqlite') as SqliteModule;
     this.db = trackSqliteDatabase(path, new sqlite.DatabaseSync(path));
     this.maxRows = clampInt(options.maxRows ?? DEFAULT_LOCAL_RESEARCH_CACHE_MAX_ROWS, 1, 10_000);
     this.db.exec(`

@@ -12,8 +12,11 @@ let cachedParseSync: OxcParseSync | undefined;
 
 function loadParseSync(): OxcParseSync {
   if (!cachedParseSync) {
-    const require = createRequire(import.meta.url);
-    const mod = require('oxc-parser') as { parseSync: OxcParseSync };
+    // H5: naming this binding `require` makes esbuild's CJS output emit a
+    // self-referential `createRequire(require("url")…)` and throw
+    // "Cannot access 'require' before initialization" in the SEA bundle.
+    const requireFromHere = createRequire(import.meta.url);
+    const mod = requireFromHere('oxc-parser') as { parseSync: OxcParseSync };
     cachedParseSync = mod.parseSync;
   }
   return cachedParseSync;

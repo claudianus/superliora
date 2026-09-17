@@ -57,7 +57,11 @@ import {
   summarizeJobStrip,
 } from './job-runtime';
 import { dispatchMergeLand, type LandJobToMainInput } from './job-land';
-import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
+import {
+  evaluateMergeTrust,
+  mergeRiskAssessmentFromClaim,
+  mergeTrustInputFromLedger,
+} from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
 import {
   dispatchPushRemote,
@@ -418,11 +422,23 @@ const MergeJobInputSchema = z
       .boolean()
       .optional()
       .describe('When true, treat as explicit user approval (large/risky still OK if approve).'),
+    risk_judgment: z
+      .object({
+        risky: z.boolean(),
+        sensitive_paths: z.array(z.string()),
+        wide_change: z.boolean(),
+        confidence: z.number().min(0).max(1),
+        rationale: z.string().trim().min(1),
+      })
+      .optional()
+      .describe(
+        'Your judgment of this change (H6-2): is it risky, which reported paths are sensitive, is it too wide to land unattended. Judge the effect, not the filename. Omit only when a project declaration covers it — a missing judgment holds as 판정 불가, it never passes silently.',
+      ),
     paths: z
       .array(z.string())
       .optional()
       .describe(
-        'Extra paths to weigh; unioned with the files the worker changed. Dangerous paths block meta auto.',
+        'Extra paths to weigh; unioned with the files the worker changed. Declared sensitive paths block meta auto.',
       ),
   })
   .strict();
@@ -1409,7 +1425,7 @@ export interface MergeJobToolOptions {
 export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSchema>> {
   readonly name = 'MergeJob' as const;
   readonly description =
-    'Land or hold a Job under Conductor trust rules (small∧no conflict∧checks green∧non-dangerous + summary). Never merge on green alone. On approve, records the verdict and offloads the actual merge to a kind=merge landing worker (no remote push); the interactive turn never runs git merge.';
+    'Land or hold a Job under Conductor trust rules (no conflict ∧ checks green ∧ no sensitive path ∧ summary ∧ your risk_judgment). Never merge on green alone. You judge the change (risky / sensitive_paths / wide_change) and pass it as risk_judgment — the tool applies it mechanically and holds as 판정 불가 when no judgment and no declaration exist. On approve, records the verdict and offloads the actual merge to a kind=merge landing worker (no remote push); the interactive turn never runs git merge.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(MergeJobInputSchema);
 
   constructor(
@@ -1458,6 +1474,9 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
         // force_user_confirm; waive size/danger holds inside trust instead so
         // conflict / ungreen / visual still block.
         const autoPermission = this.agent?.permission?.mode === 'auto';
+        // H6-2: the conductor's `risk_judgment` (LLM) decides risky/wide; this
+        // tool only applies it mechanically. No LLM await here — the merge
+        // verdict keeps its 250ms ACK deadline.
         const trust = evaluateMergeTrust({
           ...mergeTrustInputFromLedger({
             job: existing,
@@ -1473,6 +1492,8 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
               forceUserConfirm: !autoPermission && a.force_user_confirm === true,
             },
           }),
+          riskAssessment: mergeRiskAssessmentFromClaim(a.risk_judgment),
+          ...(a.risk_judgment === undefined ? {} : { riskTitle: existing.title, riskJobKind: existing.kind }),
           ...(autoPermission ? { waiveUserConfirmHolds: true } : {}),
         });
 

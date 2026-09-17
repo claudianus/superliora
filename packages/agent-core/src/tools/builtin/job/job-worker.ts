@@ -30,12 +30,14 @@ import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   isSubagentDeadlineError,
   JOB_WORKER_DEADLINE_GRACE_MS,
+  JOB_WORKER_FINISHING_CAP_MS,
   resetActiveChildDeadline,
   resolveJobWorkerLaunchTimeoutMs,
 } from '../../../session/subagent/subagent-host';
 import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
 import { renderFrictionSection } from '../../../session/subagent/subagent-friction';
 import {
+  renderVerificationSlots,
   UNVERIFIED_SUMMARY_PREFIX,
   verificationIsUnverified,
 } from '../../../session/subagent/subagent-result-contract';
@@ -692,6 +694,13 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     // finish is not guillotined at the line (snapshot-on-abort stays as the
     // backstop).
     deadlineGraceOnceMs: JOB_WORKER_DEADLINE_GRACE_MS,
+    // H8: finite cap on the finishing phase. Observed failure: the worker
+    // entered `finishing`, tool activity stopped for 3-7 minutes, and the run
+    // was killed at the 30m wall-clock with `reason: deadline`, no report, and
+    // uncommitted work. The cap ends such a silent finishing phase early with
+    // a diagnostic result (interrupted reason + progress + resume handoff);
+    // the worktree snapshot below stays as the dirty-tree backstop.
+    finishingCapMs: JOB_WORKER_FINISHING_CAP_MS,
     notifyDeadlineGrace: () => {
       try {
         const current = getJob(input.store, job.id) ?? job;
@@ -903,13 +912,13 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             ? `{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","standards":{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","findings":[]},"spec":{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","findings":[]}}\n\n`
             : '';
         const baseSummary = verificationFailed
-          ? `verification failed — ${summary}`
+          ? `verification failed — ${renderVerificationSlots(contract?.verification)} — ${summary}`
           : verifyMissingStructured
             ? `structured verifyVerdict missing — ${summary}`
             : goalStopped
               ? `goal ${completion.goalStatus}${goalReason} — ${summary}`
               : unverified
-                ? `${UNVERIFIED_SUMMARY_PREFIX}${summary}`
+                ? `${UNVERIFIED_SUMMARY_PREFIX}${renderVerificationSlots(contract?.verification)} — ${summary}`
                 : `${verifyStampLine}${summary}`;
         // Feed worker struggle stats into Conductor inbox so auto-refine sees them.
         const frictionBlock =
@@ -950,6 +959,9 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             commitNote,
             hostBrowserEinval ? 'host_browser=einval' : undefined,
             playableLine,
+            // H3: always record which slots passed and which did not, so no
+            // summary word ("failed" / "unverified") hides a green check run.
+            contract !== undefined ? renderVerificationSlots(contract.verification) : undefined,
             verificationFailed
               ? 'worker: completed but verification failed'
               : verifyMissingStructured

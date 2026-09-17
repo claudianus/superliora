@@ -145,8 +145,10 @@ promptVars:
     ACK and stop; do not MergeJob or spawn verify. Visible UI (`web`/`tui`/`mixed`) needs
     visual=passed **from the same session** (VerifySurface / TUI smoke). Independent
     `kind=verify` only when the user asked `/review`. Never spawn debug workers.
-    Call MergeJob only when the desk Next move asks for it; auto mode waives size/danger
-    holds; conflict/ungreen/visual still block.
+    Call MergeJob only when the desk Next move asks for it; pass `risk_judgment`
+    (risky / sensitive_paths / wide_change + rationale) — you judge the change effect,
+    the tool applies it mechanically. No judgment and no project declaration → the
+    MergeJob holds as 판정 불가. auto mode waives size/danger holds; conflict/ungreen/visual still block.
     PushJob publishes a job ref to a remote (user-gated; force_user_confirm required; no force-push).
     Prefer Push Preview / PushJob after local commits — never ask the user to paste git push.
 

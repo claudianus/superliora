@@ -463,11 +463,22 @@ describe('job lanes + mission bind', () => {
 
 describe('merge trust + worker guards + warm pool', () => {
   it('evaluates merge trust rules', async () => {
-    const { evaluateMergeTrust, pathIsDangerousForMerge } = await import(
+    const { evaluateMergeTrust, declaredSensitivePaths } = await import(
       '../../src/tools/builtin/job/job-merge-trust'
     );
-    expect(pathIsDangerousForMerge('.env.local')).toBe(true);
-    expect(pathIsDangerousForMerge('src/foo.ts')).toBe(false);
+    // H6-2: sensitivity is declared or judged — never inferred from the path string.
+    expect(declaredSensitivePaths(['.env.local', 'src/foo.ts'], ['.env.local'])).toEqual([
+      '.env.local',
+    ]);
+    expect(declaredSensitivePaths(['.env.local', 'src/foo.ts'], undefined)).toEqual([]);
+
+    const reviewed = {
+      risky: false,
+      sensitivePaths: [],
+      wideChange: false,
+      confidence: 0.9,
+      rationale: 'reviewed small change',
+    } as const;
 
     expect(
       evaluateMergeTrust({
@@ -477,6 +488,7 @@ describe('merge trust + worker guards + warm pool', () => {
         diffLines: 40,
         hasSummary: true,
         paths: ['src/a.ts'],
+        riskAssessment: reviewed,
       }).ok,
     ).toBe(true);
 
@@ -488,6 +500,7 @@ describe('merge trust + worker guards + warm pool', () => {
         diffLines: 40,
         hasSummary: false,
         paths: ['src/a.ts'],
+        riskAssessment: reviewed,
       }).ok,
     ).toBe(false);
 
@@ -499,6 +512,13 @@ describe('merge trust + worker guards + warm pool', () => {
         diffLines: 40,
         hasSummary: true,
         paths: ['.env'],
+        riskAssessment: {
+          risky: true,
+          sensitivePaths: ['.env'],
+          wideChange: false,
+          confidence: 0.9,
+          rationale: 'env file',
+        },
       }).ok,
     ).toBe(false);
 
@@ -558,6 +578,13 @@ describe('merge trust + worker guards + warm pool', () => {
       diff_lines: 10,
       summary: 'small safe change',
       paths: ['src/x.ts'],
+      risk_judgment: {
+        risky: false,
+        sensitive_paths: [],
+        wide_change: false,
+        confidence: 0.9,
+        rationale: 'one-file source edit',
+      },
     });
     if (okExec.isError) throw new Error('resolve ok');
     const ok = await okExec.execute({
@@ -937,6 +964,68 @@ describe('worker context handoff', () => {
     expect(job.resultSummary).toContain('verification failed');
     expect(job.resultSummary).toContain('implemented the fix');
     expect(job.resultContract?.files_changed).toEqual(['src/auth/session.ts']);
+    // H3: passing slots stay legible next to the failing one — the ledger must
+    // not collapse a green check run into a bare `verification failed`.
+    expect(job.resultSummary).toContain('test=FAILED');
+    expect(job.resultSummary).toContain('typecheck=pass');
+    expect(job.resultSummary).toMatch(/visual=(unavailable\([^)]*\)|n\/a|FAILED|pass)/);
+  });
+
+  it('H3: records why visual could not run instead of folding it into the failure', async () => {
+    const store = memoryStore();
+    const contract = {
+      agent_id: 'agent_h3',
+      profile: 'coder',
+      deviations: [],
+      summary: 'implemented the fix',
+      files_changed: ['src/auth/session.ts'],
+      verification: {
+        tests: 'passed',
+        typecheck: 'passed',
+        lint: 'not_run',
+        visual: 'skipped_host',
+        host_browser: 'einval',
+      },
+      verification_failed: true,
+    };
+    let resolveCompletion!: (value: { result: string; contract: typeof contract }) => void;
+    const completion = new Promise<{ result: string; contract: typeof contract }>((resolve) => {
+      resolveCompletion = resolve;
+    });
+    const host = {
+      spawn: async (options: { prompt: string; profileName?: string }) => ({
+        agentId: 'agent_h3',
+        profileName: options.profileName ?? 'coder',
+        resumed: false,
+        completion,
+      }),
+    };
+    const agent = { subagentHost: host, config: { cwd: undefined } } as never;
+    const tool = new JobCreateTool(store, agent);
+    const exec = tool.resolveExecution({
+      title: 'visual-unavailable closeout',
+      kind: 'implement',
+      surface_kind: 'web',
+      success_criteria: ['focused checks pass for the change'],
+    });
+    if (exec.isError) throw new Error('resolve failed');
+    await exec.execute({
+      turnId: 't',
+      toolCallId: 'c_h3',
+      signal: new AbortController().signal,
+    });
+    resolveCompletion({ result: 'done', contract });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const job = listJobs(store)[0];
+    if (!job) throw new Error('job missing');
+    // Green mechanical slots survive.
+    expect(job.resultSummary).toContain('test=pass');
+    expect(job.resultSummary).toContain('typecheck=pass');
+    // Visual says *why* it could not run rather than reading as a product fail.
+    expect(job.resultSummary).toContain('visual=unavailable(skipped_host, host_browser=einval)');
+    expect(job.notes).toContain('verification: check=pass test=pass');
+    expect(job.notes).toContain('visual=unavailable(skipped_host, host_browser=einval)');
   });
 
   it('propagates structured contract facts into child prior findings', () => {
@@ -1117,9 +1206,10 @@ describe('conductor non-blocking job path (regression)', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(getJob(store, jobId)?.status).toBe('done');
     // No result contract came back, so the completion carries no verification
-    // evidence and the summary says so (P1-5).
+    // evidence, and the summary says so *with every slot named* (P1-5 + H3):
+    // the reader must not have to guess which check was missing.
     expect(getJob(store, jobId)?.resultSummary).toBe(
-      'unverified (checks did not run) — worker summary',
+      'unverified (checks did not run) — verification: check=not_run test=not_run typecheck=not_run lint=not_run visual=not_run(no_contract) — worker summary',
     );
     const unread = listUnreadJobInbox(store);
     // Implement done → review-chain enqueue may add sibling inbox events.

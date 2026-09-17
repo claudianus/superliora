@@ -6,6 +6,7 @@ import {
   deriveVerificationPackageDir,
   formatSubagentResultEnvelope,
   renderSubagentCompletionText,
+  renderVerificationSlots,
   verificationIsGreen,
   verdictFromCheckOutcomes,
   VERIFICATION_NOT_RUN,
@@ -124,6 +125,57 @@ describe('subagent-result-contract — deriveVerificationPackageDir', () => {
       deriveVerificationPackageDir(['packages/agent-core/a.ts', 'packages/kaos/b.ts']),
     ).toBeUndefined();
     expect(deriveVerificationPackageDir(['packages/agent-core/a.ts', 'README.md'])).toBeUndefined();
+  });
+});
+
+describe('subagent-result-contract — renderVerificationSlots (H3)', () => {
+  it('keeps green checks green next to a red visual slot', () => {
+    const line = renderVerificationSlots({
+      tests: 'passed',
+      typecheck: 'passed',
+      lint: 'not_applicable',
+      visual: 'failed',
+    });
+    expect(line).toBe(
+      'verification: check=pass test=pass typecheck=pass lint=n/a visual=FAILED',
+    );
+    // The whole point of H3: green slots survive next to the red one.
+    expect(line).toContain('test=pass');
+    expect(line).toContain('visual=FAILED');
+  });
+
+  it('reports visual as unavailable with its cause, not as a failure', () => {
+    const skipped = renderVerificationSlots({
+      tests: 'passed',
+      typecheck: 'not_applicable',
+      lint: 'not_applicable',
+      visual: 'skipped_host',
+      host_browser: 'einval',
+    });
+    expect(skipped).toContain('visual=unavailable(skipped_host, host_browser=einval)');
+    expect(skipped).not.toContain('visual=FAILED');
+
+    const notRun = renderVerificationSlots({
+      tests: 'passed',
+      typecheck: 'not_run',
+      lint: 'not_run',
+      visual: 'not_run',
+    });
+    expect(notRun).toContain('visual=unavailable(not_run)');
+  });
+
+  it('labels missing slots honestly instead of guessing', () => {
+    expect(renderVerificationSlots(undefined)).toBe(
+      'verification: check=not_run test=not_run typecheck=not_run lint=not_run visual=not_run(no_contract)',
+    );
+    expect(
+      renderVerificationSlots({
+        tests: 'failed',
+        typecheck: 'not_run',
+        lint: 'not_run',
+        visual: 'not_applicable',
+      }),
+    ).toContain('test=FAILED');
   });
 });
 

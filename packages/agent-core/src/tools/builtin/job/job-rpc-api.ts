@@ -28,7 +28,11 @@ import {
 } from './job-ledger';
 import { dispatchMergeLand } from './job-land';
 import { jobMayLandToMain } from './job-task-track';
-import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
+import {
+  evaluateMergeTrust,
+  mergeRiskAssessmentFromClaim,
+  mergeTrustInputFromLedger,
+} from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
 import { dispatchPushRemote, evaluatePushTrust, resolvePushRemoteRef } from './job-push';
 import { synthesizeSuccessCriteria } from './job-brief';
@@ -123,6 +127,17 @@ export interface JobMergeInput {
   readonly checksGreen?: boolean;
   readonly forceUserConfirm?: boolean;
   readonly paths?: readonly string[];
+  /**
+   * LLM judgment of the change (H6-2): risky / sensitive paths / too wide.
+   * Absent → the trust verdict holds as 판정 불가, never a silent pass.
+   */
+  readonly riskJudgment?: {
+    readonly risky: boolean;
+    readonly sensitive_paths: readonly string[];
+    readonly wide_change: boolean;
+    readonly confidence: number;
+    readonly rationale: string;
+  };
 }
 
 export interface JobMergeResult {
@@ -466,6 +481,9 @@ export async function jobMerge(
   }
 
   const autoPermission = agent?.permission?.mode === 'auto';
+  // H6-2: the conductor's risk_judgment (LLM) decides risky/wide; this path
+  // only applies it mechanically. No LLM await — the merge verdict keeps its
+  // ACK deadline, and a missing judgment holds instead of passing.
   const trust = evaluateMergeTrust({
     ...mergeTrustInputFromLedger({
       job: existing,
@@ -480,6 +498,7 @@ export async function jobMerge(
         forceUserConfirm: !autoPermission && input.forceUserConfirm === true,
       },
     }),
+    riskAssessment: mergeRiskAssessmentFromClaim(input.riskJudgment),
     ...(autoPermission ? { waiveUserConfirmHolds: true } : {}),
   });
 

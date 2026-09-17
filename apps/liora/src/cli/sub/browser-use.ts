@@ -13,6 +13,7 @@ import {
   installBrowserUseSidecars,
   type SidecarInstallResult,
 } from '#/utils/browser-use/sidecar-install';
+import { probeBrowserUseSidecars } from '#/utils/browser-use/sidecar-status';
 import {
   AsideCliMissingError,
   disableAsideSidecar,
@@ -41,6 +42,11 @@ export interface BrowserUseCommandDeps {
    * `<installDir>/node_modules` when no source packageRoot exists.
    */
   readonly installSidecars?: () => SidecarInstallResult;
+  /**
+   * H1: readiness probe for the disk sidecars. Injectable so tests can pin
+   * "sidecars missing" without depending on the machine's node_modules layout.
+   */
+  readonly probeSidecars?: () => { readonly ready: boolean };
   readonly cwd?: () => string;
   /** Test seam for Aside CLI/mcp.json resolution. */
   readonly asideContext?: () => AsideSidecarContext;
@@ -124,7 +130,20 @@ export async function handleBrowserUseCommand(
   // npx and install/update can repair the node_modules sidecars — never gate
   // the command on source-tree presence (the old "restart in source mode"
   // short-circuit left VerifySurface dead with no repair path).
-  if ((action === 'install' || action === 'update') && packageRoot === undefined) {
+  //
+  // H1: the gate must not be "packageRoot is undefined". A stray package.json
+  // anywhere on the walk-up path (e.g. $HOME/package.json or
+  // ~/.local/package.json left by an npx/pnpm run) makes tryGetHostPackageRoot
+  // return a directory that is NOT a source checkout, so `browser-use install`
+  // silently skipped the sidecar repair while `doctor` (npx-based probe) still
+  // reported ok — every launch then failed with "no cloakbrowser package found
+  // on disk". Gate on the real precondition instead: do the sidecars resolve?
+  const needsSidecarRepair = action === 'install' || action === 'update';
+  const shouldRepair =
+    resolved.probeSidecars === undefined
+      ? shouldRepairBrowserUseSidecars()
+      : !resolved.probeSidecars().ready;
+  if (needsSidecarRepair && shouldRepair) {
     const repair = (resolved.installSidecars ?? installBrowserUseSidecars)();
     if (repair.ok) {
       resolved.stdout.write(`${repair.detail}\n`);
@@ -228,9 +247,32 @@ function resolveDeps(deps: Partial<BrowserUseCommandDeps> | undefined): BrowserU
     update: deps?.update ?? updateBrowserUseRuntimes,
     info: deps?.info ?? infoBrowserUseRuntimes,
     installSidecars: deps?.installSidecars,
+    ...(deps?.probeSidecars === undefined ? {} : { probeSidecars: deps.probeSidecars }),
     cwd: deps?.cwd ?? (() => process.cwd()),
     asideContext: deps?.asideContext,
   };
+}
+
+/**
+ * H1: decide whether the toolchain sidecars actually need repairing.
+ *
+ * The old gate (`packageRoot === undefined`) skipped the repair whenever any
+ * `package.json` was found while walking up from the binary — including a
+ * stray `$HOME/package.json` or `~/.local/package.json` left by an npx/pnpm
+ * run. `doctor` still passed (it probes through npx) while every launch failed
+ * with "no cloakbrowser package found on disk".
+ *
+ * The real precondition is the one the launch path checks: do cloakbrowser and
+ * playwright-core resolve to files on disk?
+ */
+function shouldRepairBrowserUseSidecars(): boolean {
+  try {
+    return !probeBrowserUseSidecars().ready;
+  } catch {
+    // Probe failure must repair, not silently skip (H2-adjacent: never let an
+    // error path look like a pass).
+    return true;
+  }
 }
 
 function writeResultOutput(deps: BrowserUseCommandDeps, result: SetupCommandResult): void {

@@ -98,6 +98,16 @@ export interface RunSubagentOptions {
   /** Called once when the grace is granted (conductor-visible job notice). */
   readonly notifyDeadlineGrace?: () => void;
   /**
+   * Finite cap on the finishing phase (H8). Once the worker announces
+   * finishing mode (`subagent-telemetry`), the phase gets at most this long
+   * without tool progress; past it the run ends with a
+   * {@link SubagentFinishingCapError} that carries the interrupted reason and
+   * the progress snapshot, instead of silently burning wall-clock until the
+   * deadline and returning nothing. `0`/undefined leaves the phase bounded
+   * only by the wall-clock deadline.
+   */
+  readonly finishingCapMs?: number;
+  /**
    * Permission mode for the spawned child. Job workers run yolo inside their
    * isolated worktree so a forgotten approval cannot stall an autonomous job;
    * tools with their own gates (PushJob force_user_confirm) stay gated.

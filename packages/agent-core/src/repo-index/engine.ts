@@ -222,13 +222,18 @@ function probeZoektSidecarLive(env: NodeJS.ProcessEnv): ZoektSidecarProbe {
 }
 
 function probeSqliteDriverLive(): SqliteDriverProbe {
-  const require = createRequire(import.meta.url);
+  // H5: do NOT bind the name `require` here — esbuild's CJS bundle rewrites the
+  // inner `require("url")` of `createRequire(import.meta.url)` into a
+  // self-referencing call and dies with
+  // "Cannot access 'require' before initialization" in the SEA build, which
+  // made every RepoQuery mode=content call return results: 0.
+  const requireFromHere = createRequire(import.meta.url);
   try {
-    require('node:sqlite');
+    requireFromHere('node:sqlite');
     return { available: true, driver: 'node:sqlite', reason: null };
   } catch (nodeError) {
     try {
-      require('better-sqlite3');
+      requireFromHere('better-sqlite3');
       return { available: true, driver: 'better-sqlite3', reason: null };
     } catch (betterError) {
       const nodeMsg = nodeError instanceof Error ? nodeError.message : String(nodeError);
@@ -381,8 +386,8 @@ function zoektPathMatchesScope(fileName: string, scope: string | undefined): boo
   if (scope === undefined || scope.length === 0) {
     return true;
   }
-  const normalizedScope = scope.replaceAll(/\\/g, '/').replace(/^\.\//, '').replaceAll(/%/g, '');
-  const normalizedFile = fileName.replaceAll(/\\/g, '/');
+  const normalizedScope = scope.replaceAll('\\', '/').replace(/^\.\//, '').replaceAll('%', '');
+  const normalizedFile = fileName.replaceAll('\\', '/');
   return normalizedFile.includes(normalizedScope);
 }
 

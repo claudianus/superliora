@@ -41,6 +41,15 @@ export const RunProjectChecksInputSchema = z.object({
     .describe(
       "Checks to run. Defaults to ['test','typecheck','build'] when omitted.",
     ),
+  scriptOverrides: z
+    .partialRecord(z.enum(PROJECT_CHECK_KINDS), z.string())
+    .optional()
+    .describe(
+      'H6 judgement slot: map a check kind to the package.json script name that actually verifies it, ' +
+        'e.g. {"typecheck":"type-check","lint":"eslint:ci"}. Use this only when the project declares a ' +
+        'script the harness cannot infer — there are no built-in name aliases. A name that is not declared ' +
+        'is recorded as undecidable (exit code 1), never silently passed.',
+    ),
   packageDir: z
     .string()
     .optional()
@@ -68,6 +77,13 @@ export interface ProjectCheckResult {
   readonly skipped?: boolean | undefined;
   readonly reason?: string | undefined;
   readonly logPreview?: string | undefined;
+  /**
+   * H6: where this check's command came from. `declared` = the project's own
+   * package.json script; `heuristic` = a caller-supplied judgement that the
+   * manifest confirms; `undecidable` = neither, recorded honestly instead of
+   * being passed silently.
+   */
+  readonly provenance?: ScriptSelectionProvenance | undefined;
 }
 
 export interface RunProjectChecksResult {
@@ -76,17 +92,37 @@ export interface RunProjectChecksResult {
   readonly summary: string;
 }
 
-/** Script name candidates per check kind, first match in package.json wins. */
-const SCRIPT_CANDIDATES: Record<ProjectCheckKind, readonly string[]> = {
-  test: ['test', 'test:unit', 'test:ci', 'vitest'],
-  // `build` often wraps `tsc --noEmit` (Vite/greenfield apps) when no dedicated typecheck script exists.
-  typecheck: ['typecheck', 'type-check', 'check:types', 'tsc', 'types', 'build'],
-  build: ['build', 'build:prod', 'compile'],
-  smoke: ['smoke', 'test:smoke', 'check:smoke'],
-  lint: ['lint', 'eslint', 'check:lint'],
+/**
+ * H6: how a check kind maps onto a script name.
+ *
+ * `declared` — the project declares a script under the canonical name, so no
+ * judgement is needed; the declaration is authoritative.
+ *
+ * `heuristic` — the name was chosen for the kind. Since H6 there is no built-in
+ * alias table: the only way a non-canonical name gets here is the caller's
+ * `scriptOverrides` judgement slot. The provenance is recorded so a ledger can
+ * tell a declared run from an interpreted one.
+ *
+ * `undecidable` — nothing usable was declared and no judgement was supplied.
+ * The check must be recorded as such; it never becomes a silent pass.
+ */
+export type ScriptSelectionProvenance = 'declared' | 'heuristic' | 'undecidable';
+
+export interface ScriptSelection {
+  readonly scriptName?: string | undefined;
+  readonly provenance: ScriptSelectionProvenance;
+  readonly reason?: string | undefined;
+}
+
+const CANONICAL_SCRIPT_NAME: Record<ProjectCheckKind, string> = {
+  test: 'test',
+  typecheck: 'typecheck',
+  build: 'build',
+  smoke: 'smoke',
+  lint: 'lint',
   // Static sites have no scripts by definition; the static fallback verifies
   // them directly when package.json is missing.
-  static: [],
+  static: '',
 };
 
 const DEFAULT_CHECKS: readonly ProjectCheckKind[] = ['test', 'typecheck', 'build'];
@@ -135,6 +171,7 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
       : rootCwd;
     const timeoutMs = clampTimeoutMs(args.timeoutMs);
     const kinds = args.checks ?? [...DEFAULT_CHECKS];
+    const overrides = args.scriptOverrides;
 
     let scripts: Record<string, string> = {};
     let noInstall = false;
@@ -175,21 +212,26 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
         continue;
       }
 
-      const scriptName = pickScript(kind, scripts);
-      if (scriptName === undefined) {
+      const selection = resolveCheckScript(kind, scripts, overrides);
+      if (selection.scriptName === undefined) {
+        const noInstallSkip =
+          noInstall && kind !== 'test' && kind !== 'static'
+            ? 0
+            : 1;
         results.push({
           name: kind,
-          exitCode: noInstall && kind !== 'test' && kind !== 'static' ? 0 : 1,
+          exitCode: noInstallSkip,
           durationMs: 0,
           skipped: true,
+          provenance: 'undecidable',
           reason:
-            noInstall && kind !== 'test' && kind !== 'static'
+            noInstallSkip === 0
               ? `no-install static site — skipped '${kind}' (no script, would pull pnpm/node_modules)`
-              : `No package.json script for '${kind}' (tried: ${SCRIPT_CANDIDATES[kind].join(', ')})`,
+              : `undecidable: ${selection.reason ?? `no script for '${kind}'`}`,
         });
         continue;
       }
-
+      const { scriptName } = selection;
       const scriptBody = scripts[scriptName];
       if (noInstall && kind !== 'test' && kind !== 'static') {
         results.push({
@@ -202,7 +244,17 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
         continue;
       }
 
-      const commandArgs = buildCommandArgs(packageDir, scriptName, scriptBody);
+      const declaredDir = declaredTestDir(scriptBody);
+      const declaredDirExists =
+        declaredDir === undefined
+          ? undefined
+          : await this.dirExists(packageRoot, declaredDir);
+      const commandArgs = buildCommandArgs(
+        packageDir,
+        scriptName,
+        scriptBody,
+        declaredDirExists,
+      );
       const commandLabel = commandArgs.join(' ');
       const started = Date.now();
       try {
@@ -218,6 +270,7 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
           command: commandLabel,
           logPreview: preview,
           logPath,
+          provenance: selection.provenance,
         });
       } catch (error) {
         const durationMs = Date.now() - started;
@@ -238,6 +291,22 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
       isError: payload.exitCode !== 0,
       output: JSON.stringify(payload, undefined, 2),
     };
+  }
+
+  /**
+   * H2: probe whether the script's declared test directory exists, without
+   * inventing one. `undefined` on probe failure keeps the declared arg rather
+   * than silently rewriting the command.
+   */
+  private async dirExists(packageRoot: string, relativeDir: string): Promise<boolean> {
+    try {
+      const absolute = resolve(packageRoot, relativeDir);
+      const stat = await this.kaos.stat(absolute);
+      // Kaos.StatResult exposes raw stMode — S_IFDIR bit, not an isDirectory helper.
+      return (stat.stMode & 0o170000) === 0o040000;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -309,14 +378,58 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
   }
 }
 
+export function resolveCheckScript(
+  kind: ProjectCheckKind,
+  scripts: Record<string, string>,
+  overrides?: Partial<Record<ProjectCheckKind, string>> | undefined,
+): ScriptSelection {
+  const canonical = CANONICAL_SCRIPT_NAME[kind];
+  // 1. Declaration wins. A project that declares the canonical script name is
+  //    taken at its word — no string matching, no alias table, no guesswork.
+  if (canonical.length === 0) {
+    return {
+      provenance: 'undecidable',
+      reason: `'${kind}' is not a package.json script kind`,
+    };
+  }
+  if (Object.hasOwn(scripts, canonical)) {
+    return { scriptName: canonical, provenance: 'declared' };
+  }
+  // 2. Judgement slot. An explicitly supplied name is honoured only when the
+  //    project actually declares it; a hallucinated name must not become a run.
+  const supplied = overrides?.[kind]?.trim();
+  if (supplied !== undefined && supplied.length > 0) {
+    if (Object.hasOwn(scripts, supplied)) {
+      return { scriptName: supplied, provenance: 'heuristic' };
+    }
+    return {
+      provenance: 'undecidable',
+      reason:
+        `judgement supplied '${supplied}' for '${kind}', but package.json does not declare that script ` +
+        `(declared: ${Object.keys(scripts).toSorted().join(', ') || 'none'})`,
+    };
+  }
+  // 3. No declaration, no judgement → undecidable. Never a silent pass, and
+  //    never a name the harness invents on the project's behalf (H2's root).
+  return {
+    provenance: 'undecidable',
+    reason:
+      `no package.json script named '${canonical}' and no judgement supplied for '${kind}' ` +
+      `(declared: ${Object.keys(scripts).toSorted().join(', ') || 'none'})`,
+  };
+}
+
+/**
+ * @deprecated H6 kept this as a thin adapter over `resolveCheckScript` so
+ * existing callers keep working. It returns the script name only; use
+ * `resolveCheckScript` when the provenance (declared vs judged vs undecidable)
+ * matters.
+ */
 export function pickScript(
   kind: ProjectCheckKind,
   scripts: Record<string, string>,
 ): string | undefined {
-  for (const candidate of SCRIPT_CANDIDATES[kind]) {
-    if (Object.hasOwn(scripts, candidate)) return candidate;
-  }
-  return undefined;
+  return resolveCheckScript(kind, scripts).scriptName;
 }
 
 function scriptRunsWithoutInstall(script: string | undefined): boolean {
@@ -325,13 +438,32 @@ function scriptRunsWithoutInstall(script: string | undefined): boolean {
   return /^(?:node(?:\.exe)?)\s+--(?:test|check)\b/.test(t);
 }
 
-function rewriteDirectNodeScript(script: string): string[] | undefined {
+function rewriteDirectNodeScript(
+  script: string,
+  declaredDirExists?: boolean,
+): string[] | undefined {
   const t = script.trim();
   const testMatch = /^(?:node(?:\.exe)?)\s+--test(?:\s+(.+))?$/.exec(t);
   if (testMatch !== null) {
-    const spec = (testMatch[1] ?? 'tests').replaceAll('\\', '/').replaceAll(/^["']|["']$/g, '');
-    const dir = spec.replace(/\/\*[^/]*$/, '').trim();
-    return ['node', '--test', dir.length > 0 ? dir : 'tests'];
+    const rawSpec = testMatch[1];
+    // Bare `node --test`: let Node's own file discovery pick the tests. Never
+    // synthesize a `tests` directory the project never declared — doing so ran
+    // `node --test tests` against projects that use `test/`, recording a false
+    // `tests=failed` for green code (harness defect H2).
+    if (rawSpec === undefined || rawSpec.trim().length === 0) return ['node', '--test'];
+    // H6: the declared spec is passed through *verbatim*. Node's test runner
+    // resolves glob patterns itself (`node --test 'tests/*.test.js'`), while
+    // collapsing the spec to its base directory does not work at all on Node
+    // 24 — `node --test tests` dies with MODULE_NOT_FOUND and turns a green
+    // project red. Rewriting the declaration was the same mistake as inventing
+    // one, one step smaller.
+    const spec = rawSpec.replaceAll(/^["']|["']$/g, '');
+    if (spec.trim().length === 0) return ['node', '--test'];
+    // H2 follow-up: a *declared* path that is absent on disk fails the run just
+    // like an invented one. When the caller probed the filesystem and the base
+    // directory is missing, drop the arg and let discovery decide.
+    if (declaredDirExists === false) return ['node', '--test'];
+    return ['node', '--test', spec];
   }
   const checkMatch = /^(?:node(?:\.exe)?)\s+--check\s+(.+)$/.exec(t);
   if (checkMatch?.[1] !== undefined) {
@@ -349,12 +481,36 @@ function packageLooksLikeNoInstallSite(pkg: {
   return test === undefined || scriptRunsWithoutInstall(test);
 }
 
+/**
+ * H2: the path a `node --test <spec>` script actually declares — `undefined`
+ * for a bare script. Used only to probe existence before passing the spec, so
+ * a stale/absent path never becomes a false `tests=failed`. H6: for a glob spec
+ * the probe base is the directory part, but the *command* keeps the full spec.
+ */
+export function declaredTestDir(script: string | undefined): string | undefined {
+  if (script === undefined) return undefined;
+  const match = /^(?:node(?:\.exe)?)\s+--test(?:\s+(.+))?$/.exec(script.trim());
+  const rawSpec = match?.[1];
+  if (rawSpec === undefined || rawSpec.trim().length === 0) return undefined;
+  const spec = rawSpec.replaceAll('\\', '/').replaceAll(/^["']|["']$/g, '');
+  const dir = spec.replace(/\/\*[^/]*$/, '').replace(/\/+$/, '').trim();
+  return dir.length > 0 ? dir : undefined;
+}
+
 export function buildCommandArgs(
   packageDir: string | undefined,
   scriptName: string,
   scriptBody?: string,
+  /**
+   * H2: whether the directory declared by the script exists on disk.
+   * `undefined` = caller did not probe — keep the declared arg as-is.
+   */
+  declaredDirExists?: boolean,
 ): string[] {
-  const direct = scriptBody !== undefined ? rewriteDirectNodeScript(scriptBody) : undefined;
+  const direct =
+    scriptBody !== undefined
+      ? rewriteDirectNodeScript(scriptBody, declaredDirExists)
+      : undefined;
   if (direct !== undefined) return direct;
   if (packageDir !== undefined && packageDir.trim().length > 0) {
     return ['pnpm', '-C', packageDir.trim(), 'run', scriptName];

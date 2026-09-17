@@ -173,6 +173,88 @@ export function isSubagentDeadlineError(error: unknown): error is SubagentDeadli
   return error instanceof SubagentDeadlineError;
 }
 
+/**
+ * Finite cap on the `finishing` phase (H8). The observed failure was a worker
+ * that entered finishing, went silent for 3-7 minutes, and was then killed by
+ * the 30m wall-clock with `reason: deadline` and no report — a bare abort that
+ * carries no evidence of how far the work had come. This error is returned
+ * instead of the plain deadline error when the finishing phase outlives its
+ * cap, and it embeds the progress snapshot gathered at the breach so the run
+ * ends with a result (interrupted reason + state), not silence.
+ *
+ * Extends {@link SubagentDeadlineError} on purpose: every existing deadline
+ * consumer (job worker failure path, resume-handoff writer, worktree snapshot
+ * backstop) keeps working unchanged, it just gets a richer payload.
+ */
+export interface SubagentFinishingProgress {
+  readonly toolCount?: number;
+  readonly lastTool?: string;
+  readonly lastTarget?: string;
+  readonly elapsedMs?: number;
+}
+
+export class SubagentFinishingCapError extends SubagentDeadlineError {
+  readonly finishingCapMs: number;
+  readonly finishingMs: number;
+  readonly progress: SubagentFinishingProgress;
+
+  constructor(input: {
+    readonly finishingCapMs: number;
+    readonly finishingMs: number;
+    readonly deadlineMs: number;
+    readonly progress?: SubagentFinishingProgress;
+  }) {
+    const progress = input.progress ?? {};
+    const state = [
+      progress.toolCount !== undefined ? `tools=${String(progress.toolCount)}` : undefined,
+      progress.lastTool !== undefined
+        ? `last_tool=${progress.lastTarget !== undefined ? `${progress.lastTool}:${progress.lastTarget}` : progress.lastTool}`
+        : undefined,
+      progress.elapsedMs !== undefined
+        ? `elapsed=${String(Math.round(progress.elapsedMs / 1000))}s`
+        : undefined,
+    ]
+      .filter((part): part is string => part !== undefined)
+      .join(' ');
+    super(input.deadlineMs);
+    this.name = 'SubagentFinishingCapError';
+    this.finishingCapMs = input.finishingCapMs;
+    this.finishingMs = input.finishingMs;
+    this.progress = progress;
+    // The message is what survives into the job's stored result summary, so it
+    // must state the interrupted reason AND the progress at the breach.
+    Object.defineProperty(this, 'message', {
+      value:
+        `subagent finishing cap exceeded: ${describeDeadlineDuration(input.finishingMs)} in the finishing phase ` +
+        `(cap ${describeDeadlineDuration(input.finishingCapMs)}) — interrupted before the wall-clock deadline. ` +
+        `Progress at interruption: ${state.length > 0 ? state : 'no tool activity recorded'}. ` +
+        `Dirty work is snapshotted; resume from the handoff below.`,
+      writable: true,
+      configurable: true,
+    });
+  }
+}
+
+export function isSubagentFinishingCapError(error: unknown): error is SubagentFinishingCapError {
+  return error instanceof SubagentFinishingCapError;
+}
+
+/**
+ * Default finite cap for the finishing phase (H8). Finishing is steered at
+ * T-5m of the soft budget (subagent-telemetry); 10m of finishing is well past
+ * "commit and summarize", so exceeding it means the worker is wedged and must
+ * return a diagnostic instead of eating the remaining wall-clock.
+ */
+export const DEFAULT_SUBAGENT_FINISHING_CAP_MS = 10 * 60 * 1000;
+
+/**
+ * Job-worker finishing cap (H8): a job worker that announces finishing mode
+ * and then makes no tool progress for this long is treated as wedged. Kept at
+ * the shared {@link DEFAULT_SUBAGENT_FINISHING_CAP_MS} value so job behaviour
+ * and the generic subagent default cannot drift apart.
+ */
+export const JOB_WORKER_FINISHING_CAP_MS = DEFAULT_SUBAGENT_FINISHING_CAP_MS;
+
 function describeDeadlineDuration(ms: number): string {
   if (ms < 60_000) return `${String(Math.max(1, Math.round(ms / 1000)))}s`;
   const totalMinutes = Math.round(ms / 60_000);

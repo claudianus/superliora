@@ -76,11 +76,29 @@ export function isVisualOrProductGateLine(line: string): boolean {
   return VISUAL_TOOL_RE.test(line);
 }
 
+/**
+ * H6: pick the mechanical commands out of a declared list.
+ *
+ * The old version *fabricated* `npx tsc --noEmit` / `npx vitest run` whenever
+ * the filter emptied the list — a project that never installed tsc/vitest got
+ * told to run them. Nothing is synthesized now: an empty result means the
+ * judgement is undecidable and must be surfaced as such by the caller.
+ */
 export function mechanicalVerificationCommands(
   commands: readonly string[] | undefined,
 ): readonly string[] {
-  const kept = (commands ?? []).filter((cmd) => MECHANICAL_CMD_RE.test(cmd) && !VISUAL_TOOL_RE.test(cmd));
-  return kept.length > 0 ? kept : [...SKELETON_DEFAULT_VERIFICATION];
+  return (commands ?? []).filter((cmd) => MECHANICAL_CMD_RE.test(cmd) && !VISUAL_TOOL_RE.test(cmd));
+}
+
+/** H6: why a declared command list produced no mechanical command to run. */
+export function mechanicalVerificationGap(
+  commands: readonly string[] | undefined,
+): string | undefined {
+  const all = commands ?? [];
+  if (all.length === 0) return 'no verification commands were declared — undecidable';
+  const kept = mechanicalVerificationCommands(all);
+  if (kept.length > 0) return undefined;
+  return `none of the declared commands matched a mechanical check pattern — undecidable (declared: ${all.join(' | ')})`;
 }
 
 /**

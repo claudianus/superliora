@@ -93,12 +93,17 @@ CREATE TABLE IF NOT EXISTS meta (
 `;
 
 function loadSqliteModule(): SqliteModule {
-  const require = createRequire(import.meta.url);
+  // H5: never name this binding `require`. esbuild's CJS output rewrites the
+  // `require("url")` call inside `createRequire(import.meta.url)` into a
+  // self-referential `createRequire(require("url")…)`, which throws
+  // "Cannot access 'require' before initialization" (TDZ) in the SEA bundle.
+  // A differently-named local binding keeps the CJS shim out of the way.
+  const requireFromHere = createRequire(import.meta.url);
   try {
-    return require('node:sqlite') as SqliteModule;
+    return requireFromHere('node:sqlite') as SqliteModule;
   } catch (nodeError) {
     try {
-      return require('better-sqlite3') as SqliteModule;
+      return requireFromHere('better-sqlite3') as SqliteModule;
     } catch (betterError) {
       const nodeMsg = nodeError instanceof Error ? nodeError.message : String(nodeError);
       const betterMsg = betterError instanceof Error ? betterError.message : String(betterError);
@@ -116,7 +121,7 @@ function isTextCandidate(filePath: string): boolean {
 }
 
 function toRepoRelativePath(root: string, absPath: string): string {
-  return relative(root, absPath).replaceAll(/\\/g, '/');
+  return relative(root, absPath).replaceAll('\\', '/');
 }
 
 /** Quote a single FTS5 token for MATCH queries. */
@@ -128,7 +133,7 @@ export function escapeFts5Token(query: string): string | null {
   if (!/^[\w.-]+$/u.test(trimmed)) {
     return null;
   }
-  return `"${trimmed.replaceAll(/"/g, '""')}"`;
+  return `"${trimmed.replaceAll('"', '""')}"`;
 }
 
 export interface ContentIndexReport {
@@ -190,7 +195,7 @@ export class ContentIndexStore {
     const params: (string | number)[] = [match];
     if (scope !== undefined && scope.length > 0) {
       sql += ' AND path LIKE ?';
-      params.push(`%${scope.replaceAll(/%/g, '')}%`);
+      params.push(`%${scope.replaceAll('%', '')}%`);
     }
     sql += ' LIMIT ?';
     params.push(limit);
