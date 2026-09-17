@@ -11,6 +11,7 @@ import {
   PERMISSION_HIGH_RISK_GUARD_ENV,
   type ApprovalResponse,
 } from '../../../../src/agent/permission';
+import { ToolAccesses } from '../../../../src/loop';
 import { createFakeKaos } from '../../../tools/fixtures/fake-kaos';
 
 function makePermissionManager(
@@ -59,7 +60,7 @@ function bashHookContext(command: string) {
     execution: {
       description: `Running: ${command}`,
       display: { kind: 'command', command, cwd: '/tmp', language: 'bash' },
-      accesses: { reads: [], writes: [], network: false },
+      accesses: ToolAccesses.none(),
       approvalRule: 'Bash(*)',
       execute: async () => ({ output: '' }),
     },
