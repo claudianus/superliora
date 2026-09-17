@@ -463,11 +463,22 @@ describe('job lanes + mission bind', () => {
 
 describe('merge trust + worker guards + warm pool', () => {
   it('evaluates merge trust rules', async () => {
-    const { evaluateMergeTrust, pathIsDangerousForMerge } = await import(
+    const { evaluateMergeTrust, declaredSensitivePaths } = await import(
       '../../src/tools/builtin/job/job-merge-trust'
     );
-    expect(pathIsDangerousForMerge('.env.local')).toBe(true);
-    expect(pathIsDangerousForMerge('src/foo.ts')).toBe(false);
+    // H6-2: sensitivity is declared or judged — never inferred from the path string.
+    expect(declaredSensitivePaths(['.env.local', 'src/foo.ts'], ['.env.local'])).toEqual([
+      '.env.local',
+    ]);
+    expect(declaredSensitivePaths(['.env.local', 'src/foo.ts'], undefined)).toEqual([]);
+
+    const reviewed = {
+      risky: false,
+      sensitivePaths: [],
+      wideChange: false,
+      confidence: 0.9,
+      rationale: 'reviewed small change',
+    } as const;
 
     expect(
       evaluateMergeTrust({
@@ -477,6 +488,7 @@ describe('merge trust + worker guards + warm pool', () => {
         diffLines: 40,
         hasSummary: true,
         paths: ['src/a.ts'],
+        riskAssessment: reviewed,
       }).ok,
     ).toBe(true);
 
@@ -488,6 +500,7 @@ describe('merge trust + worker guards + warm pool', () => {
         diffLines: 40,
         hasSummary: false,
         paths: ['src/a.ts'],
+        riskAssessment: reviewed,
       }).ok,
     ).toBe(false);
 
@@ -499,6 +512,13 @@ describe('merge trust + worker guards + warm pool', () => {
         diffLines: 40,
         hasSummary: true,
         paths: ['.env'],
+        riskAssessment: {
+          risky: true,
+          sensitivePaths: ['.env'],
+          wideChange: false,
+          confidence: 0.9,
+          rationale: 'env file',
+        },
       }).ok,
     ).toBe(false);
 

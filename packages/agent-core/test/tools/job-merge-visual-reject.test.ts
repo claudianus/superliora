@@ -2,9 +2,26 @@ import { describe, expect, it } from 'vitest';
 
 import { buildSubagentResultContract } from '../../src/session/subagent/subagent-result-contract';
 import {
-  evaluateMergeTrust,
+  evaluateMergeTrust as evaluateMergeTrustMechanical,
   mergeTrustInputFromLedger,
 } from '../../src/tools/builtin/job/job-merge-trust';
+
+/**
+ * H6-2: risk is an LLM judgment now. These fixtures pin the *mechanical*
+ * verdict, so they hand in an explicit reviewed-small-change judgment instead
+ * of letting a missing judgment hold (which is what production does).
+ */
+const REVIEWED_SMALL = {
+  risky: false,
+  sensitivePaths: [],
+  wideChange: false,
+  confidence: 0.9,
+  rationale: 'fixture: reviewed small change',
+} as const;
+
+function evaluateMergeTrust(input: Parameters<typeof evaluateMergeTrustMechanical>[0]) {
+  return evaluateMergeTrustMechanical({ riskAssessment: REVIEWED_SMALL, ...input });
+}
 import type { JobRecord, JobSurfaceKind } from '../../src/tools/builtin/job/job-store-key';
 
 type TrustJob = Pick<

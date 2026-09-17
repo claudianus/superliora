@@ -14,9 +14,26 @@ import {
   type SubagentVerificationStatus,
 } from '../../src/session/subagent/subagent-result-contract';
 import {
-  evaluateMergeTrust,
+  evaluateMergeTrust as evaluateMergeTrustMechanical,
   mergeTrustInputFromLedger,
 } from '../../src/tools/builtin/job/job-merge-trust';
+
+/**
+ * H6-2: risk is an LLM judgment now. These fixtures pin the *mechanical*
+ * verdict, so they hand in an explicit reviewed-small-change judgment instead
+ * of letting a missing judgment hold (which is what production does).
+ */
+const REVIEWED_SMALL = {
+  risky: false,
+  sensitivePaths: [],
+  wideChange: false,
+  confidence: 0.9,
+  rationale: 'fixture: reviewed small change',
+} as const;
+
+function evaluateMergeTrust(input: Parameters<typeof evaluateMergeTrustMechanical>[0]) {
+  return evaluateMergeTrustMechanical({ riskAssessment: REVIEWED_SMALL, ...input });
+}
 import type { JobRecord } from '../../src/tools/builtin/job/job-store-key';
 
 type TrustJob = Pick<JobRecord, 'ownershipPaths' | 'resultContract' | 'resultSummary'>;
@@ -96,26 +113,44 @@ describe('mergeTrustInputFromLedger', () => {
   });
 
   it('weighs the files the worker actually touched, not just the claimed paths', () => {
-    const verdict = evaluateMergeTrust(
-      mergeTrustInputFromLedger({
-        job: jobWith(ALL_PASSED, ['src/safe.ts', '.env']),
-        claim: { ...smallApproval, paths: ['src/safe.ts'] },
-      }),
-    );
+    const input = mergeTrustInputFromLedger({
+      job: jobWith(ALL_PASSED, ['src/safe.ts', '.env']),
+      claim: { ...smallApproval, paths: ['src/safe.ts'] },
+    });
+    // The ledger path is what the judge is shown; a claim cannot hide it.
+    expect(input.paths).toContain('.env');
+    const verdict = evaluateMergeTrust({
+      ...input,
+      riskAssessment: {
+        risky: true,
+        sensitivePaths: ['.env'],
+        wideChange: false,
+        confidence: 0.9,
+        rationale: 'writes credentials from the environment',
+      },
+    });
     expect(verdict.ok).toBe(false);
     expect(verdict.reason).toMatch(/Dangerous paths/);
   });
 
   it('holds a wide change however few lines the claim reports', () => {
     const many = Array.from({ length: 25 }, (_, i) => `src/file-${String(i)}.ts`);
-    const verdict = evaluateMergeTrust(
-      mergeTrustInputFromLedger({
-        job: jobWith(ALL_PASSED, many),
-        claim: { ...smallApproval, diffLines: 3 },
-      }),
-    );
+    const input = mergeTrustInputFromLedger({
+      job: jobWith(ALL_PASSED, many),
+      claim: { ...smallApproval, diffLines: 3 },
+    });
+    const verdict = evaluateMergeTrust({
+      ...input,
+      riskAssessment: {
+        risky: false,
+        sensitivePaths: [],
+        wideChange: true,
+        confidence: 0.9,
+        rationale: 'rewrites 25 files across unrelated modules',
+      },
+    });
     expect(verdict.ok).toBe(false);
-    expect(verdict.reason).toMatch(/spans 25 files/);
+    expect(verdict.reason).toMatch(/too wide/);
   });
 
   it('still honors an explicit user confirmation', () => {
@@ -128,12 +163,29 @@ describe('mergeTrustInputFromLedger', () => {
     expect(verdict.mode).toBe('user_approved');
   });
 
+  it('never lets a missing risk judgment pass as auto', () => {
+    const input = mergeTrustInputFromLedger({
+      job: jobWith(ALL_PASSED),
+      claim: smallApproval,
+    });
+    const bare = evaluateMergeTrustMechanical(input);
+    expect(bare.ok).toBe(false);
+    if (!bare.ok) expect(bare.reason).toMatch(/판정 불가/);
+  });
+
   it('waives size/danger confirm holds under auto permission without bypassing green', () => {
     const dangerous = evaluateMergeTrust({
       ...mergeTrustInputFromLedger({
         job: jobWith(ALL_PASSED, ['src/safe.ts', '.env']),
         claim: { ...smallApproval, paths: ['src/safe.ts'] },
       }),
+      riskAssessment: {
+        risky: true,
+        sensitivePaths: ['.env'],
+        wideChange: false,
+        confidence: 0.9,
+        rationale: 'writes credentials from the environment',
+      },
       waiveUserConfirmHolds: true,
     });
     expect(dangerous).toMatchObject({ ok: true, mode: 'auto' });

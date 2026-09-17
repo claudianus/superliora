@@ -57,7 +57,11 @@ import {
   summarizeJobStrip,
 } from './job-runtime';
 import { dispatchMergeLand, type LandJobToMainInput } from './job-land';
-import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
+import { classifierDepsFromAgent } from '../../../utils/llm-classifier-utils';
+import {
+  evaluateMergeTrustAsync,
+  mergeTrustInputFromLedger,
+} from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
 import {
   dispatchPushRemote,
@@ -1458,7 +1462,9 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
         // force_user_confirm; waive size/danger holds inside trust instead so
         // conflict / ungreen / visual still block.
         const autoPermission = this.agent?.permission?.mode === 'auto';
-        const trust = evaluateMergeTrust({
+        // H6-2: risk is judged by the LLM (declaration wins when present); the
+        // harness keeps merge execution / conflict detection / exit codes.
+        const trust = await evaluateMergeTrustAsync({
           ...mergeTrustInputFromLedger({
             job: existing,
             jobs: listJobs(this.store),
@@ -1473,6 +1479,10 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
               forceUserConfirm: !autoPermission && a.force_user_confirm === true,
             },
           }),
+          riskDeps: classifierDepsFromAgent(this.agent),
+          riskTitle: existing.title,
+          riskJobKind: existing.kind,
+          ...(a.summary === undefined ? {} : { riskSummary: a.summary }),
           ...(autoPermission ? { waiveUserConfirmHolds: true } : {}),
         });
 

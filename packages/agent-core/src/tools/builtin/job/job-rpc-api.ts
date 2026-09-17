@@ -28,7 +28,11 @@ import {
 } from './job-ledger';
 import { dispatchMergeLand } from './job-land';
 import { jobMayLandToMain } from './job-task-track';
-import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
+import { classifierDepsFromAgent } from '../../../utils/llm-classifier-utils';
+import {
+  evaluateMergeTrustAsync,
+  mergeTrustInputFromLedger,
+} from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
 import { dispatchPushRemote, evaluatePushTrust, resolvePushRemoteRef } from './job-push';
 import { synthesizeSuccessCriteria } from './job-brief';
@@ -466,7 +470,9 @@ export async function jobMerge(
   }
 
   const autoPermission = agent?.permission?.mode === 'auto';
-  const trust = evaluateMergeTrust({
+  // H6-2: risk is judged by the LLM (declaration wins when present); the
+  // harness keeps merge execution / conflict detection / exit codes.
+  const trust = await evaluateMergeTrustAsync({
     ...mergeTrustInputFromLedger({
       job: existing,
       jobs: listJobs(store),
@@ -480,6 +486,10 @@ export async function jobMerge(
         forceUserConfirm: !autoPermission && input.forceUserConfirm === true,
       },
     }),
+    riskDeps: classifierDepsFromAgent(agent),
+    riskTitle: existing.title,
+    riskJobKind: existing.kind,
+    ...(input.summary === undefined ? {} : { riskSummary: input.summary }),
     ...(autoPermission ? { waiveUserConfirmHolds: true } : {}),
   });
 
