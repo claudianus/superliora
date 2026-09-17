@@ -28,8 +28,9 @@ import {
   type ModalShellDelegate,
 } from '#/tui/controllers/dialogs/modal-shell';
 import { ReverseRpcPanelsController } from '#/tui/controllers/panes/reverse-rpc-panels';
+import { ApprovalController } from '#/tui/reverse-rpc/approval/controller';
 import { QuestionController } from '#/tui/reverse-rpc/question/controller';
-import type { QuestionPanelData } from '#/tui/reverse-rpc/types';
+import type { ApprovalPanelData, QuestionPanelData } from '#/tui/reverse-rpc/types';
 import type { TUIState } from '#/tui/tui-state';
 
 // ── Test host: real containers, one stack ────────────────────────────
@@ -54,6 +55,21 @@ function questionPayload(id: string): QuestionPanelData {
         multi_select: false,
         options: [{ label: 'Yes' }, { label: 'No' }],
       },
+    ],
+  };
+}
+
+function approvalPayload(id: string): ApprovalPanelData {
+  return {
+    id,
+    tool_call_id: id,
+    tool_name: 'Bash',
+    action: 'run',
+    description: `A-${id}`,
+    display: [],
+    choices: [
+      { label: 'Approve once', response: 'approved' },
+      { label: 'Reject', response: 'rejected' },
     ],
   };
 }
@@ -85,13 +101,14 @@ function makeStack() {
   } as unknown as TUIState;
 
   const controller = new QuestionController();
+  const approvalController = new ApprovalController();
   const delegate = { closeAllCenterModals: vi.fn() } as unknown as ModalShellDelegate;
 
   const host: Record<string, unknown> = {
     state,
     deferredApproval: undefined,
     deferredQuestion: undefined,
-    approvalController: { cancelAll: vi.fn(), respond: vi.fn() },
+    approvalController,
     questionController: controller,
     reverseRpcDisposers: [],
     nativeInputRouter: undefined,
@@ -123,6 +140,14 @@ function makeStack() {
       panels.hideQuestionDialog();
     },
   });
+  approvalController.setUIHooks({
+    showPanel: (payload) => {
+      panels.showApprovalPanel(payload);
+    },
+    hidePanel: () => {
+      panels.hideApprovalPanel();
+    },
+  });
 
   /** The dialog the user actually sees: whatever the editor container holds. */
   const visibleDialog = () => {
@@ -140,7 +165,29 @@ function makeStack() {
     dialog!.handleInput('\r');
   };
 
-  return { host, panels, livePane, editorContainer, editor, controller, visibleDialog, answer };
+  /**
+   * Approvals submit on a single Enter. A second '\r' to the same (already
+   * answered) panel would respond to the controller again and swallow the next
+   * queued approval — that is harness cross-talk, not product behaviour.
+   */
+  const answerApproval = () => {
+    const dialog = visibleDialog();
+    expect(dialog).toBeDefined();
+    dialog!.handleInput('\r');
+  };
+
+  return {
+    host,
+    panels,
+    livePane,
+    editorContainer,
+    editor,
+    controller,
+    approvalController,
+    visibleDialog,
+    answer,
+    answerApproval,
+  };
 }
 
 describe('H11 stacked question dialogs stay answerable', () => {
@@ -205,6 +252,85 @@ describe('H11 stacked question dialogs stay answerable', () => {
   it('regression: no pending question leaves the editor untouched', () => {
     const s = makeStack();
     expect(s.livePane.pendingQuestion).toBeNull();
+    expect(s.editorContainer.children).toHaveLength(0);
+  });
+});
+
+/**
+ * H11b — the same self-marker misread on the APPROVAL panel.
+ *
+ * `showApprovalPanel` used the identical raw predicate:
+ *   activeDialog === 'command' || 'center-modal' || centerModalStack.length > 0
+ * The approval panel is itself mounted through `mountEditorReplacement`, which
+ * sets `activeDialog = 'command'` (modal-shell.ts:35). So the second queued
+ * approval read its own marker as a foreign modal and deferred forever:
+ * `advanceOrHide` (base-controller.ts:124-132) only hides when the queue
+ * drains, and `advanceOrHide` never calls `hideApprovalPanel` in between — the
+ * answered panel stayed on screen, its waiter already resolved, and Enter went
+ * nowhere. Same freeze as H11, different panel.
+ */
+describe('H11b stacked approval panels stay answerable', () => {
+  it('three queued approvals: the visible panel is answerable and advances 1 → 2 → 3', async () => {
+    const s = makeStack();
+
+    const a1 = s.approvalController.show(approvalPayload('a1'));
+    const a2 = s.approvalController.show(approvalPayload('a2'));
+    const a3 = s.approvalController.show(approvalPayload('a3'));
+
+    expect(s.livePane.pendingApproval?.data.id).toBe('a1');
+    expect(s.host['deferredApproval']).toBeUndefined();
+
+    s.answerApproval();
+    expect(await a1).toMatchObject({ decision: 'approved' });
+
+    // The next approval must be the one on screen — this is the H11b
+    // assertion. A stale self-marker used to defer a2/a3 permanently.
+    expect(s.livePane.pendingApproval?.data.id).toBe('a2');
+    expect(s.host['deferredApproval']).toBeUndefined();
+
+    s.answerApproval();
+    expect(await a2).toMatchObject({ decision: 'approved' });
+    expect(s.livePane.pendingApproval?.data.id).toBe('a3');
+    expect(s.host['deferredApproval']).toBeUndefined();
+
+    s.answerApproval();
+    expect(await a3).toMatchObject({ decision: 'approved' });
+
+    // Queue drained: the editor is back and nothing is left pending.
+    expect(s.livePane.pendingApproval).toBeNull();
+    expect(s.editorContainer.children.at(-1)).toBe(s.editor);
+  });
+
+  it('regression: a single approval resolves on Enter and restores the editor', async () => {
+    const s = makeStack();
+    const pending = s.approvalController.show(approvalPayload('only-approval'));
+
+    expect(s.livePane.pendingApproval?.data.id).toBe('only-approval');
+    s.answerApproval();
+
+    expect(await pending).toMatchObject({ decision: 'approved' });
+    expect(s.livePane.pendingApproval).toBeNull();
+    expect(s.editorContainer.children.at(-1)).toBe(s.editor);
+  });
+
+  it('regression: a foreign command modal still defers the approval', () => {
+    const s = makeStack();
+    s.host['state'] = { ...(s.host['state'] as TUIState), activeDialog: 'command' };
+
+    void s.approvalController.show(approvalPayload('deferred-approval'));
+
+    expect(s.host['deferredApproval']).toMatchObject({ id: 'deferred-approval' });
+    expect(s.editorContainer.children).toHaveLength(0);
+  });
+
+  it('regression: a center modal still defers the approval', () => {
+    const s = makeStack();
+    const state = s.host['state'] as TUIState;
+    (state.centerModalStack as unknown[]).push({});
+
+    void s.approvalController.show(approvalPayload('center-deferred'));
+
+    expect(s.host['deferredApproval']).toMatchObject({ id: 'center-deferred' });
     expect(s.editorContainer.children).toHaveLength(0);
   });
 });
