@@ -22,6 +22,7 @@ import {
 } from './job-surface';
 import { evaluateVerifyChainForMerge } from './job-verify-chain';
 import {
+  assessmentFromJudgment,
   declaredSensitivePaths,
   resolveMergeRiskAssessment,
   type MergeRiskAssessment,
@@ -272,9 +273,35 @@ export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict { 
 }
 
 /**
+ * Map a conductor-supplied `risk_judgment` (LLM output) onto the harness
+ * assessment type. A below-floor confidence is not a judgment — it becomes
+ * `undecidable`, which holds instead of passing.
+ */
+export function mergeRiskAssessmentFromClaim(
+  claim:
+    | {
+        readonly risky: boolean;
+        readonly sensitive_paths: readonly string[];
+        readonly wide_change: boolean;
+        readonly confidence: number;
+        readonly rationale: string;
+      }
+    | undefined,
+): MergeRiskAssessment | undefined {
+  if (claim === undefined) return undefined;
+  return assessmentFromJudgment({
+    risky: claim.risky,
+    sensitivePaths: [...claim.sensitive_paths],
+    wideChange: claim.wide_change,
+    confidence: claim.confidence,
+    rationale: claim.rationale,
+  });
+}
+
+/**
  * Resolve the LLM risk judgment first, then apply the mechanical verdict.
- * This is the production entry point: the model decides "risky / too wide /
- * which paths are sensitive", the harness applies holds and merge mechanics.
+ * Use when the caller has a live provider and no ACK deadline (off-turn or
+ * background lanes). The interactive MergeJob tool uses the claim instead.
  */
 export async function evaluateMergeTrustAsync(
   input: MergeTrustInput,

@@ -132,6 +132,13 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
       has_conflict: false,
       checks_green: true,
       paths: ['src/example.ts'],
+      risk_judgment: {
+        risky: false,
+        sensitive_paths: [],
+        wide_change: false,
+        confidence: 0.9,
+        rationale: 'one-file edit, no sensitive path',
+      },
     });
     if (exec.isError) throw new Error('resolve failed');
 
@@ -284,6 +291,13 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
       diff_lines: 3,
       checks_green: true,
       paths: ['docs/example.md'],
+      risk_judgment: {
+        risky: false,
+        sensitive_paths: [],
+        wide_change: false,
+        confidence: 0.9,
+        rationale: 'documentation-only change',
+      },
     });
     if (exec.isError) throw new Error('resolve failed');
 
@@ -339,6 +353,13 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
       diff_lines: 8,
       checks_green: true,
       paths: ['src/x.ts', '.env'],
+      risk_judgment: {
+        risky: true,
+        sensitive_paths: ['.env'],
+        wide_change: false,
+        confidence: 0.9,
+        rationale: 'writes environment credentials',
+      },
     });
     if (manualExec.isError) throw new Error('resolve manual');
     const manualResult = await manualExec.execute({
@@ -361,6 +382,13 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
       diff_lines: 8,
       checks_green: true,
       paths: ['src/x.ts', '.env'],
+      risk_judgment: {
+        risky: true,
+        sensitive_paths: ['.env'],
+        wide_change: false,
+        confidence: 0.9,
+        rationale: 'writes environment credentials',
+      },
     });
     if (autoExec.isError) throw new Error('resolve auto');
     const autoResult = await autoExec.execute({

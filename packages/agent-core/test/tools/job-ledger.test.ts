@@ -578,6 +578,13 @@ describe('merge trust + worker guards + warm pool', () => {
       diff_lines: 10,
       summary: 'small safe change',
       paths: ['src/x.ts'],
+      risk_judgment: {
+        risky: false,
+        sensitive_paths: [],
+        wide_change: false,
+        confidence: 0.9,
+        rationale: 'one-file source edit',
+      },
     });
     if (okExec.isError) throw new Error('resolve ok');
     const ok = await okExec.execute({

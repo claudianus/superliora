@@ -57,9 +57,9 @@ import {
   summarizeJobStrip,
 } from './job-runtime';
 import { dispatchMergeLand, type LandJobToMainInput } from './job-land';
-import { classifierDepsFromAgent } from '../../../utils/llm-classifier-utils';
 import {
-  evaluateMergeTrustAsync,
+  evaluateMergeTrust,
+  mergeRiskAssessmentFromClaim,
   mergeTrustInputFromLedger,
 } from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
@@ -422,11 +422,23 @@ const MergeJobInputSchema = z
       .boolean()
       .optional()
       .describe('When true, treat as explicit user approval (large/risky still OK if approve).'),
+    risk_judgment: z
+      .object({
+        risky: z.boolean(),
+        sensitive_paths: z.array(z.string()),
+        wide_change: z.boolean(),
+        confidence: z.number().min(0).max(1),
+        rationale: z.string().trim().min(1),
+      })
+      .optional()
+      .describe(
+        'Your judgment of this change (H6-2): is it risky, which reported paths are sensitive, is it too wide to land unattended. Judge the effect, not the filename. Omit only when a project declaration covers it — a missing judgment holds as 판정 불가, it never passes silently.',
+      ),
     paths: z
       .array(z.string())
       .optional()
       .describe(
-        'Extra paths to weigh; unioned with the files the worker changed. Dangerous paths block meta auto.',
+        'Extra paths to weigh; unioned with the files the worker changed. Declared sensitive paths block meta auto.',
       ),
   })
   .strict();
@@ -1462,9 +1474,10 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
         // force_user_confirm; waive size/danger holds inside trust instead so
         // conflict / ungreen / visual still block.
         const autoPermission = this.agent?.permission?.mode === 'auto';
-        // H6-2: risk is judged by the LLM (declaration wins when present); the
-        // harness keeps merge execution / conflict detection / exit codes.
-        const trust = await evaluateMergeTrustAsync({
+        // H6-2: the conductor's `risk_judgment` (LLM) decides risky/wide; this
+        // tool only applies it mechanically. No LLM await here — the merge
+        // verdict keeps its 250ms ACK deadline.
+        const trust = evaluateMergeTrust({
           ...mergeTrustInputFromLedger({
             job: existing,
             jobs: listJobs(this.store),
@@ -1479,10 +1492,8 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
               forceUserConfirm: !autoPermission && a.force_user_confirm === true,
             },
           }),
-          riskDeps: classifierDepsFromAgent(this.agent),
-          riskTitle: existing.title,
-          riskJobKind: existing.kind,
-          ...(a.summary === undefined ? {} : { riskSummary: a.summary }),
+          riskAssessment: mergeRiskAssessmentFromClaim(a.risk_judgment),
+          ...(a.risk_judgment === undefined ? {} : { riskTitle: existing.title, riskJobKind: existing.kind }),
           ...(autoPermission ? { waiveUserConfirmHolds: true } : {}),
         });
 
