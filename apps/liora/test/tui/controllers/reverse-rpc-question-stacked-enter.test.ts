@@ -76,7 +76,7 @@ function approvalPayload(id: string): ApprovalPanelData {
 
 function makeStack() {
   const livePane = {
-    pendingApproval: null as null | { data: unknown },
+    pendingApproval: null as null | { data: ApprovalPanelData },
     pendingQuestion: null as null | { data: QuestionPanelData },
   };
   const editorContainer = new FakeContainer();
