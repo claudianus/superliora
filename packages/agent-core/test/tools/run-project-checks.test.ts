@@ -8,6 +8,7 @@ import {
   buildResultPayload,
   declaredTestDir,
   pickScript,
+  resolveCheckScript,
   RunProjectChecksInputSchema,
   RunProjectChecksTool,
 } from '../../src/tools/builtin/ops/run-project-checks';
@@ -41,7 +42,7 @@ function fakeProcess(exitCode: number, stdout = '', stderr = ''): KaosProcess {
 }
 
 describe('RunProjectChecksTool', () => {
-  it('exposes schema and prefers package scripts only', () => {
+  it('exposes schema and prefers the declared script name only', () => {
     expect(RunProjectChecksInputSchema.safeParse({}).success).toBe(true);
     expect(
       RunProjectChecksInputSchema.safeParse({
@@ -51,12 +52,36 @@ describe('RunProjectChecksTool', () => {
       }).success,
     ).toBe(true);
     expect(RunProjectChecksInputSchema.safeParse({ checks: ['unknown'] }).success).toBe(false);
+    expect(
+      RunProjectChecksInputSchema.safeParse({ scriptOverrides: { typecheck: 'type-check' } }).success,
+    ).toBe(true);
+    expect(
+      RunProjectChecksInputSchema.safeParse({ scriptOverrides: { nope: 'x' } }).success,
+    ).toBe(false);
 
+    // H6: the declared name wins outright — no alias table, no string matching.
     expect(pickScript('test', { test: 'vitest run' })).toBe('test');
-    expect(pickScript('typecheck', { 'type-check': 'tsc -p .' })).toBe('type-check');
-    // Greenfield Vite apps often only declare `build` (tsc --noEmit && vite build).
-    expect(pickScript('typecheck', { build: 'tsc --noEmit && vite build' })).toBe('build');
+    expect(pickScript('typecheck', { typecheck: 'tsc -p .' })).toBe('typecheck');
+    // H6: a non-canonical name is NOT inferred any more. The old alias list
+    // ('type-check', 'tsc', 'build', …) is gone; the project must declare the
+    // canonical name or the caller must supply a judgement for it.
+    expect(pickScript('typecheck', { 'type-check': 'tsc -p .' })).toBeUndefined();
+    expect(pickScript('typecheck', { build: 'tsc --noEmit && vite build' })).toBeUndefined();
+    expect(pickScript('typecheck', {})).toBeUndefined();
     expect(pickScript('smoke', { build: 'tsc' })).toBeUndefined();
+
+    // A judgement is honoured only when the manifest actually declares it.
+    expect(
+      resolveCheckScript('typecheck', { 'type-check': 'tsc' }, { typecheck: 'type-check' }),
+    ).toMatchObject({ scriptName: 'type-check', provenance: 'heuristic' });
+    expect(
+      resolveCheckScript('typecheck', { 'type-check': 'tsc' }, { typecheck: 'tsc' }),
+    ).toMatchObject({ provenance: 'undecidable' });
+    expect(resolveCheckScript('test', { test: 'vitest' })).toMatchObject({
+      scriptName: 'test',
+      provenance: 'declared',
+    });
+
     expect(buildCommandArgs(undefined, 'test')).toEqual(['pnpm', 'run', 'test']);
     expect(buildCommandArgs(undefined, 'test', 'node --test tests/*.test.js')).toEqual([
       'node',
@@ -140,7 +165,7 @@ describe('RunProjectChecksTool', () => {
     expect(exec).toHaveBeenCalled();
   });
 
-  it('skips checks with no matching package.json script', async () => {
+  it('skips checks with no matching package.json script and names it undecidable', async () => {
     const kaos = createFakeKaos({
       getcwd: () => '/work',
       readText: async () => JSON.stringify({ scripts: { test: 'vitest' } }),
@@ -151,15 +176,71 @@ describe('RunProjectChecksTool', () => {
     const result = await executeTool(tool, context({ checks: ['test', 'smoke'] }));
     const payload = JSON.parse(String(result.output)) as {
       exitCode: number;
-      checks: Array<{ name: string; skipped?: boolean; reason?: string }>;
+      checks: Array<{ name: string; skipped?: boolean; reason?: string; provenance?: string }>;
     };
     expect(payload.exitCode).toBe(1);
     expect(payload.checks[0]?.name).toBe('test');
+    expect(payload.checks[0]?.provenance).toBe('declared');
     expect(payload.checks[1]).toMatchObject({
       name: 'smoke',
       skipped: true,
+      provenance: 'undecidable',
     });
-    expect(payload.checks[1]?.reason).toContain('No package.json script');
+    // H6: no alias table is consulted any more — the recorded reason states
+    // the judgement rather than a list of names the harness made up.
+    expect(payload.checks[1]?.reason).toContain('undecidable');
+    expect(payload.checks[1]?.reason).not.toContain('tried:');
+  });
+
+  it('H6: a hallucinated script override is recorded undecidable, never run', async () => {
+    // The judgement slot is not a licence to run arbitrary commands: the
+    // manifest has to declare the script. Otherwise the harness would be
+    // executing names that exist only in the model's imagination.
+    const exec = vi.fn(async (...args: string[]) => {
+      throw new Error(`unexpected exec: ${args.join(' ')}`);
+    });
+    const kaos = createFakeKaos({
+      getcwd: () => '/work',
+      readText: async () => JSON.stringify({ scripts: { check: 'node scripts/check.mjs' } }),
+      exec: exec as Kaos['exec'],
+    });
+
+    const tool = new RunProjectChecksTool(kaos, '/work');
+    const result = await executeTool(
+      tool,
+      context({ checks: ['test'], scriptOverrides: { test: 'test:unit' } }),
+    );
+    const payload = JSON.parse(String(result.output)) as {
+      exitCode: number;
+      checks: Array<{ skipped?: boolean; reason?: string; provenance?: string }>;
+    };
+    expect(exec).not.toHaveBeenCalled();
+    expect(payload.exitCode).toBe(1);
+    expect(payload.checks[0]).toMatchObject({ skipped: true, provenance: 'undecidable' });
+    expect(payload.checks[0]?.reason).toContain("does not declare that script");
+  });
+
+  it('H6: no test script at all cannot produce a silent pass', async () => {
+    const exec = vi.fn(async (...args: string[]) => {
+      throw new Error(`unexpected exec: ${args.join(' ')}`);
+    });
+    const kaos = createFakeKaos({
+      getcwd: () => '/work',
+      readText: async () => JSON.stringify({ name: 'docs-only', scripts: {} }),
+      exec: exec as Kaos['exec'],
+    });
+
+    const tool = new RunProjectChecksTool(kaos, '/work');
+    const result = await executeTool(tool, context({ checks: ['test'] }));
+    const payload = JSON.parse(String(result.output)) as {
+      exitCode: number;
+      checks: Array<{ exitCode: number; skipped?: boolean; reason?: string; provenance?: string }>;
+    };
+    expect(exec).not.toHaveBeenCalled();
+    expect(payload.exitCode).toBe(1);
+    expect(payload.checks[0]?.skipped).toBe(true);
+    expect(payload.checks[0]?.provenance).toBe('undecidable');
+    expect(payload.checks[0]?.reason).toContain("no package.json script named 'test'");
   });
 
   it('runs node --test directly and does not invoke pnpm for a no-dep package', async () => {
@@ -187,10 +268,14 @@ describe('RunProjectChecksTool', () => {
     expect(result.isError).toBeFalsy();
     const payload = JSON.parse(String(result.output)) as {
       exitCode: number;
-      checks: Array<{ name: string; skipped?: boolean; command?: string }>;
+      checks: Array<{ name: string; skipped?: boolean; command?: string; provenance?: string }>;
     };
     expect(payload.exitCode).toBe(0);
-    expect(payload.checks[0]).toMatchObject({ name: 'test', command: 'node --test tests' });
+    expect(payload.checks[0]).toMatchObject({
+      name: 'test',
+      command: 'node --test tests',
+      provenance: 'declared',
+    });
     expect(payload.checks[1]?.skipped).toBe(true);
     expect(payload.checks[2]?.skipped).toBe(true);
     expect(exec.mock.calls.some((call) => call[0] === 'pnpm')).toBe(false);
@@ -331,6 +416,39 @@ describe('RunProjectChecksTool', () => {
     expect(runs.some((args) => args.includes('tests'))).toBe(false);
     expect(payload.checks[0]?.command).toBe('node --test');
     expect(payload.exitCode).toBe(0);
+  });
+
+  it('H6: a declared canonical name is used verbatim even when a sibling dir looks like the runner', async () => {
+    // String matching must not decide anything: the manifest declares `test`,
+    // a sibling `vitest` script also exists, and the run still follows the
+    // declared script byte for byte.
+    const runs: string[][] = [];
+    const exec = vi.fn(async (...args: string[]) => {
+      runs.push(args);
+      return fakeProcess(0, 'pass 3\n');
+    });
+    const kaos = createFakeKaos({
+      getcwd: () => '/work',
+      readText: async () =>
+        JSON.stringify({
+          name: 'mixed-runner',
+          scripts: { test: 'node --test', vitest: 'vitest run', e2e: 'playwright test' },
+        }),
+      exec: exec as Kaos['exec'],
+      stat: async () => ({ stMode: 0o040755 }) as never,
+    });
+
+    const tool = new RunProjectChecksTool(kaos, '/work');
+    const result = await executeTool(tool, context({ checks: ['test'] }));
+    const payload = JSON.parse(String(result.output)) as {
+      exitCode: number;
+      checks: Array<{ name: string; command?: string; provenance?: string }>;
+    };
+
+    expect(payload.exitCode).toBe(0);
+    expect(payload.checks[0]?.command).toBe('node --test');
+    expect(payload.checks[0]?.provenance).toBe('declared');
+    expect(runs.every((args) => !args.includes('vitest'))).toBe(true);
   });
 
   it('H2: a declared test dir missing on disk falls back to bare discovery', async () => {
