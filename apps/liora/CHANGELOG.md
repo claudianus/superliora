@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.32.3
+
+### Patch Changes
+
+- Unblock Main CI after #1213: nest merge risk/trust under `job/merge/`, clear unused exports, ratchet agent-core test types, and align H4 yolo high-risk Bash guard tests with the opt-in env contract.
+
 ## 0.32.2
 
 ### Patch Changes
