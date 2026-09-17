@@ -60,7 +60,7 @@ const RISK_JUDGE_SYSTEM = [
   '- When you cannot judge from the given evidence, set confidence below 0.5 and say so in rationale.',
 ].join('\n');
 
-export interface MergeRiskJudgeInput {
+interface MergeRiskJudgeInput {
   readonly paths?: readonly string[];
   /** Self-reported diff size, if the caller supplied one. */
   readonly diffLines?: number;
@@ -73,7 +73,7 @@ export interface MergeRiskJudgeInput {
  * Mechanical: canonicalize a path for exact comparison. No guessing about
  * meaning — only separator/prefix normalization.
  */
-export function normalizeMergePath(path: string): string {
+function normalizeMergePath(path: string): string {
   return path.trim().replaceAll(/\\/gu, '/').replace(/^\.\//u, '').replaceAll(/\/{2,}/gu, '/');
 }
 
