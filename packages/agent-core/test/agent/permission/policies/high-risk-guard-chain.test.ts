@@ -5,12 +5,12 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { Agent } from '#/agent';
+import type { Agent } from '../../../../src/agent';
 import {
   PermissionManager,
   PERMISSION_HIGH_RISK_GUARD_ENV,
   type ApprovalResponse,
-} from '#/agent/permission';
+} from '../../../../src/agent/permission';
 import type { Kaos } from '@superliora/kaos';
 import { createFakeKaos } from '../../../tools/fixtures/fake-kaos';
 
