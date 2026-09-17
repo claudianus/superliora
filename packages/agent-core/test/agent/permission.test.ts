@@ -1,1 +1,0 @@
-@file:///tmp/good_perm.ts
