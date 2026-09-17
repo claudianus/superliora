@@ -9,6 +9,50 @@
 
 ---
 
+## 0. H6 2단계 범위 인벤토리 — 검증 "명령 선택" 외의 남은 하드코딩 판정
+
+1단계는 §1(A1~A7) 중 A1~A3를 처리했다. 2단계는 **판정 자체를 문자열·숫자로 하는 나머지**를 다룬다.
+
+### 0-A. MergeJob trust 판정 (`packages/agent-core/src/tools/builtin/job/job-merge-trust.ts`)
+
+| # | 파일:라인 (교체 전) | 현재 판정 방식 | 성격 | 확인된/가능한 오판 |
+| --- | --- | --- | --- | --- |
+| T1 | `job-merge-trust.ts:60` `DEFAULT_SMALL_DIFF = 200` | **줄 수 200 초과면 "크다"** | 숫자 임계 | 리팩터 200줄(안전)과 신규 200줄(위험)을 구분 못 함. 줄 수는 **호출자 자기 신고값**(`diffLines`)이라 조작 가능 |
+| T2 | `job-merge-trust.ts:62` `DEFAULT_SMALL_FILES = 20` | **파일 수 20 초과면 "크다"** | 숫자 임계 | 코드 생성기·스키마 마이그레이션은 21개 파일이 정상. 반대로 3파일짜리 인증 로직 변경은 작아 보이지만 위험 |
+| T3 | `job-merge-trust.ts:65-76` `MERGE_DANGEROUS_PATH_PATTERNS` (정규식 10개) | **경로 문자열 정규식**으로 위험 판정 (`.env`, `secrets/`, `id_rsa`, `package-lock.json`, `flake.nix`, `.github/workflows/` …) | 문자열 목록 매치 | (a) 목록 밖 위험 경로(`k8s/prod/`, `terraform/*.tfstate`, `migrations/`, `Dockerfile.prod`)은 통과. (b) **목록 안 무해 경로**(문서용 `docs/secrets-guide.md`, 테스트 픽스처 `test/.env.example`)는 불필요하게 사람 클릭을 요구. (c) 경로 이름에 `dangerous`라는 단어가 들어가도 판정은 **단어와 무관**해야 하는데, 역으로 목록에 없는 진짜 위험은 못 잡음 |
+| T4 | `job-merge-trust.ts:78-82` `pathIsDangerousForMerge()` | 위 정규식 목록을 그대로 평가 | 동기 문자열 함수 | 위와 동일. 실측: `pathIsDangerousForMerge('test/.env.example')` → `true` (픽스처인데도 홀드) |
+
+**교체 경계(2단계)**:
+- **LLM 판정**: 이 변경이 위험한가 · 사람 확인이 필요한가 · 어느 경로가 민감한가 · 넓은 변경인가.
+- **기계 유지**: `git merge` 실행, 충돌 감지, 파일 쓰기, 체크섬, exit code 원본 보존, 경로 정규화.
+- **선언 우선**: 프로젝트/오퍼레이터가 선언한 값(`declaredDangerousPaths`, `declaredSmallDiffMaxLines`)이 있으면 그대로 사용. LLM은 선언이 없거나 모호할 때만 개입.
+- **폴백 명시**: LLM 판정 실패 시 **`판정 불가`를 기록하고 홀드**한다(silent pass 금지).
+
+### 0-B. `surface_kind` 판정 — **1단계/선행 창에서 이미 교체 완료(이번 창 추가 수정 없음)**
+
+| # | 파일 | 현재 방식 | 2단계 조치 |
+| --- | --- | --- | --- |
+| S1 | `premium-quality/ui-surface.ts:38-54` `classifyObjectiveProfile()` | **선언된 `surface_kind` 우선**. 선언이 없으면 LLM 판정(`objective-profile-infer.ts`), 판정 실패 시 `code`로 fail-closed. 문서 첫머리에 "never title/prompt keywords or path-extension cookbooks" 명시 | **조치 불요** (이미 LLM+선언) |
+| S2 | `premium-quality/objective-profile-infer.ts:82-130` `parseObjectiveSurfaceJudgment()` / `resolveObjectiveProfileWithInfer()` | LLM이 `user_visible_surface`·`needs_screenshot_proof`를 판정. 실패 시 `{code, visualSurface:false}` | **조치 불요** |
+| S3 | `tools/builtin/job/job-task-track-infer.ts:40-59` | "Do not classify by matching words or phrases in any language" 를 시스템 프롬프트로 고정, 효과 기반 판정 | **조치 불요** |
+| S4 | `tools/builtin/job/job-merge-trust.ts:88-97` | `surfaceKindMissing` → **홀드**(키워드로 시각 게이트를 발명하지 못하게 함) | 유지 (이미 올바른 방향) |
+| S5 | `tools/builtin/job/job-worker.ts:122-142` `visualDodLines()` | `job.surfaceKind === 'web' \| 'mixed' \| 'tui'` 분기 | **판정이 아니라 선언값 분기** — 추정 로직 아님, 조치 불요 |
+
+- 확장자(`.tsx`/`.html`/`.css`)로 표면을 정하는 잔여 로직 **검색 결과 0건**(`repo-index/content-indexer.ts:64`, `ops/static-site-checks.ts:18,40`, `services/fs/fsServiceHelpers.ts:221,254`는 MIME/인덱서 용도로 표면 판정과 무관).
+
+### 0-C. 프레임워크·언어 키워드 판정 잔여 — 1단계 §B로 이월(이번 창 미착수)
+
+| # | 파일:라인 | 방식 | 상태 |
+| --- | --- | --- | --- |
+| B1' | `job-greenfield-chain.ts:35` `MECHANICAL_CMD_RE` | 명령 문자열 키워드 매치 | **미착수** (1단계에서 합성만 제거) |
+| C1' | `verification-sensor-ledger.ts:75,134,136,138` | 출력 텍스트 키워드 스캔 | **미착수** |
+| C3' | `swarm-evidence-gate.ts:61-64,237-239` | 증거 파일명·확장자 목록 | **미착수** |
+| C5' | `agent/goal/predicate-runner.ts:144` | predicate를 vitest로 고정 | **미착수** |
+
+**2단계 처리 순서**: §0-A(T1~T4) → §0-B는 "이미 완료" 확인 기록 → §0-C는 후속 창.
+
+---
+
 ## 1. 인벤토리 — "무엇을 돌릴지"를 문자열·휴리스틱으로 정하는 곳
 
 | # | 파일:라인 | 현재 판정 방식 | 성격 | 확인된/가능한 오판 |
@@ -54,9 +98,17 @@ C4는 표시 계층이므로 범위 밖. C5는 별도 창(goal predicate) 발주
 
 ---
 
-## 4. 다음 단계(이 창에서 이어짐)
+## 4. 다음 단계
+
+### 4-1 — 1단계에서 처리 완료 (커밋 `1468e77d1`, `87453d1cf`)
 
 - `pickScript()`를 **선언 우선 + LLM 폴백**으로 국소 교체(함수 단위, 파일 전체 갈아엎기 없음).
 - LLM 판정 실패 시 `undecidable`을 명시 기록(`skipped` + reason). 조용한 exit 0 금지.
 - 회귀 테스트: 형제 디렉터리·스크립트 부재 케이스에서 판정이 흔들리지 않을 것.
-- `mechanicalVerificationCommands()`의 무조건 합성도 같은 원칙으로 확인(범위 내 국소 수정 또는 명시적 미완 기록).
+- `mechanicalVerificationCommands()`의 무조건 합성 제거 + `mechanicalVerificationGap()`으로 판정 불가 사유 반환.
+
+### 4-2 — 2단계 범위 (이 창, §0 참조)
+
+- **§0-A (T1~T4)**: MergeJob trust의 숫자 임계(200줄/20파일)와 경로 정규식 목록을 **LLM 판정 + 선언 우선 + 명시 폴백**으로 교체.
+- **§0-B**: `surface_kind`는 이미 선언+LLM 기반임을 확인(수정 없음, 증거만 기록).
+- **§0-C**: B1'/C1'/C3'/C5'는 **미착수**로 명시하고 후속 창으로 이월.
