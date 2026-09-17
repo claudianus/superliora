@@ -62,6 +62,10 @@ describe('RunProjectChecksTool', () => {
       '--test',
       'tests',
     ]);
+    // H2 regression: a bare `node --test` script must NOT synthesize a `tests`
+    // directory. Projects that keep their tests in `test/` were being run as
+    // `node --test tests` and recorded a false tests=failed.
+    expect(buildCommandArgs(undefined, 'test', 'node --test')).toEqual(['node', '--test']);
     expect(buildCommandArgs('packages/agent-core', 'test')).toEqual([
       'pnpm',
       '-C',

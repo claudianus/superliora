@@ -26,8 +26,11 @@ interface SqliteModule {
 
 function loadSqlite(): SqliteModule {
   try {
-    const require = createRequire(import.meta.url);
-    return require('node:sqlite') as SqliteModule;
+    // H5: keep the name off `require` — esbuild's CJS output otherwise emits a
+    // self-referential createRequire(require("url")…) and dies with
+    // "Cannot access 'require' before initialization" in the SEA bundle.
+    const requireFromHere = createRequire(import.meta.url);
+    return requireFromHere('node:sqlite') as SqliteModule;
   } catch (error) {
     throw new Error(`node:sqlite is unavailable (Node >=22.5 required): ${error instanceof Error ? error.message : String(error)}`, {
       cause: error,

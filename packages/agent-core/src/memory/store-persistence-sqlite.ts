@@ -77,8 +77,11 @@ export interface MemoryRow {
 }
 
 export function openDatabase(path: string): SqliteDatabase {
-  const require = createRequire(import.meta.url);
-  const sqlite = require('node:sqlite') as SqliteModule;
+  // H5: avoid a local binding named `require`; esbuild's CJS output would make
+  // it self-referential and throw "Cannot access 'require' before
+  // initialization" in the SEA bundle.
+  const requireFromHere = createRequire(import.meta.url);
+  const sqlite = requireFromHere('node:sqlite') as SqliteModule;
   return trackSqliteDatabase(path, new sqlite.DatabaseSync(path));
 }
 

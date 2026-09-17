@@ -329,9 +329,17 @@ function rewriteDirectNodeScript(script: string): string[] | undefined {
   const t = script.trim();
   const testMatch = /^(?:node(?:\.exe)?)\s+--test(?:\s+(.+))?$/.exec(t);
   if (testMatch !== null) {
-    const spec = (testMatch[1] ?? 'tests').replaceAll('\\', '/').replaceAll(/^["']|["']$/g, '');
+    const rawSpec = testMatch[1];
+    // Bare `node --test`: let Node's own file discovery pick the tests. Never
+    // synthesize a `tests` directory the project never declared — doing so ran
+    // `node --test tests` against projects that use `test/`, recording a false
+    // `tests=failed` for green code (harness defect H2).
+    if (rawSpec === undefined || rawSpec.trim().length === 0) return ['node', '--test'];
+    const spec = rawSpec.replaceAll('\\', '/').replaceAll(/^["']|["']$/g, '');
     const dir = spec.replace(/\/\*[^/]*$/, '').trim();
-    return ['node', '--test', dir.length > 0 ? dir : 'tests'];
+    // Only pass a directory the script actually declared; otherwise fall back
+    // to bare discovery instead of inventing a name.
+    return dir.length > 0 ? ['node', '--test', dir] : ['node', '--test'];
   }
   const checkMatch = /^(?:node(?:\.exe)?)\s+--check\s+(.+)$/.exec(t);
   if (checkMatch?.[1] !== undefined) {
