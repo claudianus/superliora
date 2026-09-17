@@ -1,1 +1,1 @@
-file:///workspace/ci-fix/permission.test.ts
+import type { Kaos } from '@superliora/kaos';
