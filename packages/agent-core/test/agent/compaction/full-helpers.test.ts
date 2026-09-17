@@ -1,4 +1,4 @@
-import { APIEmptyResponseError, type GenerateResult, type Message, type TokenUsage } from '@superliora/kosong';
+import { APIEmptyResponseError, type ChatProvider, type GenerateResult, type Message, type TokenUsage } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -21,16 +21,31 @@ function makeUsage(over: Partial<TokenUsage> = {}): TokenUsage {
   };
 }
 
-function makeGenerateResult(content: GenerateResult['message']['content']): GenerateResult {
+function makeGenerateResult(content: Message['content']): GenerateResult {
   return {
+    id: null,
     message: { role: 'assistant', content, toolCalls: [] },
-  } as GenerateResult;
+    usage: null,
+    finishReason: null,
+    rawFinishReason: null,
+  };
+}
+
+/** Intentionally exercise the legacy string-content branch via unknown. */
+function makeGenerateResultWithLegacyString(content: string): GenerateResult {
+  return {
+    id: null,
+    message: { role: 'assistant', content, toolCalls: [] },
+    usage: null,
+    finishReason: null,
+    rawFinishReason: null,
+  } as unknown as GenerateResult;
 }
 
 describe('full-helpers.ts — pure helpers', () => {
   describe('extractCompactionSummary', () => {
     it('passes through a string content as-is (after trim check)', () => {
-      const r = makeGenerateResult('  hello world  ');
+      const r = makeGenerateResultWithLegacyString('  hello world  ');
       expect(extractCompactionSummary(r)).toBe('  hello world  ');
     });
 
@@ -39,14 +54,16 @@ describe('full-helpers.ts — pure helpers', () => {
         { type: 'text', text: 'hello ' },
         { type: 'text', text: 'world' },
         // Non-text parts contribute an empty string; they must not throw.
-        { type: 'image', image: 'fake' } as unknown as { type: 'text'; text: string },
+        { type: 'image_url', imageUrl: { url: 'fake' } },
       ]);
       expect(extractCompactionSummary(r)).toBe('hello world');
     });
 
     it('throws APIEmptyResponseError when the summary is empty or whitespace', () => {
-      expect(() => extractCompactionSummary(makeGenerateResult(''))).toThrow(APIEmptyResponseError);
-      expect(() => extractCompactionSummary(makeGenerateResult('   '))).toThrow(
+      expect(() => extractCompactionSummary(makeGenerateResultWithLegacyString(''))).toThrow(
+        APIEmptyResponseError,
+      );
+      expect(() => extractCompactionSummary(makeGenerateResultWithLegacyString('   '))).toThrow(
         APIEmptyResponseError,
       );
       expect(() => extractCompactionSummary(makeGenerateResult([]))).toThrow(APIEmptyResponseError);
@@ -123,31 +140,28 @@ describe('full-helpers.ts — pure helpers', () => {
     it('returns "none" when the provider has no capability declared', () => {
       expect(
         formatContextManagementCapability({
-          // @ts-expect-error — minimal provider shape
           contextManagementCapability: undefined,
-        }),
+        } as unknown as ChatProvider),
       ).toBe('none');
     });
 
     it('returns "none" when the capability object declares no enabled flags', () => {
       expect(
         formatContextManagementCapability({
-          // @ts-expect-error — minimal provider shape
           contextManagementCapability: {},
-        }),
+        } as unknown as ChatProvider),
       ).toBe('none');
     });
 
     it('joins enabled flags in stable order', () => {
       expect(
         formatContextManagementCapability({
-          // @ts-expect-error — minimal provider shape
           contextManagementCapability: {
             serverSideCompaction: true,
             toolResultClearing: false,
             thinkingBlockClearing: true,
           },
-        }),
+        } as unknown as ChatProvider),
       ).toBe('server_side_compaction,thinking_block_clearing');
     });
   });

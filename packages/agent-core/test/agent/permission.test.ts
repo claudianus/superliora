@@ -7,6 +7,7 @@ import type { Agent } from '../../src/agent';
 import { PermissionModeInjector } from '../../src/agent/injection/permission-mode';
 import {
   PermissionManager,
+  PERMISSION_HIGH_RISK_GUARD_ENV,
   type ApprovalResponse,
   type PermissionMode,
   type PermissionPolicyContext,
@@ -809,7 +810,8 @@ describe('Permission policy chain', () => {
     );
   });
 
-  it('asks for destructive Bash under yolo mode before yolo-mode approval', async () => {
+  it('does not ask for destructive Bash under yolo mode when high-risk guard is off', async () => {
+    delete process.env[PERMISSION_HIGH_RISK_GUARD_ENV];
     const { manager, requestApproval, telemetryTrack } = makePermissionManager(async () => ({
       decision: 'approved',
     }));
@@ -818,23 +820,53 @@ describe('Permission policy chain', () => {
     await expect(
       manager.beforeToolCall(
         hookContext({
-          id: 'call_rm_rf',
+          id: 'call_rm_rf_unguarded',
           toolName: 'Bash',
           args: { command: 'rm -rf /tmp/workspace-build' },
         }),
       ),
     ).resolves.toBeUndefined();
 
-    expect(requestApproval).toHaveBeenCalled();
-    expect(telemetryTrack).toHaveBeenCalledWith(
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(telemetryTrack).not.toHaveBeenCalledWith(
       'permission_policy_decision',
       expect.objectContaining({
         policy_name: 'yolo-high-risk-ask',
-        permission_mode: 'yolo',
-        decision: 'ask',
-        yolo_high_risk: true,
       }),
     );
+  });
+
+  it('asks for destructive Bash under yolo mode when high-risk guard is enabled', async () => {
+    process.env[PERMISSION_HIGH_RISK_GUARD_ENV] = '1';
+    try {
+      const { manager, requestApproval, telemetryTrack } = makePermissionManager(async () => ({
+        decision: 'approved',
+      }));
+      manager.mode = 'yolo';
+
+      await expect(
+        manager.beforeToolCall(
+          hookContext({
+            id: 'call_rm_rf',
+            toolName: 'Bash',
+            args: { command: 'rm -rf /tmp/workspace-build' },
+          }),
+        ),
+      ).resolves.toBeUndefined();
+
+      expect(requestApproval).toHaveBeenCalled();
+      expect(telemetryTrack).toHaveBeenCalledWith(
+        'permission_policy_decision',
+        expect.objectContaining({
+          policy_name: 'yolo-high-risk-ask',
+          permission_mode: 'yolo',
+          decision: 'ask',
+          yolo_high_risk: true,
+        }),
+      );
+    } finally {
+      delete process.env[PERMISSION_HIGH_RISK_GUARD_ENV];
+    }
   });
 });
 

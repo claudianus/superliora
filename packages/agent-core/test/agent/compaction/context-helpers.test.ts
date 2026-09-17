@@ -178,23 +178,23 @@ describe('context-helpers.ts — pure helpers', () => {
   describe('formatRawRef', () => {
     it('renders the kind/range/tokens and tools list when present', () => {
       const ref: CompactionPlan['rawRefs'][number] = {
-        kind: 'tool',
+        kind: 'tool_exchange',
         messageStart: 1,
         messageEnd: 9,
         tokens: 12_345,
         toolNames: ['shell', 'read'],
       };
-      expect(formatRawRef(ref)).toBe('tool[1-9] tokens=12345 tools=shell,read');
+      expect(formatRawRef(ref)).toBe('tool_exchange[1-9] tokens=12345 tools=shell,read');
     });
 
     it('omits the tools= suffix when toolNames is missing or empty', () => {
       const ref: CompactionPlan['rawRefs'][number] = {
-        kind: 'message',
+        kind: 'assistant',
         messageStart: 0,
         messageEnd: 5,
         tokens: 100,
       };
-      expect(formatRawRef(ref)).toBe('message[0-5] tokens=100');
+      expect(formatRawRef(ref)).toBe('assistant[0-5] tokens=100');
     });
   });
 });

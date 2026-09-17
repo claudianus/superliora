@@ -91,7 +91,7 @@ export function mechanicalVerificationCommands(
 }
 
 /** H6: why a declared command list produced no mechanical command to run. */
-export function mechanicalVerificationGap(
+function mechanicalVerificationGap(
   commands: readonly string[] | undefined,
 ): string | undefined {
   const all = commands ?? [];
@@ -117,10 +117,12 @@ export function createGreenfieldChainJobs(
   const phasePlaybook = PHASES.map(
     (step) => `${step.titlePrefix.replace(/:$/, '')}: ${step.promptExtra}`,
   ).join('\n');
+  const mechanicalGap = mechanicalVerificationGap(input.verificationCommands);
   const promptParts = [
     'Greenfield in ONE session. Work these phases in order (TodoList); do not spawn sibling Jobs.',
     phasePlaybook,
     basePrompt,
+    mechanicalGap === undefined ? undefined : `Mechanical verification: ${mechanicalGap}`,
   ].filter(Boolean);
   const job = createJob(store, {
     title: input.title.slice(0, 120),

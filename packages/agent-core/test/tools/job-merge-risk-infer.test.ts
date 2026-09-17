@@ -20,7 +20,7 @@ import {
   resolveMergeRiskAssessment,
   assessmentFromJudgment,
   MERGE_RISK_CONFIDENCE_FLOOR,
-} from '../../src/tools/builtin/job/job-merge-risk-infer';
+} from '../../src/tools/builtin/job/merge/risk-infer';
 import {
   evaluateMergeTrust,
   evaluateMergeTrustAsync,

@@ -106,9 +106,9 @@ export interface RunProjectChecksResult {
  * `undecidable` — nothing usable was declared and no judgement was supplied.
  * The check must be recorded as such; it never becomes a silent pass.
  */
-export type ScriptSelectionProvenance = 'declared' | 'heuristic' | 'undecidable';
+type ScriptSelectionProvenance = 'declared' | 'heuristic' | 'undecidable';
 
-export interface ScriptSelection {
+interface ScriptSelection {
   readonly scriptName?: string | undefined;
   readonly provenance: ScriptSelectionProvenance;
   readonly reason?: string | undefined;
