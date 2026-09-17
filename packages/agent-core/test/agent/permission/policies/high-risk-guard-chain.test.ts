@@ -5,14 +5,14 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { Agent } from '../../src/agent';
+import type { Agent } from '#/agent';
 import {
   PermissionManager,
   PERMISSION_HIGH_RISK_GUARD_ENV,
   type ApprovalResponse,
-} from '../../src/agent/permission';
+} from '#/agent/permission';
 import type { Kaos } from '@superliora/kaos';
-import { createFakeKaos } from '../tools/fixtures/fake-kaos';
+import { createFakeKaos } from '../../../tools/fixtures/fake-kaos';
 
 function makePermissionManager(
   handleApproval: (request: unknown) => Promise<ApprovalResponse>,
