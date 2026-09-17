@@ -86,7 +86,7 @@ describe('RunProjectChecksTool', () => {
     expect(buildCommandArgs(undefined, 'test', 'node --test tests/*.test.js')).toEqual([
       'node',
       '--test',
-      'tests',
+      'tests/*.test.js',
     ]);
     // H2 regression: a bare `node --test` script must NOT synthesize a `tests`
     // directory. Projects that keep their tests in `test/` were being run as
@@ -98,10 +98,13 @@ describe('RunProjectChecksTool', () => {
       'node',
       '--test',
     ]);
+    // H6: a declared spec is emitted verbatim — directory positional args are
+    // broken on Node 24 either way, so rewriting them bought nothing and hid
+    // the project's own command from the ledger.
     expect(buildCommandArgs(undefined, 'test', 'node --test test/', true)).toEqual([
       'node',
       '--test',
-      'test',
+      'test/',
     ]);
     expect(declaredTestDir('node --test')).toBeUndefined();
     expect(declaredTestDir('node --test tests/*.test.js')).toBe('tests');
@@ -273,7 +276,7 @@ describe('RunProjectChecksTool', () => {
     expect(payload.exitCode).toBe(0);
     expect(payload.checks[0]).toMatchObject({
       name: 'test',
-      command: 'node --test tests',
+      command: 'node --test tests/*.test.js',
       provenance: 'declared',
     });
     expect(payload.checks[1]?.skipped).toBe(true);
@@ -479,6 +482,52 @@ describe('RunProjectChecksTool', () => {
     expect(runs.some((args) => args.includes('tests'))).toBe(false);
     expect(payload.checks[0]?.command).toBe('node --test');
     expect(payload.exitCode).toBe(0);
+  });
+
+  it('H6: a declared glob spec is passed through verbatim (Node 24 base-dir rewrite fails)', async () => {
+    // Real Node 24 behaviour measured on this machine:
+    //   node --test 'tests/*.test.js'  -> pass 1, exit 0
+    //   node --test tests              -> MODULE_NOT_FOUND, exit 1
+    // Collapsing the declared spec to its base directory is what made green
+    // projects red, so the assertion below pins the untouched spec.
+    expect(buildCommandArgs(undefined, 'test', "node --test 'tests/*.test.js'")).toEqual([
+      'node',
+      '--test',
+      "tests/*.test.js",
+    ]);
+    expect(buildCommandArgs(undefined, 'test', 'node --test tests/*.test.js', true)).toEqual([
+      'node',
+      '--test',
+      'tests/*.test.js',
+    ]);
+    // Absent on disk → discovery, never a path Node cannot resolve.
+    expect(buildCommandArgs(undefined, 'test', 'node --test tests/*.test.js', false)).toEqual([
+      'node',
+      '--test',
+    ]);
+
+    const runs: string[][] = [];
+    const exec = vi.fn(async (...args: string[]) => {
+      runs.push(args);
+      return fakeProcess(0, 'pass 1\n');
+    });
+    const kaos = createFakeKaos({
+      getcwd: () => '/work',
+      readText: async () =>
+        JSON.stringify({ name: 'glob-declared', scripts: { test: 'node --test tests/*.test.js' } }),
+      exec: exec as Kaos['exec'],
+      stat: async () => ({ stMode: 0o040755 }) as never,
+    });
+    const tool = new RunProjectChecksTool(kaos, '/work');
+    const result = await executeTool(tool, context({ checks: ['test'] }));
+    const payload = JSON.parse(String(result.output)) as {
+      checks: Array<{ command?: string; provenance?: string }>;
+    };
+    expect(runs[0]).toEqual(['node', '--test', 'tests/*.test.js']);
+    expect(payload.checks[0]).toMatchObject({
+      command: 'node --test tests/*.test.js',
+      provenance: 'declared',
+    });
   });
 
   it('buildResultPayload aggregates exit codes', () => {

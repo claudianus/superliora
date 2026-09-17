@@ -451,14 +451,19 @@ function rewriteDirectNodeScript(
     // `node --test tests` against projects that use `test/`, recording a false
     // `tests=failed` for green code (harness defect H2).
     if (rawSpec === undefined || rawSpec.trim().length === 0) return ['node', '--test'];
-    const spec = rawSpec.replaceAll('\\', '/').replaceAll(/^["']|["']$/g, '');
-    const dir = spec.replace(/\/\*[^/]*$/, '').replace(/\/+$/, '').trim();
-    if (dir.length === 0) return ['node', '--test'];
-    // H2 follow-up: a *declared* directory that is absent on disk fails the
-    // run just like an invented one. When the caller probed the filesystem and
-    // the directory is missing, drop the arg and let discovery decide.
+    // H6: the declared spec is passed through *verbatim*. Node's test runner
+    // resolves glob patterns itself (`node --test 'tests/*.test.js'`), while
+    // collapsing the spec to its base directory does not work at all on Node
+    // 24 — `node --test tests` dies with MODULE_NOT_FOUND and turns a green
+    // project red. Rewriting the declaration was the same mistake as inventing
+    // one, one step smaller.
+    const spec = rawSpec.replaceAll(/^["']|["']$/g, '');
+    if (spec.trim().length === 0) return ['node', '--test'];
+    // H2 follow-up: a *declared* path that is absent on disk fails the run just
+    // like an invented one. When the caller probed the filesystem and the base
+    // directory is missing, drop the arg and let discovery decide.
     if (declaredDirExists === false) return ['node', '--test'];
-    return ['node', '--test', dir];
+    return ['node', '--test', spec];
   }
   const checkMatch = /^(?:node(?:\.exe)?)\s+--check\s+(.+)$/.exec(t);
   if (checkMatch?.[1] !== undefined) {
@@ -477,9 +482,10 @@ function packageLooksLikeNoInstallSite(pkg: {
 }
 
 /**
- * H2: the test directory a `node --test <spec>` script actually declares —
- * `undefined` for a bare script. Used to probe existence before passing an
- * argument, so a stale/absent directory never becomes a false `tests=failed`.
+ * H2: the path a `node --test <spec>` script actually declares — `undefined`
+ * for a bare script. Used only to probe existence before passing the spec, so
+ * a stale/absent path never becomes a false `tests=failed`. H6: for a glob spec
+ * the probe base is the directory part, but the *command* keeps the full spec.
  */
 export function declaredTestDir(script: string | undefined): string | undefined {
   if (script === undefined) return undefined;
