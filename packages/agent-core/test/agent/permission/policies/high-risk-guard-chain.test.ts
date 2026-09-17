@@ -11,7 +11,6 @@ import {
   PERMISSION_HIGH_RISK_GUARD_ENV,
   type ApprovalResponse,
 } from '../../../../src/agent/permission';
-import type { Kaos } from '@superliora/kaos';
 import { createFakeKaos } from '../../../tools/fixtures/fake-kaos';
 
 function makePermissionManager(
@@ -26,31 +25,43 @@ function makePermissionManager(
   const telemetryTrack = vi.fn();
   const agent = {
     type: 'main',
-    permission: null as unknown as PermissionManager,
+    config: { cwd: '/workspace' },
+    kaos: createFakeKaos(),
+    getAdditionalDirs: () => [],
     records: { logRecord: vi.fn() },
     replayBuilder: { push: vi.fn() },
     emitStatusUpdated: vi.fn(),
     telemetry: { track: telemetryTrack },
-    hooks: undefined,
+    hooks: { fireAndForgetTrigger: vi.fn(), triggerBlock: vi.fn(async () => undefined) },
     rpc: { requestApproval },
-    log: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
-    kaos: createFakeKaos() as unknown as Kaos,
+    planMode: { isActive: false },
+    askMode: { isActive: false },
   } as unknown as Agent;
   manager = new PermissionManager(agent);
-  (agent as { permission: PermissionManager }).permission = manager;
+  Object.assign(agent, { permission: manager });
   return { manager, requestApproval, telemetryTrack };
 }
 
 function bashHookContext(command: string) {
   return {
-    toolCall: { id: 'call_rm_rf', name: 'Bash' },
-    args: { command },
     turnId: '0',
+    stepNumber: 1,
     signal: new AbortController().signal,
+    llm: {} as never,
+    toolCall: {
+      type: 'function',
+      id: 'call_rm_rf',
+      name: 'Bash',
+      arguments: JSON.stringify({ command }),
+    },
+    toolCalls: [],
+    args: { command },
     execution: {
       description: `Running: ${command}`,
       display: { kind: 'command', command, cwd: '/tmp', language: 'bash' },
+      accesses: { reads: [], writes: [], network: false },
       approvalRule: 'Bash(*)',
+      execute: async () => ({ output: '' }),
     },
   } as never;
 }
