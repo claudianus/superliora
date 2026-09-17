@@ -45,6 +45,12 @@ export class ReverseRpcPanelsController {
   private activeApprovalPanel: ApprovalPanelComponent | undefined;
   /** True while a question dialog owns the editor replacement (or is deferred). */
   private questionPanelActive = false;
+  /**
+   * The question dialog currently mounted as the editor replacement, if any.
+   * Checked by identity against the live editor container so a queued question
+   * can tell "our own takeover" from a foreign command dialog.
+   */
+  private mountedQuestionDialog: QuestionDialogComponent | undefined;
   private approvalPreview:
     | {
         component: ApprovalPreviewViewer;
@@ -147,11 +153,7 @@ export class ReverseRpcPanelsController {
   }
 
   showQuestionDialog(payload: QuestionPanelData): void {
-    if (
-      this.host.state.activeDialog === 'command' ||
-      this.host.state.activeDialog === 'center-modal' ||
-      this.host.state.centerModalStack.length > 0
-    ) {
+    if (this.shouldDeferQuestionDialog()) {
       notifyUserAttentionOnce(this.host.state, `question:${payload.id}`, {
         title: ttui('tui.notice.needsAnswer'),
         body: payload.questions[0]?.question,
@@ -178,7 +180,37 @@ export class ReverseRpcPanelsController {
         this.host.toggleToolOutputExpansion();
       },
     );
+    this.mountedQuestionDialog = dialog;
     this.host.mountEditorReplacement(dialog);
+  }
+
+  /**
+   * Whether an incoming question must wait for the editor to free up.
+   *
+   * Advancing a queued question calls `showQuestionDialog` again, and the
+   * previous question was itself mounted through `mountEditorReplacement` —
+   * which marks the takeover `activeDialog = 'command'` (modal-shell.ts:35).
+   * Reading that self-inflicted marker as "an unrelated modal is open" deferred
+   * every follow-up question forever: the controller only hides the panel once
+   * its queue drains (`advanceOrHide`, base-controller.ts:124-132), so nothing
+   * called `hideQuestionDialog` in between. The already-answered dialog stayed
+   * on screen and swallowed Enter — the H11 freeze.
+   *
+   * Ownership is verified by identity against the live editor container, so a
+   * real foreign takeover (Help, /login, session picker) and any center modal
+   * still defer exactly as before.
+   */
+  private shouldDeferQuestionDialog(): boolean {
+    const state = this.host.state;
+    if (state.centerModalStack.length > 0 || state.activeDialog === 'center-modal') return true;
+    if (state.activeDialog !== 'command') return false;
+    return !this.ownsEditorReplacement();
+  }
+
+  private ownsEditorReplacement(): boolean {
+    const mounted = this.mountedQuestionDialog;
+    if (mounted === undefined) return false;
+    return this.host.state.editorContainer.children.at(-1) === mounted;
   }
 
   /**
@@ -191,6 +223,7 @@ export class ReverseRpcPanelsController {
    */
   hideQuestionDialog(): void {
     this.questionPanelActive = false;
+    this.mountedQuestionDialog = undefined;
     this.host.deferredQuestion = undefined;
     this.host.patchLivePane({ pendingQuestion: null });
     this.host.restoreEditor();
