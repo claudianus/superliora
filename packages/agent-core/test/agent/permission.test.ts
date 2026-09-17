@@ -1,1 +1,1 @@
-import type { Kaos } from '@superliora/kaos';
+@file:///tmp/good_perm.ts
