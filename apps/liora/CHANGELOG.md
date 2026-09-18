@@ -1,5 +1,18 @@
 # @superliora/liora
 
+## 0.32.4
+
+### Patch Changes
+
+- Fix browser-use install and update skipping sidecar repair when a stray package.json exists above the binary, which left launches failing with "no cloakbrowser package found on disk".
+- Fix content search, repo indexing, and memory stores crashing with "Cannot access 'require' before initialization" in the installed binary.
+- High-risk shell commands no longer raise an unanswerable confirmation prompt in auto/yolo runs; set SUPERLIORA_PERMISSION_HIGH_RISK_GUARD=1 to opt the guard back in.
+- Merge jobs now judge risk from the caller's risk assessment or declared sensitive paths instead of fixed diff-size thresholds and a filename blocklist; a missing judgment holds the merge instead of auto-approving it.
+- Project checks now run the declared canonical script verbatim and honor caller-provided script overrides instead of guessing script names; checks that cannot be resolved are recorded as undecidable rather than silently passed.
+- Fix queued question and approval panels freezing the TUI: a mounted panel marked the editor busy, so every follow-up prompt deferred forever and Enter did nothing.
+- Subagent and job workers that go silent in their finishing phase now return a diagnostic result after a ten-minute idle cap instead of burning the whole wall-clock deadline.
+- Worker summaries now report each verification slot separately, so a missing or failed check is no longer masked by other green checks.
+
 ## 0.32.3
 
 ### Patch Changes
