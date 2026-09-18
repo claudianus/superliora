@@ -1,3 +1,6 @@
+import { existsSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -91,4 +94,28 @@ describe('scripts/install/ensure-oh-my-posh', () => {
     expect(theme.palette.primary).toBe('#00D5FF');
     expect(theme.blocks[1]?.newline).toBe(true);
   });
+
+  // Regression: a win32-simulated home resolves to a relative path on POSIX —
+  // real mkdir/writeFile would drop `X:\...` directories into the cwd.
+  it.skipIf(process.platform === 'win32')(
+    'refuses foreign-platform runtime dirs instead of polluting cwd',
+    async () => {
+      const leaked = join(process.cwd(), 'X:\\sl-omp-test');
+      try {
+        const result = await ensureOhMyPosh({
+          platform: 'win32',
+          env: { USERPROFILE: 'X:\\sl-omp-test' },
+          isFile: () => false,
+          which: () => undefined,
+          runWinget: () => ({ status: 1 }),
+          downloadToFile: async () => '',
+          writeFile: async () => {},
+        });
+        expect(result.installed).toBe(false);
+        expect(existsSync(leaked)).toBe(false);
+      } finally {
+        rmSync(leaked, { recursive: true, force: true });
+      }
+    },
+  );
 });

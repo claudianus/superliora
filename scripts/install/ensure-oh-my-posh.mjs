@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, rm, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, isAbsolute } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
 import { findWinget } from './ensure-winget.mjs';
@@ -140,20 +140,20 @@ export function renderNeonNoirOmpTheme() {
             style: 'plain',
             foreground: 'p:accent',
             template: '{{ .HEAD }}{{ if .Working.Changed }}*{{ end }}{{ if .Staging.Changed }}+{{ end }} ',
-            properties: { fetch_status: true, branch_icon: '\ue725 ' },
+            properties: { fetch_status: true, branch_icon: '\uE725 ' },
           },
           {
             type: 'node',
             style: 'plain',
             foreground: 'p:success',
-            template: '\ue718 {{ .Full }} ',
+            template: '\uE718 {{ .Full }} ',
             properties: { fetch_version: true },
           },
           {
             type: 'python',
             style: 'plain',
             foreground: 'p:warning',
-            template: '\ue235 {{ if .Venv }}{{ .Venv }} {{ end }}{{ .Full }} ',
+            template: '\uE235 {{ if .Venv }}{{ .Venv }} {{ end }}{{ .Full }} ',
           },
           {
             type: 'executiontime',
@@ -176,7 +176,7 @@ export function renderNeonNoirOmpTheme() {
               '{{ if gt .Code 0 }}p:error{{ end }}',
               'p:primary',
             ],
-            template: '\u276f',
+            template: '\u276F',
           },
         ],
       },
@@ -184,7 +184,7 @@ export function renderNeonNoirOmpTheme() {
     transient_prompt: {
       background: 'transparent',
       foreground: 'p:muted',
-      template: '\u276f ',
+      template: '\u276F ',
     },
   };
 }
@@ -290,7 +290,14 @@ async function installOhMyPoshBinary(options = {}) {
   const dest = hostJoin(platform, destDir, destName);
   const download = options.downloadToFile ?? downloadToFile;
   const asset = ohMyPoshAssetName(platform, options.arch ?? process.arch);
-  await mkdir(destDir, { recursive: true });
+  // A simulated foreign home (tests) or a relative SUPERLIORA_HOME resolves to
+  // a path that is not absolute on this host — writing it would pollute the
+  // caller's cwd with stray directories.
+  if (!isAbsolute(destDir)) {
+    return { ok: false, message: `refusing to install oh-my-posh into non-absolute path ${destDir}` };
+  }
+  const makeDir = options.mkdir ?? ((dir) => mkdir(dir, { recursive: true }));
+  await makeDir(destDir);
   try {
     await download(ohMyPoshDownloadUrl(platform, options.arch ?? process.arch), dest, {
       expectedSha256: OMP_ASSET_SHA256[asset],
@@ -353,6 +360,7 @@ function defaultWhich(name, env) {
 }
 
 async function defaultWriteUtf8(dest, text) {
+  if (!isAbsolute(dest)) throw new Error(`refusing to write non-absolute path ${dest}`);
   await mkdir(dirname(dest), { recursive: true });
   await writeFile(dest, text, 'utf8');
 }
