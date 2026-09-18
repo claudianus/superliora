@@ -147,6 +147,34 @@ describe('runSideGenerateWithSharedFailover', () => {
     expect(second).not.toHaveBeenCalled();
   });
 
+  it('fails fast without network attempts when every candidate is cooling down', async () => {
+    const route = routeOf('oauth:0', 'oauth:1');
+    const state = new InMemoryProviderRouteState();
+    for (const c of route.candidates) {
+      state.recordFailure(route, c, { kind: 'quota', cooldownMs: 60_000 });
+    }
+    const run = vi.fn(async () => 'should-not-run');
+    const failed = vi.fn();
+
+    await expect(
+      runSideGenerateWithSharedFailover({
+        route,
+        routeState: state,
+        attempts: route.candidates.map((c) => ({ candidate: c, run })),
+        onCandidateFailed: failed,
+      }),
+    ).rejects.toMatchObject({
+      name: 'LioraError',
+      details: expect.objectContaining({
+        routeUnavailable: true,
+        dominantFailureKind: 'quota',
+      }),
+    });
+
+    expect(run).not.toHaveBeenCalled();
+    expect(failed).not.toHaveBeenCalled();
+  });
+
   it('sideCandidateKey is stable for matching attempts to ordered candidates', () => {
     const a = candidate('oauth:0');
     const b = candidate('oauth:0');

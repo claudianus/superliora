@@ -16,7 +16,7 @@ import type {
   ProviderRouteFailure,
   ProviderRouteState,
 } from './turn/kosong-llm';
-import { classifyProviderRouteFailure } from './turn/kosong-llm';
+import { classifyProviderRouteFailure, routeUnavailableError } from './turn/kosong-llm';
 import type { LlmProviderCircuitObserver } from './llm-provider-circuit-breaker';
 
 export type SideGenerateCandidateAttempt<T> = {
@@ -47,6 +47,19 @@ export type SideGenerateFailoverParams<T> = {
 export async function runSideGenerateWithSharedFailover<T>(
   params: SideGenerateFailoverParams<T>,
 ): Promise<T> {
+  // A cancelled call is not a provider failure — check before the cooldown
+  // shortcut could masquerade it as route unavailability (mirrors
+  // KosongLLM.chatWithRoute).
+  params.signal?.throwIfAborted();
+  // When every candidate is already cooling down, `orderCandidates` falls back
+  // to the full list, so each auxiliary call would burn one doomed network
+  // attempt per candidate (plus a warn log each). Side calls are best-effort:
+  // fail fast like the main-turn route does and let the next call retry after
+  // the cooldown expires.
+  const unavailable = params.routeState.unavailable(params.route);
+  if (unavailable !== undefined) {
+    throw routeUnavailableError(params.route.key, unavailable);
+  }
   const ordered = params.routeState.orderCandidates(params.route);
   // Map ordered candidates back to attempt runners by credential+model key.
   const attemptByKey = new Map<string, SideGenerateCandidateAttempt<T>>();
