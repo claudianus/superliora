@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.32.5
+
+### Patch Changes
+
+- Reuse a recent update fetch for 15 minutes on source-checkout installs and cap git probes with a timeout, so interactive startup no longer stalls on the network every launch.
+- Refuse installer writes to paths that are not absolute on the host, so a relative or foreign-style install home cannot drop stray directories into the working directory.
+- Fail fast on background model calls while every provider credential is cooling down instead of burning one network attempt per account.
+
 ## 0.32.4
 
 ### Patch Changes
