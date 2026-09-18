@@ -245,15 +245,15 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
       }
 
       const declaredDir = declaredTestDir(scriptBody);
-      const declaredDirExists =
+      const declaredPathExists =
         declaredDir === undefined
           ? undefined
-          : await this.dirExists(packageRoot, declaredDir);
+          : await this.declaredPathExists(packageRoot, declaredDir);
       const commandArgs = buildCommandArgs(
         packageDir,
         scriptName,
         scriptBody,
-        declaredDirExists,
+        declaredPathExists,
       );
       const commandLabel = commandArgs.join(' ');
       const started = Date.now();
@@ -294,16 +294,20 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
   }
 
   /**
-   * H2: probe whether the script's declared test directory exists, without
-   * inventing one. `undefined` on probe failure keeps the declared arg rather
-   * than silently rewriting the command.
+   * H2: probe whether the script's declared test path exists, without
+   * inventing one. The declared anchor can be a directory (`tests/`), a glob
+   * base (`tests/*.test.js` → `tests`), or a single file
+   * (`node --test tests/foo.test.js`) — existence is what matters, not the
+   * node type, so a declared file that exists must not be read as "missing"
+   * and rewritten into bare `node --test`. Links are followed: a symlinked
+   * dir counts, a dangling link counts as missing. `undefined` on probe
+   * failure keeps the declared arg rather than silently rewriting the command.
    */
-  private async dirExists(packageRoot: string, relativeDir: string): Promise<boolean> {
+  private async declaredPathExists(packageRoot: string, relativePath: string): Promise<boolean> {
     try {
-      const absolute = resolve(packageRoot, relativeDir);
-      const stat = await this.kaos.stat(absolute);
-      // Kaos.StatResult exposes raw stMode — S_IFDIR bit, not an isDirectory helper.
-      return (stat.stMode & 0o170000) === 0o040000;
+      const absolute = resolve(packageRoot, relativePath);
+      await this.kaos.stat(absolute, { followSymlinks: true });
+      return true;
     } catch {
       return false;
     }

@@ -7,8 +7,7 @@
  * - guard ON: `ask` → the harness would block → command is not executed →
  *   directory survives.
  */
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -33,12 +32,13 @@ function makeProbe(): { readonly dir: string; readonly file: string } {
   const dir = mkdtempSync(join(tmpdir(), 'h4-guard-probe-'));
   const file = join(dir, 'sentinel.txt');
   mkdirSync(join(dir, 'nested'), { recursive: true });
-  execFileSync('/bin/bash', ['-c', `printf 'x' > ${JSON.stringify(file)}`]);
+  writeFileSync(file, 'x');
   return { dir, file };
 }
 
+/** The delete the policy governs — fs call, not a shell, so Windows runs it too. */
 function runRmRf(dir: string): void {
-  execFileSync('/bin/bash', ['-c', `rm -rf ${JSON.stringify(dir)}`]);
+  rmSync(dir, { recursive: true, force: true });
 }
 
 afterEach(() => {

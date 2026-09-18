@@ -132,8 +132,9 @@ export function markActiveChildToolProgress(childId: string): boolean {
 
 /**
  * Announce that a live child entered its finishing phase (H8) — arms the
- * finite finishing cap. Returns false when the child has no armed cap, so the
- * caller can skip wiring the signal.
+ * finite finishing cap. Returns false when the child is not registered as a
+ * live child; a child without a configured cap still returns true (the
+ * announcement is then a no-op).
  */
 export function markActiveChildFinishing(childId: string): boolean {
   const control = deadlineControlsByChildId.get(childId);
@@ -273,7 +274,6 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
   const finishingCapMs = options.finishingCapMs ?? 0;
   let finishingIdleTimer: ReturnType<typeof setTimeout> | undefined;
   let finishingStartedAt: number | undefined;
-  let finishingLastProgressAt: number | undefined;
   const clearFinishingIdleTimer = (): void => {
     if (finishingIdleTimer !== undefined) {
       clearTimeout(finishingIdleTimer);
@@ -309,7 +309,6 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
   const enterFinishing = (): void => {
     if (finishingCapMs <= 0 || finishingStartedAt !== undefined) return;
     finishingStartedAt = Date.now();
-    finishingLastProgressAt = finishingStartedAt;
     try {
       options.notifyFinishingStart?.();
     } catch {
@@ -317,10 +316,9 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
     }
     armFinishingIdleTimer();
   };
-  /** Finishing + tool progress: the cap is finite, not idle-only. */
+  /** Finishing + tool progress: re-arm the idle bound. */
   const noteProgressDuringFinishing = (): void => {
     if (finishingStartedAt === undefined || deadlineError !== undefined) return;
-    finishingLastProgressAt = Date.now();
     armFinishingIdleTimer();
   };
 
