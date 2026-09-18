@@ -74,6 +74,14 @@ export {
   type StartObservedUpgradeInstallDeps,
 } from './observed-install';
 
+/**
+ * Source-checkout preflight runs `git fetch` on the foreground path. Throttle
+ * it so interactive launches within this window reuse the last fetch instead
+ * of paying a network round-trip (or a timeout) on every start. Explicit
+ * `liora upgrade` does not throttle.
+ */
+const CHECKOUT_FETCH_MIN_INTERVAL_MS = 15 * 60_000;
+
 export interface RunUpdatePreflightOptions {
   readonly stdout?: { write(chunk: string): boolean };
   readonly stderr?: { write(chunk: string): boolean };
@@ -218,9 +226,9 @@ export async function runUpdatePreflight(
     const githubCheckoutRoot = await detectSuperLioraGithubCheckout().catch(() => null);
     if (githubCheckoutRoot !== null) {
       const source: InstallSource = 'github-checkout';
-      const refreshResult = await refreshGitCheckoutUpdateTarget(githubCheckoutRoot).catch(
-        () => null,
-      );
+      const refreshResult = await refreshGitCheckoutUpdateTarget(githubCheckoutRoot, {
+        fetchThrottleMs: CHECKOUT_FETCH_MIN_INTERVAL_MS,
+      }).catch(() => null);
       // temporary shim until Task 2/3 lands structured handling
       let target = refreshResult?.status === 'update' ? refreshResult.target : null;
       // Git may already match upstream while a prior background install failed on

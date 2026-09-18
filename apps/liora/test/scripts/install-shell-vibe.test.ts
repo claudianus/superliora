@@ -75,6 +75,7 @@ describe('scripts/install/ensure-shell-vibe', () => {
       runWinget: () => ({ status: 1 }),
       downloadToFile: async () => '',
       expandZip: () => {},
+      mkdir: async () => {},
       installTerminalIcons: () => true,
       // Policy changes are consent-gated: only an explicit opt-in sets it.
       allowExecutionPolicy: true,
@@ -120,6 +121,7 @@ describe('scripts/install/ensure-shell-vibe', () => {
       which: () => undefined,
       downloadToFile: async () => '',
       expandZip: () => {},
+      mkdir: async () => {},
       addUserPath: () => {},
     });
     expect(result.ok).toBe(true);
@@ -133,6 +135,38 @@ describe('scripts/install/ensure-shell-vibe', () => {
     expect(ZOXIDE_WINGET_ID).toBe('ajeetdsouza.zoxide');
     expect(FZF_WINGET_ID).toBe('junegunn.fzf');
   });
+
+  // Regression: win32-simulated homes used to mkdir `X:\.../...` — a relative
+  // path on POSIX — straight into the caller's working directory.
+  it.skipIf(process.platform === 'win32')(
+    'never writes foreign-platform runtime dirs into the working directory',
+    async () => {
+      const leaked = join(process.cwd(), 'X:\\sl-vibe-test-home');
+      try {
+        const result = await ensureShellVibe({
+          platform: 'win32',
+          env: {
+            USERPROFILE: 'X:\\sl-vibe-test-home',
+            LOCALAPPDATA: 'X:\\sl-vibe-test-home\\AppData\\Local',
+          },
+          profilePaths: [],
+          ensureOhMyPosh: async () => ({ ok: true, installed: true, themeWritten: true }),
+          isFile: () => false,
+          which: () => undefined,
+          runWinget: () => ({ status: 1 }),
+          downloadToFile: async () => '',
+          expandZip: () => {},
+          installTerminalIcons: () => false,
+          setExecutionPolicy: () => false,
+          addUserPath: () => {},
+        });
+        expect(result.ok).toBe(true);
+        expect(existsSync(leaked)).toBe(false);
+      } finally {
+        rmSync(leaked, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe('Oh My Posh inbox PSReadLine guard', () => {

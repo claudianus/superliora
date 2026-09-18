@@ -439,7 +439,10 @@ export class KosongLLM implements LLM {
   }
 }
 
-function routeUnavailableError(routeKey: string, unavailable: ProviderRouteUnavailable): LioraError {
+export function routeUnavailableError(
+  routeKey: string,
+  unavailable: ProviderRouteUnavailable,
+): LioraError {
   const seconds = Math.ceil(unavailable.retryAfterMs / 1000);
   const details = {
     route: routeKey,

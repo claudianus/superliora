@@ -7,7 +7,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, isAbsolute } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
 import { ensureOhMyPosh, findOhMyPosh, ohMyPoshRuntimeDir } from './ensure-oh-my-posh.mjs';
@@ -445,10 +445,20 @@ async function ensureArchiveTool(options) {
   }
   try {
     const destDir = vibeRuntimeDir(options.name, options.env ?? process.env, platform);
+    // A simulated foreign home (tests) or a relative SUPERLIORA_HOME resolves
+    // to a path that is not absolute on this host — writing it would pollute
+    // the caller's cwd with stray directories.
+    if (!isAbsolute(destDir)) {
+      return {
+        installed: false,
+        message: `refusing to install ${options.name} into non-absolute path ${destDir}`,
+      };
+    }
     const archiveName = platform === 'win32' ? `${options.name}.zip` : `${options.name}.tar.gz`;
     const archive = hostJoin(platform, destDir, archiveName);
     const download = options.downloadToFile ?? downloadToFile;
-    await mkdir(destDir, { recursive: true });
+    const makeDir = options.mkdir ?? ((dir) => mkdir(dir, { recursive: true }));
+    await makeDir(destDir);
     await download(options.archiveUrl, archive);
     const expand = options.expandZip ?? defaultExpandArchive;
     await expand(archive, destDir, platform);
@@ -586,6 +596,7 @@ async function defaultReadText(dest) {
 }
 
 async function defaultWriteUtf8(dest, text) {
+  if (!isAbsolute(dest)) throw new Error(`refusing to write non-absolute path ${dest}`);
   await mkdir(dirname(dest), { recursive: true });
   await writeFile(dest, text, 'utf8');
 }

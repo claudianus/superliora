@@ -209,6 +209,34 @@ describe('refreshGitCheckoutUpdateTarget', () => {
     expect(result.status).toBe('diverged');
   });
 
+  it('skips fetch inside the throttle window even when the remote is gone', async () => {
+    const { bareDir, remoteUrl } = initBareRemote();
+    const repoRoot = initCheckout(remoteUrl);
+    const home = mkdtempSync(join(tmpdir(), 'liora-home-'));
+    tempDirs.push(home);
+    const prevHome = process.env['SUPERLIORA_HOME'];
+    process.env['SUPERLIORA_HOME'] = home;
+    try {
+      // First throttled refresh performs the fetch and writes the stamp.
+      await expect(
+        refreshGitCheckoutUpdateTarget(repoRoot, { fetchThrottleMs: 60_000 }),
+      ).resolves.toMatchObject({ status: 'up-to-date' });
+      // Kill the remote: a fetch would fail now, but the fresh stamp skips it.
+      rmSync(bareDir, { recursive: true, force: true });
+      await expect(
+        refreshGitCheckoutUpdateTarget(repoRoot, { fetchThrottleMs: 60_000 }),
+      ).resolves.toMatchObject({ status: 'up-to-date' });
+      // Without the throttle the dead remote fails the fetch (and its fallback).
+      await expect(refreshGitCheckoutUpdateTarget(repoRoot)).rejects.toThrow();
+    } finally {
+      if (prevHome === undefined) {
+        delete process.env['SUPERLIORA_HOME'];
+      } else {
+        process.env['SUPERLIORA_HOME'] = prevHome;
+      }
+    }
+  });
+
   it('rejects a checkout whose HEAD object is missing', async () => {
     const { remoteUrl } = initBareRemote();
     const repoRoot = initCheckout(remoteUrl);

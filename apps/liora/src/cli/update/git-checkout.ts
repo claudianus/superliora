@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, posix, resolve, win32 } from 'node:path';
+import { dirname, join, posix, resolve, win32 } from 'node:path';
 
 import { tryGetHostPackageRoot } from '#/cli/version';
-import { getDataDir } from '#/utils/paths';
+import { getDataDir, getUpdateStateFile } from '#/utils/paths';
 
 import type { UpdateTarget } from './types';
 
@@ -38,15 +39,29 @@ function gitArgv(repoRoot: string, args: readonly string[]): string[] {
   return ['-C', repoRoot, ...args];
 }
 
+/** Bound every git probe — an unbounded `git fetch` stalls startup on a dead network. */
+const GIT_EXEC_TIMEOUT_MS = 30_000;
+
 function execGit(repoRoot: string, args: readonly string[]): Promise<string> {
   return new Promise((resolveOutput, reject) => {
-    execFile('git', gitArgv(repoRoot, args), { encoding: 'utf-8' }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error((stderr.trim() || error.message)));
-        return;
-      }
-      resolveOutput(stdout.trim());
-    });
+    execFile(
+      'git',
+      gitArgv(repoRoot, args),
+      { encoding: 'utf-8', timeout: GIT_EXEC_TIMEOUT_MS },
+      (error, stdout, stderr) => {
+        if (error) {
+          const wrapped = new Error(stderr.trim() || error.message);
+          // `killed`+SIGTERM here means our own timeout fired — callers use it
+          // to skip fallbacks that would just hit the same wall again.
+          if (error.killed === true || error.signal === 'SIGTERM') {
+            (wrapped as { timedOut?: boolean }).timedOut = true;
+          }
+          reject(wrapped);
+          return;
+        }
+        resolveOutput(stdout.trim());
+      },
+    );
   });
 }
 
@@ -128,6 +143,38 @@ export interface GitCheckoutUpdateOptions {
   readonly dataHome?: string;
   /** Fallback command bin dir when Git Bash cannot see `liora`. */
   readonly commandBinDir?: string;
+  /**
+   * Skip `git fetch` when the last fetch attempt is younger than this. The
+   * startup preflight passes an interval so interactive launches do not pay a
+   * network round-trip (or a hang) every time; explicit `liora upgrade` leaves
+   * it unset and always fetches.
+   */
+  readonly fetchThrottleMs?: number;
+}
+
+/** Throttle stamp: `<dataDir>/updates/checkout-fetch-<sha1(root)>.stamp`. */
+function checkoutFetchStampPath(repoRoot: string): string {
+  const key = createHash('sha1').update(resolve(repoRoot)).digest('hex').slice(0, 16);
+  return join(dirname(getUpdateStateFile()), `checkout-fetch-${key}.stamp`);
+}
+
+function recentCheckoutFetchAttempt(repoRoot: string, minIntervalMs: number): boolean {
+  try {
+    const stamp = Number(readFileSync(checkoutFetchStampPath(repoRoot), 'utf8').trim());
+    return Number.isFinite(stamp) && Date.now() - stamp < minIntervalMs;
+  } catch {
+    return false;
+  }
+}
+
+function markCheckoutFetchAttempt(repoRoot: string): void {
+  try {
+    const stampPath = checkoutFetchStampPath(repoRoot);
+    mkdirSync(dirname(stampPath), { recursive: true });
+    writeFileSync(stampPath, String(Date.now()), 'utf8');
+  } catch {
+    // Stamp is best-effort; a missing stamp just means the next run fetches.
+  }
 }
 
 /** Windows command install dir — `%LOCALAPPDATA%\SuperLiora\bin`, not `~/.local/bin`. */
@@ -238,9 +285,20 @@ export async function refreshGitCheckoutUpdateTarget(
       : await resolveGitCheckoutUpstream(repoRoot);
   const ref = upstream.startsWith('origin/') ? upstream.slice('origin/'.length) : upstream;
   // Prefer an explicit fetch of the tracking ref so shallow clones deepen correctly.
-  await execGit(repoRoot, ['fetch', '--quiet', '--prune', 'origin', ref]).catch(async () => {
-    await execGit(repoRoot, ['fetch', '--quiet', '--prune', 'origin']);
-  });
+  const throttleMs = options.fetchThrottleMs;
+  const skipFetch =
+    throttleMs !== undefined && recentCheckoutFetchAttempt(repoRoot, throttleMs);
+  if (!skipFetch) {
+    // Stamp the attempt (not just success) so a dead remote cannot make every
+    // launch pay the fetch timeout.
+    markCheckoutFetchAttempt(repoRoot);
+    await execGit(repoRoot, ['fetch', '--quiet', '--prune', 'origin', ref]).catch(async (error) => {
+      // A timed-out fetch is a network problem, not a missing ref — the broad
+      // fallback fetch would hit the same wall for another full timeout.
+      if ((error as { timedOut?: boolean }).timedOut === true) throw error;
+      await execGit(repoRoot, ['fetch', '--quiet', '--prune', 'origin']);
+    });
+  }
   const local = await execGit(repoRoot, ['rev-parse', 'HEAD']);
   const remote = await execGit(repoRoot, ['rev-parse', upstream]);
   if (local === remote) {
