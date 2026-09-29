@@ -509,7 +509,10 @@ export function deriveSharedCwd(absPaths: readonly string[]): string {
     prefixFolded = prefixFolded.slice(0, j);
   }
   if (prefix.length === 0) return rootOf(absPaths[0]!);
-  return prefix.join('/') || nodePath.sep;
+  // Always `/`-joined, never the host separator: chokidar and the path
+  // helpers here both speak `/`, and a `\` root on Windows would not match
+  // the watched paths it is derived from.
+  return prefix.join('/') || '/';
 }
 
 /**
@@ -522,5 +525,7 @@ function rootOf(p: string): string {
   const unified = p.replaceAll('\\', '/');
   const drive = /^([A-Za-z]:)\//.exec(unified);
   if (drive !== null) return `${drive[1]}/`;
-  return unified.startsWith('/') ? '/' : nodePath.sep;
+  // Relative or non-drive input: `/` is what chokidar would treat as "watch
+  // everything", and it is the only root this service can honour portably.
+  return '/';
 }

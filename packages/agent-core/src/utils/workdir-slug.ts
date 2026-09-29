@@ -16,7 +16,7 @@ const WINDOWS_RESERVED_NAMES = new Set([
 ]);
 
 /** Device stem of a path component: `NUL.txt` reserves `NUL`. */
-export function windowsDeviceStem(name: string): string | undefined {
+function windowsDeviceStem(name: string): string | undefined {
   const base = name.split('.')[0] ?? '';
   return base === '' ? undefined : base.toLowerCase();
 }
