@@ -498,11 +498,16 @@ export function deriveSharedCwd(absPaths: readonly string[]): string {
 
   // Compare folded segments so a mixed-casing pair still yields their real
   // common ancestor instead of an empty prefix (which would watch a whole drive).
+  //
+  // Folding here is unconditional, unlike `comparablePath`: the inputs are
+  // paths from a client that may be watching a Windows workspace from any host,
+  // and a narrower root is only ever the safe failure. Deriving too wide
+  // watches a whole drive; deriving too narrow means no events.
   let prefix = toSegments(absPaths[0]!);
-  let prefixFolded = prefix.map(comparablePath);
+  let prefixFolded = prefix.map((s) => s.toLowerCase());
   for (let i = 1; i < absPaths.length; i++) {
     const segs = toSegments(absPaths[i]!);
-    const folded = segs.map(comparablePath);
+    const folded = segs.map((s) => s.toLowerCase());
     let j = 0;
     while (j < prefix.length && j < segs.length && prefixFolded[j] === folded[j]) j++;
     prefix = prefix.slice(0, j);

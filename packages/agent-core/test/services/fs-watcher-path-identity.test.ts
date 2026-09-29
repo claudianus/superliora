@@ -43,10 +43,10 @@ describe('fsWatcher path identity', () => {
   });
 
   it('derives a real common ancestor from Windows-style paths', () => {
-    // Runs identically on every platform. Splitting on the host separator alone
-    // made a `/`-normalized path a single segment, so the prefix collapsed and
-    // the watcher root widened to a whole drive — and the POSIX-shaped
-    // assertion above passed everywhere except the Windows CI shard.
+    // Runs identically on every platform. Folding in the derivation is
+    // unconditional (unlike `isUnderAny`, which follows the host filesystem),
+    // so a client watching a Windows workspace from a Linux host still gets
+    // the real common ancestor instead of a drive-wide root.
     expect(deriveSharedCwd(['C:/repo/src', 'c:/repo/Tests'])).toBe('C:/repo');
     expect(deriveSharedCwd(['C:\\repo\\src', 'c:\\repo\\Tests'])).toBe('C:/repo');
   });
@@ -58,8 +58,14 @@ describe('fsWatcher path identity', () => {
   });
 
   it('matches a path under its parent with either separator', () => {
-    expect(isUnderAny('C:/repo/src/a.ts', ['c:/repo/src'])).toBe(true);
-    expect(isUnderAny('C:\\repo\\src\\a.ts', ['C:/repo/src'])).toBe(true);
+    // Separator handling is unconditional; case folding follows the host
+    // filesystem, because on a case-sensitive one `Src` and `src` really are
+    // different directories and merging them would watch the wrong one.
+    const caseFolded = process.platform === 'win32' || process.platform === 'darwin';
+    expect(isUnderAny('C:/repo/src/a.ts', ['c:/repo/src'])).toBe(caseFolded);
+    expect(isUnderAny('C:\\repo\\src\\a.ts', ['C:/repo/src'])).toBe(caseFolded);
+    expect(isUnderAny('C:/repo/src/a.ts', ['C:/repo/src'])).toBe(true);
+    expect(isUnderAny('C:\\repo\\src\\a.ts', ['C:\\repo\\src'])).toBe(true);
     expect(isUnderAny('C:/repo/src-extra/a.ts', ['C:/repo/src'])).toBe(false);
   });
 
