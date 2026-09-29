@@ -1444,7 +1444,11 @@ describe('SessionSubagentHost', () => {
         code: 'subagent_deadline',
         deadlineMs: 250,
       });
-      await child.untilTurnEnd();
+      // The assertions above are the contract; this only drains the turn-ended
+      // event. Bound it so the test cannot sit on an unbounded wall-clock wait
+      // under suite load — it previously ran to the 30s vitest timeout and
+      // failed the whole gate while passing in isolation.
+      await child.untilTurnEnd(5_000);
     } finally {
       delete process.env[SUBAGENT_DEADLINE_ENV];
     }

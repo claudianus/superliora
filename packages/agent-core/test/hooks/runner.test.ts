@@ -1,6 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'pathe';
+import { afterAll, describe, expect, it } from 'vitest';
 
 const RUNNER_MODULE = '../../src/session/hooks/runner' as string;
+
+const dirs: string[] = [];
+
+afterAll(() => {
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+});
 
 interface HookResult {
   action: 'allow' | 'block';
@@ -42,8 +51,7 @@ describe('runHook process runner', () => {
   it('marks structured stdout JSON without message as empty hook output', async () => {
     const runHook = await importRunHook();
 
-    const emptyObject = await runHook("node -e \"process.stdout.write('{}')\"", {}, { timeout: 5 });
-    expect(emptyObject.action).toBe('allow');
+    const emptyObject = await runHook("node -e \"process.stdout.write('{}')\"", {}, { timeout: 5 });    expect(emptyObject.action).toBe('allow');
     expect(emptyObject.message).toBeUndefined();
     expect(emptyObject.structuredOutput).toBe(true);
 
@@ -119,5 +127,60 @@ describe('runHook process runner', () => {
       'node -e "let s=\\"\\";process.stdin.on(\\"data\\",d=>s+=d);process.stdin.on(\\"end\\",()=>{const o=JSON.parse(s);process.stdout.write(o.tool_name);})"';
     const result = await runHook(cmd, { tool_name: 'WriteFile' }, { timeout: 5 });
     expect(result.stdout?.trim()).toBe('WriteFile');
+  });
+});
+
+/**
+ * The exec-form split exists because `shell: true` hands the whole line to
+ * cmd.exe, which truncates an executable path at its first space
+ * (`C:\Program Files\...\node.exe` -> "not recognized" on Windows). The probe
+ * behind it had a discarded `isFile()` result, so any existing path including a
+ * directory looked like an executable, and it resolved relative paths against
+ * process.cwd() rather than the hook's cwd.
+ */
+describe('leadingExecutablePath', () => {
+  async function probe(): Promise<(command: string, cwd?: string) => string | undefined> {
+    const mod = (await import(RUNNER_MODULE)) as {
+      leadingExecutablePath: (command: string, cwd?: string) => string | undefined;
+    };
+    return mod.leadingExecutablePath;
+  }
+
+  it('does not treat a directory as an executable', async () => {
+    const leading = await probe();
+    const dir = mkdtempSync(join(tmpdir(), 'hook-dir-'));
+    dirs.push(dir);
+    // A spaced directory name with no slash in the first token, so the
+    // probe's own tokenization lands on it. A discarded `isFile()` result
+    // accepts it, the hook takes the exec-form branch, and the spawn dies with
+    // EISDIR instead of running through the shell.
+    mkdirSync(join(dir, 'my tools'), { recursive: true });
+    expect(leading('my tools', dir)).toBeUndefined();
+    expect(leading('my tools --flag', dir)).toBeUndefined();
+  });
+
+  it('does not take over a space-free executable', async () => {
+    const leading = await probe();
+    const dir = mkdtempSync(join(tmpdir(), 'hook-plain-'));
+    dirs.push(dir);
+    const file = join(dir, 'hook-script');
+    writeFileSync(file, '#!/bin/sh\n', 'utf-8');
+    // The plain shell form already handles this and may use shell syntax.
+    expect(leading('hook-script --flag', dir)).toBeUndefined();
+  });
+
+  it('leaves an already quoted command to the shell', async () => {
+    const leading = await probe();
+    expect(leading('"C:\\Program Files\\node.exe" script.js', process.cwd())).toBeUndefined();
+  });
+
+  it('resolves a relative executable against the hook cwd, not process cwd', async () => {
+    const leading = await probe();
+    const dir = mkdtempSync(join(tmpdir(), 'hook-cwd-'));
+    dirs.push(dir);
+    mkdirSync(join(dir, 'my tools'), { recursive: true });
+    writeFileSync(join(dir, 'my tools', 'run.sh'), '#!/bin/sh\n', 'utf-8');
+    // Only resolvable when `cwd` is honoured; against process.cwd() it is not.
+    expect(leading('my tools/run.sh --flag', dir)).toBe(join('my tools', 'run.sh'));
   });
 });

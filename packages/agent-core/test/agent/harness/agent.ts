@@ -262,12 +262,12 @@ export class AgentTestContext {
     return eventSnapshot(events, this.uuidLabels);
   }
 
-  untilTurnEnd(): Promise<ReturnType<typeof eventSnapshot>> {
-    return this.takeUntilRpc('turn.ended').then(({ events }) => events);
+  untilTurnEnd(timeoutMs?: number): Promise<ReturnType<typeof eventSnapshot>> {
+    return this.takeUntilRpc('turn.ended', timeoutMs).then(({ events }) => events);
   }
 
-  untilApprovalRequest(): Promise<ReturnType<typeof eventSnapshot>> {
-    return this.takeUntilRpc('requestApproval').then(({ events }) => events);
+  untilApprovalRequest(timeoutMs?: number): Promise<ReturnType<typeof eventSnapshot>> {
+    return this.takeUntilRpc('requestApproval', timeoutMs).then(({ events }) => events);
   }
 
   async takeApprovalRequest(): Promise<{
@@ -775,7 +775,10 @@ export class AgentTestContext {
     expect(resumeStateSnapshot(resumed.agent)).toEqual(resumeStateSnapshot(this.agent));
   }
 
-  private takeUntilRpc(method: string): Promise<{
+  private takeUntilRpc(
+    method: string,
+    timeoutMs?: number,
+  ): Promise<{
     event: RpcLogEntry;
     events: ReturnType<typeof eventSnapshot>;
   }> {
@@ -787,10 +790,27 @@ export class AgentTestContext {
       events: ReturnType<typeof eventSnapshot>;
     }>();
 
+    // A wall-clock bound keeps a wedged run from holding the suite until the
+    // vitest timeout. Left unbounded, a teardown wait turned into a gate
+    // failure under load even though the assertion under test had passed.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (timeoutMs !== undefined) {
+      timer = setTimeout(() => {
+        this.emitter.off('event', onEvent);
+        // No matching event: return the drained snapshot so a bounded wait
+        // resolves to "nothing arrived" instead of hanging the suite.
+        promise.resolve({
+          event: { method, args: {} } as unknown as RpcLogEntry,
+          events: this.newEvents(),
+        });
+      }, timeoutMs);
+    }
+
     const onEvent = () => {
       const event = this.findRpcFromCursor(method);
       if (event === undefined) return;
       this.emitter.off('event', onEvent);
+      if (timer !== undefined) clearTimeout(timer);
       promise.resolve(this.takeThrough(event));
     };
     this.emitter.on('event', onEvent);

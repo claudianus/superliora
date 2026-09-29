@@ -29,6 +29,21 @@ const DEFAULT_MAX_CHANGES_PER_WINDOW = 500;
 
 const DEFAULT_MAX_PATHS_PER_CONNECTION = 100;
 
+/**
+ * Windows and macOS filesystems are case-insensitive, but chokidar reports
+ * paths in the on-disk casing, which is independent of the casing a client
+ * registered. Comparing raw strings meant a client watching `C:\repo\Src`
+ * received no `event.fs.changed` for an edit reported as `c:\repo\src\a.ts`,
+ * and the shared-root derivation below collapsed to `/` — rooting the watcher
+ * at an entire drive. Fold case the way `path-access.isWithinDirectory`
+ * already does, so path identity matches filesystem identity.
+ */
+const FOLD_CASE = process.platform === 'win32' || process.platform === 'darwin';
+
+function comparablePath(p: string): string {
+  return FOLD_CASE ? p.toLowerCase() : p;
+}
+
 interface PendingChange {
   absPath: string;
   action: FsChangeAction;
@@ -36,6 +51,10 @@ interface PendingChange {
 }
 
 class PathReferenceCollection extends ReferenceCollection<string> {
+  // Keyed on the folded form: on a case-insensitive filesystem `a.ts` and
+  // `A.ts` are the same file, so two spellings must share one refcount entry.
+  // Keying on the raw string registered two watches, and releasing one
+  // spelling left the chokidar watch live forever.
   private readonly activePaths = new Set<string>();
 
   constructor(private readonly watcher: FSWatcher) {
@@ -48,12 +67,12 @@ class PathReferenceCollection extends ReferenceCollection<string> {
 
   protected createReferencedObject(absPath: string): string {
     this.watcher.add(absPath);
-    this.activePaths.add(absPath);
+    this.activePaths.add(comparablePath(absPath));
     return absPath;
   }
 
   protected destroyReferencedObject(absPath: string): void {
-    this.activePaths.delete(absPath);
+    this.activePaths.delete(comparablePath(absPath));
     this.watcher.unwatch(absPath);
   }
 }
@@ -435,33 +454,42 @@ function mapChokidarEventToKind(name: string): FsChangeKind {
   }
 }
 
-function isUnderAny(absPath: string, parents: Iterable<string>): boolean {
+/** @internal exported for tests — path identity must match FS identity. */
+export function isUnderAny(absPath: string, parents: Iterable<string>): boolean {
+  const target = comparablePath(absPath);
   for (const parent of parents) {
-    if (absPath === parent) return true;
+    const base = comparablePath(parent);
+    if (target === base) return true;
     const sep = nodePath.sep;
-    if (absPath.startsWith(parent + sep)) return true;
-    if (sep !== '/' && absPath.startsWith(parent + '/')) return true;
+    if (target.startsWith(base + sep)) return true;
+    if (sep !== '/' && target.startsWith(base + '/')) return true;
   }
   return false;
 }
 
 function toPosixRelative(cwd: string, abs: string): string {
-  if (abs === cwd) return '.';
+  if (comparablePath(abs) === comparablePath(cwd)) return '.';
   const rel = nodePath.relative(cwd, abs);
   if (rel === '') return '.';
   return rel.split(nodePath.sep).join('/');
 }
 
-function deriveSharedCwd(absPaths: readonly string[]): string {
+/** @internal exported for tests — mixed casing must not widen the root. */
+export function deriveSharedCwd(absPaths: readonly string[]): string {
   if (absPaths.length === 0) return '/';
   if (absPaths.length === 1) return nodePath.dirname(absPaths[0]!);
 
+  // Compare folded segments so a mixed-casing pair still yields their real
+  // common ancestor instead of an empty prefix (which would watch a whole drive).
   let prefix = absPaths[0]!.split(nodePath.sep);
+  let prefixFolded = prefix.map(comparablePath);
   for (let i = 1; i < absPaths.length; i++) {
     const segs = absPaths[i]!.split(nodePath.sep);
+    const folded = segs.map(comparablePath);
     let j = 0;
-    while (j < prefix.length && j < segs.length && prefix[j] === segs[j]) j++;
+    while (j < prefix.length && j < segs.length && prefixFolded[j] === folded[j]) j++;
     prefix = prefix.slice(0, j);
+    prefixFolded = prefixFolded.slice(0, j);
   }
   return prefix.length === 0 ? '/' : prefix.join(nodePath.sep) || nodePath.sep;
 }

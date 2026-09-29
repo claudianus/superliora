@@ -181,7 +181,8 @@ function spawnShellForm(
  * and the second (a script name relative to cwd) does not extend it into a
  * file — those stay on the plain shell path.
  */
-function leadingExecutablePath(command: string, cwd?: string): string | undefined {
+/** @internal exported for tests — the exec-form split has platform-specific rules. */
+export function leadingExecutablePath(command: string, cwd?: string): string | undefined {
   const trimmed = command.trimStart();
   if (trimmed.startsWith('"') || trimmed.startsWith("'")) return undefined;
   const tokens = trimmed.split(/\s+/).filter((token) => token.length > 0);

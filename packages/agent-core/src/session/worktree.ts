@@ -500,7 +500,14 @@ export async function removeSessionWorktree(
     // (e.g. already pruned).
   }
 
-  await rm(match.path, { recursive: true, force: true }).catch(() => {});
+  // A failed directory removal must NOT drop the registry entry. On Windows
+  // `rm -rf` fails with EBUSY/EPERM whenever any file is still open (a running
+  // node.exe, a locked DLL, an editor buffer). Swallowing that and deleting the
+  // entry anyway produced a directory full of uncommitted work that no
+  // `liora worktree` command could reach any more, because gc and hygiene both
+  // walk the registry only. Keep the entry so the work stays discoverable and
+  // report the real reason.
+  await rm(match.path, { recursive: true, force: true });
 
   const next: WorktreeRegistryFile = {
     version: REGISTRY_VERSION,
@@ -541,7 +548,10 @@ export async function gcSessionWorktrees(
     try {
       if (!missing) {
         await removeWorktree(kaos, entry.repoRoot, entry.path).catch(() => {});
-        await rm(entry.path, { recursive: true, force: true }).catch(() => {});
+        // No `.catch(() => {})` here: a swallowed removal failure would drop
+        // the entry and orphan a directory holding uncommitted work that no
+        // registry-walking command can reach again.
+        await rm(entry.path, { recursive: true, force: true });
       }
       removed.push(entry);
     } catch {
