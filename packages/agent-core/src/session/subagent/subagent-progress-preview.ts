@@ -56,12 +56,27 @@ export function summarizeToolTarget(argsJson: string | undefined): string | unde
 }
 
 /**
- * Flatten a tool payload into a single-line preview and bound it, so
- * `subagent.tool_call` / `subagent.tool_result` events stay small on the
- * wire (Phase 1-A). The TUI never receives the full args / result.
+ * Flatten a tool payload into a single-line preview, so `subagent.tool_call` /
+ * `subagent.tool_result` events stay small on the wire (Phase 1-A). The TUI
+ * never receives the full args / result.
+ *
+ * The scan is bounded by `maxLength` *before* flattening and truncation. Only
+ * the leading `maxLength` characters can survive `truncateToolPayloadPreview`,
+ * so stringifying and regex-flattening the whole payload was pure waste — a
+ * 8 KB tool arg cost ~660 µs per event to produce 400 characters. The extra
+ * lookback covers a whitespace run straddling the cut, which must still
+ * collapse to a single space at the boundary.
  */
-function stringifyToolPayloadPreview(value: unknown): string | undefined {
+function flattenToolPayloadPreview(value: unknown, maxLength: number): string | undefined {
   if (value === undefined || value === null) return undefined;
+  // Above this size the payload is certainly truncated, so build the JSON
+  // lazily and stop as soon as the prefix is known. Below it, plain
+  // `JSON.stringify` is faster than the incremental walk and keeps the common
+  // small-args case on the well-tested path.
+  if (typeof value !== 'string' && isLikelyLargeValue(value, maxLength)) {
+    const lazy = lazyJsonPrefix(value, maxLength + WHITESPACE_RUN_LOOKAHEAD);
+    return collapseWhitespace(lazy, maxLength);
+  }
   let text: string;
   if (typeof value === 'string') text = value;
   else {
@@ -73,9 +88,139 @@ function stringifyToolPayloadPreview(value: unknown): string | undefined {
       text = '[unserializable]';
     }
   }
-  const flat = text.replaceAll(/\s+/g, ' ').trim();
+  return collapseWhitespace(text, maxLength);
+}
+
+/** Below this many characters, `JSON.stringify` wins over the lazy walk. */
+const LAZY_JSON_MIN_LENGTH = 2_048;
+
+function isLikelyLargeValue(value: unknown, maxLength: number): boolean {
+  if (maxLength >= LAZY_JSON_MIN_LENGTH) return false;
+  if (typeof value === 'string') return value.length > LAZY_JSON_MIN_LENGTH;
+  if (Array.isArray(value)) {
+    // First elements are enough to decide: tool args are homogeneous.
+    let budget = LAZY_JSON_MIN_LENGTH;
+    for (const entry of value) {
+      budget -= estimateJsonLength(entry);
+      if (budget <= 0) return true;
+      if (budget > LAZY_JSON_MIN_LENGTH) break;
+    }
+    return false;
+  }
+  if (typeof value === 'object') {
+    let budget = LAZY_JSON_MIN_LENGTH;
+    for (const entry of Object.values(value as Record<string, unknown>)) {
+      budget -= estimateJsonLength(entry);
+      if (budget <= 0) return true;
+      if (budget > LAZY_JSON_MIN_LENGTH) break;
+    }
+    return false;
+  }
+  return false;
+}
+
+function estimateJsonLength(value: unknown): number {
+  if (typeof value === 'string') return value.length + 2;
+  if (value === null) return 4;
+  if (typeof value === 'number' || typeof value === 'boolean') return 5;
+  if (Array.isArray(value)) {
+    let total = 2;
+    for (const entry of value) total += estimateJsonLength(entry) + 1;
+    return total;
+  }
+  if (typeof value === 'object') {
+    let total = 2;
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      total += key.length + 3 + estimateJsonLength(entry) + 1;
+    }
+    return total;
+  }
+  return 9;
+}
+
+/**
+ * Build just enough of `JSON.stringify(value)` to cover `maxLength`
+ * characters, in the same syntax the real serializer emits, then stop. Used
+ * only when the result is guaranteed to be truncated, so the tail cannot
+ * affect the preview.
+ */
+function lazyJsonPrefix(value: unknown, maxLength: number): string {
+  let out = '';
+  const visit = (node: unknown): void => {
+    if (out.length >= maxLength) return;
+    if (node === null) {
+      out += 'null';
+      return;
+    }
+    switch (typeof node) {
+      case 'string':
+        out += JSON.stringify(node).slice(0, maxLength - out.length);
+        return;
+      case 'number':
+      case 'boolean':
+        out += String(node);
+        return;
+      case 'object':
+        break;
+      default:
+        out += 'null';
+        return;
+    }
+    if (Array.isArray(node)) {
+      out += '[';
+      for (let i = 0; i < node.length; i++) {
+        if (i > 0) out += ',';
+        visit(node[i]);
+        if (out.length >= maxLength) return;
+      }
+      out += ']';
+      return;
+    }
+    out += '{';
+    let first = true;
+    for (const [key, entry] of Object.entries(node as Record<string, unknown>)) {
+      if (!first) out += ',';
+      first = false;
+      out += `${JSON.stringify(key)}:`;
+      visit(entry);
+      if (out.length >= maxLength) return;
+    }
+    out += '}';
+  };
+  visit(value);
+  return out;
+}
+
+function collapseWhitespace(text: string, maxLength: number): string | undefined {
+  // A whitespace run longer than this cannot be distinguished by the collapse,
+  // so cap the lookahead: a 100 KB run costs the same as a 1 KB one.
+  const scanLimit = Math.min(text.length, maxLength + WHITESPACE_RUN_LOOKAHEAD);
+  let flat = '';
+  // A collapsed run only becomes a space once a later non-space char exists —
+  // this is what `replaceAll(/\s+/g, ' ').trim()` produced, including the
+  // trailing trim, so leading runs never emit and a trailing run never sticks.
+  let pendingSpace = false;
+  for (let i = 0; i < scanLimit; i++) {
+    const code = text.codePointAt(i);
+    if (code === 32 || code === 9 || code === 10 || code === 13) {
+      pendingSpace = flat.length > 0;
+      continue;
+    }
+    if (pendingSpace) {
+      flat += ' ';
+      pendingSpace = false;
+    }
+    flat += text[i];
+  }
   return flat.length > 0 ? flat : undefined;
 }
+
+/**
+ * Whitespace-run lookahead kept when bounding the flatten scan. A run longer
+ * than this collapses to one space regardless, so the boundary cannot depend
+ * on characters beyond it.
+ */
+const WHITESPACE_RUN_LOOKAHEAD = 64;
 
 function truncateToolPayloadPreview(text: string | undefined, maxLength: number): string | undefined {
   if (text === undefined) return undefined;
@@ -85,14 +230,14 @@ function truncateToolPayloadPreview(text: string | undefined, maxLength: number)
 
 export function previewSubagentToolArgs(args: unknown): string | undefined {
   return truncateToolPayloadPreview(
-    stringifyToolPayloadPreview(args),
+    flattenToolPayloadPreview(args, SUBAGENT_TOOL_ARGS_PREVIEW_LENGTH),
     SUBAGENT_TOOL_ARGS_PREVIEW_LENGTH,
   );
 }
 
 export function previewSubagentToolResult(output: unknown): string | undefined {
   return truncateToolPayloadPreview(
-    stringifyToolPayloadPreview(output),
+    flattenToolPayloadPreview(output, SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH),
     SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH,
   );
 }
@@ -118,7 +263,7 @@ export function previewSubagentToolProgress(update: {
   if (!isSubagentToolProgressKind(update.kind)) return undefined;
   if (update.kind === 'status') {
     const textPreview = truncateToolPayloadPreview(
-      stringifyToolPayloadPreview(update.text),
+      flattenToolPayloadPreview(update.text, SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH),
       SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH,
     );
     if (textPreview === undefined) return undefined;
@@ -157,8 +302,11 @@ export function describeSubagentToolDetail(
       const path = toolDetailStringArg(record, 'path');
       const content = typeof record['content'] === 'string' ? record['content'] : undefined;
       if (path === undefined || content === undefined) return undefined;
+      // `split('\n').length` allocates an array proportional to the file just
+      // to count it. A newline scan is allocation-free, and the trailing
+      // newline is trimmed first so the count matches the split semantics.
       const normalized = content.endsWith('\n') ? content.slice(0, -1) : content;
-      const lines = normalized.length > 0 ? normalized.split('\n').length : 0;
+      const lines = normalized.length === 0 ? 0 : countNewlines(normalized) + 1;
       return { kind: 'write', path, lines, bytes: Buffer.byteLength(content, 'utf8') };
     }
     case 'Read': {
@@ -193,11 +341,30 @@ function toolDetailStringArg(
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+/** Newline count without materializing the split array. */
+function countNewlines(text: string): number {
+  let count = 0;
+  for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) count++;
+  return count;
+}
+
 /**
  * Added / removed line counts between Edit `old_string` and `new_string`.
- * Uses an LCS line diff (same approach as the TUI chip) bounded by
- * {@link SUBAGENT_EDIT_DIFF_LINE_CAP}; larger edits fall back to raw line
- * counts so the emitter never runs an unbounded matrix.
+ *
+ * Counts need a common-subsequence diff, which is O(old × new). A 300-line cap
+ * still meant a 300×300 DP — ~90k cells and ~2.4 ms on the emitter's hot path,
+ * once per `tool.call.started` per subagent, enough to stall the TUI event
+ * loop on a large mechanical edit.
+ *
+ * Two exact shortcuts keep the DP small without approximating the answer:
+ *
+ * 1. Peel the common prefix and suffix. The chip's real workload is a small
+ *    edit inside a large file, and that collapses to a tiny (often 0×0)
+ *    matrix. Only a genuine mid-file rewrite reaches the DP.
+ * 2. When the two sides share no line at all, the common subsequence is
+ *    provably empty, so raw line counts are already exact — no matrix.
+ *
+ * `SUBAGENT_EDIT_DIFF_LINE_CAP` still caps the matrix for what remains.
  */
 function countEditLineChanges(
   oldString: string,
@@ -205,14 +372,47 @@ function countEditLineChanges(
 ): { added: number; removed: number } {
   if (oldString.length === 0 && newString.length === 0) return { added: 0, removed: 0 };
   // Empty side counts as zero lines (matches the TUI diff chip semantics).
-  const oldLines = oldString.length > 0 ? oldString.split('\n') : [];
-  const newLines = newString.length > 0 ? newString.split('\n') : [];
+  const oldAll = oldString.length > 0 ? oldString.split('\n') : [];
+  const newAll = newString.length > 0 ? newString.split('\n') : [];
+
+  // The cap is a property of the input, not of the peeled remainder: a
+  // 500-line file with a 2-line edit is still "too big to diff" and must keep
+  // its raw-count answer. Check before peeling so the shortcut never changes
+  // a result the cap used to decide.
   if (
-    oldLines.length > SUBAGENT_EDIT_DIFF_LINE_CAP ||
-    newLines.length > SUBAGENT_EDIT_DIFF_LINE_CAP
+    oldAll.length > SUBAGENT_EDIT_DIFF_LINE_CAP ||
+    newAll.length > SUBAGENT_EDIT_DIFF_LINE_CAP
   ) {
+    return { added: newAll.length, removed: oldAll.length };
+  }
+
+  // (1) Peel the common prefix and suffix. Removing lines common to both sides
+  // cannot change the LCS length, so the counts below are exactly what the
+  // full DP would have produced.
+  let head = 0;
+  const maxHead = Math.min(oldAll.length, newAll.length);
+  while (head < maxHead && oldAll[head] === newAll[head]) head++;
+  let tail = 0;
+  const maxTail = maxHead - head;
+  while (
+    tail < maxTail &&
+    oldAll[oldAll.length - 1 - tail] === newAll[newAll.length - 1 - tail]
+  ) {
+    tail++;
+  }
+  const oldLines = oldAll.slice(head, oldAll.length - tail);
+  const newLines = newAll.slice(head, newAll.length - tail);
+
+  if (oldLines.length === 0) return { added: newLines.length, removed: 0 };
+  if (newLines.length === 0) return { added: 0, removed: oldLines.length };
+
+  // (2) No shared line anywhere => the common subsequence is empty, so raw
+  // counts are exact. This is the mechanical-rewrite case that used to be the
+  // most expensive one.
+  if (!sharesAnyLine(oldLines, newLines)) {
     return { added: newLines.length, removed: oldLines.length };
   }
+
   const oldCount = oldLines.length;
   const newCount = newLines.length;
   const dp: number[][] = Array.from({ length: oldCount + 1 }, () =>
@@ -228,4 +428,15 @@ function countEditLineChanges(
   }
   const common = dp[oldCount]![newCount]!;
   return { added: newCount - common, removed: oldCount - common };
+}
+
+/** True when any line appears on both sides. O(n + m) via a line-count map. */
+function sharesAnyLine(a: readonly string[], b: readonly string[]): boolean {
+  const counts = new Map<string, number>();
+  for (const line of a) counts.set(line, (counts.get(line) ?? 0) + 1);
+  for (const line of b) {
+    const seen = counts.get(line);
+    if (seen !== undefined && seen > 0) return true;
+  }
+  return false;
 }
