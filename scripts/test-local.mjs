@@ -53,6 +53,17 @@ const DELETE_ENV = [
   'SSH_TTY',
   'SSH_CONNECTION',
   'SSH_CLIENT',
+  // A corporate dev shell exports these; a GitHub runner never has them, and
+  // egress/network assertions then read the operator's proxy instead of the
+  // unset state CI sees.
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'ALL_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'all_proxy',
+  'no_proxy',
 ];
 /** Credentials and host agent state a runner never has. */
 const DELETE_ENV_PREFIX = ['KIMI_', 'SUPERLIORA_', 'MOONSHOT_', 'ANTHROPIC_', 'OPENAI_', 'XAI_', 'GEMINI_', 'CURSOR_'];
@@ -154,25 +165,36 @@ function decideScope(changed, closureOf, dirHasTests, options = {}) {
   const files = changed.filter((file) => !isInertForTests(file));
   const toFilter = options.toFilter ?? ((dir) => `${dir}/test`);
   const direct = options.direct === true;
-  if (files.length === 0) return { filters: [], reason: 'no code changes' };
+  if (files.length === 0) return { kind: 'none', reason: 'no code changes' };
   const shared = files.find((file) => ownerWorkspace(file) === undefined);
-  if (shared !== undefined) return { filters: undefined, reason: `shared file changed (${shared})` };
+  if (shared !== undefined) return { kind: 'full', reason: `shared file changed (${shared})` };
   if (direct) {
     const owners = [...new Set(files.map(ownerWorkspace).filter((dir) => dir !== undefined))];
     const testable = owners.filter(dirHasTests);
-    if (testable.length === 0) return { filters: [], reason: 'no test dir in the changed workspaces' };
-    return { filters: testable.map(toFilter), reason: `direct: ${testable.join(', ')}` };
+    if (testable.length === 0) {
+      return { kind: 'none', reason: 'no test dir in the changed workspaces' };
+    }
+    return { kind: 'filters', filters: testable.map(toFilter), reason: `direct: ${testable.join(', ')}` };
   }
   const closure = closureOf();
-  if (closure === undefined) return { filters: undefined, reason: 'pnpm could not resolve the changed graph' };
+  if (closure === undefined) {
+    return { kind: 'full', reason: 'pnpm could not resolve the changed graph' };
+  }
   const testable = closure.filter(dirHasTests);
-  if (testable.length === 0) return { filters: [], reason: 'no test dir in the affected graph' };
-  return { filters: testable.map(toFilter), reason: `affected: ${testable.join(', ')}` };
+  if (testable.length === 0) {
+    return { kind: 'none', reason: 'no test dir in the affected graph' };
+  }
+  return { kind: 'filters', filters: testable.map(toFilter), reason: `affected: ${testable.join(', ')}` };
 }
 
 function affectedFilters(base, options = {}) {
   const changed = changedFiles(base);
-  if (changed === undefined) return { filters: undefined, reason: `git could not diff against ${base}` };
+  // `kind: 'full'` is load-bearing: callers branch on it, and a scope object
+  // without it falls through to `filters = undefined`, which crashes the
+  // vitest argv spread below. An unresolvable scope must run everything.
+  if (changed === undefined) {
+    return { kind: 'full', reason: `git could not diff against ${base}` };
+  }
   return decideScope(changed, () => changedWorkspaceClosure(base), hasTests, {
     ...options,
     toFilter: testDirFilter,
@@ -279,15 +301,26 @@ function selfCheck() {
   ];
   let failed = 0;
   for (const { files, closure: override, want, direct } of cases) {
-    const { filters } = decideScope(files, override ?? closure, withTests, { direct });
-    const actual = filters === undefined ? 'all' : filters.length === 0 ? '[]' : filters.join(',');
+    const scope = decideScope(files, override ?? closure, withTests, { direct });
+    const actual =
+      scope.kind === 'full' ? 'all' : scope.kind === 'none' ? '[]' : scope.filters.join(',');
     if (actual !== want) {
       failed++;
       console.error(`self-check FAIL ${JSON.stringify(files)} direct=${Boolean(direct)}: expected ${want}, got ${actual}`);
     }
   }
+  // Every scope must carry a `kind`: the runner branches on it to build the
+  // vitest argv, and a scope without one used to crash the spread instead of
+  // running (or widening to) the full suite.
+  for (const { files, closure: override, direct } of cases) {
+    const scope = decideScope(files, override ?? closure, withTests, { direct });
+    if (scope.kind !== 'full' && scope.kind !== 'none' && scope.kind !== 'filters') {
+      failed++;
+      console.error(`self-check FAIL ${JSON.stringify(files)}: missing scope kind`);
+    }
+  }
   // Fail open, not silent: an unresolvable base must widen to the full suite.
-  if (affectedFilters('no/such/ref').filters !== undefined) {
+  if (affectedFilters('no/such/ref').kind !== 'full') {
     failed++;
     console.error('self-check FAIL: an unresolvable base did not fall back to the full suite');
   }
