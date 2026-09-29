@@ -157,11 +157,23 @@ function createLayeredSystemPromptRenderer(merged: MergedAgentProfile): LayeredS
       // Layer 2: Session-static (OS, shell, cwd)
       const layer2Session = renderPrompt(layer2SessionTemplate, vars);
 
-      // Layer 3: Dynamic (AGENTS.md, skills, listing) — rendered with the role
-      // section blanked so it is byte-identical across workers with different
-      // roles; the role rides as a separate trailing block instead.
-      const roleAdditional = vars['ROLE_ADDITIONAL'] ?? '';
-      const layer3Vars = { ...vars, ROLE_ADDITIONAL: '' };
+      // Role text splits by origin, and the split decides cacheability.
+      // `context.roleAdditional` is the persona, supplied per agent by the
+      // runtime — it genuinely varies across fan-out workers. The profile's
+      // own `roleAdditional` is static text baked into the YAML (the Conductor
+      // playbook), identical for every agent on that profile. Only the persona
+      // becomes an uncached trailing block; the static playbook stays inside
+      // the cached prefix. On the default Conductor profile that is ~12.8 KB
+      // promoted from full-price input to cache-read on every request.
+      //
+      // Remaining nuance (accepted): the default persona preset ('liora', ~0.5
+      // KB) also rides the uncached block even though most users share it.
+      // Splitting preset-vs-custom persona would save ~126 tokens and is not
+      // worth the added cache-fragmentation risk; custom personas are the case
+      // that genuinely needs the isolated block.
+      const personaRole = context.roleAdditional ?? '';
+      const staticRole = merged.promptVars['roleAdditional'] ?? '';
+      const layer3Vars = { ...vars, ROLE_ADDITIONAL: staticRole };
       const layer3Dynamic = renderPrompt(layer3DynamicTemplate, layer3Vars);
 
       // Combined for backward compatibility
@@ -171,7 +183,7 @@ function createLayeredSystemPromptRenderer(merged: MergedAgentProfile): LayeredS
         layer1Static,
         layer2Session,
         layer3Dynamic,
-        ...(roleAdditional.trim().length > 0 ? { roleAdditional } : {}),
+        ...(personaRole.trim().length > 0 ? { roleAdditional: personaRole } : {}),
         combined,
       };
     } catch (error) {

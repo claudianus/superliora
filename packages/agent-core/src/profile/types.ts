@@ -64,6 +64,12 @@ export interface LayeredSystemPrompt {
   /**
    * Per-agent role/persona text rendered as a trailing system block after the
    * cached layers, so fan-out workers share the layer1–layer3 cache prefix.
+   *
+   * Set only when the text genuinely varies per agent (a configured persona).
+   * Static profile role text is already inside `layer3Dynamic` and must stay
+   * out of here: sending it as an uncached trailing block charges it at full
+   * input price on every request, and on the default Conductor profile that
+   * trailing block is *larger* than the cached prefix.
    */
   readonly roleAdditional?: string;
   /** Combined prompt for providers without multi-block support */

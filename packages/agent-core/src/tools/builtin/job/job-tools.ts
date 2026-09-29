@@ -137,7 +137,7 @@ const JobCreateInputSchema = z
         'Short outcome-shaped title for the ledger and ACK (verb + deliverable, e.g. "Fix auth token refresh race").',
       ),
     kind: JobKindSchema.optional().describe(
-      'Job kind. task/implement = code work (default task), explore = read-only codebase discovery, research = web/API/docs investigation (DeepResearch/Context7), verify = Maker≠Checker checker (no product writes; auto-enqueued after implement), mission = Plan Desk / long-running spine (plan profile + structured plan at spawn), merge = landing worker, push = remote publish worker, desk = inbox digest, goal-desk = Goal Desk orchestrator (spawns goal-driver children; no main-lane goal loop), goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
+      'Job kind. task/implement = code (default), explore = read-only discovery, research = web/docs, verify = Maker≠Checker checker, mission = Plan Desk spine, merge = landing, push = remote publish, desk = inbox digest, goal-desk = Goal orchestrator, goal-driver = autonomous goal loop. Defaults to task.',
     ),
     priority: z
       .number()
@@ -150,25 +150,25 @@ const JobCreateInputSchema = z
       .string()
       .optional()
       .describe(
-        'Free-text worker context quoted from the user plus constraints. Pair with success_criteria / must_not_touch / verification_commands — those structured fields are the brief contract; do not bury the only success criteria inside this string.',
+        'Free-text worker context quoted from the user plus constraints. Put the success criteria in the structured fields, not buried here.',
       ),
     ownership_paths: stringListField.describe(
-      'Paths this job intends to touch — the scheduler conflict hint. Overlapping ownership between parallel jobs risks racing; keep siblings disjoint or chain them via parent_job_id.',
+      'Paths this job intends to touch — the scheduler conflict hint. Keep siblings disjoint or chain them via parent_job_id.',
     ),
     context_paths: stringListField.describe(
-      'Read-first hints for the worker: files/dirs it should inspect before exploring on its own (entry points, failing tests, referenced specs). Saves cold-start discovery turns; keep it short (≤6).',
+      'Read-first hints for the worker: files/dirs to inspect before exploring on its own. Keep it short (≤6).',
     ),
     success_criteria: stringListField.describe(
-      'Verifiable done-lines (tests to pass, behaviors to observe). Optional for task/implement — when omitted the harness synthesizes one line from the title so spawn is not bounced. Rejects placeholders (TBD/TODO/later/coming soon). Not required for explore/mission/desk/goal-desk/merge/goal-driver.',
+      'Verifiable done-lines (tests to pass, behaviors to observe). Synthesized from title when omitted for task/implement. Placeholders (TBD/TODO/later) are rejected.',
     ),
     must_not_touch: stringListField.describe(
-      'Negative scope fence — paths or concerns the worker must not touch. Required when delivery_mode=greenfield for task/implement; strongly recommended otherwise.',
+      'Negative scope fence — paths or concerns the worker must not touch. Required when delivery_mode=greenfield; strongly recommended otherwise.',
     ),
     verification_commands: stringListField.describe(
-      'Commands the worker should run as proof (e.g. pnpm test path). Prefer these over burying commands only inside prompt.',
+      'Commands the worker should run as proof (e.g. pnpm test path). Prefer over burying commands in prompt.',
     ),
     test_seams: stringListField.describe(
-      'Pre-agreed public interfaces (seams) where red→green tests must live. Required when tdd_mode=required. Prefer highest existing seams; avoid testing internals.',
+      'Pre-agreed public interfaces where red→green tests must live. Required when tdd_mode=required. Prefer highest existing seams.',
     ),
     tdd_mode: JobTddModeSchema.optional().describe(
       'TDD posture for task/implement: required (seams mandatory, red before green), preferred (default), or off. Explore/mission/desk skip.',
@@ -177,11 +177,7 @@ const JobCreateInputSchema = z
       .enum(['coding', 'general'])
       .optional()
       .describe(
-        'Isolation/verification contract from the intended finish-line effect — same rule as surface_kind. ' +
-          'coding = workspace/product change (worktree + verify + land gates). ' +
-          'general = host/operator work whose proof is an observable fact outside a product land (no worktree/verify/changeset). ' +
-          'Mixed or unsure → coding. Declare when you can judge the effect. Omit to let a cheap effect-judgment fill it. ' +
-          'Never ask the user to pick a track. The harness does not classify from prompt wording.',
+        'coding = workspace/product change (worktree + verify + land gates). general = host/operator work proven outside a product land. Mixed or unsure → coding. Omit to let the harness infer; never ask the user.',
       ),
     repro_command: z
       .string()
@@ -203,7 +199,7 @@ const JobCreateInputSchema = z
         'Declare a throwaway explore that answers one design question. The harness keys off this field, not a prototype title word.',
       ),
     blocked_by_job_ids: stringListField.describe(
-      'Job ids that must finish successfully before this Job may schedule (tracer-bullet DAG). Distinct from parent_job_id (decomposition / review chain).',
+      'Job ids that must succeed before this Job may schedule (tracer-bullet DAG). Distinct from parent_job_id.',
     ),
     delivery_mode: JobDeliveryModeSchema.optional().describe(
       'standard (default) or greenfield. All task/implement Jobs need success_criteria; greenfield also needs must_not_touch. greenfield_chain still creates ONE session (TodoList phases), not three Jobs.',
@@ -224,10 +220,7 @@ const JobCreateInputSchema = z
       .min(1)
       .optional()
       .describe(
-        'Same-session follow-up after Conductor classified this as the same deliverable. ' +
-          'running/needs_user → steer that session (no new spawn); queued → fold brief; ' +
-          'done/failed/interrupted/blocked (unlanded coding) → reattach the same job_id + resume. ' +
-          'Not for verify/merge/push/desk/goal-*.',
+        'Same-session follow-up: running/needs_user → steer; queued → fold brief; terminal unlanded coding → reattach. Not for verify/merge/push/desk/goal-*.',
       ),
     affinity: z
       .enum(['off', 'auto'])
@@ -240,8 +233,7 @@ const JobCreateInputSchema = z
       .enum(['sprint', 'standard', 'review'])
       .optional()
       .describe(
-        'Pipeline waist. Omit to inherit session project mode (hotfix→sprint, review→review, else standard). ' +
-          'sprint keeps an isolated worktree (hotfix pool). review keeps one verify worker even for surface_kind=none.',
+        'Pipeline waist. Omit to inherit session project mode. sprint = isolated worktree (hotfix); review = keeps one verify worker even for surface_kind=none.',
       ),
     goal_completion_criterion: z
       .string()
@@ -266,7 +258,7 @@ const JobCreateInputSchema = z
       .strict()
       .optional()
       .describe(
-        'kind=goal-driver only: hard circuit breakers for the autonomous loop (tokens / continuation turns / wall-clock ms). Exceeding any limit blocks the goal and the Job — set limits for open-ended objectives.',
+        'kind=goal-driver only: hard circuit breakers (tokens / turns / wall-clock ms). Exceeding any blocks the goal and the Job — set them for open-ended objectives.',
       ),
     /**
      * When true, split a numbered/bullet list prompt into multiple Jobs
@@ -276,13 +268,13 @@ const JobCreateInputSchema = z
       .boolean()
       .optional()
       .describe(
-        'Split a multi-intent prompt into one Job per intent (user asked several independent things at once). Prefer explicit separate JobCreate calls when intents need different kinds/ownership; falls back to a single Job when splitting fails.',
+        'Split a multi-intent prompt into one Job per intent. Prefer explicit separate calls when intents need different kinds/ownership.',
       ),
     staff: z
       .boolean()
       .optional()
       .describe(
-        'Run SearchExpert staffing: bind a high-score expert (else generic) to this Job. Does not fan out into multiple Jobs — use auto_split=true only for truly independent multi-intents. ownership_paths is a claim set for one Job and never auto-fanout. Defaults true for task/implement/explore/research/verify; false for merge/desk/goal-desk/mission.',
+        'Run SearchExpert staffing (binds one expert, no fan-out). Defaults true for task/implement/explore/research/verify, false for merge/desk/goal-desk/mission.',
       ),
     model_alias: z
       .string()
@@ -290,7 +282,7 @@ const JobCreateInputSchema = z
       .min(1)
       .optional()
       .describe(
-        'Omit by default — workers inherit the Conductor model. Only set a worker model alias from <fleet_model_catalog> when the user configured role models or the session runs Smart Auto; then pick by Job kind/risk/cost (explore→value, implement→quality, verify→different family when possible). Must pass a live probe (quota/auth) — unknown, unhealthy, or probe-failing aliases are rejected.',
+        'Omit by default — workers inherit the Conductor model. Set only from <fleet_model_catalog> when the user configured role models or the session runs Smart Auto, picking by kind/risk/cost. Must pass a live probe.',
       ),
     surface_kind: z
       .enum(['none', 'web', 'tui', 'mixed'])

@@ -421,6 +421,42 @@ describe('default agent profiles', () => {
       prompt!.indexOf('# Persona: Test'),
     );
   });
+
+  /**
+   * Cache-placement contract. The static profile playbook is identical for
+   * every agent on a profile, so it belongs inside the cacheable prefix; only
+   * the runtime persona varies per agent and may ride an uncached trailing
+   * block. The provider marks the breakpoint on layer3, so anything outside
+   * layer3 is charged at full input price on every request.
+   */
+  it('keeps the static role playbook inside the cacheable layer3 prefix', () => {
+    const layered = DEFAULT_AGENT_PROFILES['conductor']?.layeredSystemPrompt?.(promptContext);
+    expect(layered).toBeDefined();
+    expect(layered!.layer3Dynamic).toContain('# Conductor Operating Playbook');
+    // No persona configured => nothing belongs on the uncached trailing block.
+    expect(layered!.roleAdditional).toBeUndefined();
+  });
+
+  it('routes only the runtime persona to the uncached trailing block', () => {
+    const layered = DEFAULT_AGENT_PROFILES['conductor']?.layeredSystemPrompt?.({
+      ...promptContext,
+      roleAdditional: '# Persona: Test\n\nTone: terse.',
+    });
+    expect(layered!.roleAdditional).toBe('# Persona: Test\n\nTone: terse.');
+    // The playbook must not be duplicated onto the uncached block.
+    expect(layered!.roleAdditional).not.toContain('Conductor Operating Playbook');
+    expect(layered!.layer3Dynamic).toContain('Conductor Operating Playbook');
+  });
+
+  it('keeps the cached prefix the large majority of the Conductor system prompt', () => {
+    const layered = DEFAULT_AGENT_PROFILES['conductor']?.layeredSystemPrompt?.(promptContext);
+    const cached =
+      (layered!.layer1Static.length + layered!.layer2Session.length + layered!.layer3Dynamic.length);
+    const total = cached + (layered!.roleAdditional?.length ?? 0);
+    // Before the split the playbook (12.8 KB) sat outside the prefix on this
+    // profile, leaving only 11.1 KB cached out of 23.9 KB.
+    expect(cached / total).toBeGreaterThan(0.95);
+  });
 });
 
 async function write(fileName: string, content: string): Promise<string> {
