@@ -33,15 +33,19 @@ const DEFAULT_MAX_PATHS_PER_CONNECTION = 100;
  * Windows and macOS filesystems are case-insensitive, but chokidar reports
  * paths in the on-disk casing, which is independent of the casing a client
  * registered. Comparing raw strings meant a client watching `C:\repo\Src`
- * received no `event.fs.changed` for an edit reported as `c:\repo\src\a.ts`,
- * and the shared-root derivation below collapsed to `/` — rooting the watcher
- * at an entire drive. Fold case the way `path-access.isWithinDirectory`
- * already does, so path identity matches filesystem identity.
+ * received no `event.fs.changed` for an edit reported as `c:\repo\src\a.ts`.
+ * Fold case the way `path-access.isWithinDirectory` already does, so path
+ * identity matches filesystem identity.
+ *
+ * Separators are normalized as well: the same path reaches this service both
+ * `/`-normalized (pathe) and with the platform separator, and a comparison
+ * that keeps them distinct drops every event for a path spelled the other way.
  */
 const FOLD_CASE = process.platform === 'win32' || process.platform === 'darwin';
 
 function comparablePath(p: string): string {
-  return FOLD_CASE ? p.toLowerCase() : p;
+  const unified = p.replaceAll('\\', '/');
+  return FOLD_CASE ? unified.toLowerCase() : unified;
 }
 
 interface PendingChange {
@@ -460,9 +464,10 @@ export function isUnderAny(absPath: string, parents: Iterable<string>): boolean 
   for (const parent of parents) {
     const base = comparablePath(parent);
     if (target === base) return true;
-    const sep = nodePath.sep;
-    if (target.startsWith(base + sep)) return true;
-    if (sep !== '/' && target.startsWith(base + '/')) return true;
+    // Both separators: the same path can arrive `/`-normalized (pathe) or
+    // with the platform separator, and a mismatch here silently drops every
+    // event for that path.
+    if (target.startsWith(`${base}/`) || target.startsWith(`${base}\\`)) return true;
   }
   return false;
 }
@@ -474,6 +479,18 @@ function toPosixRelative(cwd: string, abs: string): string {
   return rel.split(nodePath.sep).join('/');
 }
 
+/**
+ * Split into path segments.
+ *
+ * Both separators, not just `nodePath.sep`: this code runs on Windows but
+ * deals in the `/`-normalized paths that pathe produces, so splitting on `\`
+ * there yields one bogus segment and collapses the shared root to `/` —
+ * which roots the watcher at an entire drive.
+ */
+function toSegments(p: string): string[] {
+  return p.split(/[/\\]/);
+}
+
 /** @internal exported for tests — mixed casing must not widen the root. */
 export function deriveSharedCwd(absPaths: readonly string[]): string {
   if (absPaths.length === 0) return '/';
@@ -481,15 +498,29 @@ export function deriveSharedCwd(absPaths: readonly string[]): string {
 
   // Compare folded segments so a mixed-casing pair still yields their real
   // common ancestor instead of an empty prefix (which would watch a whole drive).
-  let prefix = absPaths[0]!.split(nodePath.sep);
+  let prefix = toSegments(absPaths[0]!);
   let prefixFolded = prefix.map(comparablePath);
   for (let i = 1; i < absPaths.length; i++) {
-    const segs = absPaths[i]!.split(nodePath.sep);
+    const segs = toSegments(absPaths[i]!);
     const folded = segs.map(comparablePath);
     let j = 0;
     while (j < prefix.length && j < segs.length && prefixFolded[j] === folded[j]) j++;
     prefix = prefix.slice(0, j);
     prefixFolded = prefixFolded.slice(0, j);
   }
-  return prefix.length === 0 ? '/' : prefix.join(nodePath.sep) || nodePath.sep;
+  if (prefix.length === 0) return rootOf(absPaths[0]!);
+  return prefix.join('/') || nodePath.sep;
+}
+
+/**
+ * Root of an absolute path, parsed from the string rather than via
+ * `nodePath.parse`: that is host-dependent, so on a POSIX dev box a
+ * `C:/…` path parses as having no root at all and the fallback degraded to
+ * `/` — exactly the drive-wide watch this derivation exists to prevent.
+ */
+function rootOf(p: string): string {
+  const unified = p.replaceAll('\\', '/');
+  const drive = /^([A-Za-z]:)\//.exec(unified);
+  if (drive !== null) return `${drive[1]}/`;
+  return unified.startsWith('/') ? '/' : nodePath.sep;
 }

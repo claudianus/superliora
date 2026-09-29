@@ -42,6 +42,27 @@ describe('fsWatcher path identity', () => {
     expect(root).toBe('/repo');
   });
 
+  it('derives a real common ancestor from Windows-style paths', () => {
+    // Runs identically on every platform. Splitting on the host separator alone
+    // made a `/`-normalized path a single segment, so the prefix collapsed and
+    // the watcher root widened to a whole drive — and the POSIX-shaped
+    // assertion above passed everywhere except the Windows CI shard.
+    expect(deriveSharedCwd(['C:/repo/src', 'c:/repo/Tests'])).toBe('C:/repo');
+    expect(deriveSharedCwd(['C:\\repo\\src', 'c:\\repo\\Tests'])).toBe('C:/repo');
+  });
+
+  it('falls back to the drive root, not a bare slash, for unrelated Windows paths', () => {
+    const root = deriveSharedCwd(['C:/alpha/one', 'D:/beta/two']);
+    expect(root).toBe('C:/');
+    expect(root).not.toBe('/');
+  });
+
+  it('matches a path under its parent with either separator', () => {
+    expect(isUnderAny('C:/repo/src/a.ts', ['c:/repo/src'])).toBe(true);
+    expect(isUnderAny('C:\\repo\\src\\a.ts', ['C:/repo/src'])).toBe(true);
+    expect(isUnderAny('C:/repo/src-extra/a.ts', ['C:/repo/src'])).toBe(false);
+  });
+
   it('does not widen to the filesystem root for unrelated paths', () => {
     const root = deriveSharedCwd(['/alpha/one', '/beta/two']);
     expect(root).toBe('/');
