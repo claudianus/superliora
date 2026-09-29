@@ -61,6 +61,15 @@ export class RendererCellBuffer {
     return this.dirtyRowMap.size;
   }
 
+  /**
+   * Live per-row dirty intervals. The background seal walks this directly so a
+   * steady-state frame touches only rewritten rows instead of all W·H cells.
+   * Exposed as a readonly view — mutating it would corrupt damage tracking.
+   */
+  get sealRowScopes(): ReadonlyMap<number, { x: number; endX: number }[]> {
+    return this.dirtyRowMap;
+  }
+
   get dirtyRowSpans(): readonly RendererDirtyRowSpan[] {
     const spans: RendererDirtyRowSpan[] = [];
     for (const [y, intervals] of this.dirtyRowMap) {

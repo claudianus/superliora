@@ -186,7 +186,26 @@ export class NativeFrameStats {
     this.windowSize = normalizeWindowSize(options.windowSize);
   }
 
+  /**
+   * Record a frame and return only its health classification.
+   *
+   * The render loop needs `health` on every frame, but `record` also built the
+   * full ~90-field snapshot — 20 reduce passes plus two sorts over the rolling
+   * window — for a value the hot path then discarded. This keeps the same
+   * accumulation and computes just the budget summary, which the window
+   * summariser already derives.
+   */
+  recordHealth(metrics: NativeTerminalRendererFrameMetrics): NativeFrameStatsHealth {
+    this.accumulate(metrics);
+    return this.summarizeBudget().health;
+  }
+
   record(metrics: NativeTerminalRendererFrameMetrics): NativeFrameStatsSnapshot {
+    this.accumulate(metrics);
+    return this.snapshot();
+  }
+
+  private accumulate(metrics: NativeTerminalRendererFrameMetrics): void {
     this.frames++;
     this.totalOutputBytes += metrics.outputBytes;
     if (metrics.outputBackpressure) this.outputBackpressureFrames++;
@@ -211,7 +230,11 @@ export class NativeFrameStats {
     this.lastMetrics = metrics;
     this.recent.push(metrics);
     if (this.recent.length > this.windowSize) this.recent.shift();
-    return this.snapshot();
+  }
+
+  /** Health plus the budget ratios derived from the same window pass. */
+  summarizeBudget(): NativeFrameStatsBudget {
+    return summarizeNativeFrameStatsBudget(this.recent);
   }
 
   reset(): void {
@@ -294,7 +317,7 @@ export class NativeFrameStats {
     const frameBudgetRatioSamples = this.recent.map(frameBudgetRatio);
     const frameCadence = summarizeFrameCadence(this.recent);
     const scanStrategies = summarizeScanStrategies(this.recent);
-    const budget = summarizeNativeFrameStatsBudget(this.recent);
+    const budget = this.summarizeBudget();
     return {
       frames: this.frames,
       windowFrames,

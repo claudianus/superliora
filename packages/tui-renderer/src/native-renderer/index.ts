@@ -224,16 +224,21 @@ export class NativeTerminalRenderer {
       scheduler: this.options.scheduler,
       render: (frame) => {
         this.lastRenderResult = this.renderFrame(frame);
-        const stats = this.frameStats.record(this.lastRenderResult.metrics);
+        // Only `health` is needed per frame; the full ~90-field snapshot stays
+        // available through the `stats` getter for diagnostics. Building it
+        // every frame cost a 20-pass reduce plus two sorts over the window.
+        const health = this.frameStats.recordHealth(this.lastRenderResult.metrics);
         this.trace.recordFrame({
           frameIndex: this.lastRenderResult.frame.frame,
           causes: this.lastRenderResult.frame.causes,
           size: this.lastRenderResult.size,
-          health: stats.health,
+          health,
           qualityLevel: this.lastRenderResult.quality.level,
           metrics: this.lastRenderResult.metrics,
         });
-        this.options.onFrame?.(this.lastRenderResult, stats);
+        if (this.options.onFrame !== undefined) {
+          this.options.onFrame(this.lastRenderResult, this.frameStats.snapshot());
+        }
       },
     });
     this.ambientSchedule = new RendererAmbientSchedule({
@@ -242,7 +247,7 @@ export class NativeTerminalRenderer {
       requestRender: () =>{  this.requestRender('animation'); },
       getContext: () => ({
         quality: this.quality.level,
-        health: this.frameStats.snapshot().health,
+        health: this.frameStats.summarizeBudget().health,
         backpressure: this.backpressure.isActive,
         transportStability: this.transportStability,
       }),

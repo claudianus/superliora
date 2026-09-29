@@ -74,11 +74,23 @@ export function renderNativeLayoutFrame(
   if (options.cursor !== undefined) {
     renderer.setCursor(options.cursor);
   }
-  sealRendererBufferBackground(renderer.frame, options.fill);
+  // Sealing is damage-scoped: a cell can only lose its background by being
+  // rewritten, and every write path marks damage, so untouched rows are still
+  // sealed from an earlier frame. The scope is empty right after a structural
+  // `clear` (damage was reset and then re-marked by the clear itself), which
+  // is exactly when the full walk is required.
+  const frame = renderer.frame;
+  sealRendererBufferBackground(frame, options.fill, frame.sealRowScopes);
   if (options.beforePresent !== undefined) {
+    const rowsBefore = frame.dirtyRowCount;
     options.beforePresent(renderer);
+    // `beforePresent` (panels/ticker/status bar) writes past present(), so its
+    // cells need sealing too — but only when it actually wrote something. A
+    // no-op hook must not re-walk rows the first seal already covered.
+    if (frame.dirtyRowCount !== rowsBefore) {
+      sealRendererBufferBackground(frame, options.fill, frame.sealRowScopes);
+    }
   }
-  sealRendererBufferBackground(renderer.frame, options.fill);
   const present = renderer.present({
     force: options.force,
     forceCursor: options.forceCursor,
