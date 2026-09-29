@@ -168,7 +168,16 @@ export async function wirePluginSessionHosts(
     await session.pluginLspRuntime?.dispose();
     const servers = await context.pluginHost.flatLspServers();
     if (servers.length > 0) {
-      const runtime = new PluginLspRuntime(servers, mainAgent.config.cwd);
+      // Warn once per server instead of blacklisting it silently: a plugin LSP
+      // that cannot start used to remove language diagnostics with no signal
+      // that anything was wrong.
+      const runtime = new PluginLspRuntime(servers, mainAgent.config.cwd, (name, reason) => {
+        log.warn('plugin LSP server unavailable', {
+          server: name,
+          reason,
+          cwd: mainAgent.config.cwd,
+        });
+      });
       session.pluginLspRuntime = runtime;
       mainAgent.fileMutationHook = (filePath, content) =>
         runtime.collectForFile(filePath, content);

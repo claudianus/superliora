@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { createWriteStream, existsSync } from 'node:fs';
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rename, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'pathe';
+import { basename, dirname, join } from 'pathe';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
@@ -24,6 +24,7 @@ import { extract as extractTar } from 'tar';
 import { type Entry, fromBuffer as yauzlFromBuffer } from 'yauzl';
 
 import { abortable } from '../../utils/abort';
+import { renameReplacingTarget } from '../../utils/fs';
 import { resolveLioraHome } from '../../config/path';
 
 const RG_VERSION = '15.0.0';
@@ -153,10 +154,17 @@ async function whichRg(): Promise<string | undefined> {
   return undefined;
 }
 
+/**
+ * A real `rg` is several MB. A file far below that is a truncated or partial
+ * download that `isFile()` alone would happily accept, and accepting one makes
+ * Grep/Glob fail forever with an opaque spawn error and no repair path.
+ */
+const MIN_RG_BINARY_BYTES = 256 * 1024;
+
 async function isExecutableFile(p: string): Promise<boolean> {
   try {
     const st = await stat(p);
-    return st.isFile();
+    return st.isFile() && st.size >= MIN_RG_BINARY_BYTES;
   } catch {
     return false;
   }
@@ -289,6 +297,17 @@ export async function verifyArchiveChecksum(
 export async function extractRgFromZip(archivePath: string, destination: string): Promise<void> {
   const buf = await readFile(archivePath);
   const binName = rgBinaryName(); // 'rg.exe' on win32
+  // Stream into a staging file and publish it with a rename, matching the
+  // POSIX branch. Writing `destination` in place meant an interrupted download
+  // (timeout, dropped connection, ENOSPC) left a truncated rg.exe at the final
+  // path — and the cache check only tests `isFile()`, so that broken binary was
+  // accepted forever and permanently broke Grep/Glob with no repair path.
+  await mkdir(dirname(destination), { recursive: true });
+  const staging = `${destination}.download.${process.pid}.${Date.now()}`;
+  const finish = async (): Promise<void> => {
+    await chmod(staging, 0o755);
+    await renameReplacingTarget(staging, destination);
+  };
   await new Promise<void>((resolve, reject) => {
     yauzlFromBuffer(buf, { lazyEntries: true }, (openErr, zipfile) => {
       if (openErr !== null || zipfile === undefined) {
@@ -313,11 +332,12 @@ export async function extractRgFromZip(archivePath: string, destination: string)
             zipfile.close();
             return;
           }
-          const out = createWriteStream(destination);
+          const out = createWriteStream(staging);
           void (async () => {
             try {
               await pipeline(stream, out);
               zipfile.close();
+              await finish();
               resolve();
             } catch (error) {
               zipfile.close();

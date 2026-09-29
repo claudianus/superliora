@@ -63,11 +63,61 @@ export function syncDirSync(dirPath: string): void {
  * surfaced to the caller — the content is already in place, but
  * durability is not guaranteed.
  */
+/**
+ * Rename a staged temp file over its target, tolerating a transient Windows
+ * lock without ever opening a window where the target does not exist.
+ *
+ * On Windows `fs.rename` maps to MoveFileEx and fails with EPERM while any
+ * handle to the target is open (antivirus, an indexer, a concurrent reader).
+ * The obvious workaround — unlink the target first — is a data-loss window: a
+ * crash between the unlink and the rename destroys the target outright, which
+ * defeats the point of an atomic write, and a concurrent reader sees ENOENT on
+ * a file that should always be there. So retry the rename first and only
+ * pre-unlink after the retries are exhausted.
+ */
+export async function renameReplacingTarget(tmpPath: string, filePath: string): Promise<void> {
+  if (process.platform !== 'win32') {
+    await rename(tmpPath, filePath);
+    return;
+  }
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await rename(tmpPath, filePath);
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+      // Handles come and go; a short bounded backoff clears nearly all of them.
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 25 * (attempt + 1));
+      });
+    }
+  }
+  try {
+    await unlink(filePath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') throw error;
+  }
+  await rename(tmpPath, filePath);
+}
+
+/** Staging path unique to this process and call, so writers never collide. */
+function stagingPathFor(filePath: string): string {
+  return `${filePath}.tmp.${process.pid}.${randomBytes(4).toString('hex')}`;
+}
+
+/**
+ * Durably write a file: stage a uniquely-named temp, fsync it, rename it over
+ * the target, then fsync the parent directory.
+ */
 export async function writeFileAtomicDurable(
   filePath: string,
   content: string | Uint8Array,
 ): Promise<void> {
-  const tmpPath = filePath + '.tmp';
+  // A fixed `.tmp` suffix let two concurrent writers truncate each other's
+  // staging file and lose one write (Conductor fan-out writing the worktree
+  // registry is the real caller that does this).
+  const tmpPath = stagingPathFor(filePath);
   let renamed = false;
   try {
     const fh = await open(tmpPath, 'w');
@@ -77,21 +127,12 @@ export async function writeFileAtomicDurable(
     } finally {
       await fh.close();
     }
-    // Windows pre-unlink for MoveFileEx parity.
-    if (process.platform === 'win32') {
-      try {
-        await unlink(filePath);
-      } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT') throw error;
-      }
-    }
-    await rename(tmpPath, filePath);
+    await renameReplacingTarget(tmpPath, filePath);
     renamed = true;
     await syncDir(dirname(filePath));
   } finally {
     if (!renamed) {
-      // Best-effort cleanup of the `.tmp` file if we never got to the
+      // Best-effort cleanup of the staging file if we never got to the
       // rename. Swallow ENOENT because the file may not exist (open
       // itself failed) or may already have been unlinked.
       try {
@@ -193,8 +234,7 @@ export async function atomicWrite(
   content: string | Uint8Array,
   _syncOverride?: (fd: number) => Promise<void>,
 ): Promise<void> {
-  const hex = randomBytes(4).toString('hex');
-  const tmpPath = `${filePath}.tmp.${process.pid}.${hex}`;
+  const tmpPath = stagingPathFor(filePath);
   let renamed = false;
   try {
     const fh = await open(tmpPath, 'w');
@@ -204,18 +244,7 @@ export async function atomicWrite(
     } finally {
       await fh.close();
     }
-    // Windows `fs.rename` maps to MoveFileEx and fails with EPERM if
-    // the target is held by another handle. Pre-unlinking
-    // before the rename turns this into the POSIX-style "replace" case.
-    if (process.platform === 'win32') {
-      try {
-        await unlink(filePath);
-      } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT') throw error;
-      }
-    }
-    await rename(tmpPath, filePath);
+    await renameReplacingTarget(tmpPath, filePath);
     renamed = true;
   } finally {
     if (!renamed) {

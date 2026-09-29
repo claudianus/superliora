@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { statSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 
 import { z } from 'zod';
 
@@ -155,7 +156,10 @@ function spawnShellForm(
     env: options.env ? { ...process.env, ...options.env } : undefined,
   };
 
-  const head = leadingExecutablePath(command);
+  // The exec-form split has to be computed against the directory the hook
+  // actually runs in; resolving against process.cwd() picked a different tree
+  // whenever the session workspace differed from the launch directory.
+  const head = leadingExecutablePath(command, options.cwd);
   if (head !== undefined) {
     const rest = command.slice(command.indexOf(head) + head.length).trimStart();
     if (containsShellSyntax(rest)) {
@@ -177,17 +181,20 @@ function spawnShellForm(
  * and the second (a script name relative to cwd) does not extend it into a
  * file — those stay on the plain shell path.
  */
-function leadingExecutablePath(command: string): string | undefined {
+function leadingExecutablePath(command: string, cwd?: string): string | undefined {
   const trimmed = command.trimStart();
   if (trimmed.startsWith('"') || trimmed.startsWith("'")) return undefined;
   const tokens = trimmed.split(/\s+/).filter((token) => token.length > 0);
   if (tokens.length === 0) return undefined;
 
+  const resolve_ = (candidate: string): string =>
+    isAbsolute(candidate) ? candidate : join(cwd ?? process.cwd(), candidate);
+
   let candidate = tokens[0]!;
-  let found = isFile(candidate);
+  let found = isFile(resolve_(candidate));
   for (let i = 1; !found && i < tokens.length; i++) {
     const next = `${candidate} ${tokens[i]}`;
-    if (!isFile(next)) break;
+    if (!isFile(resolve_(next))) break;
     candidate = next;
     found = true;
   }
@@ -200,8 +207,11 @@ function leadingExecutablePath(command: string): string | undefined {
 
 function isFile(path: string): boolean {
   try {
-    statSync(path).isFile();
-    return true;
+    // The result of `.isFile()` has to be returned. Discarding it made any
+    // existing path — a directory included — look like a hook executable, so
+    // a command like `my tools/run.sh --flag` next to a directory `my tools`
+    // took the exec-form branch and died with EISDIR instead of running.
+    return statSync(path).isFile();
   } catch {
     return false;
   }

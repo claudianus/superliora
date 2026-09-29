@@ -8,6 +8,8 @@ import { access } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 
+import { resolveRuntimeSpawn } from '@superliora/kaos';
+
 import type {
   GoalPredicateEvalResult,
   GoalPredicateFailure,
@@ -142,7 +144,12 @@ function defaultRunVitestFile(
     // Whitelist: node + vitest binary via pnpm exec is too loose; use node_modules vitest if present
     // Fall back to `pnpm exec vitest run <file>` with fixed argv shape only.
     const args = ['exec', 'vitest', 'run', absTestFile];
-    const child = spawn('pnpm', args, {
+    // `pnpm` is a `.cmd` shim on Windows, which `spawn` without `shell` cannot
+    // run: every spawn attempt failed with ENOENT and the criterion reported a
+    // test failure, blaming the test for a launcher problem.
+    // `resolveRuntimeSpawn` returns `node.exe <pnpm.js>` there instead.
+    const { file, prefixArgs } = resolveRuntimeSpawn('pnpm');
+    const child = spawn(file, [...prefixArgs, ...args], {
       cwd: process.cwd(),
       env: { ...process.env, CI: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],

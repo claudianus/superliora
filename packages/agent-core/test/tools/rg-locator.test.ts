@@ -32,6 +32,11 @@ import {
 // on `globalThis` to drive the failure and success paths.
 vi.mock('tar', () => ({ extract: vi.fn() }));
 
+/** Stand-in for a real ripgrep binary: past the minimum-size acceptance check. */
+function fakeRgBinary(): string {
+  return `#!/bin/sh\necho ripgrep 15.0.0\n${'#'.repeat(256 * 1024)}`;
+}
+
 describe('findExistingRg', () => {
   let fakeShare: string;
   let savedPath: string | undefined;
@@ -55,10 +60,22 @@ describe('findExistingRg', () => {
 
   it('resolves from share-dir when cached', async () => {
     const cached = join(fakeShare, 'bin', process.platform === 'win32' ? 'rg.exe' : 'rg');
-    writeFileSync(cached, '#!/bin/sh\necho ripgrep 15.0.0\n');
+    writeFileSync(cached, fakeRgBinary());
     chmodSync(cached, 0o755);
     const result = await findExistingRg(fakeShare);
     expect(result).toEqual({ path: cached, source: 'share-bin-cached' });
+  });
+
+  it('rejects a truncated cached binary instead of accepting it forever', async () => {
+    // An interrupted download used to leave a partial rg.exe at the final
+    // path, and the isFile()-only check accepted it, permanently breaking
+    // Grep/Glob with no repair path. Resolution must fail so the install runs
+    // again.
+    const cached = join(fakeShare, 'bin', process.platform === 'win32' ? 'rg.exe' : 'rg');
+    writeFileSync(cached, '#!/bin/sh\ntruncated');
+    chmodSync(cached, 0o755);
+    const result = await findExistingRg(fakeShare);
+    expect(result).toBeUndefined();
   });
 
   it('prefers system PATH over share-dir when both are available', async () => {
@@ -66,12 +83,12 @@ describe('findExistingRg', () => {
     const pathDir = join(fakeShare, 'path');
     mkdirSync(pathDir, { recursive: true });
     const onPath = join(pathDir, process.platform === 'win32' ? 'rg.exe' : 'rg');
-    writeFileSync(onPath, '#!/bin/sh\n');
+    writeFileSync(onPath, fakeRgBinary());
     chmodSync(onPath, 0o755);
     process.env['PATH'] = pathDir;
     // Also stage a cached one to confirm the order.
     const cached = join(fakeShare, 'bin', process.platform === 'win32' ? 'rg.exe' : 'rg');
-    writeFileSync(cached, '#!/bin/sh\n');
+    writeFileSync(cached, fakeRgBinary());
     chmodSync(cached, 0o755);
     const result = await findExistingRg(fakeShare);
     expect(result?.source).toBe('system-path');

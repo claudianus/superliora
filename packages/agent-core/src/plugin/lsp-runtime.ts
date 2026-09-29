@@ -16,11 +16,12 @@ export interface LspDiagnostic {
  */
 export class PluginLspRuntime {
   private readonly clients = new Map<string, LspStdioClient>();
-  private readonly failed = new Set<string>();
-
+  private readonly failed = new Map<string, string>();
+  /** Notified once per server the first time it fails to start. */
   constructor(
     private readonly servers: readonly PluginLspServerDef[],
     private readonly cwd: string,
+    private readonly onServerUnavailable?: (serverName: string, reason: string) => void,
   ) {}
 
   async collectForFile(filePath: string, text: string): Promise<string | undefined> {
@@ -31,8 +32,16 @@ export class PluginLspRuntime {
       const client = await this.ensureClient(server);
       const diags = await client.openAndWaitDiagnostics(filePath, text, 1_500);
       return formatDiagnostics(filePath, server.name, diags);
-    } catch {
-      this.failed.add(server.name);
+    } catch (error) {
+      // A bare `catch` here made every spawn failure invisible: on Windows a
+      // bare `spawn('typescript-language-server')` cannot resolve the npm
+      // `.cmd`/sh shim, so the server never started, was blacklisted for the
+      // life of the process, and the user got no diagnostics with no log, no
+      // tool output, and no hint that a plugin was misconfigured. Surface the
+      // cause so a broken server is diagnosable instead of a silent gap.
+      const reason = error instanceof Error ? error.message : String(error);
+      this.failed.set(server.name, reason);
+      this.onServerUnavailable?.(server.name, reason);
       await this.disposeClient(server.name);
       return undefined;
     }
@@ -130,7 +139,7 @@ function severityLabel(severity: number): string {
 function pathToFileUri(filePath: string): string {
   const resolved = path.resolve(filePath);
   if (process.platform === 'win32') {
-    return `file:///${resolved.replaceAll(/\\/g, '/')}`;
+    return `file:///${resolved.replaceAll('\\', '/')}`;
   }
   return `file://${resolved}`;
 }
@@ -165,10 +174,18 @@ class LspStdioClient {
     readonly cwd: string;
     readonly rootUri: string;
   }): Promise<LspStdioClient> {
+    // Plugin LSP commands are bare names from plugin config, and npm installs
+    // them as `node_modules/.bin/<name>` plus a `.cmd` shim. CreateProcessW
+    // does no PATHEXT resolution, so `spawn('typescript-language-server')`
+    // without `shell` never started on Windows — the server was permanently
+    // blacklisted and diagnostics were silently absent. `shell: true` lets
+    // cmd.exe resolve the shim; stdio stays piped so the LSP framing is
+    // unaffected.
     const child = spawn(input.command, [...input.args], {
       cwd: input.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: process.env,
+      ...(process.platform === 'win32' ? { shell: true } : {}),
     });
     const spawnError = await new Promise<Error | undefined>((resolve) => {
       const onError = (error: Error): void => {
