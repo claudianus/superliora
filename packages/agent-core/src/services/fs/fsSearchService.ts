@@ -20,6 +20,7 @@ import { ISessionService } from '../session/session';
 
 import { ILogService } from '../logger/logger';
 import { IFsSearchService, FsGrepTimeoutError } from './fsSearch';
+import { killProcessTree } from './process-kill';
 import {
   compileGrepPattern,
   computeFuzzyScore,
@@ -203,11 +204,11 @@ export class FsSearchService
     const onAbort = (): void => {
       if (abortFired) return;
       abortFired = true;
-      try {
-        child.kill('SIGKILL');
-      } catch {
-
-      }
+      // Tree-kill, not a direct signal: on Windows a direct kill only reaches
+      // the immediate child, so an aborted scan could survive holding the
+      // workspace directory — which then blocks worktree removal and the next
+      // search start.
+      killProcessTree(child);
     };
     if (signal.aborted) onAbort();
     else signal.addEventListener('abort', onAbort, { once: true });

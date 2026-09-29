@@ -774,6 +774,50 @@ describe('generate()', () => {
     expect(observedParts).toBe(0);
   });
 
+  it('a failing stream teardown does not replace the abort error', async () => {
+    // `cancelStream` swallows provider teardown failures on purpose: the caller
+    // aborted, so they are about to receive the caller's AbortError. Rethrowing
+    // a "socket already closed" style failure instead would be both less
+    // accurate and more confusing.
+    const controller = new AbortController();
+    const stream: StreamedMessage = {
+      get id(): string | null {
+        return null;
+      },
+      get usage(): TokenUsage | null {
+        return null;
+      },
+      finishReason: null,
+      rawFinishReason: null,
+      async cancel(): Promise<void> {
+        throw new Error('socket already destroyed');
+      },
+      async return(): Promise<void> {
+        throw new Error('reader already closed');
+      },
+      async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+        yield { type: 'text', text: 'never' };
+      },
+    } as unknown as StreamedMessage;
+
+    const provider: ChatProvider = {
+      name: 'mock',
+      modelName: 'mock-model',
+      thinkingEffort: null,
+      generate: async (): Promise<StreamedMessage> => {
+        controller.abort();
+        return stream;
+      },
+      withThinking(_effort: ThinkingEffort): ChatProvider {
+        return this;
+      },
+    };
+
+    await expect(
+      generate(provider, '', [], [], undefined, { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
   it('aborting in the last onMessagePart callback throws AbortError and skips onToolCall', async () => {
     const controller = new AbortController();
     const onToolCall = vi.fn<(toolCall: ToolCall) => Promise<void>>();

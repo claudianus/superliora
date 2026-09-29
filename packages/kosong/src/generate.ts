@@ -450,6 +450,11 @@ function rethrowIfCallerCancelled(
 async function cancelStream(stream: StreamedMessage): Promise<void> {
   const cancelable = stream as CancelableStream;
 
+  // Teardown is best-effort and must not surface: this only runs on the abort
+  // path, where the caller is about to receive the caller's abort reason.
+  // Rethrowing here would replace a meaningful AbortError with a provider
+  // teardown failure (a closed socket, an already-destroyed reader), which is
+  // both less accurate and noisier for the user.
   try {
     await cancelable.cancel?.();
   } catch {}

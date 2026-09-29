@@ -1425,7 +1425,14 @@ describe('SessionSubagentHost', () => {
     const session = fakeSession(parent.agent, child.agent);
     const host = new SessionSubagentHost(session, 'main');
 
-    process.env[SUBAGENT_DEADLINE_ENV] = '250';
+    // The deadline must outlast the child reaching its approval request. At
+    // 250ms the deadline aborted the run before the turn even started, so no
+    // approval request was ever raised and the test hung on waiting for a state
+    // it had already skipped. Under suite load the boundary moved, which is why
+    // this test intermittently failed the whole gate. 3s leaves the transition
+    // (turn.started -> requestApproval) an order of magnitude of headroom while
+    // still being short enough to fail fast.
+    process.env[SUBAGENT_DEADLINE_ENV] = '3000';
     try {
       const handle = await host.spawn({
         profileName: 'explore',
@@ -1436,23 +1443,21 @@ describe('SessionSubagentHost', () => {
         signal,
       });
 
-      await child.untilApprovalRequest();
+      // Put the child on the unanswered approval first, so the wall-clock
+      // deadline is genuinely the only thing that can end the run.
+      await child.untilApprovalRequest(5_000);
       // The child now sits on an unanswered approval request; only the
       // wall-clock deadline can end the run.
       await expect(handle.completion).rejects.toBeInstanceOf(SubagentDeadlineError);
       await expect(handle.completion).rejects.toMatchObject({
         code: 'subagent_deadline',
-        deadlineMs: 250,
+        deadlineMs: 3000,
       });
-      // The assertions above are the contract; this only drains the turn-ended
-      // event. Bound it so the test cannot sit on an unbounded wall-clock wait
-      // under suite load — it previously ran to the 30s vitest timeout and
-      // failed the whole gate while passing in isolation.
       await child.untilTurnEnd(5_000);
     } finally {
       delete process.env[SUBAGENT_DEADLINE_ENV];
     }
-  });
+  }, 20_000);
 
   it('keeps a wedged child alive when SUPERLIORA_SUBAGENT_DEADLINE_MS=0 disables the deadline', async () => {
     const parent = testAgent();

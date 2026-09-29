@@ -15,6 +15,7 @@ import { ISessionService } from '../session/session';
 
 import { FsPathNotFoundError } from './fs';
 import { IFsGitService, FsGitUnavailableError, parsePorcelain, parseNumstat } from './fsGit';
+import { killProcessTree } from './process-kill';
 import { resolveSafePath } from './fsPathSafety';
 
 /** Cap a single file's unified diff (a runaway generated file should not blow
@@ -278,25 +279,7 @@ async function runCommand(
 }
 
 function killChild(child: ChildProcess): void {
-  // On Windows, `ChildProcess.kill()` only signals the direct child (e.g. the
-  // `cmd.exe` wrapper when `shell` is involved, or the `git`/`gh` parent),
-  // leaving grandchildren alive and holding the cwd. Terminate the whole
-  // process tree so the working directory is released promptly.
-  if (process.platform === 'win32' && child.pid !== undefined) {
-    try {
-      const killer = spawn('taskkill', ['/T', '/F', '/PID', String(child.pid)], {
-        stdio: 'ignore',
-        windowsHide: true,
-      });
-      killer.once('error', () => {});
-      return;
-    } catch {
-      // fall through to the direct kill below
-    }
-  }
-  try {
-    child.kill();
-  } catch {}
+  killProcessTree(child);
 }
 
 function parsePullRequest(stdout: string): FsPullRequest | null {
