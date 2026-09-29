@@ -98,6 +98,26 @@ describe('session worktree helpers', () => {
     expect(generateWorktreeName()).toMatch(/^wt-/);
   });
 
+  it('rejects names Windows cannot create as a directory', () => {
+    // CreateDirectoryW rejects these components outright, so accepting one
+    // produced an opaque ENOENT/EPERM at creation time instead of a clear
+    // validation error. `nul.txt` reserves the same device as `nul`.
+    for (const reserved of ['con', 'NUL', 'aux', 'PRN', 'com1', 'lpt9', 'nul.txt']) {
+      expect(() => normalizeWorktreeName(reserved), reserved).toThrow(LioraError);
+    }
+  });
+
+  it('strips trailing dots so two names cannot collapse onto one directory', () => {
+    // Windows silently removes trailing dots, so `my.project.` and
+    // `my.project` resolve to the same directory while the registry holds two
+    // different entries pointing at it.
+    expect(normalizeWorktreeName('my.project.')).toBe('my.project');
+    expect(normalizeWorktreeName('my.project')).toBe('my.project');
+    expect(normalizeWorktreeName('my.project.')).toBe(normalizeWorktreeName('my.project'));
+    // A doubled dot is already rejected upstream as a path-escape attempt.
+    expect(() => normalizeWorktreeName('feature..')).toThrow(LioraError);
+  });
+
   it('builds and parses session metadata', () => {
     const meta = {
       path: '/tmp/wt',

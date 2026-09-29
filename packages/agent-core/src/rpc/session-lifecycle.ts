@@ -261,7 +261,14 @@ export async function createSessionWithOverrides(
       thinkingLevel,
     });
     if (sessionModelAlias?.trim().toLowerCase() === 'auto') {
-      void warmModelsDevData().catch(() => {});
+      // A failed warm-up leaves the model catalog empty with no other signal,
+      // so the user sees "no models" and cannot tell it apart from a network
+      // problem. Log it; the session still starts.
+      void warmModelsDevData().catch((error: unknown) => {
+        log.warn('models.dev warm-up failed; model catalog may be empty', {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      });
       const route = resolveSessionSmartRoute({ config });
       if (route !== undefined) {
         mainAgent.config.setSmartRouteAlias(route.alias);
@@ -281,7 +288,15 @@ export async function createSessionWithOverrides(
     await session.writeMetadata();
     await session.flushMetadata();
   } catch (error) {
-    await session.close().catch(() => {});
+    // The original error is the one that matters, but a failed close can leave
+    // wire/metadata files unflushed, and reporting success on that cleanup hid
+    // a real durability problem.
+    await session.close().catch((closeError: unknown) => {
+      log.warn('session close failed while unwinding a failed start', {
+        id,
+        message: closeError instanceof Error ? closeError.message : String(closeError),
+      });
+    });
     throw error;
   }
   context.sessions.set(id, session);
@@ -416,7 +431,11 @@ export async function resumeSessionWithOverrides(
     if (mainAgent !== undefined) {
       await pluginWiring.wirePluginSessionHosts(wiringContext, session, mainAgent);
       if (mainAgent.config.modelAlias?.trim().toLowerCase() === 'auto') {
-        void warmModelsDevData().catch(() => {});
+        void warmModelsDevData().catch((error: unknown) => {
+          log.warn('models.dev warm-up failed on resume; model catalog may be empty', {
+            message: error instanceof Error ? error.message : String(error),
+          });
+        });
         const route = resolveSessionSmartRoute({ config });
         if (route !== undefined) {
           mainAgent.config.setSmartRouteAlias(route.alias);
@@ -425,7 +444,12 @@ export async function resumeSessionWithOverrides(
       }
     }
   } catch (error) {
-    await session.close().catch(() => {});
+    await session.close().catch((closeError: unknown) => {
+      log.warn('session close failed while unwinding a failed resume', {
+        sessionId: summary.id,
+        message: closeError instanceof Error ? closeError.message : String(closeError),
+      });
+    });
     withTelemetryContext(context.telemetry, { sessionId: summary.id }).track('session_load_failed', {
       reason: telemetryErrorReason(error),
     });

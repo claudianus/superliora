@@ -8,7 +8,7 @@ import { LocalKaos, type Kaos } from '@superliora/kaos';
 import { attachWorktree, createWorktree, removeWorktree, runGit } from '#/autopilot/git';
 import { resolveLioraHome } from '#/config/path';
 import { ErrorCodes, LioraError } from '#/errors/index';
-import { slugifyWorkDirName } from '#/utils/workdir-slug';
+import { isWindowsReservedDirName, slugifyWorkDirName } from '#/utils/workdir-slug';
 import { writeFileAtomicDurable } from '#/utils/fs';
 import { ensureGitRepoForWorktrees } from './git-bootstrap';
 
@@ -258,6 +258,16 @@ export function normalizeWorktreeName(name: string): string {
     throw new LioraError(
       ErrorCodes.WORKTREE_NAME_INVALID,
       `Worktree name must not contain path separators: ${trimmed}`,
+    );
+  }
+  // Reject on the *input*, not the slug: `slugifyWorkDirName` suffixes a
+  // reserved name for internal callers (repo directory names), so checking the
+  // slug would never see it. Silently renaming here would also mean the user
+  // asks for `nul` and can no longer address the worktree by that name.
+  if (isWindowsReservedDirName(trimmed)) {
+    throw new LioraError(
+      ErrorCodes.WORKTREE_NAME_INVALID,
+      `Worktree name is reserved on Windows and cannot be created: ${trimmed}`,
     );
   }
   const slug = slugifyWorkDirName(trimmed);

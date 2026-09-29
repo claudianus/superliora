@@ -261,8 +261,15 @@ async function runCommand(
     child.stderr.on('data', (c: string) => {
       stderr += c;
     });
-    child.once('error', () => {
-      finish({ exitCode: -1, stdout, stderr });
+    child.once('error', (error: NodeJS.ErrnoException) => {
+      // A spawn failure (git not on PATH, a .cmd shim that cannot be
+      // resolved) was previously indistinguishable from a command that ran
+      // and printed nothing: both surfaced as exit -1 with empty stderr, and
+      // the git panels then showed a blank error while the operator debugged
+      // the wrong thing. ENOENT in particular means the binary was never
+      // found, which is a completely different fix.
+      const reason = error.code === 'ENOENT' ? `${cmd}: command not found` : error.message;
+      finish({ exitCode: -1, stdout, stderr: `${stderr}${stderr.length > 0 ? '\n' : ''}${reason}` });
     });
     child.once('close', (code) => {
       finish({ exitCode: code ?? -1, stdout, stderr });

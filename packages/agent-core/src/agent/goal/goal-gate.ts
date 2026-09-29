@@ -22,6 +22,8 @@ import { createHash } from 'node:crypto';
 import { lstat, readlink } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+import { log } from '#/logging/logger';
+
 import type { CompletionAuditRejection } from './completion-audit';
 
 export const GOAL_GATE_TIMEOUT_MS = 120_000;
@@ -163,7 +165,17 @@ function gitOutput(cwd: string, args: readonly string[]): Promise<string | null>
     child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString('utf8');
     });
-    child.on('error', () => resolvePromise(null));
+    // A spawn failure means the gate hash is unavailable, which weakens the
+    // completion check. Returning null silently made a missing git
+    // indistinguishable from a clean run; log it so the gap is diagnosable.
+    child.on('error', (error: NodeJS.ErrnoException) => {
+      log.warn('goal gate git spawn failed; falling back to an unhashed workspace', {
+        code: error.code,
+        message: error.message,
+        cwd,
+      });
+      resolvePromise(null);
+    });
     child.on('close', (code) => {
       resolvePromise(code === 0 ? stdout : null);
     });
@@ -182,7 +194,7 @@ async function hashUntrackedEntries(cwd: string, status: string): Promise<string
     .split('\0')
     .filter((entry) => entry.startsWith('?? '))
     .map((entry) => entry.slice(3))
-    .sort();
+    .toSorted();
   for (const path of paths) {
     aggregate.update(path);
     aggregate.update('\0');
