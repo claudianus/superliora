@@ -21,6 +21,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { CI_PARITY_SET_ENV, ciParityEnv, ciParityUnsetKeys } from './ci-parity-env.mjs';
 import { buildGraph, selectRelatedTests } from './test-scope.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '..');
@@ -30,71 +31,14 @@ const repoRoot = resolve(import.meta.dirname, '..');
 const FAKE_PKG_A = '@superliora' + '/a';
 
 // --- CI parity -------------------------------------------------------------
-// Every one of these has produced a "green locally, red in CI" failure in this
-// repo. A dev shell carries state a GitHub runner does not: `NO_COLOR` and
-// `TERM=dumb` silently disable TUI motion, a local timezone hides UTC clock
-// assertions, `init.defaultBranch=main` hides bare-repo HEAD assumptions, and
-// provider keys let network paths pass that CI cannot reach.
-const DELETE_ENV = [
-  'NO_COLOR',
-  'FORCE_COLOR',
-  'TERM',
-  'COLORTERM',
-  'TERM_PROGRAM',
-  'TERM_PROGRAM_VERSION',
-  'KITTY_WINDOW_ID',
-  'WEZTERM_PANE',
-  'GHOSTTY_RESOURCES_DIR',
-  'ALACRITTY_WINDOW_ID',
-  'WT_SESSION',
-  'WT_PROFILE_ID',
-  'TMUX',
-  'ZELLIJ',
-  'SSH_TTY',
-  'SSH_CONNECTION',
-  'SSH_CLIENT',
-  // A corporate dev shell exports these; a GitHub runner never has them, and
-  // egress/network assertions then read the operator's proxy instead of the
-  // unset state CI sees.
-  'HTTP_PROXY',
-  'HTTPS_PROXY',
-  'ALL_PROXY',
-  'NO_PROXY',
-  'http_proxy',
-  'https_proxy',
-  'all_proxy',
-  'no_proxy',
-];
-/** Credentials and host agent state a runner never has. */
-const DELETE_ENV_PREFIX = ['KIMI_', 'SUPERLIORA_', 'MOONSHOT_', 'ANTHROPIC_', 'OPENAI_', 'XAI_', 'GEMINI_', 'CURSOR_'];
-const DELETE_ENV_MATCH = /API_KEY|_TOKEN|SECRET/;
-const nullDevice = process.platform === 'win32' ? 'NUL' : '/dev/null';
+// The env list lives in ./ci-parity-env.mjs because other scripts spawn vitest too.
 const pnpmBin = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-const SET_ENV = {
-  CI: 'true',
-  GITHUB_ACTIONS: 'true',
-  TZ: 'UTC',
-  LANG: 'C.UTF-8',
-  LC_ALL: 'C.UTF-8',
-  // Ubuntu git defaults; keeps `git init` HEAD and identity assumptions honest.
-  GIT_CONFIG_GLOBAL: nullDevice,
-  GIT_CONFIG_SYSTEM: nullDevice,
-  GIT_CONFIG_COUNT: '1',
-  GIT_CONFIG_KEY_0: 'init.defaultBranch',
-  GIT_CONFIG_VALUE_0: 'master',
-};
 
 function parityEnv() {
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (DELETE_ENV.includes(key)) delete env[key];
-    else if (DELETE_ENV_PREFIX.some((p) => key.startsWith(p))) delete env[key];
-    else if (DELETE_ENV_MATCH.test(key)) delete env[key];
-  }
   // Tests must never read or write the operator's real liora home (harness
   // state, oauth cache): point SUPERLIORA_HOME at a per-run temp dir.
   const lioraHome = mkdtempSync(join(tmpdir(), 'superliora-test-home-'));
-  return { ...env, ...SET_ENV, SUPERLIORA_HOME: lioraHome };
+  return { ...ciParityEnv(), SUPERLIORA_HOME: lioraHome };
 }
 
 // --- affected workspace detection -----------------------------------------
@@ -362,8 +306,8 @@ const argv = process.argv.slice(2);
 if (argv.includes('--self-check')) selfCheck();
 if (argv.includes('--env')) {
   const env = parityEnv();
-  for (const [key, value] of Object.entries(SET_ENV)) console.log(`${key}=${value}`);
-  for (const key of DELETE_ENV) if (env[key] === undefined) console.log(`${key} (unset)`);
+  for (const [key, value] of Object.entries(CI_PARITY_SET_ENV)) console.log(`${key}=${value}`);
+  for (const key of ciParityUnsetKeys) if (env[key] === undefined) console.log(`${key} (unset)`);
   process.exit(0);
 }
 

@@ -13,6 +13,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ciParityEnv } from './ci-parity-env.mjs';
+
 const repoRoot = resolve(import.meta.dirname, '..');
 const baselinePath = join(repoRoot, 'meta', 'test-baseline.yaml');
 const args = new Set(process.argv.slice(2));
@@ -83,7 +85,11 @@ function runVitest(dir) {
       cwd: join(repoRoot, dir),
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, NO_COLOR: '1' },
+      // Same CI-parity env the documented local gate uses. Inheriting the
+      // operator's shell wholesale leaked HTTP_PROXY/NO_PROXY into egress
+      // assertions here, so a run behind a corporate proxy reported two
+      // failures that CI never sees.
+      env: ciParityEnv({ NO_COLOR: '1' }),
       ...(isWindows ? { shell: true } : {}),
     },
   );
