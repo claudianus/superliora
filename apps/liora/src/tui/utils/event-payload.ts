@@ -44,7 +44,32 @@ function unescapeJsonString(s: string): string {
   });
 }
 
+/**
+ * Last parse per streaming argument buffer.
+ *
+ * Streaming tool arguments are append-only, and the TUI re-parses the whole
+ * accumulated buffer on every flush (up to 60/s) while a call streams. The
+ * buffer can reach the 64 KiB preview cap, so each flush re-ran `JSON.parse`
+ * plus a full `matchAll` scan over the entire prefix. A size-bounded cache
+ * keyed on the buffer text short-circuits repeated parses of an unchanged
+ * prefix; the bounded size keeps it from retaining dead 64 KiB buffers.
+ */
+const STREAMING_ARGS_CACHE_MAX_ENTRIES = 8;
+const streamingArgsCache = new Map<string, Record<string, unknown>>();
+
 export function parseStreamingArgs(argumentsText: string): Record<string, unknown> {
+  const cached = streamingArgsCache.get(argumentsText);
+  if (cached !== undefined) return cached;
+  const parsed = parseStreamingArgsUncached(argumentsText);
+  if (streamingArgsCache.size >= STREAMING_ARGS_CACHE_MAX_ENTRIES) {
+    const oldest = streamingArgsCache.keys().next();
+    if (oldest.done !== true) streamingArgsCache.delete(oldest.value);
+  }
+  streamingArgsCache.set(argumentsText, parsed);
+  return parsed;
+}
+
+function parseStreamingArgsUncached(argumentsText: string): Record<string, unknown> {
   const previewText = argumentsText.slice(0, STREAMING_ARGS_PREVIEW_MAX_CHARS);
   if (previewText.trim().length === 0) return {};
   if (

@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { StreamingUIController, type StreamingUIHost } from '#/tui/controllers/streaming-ui/index';
-import { tickArmedStreamReveal } from '#/tui/controllers/streaming-ui/reveal';
+import {
+  __armedRevealContextCount,
+  tickArmedStreamReveal,
+} from '#/tui/controllers/streaming-ui/reveal';
 import { createTUIState } from '#/tui/liora-tui';
 import type { AppState, TranscriptEntry } from '#/tui/types';
 import {
@@ -238,6 +241,30 @@ describe('StreamingUIController smooth reveal', () => {
 
     const block = ui.getStreamingBlockComponent();
     expect(block).toBeUndefined();
+  });
+
+  it('does not accumulate armed reveal contexts across streaming updates', () => {
+    const { host } = createHost();
+    const ui = new StreamingUIController(host);
+    const armedCount = () => __armedRevealContextCount();
+
+    ui.onStreamingTextStart();
+    ui.onStreamingTextUpdate('a long stream that keeps the reveal lagging behind '.repeat(20));
+    expect(armedCount()).toBe(1);
+
+    // Every flush builds a fresh reveal context object. The armed registry has
+    // to be keyed on the stable per-controller runtime, or it grows one entry
+    // per flush and every frame scans a set that never shrinks.
+    for (let i = 0; i < 40; i++) {
+      vi.advanceTimersByTime(16);
+      advanceAppearanceAnimationClock(Date.now());
+      ui.onStreamingTextUpdate(
+        'a long stream that keeps the reveal lagging behind '.repeat(20 + i),
+      );
+      tickArmedStreamReveal();
+    }
+
+    expect(armedCount()).toBe(1);
   });
 
   it('disarms reveal catch-up on resetLiveText', () => {
