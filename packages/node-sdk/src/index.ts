@@ -154,6 +154,7 @@ export type {
 } from '@superliora/agent-core';
 
 export { loadRuntimeConfigSafe, resolveConfigPath } from '@superliora/agent-core';
+export { foldPathForIdentity, isCaseInsensitiveFs, pathsIdentical } from '@superliora/agent-core';
 export type {
   PersonaPresetDefinition,
   PersonaPresetId,

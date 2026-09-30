@@ -323,6 +323,11 @@ export {
 export { resolveLoggingConfig } from './logging/resolve-config';
 export { installGlobalProxyDispatcher } from './utils/proxy';
 export {
+  foldPathForIdentity,
+  isCaseInsensitiveFs,
+  pathsIdentical,
+} from './utils/path-identity';
+export {
   ROLE_PRESETS,
   applyModelScores,
   autoAssignRoleModels,

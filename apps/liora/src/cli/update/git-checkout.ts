@@ -9,6 +9,7 @@ import { tryGetHostPackageRoot } from '#/cli/version';
 import { getDataDir, getUpdateStateFile } from '#/utils/paths';
 
 import type { UpdateTarget } from './types';
+import { pathsIdentical } from '@superliora/sdk';
 
 const SUPERLIORA_REPO_PATTERN = /github\.com[:/]claudianus\/superliora(?:\.git)?$/i;
 
@@ -99,7 +100,7 @@ export async function hasUsableGitObjectStore(repoRoot: string): Promise<boolean
 export function sameCheckoutPath(left: string, right: string): boolean {
   const a = resolve(left);
   const b = resolve(right);
-  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+  return pathsIdentical(a, b);
 }
 
 /**

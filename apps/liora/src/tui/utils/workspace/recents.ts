@@ -5,6 +5,7 @@
 import { resolve } from 'node:path';
 
 import { sameWorkspaceDir } from './paths';
+import { foldPathForIdentity } from '@superliora/sdk';
 
 export interface WorkspaceRecentSource {
   readonly workDir: string;
@@ -28,7 +29,7 @@ export function uniqueRecentWorkDirs(
     const dir = session.workDir.trim();
     if (dir.length === 0) continue;
     if (options.exclude !== undefined && sameWorkspaceDir(dir, options.exclude)) continue;
-    const key = process.platform === 'win32' ? resolve(dir).toLowerCase() : resolve(dir);
+    const key = foldPathForIdentity(resolve(dir));
     if (seen.has(key)) continue;
     seen.add(key);
     dirs.push(resolve(dir));

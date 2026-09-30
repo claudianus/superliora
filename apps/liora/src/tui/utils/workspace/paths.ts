@@ -6,6 +6,8 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
+import { foldPathForIdentity, pathsIdentical } from '@superliora/sdk';
+
 const PROJECT_MARKERS = [
   '.git',
   '.superliora',
@@ -56,11 +58,7 @@ export interface WorkspacePlace {
 }
 
 export function sameWorkspaceDir(a: string, b: string): boolean {
-  const left = resolve(a);
-  const right = resolve(b);
-  return process.platform === 'win32'
-    ? left.toLowerCase() === right.toLowerCase()
-    : left === right;
+  return pathsIdentical(resolve(a), resolve(b));
 }
 
 export function expandUserPath(input: string, home: string = homedir()): string {
@@ -77,12 +75,20 @@ export function displayWorkspacePath(path: string, home: string = homedir()): st
   const homeResolved = resolve(home);
   if (sameWorkspaceDir(resolved, homeResolved)) return '~';
   const prefix = homeResolved.endsWith(sep) ? homeResolved : homeResolved + sep;
-  const pathForCompare = process.platform === 'win32' ? resolved.toLowerCase() : resolved;
-  const prefixForCompare = process.platform === 'win32' ? prefix.toLowerCase() : prefix;
-  if (pathForCompare.startsWith(prefixForCompare)) {
+  // Separators are unified by the same helper, and case folds only where the
+  // filesystem does — a default macOS volume folds, a case-sensitive NFS mount
+  // on the same OS does not, and `process.platform` cannot tell them apart.
+  if (pathsIdentical(resolved, prefix) || startsWithIdentity(resolved, prefix)) {
     return '~' + sep + resolved.slice(prefix.length);
   }
   return resolved;
+}
+
+/** True when `path` is inside `prefix` on this filesystem. */
+function startsWithIdentity(path: string, prefix: string): boolean {
+  const child = foldPathForIdentity(path);
+  const base = foldPathForIdentity(prefix);
+  return child.startsWith(base.endsWith('/') ? base : `${base}/`);
 }
 
 export function looksLikeProjectRoot(
@@ -163,7 +169,7 @@ export function wellKnownPlaces(
   const places: WorkspacePlace[] = [];
   for (const place of candidates) {
     if (!exists(place.path)) continue;
-    const key = process.platform === 'win32' ? resolve(place.path).toLowerCase() : resolve(place.path);
+    const key = foldPathForIdentity(resolve(place.path));
     if (seen.has(key)) continue;
     seen.add(key);
     places.push({ ...place, path: resolve(place.path) });

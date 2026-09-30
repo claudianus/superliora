@@ -13,6 +13,7 @@ import type { FooterLabels } from '#/tui/config';
 import { mediaProviderKeyReady } from '#/tui/components/chrome/footer/footer-badges';
 import { safeContextUsage } from '#/tui/components/chrome/footer/footer-context';
 import { labelHistoryViewport } from '#/tui/components/chrome/footer/footer-labels';
+import { foldPathForIdentity, pathsIdentical } from '@superliora/sdk';
 
 const MAX_CWD_SEGMENTS = 3;
 
@@ -22,7 +23,7 @@ export type FooterTranscriptViewportSnapshot = Pick<
 >;
 
 function posixPath(value: string): string {
-  let normalized = value.replaceAll(/\\/g, '/');
+  let normalized = value.replaceAll('\\', '/');
   const msys = /^\/([a-zA-Z])(\/|$)/.exec(normalized);
   const drive = msys?.[1];
   if (drive !== undefined) {
@@ -45,16 +46,14 @@ function homePrefixes(): readonly string[] {
 }
 
 function pathEquals(left: string, right: string): boolean {
-  if (process.platform === 'win32') return left.toLowerCase() === right.toLowerCase();
-  return left === right;
+  return pathsIdentical(left, right);
 }
 
 function pathHasPrefix(path: string, prefix: string): boolean {
   if (prefix.length === 0) return false;
-  if (process.platform === 'win32') {
-    return path.toLowerCase().startsWith(`${prefix.toLowerCase()}/`);
-  }
-  return path.startsWith(`${prefix}/`);
+  const child = foldPathForIdentity(path);
+  const base = foldPathForIdentity(prefix);
+  return child.startsWith(base.endsWith('/') ? base : `${base}/`);
 }
 
 export function shortenCwd(path: string): string {
