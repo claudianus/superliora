@@ -43,6 +43,12 @@ const list = process.argv.includes('--list');
 const TIME_SUBJECT = new RegExp(
   String.raw`\b(elapsed|duration|latency|renderCb|cbMs|takenMs|\w*[Mm]s)\b`,
 );
+// A budget on a counter is a structural limit, not a wall-clock budget:
+// `expect(fullRenders).toBeLessThan(8)` caps how many cold layouts may happen
+// and says nothing about speed. Counting it as timing debt misdirects whoever
+// works through the list next.
+const COUNT_SUBJECT =
+  /\b\w*(?:renders|count|calls|paints|layouts|rows|lines|items|entries|turns|frames|attempts|retries|logs|chunks|blocks)\w*\b/i;
 const BUDGET_ASSERT = /toBeLessThan\(\s*([0-9][0-9_]*)\s*\)|toBeLessThan\(\s*([A-Z_][A-Z0-9_]*)\s*\)/g;
 
 function timeSubjectBefore(source, index) {
@@ -64,6 +70,7 @@ for (const file of files) {
     const literal = match[1];
     const named = match[2];
     if (!TIME_SUBJECT.test(before)) continue;
+    if (COUNT_SUBJECT.test(before)) continue;
     // A named constant is fine when the test states *why* it is that value and
     // derives it from the work under test; a bare literal is the raw form the
     // rule exists to catch. Named sites are reported separately, not counted.
