@@ -931,12 +931,16 @@ export class RendererTranscriptViewportComponent extends Container {
   ): RendererRegionLine[] {
     const lead = ' '.repeat(this.leftPad);
     const cache = this.renderCache;
+    // Intentionally NOT keyed on the ambient paint epoch (same reasoning as the
+    // overflow cache above): a child that animates embeds the epoch in its own
+    // render cache and returns a new line array, which the identity check below
+    // catches. Keying on the epoch re-formatted every visible line every ~16ms
+    // on a transcript whose content had not changed.
     const cacheEpoch = this.getCacheEpoch();
     const cacheValid =
       this.isCacheEnabled() &&
       cache !== undefined &&
       cache.width === safeWidth &&
-      cache.cacheEpoch === cacheEpoch &&
       cache.childRefs.length === this.children.length;
 
     const childRefs: Component[] = [];
