@@ -240,15 +240,15 @@ export class BashTool implements BuiltinTool<BashInput> {
     onUpdate?: ((update: ToolUpdate) => void) | undefined,
     onForegroundTaskStart?: ((taskId: string) => void) | undefined,
   ): Promise<ExecutableToolResult> {
-    // Full request validation (suite_guard + background policy) before spawn.
-    const validationError = this.validateRunRequest(args, signal);
-    if (validationError !== undefined) return validationError;
-
     const startsInBackground = args.run_in_background === true;
     const foregroundTimeoutMs = normalizeTimeoutMs(args.timeout, false);
-    // Re-apply guards only for the (possibly rewritten) command body.
+    // Full request validation (suite_guard + background policy) before spawn,
+    // sharing the guard pass that execution needs anyway: both used the same
+    // command, signal, and cwd, and the guard is a dozen whole-command regex
+    // scans plus per-token path resolution (and a worker-brief read).
     const guarded = this.applyWorkerShellGuards(args.command, signal);
-    if (guarded.error !== undefined) return guarded.error;
+    const validationError = this.validateRunRequest(args, guarded);
+    if (validationError !== undefined) return validationError;
     const rawCommand = guarded.command;
     const command = this.isWindowsBash ? rewriteWindowsNullRedirect(rawCommand) : rawCommand;
     const effectiveCwd = args.cwd ?? this.cwd;
@@ -457,9 +457,8 @@ export class BashTool implements BuiltinTool<BashInput> {
 
   private validateRunRequest(
     args: BashInput,
-    signal: AbortSignal,
+    guarded: { readonly command: string; readonly error?: ExecutableToolResult },
   ): ExecutableToolResult | undefined {
-    const guarded = this.applyWorkerShellGuards(args.command, signal);
     if (guarded.error !== undefined) return guarded.error;
     if (args.run_in_background !== true) return undefined;
     if (!this.allowBackground) {

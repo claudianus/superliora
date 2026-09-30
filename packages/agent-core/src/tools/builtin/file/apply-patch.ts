@@ -17,7 +17,7 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { materializeModelText, toModelTextView } from './line-endings';
-import { applyHunksToContent, parseOpenCodePatch } from './apply-patch-core';
+import { applyHunksToContent, parseOpenCodePatch, type ParsePatchResult } from './apply-patch-core';
 import APPLY_PATCH_DESCRIPTION from './apply-patch.md?raw';
 import { diskFullToolError } from '#/runtime/disk-pressure';
 
@@ -31,6 +31,23 @@ export const ApplyPatchInputSchema = z.object({
 });
 
 export type ApplyPatchInput = z.infer<typeof ApplyPatchInputSchema>;
+
+/**
+ * Parsed patch memo. `resolveExecution` parses the patch to resolve the paths
+ * it touches, and execution parsed the same string again — for a multi-file
+ * patch that is the whole patch re-normalized, re-split and re-matched twice.
+ * The parse is pure, so the last result is reused for an identical patch.
+ */
+let lastPatchParse: { readonly patch: string; readonly parsed: ParsePatchResult } | undefined;
+
+function parsePatchOnce(patch: string): ParsePatchResult {
+  if (lastPatchParse !== undefined && lastPatchParse.patch === patch) {
+    return lastPatchParse.parsed;
+  }
+  const parsed = parseOpenCodePatch(patch);
+  lastPatchParse = { patch, parsed };
+  return parsed;
+}
 
 export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
   readonly name = 'ApplyPatch' as const;
@@ -55,7 +72,7 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
   ) {}
 
   resolveExecution(args: ApplyPatchInput): ToolExecution {
-    const parsed = parseOpenCodePatch(args.patch);
+    const parsed = parsePatchOnce(args.patch);
     const paths =
       
       parsed.ok
@@ -92,7 +109,7 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
   }
 
   private async execution(args: ApplyPatchInput): Promise<ExecutableToolResult> {
-    const parsed = parseOpenCodePatch(args.patch);
+    const parsed = parsePatchOnce(args.patch);
     if (!parsed.ok) {
       return { isError: true, output: parsed.error };
     }
