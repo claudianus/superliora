@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.33.6
+
+### Patch Changes
+
+- Start the CLI about 200ms faster on macOS and Linux by loading the syntax highlighter only when a code block is rendered, not at startup.
+
 ## 0.33.5
 
 ### Patch Changes
