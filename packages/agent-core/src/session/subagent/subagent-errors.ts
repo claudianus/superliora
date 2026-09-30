@@ -123,6 +123,14 @@ export function resolveJobWorkerRemainingTimeoutMs(
 }
 
 /**
+ * Inherited budget below this is not a budget. A worker relaunched with three
+ * minutes of a thirty-minute allowance reads its brief, starts work, and dies
+ * at the deadline — overwriting the resume handoff it was given, and inviting
+ * another resume. Such a launch gets the fresh kind budget instead.
+ */
+export const MIN_RESUME_WORKER_TIMEOUT_MS = 5 * 60_000;
+
+/**
  * Fanout / `runWithActiveChild` timeout for a job worker. A fully spent
  * resume re-grants the fresh kind budget: mapping it onto
  * {@link EXHAUSTED_JOB_WORKER_TIMEOUT_MS} here would abort the relaunched
@@ -137,7 +145,7 @@ export function resolveJobWorkerLaunchTimeoutMs(
   nowMs: number = Date.now(),
 ): number {
   const remaining = resolveJobWorkerRemainingTimeoutMs(kind, deadlineStartedAt, nowMs);
-  if (remaining === EXHAUSTED_JOB_WORKER_TIMEOUT_MS) {
+  if (remaining === EXHAUSTED_JOB_WORKER_TIMEOUT_MS || remaining < MIN_RESUME_WORKER_TIMEOUT_MS) {
     return resolveJobWorkerTimeoutMs(kind);
   }
   return remaining;

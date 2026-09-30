@@ -3292,6 +3292,24 @@ describe('resolvePlanDeskDeadlineMs', () => {
       ),
     ).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS - 10 * 60 * 1000);
   });
+
+  it('re-grants the kind budget when the inherited remainder cannot run a turn', () => {
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+    delete process.env[PLAN_DESK_DEADLINE_ENV];
+    const started = new Date('2026-08-15T00:00:00.000Z').getTime();
+    const launch = (spentMs: number) =>
+      resolveJobWorkerLaunchTimeoutMs(
+        'implement',
+        new Date(started).toISOString(),
+        started + spentMs,
+      );
+
+    // 28 of 30 minutes spent: a two-minute relaunch reads the brief, starts
+    // work, and dies at the deadline — overwriting the resume handoff.
+    expect(launch(DEFAULT_SUBAGENT_TIMEOUT_MS - 2 * 60 * 1000)).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS);
+    // Above the floor the inherited remainder still stands.
+    expect(launch(20 * 60 * 1000)).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS - 20 * 60 * 1000);
+  });
 });
 
 describe('runWithActiveChild exhausted remaining', () => {
