@@ -318,6 +318,58 @@ describe('LocalKaos', () => {
     });
   });
 
+  describe('UTF-16 text with a byte-order mark', () => {
+    function utf16File(text: string, endianness: 'le' | 'be'): Buffer {
+      const body = Buffer.from(text, 'utf16le');
+      const swapped = endianness === 'le' ? body : Buffer.from(body).swap16();
+      return Buffer.concat([
+        Buffer.from(endianness === 'le' ? [0xff, 0xfe] : [0xfe, 0xff]),
+        swapped,
+      ]);
+    }
+
+    async function collectLines(path: string): Promise<string[]> {
+      const lines: string[] = [];
+      for await (const line of kaos.readLines(path)) lines.push(line);
+      return lines;
+    }
+
+    for (const endianness of ['le', 'be'] as const) {
+      it(`decodes ${endianness.toUpperCase()} text instead of reporting it as binary`, async () => {
+        const path = join(tempDir, `utf16-${endianness}.txt`);
+        // PowerShell 5.1 redirection writes exactly this shape: UTF-16 with a
+        // mark, CRLF line endings, and a NUL byte after every ASCII character.
+        await kaos.writeBytes(path, utf16File('a\r\nb\n', endianness));
+
+        await expect(kaos.scanTextFile(path)).resolves.toMatchObject({
+          totalLines: 2,
+          endsWithNewline: true,
+          hasNul: false,
+          lineEndingFlags: { hasCrLf: true, hasLf: true, hasLoneCr: false },
+        });
+        expect(await collectLines(path)).toEqual(['a\r\n', 'b\n']);
+
+        const ranged: string[] = [];
+        for await (const line of kaos.readLineRange(path, { startLine: 2, maxLines: 1 })) {
+          ranged.push(line);
+        }
+        expect(ranged).toEqual(['b\n']);
+
+        const tail: string[] = [];
+        for await (const line of kaos.readTailLines(path, { tailCount: 1 })) {
+          tail.push(line);
+        }
+        expect(tail).toEqual(['b\n']);
+      });
+    }
+
+    it('keeps reporting a UTF-8 file with a real NUL as binary', async () => {
+      const path = join(tempDir, 'utf8-nul.txt');
+      await kaos.writeBytes(path, Buffer.from('a\u0000b\n', 'utf-8'));
+      await expect(kaos.scanTextFile(path)).resolves.toMatchObject({ hasNul: true });
+    });
+  });
+
   describe('readLineRange', () => {
     async function collectRange(path: string, startLine: number, maxLines: number) {
       const lines: string[] = [];

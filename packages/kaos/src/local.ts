@@ -13,6 +13,7 @@ import {
   stat,
   unlink,
   writeFile,
+  type FileHandle,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, normalize } from 'pathe';
@@ -513,6 +514,10 @@ export class LocalKaos implements Kaos {
     const resolved = this._resolvePath(path);
     const fh = await open(resolved, 'r');
     try {
+      const utf16 = await detectUtf16BomInFile(fh);
+      if (utf16 !== undefined) {
+        return scanUtf16TextFile(await readFile(resolved), utf16);
+      }
       const buf = Buffer.alloc(READ_CHUNK_SIZE);
       const flags: LineEndingFlags = { hasCrLf: false, hasLf: false, hasLoneCr: false };
       const validator = createUtf8Validator();
@@ -568,6 +573,16 @@ export class LocalKaos implements Kaos {
     const errors = options.errors ?? 'strict';
     const fh = await open(resolved, 'r');
     try {
+      const utf16 = await detectUtf16BomInFile(fh);
+      if (utf16 !== undefined) {
+        const data = await readFile(resolved);
+        if (data.length <= MAX_UTF16_TEXT_BYTES) {
+          const lines = [...splitLinesKeepingTerminator(decodeUtf16Text(data, utf16))];
+          yield* lines.slice(Math.max(0, lines.length - options.tailCount));
+          return;
+        }
+        // Oversized: fall through to the byte scan below.
+      }
       const s = await fh.stat();
       if (s.size === 0) return;
 
@@ -612,11 +627,32 @@ export class LocalKaos implements Kaos {
     errors: TextDecodeErrors,
     range?: { startLine?: number; maxLines?: number },
   ): AsyncGenerator<string> {
-    const startLine = range?.startLine ?? 1;
-    const maxLines = range?.maxLines ?? Number.POSITIVE_INFINITY;
     const fh = await open(resolved, 'r');
     try {
-      const buf = Buffer.alloc(READ_CHUNK_SIZE);
+      const utf16 = await detectUtf16BomInFile(fh);
+      if (utf16 !== undefined) {
+        const data = await readFile(resolved);
+        if (data.length <= MAX_UTF16_TEXT_BYTES) {
+          yield* utf16Lines(decodeUtf16Text(data, utf16), range);
+          return;
+        }
+        // Oversized: the byte-wise scan below reports the NULs, so the caller
+        // treats the file the way it did before UTF-16 support existed.
+      }
+      yield* this._readUtf8LinesByteWise(fh, errors, range);
+    } finally {
+      await fh.close();
+    }
+  }
+
+  private async *_readUtf8LinesByteWise(
+    fh: FileHandle,
+    errors: TextDecodeErrors,
+    range?: { startLine?: number; maxLines?: number },
+  ): AsyncGenerator<string> {
+    const startLine = range?.startLine ?? 1;
+    const maxLines = range?.maxLines ?? Number.POSITIVE_INFINITY;
+    const buf = Buffer.alloc(READ_CHUNK_SIZE);
       let pending: Buffer[] = [];
       let pendingOffset = 0;
       let fileOffset = 0;
@@ -659,9 +695,6 @@ export class LocalKaos implements Kaos {
           yield decodeTextWithErrors(line, 'utf-8', errors, pendingOffset !== 0);
         }
       }
-    } finally {
-      await fh.close();
-    }
   }
 
   async writeBytes(path: string, data: Buffer): Promise<number> {
@@ -940,6 +973,106 @@ function* splitLinesKeepingTerminator(text: string): Generator<string> {
   }
   if (start < text.length) {
     yield text.slice(start);
+  }
+}
+
+const UTF16_LEAD_BYTE = 0xff;
+const UTF16_TRAIL_BYTE = 0xfe;
+/** Cap for whole-file UTF-16 decoding; beyond it the file stays "not readable". */
+const MAX_UTF16_TEXT_BYTES = 64 * 1024 * 1024;
+
+/**
+ * UTF-16 carries no in-band marker, so only a byte-order mark makes it
+ * detectable. Windows tooling writes one routinely — PowerShell 5.1 `>`
+ * redirection, `wmic`, `reg export` — and those files are plain text, but the
+ * "any NUL byte means binary" rule reported them as unreadable.
+ */
+function detectUtf16Bom(prefix: Buffer): 'utf16le' | 'utf16be' | undefined {
+  if (prefix.length < 2) return undefined;
+  if (prefix[0] === UTF16_LEAD_BYTE && prefix[1] === UTF16_TRAIL_BYTE) return 'utf16le';
+  if (prefix[0] === UTF16_TRAIL_BYTE && prefix[1] === UTF16_LEAD_BYTE) return 'utf16be';
+  return undefined;
+}
+
+/** Peek the leading byte-order mark without moving the file position. */
+async function detectUtf16BomInFile(fh: FileHandle): Promise<'utf16le' | 'utf16be' | undefined> {
+  const prefix = Buffer.alloc(2);
+  const { bytesRead } = await fh.read(prefix, 0, prefix.length, 0);
+  return detectUtf16Bom(prefix.subarray(0, bytesRead));
+}
+
+function decodeUtf16Text(data: Buffer, bom: 'utf16le' | 'utf16be'): string {
+  const evenLength = data.length - (data.length % 2);
+  const bytes = data.subarray(0, evenLength);
+  const text =
+    bom === 'utf16le'
+      ? bytes.toString('utf16le')
+      : Buffer.from(bytes).swap16().toString('utf16le');
+  // The mark itself decodes to U+FEFF; the UTF-8 path strips it too.
+  return text.startsWith('\uFEFF') ? text.slice(1) : text;
+}
+
+/** Line-ending flags from decoded text (byte scanning sees UTF-16 as NULs). */
+function lineEndingFlagsFromText(text: string): LineEndingFlags {
+  const flags: LineEndingFlags = { hasCrLf: false, hasLf: false, hasLoneCr: false };
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.codePointAt(i);
+    if (code === 0x0d) {
+      if (text.codePointAt(i + 1) === 0x0a) {
+        flags.hasCrLf = true;
+        i += 1;
+      } else {
+        flags.hasLoneCr = true;
+      }
+    } else if (code === 0x0a) {
+      flags.hasLf = true;
+    }
+  }
+  return flags;
+}
+
+function scanUtf16TextFile(data: Buffer, bom: 'utf16le' | 'utf16be'): TextFileScan {
+  if (data.length > MAX_UTF16_TEXT_BYTES) {
+    // Too large to decode whole; report it the way a binary file is reported
+    // rather than pretending the byte scan understood it.
+    return {
+      totalLines: 0,
+      endsWithNewline: false,
+      hasNul: true,
+      lineEndingFlags: { hasCrLf: false, hasLf: false, hasLoneCr: false },
+    };
+  }
+  const text = decodeUtf16Text(data, bom);
+  let totalLines = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.codePointAt(i) === 0x0a) totalLines += 1;
+  }
+  const endsWithNewline = text.endsWith('\n');
+  if (text.length > 0 && !endsWithNewline) totalLines += 1;
+  return {
+    totalLines,
+    endsWithNewline,
+    hasNul: text.includes('\u0000'),
+    lineEndingFlags: lineEndingFlagsFromText(text),
+  };
+}
+
+/** Yield decoded UTF-16 lines, honoring the same range window as the byte scan. */
+function* utf16Lines(
+  text: string,
+  range?: { startLine?: number; maxLines?: number },
+): Generator<string> {
+  const startLine = range?.startLine ?? 1;
+  const maxLines = range?.maxLines ?? Number.POSITIVE_INFINITY;
+  let lineNo = 1;
+  let yielded = 0;
+  for (const line of splitLinesKeepingTerminator(text)) {
+    if (lineNo >= startLine) {
+      yield line;
+      yielded += 1;
+      if (yielded >= maxLines) return;
+    }
+    lineNo += 1;
   }
 }
 
