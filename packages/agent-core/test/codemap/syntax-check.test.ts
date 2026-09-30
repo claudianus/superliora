@@ -52,6 +52,30 @@ describe('post-edit syntax check', () => {
     }
   });
 
+  it('stays silent for an empty or whitespace-only file', () => {
+    // Truncating an edit can legitimately empty a file; that is not a syntax error.
+    expect(report('a.ts', '')).toBeUndefined();
+    expect(report('a.ts', '   \n\n  \n')).toBeUndefined();
+  });
+
+  it('counts lines correctly with CRLF endings and a BOM', () => {
+    // Position is only useful if it points at the line the model will see.
+    // Both are normalized away before the file is written, but the check runs
+    // on the same bytes, so a byte-counting line map would be off by one on
+    // every line of a CRLF file and on every line after a BOM.
+    expect(report('a.ts', 'const a = 1;\r\nconst b = 2;\r\nconst c = ;\r\n')).toContain(
+      '\n  3:11 ',
+    );
+    expect(report('a.ts', '\uFEFFconst a = 1;\nconst b = ;\n')).toContain('\n  2:11 ');
+  });
+
+  it('ignores case keys oxc accepts beyond plain ts/js', () => {
+    expect(report('a.mjs', 'export const a = 1;\n')).toBeUndefined();
+    expect(report('a.cjs', 'module.exports = 1;\n')).toBeUndefined();
+    expect(report('a.tsx', 'export const A = () => <><span>a</span></>;\n')).toBeUndefined();
+    expect(report('a.ts', '@Component({})\nexport class A {\n')).toMatch(/\n {2}3:1 /);
+  });
+
   it('agrees with the parser about which extensions are parseable', () => {
     expect(isParseableSource('a.ts')).toBe(true);
     expect(isParseableSource('a.tsx')).toBe(true);

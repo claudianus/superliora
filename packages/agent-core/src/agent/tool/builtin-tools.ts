@@ -13,11 +13,11 @@ import { createVisualDiffTool } from '../../tools/visual-diff-tool';
 import type { ToolStore } from '../../tools/store';
 import { resolveMediaProviderEnv } from '../../tools/builtin/media/provider-env';
 import { DEFAULT_AGENT_PROFILES } from '../../profile';
-import { collectSyntaxReport, formatSyntaxReport } from '../../codemap/syntax-check';
 import {
   HIDE_LEGACY_TOOL_NAMES_ENV,
   isHideLegacyToolNamesEnabled,
 } from '../../profile/sovereign-soft-gates';
+import { buildFileMutationHook } from './mutation-diagnostics';
 import type { BuiltinTool } from './types';
 import type { FileProvenanceHook } from '../../session/file-provenance';
 
@@ -172,25 +172,6 @@ export function buildBuiltinTools(host: BuiltinToolsHost): Map<string, BuiltinTo
       .filter((tool) => !!tool)
       .map((tool) => [tool.name, tool] as const),
   );
-}
-
-/**
- * Diagnostics appended to a mutation's tool result.
- *
- * A plugin LSP, when configured, supersedes the built-in check: it reports
- * types and semantic errors too, and re-parsing for syntax it already covers
- * would double the cost of every edit. Without an LSP the check is what keeps
- * a parse-breaking edit from cascading into every later build and test run.
- */
-function buildFileMutationHook(
-  agent: Agent,
-): (path: string, content: string) => string | Promise<string | undefined> | undefined {
-  return (path, content) => {
-    const lsp = agent.fileMutationHook;
-    if (lsp) return lsp(path, content);
-    const report = collectSyntaxReport(path, content);
-    return report === undefined ? undefined : formatSyntaxReport(path, report);
-  };
 }
 
 function createFileAndContextTools(
