@@ -164,6 +164,7 @@ export function highlightLines(
   }
 
   // Preferred path: Shiki's TextMate tokenization rendered to ANSI.
+  scheduleShikiWarmup();
   const shikiLines = shikiHighlightLines(code, normalizedLang, palette);
   if (shikiLines !== undefined) {
     cacheSet(key, shikiLines, sticky);
@@ -597,7 +598,21 @@ export function formatShellCommandPreview(
 }
 
 
-// Kick the async Shiki warm-up on first import; until it resolves (and for
-// grammars it rejects) highlightLines serves the synchronous cli-highlight
-// fallback, so no render path ever waits on initialization.
-void warmShikiHighlighter();
+let warmScheduled = false;
+
+/**
+ * Start the Shiki warm-up once, on the first real highlight request rather
+ * than at module import. A `--version`, `--help`, or CLI run that never
+ * renders a code block must not pay the ~200ms grammar warm-up, and a TUI
+ * must not pay it before its first frame. Deferred a tick and detached from
+ * process lifetime, so a short-lived run exits without it entirely.
+ *
+ * Until the singleton resolves (and for grammars it rejects) highlightLines
+ * serves the synchronous cli-highlight fallback, so no render path ever waits
+ * on initialization.
+ */
+function scheduleShikiWarmup(): void {
+  if (warmScheduled) return;
+  warmScheduled = true;
+  setTimeout(() => void warmShikiHighlighter(), 0).unref();
+}

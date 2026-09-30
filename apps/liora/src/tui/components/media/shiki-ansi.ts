@@ -9,8 +9,10 @@
  * callers fall back to the synchronous cli-highlight path.
  */
 import chalk from 'chalk';
-import { createHighlighter, type BundledLanguage, type BundledTheme } from 'shiki';
-import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
+// `shiki` is imported lazily inside `warmShikiHighlighter`: its module graph
+// (TextMate grammar parsing) costs ~200ms of startup CPU, and no CLI run that
+// never renders a code block should pay it.
+import type { BundledLanguage, BundledTheme, createHighlighter } from 'shiki';
 
 import { currentTheme, type ColorPalette } from '#/tui/theme';
 import { buildShikiPaletteTheme, SHIKI_PALETTE_THEME_NAME } from '#/tui/theme/shiki-theme';
@@ -152,22 +154,25 @@ export function __forceShikiFallbackForTest(value: boolean): void {
  * Start the one-time async warm-up. Safe to call repeatedly.
  */
 export function warmShikiHighlighter(): Promise<void> {
-  warmPromise ??= createHighlighter({
+  warmPromise ??= (async () => {
+    const [{ createHighlighter }, { createJavaScriptRegexEngine }] = await Promise.all([
+      import('shiki'),
+      import('shiki/engine/javascript'),
+    ]);
+    const instance = await createHighlighter({
       themes: [...SHIKI_BUNDLED_THEMES],
       langs: [...SHIKI_WARM_LANGS],
       engine: createJavaScriptRegexEngine({ forgiving: true }),
-    })
-      .then((instance) => {
-        highlighter = instance;
-        const live = currentTheme.palette;
-        activePaletteKey = paletteKey(live);
-        void instance.loadTheme(buildShikiPaletteTheme(live)).catch(() => {
-          // Palette bridge optional until preference is `palette`.
-        });
-      })
-      .catch(() => {
-        // Leave highlighter undefined; callers keep the cli-highlight path.
-      });
+    });
+    highlighter = instance;
+    const live = currentTheme.palette;
+    activePaletteKey = paletteKey(live);
+    void instance.loadTheme(buildShikiPaletteTheme(live)).catch(() => {
+      // Palette bridge optional until preference is `palette`.
+    });
+  })().catch(() => {
+    // Leave highlighter undefined; callers keep the cli-highlight path.
+  });
   return warmPromise;
 }
 
