@@ -1,6 +1,3 @@
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
-
 import type { FsGrepRequest } from '@superliora/protocol';
 
 export function computeFuzzyScore(name: string, queryLower: string): number {
@@ -138,27 +135,4 @@ export function rgText(l: RgLinesField | undefined): string {
     }
   }
   return '';
-}
-
-export async function whichBinary(name: string): Promise<string | null> {
-  const PATH = process.env['PATH'] ?? '';
-  const PATHEXT = process.platform === 'win32'
-    ? (process.env['PATHEXT'] ?? '.EXE;.CMD;.BAT;.COM').split(';')
-    : [''];
-  const sep = process.platform === 'win32' ? ';' : ':';
-  for (const dir of PATH.split(sep)) {
-    if (dir === '') continue;
-    for (const ext of PATHEXT) {
-      const candidate = path.join(dir, name + ext);
-      try {
-        const st = await fs.stat(candidate);
-        if (st.isFile()) {
-          return candidate;
-        }
-      } catch {
-
-      }
-    }
-  }
-  return null;
 }

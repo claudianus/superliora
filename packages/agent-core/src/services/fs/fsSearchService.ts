@@ -18,6 +18,7 @@ import ignore, { type Ignore } from 'ignore';
 
 import { ISessionService } from '../session/session';
 
+import { whichExecutable } from '../../utils/which';
 import { ILogService } from '../logger/logger';
 import { IFsSearchService, FsGrepTimeoutError } from './fsSearch';
 import { killProcessTree } from './process-kill';
@@ -29,7 +30,6 @@ import {
   rgPath,
   rgText,
   stripTrailingNewline,
-  whichBinary,
   type RgJsonRecord,
 } from './fsSearchHelpers';
 
@@ -145,7 +145,7 @@ export class FsSearchService
 
   protected async probeRg(): Promise<string | null> {
     if (this.rgPath !== undefined) return this.rgPath;
-    const found = await whichBinary('rg');
+    const found = await whichExecutable('rg');
     if (found === null && !this.rgMissingWarned) {
       this.logger.warn(
         '`rg` (ripgrep) not found on PATH — fs:grep falling back to pure-Node implementation. Install ripgrep for faster searches.',

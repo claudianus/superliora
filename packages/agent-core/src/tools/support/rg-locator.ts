@@ -25,6 +25,7 @@ import { type Entry, fromBuffer as yauzlFromBuffer } from 'yauzl';
 
 import { abortable } from '../../utils/abort';
 import { renameReplacingTarget } from '../../utils/fs';
+import { whichExecutable } from '../../utils/which';
 import { resolveLioraHome } from '../../config/path';
 
 const RG_VERSION = '15.0.0';
@@ -95,8 +96,8 @@ async function resolveRgPath(
  */
 export async function findExistingRg(shareDir: string): Promise<RgResolution | undefined> {
   const binName = rgBinaryName();
-  const systemRg = await whichRg();
-  if (systemRg !== undefined) return { path: systemRg, source: 'system-path' };
+  const systemRg = await whichExecutable('rg');
+  if (systemRg !== null) return { path: systemRg, source: 'system-path' };
   const vendorPath = getVendorRgPath(binName);
   if (vendorPath !== undefined && (await isExecutableFile(vendorPath))) {
     return { path: vendorPath, source: 'vendor' };
@@ -134,23 +135,6 @@ function getShareDir(): string {
 }
 
 function getVendorRgPath(_binName: string): string | undefined {
-  return undefined;
-}
-
-async function whichRg(): Promise<string | undefined> {
-  const pathEnv = process.env['PATH'] ?? '';
-  const sep = process.platform === 'win32' ? ';' : ':';
-  const binName = rgBinaryName();
-  for (const dir of pathEnv.split(sep)) {
-    if (dir === '') continue;
-    const candidate = join(dir, binName);
-    try {
-      const st = await stat(candidate);
-      if (st.isFile()) return candidate;
-    } catch {
-      /* not here, try next */
-    }
-  }
   return undefined;
 }
 
