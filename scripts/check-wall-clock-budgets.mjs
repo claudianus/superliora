@@ -6,12 +6,24 @@
  * number: such an assertion describes the machine the suite ran on, not the
  * code under test, so it fails on a loaded CI runner and passes on a laptop
  * with nothing else running. The rule was written down and not enforced, and
- * the debt grew to 87 call sites with no way to see it.
+ * the debt grew to 32 call sites with no way to see it.
  *
- * This does not try to rewrite them — many encode a real hang threshold, and
- * an absolute threshold is legitimate for hang detection. It holds the count,
- * so the debt cannot grow while it is paid down deliberately, and it prints
- * the current sites so the next pass knows where to start.
+ * Read the count as "call sites to review", not "call sites to delete". Two
+ * shapes are legitimate and should survive review untouched:
+ *
+ *   - A hang guard, documented as one, with real headroom. `scroll-storm-
+ *     structural` measures total/mean/p99/max against budgets it states are
+ *     "interactive-class, not multi-second hang class", and the measured
+ *     values sit 35-130x under them. Converting that to a comparison would
+ *     weaken the guard while satisfying the letter of this script.
+ *   - A named constant whose value is derived from the work under test. Those
+ *     are reported but not counted.
+ *
+ * What is not legitimate is a bare literal standing in for a comparative
+ * claim the test itself makes in its name or comment — "measure mode must
+ * skip the full wrap" asserted as `ms < 50` passes even when measure mode
+ * falls back to doing the full work, which is the regression it exists to
+ * catch. Those are the ones worth converting.
  *
  * Usage:
  *   node scripts/check-wall-clock-budgets.mjs
