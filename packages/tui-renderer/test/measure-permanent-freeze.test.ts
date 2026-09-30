@@ -14,6 +14,33 @@ import {
 import { isInteractiveRenderCause } from '../src/native-renderer/auto-frame-hold';
 import { BACKPRESSURE_STUCK_TIMEOUT_MS } from '../src/native-renderer/backpressure';
 
+/**
+ * How much cheaper the measure path must be than the full work it skips.
+ *
+ * The point of every test below is that measure mode skips work — full ANSI
+ * wrap, full Markdown parse, per-row re-measure. Asserting a millisecond
+ * number instead measured the host, not the code, and failed on a loaded
+ * runner while passing on an idle laptop. Comparing against the expensive path
+ * in the same process states the actual claim and holds on any machine,
+ * because a slow host slows both sides.
+ *
+ * The bound is deliberately asymmetric. "Not slower than the full path" would
+ * pass even if measure mode quietly fell back to doing the full work, which is
+ * the one regression these tests exist to catch. Measured here, the measure
+ * path runs roughly 40-50x under the full path, so requiring only 10x keeps
+ * wide margin while still failing the moment the two converge.
+ */
+const MEASURE_MUST_BE_AT_LEAST = 10;
+
+function measureMustBeatFull(measureMs: number, fullMs: number): void {
+  expect(measureMs).toBeLessThan(fullMs / MEASURE_MUST_BE_AT_LEAST);
+}
+
+/** Ten times the input must not cost anywhere near a hundred times the work. */
+function mustScaleSubQuadratically(smallMs: number, tenXLargerMs: number): void {
+  expect(tenXLargerMs).toBeLessThan(smallMs * 30);
+}
+
 describe('permanent freeze guards (measure + interactive scroll)', () => {
   it('estimateTranscriptWrappedRowCount is O(source) and stable', () => {
     const body = Array.from({ length: 5_000 }, (_, i) => `line-${i} ${'x'.repeat(40)}`).join('\n');
@@ -21,7 +48,14 @@ describe('permanent freeze guards (measure + interactive scroll)', () => {
     const rows = estimateTranscriptWrappedRowCount(body, 40, 0);
     const ms = performance.now() - t0;
     expect(rows).toBeGreaterThan(5_000);
-    expect(ms).toBeLessThan(50);
+    // Warm the call, then compare a cold call against a deliberately far
+    // heavier one. Counting rows by scanning the source is what makes this
+    // linear; anything quadratic shows up as the ratio collapsing.
+    const heavier = Array.from({ length: 50_000 }, (_, i) => `l${i} ${'x'.repeat(40)}`).join('\n');
+    const h0 = performance.now();
+    expect(estimateTranscriptWrappedRowCount(heavier, 40, 0)).toBeGreaterThan(50_000);
+    const heavierMs = performance.now() - h0;
+    mustScaleSubQuadratically(ms, heavierMs);
     expect(measurePlaceholderLines(rows).length).toBe(rows);
   });
 
@@ -34,8 +68,14 @@ describe('permanent freeze guards (measure + interactive scroll)', () => {
     const measured = withTranscriptMeasureMode(() => text.render(80));
     const measureMs = performance.now() - t0;
     expect(measured.length).toBeGreaterThan(1_000);
-    // Full ANSI wrap of this body is expensive; measure estimate must stay tiny.
-    expect(measureMs).toBeLessThan(80);
+    // The claim in the name: measure mode must skip the full wrap. The same
+    // body rendered outside measure mode is the work being avoided, so it is
+    // the honest yardstick — and the one the test's own comment described.
+    text.invalidate();
+    const f0 = performance.now();
+    text.render(80);
+    const fullMs = performance.now() - f0;
+    measureMustBeatFull(measureMs, fullMs);
   });
 
   it('Markdown under measure mode does not parse multi-k cold history', () => {
@@ -63,8 +103,12 @@ describe('permanent freeze guards (measure + interactive scroll)', () => {
     const lines = withTranscriptMeasureMode(() => md.render(100));
     const ms = performance.now() - t0;
     expect(lines.length).toBeGreaterThan(1_000);
-    // Full Markdown parse+wrap of this body is hundreds of ms; measure must stay small.
-    expect(ms).toBeLessThan(100);
+    // Same shape as the Text case: the full parse is the work measure mode is
+    // supposed to skip, so comparing against it tests the claim directly.
+    const f0 = performance.now();
+    md.render(100);
+    const fullMs = performance.now() - f0;
+    measureMustBeatFull(ms, fullMs);
   });
 
   it('contentRowCount of many huge cold children finishes under a hard wall budget', () => {
