@@ -1,4 +1,6 @@
-import nodePath from 'node:path';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import nodePath, { join } from 'node:path';
 
 import { FSWatcher } from 'chokidar';
 
@@ -41,11 +43,42 @@ const DEFAULT_MAX_PATHS_PER_CONNECTION = 100;
  * `/`-normalized (pathe) and with the platform separator, and a comparison
  * that keeps them distinct drops every event for a path spelled the other way.
  */
-const FOLD_CASE = process.platform === 'win32' || process.platform === 'darwin';
+/**
+ * Whether path identity is case-insensitive here.
+ *
+ * Probed rather than assumed from `process.platform`: a Linux container on a
+ * case-insensitive mount (macOS/Windows host directory, CI workspace volumes)
+ * reports `linux` yet folds case, and comparing raw strings there drops every
+ * event for a path spelled with different casing.
+ *
+ * Evaluated on first use, not at import: this module is pulled in by the
+ * service barrel, and touching the filesystem at import time would run under
+ * whatever module mocks are active in the importing test.
+ */
+let foldCase: boolean | undefined;
+
+function isCaseInsensitiveFs(): boolean {
+  if (foldCase !== undefined) return foldCase;
+  const probeDir = join(tmpdir(), `.liora-case-probe-${process.pid}`);
+  try {
+    mkdirSync(probeDir, { recursive: true });
+    writeFileSync(join(probeDir, 'CaseProbe'), 'x');
+    foldCase = existsSync(join(probeDir, 'caseprobe'));
+  } catch {
+    foldCase = false;
+  } finally {
+    try {
+      rmSync(probeDir, { recursive: true, force: true });
+    } catch {
+      // A leftover probe directory is harmless.
+    }
+  }
+  return foldCase;
+}
 
 function comparablePath(p: string): string {
   const unified = p.replaceAll('\\', '/');
-  return FOLD_CASE ? unified.toLowerCase() : unified;
+  return isCaseInsensitiveFs() ? unified.toLowerCase() : unified;
 }
 
 interface PendingChange {

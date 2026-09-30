@@ -1,14 +1,29 @@
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { deriveSharedCwd, isUnderAny } from '../../src/services/fs/fsWatcherService';
 
 /**
- * Windows and macOS compare paths case-insensitively, and chokidar reports the
- * on-disk casing rather than the casing a client registered. Raw string
- * comparison therefore dropped change events, and the shared-root derivation
- * collapsed to `/`, rooting the watcher at an entire drive.
+ * Probe the filesystem rather than the platform. A Linux container on a
+ * case-insensitive mount reports `linux` but folds case, which is how the
+ * platform-based assumption passed locally and failed in CI on both sides:
+ * Linux said "case-sensitive" and folded, Windows said "insensitive" and the
+ * assertion was written for whichever host ran it.
  */
-const CASE_INSENSITIVE = process.platform === 'win32' || process.platform === 'darwin';
+const CASE_INSENSITIVE = ((): boolean => {
+  const dir = join(tmpdir(), `case-probe-${process.pid}`);
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'CaseProbe'), 'x');
+    return existsSync(join(dir, 'caseprobe'));
+  } catch {
+    return false;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+})();
 
 describe('fsWatcher path identity', () => {
   it('treats a differently cased path as under its parent', () => {
