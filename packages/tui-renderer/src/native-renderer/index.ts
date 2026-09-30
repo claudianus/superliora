@@ -231,11 +231,12 @@ export class NativeTerminalRenderer {
         // Skip the per-frame record entirely when nobody reads the trace.
         // The recorder defaults to enabled and this is the render hot path, so
         // an unguarded call builds a record — and copies the cause list —
-        // thousands of times a second to fill a ring buffer that only a
-        // diagnostic export ever looks at. That churn was the single largest
-        // source of heap growth while the TUI sat idle: the ring is bounded,
-        // but the allocation rate still forces the heap upward. When tracing
-        // is on the record is identical.
+        // hundreds of times a second to fill a ring buffer that only a
+        // diagnostic export ever looks at. The ring is bounded, so this was
+        // never a leak: a heap-snapshot diff across an idle window shows live
+        // nodes and self-size both *falling*. It was allocation churn, and
+        // dropping it cut idle RSS growth from 4.6MB/s to 2.6MB/s. When
+        // tracing is on the record is byte-for-byte what it was.
         if (this.trace.enabled) {
           this.trace.recordFrame({
             frameIndex: this.lastRenderResult.frame.frame,
