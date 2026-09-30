@@ -160,6 +160,26 @@ describe('WriteTool', () => {
     expect(result.output).toContain('Appended 6 bytes');
   });
 
+  it('refuses to append UTF-8 bytes to a UTF-16 file', async () => {
+    // The file keeps its byte-order mark while the new bytes are UTF-8, so the
+    // result re-reads as mojibake. Refuse instead of corrupting it.
+    const writeText = vi.fn().mockResolvedValue(4);
+    const readBytes = vi.fn().mockResolvedValue(Buffer.from([0xff, 0xfe, 0x61, 0x00]));
+    const tool = new WriteTool(
+      createFakeKaos({ writeText, readBytes, stat: DIR_STAT }),
+      PERMISSIVE_WORKSPACE,
+    );
+
+    const result = await executeTool(
+      tool,
+      context({ path: '/tmp/export.txt', content: 'more', mode: 'append' }),
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('UTF-16');
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
   it('reports the real UTF-8 byte count for non-ASCII content', async () => {
     // Six Japanese characters: each encodes to 3 UTF-8 bytes → 18 bytes total,
     // even though the JS string length is 6. The reported count must reflect

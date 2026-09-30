@@ -21,6 +21,7 @@ import {
   FABRICATED_DEFER_BLOCKED_MESSAGE,
   hasFabricatedDeferral,
 } from '../../support/fabricated-defer';
+import { hasUtf16Bom } from '../../support/file-type';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
@@ -118,6 +119,16 @@ export class WriteTool implements BuiltinTool<WriteInput> {
     };
   }
 
+  private async readUtf16Prefix(safePath: string): Promise<boolean> {
+    try {
+      return hasUtf16Bom(await this.kaos.readBytes(safePath, 2));
+    } catch {
+      // Missing file (append creates it) or unreadable prefix: nothing to warn
+      // about, and the write itself will report the real failure.
+      return false;
+    }
+  }
+
   private async execution(args: WriteInput, safePath: string): Promise<ExecutableToolResult> {
     if (hasFabricatedDeferral(args.content)) {
       return { isError: true, output: FABRICATED_DEFER_BLOCKED_MESSAGE };
@@ -155,6 +166,16 @@ export class WriteTool implements BuiltinTool<WriteInput> {
     try {
       const mode = args.mode ?? 'overwrite';
       if (mode === 'append') {
+        // Appending UTF-8 bytes to a UTF-16 file produces mojibake: the file
+        // keeps its byte-order mark and the new bytes re-read as garbage.
+        // Refuse instead of corrupting it.
+        const utf16 = await this.readUtf16Prefix(safePath);
+        if (utf16) {
+          return {
+            isError: true,
+            output: `"${args.path}" is UTF-16 text; appending would write UTF-8 bytes into it and corrupt the file. Rewrite it with mode: overwrite, or convert it first.`,
+          };
+        }
         await this.kaos.writeText(safePath, args.content, { mode: 'a' });
       } else {
         await this.kaos.writeAtomic(safePath, args.content);

@@ -385,6 +385,17 @@ function getSuffix(path: string): string {
   return path.slice(idx).toLowerCase();
 }
 
+/**
+ * UTF-16 has no in-band marker, so only a byte-order mark makes it detectable.
+ * Shared so the reader, the sniffer, and the writer agree on what counts.
+ */
+export function hasUtf16Bom(header: Buffer | Uint8Array): boolean {
+  if (header.length < 2) return false;
+  return (
+    (header[0] === 0xff && header[1] === 0xfe) || (header[0] === 0xfe && header[1] === 0xff)
+  );
+}
+
 export function detectFileType(
   path: string,
   header?: Buffer | Uint8Array,
@@ -415,7 +426,7 @@ export function detectFileType(
     // otherwise match an MP3 frame sync. Windows tooling writes this shape
     // routinely (PowerShell 5.1 `>` redirection, `wmic`, `reg export`), and
     // treating it as binary made those files unreadable.
-    if (startsWith(buf, [0xff, 0xfe]) || startsWith(buf, [0xfe, 0xff])) {
+    if (hasUtf16Bom(buf)) {
       return { kind: 'text', mimeType: 'text/plain' };
     }
     const sniffed = sniffMediaFromMagic(buf);
