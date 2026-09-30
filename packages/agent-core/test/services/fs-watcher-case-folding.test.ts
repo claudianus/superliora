@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -84,7 +85,7 @@ describe('case-insensitivity probe', () => {
   it('answers from the filesystem, not the platform', () => {
     // Guard the probe itself: a real temporary directory is the only input
     // that can distinguish the two filesystems.
-    const dir = join(process.env.TMPDIR ?? '/tmp', `case-probe-selfcheck-${process.pid}`);
+    const dir = join(tmpdir(), `case-probe-selfcheck-${process.pid}`);
     try {
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'CaseProbe'), 'x');
