@@ -410,6 +410,14 @@ export function detectFileType(
   // back to media suffixes when the header cannot be sniffed.
   if (header !== undefined) {
     const buf = toBuffer(header);
+    // A UTF-16 byte-order mark makes the file text: its NUL bytes are the
+    // halves of each code unit, not a binary signal, and the second byte would
+    // otherwise match an MP3 frame sync. Windows tooling writes this shape
+    // routinely (PowerShell 5.1 `>` redirection, `wmic`, `reg export`), and
+    // treating it as binary made those files unreadable.
+    if (startsWith(buf, [0xff, 0xfe]) || startsWith(buf, [0xfe, 0xff])) {
+      return { kind: 'text', mimeType: 'text/plain' };
+    }
     const sniffed = sniffMediaFromMagic(buf);
     if (sniffed) {
       if (type === 'media') return sniffed;

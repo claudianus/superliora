@@ -1,4 +1,8 @@
-import type { Kaos } from '@superliora/kaos';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { LocalKaos, type Kaos } from '@superliora/kaos';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ReadTool } from '../../src/tools/builtin/file/read';
@@ -67,5 +71,35 @@ describe('ReadTool — total-lines message channel', () => {
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('3\tc');
     expect(result.output).toContain('Total lines in file: 5.');
+  });
+
+  it('reads a UTF-16 file with a byte-order mark instead of calling it unreadable', async () => {
+    // PowerShell 5.1 redirection, `wmic`, and `reg export` all write this
+    // shape. Reading it as binary told the user to fall back to Bash.
+    const dir = mkdtempSync(join(tmpdir(), 'liora-read-utf16-'));
+    try {
+      const file = join(dir, 'export.txt');
+      writeFileSync(
+        file,
+        Buffer.concat([
+          Buffer.from([0xff, 0xfe]),
+          Buffer.from('alpha\r\nbeta\r\n', 'utf16le'),
+        ]),
+      );
+      const tool = new ReadTool(new LocalKaos('/'), PERMISSIVE_WORKSPACE);
+
+      const result = await executeTool(tool, {
+        turnId: 't1',
+        toolCallId: 'c-utf16',
+        args: { path: file },
+        signal,
+      });
+
+      expect(result.isError).toBeFalsy();
+      expect(result.output).toContain('alpha');
+      expect(result.output).toContain('beta');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

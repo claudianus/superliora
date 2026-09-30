@@ -232,6 +232,22 @@ describe('detectFileType', () => {
     expect(result.kind).toBe('unknown');
   });
 
+  it('UTF-16 byte-order mark → text, even though the header is full of NULs', () => {
+    // PowerShell 5.1 `>` redirection writes UTF-16LE: NUL after every ASCII
+    // byte. Reading it as binary made those files unreadable, and Edit could
+    // not fix them either.
+    const le = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('a\r\nb\n', 'utf16le')]);
+    expect(detectFileType('export.txt', le)).toEqual<FileType>({
+      kind: 'text',
+      mimeType: 'text/plain',
+    });
+    const be = Buffer.concat([
+      Buffer.from([0xfe, 0xff]),
+      Buffer.from(Buffer.from('a\n', 'utf16le')).swap16(),
+    ]);
+    expect(detectFileType('export.txt', be).kind).toBe('text');
+  });
+
   it('extension + sniff disagree → unknown', () => {
     // `.mp4` extension but JPEG magic bytes — when the mime types
     // disagree we refuse to guess and return `unknown`.
