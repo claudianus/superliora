@@ -2,6 +2,8 @@ import type { ContentPart, Message, Tool } from '@superliora/kosong';
 
 const messageTokenEstimateCache = new WeakMap<Message, number>();
 
+let lastTextEstimate: { readonly text: string; readonly tokens: number } | undefined;
+
 /**
  * Estimate token count from text using a character-based heuristic.
  *   - ASCII (~4 chars per token)
@@ -9,8 +11,14 @@ const messageTokenEstimateCache = new WeakMap<Message, number>();
  * The estimate is transient — the next LLM call returns the real count
  * and supersedes this value. Used to keep `tokenCountWithPending`
  * monotonic between LLM round-trips without paying for a tokenizer.
+ *
+ * Repeat reads of one string (the system prompt, read several times per step by
+ * the compaction policy) are answered from `lastTextEstimate`: a code-point walk
+ * over the same string is pure repeat work, and identity comparison is O(1).
  */
 export function estimateTokens(text: string): number {
+  const memo = lastTextEstimate;
+  if (memo !== undefined && memo.text === text) return memo.tokens;
   let asciiCount = 0;
   let nonAsciiCount = 0;
   for (const char of text) {
@@ -20,7 +28,9 @@ export function estimateTokens(text: string): number {
       nonAsciiCount++;
     }
   }
-  return Math.ceil(asciiCount / 4) + nonAsciiCount;
+  const tokens = Math.ceil(asciiCount / 4) + nonAsciiCount;
+  lastTextEstimate = { text, tokens };
+  return tokens;
 }
 
 export function estimateTokensForMessages(messages: readonly Message[]): number {
@@ -34,10 +44,27 @@ export function estimateTokensForMessages(messages: readonly Message[]): number 
 export function estimateTokensForTools(tools: readonly Tool[]): number {
   let total = 0;
   for (const tool of tools) {
-    total += estimateTokens(tool.name);
-    total += estimateTokens(tool.description);
-    total += estimateTokens(JSON.stringify(tool.parameters));
+    total += estimateTokensForTool(tool);
   }
+  return total;
+}
+
+/**
+ * Per-tool estimate memo. The compaction policy re-reads the fixed prompt cost
+ * several times per step, and stringifying every tool schema plus scanning its
+ * description character-by-character is the expensive half of that read. Tool
+ * objects are fixed once registered, so identity keying is safe.
+ */
+const toolTokenEstimateCache = new WeakMap<Tool, number>();
+
+function estimateTokensForTool(tool: Tool): number {
+  const cached = toolTokenEstimateCache.get(tool);
+  if (cached !== undefined) return cached;
+  const total =
+    estimateTokens(tool.name) +
+    estimateTokens(tool.description) +
+    estimateTokens(JSON.stringify(tool.parameters));
+  toolTokenEstimateCache.set(tool, total);
   return total;
 }
 

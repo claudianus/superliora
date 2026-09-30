@@ -1,9 +1,10 @@
-import type { ContentPart, Message } from '@superliora/kosong';
-import { describe, expect, it } from 'vitest';
+import type { ContentPart, Message, Tool } from '@superliora/kosong';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   estimateTokensForContentPart,
   estimateTokensForMessage,
+  estimateTokensForTools,
   MEDIA_TOKEN_ESTIMATE,
 } from '../../src/utils/tokens';
 
@@ -48,5 +49,31 @@ describe('estimateTokensForContentPart', () => {
     };
 
     expect(estimateTokensForMessage(message)).toBeGreaterThan(100);
+  });
+});
+
+describe('estimateTokensForTools', () => {
+  it('serializes a tool schema once across repeated estimates', () => {
+    // The compaction policy reads the fixed prompt cost several times per step;
+    // re-stringifying every tool schema on each read is the expensive half.
+    const tool = {
+      name: 'grep',
+      description: 'search file contents',
+      parameters: {
+        type: 'object',
+        properties: { pattern: { type: 'string' } },
+      },
+    } as unknown as Tool;
+
+    const stringify = vi.spyOn(JSON, 'stringify');
+    try {
+      const first = estimateTokensForTools([tool]);
+      const second = estimateTokensForTools([tool]);
+
+      expect(second).toBe(first);
+      expect(stringify).toHaveBeenCalledTimes(1);
+    } finally {
+      stringify.mockRestore();
+    }
   });
 });
