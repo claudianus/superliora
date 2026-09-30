@@ -1,6 +1,6 @@
 import type { ContentPart } from '@superliora/kosong';
 
-import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { Agent } from '../..';
@@ -325,6 +325,9 @@ export class MicroCompaction {
   compact(messages: readonly ContextMessage[]): readonly ContextMessage[] {
     if (!this.agent.experimentalFlags.enabled('micro_compaction')) return messages;
 
+    // One recovery-tool-name resolution per projection, not per marker.
+    this.projectionRecoverName = undefined;
+
     // One index per projection source: every family/policy lookup below
     // resolves tool names through it instead of re-scanning the history.
     const index = this.toolNameIndexFor(messages);
@@ -379,6 +382,7 @@ export class MicroCompaction {
     messages: readonly ContextMessage[],
     cutoff: number,
   ) {
+    this.projectionRecoverName = undefined;
     let truncatedToolResultCount = 0;
     let truncatedToolResultTokensBefore = 0;
     let truncatedToolResultTokensAfter = 0;
@@ -430,12 +434,57 @@ export class MicroCompaction {
     return this.renderMarker(message, messages, policyReason, tokenCount, preview);
   }
 
+  /** Resolved recovery tool name, memoized for one projection (see the callers). */
+  private projectionRecoverName: string | undefined;
+
+  private recoverNameForMarkers(): string {
+    this.projectionRecoverName ??= resolveArchiveRecoverToolName(
+      this.agent.tools.loopTools.map((tool) => tool.name),
+    );
+    return this.projectionRecoverName;
+  }
+
+  /**
+   * Rendered cleared-marker per source message.
+   *
+   * Each projection re-rendered markers — three times per cleared message (the
+   * policy check renders one, the policy decision renders another, the clear
+   * renders a third) — and the receipt branch rewrote a spill file plus pruned
+   * the receipt directory every time. Worse, the receipt carried a fresh
+   * `captured_at`, so two projections of an unchanged history produced
+   * different bytes for messages inside the cached prefix, and every step paid
+   * a provider cache miss for the whole message region.
+   *
+   * Keyed by the source message (stable in history) plus the two inputs that can
+   * change the text independently of it: the policy reason and the recovery
+   * tool name.
+   */
+  private readonly markerCache = new WeakMap<
+    ContextMessage,
+    { readonly key: string; readonly text: string }
+  >();
+
   private renderMarker(
     message: ContextMessage,
     messages: readonly ContextMessage[],
     policyReason: MicroCompactionPolicyDecision['reason'],
     tokenCount = estimateTokensForContentParts(message.content),
     preview = contentPreview(message.content),
+  ): string {
+    const cacheKey = `${policyReason}\u0000${this.recoverNameForMarkers()}`;
+    const cached = this.markerCache.get(message);
+    if (cached !== undefined && cached.key === cacheKey) return cached.text;
+    const text = this.buildMarker(message, messages, policyReason, tokenCount, preview);
+    this.markerCache.set(message, { key: cacheKey, text });
+    return text;
+  }
+
+  private buildMarker(
+    message: ContextMessage,
+    messages: readonly ContextMessage[],
+    policyReason: MicroCompactionPolicyDecision['reason'],
+    tokenCount: number,
+    preview: string,
   ): string {
     const toolCallId = message.toolCallId ?? 'unknown';
     const toolName = this.toolNameFor(toolCallId, messages) ?? 'unknown';
@@ -458,9 +507,7 @@ export class MicroCompaction {
     const archiveId = /\[liora-archived id=([a-f0-9]{12})\b/u.exec(fullText)?.[1];
     if (archiveId !== undefined) {
       lines.push(`archiveId=${archiveId}`);
-      lines.push(
-        `recover=${resolveArchiveRecoverToolName(this.agent.tools.loopTools.map((tool) => tool.name))}`,
-      );
+      lines.push(`recover=${this.recoverNameForMarkers()}`);
     } else if (policyReason === 'family_budget_overflow') {
       // Harness reform T1-4: a family-overflow clear used to destroy the
       // payload outright. Persist it under the Liora home and leave a
@@ -489,12 +536,32 @@ export class MicroCompaction {
       });
       const stem = toolName.replaceAll(/[^\w-]+/gu, '_');
       const file = join(dir, `cleared-${stem}-${receipt.sha256.slice(0, 12)}.txt`);
-      writeFileSync(file, fullText);
-      pruneClearedReceipts(dir);
+      // Write the spill once. Rewriting it on every render also re-ran the
+      // receipt-dir prune (readdir + stat per file) on the request path, and
+      // the marker reported a fresh `captured_at` each time — a byte that
+      // changes between two projections of an unchanged history, inside the
+      // provider's cached prefix. The file's own mtime is the one timestamp
+      // both the first and later renders agree on.
+      let capturedAt = receipt.captured_at;
+      if (existsSync(file)) {
+        try {
+          capturedAt = statSync(file).mtime.toISOString();
+        } catch {
+          // Unreadable timestamp: keep the freshly computed one.
+        }
+      } else {
+        writeFileSync(file, fullText);
+        try {
+          capturedAt = statSync(file).mtime.toISOString();
+        } catch {
+          // Keep the freshly computed timestamp when stat is unavailable.
+        }
+        pruneClearedReceipts(dir);
+      }
       return [
         `receipt=${file}`,
         `sha256=${receipt.sha256}`,
-        `captured_at=${receipt.captured_at}`,
+        `captured_at=${capturedAt}`,
         `summary1=${receipt.summary1}`,
         'recover=Read the receipt path (line-ranged) to restore the cleared output',
       ].join('\n');

@@ -805,6 +805,54 @@ describe('MicroCompaction', () => {
   });
 
 
+  it('renders identical marker bytes for two projections of an unchanged history (T1-4)', async () => {
+    // The cleared-marker region sits inside the provider's cached prefix. A
+    // fresh `captured_at` per render changed those bytes every step, so the
+    // message-level cache entry could never match again.
+    const home = await mkdtemp(join(tmpdir(), 'micro-stable-'));
+    try {
+      vi.useFakeTimers();
+      const ctx = testAgent({
+        homedir: home,
+        microCompaction: {
+          keepRecentMessages: 0,
+          minContentTokens: 1,
+          cacheMissedThresholdMs: 60 * MINUTE,
+          minContextUsageRatio: 0,
+        },
+      });
+
+      vi.setSystemTime(0);
+      const total = MICRO_TOOL_RESULT_FAMILY_KEEP + 2;
+      for (let i = 1; i <= total; i += 1) {
+        appendMicroToolExchange(ctx, i, { output: `family dump ${String(i)}` });
+      }
+      vi.setSystemTime(61 * MINUTE);
+      ctx.agent.microCompaction.detect();
+
+      const first = ctx.agent.microCompaction.compact(ctx.agent.context.history);
+      // Time moves on between steps; the spilled receipt does not.
+      vi.setSystemTime(120 * MINUTE);
+      const second = ctx.agent.microCompaction.compact(ctx.agent.context.history);
+      vi.useRealTimers();
+
+      const overflowId = `call_micro_${String(total)}`;
+      const markerOf = (messages: readonly { role: string; toolCallId?: string }[]): string =>
+        textOf(
+          messages.find(
+            (message) => message.role === 'tool' && message.toolCallId === overflowId,
+          ),
+          { raw: true },
+        );
+
+      expect(markerOf(second)).toBe(markerOf(first));
+      expect(markerOf(first)).toContain('policyReason=family_budget_overflow');
+    } finally {
+      vi.useRealTimers();
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   it('preserves stateful ledger tool results (TodoList / Memory)', () => {
     vi.useFakeTimers();
     const ctx = testAgent({
