@@ -170,6 +170,8 @@ export function composeRendererRegions(
     }
 
     const scrollY = normalizeScroll(region.scrollY);
+    // Region-constant part of every row key, hashed once instead of per row.
+    const regionKeyPrefix = createRegionKeyPrefix(region, rect, clipped);
     for (let y = clipped.y; y < clipped.y + clipped.height; y++) {
       rowsVisited++;
       const sourceY = y - rect.y + scrollY;
@@ -183,7 +185,7 @@ export function composeRendererRegions(
       // Dense ambient letterbox disables reuse (time-varying VFX) and drops the
       // cache entirely in layout-frame — skip Θ(width) row-key hashes then.
       const rowKeyHash = trackRows
-        ? createRowKeyHash(region, rect, clipped, y, sourceY, scrollY, line, underlayHash)
+        ? createRowKeyHash(regionKeyPrefix, y, sourceY, scrollY, line, underlayHash)
         : 0;
       if (canReuseRows && options.cache?.shouldReuseRow(rowId, rowKeyHash)) {
         rowsReused++;
@@ -455,34 +457,40 @@ function vfxHashNumeric(vfx: RendererRegionVfx | undefined): number {
 }
 
 /**
- * Numeric FNV-1a hash of all row-key fields. Replaces the old 13-field
- * string join with an allocation-free numeric fingerprint. Uses reference
- * identity (WeakMap ID) for cell-array lines so the common "same reference"
- * case is O(1) instead of O(width).
+ * Region-constant part of a row key: the rect, the layer style, and its
+ * background/vfx. Hashing it once per region keeps per-row work to the parts
+ * that actually vary (the layer's style, background and vfx were re-hashed for
+ * every row of the region, every frame).
  */
-function createRowKeyHash(
+function createRegionKeyPrefix(
   region: RendererRegionLayer,
   rect: RendererRect,
   clipped: RendererRect,
+): number {
+  let h = fnv1aInit();
+  h = fnv1aUpdate(h, rect.x);
+  h = fnv1aUpdate(h, rect.y);
+  h = fnv1aUpdate(h, clipped.x);
+  h = fnv1aUpdate(h, clipped.width);
+  h = fnv1aUpdate(h, styleHashNumeric(region.style));
+  h = fnv1aUpdate(h, region.clear === true ? 1 : 0);
+  h = fnv1aUpdate(h, cellHashNumeric(region.background));
+  h = fnv1aUpdate(h, vfxHashNumeric(region.vfx));
+  return h;
+}
+
+function createRowKeyHash(
+  regionKeyPrefix: number,
   y: number,
   sourceY: number,
   scrollY: number,
   line: RendererRegionLine | undefined,
   underlayHash: number,
 ): number {
-  let h = fnv1aInit();
-  h = fnv1aUpdate(h, underlayHash);
-  h = fnv1aUpdate(h, rect.x);
-  h = fnv1aUpdate(h, rect.y);
-  h = fnv1aUpdate(h, clipped.x);
-  h = fnv1aUpdate(h, clipped.width);
+  let h = fnv1aUpdate(regionKeyPrefix, underlayHash);
   h = fnv1aUpdate(h, y);
   h = fnv1aUpdate(h, sourceY);
   h = fnv1aUpdate(h, scrollY);
-  h = fnv1aUpdate(h, styleHashNumeric(region.style));
-  h = fnv1aUpdate(h, region.clear === true ? 1 : 0);
-  h = fnv1aUpdate(h, cellHashNumeric(region.background));
-  h = fnv1aUpdate(h, vfxHashNumeric(region.vfx));
   h = fnv1aUpdate(h, lineHash(line));
   return h >>> 0;
 }
