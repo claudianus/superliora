@@ -1,26 +1,7 @@
 // Code indexer — symbol extraction (T5-1).
 // Parses a source file with oxc and extracts top-level declarations as compact
 // symbol records. Pure and synchronous; no I/O, no AST retention (extract -> return -> discard).
-// oxc-parser loads lazily so a missing native binding degrades to a catchable
-// error instead of crashing the importing process (bundled CLI safety).
-import { createRequire } from 'node:module';
-
-type OxcParseResult = { readonly program: unknown; readonly errors: ReadonlyArray<unknown> };
-type OxcParseSync = (fileName: string, source: string, options: { lang: string }) => OxcParseResult;
-
-let cachedParseSync: OxcParseSync | undefined;
-
-function loadParseSync(): OxcParseSync {
-  if (!cachedParseSync) {
-    // H5: naming this binding `require` makes esbuild's CJS output emit a
-    // self-referential `createRequire(require("url")…)` and throw
-    // "Cannot access 'require' before initialization" in the SEA bundle.
-    const requireFromHere = createRequire(import.meta.url);
-    const mod = requireFromHere('oxc-parser') as { parseSync: OxcParseSync };
-    cachedParseSync = mod.parseSync;
-  }
-  return cachedParseSync;
-}
+import { langForFile, loadParseSync } from '#/codemap/oxc';
 
 export type IndexedSymbolKind = 'function' | 'class' | 'interface' | 'type' | 'enum' | 'variable';
 
@@ -60,13 +41,7 @@ interface AstProgram {
   readonly body?: readonly AstNode[];
 }
 
-export function langForFile(fileName: string): 'ts' | 'tsx' | 'dts' | 'js' | 'jsx' {
-  if (fileName.endsWith('.d.ts')) return 'dts';
-  if (fileName.endsWith('.tsx')) return 'tsx';
-  if (fileName.endsWith('.ts') || fileName.endsWith('.mts') || fileName.endsWith('.cts')) return 'ts';
-  if (fileName.endsWith('.jsx') || fileName.endsWith('.mjsx')) return 'jsx';
-  return 'js';
-}
+export { langForFile } from '#/codemap/oxc';
 
 function buildLineStarts(source: string): number[] {
   const starts = [0];

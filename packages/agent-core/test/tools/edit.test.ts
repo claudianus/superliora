@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { type EditInput, EditInputSchema, EditTool } from '../../src/tools/builtin/file/edit';
+import { collectSyntaxReport, formatSyntaxReport } from '../../src/codemap/syntax-check';
 import { createFakeKaos, PERMISSIVE_WORKSPACE } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
 
@@ -550,5 +551,57 @@ describe('EditTool', () => {
     expect(result.output).toContain('use the Read Tool to reload');
     expect(result.output).not.toContain('candidate near line');
     expect(result.output).not.toContain('file last modified');
+  });
+});
+
+describe('EditTool post-edit syntax diagnostics', () => {
+  it('appends parse errors to the result of the edit that caused them', async () => {
+    // The check that matters: a broken edit must report in the same turn, or
+    // the model spends turns rediscovering the error via build and test runs.
+    const content = 'export function a() {\n  if (true) {\n';
+    const tool = new EditTool(
+      createFakeKaos({
+        readText: vi.fn().mockResolvedValue('export function a() {\n'),
+        writeAtomic: vi.fn().mockResolvedValue(undefined),
+      }),
+      PERMISSIVE_WORKSPACE,
+      {
+        onFileMutated: (path, body) => {
+          const found = collectSyntaxReport(path, body);
+          return found === undefined ? undefined : formatSyntaxReport(path, found);
+        },
+      },
+    );
+
+    const result = await executeTool(
+      tool,
+      context({ path: '/tmp/broken.ts', old_string: 'export function a() {\n', new_string: content }),
+    );
+
+    expect(result.output).toContain('Syntax error in');
+    expect(result.output).toContain('Expected `}`');
+  });
+
+  it('adds nothing when the edited file still parses', async () => {
+    const tool = new EditTool(
+      createFakeKaos({
+        readText: vi.fn().mockResolvedValue('const a = 1;\n'),
+        writeAtomic: vi.fn().mockResolvedValue(undefined),
+      }),
+      PERMISSIVE_WORKSPACE,
+      {
+        onFileMutated: (path, body) => {
+          const found = collectSyntaxReport(path, body);
+          return found === undefined ? undefined : formatSyntaxReport(path, found);
+        },
+      },
+    );
+
+    const result = await executeTool(
+      tool,
+      context({ path: '/tmp/ok.ts', old_string: 'const a = 1;\n', new_string: 'const a = 2;\n' }),
+    );
+
+    expect(result.output).not.toContain('Syntax error');
   });
 });

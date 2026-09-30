@@ -13,6 +13,7 @@ import { createVisualDiffTool } from '../../tools/visual-diff-tool';
 import type { ToolStore } from '../../tools/store';
 import { resolveMediaProviderEnv } from '../../tools/builtin/media/provider-env';
 import { DEFAULT_AGENT_PROFILES } from '../../profile';
+import { collectSyntaxReport, formatSyntaxReport } from '../../codemap/syntax-check';
 import {
   HIDE_LEGACY_TOOL_NAMES_ENV,
   isHideLegacyToolNamesEnabled,
@@ -173,6 +174,25 @@ export function buildBuiltinTools(host: BuiltinToolsHost): Map<string, BuiltinTo
   );
 }
 
+/**
+ * Diagnostics appended to a mutation's tool result.
+ *
+ * A plugin LSP, when configured, supersedes the built-in check: it reports
+ * types and semantic errors too, and re-parsing for syntax it already covers
+ * would double the cost of every edit. Without an LSP the check is what keeps
+ * a parse-breaking edit from cascading into every later build and test run.
+ */
+function buildFileMutationHook(
+  agent: Agent,
+): (path: string, content: string) => string | Promise<string | undefined> | undefined {
+  return (path, content) => {
+    const lsp = agent.fileMutationHook;
+    if (lsp) return lsp(path, content);
+    const report = collectSyntaxReport(path, content);
+    return report === undefined ? undefined : formatSyntaxReport(path, report);
+  };
+}
+
 function createFileAndContextTools(
   host: BuiltinToolsHost,
   kaos: Agent['kaos'],
@@ -189,6 +209,7 @@ function createFileAndContextTools(
 ): Array<BuiltinTool | false | undefined> {
   const readMediaVisionFallback = buildReadMediaVisionFallback(host.agent);
   const provenanceHook = createFileProvenanceHook(host.agent);
+  const mutationHook = buildFileMutationHook(host.agent);
   return [
     shouldCreateBuiltin(host, 'Read') && new b.ReadTool(kaos, workspace),
     shouldCreateBuiltin(host, 'Write') &&
@@ -197,7 +218,7 @@ function createFileAndContextTools(
         getTurnId: () =>
           host.agent.turn.currentId !== undefined ? String(host.agent.turn.currentId) : undefined,
         getSwarmLease: () => host.agent.swarmFileLease,
-        onFileMutated: (path, content) => host.agent.fileMutationHook?.(path, content),
+        onFileMutated: mutationHook,
         provenance: provenanceHook,
       }),
     shouldCreateBuiltin(host, 'Edit') &&
@@ -206,7 +227,7 @@ function createFileAndContextTools(
         getTurnId: () =>
           host.agent.turn.currentId !== undefined ? String(host.agent.turn.currentId) : undefined,
         getSwarmLease: () => host.agent.swarmFileLease,
-        onFileMutated: (path, content) => host.agent.fileMutationHook?.(path, content),
+        onFileMutated: mutationHook,
         provenance: provenanceHook,
       }),
     shouldCreateBuiltin(host, 'ApplyPatch') &&
@@ -215,7 +236,7 @@ function createFileAndContextTools(
         getTurnId: () =>
           host.agent.turn.currentId !== undefined ? String(host.agent.turn.currentId) : undefined,
         getSwarmLease: () => host.agent.swarmFileLease,
-        onFileMutated: (path, content) => host.agent.fileMutationHook?.(path, content),
+        onFileMutated: mutationHook,
         provenance: provenanceHook,
       }),
     shouldCreateBuiltin(host, 'Grep') && new b.GrepTool(kaos, workspace, host.agent.telemetry),
