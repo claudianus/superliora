@@ -1,5 +1,5 @@
 import { ChatProviderError } from '#/errors';
-import type { ContentPart, Message } from '#/message';
+import type { ContentPart, Message, ToolCall } from '#/message';
 import type {
   ContentBlockParam,
   MessageParam,
@@ -277,28 +277,47 @@ export function convertMessage(message: Message, model: string): MessageParam {
   // Tool calls -> ToolUseBlockParam
   if (message.toolCalls.length > 0) {
     for (const tc of message.toolCalls) {
-      let toolInput: Record<string, unknown> = {};
-      if (tc.arguments) {
-        try {
-          const parsed: unknown = JSON.parse(tc.arguments);
-          if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-            toolInput = parsed as Record<string, unknown>;
-          } else {
-            throw new ChatProviderError('Tool call arguments must be a JSON object.');
-          }
-        } catch (error) {
-          if (error instanceof ChatProviderError) throw error;
-          throw new ChatProviderError('Tool call arguments must be valid JSON.');
-        }
-      }
       blocks.push({
         type: 'tool_use',
         id: tc.id,
         name: tc.name,
-        input: toolInput,
+        input: toolInputFor(tc),
       } satisfies ToolUseBlockParam);
     }
   }
 
   return { role: role, content: blocks };
+}
+
+/**
+ * Parsed tool-call arguments, memoized by the call object. The whole history is
+ * converted on every request, so each recorded call's argument JSON was parsed
+ * again on every step — and on Write/Edit calls those strings are the largest
+ * content in the conversation. The recorded string is compared before reuse, so
+ * a call whose arguments are ever replaced re-parses instead of going stale.
+ */
+const toolInputCache = new WeakMap<
+  ToolCall,
+  { readonly args: string; readonly input: Record<string, unknown> }
+>();
+
+function toolInputFor(tc: ToolCall): Record<string, unknown> {
+  const args = tc.arguments;
+  if (!args) return {};
+  const cached = toolInputCache.get(tc);
+  if (cached !== undefined && cached.args === args) return cached.input;
+  const parsed: unknown = (() => {
+    try {
+      return JSON.parse(args);
+    } catch (error) {
+      if (error instanceof ChatProviderError) throw error;
+      throw new ChatProviderError('Tool call arguments must be valid JSON.');
+    }
+  })();
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new ChatProviderError('Tool call arguments must be a JSON object.');
+  }
+  const input = parsed as Record<string, unknown>;
+  toolInputCache.set(tc, { args, input });
+  return input;
 }
