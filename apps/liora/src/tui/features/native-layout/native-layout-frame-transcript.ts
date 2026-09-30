@@ -103,22 +103,40 @@ function lineRefsEqual(
 }
 
 /**
- * Backfill a theme foreground onto cells that only carry a background. Returns
- * the *same* array reference when no cell changes, preserving the stable
- * cell-array identity from the promote cache so the compositor's reference-keyed
- * row-key memoization can skip re-serializing unchanged transcript rows.
+ * Backfill a theme foreground onto cells that only carry a background, and
+ * return the *same* array reference when no cell changes — the stable
+ * cell-array identity from the promote cache is what lets the compositor's
+ * reference-keyed row memoization skip re-serializing unchanged rows.
+ *
+ * Memoized on the input array: the promote cache hands out stable cell-array
+ * references, so without it the backfill allocated a fresh line array every
+ * frame and no row could ever be skipped. Pure function of (line contents,
+ * defaultFg) while cell arrays are treated as immutable.
  */
+const backfilledLineCache = new WeakMap<
+  readonly RendererCell[],
+  { readonly fg: string; readonly out: readonly RendererCell[] }
+>();
+
 function backfillTranscriptLineForeground(
   line: readonly RendererCell[],
   defaultFg: string,
 ): readonly RendererCell[] {
+  const cached = backfilledLineCache.get(line);
+  if (cached !== undefined && cached.fg === defaultFg) return cached.out;
+
   let changed = false;
   const result = line.map((cell) => {
-    if (cell.style?.fg !== undefined || cell.char.trim().length === 0) return cell;
+    // Cells that already carry a foreground are the common case; only the
+    // remaining ones need the (string-op) blank check.
+    if (cell.style?.fg !== undefined) return cell;
+    if (cell.char.trim().length === 0) return cell;
     changed = true;
     return { ...cell, style: { fg: defaultFg, ...cell.style } };
   });
-  return changed ? result : line;
+  const out = changed ? result : line;
+  backfilledLineCache.set(line, { fg: defaultFg, out });
+  return out;
 }
 
 export function nativeTranscriptRegionLines(

@@ -1457,6 +1457,16 @@ export class RendererTranscriptViewportComponent extends Container {
     const bandEnd = Math.min(Math.max(geometryCount, sliceEnd), sliceEnd + bandMargin);
     const bandLen = Math.max(0, bandEnd - bandStart);
     const prevBand = cache.childSparseBands[childIndex];
+    // Same window → same band layout. Handing back a fresh array with the same
+    // slots copied re-allocated and re-copied ~4x the viewport every frame for
+    // no information gain.
+    if (
+      prevBand !== undefined &&
+      prevBand.origin === bandStart &&
+      prevBand.slots.length === bandLen
+    ) {
+      return prevBand;
+    }
     const band: RendererTranscriptSparseBand = {
       origin: bandStart,
       slots: Array.from({ length: bandLen }),
