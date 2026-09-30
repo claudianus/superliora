@@ -228,14 +228,24 @@ export class NativeTerminalRenderer {
         // available through the `stats` getter for diagnostics. Building it
         // every frame cost a 20-pass reduce plus two sorts over the window.
         const health = this.frameStats.recordHealth(this.lastRenderResult.metrics);
-        this.trace.recordFrame({
-          frameIndex: this.lastRenderResult.frame.frame,
-          causes: this.lastRenderResult.frame.causes,
-          size: this.lastRenderResult.size,
-          health,
-          qualityLevel: this.lastRenderResult.quality.level,
-          metrics: this.lastRenderResult.metrics,
-        });
+        // Skip the per-frame record entirely when nobody reads the trace.
+        // The recorder defaults to enabled and this is the render hot path, so
+        // an unguarded call builds a record — and copies the cause list —
+        // thousands of times a second to fill a ring buffer that only a
+        // diagnostic export ever looks at. That churn was the single largest
+        // source of heap growth while the TUI sat idle: the ring is bounded,
+        // but the allocation rate still forces the heap upward. When tracing
+        // is on the record is identical.
+        if (this.trace.enabled) {
+          this.trace.recordFrame({
+            frameIndex: this.lastRenderResult.frame.frame,
+            causes: this.lastRenderResult.frame.causes,
+            size: this.lastRenderResult.size,
+            health,
+            qualityLevel: this.lastRenderResult.quality.level,
+            metrics: this.lastRenderResult.metrics,
+          });
+        }
         if (this.options.onFrame !== undefined) {
           this.options.onFrame(this.lastRenderResult, this.frameStats.snapshot());
         }
