@@ -515,7 +515,7 @@ export class LocalKaos implements Kaos {
     const fh = await open(resolved, 'r');
     try {
       const utf16 = await detectUtf16BomInFile(fh);
-      if (utf16 !== undefined) {
+      if (utf16 !== undefined && (await fh.stat()).size <= MAX_UTF16_TEXT_BYTES) {
         return scanUtf16TextFile(await readFile(resolved), utf16);
       }
       const buf = Buffer.alloc(READ_CHUNK_SIZE);
@@ -574,14 +574,12 @@ export class LocalKaos implements Kaos {
     const fh = await open(resolved, 'r');
     try {
       const utf16 = await detectUtf16BomInFile(fh);
-      if (utf16 !== undefined) {
-        const data = await readFile(resolved);
-        if (data.length <= MAX_UTF16_TEXT_BYTES) {
-          const lines = [...splitLinesKeepingTerminator(decodeUtf16Text(data, utf16))];
-          yield* lines.slice(Math.max(0, lines.length - options.tailCount));
-          return;
-        }
-        // Oversized: fall through to the byte scan below.
+      if (utf16 !== undefined && (await fh.stat()).size <= MAX_UTF16_TEXT_BYTES) {
+        const lines = [
+          ...splitLinesKeepingTerminator(decodeUtf16Text(await readFile(resolved), utf16)),
+        ];
+        yield* lines.slice(Math.max(0, lines.length - options.tailCount));
+        return;
       }
       const s = await fh.stat();
       if (s.size === 0) return;
@@ -630,14 +628,9 @@ export class LocalKaos implements Kaos {
     const fh = await open(resolved, 'r');
     try {
       const utf16 = await detectUtf16BomInFile(fh);
-      if (utf16 !== undefined) {
-        const data = await readFile(resolved);
-        if (data.length <= MAX_UTF16_TEXT_BYTES) {
-          yield* utf16Lines(decodeUtf16Text(data, utf16), range);
-          return;
-        }
-        // Oversized: the byte-wise scan below reports the NULs, so the caller
-        // treats the file the way it did before UTF-16 support existed.
+      if (utf16 !== undefined && (await fh.stat()).size <= MAX_UTF16_TEXT_BYTES) {
+        yield* utf16Lines(decodeUtf16Text(await readFile(resolved), utf16), range);
+        return;
       }
       yield* this._readUtf8LinesByteWise(fh, errors, range);
     } finally {
@@ -1032,16 +1025,6 @@ function lineEndingFlagsFromText(text: string): LineEndingFlags {
 }
 
 function scanUtf16TextFile(data: Buffer, bom: 'utf16le' | 'utf16be'): TextFileScan {
-  if (data.length > MAX_UTF16_TEXT_BYTES) {
-    // Too large to decode whole; report it the way a binary file is reported
-    // rather than pretending the byte scan understood it.
-    return {
-      totalLines: 0,
-      endsWithNewline: false,
-      hasNul: true,
-      lineEndingFlags: { hasCrLf: false, hasLf: false, hasLoneCr: false },
-    };
-  }
   const text = decodeUtf16Text(data, bom);
   let totalLines = 0;
   for (let i = 0; i < text.length; i += 1) {

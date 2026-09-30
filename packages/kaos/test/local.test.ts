@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, stat, truncate } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -367,6 +367,17 @@ describe('LocalKaos', () => {
       const path = join(tempDir, 'utf8-nul.txt');
       await kaos.writeBytes(path, Buffer.from('a\u0000b\n', 'utf-8'));
       await expect(kaos.scanTextFile(path)).resolves.toMatchObject({ hasNul: true });
+    });
+
+    it('does not decode an oversized UTF-16 file', async () => {
+      // The decode is whole-file, so the size guard is checked before the read.
+      // Past it the byte rules apply again and the byte-order mark is what they
+      // always were: invalid UTF-8 — the pre-UTF-16 outcome, with no multi-GB
+      // decode first. Sparse file: no disk cost.
+      const path = join(tempDir, 'huge-utf16.txt');
+      await kaos.writeBytes(path, Buffer.from([0xff, 0xfe]));
+      await truncate(path, 64 * 1024 * 1024 + 2);
+      await expect(kaos.scanTextFile(path)).rejects.toThrow(/Invalid UTF-8/);
     });
   });
 
