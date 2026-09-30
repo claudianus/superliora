@@ -11,7 +11,10 @@ import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry'
 import { createFakeKaos, toolContentBody } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
 
-vi.mock('../../src/tools/support/rg-locator', () => ({
+vi.mock('../../src/tools/support/rg-locator', async (importOriginal) => ({
+  // Spread the real module so exports added later (e.g. the resolution memo's
+  // invalidator, called on the ENOENT path) cannot silently disappear here.
+  ...(await importOriginal<typeof import('../../src/tools/support/rg-locator')>()),
   ensureRgPath: vi.fn(async () => ({ path: '/mock/rg', source: 'system-path' })),
   rgUnavailableMessage: (cause: unknown) =>
     `rg unavailable: ${cause instanceof Error ? cause.message : String(cause)}`,

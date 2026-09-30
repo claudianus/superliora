@@ -15,7 +15,7 @@ import type { Kaos, KaosProcess } from '@superliora/kaos';
 import type { ExecutableToolResult } from '../../loop/types';
 import { SENSITIVE_DOT_VARIANT_SUFFIXES } from '../policies/sensitive';
 
-import { rgUnavailableMessage } from './rg-locator';
+import { forgetResolvedRg, rgUnavailableMessage } from './rg-locator';
 import { isPrematureCloseError } from './stream';
 
 export const DEFAULT_TIMEOUT_MS = 20_000;
@@ -89,6 +89,9 @@ export async function runRipgrepOnce(
       error instanceof Error &&
       'code' in error &&
       (error as NodeJS.ErrnoException).code === 'ENOENT';
+    // A resolved-but-gone binary must not stay memoized, or every later call
+    // keeps spawning the missing path.
+    if (isEnoent) forgetResolvedRg();
     return {
       kind: 'tool-error',
       result: {

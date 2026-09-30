@@ -80,14 +80,36 @@ export async function ensureRgPath(options: EnsureRgPathOptions = {}): Promise<R
   return options.signal === undefined ? resolution : abortable(resolution, options.signal);
 }
 
+/**
+ * Successful resolutions, keyed by share dir. Resolution is a pure function of
+ * PATH and the share dir and stays valid for the session, but Grep and Glob
+ * resolved it on *every* call: a `stat` per PATH entry plus a stat on the
+ * cached binary before the process was even spawned. Only successes are
+ * cached, so installing `rg` later is picked up, and a binary that disappears
+ * is forgotten by {@link forgetResolvedRg} on the next spawn failure.
+ */
+const resolvedRgByShareDir = new Map<string, RgResolution>();
+
+/** Drop the memo (a spawn found the cached binary gone, or a test swapped PATH). */
+export function forgetResolvedRg(): void {
+  resolvedRgByShareDir.clear();
+}
+
 async function resolveRgPath(
   shareDir: string,
   signal?: AbortSignal | undefined,
 ): Promise<RgResolution> {
+  const cached = resolvedRgByShareDir.get(shareDir);
+  if (cached !== undefined) return cached;
   const existing = await findExistingRg(shareDir);
-  if (existing) return existing;
+  if (existing) {
+    resolvedRgByShareDir.set(shareDir, existing);
+    return existing;
+  }
   signal?.throwIfAborted();
-  return downloadRgWithLock(shareDir);
+  const downloaded = await downloadRgWithLock(shareDir);
+  resolvedRgByShareDir.set(shareDir, downloaded);
+  return downloaded;
 }
 
 /**

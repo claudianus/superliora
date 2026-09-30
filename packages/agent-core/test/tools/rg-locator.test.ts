@@ -23,6 +23,7 @@ import {
   ensureRgPath,
   extractRgFromZip,
   findExistingRg,
+  forgetResolvedRg,
   rgUnavailableMessage,
   verifyArchiveChecksum,
 } from '../../src/tools/support/rg-locator';
@@ -93,6 +94,27 @@ describe('findExistingRg', () => {
     const result = await findExistingRg(fakeShare);
     expect(result?.source).toBe('system-path');
     expect(result?.path).toBe(onPath);
+  });
+
+  it('keeps a resolved rg for the session instead of re-walking PATH per call', async () => {
+    // Grep and Glob resolved the binary on every invocation: a stat per PATH
+    // entry plus the cached-binary probe, before the process was spawned.
+    forgetResolvedRg();
+    const binName = process.platform === 'win32' ? 'rg.exe' : 'rg';
+    const cached = join(fakeShare, 'bin', binName);
+    writeFileSync(cached, fakeRgBinary());
+    chmodSync(cached, 0o755);
+
+    const first = await ensureRgPath({ shareDir: fakeShare });
+    expect(first.source).toBe('share-bin-cached');
+
+    // Session-stable: no re-probe. A binary that disappears is forgotten via
+    // forgetResolvedRg() when the spawn reports ENOENT.
+    rmSync(cached, { force: true });
+    const second = await ensureRgPath({ shareDir: fakeShare });
+    expect(second).toEqual(first);
+
+    forgetResolvedRg();
   });
 });
 
