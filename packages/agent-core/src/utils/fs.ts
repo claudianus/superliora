@@ -107,6 +107,46 @@ function stagingPathFor(filePath: string): string {
 }
 
 /**
+ * Blocking backoff for the synchronous rename retry below. `Atomics.wait` on a
+ * throwaway shared buffer parks the thread without a busy loop (Node allows it
+ * on the main thread).
+ */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Synchronous twin of {@link renameReplacingTarget}. Windows `renameSync` maps
+ * to MoveFileEx and fails with EPERM while any handle to the target is open
+ * (antivirus, an indexer, a concurrent reader), so a transient lock must not
+ * abort the write — the caller's staging file is cleaned up and the update is
+ * simply lost.
+ */
+function renameReplacingTargetSync(tmpPath: string, targetPath: string): void {
+  if (process.platform !== 'win32') {
+    nodeFs.renameSync(tmpPath, targetPath);
+    return;
+  }
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      nodeFs.renameSync(tmpPath, targetPath);
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+      // Handles come and go; a short bounded backoff clears nearly all of them.
+      sleepSync(25 * (attempt + 1));
+    }
+  }
+  try {
+    nodeFs.unlinkSync(targetPath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') throw error;
+  }
+  nodeFs.renameSync(tmpPath, targetPath);
+}
+
+/**
  * Durably write a file: stage a uniquely-named temp, fsync it, rename it over
  * the target, then fsync the parent directory.
  */
@@ -163,7 +203,7 @@ export function writeFileAtomicSync(targetPath: string, content: string): void {
     } finally {
       closeSync(fd);
     }
-    nodeFs.renameSync(tmpPath, targetPath);
+    renameReplacingTargetSync(tmpPath, targetPath);
     renamed = true;
     // Commit the directory entry so the rename survives a power loss.
     if (process.platform !== 'win32') {

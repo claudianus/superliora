@@ -9,6 +9,8 @@
 
 import { normalize, resolve } from 'pathe';
 
+import { foldPathForIdentity } from '#/utils/path-identity';
+
 export interface SwarmFileLeaseClaim {
   readonly path: string;
   readonly ownerId: string;
@@ -47,24 +49,19 @@ export interface SwarmFileLeaseRegistry {
 }
 
 /**
- * Normalize path for lease identity. Absolute paths stay absolute;
- * relative paths resolve against optional baseDir (or process cwd).
+ * Normalize path for lease identity. Absolute paths stay absolute; relative
+ * paths resolve against optional baseDir (or process cwd). Case is folded when
+ * the filesystem folds it, not when the platform is Windows: a default macOS
+ * volume folds case too, so `src/App.ts` and `src/app.ts` must contend for one
+ * lease rather than hand two workers the same file.
  */
-function foldLeasePath(path: string): string {
-  const unified = path.replaceAll('\\', '/');
-  if (process.platform === 'win32' || /^[A-Za-z]:\//.test(unified)) {
-    return unified.toLowerCase();
-  }
-  return unified;
-}
-
 export function normalizeLeasePath(path: string, baseDir?: string): string {
   const trimmed = path.trim();
   if (trimmed.length === 0) return trimmed;
-  if (trimmed.startsWith('/')) return foldLeasePath(normalize(trimmed));
+  if (trimmed.startsWith('/')) return foldPathForIdentity(normalize(trimmed));
   // Windows drive letter
-  if (/^[A-Za-z]:[\\/]/.test(trimmed)) return foldLeasePath(normalize(trimmed));
-  return foldLeasePath(normalize(resolve(baseDir ?? process.cwd(), trimmed)));
+  if (/^[A-Za-z]:[\\/]/.test(trimmed)) return foldPathForIdentity(normalize(trimmed));
+  return foldPathForIdentity(normalize(resolve(baseDir ?? process.cwd(), trimmed)));
 }
 
 export function createSwarmFileLeaseRegistry(options?: {

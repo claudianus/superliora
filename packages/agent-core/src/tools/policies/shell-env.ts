@@ -118,31 +118,36 @@ export const DEFAULT_SECRET_ENV_SUBSTRINGS = [
   'NODE_AUTH_TOKEN',
 ] as const;
 
-const CORE_ENV_EXACT = new Set([
-  'PATH',
-  'HOME',
-  'USER',
-  'LOGNAME',
-  'LANG',
-  'TMPDIR',
-  'TEMP',
-  'TMP',
-  'SHELL',
-  'TERM',
-  'PWD',
-  'OLDPWD',
-  'USERPROFILE',
-  'HOMEDRIVE',
-  'HOMEPATH',
-  'SYSTEMROOT',
-  'COMSPEC',
-  'PATHEXT',
-]);
+/**
+ * Names a child shell needs to run at all. Matched case-insensitively: on
+ * Windows the environment spells `Path`, not `PATH`, and a case-sensitive
+ * allowlist drops it — leaving the shell with no command search path.
+ */
+const CORE_ENV_EXACT: Record<string, true> = {
+  PATH: true,
+  HOME: true,
+  USER: true,
+  LOGNAME: true,
+  LANG: true,
+  TMPDIR: true,
+  TEMP: true,
+  TMP: true,
+  SHELL: true,
+  TERM: true,
+  PWD: true,
+  OLDPWD: true,
+  USERPROFILE: true,
+  HOMEDRIVE: true,
+  HOMEPATH: true,
+  SYSTEMROOT: true,
+  COMSPEC: true,
+  PATHEXT: true,
+};
 
 function isCoreEnvKey(key: string): boolean {
-  if (CORE_ENV_EXACT.has(key)) return true;
-  if (key.startsWith('LC_')) return true;
-  return false;
+  const upper = key.toUpperCase();
+  if (CORE_ENV_EXACT[upper] === true) return true;
+  return upper.startsWith('LC_');
 }
 
 /**

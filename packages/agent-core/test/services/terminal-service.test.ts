@@ -292,4 +292,51 @@ describe('TerminalService streams', () => {
       TerminalNotFoundError,
     );
   });
+
+  it('falls back to the platform shell when $SHELL is set but blank', async () => {
+    const root = join(tmpDir, 'workspace-h');
+    mkdirSync(root, { recursive: true });
+    const previous = process.env['SHELL'];
+    process.env['SHELL'] = '   ';
+    try {
+      const backend = new FakeTerminalBackend();
+      const svc = new TerminalService({ backend }, makeSessionService(new Map([
+        ['sess_h', session('sess_h', root)],
+      ])));
+
+      await svc.create('sess_h', {});
+
+      // A blank path must never reach node-pty: it spawns '' and dies with
+      // "posix_spawnp failed" before the terminal exists.
+      expect(backend.spawns[0]!.shell).toBe(
+        process.platform === 'win32' ? 'powershell.exe' : '/bin/sh',
+      );
+    } finally {
+      if (previous === undefined) delete process.env['SHELL'];
+      else process.env['SHELL'] = previous;
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'falls back to /bin/sh when $SHELL names a path that no longer exists',
+    async () => {
+      const root = join(tmpDir, 'workspace-i');
+      mkdirSync(root, { recursive: true });
+      const previous = process.env['SHELL'];
+      process.env['SHELL'] = join(tmpDir, 'missing-shell');
+      try {
+        const backend = new FakeTerminalBackend();
+        const svc = new TerminalService({ backend }, makeSessionService(new Map([
+          ['sess_i', session('sess_i', root)],
+        ])));
+
+        await svc.create('sess_i', {});
+
+        expect(backend.spawns[0]!.shell).toBe('/bin/sh');
+      } finally {
+        if (previous === undefined) delete process.env['SHELL'];
+        else process.env['SHELL'] = previous;
+      }
+    },
+  );
 });

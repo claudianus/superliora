@@ -148,6 +148,18 @@ describe('filterShellEnv', () => {
     expect(env).not.toHaveProperty('API_KEY');
     expect(env['MARKER']).toBe('ok');
   });
+
+  it('keeps core names spelled the way Windows spells them', () => {
+    const { env } = filterShellEnv(
+      { Path: 'C:\\Windows\\System32', windir: 'C:\\Windows', UNRELATED: 'x' },
+      { inherit: 'core' },
+    );
+
+    // `Path` is how the Windows environment block names the search path; a
+    // case-sensitive allowlist dropped it and left the shell with none.
+    expect(env['Path']).toBe('C:\\Windows\\System32');
+    expect(env).not.toHaveProperty('UNRELATED');
+  });
 });
 
 describe('buildShellChildEnv', () => {
@@ -231,6 +243,42 @@ describe('BashTool spawn secret filter (unit-env-filter)', () => {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
       }
+    }
+  });
+
+  it('extends the PATH spelling Windows actually uses instead of defining a second one', async () => {
+    const previousPath = process.env['PATH'];
+    const previousCased = process.env['Path'];
+    // The Windows environment block spells the search path `Path`.
+    delete process.env['PATH'];
+    process.env['Path'] = 'C:\\Windows\\System32';
+    try {
+      const execWithEnv = vi.fn().mockResolvedValue(fakeProcess());
+      const tool = new BashTool(
+        createFakeKaos({
+          execWithEnv,
+          osEnv: { ...posixEnv, osKind: 'Windows', shellPath: 'C:\\git\\bin\\bash.exe' },
+        }),
+        'C:\\workspace',
+        createBackgroundManager().manager,
+        { pathPrefix: ['C:\\plugin\\bin'] },
+      );
+      await executeTool(tool, {
+        turnId: '0',
+        toolCallId: 'tc_path_prefix',
+        args: { command: 'true', timeout: 1000 },
+        signal: new AbortController().signal,
+      });
+
+      const childEnv = execWithEnv.mock.calls[0]?.[1] as Record<string, string>;
+      expect(childEnv['Path']).toBe('C:\\plugin\\bin;C:\\Windows\\System32');
+      // Mirrored at the same value so a POSIX-style lookup still finds it.
+      expect(childEnv['PATH']).toBe('C:\\plugin\\bin;C:\\Windows\\System32');
+    } finally {
+      if (previousPath === undefined) delete process.env['PATH'];
+      else process.env['PATH'] = previousPath;
+      if (previousCased === undefined) delete process.env['Path'];
+      else process.env['Path'] = previousCased;
     }
   });
 });

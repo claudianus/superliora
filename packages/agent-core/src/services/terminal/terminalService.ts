@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+import { existsSync, promises as fs } from 'node:fs';
 import os from 'node:os';
 
 import { Disposable, registerSingleton, SyncDescriptor } from '../../di';
@@ -264,10 +264,18 @@ function frameSeq(frame: TerminalFrame): number {
 }
 
 function defaultShell(): string {
-  // Use `||` (not `??`): an EMPTY $SHELL (set but blank, as some daemon/launchd
-  // envs leave it) must still fall back, or node-pty spawns an empty path and
-  // fails with "posix_spawnp failed".
-  return process.env['SHELL'] ?? (os.platform() === 'win32' ? 'powershell.exe' : '/bin/sh');
+  if (os.platform() === 'win32') {
+    // Git Bash / MSYS2 export a POSIX-spelled SHELL (/usr/bin/bash) to every
+    // child; CreateProcessW cannot launch that, so only a Windows-spelled path
+    // is usable here.
+    const shell = process.env['SHELL']?.trim();
+    return shell !== undefined && /^[A-Za-z]:[\\/]/.test(shell) ? shell : 'powershell.exe';
+  }
+  // An EMPTY $SHELL (set but blank, as some daemon/launchd envs leave it) and a
+  // path that no longer exists must both fall back, or node-pty spawns a bad
+  // path and fails with "posix_spawnp failed".
+  const shell = process.env['SHELL']?.trim();
+  return shell !== undefined && shell.length > 0 && existsSync(shell) ? shell : '/bin/sh';
 }
 
 registerSingleton(

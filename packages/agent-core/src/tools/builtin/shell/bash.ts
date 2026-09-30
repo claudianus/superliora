@@ -216,8 +216,20 @@ export class BashTool implements BuiltinTool<BashInput> {
     const mergedEnv = buildShellChildEnv(process.env, noninteractiveEnv, this.shellEnvPolicy);
     if (this.pathPrefix.length > 0) {
       const sep = this.isWindowsBash ? ';' : ':';
-      const existing = mergedEnv['PATH'] ?? process.env['PATH'] ?? '';
-      mergedEnv['PATH'] = [...this.pathPrefix, existing].filter((part) => part.length > 0).join(sep);
+      // Windows env blocks spell the variable `Path`. Writing a second
+      // case-variant of the same name leaves it defined twice, and the stale
+      // copy can win — losing exactly the runtime/plugin dirs this prefix
+      // exists to add. Rewrite the spelling that is actually there.
+      const pathKey =
+        mergedEnv['Path'] !== undefined && mergedEnv['PATH'] === undefined ? 'Path' : 'PATH';
+      const existing = mergedEnv[pathKey] ?? mergedEnv['PATH'] ?? mergedEnv['Path'] ?? '';
+      const merged = [...this.pathPrefix, existing].filter((part) => part.length > 0).join(sep);
+      mergedEnv[pathKey] = merged;
+      // Mirror under the other spelling at the same value so POSIX-style
+      // consumers of `PATH` see the prefix too; equal values cannot conflict.
+      if (pathKey === 'Path' && mergedEnv['PATH'] === undefined) {
+        mergedEnv['PATH'] = merged;
+      }
     }
     return this.kaos.execWithEnv(shellArgs, mergedEnv);
   }
