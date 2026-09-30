@@ -147,7 +147,10 @@ export function composeRendererRegions(
   let cellsClipped = 0;
   const canReuseRows = options.reuseCachedRows === true && options.cache !== undefined;
   const lineCacheBefore = options.lineCache?.snapshot();
-  const underlayRowHashes = new Map<number, number>();
+  let underlayRowHashes: Map<number, number> | undefined;
+  const rememberUnderlayHash = (y: number, hash: number): void => {
+    (underlayRowHashes ??= new Map<number, number>()).set(y, hash);
+  };
 
   for (const { region, index } of ordered) {
     const rect = normalizeRect(region.rect);
@@ -171,9 +174,12 @@ export function composeRendererRegions(
       rowsVisited++;
       const sourceY = y - rect.y + scrollY;
       const line = region.lines[sourceY];
-      const rowId = createRowId(region, index, y);
-      const underlayHash = underlayRowHashes.get(y) ?? 0;
+      const underlayHash = underlayRowHashes?.get(y) ?? 0;
       const trackRows = options.cache !== undefined;
+      // The row id exists only for the composition cache. A frame whose cache
+      // was dropped (time-varying VFX) was still building one string per row
+      // and never reading it.
+      const rowId = trackRows ? createRowId(region, index, y) : '';
       // Dense ambient letterbox disables reuse (time-varying VFX) and drops the
       // cache entirely in layout-frame — skip Θ(width) row-key hashes then.
       const rowKeyHash = trackRows
@@ -181,7 +187,7 @@ export function composeRendererRegions(
         : 0;
       if (canReuseRows && options.cache?.shouldReuseRow(rowId, rowKeyHash)) {
         rowsReused++;
-        underlayRowHashes.set(y, combineRowHashes(underlayHash, rowKeyHash));
+        rememberUnderlayHash(y, combineRowHashes(underlayHash, rowKeyHash));
         continue;
       }
 
@@ -206,7 +212,7 @@ export function composeRendererRegions(
             region.background,
           );
         }
-        if (trackRows) underlayRowHashes.set(y, combineRowHashes(underlayHash, rowKeyHash));
+        if (trackRows) rememberUnderlayHash(y, combineRowHashes(underlayHash, rowKeyHash));
         continue;
       }
 
@@ -248,7 +254,7 @@ export function composeRendererRegions(
           cellsWritten++;
         }
       }
-      if (trackRows) underlayRowHashes.set(y, combineRowHashes(underlayHash, rowKeyHash));
+      if (trackRows) rememberUnderlayHash(y, combineRowHashes(underlayHash, rowKeyHash));
     }
   }
 

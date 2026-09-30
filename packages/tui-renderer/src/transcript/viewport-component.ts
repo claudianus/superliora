@@ -988,12 +988,14 @@ export class RendererTranscriptViewportComponent extends Container {
     safeWidth: number,
   ): RendererRegionLine[] {
     const cache = this.renderCache;
-    const cacheEpoch = this.getCacheEpoch();
+    // Not keyed on the ambient paint epoch, for the same reason as the content
+    // path: an animating child returns a new line array, and children that did
+    // not change keep their reference. Keying on the epoch made every scroll
+    // frame after an animation tick look cold and blank the window to `…`.
     if (
       this.isCacheEnabled() &&
       cache !== undefined &&
       cache.width === safeWidth &&
-      cache.cacheEpoch === cacheEpoch &&
       cache.childRefs.length === this.children.length &&
       cache.out.length > 0
     ) {
