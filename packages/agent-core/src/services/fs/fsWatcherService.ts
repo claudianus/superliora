@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import nodePath, { join } from 'node:path';
+import nodePath from 'node:path';
+
+import { foldPathForIdentity } from '#/utils/path-identity';
 
 import { FSWatcher } from 'chokidar';
 
@@ -55,30 +55,9 @@ const DEFAULT_MAX_PATHS_PER_CONNECTION = 100;
  * service barrel, and touching the filesystem at import time would run under
  * whatever module mocks are active in the importing test.
  */
-let foldCase: boolean | undefined;
-
-function isCaseInsensitiveFs(): boolean {
-  if (foldCase !== undefined) return foldCase;
-  const probeDir = join(tmpdir(), `.liora-case-probe-${process.pid}`);
-  try {
-    mkdirSync(probeDir, { recursive: true });
-    writeFileSync(join(probeDir, 'CaseProbe'), 'x');
-    foldCase = existsSync(join(probeDir, 'caseprobe'));
-  } catch {
-    foldCase = false;
-  } finally {
-    try {
-      rmSync(probeDir, { recursive: true, force: true });
-    } catch {
-      // A leftover probe directory is harmless.
-    }
-  }
-  return foldCase;
-}
-
 function comparablePath(p: string): string {
   const unified = p.replaceAll('\\', '/');
-  return isCaseInsensitiveFs() ? unified.toLowerCase() : unified;
+  return foldPathForIdentity(unified);
 }
 
 interface PendingChange {

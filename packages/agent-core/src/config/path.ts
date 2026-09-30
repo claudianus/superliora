@@ -9,6 +9,8 @@ import {
 import { homedir } from 'node:os';
 import { isAbsolute, join, normalize } from 'pathe';
 
+import { foldPathForIdentity } from '#/utils/path-identity';
+
 /** Comfortable SuperLiora home volume free space (~100 GB). */
 export const LIORA_HOME_COMFORT_FREE_BYTES = 100 * 1024 * 1024 * 1024;
 
@@ -108,6 +110,5 @@ export function isLioraHomePopulated(homeDir: string): boolean {
 export function sameHomePath(left: string, right: string): boolean {
   const a = normalize(left).replace(/[\\/]+$/u, '');
   const b = normalize(right).replace(/[\\/]+$/u, '');
-  if (process.platform === 'win32') return a.toLowerCase() === b.toLowerCase();
-  return a === b;
+  return foldPathForIdentity(a) === foldPathForIdentity(b);
 }

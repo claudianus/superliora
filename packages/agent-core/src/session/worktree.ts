@@ -10,6 +10,7 @@ import { resolveLioraHome } from '#/config/path';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { isWindowsReservedDirName, slugifyWorkDirName } from '#/utils/workdir-slug';
 import { writeFileAtomicDurable } from '#/utils/fs';
+import { foldPathForIdentity } from '#/utils/path-identity';
 import { ensureGitRepoForWorktrees } from './git-bootstrap';
 
 export const SESSION_WORKTREE_CUSTOM_KEY = 'worktree' as const;
@@ -142,10 +143,15 @@ function isWinAbsolutePath(path: string): boolean {
 
 function foldWorktreePath(path: string): string {
   const unified = stripWinNamespacePrefix(path).replaceAll('\\', '/');
+  // A Windows-shaped path folds regardless of the host, because a client can
+  // register a Windows worktree from a Linux session and the drive letter and
+  // separator are case-insensitive by definition. Otherwise the filesystem
+  // decides — a default macOS volume folds, a case-sensitive NFS mount on the
+  // same OS does not, and `process.platform` cannot tell them apart.
   if (process.platform === 'win32' || /^[a-zA-Z]:\//.test(unified)) {
     return unified.toLowerCase();
   }
-  return unified;
+  return foldPathForIdentity(unified);
 }
 
 function resolveNativeWorktreePath(path: string): string {
