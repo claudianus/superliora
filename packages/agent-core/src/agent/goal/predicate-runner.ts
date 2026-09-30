@@ -10,6 +10,8 @@ import { isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 
 import { resolveRuntimeSpawn } from '@superliora/kaos';
 
+import { killProcessTree } from '../../services/fs/process-kill';
+
 import type {
   GoalPredicateEvalResult,
   GoalPredicateFailure,
@@ -157,7 +159,11 @@ function defaultRunVitestFile(
     let stderr = '';
     let stdout = '';
     const timer = setTimeout(() => {
-      child.kill('SIGTERM');
+      // Windows `kill` is TerminateProcess on the direct child only, so the
+      // vitest workers keep running after the predicate has already reported a
+      // timeout failure; `taskkill /T` takes the tree. (Measured on POSIX: pnpm
+      // forwards SIGTERM, so the direct kill is enough there.)
+      killProcessTree(child);
       resolvePromise({ ok: false, detail: `timeout after ${timeoutMs}ms` });
     }, timeoutMs);
     child.stdout?.on('data', (c: Buffer) => {
