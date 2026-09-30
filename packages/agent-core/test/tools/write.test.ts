@@ -1,3 +1,8 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { LocalKaos } from '@superliora/kaos';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { type WriteInput, WriteInputSchema, WriteTool } from '../../src/tools/builtin/file/write';
@@ -178,6 +183,61 @@ describe('WriteTool', () => {
     expect(result.isError).toBe(true);
     expect(result.output).toContain('UTF-16');
     expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('keeps a UTF-16 target in UTF-16 when overwriting it', async () => {
+    // Rewriting a UTF-16 script as UTF-8 (no mark) makes Windows PowerShell 5.1
+    // read it as ANSI, so a file's encoding survives the write.
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const readBytes = vi.fn().mockResolvedValue(Buffer.from([0xff, 0xfe, 0x61, 0x00]));
+    const tool = new WriteTool(
+      createFakeKaos({ writeAtomic, readBytes, stat: DIR_STAT }),
+      PERMISSIVE_WORKSPACE,
+    );
+
+    const result = await executeTool(
+      tool,
+      context({ path: '/tmp/export.txt', content: 'line\n' }),
+    );
+
+    expect(result.isError).toBeFalsy();
+    const written = writeAtomic.mock.calls[0]?.[1] as Buffer;
+    expect(written.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xfe]));
+    expect(written.subarray(2).toString('utf16le')).toBe('line\n');
+  });
+
+  it('writes plain UTF-8 when the target is not UTF-16', async () => {
+    const writeAtomic = vi.fn().mockResolvedValue(undefined);
+    const readBytes = vi.fn().mockResolvedValue(Buffer.from('pl', 'utf8'));
+    const tool = new WriteTool(
+      createFakeKaos({ writeAtomic, readBytes, stat: DIR_STAT }),
+      PERMISSIVE_WORKSPACE,
+    );
+
+    await executeTool(tool, context({ path: '/tmp/plain.txt', content: 'line\n' }));
+
+    expect(writeAtomic).toHaveBeenCalledWith('/tmp/plain.txt', 'line\n');
+  });
+
+  it('leaves a UTF-16 file on disk as UTF-16 after an overwrite', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'liora-write-utf16-'));
+    try {
+      const file = join(dir, 'export.txt');
+      writeFileSync(
+        file,
+        Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('old\r\n', 'utf16le')]),
+      );
+      const tool = new WriteTool(new LocalKaos('/'), PERMISSIVE_WORKSPACE);
+
+      const result = await executeTool(tool, context({ path: file, content: 'new\r\n' }));
+
+      expect(result.isError).toBeFalsy();
+      const bytes = readFileSync(file);
+      expect(bytes.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xfe]));
+      expect(bytes.subarray(2).toString('utf16le')).toBe('new\r\n');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('reports the real UTF-8 byte count for non-ASCII content', async () => {

@@ -21,12 +21,22 @@ import {
   FABRICATED_DEFER_BLOCKED_MESSAGE,
   hasFabricatedDeferral,
 } from '../../support/fabricated-defer';
-import { hasUtf16Bom } from '../../support/file-type';
+import { hasUtf16Bom, utf16BomKind } from '../../support/file-type';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
 import WRITE_DESCRIPTION from './write.md?raw';
 import { diskFullToolError } from '#/runtime/disk-pressure';
+
+/** Re-encode text for a UTF-16 target, keeping its byte order and its mark. */
+function encodeUtf16(text: string, kind: 'utf16le' | 'utf16be'): Buffer {
+  const body = Buffer.from(text, 'utf16le');
+  const bytes = kind === 'utf16le' ? body : Buffer.from(body).swap16();
+  return Buffer.concat([
+    Buffer.from(kind === 'utf16le' ? [0xff, 0xfe] : [0xfe, 0xff]),
+    bytes,
+  ]);
+}
 
 /** Mask isolating the file-type bits of a stat mode. */
 const S_IFMT = 0o170000;
@@ -119,12 +129,16 @@ export class WriteTool implements BuiltinTool<WriteInput> {
     };
   }
 
-  private async readUtf16Prefix(safePath: string): Promise<boolean> {
+  /**
+   * Byte-order mark of an existing target, or `false` when it is not UTF-16 text
+   * (including a file that does not exist yet).
+   */
+  private async readUtf16Prefix(safePath: string): Promise<'utf16le' | 'utf16be' | false> {
     try {
-      return hasUtf16Bom(await this.kaos.readBytes(safePath, 2));
+      return utf16BomKind(await this.kaos.readBytes(safePath, 2)) ?? false;
     } catch {
-      // Missing file (append creates it) or unreadable prefix: nothing to warn
-      // about, and the write itself will report the real failure.
+      // Missing file (append/create) or unreadable prefix: nothing to preserve,
+      // and the write itself will report the real failure.
       return false;
     }
   }
@@ -178,7 +192,13 @@ export class WriteTool implements BuiltinTool<WriteInput> {
         }
         await this.kaos.writeText(safePath, args.content, { mode: 'a' });
       } else {
-        await this.kaos.writeAtomic(safePath, args.content);
+        // A file's encoding is part of the file: rewriting a UTF-16 script as
+        // UTF-8 (no mark) makes Windows PowerShell 5.1 read it as ANSI.
+        const utf16 = await this.readUtf16Prefix(safePath);
+        await this.kaos.writeAtomic(
+          safePath,
+          utf16 === false ? args.content : encodeUtf16(args.content, utf16),
+        );
       }
       await provenance?.record({
         path: safePath,

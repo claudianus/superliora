@@ -389,11 +389,15 @@ function getSuffix(path: string): string {
  * UTF-16 has no in-band marker, so only a byte-order mark makes it detectable.
  * Shared so the reader, the sniffer, and the writer agree on what counts.
  */
+export function utf16BomKind(header: Buffer | Uint8Array): 'utf16le' | 'utf16be' | undefined {
+  if (header.length < 2) return undefined;
+  if (header[0] === 0xff && header[1] === 0xfe) return 'utf16le';
+  if (header[0] === 0xfe && header[1] === 0xff) return 'utf16be';
+  return undefined;
+}
+
 export function hasUtf16Bom(header: Buffer | Uint8Array): boolean {
-  if (header.length < 2) return false;
-  return (
-    (header[0] === 0xff && header[1] === 0xfe) || (header[0] === 0xfe && header[1] === 0xff)
-  );
+  return utf16BomKind(header) !== undefined;
 }
 
 export function detectFileType(
