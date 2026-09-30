@@ -8,6 +8,7 @@
  * another content paint when {@link TranscriptPresentResult.hasPendingDirty}.
  */
 
+import type { RendererCell } from '../cell-buffer/types';
 import {
   IncrementalRenderer,
   type IncrementalRenderStats,
@@ -136,14 +137,27 @@ export class TranscriptVisibleLinePresenter {
   }
 }
 
+/**
+ * Memoized per cell-array identity. The promoted cell arrays keep their
+ * reference across frames, so an unchanged row's key is reused instead of being
+ * rebuilt cell by cell — the visible window rebuilds thousands of small strings
+ * per frame otherwise. Sound under the same immutability contract the
+ * compositor's row ids already rely on: a cell array that changes is a new
+ * array.
+ */
+const cellLineKeyCache = new WeakMap<readonly RendererCell[], string>();
+
 /** Stable present key for string or cell region lines. */
 export function regionLinePresentKey(line: RendererRegionLine): string {
   if (typeof line === 'string') return line;
+  const cached = cellLineKeyCache.get(line);
+  if (cached !== undefined) return cached;
   let out = '';
   for (const cell of line) {
     out += cell.char;
     if (cell.style?.fg !== undefined) out += `\0f${cell.style.fg}`;
     if (cell.style?.bg !== undefined) out += `\0b${cell.style.bg}`;
   }
+  cellLineKeyCache.set(line, out);
   return out;
 }
