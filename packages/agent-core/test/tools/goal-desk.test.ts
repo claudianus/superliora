@@ -37,6 +37,7 @@ import {
   summarizeJobStrip,
 } from '../../src/tools/builtin/job/job-runtime';
 import { launchJobWorker } from '../../src/tools/builtin/job/job-worker';
+import { holdJobForSpawnBudget } from '../../src/session/job/job-offload';
 import type { ToolStore } from '../../src/tools/store';
 
 function memoryStore(): ToolStore {
@@ -293,6 +294,38 @@ describe('goal-desk driver sync + desk Next move', () => {
     expect(getJob(store, desk.id)?.status).toBe('blocked');
   });
 
+  it('blocks the goal binding when the spawn budget holds the driver', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const { desk, driver } = await delegateConductorGoalDesk(agent, {
+      objective: 'Hold the line',
+    });
+    patchJob(store, desk.id, { status: 'running' });
+    patchJob(store, driver.id, { status: 'running' });
+    expect(readGoalSessionBinding(store)?.status).toBe('active');
+
+    holdJobForSpawnBudget(store, driver.id, agent);
+
+    // `blocked` counts as a live driver in the goal heal loop, so without the
+    // sync the binding stays `active` and /goal reports the goal as pursuing
+    // while nothing runs.
+    expect(getJob(store, driver.id)?.status).toBe('blocked');
+    expect(readGoalSessionBinding(store)?.status).toBe('blocked');
+    expect(getJob(store, desk.id)?.status).toBe('blocked');
+  });
+
+  it('leaves a job that already left running alone when the budget expires', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const { driver } = await delegateConductorGoalDesk(agent, { objective: 'Cancelled mid-spawn' });
+    patchJob(store, driver.id, { status: 'cancelled', resultSummary: 'user cancel' });
+
+    holdJobForSpawnBudget(store, driver.id, agent);
+
+    // Budget expiry must not resurrect a terminal job.
+    expect(getJob(store, driver.id)?.status).toBe('cancelled');
+  });
+
   it('reactivates blocked binding when the bound driver is running again', async () => {
     const store = memoryStore();
     const agent = fakeConductorAgent(store);
@@ -404,7 +437,7 @@ describe('Conductor CreateGoal / GetGoal Session Goal API', () => {
     const binding = readGoalSessionBinding(store);
     expect(binding?.deskJobId).toBe(parsed.goal.deskJobId);
     const jobs = listJobs(store);
-    expect(jobs.map((j) => j.kind).sort()).toEqual(['goal-desk', 'goal-driver']);
+    expect(jobs.map((j) => j.kind).toSorted()).toEqual(['goal-desk', 'goal-driver']);
   });
 
   it('GetGoal on Conductor reads the session binding, not empty GoalMode', async () => {

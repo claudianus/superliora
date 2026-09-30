@@ -27,6 +27,7 @@ import {
   resolveConductorPoolConfig,
   scheduleQueuedJobs,
 } from '../../tools/builtin/job/job-runtime';
+import { syncGoalDeskParentFromDriver } from '../../tools/builtin/goal/goal-session-binding';
 import { launchJobWorker } from '../../tools/builtin/job/job-worker';
 import type { ToolStore } from '../../tools/store';
 import { JOB_WORKER_SPAWN_BUDGET_MS, WorkerSpawner } from './worker-spawner';
@@ -148,30 +149,49 @@ export function enqueueJobWorkerSpawn(input: {
       emitJobEvents(agent, [jobRecordToUpdatedEvent(current, { reason: `spawn:${phase}` })]);
     },
     onTimeout: () => {
-      const current = getJob(store, job.id);
-      // Budget expiry must not resurrect a job that left `running` while the
-      // handshake was hung (user cancel / terminal failure / recovery) —
-      // record a blocked hold only for a still-live spawn.
-      if (current === undefined || current.status !== 'running') return;
-      patchJobAndNotify(
-        store,
-        job.id,
-        {
-          status: 'blocked',
-          notes: [
-            current.notes,
-            `spawn_budget_exceeded: >${JOB_WORKER_SPAWN_BUDGET_MS}ms; held for resume`,
-          ]
-            .filter(Boolean)
-            .join('\n'),
-        },
-        {
-          agent,
-          summary: `spawn budget exceeded (${JOB_WORKER_SPAWN_BUDGET_MS}ms)`,
-        },
-      );
+      holdJobForSpawnBudget(store, job.id, agent);
     },
   });
+}
+
+/**
+ * A spawn that burned the whole handshake budget is held for resume.
+ *
+ * The goal binding has to hear about it: `blocked` counts as a *live* driver in
+ * the goal heal loop, so a goal-driver held here would leave `/goal` reporting
+ * the goal as pursuing while nothing runs — and no escalation fires because the
+ * driver still looks alive.
+ */
+export function holdJobForSpawnBudget(
+  store: ToolStore,
+  jobId: string,
+  agent?: Agent,
+): void {
+  const current = getJob(store, jobId);
+  // Budget expiry must not resurrect a job that left `running` while the
+  // handshake was hung (user cancel / terminal failure / recovery) —
+  // record a blocked hold only for a still-live spawn.
+  if (current === undefined || current.status !== 'running') return;
+  const updated = patchJobAndNotify(
+    store,
+    jobId,
+    {
+      status: 'blocked',
+      notes: [
+        current.notes,
+        `spawn_budget_exceeded: >${JOB_WORKER_SPAWN_BUDGET_MS}ms; held for resume`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    },
+    {
+      agent,
+      summary: `spawn budget exceeded (${JOB_WORKER_SPAWN_BUDGET_MS}ms)`,
+    },
+  );
+  if (updated !== undefined) {
+    syncGoalDeskParentFromDriver(store, updated, agent);
+  }
 }
 
 async function runSchedule(request: JobSchedulePumpRequest): Promise<void> {
