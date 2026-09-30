@@ -478,6 +478,149 @@ async function snapshotWorkerWorktree(
   }
 }
 
+export interface AdmitJobWorkerLaunchInput {
+  readonly store: ToolStore;
+  readonly agent: Agent;
+  readonly job: JobRecord;
+  /** Override for the whole admission step; defaults to the module budget. */
+  readonly admissionBudgetMs?: number;
+}
+
+export type AdmitJobWorkerLaunchResult =
+  | { readonly ok: true; readonly job: JobRecord }
+  | { readonly ok: false; readonly error: string };
+
+/**
+ * Ceiling on the whole admission step (objective-profile judgment + model
+ * probes). The probes walk the alias chain serially with a 12s timeout each,
+ * so a degraded provider needs a total bound of its own now that the spawn
+ * handshake budget no longer covers this work.
+ */
+export const JOB_WORKER_MODEL_ADMISSION_BUDGET_MS = 30_000;
+
+/**
+ * Resolve the objective profile and probe the worker model *before* the job
+ * takes a spawn slot.
+ *
+ * The probe is a live request per alias, walked serially with a 12s timeout
+ * each. Run inside the spawn handshake it consumed the 30s handshake budget and
+ * held a slot, so one degraded provider stalled the whole fleet (all six slots
+ * parked in probe loops) and the job was recorded as `spawn_budget_exceeded` —
+ * a timeout, when the true cause was `no live worker model`.
+ *
+ * Runs on the offload lane ahead of `enqueueJobWorkerSpawn`, so it consumes
+ * neither a slot nor the handshake budget, and the real reason reaches the
+ * ledger, the inbox, and Goal Desk.
+ *
+ * Never throws: the pump turns a throw from the launch step into
+ * `failed/launch_failed`, which would misclassify a quota or auth block.
+ */
+export async function admitJobWorkerLaunch(
+  input: AdmitJobWorkerLaunchInput,
+): Promise<AdmitJobWorkerLaunchResult> {
+  let job = input.job;
+  const admissionBudgetMs = Math.max(
+    1,
+    input.admissionBudgetMs ?? JOB_WORKER_MODEL_ADMISSION_BUDGET_MS,
+  );
+  const admissionSignal = AbortSignal.timeout(admissionBudgetMs);
+  try {
+    const objectiveBlob = [job.title, job.prompt, job.goalObjective].filter(Boolean).join('\n');
+    const objectiveProfile = await resolveObjectiveProfileWithInfer(
+      {
+        objective: objectiveBlob,
+        title: job.title,
+        prompt: job.prompt,
+        successCriteria: job.successCriteria,
+        verificationCommands: job.verificationCommands,
+        surfaceKind: job.surfaceKind,
+        ownershipPaths: job.ownershipPaths,
+        contextPaths: job.contextPaths,
+      },
+      classifierDepsFromAgent(input.agent),
+      {},
+    );
+    if (objectiveBlob.trim().length > 0 && input.agent.objectiveProfile !== undefined) {
+      input.agent.objectiveProfile.set(objectiveBlob, objectiveProfile);
+    }
+    job =
+      patchJob(input.store, job.id, {
+        premiumDensity: objectiveProfile.premiumDensity,
+        notes: [job.notes, `premium_density: ${objectiveProfile.premiumDensity}`]
+          .filter(Boolean)
+          .join('\n'),
+      }) ?? job;
+    emitJobEvents(input.agent, [jobRecordToUpdatedEvent(job, { reason: 'effect' })]);
+    const uiFlags = uiSpawnQualityFlags({
+      surfaceKind: job.surfaceKind,
+      profile: objectiveProfile,
+    });
+
+    // Live probe before spawn — do not attach a worker to a quota/auth-dead alias.
+    const modelPreflight = await preflightJobWorkerModel(input.agent, job, {
+      signal: admissionSignal,
+      preferVision: uiFlags?.preferVisionModel === true,
+    });
+    if (!modelPreflight.ok) {
+      return { ok: false, ...blockJobForModelPreflight(input, job, modelPreflight) };
+    }
+    if (modelPreflight.modelAlias !== undefined && modelPreflight.modelAlias !== job.modelAlias) {
+      patchJob(input.store, job.id, { modelAlias: modelPreflight.modelAlias });
+      job = { ...job, modelAlias: modelPreflight.modelAlias };
+    }
+    return { ok: true, job };
+  } catch (error) {
+    // A probe that ignores the deadline rejects rather than returning ok:false;
+    // report the budget honestly instead of an opaque AbortError.
+    if (admissionSignal.aborted) {
+      return {
+        ok: false,
+        ...blockJobForModelPreflight(input, job, {
+          note: 'preflight_timeout',
+          error: `no worker model was confirmed within ${String(admissionBudgetMs)}ms`,
+        }),
+      };
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    return { ok: false, ...blockJobForModelPreflight(input, job, { note: '', error: detail }) };
+  }
+}
+
+/**
+ * Model/quota blockers are resumable — `blocked` (not `failed`) so /goal resume
+ * and JobResume re-queue after /model or provider recovery. Heal treats
+ * `blocked` as live, so mirror Goal Desk immediately. A job that left `running`
+ * while the probe ran (user cancel) is left alone.
+ */
+function blockJobForModelPreflight(
+  input: AdmitJobWorkerLaunchInput,
+  job: JobRecord,
+  failure: { readonly note: string; readonly error: string },
+): { readonly error: string } {
+  const live = getJob(input.store, job.id);
+  if (live !== undefined && (live.status === 'blocked' || isTerminalOrCancelled(live.status))) {
+    return { error: failure.error };
+  }
+  const updated = patchJob(input.store, job.id, {
+    status: 'blocked',
+    resultSummary: failure.error.slice(0, 2000),
+    notes: [job.notes, failure.note, `spawn_blocked: ${failure.error}`]
+      .filter(Boolean)
+      .join('\n'),
+  });
+  if (updated) {
+    syncGoalDeskParentFromDriver(input.store, updated, input.agent);
+    notifyJobTerminal({
+      store: input.store,
+      job: updated,
+      status: 'blocked',
+      summary: failure.error,
+      agent: input.agent,
+    });
+  }
+  return { error: failure.error };
+}
+
 /**
  * Launch a background subagent for a job that is already `running` with worktree assigned.
  * Completion updates ledger, meta inbox, and pumps the scheduler for the next queued jobs.
@@ -565,79 +708,20 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   }
 
   const profileName = profileForJobKind(job.kind);
-  const objectiveBlob = [job.title, job.prompt, job.goalObjective].filter(Boolean).join('\n');
-  const objectiveProfile = await resolveObjectiveProfileWithInfer(
-    {
-      objective: objectiveBlob,
-      title: job.title,
-      prompt: job.prompt,
-      successCriteria: job.successCriteria,
-      verificationCommands: job.verificationCommands,
-      surfaceKind: job.surfaceKind,
-      ownershipPaths: job.ownershipPaths,
-      contextPaths: job.contextPaths,
-    },
-    classifierDepsFromAgent(input.agent),
-    { signal: controller.signal },
-  );
-  if (objectiveBlob.trim().length > 0 && input.agent.objectiveProfile !== undefined) {
-    input.agent.objectiveProfile.set(objectiveBlob, objectiveProfile);
-  }
-  job =
-    patchJob(input.store, job.id, {
-      premiumDensity: objectiveProfile.premiumDensity,
-      notes: [job.notes, `premium_density: ${objectiveProfile.premiumDensity}`]
-        .filter(Boolean)
-        .join('\n'),
-    }) ?? job;
-  emitJobEvents(input.agent, [jobRecordToUpdatedEvent(job, { reason: 'effect' })]);
+  // The objective-profile judgment and the model preflight ran in admission, on
+  // the offload lane before this job took a spawn slot. Read the persisted
+  // density back so the spawn flags stay identical.
   const uiFlags = uiSpawnQualityFlags({
     surfaceKind: job.surfaceKind,
-    profile: objectiveProfile,
+    profile: {
+      premiumDensity: job.premiumDensity ?? 'code',
+      visualSurface: job.premiumDensity === 'visual',
+    },
   });
 
-  // Live probe before spawn — do not attach a worker to a quota/auth-dead alias.
-  const modelPreflight = await preflightJobWorkerModel(input.agent, job, {
-    signal: controller.signal,
-    preferVision: uiFlags?.preferVisionModel === true,
-  });
-  if (!modelPreflight.ok) {
-    clearJobWorkerHandle(job.id);
-    const detail = modelPreflight.error;
-    // Model/quota blockers are resumable — `blocked` (not `failed`) so
-    // /goal resume and JobResume re-queue after /model or provider recovery.
-    // Heal treats `blocked` as live, so mirror Goal Desk immediately.
-    const updated = patchJob(input.store, job.id, {
-      status: 'blocked',
-      resultSummary: detail.slice(0, 2000),
-      notes: [job.notes, modelPreflight.note, `spawn_blocked: ${detail}`]
-        .filter(Boolean)
-        .join('\n'),
-    });
-    if (updated) {
-      syncGoalDeskParentFromDriver(input.store, updated, input.agent);
-      notifyJobTerminal({
-        store: input.store,
-        job: updated,
-        status: 'blocked',
-        summary: detail,
-        agent: input.agent,
-      });
-    }
-    return { ok: false, error: detail };
-  }
-  if (
-    modelPreflight.modelAlias !== undefined &&
-    modelPreflight.modelAlias !== job.modelAlias
-  ) {
-    patchJob(input.store, job.id, { modelAlias: modelPreflight.modelAlias });
-    job = { ...job, modelAlias: modelPreflight.modelAlias };
-  }
-
-  // Re-check after the async preflight: the spawn budget may have expired
-  // (offload lane already recorded `blocked`) or the user may have cancelled
-  // while the model probe ran. Attaching a worker to a non-live ledger state
-  // double-runs the worktree on the next JobResume.
+  // Re-check before spawn: the user may have cancelled while admission ran.
+  // Attaching a worker to a non-live ledger state double-runs the worktree on
+  // the next JobResume.
   if (controller.signal.aborted) {
     clearJobWorkerHandle(job.id);
     return { ok: false, error: 'aborted before spawn' };
@@ -674,8 +758,9 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     forcePremiumQuality: uiFlags?.forcePremiumQuality,
     // Text-only coding models cannot audit screenshots; prefer a vision alias.
     preferVisionModel: uiFlags?.preferVisionModel,
-    // Conductor-picked / live-probed worker model; omit → role smart route.
-    modelAlias: modelPreflight.modelAlias ?? job.modelAlias,
+    // Conductor-picked / live-probed worker model; the admission step pinned the
+    // probed alias on the ledger, so read it back (omit → role smart route).
+    modelAlias: job.modelAlias,
     // Goal-driver (spec 2026-08-04-goal-driver-jobs): the goal migrates onto
     // the worker, whose turn engine then runs the autonomous loop. The brief
     // doubles as the objective; JobCreate validated its length.

@@ -69,10 +69,14 @@ export async function delegateConductorPlanDesk(
     planStructured: structured,
   });
 
-  void requestJobSchedulePump({ store, agent });
+  const pump = requestJobSchedulePump({ store, agent });
   if (agent.subagentHost !== undefined) {
     await Promise.race([
-      getJobWorkerSpawner().settle(),
+      // Admission runs on the pump lane before the spawner sees the task.
+      (async () => {
+        await pump;
+        await getJobWorkerSpawner().settle();
+      })(),
       new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, JOB_CREATE_ACK_SPAWN_GRACE_MS);
         (timer as { unref?: () => void }).unref?.();
@@ -96,7 +100,7 @@ export async function delegateConductorPlanDesk(
 
 function titleFromContext(context: string): string {
   if (context.length === 0) return 'Plan Desk';
-  const one = context.replace(/\s+/g, ' ').trim();
+  const one = context.replaceAll(/\s+/g, ' ').trim();
   if (one.length <= 72) return `Plan: ${one}`;
   return `Plan: ${one.slice(0, 64)}...`;
 }

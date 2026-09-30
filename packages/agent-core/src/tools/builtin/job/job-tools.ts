@@ -790,10 +790,17 @@ export async function ackCreatedJobs(input: {
 }): Promise<{ isError: false; output: string }> {
   // V2-1 ACK deadline (G1): scheduling + worker spawns run on the offload lane.
   if (input.skipSchedulePump !== true) {
-    void requestJobSchedulePump({ store: input.store, agent: input.agent });
+    const pump = requestJobSchedulePump({ store: input.store, agent: input.agent });
     if (input.agent?.subagentHost !== undefined) {
       await Promise.race([
-        getJobWorkerSpawner().settle(),
+        // Promotion and spawn admission (objective profile + live model probe)
+        // run on that lane before the spawner is handed the task, so the ACK has
+        // to wait for the pump first: settling the spawner alone returned while
+        // the worker had not reached it yet.
+        (async () => {
+          await pump;
+          await getJobWorkerSpawner().settle();
+        })(),
         new Promise<void>((resolve) => {
           const timer = setTimeout(resolve, JOB_CREATE_ACK_SPAWN_GRACE_MS);
           (timer as { unref?: () => void }).unref?.();

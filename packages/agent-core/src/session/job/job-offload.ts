@@ -28,7 +28,7 @@ import {
   scheduleQueuedJobs,
 } from '../../tools/builtin/job/job-runtime';
 import { syncGoalDeskParentFromDriver } from '../../tools/builtin/goal/goal-session-binding';
-import { launchJobWorker } from '../../tools/builtin/job/job-worker';
+import { admitJobWorkerLaunch, launchJobWorker } from '../../tools/builtin/job/job-worker';
 import type { ToolStore } from '../../tools/store';
 import { JOB_WORKER_SPAWN_BUDGET_MS, WorkerSpawner } from './worker-spawner';
 
@@ -216,7 +216,14 @@ async function runSchedule(request: JobSchedulePumpRequest): Promise<void> {
     launchWorker:
       agent !== undefined && agent.subagentHost !== undefined
         ? async (job) => {
-            enqueueJobWorkerSpawn({ store, agent, job });
+            // Admission (objective profile + live model probe) runs here, on the
+            // lane, before the job takes a spawn slot: the probe is a network
+            // walk over the alias chain and used to eat the 30s handshake budget
+            // and hold a slot, which stalled the fleet under a degraded provider
+            // and reported the failure as a timeout.
+            const admitted = await admitJobWorkerLaunch({ store, agent, job });
+            if (!admitted.ok) return;
+            enqueueJobWorkerSpawn({ store, agent, job: admitted.job });
           }
         : undefined,
   });
