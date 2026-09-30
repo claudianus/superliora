@@ -28,7 +28,7 @@ import {
   startPingTimer,
 } from './connection-heartbeat';
 import { dispatchControlMessage } from './connection-message';
-import { sendControlFrame, sendFrame, type SendContext } from './connection-send';
+import { sendControlFrame, sendFrame, type PreparedFrame, type SendContext } from './connection-send';
 
 export type {
   AbortHandler,
@@ -76,6 +76,8 @@ export class WsConnection implements WsConnectionHost {
   private pongTimer?: NodeJS.Timeout;
   private closed = false;
   private gotClientHello = false;
+  /** Frame-send context, built once in the constructor (see there). */
+  private readonly sendCtx: SendContext;
 
   /**
    * True while this socket is being treated as a slow consumer: volatile
@@ -102,26 +104,10 @@ export class WsConnection implements WsConnectionHost {
     this.pongTimeoutMs = opts.pongTimeoutMs ?? DEFAULT_PONG_TIMEOUT_MS;
     this.maxEventBufferSize = opts.maxEventBufferSize ?? DEFAULT_MAX_EVENT_BUFFER;
     this.maxBufferedBytes = opts.maxBufferedBytes ?? DEFAULT_MAX_BUFFERED_BYTES;
-
-    this.send(
-      buildServerHello({
-        ws_connection_id: this.id,
-        protocol_version: WS_PROTOCOL_VERSION,
-        heartbeat_ms: this.pingIntervalMs,
-        max_event_buffer_size: this.maxEventBufferSize,
-        capabilities: { event_batching: false, compression: false },
-      }),
-    );
-
-    this.socket.on('message', (data) =>{  this.onMessage(data); });
-    attachSocketCloseHandler(this.socket, (code, reason) =>{  this.onClose(code, reason); });
-    this.socket.on('error', (err) =>{  logSocketError(this.logger, err); });
-
-    this.pingTimer = startPingTimer(this.sendContext(), this.pingIntervalMs, () => this.closed);
-  }
-
-  private sendContext(): SendContext {
-    return {
+    // Built once: every frame used to allocate this object plus six closures,
+    // and a token-delta stream sends one frame per delta. The closures read the
+    // live fields at call time, so reuse is behaviourally identical.
+    this.sendCtx = {
       socket: this.socket,
       logger: this.logger,
       wsBroadcast: this.wsBroadcast,
@@ -143,6 +129,22 @@ export class WsConnection implements WsConnectionHost {
       },
       pongTimeoutMs: this.pongTimeoutMs,
     };
+
+    this.send(
+      buildServerHello({
+        ws_connection_id: this.id,
+        protocol_version: WS_PROTOCOL_VERSION,
+        heartbeat_ms: this.pingIntervalMs,
+        max_event_buffer_size: this.maxEventBufferSize,
+        capabilities: { event_batching: false, compression: false },
+      }),
+    );
+
+    this.socket.on('message', (data) =>{  this.onMessage(data); });
+    attachSocketCloseHandler(this.socket, (code, reason) =>{  this.onClose(code, reason); });
+    this.socket.on('error', (err) =>{  logSocketError(this.logger, err); });
+
+    this.pingTimer = startPingTimer(this.sendCtx, this.pingIntervalMs, () => this.closed);
   }
 
   private onMessage(data: RawData): void {
@@ -207,12 +209,12 @@ export class WsConnection implements WsConnectionHost {
     this.logger.info({ code, reason, gotClientHello: this.gotClientHello }, 'connection closed');
   }
 
-  public send(message: unknown): void {
-    sendFrame(this.sendContext(), message);
+  public send(message: unknown, prepared?: PreparedFrame): void {
+    sendFrame(this.sendCtx, message, prepared);
   }
 
   sendControlFrame(message: unknown): void {
-    sendControlFrame(this.sendContext(), message);
+    sendControlFrame(this.sendCtx, message);
   }
 
   public close(code = 1000, reason?: string): void {

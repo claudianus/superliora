@@ -23,7 +23,26 @@ export interface SendContext {
   setPongTimer(timer: NodeJS.Timeout | undefined): void;
 }
 
-export function sendFrame(ctx: SendContext, message: unknown): void {
+/**
+ * A frame serialized once at the fan-out point. One event goes to every
+ * subscriber of its session, and serializing inside each connection's send made
+ * that one identical JSON pass per subscriber per event.
+ */
+export interface PreparedFrame {
+  readonly json: string;
+  /** Decided once with the envelope so the slow-consumer gate stays free. */
+  readonly volatile: boolean;
+}
+
+export function prepareFrame(message: unknown): PreparedFrame {
+  return { json: JSON.stringify(message) ?? '', volatile: isVolatileEnvelope(message) };
+}
+
+export function sendFrame(
+  ctx: SendContext,
+  message: unknown,
+  prepared?: PreparedFrame,
+): void {
   if (ctx.isClosed()) return;
   if (ctx.socket.readyState !== ctx.socket.OPEN) return;
 
@@ -33,12 +52,13 @@ export function sendFrame(ctx: SendContext, message: unknown): void {
   // messages are always sent — a dropped durable would corrupt the seq
   // watermark contract. A slow-consumer `resync_required` is emitted once
   // on entry so the client rebuilds its view from the snapshot.
+  const frame = prepared ?? prepareFrame(message);
   updateSlowConsumer(ctx);
-  if (ctx.isSlowConsumer() && isVolatileEnvelope(message)) {
+  if (ctx.isSlowConsumer() && frame.volatile) {
     return;
   }
 
-  sendControlFrame(ctx, message);
+  writeFrame(ctx, frame);
 }
 
 /**
@@ -46,11 +66,19 @@ export function sendFrame(ctx: SendContext, message: unknown): void {
  * frames, the resync notice itself). Mirrors {@link sendFrame} minus the
  * backpressure gate.
  */
-export function sendControlFrame(ctx: SendContext, message: unknown): void {
+export function sendControlFrame(
+  ctx: SendContext,
+  message: unknown,
+  prepared?: PreparedFrame,
+): void {
   if (ctx.isClosed()) return;
   if (ctx.socket.readyState !== ctx.socket.OPEN) return;
+  writeFrame(ctx, prepared ?? prepareFrame(message));
+}
+
+function writeFrame(ctx: SendContext, frame: PreparedFrame): void {
   try {
-    ctx.socket.send(JSON.stringify(message), (err) => {
+    ctx.socket.send(frame.json, (err) => {
       if (err) ctx.logger.warn({ err: String(err) }, 'ws send failed');
     });
   } catch (error) {

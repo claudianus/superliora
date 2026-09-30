@@ -16,6 +16,7 @@ import {
 } from './wsBroadcast';
 
 import { buildEventEnvelope, type EventEnvelope } from '#/ws/protocol';
+import { prepareFrame } from '#/ws/connection-send';
 
 interface BufferEntry {
   seq: number;
@@ -131,8 +132,11 @@ export class WSBroadcastService extends Disposable implements IWSBroadcastServic
     const targets = isGlobalSessionEvent(evType)
       ? this.connectionRegistry.values()
       : this.sessionClients.getConnections(sid);
+    // Serialize once for the whole fan-out: every subscriber of this session
+    // would otherwise run the same JSON pass on the same envelope.
+    const frame = prepareFrame(envelope);
     for (const conn of targets) {
-      conn.send(envelope);
+      conn.send(envelope, frame);
     }
   }
 
