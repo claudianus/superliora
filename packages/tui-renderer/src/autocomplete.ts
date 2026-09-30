@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, statSync, type Dirent } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
@@ -45,6 +45,30 @@ export interface AutocompleteProvider {
 const PATH_DELIMITERS = new Set([' ', '\t', '"', "'", '=']);
 const FD_MAX_RESULTS = 100;
 const FUZZY_MAX_RESULTS = 20;
+
+/**
+ * Plain-path completion runs on every keystroke with no debounce, and it reads
+ * the directory synchronously — on the same thread that drives the render loop.
+ * A wide directory (repo root, a build dir) therefore stalls a frame per
+ * character. Entries are cached briefly instead; the `@` file-mention path has
+ * had this for a while.
+ */
+export const AUTOCOMPLETE_READDIR_TTL_MS = 1_000;
+const AUTOCOMPLETE_READDIR_MAX_DIRS = 32;
+const readdirCache = new Map<string, { readonly at: number; readonly entries: Dirent[] }>();
+
+function cachedReaddirEntries(dir: string): readonly Dirent[] {
+  const now = Date.now();
+  const hit = readdirCache.get(dir);
+  if (hit !== undefined && now - hit.at < AUTOCOMPLETE_READDIR_TTL_MS) return hit.entries;
+  const entries = readdirSync(dir, { withFileTypes: true });
+  readdirCache.set(dir, { at: now, entries });
+  if (readdirCache.size > AUTOCOMPLETE_READDIR_MAX_DIRS) {
+    const oldest = readdirCache.keys().next().value;
+    if (oldest !== undefined) readdirCache.delete(oldest);
+  }
+  return entries;
+}
 
 interface PathPrefix {
   readonly rawPrefix: string;
@@ -162,7 +186,7 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
       const { rawPrefix, isAtPrefix, isQuotedPrefix } = parsePathPrefix(prefix);
       const expandedPrefix = expandHomePath(rawPrefix);
       const { searchDir, searchPrefix } = resolveSearchTarget(this.basePath, rawPrefix, expandedPrefix, isAtPrefix);
-      const entries = readdirSync(searchDir, { withFileTypes: true });
+      const entries = cachedReaddirEntries(searchDir);
       const suggestions: AutocompleteItem[] = [];
 
       for (const entry of entries) {

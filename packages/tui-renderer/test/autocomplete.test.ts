@@ -1,10 +1,10 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { CombinedAutocompleteProvider } from '../src';
+import { AUTOCOMPLETE_READDIR_TTL_MS, CombinedAutocompleteProvider } from '../src';
 
 function signal(): AbortSignal {
   return new AbortController().signal;
@@ -76,5 +76,33 @@ describe('CombinedAutocompleteProvider', () => {
 
     expect(provider.shouldTriggerFileCompletion(['/go'], 0, 3)).toBe(false);
     expect(provider.shouldTriggerFileCompletion(['/goal st'], 0, 8)).toBe(true);
+  });
+
+  it('reuses directory entries for a moment instead of reading on every keystroke', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'renderer-autocomplete-cache-'));
+    vi.useFakeTimers();
+    try {
+      writeFileSync(join(root, 'alpha.ts'), 'x');
+      const provider = new CombinedAutocompleteProvider([], root, null);
+
+      const first = await provider.getSuggestions(['al'], 0, 2, { signal: signal(), force: true });
+      expect(first?.items.map((item) => item.label)).toEqual(['alpha.ts']);
+
+      // Typing re-read the same directory per keystroke; entries are served
+      // from the cache inside the window and refreshed after it.
+      writeFileSync(join(root, 'also.ts'), 'x');
+      const cached = await provider.getSuggestions(['al'], 0, 2, { signal: signal(), force: true });
+      expect(cached?.items.map((item) => item.label)).toEqual(['alpha.ts']);
+
+      vi.advanceTimersByTime(AUTOCOMPLETE_READDIR_TTL_MS + 1);
+      const refreshed = await provider.getSuggestions(['al'], 0, 2, {
+        signal: signal(),
+        force: true,
+      });
+      expect(refreshed?.items.map((item) => item.label)).toEqual(['alpha.ts', 'also.ts']);
+    } finally {
+      vi.useRealTimers();
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
