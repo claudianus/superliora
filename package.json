@@ -25,6 +25,7 @@
     "check:unused-exports": "node scripts/report-unused-exports.mjs",
     "check:nix-workspace": "node scripts/check-nix-workspace.mjs",
     "check:agent-core-test-types": "node scripts/check-agent-core-test-types.mjs",
+    "check:wall-clock-budgets": "node scripts/check-wall-clock-budgets.mjs",
     "check:changeset-inventory": "node scripts/changeset-inventory.mjs",
     "check:layering:strict": "node scripts/check-agent-core-layering.mjs --fail",
     "check:loc:strict": "node scripts/check-loc-budget.mjs --fail",

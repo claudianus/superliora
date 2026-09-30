@@ -215,6 +215,12 @@ jobs:
           pnpm exec tsgo -p packages/agent-core/tsconfig.src.json --noEmit
       - name: Agent-core test typecheck ratchet
         run: pnpm run check:agent-core-test-types
+      - name: Wall-clock budget ratchet
+        # AGENTS.md forbids asserting performance against an absolute
+        # millisecond number: such a test describes the machine it ran on, not
+        # the code, and fails on a loaded runner. The rule was unenforced, so
+        # this holds the count while the debt is paid down deliberately.
+        run: pnpm run check:wall-clock-budgets
       - name: Kosong negative type-safety assertions hold
         # Every @ts-expect-error in test/type-safety-negative.ts marks code
         # that must keep being REJECTED. While the type system rejects it,
