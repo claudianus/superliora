@@ -949,6 +949,10 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           // surface explicit verification failures as failed so the playbook
           // routes them to inspection instead of merge/land.
           status: effectiveStatus,
+          // A completed run closes the automatic-retry episode: leaving the
+          // count at the limit meant a long-lived (steered/resumed) job never
+          // regained its retry budget for the next transient crash.
+          autoRetryCount: 0,
           resultSummary,
           ...(pendingLand ? { landChoice: 'pending' as const } : {}),
           ...(stampedContract !== undefined ? { resultContract: stampedContract } : {}),

@@ -156,4 +156,29 @@ describe('V2-3 non-blocking launch contract (runtime observation)', () => {
     expect(getJob(store, job.id)?.status).toBe('done');
     expect(getJob(store, job.id)?.resultSummary).toContain('fast worker done');
   });
+
+  it('clears the automatic-retry count once a run completes', async () => {
+    const store = memoryStore();
+    const job = runningJob(store, 'retry budget reset');
+    const withRetries = patchJob(store, job.id, { autoRetryCount: 2 });
+    if (!withRetries) throw new Error('failed to seed autoRetryCount');
+
+    const completion = Promise.resolve({ result: 'done after retries' });
+    const spawnOne = (async () => ({
+      agentId: 'agent_retry',
+      profileName: 'coder',
+      resumed: false,
+      completion,
+    })) as never;
+    const agent = { subagentHost: { spawn: async () => ({}) } } as never;
+
+    await launchJobWorker({ store, agent, job: withRetries, spawnOne });
+    await drainMicrotasks();
+    await drainMicrotasks();
+
+    // A completed run closes the retry episode: leaving the counter at the
+    // limit meant a steered/resumed job never got another retry budget.
+    expect(getJob(store, job.id)?.status).toBe('done');
+    expect(getJob(store, job.id)?.autoRetryCount).toBe(0);
+  });
 });
