@@ -34,6 +34,19 @@ export const DEFAULT_COMPACTION_STREAM_IDLE_MS = 60_000;
 /** Static empty tool list for compaction generate calls. */
 export const COMPACTION_GENERATE_TOOLS: Tool[] = [];
 
+/**
+ * System prompt for a compaction generate.
+ *
+ * The agent's own system prompt is a coding-agent brief (tens of KB of tool-use
+ * and workspace rules) and it was sent on every block request of a compaction
+ * pass while the tool list is empty — paying for text that describes tools the
+ * summarizer cannot call. The block instruction in the user message carries the
+ * task, the output contract, and the response-language directive.
+ */
+export const COMPACTION_SYSTEM_PROMPT =
+  'You summarize an agent conversation so earlier turns can be compressed for context. ' +
+  'Follow the instructions in the user message exactly and reply with the requested summary only.';
+
 export function resolveCompactionGenerateTimeoutMs(
   explicit?: number,
   env: NodeJS.ProcessEnv = process.env,
@@ -125,7 +138,7 @@ export async function runCompactionGenerate(
   try {
     return await ctx.agent.generate(
       input.provider,
-      ctx.agent.config.systemPrompt,
+      COMPACTION_SYSTEM_PROMPT,
       COMPACTION_GENERATE_TOOLS,
       input.messages,
       compactionStreamCallbacks(ctx.agent, input.streamMeta),

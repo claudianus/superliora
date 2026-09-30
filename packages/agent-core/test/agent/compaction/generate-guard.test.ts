@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   COMPACTION_GENERATE_TIMEOUT_ENV,
+  COMPACTION_SYSTEM_PROMPT,
   COMPACTION_WORKER_TIMEOUT_ENV,
   DEFAULT_COMPACTION_GENERATE_TIMEOUT_MS,
   DEFAULT_COMPACTION_STREAM_IDLE_MS,
@@ -75,6 +76,31 @@ describe('compaction generate-guard timeouts', () => {
       runtimeModelAlias: 'cheap-fast',
       streamIdleTimeoutMs: DEFAULT_COMPACTION_STREAM_IDLE_MS,
     });
+  });
+
+  it('does not send the agent system prompt on a compaction generate', async () => {
+    // A compaction pass issues one request per block with an empty tool list;
+    // reusing the agent's coding brief there paid ~16 KB per request for rules
+    // about tools the summarizer cannot call.
+    const generate = vi.fn().mockResolvedValue({} as never);
+    const ctx = {
+      compactionModelAlias: undefined,
+      agent: {
+        config: { systemPrompt: 'X'.repeat(16_000) },
+        generate,
+        emitEvent: vi.fn(),
+      },
+    } as unknown as CompactionPipelineContext;
+
+    await runCompactionGenerate(ctx, new AbortController().signal, {
+      provider: { name: 'test', modelName: 'm' } as never,
+      messages: [],
+      streamMeta: { phase: 'summarizing', streamKind: 'summary' },
+    });
+
+    const systemPrompt = generate.mock.calls[0]?.[1] as string;
+    expect(systemPrompt).toBe(COMPACTION_SYSTEM_PROMPT);
+    expect(systemPrompt).not.toContain('X');
   });
 
   it('converts a hung generate into APITimeoutError so classical fallback can run', async () => {
