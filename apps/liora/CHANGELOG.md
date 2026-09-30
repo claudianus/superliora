@@ -1,5 +1,17 @@
 # @superliora/liora
 
+## 0.32.6
+
+### Patch Changes
+
+- Spend fewer tokens per request: the Conductor operating playbook now sits inside the cacheable system-prompt prefix instead of the uncached trailing block, and the `JobCreate` schema no longer repeats the same guidance in every field description.
+- Keep subagent tool events responsive: an Edit chip no longer runs a 300×300 line diff on the event path, and a large tool payload is no longer fully stringified and whitespace-flattened to produce a 400-character preview.
+- Cut per-frame renderer work: the background seal now walks only the rows dirtied this frame instead of all cells twice, and frame health no longer rebuilds a full stats snapshot every frame.
+- Stop the streaming type-on from leaking one reveal registry entry per flush, and stop re-parsing an already-parsed tool-argument buffer on every tool-card flush.
+- Fix Windows reliability: plugin language servers now start, atomic writes no longer open a data-loss window, the goal test gate can launch its runner, an interrupted ripgrep download repairs itself instead of breaking search for good, and a hook command is no longer mistaken for a directory.
+- Keep worktrees and file watching reliable on case-insensitive filesystems: a worktree whose files are still open is no longer dropped from the registry, file-change events are no longer lost to a path-casing difference, and hook commands are not mistaken for directories.
+- Reject worktree names Windows cannot create, keep a name like `my.project.` from silently colliding with `my.project`, and say what actually went wrong when a spawned command cannot start instead of reporting an empty failure.
+
 ## 0.32.5
 
 ### Patch Changes
