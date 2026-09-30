@@ -482,14 +482,20 @@ export function createStageFrameOverlayRegions(input: {
     const lines = takeRimBandLines(band, emptyRim, i, rimCacheSig);
     // Clear previous chase scatter before writing this frame's painted cells.
     clearRimBandScatter(i, lines, emptyRim);
+    // One fresh row reference per touched row, not per painted cell: along the
+    // top/bottom rim every cell shares a row, and copying the whole row for each
+    // of them was O(perimeter × width) array copies per animated frame.
+    const copiedRows = new Set<number>();
     for (const cell of painted) {
       const lx = cell.x - band.x;
       const ly = cell.y - band.y;
       if (ly < 0 || ly >= band.height || lx < 0 || lx >= band.width) continue;
       // Fresh row reference so the compositor lineKey WeakMap recomputes.
-      const row = [...lines[ly]!];
-      row[lx] = rimCell(cell.char, cell.fg, cell.bg ?? rimBg, cell.bold);
-      lines[ly] = row;
+      if (!copiedRows.has(ly)) {
+        copiedRows.add(ly);
+        lines[ly] = [...lines[ly]!];
+      }
+      lines[ly]![lx] = rimCell(cell.char, cell.fg, cell.bg ?? rimBg, cell.bold);
       noteRimBandScatter(i, lx, ly);
     }
     regions.push({
@@ -571,16 +577,19 @@ function clearRimBandScatter(
 ): void {
   const prev = rimRegionCache?.prevByBand[index];
   if (prev === undefined) return;
+  const copiedRows = new Set<number>();
   for (const packed of prev) {
     const lx = packed & 0xffff;
     const ly = (packed >>> 16) & 0xffff;
     const row = lines[ly];
-    if (row !== undefined && lx < row.length) {
-      // Fresh row reference so the compositor lineKey WeakMap recomputes.
-      const copy = [...row];
-      copy[lx] = emptyRim;
-      lines[ly] = copy;
+    if (row === undefined || lx >= row.length) continue;
+    // Fresh row reference once per row so the compositor lineKey WeakMap
+    // recomputes — the scatter trail shares rows the same way the rim does.
+    if (!copiedRows.has(ly)) {
+      copiedRows.add(ly);
+      lines[ly] = [...row];
     }
+    lines[ly]![lx] = emptyRim;
   }
   prev.length = 0;
 }
