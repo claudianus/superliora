@@ -73,14 +73,17 @@ describe('fsWatcher path identity', () => {
   });
 
   it('matches a path under its parent with either separator', () => {
-    // Separator handling is unconditional; case folding follows the host
-    // filesystem, because on a case-sensitive one `Src` and `src` really are
-    // different directories and merging them would watch the wrong one.
-    const caseFolded = process.platform === 'win32' || process.platform === 'darwin';
-    expect(isUnderAny('C:/repo/src/a.ts', ['c:/repo/src'])).toBe(caseFolded);
-    expect(isUnderAny('C:\\repo\\src\\a.ts', ['C:/repo/src'])).toBe(caseFolded);
+    // Separator handling is unconditional: `C:\repo\src\a.ts` and
+    // `C:/repo/src` are the same path once separators are unified, on every
+    // filesystem and regardless of case.
+    expect(isUnderAny('C:\\repo\\src\\a.ts', ['C:/repo/src'])).toBe(true);
     expect(isUnderAny('C:/repo/src/a.ts', ['C:/repo/src'])).toBe(true);
     expect(isUnderAny('C:\\repo\\src\\a.ts', ['C:\\repo\\src'])).toBe(true);
+    // Case folding follows the host filesystem: on a case-sensitive one
+    // `src` and `SRC` really are different directories, and merging them
+    // would watch the wrong one.
+    expect(isUnderAny('C:/repo/src/a.ts', ['c:/repo/src'])).toBe(CASE_INSENSITIVE);
+    // Prefix must be a path boundary, not a raw string prefix.
     expect(isUnderAny('C:/repo/src-extra/a.ts', ['C:/repo/src'])).toBe(false);
   });
 
