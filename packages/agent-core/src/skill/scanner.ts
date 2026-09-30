@@ -154,6 +154,54 @@ export async function resolveSkillRoots(
   return roots;
 }
 
+interface SkillDirEntry {
+  readonly name: string;
+  readonly isDir: boolean;
+}
+
+/**
+ * List a skill directory once.
+ *
+ * The walk used to `readdir` for names and then `stat` every entry twice — once
+ * probing `<entry>/SKILL.md`, once answering "is this a directory". With a
+ * fetched catalog (≈4,900 skills, tens of thousands of entries) the process
+ * spent its time queueing async `stat` calls rather than working: measured
+ * 12-19s per session process, of which 12.1s was idle wait on the fs thread
+ * pool. A Dirent listing answers the file/dir question in the same syscall, and
+ * the `SKILL.md` probe is then limited to entries that can hold one.
+ *
+ * Symlinked entries still resolve through `isDir` so a bundle behind a symlink
+ * keeps being found, and an injected `readdir`/`isDir` (tests, custom kaos)
+ * keeps its exact behaviour.
+ */
+function makeSkillDirEntryLister(
+  readdir: (p: string) => Promise<readonly string[]>,
+  isDir: (p: string) => Promise<boolean>,
+  useDirents: boolean,
+): (dirPath: string) => Promise<readonly SkillDirEntry[]> {
+  if (!useDirents) {
+    return async (dirPath) => {
+      const names = [...(await readdir(dirPath))].toSorted();
+      const entries: SkillDirEntry[] = [];
+      for (const name of names) {
+        entries.push({ name, isDir: await isDir(path.join(dirPath, name)) });
+      }
+      return entries;
+    };
+  }
+  return async (dirPath) => {
+    const dirents = await fs.readdir(dirPath, { withFileTypes: true });
+    const entries: SkillDirEntry[] = [];
+    for (const dirent of dirents.toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+      const isDirectory =
+        dirent.isDirectory() ||
+        (dirent.isSymbolicLink() && (await isDir(path.join(dirPath, dirent.name))));
+      entries.push({ name: dirent.name, isDir: isDirectory });
+    }
+    return entries;
+  };
+}
+
 export async function discoverSkills(
   options: DiscoverSkillsOptions,
 ): Promise<readonly SkillDefinition[]> {
@@ -164,6 +212,11 @@ export async function discoverSkills(
   const warn = options.onWarning ?? (() => {});
   const skip = options.onSkippedByPolicy ?? (() => {});
   const byName = new Map<string, SkillDefinition>();
+  const listDirEntries = makeSkillDirEntryLister(
+    readdir,
+    isDir,
+    options.readdir === undefined && options.isDir === undefined,
+  );
 
   async function walkSkillDir(
     dirPath: string,
@@ -174,27 +227,28 @@ export async function discoverSkills(
   ): Promise<void> {
     if (depth > MAX_SKILL_SCAN_DEPTH) return;
 
-    let entries: readonly string[];
+    let listing: readonly SkillDirEntry[];
     try {
       // Sorted so first-wins collision resolution across sibling directories
       // is deterministic rather than dependent on filesystem readdir order.
-      entries = [...(await readdir(dirPath))].toSorted();
+      listing = await listDirEntries(dirPath);
     } catch (error) {
       warn(`Failed to read skill directory ${dirPath}`, error);
       return;
     }
 
+    const entries = listing.map((entry) => entry.name);
     const directorySkills = new Set<string>();
     const subdirs: string[] = [];
-    for (const entry of entries) {
-      const entryPath = path.join(dirPath, entry);
+    for (const entry of listing) {
+      const entryPath = path.join(dirPath, entry.name);
       // A directory holding SKILL.md is a skill bundle: register it, then keep
       // descending so nested SKILL.md bundles remain discoverable as sub-skills.
-      if (await isFile(path.join(entryPath, 'SKILL.md'))) {
-        directorySkills.add(entry);
+      if (entry.isDir && (await isFile(path.join(entryPath, 'SKILL.md')))) {
+        directorySkills.add(entry.name);
       }
-      if (entry === 'node_modules' || entry.startsWith('.')) continue;
-      if (await isDir(entryPath)) subdirs.push(entry);
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      if (entry.isDir) subdirs.push(entry.name);
     }
 
     const allowedSubSkillBundles = new Map<string, string>();
@@ -227,6 +281,7 @@ export async function discoverSkills(
           readdir,
           isFile,
           isDir,
+          listDirEntries,
         });
       }
     }
@@ -315,24 +370,26 @@ async function registerDirectChildSkillBundles(input: {
   readonly readdir: (p: string) => Promise<readonly string[]>;
   readonly isFile: (p: string) => Promise<boolean>;
   readonly isDir: (p: string) => Promise<boolean>;
+  readonly listDirEntries: (p: string) => Promise<readonly SkillDirEntry[]>;
 }): Promise<void> {
-  let entries: readonly string[];
+  let listing: readonly SkillDirEntry[];
   try {
-    entries = [...(await input.readdir(input.parentDir))].toSorted();
+    listing = await input.listDirEntries(input.parentDir);
   } catch (error) {
     input.warn(`Failed to read skill directory ${input.parentDir}`, error);
     return;
   }
 
-  for (const entry of entries) {
-    if (entry === 'node_modules' || entry.startsWith('.')) continue;
-    const childDir = path.join(input.parentDir, entry);
+  for (const entry of listing) {
+    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    if (!entry.isDir) continue;
+    const childDir = path.join(input.parentDir, entry.name);
     if (!(await input.isFile(path.join(childDir, 'SKILL.md')))) continue;
     await parseAndRegister({
       parse: input.parse,
       byName: input.byName,
       skillMdPath: path.join(childDir, 'SKILL.md'),
-      skillDirName: entry,
+      skillDirName: entry.name,
       root: input.root,
       onDiscoveredSkill: input.onDiscoveredSkill,
       warn: input.warn,
