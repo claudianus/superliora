@@ -39,10 +39,10 @@ export const CORE_TOOL_NAMES: Readonly<Record<string, true>> = {
   WebSearch: true,
 };
 
-export type ToolLoadMode = 'core' | 'discoverable';
+type ToolLoadMode = 'core' | 'discoverable';
 
 /** Tools that stay in the request only when the tool-devices flag is off. */
-export const DISCOVERABLE_TOOL_NAMES: Readonly<Record<string, true>> = {
+const DISCOVERABLE_TOOL_NAMES: Readonly<Record<string, true>> = {
   // Fleet / job orchestration.
   Agent: true,
   JobCancel: true,

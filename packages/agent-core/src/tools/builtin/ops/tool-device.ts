@@ -22,7 +22,7 @@ import type { ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './tool-device.md?raw';
 
-export const ToolDeviceInputSchema = z
+const ToolDeviceInputSchema = z
   .object({
     action: z.enum(['list', 'run']).describe("'list' the device inventory, or 'run' one entry."),
     name: z.string().trim().min(1).optional().describe('Tool name to run (action=run).'),
@@ -33,7 +33,7 @@ export const ToolDeviceInputSchema = z
   })
   .strict();
 
-export type ToolDeviceInput = z.infer<typeof ToolDeviceInputSchema>;
+type ToolDeviceInput = z.infer<typeof ToolDeviceInputSchema>;
 
 export class ToolDeviceTool implements BuiltinTool<ToolDeviceInput> {
   readonly name: string = TOOL_DEVICE_TOOL_NAME;

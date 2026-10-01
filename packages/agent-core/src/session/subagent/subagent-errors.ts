@@ -128,7 +128,7 @@ export function resolveJobWorkerRemainingTimeoutMs(
  * at the deadline — overwriting the resume handoff it was given, and inviting
  * another resume. Such a launch gets the fresh kind budget instead.
  */
-export const MIN_RESUME_WORKER_TIMEOUT_MS = 5 * 60_000;
+const MIN_RESUME_WORKER_TIMEOUT_MS = 5 * 60_000;
 
 /**
  * Fanout / `runWithActiveChild` timeout for a job worker. A fully spent

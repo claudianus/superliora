@@ -15,7 +15,7 @@ import { stat } from 'node:fs/promises';
 
 import { join } from 'pathe';
 
-export interface WhichExecutableOptions {
+interface WhichExecutableOptions {
   readonly pathEnv?: string;
   readonly pathExt?: string;
   readonly platform?: NodeJS.Platform;

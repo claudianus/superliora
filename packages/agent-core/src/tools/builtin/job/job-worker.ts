@@ -478,7 +478,7 @@ async function snapshotWorkerWorktree(
   }
 }
 
-export interface AdmitJobWorkerLaunchInput {
+interface AdmitJobWorkerLaunchInput {
   readonly store: ToolStore;
   readonly agent: Agent;
   readonly job: JobRecord;
@@ -486,7 +486,7 @@ export interface AdmitJobWorkerLaunchInput {
   readonly admissionBudgetMs?: number;
 }
 
-export type AdmitJobWorkerLaunchResult =
+type AdmitJobWorkerLaunchResult =
   | { readonly ok: true; readonly job: JobRecord }
   | { readonly ok: false; readonly error: string };
 
@@ -496,7 +496,7 @@ export type AdmitJobWorkerLaunchResult =
  * so a degraded provider needs a total bound of its own now that the spawn
  * handshake budget no longer covers this work.
  */
-export const JOB_WORKER_MODEL_ADMISSION_BUDGET_MS = 30_000;
+const JOB_WORKER_MODEL_ADMISSION_BUDGET_MS = 30_000;
 
 /**
  * Resolve the objective profile and probe the worker model *before* the job
