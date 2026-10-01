@@ -27,6 +27,7 @@ import {
   rgUnavailableMessage,
   verifyArchiveChecksum,
 } from '../../src/tools/support/rg-locator';
+import { pathsIdentical } from '../../src/utils/path-identity';
 
 // Download-branch tests mock `tar.extract` so the archive layout is
 // controlled by the test, not the real CDN. `fetch` is replaced per-test
@@ -93,7 +94,9 @@ describe('findExistingRg', () => {
     chmodSync(cached, 0o755);
     const result = await findExistingRg(fakeShare);
     expect(result?.source).toBe('system-path');
-    expect(result?.path).toBe(onPath);
+    // Windows resolves the PATHEXT candidate that matched, so the returned
+    // spelling can differ in case from the staged file. Both name one file.
+    expect(pathsIdentical(result?.path ?? '', onPath)).toBe(true);
   });
 
   it('keeps a resolved rg for the session instead of re-walking PATH per call', async () => {

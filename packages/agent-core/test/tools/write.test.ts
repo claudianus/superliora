@@ -227,7 +227,7 @@ describe('WriteTool', () => {
         file,
         Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('old\r\n', 'utf16le')]),
       );
-      const tool = new WriteTool(new LocalKaos('/'), PERMISSIVE_WORKSPACE);
+      const tool = new WriteTool((await LocalKaos.create()).withCwd('/'), PERMISSIVE_WORKSPACE);
 
       const result = await executeTool(tool, context({ path: file, content: 'new\r\n' }));
 

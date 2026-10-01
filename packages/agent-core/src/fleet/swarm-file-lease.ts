@@ -54,14 +54,25 @@ export interface SwarmFileLeaseRegistry {
  * the filesystem folds it, not when the platform is Windows: a default macOS
  * volume folds case too, so `src/App.ts` and `src/app.ts` must contend for one
  * lease rather than hand two workers the same file.
+ *
+ * A drive-letter path always folds case. It names a file on a Windows
+ * volume (or is foreign input we could not verify), and those volumes are
+ * case-insensitive, so two spellings must share one lease. Asking this host's
+ * filesystem would fold them apart whenever the harness runs on Linux, which
+ * is exactly where a Windows path arrives from a remote worker.
  */
 export function normalizeLeasePath(path: string, baseDir?: string): string {
   const trimmed = path.trim();
   if (trimmed.length === 0) return trimmed;
   if (trimmed.startsWith('/')) return foldPathForIdentity(normalize(trimmed));
   // Windows drive letter
-  if (/^[A-Za-z]:[\\/]/.test(trimmed)) return foldPathForIdentity(normalize(trimmed));
+  if (/^[A-Za-z]:[\\/]/.test(trimmed)) return foldWindowsPath(normalize(trimmed));
   return foldPathForIdentity(normalize(resolve(baseDir ?? process.cwd(), trimmed)));
+}
+
+/** Windows volumes fold case; the spelling is normalized to forward slashes. */
+function foldWindowsPath(path: string): string {
+  return path.replaceAll('\\', '/').toLowerCase();
 }
 
 export function createSwarmFileLeaseRegistry(options?: {

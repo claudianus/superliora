@@ -13,7 +13,7 @@
  */
 import { z } from 'zod';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import type { BuiltinTool } from '../../../agent/tool';
 import { TOOL_DEVICE_TOOL_NAME, isDeviceMountable } from '../../../agent/tool/core-tools';
 import { ToolAccesses } from '../../../loop/tool-access';

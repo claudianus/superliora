@@ -837,7 +837,7 @@ describe('MicroCompaction', () => {
       vi.useRealTimers();
 
       const overflowId = `call_micro_${String(total)}`;
-      const markerOf = (messages: readonly { role: string; toolCallId?: string }[]): string =>
+      const markerOf = (messages: readonly Message[]): string =>
         textOf(
           messages.find(
             (message) => message.role === 'tool' && message.toolCallId === overflowId,

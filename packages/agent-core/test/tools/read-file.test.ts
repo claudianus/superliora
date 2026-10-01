@@ -86,7 +86,7 @@ describe('ReadTool — total-lines message channel', () => {
           Buffer.from('alpha\r\nbeta\r\n', 'utf16le'),
         ]),
       );
-      const tool = new ReadTool(new LocalKaos('/'), PERMISSIVE_WORKSPACE);
+      const tool = new ReadTool((await LocalKaos.create()).withCwd('/'), PERMISSIVE_WORKSPACE);
 
       const result = await executeTool(tool, {
         turnId: 't1',
