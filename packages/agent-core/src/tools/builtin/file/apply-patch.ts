@@ -16,7 +16,12 @@ import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../polici
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
-import { materializeModelText, toModelTextView } from './line-endings';
+import {
+  materializeModelText,
+  toModelTextView,
+  type LineEndingStyle,
+  type ModelTextView,
+} from './line-endings';
 import { applyHunksToContent, parseOpenCodePatch, type ParsePatchResult } from './apply-patch-core';
 import APPLY_PATCH_DESCRIPTION from './apply-patch.md?raw';
 import { diskFullToolError } from '#/runtime/disk-pressure';
@@ -124,9 +129,11 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
       safePath: string;
       kind: 'update' | 'add' | 'delete';
       content?: string;
-      lineEndingStyle?: ReturnType<typeof toModelTextView>['lineEndingStyle'];
+      lineEndingStyle?: LineEndingStyle;
       /** Model-view content before the mutation; null when the file did not exist. */
       beforeText?: string | null;
+      /** Raw parse-phase read, handed to the snapshot capture; undefined = not read. */
+      rawBefore?: string | null;
     }> = [];
 
     for (const file of parsed.files) {
@@ -154,11 +161,13 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
         continue;
       }
 
-      let modelView: ReturnType<typeof toModelTextView>;
+      let modelView: ModelTextView;
       let beforeText: string | null = null;
+      let rawBefore: string | null | undefined;
       try {
         if (file.kind === 'update') {
           const raw = await this.kaos.readText(safePath);
+          rawBefore = raw;
           modelView = toModelTextView(raw);
           beforeText = modelView.text;
         } else {
@@ -167,9 +176,14 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
           // prior content when provenance needs the before-state.
           if (provenance !== undefined) {
             try {
-              beforeText = toModelTextView(await this.kaos.readText(safePath)).text;
+              const raw = await this.kaos.readText(safePath);
+              rawBefore = raw;
+              beforeText = toModelTextView(raw).text;
             } catch {
               beforeText = null;
+              // The read failed exactly as the capture's own read would, so
+              // hand over its conclusion instead of repeating the syscall.
+              rawBefore = null;
             }
           }
         }
@@ -202,13 +216,14 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
         content: applied.content,
         lineEndingStyle: modelView.lineEndingStyle,
         beforeText,
+        rawBefore,
       });
     }
 
     const summaries: string[] = [];
     for (const item of pending) {
       if (snapshots !== undefined && turnId !== undefined && item.kind !== 'delete') {
-        await snapshots.captureBeforeWrite(turnId, item.safePath);
+        await snapshots.captureBeforeWrite(turnId, item.safePath, item.rawBefore);
       }
       try {
         if (item.kind === 'delete') {

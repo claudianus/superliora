@@ -75,6 +75,38 @@ describe('FileSnapshotStore (unit-rewind)', () => {
     expect(reads).toBe(1);
   });
 
+  it('uses caller-provided content instead of reading the file again', async () => {
+    const readText = vi.fn(async () => 'disk content');
+    const kaos = createFakeKaos({ readText });
+    const store = new FileSnapshotStore({ kaos });
+    const entry = await store.captureBeforeWrite('t', '/workspace/f.ts', 'caller read');
+    expect(entry.content).toBe('caller read');
+    expect(entry.existed).toBe(true);
+    expect(readText).not.toHaveBeenCalled();
+  });
+
+  it('treats null caller content as a file that does not exist', async () => {
+    const readText = vi.fn(async () => 'disk content');
+    const kaos = createFakeKaos({ readText });
+    const store = new FileSnapshotStore({ kaos });
+    const entry = await store.captureBeforeWrite('t', '/workspace/new.ts', null);
+    expect(entry.content).toBeNull();
+    expect(entry.existed).toBe(false);
+    expect(readText).not.toHaveBeenCalled();
+  });
+
+  it('still skips a sensitive path even when the caller hands content over', async () => {
+    // The sensitive skip must win over knownContent: a caller that read a
+    // secret must not get it persisted through the side door.
+    const readText = vi.fn(async () => 'unused');
+    const kaos = createFakeKaos({ readText });
+    const store = new FileSnapshotStore({ kaos });
+    const entry = await store.captureBeforeWrite('t', '/workspace/.env', 'SECRET=1');
+    expect(entry.skippedSensitive).toBe(true);
+    expect(entry.content).toBeNull();
+    expect(readText).not.toHaveBeenCalled();
+  });
+
   it('discardFrom removes the turn and later turns', async () => {
     const kaos = createFakeKaos({
       readText: vi.fn(async () => 'x'),

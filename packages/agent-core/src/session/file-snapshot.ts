@@ -69,8 +69,17 @@ export class FileSnapshotStore {
   /**
    * Capture before-state for a path the agent is about to mutate.
    * Safe to call multiple times for the same path in a turn — first wins.
+   *
+   * `knownContent` lets a caller that has already read the file hand that read
+   * over instead of paying for a second one (`null` = the caller knows the file
+   * does not exist). Every mutation tool reads its target anyway, so the
+   * capture used to double the read behind Edit, Write, and ApplyPatch.
    */
-  async captureBeforeWrite(turnId: string, absolutePath: string): Promise<FileSnapshotEntry> {
+  async captureBeforeWrite(
+    turnId: string,
+    absolutePath: string,
+    knownContent?: string | null,
+  ): Promise<FileSnapshotEntry> {
     let bucket = this.pending.get(turnId);
     if (bucket === undefined) {
       bucket = new Map();
@@ -92,12 +101,17 @@ export class FileSnapshotStore {
 
     let content: string | null = null;
     let existed = false;
-    try {
-      content = await this.kaos.readText(absolutePath);
-      existed = true;
-    } catch {
-      content = null;
-      existed = false;
+    if (knownContent !== undefined) {
+      content = knownContent;
+      existed = knownContent !== null;
+    } else {
+      try {
+        content = await this.kaos.readText(absolutePath);
+        existed = true;
+      } catch {
+        content = null;
+        existed = false;
+      }
     }
 
     const entry: FileSnapshotEntry = {

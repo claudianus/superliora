@@ -326,12 +326,13 @@ export class EditTool implements BuiltinTool<EditInput> {
 
     const snapshots = this.options?.fileSnapshots;
     const turnId = this.options?.getTurnId?.() ?? this.options?.turnId;
-    if (snapshots !== undefined && turnId !== undefined) {
-      await snapshots.captureBeforeWrite(turnId, safePath);
-    }
 
     try {
+      // Read once: the snapshot captures this read instead of its own.
       const raw = await this.kaos.readText(safePath);
+      if (snapshots !== undefined && turnId !== undefined) {
+        await snapshots.captureBeforeWrite(turnId, safePath, raw);
+      }
       const modelView = toModelTextView(raw);
       const content = modelView.text;
       const replaceAll = args.replace_all ?? false;

@@ -161,13 +161,13 @@ export class WriteTool implements BuiltinTool<WriteInput> {
 
     const snapshots = this.options?.fileSnapshots;
     const turnId = this.options?.getTurnId?.() ?? this.options?.turnId;
-    if (snapshots !== undefined && turnId !== undefined) {
-      await snapshots.captureBeforeWrite(turnId, safePath);
-    }
-
-    // Provenance needs the real before-state per mutation (the snapshot
-    // capture is first-write-wins per turn, not per call).
     const provenance = this.options?.provenance;
+
+    // Provenance needs the real before-state per mutation (the snapshot capture
+    // is first-write-wins per turn, not per call). Hand that read to the capture
+    // too, so the pair costs one read of the target instead of two. Without
+    // provenance nothing needs the bytes up front, so skip the read and let the
+    // capture do its own — which is also what keeps sensitive paths unread.
     let beforeContent: string | null = null;
     if (provenance !== undefined) {
       try {
@@ -175,6 +175,13 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       } catch {
         beforeContent = null;
       }
+    }
+    if (snapshots !== undefined && turnId !== undefined) {
+      await snapshots.captureBeforeWrite(
+        turnId,
+        safePath,
+        provenance !== undefined ? beforeContent : undefined,
+      );
     }
 
     try {
