@@ -1,5 +1,39 @@
 # @superliora/liora
 
+## 0.34.0
+
+### Minor Changes
+
+- Add the `liora completions` subcommand, which prints a bash, zsh, or fish completion script generated from the live command tree. Run `eval "$(liora completions zsh)"` (or the bash/fish equivalent) once to enable it.
+- Add opt-in tool devices: with `SUPERLIORA_EXPERIMENTAL_TOOL_DEVICES=true`, rarely used tool schemas stay out of every request's tool block (up to ~99 KB on the full profile) and are still callable through the new `ToolDevice` tool, which lists them and runs one with that tool's own parameter validation and approval rules. Off by default.
+
+### Patch Changes
+
+- Stop re-parsing every recorded tool call's arguments on each Anthropic request, which cost time proportional to the size of the largest Write/Edit calls in the conversation.
+- Stop path completion from re-reading a large directory on every keystroke, which caused typing stalls in big workspaces.
+- Send compaction summaries a short summarizer instruction instead of the full coding-agent prompt, cutting several thousand tokens from every compaction request.
+- Fix terminal and shell handling on Windows: stop trusting a POSIX-spelled `$SHELL`, keep the `Path` spelling the system uses, and keep core environment names spelled the way Windows spells them.
+- Fix tool lookup on Windows: a quoted PATH entry or a `.cmd`/`.bat` shim is now resolved, and a non-executable file with the same name is no longer mistaken for the tool.
+- Give a resumed goal worker the full deadline when the remaining one could not run a turn, and report a goal as blocked when its worker was held at spawn instead of still pursuing.
+- Keep internal tool, worker, and lookup symbols out of the package's public surface.
+- Fix the file lease registry treating two case spellings of one file as different files on macOS, which let two workers edit the same file at once.
+- Fix file leases handing two workers separate leases for the same Windows file when their spellings differ in case, and stop a type import from breaking the package layering check.
+- Keep the cleared-tool markers micro-compaction writes byte-identical between steps, so the provider prompt cache is not invalidated on every request, and spill each cleared output once instead of rewriting it (and pruned the receipt directory) on every render.
+- Stop a timed-out goal predicate check from leaving its test workers running on Windows.
+- Read UTF-16 text that carries a byte-order mark, such as output redirected by Windows PowerShell, instead of reporting those files as unreadable.
+- Stop Grep and Glob from re-resolving the ripgrep binary on every call, which cost a stat per PATH entry before each search.
+- Send one copy of each gateway event per broadcast instead of re-serializing it for every connected client, and stop rebuilding the per-connection send context on every frame.
+- Cut the filesystem work of skill discovery, which dominated session start when a fetched skill catalog is present (thousands of skills).
+- Stop Edit, Write, and ApplyPatch from reading the target file twice per mutation — the /rewind before-write snapshot now reuses the read the tool already did.
+- Stop the animated stage frame from copying a whole row for each painted cell, which cut per-frame allocation while it animates.
+- Run the worker shell-command guard once per Bash call instead of twice with identical input, and parse a patch once per ApplyPatch call instead of once per phase.
+- Stop re-serializing every tool schema several times per step when the context budget is computed, which lowers CPU on each agent turn.
+- Cut per-frame work in the transcript renderer: row ids and the compositor's underlay map are only built when the composition cache is on, the region-constant part of a row key is hashed once per region instead of once per row, and an unchanged row's present key is reused instead of rebuilt cell by cell. Also stop a short transcript from blanking to placeholder rows on scroll frames that follow an animation tick.
+- Stop re-formatting every visible transcript line on each animation frame when the content has not changed, which cut idle and streaming CPU on short transcripts.
+- Stop rebuilding transcript rows that have not changed on every animation frame, which cut per-frame allocation during idle and streaming.
+- Stop a degraded provider from stalling worker spawns: the worker model is probed before a job takes a spawn slot, and a job that cannot be spawned is reported blocked with the model reason instead of a spawn-budget timeout.
+- Keep a UTF-16 file in UTF-16 when it is rewritten, instead of converting it to UTF-8 without a mark (which Windows PowerShell 5.1 reads as ANSI), and refuse to append into one instead of writing UTF-8 bytes into it.
+
 ## 0.33.6
 
 ### Patch Changes
