@@ -443,6 +443,7 @@ describe('CLI options parsing', () => {
         'login',
         'doctor',
         'gc',
+        'completions',
         'worktree',
         'upgrade',
         'update',

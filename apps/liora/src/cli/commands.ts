@@ -8,6 +8,7 @@ import { registerBrowserUseCommand } from './sub/browser-use';
 import { registerComputerUseCommand } from './sub/computer-use';
 import { registerDoctorCommand } from './sub/doctor';
 import { registerGcCommand } from './sub/gc';
+import { registerCompletionsCommand } from './sub/completions';
 import { registerExportCommand } from './sub/export';
 import { registerLoginCommand } from './sub/login';
 import { registerProviderCommand } from './sub/provider';
@@ -147,6 +148,7 @@ export function createProgram(
   registerLoginCommand(program);
   registerDoctorCommand(program);
   registerGcCommand(program);
+  registerCompletionsCommand(program);
   registerWorktreeCommand(program);
   // First-class peers: `liora update` and `liora upgrade` share one handler
   // (Upgrade Studio / install theatre). Keep both names discoverable in help.

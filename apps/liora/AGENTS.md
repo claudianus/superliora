@@ -46,7 +46,7 @@ User-facing features that operators need during an interactive session must be r
 - **Public argv keep-list** (add to this list when introducing a new CLI-only exception; snapshot-locked in `test/cli/public-commands.test.ts`):
   - main: `liora` (+ `-p`, session/permission/profile/worktree/`--debug` flags)
   - auth / install: `login`, `upgrade` / `update`
-  - scripting / CI: `provider …`, `doctor`, `export`
+  - scripting / CI: `provider …`, `doctor`, `export`, `completions` (prints a bash/zsh/fish completion script generated from the live command tree)
   - IDE / daemon / runtimes: `acp`, `server` (`run`/`ps`/`kill`/`rotate-token` only), `browser-use`, `computer-use`
   - hygiene: `worktree` (`list`/`rm`/`gc`/`hygiene`)
   - internal hidden: `__plugin_run_node`

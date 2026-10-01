@@ -26,6 +26,11 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.gc.option.dryRun': 'Report candidates without deleting or compressing.',
   'cli.sub.gc.option.idleDays': 'Treat sessions newer than this many days as active (default 7).',
 
+  // completions
+  'cli.sub.completions.description':
+    'Print a shell completion script generated from the live command tree.',
+  'cli.sub.completions.arg.shell': 'Target shell: bash, zsh, or fish.',
+
   // doctor
   'cli.sub.doctor.option.storage': 'Print home/sessions/cache/logs/worktrees byte usage.',
   'cli.sub.doctor.option.relocateHome':
@@ -295,6 +300,11 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.gc.description': '유휴 캐시·워크트리 임시 파일을 정리하고 종료된 세션 wire를 압축합니다.',
   'cli.sub.gc.option.dryRun': '삭제·압축 없이 후보만 보고합니다.',
   'cli.sub.gc.option.idleDays': '이 일수보다 최근 세션은 활성으로 취급합니다(기본 7).',
+
+  // completions
+  'cli.sub.completions.description':
+    '실행 중인 명령 트리에서 생성한 셸 자동완성 스크립트를 출력합니다.',
+  'cli.sub.completions.arg.shell': '대상 셸: bash, zsh, fish 중 하나입니다.',
 
   // doctor
   'cli.sub.doctor.option.storage': '홈/세션/캐시/로그/worktree 바이트 사용량을 출력합니다.',

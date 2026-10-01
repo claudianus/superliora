@@ -34,6 +34,7 @@ describe('createProgram public argv surface', () => {
     expect(visibleCommandNames(program)).toEqual([
       'acp',
       'browser-use',
+      'completions',
       'computer-use',
       'doctor',
       'export',
@@ -50,6 +51,7 @@ describe('createProgram public argv surface', () => {
       '__plugin_run_node',
       'acp',
       'browser-use',
+      'completions',
       'computer-use',
       'doctor',
       'export',
