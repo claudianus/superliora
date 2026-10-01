@@ -25,6 +25,7 @@ import type {
   UserToolRegistration,
 } from './types';
 import { resolveToolHelpVisibility } from './help-visibility';
+import { TOOL_DEVICE_TOOL_NAME } from './core-tools';
 import { scheduleJobLedgerCrashMirror } from '../../tools/builtin/job/job-crash-mirror';
 import { scheduleWorkspaceCatalogSync } from '../../tools/builtin/job/job-workspace-bind';
 
@@ -279,6 +280,12 @@ export class ToolManager {
     // builtin/user tool names. The split keeps every caller on one string[].
     this.enabledTools = new Set(names.filter((name) => !isMcpToolName(name)));
     this.mcpAccessPatterns = names.filter((name) => isMcpToolName(name));
+    // The device transport is not part of any profile list: it appears exactly
+    // when the tool-devices flag is on, so demoted tools stay reachable. Test
+    // agents and embeds without a flag resolver read as off.
+    if (this.agent.experimentalFlags?.enabled('tool_devices') === true) {
+      this.enabledTools.add(TOOL_DEVICE_TOOL_NAME);
+    }
     // Rebuild builtin instances for the active profile only. Default profiles
     // enable ~11 tools; instantiating the full 40+ set is wasted work/memory.
     if (this.agent.config.hasProvider) {

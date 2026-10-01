@@ -433,6 +433,7 @@ function createSkillAndSubagentTools(
   const hasInvocableSkills =
     (host.agent.skills?.registry.listInvocableSkills().length ?? 0) > 0;
   return [
+    shouldCreateBuiltin(host, 'ToolDevice') && new b.ToolDeviceTool(host.agent),
     shouldCreateBuiltin(host, 'SearchTools') && new b.SearchToolsTool(host.agent),
     host.agent.skills !== null &&
       shouldCreateBuiltin(host, 'SkillCreate') &&

@@ -96,6 +96,15 @@ export const FLAG_DEFINITIONS = [
     surface: 'core',
   },
   {
+    id: 'tool_devices',
+    title: 'Tool devices',
+    description:
+      'Keep rarely-used tool schemas out of every request and reach them through the ToolDevice transport instead, which shrinks the cached tool block (up to ~99 KB on the full profile). Default off: hiding a tool the model needs costs more than the schema it saves. Enable with SUPERLIORA_EXPERIMENTAL_TOOL_DEVICES=true.',
+    env: 'SUPERLIORA_EXPERIMENTAL_TOOL_DEVICES',
+    default: false,
+    surface: 'core',
+  },
+  {
     id: 'auto_dream',
     title: 'Liora Memory reflection',
     description: 'After each user turn, use a cheap-gated background job to promote candidate records through deterministic reflection without blocking the live session.',

@@ -4,6 +4,7 @@ import picomatch from 'picomatch';
 import type { ExecutableTool } from '../../loop';
 import { resolveActivePremiumDensity } from '../injection/premium-quality';
 import { CACHE_GATED_TOOLS, VISUAL_DENSITY_HYSTERESIS } from './constants';
+import { isDeviceMountable, TOOL_DEVICE_TOOL_NAME } from './core-tools';
 import type { McpToolEntry } from './mcp-registration';
 import type { BuiltinTool } from './types';
 import type { Agent } from '..';
@@ -35,7 +36,7 @@ export function resolveLoopTools(host: LoopToolsHost): readonly ExecutableTool[]
   // (PlanModeInjector, GoalInjector, etc.) to avoid calling inactive tools;
   // the execution layer returns a clear error if called out-of-mode.
   // Gated tools are sorted to the tail so the stable prefix is maximized.
-  return uniq([...host.enabledTools, ...mcpNames])
+  const tools = uniq([...host.enabledTools, ...mcpNames])
     .toSorted((a, b) => {
       const aGated = CACHE_GATED_TOOLS.has(a) ? 1 : 0;
       const bGated = CACHE_GATED_TOOLS.has(b) ? 1 : 0;
@@ -53,6 +54,13 @@ export function resolveLoopTools(host: LoopToolsHost): readonly ExecutableTool[]
         host.builtinTools.get(name),
     )
     .filter((tool) => !!tool);
+
+  // Embeds and test hosts may have no flag resolver; they read as off.
+  if (host.agent.experimentalFlags?.enabled('tool_devices') !== true) return tools;
+  // Only demote when the transport that reaches demoted tools is actually
+  // present: a profile that dropped ToolDevice must keep its full surface.
+  if (!tools.some((tool) => tool.name === TOOL_DEVICE_TOOL_NAME)) return tools;
+  return tools.filter((tool) => !isDeviceMountable(tool.name));
 }
 
 /**

@@ -9,6 +9,7 @@ export * from './fleet/ask-user';
 export * from './fleet/search-expert';
 export * from './fleet/search-skill';
 export * from './fleet/search-tools';
+export * from './ops/tool-device';
 export * from './fleet/skill-create';
 export * from './fleet/skill-tool';
 export * from './context/compact';
