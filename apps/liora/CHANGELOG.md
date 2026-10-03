@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.34.1
+
+### Patch Changes
+
+- Fix TUI freezes during scrolling and text selection, keep live updates visible, and limit queued frames on slow terminals.
+
 ## 0.34.0
 
 ### Minor Changes
