@@ -1,6 +1,7 @@
 import type {
   BackgroundTaskInfo,
   Event,
+  LioraHarness,
   Session,
 } from '@superliora/sdk';
 import type { QueuedMessage } from '../../types';
@@ -29,6 +30,7 @@ export interface SessionEventHost {
   aborted: boolean;
   sessionEventUnsubscribe: (() => void) | undefined;
   readonly streamingUI: StreamingUIController;
+  readonly harness?: LioraHarness;
 
   requireSession(): Session;
   setAppState(patch: Partial<AppState>): void;
@@ -100,11 +102,19 @@ export class SessionEventHandler {
     };
     host.sessionEventUnsubscribe?.();
     const { sessionId } = host.state.appState;
-    host.sessionEventUnsubscribe = session.onEvent((event) => {
+    const stopSession = session.onEvent((event) => {
       if (host.aborted) return;
       if (event.sessionId !== sessionId) return;
       this.handleEvent(event, sendQueued);
     });
+    const stopIndependent = host.harness?.onIndependentSessionActivity(sessionId, (activity) => {
+      if (host.aborted || host.state.appState.sessionId !== sessionId) return;
+      host.workerDock.handleIndependentActivity(activity);
+    });
+    host.sessionEventUnsubscribe = () => {
+      stopSession();
+      stopIndependent?.();
+    };
   }
 
   handleEvent(event: Event, sendQueued: (item: QueuedMessage) => void): void {

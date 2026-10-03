@@ -81,6 +81,7 @@ export class AuthFlowController {
 
     const options: MutableCreateSessionOptions = {
       workDir: host.state.appState.workDir,
+      role: host.options.sessionRole,
       model,
       thinking: level,
       permission: host.options.startup.auto

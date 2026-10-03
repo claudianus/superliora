@@ -1,3 +1,4 @@
+import { sandboxPolicyAtLeast } from '../sandbox-policy-update';
 /**
  * Session agent create/resume lifecycle — extracted from Session class.
  */
@@ -81,8 +82,13 @@ export class SessionAgentLifecycle {
   ): Agent {
     const parentAgent = parentAgentId !== null ? this.getReadyAgent(parentAgentId) : undefined;
     const cwd = config.kaos?.getcwd() ?? parentAgent?.config.cwd ?? this.opts.getToolKaos().getcwd();
+    const sandboxPolicy = sandboxPolicyAtLeast({
+      profile: config.sandboxProfile ?? this.resolveSandboxProfile(),
+      enforcement: config.sandboxEnforcement ?? this.resolveSandboxEnforcement(),
+    }, this.opts.options.sandboxMinimum);
     return new Agent({
       ...config,
+      role: id === 'main' ? this.opts.options.role ?? 'worker' : 'worker',
       type,
       kaos: (config.kaos ?? this.opts.getToolKaos()).withCwd(cwd),
       config: config.config ?? this.opts.options.config,
@@ -96,8 +102,8 @@ export class SessionAgentLifecycle {
       additionalDirs: config.additionalDirs ?? parentAgent?.getAdditionalDirs() ?? this.opts.getAdditionalDirs(),
       fileSnapshots: config.fileSnapshots ?? this.opts.fileSnapshots,
       fileProvenance: config.fileProvenance ?? this.opts.fileProvenance,
-      sandboxProfile: config.sandboxProfile ?? this.resolveSandboxProfile(),
-      sandboxEnforcement: config.sandboxEnforcement ?? this.resolveSandboxEnforcement(),
+      sandboxProfile: sandboxPolicy.profile,
+      sandboxEnforcement: sandboxPolicy.enforcement,
     });
   }
 

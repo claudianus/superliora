@@ -8,6 +8,7 @@
 
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { getRootLogger, log } from '#/logging/logger';
+import { workerAncestrySchema } from '@superliora/protocol';
 import type { Kaos } from '@superliora/kaos';
 
 import type { LioraConfig } from '../config';
@@ -64,6 +65,7 @@ export interface SessionLifecycleContext {
   readonly sessionStore: SessionStore;
   readonly telemetry: TelemetryClient;
   readonly appVersion: string | undefined;
+  readonly resolveSessionCoordinator?: (sessionId: string, scope: { readonly workDir: string; readonly additionalDirs: readonly string[] }) => Promise<import('../session/coordinator').SessionCoordinator>;
   readonly sdk: Promise<SDKRPC>;
   readonly config: LioraConfig;
 
@@ -91,6 +93,10 @@ export async function createSessionWithOverrides(
   const workDir = requiredWorkDir('createSession', options.workDir);
   const config = context.reloadProviderManager();
   const id = options.id ?? createSessionId();
+  const workerAncestry = options.workerAncestry === undefined ? undefined : workerAncestrySchema.parse(options.workerAncestry);
+  if (workerAncestry !== undefined && (workerAncestry.sessionId !== id || workerAncestry.agentId !== 'main')) {
+    throw new Error('Worker ancestry must identify the admitted main agent and session');
+  }
   const requestedModel = options.model ?? config.defaultModel;
   const modelAlias = requestedModel === undefined ? undefined
     : resolveConfiguredSessionRoute({ config, alias: requestedModel }).alias;
@@ -128,6 +134,10 @@ export async function createSessionWithOverrides(
 
   const sessionKaos = parentKaos.withCwd(workDir);
   const session = new Session({
+    role: options.role,
+    workerAncestry,
+    coordination: options.role === 'interactive-conductor'
+      ? await context.resolveSessionCoordinator?.(id, { workDir, additionalDirs }) : undefined,
     kaos: sessionKaos,
     persistenceKaos,
     config,
@@ -170,6 +180,7 @@ export async function createSessionWithOverrides(
       createdAt: new Date(summary.createdAt).toISOString(),
       updatedAt: new Date(summary.updatedAt).toISOString(),
       workDir,
+      workerAncestry,
       ...(summary.title !== undefined
         ? {
             title: summary.title,
@@ -253,17 +264,44 @@ export async function resumeSessionWithOverrides(
     summary.workDir,
     input.additionalDirs ?? [],
   );
-  const active = context.sessions.get(summary.id);
+  let active = context.sessions.get(summary.id);
   const additionalDirs = normalizeAdditionalDirs([
     ...localWorkspaceDirs.additionalDirs,
     ...(active?.getAdditionalDirs() ?? []),
     ...callerAdditionalDirs,
   ]);
+  const role = input.role ?? active?.options.role ?? 'worker';
+  const workerAncestry = input.workerAncestry === undefined ? undefined : workerAncestrySchema.parse(input.workerAncestry);
+  if (workerAncestry !== undefined && (workerAncestry.sessionId !== summary.id || workerAncestry.agentId !== 'main')) {
+    throw new Error('Worker ancestry must identify the resumed main agent and session');
+  }
+  if (active !== undefined && workerAncestry !== undefined) {
+    const bound = active.options.workerAncestry ?? active.metadata.workerAncestry;
+    if (bound !== undefined && JSON.stringify(workerAncestrySchema.parse(bound)) !== JSON.stringify(workerAncestry)) {
+      throw new Error('Cannot reparent an existing independent session');
+    }
+    Object.assign(active.options, { workerAncestry });
+    active.metadata.workerAncestry = workerAncestry;
+  }
+  if (active !== undefined && role !== (active.options.role ?? 'worker') && active.hasActiveTurn) {
+    throw new LioraError(ErrorCodes.TURN_AGENT_BUSY, 'Cannot change a session role during an active turn');
+  }
+  const coordination = role === 'interactive-conductor'
+    ? await context.resolveSessionCoordinator?.(summary.id, { workDir: summary.workDir, additionalDirs }) : undefined;
+  if (active !== undefined && role !== (active.options.role ?? 'worker')) {
+    // Agent execution roles are immutable. Reopen from the native journal
+    // rather than changing only Session.options and leaving stale tool policy.
+    await active.close();
+    context.sessions.delete(summary.id);
+    active = undefined;
+  }
   if (active !== undefined) {
+    if (role === 'interactive-conductor') Object.assign(active.options, { coordination });
     if (overrides.kaos !== undefined) {
       active.setToolKaos(overrides.kaos.withCwd(summary.workDir));
     }
     await active.setAdditionalDirs(additionalDirs);
+    if (workerAncestry !== undefined) await active.writeMetadata();
     return withAdditionalDirs(await resumeSessionResult(summary, active), active);
   }
 
@@ -272,6 +310,9 @@ export async function resumeSessionWithOverrides(
   const persistenceKaos = overrides.persistenceKaos ?? parentKaos;
   const sessionKaos = parentKaos.withCwd(summary.workDir);
   const session = new Session({
+    role,
+    coordination,
+    workerAncestry,
     kaos: sessionKaos,
     persistenceKaos,
     config,
@@ -290,6 +331,7 @@ export async function resumeSessionWithOverrides(
   let warning: string | undefined;
   try {
     const resumeResult = await session.resume();
+    if (workerAncestry !== undefined) await session.writeMetadata();
     warning = resumeResult.warning;
     await context.refreshSessionRuntimeConfig(session, config);
   } catch (error) {
@@ -330,7 +372,7 @@ export async function reloadSession(
   }
   return resumeSessionWithOverrides(
     context,
-    { sessionId: summary.id, ...(active === undefined ? {} : { additionalDirs: active.getAdditionalDirs() }) },
+    { sessionId: summary.id, ...(active === undefined ? {} : { role: active.options.role, additionalDirs: active.getAdditionalDirs() }) },
     {},
   );
 }

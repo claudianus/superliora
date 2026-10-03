@@ -82,6 +82,7 @@ export async function runShell(
   };
   const harness = createLioraHarness({
     homeDir: telemetryBootstrap.homeDir,
+    uiMode: CLI_UI_MODE,
     identity: createLioraHostIdentity(version),
     telemetry: telemetryClient,
     onOAuthRefresh: (outcome) => {
@@ -127,6 +128,7 @@ export async function runShell(
   const configMs = Date.now() - configStartedAt;
   const tui = new LioraTUI(harness, {
     cliOptions: opts,
+    sessionRole: 'interactive-conductor',
     additionalDirs: opts.addDirs?.length ? opts.addDirs : undefined,
     tuiConfig,
     version,

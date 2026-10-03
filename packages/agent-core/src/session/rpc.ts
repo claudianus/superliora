@@ -1,3 +1,4 @@
+import { userCancellationReason } from '#/utils/abort';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import type { SessionWarning } from '@superliora/protocol';
 import type {
@@ -25,8 +26,11 @@ import type { Session, SessionMeta } from '.';
 import { buildSessionTrace } from './trace';
 import { promptMetadataTextFromPayload } from './prompt-metadata';
 import { toConversationLoopStateData, updatePromptMetadata } from './rpc-prompt-handlers';
+import { applySandboxPolicyToAgents, sandboxPolicyAtLeast, type SandboxPolicyUpdate } from './sandbox-policy-update';
 
 type AgentScopedPayload<T> = T & { agentId: string };
+
+const priorityAdmissions = new WeakMap<Session, Promise<void>>();
 
 export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   constructor(protected readonly session: Session) {}
@@ -46,6 +50,9 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   }
 
   async updateSessionMetadata(payload: UpdateSessionMetadataPayload): Promise<void> {
+    if (payload.metadata.workerAncestry !== undefined) {
+      throw new Error('Worker ancestry is host-owned session admission metadata');
+    }
     const nextCustom =
       payload.metadata.custom === undefined
         ? this.session.metadata.custom
@@ -56,18 +63,20 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
       custom: nextCustom,
       agents: this.session.metadata.agents,
     };
-    // Live path-sandbox apply: rebuild file tools when sandboxProfile changes.
-    const main = this.session.getReadyAgent('main');
-    const profile = nextCustom['sandboxProfile'];
-    if (profile === 'off' || profile === 'workspace' || profile === 'read-only') {
-      if (main !== undefined && typeof main.setSandboxProfile === 'function') {
-        main.setSandboxProfile(profile);
-      }
-    }
-    const enforcement = nextCustom['sandboxEnforcement'];
-    if (enforcement === 'lexical' || enforcement === 'process') {
-      if (main !== undefined && typeof main.setSandboxEnforcement === 'function') {
-        main.setSandboxEnforcement(enforcement);
+    const changed = payload.metadata.custom;
+    if (changed !== undefined && ('sandboxProfile' in changed || 'sandboxEnforcement' in changed)) {
+      const profile = nextCustom['sandboxProfile'];
+      const enforcement = nextCustom['sandboxEnforcement'];
+      const policy: SandboxPolicyUpdate = sandboxPolicyAtLeast({
+        profile: profile === 'off' || profile === 'workspace' || profile === 'read-only' ? profile : undefined,
+        enforcement: enforcement === 'lexical' || enforcement === 'process' ? enforcement : undefined,
+      }, this.session.options?.sandboxMinimum);
+      nextCustom['sandboxProfile'] = policy.profile;
+      nextCustom['sandboxEnforcement'] = policy.enforcement;
+      if (policy.profile !== undefined || policy.enforcement !== undefined) {
+        // Every existing child's gate is invalidated synchronously by this
+        // fan-out before the first await. ACK only after all activations settle.
+        await applySandboxPolicyToAgents(this.session.readyAgents(), policy);
       }
     }
     await this.session.writeMetadata();
@@ -111,10 +120,37 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   }
 
   async prompt({ agentId, ...payload }: AgentScopedPayload<PromptPayload>) {
-    if (agentId === 'main') {
-      await updatePromptMetadata(this.session, promptMetadataTextFromPayload(payload));
+    if (agentId !== 'main' || this.session.options.role !== 'interactive-conductor') {
+      if (agentId === 'main') {
+        await updatePromptMetadata(this.session, promptMetadataTextFromPayload(payload));
+      }
+      return (await this.getAgent(agentId)).prompt(payload);
     }
-    return (await this.getAgent(agentId)).prompt(payload);
+
+    const previous = priorityAdmissions.get(this.session) ?? Promise.resolve();
+    const admission = previous.catch(() => undefined).then(async () => {
+      const agent = await this.session.ensureAgentResumed(agentId);
+      this.session.getSubagentHost(agentId);
+      if (agent.turn.hasActiveTurn) {
+        const settled = agent.turn.waitForCurrentTurn();
+        // Abort only this inference/tool-turn owner. The harness-owned
+        // independent coordinator and its accepted sessions are untouched.
+        agent.turn.cancel(undefined, userCancellationReason(), 'rpc');
+        // Retain context ownership until local teardown finishes. Independent
+        // worker admission/completion is deliberately NOT part of this join.
+        await settled;
+      }
+      this.session.assertOpen();
+      await updatePromptMetadata(this.session, promptMetadataTextFromPayload(payload));
+      this.session.assertOpen();
+      await agent.rpcMethods.prompt(payload);
+    });
+    priorityAdmissions.set(this.session, admission);
+    try {
+      await admission;
+    } finally {
+      if (priorityAdmissions.get(this.session) === admission) priorityAdmissions.delete(this.session);
+    }
   }
 
   async steer({ agentId, ...payload }: AgentScopedPayload<SteerPayload>) {

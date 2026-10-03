@@ -1,6 +1,7 @@
 import { join } from 'pathe';
 import { type Kaos } from '@superliora/kaos';
 
+import { workerAncestrySchema } from '@superliora/protocol';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { getRootLogger, log } from '#/logging/logger';
 import type { SessionLogHandle } from '#/logging/types';
@@ -337,6 +338,19 @@ export class Session {
 
   async readMetadata() {
     this.metadata = await this.metadataPersistence.read(this.metadata);
+    const stored = this.metadata.workerAncestry === undefined ? undefined : workerAncestrySchema.parse(this.metadata.workerAncestry);
+    const supplied = this.options.workerAncestry;
+    if (stored !== undefined && supplied !== undefined && JSON.stringify(workerAncestrySchema.parse(supplied)) !== JSON.stringify(stored)) {
+      throw new Error('Cannot reparent an existing independent session');
+    }
+    const ancestry = supplied ?? stored;
+    if (ancestry !== undefined) {
+      if (ancestry.agentId !== 'main' || (this.options.id !== undefined && ancestry.sessionId !== this.options.id)) {
+        throw new Error('Persisted worker ancestry does not identify this session');
+      }
+      this.metadata.workerAncestry = ancestry;
+      Object.assign(this.options, { workerAncestry: ancestry });
+    }
     return this.metadata;
   }
 

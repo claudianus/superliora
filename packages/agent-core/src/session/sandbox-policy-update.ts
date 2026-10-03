@@ -28,3 +28,15 @@ export function applySandboxPolicyToAgents(
     }
   });
 }
+
+/** Combine a child policy with the host's minimum without weakening either. */
+export function sandboxPolicyAtLeast(
+  policy: SandboxPolicyUpdate,
+  minimum: SandboxPolicyUpdate = {},
+): SandboxPolicyUpdate {
+  const profiles = ['off', 'workspace', 'read-only'] as const;
+  return {
+    profile: profiles[Math.max(profiles.indexOf(policy.profile ?? 'off'), profiles.indexOf(minimum.profile ?? 'off'))]!,
+    enforcement: policy.enforcement === 'process' || minimum.enforcement === 'process' ? 'process' : 'lexical',
+  };
+}

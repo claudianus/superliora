@@ -10,6 +10,8 @@ import type { ProviderManager } from '../provider/provider-manager';
 import type { TelemetryClient } from '../../telemetry';
 
 export interface SessionOptions {
+  /** In-process host minimum; never accepted from model tool arguments. */
+  readonly sandboxMinimum?: import('../sandbox-policy-update').SandboxPolicyUpdate;
   readonly workerAncestry?: import('@superliora/protocol').WorkerAncestry;
   readonly role?: 'worker' | 'interactive-conductor';
   readonly coordination?: import('../coordinator').SessionCoordinator;
@@ -67,6 +69,8 @@ export interface SessionCustomMetadata {
 }
 
 export interface SessionMeta {
+  /** Host correlation for an independent main; never standalone Agent state. */
+  workerAncestry?: import('@superliora/protocol').WorkerAncestry;
   version?: number;
   createdAt: string;
   updatedAt: string;

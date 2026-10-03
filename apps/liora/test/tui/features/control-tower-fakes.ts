@@ -26,6 +26,8 @@ export interface FakeDispatchOptions {
   readonly streamingPhase?: FakeStreamingPhase;
   readonly deferUserMessages?: boolean;
   readonly model?: string;
+  readonly sessionRole?: 'worker' | 'interactive-conductor';
+  readonly interactiveAgentId?: string;
 }
 
 export function fakeDispatchHost(options: FakeDispatchOptions = {}) {
@@ -53,7 +55,7 @@ export function fakeDispatchHost(options: FakeDispatchOptions = {}) {
   };
   const session = {
     id: 'sess_test',
-    prompt: vi.fn(async () => {}),
+    prompt: vi.fn(async (_input: unknown) => {}),
     steer: vi.fn(async () => {}),
     cancel: vi.fn(async () => {}),
   };
@@ -63,8 +65,9 @@ export function fakeDispatchHost(options: FakeDispatchOptions = {}) {
     session,
     deferUserMessages: options.deferUserMessages ?? false,
     lastUserInput: undefined as string | undefined,
+    options: { sessionRole: options.sessionRole },
     harness: {
-      interactiveAgentId: 'main',
+      interactiveAgentId: options.interactiveAgentId ?? 'main',
       withInteractiveAgent: (_agentId: string, run: () => void) => {
         run();
       },

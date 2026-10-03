@@ -105,7 +105,8 @@ export function ensureStartupNativeInputRouter(
       if (event.alt && scrollStartupTodoPanelByKey(host, event.key)) return true;
       // Alt+↑/↓ still window-scrolls the dock; bare ↑/↓ select when a row is focused.
       if (event.alt && scrollStartupMissionPanelByKey(host, event.key)) return true;
-      if (handleMissionDockSelectionKey(host, event.key)) return true;
+      const modifiedHorizontal = (event.key === 'left' || event.key === 'right') && (event.ctrl || event.alt || event.shift || event.super === true);
+      if (!modifiedHorizontal && handleMissionDockSelectionKey(host, event.key)) return true;
       // Native Alt+J / Alt+I (Kitty CSI-u / ESC+letter). Also mirrored via
       // tryHandleAppShortcut → editor.onOpenJobDeck / onOpenJobInbox.
       if (
@@ -413,8 +414,8 @@ function scrollStartupMissionPanelByKey(
 }
 
 /**
- * Bare ↑/↓/Enter/Esc when the Worker Dock is active:
- * - with a selection: ↑↓ move, Enter opens, Esc clears
+ * Bare ↑/↓/←/→/Enter/Esc when the Worker Dock is active:
+ * - with a selection: ↑↓ move, ←→ disclose, Enter opens, Esc clears
  * - Enter with editor draft / no selection: fall through so `/exit` and
  *   prompts still submit (dock must not steal Enter before the editor)
  * - without workers: fall through to editor
@@ -430,6 +431,8 @@ function handleMissionDockSelectionKey(
   const mapKey =
     key === 'up' ||
     key === 'down' ||
+    key === 'left' ||
+    key === 'right' ||
     key === 'enter' ||
     key === 'escape' ||
     key === 'pageup' ||

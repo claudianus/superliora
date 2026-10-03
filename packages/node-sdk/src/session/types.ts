@@ -1,4 +1,9 @@
 import type {
+  CoordinationStatus,
+  CoordinationFact,
+  CoordinationFacts,
+  WorkerAncestry,
+  Event,
   ExportSessionManifest,
   ProviderRouteSelection,
   ProviderRouteStatus,
@@ -17,6 +22,31 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: 
 export type JsonObject = { readonly [key: string]: JsonValue };
 
 export type Unsubscribe = () => void;
+
+/** Bounded task-card facts, without prompts, result bodies or mailbox contents. */
+export interface IndependentSessionFact {
+  readonly id: string;
+  readonly sessionId?: string;
+  readonly revision: number;
+  readonly status: CoordinationStatus;
+  readonly purpose: string;
+  readonly cwd: string;
+  readonly kind?: 'session' | 'pipeline';
+  readonly workerAncestry?: WorkerAncestry;
+  readonly reusable?: boolean;
+  readonly ownerStatus?: CoordinationFact['ownerStatus'];
+  readonly originAncestry?: WorkerAncestry;
+  readonly coordinationId?: string;
+  readonly parentAgentId?: string | null;
+  readonly parentSessionId?: string | null;
+  readonly pipeline?: CoordinationFact['pipeline'];
+}
+
+/** Host-scoped worker telemetry; never appended to the conductor conversation. */
+export type IndependentSessionActivity =
+  | { readonly type: 'snapshot'; readonly conductorSessionId: string; readonly records: readonly IndependentSessionFact[]; readonly total?: number; readonly truncated?: boolean; readonly counts?: CoordinationFacts['counts'] }
+  | { readonly type: 'event'; readonly conductorSessionId: string; readonly record: IndependentSessionFact; readonly event: Event }
+  | { readonly type: 'attention'; readonly conductorSessionId: string; readonly record?: IndependentSessionFact; readonly sessionId: string; readonly agentId: string; readonly attention: 'question' | 'error' | undefined };
 
 export type {
   AgentReplayRecord,
@@ -97,6 +127,8 @@ export interface LioraHarnessOptions {
 }
 
 export interface CreateSessionOptions {
+  readonly workerAncestry?: WorkerAncestry;
+  readonly role?: 'worker' | 'interactive-conductor';
   readonly id?: string | undefined;
   readonly workDir: string;
   readonly model?: string | undefined;
@@ -115,6 +147,8 @@ export interface RenameSessionInput {
 }
 
 export interface ResumeSessionInput {
+  readonly workerAncestry?: WorkerAncestry;
+  readonly role?: 'worker' | 'interactive-conductor';
   readonly id: string;
   readonly kaos?: Kaos | undefined;
   readonly persistenceKaos?: Kaos | undefined;

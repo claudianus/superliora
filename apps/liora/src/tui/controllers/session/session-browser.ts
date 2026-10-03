@@ -151,6 +151,7 @@ export class SessionBrowserController implements SessionPickerControllerState {
     this.host.clearReverseRpcPanels();
     session.setApprovalHandler(undefined);
     session.setQuestionHandler(undefined);
+    if (this.host.options.sessionRole === 'interactive-conductor') this.host.harness.setIndependentSessionQuestionHandler(session.id, undefined);
     this.host.cancelPendingReverseRpc('reloading session');
     await this.host.switchToSession(session, statusMessage);
   }
@@ -247,6 +248,7 @@ export class SessionBrowserController implements SessionPickerControllerState {
       const model = host.state.appState.model.trim();
       const session = await host.harness.createSession({
         workDir: nextDir,
+        role: host.options.sessionRole,
         ...(model.length > 0 ? { model } : {}),
         permission: host.state.appState.permissionMode,
       });
@@ -331,7 +333,7 @@ export class SessionBrowserController implements SessionPickerControllerState {
     });
     let session: Session;
     try {
-      session = await this.host.harness.resumeSession({ id: targetSessionId });
+      session = await this.host.harness.resumeSession({ id: targetSessionId, role: this.host.options.sessionRole });
     } catch (error) {
       this.host.endSessionLoading();
       const msg = formatErrorMessage(error);

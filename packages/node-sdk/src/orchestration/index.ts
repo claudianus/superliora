@@ -16,6 +16,7 @@ import type { Session } from '#/session/session';
 export function createIndependentSessionRuntime(
   harness: Pick<LioraHarness, 'createSession' | 'resumeSession'>,
   onActivity?: (sessionId: string, event: Event) => void,
+  prepareSession?: (session: Session) => Promise<void>,
 ): IndependentSessionRuntime {
   async function run(session: Session, request: IndependentSessionRequest, signal: AbortSignal) {
     const ended = Promise.withResolvers<void>();
@@ -56,16 +57,24 @@ export function createIndependentSessionRuntime(
     if (signal.aborted) abort();
     return { sessionId: session.id, completion, message: async (text: string) => { await session.steer(text); } };
   }
+  async function prepare(session: Session): Promise<Session> {
+    try { await prepareSession?.(session); return session; }
+    catch (error) {
+      try { await session.close(); }
+      catch (error) { throw new IndependentSessionUnsettledError('Sandbox preparation cleanup failed', { cause: new AggregateError([error, error]) }); }
+      throw error;
+    }
+  }
   return {
     async admit(id, request, signal) {
       signal.throwIfAborted();
       const options = { id, workDir: request.cwd, model: request.model, workerAncestry: request.workerAncestry };
-      return run(await harness.createSession(options), request, signal);
+      return run(await prepare(await harness.createSession(options)), request, signal);
     },
     async resume(sessionId, request, signal) {
       signal.throwIfAborted();
       const options = { id: sessionId, workerAncestry: request.workerAncestry };
-      return run(await harness.resumeSession(options), request, signal);
+      return run(await prepare(await harness.resumeSession(options)), request, signal);
     },
   };
 }
@@ -74,6 +83,7 @@ export async function createSessionCoordinator(harness: Pick<LioraHarness, 'crea
   path: string;
   policy: ConductorPolicy;
   onActivity?: (sessionId: string, event: Event) => void;
+  prepareSession?: (session: Session) => Promise<void>;
   verificationPlans?: readonly TrustedVerificationPlan[];
   trustedPipelinePlans?: readonly TrustedPipelinePlan[];
 }): Promise<SessionCoordinator> {
@@ -81,7 +91,7 @@ export async function createSessionCoordinator(harness: Pick<LioraHarness, 'crea
   const path = await canonicalPath(options.path);
   if (!containsPath(home, path) || home === path) throw new Error('Coordinator projection must be scoped to the harness account home');
   const store = await FileCoordinatorStore.open(path);
-  return SessionCoordinator.open({ store, policy: options.policy, verificationPlans: options.verificationPlans, trustedPipelinePlans: options.trustedPipelinePlans, runtime: createIndependentSessionRuntime(harness, options.onActivity) });
+  return SessionCoordinator.open({ store, policy: options.policy, verificationPlans: options.verificationPlans, trustedPipelinePlans: options.trustedPipelinePlans, runtime: createIndependentSessionRuntime(harness, options.onActivity, options.prepareSession) });
 }
 
 export {

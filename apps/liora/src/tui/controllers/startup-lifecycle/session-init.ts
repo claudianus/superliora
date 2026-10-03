@@ -13,6 +13,7 @@ export async function initStartupSession(host: StartupLifecycleHost): Promise<bo
   const isResumeStartup = startup.sessionFlag !== undefined || startup.continueLast;
   const createSessionOptions: MutableCreateSessionOptions = {
     workDir,
+    role: host.options.sessionRole,
     model: startup.model,
     permission: startup.auto
       ? 'auto'
@@ -67,6 +68,7 @@ export async function initStartupSession(host: StartupLifecycleHost): Promise<bo
           }
           session = await host.harness.resumeSession({
             id: startup.sessionFlag,
+            role: host.options.sessionRole,
             additionalDirs: createSessionOptions.additionalDirs,
           });
           shouldReplayHistory = true;
@@ -77,6 +79,7 @@ export async function initStartupSession(host: StartupLifecycleHost): Promise<bo
         if (target !== undefined) {
           session = await host.harness.resumeSession({
             id: target.id,
+            role: host.options.sessionRole,
             additionalDirs: createSessionOptions.additionalDirs,
           });
           shouldReplayHistory = true;

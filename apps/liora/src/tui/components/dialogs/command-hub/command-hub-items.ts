@@ -203,7 +203,7 @@ export function buildDefaultCommandHubItems(state: {
       'tui.hub.section.workspace',
       'tui.hub.workspace.workerDock.label',
       'tui.hub.workspace.workerDock.desc',
-      { keywords: ['jobs', 'dock', 'workers', 'monitor', 'subagent'] },
+      { keywords: ['jobs', 'dock', 'workers', 'monitor', 'subagent', 'independent', 'sessions'] },
     ),
     hub(
       'workspace.jobCreate',

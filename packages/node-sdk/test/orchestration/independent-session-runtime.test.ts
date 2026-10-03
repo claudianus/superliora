@@ -26,6 +26,30 @@ const request = { prompt: 'Task', description: 'Task', cwd: '/workspace' };
 const flush = async () => { for (let index = 0; index < 20; index++) await Promise.resolve(); };
 
 describe('independent SDK execution uses terminal events and physical close', () => {
+  it.each(['admit', 'resume'] as const)('prepares host security before %s prompt and waits for failed preparation cleanup', async (method) => {
+    const f = fixture();
+    const prepare = vi.fn(async () => { throw new Error('Host policy denied'); });
+    const pending = createIndependentSessionRuntime(f.harness, undefined, prepare)[method]!('coord_test', request, new AbortController().signal);
+    const failure = expect(pending).rejects.toThrow('Host policy denied');
+    await flush();
+    expect(prepare).toHaveBeenCalledExactlyOnceWith(f.session);
+    expect(f.rpc.prompt).not.toHaveBeenCalled();
+    expect(f.rpc.closeSession).toHaveBeenCalledTimes(1);
+    f.closed.resolve();
+    await failure;
+  });
+
+  it('retains unsettled ownership if failed host preparation cannot physically close', async () => {
+    const f = fixture();
+    const pending = createIndependentSessionRuntime(f.harness, undefined, async () => { throw new Error('Host policy denied'); })
+      .admit('coord_test', request, new AbortController().signal);
+    const failure = expect(pending).rejects.toMatchObject({ name: 'IndependentSessionUnsettledError' });
+    await flush();
+    f.closed.reject(new Error('Process remains live'));
+    await failure;
+    expect(f.rpc.prompt).not.toHaveBeenCalled();
+  });
+
   it('does not equate prompt ACK or unrelated terminal events with completion', async () => {
     const f = fixture();
     const activity = vi.fn();

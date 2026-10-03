@@ -74,9 +74,14 @@ async function loadWorkerTranscript(
     };
   }
   try {
+    const target = host.workerDock.registry.workerTranscriptTarget(workerId);
+    if (target?.recordId !== undefined) {
+      const trace = await host.harness.getIndependentSessionTrace(host.requireSession().id, target.recordId, target.agentId);
+      return { lines: formatJobDeckTraceLines(trace.context.history) };
+    }
     const session = host.requireSession();
     // Interactive agent session when the harness can switch to this agent.
-    const trace = await host.harness.withInteractiveAgent(workerId, () =>
+    const trace = await host.harness.withInteractiveAgent(target?.agentId ?? workerId, () =>
       session.getSessionTrace(),
     );
     const lines = formatJobDeckTraceLines(trace.context.history);

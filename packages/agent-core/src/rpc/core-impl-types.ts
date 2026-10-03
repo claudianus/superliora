@@ -10,6 +10,8 @@ export type RenameSessionRequest = SessionScopedPayload<RenameSessionPayload>;
 export type UpdateSessionMetadataRequest = SessionScopedPayload<UpdateSessionMetadataPayload>;
 
 export interface LioraCoreOptions {
+  /** In-process host binding; coordinator instances never cross JSON RPC. */
+  readonly resolveSessionCoordinator?: (sessionId: string, scope: { readonly workDir: string; readonly additionalDirs: readonly string[] }) => Promise<import('../session/coordinator').SessionCoordinator>;
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
   readonly kimiRequestHeaders?: Record<string, string> | undefined;
