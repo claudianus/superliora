@@ -130,6 +130,7 @@ class SandboxToolManager extends ToolManager {
 export type AgentType = 'main' | 'sub' | 'independent';
 
 export interface AgentOptions {
+  readonly role?: 'worker' | 'interactive-conductor';
   readonly kaos: Kaos;
   readonly config?: LioraConfig;
   readonly homedir?: string;
@@ -151,6 +152,7 @@ export interface AgentOptions {
 }
 
 export class Agent {
+  readonly role: 'worker' | 'interactive-conductor';
   readonly type: AgentType;
   private _kaos: Kaos;
   readonly kimiConfig: LioraConfig | undefined;
@@ -190,6 +192,7 @@ export class Agent {
   private sandboxRefresh: Promise<void> = Promise.resolve();
 
   constructor(options: AgentOptions) {
+    this.role = options.role ?? 'worker';
     this.type = options.type ?? 'main';
     this._kaos = sandboxKaosTarget(options.kaos);
     this.kimiConfig = options.config;
