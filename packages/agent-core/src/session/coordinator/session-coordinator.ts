@@ -89,7 +89,8 @@ export class SessionCoordinator {
   }
 
   facts(limit = 32): { records: CoordinationFact[]; total: number } {
-    const records = this.projection.records.slice(-Math.min(Math.max(1, limit), 100));
+    const priority = (record: CoordinationRecord): number => this.active.has(record.id) ? 0 : record.status === 'accepted' ? 1 : record.status === 'interrupted' ? 2 : record.status === 'idle' || record.status === 'yielded' ? 3 : 4;
+    const records = this.projection.records.toReversed().toSorted((a, b) => priority(a) - priority(b)).slice(0, Math.min(Math.max(1, limit), 100));
     const cards: CoordinationFact[] = [];
     for (const record of records) {
       const { result: _result, error: _error, ...card } = this.fact(record.id)!;

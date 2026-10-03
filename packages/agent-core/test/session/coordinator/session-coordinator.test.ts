@@ -346,3 +346,17 @@ describe('durable tree snapshots', () => {
     expect(observed).toHaveLength(count);
   });
 });
+
+describe('bounded facts retain physically owned work', () => {
+  it('keeps an older running owner visible ahead of newer queued requests', async () => {
+    const { coordinator } = await setup();
+    const older = await coordinator.dispatch(request, 'long-running');
+    await coordinator.tick();
+    await flush();
+    for (let index = 0; index < 40; index++) await coordinator.dispatch({ ...request, ownership: ['different'], description: `Queued ${index}` }, `new-${index}`);
+    const snapshot = coordinator.facts(8);
+    expect(snapshot.records[0]).toMatchObject({ id: older.id, status: 'running', ownerStatus: 'active' });
+    expect(snapshot.records.length).toBeLessThanOrEqual(8);
+    expect(Buffer.byteLength(JSON.stringify(snapshot.records))).toBeLessThanOrEqual(12 * 1024);
+  });
+});
