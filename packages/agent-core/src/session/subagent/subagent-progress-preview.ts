@@ -68,126 +68,102 @@ export function summarizeToolTarget(argsJson: string | undefined): string | unde
  */
 function flattenToolPayloadPreview(value: unknown, maxLength: number): string | undefined {
   if (value === undefined || value === null) return undefined;
-  // Above this size the payload is certainly truncated, so build the JSON
-  // lazily and stop as soon as the prefix is known. Below it, plain
-  // `JSON.stringify` is faster than the incremental walk and keeps the common
-  // small-args case on the well-tested path.
-  if (typeof value !== 'string' && isLikelyLargeValue(value, maxLength)) {
-    const lazy = lazyJsonPrefix(value, maxLength + WHITESPACE_RUN_LOOKAHEAD);
-    return collapseWhitespace(lazy, maxLength);
+  try {
+    const text = typeof value === 'string'
+      ? value
+      : lazyJsonPrefix(value, maxLength + WHITESPACE_RUN_LOOKAHEAD);
+    return text === undefined ? undefined : collapseWhitespace(text, maxLength);
+  } catch {
+    return '[unserializable]';
   }
-  let text: string;
-  if (typeof value === 'string') text = value;
-  else {
-    try {
-      const json = JSON.stringify(value);
-      if (json === undefined) return undefined;
-      text = json;
-    } catch {
-      text = '[unserializable]';
-    }
-  }
-  return collapseWhitespace(text, maxLength);
-}
-
-/** Below this many characters, `JSON.stringify` wins over the lazy walk. */
-const LAZY_JSON_MIN_LENGTH = 2_048;
-
-function isLikelyLargeValue(value: unknown, maxLength: number): boolean {
-  if (maxLength >= LAZY_JSON_MIN_LENGTH) return false;
-  if (typeof value === 'string') return value.length > LAZY_JSON_MIN_LENGTH;
-  if (Array.isArray(value)) {
-    // First elements are enough to decide: tool args are homogeneous.
-    let budget = LAZY_JSON_MIN_LENGTH;
-    for (const entry of value) {
-      budget -= estimateJsonLength(entry);
-      if (budget <= 0) return true;
-      if (budget > LAZY_JSON_MIN_LENGTH) break;
-    }
-    return false;
-  }
-  if (typeof value === 'object') {
-    let budget = LAZY_JSON_MIN_LENGTH;
-    for (const entry of Object.values(value as Record<string, unknown>)) {
-      budget -= estimateJsonLength(entry);
-      if (budget <= 0) return true;
-      if (budget > LAZY_JSON_MIN_LENGTH) break;
-    }
-    return false;
-  }
-  return false;
-}
-
-function estimateJsonLength(value: unknown): number {
-  if (typeof value === 'string') return value.length + 2;
-  if (value === null) return 4;
-  if (typeof value === 'number' || typeof value === 'boolean') return 5;
-  if (Array.isArray(value)) {
-    let total = 2;
-    for (const entry of value) total += estimateJsonLength(entry) + 1;
-    return total;
-  }
-  if (typeof value === 'object') {
-    let total = 2;
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      total += key.length + 3 + estimateJsonLength(entry) + 1;
-    }
-    return total;
-  }
-  return 9;
 }
 
 /**
- * Build just enough of `JSON.stringify(value)` to cover `maxLength`
- * characters, in the same syntax the real serializer emits, then stop. Used
- * only when the result is guaranteed to be truncated, so the tail cannot
- * affect the preview.
+ * Serialize only the prefix we can display. Bound both emitted characters and
+ * traversal: omitted properties and deeply nested containers must not consume
+ * unlimited work without producing text. Unsupported/cyclic payloads use the
+ * same fallback as JSON.stringify failures. Unvisited tails are never read.
  */
-function lazyJsonPrefix(value: unknown, maxLength: number): string {
+function lazyJsonPrefix(value: unknown, maxLength: number): string | undefined {
   let out = '';
-  const visit = (node: unknown): void => {
-    if (out.length >= maxLength) return;
-    if (node === null) {
-      out += 'null';
-      return;
+  let visits = 0;
+  const ancestors = new Set<object>();
+  const append = (text: string): void => {
+    out += text.slice(0, maxLength - out.length);
+  };
+  const appendString = (text: string): void => {
+    // One extra code unit keeps a surrogate pair at the cut intact. Escaping
+    // can only expand the source, so this is enough to fill the output budget.
+    append(JSON.stringify(text.slice(0, maxLength - out.length + 1)));
+  };
+  const visit = (input: unknown, key: string, depth: number, arrayEntry = false): boolean => {
+    if (++visits > 2_048 || depth > 128) throw new Error('Preview traversal limit');
+    let node = input;
+    if (node !== null && (typeof node === 'object' || typeof node === 'bigint')) {
+      const toJSON = (node as { toJSON?: unknown }).toJSON;
+      if (typeof toJSON === 'function') node = toJSON.call(node, key);
+    }
+    // Preserve JSON unboxing for local boxed primitives.
+    // eslint-disable-next-line unicorn/no-instanceof-builtins
+    if (node instanceof Number || node instanceof String || node instanceof Boolean) {
+      node = node.valueOf();
     }
     switch (typeof node) {
+      case 'undefined':
+      case 'function':
+      case 'symbol':
+        if (arrayEntry) append('null');
+        return arrayEntry;
+      case 'bigint':
+        throw new TypeError('Cannot serialize BigInt');
       case 'string':
-        out += JSON.stringify(node).slice(0, maxLength - out.length);
-        return;
+        appendString(node);
+        return true;
       case 'number':
+        append(Number.isFinite(node) ? String(node) : 'null');
+        return true;
       case 'boolean':
-        out += String(node);
-        return;
+        append(String(node));
+        return true;
       case 'object':
         break;
-      default:
-        out += 'null';
-        return;
     }
-    if (Array.isArray(node)) {
-      out += '[';
-      for (let i = 0; i < node.length; i++) {
-        if (i > 0) out += ',';
-        visit(node[i]);
-        if (out.length >= maxLength) return;
+    if (node === null) {
+      append('null');
+      return true;
+    }
+    const object = node as Record<string, unknown>;
+    if (ancestors.has(object)) throw new TypeError('Circular preview payload');
+    ancestors.add(object);
+    if (Array.isArray(object)) {
+      append('[');
+      for (let i = 0; i < object.length && out.length < maxLength; i++) {
+        if (i > 0) append(',');
+        if (out.length < maxLength) visit(object[i], String(i), depth + 1, true);
       }
-      out += ']';
-      return;
+      append(']');
+    } else {
+      append('{');
+      let first = true;
+      for (const key in object) {
+        if (out.length >= maxLength) break;
+        if (++visits > 2_048) throw new Error('Preview traversal limit');
+        if (!Object.hasOwn(object, key)) continue;
+        // Roll back the key/comma if JSON.stringify would omit the value.
+        const before = out;
+        if (!first) append(',');
+        appendString(key);
+        append(':');
+        if (out.length >= maxLength) break;
+        if (visit(object[key], key, depth + 1)) first = false;
+        else out = before;
+      }
+      append('}');
     }
-    out += '{';
-    let first = true;
-    for (const [key, entry] of Object.entries(node as Record<string, unknown>)) {
-      if (!first) out += ',';
-      first = false;
-      out += `${JSON.stringify(key)}:`;
-      visit(entry);
-      if (out.length >= maxLength) return;
-    }
-    out += '}';
+    ancestors.delete(object);
+    return true;
   };
-  visit(value);
-  return out;
+  return visit(value, '', 0) ? out : undefined;
 }
 
 function collapseWhitespace(text: string, maxLength: number): string | undefined {
@@ -200,8 +176,7 @@ function collapseWhitespace(text: string, maxLength: number): string | undefined
   // trailing trim, so leading runs never emit and a trailing run never sticks.
   let pendingSpace = false;
   for (let i = 0; i < scanLimit; i++) {
-    const code = text.codePointAt(i);
-    if (code === 32 || code === 9 || code === 10 || code === 13) {
+    if (/\s/.test(text[i] ?? '')) {
       pendingSpace = flat.length > 0;
       continue;
     }
@@ -269,7 +244,8 @@ export function previewSubagentToolProgress(update: {
     return { kind: update.kind, textPreview };
   }
   if (typeof update.text !== 'string') return undefined;
-  if (update.text.trim().length === 0) return undefined;
+  const leadingText = update.text.slice(0, SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH + WHITESPACE_RUN_LOOKAHEAD);
+  if (leadingText.trim().length === 0) return undefined;
   const textPreview = truncateToolPayloadPreview(update.text, SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH);
   if (textPreview === undefined) return undefined;
   return { kind: update.kind, textPreview };
@@ -286,8 +262,8 @@ export function describeSubagentToolDetail(
     case 'Bash': {
       const command = toolDetailStringArg(record, 'command');
       if (command === undefined) return undefined;
-      const flat = command.replaceAll(/\s+/g, ' ').trim();
-      if (flat.length === 0) return undefined;
+      const flat = collapseWhitespace(command, SUBAGENT_TOOL_COMMAND_PREVIEW_LENGTH);
+      if (flat === undefined) return undefined;
       return {
         kind: 'bash',
         command: truncateToolPayloadPreview(flat, SUBAGENT_TOOL_COMMAND_PREVIEW_LENGTH) ?? flat,
