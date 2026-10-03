@@ -13,6 +13,8 @@ import type {
 
 export interface ProcessBackgroundTaskInfo extends BackgroundTaskInfoBase {
   readonly kind: 'process';
+  /** Present for accepted-before-start execution. */
+  readonly executionPhase?: 'accepted' | 'preparing' | 'running';
   readonly command: string;
   readonly pid?: number;
   readonly exitCode: number | null;

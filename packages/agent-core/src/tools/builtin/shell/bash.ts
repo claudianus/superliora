@@ -25,6 +25,7 @@
 import type { Kaos, KaosProcess } from '@superliora/kaos';
 
 import { ProcessBackgroundTask, type BackgroundManager } from '../../../agent/background';
+import { DeferredProcessBackgroundTask } from '../../../agent/background/deferred-process-task';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution, ToolUpdate } from '../../../loop/types';
@@ -86,6 +87,7 @@ export class BashTool implements BuiltinTool<BashInput> {
   readonly parameters: Record<string, unknown> = toInputJsonSchema(BashInputSchema);
 
   private readonly isWindowsBash: boolean;
+  private readonly backgroundAdmission: 'before-start' | 'after-start';
 
   private readonly shellEnvPolicy: ShellEnvFilterPolicy;
 
@@ -99,6 +101,8 @@ export class BashTool implements BuiltinTool<BashInput> {
     private readonly cwd: string,
     private readonly backgroundManager: BackgroundManager,
     options?: {
+      /** Opt-in host policy for the explicit interactive-conductor role only. */
+      backgroundAdmission?: 'before-start' | 'after-start';
       /** Shell env secret filter; default strips KEY/SECRET/TOKEN name patterns. */
       shellEnvPolicy?: ShellEnvFilterPolicy | undefined;
       /** Directories prepended to PATH (e.g. enabled plugin `bin/`). */
@@ -109,6 +113,7 @@ export class BashTool implements BuiltinTool<BashInput> {
       workspace?: WorkspaceConfig | undefined;
     },
   ) {
+    this.backgroundAdmission = options?.backgroundAdmission ?? 'after-start';
     this.isWindowsBash = this.kaos.osEnv.osKind === 'Windows';
     this.shellEnvPolicy = options?.shellEnvPolicy ?? {};
     this.pathPrefix = options?.pathPrefix ?? [];
@@ -188,6 +193,9 @@ export class BashTool implements BuiltinTool<BashInput> {
     const startsInBackground = args.run_in_background === true;
     const foregroundTimeoutMs = normalizeTimeoutMs(args.timeout, false);
     signal.throwIfAborted();
+    if (startsInBackground && this.backgroundAdmission === 'before-start') {
+      return this.acceptBackground(args);
+    }
     await this.ensureSandboxReady?.();
     signal.throwIfAborted();
     if (args.command.length === 0) return { isError: true, output: 'Command cannot be empty.' };
@@ -386,9 +394,46 @@ export class BashTool implements BuiltinTool<BashInput> {
     };
   }
 
+  private acceptBackground(args: BashInput): ExecutableToolResult {
+    if (args.command.length === 0) return { isError: true, output: 'Command cannot be empty.' };
+    const sensitivePath = detectShellSensitivePath(args.command);
+    if (sensitivePath !== undefined) return { isError: true, output: formatShellSensitivePathError(sensitivePath) };
+    if (!args.description?.trim()) {
+      return { isError: true, output: 'description is required when run_in_background is true.' };
+    }
+    const command = this.isWindowsBash ? rewriteWindowsNullRedirect(args.command) : args.command;
+    const cwd = args.cwd ?? this.cwd;
+    const description = args.description.trim();
+    const task = new DeferredProcessBackgroundTask(command, description, cwd, async (ownedSignal) => {
+      await this.ensureSandboxReady?.();
+      ownedSignal.throwIfAborted();
+      if (this.workspace !== undefined) {
+        const hit = detectSandboxCwd(cwd, this.workspace, this.kaos)
+          ?? detectShellSandboxPath(command, { cwd, workspace: this.workspace, kaos: this.kaos });
+        if (hit !== undefined) throw new Error(formatShellSandboxPathError(hit));
+      }
+      ownedSignal.throwIfAborted();
+      const proc = await this.spawn(this.kaos.withCwd(cwd), command);
+      closeProcessStdin(proc);
+      return proc;
+    });
+    try {
+      const taskId = this.backgroundManager.registerTask(task, {
+        detached: true,
+        timeoutMs: args.disable_timeout ? undefined : normalizeTimeoutMs(args.timeout, true),
+      });
+      return this.backgroundStartedResult(taskId, undefined, description, {
+        title: 'Background task accepted', brief: `Accepted: ${description}`,
+      });
+    } catch (error) {
+      task.abandonAdmission();
+      return { isError: true, output: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
   private backgroundStartedResult(
     taskId: string,
-    proc: KaosProcess,
+    proc: KaosProcess | undefined,
     description: string,
     labels: { title: string; brief: string },
     builder = new ToolResultBuilder(),
@@ -396,7 +441,7 @@ export class BashTool implements BuiltinTool<BashInput> {
     const status = this.backgroundManager.getTask(taskId)?.status ?? 'running';
     const metadata =
       `task_id: ${taskId}\n` +
-      `pid: ${String(proc.pid)}\n` +
+      (proc === undefined ? 'execution_phase: accepted\n' : `pid: ${String(proc.pid)}\n`) +
       `description: ${description}\n` +
       `status: ${status}\n` +
       `automatic_notification: true\n` +
