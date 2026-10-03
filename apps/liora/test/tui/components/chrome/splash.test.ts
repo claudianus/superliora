@@ -43,12 +43,9 @@ const appState: AppState = {
   contextTokens: 0,
   maxContextTokens: 0,
   isCompacting: false,
-  isBackgroundCompacting: false,
   isReplaying: false,
   streamingPhase: 'idle',
   streamingStartTime: 0,
-  planMode: false,
-  askMode: false,
   inputMode: 'prompt',
   theme: 'dark',
   editorCommand: null,
@@ -56,7 +53,6 @@ const appState: AppState = {
   upgrade: { autoInstall: true },
   availableModels: {},
   availableProviders: {},
-  mcpServersSummary: null,
   appearance: DEFAULT_APPEARANCE_PREFERENCES,
 };
 

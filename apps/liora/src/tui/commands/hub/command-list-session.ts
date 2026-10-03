@@ -5,31 +5,19 @@
 import type { LioraSlashCommand } from '../types';
 import { ttui } from '#/tui/utils/tui-i18n';
 import {
-  toggleOnOffArgumentCompletions,
-  permissionArgumentCompletions,
-  contextArgumentCompletions,
-  premiumArgumentCompletions,
-  planArgumentCompletions,
   thinkingArgumentCompletions,
   helpArgumentCompletions,
-  extensionsArgumentCompletions,
-  cronArgumentCompletions,
   jobArgumentCompletions,
   jobsArgumentCompletions,
-  memoryArgumentCompletions,
   addDirArgumentCompletions,
   folderArgumentCompletions,
-  loopArgumentCompletions,
-  goalArgumentCompletions,
   editorArgumentCompletions,
   themeArgumentCompletions,
   appearanceArgumentCompletions,
-  personaArgumentCompletions,
   localeArgumentCompletions,
   performanceArgumentCompletions,
   hostSetupArgumentCompletions,
 } from './completion-specs';
-import { pluginsArgumentCompletions } from '../plugins/plugins';
 import { transcriptArgumentCompletions } from '../session/transcript';
 import { neatArgumentCompletions } from '../session/neat';
 
@@ -110,15 +98,6 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     availability: 'idle-only',
   },
   {
-    name: 'extensions',
-    aliases: ['ext', 'import-claude'],
-    description: slashDesc('extensions'),
-    priority: 70,
-    availability: 'always',
-    argumentHint: '[plugins|hooks|skills|mcp|claude]',
-    completeArgs: extensionsArgumentCompletions,
-  },
-  {
     name: 'jobs',
     aliases: [],
     description: slashDesc('jobs'),
@@ -137,62 +116,6 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     availability: 'always',
   },
   {
-    name: 'cron',
-    aliases: [],
-    description: slashDesc('cron'),
-    priority: 60,
-    argumentHint: 'list | delete <jobId>',
-    completeArgs: cronArgumentCompletions,
-    availability: 'always',
-  },
-  {
-    name: 'mcp',
-    aliases: [],
-    description: slashDesc('mcp'),
-    priority: 60,
-    availability: 'always',
-  },
-  {
-    name: 'tools',
-    aliases: ['tool'],
-    description: slashDesc('tools'),
-    priority: 70,
-    availability: 'always',
-  },
-  {
-    name: 'eyes',
-    aliases: ['eye'],
-    description: slashDesc('eyes'),
-    priority: 70,
-    availability: 'always',
-  },
-  {
-    name: 'harness',
-    aliases: [],
-    description: slashDesc('harness'),
-    priority: 70,
-    availability: 'always',
-  },
-  {
-    name: 'plugins',
-    aliases: [],
-    description: slashDesc('plugins'),
-    priority: 60,
-    visibility: 'advanced',
-    availability: 'always',
-    argumentHint: '[list|install|marketplace|info|mcp|enable|disable|remove|reload]',
-    completeArgs: pluginsArgumentCompletions,
-  },
-  {
-    name: 'memory',
-    aliases: [],
-    description: slashDesc('memory'),
-    priority: 60,
-    availability: 'always',
-    argumentHint: '[remember|recall|reflect|forget|inspect]',
-    completeArgs: memoryArgumentCompletions,
-  },
-  {
     name: 'add-dir',
     aliases: [],
     description: slashDesc('add-dir'),
@@ -200,14 +123,6 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     availability: 'idle-only',
     argumentHint: '[list] | <path>',
     completeArgs: addDirArgumentCompletions,
-  },
-  {
-    name: 'experiments',
-    aliases: ['experimental'],
-    description: slashDesc('experiments'),
-    priority: 60,
-    visibility: 'advanced',
-    availability: 'idle-only',
   },
   {
     name: 'reload',
@@ -240,35 +155,6 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     argumentHint: 'clear',
     // Clearing the queue is safe mid-turn: the queue is a TUI-side buffer.
     availability: 'always',
-  },
-  {
-    name: 'refine',
-    aliases: [],
-    description: slashDesc('refine'),
-    priority: 80,
-    argumentHint: '[--global] [status|rollback <id>] | [instructions]',
-  },
-  {
-    name: 'goal',
-    aliases: [],
-    description: slashDesc('goal'),
-    priority: 80,
-    argumentHint: '[status|pause|resume|cancel|replace|next] | <objective>',
-    completeArgs: goalArgumentCompletions,
-    // status / pause / cancel are always available; creation, replacement, and
-    // resume start (or restart) a turn and so are idle-only.
-    availability: (args) => {
-      const trimmed = args.trim();
-      if (trimmed === 'next' || trimmed.startsWith('next ')) return 'always';
-      return trimmed === '' || trimmed === 'status' || trimmed === 'pause' || trimmed === 'cancel'
-        ? 'always'
-        : 'idle-only';
-    },
-  },
-  {
-    name: 'init',
-    aliases: [],
-    description: slashDesc('init'),
   },
   {
     name: 'fork',
@@ -371,35 +257,11 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     availability: 'always',
   },
   {
-    name: 'aquarium',
-    aliases: ['tank'],
-    description: slashDesc('aquarium'),
-    priority: 70,
-    visibility: 'advanced',
-    availability: 'always',
-  },
-  {
-    name: 'feed',
-    aliases: ['food'],
-    description: slashDesc('feed'),
-    priority: 70,
-    visibility: 'advanced',
-    availability: 'always',
-  },
-  {
     name: 'upgrade',
     aliases: ['update'],
     description: slashDesc('upgrade'),
     argumentHint: '[--main]',
     priority: 90,
-    availability: 'always',
-  },
-  {
-    name: 'context-os',
-    aliases: ['ctx'],
-    description: slashDesc('context-os'),
-    priority: 85,
-    argumentHint: '[query]',
     availability: 'always',
   },
   {
@@ -416,15 +278,6 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     priority: 80,
     argumentHint: '[turnId]',
     availability: 'idle-only',
-  },
-  {
-    name: 'loop',
-    aliases: [],
-    description: slashDesc('loop'),
-    priority: 75,
-    argumentHint: '[interval] <prompt> | stop [id] | list',
-    completeArgs: loopArgumentCompletions,
-    availability: 'always',
   },
   {
     name: 'retry',
@@ -452,13 +305,6 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     availability: 'always',
   },
   {
-    name: 'media',
-    aliases: [],
-    description: slashDesc('media'),
-    priority: 55,
-    availability: 'always',
-  },
-  {
     name: 'locale',
     aliases: [],
     description: slashDesc('locale'),
@@ -483,15 +329,6 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     priority: 60,
     argumentHint: '[off|auto|on]',
     completeArgs: performanceArgumentCompletions,
-    availability: 'always',
-  },
-  {
-    name: 'persona',
-    aliases: ['character'],
-    description: slashDesc('persona'),
-    priority: 60,
-    argumentHint: '[list|set|name|tone|personality|instructions|clear|help]',
-    completeArgs: personaArgumentCompletions,
     availability: 'always',
   },
   {

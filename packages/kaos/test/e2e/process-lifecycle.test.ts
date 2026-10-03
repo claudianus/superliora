@@ -98,19 +98,32 @@ describe('e2e: process lifecycle', () => {
     it.skipIf(process.platform === 'win32')('start → verify running → kill → confirm exit', async () => {
       // Process that runs indefinitely
       const code = `
-        process.stdout.write('started\\n');
-        setInterval(() => {}, 1000);
+        require('node:net').createServer().listen(0, '127.0.0.1', () => {
+          process.stdout.write('started\\n');
+        });
       `;
       const proc = await kaos.exec('node', '-e', code);
 
       expect(proc.pid).toBeGreaterThan(0);
 
-      // Kill it
-      await proc.kill('SIGTERM');
-
-      const exitCode = await proc.wait();
-      // On SIGTERM, node typically exits with non-zero
-      expect(typeof exitCode).toBe('number');
+      try {
+        const started = await new Promise<Buffer>((resolve) => {
+          proc.stdout.once('data', (chunk: Buffer) => { resolve(chunk); });
+        });
+        expect(started.toString('utf8')).toContain('started');
+        await proc.kill('SIGTERM');
+        // Signal termination is a confirmed exit, not a fabricated numeric code.
+        expect(await proc.wait()).toBeNull();
+        expect(proc.exitCode).toBeNull();
+      } finally {
+        await proc.kill('SIGKILL');
+        await proc.wait();
+        await proc.dispose();
+      }
+      expect(proc.resourcesSettled).toBe(true);
+      expect(proc.stdin.closed).toBe(true);
+      expect(proc.stdout.closed).toBe(true);
+      expect(proc.stderr.closed).toBe(true);
     });
 
     it('kill with SIGKILL → immediate termination', async () => {

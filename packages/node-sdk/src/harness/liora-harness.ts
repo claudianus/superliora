@@ -3,9 +3,7 @@ import {
   ErrorCodes,
   LioraError,
   withTelemetryContext,
-  type ExperimentalFeatureState,
   type RuntimeDegradedEvent,
-  type SmartLoopProbeProgress,
 } from '@superliora/agent-core';
 
 import { Session } from '#/session/session';
@@ -23,24 +21,10 @@ import type {
   LioraConfigPatch,
   KimiHostIdentity,
   ListSessionsOptions,
-  MemoryCreateInput,
-  MemoryExportResult,
-  MemoryImportResult,
-  MemoryListRequest,
-  MemoryInspectResult,
-  MemoryRecord,
-  MemoryReflectInput,
-  MemoryReflectResult,
-  MemorySearchRequest,
-  MemorySearchResult,
-  MemoryStats,
-  MemoryUpdateInput,
-  PluginThemeDef,
   RenameSessionInput,
   ResumeSessionInput,
   ReloadSessionInput,
   SessionSummary,
-  SmartLoopRoleRoutingPlan,
   TelemetryClient,
   TelemetryContextPatch,
   TelemetryProperties,
@@ -62,7 +46,6 @@ export class LioraHarness {
   readonly homeDir: string;
   readonly configPath: string;
   readonly auth: LioraAuthFacade;
-  readonly memory: LioraMemoryClient;
 
   private readonly identity: KimiHostIdentity | undefined;
   private readonly uiMode: string;
@@ -82,7 +65,6 @@ export class LioraHarness {
     this.configPath = options.configPath;
     this.telemetry = options.telemetry;
     this.auth = options.auth;
-    this.memory = new LioraMemoryClient(rpc);
     this.ensureConfigFileImpl = options.ensureConfigFile;
     this.closeImpl = options.onClose;
     this.sessionStartedProperties = options.sessionStartedProperties ?? {};
@@ -132,7 +114,7 @@ export class LioraHarness {
   }
 
   async createSession(options: CreateSessionOptions): Promise<Session> {
-    const { planMode, kaos, persistenceKaos, sessionStartedProperties, ...coreOptions } = options;
+    const { kaos, persistenceKaos, sessionStartedProperties, ...coreOptions } = options;
     const summary =
       kaos === undefined && persistenceKaos === undefined
         ? await this.rpc.createSession(coreOptions)
@@ -147,12 +129,6 @@ export class LioraHarness {
       },
     });
     this.activeSessions.set(session.id, session);
-    if (planMode !== undefined) {
-      const status = await session.getStatus();
-      if (status.planMode !== planMode) {
-        await session.setPlanMode(planMode);
-      }
-    }
     this.trackSessionStarted(summary.id, false, sessionStartedProperties);
     this.trackSessionEvent(session.id, 'session_new');
     return session;
@@ -195,16 +171,13 @@ export class LioraHarness {
     const id = normalizeSessionId(input.id);
     const active = this.activeSessions.get(id);
     if (active !== undefined) {
-      await active.reloadSession({
-        forcePluginSessionStartReminder: input.forcePluginSessionStartReminder,
-      });
+      await active.reloadSession();
       this.trackSessionEvent(active.id, 'session_reload');
       return active;
     }
 
     const summary = await this.rpc.reloadSession({
       sessionId: id,
-      forcePluginSessionStartReminder: input.forcePluginSessionStartReminder,
     });
     const session = new Session({
       id: summary.id,
@@ -279,14 +252,6 @@ export class LioraHarness {
     return this.rpc.getConfigDiagnostics();
   }
 
-  async getExperimentalFeatures(): Promise<readonly ExperimentalFeatureState[]> {
-    return this.rpc.getExperimentalFeatures();
-  }
-
-  /** Enabled-plugin Claude themes for the TUI `/theme` host (no session required). */
-  async listPluginThemes(): Promise<readonly PluginThemeDef[]> {
-    return this.rpc.listPluginThemes();
-  }
 
   async ensureConfigFile(): Promise<void> {
     await this.ensureConfigFileImpl();
@@ -300,12 +265,6 @@ export class LioraHarness {
     return this.rpc.deleteConfigFields(paths);
   }
 
-  /** Settings Smart auto — live-probe each role chain; caller applies pins. */
-  async planSmartLoopRoleRouting(options?: {
-    readonly onProgress?: (progress: SmartLoopProbeProgress) => void;
-  }): Promise<SmartLoopRoleRoutingPlan> {
-    return this.rpc.planSmartLoopRoleRouting(options);
-  }
 
   async removeProvider(providerId: string): Promise<LioraConfig> {
     return this.rpc.removeProvider(providerId);
@@ -349,53 +308,6 @@ export class LioraHarness {
   }
 }
 
-export class LioraMemoryClient {
-  constructor(private readonly rpc: SDKRpcClientBase) {}
-
-  recall(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
-    return this.rpc.memoryRecall(request);
-  }
-
-  list(request: MemoryListRequest = {}): Promise<readonly MemoryRecord[]> {
-    return this.rpc.memoryList(request);
-  }
-
-  get(id: string): Promise<MemoryRecord | undefined> {
-    return this.rpc.memoryGet(id);
-  }
-
-  remember(input: MemoryCreateInput): Promise<MemoryRecord> {
-    return this.rpc.memoryRemember(input);
-  }
-
-  update(id: string, patch: MemoryUpdateInput): Promise<MemoryRecord> {
-    return this.rpc.memoryUpdate(id, patch);
-  }
-
-  forget(id: string): Promise<boolean> {
-    return this.rpc.memoryForget(id);
-  }
-
-  stats(): Promise<MemoryStats> {
-    return this.rpc.memoryStats();
-  }
-
-  exportMemories(request: MemoryListRequest = {}): Promise<MemoryExportResult> {
-    return this.rpc.memoryExport(request);
-  }
-
-  importMemories(records: readonly MemoryRecord[]): Promise<MemoryImportResult> {
-    return this.rpc.memoryImport(records);
-  }
-
-  reflect(input: MemoryReflectInput = {}): Promise<MemoryReflectResult> {
-    return this.rpc.memoryReflect(input);
-  }
-
-  inspect(): Promise<MemoryInspectResult> {
-    return this.rpc.memoryInspect();
-  }
-}
 
 const DEFAULT_SESSION_STARTED_UI_MODE = 'shell';
 

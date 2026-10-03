@@ -74,63 +74,20 @@ export class AcpSession {
    * `buildPermissionToolCallUpdate` exists for defence-in-depth.
    */
   private currentTurnId: number | undefined = undefined;
+  private promptPending = false;
+  private compactionPending = false;
 
-  /**
-   * The adapter-side authoritative current BASE model id (no
-   * `,thinking` suffix) for the `configOptions` model picker (PLAN D11).
-   * Updated by {@link setModel} after the SDK call lands. Phase 15
-   * decoupled thinking from the model id — see
-   * {@link currentThinkingEnabledInternal} — so this field never carries
-   * a `,thinking` suffix even when the client originally sent one
-   * through `unstable_setSessionModel`.
-   */
+  /** Native configured model alias selected by the editor. */
   private currentModelIdInternal: string;
 
-  /**
-   * The adapter-side authoritative current thinking-toggle state.
-   * Phase 15 split this out of the model id so the client renders a
-   * separate boolean `SessionConfigOption` (the spec's
-   * `'thought_level'` category) instead of an inlined `,thinking`
-   * variant row in the model dropdown. Updated by {@link setThinking}
-   * and by {@link setModel} when the caller passed a merged
-   * `${id},thinking` form (legacy `unstable_setSessionModel`
-   * compatibility).
-   *
-   * Maps to the SDK's effort-level string at the boundary:
-   * `true` → `'high'` (the typical default for kimi-code), `false`
-   * → `'off'`. The granularity of `'low' | 'medium' | 'xhigh' | 'max'`
-   * is intentionally not surfaced — the ACP `thinking` axis is binary
-   * (Phase 16 wire form: 2-entry `select` `off` / `on`; pre-Phase-16
-   * was `SessionConfigBoolean`).
-   */
+  /** Native thinking selection exposed as a separate on/off editor option. */
   private currentThinkingEnabledInternal = false;
 
-  /**
-   * The adapter-side authoritative current mode id. Updated by
-   * {@link setMode} after both SDK toggles (`setPlanMode` + `setPermission`)
-   * land so the next `config_option_update` notification reflects the
-   * new mode. Always one of the four PLAN D9 literals.
-   */
+  /** Current native permission policy. */
   private currentModeIdInternal: AcpModeId = DEFAULT_MODE_ID;
 
   /**
-   * Per-session `slash command name → skill name` map, seeded by
-   * {@link AcpServer.emitAvailableCommandsUpdate} from the same
-   * `listSkills()` snapshot that builds the client palette. Consulted
-   * by {@link prompt} to intercept `/skill:<name> ...` inputs and
-   * route them to {@link Session.activateSkill} instead of forwarding
-   * the raw slash text to {@link Session.prompt} — which is what made
-   * Zed fall back to model-driven Bash exploration of
-   * `~/.superliora/skills/` and incurred permission prompts. Defaults
-   * to an empty map so adapter-level unit tests (which never call
-   * `setSkillCommandMap`) behave as a no-op passthrough.
-   */
-  private skillCommandMap: ReadonlyMap<string, string> = new Map();
-
-  /**
-   * The most recent command palette advertised to the ACP client. Used by
-   * `/help` so the response matches the client's `available_commands_update`
-   * snapshot, including dynamically discovered skill commands.
+   * The most recent command palette advertised to the ACP client, used by `/help`.
    */
   private availableCommands: readonly AvailableCommand[] = [];
 
@@ -183,9 +140,11 @@ export class AcpSession {
      * Defaults to `false` when absent.
      */
     initialThinkingEnabled?: boolean,
+    initialModeId: AcpModeId = DEFAULT_MODE_ID,
   ) {
     this.currentModelIdInternal = initialModelId ?? '';
     this.currentThinkingEnabledInternal = initialThinkingEnabled ?? false;
+    this.currentModeIdInternal = initialModeId;
     // Register the approval bridge once, at session-construction time —
     // NOT per-prompt — because `setApprovalHandler` is scoped to the
     // SDK session, not the individual turn. The handler captures `this`
@@ -199,10 +158,7 @@ export class AcpSession {
     if (typeof this.session.setApprovalHandler === 'function') {
       this.session.setApprovalHandler((req) => this.handleApproval(req));
     }
-    // Same pattern as the approval handler, but for the AskUserQuestion
-    // reverse-RPC channel (Phase 13.1). Pre-Phase-13 builds of the SDK
-    // do not expose `setQuestionHandler`, and unit-test stubs may omit
-    // it; the `typeof === 'function'` guard keeps both cases working.
+    // Native operator questions use the same reverse-RPC permission bridge.
     if (typeof this.session.setQuestionHandler === 'function') {
       this.session.setQuestionHandler(async (req) => this.handleQuestion(req));
     }
@@ -219,7 +175,7 @@ export class AcpSession {
    * out from under its prompt.
    */
   get hasActiveTurn(): boolean {
-    return this.currentTurnId !== undefined;
+    return this.promptPending || this.compactionPending || this.currentTurnId !== undefined;
   }
 
   /**
@@ -257,31 +213,15 @@ export class AcpSession {
    * acceptable.
    */
   async cancel(): Promise<void> {
-    await this.session.cancel();
+    await Promise.all([
+      this.session.cancel(),
+      ...(this.compactionPending ? [this.session.cancelCompaction()] : []),
+    ]);
   }
 
-  /**
-   * Seed the per-session `slash command name → skill name` map used by
-   * {@link prompt} to intercept `/skill:<name> ...` inputs. Called by
-   * {@link AcpServer.emitAvailableCommandsUpdate} from the same
-   * `listSkills()` snapshot that builds the client palette, so the map
-   * stays in lockstep with what the client advertises.
-   */
-  setSkillCommandMap(map: ReadonlyMap<string, string>): void {
-    this.skillCommandMap = map;
-  }
-
-  /**
-   * Seed the advertised command palette and the skill-routing map from one
-   * resolver snapshot. This keeps `available_commands_update`, `/help`, and
-   * skill slash interception in lockstep.
-   */
-  setAvailableCommands(
-    commands: readonly AvailableCommand[],
-    skillCommandMap: ReadonlyMap<string, string>,
-  ): void {
+  /** Seed the advertised native command palette used by `/help`. */
+  setAvailableCommands(commands: readonly AvailableCommand[]): void {
     this.availableCommands = commands.slice();
-    this.skillCommandMap = skillCommandMap;
   }
 
   /**
@@ -292,9 +232,6 @@ export class AcpSession {
   async setModel(modelId: ModelId): Promise<void> {
     const result = await applySetModel(this.session, modelId);
     this.currentModelIdInternal = result.modelId;
-    if (result.thinkingEnabled === true) {
-      this.currentThinkingEnabledInternal = true;
-    }
     await this.emitConfigOptionUpdate();
   }
 
@@ -315,14 +252,14 @@ export class AcpSession {
 
   /**
    * Forward an ACP `session/set_mode` request to the underlying SDK
-   * session. See {@link applySetMode} for the 4-mode taxonomy.
+   * session. Modes are native permission policies.
    *
    * Error policy:
    *  - Unknown `modeId` → JSON-RPC `invalid_params` (-32602) BEFORE any
    *    SDK call, so the client sees a structured rejection rather than
    *    a partial state change.
-   *  - SDK errors from `setPlanMode` or `setPermission` propagate
-   *    as-is up to {@link AcpServer.setSessionMode}. When either throws,
+   *  - SDK errors from `setPermission` propagate
+   *    as-is up to {@link AcpServer.setSessionMode}. When it throws,
    *    the `config_option_update` notification is suppressed (the client
    *    will see the rejection and can re-query state).
    */
@@ -435,32 +372,33 @@ export class AcpSession {
     const sessionId = this.id;
     const conn = this.conn;
 
-    // ACP clients send slash commands as plain text `ContentBlock`s in
-    // `session/prompt`. Intercept only commands the adapter can execute
-    // directly: skills route to `Session.activateSkill(...)`, ACP-owned
-    // built-ins route to local SDK queries, and unknown slash commands are
-    // reported locally instead of being forwarded to the model as text.
-    const intent = detectLeadingSlashIntent(blocks, this.skillCommandMap);
-    if (intent.kind === 'skill') {
-      this.emitTelemetry('acp_skill_activated', { skill_name: intent.skillName });
-      const skillName = intent.skillName;
-      const skillArgs = intent.args;
-      return this.runTurnBody(sessionId, conn, () =>
-        // `activateSkill` accepts `args?: string | undefined`; pass the
-        // empty string through verbatim — the SDK's
-        // `normalizeOptionalString` converts `''` to `undefined`, which
-        // is the canonical "no args" form for the skill renderer.
-        this.session.activateSkill(skillName, skillArgs.length > 0 ? skillArgs : undefined),
-      );
-    }
+    // Only native ACP-owned commands are intercepted before the model.
+    const intent = detectLeadingSlashIntent(blocks);
     if (intent.kind === 'builtin') {
-      return this.runBuiltInCommand(intent.name, intent.args);
+      if (intent.name !== 'compact') return this.runBuiltInCommand(intent.name, intent.args);
+      if (this.compactionPending) {
+        throw RequestError.invalidRequest(undefined, 'A session compaction is already active.');
+      }
+      this.compactionPending = true;
+      try {
+        return await this.runBuiltInCommand(intent.name, intent.args);
+      } finally {
+        this.compactionPending = false;
+      }
     }
     if (intent.kind === 'unknown') {
       return this.runUnknownSlashCommand(intent.name);
     }
 
-    return this.runTurnBody(sessionId, conn, () => this.session.prompt(parts));
+    if (this.hasActiveTurn) {
+      throw RequestError.invalidRequest(undefined, 'A session prompt is already active.');
+    }
+    this.promptPending = true;
+    try {
+      return await this.runTurnBody(sessionId, conn, () => this.session.prompt(parts));
+    } finally {
+      this.promptPending = false;
+    }
   }
 
   private runBuiltInCommand(
@@ -483,11 +421,7 @@ export class AcpSession {
     };
   }
 
-  /**
-   * Body of {@link prompt}, extracted so the event-listener invariants
-   * live in {@link runPromptTurn} and can be driven by either
-   * `Session.prompt(parts)` or `Session.activateSkill(name, args)`.
-   */
+  /** Subscribe to native turn events before dispatching the model request. */
   private runTurnBody(
     sessionId: string,
     conn: AgentSideConnection,

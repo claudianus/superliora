@@ -1,22 +1,12 @@
 /**
  * Verb-group labels for a run of tool calls.
- * "Reading 2 files · Searching 3 patterns" — present tense while any
+ * Bash commands and SessionControl activity use observed running states.
  * member is still running, past tense once the run settles.
  */
 
 export type VerbGroupKind =
-  | 'file'
-  | 'skill'
-  | 'search'
-  | 'dir'
-  | 'webFetch'
-  | 'webSearch'
-  | 'memory'
   | 'subagent'
   | 'command'
-  | 'edit'
-  | 'write'
-  | 'mcp'
   | 'other';
 
 export interface VerbGroupItem {
@@ -32,63 +22,22 @@ interface VerbCopy {
 }
 
 const VERB_COPY: Record<VerbGroupKind, VerbCopy> = {
-  file: { past: 'Read', present: 'Reading', one: 'file', many: 'files' },
-  skill: { past: 'Ran', present: 'Running', one: 'skill', many: 'skills' },
-  search: { past: 'Searched', present: 'Searching', one: 'pattern', many: 'patterns' },
-  dir: { past: 'Listed', present: 'Listing', one: 'dir', many: 'dirs' },
-  webFetch: { past: 'Fetched', present: 'Fetching', one: 'website', many: 'websites' },
-  webSearch: { past: 'Searched', present: 'Searching', one: 'website', many: 'websites' },
-  memory: { past: 'Searched', present: 'Searching', one: 'memory', many: 'memories' },
-  subagent: { past: 'Ran', present: 'Running', one: 'subagent', many: 'subagents' },
+  subagent: { past: 'Ran', present: 'Running', one: 'session operation', many: 'session operations' },
   command: { past: 'Ran', present: 'Running', one: 'command', many: 'commands' },
-  edit: { past: 'Edited', present: 'Editing', one: 'file', many: 'files' },
-  write: { past: 'Wrote', present: 'Writing', one: 'file', many: 'files' },
-  mcp: { past: 'Called', present: 'Calling', one: 'MCP tool', many: 'MCP tools' },
   other: { past: 'Ran', present: 'Running', one: 'tool', many: 'tools' },
 };
 
 const NAME_KIND: Record<string, VerbGroupKind> = {
-  Read: 'file',
-  LioraRead: 'file',
-  Grep: 'search',
-  Glob: 'search',
-  SemanticSearch: 'search',
-  LioraSymbol: 'search',
-  SearchSkill: 'search',
-  SearchTools: 'search',
-  SearchExpert: 'search',
-  LS: 'dir',
-  LioraTree: 'dir',
-  WebSearch: 'webSearch',
-  DeepResearch: 'webSearch',
-  FetchURL: 'webFetch',
-  WebFetch: 'webFetch',
-  Context7Docs: 'webFetch',
-  Context7Resolve: 'webFetch',
-  Memory: 'memory',
-  Agent: 'subagent',
-  Task: 'subagent',
   Bash: 'command',
-  Script: 'command',
-  RunProjectChecks: 'command',
-  Edit: 'edit',
-  Write: 'write',
-  NotebookEdit: 'edit',
-  Skill: 'skill',
+  SessionControl: 'subagent',
 };
 
 export function classifyToolVerbKind(name: string): VerbGroupKind {
   const mapped = NAME_KIND[name];
   if (mapped !== undefined) return mapped;
-  if (name.startsWith('mcp_') || name.includes('__')) return 'mcp';
   return 'other';
 }
 
-/** Grep/Glob/LS and the same verb-family — fold into `SearchGroupComponent`. */
-export function isSearchFamilyTool(name: string): boolean {
-  const kind = classifyToolVerbKind(name);
-  return kind === 'search' || kind === 'dir';
-}
 
 export function formatVerbGroupLabel(
   items: readonly VerbGroupItem[],

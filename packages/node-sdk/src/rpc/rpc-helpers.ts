@@ -3,7 +3,6 @@ import {
   makeErrorPayload,
   type CoreAPI,
   type Event,
-  type ProviderExtrasStatus,
   type ProviderRouteStatus,
   type RPCMethods,
 } from '@superliora/agent-core';
@@ -66,11 +65,6 @@ export interface SessionStatusFacets {
   readonly config: Awaited<ReturnType<ResolvedCoreAPI['getConfig']>>;
   readonly context: Awaited<ReturnType<ResolvedCoreAPI['getContext']>>;
   readonly permission: Awaited<ReturnType<ResolvedCoreAPI['getPermission']>>;
-  readonly plan: Awaited<ReturnType<ResolvedCoreAPI['getPlan']>>;
-  readonly askMode: Awaited<ReturnType<ResolvedCoreAPI['getAskMode']>> | undefined;
-  readonly premiumQualityMode:
-    | Awaited<ReturnType<ResolvedCoreAPI['getPremiumQuality']>>
-    | undefined;
   readonly usage: Awaited<ReturnType<ResolvedCoreAPI['getUsage']>> | undefined;
   readonly providerRouteStatus: ProviderRouteStatus | null;
   readonly circuitBreakers: Awaited<ReturnType<ResolvedCoreAPI['getCircuitBreakers']>> | undefined;
@@ -80,24 +74,14 @@ export interface SessionStatusFacets {
     | undefined;
   readonly parallelTools: Awaited<ReturnType<ResolvedCoreAPI['getParallelToolsStatus']>> | undefined;
   readonly oauth: Awaited<ReturnType<ResolvedCoreAPI['getOAuthStatus']>> | undefined;
-  readonly providerExtras?: ProviderExtrasStatus | undefined;
 }
 
-/**
- * Assemble the {@link SessionStatus} wire shape from the parallel-fetched
- * facets in `SDKRpcClientBase.getStatus`. Individual facet fetches may
- * have already degraded to `undefined` (or `null` for
- * `providerRouteStatus`) upstream — this function only combines and
- * derives, it never fetches.
- */
+/** Assemble actual native status facets; this function does not fetch. */
 export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
   const {
     config,
     context,
     permission,
-    plan,
-    askMode,
-    premiumQualityMode,
     usage,
     providerRouteStatus,
     circuitBreakers,
@@ -105,7 +89,6 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     cacheFreezeViolations,
     parallelTools,
     oauth,
-    providerExtras,
   } = facets;
   const maxContextTokens = config.modelCapabilities?.max_context_tokens ?? 0;
   const contextTokens = context.tokenCount;
@@ -117,9 +100,6 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     model: config.modelAlias ?? config.provider?.model,
     thinkingLevel: config.thinkingLevel,
     permission: permission.mode,
-    planMode: plan !== null,
-    askMode: askMode === true,
-    premiumQualityMode,
     contextTokens,
     maxContextTokens,
     contextUsage,
@@ -143,12 +123,8 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
       ? { oldestInterventionAgeMs: permission.oldestInterventionAgeMs }
       : {}),
     ...(circuitBreakers !== undefined ? { circuitBreakers } : {}),
-    roleModels: config.roleModels,
     usage: hasUsage ? usage : undefined,
     providerRouteStatus,
-    contextOS: context.contextOS,
-    autoDream: context.autoDream,
     ...(oauth !== undefined ? { oauth } : {}),
-    ...(providerExtras !== undefined ? { extras: providerExtras } : {}),
   };
 }

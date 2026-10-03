@@ -55,16 +55,13 @@ function buildThemeOptions(autoPalette: ColorPalette): ThemeChoiceOption[] {
   const curatedDark = entries.filter(
     (entry) =>
       entry.source !== 'custom' &&
-      entry.source !== 'plugin' &&
       entry.source !== 'bundled-external' &&
       entry.base !== 'light',
   );
   const custom = entries.filter((entry) => entry.source === 'custom');
-  const plugin = entries.filter((entry) => entry.source === 'plugin');
   const curatedLight = entries.filter(
     (entry) =>
       entry.source !== 'custom' &&
-      entry.source !== 'plugin' &&
       entry.source !== 'bundled-external' &&
       entry.base === 'light',
   );
@@ -87,7 +84,6 @@ function buildThemeOptions(autoPalette: ColorPalette): ThemeChoiceOption[] {
     },
     ...curatedDark,
     ...custom,
-    ...plugin,
     {
       value: 'light',
       label: ttui('tui.picker.theme.light'),
@@ -124,19 +120,6 @@ function themeEntryToOption(entry: ThemeListEntry): ThemeChoiceOption {
       base: entry.base,
       source: entry.source,
       searchOnly: true,
-    };
-  }
-  if (entry.source === 'plugin') {
-    return {
-      value: entry.name,
-      label: formatThemeLabel(entry),
-      description: ttui('tui.picker.theme.plugin', {
-        base: baseDescription,
-        pack: entry.pack ?? 'plugin',
-      }),
-      previewPalette,
-      base: entry.base,
-      source: entry.source,
     };
   }
   return {

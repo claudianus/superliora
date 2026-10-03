@@ -10,16 +10,11 @@ import {
 } from '#/tui/commands/session/reload';
 import { currentTheme } from '#/tui/theme';
 import type { SlashCommandHost } from '#/tui/commands';
-import {
-  isExperimentalFlagEnabled,
-  setExperimentalFeatures,
-} from '#/tui/commands/experimental-flags';
 
 const tempDirs: string[] = [];
 const originalKimiCodeHome = process.env['SUPERLIORA_HOME'];
 
 afterEach(async () => {
-  setExperimentalFeatures([]);
   for (const dir of tempDirs.splice(0)) {
     await rm(dir, { recursive: true, force: true });
   }
@@ -51,7 +46,6 @@ auto_install = false
     await handleReloadTuiCommand(host);
 
     expect(host.harness.getConfig).not.toHaveBeenCalled();
-    expect(host.harness.getExperimentalFeatures).not.toHaveBeenCalled();
     expect(session.reloadSession).not.toHaveBeenCalled();
     expect(session.setPermission).toHaveBeenCalledWith('yolo');
     expect(host.state.appState).toMatchObject({
@@ -77,18 +71,14 @@ auto_install = false
 
     await handleReloadCommand(host);
 
-    expect(session.reloadSession).toHaveBeenCalledWith({
-      forcePluginSessionStartReminder: true,
-    });
+    expect(session.reloadSession).toHaveBeenCalledWith();
     expect(session.setPermission).toHaveBeenCalledWith('yolo');
     expect(host.reloadCurrentSessionView).toHaveBeenCalledWith(
       session,
       'Session reloaded.',
     );
     expect(host.harness.getConfig).toHaveBeenCalledWith({ reload: true });
-    expect(host.harness.getExperimentalFeatures).toHaveBeenCalledOnce();
     expect(host.refreshSlashCommandAutocomplete).toHaveBeenCalledOnce();
-    expect(isExperimentalFlagEnabled('async_compaction')).toBe(true);
     expect(host.state.appState.theme).toBe('light');
     expect(host.state.appState.availableModels).toEqual({
       fresh: { provider: 'test', model: 'fresh-model', maxContextSize: 1000 },
@@ -162,7 +152,6 @@ function makeHost({
           test: { type: 'kimi', apiKey: 'test-key' },
         },
       })),
-      getExperimentalFeatures: vi.fn(async () => [{ id: 'async_compaction', enabled: true }]),
     },
     setAppState: vi.fn((patch: Record<string, unknown>) => {
       Object.assign(state.appState, patch);
@@ -180,7 +169,6 @@ function makeHost({
   } as unknown as SlashCommandHost & {
     readonly harness: {
       readonly getConfig: ReturnType<typeof vi.fn>;
-      readonly getExperimentalFeatures: ReturnType<typeof vi.fn>;
     };
     readonly refreshSlashCommandAutocomplete: ReturnType<typeof vi.fn>;
     readonly reloadCurrentSessionView: ReturnType<typeof vi.fn>;

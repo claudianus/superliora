@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { emptyUsage } from '@superliora/kosong';
 
+import { ErrorCodes, LioraError } from '../../src/errors';
 import { ProviderManager } from '../../src/session/provider/provider-manager';
 import { testAgent } from './harness';
 
@@ -126,7 +127,7 @@ describe('ConfigState model capabilities', () => {
     expect(requestMaxTokens).toBe(131072);
   });
 
-  it('uses session id as a provider prompt cache hint without storing it on Agent', () => {
+  it('uses the session id as the configured provider prompt-cache hint', () => {
     const ctx = testAgent({
       providerManager: new ProviderManager({
         promptCacheKey: 'session-test',
@@ -157,7 +158,6 @@ describe('ConfigState model capabilities', () => {
         prompt_cache_key: 'session-test',
       },
     });
-    expect('sessionId' in ctx.agent).toBe(false);
   });
 });
 
@@ -302,5 +302,48 @@ describe('ConfigState.provider applies global KIMI_MODEL_* request config', () =
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe('Agent OAuth request boundary', () => {
+  it('propagates token acquisition failure without retrying a provider request or replaying the turn', async () => {
+    let tokenCalls = 0;
+    const generate = vi.fn(async () => {
+      throw new Error('A provider request must not start without an OAuth token');
+    });
+    const manager = new ProviderManager({
+      config: {
+        defaultModel: 'kimi-code/kimi-for-coding',
+        providers: {
+          'managed:kimi-code': {
+            type: 'kimi', apiKey: '', baseUrl: 'https://api.example/v1',
+            oauth: { storage: 'file', key: 'oauth/kimi-code' },
+          },
+        },
+        models: {
+          'kimi-code/kimi-for-coding': {
+            provider: 'managed:kimi-code', model: 'kimi-for-coding', maxContextSize: 1_000_000,
+          },
+        },
+      },
+      resolveOAuthTokenProvider: () => ({
+        async getAccessToken() {
+          tokenCalls += 1;
+          throw new LioraError(
+            ErrorCodes.PROVIDER_CONNECTION_ERROR,
+            'OAuth provider "managed:kimi-code" failed to fetch an access token: fetch failed',
+          );
+        },
+      }),
+    });
+    const ctx = testAgent({ providerManager: manager, generate });
+    ctx.agent.config.update({ modelAlias: 'kimi-code/kimi-for-coding', systemPrompt: 'system', thinkingLevel: 'off' });
+    ctx.agent.turn.prompt([{ type: 'text', text: 'Authenticate before answering' }]);
+    const result = await ctx.agent.turn.waitForCurrentTurn();
+    expect(result.event.reason).toBe('failed');
+    expect(result.event.error?.code).toBe(ErrorCodes.PROVIDER_CONNECTION_ERROR);
+    expect(tokenCalls).toBe(1);
+    expect(generate).not.toHaveBeenCalled();
+    expect(ctx.agent.turn.hasActiveTurn).toBe(false);
   });
 });

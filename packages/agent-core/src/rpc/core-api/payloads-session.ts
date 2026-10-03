@@ -1,5 +1,5 @@
 import type { PermissionMode } from '#/agent/permission';
-import type { LioraConfig, LioraConfigPatch, McpServerConfig } from '#/config';
+import type { LioraConfig, LioraConfigPatch } from '#/config';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
 
@@ -25,10 +25,8 @@ export interface CreateSessionPayload {
   readonly thinking?: string | undefined;
   readonly permission?: PermissionMode | undefined;
   readonly metadata?: JsonObject | undefined;
-  readonly mcpServers?: Readonly<Record<string, McpServerConfig>>;
   readonly additionalDirs?: readonly string[];
   readonly client?: ClientTelemetryInfo | undefined;
-  readonly drainAgentTasksOnStop?: boolean;
 }
 
 export interface CloseSessionPayload {
@@ -41,19 +39,11 @@ export interface ArchiveSessionPayload {
 
 export interface ResumeSessionPayload {
   readonly sessionId: string;
-  readonly mcpServers?: Readonly<Record<string, McpServerConfig>>;
   readonly additionalDirs?: readonly string[];
 }
 
 export interface ReloadSessionPayload {
   readonly sessionId: string;
-  /**
-   * When true, append a fresh `<plugin_session_start>` system reminder to the
-   * main agent after the session is reloaded, reflecting the currently enabled
-   * plugins. Used by the explicit `/reload` command so the model sees plugin
-   * changes without starting a new session. Defaults to false.
-   */
-  readonly forcePluginSessionStartReminder?: boolean;
 }
 
 export interface ForkSessionPayload {

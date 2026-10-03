@@ -215,24 +215,6 @@ function formatContent(content: Message['content']): string {
 }
 
 function formatText(text: string): string {
-  if (isCurrentTimeReminder(text)) {
-    return '<current-time-reminder>';
-  }
-  if (isAutoModeEnterReminder(text)) {
-    return '<auto-mode-enter-reminder>';
-  }
-  if (isAutoModeExitReminder(text)) {
-    return '<auto-mode-exit-reminder>';
-  }
-  if (isPlanModeReminder(text)) {
-    return '<plan-mode-reminder>';
-  }
-  if (
-    text.includes('<!-- Compression Priorities (in order) -->') ||
-    text.includes('first-person handoff note')
-  ) {
-    return '<compaction-instruction>';
-  }
   return JSON.stringify(text);
 }
 
@@ -256,10 +238,6 @@ function isDeepEqual(left: unknown, right: unknown): boolean {
 
 function normalizeValue(value: unknown, uuidLabels: Map<string, string>): unknown {
   if (typeof value === 'string') {
-    if (isCurrentTimeReminder(value)) return '<current-time-reminder>';
-    if (isAutoModeEnterReminder(value)) return '<auto-mode-enter-reminder>';
-    if (isAutoModeExitReminder(value)) return '<auto-mode-exit-reminder>';
-    if (isPlanModeReminder(value)) return '<plan-mode-reminder>';
     if (!isUuid(value)) return value;
     let label = uuidLabels.get(value);
     if (label === undefined) {
@@ -327,21 +305,3 @@ function isVolatileDurationKey(key: string): boolean {
   return key === 'llmFirstTokenLatencyMs' || key === 'llmStreamDurationMs' || key === 'durationMs';
 }
 
-function isPlanModeReminder(value: string): boolean {
-  return (
-    value.includes('Plan mode is active. MUST NOT edit') &&
-    value.includes('Plan file:')
-  );
-}
-
-export function isCurrentTimeReminder(value: string): boolean {
-  return value.includes('<current_time>') && value.includes('Authoritative host clock');
-}
-
-function isAutoModeEnterReminder(value: string): boolean {
-  return value.includes('Auto permission mode is active.');
-}
-
-function isAutoModeExitReminder(value: string): boolean {
-  return value.includes('Auto permission mode is no longer active.');
-}

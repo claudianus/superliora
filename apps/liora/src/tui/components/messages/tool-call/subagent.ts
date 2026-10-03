@@ -145,18 +145,18 @@ export function computeLatestActivity(
   ongoing: ReadonlyMap<string, OngoingSubCall>,
   finished: readonly FinishedSubCall[],
   text: string,
-  workspaceDir?: string,
 ): string | undefined {
   if (ongoing.size > 0) {
-    const lastOngoing = [...ongoing.values()].at(-1);
+    let lastOngoing: OngoingSubCall | undefined;
+    for (const call of ongoing.values()) lastOngoing = call;
     if (lastOngoing !== undefined) {
-      return formatActivityLine('Using', lastOngoing.name, lastOngoing.args, workspaceDir);
+      return formatActivityLine('Using', lastOngoing.name, lastOngoing.args);
     }
   }
   if (finished.length > 0) {
     const last = finished.at(-1);
     if (last !== undefined) {
-      return formatActivityLine('Used', last.name, last.args, workspaceDir);
+      return formatActivityLine('Used', last.name, last.args);
     }
   }
   if (text.length > 0) {
@@ -170,28 +170,20 @@ export function computeLatestActivity(
 }
 
 /**
- * Standalone/group phase derivation. Terminal background-task phase wins;
- * a Ctrl+B-detached foreground agent stays `backgrounded` after ToolResult;
- * otherwise ToolResult forces done/failed; else the live `subagentPhase`.
+ * Child lifecycle events are authoritative. SessionControl results acknowledge
+ * operations; successful spawn ACKs never imply that the child finished.
  */
 export function deriveSubagentPhase(input: {
   readonly backgroundTaskTerminalPhase: 'done' | 'failed' | undefined;
-  readonly detachedFromForeground: boolean;
   readonly subagentPhase: SubagentPhase | undefined;
   readonly result: { readonly is_error?: boolean } | undefined;
 }): SubagentPhase | undefined {
   if (input.backgroundTaskTerminalPhase !== undefined) {
     return input.backgroundTaskTerminalPhase;
   }
-  // A foreground subagent detached via Ctrl+B keeps showing `backgrounded`
-  // even after its spawn-success ToolResult lands, so the card doesn't flip
-  // to `✓ Completed` and look like the work actually finished. Agents that
-  // started in the background (`detachedFromForeground === false`) read as
-  // `done` once their result lands.
-  if (input.detachedFromForeground && input.subagentPhase === 'backgrounded') {
-    return 'backgrounded';
-  }
-  if (input.result !== undefined) return input.result.is_error ? 'failed' : 'done';
+  if (input.subagentPhase === 'done' || input.subagentPhase === 'failed') return input.subagentPhase;
+  if (input.result?.is_error) return 'failed';
+  if (input.result !== undefined) return input.subagentPhase ?? 'backgrounded';
   return input.subagentPhase;
 }
 
@@ -252,10 +244,16 @@ export function truncateSubagentDescription(
   return truncateToWidth(raw, maxLength, '…');
 }
 
-/** Parse `agent_id: agent-N` from an AgentTool spawn-success ToolResult body. */
+/** Parse the child identifier from a SessionControl JSON acknowledgement. */
 export function parseAgentIdFromToolResultOutput(output: string): string | undefined {
-  const match = output.match(/^agent_id:\s*(agent-[A-Za-z0-9_-]+)/m);
-  return match?.[1];
+  try {
+    const value: unknown = JSON.parse(output);
+    if (value !== null && typeof value === 'object' && 'agentId' in value &&
+        typeof value.agentId === 'string') return value.agentId;
+  } catch {
+    // An error or non-spawn operation need not return an agent identifier.
+  }
+  return undefined;
 }
 
 export function recentSubToolActivities(

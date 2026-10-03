@@ -1,5 +1,6 @@
-import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { text } from 'node:stream/consumers';
 import { join } from 'pathe';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,6 +17,11 @@ import {
   getRootLogger,
 } from '../../src/logging/logger';
 import { resolveLoggingConfig } from '../../src/logging/resolve-config';
+import {
+  ensurePlainWireForAppend,
+  openWireReadStream,
+  resolveWirePath,
+} from '../../src/session/store/wire-gzip';
 import {
   recordingContextTelemetry,
   type TelemetryContextRecord,
@@ -97,14 +103,17 @@ describe('HarnessAPI session model aliases', () => {
     });
     await rpc.closeSession({ sessionId: created.id });
 
-    const wirePath = await findWireFile(homeDir);
-    const kept = (await readFile(wirePath, 'utf-8'))
+    const agentDir = join(created.sessionDir, 'agents', 'main');
+    const closedWirePath = await resolveWirePath(agentDir);
+    expect(closedWirePath).toBeDefined();
+    const kept = (await text(openWireReadStream(closedWirePath!)))
       .split('\n')
       .filter((line) => line.trim().length > 0)
       .filter((line) => {
         const type = (JSON.parse(line) as { type?: string }).type;
         return type !== 'config.update' && type !== 'tools.set_active_tools';
       });
+    const wirePath = await ensurePlainWireForAppend(agentDir);
     await writeFile(wirePath, `${kept.join('\n')}\n`);
 
     const freshRpc = await createTestRpc();
@@ -185,9 +194,9 @@ describe('HarnessAPI session model aliases', () => {
       configPath,
       `${CONFIG}
 
-[[permission.deny]]
-tool = "Bash"
-match = "rm *"
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(rm *)"
 reason = "no rm"
 `,
     );
@@ -448,15 +457,6 @@ max_context_size = 1000000
     });
   });
 
-  async function findWireFile(root: string): Promise<string> {
-    const suffix = join('agents', 'main', 'wire.jsonl');
-    const entries = await readdir(root, { recursive: true });
-    const match = entries.find((entry) => entry.replaceAll('\\', '/').endsWith(suffix));
-    if (match === undefined) {
-      throw new Error('wire.jsonl not found under session home');
-    }
-    return join(root, match);
-  }
 
   async function createTestRpc(
     options: {
@@ -476,7 +476,6 @@ max_context_size = 1000000
       requestApproval: vi.fn(async () => ({ decision: 'rejected' as const })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
   }
 });

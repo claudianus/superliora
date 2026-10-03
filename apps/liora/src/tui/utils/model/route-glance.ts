@@ -49,11 +49,6 @@ function formatRouteReason(reason: string | undefined): string {
   if (normalized === 'provider-failover') return 'provider-failover';
   if (normalized === 'provider-credential') return 'provider-credential';
   if (normalized === 'provider-route') return 'provider-route';
-  if (normalized === 'completion:inline') return 'ghost complete';
-  if (normalized === 'completion:suggest') return 'suggest';
-  if (normalized.startsWith('completion:')) {
-    return truncate(`completion · ${normalized.slice('completion:'.length)}`, 32);
-  }
   if (normalized.startsWith('compaction')) {
     const compact = normalized.replace(/^compaction[:]?/, 'compact').trim() || 'compact';
     return truncate(compact, 32);

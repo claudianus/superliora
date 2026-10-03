@@ -18,13 +18,9 @@ function makeStartupInput(): LioraTUIStartupInput {
       continue: false,
       yolo: false,
       auto: false,
-      plan: false,
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,
-      skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
     },
     tuiConfig: {
       theme: 'dark',

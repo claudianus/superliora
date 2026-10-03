@@ -19,13 +19,9 @@ function makeStartupInput(): LioraTUIStartupInput {
       continue: false,
       yolo: false,
       auto: false,
-      plan: false,
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,
-      skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
     },
     tuiConfig: {
       theme: 'dark',
@@ -154,6 +150,7 @@ function runningProcess(taskId: string): BackgroundTaskInfo {
     startedAt: 1,
     endedAt: null,
     command: 'sleep 30',
+    cwd: '/tmp/proj-a',
     pid: 1,
     exitCode: null,
   };

@@ -6,10 +6,6 @@ import {
   buildBackgroundAgentMetadata,
   buildBackgroundAgentTranscriptEntry,
   findAgentTaskId,
-  isSubagentModelFallbackRetry,
-  shouldSurfaceSubagentModelNotice,
-  subagentModelFailoverNoticeDetail,
-  subagentModelRouteNoticeText,
 } from '#/tui/controllers/subagent-event/background';
 import { isSubagentLifecycleEvent } from '#/tui/controllers/subagent-event/helpers';
 
@@ -81,72 +77,5 @@ describe('subagent-event-background', () => {
     expect(entry.backgroundAgentStatus?.headline).toContain('Explore');
   });
 
-  it('surfaces explore-model notices only for divergent explore profiles', () => {
-    const models = {
-      'kimi-model': { model: 'kimi-k2', provider: 'kimi', maxContextSize: 256_000 },
-      'cheap-model': { model: 'cheap-1', provider: 'kimi', maxContextSize: 128_000 },
-    } as import('#/tui/types').AppState['availableModels'];
-    expect(
-      shouldSurfaceSubagentModelNotice({
-        modelAlias: 'cheap-model',
-        subagentName: 'Explore agent',
-        sessionModel: 'kimi-model',
-        availableModels: models,
-      }),
-    ).toBe(true);
-    expect(
-      shouldSurfaceSubagentModelNotice({
-        modelAlias: 'cheap-model',
-        subagentName: 'Editor agent',
-        sessionModel: 'kimi-model',
-        availableModels: models,
-      }),
-    ).toBe(false);
-  });
 
-  it('formats model route notice text with display names', () => {
-    const text = subagentModelRouteNoticeText('Explore agent', 'kimi-model', 'cheap-model', {
-      'kimi-model': { model: 'kimi-k2', provider: 'kimi', maxContextSize: 256_000, displayName: 'Kimi K2' },
-      'cheap-model': { model: 'cheap-1', provider: 'kimi', maxContextSize: 128_000, displayName: 'Cheap' },
-    } as import('#/tui/types').AppState['availableModels']);
-    expect(text).toBe('Explore agent: Kimi K2 → Cheap');
-  });
-
-  it('treats retryAttempt as a non-terminal model-fallback hop', () => {
-    expect(isSubagentModelFallbackRetry({ retryAttempt: 1 })).toBe(true);
-    expect(isSubagentModelFallbackRetry({})).toBe(false);
-  });
-
-  it('formats worker failover notice detail as name: from → to', () => {
-    const models = {
-      'kimi-model': {
-        model: 'kimi-k2',
-        provider: 'kimi',
-        maxContextSize: 256_000,
-        displayName: 'Kimi K2',
-      },
-      'cheap-model': {
-        model: 'cheap-1',
-        provider: 'kimi',
-        maxContextSize: 128_000,
-        displayName: 'Cheap',
-      },
-    } as import('#/tui/types').AppState['availableModels'];
-    expect(
-      subagentModelFailoverNoticeDetail({
-        subagentName: 'coder',
-        fromAlias: 'kimi-model',
-        toAlias: 'cheap-model',
-        availableModels: models,
-      }),
-    ).toBe('coder: Kimi K2 → Cheap');
-    expect(
-      subagentModelFailoverNoticeDetail({
-        subagentName: undefined,
-        fromAlias: undefined,
-        toAlias: 'cheap-model',
-        availableModels: models,
-      }),
-    ).toBe('worker: Cheap');
-  });
 });

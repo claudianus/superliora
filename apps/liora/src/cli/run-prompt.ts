@@ -13,8 +13,6 @@ import {
 
 import { CLI_SHUTDOWN_TIMEOUT_MS, PROMPT_CLEANUP_TIMEOUT_MS } from '#/constant/app';
 
-import { createMarketplaceSourceResolver } from '#/utils/plugin-marketplace-resolver';
-import { parseHeadlessGoalCreate } from './goal-prompt';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
 import {
   captureJobBaseline,
@@ -31,7 +29,6 @@ import {
   raceWithTimeout,
   type PromptRunIO,
 } from './run-prompt-io';
-import { runHeadlessGoal } from './run-prompt-headless-goal';
 import { resolvePromptSession } from './run-prompt-session';
 import { runPromptTurn } from './run-prompt-turn';
 import { writeResumeHint } from './run-prompt-writers';
@@ -63,11 +60,6 @@ export async function runPrompt(
     homeDir: telemetryBootstrap.homeDir,
     identity: createLioraHostIdentity(version),
     uiMode: PROMPT_UI_MODE,
-    skillDirs: opts.skillsDirs,
-    projectDir: workDir,
-    pluginDirs: opts.pluginDirs,
-    channelServers: opts.channelServers,
-    resolveMarketplaceSource: createMarketplaceSourceResolver(workDir),
     telemetry: telemetryClient,
     onOAuthRefresh: (outcome) => {
       if (outcome.success) {
@@ -76,15 +68,15 @@ export async function runPrompt(
       }
       track('oauth_refresh', { success: false, reason: outcome.reason });
     },
-    sessionStartedProperties: { yolo: false, plan: false, afk: true },
+    sessionStartedProperties: { yolo: false, afk: true },
   });
   const oauthProactiveRefresh = startHarnessOAuthProactiveRefresh(harness, {
-    onDegraded: (event) => {
-      log.warn('oauth proactive refresh degraded', {
-        scope: event.scope,
-        reason: event.reason,
-        hint: event.hint,
+    onRefreshFailure: (failure) => {
+      log.warn('oauth proactive refresh failed', {
+        reason: failure.reason,
+        hint: failure.hint,
       });
+      stderr.write(`OAuth refresh failed: ${failure.reason} — ${failure.hint}\n`);
     },
   });
   log.info('liora starting', {
@@ -123,7 +115,7 @@ export async function runPrompt(
     for (const warning of (await harness.getConfigDiagnostics()).warnings) {
       stderr.write(`Warning: ${warning}\n`);
     }
-    const { session, restorePermission, telemetryModel, goalModel } =
+    const { session, restorePermission, telemetryModel } =
       await resolvePromptSession(
         harness,
         opts,
@@ -148,39 +140,17 @@ export async function runPrompt(
     setCrashPhase('runtime');
 
     const outputFormat = opts.outputFormat ?? 'text';
-    // Headless goal mode: `liora -p "/goal <objective>"`. The goal driver keeps
-    // the turn-run alive across continuation turns, so the normal prompt-turn
-    // waiter blocks until the goal is terminal; we then emit a summary and set a
-    // distinct exit code.
-    const parsedGoal = parseHeadlessGoalCreate(opts.prompt!);
-    const goalCreate =
-      parsedGoal !== undefined && opts.autonomousGate !== undefined
-        ? { ...parsedGoal, gateCommand: opts.autonomousGate }
-        : parsedGoal;
-    // Conductor jobs are spawned asynchronously from the main turn, so a plain
-    // `-p` run used to print nothing about the jobs it created. Capture the
-    // ledger baseline first, then report the jobs created during this run.
+    // Report any operator jobs created during this prompt without routing
+    // normal coding requests through the job ledger.
     const jobBaseline = await captureJobBaseline(session);
-    if (goalCreate !== undefined) {
-      await runHeadlessGoal(
-        session,
-        goalCreate,
-        goalModel,
-        outputFormat,
-        opts.showThinking === true,
-        stdout,
-        stderr,
-      );
-    } else {
-      await runPromptTurn(
-        session,
-        opts.prompt!,
-        outputFormat,
-        opts.showThinking === true,
-        stdout,
-        stderr,
-      );
-    }
+    await runPromptTurn(
+      session,
+      opts.prompt!,
+      outputFormat,
+      opts.showThinking === true,
+      stdout,
+      stderr,
+    );
     const createdJobs = await collectJobsCreatedDuringRun(session, jobBaseline);
     if (createdJobs.length > 0) {
       const summary = summarizeHeadlessJobs(createdJobs);
@@ -189,11 +159,7 @@ export async function runPrompt(
       } else {
         stderr.write(`${formatHeadlessJobSummaryText(summary)}\n`);
       }
-      // The goal path already maps its terminal status to an exit code; keep
-      // that authoritative. Plain prompts get the job exit-code contract.
-      if (goalCreate === undefined) {
-        process.exitCode = headlessJobExitCode(summary);
-      }
+      process.exitCode = headlessJobExitCode(summary);
     }
     writeResumeHint(session.id, outputFormat, stdout, stderr);
 

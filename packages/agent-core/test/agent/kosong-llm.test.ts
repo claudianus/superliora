@@ -77,18 +77,18 @@ describe('KosongLLM streaming tool-call deltas', () => {
     const deltas = await collectToolCallDeltas([
       {
         type: 'function',
-        id: 'call_write',
-        name: 'Write',
+        id: 'call_session',
+        name: 'SessionControl',
         arguments: null,
       },
-      { type: 'tool_call_part', argumentsPart: '{"path"' },
-      { type: 'tool_call_part', argumentsPart: ':"a.txt"}' },
+      { type: 'tool_call_part', argumentsPart: '{"operation"' },
+      { type: 'tool_call_part', argumentsPart: ':"list"}' },
     ]);
 
     expect(deltas).toEqual([
-      { toolCallId: 'call_write', name: 'Write' },
-      { toolCallId: 'call_write', name: 'Write', argumentsPart: '{"path"' },
-      { toolCallId: 'call_write', name: 'Write', argumentsPart: ':"a.txt"}' },
+      { toolCallId: 'call_session', name: 'SessionControl' },
+      { toolCallId: 'call_session', name: 'SessionControl', argumentsPart: '{"operation"' },
+      { toolCallId: 'call_session', name: 'SessionControl', argumentsPart: ':"list"}' },
     ]);
   });
 });
@@ -578,7 +578,7 @@ describe('KosongLLM provider routing', () => {
 
     state.recordSuccess(routeA, routeA.candidates[0]!);
 
-    // A smart-route alias switch builds a fresh route with no per-route state,
+    // An operator alias switch builds a fresh route with no per-route state,
     // but the provider cache is still warm on api_key:1 + gpt-shared.
     expect(state.orderCandidates(routeB).map((candidate) => candidate.credentialLabel)).toEqual([
       'api_key:1',
@@ -1190,7 +1190,7 @@ describe('KosongLLM provider routing', () => {
     });
   });
 
-  it('fails over a custom OpenAI-compatible abort to the next Smart Auto candidate', async () => {
+  it('fails over a custom OpenAI-compatible abort to the next configured candidate', async () => {
     const primaryProvider = makeProvider('primary', 'primary-model');
     const backupProvider = makeProvider('backup', 'backup-model');
     const attempts: string[] = [];
@@ -1236,7 +1236,7 @@ describe('KosongLLM provider routing', () => {
     expect(response.usageModel).toBe('backup');
   });
 
-  it('does not hop on a 4xx validation error after a custom abort path stays fatal for auth/quota/overflow', async () => {
+  it('does not hop on a provider request validation error', async () => {
     const primaryProvider = makeProvider('primary', 'primary-model');
     const backupProvider = makeProvider('backup', 'backup-model');
     const generate = vi.fn<GenerateFn>(async () => {
@@ -2067,8 +2067,8 @@ describe('KosongLLM provider routing', () => {
 
       expect(attempts).toEqual(['primary-model']);
       expect(deltas).toEqual(['partial']);
-      // Mid-stream still cools the failed candidate so the next outer attempt
-      // can skip it — without hopping in-route after stream output started.
+      // Mid-stream failure cools the candidate for an explicit later request,
+      // without hopping in-route after stream output started.
       expect(state.snapshot(route).candidates[0]).toMatchObject({
         modelAlias: 'primary',
         lastFailureKind: 'rate_limit',
@@ -2124,6 +2124,60 @@ describe('KosongLLM provider routing', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it.each<StreamedMessagePart>([
+    { type: 'think', think: 'partial reasoning' },
+    { type: 'function', id: 'native-bash-call', name: 'Bash', arguments: null },
+    { type: 'function', id: 'native-session-call', name: 'SessionControl', arguments: null },
+  ])('does not replay a provider request after a visible $type delta', async (part) => {
+    const primaryProvider = makeProvider('native-stream-primary', 'native-stream-primary-model');
+    const backupProvider = makeProvider('native-stream-backup', 'native-stream-backup-model');
+    const failure = new APIProviderRateLimitError('provider failed after visible output', 'req-stream');
+    const generate = vi.fn<GenerateFn>(async (_provider, _systemPrompt, _tools, _history, callbacks) => {
+      await callbacks?.onMessagePart?.(part);
+      throw failure;
+    });
+    const llm = new KosongLLM({
+      provider: primaryProvider,
+      systemPrompt: 'system',
+      generate,
+      route: {
+        key: 'native-stream-route',
+        strategy: 'fallback',
+        candidates: [
+          { modelAlias: 'native-stream-primary', providerName: 'native-stream-primary', provider: primaryProvider },
+          { modelAlias: 'native-stream-backup', providerName: 'native-stream-backup', provider: backupProvider },
+        ],
+      },
+      routeState: new InMemoryProviderRouteState(),
+    });
+    const onThinkDelta = vi.fn();
+    const onToolCallDelta = vi.fn();
+    const onThinkPart = vi.fn();
+    const onTextPart = vi.fn();
+
+    await expect(llm.chat({
+      messages: [],
+      tools: [],
+      signal: new AbortController().signal,
+      onThinkDelta,
+      onToolCallDelta,
+      onThinkPart,
+      onTextPart,
+    })).rejects.toBe(failure);
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate.mock.calls[0]?.[0].modelName).toBe('native-stream-primary-model');
+    if (part.type === 'think') {
+      expect(onThinkDelta).toHaveBeenCalledWith(part.think);
+      expect(onToolCallDelta).not.toHaveBeenCalled();
+    } else if (part.type === 'function') {
+      expect(onToolCallDelta).toHaveBeenCalledWith({ toolCallId: part.id, name: part.name });
+      expect(onThinkDelta).not.toHaveBeenCalled();
+    }
+    expect(onThinkPart).not.toHaveBeenCalled();
+    expect(onTextPart).not.toHaveBeenCalled();
   });
 });
 

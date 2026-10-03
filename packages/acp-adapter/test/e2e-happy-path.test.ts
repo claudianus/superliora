@@ -10,7 +10,7 @@
  *
  *  1. `initialize` returns the documented capability matrix
  *     (PLAN D4: image=true, audio=false, embeddedContext=true,
- *      mcp.http=true, mcp.sse=true, loadSession=true,
+ *      mcp.http=false, mcp.sse=false, loadSession=true,
  *      sessionCapabilities.list={}).
  *  2. `session/new` returns a non-empty sessionId.
  *  3. `session/prompt` streams at least one `agent_message_chunk`
@@ -170,8 +170,8 @@ describe('AcpServer end-to-end happy path', () => {
         embeddedContext: true,
       },
       mcpCapabilities: {
-        http: true,
-        sse: true,
+        http: false,
+        sse: false,
       },
       sessionCapabilities: {
         list: {},
@@ -208,22 +208,18 @@ describe('AcpServer end-to-end happy path', () => {
       protocolVersion: 1,
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
     });
-    expect(init.agentCapabilities?.mcpCapabilities?.http).toBe(true);
+    expect(init.agentCapabilities?.mcpCapabilities?.http).toBe(false);
 
     // 2. session/new
     const newRes = await client.newSession({ cwd: '/tmp/work', mcpServers: [] });
     expect(newRes.sessionId).toBe(sessionId);
     expect(typeof newRes.sessionId).toBe('string');
     expect(newRes.sessionId.length).toBeGreaterThan(0);
-    // Phase 14 (PLAN D11) configOptions advertisement — replaces
-    // Phase 12.1's dedicated `modes:` field on NewSessionResponse with
-    // the spec's generic `configOptions:` surface. The dedicated field
-    // must be gone, and the mode picker still reports `currentValue:
-    // 'default'` (Phase 12.1 default mode).
+    // Session config exposes native model and permission policy.
     expect(newRes.modes).toBeUndefined();
     expect(
       newRes.configOptions?.find((o) => o.id === 'mode')?.currentValue,
-    ).toBe('default');
+    ).toBe('manual');
     expect(newRes.configOptions?.length).toBe(2);
 
     // 3. session/prompt
@@ -256,40 +252,53 @@ describe('AcpServer end-to-end happy path', () => {
     expect(unsubscribeCount()).toBe(1);
   });
 
-  it('cancel mid-stream resolves with stopReason cancelled', async () => {
+  it('cancel acknowledgement does not settle a prompt before the native turn ends', async () => {
     const sessionId = 'sess-e2e-cancel';
-    // Scripted session that emits one delta, then a cancelled
-    // turn.ended. The ACP `cancel` notification flows through the
-    // adapter; we assert the prompt resolves with `cancelled` and
-    // does not throw.
-    const { session } = makeScriptedSession(sessionId, [
-      { type: 'assistant.delta', sessionId, agentId: 'main', turnId: 1, delta: 'partial' } as Event,
-      { type: 'turn.ended', sessionId, agentId: 'main', turnId: 1, reason: 'cancelled' } as Event,
-    ]);
+    const started = Promise.withResolvers<void>();
+    const cancellationAcknowledged = Promise.withResolvers<void>();
+    const listeners = new Set<(event: Event) => void>();
+    const emit = (event: Event): void => {
+      for (const listener of listeners) listener(event);
+    };
+    let unsubscribeCount = 0;
+    const session = {
+      id: sessionId,
+      prompt: async () => {
+        emit({ type: 'turn.started', sessionId, agentId: 'main', turnId: 1, origin: { kind: 'user' } } as Event);
+        emit({ type: 'assistant.delta', sessionId, agentId: 'main', turnId: 1, delta: 'partial' } as Event);
+        started.resolve();
+      },
+      cancel: async () => { cancellationAcknowledged.resolve(); },
+      onEvent: (listener: (event: Event) => void) => {
+        listeners.add(listener);
+        return () => { unsubscribeCount += 1; listeners.delete(listener); };
+      },
+    } as unknown as Session;
     const harness = makeHarness(session);
-
     const { agentStream, clientStream } = makeInMemoryStreamPair();
-    new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);
-    const collecting = new CollectingClient();
-    const client = new ClientSideConnection(() => collecting, clientStream);
-
-    await client.initialize({
-      protocolVersion: 1,
-      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
-    });
+    let server: AcpServer | undefined;
+    new AgentSideConnection((connection) => {
+      server = new AcpServer(harness, connection);
+      return server;
+    }, agentStream);
+    const client = new ClientSideConnection(() => new CollectingClient(), clientStream);
+    await client.initialize({ protocolVersion: 1 });
     await client.newSession({ cwd: '/tmp/work', mcpServers: [] });
 
-    // Fire-and-forget the cancel notification before awaiting prompt.
-    // The scripted session emits turn.ended(cancelled) regardless;
-    // this verifies the cancel notification does not throw when the
-    // session is known (sessionId resolves to the registered
-    // AcpSession in `AcpServer.cancel`).
-    const promptPromise = client.prompt({
-      sessionId,
-      prompt: [textBlock('long task')],
-    });
+    let settled = false;
+    const pending = client.prompt({ sessionId, prompt: [textBlock('long task')] })
+      .then((response) => { settled = true; return response; });
+    await started.promise;
     await client.cancel({ sessionId });
-    const promptRes = await promptPromise;
-    expect(promptRes.stopReason).toBe('cancelled');
+    await cancellationAcknowledged.promise;
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(unsubscribeCount).toBe(0);
+    expect(server?.getSession(sessionId)?.hasActiveTurn).toBe(true);
+
+    emit({ type: 'turn.ended', sessionId, agentId: 'main', turnId: 1, reason: 'cancelled' } as Event);
+    await expect(pending).resolves.toMatchObject({ stopReason: 'cancelled' });
+    expect(unsubscribeCount).toBe(1);
+    expect(server?.getSession(sessionId)?.hasActiveTurn).toBe(false);
   });
 });

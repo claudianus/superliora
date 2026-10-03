@@ -1,5 +1,5 @@
 /**
- * Locks the public argv surface to the keep-list in apps/liora/AGENTS.md.
+ * Locks the public argv surface to operator, provider, and session entry points.
  * Ghosts (web/migrate/vis) and unregistered server lifecycle must stay out.
  */
 
@@ -23,10 +23,9 @@ function visibleCommandNames(
 }
 
 describe('createProgram public argv surface', () => {
-  it('registers only the keep-list subcommands (plus hidden plugin runner)', () => {
+  it('registers only the supported subcommands', () => {
     const program = createProgram(
       '0.0.0-test',
-      () => {},
       () => {},
       () => {},
     );
@@ -48,7 +47,6 @@ describe('createProgram public argv surface', () => {
     ]);
 
     expect(commandNames(program)).toEqual([
-      '__plugin_run_node',
       'acp',
       'browser-use',
       'completions',
@@ -72,7 +70,6 @@ describe('createProgram public argv surface', () => {
   it('keeps server OS lifecycle commands unregistered', () => {
     const program = createProgram(
       '0.0.0-test',
-      () => {},
       () => {},
       () => {},
     );

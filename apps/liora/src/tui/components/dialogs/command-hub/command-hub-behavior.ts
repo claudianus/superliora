@@ -1,27 +1,13 @@
 import type { CommandHubActionId } from './command-hub-types';
 
-const TOGGLE_IDS = new Set<CommandHubActionId>([
-  'modes.plan',
-  'modes.ask',
-  'modes.premium',
-]);
-
-export function isCommandHubToggleId(id: CommandHubActionId): boolean {
-  return TOGGLE_IDS.has(id);
-}
 
 export function isCommandHubCycleId(id: CommandHubActionId): boolean {
   return (
     id === 'modes.permission' ||
-    id === 'modes.conductorProject' ||
     id === 'modes.transcriptRegion'
   );
 }
 
-/** Keep Hub open for toggles/cycles; nest or navigate for the rest. */
-export function commandHubKeepsOpen(id: CommandHubActionId): boolean {
-  return isCommandHubToggleId(id) || isCommandHubCycleId(id);
-}
 
 /** Nested center-modal pickers — Esc returns to Hub. */
 export function commandHubNestsPicker(id: CommandHubActionId): boolean {
@@ -31,16 +17,12 @@ export function commandHubNestsPicker(id: CommandHubActionId): boolean {
     case 'start.sessions':
     case 'chat.model':
     case 'chat.thinking':
-    case 'chat.loops':
     case 'modes.permission':
-    case 'extend.extensions':
     case 'appearance.theme':
     case 'appearance.appearance':
     case 'workspace.jobOps':
-    case 'workspace.cron':
     case 'help.shortcuts':
     case 'help.commands':
-    case 'start.conductorHowto':
       return true;
     default:
       return false;

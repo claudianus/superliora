@@ -22,7 +22,7 @@ import { SUBAGENT_ELAPSED_INTERVAL_MS, type SubagentPhase } from './subagent';
 const STREAMING_PROGRESS_INTERVAL_MS = 1000;
 /** Baseline rebuild cap when quality/health is not at the premium live ceiling. */
 const MAX_BODY_REBUILDS_PER_TICK = 2;
-/** Healthy full/high quality: allow more concurrent Write/Task cards to refresh. */
+/** Healthy full/high quality: allow more concurrent tool cards to refresh. */
 const MAX_BODY_REBUILDS_PER_TICK_HEALTHY = 4;
 
 let rebuildBudgetNow = Number.NaN;
@@ -68,7 +68,6 @@ export interface ToolCallRenderTickInput {
   readonly resultSettledAtMs: number | undefined;
   readonly isSingleSubagentView: boolean;
   readonly derivedSubagentPhase: SubagentPhase | undefined;
-  readonly isStreamingEditPreview: boolean;
   readonly subagentSpawnEntranceAtMs: number | undefined;
   readonly subagentStartedAtMs: number | undefined;
   readonly subagentPhase: SubagentPhase;
@@ -129,8 +128,7 @@ export function tickToolCallRenderClock(
       durationMs: stagedPreviewRevealDurationMs(),
     });
     if (visible !== input.builtPreviewItemCount) {
-      // Cap full rebuilds per ambient tick so many live Write cards cannot
-      // each rebuildBody in one paint (main-thread storm → hard freeze feel).
+      // Bound concurrent preview rebuilds so an ambient tick stays responsive.
       if (takeBodyRebuildBudget(now)) {
         callbacks.rebuildBody();
       }
@@ -139,18 +137,11 @@ export function tickToolCallRenderClock(
   }
 
   const shouldTickToolProgress =
-    input.isStreamingEditPreview ||
-    (input.result === undefined && input.toolCall.streamingStartedAtMs !== undefined);
+    input.result === undefined && input.toolCall.streamingStartedAtMs !== undefined;
   if (shouldTickToolProgress) {
     if (now - input.lastStreamingProgressTickMs >= STREAMING_PROGRESS_INTERVAL_MS) {
       callbacks.setLastStreamingProgressTickMs(now);
-      if (input.isStreamingEditPreview) {
-        if (takeBodyRebuildBudget(now)) {
-          callbacks.rebuildBody();
-        }
-      } else {
-        callbacks.refreshHeader();
-      }
+      callbacks.refreshHeader();
       callbacks.requestRender();
     }
   } else {

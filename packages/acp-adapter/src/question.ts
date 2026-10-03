@@ -5,7 +5,7 @@ import type {
 import type { QuestionAnswers, QuestionItem } from '@superliora/sdk';
 
 /**
- * `optionId` namespace for the AskUserQuestion bridge.
+ * `optionId` namespace for native operator questions.
  *
  * The wire-level `PermissionOption.optionId` is opaque to the client (it
  * round-trips back via `RequestPermissionResponse.outcome.optionId`), so
@@ -33,16 +33,9 @@ function skipOptionId(questionIndex: number): string {
  *    verbatim — it is the same string we surface back to the SDK as a
  *    `QuestionAnswers` value, so any UI normalisation belongs on the
  *    tool side, not here).
- *  - One trailing `reject_once` "Skip" option so the user can dismiss
- *    the prompt without forcing an answer. The SDK's ask-user tool
- *    already understands dismissal (`packages/agent-core/src/tools/builtin/fleet/ask-user.ts:195`
- *    emits `question_dismissed` and resolves with a null result); the
- *    Skip surface is the user-facing path into that branch.
+ *  - One trailing `reject_once` "Skip" option for explicit dismissal.
  *
- * `questionIndex` is currently always `0` (Phase 13.1 degrades
- * multi-question to single-question), but the namespace is wired in so
- * future multi-question support is a pure handler change with no wire
- * format break.
+ * The index namespaces option ids; each response maps to the presented question.
  *
  * Returned `readonly` because callers treat it as a constant lookup
  * table — they do not mutate it.
@@ -69,10 +62,7 @@ export function questionItemToPermissionOptions(
  * {@link QuestionAnswers} payload, returning `null` when the user
  * dismissed (skip, cancel) or selected an unknown option.
  *
- * Dismissal semantics align with the existing ask-user tool path:
- * `null` causes the SDK to resolve the tool with the canonical
- * "user dismissed" branch (mirrors `rpc.ts:567` — `requestQuestion`
- * returning `null` is the dismissed signal).
+ * `null` is the native dismissed signal.
  *
  * Defensive on out-of-bounds / unknown optionIds: returning `null`
  * rather than throwing keeps the bridge robust against stale or custom

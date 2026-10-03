@@ -7,9 +7,7 @@ import {
 import { resolveThinkingDisplay } from '#/tui/utils/model/thinking-effort';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { formatGitBadgeBase, type GitStatus } from '#/utils/git/git-status';
-import { safeUsageRatio } from '#/utils/usage/usage-format';
 
-import { contextValues } from './context';
 import type { StatusFieldRow } from './provider-route';
 import type { StatusReportOptions } from './types';
 
@@ -41,38 +39,6 @@ export function formatWorktreeStatus(status: GitStatus): string {
   return `${formatGitBadgeBase(status)} ${status.dirty ? 'dirty' : 'clean'}`;
 }
 
-function humanWritingBlocked(options: StatusReportOptions): boolean {
-  const humanWriting = options.humanWriting;
-  return humanWriting !== undefined && (!humanWriting.ready || !humanWriting.advisoryOnly);
-}
-
-export function verifyBlockedByReadiness(options: StatusReportOptions): boolean {
-  const model = (options.status?.model ?? options.model).trim();
-  const { ratio, maxTokens } = contextValues(options);
-  return (
-    model.length === 0 ||
-    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.70) ||
-    options.gitStatus?.dirty === true ||
-    options.goalStatus === 'blocked' ||
-    humanWritingBlocked(options)
-  );
-}
-
-export function formatPremiumQualityStatus(options: StatusReportOptions): string {
-  const enabled =
-    options.status?.premiumQualityMode ?? options.premiumQualityMode === true;
-  return enabled ? ttui('tui.statusPanel.modeOn') : ttui('tui.statusPanel.modeOff');
-}
-
-function formatContextOSStatus(options: StatusReportOptions): string | undefined {
-  const health = options.contextOS ?? options.status?.contextOS;
-  if (health === undefined || health.pageCount <= 0) return undefined;
-  const evidence =
-    health.missingEvidencePageCount > 0
-      ? `evidence ${health.evidenceIdRecallScore.toFixed(2)} (missing ${String(health.missingEvidencePageCount)})`
-      : `evidence ${health.evidenceIdRecallScore.toFixed(2)}`;
-  return `${health.latestContinuityStatus} · pages ${String(health.readyPageCount)}/${String(health.pageCount)} ready · ${evidence}`;
-}
 
 export function privacyStatusRows(options: StatusReportOptions): readonly StatusFieldRow[] {
   if (options.privacyTelemetryEnabled === undefined) return [];
@@ -93,18 +59,6 @@ export function privacyStatusRows(options: StatusReportOptions): readonly Status
   ];
 }
 
-export function contextOSStatusRows(options: StatusReportOptions): readonly StatusFieldRow[] {
-  const value = formatContextOSStatus(options);
-  if (value === undefined) return [];
-  const health = options.contextOS ?? options.status?.contextOS;
-  const severity: StatusFieldRow['severity'] =
-    health !== undefined && health.missingEvidencePageCount > 0
-      ? 'error'
-      : health !== undefined && health.latestContinuityStatus !== 'ready'
-        ? 'warning'
-        : undefined;
-  return [{ label: ttui('tui.statusPanel.contextOs'), value, severity }];
-}
 
 
 const CACHE_MISS_REASON_LINE_PREFIX = 'Miss reasons: ';
@@ -126,4 +80,3 @@ export function cacheMissReasonStatusRows(options: StatusReportOptions): readonl
   ];
 }
 
-export { humanWritingBlocked };

@@ -4,15 +4,6 @@ import type { JsonObject } from './json';
 
 export type SessionTraceSource = 'records' | 'context_fallback';
 
-export interface VerificationArtifact {
-  readonly id: string;
-  readonly kind: string;
-  readonly title: string;
-  readonly status?: 'pass' | 'fail' | 'blocked' | 'unknown';
-  readonly path?: string;
-  readonly hash?: string;
-  readonly metadata?: JsonObject;
-}
 
 export interface BaseSessionTraceEvent {
   readonly id: string;
@@ -22,14 +13,11 @@ export interface BaseSessionTraceEvent {
   readonly title: string;
   readonly summary?: string;
   readonly data?: JsonObject;
-  readonly evidenceIds?: readonly string[];
 }
 
 export interface SubagentLifecycleTraceEvent extends BaseSessionTraceEvent {
   readonly type: `subagent.${string}`;
   readonly subagentId?: string;
-  readonly coverageLane?: string;
-  readonly verdict?: 'PASS' | 'BLOCKED' | 'FAIL' | 'UNKNOWN';
 }
 
 export type SessionTraceEvent = SubagentLifecycleTraceEvent | BaseSessionTraceEvent;
@@ -54,5 +42,4 @@ export interface SessionTrace {
   readonly context: AgentContextData;
   readonly completeness: SessionTraceCompleteness;
   readonly events: readonly SessionTraceEvent[];
-  readonly verificationArtifacts: readonly VerificationArtifact[];
 }

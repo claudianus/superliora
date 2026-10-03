@@ -23,7 +23,6 @@ import { hasLiveWatchers } from '../../features/transcript/watchers';
 import { setAppearanceTransportStability } from '../../features/appearance/appearance-effects';
 import { handleFooterJobsStripMouse } from '../../features/control-tower/footer-jobs-mouse';
 import { handleActivityCueMouse } from '../../features/transcript/activity-cue-mouse';
-import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
 import {
   SURFACE_JOB_DECK,
   SURFACE_JOB_INBOX,
@@ -117,14 +116,6 @@ export function ensureStartupNativeInputRouter(
         const letter = event.text.toLowerCase();
         if (letter === 'j') return openJobDeckFromShortcut(host);
         if (letter === 'i') return openJobInboxFromShortcut(host);
-        if (letter === 'b') {
-          return focusIntentComposer({
-            state: host.state,
-            session: host.session,
-            showStatus: (msg, color) => host.showStatus(msg, color),
-            jobBoardController: host.jobBoardController,
-          });
-        }
       }
       const legacy = encodeNativeInputAsLegacySequence(event);
       if (legacy === undefined) return false;
@@ -434,7 +425,7 @@ function handleMissionDockSelectionKey(
 ): boolean {
   if (!workerDockBandActive(host.state)) return false;
   const panel = host.state.workerDockPanel;
-  if (panel.isEmpty()) return false;
+  if (!panel.focused || panel.isEmpty()) return false;
 
   const mapKey =
     key === 'up' ||
@@ -451,23 +442,26 @@ function handleMissionDockSelectionKey(
 
   // Esc only when a selection exists.
   if (mapKey === 'escape' && panel.selectedWorker === undefined) return false;
-  // Enter opens only with an explicit dock selection and an empty editor.
+  // Enter opens only while the dock owns focus with an explicit selection.
   // Otherwise the pre-editor router must not swallow submit (`/exit`, prompts).
   if (
     mapKey === 'enter' &&
     !shouldWorkerDockConsumeEnter({
       editorText: host.state.editor.getText(),
       selectedWorkerId: panel.selectedWorker,
+      dockFocused: panel.focused,
     })
   ) {
     return false;
   }
-  // Bare ↑/↓ stay with the editor unless the dock already has an explicit
-  // selection (same gate as Enter). An unfocused/visible dock must not steal
-  // prompt-history or queued-prompt recall.
+  // Bare ↑/↓ stay with the editor unless the dock owns focus. A remembered
+  // selection alone must not steal prompt-history or queued-prompt recall.
   if (
     (mapKey === 'up' || mapKey === 'down') &&
-    !shouldWorkerDockConsumeArrow({ selectedWorkerId: panel.selectedWorker })
+    !shouldWorkerDockConsumeArrow({
+      selectedWorkerId: panel.selectedWorker,
+      dockFocused: panel.focused,
+    })
   ) {
     return false;
   }

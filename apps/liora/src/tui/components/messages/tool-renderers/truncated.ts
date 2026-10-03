@@ -151,5 +151,5 @@ export const renderTruncated: ResultRenderer = (toolCall, result, ctx) => {
 
 function neatCardFor(result: ToolResultBlockData): Component[] | undefined {
   if (!getActiveNeatMode() || result.display === undefined) return undefined;
-  return renderNeatCard(result.display, { seed: result.tool_call_id });
+  return renderNeatCard(result.display);
 }

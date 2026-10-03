@@ -1,60 +1,8 @@
-/**
- * Subagent lifecycle event emission and hook triggers: `subagent.spawned` /
- * `subagent.started` / `subagent.failed`, the `SubagentStart` / `SubagentStop`
- * hook pair, and the `onReady` first-request observer.
- *
- * Extracted from subagent-host so the host class body does not grow with
- * every new telemetry field. Each function takes the parent agent and the
- * run options explicitly instead of closing over host state.
- */
-
-import { isProviderRateLimitError } from '@superliora/kosong';
+/** Factual worker lifecycle events and the first-request observer. */
 
 import type { Agent } from '../../agent';
-import { isAbortError } from '../../loop/errors';
-import { updateSwarmOrchestrationTodoStatus } from '../../tools/builtin/state/todo-list';
-import { getDefaultSwarmFileLeaseRegistry } from '#/fleet';
 import type { RunSubagentOptions } from './subagent-host-types';
 
-const HOOK_TEXT_PREVIEW_LENGTH = 500;
-
-/**
- * Optional model-fallback progress attached to `subagent.failed` events.
- * When `retryAttempt` is set, `fellBackToModel` is the next alias to try
- * (non-terminal). On a terminal failure after hops, `fellBackToModel` is the
- * last alias that was attempted.
- */
-export interface SubagentFailedDetails {
-  readonly retryAttempt?: number;
-  readonly retryLimit?: number;
-  readonly fellBackToModel?: string;
-}
-
-export async function triggerSubagentStart(
-  parent: Agent,
-  profileName: string,
-  prompt: string,
-  signal: AbortSignal,
-): Promise<void> {
-  await parent.hooks?.trigger('SubagentStart', {
-    matcherValue: profileName,
-    signal,
-    inputData: {
-      agentName: profileName,
-      prompt: prompt.slice(0, HOOK_TEXT_PREVIEW_LENGTH),
-    },
-  });
-}
-
-export function triggerSubagentStop(parent: Agent, profileName: string, result: string): void {
-  void parent.hooks?.fireAndForgetTrigger('SubagentStop', {
-    matcherValue: profileName,
-    inputData: {
-      agentName: profileName,
-      response: result.slice(0, HOOK_TEXT_PREVIEW_LENGTH),
-    },
-  });
-}
 
 export function observeFirstRequest(child: Agent, options: RunSubagentOptions): void {
   if (options.onReady === undefined) return;
@@ -76,7 +24,6 @@ export function emitSubagentSpawned(
   profileName: string,
   options: RunSubagentOptions,
   modelAlias?: string,
-  routeReason?: string,
 ): void {
   parent.emitEvent({
     type: 'subagent.spawned',
@@ -88,7 +35,6 @@ export function emitSubagentSpawned(
     description: options.description,
     runInBackground: options.runInBackground,
     modelAlias,
-    ...(routeReason !== undefined && routeReason.length > 0 ? { routeReason } : {}),
   });
   parent.telemetry.track('subagent_created', {
     subagent_name: profileName,
@@ -99,11 +45,8 @@ export function emitSubagentSpawned(
 export function emitSubagentStarted(
   parent: Agent,
   childId: string,
-  options: RunSubagentOptions,
+  _options: RunSubagentOptions,
 ): void {
-  if (options.swarmItem !== undefined) {
-    updateSwarmOrchestrationTodoStatus(parent.tools.getStore(), options.swarmItem, 'in_progress');
-  }
   parent.emitEvent({
     type: 'subagent.started',
     subagentId: childId,
@@ -115,28 +58,11 @@ export function emitSubagentFailed(
   childId: string,
   options: RunSubagentOptions,
   error: unknown,
-  details?: SubagentFailedDetails,
 ): void {
-  getDefaultSwarmFileLeaseRegistry().releaseAll(options.parentToolCallId);
-  if (shouldSuppressQueuedAttemptFailureEvent(options, error)) return;
-  if (options.swarmItem !== undefined) {
-    updateSwarmOrchestrationTodoStatus(parent.tools.getStore(), options.swarmItem, 'pending');
-  }
   parent.emitEvent({
     type: 'subagent.failed',
     subagentId: childId,
     error: error instanceof Error ? error.message : String(error),
-    ...(details?.retryAttempt !== undefined ? { retryAttempt: details.retryAttempt } : {}),
-    ...(details?.retryLimit !== undefined ? { retryLimit: details.retryLimit } : {}),
-    ...(details?.fellBackToModel !== undefined ? { fellBackToModel: details.fellBackToModel } : {}),
   });
 }
 
-function shouldSuppressQueuedAttemptFailureEvent(
-  options: RunSubagentOptions,
-  error: unknown,
-): boolean {
-  if (options.suppressRateLimitFailureEvent !== true) return false;
-  if (isProviderRateLimitError(error)) return true;
-  return isAbortError(error) || options.signal.aborted;
-}

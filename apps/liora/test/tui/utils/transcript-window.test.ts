@@ -371,12 +371,9 @@ describe('TranscriptViewportComponent', () => {
       contextTokens: 0,
       maxContextTokens: 0,
       isCompacting: false,
-      isBackgroundCompacting: false,
       isReplaying: false,
       streamingPhase: 'idle',
       streamingStartTime: 0,
-      planMode: false,
-      askMode: false,
       inputMode: 'prompt',
       theme: 'dark',
       editorCommand: null,
@@ -384,7 +381,6 @@ describe('TranscriptViewportComponent', () => {
       upgrade: { autoInstall: true },
       availableModels: {},
       availableProviders: {},
-      mcpServersSummary: null,
     } as AppState;
 
     component.addChild(new WelcomeComponent(emptyAppState));

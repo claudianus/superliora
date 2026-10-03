@@ -8,15 +8,10 @@ export interface CLIOptions {
   continue: boolean;
   yolo: boolean;
   auto: boolean;
-  plan: boolean;
   model: string | undefined;
   outputFormat: PromptOutputFormat | undefined;
   showThinking?: boolean;
   prompt: string | undefined;
-  skillsDirs: string[];
-  pluginDirs: string[];
-  /** Opt-in Claude channel server names (`--channels`). */
-  channelServers: string[];
   addDirs?: string[];
   /**
    * Path-sandbox profile for file tools (`off` | `workspace` | `read-only`).
@@ -27,16 +22,6 @@ export interface CLIOptions {
   sandboxEnforcement?: string;
   /** Skip Docker / Job Object wrap even when enforcement is process. */
   noProcessSandbox?: boolean;
-  /** Automatically resume the first goal in the queue on startup. */
-  resumeGoal?: boolean;
-  /**
-   * Shell command gating goal completion (`--autonomous-gate`): every
-   * completion attempt runs it and a non-zero exit keeps the goal loop going.
-   * Headless `-p "/goal ..."` runs only.
-   */
-  autonomousGate?: string;
-  /** Main agent tool profile override (sets SUPERLIORA_PROFILE for this process). */
-  profile?: string;
   /**
    * SuperLiora developer analysis: renderer trace, debug logs, step timing.
    * Off by default so installed users stay light.
@@ -100,9 +85,6 @@ export function validateOptions(opts: CLIOptions): ValidatedOptions {
   if (promptMode && opts.auto) {
     throw new OptionConflictError(t('cli.runtime.options.promptWithAuto'));
   }
-  if (promptMode && opts.plan) {
-    throw new OptionConflictError(t('cli.runtime.options.promptWithPlan'));
-  }
   if (promptMode && opts.session === '') {
     throw new OptionConflictError(t('cli.runtime.options.sessionNoIdPrompt'));
   }
@@ -115,12 +97,6 @@ export function validateOptions(opts: CLIOptions): ValidatedOptions {
   if (opts.worktree !== undefined && opts.worktree !== false) {
     if (opts.session !== undefined || opts.continue) {
       throw new OptionConflictError(t('cli.runtime.options.worktreeWithResume'));
-    }
-  }
-  if (opts.autonomousGate !== undefined) {
-    const goalPrompt = promptMode && /^\/goal(\s|$)/.test(prompt.trim());
-    if (!goalPrompt) {
-      throw new OptionConflictError(t('cli.runtime.options.autonomousGateNeedsGoal'));
     }
   }
   return { options: opts, uiMode: promptMode ? 'print' : 'shell' };

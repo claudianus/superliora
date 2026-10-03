@@ -3,7 +3,6 @@ import type { Event } from '@superliora/sdk';
 import type { ToolCallBlockData } from '../../types';
 import { notifySubagentAttention } from '../../utils/notification/attention-notifications';
 import { argsRecord, serializeToolResultOutput } from '../../utils/event-payload';
-import { formatHookResultPlain } from '../../utils/hook-result-format';
 import type { SessionEventHost } from '../session-event/handler';
 import type { SubagentLifecycleEventOf } from './helpers';
 import type { SubagentInfo } from './handler';
@@ -19,9 +18,7 @@ export function routeChildAgentToolEvent(
   if (toolCall === undefined) return true;
   toolCall.setSubagentMeta(childAgentId, info.name);
 
-  if (event.type === 'hook.result') {
-    toolCall.appendSubagentText(formatHookResultPlain(event), 'text');
-  } else if (event.type === 'assistant.delta') {
+  if (event.type === 'assistant.delta') {
     toolCall.appendSubagentText(event.delta, 'text');
   } else if (event.type === 'thinking.delta') {
     toolCall.appendSubagentText(event.delta, 'thinking');

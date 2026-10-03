@@ -1,7 +1,5 @@
 import type {
   AvailableCommand,
-  PlanEntry,
-  PlanEntryStatus,
   SessionConfigOption,
   SessionNotification,
   ToolCallContent,
@@ -12,7 +10,6 @@ import type {
   ThinkingDeltaEvent,
   ToolCallDeltaEvent,
   ToolCallStartedEvent,
-  ToolInputDisplay,
   ToolProgressEvent,
   ToolResultEvent,
   TurnEndReason,
@@ -96,15 +93,7 @@ export function acpSubagentToolCallId(subagentId: string, toolCallId: string): s
   return `sub:${subagentId}:${toolCallId}`;
 }
 
-/**
- * Heuristic map from a Kimi tool's `name` to ACP {@link ToolKind}.
- *
- * Pure, never throws — defaults to `'other'` whenever the name is
- * unrecognized so we never block streaming on an unknown tool. The
- * mapping favours common builtin tool names (Read/Write/Edit/Bash/etc.);
- * MCP / user-defined tools fall through to `'other'` and the client UI
- * picks a generic icon.
- */
+/** Historical records retain their factual tool kind even for retired tools. */
 export function inferToolKind(name: string): ToolKind {
   switch (name) {
     case 'Read':
@@ -168,16 +157,9 @@ export function toolCallStartToSessionUpdate(
       content: { type: 'text', text: stringifyArgs(event.args) },
     },
   ];
-  // If the tool attached a diff-bearing display (kind: 'diff' or
-  // 'file_io' with both before/after set), prepend an inline diff
-  // entry so the client can render it alongside the textual args
-  // preview. Non-diff display kinds are skipped here (their
-  // information is already in the args text).
+  // Preserve the native command or operation summary alongside raw arguments.
   if (event.display) {
-    const diff = displayBlockToAcpContent(event.display);
-    if (diff !== null) {
-      content.unshift(diff);
-    }
+    content.unshift(displayBlockToAcpContent(event.display));
   }
   return {
     sessionId,
@@ -284,7 +266,7 @@ export function toolCallLazyCreateToSessionUpdate(
  * sync with {@link toolCallStartToSessionUpdate}: `title` prefers
  * `description`, `kind` is re-inferred from the canonical `name`,
  * `rawInput` carries the parsed args, and `content` mirrors the
- * start path (optional diff prepended + canonical args text).
+ * start path (native display summary + canonical args text).
  *
  * `status` flips to `'in_progress'`: streaming is done and execution is
  * imminent (or already underway by the time the client renders the
@@ -302,10 +284,7 @@ export function toolCallStartedUpgradeToSessionUpdate(
     },
   ];
   if (event.display) {
-    const diff = displayBlockToAcpContent(event.display);
-    if (diff !== null) {
-      content.unshift(diff);
-    }
+    content.unshift(displayBlockToAcpContent(event.display));
   }
   return {
     sessionId,
@@ -334,8 +313,21 @@ export function toolCallStartedUpgradeToSessionUpdate(
 export function toolProgressToSessionUpdate(
   sessionId: string,
   event: ToolProgressEvent,
-  accumulator?: { output: string },
+  accumulator?: { output: string; terminalId?: string },
 ): SessionNotification | null {
+  const data = event.update.customData;
+  if (event.update.kind === 'custom' && data !== null && typeof data === 'object' &&
+      'terminalId' in data && typeof data.terminalId === 'string') {
+    if (accumulator !== undefined) accumulator.terminalId = data.terminalId;
+    return {
+      sessionId,
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: acpToolCallId(event.turnId, event.toolCallId),
+        content: [{ type: 'terminal', terminalId: data.terminalId }],
+      },
+    };
+  }
   const text = event.update.text;
   if (event.update.kind === 'status' && text) {
     return {
@@ -347,6 +339,7 @@ export function toolProgressToSessionUpdate(
       },
     };
   }
+  if (accumulator?.terminalId !== undefined) return null;
   if (
     (event.update.kind === 'stdout' ||
       event.update.kind === 'stderr' ||
@@ -412,8 +405,20 @@ export function subagentToolCallToSessionUpdate(
 export function subagentToolProgressToSessionUpdate(
   sessionId: string,
   event: SubagentToolProgressEvent,
-  accumulator?: { output: string },
+  accumulator?: { output: string; terminalId?: string },
 ): SessionNotification | null {
+  const terminalId = event.terminalId;
+  if (terminalId !== undefined) {
+    if (accumulator !== undefined) accumulator.terminalId = terminalId;
+    return {
+      sessionId,
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: acpSubagentToolCallId(event.subagentId, event.toolCallId),
+        content: [{ type: 'terminal', terminalId }],
+      },
+    };
+  }
   const text = event.textPreview;
   if (text === undefined || text.length === 0) return null;
   const toolCallId = acpSubagentToolCallId(event.subagentId, event.toolCallId);
@@ -427,6 +432,7 @@ export function subagentToolProgressToSessionUpdate(
       },
     };
   }
+  if (accumulator?.terminalId !== undefined) return null;
   let body = text;
   if (accumulator !== undefined) {
     accumulator.output = capToolOutputTail(accumulator.output + text);
@@ -451,6 +457,7 @@ export function subagentToolProgressToSessionUpdate(
 export function subagentToolResultToSessionUpdate(
   sessionId: string,
   event: SubagentToolResultEvent,
+  terminalId?: string,
 ): SessionNotification {
   const content: ToolCallContent[] =
     event.resultPreview !== undefined && event.resultPreview.length > 0
@@ -467,7 +474,7 @@ export function subagentToolResultToSessionUpdate(
       sessionUpdate: 'tool_call_update',
       toolCallId: acpSubagentToolCallId(event.subagentId, event.toolCallId),
       status: event.isError === true ? 'failed' : 'completed',
-      content,
+      content: terminalId === undefined ? content : [{ type: 'terminal', terminalId }],
     },
   };
 }
@@ -506,6 +513,7 @@ export function thinkingDeltaToSessionUpdate(
 export function toolResultToSessionUpdate(
   sessionId: string,
   event: ToolResultEvent,
+  terminalId?: string,
 ): SessionNotification {
   return {
     sessionId,
@@ -513,90 +521,11 @@ export function toolResultToSessionUpdate(
       sessionUpdate: 'tool_call_update',
       toolCallId: acpToolCallId(event.turnId, event.toolCallId),
       status: event.isError ? 'failed' : 'completed',
-      content: toolResultToAcpContent(event),
+      content: terminalId === undefined ? toolResultToAcpContent(event)
+        : [{ type: 'terminal', terminalId }],
       rawOutput: event.output,
     },
   };
-}
-
-/**
- * Translate the kimi-code TodoList display block into an ACP `plan`
- * session update.
- *
- * Mapping rules (anchored at types.gen.d.ts:3530-3569 / :4849):
- *   - The `todo_list` input-display block carries
- *     `items: { title, status }[]` (schemas.ts:60). The status is the
- *     three-state TodoStatus union (todo-list.ts:26):
- *     `pending` | `in_progress` | `done`.
- *   - ACP {@link PlanEntryStatus} is `pending` | `in_progress` | `completed`,
- *     so `done` rewrites to `completed`. Anything outside the known
- *     enum lands on `pending` as a safe default — we never want a
- *     plan emission to crash the prompt loop.
- *   - We default `priority` to `'medium'` because the kimi-code
- *     TodoList does not carry a priority axis today.
- *   - `title` → `content` (ACP names it `content` per :3548).
- *
- * Returns `null` if the items array is empty — there is no useful
- * client-side state in "I emit the plan now, but it's empty" beyond
- * the eventual `plan_removed` story (deferred until kimi-code grows
- * a clear-plan signal).
- */
-export function todoListToSessionUpdate(
-  sessionId: string,
-  turnId: number,
-  items: ReadonlyArray<{ title: string; status: string }>,
-): SessionNotification | null {
-  // turnId is accepted for symmetry with other events-map helpers and
-  // for future debug-log enrichment; the ACP `plan` wire shape is
-  // session-scoped (types.gen.d.ts:3499 — "The client replaces the
-  // entire plan with each update") so we do not embed it in the payload.
-  void turnId;
-  if (items.length === 0) return null;
-  const entries: PlanEntry[] = items.map((item) => ({
-    content: item.title,
-    priority: 'medium',
-    status: mapTodoStatus(item.status),
-  }));
-  return {
-    sessionId,
-    update: {
-      sessionUpdate: 'plan',
-      entries,
-    },
-  };
-}
-
-function mapTodoStatus(status: string): PlanEntryStatus {
-  switch (status) {
-    case 'pending':
-      return 'pending';
-    case 'in_progress':
-      return 'in_progress';
-    case 'done':
-    case 'completed':
-      return 'completed';
-    default:
-      return 'pending';
-  }
-}
-
-/**
- * If the given {@link ToolInputDisplay} carries a TodoList payload,
- * project it into an ACP `plan` session update. Returns `null` for
- * every other display kind (the caller drops them).
- *
- * The kimi-code TodoList tool publishes both a structured display
- * (`kind: 'todo_list'`) and a textual `tool.result` output. The
- * display is the canonical structured signal — we wire it to ACP
- * here instead of trying to parse the textual output.
- */
-export function planFromDisplayBlock(
-  sessionId: string,
-  turnId: number,
-  display: ToolInputDisplay,
-): SessionNotification | null {
-  if (display.kind !== 'todo_list') return null;
-  return todoListToSessionUpdate(sessionId, turnId, display.items);
 }
 
 /**

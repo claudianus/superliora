@@ -21,28 +21,25 @@
 
 import type { Agent } from '../../agent';
 import { emitJobEvents, jobRecordToUpdatedEvent } from '../../tools/builtin/job/job-emit';
-import { getJob, type JobRecord } from '../../tools/builtin/job/job-ledger';
+import { getJob, listJobs, type JobRecord } from '../../tools/builtin/job/job-ledger';
 import { patchJobAndNotify } from '../../tools/builtin/job/job-notify';
+import { abortJobWorker, bindJobWorkerHost, clearJobWorkerHost, getJobWorkerHost, type JobWorkerHost } from '../../tools/builtin/job/job-handles';
+import { abortJobNativeOperations, holdJobNativeAdmission, retainJobNativeCleanup } from '../../tools/builtin/job/job-native-resources';
 import {
+  areJobAdmissionsOpen,
+  closeJobAdmissions,
   resolveConductorPoolConfig,
   scheduleQueuedJobs,
 } from '../../tools/builtin/job/job-runtime';
-import { syncGoalDeskParentFromDriver } from '../../tools/builtin/goal/goal-session-binding';
-import { admitJobWorkerLaunch, launchJobWorker } from '../../tools/builtin/job/job-worker';
+import { launchJobWorker } from '../../tools/builtin/job/job-worker';
 import type { ToolStore } from '../../tools/store';
 import { JOB_WORKER_SPAWN_BUDGET_MS, WorkerSpawner } from './worker-spawner';
 
-/**
- * G1 ACK budget split (contract §3.3): JobCreate waits at most this long for
- * a fast spawn handshake so the ACK can carry the worker id; slower
- * handshakes keep running in the background and land on ledger/inbox. Kept
- * well under the locked 250ms ACK deadline.
- */
-export const JOB_CREATE_ACK_SPAWN_GRACE_MS = 100;
 
 export interface JobSchedulePumpRequest {
   readonly store: ToolStore;
   readonly agent?: Agent;
+  readonly workerHost?: JobWorkerHost;
 }
 
 interface OffloadState {
@@ -55,27 +52,34 @@ const state: OffloadState = {
   pumpInFlight: undefined,
 };
 
-let workerSpawner: WorkerSpawner | undefined;
+const workerSpawners = new WeakMap<ToolStore, WorkerSpawner>();
 
-/**
- * Shared spawner used by the schedule pump (V2-2). Built lazily so its
- * handshake concurrency matches the resolved job concurrency (env override
- * included): a lower spawn cap left the 4th..6th promoted job sitting in
- * `running` with no worker attached until an earlier handshake settled.
- *
- * The pool cap is store-sensitive (`projectMode` per session), so the resolved
- * cap is re-checked on every call and pushed into the singleton — a spawner
- * frozen at session A's cap must not serialize session B's handshakes.
- */
-export function getJobWorkerSpawner(
-  resolution?: { readonly store?: ToolStore },
-): WorkerSpawner {
-  const cap = resolveConductorPoolConfig(process.env, {
-    store: resolution?.store,
-  }).maxConcurrentJobs;
-  workerSpawner ??= new WorkerSpawner({ maxConcurrent: cap });
-  workerSpawner.setMaxConcurrent(cap);
-  return workerSpawner;
+/** Synchronously stop admission and discard this session's unstarted handshakes. */
+export function closeJobRuntime(store: ToolStore): void {
+  closeJobAdmissions(store);
+  const reason = new Error('Job runtime closed');
+  abortJobNativeOperations(store, undefined, reason);
+  clearJobWorkerHost(store);
+  for (let index = state.pumpRequests.length - 1; index >= 0; index -= 1) {
+    if (state.pumpRequests[index]?.store === store) state.pumpRequests.splice(index, 1);
+  }
+  for (const job of listJobs(store)) {
+    workerSpawners.get(store)?.cancelQueued(job.id);
+    abortJobWorker(job.id, reason);
+  }
+}
+
+export function cancelQueuedJobWorkerSpawn(store: ToolStore, jobId: string): boolean {
+  return workerSpawners.get(store)?.cancelQueued(jobId) ?? false;
+}
+
+/** Per-store preparation queues preserve each session's pool and cancellation boundary. */
+export function getJobWorkerSpawner(store: ToolStore): WorkerSpawner {
+  const cap = resolveConductorPoolConfig(process.env, { store }).maxConcurrentJobs;
+  let spawner = workerSpawners.get(store);
+  if (!spawner) { spawner = new WorkerSpawner({ maxConcurrent: cap }); workerSpawners.set(store, spawner); }
+  spawner.setMaxConcurrent(cap);
+  return spawner;
 }
 
 /**
@@ -84,33 +88,40 @@ export function getJobWorkerSpawner(
  * can falsely trip the 30s spawn budget on real merge/push duration.
  */
 export function isNonLlmJobLaunch(job: Pick<JobRecord, 'kind'>): boolean {
-  return job.kind === 'merge' || job.kind === 'push' || job.kind === 'goal-desk';
+  return job.kind === 'merge' || job.kind === 'push';
 }
 
-/** In-flight non-LLM launches (merge/push/goal-desk) for resume/schedule dedupe. */
-const nonLlmLaunchKeys = new Set<string>();
+/** In-flight deterministic launches for resume/schedule deduplication. */
+const nonLlmLaunchKeys = new WeakMap<ToolStore, Set<string>>();
 
 /**
  * V2-2 spawn wiring: queue one job-worker spawn behind the serialized
  * spawner. Emits `spawn:*` transition events; budget-exceeded handshakes are
  * recorded as blocked (ledger + inbox). Returns synchronously.
  *
- * merge / push / goal-desk bypass the spawner pool so LLM handshakes stay free.
+ * Merge and push bypass spawn preparation slots.
  */
 export function enqueueJobWorkerSpawn(input: {
   readonly store: ToolStore;
   readonly agent: Agent;
   readonly job: JobRecord;
+  readonly workerHost?: JobWorkerHost;
 }): { readonly queued: boolean; readonly duplicate: boolean } {
   const { store, agent, job } = input;
+  if (!areJobAdmissionsOpen(store, job.id)) return { queued: false, duplicate: false };
+  const workerHost = input.workerHost ?? getJobWorkerHost(store);
+  let launchKeys = nonLlmLaunchKeys.get(store);
+  if (!launchKeys) { launchKeys = new Set(); nonLlmLaunchKeys.set(store, launchKeys); }
   if (isNonLlmJobLaunch(job)) {
-    if (nonLlmLaunchKeys.has(job.id)) {
+    if (launchKeys.has(job.id)) {
       return { queued: false, duplicate: true };
     }
-    nonLlmLaunchKeys.add(job.id);
-    // Fire-and-forget off the spawner: land/push own their duration; goal-desk
-    // is a no-op umbrella. Failures stay on ledger/inbox (launchJobWorker).
-    void launchJobWorker({ store, agent, job })
+    launchKeys.add(job.id);
+    const release = holdJobNativeAdmission(store, job.id, [job.worktreePath, job.parentJobId ? getJob(store, job.parentJobId)?.worktreePath : undefined]);
+    // Deterministic executors record Git outcomes on the ledger/inbox.
+    release();
+    const launching = launchJobWorker({ store, agent, job, workerHost });
+    void launching
       .then((result) => {
         if (!result.ok) {
           agent.log?.warn?.('conductor non-LLM job launch failed', {
@@ -121,6 +132,7 @@ export function enqueueJobWorkerSpawn(input: {
         }
       })
       .catch((error: unknown) => {
+        retainJobNativeCleanup(store, job.id, error);
         // Failure isolation: a rejected launch (ledger/notify/store error on
         // the merge/push path) must never become an unhandled rejection.
         agent.log?.warn?.('conductor non-LLM job launch rejected', {
@@ -130,20 +142,23 @@ export function enqueueJobWorkerSpawn(input: {
         });
       })
       .finally(() => {
-        nonLlmLaunchKeys.delete(job.id);
+        launchKeys.delete(job.id);
+        release();
       });
     return { queued: true, duplicate: false };
   }
-  return getJobWorkerSpawner({ store }).enqueue({
+  const release = holdJobNativeAdmission(store, job.id, [job.worktreePath]);
+  const admission = getJobWorkerSpawner(store).enqueue({
     key: job.id,
-    run: ({ signal }) =>
-      launchJobWorker({ store, agent, job, signal }).then((result) => {
-        if (!result.ok) {
-          // Ledger/inbox already carry the recorded failure; the throw only
-          // surfaces it to the spawner as a `spawn_failed` phase.
-          throw new Error(result.error ?? 'launch failed');
-        }
-      }),
+    run: async ({ signal }) => {
+      try {
+        release();
+        const launching = launchJobWorker({ store, agent, job, signal, workerHost });
+        const result = await launching;
+        if (!result.ok) throw new Error(result.error ?? 'launch failed');
+      } finally { release(); }
+    },
+    onCancel: release,
     onPhase: (phase) => {
       const current = getJob(store, job.id) ?? job;
       emitJobEvents(agent, [jobRecordToUpdatedEvent(current, { reason: `spawn:${phase}` })]);
@@ -152,16 +167,11 @@ export function enqueueJobWorkerSpawn(input: {
       holdJobForSpawnBudget(store, job.id, agent);
     },
   });
+  if (!admission.queued) release();
+  return admission;
 }
 
-/**
- * A spawn that burned the whole handshake budget is held for resume.
- *
- * The goal binding has to hear about it: `blocked` counts as a *live* driver in
- * the goal heal loop, so a goal-driver held here would leave `/goal` reporting
- * the goal as pursuing while nothing runs — and no escalation fires because the
- * driver still looks alive.
- */
+/** A timed-out worker-host handshake is held for explicit resume. */
 export function holdJobForSpawnBudget(
   store: ToolStore,
   jobId: string,
@@ -172,7 +182,7 @@ export function holdJobForSpawnBudget(
   // handshake was hung (user cancel / terminal failure / recovery) —
   // record a blocked hold only for a still-live spawn.
   if (current === undefined || current.status !== 'running') return;
-  const updated = patchJobAndNotify(
+  patchJobAndNotify(
     store,
     jobId,
     {
@@ -189,13 +199,11 @@ export function holdJobForSpawnBudget(
       summary: `spawn budget exceeded (${JOB_WORKER_SPAWN_BUDGET_MS}ms)`,
     },
   );
-  if (updated !== undefined) {
-    syncGoalDeskParentFromDriver(store, updated, agent);
-  }
 }
 
 async function runSchedule(request: JobSchedulePumpRequest): Promise<void> {
   const { store, agent } = request;
+  if (!areJobAdmissionsOpen(store)) return;
   if (agent === undefined) {
     // No agent → no spawn path and no stall watchdog. Promoting here flips
     // jobs to `running` that no worker can ever attach to (zombie pool slots
@@ -213,19 +221,9 @@ async function runSchedule(request: JobSchedulePumpRequest): Promise<void> {
     requireWorktree: kaos !== undefined && repoPath !== undefined,
     log: agent?.log,
     agent,
-    launchWorker:
-      agent !== undefined && agent.subagentHost !== undefined
-        ? async (job) => {
-            // Admission (objective profile + live model probe) runs here, on the
-            // lane, before the job takes a spawn slot: the probe is a network
-            // walk over the alias chain and used to eat the 30s handshake budget
-            // and hold a slot, which stalled the fleet under a degraded provider
-            // and reported the failure as a timeout.
-            const admitted = await admitJobWorkerLaunch({ store, agent, job });
-            if (!admitted.ok) return;
-            enqueueJobWorkerSpawn({ store, agent, job: admitted.job });
-          }
-        : undefined,
+    launchWorker: async (job) => {
+      enqueueJobWorkerSpawn({ store, agent, job, workerHost: request.workerHost ?? getJobWorkerHost(store) });
+    },
   });
   agent?.log?.debug?.('conductor schedule pump (offload lane)', {
     message: result.message,
@@ -246,6 +244,8 @@ async function runSchedule(request: JobSchedulePumpRequest): Promise<void> {
  * `queued` because it held a stale drain promise.
  */
 export function requestJobSchedulePump(request: JobSchedulePumpRequest): Promise<void> {
+  if (!areJobAdmissionsOpen(request.store)) return Promise.resolve();
+  if (request.workerHost) bindJobWorkerHost(request.store, request.workerHost);
   const dup = state.pumpRequests.some(
     (pending) => pending.store === request.store && pending.agent === request.agent,
   );

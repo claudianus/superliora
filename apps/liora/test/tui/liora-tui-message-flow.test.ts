@@ -1,25 +1,18 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 import { encodeKittyDeleteImages } from '#/tui/renderer';
 import type { ApprovalRequest, ApprovalResponse, Event } from '@superliora/sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApprovalPanelComponent } from '#/tui/components/dialogs/approval/approval-panel';
-import { SUPERLIORA_PLUGIN_MARKETPLACE_URL } from '#/constant/app';
 import { BtwPanelComponent } from '#/tui/components/panes/btw-panel';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { ModelSelectorComponent } from '#/tui/components/dialogs/picker/model-selector';
 import { TabbedModelSelectorComponent } from '#/tui/components/dialogs/picker/tabbed-model-selector';
 import { UndoSelectorComponent } from '#/tui/components/dialogs/picker/undo-selector';
-import {
-  PluginInstallTrustConfirmComponent,
-  PluginMcpSelectorComponent,
-  PluginRemoveConfirmComponent,
-  PluginsPanelComponent,
-} from '#/tui/components/dialogs/plugins/index';
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
 import type { StreamingUIController } from '#/tui/controllers/streaming-ui/index';
 import {
@@ -78,13 +71,9 @@ function makeStartupInput(): LioraTUIStartupInput {
       continue: false,
       yolo: false,
       auto: false,
-      plan: false,
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,
-      skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
     },
     tuiConfig: {
       theme: 'dark',
@@ -111,7 +100,6 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     summary: { title: null },
     prompt: vi.fn(async () => {}),
     steer: vi.fn(async () => {}),
-    init: vi.fn(async () => {}),
     startBtw: vi.fn(async () => 'agent-btw'),
     undoHistory: vi.fn(async () => {}),
     cancel: vi.fn(async () => {}),
@@ -120,26 +108,17 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       model: 'k2',
       thinkingLevel: 'off',
       permission: 'manual',
-      planMode: false,
-      askMode: false,
       contextTokens: 0,
       maxContextTokens: 100,
       contextUsage: 0,
     })),
-    getGoal: vi.fn(async () => ({ goal: null })),
     setApprovalHandler: vi.fn(),
     setQuestionHandler: vi.fn(),
     setCredentialHandler: vi.fn(),
     setModel: vi.fn(async () => {}),
     setThinking: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
-    setPlanMode: vi.fn(async () => {}),
     onEvent: vi.fn(() => vi.fn()),
-    listMcpServers: vi.fn(async () => []),
-    listSkills: vi.fn(async () => []),
-    listPluginCommands: vi.fn(async () => []),
-    searchSkills: vi.fn(async () => []),
-    activatePluginCommand: vi.fn(async () => {}),
     getResumeState: vi.fn(() => ({
       sessionMetadata: {},
       agents: {
@@ -153,8 +132,6 @@ function makeSession(overrides: Record<string, unknown> = {}) {
             model: 'k2',
             thinkingLevel: 'off',
             permission: 'manual',
-            planMode: false,
-            askMode: false,
             contextTokens: 0,
             maxContextTokens: 100,
             contextUsage: 0,
@@ -165,41 +142,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       },
     })),
     close: vi.fn(async () => {}),
-    listPlugins: vi.fn(async () => []),
-    installPlugin: vi.fn(async () => ({
-      id: 'demo',
-      displayName: 'Demo',
-      version: '1.0.0',
-      enabled: true,
-      state: 'ok',
-      skillCount: 1,
-      mcpServerCount: 0,
-      enabledMcpServerCount: 0,
-      hasErrors: false,
-      source: 'local-path',
-    })),
-    setPluginEnabled: vi.fn(async () => {}),
-    setPluginMcpServerEnabled: vi.fn(async () => {}),
-    removePlugin: vi.fn(async () => {}),
-    reloadPlugins: vi.fn(async () => ({ added: [], removed: [], errors: [] })),
     reloadSession: vi.fn(async () => ({})),
-    activateSkill: vi.fn(async () => {}),
-    getPluginInfo: vi.fn(async (id: string) => ({
-      id,
-      displayName: id,
-      version: '1.0.0',
-      enabled: true,
-      state: 'ok',
-      skillCount: 1,
-      mcpServerCount: 0,
-      enabledMcpServerCount: 0,
-      hasErrors: false,
-      source: 'local-path',
-      root: `/plugins/${id}`,
-      manifest: undefined,
-      mcpServers: [],
-      diagnostics: [],
-    })),
     ...overrides,
   };
 }
@@ -346,7 +289,6 @@ function countOccurrences(haystack: string, needle: string): number {
 
 const tempDirs: string[] = [];
 const originalKimiCodeHome = process.env['SUPERLIORA_HOME'];
-const originalPluginMarketplaceUrl = process.env['SUPERLIORA_PLUGIN_MARKETPLACE_URL'];
 const originalVisual = process.env['VISUAL'];
 const originalEditor = process.env['EDITOR'];
 const originalTerm = process.env['TERM'];
@@ -377,11 +319,6 @@ afterEach(async () => {
     delete process.env['VISUAL'];
   } else {
     process.env['VISUAL'] = originalVisual;
-  }
-  if (originalPluginMarketplaceUrl === undefined) {
-    delete process.env['SUPERLIORA_PLUGIN_MARKETPLACE_URL'];
-  } else {
-    process.env['SUPERLIORA_PLUGIN_MARKETPLACE_URL'] = originalPluginMarketplaceUrl;
   }
   if (originalEditor === undefined) {
     delete process.env['EDITOR'];
@@ -524,26 +461,19 @@ command = "vim"
     }
   });
 
-  it('does not re-enter plan mode after creating a plan-mode session', async () => {
+  it('creates a new session with the current model, thinking and permission', async () => {
     const session = makeSession({
       getStatus: vi.fn(async () => ({
         model: 'k2',
         thinkingLevel: 'off',
         permission: 'manual',
-        planMode: true,
-        askMode: false,
         contextTokens: 0,
         maxContextTokens: 100,
         contextUsage: 0,
       })),
-      setPlanMode: vi.fn(async () => {
-        throw new Error('Already in plan mode');
-      }),
     });
     const { driver, harness } = await makeDriver(session);
     harness.createSession.mockClear();
-    session.setPlanMode.mockClear();
-    driver.state.appState.planMode = true;
 
     driver.handleUserInput('/new');
 
@@ -553,10 +483,8 @@ command = "vim"
         model: 'k2',
         thinking: 'off',
         permission: 'manual',
-        planMode: true,
       });
     });
-    expect(session.setPlanMode).not.toHaveBeenCalled();
     expect(stripSgr(renderTranscript(driver))).not.toContain('Post-create setup failed');
   });
 
@@ -602,146 +530,6 @@ command = "vim"
     });
     expect(harness.track).toHaveBeenCalledWith('input_command', { command: 'yolo' });
     expect(harness.track).not.toHaveBeenCalledWith('yolo_toggle', expect.anything());
-  });
-
-  it('hydrates MCP server status after subscribing to session events', async () => {
-    const session = makeSession({
-      listMcpServers: vi.fn(async () => [
-        {
-          name: 'local-tools',
-          transport: 'stdio',
-          status: 'connected',
-          toolCount: 2,
-        },
-        {
-          name: 'remote-tools',
-          transport: 'http',
-          status: 'failed',
-          toolCount: 0,
-          error: 'connection refused',
-        },
-      ]),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.sessionEventHandler.startSubscription();
-    await Promise.resolve();
-
-    expect(session.onEvent).toHaveBeenCalledOnce();
-    expect(session.listMcpServers).toHaveBeenCalledOnce();
-    const subscribeOrder = session.onEvent.mock.invocationCallOrder[0];
-    const snapshotOrder = session.listMcpServers.mock.invocationCallOrder[0];
-    if (subscribeOrder === undefined || snapshotOrder === undefined) {
-      throw new Error('Expected MCP status sync to subscribe and fetch a snapshot.');
-    }
-    expect(subscribeOrder).toBeLessThan(snapshotOrder);
-    const transcript = renderTranscript(driver);
-    expect(transcript).toContain('MCP server "local-tools" connected');
-    expect(transcript).toContain('2 tools (stdio)');
-    expect(transcript).toContain('MCP server "remote-tools" failed: connection refused');
-  });
-
-  it('deduplicates identical MCP status updates while allowing reconnect transitions', async () => {
-    const eventListeners: Array<(event: Event) => void> = [];
-    const connectedServer = {
-      name: 'local-tools',
-      transport: 'stdio',
-      status: 'connected',
-      toolCount: 2,
-    };
-    const session = makeSession({
-      onEvent: vi.fn((listener: (event: Event) => void) => {
-        eventListeners.push(listener);
-        return vi.fn();
-      }),
-      listMcpServers: vi.fn(async () => [connectedServer]),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.sessionEventHandler.startSubscription();
-    await Promise.resolve();
-    eventListeners[0]?.({
-      type: 'mcp.server.status',
-      agentId: 'main',
-      sessionId: 'ses-1',
-      server: connectedServer,
-    } as Event);
-
-    expect(countOccurrences(renderTranscript(driver), 'MCP server "local-tools" connected')).toBe(
-      1,
-    );
-
-    eventListeners[0]?.({
-      type: 'mcp.server.status',
-      agentId: 'main',
-      sessionId: 'ses-1',
-      server: {
-        ...connectedServer,
-        status: 'pending',
-        toolCount: 0,
-      },
-    } as Event);
-    eventListeners[0]?.({
-      type: 'mcp.server.status',
-      agentId: 'main',
-      sessionId: 'ses-1',
-      server: connectedServer,
-    } as Event);
-
-    expect(countOccurrences(renderTranscript(driver), 'MCP server "local-tools" connected')).toBe(
-      2,
-    );
-  });
-
-  it('does not let a late MCP snapshot overwrite a live status event', async () => {
-    const eventListeners: Array<(event: Event) => void> = [];
-    let resolveSnapshot: (
-      servers: Array<{
-        name: string;
-        transport: 'stdio' | 'http' | 'sse';
-        status: 'pending' | 'connected' | 'failed' | 'disabled';
-        toolCount: number;
-        error?: string;
-      }>,
-    ) => void = () => {};
-    const snapshot = new Promise((resolve) => {
-      resolveSnapshot = resolve;
-    });
-    const session = makeSession({
-      onEvent: vi.fn((listener: (event: Event) => void) => {
-        eventListeners.push(listener);
-        return vi.fn();
-      }),
-      listMcpServers: vi.fn(() => snapshot),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.sessionEventHandler.startSubscription();
-    eventListeners[0]?.({
-      type: 'mcp.server.status',
-      agentId: 'main',
-      sessionId: 'ses-1',
-      server: {
-        name: 'local-tools',
-        transport: 'stdio',
-        status: 'connected',
-        toolCount: 2,
-      },
-    } as Event);
-    resolveSnapshot([
-      {
-        name: 'local-tools',
-        transport: 'stdio',
-        status: 'failed',
-        toolCount: 0,
-        error: 'stale failure',
-      },
-    ]);
-    await Promise.resolve();
-
-    const transcript = renderTranscript(driver);
-    expect(transcript).toContain('MCP server "local-tools" connected');
-    expect(transcript).not.toContain('stale failure');
   });
 
   it('sends normal editor input to the active session and marks the turn as waiting', async () => {
@@ -1090,76 +878,6 @@ command = "vim"
     ]);
   });
 
-  it('undoes from the real user turn when the last skill activation came from the model', async () => {
-    const { driver } = await makeDriver();
-
-    driver.handleUserInput('hello');
-    await flushInputDispatch();
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'skill.activated',
-        agentId: 'main',
-        activationId: 'act-model',
-        skillName: 'review',
-        trigger: 'model-tool',
-      } as Event,
-      () => {},
-    );
-    driver.state.appState.streamingPhase = 'idle';
-
-    driver.handleUserInput('/undo');
-    await confirmUndoSelection(driver);
-
-    await vi.waitFor(() => {
-      expect(driver.state.transcriptEntries).toEqual([]);
-    });
-
-    expect(driver.state.transcriptEntries).toEqual([]);
-    const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).not.toContain('hello');
-    expect(transcript).not.toContain('review');
-  });
-
-  it('keeps user-slash skill activations as undo anchors', async () => {
-    const { driver } = await makeDriver();
-
-    driver.handleUserInput('hello');
-    await flushInputDispatch();
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'skill.activated',
-        agentId: 'main',
-        activationId: 'act-user',
-        skillName: 'review',
-        trigger: 'user-slash',
-      } as Event,
-      () => {},
-    );
-    driver.state.appState.streamingPhase = 'idle';
-
-    driver.handleUserInput('/undo');
-    await confirmUndoSelection(driver);
-
-    await vi.waitFor(() => {
-      expect(driver.state.transcriptEntries).toEqual([
-        expect.objectContaining({
-          kind: 'user',
-          content: 'hello',
-        }),
-      ]);
-    });
-
-    expect(driver.state.transcriptEntries).toEqual([
-      expect.objectContaining({
-        kind: 'user',
-        content: 'hello',
-      }),
-    ]);
-    const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('hello');
-    expect(transcript).not.toContain('review');
-  });
-
   it('sends pasted image placeholders as image content parts', async () => {
     const { driver, session } = await makeDriver();
     const imageStore = (driver as unknown as { imageStore: ImageAttachmentStore }).imageStore;
@@ -1479,46 +1197,6 @@ command = "vim"
     expect(transcript).not.toContain('! ls');
   });
 
-  it('renders cron fired events as distinct transcript entries', async () => {
-    const { driver } = await makeDriver();
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'cron.fired',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        origin: {
-          kind: 'cron_job',
-          jobId: 'deadbeef',
-          cron: '* * * * *',
-          recurring: true,
-          coalescedCount: 1,
-          stale: false,
-        },
-        prompt: 'Remind the user: this is a once-per-minute reminder',
-      } as Event,
-      vi.fn(),
-    );
-
-    const entry = driver.state.transcriptEntries.at(-1);
-    expect(entry).toMatchObject({
-      kind: 'cron',
-      content: 'Remind the user: this is a once-per-minute reminder',
-      cronData: {
-        jobId: 'deadbeef',
-        cron: '* * * * *',
-        coalescedCount: 1,
-        stale: false,
-      },
-    });
-
-    const transcript = stripSgr(driver.state.transcriptContainer.render(120).join('\n'));
-    expect(transcript).toContain('Scheduled reminder fired');
-    expect(transcript).toContain('* * * * *');
-    expect(transcript).toContain('Remind the user: this is a once-per-minute reminder');
-    expect(transcript).not.toContain('<cron-fire');
-  });
-
   it('coalesces assistant delta component updates', async () => {
     vi.useFakeTimers();
     try {
@@ -1737,36 +1415,6 @@ command = "vim"
     expect(driver.state.transcriptContainer.render(120).join('\n')).not.toContain('LLM not set');
   });
 
-  it('dispatches /init to the active session and clears busy state after completion', async () => {
-    let resolveInit: (() => void) | undefined;
-    const session = makeSession({
-      init: vi.fn(
-        () =>
-          new Promise<void>((resolve) => {
-            resolveInit = resolve;
-          }),
-      ),
-    });
-    const { driver, harness } = await makeDriver(session);
-    harness.track.mockClear();
-
-    driver.handleUserInput('/init');
-
-    await vi.waitFor(() => {
-      expect(session.init).toHaveBeenCalledTimes(1);
-    });
-    expect(session.prompt).not.toHaveBeenCalled();
-    expect(driver.state.appState.streamingPhase).not.toBe('idle');
-    expect(driver.state.livePane.mode).toBe('waiting');
-
-    resolveInit?.();
-
-    await vi.waitFor(() => {
-      expect(driver.state.appState.streamingPhase).toBe('idle');
-    });
-    expect(driver.state.livePane.mode).toBe('idle');
-    expect(harness.track).toHaveBeenCalledWith('init_complete', undefined);
-  });
 
   it('starts /btw through a forked side agent without changing the main busy state', async () => {
     const session = makeSession();
@@ -2467,8 +2115,6 @@ command = "vim"
         model: 'k2',
         thinkingLevel: 'off',
         permission: 'manual',
-        planMode: false,
-        askMode: false,
         contextTokens: 0,
         maxContextTokens: 100,
         contextUsage: 0,
@@ -2480,78 +2126,6 @@ command = "vim"
     expect(driver.state.appState.providerRouteStatus).toEqual(providerRoute);
   });
 
-  it('queues Ctrl-S input instead of steering while /init is running', async () => {
-    let resolveInit: (() => void) | undefined;
-    const session = makeSession({
-      init: vi.fn(
-        () =>
-          new Promise<void>((resolve) => {
-            resolveInit = resolve;
-          }),
-      ),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/init');
-    await vi.waitFor(() => {
-      expect(session.init).toHaveBeenCalledTimes(1);
-    });
-
-    driver.state.editor.setText('apply after init');
-    driver.state.editor.onCtrlS?.();
-
-    expect(session.steer).not.toHaveBeenCalled();
-    expect(driver.state.queuedMessages).toEqual([{ text: 'apply after init', agentId: 'main' }]);
-    expect(stripSgr(driver.state.queueContainer.render(120).join('\n'))).not.toContain(
-      'ctrl-s to steer immediately',
-    );
-
-    resolveInit?.();
-
-    await vi.waitFor(() => {
-      expect(session.prompt).toHaveBeenCalledWith('apply after init');
-    });
-    expect(driver.state.queuedMessages).toEqual([]);
-  });
-
-  it('cancels the active /init request through the session', async () => {
-    let resolveInit: (() => void) | undefined;
-    const session = makeSession({
-      init: vi.fn(
-        () =>
-          new Promise<void>((resolve) => {
-            resolveInit = resolve;
-          }),
-      ),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/init');
-    await vi.waitFor(() => {
-      expect(session.init).toHaveBeenCalledTimes(1);
-    });
-
-    driver.state.editor.onEscape?.();
-
-    await vi.waitFor(() => {
-      expect(session.cancel).toHaveBeenCalledTimes(1);
-    });
-
-    resolveInit?.();
-  });
-
-  it('does not run /init when no model is selected', async () => {
-    const { driver, session } = await makeDriver();
-    driver.state.appState.model = '';
-
-    driver.handleUserInput('/init');
-
-    expect(session.init).not.toHaveBeenCalled();
-    expect(driver.state.transcriptContainer.render(120).join('\n')).toContain(
-      'Model not set. Run /login to add a provider, then /model to pick one.',
-    );
-    expect(driver.state.transcriptContainer.render(120).join('\n')).not.toContain('LLM not set');
-  });
 
   it('shows the login prompt for auth.login_required session errors', async () => {
     const { driver } = await makeDriver();
@@ -2654,150 +2228,12 @@ command = "vim"
     expect(transcript).not.toContain('/export-debug-zip');
   });
 
-  it('mirrors ExitPlanMode plan into the transcript and keeps the approval card compact', async () => {
-    const planContent = '# No Duplicate Plan\n\n- Do the non-duplicated plan work';
-    const session = makeSession({
-      getPlan: vi.fn(async () => ({
-        id: 'no-duplicate-plan',
-        content: planContent,
-        path: '/tmp/no-duplicate-plan.md',
-      })),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_exit_plan',
-        name: 'ExitPlanMode',
-        args: {},
-      } as Event,
-      vi.fn(),
-    );
-
-    await vi.waitFor(() => {
-      const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript).toContain('Current plan');
-      // In-flight ExitPlanMode does not mount PlanBox; reading waits for plan_review.
-      expect(transcript).not.toContain('non-duplicated plan work');
-    });
-
-    const approvalHandler = vi.mocked(session.setApprovalHandler).mock.calls[0]?.[0] as
-      | ((request: ApprovalRequest) => Promise<ApprovalResponse>)
-      | undefined;
-    if (approvalHandler === undefined) throw new Error('expected approval handler');
-    void approvalHandler({
-      turnId: 1,
-      toolCallId: 'call_exit_plan',
-      toolName: 'ExitPlanMode',
-      action: 'Review plan',
-      display: {
-        kind: 'plan_review',
-        plan: planContent,
-        path: '/tmp/no-duplicate-plan.md',
-      },
-    });
-
-    await vi.waitFor(() => {
-      const approval = stripSgr(driver.state.editorContainer.render(120).join('\n'));
-      expect(approval).toContain('Ready to build with this plan?');
-      expect(approval).toContain('Path: /tmp/no-duplicate-plan.md');
-      expect(approval).toContain('Ctrl+E preview');
-      expect(approval).toContain('Line comment: L12');
-      // Compact file_content summary still shows early lines; full book is transcript.
-      expect(approval).toContain('non-duplicated plan work');
-      const transcript = stripSgr(renderTranscript(driver));
-      expect(countOccurrences(transcript, 'non-duplicated plan work')).toBe(1);
-    });
-  });
-
-  it('shows plan review reject on the plan card without an approval notice', async () => {
-    const planContent = '# Reject Plan\n\n- keep this plan visible after reject';
-    const session = makeSession({
-      getPlan: vi.fn(async () => ({
-        id: 'reject-plan',
-        content: planContent,
-        path: '/tmp/reject-plan.md',
-      })),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_exit_reject_plan',
-        name: 'ExitPlanMode',
-        args: {},
-      } as Event,
-      vi.fn(),
-    );
-
-    await vi.waitFor(() => {
-      const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript).toContain('Current plan');
-      expect(transcript).not.toContain('keep this plan visible after reject');
-    });
-
-    const approvalHandler = vi.mocked(session.setApprovalHandler).mock.calls[0]?.[0] as
-      | ((request: ApprovalRequest) => Promise<ApprovalResponse>)
-      | undefined;
-    if (approvalHandler === undefined) throw new Error('expected approval handler');
-    const response = approvalHandler({
-      turnId: 1,
-      toolCallId: 'call_exit_reject_plan',
-      toolName: 'ExitPlanMode',
-      action: 'Review plan',
-      display: {
-        kind: 'plan_review',
-        plan: planContent,
-        path: '/tmp/reject-plan.md',
-      },
-    });
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(ApprovalPanelComponent);
-      const transcript = stripSgr(renderTranscript(driver));
-      expect(countOccurrences(transcript, 'keep this plan visible after reject')).toBe(1);
-    });
-    (driver.state.editorContainer.children[0] as ApprovalPanelComponent).handleInput('2');
-    await expect(response).resolves.toMatchObject({ decision: 'rejected' });
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.result',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_exit_reject_plan',
-        output: 'Plan rejected by user. Plan mode remains active.',
-        isError: true,
-      } as Event,
-      vi.fn(),
-    );
-
-    await vi.waitFor(() => {
-      const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript).toContain('plan: reject-plan.md');
-      expect(transcript).toContain('Reject Plan');
-      expect(transcript).toContain('keep this plan visible after reject');
-      expect(transcript).not.toContain('Rejected: Review plan');
-    });
-  });
-
   it('renders /status using the active session runtime status', async () => {
     const session = makeSession({
       getStatus: vi.fn(async () => ({
         model: 'k2',
         thinkingLevel: 'high',
         permission: 'auto',
-        planMode: true,
-        askMode: false,
         contextTokens: 25,
         maxContextTokens: 100,
         contextUsage: 0.25,
@@ -2817,685 +2253,9 @@ command = "vim"
       expect(output).toContain('>_ SuperLiora');
       expect(output).toContain('Model');
       expect(output).toContain('thinking high');
-      expect(output).toContain('Permissions     auto');
-      expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Verify queued/);
+      expect(output).toMatch(/Permissions\s+auto/);
       expect(output).toContain('Context window');
       expect(output).toContain('25.0%');
-    });
-  });
-
-  it('renders /mcp using a fresh MCP server snapshot', async () => {
-    const session = makeSession({
-      listMcpServers: vi.fn(async () => [
-        {
-          name: 'local-tools',
-          transport: 'stdio',
-          status: 'connected',
-          toolCount: 2,
-        },
-        {
-          name: 'remote-tools',
-          transport: 'http',
-          status: 'failed',
-          toolCount: 0,
-          error: 'connection refused',
-        },
-        {
-          name: 'linear',
-          transport: 'http',
-          status: 'needs-auth',
-          toolCount: 0,
-        },
-        {
-          name: 'disabled-tools',
-          transport: 'stdio',
-          status: 'disabled',
-          toolCount: 0,
-        },
-      ]),
-    });
-    const { driver } = await makeDriver(session);
-    const listMcpServers = vi.mocked(session.listMcpServers);
-    const previousCalls = listMcpServers.mock.calls.length;
-
-    driver.handleUserInput('/mcp');
-    await vi.waitFor(() => {
-      expect(driver.state.centerModalStack.at(-1)?.panel).toBeDefined();
-    });
-    (driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void }).handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(listMcpServers).toHaveBeenCalledTimes(previousCalls + 1);
-      const output = stripSgr(driver.state.transcriptContainer.render(140).join('\n'));
-      expect(output).toContain(' MCP (4) ');
-      expect(output).toContain('Servers');
-      expect(output).toContain('local-tools');
-      expect(output).toContain('connected');
-      expect(output).toContain('stdio');
-      expect(output).toContain('2 tools');
-      expect(output).toContain('remote-tools');
-      expect(output).toContain('failed');
-      expect(output).toContain('connection refused');
-      expect(output).toContain('linear');
-      expect(output).toContain('needs auth');
-      expect(output).toContain('/mcp-config login linear');
-      expect(output).toContain('disabled-tools');
-      expect(output).toContain('disabled');
-      expect(output).toContain('1 connected · 1 needs auth · 1 failed · 1 disabled · 2 tools available');
-    });
-  });
-
-  it('renders an empty /mcp state when no MCP servers are configured', async () => {
-    const session = makeSession({
-      listMcpServers: vi.fn(async () => []),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/mcp');
-    await vi.waitFor(() => {
-      expect(driver.state.centerModalStack.at(-1)?.panel).toBeDefined();
-    });
-    (driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void }).handleInput('\r');
-
-    await vi.waitFor(() => {
-      const output = stripSgr(driver.state.transcriptContainer.render(120).join('\n'));
-      expect(output).toContain(
-        'No MCP servers configured. Run /mcp-config to add optional tool backends.',
-      );
-    });
-  });
-
-  it('renders /mcp list failures as command boundary errors', async () => {
-    const session = makeSession({
-      listMcpServers: vi.fn(async () => {
-        throw new Error('rpc unavailable');
-      }),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/mcp');
-    await vi.waitFor(() => {
-      expect(driver.state.centerModalStack.at(-1)?.panel).toBeDefined();
-    });
-    (driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void }).handleInput('\r');
-
-    await vi.waitFor(() => {
-      const output = stripSgr(driver.state.transcriptContainer.render(120).join('\n'));
-      expect(output).toContain('Error: Failed to load MCP servers: rpc unavailable');
-    });
-  });
-
-  it('toggles plugin MCP servers from the text command', async () => {
-    const session = makeSession();
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins mcp enable kimi-datasource data');
-
-    await vi.waitFor(() => {
-      expect(session.setPluginMcpServerEnabled).toHaveBeenCalledWith(
-        'kimi-datasource',
-        'data',
-        true,
-      );
-    });
-  });
-
-  it('errors when /plugins install has no argument', async () => {
-    const session = makeSession();
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins install');
-
-    await vi.waitFor(() => {
-      expect(stripSgr(renderTranscript(driver))).toContain(
-        'Usage: /plugins install <local-path-or-zip-url>',
-      );
-    });
-    expect(session.installPlugin).not.toHaveBeenCalled();
-  });
-
-  it('installs from a positional source on /plugins install after trusting it', async () => {
-    const session = makeSession();
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins install ./plugins/kimi-datasource');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(
-        PluginInstallTrustConfirmComponent,
-      );
-    });
-    const confirm = driver.state.editorContainer.children[0] as PluginInstallTrustConfirmComponent;
-    confirm.handleInput('\u001B[B'); // switch from "Exit" to "Trust and install"
-    confirm.handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(session.installPlugin).toHaveBeenCalledWith(
-        resolve('/tmp/proj-a', './plugins/kimi-datasource'),
-      );
-    });
-  });
-
-  it('does not install when the third-party trust prompt is dismissed', async () => {
-    const session = makeSession();
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins install ./plugins/kimi-datasource');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(
-        PluginInstallTrustConfirmComponent,
-      );
-    });
-    const confirm = driver.state.editorContainer.children[0] as PluginInstallTrustConfirmComponent;
-    confirm.handleInput('\r'); // default option is "Exit"
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBe(driver.state.editor);
-    });
-    expect(session.installPlugin).not.toHaveBeenCalled();
-  });
-
-  it('loads a local plugin marketplace file and installs from it', async () => {
-    const marketplaceDir = await makeTempHome();
-    const marketplacePath = join(marketplaceDir, 'marketplace.json');
-    await writeFile(
-      marketplacePath,
-      JSON.stringify({
-        plugins: [
-          {
-            id: 'kimi-datasource',
-            tier: 'official',
-            displayName: 'Kimi Datasource',
-            description: 'Datasource plugin',
-            source: 'https://raw.githubusercontent.com/claudianus/superliora/main/plugins/official/kimi-datasource.zip',
-          },
-        ],
-      }),
-      'utf8',
-    );
-    process.env['SUPERLIORA_PLUGIN_MARKETPLACE_URL'] = marketplacePath;
-    const session = makeSession();
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins marketplace');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(PluginsPanelComponent);
-    });
-    const panel = driver.state.editorContainer.children[0] as PluginsPanelComponent;
-    // Official loads its catalog lazily; wait for the entry to render before install.
-    await vi.waitFor(() => {
-      expect(stripSgr(panel.render(120).join('\n'))).toContain('Kimi Datasource');
-    });
-    panel.handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(session.installPlugin).toHaveBeenCalledWith(
-        'https://raw.githubusercontent.com/claudianus/superliora/main/plugins/official/kimi-datasource.zip',
-      );
-    });
-    await vi.waitFor(() => {
-      const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript).toContain('Installed Demo');
-      expect(transcript).toContain('Run /new or /reload to apply plugin changes.');
-    });
-    // Installing closes the panel so the success notice / reload tip is visible.
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBe(driver.state.editor);
-    });
-  });
-
-  it('returns to the plugin list when a marketplace install fails', async () => {
-    const marketplaceDir = await makeTempHome();
-    const marketplacePath = join(marketplaceDir, 'marketplace.json');
-    await writeFile(
-      marketplacePath,
-      JSON.stringify({
-        plugins: [
-          {
-            id: 'kimi-datasource',
-            tier: 'official',
-            displayName: 'Kimi Datasource',
-            source: 'https://raw.githubusercontent.com/claudianus/superliora/main/plugins/official/kimi-datasource.zip',
-          },
-        ],
-      }),
-      'utf8',
-    );
-    process.env['SUPERLIORA_PLUGIN_MARKETPLACE_URL'] = marketplacePath;
-    const installPlugin = vi.fn(async () => {
-      throw new Error('install failed');
-    });
-    const session = makeSession({ installPlugin });
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins marketplace');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(PluginsPanelComponent);
-    });
-    const panel = driver.state.editorContainer.children[0] as PluginsPanelComponent;
-    await vi.waitFor(() => {
-      expect(stripSgr(panel.render(120).join('\n'))).toContain('Kimi Datasource');
-    });
-    panel.handleInput('\r');
-
-    // The panel must not get stuck on the one-way "Installing…" view; it should
-    // return to the list so the user can retry.
-    await vi.waitFor(() => {
-      const rendered = stripSgr(panel.render(120).join('\n'));
-      expect(rendered).toContain('Kimi Datasource');
-      expect(rendered).not.toContain('Installing');
-    });
-  });
-
-  it('prompts for trust before installing a third-party marketplace entry', async () => {
-    const marketplaceDir = await makeTempHome();
-    const marketplacePath = join(marketplaceDir, 'marketplace.json');
-    await writeFile(
-      marketplacePath,
-      JSON.stringify({
-        plugins: [
-          {
-            id: 'superpowers',
-            tier: 'curated',
-            displayName: 'Superpowers',
-            description: 'Curated plugin',
-            source: './superpowers',
-          },
-        ],
-      }),
-      'utf8',
-    );
-    const session = makeSession();
-    const { driver } = await makeDriver(session);
-
-    // Passing the marketplace path opens the panel directly on the Third-party tab.
-    driver.handleUserInput(`/plugins marketplace ${marketplacePath}`);
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(PluginsPanelComponent);
-    });
-    const panel = driver.state.editorContainer.children[0] as PluginsPanelComponent;
-    await vi.waitFor(() => {
-      expect(stripSgr(panel.render(120).join('\n'))).toContain('Superpowers');
-    });
-    panel.handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(
-        PluginInstallTrustConfirmComponent,
-      );
-    });
-    const confirm = driver.state.editorContainer.children[0] as PluginInstallTrustConfirmComponent;
-    confirm.handleInput('\u001B[B'); // switch from "Exit" to "Trust and install"
-    confirm.handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(session.installPlugin).toHaveBeenCalledWith(join(marketplaceDir, 'superpowers'));
-    });
-  });
-
-  it('restores the panel when a third-party marketplace install fails', async () => {
-    const marketplaceDir = await makeTempHome();
-    const marketplacePath = join(marketplaceDir, 'marketplace.json');
-    await writeFile(
-      marketplacePath,
-      JSON.stringify({
-        plugins: [
-          {
-            id: 'superpowers',
-            tier: 'curated',
-            displayName: 'Superpowers',
-            source: './superpowers',
-          },
-        ],
-      }),
-      'utf8',
-    );
-    const installPlugin = vi.fn(async () => {
-      throw new Error('install failed');
-    });
-    const session = makeSession({ installPlugin });
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput(`/plugins marketplace ${marketplacePath}`);
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(PluginsPanelComponent);
-    });
-    const panel = driver.state.editorContainer.children[0] as PluginsPanelComponent;
-    await vi.waitFor(() => {
-      expect(stripSgr(panel.render(120).join('\n'))).toContain('Superpowers');
-    });
-    panel.handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(
-        PluginInstallTrustConfirmComponent,
-      );
-    });
-    const confirm = driver.state.editorContainer.children[0] as PluginInstallTrustConfirmComponent;
-    confirm.handleInput('\u001B[B'); // switch from "Exit" to "Trust and install"
-    confirm.handleInput('\r');
-
-    // The failed install must return the user to the marketplace panel so they
-    // can retry, rather than dropping them back at the editor.
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBe(panel);
-    });
-  });
-
-  it('removes a plugin record without auto-running any cleanup skill', async () => {
-    const session = makeSession();
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins remove kimi-webbridge');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(
-        PluginRemoveConfirmComponent,
-      );
-    });
-    const confirm = driver.state.editorContainer.children[0] as PluginRemoveConfirmComponent;
-    confirm.handleInput('\u001B[B');
-    confirm.handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(session.removePlugin).toHaveBeenCalledWith('kimi-webbridge');
-    });
-    expect(session.activateSkill).not.toHaveBeenCalled();
-  });
-
-  it('activates installed plugin slash commands from the TUI', async () => {
-    const session = makeSession({
-      listPluginCommands: vi.fn(async () => [
-        {
-          pluginId: 'demo-plugin',
-          name: 'deploy',
-          description: 'Deploy',
-          body: 'Deploy $ARGUMENTS',
-          path: '/plugins/demo-plugin/commands/deploy.md',
-        },
-      ]),
-    });
-    const { driver } = await makeDriver(session);
-
-    await vi.waitFor(() => {
-      expect(session.listPluginCommands).toHaveBeenCalled();
-      expect(
-        (driver as unknown as { readonly pluginCommandMap: Map<string, string> })
-          .pluginCommandMap.has('demo-plugin:deploy'),
-      ).toBe(true);
-    });
-    driver.handleUserInput('/demo-plugin:deploy prod');
-
-    await vi.waitFor(() => {
-      expect(session.activatePluginCommand).toHaveBeenCalledWith('demo-plugin', 'deploy', 'prod');
-    });
-    expect(driver.state.transcriptContainer.render(120).join('\n')).not.toContain(
-      'Deploy $ARGUMENTS',
-    );
-  });
-
-  it('installs default marketplace entries through plain install', async () => {
-    const originalFetch = globalThis.fetch;
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-      plugins: [
-        {
-          id: 'kimi-datasource',
-          tier: 'official',
-          displayName: 'Kimi Datasource',
-          description: 'Datasource plugin',
-          source: './official/kimi-datasource.zip',
-        },
-      ],
-    }))));
-    const session = makeSession();
-    const { driver } = await makeDriver(session);
-
-    try {
-      driver.handleUserInput('/plugins marketplace');
-
-      await vi.waitFor(() => {
-        expect(driver.state.editorContainer.children[0]).toBeInstanceOf(PluginsPanelComponent);
-      });
-      const panel = driver.state.editorContainer.children[0] as PluginsPanelComponent;
-      await vi.waitFor(() => {
-        expect(stripSgr(panel.render(120).join('\n'))).toContain('Kimi Datasource');
-      });
-      panel.handleInput('\r');
-
-      await vi.waitFor(() => {
-        expect(session.installPlugin).toHaveBeenCalledWith(
-          'https://raw.githubusercontent.com/claudianus/superliora/main/plugins/official/kimi-datasource.zip',
-        );
-      });
-      expect(globalThis.fetch).toHaveBeenCalledWith(SUPERLIORA_PLUGIN_MARKETPLACE_URL);
-    } finally {
-      vi.stubGlobal('fetch', originalFetch);
-    }
-  });
-
-  it('shows an inline Official error when the marketplace is unreachable, keeping the panel open', async () => {
-    const originalFetch = globalThis.fetch;
-    process.env['SUPERLIORA_PLUGIN_MARKETPLACE_URL'] = 'https://example.test/marketplace.json';
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        throw new Error('fetch failed');
-      }),
-    );
-    const session = makeSession();
-    const { driver } = await makeDriver(session);
-
-    try {
-      driver.handleUserInput('/plugins');
-
-      // The panel opens immediately on the Installed tab — no marketplace fetch.
-      await vi.waitFor(() => {
-        expect(driver.state.editorContainer.children[0]).toBeInstanceOf(PluginsPanelComponent);
-      });
-      const panel = driver.state.editorContainer.children[0] as PluginsPanelComponent;
-      panel.handleInput('\t'); // → Official, which lazily (and unsuccessfully) loads
-
-      await vi.waitFor(() => {
-        expect(stripSgr(panel.render(120).join('\n'))).toContain(
-          'Marketplace unavailable: fetch failed',
-        );
-      });
-      // The panel stays mounted; the failure does not close /plugins.
-      expect(driver.state.editorContainer.children[0]).toBe(panel);
-    } finally {
-      vi.stubGlobal('fetch', originalFetch);
-    }
-  });
-
-  it('toggles plugins from the Installed tab with space', async () => {
-    let enabled = true;
-    const session = makeSession({
-      listPlugins: vi.fn(async () => [
-        {
-          id: 'demo',
-          displayName: 'Demo',
-          version: '1.0.0',
-          enabled,
-          state: 'ok',
-          skillCount: 1,
-          mcpServerCount: 0,
-          enabledMcpServerCount: 0,
-          hasErrors: false,
-          source: 'local-path',
-        },
-      ]),
-      setPluginEnabled: vi.fn(async (_id: string, nextEnabled: boolean) => {
-        enabled = nextEnabled;
-      }),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(PluginsPanelComponent);
-    });
-    const panel = driver.state.editorContainer.children[0] as PluginsPanelComponent;
-    panel.handleInput(' ');
-
-    // Toggling refreshes the panel in place: it must not flash back to the
-    // editor between the keypress and the refreshed panel mounting.
-    expect(driver.state.editorContainer.children[0]).toBeInstanceOf(PluginsPanelComponent);
-
-    await vi.waitFor(() => {
-      expect(session.setPluginEnabled).toHaveBeenCalledWith('demo', false);
-    });
-    await vi.waitFor(() => {
-      const refreshed = stripSgr(driver.state.editorContainer.children[0]!.render(120).join('\n'));
-      expect(refreshed).toContain('❯ Demo  disabled  run /reload or /new to apply');
-    });
-    expect(stripSgr(renderTranscript(driver))).not.toContain(
-      'Disabled demo. Run /reload or /new to apply.',
-    );
-  });
-
-  it('toggles plugin MCP servers from the overview MCP picker', async () => {
-    const serverEnabled = new Map([
-      ['metadata', true],
-      ['data', true],
-    ]);
-    const session = makeSession({
-      listPlugins: vi.fn(async () => [
-        {
-          id: 'kimi-datasource',
-          displayName: 'Kimi Datasource',
-          version: '1.0.0',
-          enabled: true,
-          state: 'ok',
-          skillCount: 1,
-          mcpServerCount: 2,
-          enabledMcpServerCount: 2,
-          hasErrors: false,
-        },
-      ]),
-      getPluginInfo: vi.fn(async () => ({
-        id: 'kimi-datasource',
-        displayName: 'Kimi Datasource',
-        version: '1.0.0',
-        enabled: true,
-        state: 'ok',
-        skillCount: 1,
-        mcpServerCount: 2,
-        enabledMcpServerCount: [...serverEnabled.values()].filter(Boolean).length,
-        hasErrors: false,
-        source: 'local-path',
-        root: '/plugins/kimi-datasource',
-        manifest: undefined,
-        mcpServers: [
-          {
-            name: 'metadata',
-            runtimeName: 'plugin:kimi-datasource:metadata',
-            enabled: serverEnabled.get('metadata') === true,
-            transport: 'stdio',
-            command: 'node',
-            args: ['./bin/kimi-datasource.mjs', 'metadata'],
-          },
-          {
-            name: 'data',
-            runtimeName: 'plugin:kimi-datasource:data',
-            enabled: serverEnabled.get('data') === true,
-            transport: 'stdio',
-            command: 'node',
-            args: ['./bin/kimi-datasource.mjs', 'data'],
-          },
-        ],
-        diagnostics: [],
-      })),
-      setPluginMcpServerEnabled: vi.fn(async (_id: string, _server: string, nextEnabled: boolean) => {
-        serverEnabled.set(_server, nextEnabled);
-      }),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(PluginsPanelComponent);
-    });
-    const panel = driver.state.editorContainer.children[0] as PluginsPanelComponent;
-    panel.handleInput('m');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(
-        PluginMcpSelectorComponent,
-      );
-    });
-    const mcpPicker = driver.state.editorContainer.children[0] as PluginMcpSelectorComponent;
-    mcpPicker.handleInput('\u001B[B');
-    mcpPicker.handleInput(' ');
-
-    await vi.waitFor(() => {
-      expect(session.setPluginMcpServerEnabled).toHaveBeenCalledWith(
-        'kimi-datasource',
-        'data',
-        false,
-      );
-    });
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(PluginMcpSelectorComponent);
-    });
-    const out = stripSgr(driver.state.editorContainer.children[0]!.render(120).join('\n'));
-    expect(out).toContain('❯ data  disabled  run /reload or /new to apply');
-    expect(stripSgr(renderTranscript(driver))).not.toContain(
-      'Disabled MCP server data for kimi-datasource. Run /reload or /new to apply.',
-    );
-  });
-
-  it('requires confirmation before /plugins remove removes a plugin', async () => {
-    const session = makeSession();
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins remove demo');
-
-    await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(
-        PluginRemoveConfirmComponent,
-      );
-    });
-    expect(session.removePlugin).not.toHaveBeenCalled();
-
-    const confirm = driver.state.editorContainer.children[0] as PluginRemoveConfirmComponent;
-    expect(stripSgr(confirm.render(120).join('\n'))).toContain('Remove demo (demo)?');
-    confirm.handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(stripSgr(renderTranscript(driver))).toContain('Remove cancelled: demo.');
-    });
-    expect(session.removePlugin).not.toHaveBeenCalled();
-  });
-
-  it('renders /plugins <id> info to the transcript', async () => {
-    const session = makeSession({
-      listPlugins: vi.fn(async () => [
-        {
-          id: 'demo',
-          displayName: 'Demo',
-          version: '1.0.0',
-          enabled: true,
-          state: 'ok',
-          skillCount: 1,
-          mcpServerCount: 0,
-          enabledMcpServerCount: 0,
-          hasErrors: false,
-        },
-      ]),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.handleUserInput('/plugins demo');
-
-    await vi.waitFor(() => {
-      expect(session.getPluginInfo).toHaveBeenCalledWith('demo');
     });
   });
 
@@ -4009,45 +2769,4 @@ command = "vim"
     expect(transcript).not.toContain('ctrl+o expand');
   });
 
-  it('renders hook results without XML tags', async () => {
-    const { driver } = await makeDriver();
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'hook.result',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        hookEvent: 'UserPromptSubmit',
-        content: '{}',
-      } as Event,
-      vi.fn(),
-    );
-
-    const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('UserPromptSubmit hook');
-    expect(transcript).toContain('{}');
-    expect(transcript).not.toContain('<hook_result');
-  });
-
-  it('renders empty hook results as empty status text', async () => {
-    const { driver } = await makeDriver();
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'hook.result',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        hookEvent: 'UserPromptSubmit',
-        content: '',
-      } as Event,
-      vi.fn(),
-    );
-
-    const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('UserPromptSubmit hook');
-    expect(transcript).toContain('(empty)');
-    expect(transcript).not.toContain('<hook_result');
-  });
 });

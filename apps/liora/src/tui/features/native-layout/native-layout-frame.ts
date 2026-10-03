@@ -41,7 +41,6 @@ import { planTUINativeStage } from '#/tui/features/native-layout/native-stage-pl
 
 export {
   frameInvalidationIntentToCause,
-  isLiveGoalChromeActive,
   isPureInputFrame,
   isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,

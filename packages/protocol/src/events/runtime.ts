@@ -1,14 +1,12 @@
 import { z } from 'zod';
 
 /**
- * Never-Halt degradation signal — Goal/Mission/Fleet keep running.
+ * Native runtime degradation signal.
  * Volatile: clients recover from live stream + Ops footer, not journal replay.
  */
 export type RuntimeDegradedScope =
-  | 'search'
   | 'oauth'
   | 'llm'
-  | 'mcp'
   | 'permission'
   | 'network'
   | 'storage'
@@ -24,10 +22,8 @@ export interface RuntimeDegradedEvent {
 }
 
 export const runtimeDegradedScopeSchema = z.enum([
-  'search',
   'oauth',
   'llm',
-  'mcp',
   'permission',
   'network',
   'storage',

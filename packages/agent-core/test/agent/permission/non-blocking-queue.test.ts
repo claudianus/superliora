@@ -8,12 +8,12 @@ describe('NonBlockingPermissionQueue', () => {
 
     const first = queue.enqueue({
       toolName: 'Bash',
-      rule: 'bash(*)',
+      rule: 'Bash(*)',
       risk: 'high',
     });
     const second = queue.enqueue({
-      toolName: 'Write',
-      rule: 'write(*)',
+      toolName: 'SessionControl',
+      rule: 'SessionControl',
       risk: 'low',
     });
 
@@ -34,8 +34,8 @@ describe('NonBlockingPermissionQueue', () => {
   it('auto-expires stale entries', () => {
     const queue = new NonBlockingPermissionQueue();
     const item = queue.enqueue({
-      toolName: 'Read',
-      rule: 'read(*)',
+      toolName: 'SessionControl',
+      rule: 'SessionControl',
       risk: 'low',
     });
 
@@ -47,12 +47,12 @@ describe('NonBlockingPermissionQueue', () => {
     const queue = new NonBlockingPermissionQueue();
     const inFlight = queue.enqueue({
       toolName: 'Bash',
-      rule: 'bash(*)',
+      rule: 'Bash(*)',
       risk: 'high',
     });
     const orphan = queue.enqueue({
-      toolName: 'Read',
-      rule: 'read(*)',
+      toolName: 'SessionControl',
+      rule: 'SessionControl',
       risk: 'low',
     });
 
@@ -70,17 +70,17 @@ describe('NonBlockingPermissionQueue', () => {
 
     const first = queue.enqueue({
       toolName: 'Bash',
-      rule: 'bash(*)',
+      rule: 'Bash(*)',
       risk: 'high',
     });
     const second = queue.enqueue({
-      toolName: 'Write',
-      rule: 'write(*)',
+      toolName: 'SessionControl',
+      rule: 'SessionControl',
       risk: 'low',
     });
     const third = queue.enqueue({
-      toolName: 'Read',
-      rule: 'read(*)',
+      toolName: 'Bash',
+      rule: 'Bash(*)',
       risk: 'low',
     });
 

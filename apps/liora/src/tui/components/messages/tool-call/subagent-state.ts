@@ -56,14 +56,6 @@ export class ToolCallSubagentState {
   lastStreamKind: SubagentTextKind = 'text';
   phase: SubagentPhase | undefined;
   /**
-   * Distinguishes a foreground subagent that the user detached via Ctrl+B
-   * from one that started in the background. Both set `phase =
-   * 'backgrounded'`, but only the detached one should keep showing `◐
-   * backgrounded` after its spawn-success ToolResult lands — a
-   * started-in-background agent reads as `done` once its result arrives.
-   */
-  detachedFromForeground = false;
-  /**
    * Authoritative terminal phase for a backgrounded subagent. Set from
    * `BackgroundTaskInfo.status` via `setBackgroundTaskTerminalStatus` once
    * the backing task reaches a terminal state — either live (a bg agent
@@ -136,26 +128,13 @@ export class ToolCallSubagentState {
    *   2. latest finished sub-tool (`Used {name} ({keyArg})`)
    *   3. last non-empty line from accumulated subagent text
    *
-   * Terminal-state priority for `phase`: SDK `tool.result` is authoritative
-   * for Agent tool calls. Once it arrives, force done/failed over
-   * intermediate spawning/running states for two reasons:
-   *   1. Replay does not replay spawned/completed/failed events, so `phase`
-   *      stays undefined and result must be used.
-   *   2. Live type-validation failures may skip `subagent.failed`, or
-   *      `tool.result` may arrive first; otherwise the UI can stay stuck at
-   *      'spawning' and keep showing `Initializing...`.
-   * Intermediate states without a result still use `phase`. `backgrounded`
-   * has no result because background agents do not enter the transcript —
-   * but a foreground subagent detached via Ctrl+B keeps `phase ===
-   * 'backgrounded'` even after its ToolResult lands, so the group card
-   * shows `◐ backgrounded` rather than `✓ Completed`. Reuse the standalone
-   * derivation so both paths agree.
+   * Child lifecycle/background task events determine terminal state.
+   * Successful SessionControl results acknowledge operations, not completion.
    */
   getSnapshot(params: {
     readonly toolCallId: string;
     readonly toolName: string;
     readonly toolCallDescription: string;
-    readonly workspaceDir: string | undefined;
     readonly result: ToolResultBlockData | undefined;
   }): ToolCallSubagentSnapshot {
     const finished = this.finishedSubCalls.length + this.hiddenSubCallCount;
@@ -168,7 +147,6 @@ export class ToolCallSubagentState {
       this.ongoingSubCalls,
       this.finishedSubCalls,
       this.getCombinedText(),
-      params.workspaceDir,
     );
     const derivedPhase = this.getDerivedPhase(params.result);
     const errorText = this.error ?? (derivedPhase === 'failed' ? params.result?.output : undefined);
@@ -192,7 +170,7 @@ export class ToolCallSubagentState {
   }
 
   finalizeElapsedIfNeeded(toolCallName: string): void {
-    if (toolCallName === 'Agent' && this.startedAtMs !== undefined && this.endedAtMs === undefined) {
+    if (toolCallName === 'SessionControl' && this.startedAtMs !== undefined && this.endedAtMs === undefined && this.phase === 'done') {
       this.endedAtMs = Date.now();
     }
   }
@@ -322,8 +300,7 @@ export class ToolCallSubagentState {
    * Returns `true` if state actually changed.
    */
   markBackgrounded(): boolean {
-    if (this.detachedFromForeground) return false;
-    this.detachedFromForeground = true;
+    if (this.phase === 'backgrounded') return false;
     this.phase = 'backgrounded';
     return true;
   }
@@ -351,7 +328,7 @@ export class ToolCallSubagentState {
    */
   getAgentId(toolCallName: string, result: ToolResultBlockData | undefined): string | undefined {
     if (this.agentId !== undefined) return this.agentId;
-    if (toolCallName !== 'Agent' || result === undefined) return undefined;
+    if (toolCallName !== 'SessionControl' || result === undefined) return undefined;
     return parseAgentIdFromToolResultOutput(result.output);
   }
 
@@ -458,7 +435,6 @@ export class ToolCallSubagentState {
   getDerivedPhase(result: ToolResultBlockData | undefined): SubagentPhase | undefined {
     return deriveSubagentPhase({
       backgroundTaskTerminalPhase: this.backgroundTaskTerminalPhase,
-      detachedFromForeground: this.detachedFromForeground,
       subagentPhase: this.phase,
       result,
     });

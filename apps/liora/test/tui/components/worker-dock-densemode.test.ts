@@ -8,7 +8,6 @@ import {
   denseLiveCell,
   denseWorkerSlots,
   formatRateSparkline,
-  resolveDenseOps,
   selectAttentionJobs,
   shortModelAlias,
   shouldUseDensemode,
@@ -58,15 +57,6 @@ describe('mission-control densemode helpers', () => {
     expect(shouldUseDensemode([worker('a'), worker('b')])).toBe(true);
   });
 
-  it('synthesizes ops from lastTool when the ring is empty', () => {
-    const synth = resolveDenseOps([], [
-      worker('coder', 0, { lastTool: 'Bash', lastTarget: 'deploy.sh', lastActivityAtMs: 500 }),
-    ]);
-    expect(synth).toHaveLength(1);
-    expect(synth[0]?.name).toBe('Bash');
-    expect(synth[0]?.target).toBe('deploy.sh');
-    expect(synth[0]?.status).toBe('running');
-  });
 
   it('ranks BOARD attention with interrupted and failed, skips empty titles', () => {
     const jobs = {
@@ -97,7 +87,7 @@ describe('mission-control densemode helpers', () => {
 
   it('keeps one interrupted attention row in densemode during recovery', () => {
     const result = buildDenseContent({
-      workers: [worker('solo', 0, { lastTool: 'Read', lastTarget: 'a.ts', toolCount: 3 })],
+      workers: [worker('solo', 0, { lastTool: 'Bash', lastTarget: 'cat a.ts', toolCount: 3 })],
       width: 100,
       budget: 14,
       now: 1_000,
@@ -129,14 +119,14 @@ describe('mission-control densemode helpers', () => {
 
   it('keeps a live BOARD attention strip under densemode without TAPE section', () => {
     const result = buildDenseContent({
-      workers: [worker('solo', 0, { lastTool: 'Read', lastTarget: 'a.ts', toolCount: 3 })],
+      workers: [worker('solo', 0, { lastTool: 'Bash', lastTarget: 'cat a.ts', toolCount: 3 })],
       ops: [
         {
           toolCallId: 'tc-1',
           workerId: 'solo',
           workerName: 'solo',
-          name: 'Read',
-          target: 'a.ts',
+          name: 'Bash',
+          target: 'cat a.ts',
           status: 'ok',
           atMs: 900,
         },
@@ -172,7 +162,7 @@ describe('mission-control densemode helpers', () => {
     expect(text).not.toContain('❯');
   });
 
-  it('paints role · job title and counts needs-you without blocked lands', () => {
+  it('paints recorded worker identity · job title and counts needs-you without blocked lands', () => {
     expect(
       workerRosterLabel(worker('explore', 0, { name: 'explore', description: 'Pin TUI flicker' }), {
         ...emptyConductorJobsSnapshot(),
@@ -236,7 +226,7 @@ describe('mission-control densemode helpers', () => {
         worker('job-ghost:job_1', 0, {
           name: 'Pin TUI flicker on Windows',
           description: 'Pin TUI flicker on Windows',
-          status: 'suspended',
+          status: 'running',
         }),
       ],
       width: 120,
@@ -318,5 +308,16 @@ describe('mission-control densemode helpers', () => {
       'Bash pnpm test',
     );
     expect(cell).toEqual({ kind: 'stdout', text: '12 passing' });
+  });
+
+  it('does not invent a role action when no activity was observed', () => {
+    expect(denseLiveCell(worker('explore'), 1_000, undefined, undefined)).toEqual({
+      kind: 'idle',
+      text: '—',
+    });
+    expect(denseLiveCell(worker('coder'), 1_000, undefined, 'Bash cat a.ts')).toEqual({
+      kind: 'action',
+      text: 'Bash cat a.ts',
+    });
   });
 });

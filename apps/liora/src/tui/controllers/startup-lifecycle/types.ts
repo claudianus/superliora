@@ -14,7 +14,6 @@ import type { ClipboardImageHintController } from '../clipboard/clipboard-image-
 import type { DialogsController } from '../dialogs/index';
 import type { EditorKeyboardController } from '../shell/editor-keyboard';
 import type { PanesController } from '../panes/panes';
-import type { PromptIntelligenceController } from '../prompt/prompt-intelligence';
 import type { SessionBrowserController } from '../session/session-browser';
 import type { SessionEventHandler } from '../session-event/handler';
 import type { SessionReplayRenderer } from '../session-replay/index';
@@ -68,7 +67,6 @@ export interface StartupLifecycleHost extends PromptInputRuntimeHost {
   readonly controlTowerDesk?: import('../../features/control-tower/job-desk-events').ControlTowerJobDesk;
   readonly workerDock?: import('../worker-dock/controller').WorkerDockController;
   openJobInbox?(): void;
-  readonly promptIntelligence: PromptIntelligenceController;
   readonly dialogs: DialogsController;
   readonly panes: PanesController;
   readonly streamingUI: StreamingUIController;
@@ -77,7 +75,6 @@ export interface StartupLifecycleHost extends PromptInputRuntimeHost {
 
   setupAutocomplete(): void;
   loadPersistedInputHistory(): Promise<void>;
-  refreshDynamicSlashCommands(session?: Session): Promise<void>;
   setSession(session: Session): Promise<void>;
   syncRuntimeState(session: Session): Promise<void>;
   closeSession(reason: string): Promise<void>;

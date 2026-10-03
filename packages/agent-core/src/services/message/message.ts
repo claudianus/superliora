@@ -268,10 +268,8 @@ export function toProtocolMessage(
   const content = buildProtocolContent(msg);
   const createdAtMs = createdAtMsOverride ?? sessionCreatedAtMs + index;
   // Expose the message origin (kosong/agent-core `origin`) via metadata so REST
-  // clients can hide injected/system user turns — compaction
-  // summaries, injections, hook results, retries, system triggers, cron, etc. —
-  // the same way the TUI does (see isReplayUserTurnRecord). Absent for plain
-  // user/assistant/tool messages with no origin.
+  // Preserve factual prompt origins for clients that distinguish user input
+  // from explicit summaries, shell output, and native background notifications.
   const metadata = msg.origin !== undefined ? { origin: msg.origin } : undefined;
   return {
     id,

@@ -8,12 +8,43 @@ import type {
   ConductorJobsSnapshot,
 } from '#/tui/utils/job/job-strip';
 
-export type ConductorTimelineStage =
-  | 'intake'
-  | 'running'
-  | 'needs_user'
-  | 'land'
-  | 'failed';
+import { ConductorTimelinePanelComponent } from '#/tui/components/panes/conductor-timeline/timeline-panel';
+import { emptyConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
+import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
+import type { AppState } from '#/tui/types';
+import type { TUIState } from '#/tui/tui-state';
+
+export interface TimelineHost {
+  readonly state: TUIState;
+  setAppState(patch: Partial<AppState>): void;
+  readonly jobBoardController?: { openDeck(jobId?: string): void };
+}
+
+export function setTranscriptRegionMode(host: TimelineHost, mode: 'chat' | 'timeline'): void {
+  host.setAppState({ transcriptRegionMode: mode });
+  syncTranscriptRegion(host);
+}
+
+/** Explicit operator view selection; never auto-enters from runtime activity. */
+export function syncTranscriptRegion(host: TimelineHost): void {
+  const container = host.state.transcriptContainer;
+  if (host.state.appState.transcriptRegionMode === 'timeline') {
+    host.state.conductorTimelinePanel ??= new ConductorTimelinePanelComponent({
+      getSnapshot: () => host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot(),
+      onOpenChat: () => setTranscriptRegionMode(host, 'chat'),
+      onSelectJob: (jobId) => host.jobBoardController?.openDeck(jobId),
+      requestRender: () => host.state.renderer.requestRender('manual'),
+    });
+    if (!container.isAquariumOverlayActive) {
+      container.showLockedRegionOverlay((add) => add(host.state.conductorTimelinePanel!));
+    }
+  } else if (container.isAquariumOverlayActive) {
+    container.exitAquariumOverlay();
+  }
+  requestTUILayoutRender(host.state);
+}
+
+export type ConductorTimelineStage = ConductorJobCard['status'];
 
 export interface ConductorTimelineEntry {
   readonly stage: ConductorTimelineStage;
@@ -31,31 +62,18 @@ export interface ConductorTimelineEntry {
 export const TIMELINE_ENTRY_WINDOW = 24;
 
 const STAGE_ORDER: readonly ConductorTimelineStage[] = [
-  'intake',
+  'queued',
   'running',
   'needs_user',
-  'land',
+  'blocked',
+  'interrupted',
+  'done',
   'failed',
+  'cancelled',
 ];
 
-export function stageForJob(card: ConductorJobCard): ConductorTimelineStage | undefined {
-  switch (card.status) {
-    case 'queued':
-      return 'intake';
-    case 'running':
-    case 'interrupted':
-      return 'running';
-    case 'needs_user':
-    case 'blocked':
-      return 'needs_user';
-    case 'done':
-      return 'land';
-    case 'failed':
-    case 'cancelled':
-      return 'failed';
-    default:
-      return undefined;
-  }
+export function stageForJob(card: ConductorJobCard): ConductorTimelineStage {
+  return card.status;
 }
 
 export function buildConductorTimeline(
@@ -70,7 +88,6 @@ export function buildConductorTimeline(
   const fromJobs: ConductorTimelineEntry[] = [];
   for (const job of snap.jobs) {
     const stage = stageForJob(job);
-    if (stage === undefined) continue;
     fromJobs.push({
       stage,
       jobId: job.id,
@@ -96,7 +113,7 @@ export function buildConductorTimeline(
       stage,
       jobId: entry.jobId,
       title: entry.title,
-      status: inboxStatus(entry),
+      status: stage,
       kind: 'task',
       detail: entry.summary,
       atMs: entry.atMs,
@@ -121,7 +138,6 @@ export function countConductorTimelineEntries(snap: ConductorJobsSnapshot): numb
   let count = 0;
   const seen = new Set<string>();
   for (const job of snap.jobs) {
-    if (stageForJob(job) === undefined) continue;
     count += 1;
     seen.add(job.id);
   }
@@ -135,53 +151,28 @@ export function countConductorTimelineEntries(snap: ConductorJobsSnapshot): numb
 
 export function timelineStageLabel(stage: ConductorTimelineStage): string {
   switch (stage) {
-    case 'intake':
-      return 'Intake';
-    case 'running':
-      return 'Running';
-    case 'needs_user':
-      return 'Needs you';
-    case 'land':
-      return 'Land';
-    case 'failed':
-      return 'Failed';
+    case 'queued': return 'Queued';
+    case 'running': return 'Running';
+    case 'needs_user': return 'Needs you';
+    case 'blocked': return 'Blocked';
+    case 'interrupted': return 'Paused';
+    case 'done': return 'Done';
+    case 'failed': return 'Failed';
+    case 'cancelled': return 'Cancelled';
   }
 }
 
 function stageForInbox(entry: ConductorJobInboxEntry): ConductorTimelineStage | undefined {
   switch (entry.kind) {
-    case 'job.needs_user':
-    case 'job.blocked':
-      return 'needs_user';
+    case 'job.needs_user': return 'needs_user';
+    case 'job.blocked': return 'blocked';
     case 'job.completed':
-      return 'land';
-    case 'job.interrupted':
-      return 'running';
-    case 'job.failed':
-    case 'job.cancelled':
-      return 'failed';
+      return 'done';
+    case 'job.interrupted': return 'interrupted';
+    case 'job.failed': return 'failed';
+    case 'job.cancelled': return 'cancelled';
     default:
       return undefined;
   }
 }
 
-function inboxStatus(entry: ConductorJobInboxEntry): ConductorJobCard['status'] {
-  switch (entry.kind) {
-    case 'job.needs_user':
-      return 'needs_user';
-    case 'job.blocked':
-      return 'blocked';
-    case 'job.completed':
-      return 'done';
-    case 'job.interrupted':
-    case 'recovery.held':
-    case 'recovery.reattach_failed':
-      return 'interrupted';
-    case 'job.failed':
-      return 'failed';
-    case 'job.cancelled':
-      return 'cancelled';
-    case 'recovery.auto_resumed':
-      return 'queued';
-  }
-}

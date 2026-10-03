@@ -1,28 +1,12 @@
-/**
- * Live subagent telemetry: the `subagent.progress` / `subagent.stalled`
- * reporter (harness reform T3-7), the tool-call stream bridge that mirrors a
- * child's `tool.call.started` / `tool.result` events onto the parent
- * (Phase 1-A realtime overhaul), the todo-store bridge, and the checkpoint
- * writer that pairs with them (T4-5).
- *
- * Extracted from subagent-host so the host class body does not grow with
- * every new telemetry field. Each function takes the parent/child agents and
- * run options explicitly instead of closing over host state.
- */
+/** Live worker progress, child tool streaming, and durable interruption snapshots. */
 
 import type { Agent } from '../../agent';
 import type { AgentEvent } from '@superliora/protocol';
+import { log } from '../../logging/logger';
 import {
-  persistJobWorkerPreAbortHandoff,
   reportJobWorkerProgress,
-  reportJobWorkerStalled,
 } from '../../tools/builtin/job/job-worker-ledger-bridge';
-import {
-  markActiveChildFinishing,
-  recordActiveChildFinishingProgress,
-} from './subagent-run-lifecycle';
-import { TODO_STORE_KEY, type TodoItem } from '../../tools/builtin/state/todo-list';
-import { snapshotChildWork } from './subagent-result-contract';
+import { snapshotChildWork } from './subagent-work-snapshot';
 import { writeSubagentCheckpoint } from './subagent-checkpoint';
 import {
   describeSubagentToolDetail,
@@ -36,78 +20,39 @@ import type { RunSubagentOptions } from './subagent-host-types';
 
 /** Cadence for subagent.progress telemetry (T3-7). */
 const SUBAGENT_PROGRESS_INTERVAL_MS = 5_000;
-/** Silence window before a subagent is reported stalled (T3-7). */
-const SUBAGENT_STALL_MS = 300_000;
 /** Checkpoint cadence: snapshot every N completed tool calls (T4-5). */
 const CHECKPOINT_TOOL_DELTA = 10;
-/** Finishing mode starts when this much budget remains (T4-5). */
-const SUBAGENT_FINISHING_WINDOW_MS = 5 * 60 * 1000;
-/** Explore handoff reminder: force a 1-page resume handoff before wall-clock death. */
-const SUBAGENT_EXPLORE_HANDOFF_WINDOW_MS = 10 * 60 * 1000;
-const SUBAGENT_FINISHING_REMINDER = [
-  'Time budget is nearly exhausted — enter finishing mode now:',
-  '- do not start new implementation work',
-  '- run the verification still owed for completed work',
-  '- then write the final structured summary of what is done and what remains',
-].join('\n');
-const SUBAGENT_EXPLORE_HANDOFF_REMINDER = [
-  'Explore wall-clock is nearly exhausted — emit a 1-page implementable handoff NOW:',
-  '- last files / symbols inspected (paths only)',
-  '- last command or tool that produced signal',
-  '- concrete next steps for an implement worker (no repo-wide rescan)',
-  '- open questions / blockers only if evidence supports them',
-  'Do not start another broad scan. continue_from must resume from this page.',
-].join('\n');
 
-/**
- * Live telemetry for background subagents (harness reform T3-7): emits
- * `subagent.progress` every few seconds with the last tool, tool count,
- * elapsed time, and token spend, plus a one-shot `subagent.stalled` when
- * no tool call has happened for the stall window.
- *
- * Stats are maintained incrementally from `tool.call.started` events instead
- * of walking the full context history every tick — a long subagent with
- * thousands of tool calls made each 5s tick a full O(history) pass with
- * per-call JSON.parse, which saturated a CPU core for the whole run.
- */
+/** Incremental progress reporting avoids repeatedly scanning the child history. */
 export function startProgressReporter(
   parent: Agent,
   child: Agent,
   childId: string,
   profileName: string,
-  budgetMs: number,
-  onToolProgress?: () => void,
-): () => void {
+  budgetMs?: number,
+  signal?: AbortSignal,
+): () => Promise<void> {
   const startedAt = Date.now();
-  let lastToolCount = -1;
-  let lastChangeAt = startedAt;
-  let stalledReported = false;
-  let finishingNotified = false;
-  let exploreHandoffNotified = false;
   let lastCheckpointToolCount = 0;
-  let checkpointInFlight = false;
+  let checkpointInFlight: Promise<void> | undefined;
+  let checkpointError: unknown;
+  let checkpointFailed = false;
   // Incremental mirror of collectSubagentProgressStats: toolCount/lastTool/
   // lastTarget update on `tool.call.started`; tokens read from the usage
   // accumulator (already O(1)).
   let toolCount = 0;
   let lastTool: string | undefined;
   let lastTarget: string | undefined;
-  const originalEmit = child.emitEvent.bind(child);
-  child.emitEvent = function subagentProgressEmitEvent(event: AgentEvent) {
+  const originalEmit = child.emitEvent;
+  const progressEmit = function subagentProgressEmitEvent(event: AgentEvent) {
     if (event.type === 'tool.call.started') {
       toolCount += 1;
       lastTool = event.name;
       lastTarget = summarizeToolTargetFromEvent(event);
-      try {
-        onToolProgress?.();
-      } catch {
-        // Progress marking is best-effort telemetry.
-      }
     }
     originalEmit(event);
   };
-  const isExploreProfile =
-    profileName === 'explore' || profileName === 'research' || profileName.startsWith('explore');
+  child.emitEvent = progressEmit;
   const timer = setInterval(() => {
     const total = child.usage.data().total;
     const stats: SubagentProgressStats = {
@@ -121,14 +66,9 @@ export function startProgressReporter(
     };
     const now = Date.now();
     const elapsedMs = now - startedAt;
-    const budgetRemainingMs = Math.max(0, budgetMs - elapsedMs);
-    const finishing = budgetRemainingMs <= SUBAGENT_FINISHING_WINDOW_MS;
-    // Explore: mandatory 1-page handoff at T-10m of remaining budget (or earlier
-    // when the whole budget is ≤20m and half is gone).
-    const exploreHandoff =
-      isExploreProfile &&
-      (budgetRemainingMs <= SUBAGENT_EXPLORE_HANDOFF_WINDOW_MS ||
-        (budgetMs <= 20 * 60 * 1000 && budgetRemainingMs <= budgetMs / 2));
+    const budgetRemainingMs = budgetMs === undefined || budgetMs <= 0
+      ? undefined
+      : Math.max(0, budgetMs - elapsedMs);
     parent.emitEvent({
       type: 'subagent.progress',
       subagentId: childId,
@@ -140,87 +80,39 @@ export function startProgressReporter(
       tokens: stats.tokens,
       budgetMs,
       budgetRemainingMs,
-      finishing,
     });
-    // Conductor Job lane: mirror the heartbeat onto the job ledger so
-    // JobList/JobInspect and the desk injection see live worker state.
-    // No-op for subagents that are not job workers.
+    // Mirror real worker activity to an attached Job's ledger.
     reportJobWorkerProgress(childId, {
-      phase: progressPhaseLabel(stats, finishing || exploreHandoff),
+      phase: progressPhaseLabel(stats),
       lastHeartbeatAt: new Date(now).toISOString(),
       recentTools:
         stats.lastTool !== undefined
           ? [stats.lastTarget !== undefined ? `${stats.lastTool}:${stats.lastTarget}` : stats.lastTool]
           : undefined,
     });
-    if (exploreHandoff && !exploreHandoffNotified) {
-      exploreHandoffNotified = true;
-      child.context.appendSystemReminder(SUBAGENT_EXPLORE_HANDOFF_REMINDER, {
-        kind: 'system_trigger',
-        name: 'subagent-explore-handoff',
-      });
-      // Persist resume handoff onto the Job so continue_from has evidence even
-      // if the worker dies empty at the hard deadline.
-      persistJobWorkerPreAbortHandoff(childId, { reason: 'pre_abort' });
-    }
-    if (finishing && !finishingNotified) {
-      finishingNotified = true;
-      child.context.appendSystemReminder(SUBAGENT_FINISHING_REMINDER, {
-        kind: 'system_trigger',
-        name: 'subagent-finishing',
-      });
-      persistJobWorkerPreAbortHandoff(childId, { reason: 'finishing' });
-      // H8: announce the phase so the lifecycle arms the finite finishing cap.
-      markActiveChildFinishing(childId);
-    }
-    if (finishingNotified) {
-      // H8: keep the cap's progress snapshot current, so an interrupted
-      // finishing phase reports how far it got instead of dying empty.
-      recordActiveChildFinishingProgress(childId, {
-        toolCount: stats.toolCount,
-        ...(stats.lastTool !== undefined ? { lastTool: stats.lastTool } : {}),
-        ...(stats.lastTarget !== undefined ? { lastTarget: stats.lastTarget } : {}),
-        elapsedMs,
-      });
-    }
-    if (stats.toolCount !== lastToolCount) {
-      lastToolCount = stats.toolCount;
-      lastChangeAt = now;
-      stalledReported = false;
-    } else if (!stalledReported && now - lastChangeAt >= SUBAGENT_STALL_MS) {
-      stalledReported = true;
-      parent.emitEvent({
-        type: 'subagent.stalled',
-        subagentId: childId,
-        subagentName: profileName,
-        silentMs: now - lastChangeAt,
-        toolCount: stats.toolCount,
-      });
-      reportJobWorkerStalled(childId, now - lastChangeAt);
-    }
     if (
       stats.toolCount - lastCheckpointToolCount >= CHECKPOINT_TOOL_DELTA &&
-      !checkpointInFlight
+      !checkpointInFlight && !checkpointFailed
     ) {
       lastCheckpointToolCount = stats.toolCount;
-      checkpointInFlight = true;
-      void writeProgressCheckpoint(child, childId, stats, elapsedMs)
-        .catch(() => {})
+      checkpointInFlight = writeProgressCheckpoint(child, childId, stats, elapsedMs, signal)
+        .catch((error: unknown) => {
+          checkpointError = error;
+          checkpointFailed = true;
+          log.warn('Worker checkpoint failed', { agentId: childId, error });
+        })
         .finally(() => {
-          checkpointInFlight = false;
+          checkpointInFlight = undefined;
         });
     }
   }, SUBAGENT_PROGRESS_INTERVAL_MS);
   // Progress reporting must never keep the event loop alive on its own.
   timer.unref?.();
-  return () => {
+  return async () => {
     clearInterval(timer);
-    // Remove only our own wrapper; if a later bridge wrapped us, deleting
-    // here would strand that bridge. Deleting the own property restores the
-    // prototype method instead of leaving a redundant bound function.
-    if (child.emitEvent?.name === 'subagentProgressEmitEvent') {
-      delete (child as { emitEvent?: unknown }).emitEvent;
-    }
+    if (child.emitEvent === progressEmit) child.emitEvent = originalEmit;
+    await checkpointInFlight;
+    if (checkpointFailed) throw checkpointError;
   };
 }
 
@@ -239,7 +131,7 @@ function summarizeToolTargetFromEvent(event: {
   if (typeof args !== 'object') return undefined;
   try {
     const parsed = args as Record<string, unknown>;
-    for (const key of ['path', 'command', 'pattern', 'query', 'url', 'description']) {
+    for (const key of ['command', 'operation', 'description']) {
       const value = parsed[key];
       if (typeof value === 'string' && value.length > 0) {
         return value.length > 80 ? `${value.slice(0, 80)}…` : value;
@@ -258,23 +150,13 @@ function summarizeToolTargetFromEvent(event: {
 }
 
 /** Compact phase label for the job ledger snapshot, e.g. `Bash: pnpm test`. */
-function progressPhaseLabel(stats: SubagentProgressStats, finishing: boolean): string {
-  if (finishing) return 'finishing';
+function progressPhaseLabel(stats: SubagentProgressStats): string {
   if (stats.lastTool === undefined) return 'starting';
   const target = stats.lastTarget === undefined ? '' : `: ${stats.lastTarget}`;
   return `${stats.lastTool}${target}`.slice(0, 80);
 }
 
-/**
- * Live tool-call telemetry (Phase 1-A realtime overhaul): mirrors the
- * child's `tool.call.started` / `tool.progress` / `tool.result` agent events
- * onto the parent as truncated `subagent.tool_call` /
- * `subagent.tool_progress` / `subagent.tool_result` events, so clients can
- * render a live per-subagent tool feed (including stdout chunks) without
- * subscribing to every raw child event. Uses the same instance-patch
- * pattern as `attachSubagentTodoBridge`; the returned disposer restores
- * the original emitter.
- */
+/** Mirror child tool calls, stdout chunks, and results onto the parent feed. */
 export function attachToolStreamBridge(
   parent: Agent,
   child: Agent,
@@ -282,12 +164,9 @@ export function attachToolStreamBridge(
   profileName: string,
   options: RunSubagentOptions,
 ): () => void {
-  const originalEmitEvent = child.emitEvent.bind(child);
-  // Swarm run correlation was retired; child tool streams no
-  // longer carry a swarm run id.
-  const runId: string | undefined = undefined;
+  const originalEmitEvent = child.emitEvent;
   const toolNames = new Map<string, string>();
-  child.emitEvent = function subagentToolStreamEmitEvent(event: AgentEvent) {
+  const toolStreamEmit = function subagentToolStreamEmitEvent(event: AgentEvent) {
     originalEmitEvent(event);
     if (event.type === 'tool.call.started') {
       toolNames.set(event.toolCallId, event.name);
@@ -299,7 +178,6 @@ export function attachToolStreamBridge(
         subagentId: childId,
         subagentName: profileName,
         parentToolCallId: options.parentToolCallId,
-        ...(runId !== undefined ? { runId } : {}),
         toolCallId: event.toolCallId,
         name: event.name,
         argsPreview: previewSubagentToolArgs(event.args),
@@ -308,17 +186,20 @@ export function attachToolStreamBridge(
       return;
     }
     if (event.type === 'tool.progress') {
+      const custom = event.update.kind === 'custom' ? event.update.customData : undefined;
+      const terminalId = custom !== null && typeof custom === 'object' && 'terminalId' in custom && typeof custom.terminalId === 'string'
+        ? custom.terminalId : undefined;
       const preview = previewSubagentToolProgress(event.update);
-      if (preview === undefined) return;
+      if (preview === undefined && terminalId === undefined) return;
       const name = toolNames.get(event.toolCallId);
       parent.emitEvent({
         type: 'subagent.tool_progress',
         subagentId: childId,
-        ...(runId !== undefined ? { runId } : {}),
         toolCallId: event.toolCallId,
         ...(name !== undefined ? { name } : {}),
-        kind: preview.kind,
-        textPreview: preview.textPreview,
+        kind: preview?.kind ?? 'status',
+        textPreview: preview?.textPreview ?? `Terminal ${terminalId}`,
+        ...(terminalId !== undefined ? { terminalId } : {}),
       });
       return;
     }
@@ -328,7 +209,6 @@ export function attachToolStreamBridge(
       parent.emitEvent({
         type: 'subagent.tool_result',
         subagentId: childId,
-        ...(runId !== undefined ? { runId } : {}),
         toolCallId: event.toolCallId,
         ...(name !== undefined ? { name } : {}),
         isError: event.isError,
@@ -336,12 +216,9 @@ export function attachToolStreamBridge(
       });
     }
   };
+  child.emitEvent = toolStreamEmit;
   return () => {
-    // Remove only our own wrapper; if a later bridge wrapped us, deleting
-    // here would strand that bridge.
-    if (child.emitEvent?.name === 'subagentToolStreamEmitEvent') {
-      delete (child as { emitEvent?: unknown }).emitEvent;
-    }
+    if (child.emitEvent === toolStreamEmit) child.emitEvent = originalEmitEvent;
   };
 }
 
@@ -350,68 +227,16 @@ async function writeProgressCheckpoint(
   childId: string,
   stats: SubagentProgressStats,
   elapsedMs: number,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const todos = normalizeTodoItems(child.tools.getStore().get(TODO_STORE_KEY));
-  const work = await snapshotChildWork(child);
+  const work = await snapshotChildWork(child, signal);
   writeSubagentCheckpoint(childId, {
     toolCount: stats.toolCount,
     lastTool: stats.lastTool,
     lastTarget: stats.lastTarget,
     tokens: stats.tokens,
     elapsedMs,
-    todos,
     dirtyFiles: work.dirtyFiles,
   });
 }
 
-/**
- * Bridge the child's todo-list store updates onto the parent as
- * `subagent.todo.updated` events, so clients can render a live per-subagent
- * todo panel without polling the child's tool store directly.
- */
-export function attachSubagentTodoBridge(
-  parent: Agent,
-  child: Agent,
-  childId: string,
-  profileName: string,
-  options: RunSubagentOptions,
-): void {
-  type ToolManagerLike = {
-    updateStore<K extends keyof import('../../tools/store').ToolStoreData>(
-      key: K,
-      value: import('../../tools/store').ToolStoreData[K],
-    ): void;
-  };
-  const tools = child.tools as ToolManagerLike;
-  const originalUpdateStore = tools.updateStore.bind(tools);
-  tools.updateStore = (key, value) => {
-    originalUpdateStore(key, value);
-    if (key !== TODO_STORE_KEY) return;
-    parent.emitEvent({
-      type: 'subagent.todo.updated',
-      subagentId: childId,
-      subagentName: profileName,
-      parentToolCallId: options.parentToolCallId,
-      todos: normalizeTodoItems(value),
-    });
-  };
-}
-
-function normalizeTodoItems(value: unknown): readonly TodoItem[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isTodoItemLike).map((todo) => ({
-    title: todo.title,
-    status: todo.status,
-  }));
-}
-
-function isTodoItemLike(value: unknown): value is TodoItem {
-  if (typeof value !== 'object' || value === null) return false;
-  const record = value as Record<string, unknown>;
-  return (
-    typeof record['title'] === 'string' &&
-    (record['status'] === 'pending' ||
-      record['status'] === 'in_progress' ||
-      record['status'] === 'done')
-  );
-}

@@ -5,7 +5,7 @@ import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { LocalKaos } from '@superliora/kaos';
 
 import { resetGitBootstrapCache, AUTO_GIT_INIT_ENV } from '#/session/git-bootstrap';
-import { runGit } from '#/autopilot/git';
+import { runGit } from '#/session/job/git';
 import {
   attachSessionWorktree,
   buildWorktreeMetadata,

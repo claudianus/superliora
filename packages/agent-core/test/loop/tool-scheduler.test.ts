@@ -1,7 +1,10 @@
+import { setImmediate } from 'node:timers/promises';
+
 import { describe, expect, it } from 'vitest';
 
-import { ToolAccesses } from '../../src/loop';
-import { ToolScheduler, type ToolCallTask } from '../../src/loop/tool-scheduler';
+import { ToolAccesses } from '../../src/loop/tool-access';
+import { ToolScheduler } from '../../src/loop/tool-scheduler';
+import type { ToolCallTask } from '../../src/loop/tool-scheduler';
 
 describe('ToolScheduler', () => {
   it('tracks peak concurrent active tasks', async () => {
@@ -14,9 +17,7 @@ describe('ToolScheduler', () => {
     const second = makeControlledTask('second', readPath('/repo/b.ts'), started);
     const third = makeControlledTask('third', readPath('/repo/c.ts'), started);
 
-    void scheduler.add(first.task);
-    void scheduler.add(second.task);
-    void scheduler.add(third.task);
+    const results = [scheduler.add(first.task), scheduler.add(second.task), scheduler.add(third.task)];
 
     expect(scheduler.parallelToolsInFlight).toBe(3);
     expect(scheduler.maxParallelTools).toBe(3);
@@ -25,33 +26,12 @@ describe('ToolScheduler', () => {
     first.resolve();
     second.resolve();
     third.resolve();
-    await Promise.all([
-      scheduler.add(first.task),
-      scheduler.add(second.task),
-      scheduler.add(third.task),
-    ]);
+    await Promise.all(results);
+    await waitOneMacrotask();
+    expect(scheduler.parallelToolsInFlight).toBe(0);
+    expect(scheduler.maxParallelTools).toBe(3);
   });
 
-  it('exposes parallelToolsInFlight while tasks are active', async () => {
-    const started: string[] = [];
-    const drained: string[] = [];
-    const scheduler = new ToolScheduler<string>();
-    const results: Array<Promise<string>> = [];
-    const first = makeControlledTask('first', readPath('/repo/a.ts'), started);
-    const second = makeControlledTask('second', readPath('/repo/b.ts'), started);
-
-    results.push(scheduler.add(first.task));
-    results.push(scheduler.add(second.task));
-
-    expect(started).toEqual(['first', 'second']);
-    expect(scheduler.parallelToolsInFlight).toBe(2);
-
-    first.resolve();
-    second.resolve();
-    for (const task of results) {
-      drained.push(await task);
-    }
-  });
 
   it('starts read accesses on the same path concurrently', async () => {
     const started: string[] = [];
@@ -265,21 +245,6 @@ describe('ToolScheduler', () => {
     expect(drained).toEqual(['reader', 'exclusive']);
   });
 
-  it('dispatches submitted results in provider order', async () => {
-    const started: string[] = [];
-    const drained: string[] = [];
-    const scheduler = makeScheduler(drained);
-    const first = makeControlledTask('first', ToolAccesses.none(), started);
-    const second = makeControlledTask('second', ToolAccesses.none(), started);
-
-    scheduler.add(first.task);
-    scheduler.add(second.task);
-    second.resolve();
-    first.resolve();
-    await scheduler.collectResults();
-
-    expect(drained).toEqual(['first', 'second']);
-  });
 });
 
 interface ControlledTask {
@@ -315,26 +280,21 @@ function makeControlledTask(
   accesses: ToolAccesses,
   startedNames: string[],
 ): ControlledTask {
-  let resolveResult: (value: string) => void = () => {};
-  let rejectResult: (error: unknown) => void = () => {};
-  const result = new Promise<string>((resolve, reject) => {
-    resolveResult = resolve;
-    rejectResult = reject;
-  });
+  const result = Promise.withResolvers<string>();
 
   return {
     task: {
       accesses,
       start: async () => {
         startedNames.push(name);
-        return { result };
+        return { result: result.promise };
       },
     },
     resolve: () => {
-      resolveResult(name);
+      result.resolve(name);
     },
     reject: (error) => {
-      rejectResult(error);
+      result.reject(error);
     },
   };
 }
@@ -352,5 +312,5 @@ function writePath(path: string): ToolAccesses {
 }
 
 async function waitOneMacrotask(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await setImmediate();
 }

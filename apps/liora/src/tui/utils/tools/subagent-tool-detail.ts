@@ -1,77 +1,40 @@
 /**
- * Shared formatting helpers for `subagent.tool_call` structured detail
- * (Phase 1-B chips). Used by the Mission Control ops feed and the Job ops
- * feed alike so both streams render identical targets/stats.
+ * Observed Bash command / SessionControl operation targets and stream tails.
  */
 
 import type { Event } from '@superliora/sdk';
 
-import { formatEditChip, formatWriteChip } from '#/tui/components/messages/tool-renderers/chip';
-import { humanTargetFromArgsPreview } from '#/tui/utils/tools/mission-target';
 
 type SubagentToolCallEventPayload = Extract<Event, { type: 'subagent.tool_call' }>;
 
 /** Structured chip detail attached to `subagent.tool_call` (Phase 1-B). */
 export type SubagentToolDetail = NonNullable<SubagentToolCallEventPayload['detail']>;
+const TARGET_KEYS = ['command', 'description', 'operation', 'id'] as const;
+
 
 /**
- * Plain rendering parts for a structured tool detail (Phase 1-B). `target` is
- * the compact object of the call (path / command / pattern); `chip` reuses
- * the main agent's header formatters so both streams show identical stats.
- */
-export function subagentToolDetailParts(detail: SubagentToolDetail | undefined): {
-  target: string | undefined;
-  chip: string | undefined;
-} {
-  if (detail === undefined) return { target: undefined, chip: undefined };
-  switch (detail.kind) {
-    case 'edit': {
-      const chip = formatEditChip({ added: detail.addedLines, removed: detail.removedLines });
-      return { target: detail.path, chip: chip.length > 0 ? chip : undefined };
-    }
-    case 'write':
-      return { target: detail.path, chip: formatWriteChip({ lines: detail.lines }) };
-    case 'read':
-      return { target: detail.path, chip: undefined };
-    case 'bash':
-      return { target: detail.command, chip: undefined };
-    case 'search':
-      return { target: detail.pattern, chip: undefined };
-  }
-}
-
-/**
- * Resolve a human MOVES/NOW target: structured detail first, else pull
- * query/path/command out of a JSON `argsPreview` instead of dumping raw JSON.
+ * Structured Bash command first, then supported runtime args from the preview.
  */
 export function resolveSubagentToolTarget(
   detail: SubagentToolDetail | undefined,
   argsPreview: string | undefined,
-): { target: string | undefined; chip: string | undefined } {
-  const parts = subagentToolDetailParts(detail);
-  if (parts.target !== undefined && parts.target.length > 0) return parts;
-  return {
-    target: humanTargetFromArgsPreview(argsPreview),
-    chip: parts.chip,
-  };
+): string | undefined {
+  if (detail?.kind === 'bash') return detail.command;
+  if (detail?.kind === 'session') return detail.description ?? detail.operation;
+  if (argsPreview === undefined) return undefined;
+  try {
+    const args: unknown = JSON.parse(argsPreview);
+    if (args === null || typeof args !== 'object') return undefined;
+    for (const key of TARGET_KEYS) {
+      const value = (args as Record<string, unknown>)[key];
+      if (typeof value === 'string' && value.length > 0) return value;
+    }
+  } catch {
+    // Streaming argument fragments are not yet complete JSON.
+  }
+  return undefined;
 }
 
-/**
- * Compact single-line feed body for surfaces that render plain text (e.g.
- * the Job ops feed): `Edit src/a.ts +3 -1`, `Bash pnpm test`. Falls
- * back to a humanized args preview when no structured detail is present.
- */
-export function describeSubagentToolFeedBody(
-  name: string,
-  detail: SubagentToolDetail | undefined,
-  argsPreview: string | undefined,
-): string {
-  const { target, chip } = resolveSubagentToolTarget(detail, argsPreview);
-  const parts = [name];
-  if (target !== undefined && target.length > 0) parts.push(target);
-  if (chip !== undefined && chip.length > 0) parts.push(chip);
-  return parts.join(' ');
-}
 
 /**
  * Last non-empty line of a `subagent.tool_progress` `textPreview`.
@@ -79,7 +42,7 @@ export function describeSubagentToolFeedBody(
  * surfaces show the rolling tail, not the whole 500-char chunk.
  */
 export function lastNonEmptyLine(text: string): string {
-  const normalized = text.replaceAll(/\r\n/gu, '\n').replaceAll(/\r/gu, '\n');
+  const normalized = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
   const lines = normalized.split('\n');
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i]!.trim();

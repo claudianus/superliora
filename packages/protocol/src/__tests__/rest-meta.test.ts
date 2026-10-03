@@ -9,7 +9,6 @@ describe('metaResponseSchema', () => {
       websocket: true,
       file_upload: true,
       fs_query: true,
-      mcp: true,
       background_tasks: true,
       terminal: true,
     },

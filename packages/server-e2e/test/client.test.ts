@@ -330,6 +330,19 @@ describeLive('DaemonClient (live server required)', () => {
 });
 
 describe('DaemonClient session action helpers', () => {
+  it('removes only terminal slashes before constructing HTTP request URLs', async () => {
+    const log = createCaseLogger('client helper: trailing slash normalization');
+    const calls: FetchCall[] = [];
+    const session = testSession({ id: 'sess_normalized' });
+    const client = new DaemonClient({
+      baseUrl: `http://server.example.test/proxy//root${'/'.repeat(20_000)}`,
+      fetchImpl: recordingFetch(okEnvelope(session), calls),
+    });
+    expect(await client.getSession(session.id)).toEqual(session);
+    log('fetch calls', calls);
+    expect(calls[0]?.url).toBe('http://server.example.test/proxy//root/api/v1/sessions/sess_normalized');
+  });
+
   it('forkSession posts the action-suffix route and unwraps the returned session', async () => {
     const log = createCaseLogger('client helper: forkSession');
     const calls: FetchCall[] = [];
@@ -636,20 +649,6 @@ function testSession(overrides: Partial<Session> = {}): Session {
     updated_at: '2026-06-09T00:00:00.000Z',
     status: 'idle',
     metadata: { cwd: '/tmp/example-server-e2e' },
-    agent_config: { model: '' },
-    usage: {
-      input_tokens: 0,
-      output_tokens: 0,
-      cache_read_tokens: 0,
-      cache_creation_tokens: 0,
-      total_cost_usd: 0,
-      context_tokens: 0,
-      context_limit: 0,
-      turn_count: 0,
-    },
-    permission_rules: [],
-    message_count: 0,
-    last_seq: 0,
   };
   return {
     ...base,
@@ -709,7 +708,6 @@ function testSessionStatus(): SessionStatusResponse {
     model: 'kimi-code/kimi-for-coding',
     thinking_level: 'off',
     permission: 'manual',
-    plan_mode: false,
     context_tokens: 0,
     max_context_tokens: 100,
     context_usage: 0,

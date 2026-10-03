@@ -103,8 +103,8 @@ describe('ToolCallComponent transcript geometry dirty', () => {
     const tc = new ToolCallComponent(
       {
         id: 'call_geom_expand',
-        name: 'Read',
-        args: { path: 'big.ts' },
+        name: 'Bash',
+        args: { command: 'cat big.ts' },
       },
       {
         tool_call_id: 'call_geom_expand',
@@ -169,9 +169,9 @@ describe('ToolCallComponent transcript geometry dirty', () => {
     const tc = new ToolCallComponent(
       {
         id: 'call-viewport-live-clock',
-        name: 'Edit',
-        args: { file_path: 'foo.ts' },
-        streamingArguments: '{"file_path":"foo.ts","old_string":"a',
+        name: 'Bash',
+        args: { command: 'cat foo.ts' },
+        streamingArguments: '{"command":"cat foo.ts',
         streamingStartedAtMs: 0,
       },
       undefined,
@@ -191,23 +191,23 @@ describe('ToolCallComponent transcript geometry dirty', () => {
     transcript.addChild(tc);
     const paintWindow = vi.spyOn(tc, 'paintContentRows');
     const first = transcript.render(100).join('\n').replaceAll(/\u001B\[[0-9;]*m/g, '');
-    expect(first).toContain('0s elapsed');
+    expect(first).toContain('Using Bash');
     expect(paintWindow).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(1000);
     advanceAppearanceAnimationClock(1000);
     const live = transcript.render(100).join('\n').replaceAll(/\u001B\[[0-9;]*m/g, '');
-    expect(live).toContain('1s elapsed');
+    expect(live).toContain('1s');
     expect(paintWindow).not.toHaveBeenCalled();
 
     tc.setResult({
       tool_call_id: 'call-viewport-live-clock',
-      output: 'Replaced 1 occurrence in foo.ts',
+      output: 'file content',
       is_error: false,
     });
     const settled = transcript.render(100).join('\n').replaceAll(/\u001B\[[0-9;]*m/g, '');
-    expect(settled).toContain('Used Edit');
-    expect(settled).not.toContain('elapsed');
+    expect(settled).toContain('Used Bash');
+    expect(settled).not.toContain('Using Bash');
     expect(paintWindow).toHaveBeenCalled();
   });
 });

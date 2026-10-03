@@ -31,10 +31,6 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.option.prompt': 'Run one prompt non-interactively and print the response.',
   'cli.option.outputFormat': 'Output format for prompt mode. Defaults to text.',
   'cli.option.showThinking': 'Print model thinking to stderr in prompt text mode.',
-  'cli.option.skillsDir':
-    'Load skills from this directory instead of auto-discovered user and project directories. Can be repeated.',
-  'cli.option.pluginDir':
-    'Load a Claude plugin from this directory for the current session only (not persisted). Can be repeated.',
   'cli.option.addDir':
     'Add an additional workspace directory for this session. Can be repeated.',
   'cli.option.sandbox':
@@ -43,12 +39,8 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
     'How hard to enforce the path sandbox: lexical (default) or process (Docker when present; Windows Job Object is not an FS jail).',
   'cli.option.noProcessSandbox':
     'Skip process-sandbox wrap (Docker / Job Object). Lexical path guards still apply.',
-  'cli.option.plan': 'Start with Plan Desk steering.',
   'cli.option.debug':
     'Write extra diagnostic logs under ~/.superliora/logs so a later bug report has evidence. Off by default.',
-  'cli.option.resumeGoal': 'Automatically resume the first goal in the queue on startup.',
-  'cli.option.autonomousGate':
-    'Shell command that must pass before a headless goal may complete (e.g. "npm run check"). A failed gate returns its output to the agent and the loop continues.',
   'cli.option.worktree':
     'Create a git worktree for this session (optional name). Isolates file edits from the main checkout.',
   'cli.sub.upgrade.description':
@@ -97,10 +89,6 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.option.prompt': '프롬프트 하나를 비대화형으로 실행하고 응답을 출력합니다.',
   'cli.option.outputFormat': '프롬프트 모드의 출력 형식입니다. 기본값은 text입니다.',
   'cli.option.showThinking': '프롬프트 텍스트 모드에서 모델의 사고를 stderr로 출력합니다.',
-  'cli.option.skillsDir':
-    '자동 발견된 사용자/프로젝트 디렉터리 대신 이 디렉터리에서 스킬을 로드합니다. 여러 번 지정할 수 있습니다.',
-  'cli.option.pluginDir':
-    '이 세션에만 Claude 플러그인을 디렉터리에서 로드합니다(저장되지 않음). 여러 번 지정할 수 있습니다.',
   'cli.option.addDir': '이 세션에 추가 작업 디렉터리를 등록합니다. 여러 번 지정할 수 있습니다.',
   'cli.option.sandbox':
     '파일 도구 경로 샌드박스: off | workspace | read-only (OS 격리 아님, 기본 off).',
@@ -108,12 +96,8 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
     '경로 샌드박스 강도: lexical (기본) 또는 process (Docker가 있으면 FS 감옥; Windows Job Object는 FS 감옥이 아님).',
   'cli.option.noProcessSandbox':
     '프로세스 샌드박스 래퍼(Docker / Job Object)를 건너뜁니다. 렉시컬 경로 가드는 그대로입니다.',
-  'cli.option.plan': 'Plan Desk 조향으로 시작합니다.',
   'cli.option.debug':
     '~/.superliora/logs에 진단 로그를 남깁니다. 평소에 켜 두면 나중에 버그를 재현·분석할 증거가 남습니다. 기본 꺼짐.',
-  'cli.option.resumeGoal': '시작 시 큐의 첫 번째 goal을 자동으로 재개합니다.',
-  'cli.option.autonomousGate':
-    '헤드리스 goal이 완료되기 전에 통과해야 하는 셸 명령입니다(예: "npm run check"). 실패 시 출력이 에이전트에게 반환되고 루프가 계속됩니다.',
   'cli.option.worktree':
     '이 세션용 git worktree를 만듭니다(이름 선택). 메인 checkout과 파일 편집을 격리합니다.',
   'cli.sub.upgrade.description':

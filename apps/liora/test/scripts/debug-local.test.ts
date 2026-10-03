@@ -32,6 +32,40 @@ describe('debug-local env', () => {
     expect(formatDebugEnvReport(built).some((line) => line === 'CI (unset)')).toBe(true);
   });
 
+  it('omits inherited values from reports without changing the operator home or login', () => {
+    const secret = 'private-debug-value';
+    const built = buildDebugEnv(
+      {
+        TERM: secret,
+        SUPERLIORA_HOME: `/tmp/${secret}`,
+        OPENAI_API_KEY: secret,
+        SUPERLIORA_SERVER_TOKEN: secret,
+        SSH_CONNECTION: secret,
+      },
+      { repoRoot, homeMode: 'real' },
+    );
+    expect(built.home).toBe(`/tmp/${secret}`);
+    expect(built.env['TERM']).toBe(secret);
+    expect(built.env['OPENAI_API_KEY']).toBe(secret);
+    expect(built.env['SUPERLIORA_SERVER_TOKEN']).toBe(secret);
+    expect(formatDebugEnvReport(built).join('\n')).not.toContain(secret);
+  });
+
+  it('--env does not print secrets supplied in inherited diagnostic fields', () => {
+    const secret = 'private-debug-value';
+    const result = spawnSync(
+      process.execPath,
+      [join(repoRoot, 'scripts/debug-local.mjs'), '--env', '--home', 'real'],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: { ...process.env, TERM: secret, SUPERLIORA_HOME: `/tmp/${secret}`, OPENAI_API_KEY: secret },
+      },
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout + result.stderr).not.toContain(secret);
+  });
+
   it('self-check exits 0', () => {
     const result = spawnSync(process.execPath, [join(repoRoot, 'scripts/debug-local.mjs'), '--self-check'], {
       cwd: repoRoot,

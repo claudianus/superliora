@@ -23,48 +23,31 @@ After pasting, the input box shows a placeholder that you can edit like normal t
 
 ## Slash commands
 
-Everyday actions belong in the **Command Hub** (`Ctrl-K` / `?` / `/help`): Job ops, Memory (via Settings), goal queue, dashboard, and more. Context OS is under Settings → Bench/Diagnostics; Files explorer `b` opens blame. Typing `/` still opens autocomplete for power-user shortcuts and commands that need typed arguments — the primary list demotes redundant toggles (prefer Hub / Settings).
+Everyday actions belong in the **Command Hub** (`Ctrl-K` / `?` / `/help`): sessions, native Jobs, workers, workspace views, and Settings. Typing `/` opens autocomplete for registered built-in commands.
 
 Anything starting with `/` is treated as a slash command. Typing `/` opens a completion menu that filters in real time as you keep typing; press `Esc` to close the menu. If nothing matches, the input is sent to the agent as a regular message.
 
-Active [Agent Skills](../customization/skills.md) are automatically registered as slash commands: ordinary external Skills are invoked with `/skill:<name>`, external sub-skills appear as dotted commands such as `/parent.child`, and built-in Skills appear directly as `/<name>` in the slash command panel. If an external skill name does not conflict with a system slash command, you can also drop the `skill:` prefix and type `/<name>` directly.
-
-Some commands are only available when the agent is idle — you need to press `Esc` to interrupt streaming output or context compression before using them. Mode-toggle and query commands like `/yolo`, `/plan`, `/help`, and `/btw` are always available. For the full list, see [Slash commands reference](../reference/slash-commands.md).
+Some commands are available only while idle. Interrupt the current turn before switching sessions or compacting. See [Slash commands reference](../reference/slash-commands.md).
 
 ## File references
 
 Type `@` to trigger file-path completion. Selecting a path inserts its relative form into your message; the agent loads the file content directly when it reads the message. File references work in both git and non-git directories, and folder suggestions end with `/` so you can keep completing paths inside them. If the fast search helper is still downloading, SuperLiora falls back to a basic filesystem scan. Hidden paths are available, but `.git` is excluded from suggestions.
 
-> `@` references and slash commands are two separate mechanisms: `@` gives the agent file context, while `/` invokes built-in features or Skills. A `/` typed after leading whitespace is treated as normal text, not as the slash-command menu.
+> `@` references and slash commands are separate mechanisms: `@` supplies file context, while `/` invokes registered TUI commands. Skills and plugin commands are retired.
 
 ## Approval flow
 
-When the agent calls a tool that has side effects — modifying files, running commands — the TUI displays an approval panel for your confirmation. Approvals are not triggered in YOLO mode, nor for writes to plan files in Plan mode.
+Tool calls use the configured permission mode and allow/deny/ask rules. In manual mode, calls without an applicable allow rule display an approval panel. YOLO still retains high-risk approval policy.
 
 Use the arrow keys to select an option and press `Enter` to confirm, or press `1` / `2` / `3` to select by number directly. `Esc`, `Ctrl-C`, and `Ctrl-D` are all equivalent to rejecting.
 
 The panel typically includes an **Approve for this session** option; selecting it auto-approves the same kind of call for the rest of the session. For permanent rules, add allow / deny entries in [Configuration files](../configuration/config-files.md#permission).
 
-## Mode switching
+## Permission modes
 
-### Ask / Build
+Use `/permission manual`, `/permission auto`, or `/permission yolo` to select the current policy. `/auto` and `/yolo` are shortcuts. These policies govern approvals, not filesystem isolation.
 
-`Shift-Tab` (or `/ask`) switches Ask and Build. Ask mode reads, searches, and answers without editing or starting new jobs. Switch back to Build to delegate work.
-
-### Plan mode
-
-In Plan mode the agent first outputs an action plan and waits for your approval before modifying any files — useful for complex or high-risk tasks.
-
-- Toggle: `/plan`
-- Clear the current plan: `/plan clear` (only while idle)
-
-After producing a plan the agent pauses for your review — you can approve it, reject it, or ask for revisions. Exiting Plan mode always requires your confirmation, even if YOLO mode is also active.
-
-### YOLO / Auto mode
-
-**YOLO mode** (`/yolo`) skips the approval confirmation for almost all tool calls, making it suitable for batch tasks you know are safe. The one exception is the exit-confirmation for Plan mode.
-
-**Auto mode** (`/auto`) is more restrained: tool approvals are handled automatically, but the agent does not ask the user clarifying questions — useful when you want unattended operation without fully disabling approvals.
+Normal requests execute directly in the workspace. For an isolated checkout, start an explicit native Job/worktree or launch with `liora --worktree`. A conversation fork alone does not isolate files. Planning is ordinary conversation; there is no Plan or Goal mode and no mandatory review or verification pass.
 
 ::: warning
 YOLO mode skips confirmation for file writes and command execution. Only use it in working directories you trust.

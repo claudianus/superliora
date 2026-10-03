@@ -1,7 +1,5 @@
 import type { ResumedAgentState } from '@superliora/sdk';
 
-import type { TodoItem } from '../../components/chrome/todo/todo-panel';
-import { isTodoItemShape } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
   appStateFromResumeAgent,
@@ -16,7 +14,6 @@ export class SessionReplayHydrator {
 
   hydrateSnapshot(agent: ResumedAgentState): void {
     this.host.setAppState(appStateFromResumeAgent(agent));
-    this.hydrateTodoPanel(agent);
     this.hydrateBackgroundState(agent);
   }
 
@@ -51,23 +48,6 @@ export class SessionReplayHydrator {
     }
   }
 
-  private hydrateTodoPanel(agent: ResumedAgentState): void {
-    const rawTodos = agent.toolStore?.['todo'];
-    if (!Array.isArray(rawTodos)) {
-      this.host.streamingUI.setTodoList([]);
-      return;
-    }
-
-    const todos = rawTodos
-      .filter((todo): todo is TodoItem => isTodoItemShape(todo))
-      .map((todo) => ({ title: todo.title, status: todo.status }));
-    if (todos.length > 0 && todos.every((todo) => todo.status === 'done')) {
-      this.host.streamingUI.setTodoList([]);
-      return;
-    }
-
-    this.host.streamingUI.setTodoList(todos);
-  }
 
   private hydrateBackgroundState(agent: ResumedAgentState): void {
     const { state, sessionEventHandler } = this.host;

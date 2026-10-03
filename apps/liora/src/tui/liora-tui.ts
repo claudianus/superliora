@@ -1,6 +1,6 @@
 import type { Component, Focusable } from '#/tui/renderer';
 import type { DeviceAuthorization } from '@superliora/oauth';
-import type { BackgroundTaskInfo, LioraHarness, Session } from '@superliora/sdk';
+import type { BackgroundTaskInfo, LioraHarness, PromptPart, Session } from '@superliora/sdk';
 import { detectFdPath } from '#/utils/process/fd-detect';
 import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
@@ -11,7 +11,6 @@ import type {
   RendererDiagnosticsOverlayCommand,
   RendererTraceCommand,
   SlashCommandHelpMode,
-  SkillListSession,
 } from './commands';
 import * as slashCommands from './commands/hub/dispatch';
 import { CommandHubComponent } from './components/dialogs/command-hub/index';
@@ -32,7 +31,6 @@ import { wireLioraTUIControllers } from './controllers/wiring/liora-tui-wiring';
 import { MessageDispatchController } from './controllers/transcript/message-dispatch';
 import { NativeRendererDiagnosticsController } from './controllers/diagnostics/native-renderer-diagnostics';
 import { PanesController } from './controllers/panes/panes';
-import { PromptIntelligenceController } from './controllers/prompt/prompt-intelligence';
 import { ReverseRpcPanelsController } from './controllers/panes/reverse-rpc-panels';
 import { SessionBrowserController } from './controllers/session/session-browser';
 import { SessionEventHandler } from './controllers/session-event/handler';
@@ -68,7 +66,6 @@ import type {
   LioraTUIOptions,
   LioraTUIStartupInput,
   LoginProgressSpinnerHandle,
-  PlanTranscriptData,
   QueuedMessage,
   TranscriptDetailLevel,
   TranscriptEntry,
@@ -94,10 +91,6 @@ class LioraTUIClass {
   readonly approvalController = new ApprovalController();
   readonly questionController = new QuestionController();
   readonly reverseRpcDisposers: Array<() => void> = [];
-  skillCommands: LioraSlashCommand[] = [];
-  pluginCommands: LioraSlashCommand[] = [];
-  readonly skillCommandMap = new Map<string, string>();
-  readonly pluginCommandMap = new Map<string, string>();
   readonly imageStore = new ImageAttachmentStore();
   fdPath: string | null = detectFdPath();
   fdDownloadStarted = false;
@@ -138,7 +131,6 @@ class LioraTUIClass {
   workerDock!: WorkerDockController;
   usageMonitor!: UsageMonitorController;
   editorKeyboard!: EditorKeyboardController;
-  promptIntelligence!: PromptIntelligenceController;
   dialogs!: DialogsController;
   workspaceBrowser!: WorkspaceBrowserController;
   sessionBrowser!: SessionBrowserController;
@@ -178,11 +170,8 @@ class LioraTUIClass {
 export interface LioraTUIHost {
   getSlashCommands(mode?: SlashCommandHelpMode): readonly LioraSlashCommand[];
   dispatchSlash(command: string): void;
-  runPluginsCommand(): Promise<void>;
   setupAutocomplete(): void;
   refreshSlashCommandAutocomplete(): void;
-  refreshSkillCommands(session?: SkillListSession): Promise<void>;
-  refreshDynamicSlashCommands(session?: Session): Promise<void>;
   start(): Promise<void>;
   stop(exitCode?: number): Promise<void>;
   registerSignalHandlers(): void;
@@ -197,12 +186,9 @@ export interface LioraTUIHost {
   refreshProviderModelsInBackground(): Promise<void>;
   bootstrapFromPicker(): Promise<void>;
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
-  getStartupMcpMs(): Promise<number>;
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
   setNativeRendererTrace(command: RendererTraceCommand): void;
   showSessionWarnings(session: Session): Promise<void>;
-  handlePlanToggle(next: boolean, ultra?: boolean): void;
-  setAskMode(enabled: boolean): void;
   handleInputModeChange(mode: 'prompt' | 'bash'): void;
   handleUserInput(text: string): void;
   dispatchSlashInput(text: string): void;
@@ -218,15 +204,10 @@ export interface LioraTUIHost {
   beginSessionRequest(): void;
   failSessionRequest(message: string): void;
   sendQueuedMessage(session: Session, item: QueuedMessage): void;
-  requestQueuedGoalPromotion(): void;
-  sendSkillActivation(session: Session, skillName: string, skillArgs: string): void;
-  activatePluginCommand(
-    session: Session,
-    pluginId: string,
-    commandName: string,
-    args: string,
-  ): void;
-  steerMessage(session: Session, input: string[]): void;
+  steerMessage(session: Session, input: string[], options?: {
+    readonly parts?: readonly PromptPart[];
+    readonly imageAttachmentIds?: readonly number[];
+  }): void;
   setStartupReady(): void;
   clearQueuedMessages(): void;
   shiftQueuedMessage(): QueuedMessage | undefined;
@@ -240,7 +221,6 @@ export interface LioraTUIHost {
   hasSessionContent(): boolean;
   setExitOpenUrl(url: string): void;
   setAppState(patch: Partial<AppState>): void;
-  syncGoalMonitorPanel(): void;
   patchLivePane(patch: Partial<LivePaneState>): void;
   resetLivePane(): void;
   requireSession(): Session;
@@ -259,7 +239,6 @@ export interface LioraTUIHost {
   openWorkspace(dir: string, options?: { readonly resumeSessionId?: string }): Promise<void>;
   renderWelcome(): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
-  appendPlanReviewTranscript(toolCallId: string, plan: PlanTranscriptData): boolean;
   clearTranscriptAndRedraw(): void;
   mergeCurrentTurnSteps(): boolean;
   mergeAllTurnSteps(): void;
@@ -324,16 +303,11 @@ export interface LioraTUIHost {
   showWebContent(rawUrl: string | undefined): void;
   showBlame(rawPath: string | undefined): void;
   showSessionPicker(): Promise<void>;
-  showExtensionsModal(args?: string): Promise<void>;
-  hideExtensionsModal(): void;
   hideSessionPicker(): void;
   openUndoSelector(): void;
   openJobDeck(jobId?: string): void;
   openJobInbox(): void;
-  /** P shortcut: open (or enter + open) the Plan browser overlay. */
-  openPlan(): void;
   openMergePreviewForJob(jobId: string): void;
-  maybeDefaultConductorTimeline(): void;
   showApprovalPanel(payload: ApprovalPanelData): void;
   focusPendingApprovalPanel(): boolean;
   showQuestionDialog(payload: QuestionPanelData): void;

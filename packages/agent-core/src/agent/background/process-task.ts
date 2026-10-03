@@ -2,6 +2,8 @@ import type { KaosProcess } from '@superliora/kaos';
 import type { Readable } from 'node:stream';
 
 import { errorMessage } from '../../loop/errors';
+import { NativeProcessCleanupError } from '../../session/job/git';
+import { registerSessionWorktreeOwnershipGuard, sessionWorktreeContainsPath } from '../../session/worktree';
 import type {
   BackgroundTask,
   BackgroundTaskInfoBase,
@@ -12,8 +14,10 @@ import type {
 export interface ProcessBackgroundTaskInfo extends BackgroundTaskInfoBase {
   readonly kind: 'process';
   readonly command: string;
-  readonly pid: number;
+  readonly pid?: number;
   readonly exitCode: number | null;
+  readonly cwd?: string;
+  readonly outputTruncated?: boolean;
 }
 
 export type ProcessBackgroundTaskOutputKind = 'stdout' | 'stderr';
@@ -29,15 +33,36 @@ export class ProcessBackgroundTask implements BackgroundTask {
   readonly kind = 'process' as const;
   readonly idPrefix = 'bash';
   private exitCode: number | null = null;
+  private exitConfirmed = false;
+  private resourceSettlement: boolean | undefined;
+  private captureIncomplete = false;
+  private cleanupError: NativeProcessCleanupError | undefined;
+  private readonly releaseOwnership: () => void;
+
+  get outputTruncated(): boolean {
+    return this.captureIncomplete || this.proc.outputTruncated === true;
+  }
+
+  get resourcesSettled(): boolean | undefined {
+    return this.proc.resourcesSettled ?? this.cleanupError?.resourcesSettled ?? this.resourceSettlement;
+  }
 
   constructor(
     readonly proc: KaosProcess,
     readonly command: string,
     readonly description: string,
+    readonly cwd: string,
     private readonly onOutput?: ProcessBackgroundTaskOutputCallback,
-  ) {}
+  ) {
+    this.releaseOwnership = registerSessionWorktreeOwnershipGuard((path) =>
+      this.resourcesSettled !== true && sessionWorktreeContainsPath(path, this.cwd));
+  }
 
   async start(sink: BackgroundTaskSink): Promise<void> {
+    if (this.cleanupError !== undefined) {
+      await sink.settle({ status: 'failed', stopReason: errorMessage(this.cleanupError) });
+      return;
+    }
     const streamDrained = Promise.all([
       observeProcessStream(this.proc.stdout, 'stdout', sink, this.onOutput),
       observeProcessStream(this.proc.stderr, 'stderr', sink, this.onOutput),
@@ -56,15 +81,18 @@ export class ProcessBackgroundTask implements BackgroundTask {
     }
 
     let settlement: BackgroundTaskSettlement;
+    let executionError: unknown;
     try {
       const exitCode = await this.proc.wait();
-      await waitForStreamDrain(streamDrained);
+      this.exitConfirmed = true;
+      if (!(await waitForStreamDrain(streamDrained))) this.captureIncomplete = true;
       this.exitCode = exitCode;
       settlement = {
         status: sink.signal.aborted ? 'killed' : exitCode === 0 ? 'completed' : 'failed',
       };
     } catch (error: unknown) {
-      await waitForStreamDrainSettled(streamDrained);
+      executionError = error;
+      if (!(await waitForStreamDrainSettled(streamDrained))) this.captureIncomplete = true;
       this.exitCode = this.proc.exitCode;
       settlement = {
         status: sink.signal.aborted ? 'killed' : 'failed',
@@ -72,18 +100,30 @@ export class ProcessBackgroundTask implements BackgroundTask {
       };
     } finally {
       sink.signal.removeEventListener('abort', requestStop);
-      await this.disposeProcess();
+      await this.disposeProcess(executionError);
     }
     await sink.settle(settlement);
   }
 
   async forceStop(): Promise<void> {
-    try {
-      if (this.proc.exitCode === null) {
-        await this.proc.kill('SIGKILL');
+    if (this.cleanupError !== undefined) {
+      try {
+        await this.cleanupError.settleResources();
+      } finally {
+        if (this.resourcesSettled === true) this.releaseOwnership();
       }
+      return;
+    }
+    await this.proc.kill('SIGKILL');
+  }
+
+  async settleAbandonedProcess(cause: unknown): Promise<void> {
+    this.captureIncomplete = true;
+    this.cleanupError = new NativeProcessCleanupError(this.proc, this.exitConfirmed, cause);
+    try {
+      await this.cleanupError.settleResources();
     } finally {
-      await this.disposeProcess();
+      if (this.resourcesSettled === true) this.releaseOwnership();
     }
   }
 
@@ -94,38 +134,47 @@ export class ProcessBackgroundTask implements BackgroundTask {
       command: this.command,
       pid: this.proc.pid,
       exitCode: this.exitCode,
+      cwd: this.cwd,
+      ...(this.outputTruncated ? { outputTruncated: true } : {}),
     };
   }
 
-  private async disposeProcess(): Promise<void> {
+  private async disposeProcess(executionError?: unknown): Promise<void> {
     try {
       await this.proc.dispose();
-    } catch {
-      /* best-effort cleanup */
+      this.resourceSettlement = this.proc.resourcesSettled ?? this.exitConfirmed;
+      if (!this.resourceSettlement) throw new Error('Process exit has not been confirmed.');
+    } catch (error) {
+      this.resourceSettlement = false;
+      const cause = executionError === undefined ? error : new AggregateError(
+        [executionError, error],
+        `Process execution failed: ${errorMessage(executionError)}; cleanup failed: ${errorMessage(error)}`,
+      );
+      this.cleanupError = new NativeProcessCleanupError(this.proc, this.exitConfirmed, cause);
+      throw this.cleanupError;
+    }
+    finally {
+      if (this.resourcesSettled === true) this.releaseOwnership();
     }
   }
 }
 
-async function waitForStreamDrain(streamDrained: Promise<void>): Promise<void> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
+async function waitForStreamDrain(streamDrained: Promise<void>): Promise<boolean> {
+  const expired = Promise.withResolvers<boolean>();
+  const timeout = setTimeout(() => expired.resolve(false), STREAM_DRAIN_GRACE_MS);
+  timeout.unref();
   try {
-    await Promise.race([
-      streamDrained,
-      new Promise<void>((resolve) => {
-        timeout = setTimeout(resolve, STREAM_DRAIN_GRACE_MS);
-        timeout.unref?.();
-      }),
-    ]);
+    return await Promise.race([streamDrained.then(() => true), expired.promise]);
   } finally {
-    if (timeout !== undefined) clearTimeout(timeout);
+    clearTimeout(timeout);
   }
 }
 
-async function waitForStreamDrainSettled(streamDrained: Promise<void>): Promise<void> {
+async function waitForStreamDrainSettled(streamDrained: Promise<void>): Promise<boolean> {
   try {
-    await waitForStreamDrain(streamDrained);
+    return await waitForStreamDrain(streamDrained);
   } catch {
-    /* original process/stream error wins */
+    return false;
   }
 }
 

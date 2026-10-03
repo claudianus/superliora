@@ -1,7 +1,6 @@
 import { createControlledPromise } from '@antfu/utils';
 
 import type { Agent } from '../..';
-import type { BackgroundTaskOrigin } from '../context';
 import {
   generateTaskId,
   type BackgroundTaskOutputSnapshot,
@@ -9,12 +8,9 @@ import {
   type ManagedTask,
   type RegisterBackgroundTaskOptions,
 } from './managed-types';
-import { emitTaskStarted } from './manager-events';
+import { emitTaskStarted, fireTerminalEffects } from './manager-events';
 import { runBackgroundTaskLifecycle } from './manager-lifecycle';
 import type { BackgroundManagerHost } from './manager-host';
-import {
-  markDeliveredBackgroundTaskNotification,
-} from './manager-notify-delivery';
 import {
   appendBackgroundTaskOutput,
   getBackgroundTaskOutputSnapshot,
@@ -52,13 +48,19 @@ export class BackgroundManager implements BackgroundManagerHost {
    */
   readonly ghosts = new Map<string, BackgroundTaskInfo>();
 
-  readonly scheduledNotificationKeys = new Set<string>();
-  readonly deliveredNotificationKeys = new Set<string>();
 
   constructor(
     readonly agent: Agent,
     readonly persistence?: BackgroundTaskPersistence,
   ) { }
+
+  assertResourcesSettled(): void {
+    const errors: Error[] = [];
+    for (const entry of this.tasks.values()) {
+      if (entry.task.resourcesSettled === false) errors.push(new Error(`Task resources have not settled: ${entry.taskId}${entry.stopReason === undefined ? '' : ` (${entry.stopReason})`}`));
+    }
+    if (errors.length > 0) throw new AggregateError(errors, 'Background resources remain owned.');
+  }
 
   private assertCanRegister(startedInBackground: boolean): void {
     const maxRunningTasks = this.agent.kimiConfig?.background?.maxRunningTasks;
@@ -67,6 +69,12 @@ export class BackgroundManager implements BackgroundManagerHost {
     if (activeBackgroundAdmissionCount(this.tasks) < maxRunningTasks) return;
     throw new Error('Too many background tasks are already running.');
   }
+  /** Adopt an already-owned failed process without opening a new admission. */
+  retainUnsettledTask(task: BackgroundTask): string {
+    for (const entry of this.tasks.values()) if (entry.task === task) return entry.taskId;
+    return this.registerTask(task, { detached: false });
+  }
+
 
   registerTask(task: BackgroundTask, options: RegisterBackgroundTaskOptions = {}): string {
     const detached = options.detached ?? true;
@@ -143,12 +151,6 @@ export class BackgroundManager implements BackgroundManagerHost {
     return readBackgroundTaskOutput(this, taskId, tail);
   }
 
-  async suppressTerminalNotification(taskId: string): Promise<void> {
-    const entry = this.tasks.get(taskId);
-    if (entry === undefined || entry.terminalNotificationSuppressed === true) return;
-    entry.terminalNotificationSuppressed = true;
-    await this.persistLive(entry);
-  }
 
   detach(taskId: string): BackgroundTaskInfo | undefined {
     const entry = this.tasks.get(taskId);
@@ -184,6 +186,13 @@ export class BackgroundManager implements BackgroundManagerHost {
     const stopReason =
       trimmedReason === undefined || trimmedReason.length === 0 ? undefined : trimmedReason;
     if (TERMINAL_STATUSES.has(entry.status)) {
+      if (entry.task.resourcesSettled === false) {
+        await entry.task.forceStop?.();
+        if (entry.task.resourcesSettled === false) throw new Error(`Task resources have not settled: ${taskId}`);
+        entry.endedAt = Date.now();
+        await this.persistLive(entry);
+        fireTerminalEffects(this, entry);
+      }
       await entry.persistWriteQueue;
       return this.toInfo(entry);
     }
@@ -192,12 +201,16 @@ export class BackgroundManager implements BackgroundManagerHost {
     entry.abortController.abort(stopReason);
     entry.stop.resolve({ reason: stopReason });
     await entry.terminal;
+    if (entry.task.resourcesSettled === false) throw new Error(`Task resources have not settled: ${taskId}`);
     return this.toInfo(entry);
   }
 
   async stopAll(reason?: string): Promise<readonly BackgroundTaskInfo[]> {
     const taskIds = Array.from(this.tasks.keys());
-    const results = await Promise.all(taskIds.map((taskId) => this.stop(taskId, reason)));
+    const settled = await Promise.allSettled(taskIds.map((taskId) => this.stop(taskId, reason)));
+    const errors = settled.filter((result) => result.status === 'rejected').map((result) => result.reason);
+    if (errors.length > 0) throw new AggregateError(errors, 'Background stop failed.');
+    const results = settled.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
     return results.filter((info): info is BackgroundTaskInfo => info !== undefined);
   }
 
@@ -232,9 +245,6 @@ export class BackgroundManager implements BackgroundManagerHost {
     return reconcileBackgroundTasks(this);
   }
 
-  markDeliveredNotification(origin: BackgroundTaskOrigin): void {
-    markDeliveredBackgroundTaskNotification(this, origin);
-  }
 
   isDetached(entry: ManagedTask): boolean {
     return isDetached(entry);

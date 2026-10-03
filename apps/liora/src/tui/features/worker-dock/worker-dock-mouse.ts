@@ -36,6 +36,7 @@ export function handleWorkerDockMouse(
   const mouse = event;
   const rect = getTUIStateNativeWorkerDockRect(host.state);
   if (rect === undefined) {
+    if (mouse.action === 'press') host.state.workerDockPanel.focused = false;
     if (mouse.action === 'move' || mouse.action === 'drag') {
       if (clearHoverIfDock()) requestTUIContentRender(host.state);
     }
@@ -49,6 +50,7 @@ export function handleWorkerDockMouse(
     mouse.y < rect.y + rect.height;
 
   if (!inside) {
+    if (mouse.action === 'press') host.state.workerDockPanel.focused = false;
     if (mouse.action === 'move' || mouse.action === 'drag') {
       if (clearHoverIfDock()) requestTUIContentRender(host.state);
     }
@@ -80,6 +82,7 @@ export function handleWorkerDockMouse(
 
   // Select + open on click.
   panel.selectWorker(hit.workerId);
+  panel.focused = true;
   host.openWorkerTranscript?.(hit.workerId);
   requestTUIContentRender(host.state);
   return true;

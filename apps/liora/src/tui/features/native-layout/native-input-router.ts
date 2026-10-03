@@ -89,6 +89,7 @@ export class TUIStateNativeInputRouter {
         },
         handleNativeInput: (event) => {
           if (options.handlePreEditorInput?.(event) === true) return true;
+          if (event.type === 'key' || event.type === 'paste') state.workerDockPanel.focused = false;
           const handler =
             options.handleNativeEditorInput ??
             ((e) => handleTUIStateNativeEditorInput(state, e));
@@ -207,10 +208,18 @@ export class TUIStateNativeInputRouter {
   }
 
   dispatch(event: NativeInputEvent): NativeInputRouteResult {
+    if (event.type === 'mouse' && event.action === 'press') {
+      const rect = getTUIStateNativeEditorRect(this.state);
+      if (rect !== undefined && event.x >= rect.x && event.x < rect.x + rect.width &&
+          event.y >= rect.y && event.y < rect.y + rect.height) {
+        this.state.workerDockPanel.focused = false;
+      }
+    }
     return this.router.dispatch(event);
   }
 
   focusEditor(): boolean {
+    this.state.workerDockPanel.focused = false;
     return this.router.focus(TUI_NATIVE_EDITOR_INPUT_TARGET_ID);
   }
 

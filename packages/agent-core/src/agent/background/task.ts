@@ -1,6 +1,5 @@
 import type { AgentBackgroundTaskInfo } from './agent-task';
 import type { ProcessBackgroundTaskInfo } from './process-task';
-import type { QuestionBackgroundTaskInfo } from './question-task';
 
 export type BackgroundTaskStatus =
   | 'running'
@@ -38,16 +37,15 @@ export interface BackgroundTaskInfoBase {
   readonly endedAt: number | null;
   /** Human-readable reason for the terminal status, when available. */
   readonly stopReason?: string;
-  /** Suppress automatic terminal notifications/reminders for this task. */
-  readonly terminalNotificationSuppressed?: boolean;
   /** Deadline supplied at registration; surfaced via task info. */
   readonly timeoutMs?: number;
+  /** False only when execution failed without confirmed resource teardown. */
+  readonly resourcesSettled?: boolean;
 }
 
 export type BackgroundTaskInfo =
   | ProcessBackgroundTaskInfo
-  | AgentBackgroundTaskInfo
-  | QuestionBackgroundTaskInfo;
+  | AgentBackgroundTaskInfo;
 
 export interface BackgroundTaskSink {
   readonly signal: AbortSignal;
@@ -60,6 +58,7 @@ export interface BackgroundTask {
   readonly kind: BackgroundTaskInfo['kind'];
   readonly description: string;
   readonly timeoutMs?: number;
+  readonly resourcesSettled?: boolean;
 
   start(sink: BackgroundTaskSink): void | Promise<void>;
   onDetach?(): void;

@@ -5,7 +5,6 @@
  *   - 5xxxx      daemon 内部错误
  *   - 6xxxx      工具运行时
  *   - 7xxxx      LLM provider 透传 (msg = original upstream text)
- *   - 8xxxx      MCP server 透传 (msg = original upstream text)
  *   - 9xxxx      预留
  */
 
@@ -48,8 +47,6 @@ export const ErrorCode = {
   TASK_NOT_FOUND: 40406,
   /** file_id 不存在 */
   FILE_NOT_FOUND: 40407,
-  /** mcp_server_id 不存在 */
-  MCP_SERVER_NOT_FOUND: 40408,
   /** fs path 不存在 */
   FS_PATH_NOT_FOUND: 40409,
   /** workspace_id 不存在 */
@@ -62,8 +59,6 @@ export const ErrorCode = {
   MODEL_NOT_FOUND: 40413,
   /** terminal_id 不存在 */
   TERMINAL_NOT_FOUND: 40414,
-  /** skill_name 不存在 */
-  SKILL_NOT_FOUND: 40415,
 
   /** session 有正在进行的 prompt，拒绝新请求 */
   SESSION_BUSY: 40901,
@@ -73,8 +68,6 @@ export const ErrorCode = {
   PROMPT_ALREADY_COMPLETED: 40903,
   /** task 已完结，无法取消 */
   TASK_ALREADY_FINISHED: 40904,
-  /** mcp restart 时若已在 connecting/connected */
-  MCP_ALREADY_CONNECTED: 40905,
   /** fs.read 请求 file，但 path 是目录 */
   FS_IS_DIRECTORY: 40906,
   /** fs.read 请求 utf-8，但 path 是二进制；client 改走 `:download` */
@@ -87,21 +80,6 @@ export const ErrorCode = {
   COMPACTION_UNABLE: 40910,
   /** 当前历史没有足够的用户提示词可撤回 */
   SESSION_UNDO_UNAVAILABLE: 40911,
-  /** skill 存在但类型不支持用户激活（如 reference 类型） */
-  SKILL_NOT_ACTIVATABLE: 40912,
-
-  /** 当前会话已存在活跃 goal */
-  GOAL_ALREADY_EXISTS: 40913,
-  /** 目标不存在 */
-  GOAL_NOT_FOUND: 40914,
-  /** goal 状态不允许该操作 */
-  GOAL_STATUS_INVALID: 40915,
-  /** goal 当前状态不可恢复 */
-  GOAL_NOT_RESUMABLE: 40916,
-  /** goal objective 为空 */
-  GOAL_OBJECTIVE_EMPTY: 40917,
-  /** goal objective 超过长度限制 */
-  GOAL_OBJECTIVE_TOO_LONG: 40918,
   /** fs.mkdir 目标路径已存在（文件或目录） */
   FS_ALREADY_EXISTS: 40919,
 
@@ -137,7 +115,6 @@ export const ErrorCode = {
   TOOL_NOT_AVAILABLE: 60002,
 
   /** provider.* — provider 原 code 含义保留；`msg` 字段透传上游错误文本。 */
-  /** mcp.* — mcp server 原 code 含义保留；`msg` 字段透传上游错误文本。 */
 } as const;
 
 /**
@@ -170,34 +147,23 @@ export const ErrorCodeReason: Readonly<Record<ErrorCode, string>> = {
   [ErrorCode.QUESTION_NOT_FOUND]: 'question.not_found',
   [ErrorCode.TASK_NOT_FOUND]: 'task.not_found',
   [ErrorCode.FILE_NOT_FOUND]: 'file.not_found',
-  [ErrorCode.MCP_SERVER_NOT_FOUND]: 'mcp.server_not_found',
   [ErrorCode.FS_PATH_NOT_FOUND]: 'fs.path_not_found',
   [ErrorCode.WORKSPACE_NOT_FOUND]: 'workspace.not_found',
   [ErrorCode.FS_PERMISSION_DENIED]: 'fs.permission_denied',
   [ErrorCode.PROVIDER_NOT_FOUND]: 'provider.not_found',
   [ErrorCode.MODEL_NOT_FOUND]: 'model.not_found',
   [ErrorCode.TERMINAL_NOT_FOUND]: 'terminal.not_found',
-  [ErrorCode.SKILL_NOT_FOUND]: 'skill.not_found',
 
   [ErrorCode.SESSION_BUSY]: 'session.busy',
   [ErrorCode.APPROVAL_ALREADY_RESOLVED]: 'approval.already_resolved',
   [ErrorCode.PROMPT_ALREADY_COMPLETED]: 'prompt.already_completed',
   [ErrorCode.TASK_ALREADY_FINISHED]: 'task.already_finished',
-  [ErrorCode.MCP_ALREADY_CONNECTED]: 'mcp.already_connected',
   [ErrorCode.FS_IS_DIRECTORY]: 'fs.is_directory',
   [ErrorCode.FS_IS_BINARY]: 'fs.is_binary',
   [ErrorCode.FS_GIT_UNAVAILABLE]: 'fs.git_unavailable',
   [ErrorCode.QUESTION_DISMISSED]: 'question.dismissed',
   [ErrorCode.COMPACTION_UNABLE]: 'compaction.unable',
   [ErrorCode.SESSION_UNDO_UNAVAILABLE]: 'session.undo_unavailable',
-  [ErrorCode.SKILL_NOT_ACTIVATABLE]: 'skill.not_activatable',
-
-  [ErrorCode.GOAL_ALREADY_EXISTS]: 'goal.already_exists',
-  [ErrorCode.GOAL_NOT_FOUND]: 'goal.not_found',
-  [ErrorCode.GOAL_STATUS_INVALID]: 'goal.status_invalid',
-  [ErrorCode.GOAL_NOT_RESUMABLE]: 'goal.not_resumable',
-  [ErrorCode.GOAL_OBJECTIVE_EMPTY]: 'goal.objective_empty',
-  [ErrorCode.GOAL_OBJECTIVE_TOO_LONG]: 'goal.objective_too_long',
   [ErrorCode.FS_ALREADY_EXISTS]: 'fs.already_exists',
 
   [ErrorCode.APPROVAL_EXPIRED]: 'approval.expired',

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { log, type GoalSnapshot } from '@superliora/sdk';
+import { log } from '@superliora/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BannerProvider } from '#/tui/banner/banner-provider';
@@ -83,13 +83,9 @@ function makeStartupInput(
       continue: false,
       yolo: false,
       auto: false,
-      plan: false,
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,
-      skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
       ...cliOptions,
     },
     tuiConfig: {
@@ -117,54 +113,24 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       model: 'k2',
       thinkingLevel: 'off',
       permission: 'manual',
-      planMode: false,
-      askMode: false,
       contextTokens: 10,
       maxContextTokens: 100,
       contextUsage: 0.1,
     })),
     setApprovalHandler: vi.fn(),
     setQuestionHandler: vi.fn(),
-    setCredentialHandler: vi.fn(),
     setModel: vi.fn(async () => {}),
     setThinking: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
-    setPlanMode: vi.fn(async () => {}),
-    getGoal: vi.fn(async () => ({ goal: null })),
     onEvent: vi.fn(() => () => {}),
     getResumeState: vi.fn(() => null),
-    listSkills: vi.fn(async () => []),
-    searchSkills: vi.fn(async () => []),
     close: vi.fn(async () => {}),
     ...overrides,
   };
 }
 
-function goalSnapshot(overrides: Partial<GoalSnapshot> = {}): GoalSnapshot {
-  return {
-    goalId: 'goal-1',
-    objective: 'Ship feature X',
-    status: 'paused',
-    turnsUsed: 2,
-    tokensUsed: 100,
-    wallClockMs: 1000,
-    budget: {
-      tokenBudget: null,
-      turnBudget: null,
-      wallClockBudgetMs: null,
-      remainingTokens: null,
-      remainingTurns: null,
-      remainingWallClockMs: null,
-      tokenBudgetReached: false,
-      turnBudgetReached: false,
-      wallClockBudgetReached: false,
-      overBudget: false,
-    },
-    ...overrides,
-  };
-}
 
-function createResumeState(overrides: { permissionMode?: string; planMode?: boolean } = {}) {
+function createResumeState(overrides: { permissionMode?: string } = {}) {
   return {
     id: 'ses-latest',
     workDir: '/tmp/proj-a',
@@ -184,9 +150,7 @@ function createResumeState(overrides: { permissionMode?: string; planMode?: bool
         context: { history: [], tokenCount: 10 },
         replay: [],
         permission: { mode: overrides.permissionMode ?? 'manual', rules: [] },
-        plan: overrides.planMode ? { id: 'plan-1', content: '', path: '/tmp/plan.md' } : null,
         usage: {},
-        tools: [],
         background: [],
       },
     },
@@ -212,7 +176,6 @@ function makeHarness(session = makeSession(), overrides: Record<string, unknown>
     close: vi.fn(async () => {}),
     track: vi.fn(),
     setTelemetryContext: vi.fn(),
-    getExperimentalFeatures: vi.fn(async () => []),
     removeProvider: vi.fn(async () => {}),
     auth: {
       status: vi.fn(async () => ({ providers: [] })),
@@ -257,22 +220,19 @@ describe('LioraTUI startup', () => {
         model: 'k2',
         thinkingLevel: 'off',
         permission: 'yolo',
-        planMode: true,
-        askMode: false,
         contextTokens: 25,
         maxContextTokens: 200,
         contextUsage: 0.125,
       })),
     });
     const harness = makeHarness(session);
-    const driver = makeDriver(harness, makeStartupInput({ yolo: true, plan: true }));
+    const driver = makeDriver(harness, makeStartupInput({ yolo: true }));
 
     await expect(driver.init()).resolves.toBe(false);
 
     expect(harness.createSession).toHaveBeenCalledWith({
       workDir: '/tmp/proj-a',
       permission: 'yolo',
-      planMode: true,
     });
     expect(session.setApprovalHandler).toHaveBeenCalledOnce();
     expect(session.setQuestionHandler).toHaveBeenCalledOnce();
@@ -283,8 +243,6 @@ describe('LioraTUI startup', () => {
       sessionId: 'ses-1',
       model: 'k2',
       permissionMode: 'yolo',
-      planMode: true,
-      askMode: false,
       contextTokens: 25,
       maxContextTokens: 200,
       contextUsage: 0.125,
@@ -315,8 +273,6 @@ describe('LioraTUI startup', () => {
         model: 'k2',
         thinkingLevel: 'off',
         permission,
-        planMode: false,
-        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -344,8 +300,6 @@ describe('LioraTUI startup', () => {
         model: 'k2',
         thinkingLevel: 'off',
         permission,
-        planMode: false,
-        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -365,61 +319,6 @@ describe('LioraTUI startup', () => {
     expect(driver.state.appState.permissionMode).toBe('yolo');
   });
 
-  it('applies --plan mode when resuming a session via --continue', async () => {
-    let planMode = false;
-    const session = makeSession({
-      id: 'ses-latest',
-      getStatus: vi.fn(async () => ({
-        model: 'k2',
-        thinkingLevel: 'off',
-        permission: 'manual',
-        planMode,
-        contextTokens: 10,
-        maxContextTokens: 100,
-        contextUsage: 0.1,
-      })),
-      setPlanMode: vi.fn(async (enabled: boolean) => {
-        planMode = enabled;
-      }),
-    });
-    const harness = makeHarness(session, {
-      listSessions: vi.fn(async () => [{ id: 'ses-latest' }]),
-    });
-    const driver = makeDriver(harness, makeStartupInput({ continue: true, plan: true }));
-
-    await expect(driver.init()).resolves.toBe(true);
-
-    expect(session.setPlanMode).toHaveBeenCalledWith(true);
-    expect(driver.state.appState.planMode).toBe(true);
-  });
-
-  it('skips setPlanMode when the resumed session is already in plan mode', async () => {
-    const session = makeSession({
-      id: 'ses-latest',
-      getStatus: vi.fn(async () => ({
-        model: 'k2',
-        thinkingLevel: 'off',
-        permission: 'manual',
-        planMode: true,
-        askMode: false,
-        contextTokens: 10,
-        maxContextTokens: 100,
-        contextUsage: 0.1,
-      })),
-      setPlanMode: vi.fn(async () => {
-        throw new Error('Already in plan mode');
-      }),
-    });
-    const harness = makeHarness(session, {
-      listSessions: vi.fn(async () => [{ id: 'ses-latest' }]),
-    });
-    const driver = makeDriver(harness, makeStartupInput({ continue: true, plan: true }));
-
-    await expect(driver.init()).resolves.toBe(true);
-
-    expect(session.setPlanMode).not.toHaveBeenCalled();
-    expect(driver.state.appState.planMode).toBe(true);
-  });
 
   it('forces footer state to reflect --auto even if getStatus lags behind', async () => {
     const session = makeSession({
@@ -428,8 +327,6 @@ describe('LioraTUI startup', () => {
         model: 'k2',
         thinkingLevel: 'off',
         permission: 'manual',
-        planMode: false,
-        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -447,36 +344,11 @@ describe('LioraTUI startup', () => {
     expect(driver.state.appState.permissionMode).toBe('auto');
   });
 
-  it('forces footer state to reflect --plan even if getStatus lags behind', async () => {
-    const session = makeSession({
-      id: 'ses-latest',
-      getStatus: vi.fn(async () => ({
-        model: 'k2',
-        thinkingLevel: 'off',
-        permission: 'manual',
-        planMode: false,
-        askMode: false,
-        contextTokens: 10,
-        maxContextTokens: 100,
-        contextUsage: 0.1,
-      })),
-      setPlanMode: vi.fn(async () => {}),
-    });
-    const harness = makeHarness(session, {
-      listSessions: vi.fn(async () => [{ id: 'ses-latest' }]),
-    });
-    const driver = makeDriver(harness, makeStartupInput({ continue: true, plan: true }));
-
-    await expect(driver.init()).resolves.toBe(true);
-
-    expect(session.setPlanMode).toHaveBeenCalledWith(true);
-    expect(driver.state.appState.planMode).toBe(true);
-  });
 
   it('keeps --auto in the footer after session replay hydration', async () => {
     const session = makeSession({
       id: 'ses-latest',
-      getResumeState: vi.fn(() => createResumeState({ permissionMode: 'manual', planMode: false })),
+      getResumeState: vi.fn(() => createResumeState({ permissionMode: 'manual' })),
     });
     const harness = makeHarness(session, {
       listSessions: vi.fn(async () => [{ id: 'ses-latest' }]),
@@ -493,25 +365,6 @@ describe('LioraTUI startup', () => {
     expect(driver.state.appState.permissionMode).toBe('auto');
   });
 
-  it('keeps --plan in the footer after session replay hydration', async () => {
-    const session = makeSession({
-      id: 'ses-latest',
-      getResumeState: vi.fn(() => createResumeState({ permissionMode: 'manual', planMode: false })),
-    });
-    const harness = makeHarness(session, {
-      listSessions: vi.fn(async () => [{ id: 'ses-latest' }]),
-    });
-    const driver = makeDriver(harness, makeStartupInput({ continue: true, plan: true }));
-
-    await expect(driver.init()).resolves.toBe(true);
-    await (
-      driver as unknown as {
-        finishStartup(shouldReplayHistory: boolean): Promise<void>;
-      }
-    ).finishStartup(true);
-
-    expect(driver.state.appState.planMode).toBe(true);
-  });
 
   it('applies --auto permission when resuming an explicit session', async () => {
     let permission = 'manual';
@@ -521,8 +374,6 @@ describe('LioraTUI startup', () => {
         model: 'k2',
         thinkingLevel: 'off',
         permission,
-        planMode: false,
-        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -542,54 +393,19 @@ describe('LioraTUI startup', () => {
     expect(driver.state.appState.permissionMode).toBe('auto');
   });
 
-  it('syncs a persisted goal when resuming a session', async () => {
-    const goal = goalSnapshot({ status: 'blocked', terminalReason: 'needs input' });
-    const session = makeSession({
-      id: 'ses-latest',
-      getGoal: vi.fn(async () => ({ goal })),
-    });
-    const harness = makeHarness(session, {
-      listSessions: vi.fn(async () => [{ id: 'ses-latest' }]),
-      getExperimentalFeatures: vi.fn(async () => [{ id: 'async_compaction', enabled: true }]),
-    });
-    const driver = makeDriver(harness, makeStartupInput({ continue: true }));
 
-    await expect(driver.init()).resolves.toBe(true);
-
-    expect(session.getGoal).toHaveBeenCalledOnce();
-    expect(driver.state.appState.goal).toEqual(goal);
-  });
-
-  it('syncs goal state regardless of the goal flag', async () => {
-    const goal = goalSnapshot();
-    const session = makeSession({
-      getGoal: vi.fn(async () => ({ goal })),
-    });
+  it('clears operator interaction hooks and closes the outgoing session', async () => {
+    const session = makeSession();
     const harness = makeHarness(session);
-    const driver = makeDriver(harness, makeStartupInput());
-
-    await expect(driver.init()).resolves.toBe(false);
-
-    expect(session.getGoal).toHaveBeenCalledOnce();
-    expect(driver.state.appState.goal).toEqual(goal);
-  });
-
-  it('clears goal state when closing the current session', async () => {
-    const goal = goalSnapshot();
-    const session = makeSession({
-      getGoal: vi.fn(async () => ({ goal })),
-    });
-    const harness = makeHarness(session, {
-      getExperimentalFeatures: vi.fn(async () => [{ id: 'async_compaction', enabled: true }]),
-    });
     const driver = makeDriver(harness, makeStartupInput()) as unknown as RuntimeStateDriver;
 
     await expect(driver.init()).resolves.toBe(false);
-    expect(driver.state.appState.goal).toEqual(goal);
+    await driver.closeSession('shutting down');
 
-    await driver.closeSession('test close');
-
-    expect(driver.state.appState.goal).toBeNull();
+    expect(session.setApprovalHandler).toHaveBeenLastCalledWith(undefined);
+    expect(session.setQuestionHandler).toHaveBeenLastCalledWith(undefined);
+    expect(session.close).toHaveBeenCalledOnce();
+    expect(harness.setTelemetryContext).toHaveBeenLastCalledWith({ sessionId: null });
   });
 
   it('skips worktree GC on interactive shutdown close', async () => {
@@ -627,7 +443,6 @@ describe('LioraTUI startup', () => {
       workDir: '/tmp/proj-a',
       model: 'kimi-code/k2.5',
       permission: 'yolo',
-      planMode: false,
     });
   });
 
@@ -641,8 +456,6 @@ describe('LioraTUI startup', () => {
         model,
         thinkingLevel: 'off',
         permission: 'manual',
-        planMode: false,
-        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -681,8 +494,6 @@ describe('LioraTUI startup', () => {
         model: 'k2',
         thinkingLevel: 'off',
         permission,
-        planMode: false,
-        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -715,46 +526,6 @@ describe('LioraTUI startup', () => {
     expect(driver.state.appState.permissionMode).toBe('auto');
   });
 
-  it('skips setPlanMode after picking a session already in plan mode', async () => {
-    const session = makeSession({
-      id: 'ses-picked',
-      getStatus: vi.fn(async () => ({
-        model: 'k2',
-        thinkingLevel: 'off',
-        permission: 'manual',
-        planMode: true,
-        askMode: false,
-        contextTokens: 10,
-        maxContextTokens: 100,
-        contextUsage: 0.1,
-      })),
-      setPlanMode: vi.fn(async () => {
-        throw new Error('Already in plan mode');
-      }),
-    });
-    const harness = makeHarness(session, {
-      listSessions: vi.fn(async () => [
-        {
-          id: 'ses-picked',
-          title: 'Picked session',
-          workDir: '/tmp/proj-a',
-          updatedAt: Date.now(),
-        },
-      ]),
-    });
-    const driver = makeDriver(harness, makeStartupInput({ session: '', plan: true }));
-
-    await (driver as unknown as { initMainTui(): Promise<boolean> }).initMainTui();
-    expect(driver.state.startupState).toBe('picker');
-    await (driver as unknown as { bootstrapFromPicker(): Promise<void> }).bootstrapFromPicker();
-
-    const picker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
-    picker.handleInput('\r');
-    await new Promise((resolve) => setImmediate(resolve));
-
-    expect(session.setPlanMode).not.toHaveBeenCalled();
-    expect(driver.state.appState.planMode).toBe(true);
-  });
 
   it('toggles the sessions picker from current cwd to all sessions with Ctrl+A', async () => {
     const currentWorkDirSession = {
@@ -1026,9 +797,6 @@ describe('LioraTUI startup', () => {
     const picked = makeSession({
       id: 'ses-2',
       setPermission: vi.fn(async () => {}),
-      setPlanMode: vi.fn(async () => {
-        throw new Error('Already in plan mode');
-      }),
     });
     const harness = makeHarness(initial, {
       resumeSession: vi.fn(async () => picked),
@@ -1041,7 +809,7 @@ describe('LioraTUI startup', () => {
         },
       ]),
     });
-    const driver = makeDriver(harness, makeStartupInput({ auto: true, plan: true }));
+    const driver = makeDriver(harness, makeStartupInput({ auto: true }));
     await expect(driver.init()).resolves.toBe(false);
 
     (driver as unknown as { ensureNativeInputRouter(): void }).ensureNativeInputRouter();
@@ -1052,9 +820,7 @@ describe('LioraTUI startup', () => {
 
     expect(driver.state.appState.sessionId).toBe('ses-2');
     expect(picked.setPermission).not.toHaveBeenCalled();
-    expect(picked.setPlanMode).not.toHaveBeenCalled();
     expect(driver.state.appState.permissionMode).toBe('manual');
-    expect(driver.state.appState.planMode).toBe(false);
   });
 
   it('clears startup picker exit confirmation before resuming a selected session', async () => {
@@ -1186,14 +952,12 @@ describe('LioraTUI startup', () => {
     });
   });
 
-  it('preserves fresh startup yolo and plan intent after OAuth login', async () => {
+  it('preserves fresh startup yolo permission after OAuth login', async () => {
     const session = makeSession({
       getStatus: vi.fn(async () => ({
         model: 'k2',
         thinkingLevel: 'off',
         permission: 'yolo',
-        planMode: true,
-        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -1213,7 +977,7 @@ describe('LioraTUI startup', () => {
       })),
       createSession,
     });
-    const driver = makeDriver(harness, makeStartupInput({ yolo: true, plan: true }));
+    const driver = makeDriver(harness, makeStartupInput({ yolo: true }));
 
     await expect(driver.init()).resolves.toBe(false);
 
@@ -1221,8 +985,6 @@ describe('LioraTUI startup', () => {
       sessionId: '',
       model: '',
       permissionMode: 'yolo',
-      planMode: true,
-      askMode: false,
     });
 
     vi.mocked(promptProviderCatalog).mockResolvedValue({ kind: 'oauth', providerId: 'managed:kimi-api' });
@@ -1231,21 +993,17 @@ describe('LioraTUI startup', () => {
     expect(createSession).toHaveBeenNthCalledWith(1, {
       workDir: '/tmp/proj-a',
       permission: 'yolo',
-      planMode: true,
     });
     expect(createSession).toHaveBeenNthCalledWith(2, {
       workDir: '/tmp/proj-a',
       model: 'k2',
       thinking: 'off',
       permission: 'yolo',
-      planMode: true,
     });
     expect(driver.state.appState).toMatchObject({
       sessionId: 'ses-1',
       model: 'k2',
       permissionMode: 'yolo',
-      planMode: true,
-      askMode: false,
     });
   });
 
@@ -1255,8 +1013,6 @@ describe('LioraTUI startup', () => {
         model: 'k2',
         thinkingLevel: 'off',
         permission: 'auto',
-        planMode: false,
-        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -1287,7 +1043,6 @@ describe('LioraTUI startup', () => {
       model: 'k2',
       thinking: 'off',
       permission: 'yolo',
-      planMode: false,
     });
     expect(driver.state.appState).toMatchObject({
       permissionMode: 'auto',
@@ -1613,7 +1368,6 @@ describe('LioraTUI startup', () => {
   it('attaches the visible native renderer when the native renderer flag is enabled', async () => {
     const session = makeSession({ id: 'ses-target' });
     const harness = makeHarness(session, {
-      getExperimentalFeatures: vi.fn(async () => [{ id: 'native_renderer', enabled: true }]),
       listSessions: vi.fn(async () => [{ id: 'ses-target', workDir: '/tmp/proj-a' }]),
     });
     const driver = makeDriver(
@@ -1659,7 +1413,7 @@ describe('LioraTUI startup', () => {
     });
 
     // The banner is rendered directly below the welcome panel so it appears
-    // above later status messages such as MCP server connection summaries.
+    // above later session status messages.
     const welcomeIndex = driver.state.transcriptContainer.children.findIndex(
       (child) => child instanceof WelcomeComponent,
     );
@@ -1794,7 +1548,7 @@ describe('LioraTUI startup', () => {
     expect(driver.state.appState.sessionId).toBe('ses-target');
   });
 
-  it('keeps the ambient animation ticker running after transcript messages and a plan mode toggle', async () => {
+  it('keeps the ambient animation ticker running after transcript messages and a permission change', async () => {
     vi.useFakeTimers();
     const originalEnv = { ...process.env };
     const stdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
@@ -1838,7 +1592,7 @@ describe('LioraTUI startup', () => {
       expect(requestRender).toHaveBeenCalled();
 
       const callsBeforeToggle = requestRender.mock.calls.length;
-      tui.handlePlanToggle(true);
+      tui.setAppState({ permissionMode: 'auto' });
       vi.advanceTimersByTime(1_000);
       expect(requestRender.mock.calls.length).toBeGreaterThan(callsBeforeToggle);
     } finally {

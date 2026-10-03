@@ -85,7 +85,7 @@ describe('e2e: concurrent operations', () => {
       const count = 5;
       const promises = Array.from(
         { length: count },
-        async (_, i): Promise<{ index: number; exitCode: number; stdout: string }> => {
+        async (_, i): Promise<{ index: number; exitCode: number | null; stdout: string }> => {
           const code = `process.stdout.write('proc-${i}');`;
           const proc = await kaos.exec('node', '-e', code);
           const exitCode = await proc.wait();

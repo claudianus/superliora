@@ -1,22 +1,18 @@
-import type { Session } from '@superliora/sdk';
+import type { PromptPart, Session } from '@superliora/sdk';
 
 import type { AppState, LivePaneState } from '../../types';
-import { formatErrorMessage } from '../../utils/event-payload';
 import type { MessageDispatchController } from '../transcript/message-dispatch';
-import type { SessionEventHandler } from '../session-event/handler';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by session request / queue orchestration. */
 export interface SessionRequestsHost {
   readonly streamingUI: StreamingUIController;
   readonly messageDispatch: MessageDispatchController;
-  readonly sessionEventHandler: SessionEventHandler;
 
   setAppState(patch: Partial<AppState>): void;
   patchLivePane(patch: Partial<LivePaneState>): void;
   resetLivePane(): void;
   showError(msg: string): void;
-  sendQueuedMessage(session: Session, item: import('../../types').QueuedMessage): void;
 }
 
 /**
@@ -51,29 +47,14 @@ export class SessionRequestsController {
     host.showError(message);
   }
 
-  requestQueuedGoalPromotion(): void {
-    this.host.sessionEventHandler.requestQueuedGoalPromotion();
-  }
-
-  sendSkillActivation(session: Session, skillName: string, skillArgs: string): void {
-    this.host.messageDispatch.sendSkillActivation(session, skillName, skillArgs);
-  }
-
-  activatePluginCommand(
+  steerMessage(
     session: Session,
-    pluginId: string,
-    commandName: string,
-    args: string,
+    input: string[],
+    options?: {
+      readonly parts?: readonly PromptPart[];
+      readonly imageAttachmentIds?: readonly number[];
+    },
   ): void {
-    const { host } = this;
-    this.beginSessionRequest();
-    void session.activatePluginCommand(pluginId, commandName, args).catch((error: unknown) => {
-      const message = formatErrorMessage(error);
-      this.failSessionRequest(`Command "${pluginId}:${commandName}" failed: ${message}`);
-    });
-  }
-
-  steerMessage(session: Session, input: string[]): void {
-    this.host.messageDispatch.steerMessage(session, input);
+    this.host.messageDispatch.steerMessage(session, input, options);
   }
 }

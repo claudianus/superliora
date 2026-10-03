@@ -4,7 +4,7 @@ import { log, type LioraHarness, type Session } from '@superliora/sdk';
 import { buildSessionConfigOptions } from '#/config-options';
 import { configOptionUpdateNotification } from '#/convert/events-map';
 import { listModelsFromHarness } from '#/model-catalog';
-import { acpModeToToggles, type AcpModeId } from '#/modes';
+import { type AcpModeId } from '#/modes';
 import { THINKING_ON_LEVEL, THINKING_OFF_LEVEL } from './session-constants';
 
 /**
@@ -17,49 +17,13 @@ import { THINKING_ON_LEVEL, THINKING_OFF_LEVEL } from './session-constants';
  * the functions here pure with respect to `AcpSession`'s internals.
  */
 
-/**
- * Forward an ACP `session/set_model` (`unstable_setSessionModel`)
- * request to the underlying SDK session.
- *
- * ACP allows model identifiers like `"kimi-k2,thinking"` where the
- * `,thinking` suffix signals "always-thinking" mode (mirrors the
- * Python ref's `_ModelIDConv.from_acp_model_id` at
- * `kimi-cli/src/kimi_cli/acp/server.py:425-433`). Phase 15 decoupled
- * thinking from the model id at the ACP surface — it's now its own
- * `thought_level` config option (Phase 16 wire form: 2-entry `select`
- * `off` / `on`) — but this legacy compat path is
- * kept: when the caller sends a merged form, we split it into the
- * bare model key (forwarded to `Session.setModel`) plus a thinking
- * flag (forwarded to `Session.setThinking`).
- *
- * Wire semantics:
- *  - `'kimi-v2'`           → setModel('kimi-v2'); thinking state unchanged.
- *  - `'kimi-v2,thinking'`  → setModel('kimi-v2') + setThinking('high');
- *    thinking state flips on.
- *
- * Note the asymmetry: a bare model id does NOT turn thinking OFF.
- * That keeps the model / thinking axes orthogonal — model changes
- * preserve thinking state. To explicitly disable thinking, the
- * client must call `setSessionConfigOption({ configId: 'thinking',
- * value: false })` (or send `setThinking('off')` directly through
- * the SDK channel, but the ACP surface only exposes the boolean).
- *
- * Unknown model errors bubble up from the SDK as-is; the caller in
- * `AcpServer.unstable_setSessionModel` decides how to translate them.
- */
+/** Model identifiers are native configured aliases; thinking is a separate axis. */
 export async function applySetModel(
-  session: Pick<Session, 'setModel' | 'setThinking'>,
+  session: Pick<Session, 'setModel'>,
   modelId: ModelId,
-): Promise<{ readonly modelId: string; readonly thinkingEnabled?: true }> {
-  const suffix = ',thinking';
-  const hasSuffix = modelId.endsWith(suffix);
-  const baseKey = hasSuffix ? modelId.slice(0, -suffix.length) : modelId;
-  await session.setModel(baseKey);
-  if (hasSuffix && typeof session.setThinking === 'function') {
-    await session.setThinking(THINKING_ON_LEVEL);
-    return { modelId: baseKey, thinkingEnabled: true };
-  }
-  return { modelId: baseKey };
+): Promise<{ readonly modelId: string }> {
+  await session.setModel(modelId);
+  return { modelId };
 }
 
 /**
@@ -91,11 +55,6 @@ export async function isCurrentModelAlwaysThinking(
  * returned state stays `true` so the caller re-emits a snapshot that
  * snaps a stale client toggle back to on.
  *
- * Tolerant to partial-stub `Session` instances (adapter-level unit
- * tests construct minimal fakes that may omit `setThinking`): when
- * the method is missing the returned state still reflects the
- * requested value, so the ACP wire stays consistent — the test simply
- * doesn't observe an SDK call.
  */
 export async function applySetThinking(
   session: Pick<Session, 'setThinking'>,
@@ -106,38 +65,16 @@ export async function applySetThinking(
   if (!enabled && (await isCurrentModelAlwaysThinking(harness, currentModelId))) {
     return { thinkingEnabled: true };
   }
-  if (typeof session.setThinking === 'function') {
-    await session.setThinking(enabled ? THINKING_ON_LEVEL : THINKING_OFF_LEVEL);
-  }
+  await session.setThinking(enabled ? THINKING_ON_LEVEL : THINKING_OFF_LEVEL);
   return { thinkingEnabled: enabled };
 }
 
-/**
- * Forward an ACP `session/set_mode` request to the underlying SDK
- * session.
- *
- * Phase 12.2 supports the full 4-mode taxonomy (PLAN D9 at
- * `PLAN.md:85-106`):
- *
- *  - `'default'` → `setPlanMode(false)` + `setPermission('yolo')`
- *  - `'plan'`    → `setPlanMode(true)`  + `setPermission('manual')`
- *  - `'auto'`    → `setPlanMode(false)` + `setPermission('auto')`
- *  - `'yolo'`    → `setPlanMode(false)` + `setPermission('yolo')`
- *
- * Order is `setPlanMode` → `setPermission`. The dispatch table lives
- * in {@link acpModeToToggles} so the registry of modes and the
- * toggles each mode maps to stay co-located.
- *
- * No idempotency optimisation (PLAN D9 line 105): even if the client
- * re-asserts the current mode, both SDK calls fire.
- */
+/** Apply the native permission policy selected by the editor. */
 export async function applySetMode(
-  session: Pick<Session, 'setPlanMode' | 'setPermission'>,
+  session: Pick<Session, 'setPermission'>,
   modeId: AcpModeId,
 ): Promise<void> {
-  const { plan, permission } = acpModeToToggles(modeId);
-  await session.setPlanMode(plan);
-  await session.setPermission(permission);
+  await session.setPermission(modeId);
 }
 
 /** Snapshot of adapter-side state needed to build a `config_option_update` push. */

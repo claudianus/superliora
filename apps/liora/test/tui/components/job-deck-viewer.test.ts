@@ -78,7 +78,7 @@ describe('JobDeckViewerComponent', () => {
       card('job_a1b2c3d4', 'migrate the billing service', 'running', {
         workerAgentId: 'agent_worker01',
         createdAtMs: Date.now() - 90_000,
-        progress: { phase: 'running tests', recentTools: ['Bash', 'Read'] },
+        progress: { phase: 'running tests', recentTools: ['Bash', 'SessionControl'] },
       }),
       card('job_b2c3d4e5', 'answer needed for rollout', 'needs_user', { priority: 3 }),
     ]);
@@ -97,6 +97,25 @@ describe('JobDeckViewerComponent', () => {
     expect(joined).toContain('migrate the billing');
     expect(joined).toContain('running tests');
     expect(joined).toContain('worker01');
+  });
+
+  it('shows recorded completion without claiming verification passed', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const snap = snapshotOf([
+      card('job_done1234', 'finish the shell task', 'done'),
+      card('job_wait1234', 'pending operator task', 'queued'),
+    ]);
+    const viewer = new JobDeckViewerComponent({
+      getSnapshot: () => snap,
+      loadWorker: async () => ({ lines: [] }),
+      onAction: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    const joined = viewer.render(120).map(stripAnsi).join('\n');
+    expect(joined).toContain('finish the shell task');
+    expect(joined).toContain('끝남');
+    expect(joined).not.toMatch(/verified|verification passed|검증 통과/i);
   });
 
   it('keeps a single PREMIUM hint line and primary Search: label', () => {
@@ -207,17 +226,22 @@ describe('JobDeckViewerComponent', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
-  it('renders an empty-state coach when the ledger has no jobs', () => {
+  it('keeps an empty ledger navigable without opening a nonexistent job', () => {
+    const onAction = vi.fn();
+    const onCancel = vi.fn();
+    const loadWorker = vi.fn(async () => ({ lines: [] }));
     const viewer = new JobDeckViewerComponent({
       getSnapshot: () => snapshotOf([]),
-      loadWorker: async () => ({ lines: [] }),
-      onAction: vi.fn(),
-      onCancel: vi.fn(),
+      loadWorker,
+      onAction,
+      onCancel,
     });
-    const joined = viewer.render(100).map(stripAnsi).join('\n');
-    expect(joined).toContain('No jobs yet');
-    expect(joined).toContain('Type a task in chat');
-    expect(joined).toContain('Alt+J');
+    expect(viewer.render(100).length).toBeGreaterThan(0);
+    viewer.handleInput('\r');
+    expect(onAction).not.toHaveBeenCalled();
+    expect(loadWorker).not.toHaveBeenCalled();
+    viewer.handleInput('\u001B');
+    expect(onCancel).toHaveBeenCalledOnce();
   });
 
   it('keeps a full transcript buffer with top, tail, and Home/End navigation', async () => {

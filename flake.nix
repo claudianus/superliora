@@ -75,7 +75,6 @@
         ./packages/telemetry
         ./packages/tui-renderer
         ./apps/liora
-        ./apps/research-bridge-extension
         ./apps/site
       ];
 
@@ -93,7 +92,6 @@
         "@superliora/telemetry"
         "@harness-kit/tui-renderer"
         "@superliora/liora"
-        "@superliora/research-bridge-extension"
         "@superliora/site"
       ];
     in

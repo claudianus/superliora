@@ -6,7 +6,7 @@
  * The legacy snapshot path called `ISessionService.get(sid)` + `IMessageService.list(sid, ...)`,
  * both of which funnel through `core.rpc.listSessions({})` (`SessionStore.listAll` —
  * O(N) over every session directory on disk) and `resumeSession` (heavy: replays
- * the wire log into agent-core memory, plugins, MCP, runtime). For the snapshot
+ * the wire log into the native agent runtime). For the snapshot
  * READ path none of that is needed: we just want the session metadata + the
  * message transcript + the live in-flight turn + pending approvals/questions.
  *
@@ -135,6 +135,8 @@ export class SnapshotService extends Disposable implements ISnapshotService {
     const sessionMeta = await this._tryReadStateMeta(locator.sessionDir);
     const session = toProtocolSession(locator.summary, sessionMeta);
     session.status = this._computeStatus(sid);
+    session.message_count = items.length;
+    session.last_seq = snapState.seq;
 
     const inFlightTurn = this._attachPromptIdToInFlight(sid, snapState.inFlightTurn);
 

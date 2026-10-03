@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { ProviderCatalogPickerComponent } from '#/tui/components/dialogs/picker/provider-catalog-picker';
 import { darkColors } from '#/tui/theme/colors';
-import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import {
   buildProviderCatalogOptions,
   resolveProviderSelection,
@@ -95,27 +94,6 @@ describe('buildProviderCatalogOptions', () => {
     expect(order('preset:ollama')).toBeGreaterThan(order('catalog:openai'));
   });
 
-  it('hides the Anthropic OAuth option when the experimental flag is off', () => {
-    const options = buildProviderCatalogOptions(makeCatalog());
-    const values = options.map((o) => o.value);
-    // Anthropic OAuth is gated behind SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH.
-    expect(values).not.toContain('oauth:anthropic-oauth');
-    // But the catalog API-key option for Anthropic is still present.
-    expect(values).toContain('catalog:anthropic');
-  });
-
-  it('hides GitHub Copilot unless the experimental flag is on', () => {
-    setExperimentalFeatures([]);
-    const hidden = buildProviderCatalogOptions(makeCatalog()).map((o) => o.value);
-    expect(hidden).not.toContain('oauth:github-copilot');
-    expect(hidden).not.toContain('catalog:github-copilot');
-
-    setExperimentalFeatures([{ id: 'github_copilot', enabled: true }]);
-    const shown = buildProviderCatalogOptions(makeCatalog()).map((o) => o.value);
-    expect(shown).toContain('oauth:github-copilot');
-    expect(shown).not.toContain('catalog:github-copilot');
-    setExperimentalFeatures([]);
-  });
 
   it('filters out providers with an unsupported wire type', () => {
     const options = buildProviderCatalogOptions(makeCatalog());

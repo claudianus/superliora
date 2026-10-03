@@ -162,30 +162,6 @@ export type {
 } from './prompt/prompt';
 export { PromptService } from './prompt/promptService';
 
-export {
-  IToolService,
-  toProtocolTool,
-  type AgentCoreToolInfoLike,
-} from './tool/tool';
-export { ToolService } from './tool/toolService';
-
-export { IMemoryService } from './memory/memory';
-export { MemoryService } from './memory/memoryService';
-
-export {
-  IMcpService,
-  McpServerNotFoundError,
-  toProtocolMcpServer,
-} from './mcp/mcp';
-export { McpService } from './mcp/mcpService';
-
-export {
-  ISkillService,
-  SkillNotActivatableError,
-  SkillNotFoundError,
-  toProtocolSkill,
-} from './skill/skill';
-export { SkillService } from './skill/skillService';
 
 export {
   ITaskService,

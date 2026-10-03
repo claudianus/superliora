@@ -28,15 +28,12 @@ function fakeInitialAppState(): AppState {
     additionalDirs: [],
     sessionId: 'sess-1',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     inputMode: 'prompt',
     thinking: true,
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
@@ -48,7 +45,6 @@ function fakeInitialAppState(): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
-    mcpServersSummary: null,
   };
 }
 
@@ -134,7 +130,7 @@ describe('model selector native frame ANSI safety', () => {
     const height = 40;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -175,7 +171,7 @@ describe('model selector native frame ANSI safety', () => {
     const height = 40;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });

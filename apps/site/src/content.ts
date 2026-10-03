@@ -17,7 +17,7 @@ export type LandingSectionId = (typeof LANDING_SECTION_IDS)[number];
 export const USAGE_COMMANDS = [
   { id: 'liora', cmd: 'liora' },
   { id: 'continue', cmd: 'liora --continue' },
-  { id: 'plan', cmd: 'liora --plan' },
+  { id: 'prompt', cmd: 'liora -p "Fix the webhook handler"' },
   { id: 'login', cmd: '/login' },
   { id: 'model', cmd: '/model' },
 ] as const;

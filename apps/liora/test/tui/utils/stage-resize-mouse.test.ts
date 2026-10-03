@@ -27,15 +27,12 @@ function fakeInitialAppState(): AppState {
     additionalDirs: [],
     sessionId: 'sess-1',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     inputMode: 'prompt',
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
@@ -47,7 +44,6 @@ function fakeInitialAppState(): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
-    mcpServersSummary: null,
   };
 }
 
@@ -67,7 +63,7 @@ function createState(options?: {
   const band = options?.band ?? BAND;
   const state = createTUIState({
     initialAppState: fakeInitialAppState(),
-    startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    startup: { continueLast: false, yolo: false, auto: false },
   });
   Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => rows });
   Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => columns });

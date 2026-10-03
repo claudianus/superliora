@@ -5,7 +5,6 @@
 import { ChoicePickerComponent, type ChoiceOption } from '../../components/dialogs/picker/choice-picker';
 import { shortJobId } from '../../components/job-board/job-board-helpers';
 import type { SlashCommandHost } from '../../commands/hub/dispatch';
-import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
 import { ttui } from '../../utils/tui-i18n';
 import {
   dismissPickerDialog,
@@ -19,10 +18,6 @@ export async function openLandChoicePicker(
 ): Promise<void> {
   if (host.session === undefined) {
     host.showError(ttui('tui.jobs.deckNoSession'));
-    return;
-  }
-  if (!isConductorUxV2Enabled()) {
-    host.showStatus(ttui('tui.jobs.drawerNeedsUx'), 'warning');
     return;
   }
   const options: ChoiceOption[] = [

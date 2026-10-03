@@ -72,12 +72,6 @@ export async function installPrebuilt(options) {
 
   await installBinaryAtomically(extractedBinary, destPath);
 
-  // Personas beside binary (SEA hydrate).
-  const personasSrc = join(extractDir, 'catalog-personas.json');
-  if (existsSync(personasSrc)) {
-    await copyFile(personasSrc, join(binDir, 'catalog-personas.json'));
-  }
-
   // Windows also write .cmd shim pointing at exe for PATH friends.
   if (process.platform === 'win32') {
     const cmdPath = join(binDir, commandFileName(commandName, 'win32'));

@@ -6,16 +6,11 @@ import type {
   JsonValue,
   SessionTrace,
   SessionTraceEvent,
-  VerificationArtifact,
 } from '../rpc/core-api';
 
 const INTERNAL_ORIGINS = new Set<PromptOrigin['kind']>([
-  'injection',
   'system_trigger',
   'compaction_summary',
-  'hook_result',
-  'cron_job',
-  'cron_missed',
 ]);
 
 const SECRET_KEY_RE = /(api[_-]?key|authorization|bearer|credential|password|secret|token)/i;
@@ -47,7 +42,6 @@ interface RedactionState {
 export function buildSessionTrace(input: BuildSessionTraceInput): SessionTrace {
   const redactions: RedactionState = { count: 0 };
   const events: SessionTraceEvent[] = [];
-  const verificationArtifacts: VerificationArtifact[] = [];
   const payloadRecords = input.records.filter((record) => record.type !== 'metadata');
   const source = payloadRecords.length > 0 ? 'records' : 'context_fallback';
 
@@ -102,7 +96,6 @@ export function buildSessionTrace(input: BuildSessionTraceInput): SessionTrace {
           : [],
     },
     events,
-    verificationArtifacts,
   };
 }
 
@@ -142,14 +135,6 @@ function traceEventFromRecord(
     case 'context.apply_compaction':
     case 'context.undo':
       return event(id, index, record, record.type, contextTitle(record.type), undefined, record, redactions);
-    case 'plan_mode.enter':
-    case 'plan_mode.exit':
-    case 'plan_mode.cancel':
-      return event(id, index, record, record.type, planTitle(record.type), undefined, record, redactions);
-    case 'goal.create':
-    case 'goal.update':
-    case 'goal.clear':
-      return event(id, index, record, record.type, goalTitle(record.type), goalSummary(record), record, redactions);
     case 'permission.set_mode':
     case 'permission.record_approval_result':
       return event(id, index, record, record.type, permissionTitle(record.type), undefined, record, redactions);
@@ -166,15 +151,11 @@ function traceEventFromRecord(
         record.event,
         redactions,
       );
-    case 'tools.register_user_tool':
-    case 'tools.unregister_user_tool':
-    case 'tools.set_active_tools':
-    case 'tools.update_store':
     case 'config.update':
     case 'full_compaction.begin':
     case 'full_compaction.cancel':
     case 'full_compaction.complete':
-    case 'micro_compaction.apply':
+    case 'job.ledger':
     case 'forked':
       return event(id, index, record, record.type, record.type, undefined, record, redactions);
     case 'metadata':
@@ -314,23 +295,6 @@ function contextTitle(type: string): string {
   return 'Context undo applied';
 }
 
-function planTitle(type: string): string {
-  if (type === 'plan_mode.enter') return 'Plan mode entered';
-  if (type === 'plan_mode.exit') return 'Plan mode exited';
-  return 'Plan mode cancelled';
-}
-
-function goalTitle(type: string): string {
-  if (type === 'goal.create') return 'Goal created';
-  if (type === 'goal.update') return 'Goal updated';
-  return 'Goal cleared';
-}
-
-function goalSummary(record: AgentRecord): string | undefined {
-  if (record.type === 'goal.create') return record.objective;
-  if (record.type === 'goal.update') return record.reason ?? record.status;
-  return undefined;
-}
 
 function permissionTitle(type: string): string {
   return type === 'permission.set_mode' ? 'Permission mode changed' : 'Approval result recorded';
@@ -341,22 +305,9 @@ function subagentTitle(type: string): string {
   if (type === 'subagent.started') return 'Subagent started';
   if (type === 'subagent.completed') return 'Subagent completed';
   if (type === 'subagent.failed') return 'Subagent failed';
-  if (type === 'subagent.suspended') return 'Subagent suspended';
   return type;
 }
 
-function evidenceIdsFrom(data: JsonObject): readonly string[] | undefined {
-  const evidence = data['evidence'];
-  if (evidence !== null && typeof evidence === 'object' && !Array.isArray(evidence)) {
-    const id = stringFrom((evidence as JsonObject)['id']);
-    if (id !== undefined) return [id];
-  }
-  const ids = data['evidenceIds'];
-  if (Array.isArray(ids)) {
-    return ids.filter((id): id is string => typeof id === 'string');
-  }
-  return undefined;
-}
 
 function asJsonObject(value: unknown, redactions: RedactionState): JsonObject {
   const json = toJsonValue(value, redactions, 0);
@@ -411,9 +362,6 @@ function jsonObjectUnchecked(value: unknown): JsonObject {
   return JSON.parse(JSON.stringify(value)) as JsonObject;
 }
 
-function stringFrom(value: JsonValue | undefined): string | undefined {
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
 
 function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max)}...`;

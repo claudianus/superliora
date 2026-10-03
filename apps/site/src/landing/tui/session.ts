@@ -32,133 +32,70 @@ export type Step =
 export function buildSession(locale: Locale): Step[] {
   const koLang = locale === "ko";
   const user = koLang
-    ? "웹훅 재시도 폭풍 잡고, 실패 경로 테스트 추가해줘"
-    : "Fix the webhook retry storm and add a test for the failing path";
+    ? "웹훅 재시도 간격에 상한을 넣어줘"
+    : "Cap the webhook retry backoff";
   const reply = koLang
-    ? "implement Job 하나로 갑니다. 소유 경로는 src/webhooks — 덱은 Alt+J예요."
-    : "Going with one implement job. Ownership is src/webhooks — deck is Alt+J.";
-  const inboxMsg = koLang
-    ? "인박스 +1 — Stripe 샌드박스 키 없음 · 목으로 두고 진행 (답변은 Alt+I)"
-    : "inbox +1 — no Stripe sandbox key · proceeding with a mock (answer at Alt+I)";
+    ? "현재 워크스페이스에서 파일을 확인하고 수정하겠습니다."
+    : "I'll inspect and edit the file in the current workspace.";
 
   return [
     { k: "chips", patch: { model: "opencode-go/kimi-k3", quota: 82, inbox: 0, latency: "—", branch: "main*" } },
     { k: "type", text: user },
     { k: "enter" },
     { k: "pause", ms: 620 },
-    {
-      k: "line",
-      spans: [
-        ["◆ ", "primary"],
-        [reply, "ink"],
-      ],
-    },
+    { k: "line", spans: [["◆ ", "primary"], [reply, "ink"]] },
     { k: "pause", ms: 420 },
-    {
-      k: "line",
-      spans: [
-        ["  ACK ", "faint"],
-        ["job_1x9m4qt", "azure"],
-        [" [queued] kind=implement model=", "dim"],
-        ["opencode-go/kimi-k3", "primary"],
-        [" owns=", "dim"],
-        ["src/webhooks", "ink"],
-      ],
-    },
-    { k: "pause", ms: 780 },
     {
       k: "task",
       dur: 900,
-      spans: [
-        ["spawn worktree  ", "dim"],
-        ["~/.superliora/worktrees/liora/job_1x9m4qt", "faint"],
-      ],
+      spans: [["Bash  ", "ink"], ["pwd", "dim"]],
+    },
+    { k: "line", spans: [["  /workspace/project", "faint"]] },
+    {
+      k: "task",
+      dur: 640,
+      spans: [["Bash  ", "ink"], ["cat src/webhooks/retry.ts", "dim"]],
     },
     {
       k: "task",
       dur: 640,
-      spans: [
-        ["Read  ", "ink"],
-        ["src/webhooks/retry.ts", "dim"],
-      ],
-    },
-    {
-      k: "task",
-      dur: 640,
-      spans: [
-        ['Grep  "backoff"  ', "ink"],
-        ["· 6 hits in 3 files", "faint"],
-      ],
+      spans: [["Bash  ", "ink"], ['rg "setTimeout|backoff" src/webhooks', "dim"]],
     },
     {
       k: "task",
       dur: 980,
       spans: [
-        ["Edit  ", "ink"],
-        ["src/webhooks/retry.ts", "dim"],
-        ["   (+14 −3)", "mint"],
+        ["Bash  ", "ink"],
+        ["apply_patch <<'PATCH'\n*** Begin Patch\n*** Update File: src/webhooks/retry.ts\n@@\n-setTimeout(fire, 100 * tries);\n+setTimeout(fire, Math.min(30000, 250 * 2 ** tries));\n*** End Patch\nPATCH", "dim"],
       ],
     },
     {
-      k: "line",
-      spans: [
-        ["     + ", "mint"],
-        ["const MAX_TRIES = 5;", "w"],
-      ],
+      k: "task",
+      dur: 900,
+      spans: [["Bash  ", "ink"], ["git diff -- src/webhooks/retry.ts", "dim"]],
     },
-    {
-      k: "line",
-      spans: [
-        ["     + ", "mint"],
-        ["delay = Math.min(cap, 2 ** tries * 250 + jitter());", "w"],
-      ],
-    },
-    {
-      k: "line",
-      spans: [
-        ["     − ", "red"],
-        ["setTimeout(fire, 100 * tries); // unbounded", "faint"],
-      ],
-    },
+    { k: "line", spans: [["     − ", "red"], ["setTimeout(fire, 100 * tries);", "faint"]] },
+    { k: "line", spans: [["     + ", "mint"], ["setTimeout(fire, Math.min(30000, 250 * 2 ** tries));", "w"]] },
     { k: "pause", ms: 300 },
     {
       k: "task",
-      dur: 1300,
+      dur: 900,
       spans: [
-        ["Bash  ", "ink"],
-        ["pnpm vitest run test/webhooks", "dim"],
+        ["SessionControl  ", "ink"],
+        ['{"operation":"spawn","description":"Inspect webhook callers","prompt":"Inspect webhook callers without editing files; report any assumptions."}', "dim"],
       ],
     },
-    {
-      k: "line",
-      spans: [
-        ["        ✓ 41 passed · +1 ", "mint"],
-        ["retry-storm.spec.ts", "w"],
-        [" · 2.1s", "faint"],
-      ],
-    },
-    { k: "chips", patch: { inbox: 1 } },
-    {
-      k: "line",
-      spans: [
-        ["     ◆ ", "primary"],
-        [inboxMsg, "primary"],
-      ],
-    },
+    { k: "line", spans: [["  agentId=worker_1 · taskId=task_1 · running", "azure"]] },
     {
       k: "task",
-      dur: 1500,
-      spans: [
-        ["Bash  ", "ink"],
-        ["pnpm run gate:fast", "dim"],
-      ],
+      dur: 1300,
+      spans: [["SessionControl  ", "ink"], ['{"operation":"wait","id":"task_1","timeout":30}', "dim"]],
     },
     {
       k: "line",
       spans: [
-        ["        ✓ lint · typecheck · ", "mint"],
-        ["1,204 tests", "w"],
-        [" · 18.4s", "faint"],
+        ["  worker_1: ", "azure"],
+        [koLang ? "호출부 확인 완료. 별도 파일 수정 없음." : "Caller inspection complete. No files edited.", "dim"],
       ],
     },
     { k: "chips", patch: { latency: "214ms", quota: 81 } },
@@ -166,41 +103,15 @@ export function buildSession(locale: Locale): Step[] {
     {
       k: "line",
       spans: [
-        ["● ", "mint"],
-        ["job_1x9m4qt", "azure"],
-        [" done", "mint"],
-        [" · verify=green · sha 4f9c2a1 · 48s", "faint"],
-      ],
-    },
-    { k: "pause", ms: 700 },
-    {
-      k: "line",
-      spans: [
-        ["⏎ ", "primary"],
-        [koLang ? "Land" : "Land", "primary"],
-        [" job_1x9m4qt", "azure"],
-        [" → main", "dim"],
-      ],
-    },
-    { k: "pause", ms: 520 },
-    {
-      k: "line",
-      spans: [
-        ["  landed → main @ 4f9c2a1 · clean", "mint"],
+        ["◆ ", "primary"],
+        [koLang ? "변경 내용이 현재 워크스페이스에 있습니다. 테스트는 실행하지 않았습니다." : "Changes are in the current workspace. Tests were not run.", "ink"],
       ],
     },
     {
       k: "line",
       spans: [
-        ["  snapshot  ", "faint"],
-        ["fix(webhooks): bound retry backoff, pin sandbox stub", "ink"],
-      ],
-    },
-    {
-      k: "line",
-      spans: [
-        ["            ", "faint"],
-        ["Job-Id: job_1x9m4qt", "faint"],
+        ["  ", "faint"],
+        [koLang ? "diff를 검토한 뒤 필요한 검사와 커밋·푸시를 선택하세요." : "Review the diff, then choose the checks, commit, and push you need.", "faint"],
       ],
     },
     { k: "pause", ms: 5200 },

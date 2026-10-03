@@ -1,6 +1,5 @@
 import type {
   ExportSessionManifest,
-  ProviderExtrasStatus,
   ProviderRouteSelection,
   ProviderRouteStatus,
   ResumeSessionResult,
@@ -30,19 +29,6 @@ export type {
   ContextCompositionSegment,
   ContextMessage,
   DeleteConfigFieldPath,
-  SmartLoopProbeProgress,
-  SmartLoopRoleRoutingPlan,
-  ExperimentalFeatureState,
-  ExperimentalFlagMap,
-  ExperimentalFlagSource,
-  ExportSessionManifest,
-  GoalBudgetLimits,
-  GoalBudgetReport,
-  GoalChange,
-  GoalChangeStats,
-  GoalSnapshot,
-  GoalStatus,
-  GoalToolResult,
   ConductorProjectMode,
   JobActionResult,
   JobCreateInput,
@@ -65,64 +51,22 @@ export type {
   WorkspaceSessionRow,
   JobStatus,
   SplitJobIntent,
-  InlineCompletePayload,
-  InlineCompleteResult,
   LioraConfig,
   LioraConfigPatch,
   LoopControl,
-  MediaAnalyzerModelsConfig,
-  MediaAnalyzerFallbacksConfig,
-  MediaConfig,
-  MemoryCreateInput,
-  MemoryExportResult,
-  MemoryImportResult,
-  MemoryListRequest,
-  MemoryInspectResult,
-  MemoryRecord,
-  MemoryReflectInput,
-  MemoryReflectResult,
-  MemorySearchRequest,
-  MemorySearchResult,
-  MemoryStats,
-  MemoryUpdateInput,
-  McpServerInfo,
-  McpStartupMetrics,
   ModelAlias,
-  MoonshotServiceConfig,
   OAuthRef,
-  PersonaConfig,
-  PluginCommandDef,
-  PluginGithubMetadata,
-  PluginGithubRef,
-  PluginInfo,
-  PluginMcpServerInfo,
-  PluginSource,
-  PluginSummary,
-  PluginThemeDef,
   ProcessBackgroundTaskInfo,
   PromptOrigin,
   ProviderConfig,
-  ProviderExtrasStatus,
   ProviderRouteSelection,
   ProviderRouteStatus,
   ProviderType,
-  QuestionBackgroundTaskInfo,
-  ReloadSummary,
   ResumedAgentState,
   SessionTrace,
   SessionTraceCompleteness,
   SessionTraceEvent,
-  ServicesConfig,
   ShellEnvironment,
-  SkillSearchResult,
-  SkillSummary,
-  HookRegistrySummary,
-  SuggestPromptsResult,
-  ThinkingConfig,
-  ToolInfo,
-  VerificationArtifact,
-  WorkGraph,
-  WorkGraphNode,
   SubagentLifecycleTraceEvent,
 } from '@superliora/agent-core';
 
@@ -132,12 +76,6 @@ export type { ContentPart, Role, ToolCall } from '@superliora/kosong';
 
 export type PermissionMode = 'yolo' | 'manual' | 'auto';
 
-export interface CreateGoalInput {
-  readonly objective: string;
-  readonly replace?: boolean;
-  /** Shell command that must exit 0 before the goal may complete (autonomous gate). */
-  readonly gateCommand?: string;
-}
 
 export type TextPromptPart = Extract<ContentPart, { type: 'text' }>;
 export type PromptPart = Extract<
@@ -153,19 +91,6 @@ export interface LioraHarnessOptions {
   readonly configPath?: string | undefined;
   readonly autoLoadConfig?: boolean | undefined;
   readonly uiMode?: string;
-  readonly skillDirs?: readonly string[];
-  /** Project root for `.superliora/plugins/` merge (defaults to cwd). */
-  readonly projectDir?: string;
-  /** Ephemeral plugin directories (`--plugin-dir`); session scope. */
-  readonly pluginDirs?: readonly string[];
-  /** Opt-in Claude channel MCP server names for inbound inject. */
-  readonly channelServers?: readonly string[];
-  /**
-   * Resolve marketplace plugin id → install source for dependency auto-install.
-   */
-  readonly resolveMarketplaceSource?: (
-    pluginId: string,
-  ) => Promise<string | undefined> | string | undefined;
   readonly telemetry?: TelemetryClient | undefined;
   readonly onOAuthRefresh?: ((outcome: OAuthRefreshOutcome) => void) | undefined;
   readonly sessionStartedProperties?: TelemetryProperties;
@@ -177,17 +102,11 @@ export interface CreateSessionOptions {
   readonly model?: string | undefined;
   readonly thinking?: string | undefined;
   readonly permission?: PermissionMode | undefined;
-  readonly planMode?: boolean;
   readonly metadata?: JsonObject | undefined;
   readonly kaos?: Kaos | undefined;
   readonly persistenceKaos?: Kaos | undefined;
   readonly additionalDirs?: readonly string[];
   readonly sessionStartedProperties?: TelemetryProperties;
-  /**
-   * Print-mode (`liora -p`) only: hold the main turn open while background
-   * subagents are still running before the run exits.
-   */
-  readonly drainAgentTasksOnStop?: boolean;
 }
 
 export interface RenameSessionInput {
@@ -203,9 +122,7 @@ export interface ResumeSessionInput {
   readonly sessionStartedProperties?: TelemetryProperties;
 }
 
-export interface ReloadSessionInput extends ResumeSessionInput {
-  readonly forcePluginSessionStartReminder?: boolean;
-}
+export type ReloadSessionInput = ResumeSessionInput;
 
 export interface AddAdditionalDirInput {
   readonly id: string;
@@ -260,22 +177,6 @@ export interface CompactOptions {
   readonly instruction?: string | undefined;
 }
 
-export interface RefineOptions {
-  readonly scope?: 'local' | 'global' | undefined;
-  readonly instructions?: string | undefined;
-}
-
-export interface ReloadSessionOptions {
-  readonly forcePluginSessionStartReminder?: boolean;
-}
-
-export interface PlanInfo {
-  readonly id: string;
-  readonly content: string;
-  readonly path: string;
-}
-
-export type SessionPlan = PlanInfo | null;
 
 export interface TokenUsage {
   readonly inputOther: number;
@@ -294,9 +195,6 @@ export interface SessionStatus {
   readonly model?: string;
   readonly thinkingLevel: string;
   readonly permission: PermissionMode;
-  readonly planMode: boolean;
-  readonly askMode: boolean;
-  readonly premiumQualityMode?: boolean | undefined;
   readonly contextTokens: number;
   readonly maxContextTokens: number;
   readonly contextUsage: number;
@@ -331,47 +229,8 @@ export interface SessionStatus {
       readonly lastTripReason?: string;
     }>;
   };
-  /** Loop-control role → model alias assignments; unset entries mean auto-inferred. */
-  readonly roleModels?: {
-    readonly compaction?: string;
-    readonly completion?: string;
-    readonly exploration?: string;
-    readonly coding?: string;
-    readonly planning?: string;
-    readonly debugging?: string;
-  };
   readonly usage?: SessionUsage;
   readonly providerRouteStatus?: ProviderRouteStatus | null;
-  /** Provider-extras harness status (detected services, search cascade, media routing). */
-  readonly extras?: ProviderExtrasStatus | undefined;
-  /** Context OS continuity/evidence health when compacted pages exist. */
-  readonly contextOS?: {
-    readonly pageCount: number;
-    readonly readyPageCount: number;
-    readonly needsRehydrationPageCount: number;
-    readonly atRiskPageCount: number;
-    readonly missingEvidencePageCount: number;
-    readonly evidenceIdRecallScore: number;
-    readonly latestContinuityStatus: string;
-  };
-  /** Micro-compaction trigger dashboard when tool-result clearing has fired. */
-  readonly microCompaction?: {
-    readonly total: number;
-    readonly lastTrigger: string | null;
-    readonly lastContextUsageRatio: number | null;
-    readonly byTrigger: Readonly<Record<string, number>>;
-  };
-  /** Automatic long-horizon memory reflection when Liora Memory is enabled. */
-  readonly autoDream?: {
-    readonly enabled: boolean;
-    readonly inFlight: boolean;
-    readonly runs: number;
-    readonly lastDreamAt: number | null;
-    readonly lastExamined: number | null;
-    readonly lastMerged: number | null;
-    readonly minHours: number;
-    readonly minActiveRecords: number;
-  };
   /** OAuth account pool + proactive refresh schedule when wired by agent-core. */
   readonly oauth?: {
     readonly poolSize?: number;

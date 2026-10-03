@@ -11,6 +11,7 @@ import {
 import type { AcquireLockResult } from '../lock';
 import type { ServerLogger } from '../services/pinoLoggerService';
 import type { ServerStartOptions } from './types';
+import { shutdownNativeServices } from './boot-cleanup';
 
 interface ShutdownHost {
   close(): Promise<unknown>;
@@ -28,53 +29,41 @@ export interface CreateServerCloserOptions {
 }
 
 export function createServerCloser(opts: CreateServerCloserOptions): () => Promise<void> {
-  let closed = false;
-  return async (): Promise<void> => {
-    if (closed) return;
-    closed = true;
+  let closing: Promise<void> | undefined;
+  return (): Promise<void> => {
+    if (closing !== undefined) return closing;
+    const completion = Promise.withResolvers<void>();
+    closing = completion.promise;
+    void close().then(completion.resolve, completion.reject);
+    return closing;
+  };
 
-    try {
-      opts.ix.invokeFunction((a) => a.get(IWSGateway));
+  async function close(): Promise<void> {
+    await shutdownNativeServices(opts.services);
 
-      opts.ix.invokeFunction((a) =>{  a.get(IConnectionRegistry).closeAll('server shutting down'); });
-    } catch {
-      // ignore
-    }
+    opts.ix.invokeFunction((a) => a.get(IWSGateway));
+    opts.ix.invokeFunction((a) => {
+      a.get(IConnectionRegistry).closeAll('server shutting down');
+    });
 
-    try {
-      await opts.app.close();
-    } catch {
-      // ignore
-    }
+    await opts.app.close();
 
-    try {
-      await opts.ix.invokeFunction((a) => a.get(IWSBroadcastService).flushAndClose());
-    } catch {
-      // ignore
-    }
+    await opts.ix.invokeFunction((a) => a.get(IWSBroadcastService).flushAndClose());
 
-    try {
-      opts.ix.dispose();
-    } catch {
-      // ignore
-    }
+    opts.ix.dispose();
 
     // The persistent token is intentionally left on disk so it survives the
     // next start (ROADMAP M5.1). dispose() is a no-op for the persistent store;
     // the call is kept so the interface is honored uniformly and a test
     // override can still observe shutdown.
-    try {
-      await opts.tokenStore.dispose();
-    } catch {
-      // ignore — token file may already be gone
-    }
+    await opts.tokenStore.dispose();
 
     // Stop the auth-failure limiter's cleanup timer (ROADMAP M6.4). Only set
     // on non-loopback binds; the `?.` is a no-op on loopback.
     opts.authFailureLimiter?.dispose();
 
     opts.lockHandle.release();
-  };
+  }
 }
 
 export function registerDefaultShutdownService(

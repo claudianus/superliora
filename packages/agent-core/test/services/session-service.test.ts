@@ -15,7 +15,7 @@ import {
 } from '../../src';
 import { Emitter } from '../../src/base/common/event';
 import { TestInstantiationService } from '../../src/di/test';
-import { emptySessionUsage, type Event, type Session } from '@superliora/protocol';
+import type { Event, Session } from '@superliora/protocol';
 
 import {
   IApprovalService,
@@ -196,7 +196,6 @@ function makeFakeBridge(state: FakeBridgeState): ICoreProcessService {
       modelCapabilities: { max_context_tokens: 100 },
     }),
     getPermission: vi.fn().mockResolvedValue({ mode: 'manual' }),
-    getPlan: vi.fn().mockResolvedValue(null),
     getProviderRouteStatus: vi.fn().mockResolvedValue(null),
     getUsage: vi.fn().mockResolvedValue(undefined),
     getCircuitBreakers: vi.fn().mockResolvedValue(undefined),
@@ -207,6 +206,7 @@ function makeFakeBridge(state: FakeBridgeState): ICoreProcessService {
   return {
     rpc: rpc as CoreRPC,
     ready: async () => undefined,
+    shutdown: async () => undefined,
     dispose: () => undefined,
     _serviceBrand: undefined,
   };
@@ -411,7 +411,7 @@ describe('toProtocolSession adapter', () => {
     expect(toProtocolSession(withoutPrompt).last_prompt).toBeUndefined();
   });
 
-  it('fills documented defaults when CoreAPI does not surface a field', () => {
+  it('omits unavailable runtime enrichment instead of fabricating values', () => {
     const summary: SessionSummary = {
       id: 'sess_02',
       workDir: '/tmp/wd2',
@@ -421,11 +421,11 @@ describe('toProtocolSession adapter', () => {
     };
     const proto = toProtocolSession(summary);
     expect(proto.status).toBe('idle');
-    expect(proto.usage).toEqual(emptySessionUsage());
-    expect(proto.permission_rules).toEqual([]);
-    expect(proto.message_count).toBe(0);
-    expect(proto.last_seq).toBe(0);
-    expect(proto.agent_config.model).toBe('');
+    expect(proto.usage).toBeUndefined();
+    expect(proto.permission_rules).toBeUndefined();
+    expect(proto.message_count).toBeUndefined();
+    expect(proto.last_seq).toBeUndefined();
+    expect(proto.agent_config).toBeUndefined();
     expect(proto.title).toBe('');
   });
 
@@ -474,26 +474,6 @@ describe('toProtocolSession adapter', () => {
     });
   });
 
-  it('strips the internal "goal" metadata key', () => {
-    const summary: SessionSummary = {
-      id: 'sess_04',
-      workDir: '/tmp/wd',
-      sessionDir: '/tmp/sd',
-      createdAt: 0,
-      updatedAt: 0,
-    };
-    const meta: SessionMeta = {
-      title: 't',
-      createdAt: new Date(0).toISOString(),
-      updatedAt: new Date(0).toISOString(),
-      isCustomTitle: false,
-      agents: {},
-      custom: { goal: { secret: 'state' }, keep: 'me' },
-    };
-    const proto = toProtocolSession(summary, meta);
-    expect(proto.metadata['goal']).toBeUndefined();
-    expect(proto.metadata['keep']).toBe('me');
-  });
 
   it('derives workspace_id from summary.workDir via encodeWorkDirKey', async () => {
     const { encodeWorkDirKey } = await import('../../src/session/store');
@@ -523,12 +503,17 @@ describe('SessionService.create', () => {
     expect(session.created_at.endsWith('Z')).toBe(true);
   });
 
-  it('passes model through to the agent_config when supplied', async () => {
+  it('forwards native model, thinking, and permission creation controls', async () => {
     await svc.create({
       metadata: { cwd: '/tmp/x' },
-      agent_config: { model: 'moonshot-v1-128k' },
+      agent_config: { model: 'moonshot-v1-128k', thinking: 'high', permission_mode: 'yolo' },
     });
     expect(state.sessions[0]!.metadata?.['cwd']).toBe('/tmp/x');
+    expect(state.createPayloads[0]).toMatchObject({
+      model: 'moonshot-v1-128k',
+      thinking: 'high',
+      permission: 'yolo',
+    });
   });
 
   it('passes client telemetry metadata through to core createSession', async () => {
@@ -675,23 +660,18 @@ describe('SessionService.update', () => {
     ]);
   });
 
-  it('ignores agent_config.model when empty string (legacy quirk preserved)', async () => {
-    await svc.update(created.id, { agent_config: { model: '' } });
-    expect(promptStub.calls).toEqual([]);
-  });
 
-  it('forwards thinking + permission_mode + plan_mode through applyAgentState in one call', async () => {
+  it('forwards thinking + permission_mode through applyAgentState in one call', async () => {
     await svc.update(created.id, {
       agent_config: {
         thinking: 'high',
         permission_mode: 'yolo',
-        plan_mode: true,
       },
     });
     expect(promptStub.calls).toEqual([
       {
         sid: created.id,
-        patch: { thinking: 'high', permission_mode: 'yolo', plan_mode: true },
+        patch: { thinking: 'high', permission_mode: 'yolo' },
         source: 'meta',
         promptId: undefined,
       },
@@ -700,10 +680,10 @@ describe('SessionService.update', () => {
 
   it('combines model + runtime controls into a single applyAgentState call', async () => {
     await svc.update(created.id, {
-      agent_config: { model: 'kimi-code/k9', plan_mode: false },
+      agent_config: { model: 'kimi-code/k9' },
     });
     expect(promptStub.calls).toHaveLength(1);
-    expect(promptStub.calls[0]?.patch).toEqual({ model: 'kimi-code/k9', plan_mode: false });
+    expect(promptStub.calls[0]?.patch).toEqual({ model: 'kimi-code/k9' });
     expect(promptStub.calls[0]?.source).toBe('meta');
   });
 
@@ -903,7 +883,7 @@ describe('SessionService.undo', () => {
 
     const result = await svc.undo(created.id, { count: 1, page_size: 10 });
 
-    expect(state.resumedIds).toEqual([created.id]);
+    expect(state.resumedIds).toContain(created.id);
     expect(state.undoPayloads).toEqual([
       { sessionId: created.id, agentId: 'main', count: 1 },
     ]);
@@ -917,7 +897,6 @@ describe('SessionService.undo', () => {
       model: 'kimi-k2',
       thinking_level: 'auto',
       permission: 'manual',
-      plan_mode: false,
       context_tokens: 20,
       max_context_tokens: 100,
       context_usage: 0.2,

@@ -40,20 +40,6 @@ export function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | und
         rawFinishReason: event.rawFinishReason,
         providerRouteSelection: event.providerRouteSelection,
       };
-    case 'step.retrying':
-      return {
-        type: 'turn.step.retrying',
-        turnId,
-        step: event.step,
-        stepId: event.stepUuid,
-        failedAttempt: event.failedAttempt,
-        nextAttempt: event.nextAttempt,
-        maxAttempts: event.maxAttempts,
-        delayMs: event.delayMs,
-        errorName: event.errorName,
-        errorMessage: event.errorMessage,
-        statusCode: event.statusCode,
-      };
     case 'content.part':
       return undefined;
     case 'tool.call':

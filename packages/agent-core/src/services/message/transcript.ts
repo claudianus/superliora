@@ -2,19 +2,10 @@
  * Wire-transcript reader — rebuilds the FULL message history of a session
  * agent from its `wire.jsonl` record log.
  *
- * Why: `ContextMemory.applyCompaction` rewrites the in-memory history as
- * `[...keptUserMessages, compaction_summary]` (the kept real user prompts —
- * oldest head plus most recent tail, verbatim within a token budget, with an
- * elision marker between the segments when the pool overflowed — followed by
- * a single user-role summary), so `getContext().history` only reflects the
- * model's CURRENT context. The wire log, however, keeps every record. The TUI
- * shows the full transcript on resume because `ReplayBuilder` captures every
- * `pushHistory` during record replay and is never folded by compaction. This
- * module reproduces that exact view for daemon REST consumers (web), without
- * touching agent-core: it re-reduces the `context.*` records with the same
- * semantics as `ContextMemory` restore, except that `context.apply_compaction`
- * INSERTS the summary message in place instead of dropping the compacted
- * prefix.
+ * Why: explicit compaction retains the last real user prompt, a summary, and
+ * the uncompacted tail. `getContext().history` reflects only that current
+ * model context. The wire log keeps every record, so REST history rebuilds
+ * the full transcript while tracking the native folded context length.
  *
  * Mirrored agent-core semantics (packages/agent-core/src/agent/context/index.ts):
  *   - `context.append_message`      → append (deferred while a tool exchange is open)
@@ -28,10 +19,8 @@
  *                                     `foldedLength` from the recorded
  *                                     kept-count fields
  *   - `context.undo`                → remove tail messages exactly like
- *                                     `ContextMemory.undo` (skip injections, stop at
- *                                     compaction summaries / `context.clear` floors)
- *   - `context.rollback_attempt`    → truncate the failed attempt's tail back to
- *                                     the recorded pre-turn baseline
+ *                                     `ContextMemory.undo` (stop at compaction
+ *                                     summaries / `context.clear` floors)
  *   - `context.clear`               → keep prior messages in the transcript (the TUI
  *                                     replay keeps them too) but reset the folded view
  *
@@ -51,14 +40,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { AgentRecord } from '../../agent/records';
-import type { ContextMessage } from '../../agent/context';
+import { isRealUserPromptOrigin, type ContextMessage } from '../../agent/context';
 import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
-import {
-  COMPACT_USER_MESSAGE_MAX_TOKENS,
-  collectCompactableUserMessages,
-  isRealUserInput,
-  selectRecentUserMessages,
-} from '../../agent/compaction';
 
 type ContentPart = ContextMessage['content'][number];
 
@@ -222,11 +205,10 @@ export function reduceWireRecords(records: Iterable<AgentRecord>): {
     let removedUserCount = 0;
     for (let i = transcript.length - 1; i >= clearFloor; i--) {
       const message = transcript[i]!.message;
-      if (message.origin?.kind === 'injection') continue;
       if (message.origin?.kind === 'compaction_summary') break;
       transcript.splice(i, 1);
       foldedLength = Math.max(0, foldedLength - 1);
-      if (isRealUserInput(message)) {
+      if (message.role === 'user' && isRealUserPromptOrigin(message.origin)) {
         removedUserCount++;
         if (removedUserCount >= count) break;
       }
@@ -252,82 +234,23 @@ export function reduceWireRecords(records: Iterable<AgentRecord>): {
         applyLoopEvent(record.event, record.time);
         break;
       case 'context.apply_compaction': {
-        // Mirrors ContextMemory.applyCompaction: the live context becomes the
-        // kept user messages (head + tail, possibly separated by an elision
-        // marker) followed by a user-role summary. The transcript keeps the
-        // full history and appends the summary marker; foldedLength tracks the
-        // post-compaction live context length.
-        transcript.push({
+        const retainedCount = Math.max(0, foldedLength - record.compactedCount);
+        transcript.splice(transcript.length - retainedCount, 0, {
           message: {
             role: 'user',
-            content: [{ type: 'text', text: record.summary }],
+            content: [{ type: 'text', text: record.contextSummary ?? `Conversation summary:\n${record.summary}` }],
             toolCalls: [],
             origin: { kind: 'compaction_summary' },
           },
           time: record.time,
         });
-        // Prefer the kept-user count recorded by the live
-        // ContextMemory.applyCompaction. Re-deriving it from the full
-        // transcript would diverge from the live context: the transcript still
-        // holds the untruncated originals of messages the live context may
-        // have truncated, and (after a clear) messages the live context no
-        // longer has. Only fall back to re-deriving for legacy wire records
-        // that predate the field.
-        if (record.keptUserMessageCount !== undefined) {
-          // +1 for the summary message; +1 more when the selection split into
-          // head + tail, because the live context then also holds an elision
-          // marker message between the two segments.
-          foldedLength =
-            record.keptUserMessageCount + (record.keptHeadUserMessageCount === undefined ? 1 : 2);
-        } else if (record.compactedCount < foldedLength) {
-          // Legacy record (predates keptUserMessageCount) that kept
-          // history.slice(compactedCount) verbatim. Mirror ContextMemory's
-          // legacy restore ([summary, ...tail]): `foldedLength` here still holds
-          // the pre-compaction live length, so the post-compaction length is the
-          // summary plus the tail kept after compactedCount. Re-deriving the
-          // kept-user count instead would diverge from the live context (and
-          // make MessageService mis-handle the messages endpoint for old sessions).
-          foldedLength = 1 + (foldedLength - record.compactedCount);
-        } else {
-          // Legacy record whose compactedCount covered the whole live history (no
-          // tail, matching live restore's `compactedCount < length` guard): fall
-          // back to the new kept-user + summary derivation. Derive only from
-          // entries at or after `clearFloor` — the live ContextMemory rebuilds
-          // `_history` from the post-`/clear` messages only, so counting pre-clear
-          // prompts here would overstate foldedLength and make MessageService skip
-          // unflushed live tail messages for old sessions compacted after a clear.
-          const keptUserMessages = selectRecentUserMessages(
-            collectCompactableUserMessages(
-              transcript.slice(clearFloor).map((entry) => entry.message),
-            ),
-            COMPACT_USER_MESSAGE_MAX_TOKENS,
-          );
-          foldedLength = keptUserMessages.length + 1;
-        }
-        // Drop any open tool exchange and deferred messages exactly like
-        // ContextMemory.applyCompaction: late tool results become orphans and
-        // deferred injections are not rebuilt, so pending ids must not strand
-        // later appends in `deferred`.
+        foldedLength = retainedCount + record.keptUserMessageCount + 1;
         resetOpenState();
         break;
       }
       case 'context.undo':
         applyUndo(record.count);
         break;
-      case 'context.rollback_attempt': {
-        // Mirrors ContextMemory.rollbackAttempt: the failed attempt's tail
-        // (user prompt + per-attempt injections + partial exchange) is cut
-        // back to the pre-turn baseline. Post-compaction entries all count
-        // toward foldedLength, so popping until foldedLength === baseline
-        // matches the live truncation one-for-one.
-        const target = Math.max(0, record.historyLength);
-        while (foldedLength > target && transcript.length > clearFloor) {
-          transcript.pop();
-          foldedLength--;
-        }
-        resetOpenState();
-        break;
-      }
       case 'context.clear':
         clearFloor = transcript.length;
         foldedLength = 0;

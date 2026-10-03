@@ -8,7 +8,6 @@
  */
 
 import type { LioraConfig } from '@superliora/sdk';
-import { applyXaiPricingSafeContextTokens } from '@superliora/oauth';
 
 import { loadCatalog } from '#/utils/catalog-cache';
 import { lookupModelCapability, probeModelsEndpoint } from '#/utils/custom-provider';
@@ -111,10 +110,6 @@ export async function handleProviderModelAdd(
 
   const defaultContext = 128000;
   const advertisedContext = maxContext ?? defaultContext;
-  const maxContextSize = applyXaiPricingSafeContextTokens(advertisedContext, {
-    provider: pid,
-    model: mid,
-  });
 
   const capabilities = thinking ? ['thinking', 'tool_use'] : ['tool_use'];
 
@@ -124,7 +119,7 @@ export async function handleProviderModelAdd(
       ...config.models?.[alias],
       provider: pid,
       model: mid,
-      maxContextSize,
+      maxContextSize: advertisedContext,
       capabilities,
       displayName: enrichedDisplayName ?? mid,
       userManaged: true,

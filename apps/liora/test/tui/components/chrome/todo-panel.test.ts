@@ -81,7 +81,7 @@ describe('TodoPanelComponent', () => {
     });
 
     expect(lines.length).toBeGreaterThan(0);
-    expect(stripAnsi(lines.join('\n'))).toContain('Todo Board');
+    expect(stripAnsi(lines.join('\n'))).toContain('ship fix');
   });
 
   it('holds board height when cards leave a lane, then shrinks after the hold', () => {

@@ -28,7 +28,6 @@
  *
  *   kind:    process   → bash
  *            agent     → subagent
- *            question  → tool
  *
  *   status:  running   → running
  *            completed → completed
@@ -52,11 +51,6 @@ function mapKind(k: BackgroundTaskInfo['kind']): BackgroundTaskKind {
       return 'bash';
     case 'agent':
       return 'subagent';
-    case 'question':
-      // SCHEMAS §7 has no 'question' literal; question background tasks are
-      // tool-spawned flows (Loop runs them as part of `Question` tool
-      // execution), so 'tool' is the closest spec literal.
-      return 'tool';
   }
 }
 

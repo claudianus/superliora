@@ -1,4 +1,3 @@
-import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,7 +6,6 @@ import {
   NoticeMessageComponent,
   StatusMessageComponent,
 } from '#/tui/components/messages/status-message';
-import { CronMessageComponent } from '#/tui/components/messages/cron-message';
 import {
   advanceAppearanceAnimationClock,
   setActiveAppearancePreferences,
@@ -41,14 +39,14 @@ describe('NoticeComponent', () => {
 
   it('renders top and bottom spacing around the notice copy', () => {
     const component = new NoticeMessageComponent(
-      'Plan mode: ON',
-      'Plan will be created here: /tmp/plans/test-plan.md',
+      'Session attached',
+      'Working directory: /tmp/project',
     );
 
     const lines = component.render(120).map((line) => strip(line));
     expect(lines[0]).toBe('');
-    expect(lines[1]).toContain('Plan mode: ON');
-    expect(lines[2]).toContain('Plan will be created here: /tmp/plans/test-plan.md');
+    expect(lines[1]).toContain('Session attached');
+    expect(lines[2]).toContain('Working directory: /tmp/project');
   });
 
   it('animates notice titles with spectacular colors when ambient effects are on', () => {
@@ -63,8 +61,8 @@ describe('NoticeComponent', () => {
 
     try {
       const component = new NoticeMessageComponent(
-        'Mission mode: ON',
-        'Shift-Tab routes the next task through Plan before any Goal or Fleet work.',
+        'Job running',
+        'Bash output streams here while the child session works.',
       );
       component.invalidate();
       const rendered = component.render(120).join('\n');
@@ -72,8 +70,8 @@ describe('NoticeComponent', () => {
       expect(codes.length).toBeGreaterThan(2);
       // Title shimmer prefix may still use particle glyphs; details stay plain.
       const normalized = strip(rendered).replaceAll(/[·∙•◦*]/g, ' ');
-      expect(normalized).toContain('Mission mode: ON');
-      expect(normalized).toContain('Shift-Tab routes the next task through Plan');
+      expect(normalized).toContain('Job running');
+      expect(normalized).toContain('Bash output streams here');
     } finally {
       for (const [key, value] of Object.entries(previousEnv)) {
         if (value === undefined) delete process.env[key];
@@ -142,23 +140,6 @@ describe('NoticeComponent', () => {
   });
 });
 
-describe('CronMessageComponent', () => {
-  it('keeps title, detail, and prompt within narrow widths', () => {
-    const component = new CronMessageComponent('Please investigate the reminder payload and report back.', {
-      cron: '*/15 * * * *',
-      jobId: 'job-with-a-very-long-identifier-for-width-testing',
-      recurring: true,
-      missedCount: 3,
-      stale: true,
-    });
-
-    for (const width of [39, 20, 10, 4]) {
-      for (const line of component.render(width)) {
-        expect(visibleWidth(line)).toBeLessThanOrEqual(width);
-      }
-    }
-  });
-});
 
 describe('StatusMessageComponent', () => {
   it('strips carriage returns so CRLF provider errors stay visible', () => {

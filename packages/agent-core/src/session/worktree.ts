@@ -1,11 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
-import { mkdir, readFile, readdir, realpath, rm, stat } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { win32 as win32Path } from 'node:path';
 import { basename, dirname, join, resolve } from 'pathe';
 import { LocalKaos, type Kaos } from '@superliora/kaos';
 
-import { attachWorktree, createWorktree, removeWorktree, runGit } from '#/autopilot/git';
+import { hasUnsettledExecutionResources, removeWorktree, runGit } from '#/session/job/git';
 import { resolveLioraHome } from '#/config/path';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { isWindowsReservedDirName, slugifyWorkDirName } from '#/utils/workdir-slug';
@@ -50,11 +50,14 @@ export interface CreateSessionWorktreeInput {
    * Auto-bootstrap a git repository when `repoPath` is not inside one (or
    * the repo has no commits yet): local `git init` + baseline commit so
    * `git worktree add` can run. Default true; opt out per process via
-   * `SUPERLIORA_AUTO_GIT_INIT=0` (legacy `SUPERLIORA_CONDUCTOR_AUTO_GIT_INIT`).
+   * `SUPERLIORA_AUTO_GIT_INIT=0`.
    */
   readonly bootstrapRepo?: boolean | undefined;
   /** Env used for the bootstrap opt-out check (default process.env). */
   readonly env?: Readonly<Record<string, string | undefined>> | undefined;
+  /** Report the actual target before native preparation begins. */
+  readonly onWorktreePath?: (path: string) => void;
+  readonly signal?: AbortSignal;
 }
 
 export interface CreateSessionWorktreeResult {
@@ -74,6 +77,8 @@ export interface RemoveWorktreeOptions {
   /** Prefer matching by name within repoRoot when provided. */
   readonly repoRoot?: string | undefined;
   readonly nameOrPath: string;
+  readonly onWorktreePath?: (path: string) => void;
+  readonly signal?: AbortSignal;
 }
 
 export interface GcWorktreesOptions {
@@ -81,6 +86,8 @@ export interface GcWorktreesOptions {
   /** Drop entries older than this many days (default 14). */
   readonly maxAgeDays?: number | undefined;
   readonly dryRun?: boolean | undefined;
+  readonly onWorktreePath?: (path: string) => void;
+  readonly signal?: AbortSignal;
 }
 
 export interface HygieneWorktreesOptions {
@@ -127,6 +134,21 @@ const REGISTRY_VERSION = 1 as const;
 const DEFAULT_MAX_AGE_DAYS = 14;
 const LIORA_BRANCH_PREFIX = 'liora/';
 const ARCHIVE_TIPS_PREFIX = 'archive/tips/';
+const ownershipGuards = new Set<(path: string, repoRoot: string) => boolean>();
+
+/** Physical owners from every live session participate in operational GC. */
+export function registerSessionWorktreeOwnershipGuard(
+  guard: (path: string, repoRoot: string) => boolean,
+): () => void {
+  ownershipGuards.add(guard);
+  return () => { ownershipGuards.delete(guard); };
+}
+
+export function isSessionWorktreeOwned(path: string, repoRoot: string): boolean {
+  for (const guard of ownershipGuards) if (guard(path, repoRoot)) return true;
+  return false;
+}
+
 
 /** Drop Win32 `\\?\` / `//?/` prefixes. realpath of an 8.3 name often returns one. */
 function stripWinNamespacePrefix(path: string): string {
@@ -204,6 +226,20 @@ function pathEquals(a: string, b: string): boolean {
 
 export function sessionWorktreePathsEqual(a: string, b: string): boolean {
   return pathEquals(a, b);
+}
+
+/** Protect a process's actual cwd, including descendants and filesystem aliases. */
+export function sessionWorktreeContainsPath(worktreePath: string, cwd: string): boolean {
+  let root = canonicalizeWorktreePath(worktreePath);
+  let path = canonicalizeWorktreePath(cwd);
+  if (containsCanonicalWorktreePath(root, path)) return true;
+  if (root.startsWith('/private/')) root = root.slice('/private'.length);
+  if (path.startsWith('/private/')) path = path.slice('/private'.length);
+  return containsCanonicalWorktreePath(root, path);
+}
+
+function containsCanonicalWorktreePath(root: string, path: string): boolean {
+  return path === root || path.startsWith(root.endsWith('/') ? root : `${root}/`);
 }
 
 /** Remote heads hygiene may delete — `liora/*` only, never main/master. */
@@ -286,8 +322,8 @@ export function normalizeWorktreeName(name: string): string {
   return slug;
 }
 
-export async function resolveGitRepoRoot(kaos: Kaos, cwd: string): Promise<string> {
-  const result = await runGit(kaos, cwd, ['rev-parse', '--show-toplevel']);
+export async function resolveGitRepoRoot(kaos: Kaos, cwd: string, signal?: AbortSignal): Promise<string> {
+  const result = await runGit(kaos, cwd, ['rev-parse', '--show-toplevel'], 0, signal);
   if (!result.ok) {
     throw new LioraError(
       ErrorCodes.WORKTREE_NOT_A_GIT_REPO,
@@ -332,7 +368,7 @@ export async function createSessionWorktree(
   // a repo root and a valid base ref; the result is memoized per path.
   let probePath = input.repoPath;
   if (input.bootstrapRepo !== false) {
-    const repo = await ensureGitRepoForWorktrees(kaos, input.repoPath, input.env ?? process.env);
+    const repo = await ensureGitRepoForWorktrees(kaos, input.repoPath, input.env ?? process.env, input.signal);
     if (!repo.ok) {
       throw new LioraError(ErrorCodes.WORKTREE_NOT_A_GIT_REPO, repo.error, {
         details: { cwd: input.repoPath },
@@ -341,11 +377,12 @@ export async function createSessionWorktree(
     probePath = repo.root;
   }
 
-  const repoRoot = await resolveGitRepoRoot(kaos, probePath);
+  const repoRoot = await resolveGitRepoRoot(kaos, probePath, input.signal);
   const name = generateWorktreeName(input.name);
   const baseRef = (input.baseRef?.trim() ?? 'HEAD').trim();
   const target = defaultWorktreePath({ homeDir: input.homeDir, repoRoot, name });
   const branch = `liora/${name}`;
+  input.onWorktreePath?.(target);
 
   const parent = dirname(target);
   await mkdir(parent, { recursive: true, mode: 0o700 });
@@ -358,7 +395,7 @@ export async function createSessionWorktree(
     );
   }
 
-  const created = await createWorktree(kaos, repoRoot, target, branch, baseRef);
+  const created = await runGit(kaos, repoRoot, ['worktree', 'add', '-b', branch, target, baseRef], 0, input.signal);
   if (!created.ok) {
     throw new LioraError(
       ErrorCodes.WORKTREE_CREATE_FAILED,
@@ -413,27 +450,38 @@ export interface AttachSessionWorktreeInput {
   /** Registry name; defaults to the last path segment. */
   readonly name?: string | undefined;
   readonly homeDir?: string | undefined;
+  readonly onWorktreePath?: (path: string) => void;
+  readonly signal?: AbortSignal;
 }
 
 /**
  * Reattach an existing `liora/*` (or other) branch at `path`.
  *
  * Used when a Conductor job still points at a worktree directory that was
- * deleted (hygiene / GC / crash) but the branch tip is intact. Prunes stale
- * git worktree metadata first so `git worktree add <path> <branch>` can run.
+ * deleted but the branch tip is intact. Removes only the stale registration
+ * for this target before reattaching; never prunes another session's worktree.
  */
 export async function attachSessionWorktree(
   kaos: Kaos,
   input: AttachSessionWorktreeInput,
 ): Promise<CreateSessionWorktreeResult> {
-  const repoRoot = await resolveGitRepoRoot(kaos, input.repoPath);
   const target = resolve(input.path);
+  input.onWorktreePath?.(target);
+  input.signal?.throwIfAborted();
+  const existing = await lstat(target).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  });
+  if (existing !== undefined) {
+    throw new LioraError(ErrorCodes.WORKTREE_CREATE_FAILED, `Cannot remount worktree at "${target}": path already exists.`);
+  }
+  const repoRoot = await resolveGitRepoRoot(kaos, input.repoPath, input.signal);
   const name = generateWorktreeName(input.name ?? basename(target));
   const parent = dirname(target);
   await mkdir(parent, { recursive: true, mode: 0o700 });
-  await runGit(kaos, repoRoot, ['worktree', 'prune']);
+  await runGit(kaos, repoRoot, ['worktree', 'remove', '--force', target], 0, input.signal);
 
-  const attached = await attachWorktree(kaos, repoRoot, target, input.branch);
+  const attached = await runGit(kaos, repoRoot, ['worktree', 'add', target, input.branch], 0, input.signal);
   if (!attached.ok) {
     throw new LioraError(
       ErrorCodes.WORKTREE_CREATE_FAILED,
@@ -508,12 +556,16 @@ export async function removeSessionWorktree(
       { details: { nameOrPath: options.nameOrPath, repoRoot: options.repoRoot } },
     );
   }
+  if (isSessionWorktreeOwned(match.path, match.repoRoot)) {
+    throw new Error(`Worktree resources are still owned: ${match.path}`);
+  }
+  options.onWorktreePath?.(match.path);
 
   try {
-    await removeWorktree(kaos, match.repoRoot, match.path);
-  } catch {
-    // Fall through to force-remove directory even if git worktree remove fails
-    // (e.g. already pruned).
+    await removeWorktree(kaos, match.repoRoot, match.path, options.signal);
+  } catch (error) {
+    if (options.signal?.aborted || hasUnsettledExecutionResources(error)) throw error;
+    // Only a settled Git failure may fall through to filesystem removal.
   }
 
   // A failed directory removal must NOT drop the registry entry. On Windows
@@ -529,12 +581,14 @@ export async function removeSessionWorktree(
     version: REGISTRY_VERSION,
     entries: registry.entries.filter((entry) => !pathEquals(entry.path, match.path)),
   };
-  await writeRegistry(options.homeDir, next);
 
   // Drop the matching liora/* branch when its tip is already in HEAD.
   if (match.branch.startsWith(LIORA_BRANCH_PREFIX)) {
-    await maybeDeleteMergedLioraBranch(kaos, match.repoRoot, match.branch).catch(() => {});
+    await maybeDeleteMergedLioraBranch(kaos, match.repoRoot, match.branch, options.signal).catch((error: unknown) => {
+      if (options.signal?.aborted || hasUnsettledExecutionResources(error)) throw error;
+    });
   }
+  await writeRegistry(options.homeDir, next);
 
   return match;
 }
@@ -548,8 +602,13 @@ export async function gcSessionWorktrees(
   const registry = await readRegistry(options.homeDir);
   const removed: WorktreeRecord[] = [];
   const kept: WorktreeRecord[] = [];
+  const errors: unknown[] = [];
 
   for (const entry of registry.entries) {
+    if (isSessionWorktreeOwned(entry.path, entry.repoRoot)) {
+      kept.push(entry);
+      continue;
+    }
     const age = Date.parse(entry.lastAccessedAt);
     const stale = Number.isFinite(age) ? age < cutoff : false;
     const missing = !(await pathExists(entry.path));
@@ -562,24 +621,38 @@ export async function gcSessionWorktrees(
       continue;
     }
     try {
+      if (isSessionWorktreeOwned(entry.path, entry.repoRoot)) {
+        kept.push(entry);
+        continue;
+      }
+      options.onWorktreePath?.(entry.path);
       if (!missing) {
-        await removeWorktree(kaos, entry.repoRoot, entry.path).catch(() => {});
+        await removeWorktree(kaos, entry.repoRoot, entry.path, options.signal).catch((error: unknown) => {
+          if (options.signal?.aborted || hasUnsettledExecutionResources(error)) throw error;
+        });
         // No `.catch(() => {})` here: a swallowed removal failure would drop
         // the entry and orphan a directory holding uncommitted work that no
         // registry-walking command can reach again.
         await rm(entry.path, { recursive: true, force: true });
       }
       removed.push(entry);
-    } catch {
+    } catch (error) {
       kept.push(entry);
+      if (options.signal?.aborted || hasUnsettledExecutionResources(error)) errors.push(error);
     }
   }
 
   if (options.dryRun !== true) {
     await writeRegistry(options.homeDir, { version: REGISTRY_VERSION, entries: kept });
-    await pruneEmptyWorktreeDirs(options.homeDir);
   }
 
+  if (errors.length > 0) {
+    const error = new AggregateError(errors, 'Worktree native cleanup failed');
+    Object.defineProperty(error, 'resourcesSettled', {
+      get: () => !errors.some((inner) => hasUnsettledExecutionResources(inner)),
+    });
+    throw error;
+  }
   return { removed, kept: kept.length };
 }
 
@@ -625,15 +698,12 @@ export async function hygieneSessionWorktrees(
   const registry = await readRegistry(options.homeDir);
   const repoRoots = collectRepoRoots(registry.entries, options.repoRoot);
 
-  for (const repoRoot of repoRoots) {
-    await runGit(kaos, repoRoot, ['worktree', 'prune']).catch(() => {});
-  }
 
   // Drop registry rows whose path vanished (reconcile), then age-GC the rest.
   if (!dryRun) {
     const stillPresent: WorktreeRecord[] = [];
     for (const entry of registry.entries) {
-      if (await pathExists(entry.path)) {
+      if (isSessionWorktreeOwned(entry.path, entry.repoRoot) || await pathExists(entry.path)) {
         stillPresent.push(entry);
       }
     }
@@ -788,23 +858,6 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-async function pruneEmptyWorktreeDirs(homeDir?: string): Promise<void> {
-  const root = worktreesRoot(homeDir);
-  try {
-    const repos = await readdir(root, { withFileTypes: true });
-    for (const entry of repos) {
-      if (!entry.isDirectory() || entry.name === '.' || entry.name.startsWith('.')) continue;
-      if (entry.name === 'registry.json') continue;
-      const repoDir = join(root, entry.name);
-      const children = await readdir(repoDir).catch(() => [] as string[]);
-      if (children.length === 0) {
-        await rm(repoDir, { recursive: true, force: true }).catch(() => {});
-      }
-    }
-  } catch {
-    // ignore
-  }
-}
 
 
 /** Create a worktree using a local Kaos (CLI / non-session entrypoints). */
@@ -857,9 +910,9 @@ function collectRepoRoots(
   return roots;
 }
 
-async function resolveMergeBaseRef(kaos: Kaos, repoRoot: string): Promise<string> {
+async function resolveMergeBaseRef(kaos: Kaos, repoRoot: string, signal?: AbortSignal): Promise<string> {
   for (const candidate of ['origin/main', 'main', 'master', 'HEAD'] as const) {
-    const verified = await runGit(kaos, repoRoot, ['rev-parse', '--verify', candidate]);
+    const verified = await runGit(kaos, repoRoot, ['rev-parse', '--verify', candidate], 0, signal);
     if (verified.ok) return candidate;
   }
   return 'HEAD';
@@ -870,8 +923,9 @@ async function isAncestorOf(
   repoRoot: string,
   tip: string,
   baseRef: string,
+  signal?: AbortSignal,
 ): Promise<boolean> {
-  const result = await runGit(kaos, repoRoot, ['merge-base', '--is-ancestor', tip, baseRef]);
+  const result = await runGit(kaos, repoRoot, ['merge-base', '--is-ancestor', tip, baseRef], 0, signal);
   return result.ok;
 }
 
@@ -900,11 +954,12 @@ async function maybeDeleteMergedLioraBranch(
   kaos: Kaos,
   repoRoot: string,
   branch: string,
+  signal?: AbortSignal,
 ): Promise<boolean> {
-  const baseRef = await resolveMergeBaseRef(kaos, repoRoot);
-  const merged = await isAncestorOf(kaos, repoRoot, branch, baseRef);
+  const baseRef = await resolveMergeBaseRef(kaos, repoRoot, signal);
+  const merged = await isAncestorOf(kaos, repoRoot, branch, baseRef, signal);
   if (!merged) return false;
-  const del = await runGit(kaos, repoRoot, ['branch', '-D', branch]);
+  const del = await runGit(kaos, repoRoot, ['branch', '-D', branch], 0, signal);
   return del.ok;
 }
 

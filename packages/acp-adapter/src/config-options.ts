@@ -1,36 +1,4 @@
-/**
- * Build the unified `SessionConfigOption[]` surface (PLAN D11) advertised on
- * `session/new` + `session/load` and refreshed by `config_option_update`.
- *
- * Phase 14 unifies model + mode selection under the spec's generic
- * `configOptions` channel — replacing Phase 12's dedicated
- * `NewSessionResponse.modes` field — so a client like Zed renders both
- * pickers from a single source of truth and can flip either through
- * `session/set_config_option`.
- *
- * The v0 surface has up to three options:
- *   - `id: 'model'`     (`type: 'select'`, `category: 'model'`) — one row
- *     per {@link AcpModelEntry}, no `,thinking` variants. Thinking is
- *     an orthogonal axis exposed as a separate toggle.
- *   - `id: 'thinking'`  (`type: 'select'`, `category: 'thought_level'`)
- *     — appears ONLY when the currently-selected model's catalog row has
- *     `thinkingSupported === true`; otherwise omitted from the snapshot
- *     so the client doesn't render a non-actionable toggle. Phase 16
- *     converted this from `SessionConfigBoolean` to a 2-entry select
- *     (`off` / `on`) so Zed renders it — Zed's chip strip currently
- *     only knows how to draw `type: 'select'` options, and the spec's
- *     `boolean` arm shows up as "Unknown". Effort granularity
- *     (`'low' | 'medium' | …`) is still hidden behind the adapter —
- *     kimi-code uses a single non-`'off'` level under the hood (default
- *     `'high'`, resolved by agent-core's `resolveThinkingEffort`).
- *   - `id: 'mode'`      (`type: 'select'`, `category: 'mode'`) — the
- *     locked 4-mode taxonomy from PLAN D9 ({@link ACP_MODES}).
- *
- * The wire shape mirrors `@agentclientprotocol/sdk` `SessionConfigOption`
- * (`schema/types.gen.d.ts:4449-4480`): each option carries `id`, `name`,
- * optional `category`, and a `type`-discriminated `currentValue` (string
- * for `'select'`, boolean for `'boolean'`).
- */
+/** Native model, thinking and permission configuration advertised to ACP clients. */
 
 import type { SessionConfigOption, SessionConfigSelectOption } from '@agentclientprotocol/sdk';
 import type { LioraHarness } from '@superliora/sdk';
@@ -38,26 +6,7 @@ import type { LioraHarness } from '@superliora/sdk';
 import { ACP_MODES, type AcpModeId } from './modes';
 import { listModelsFromHarness, type AcpModelEntry } from './model-catalog';
 
-/**
- * Project the catalog into the `SessionConfigOption` `model` arm.
- *
- * One option row per catalog entry — Phase 15 removed the inlined
- * `${id},thinking` variant rows in favour of a separate
- * {@link buildThinkingOption} toggle (Phase 16 then changed that toggle
- * from `boolean` to a 2-entry `select` for Zed compatibility, but the
- * model picker shape is unaffected), so the model dropdown stays at most
- * N rows even when many catalog entries support thinking. The Python
- * reference's `_expand_llm_models` (`kimi-cli/src/kimi_cli/acp/server.py:441-468`)
- * still emits twin rows, but it has no `select`-based effort
- * equivalent; we diverge intentionally for UX clarity.
- *
- * `currentValue` is the bare model id (no `,thinking` suffix). When
- * an external caller still sends the merged form via
- * `unstable_setSessionModel({ modelId: 'k2,thinking' })`,
- * {@link AcpSession.setModel} splits the suffix off and updates both
- * the model and thinking authoritative state before the snapshot is
- * built — so the value reaching this builder is always already-split.
- */
+/** Each configured native model alias gets one picker entry. */
 export function buildModelOption(
   models: readonly AcpModelEntry[],
   currentBaseModelId: string,
@@ -131,12 +80,7 @@ export function buildThinkingOption(
   };
 }
 
-/**
- * Project the locked 4-mode taxonomy ({@link ACP_MODES}) into the
- * `SessionConfigOption` `mode` arm. Order is preserved (default → plan →
- * auto → yolo) so the client renders the dropdown the same way Phase 12
- * did via the dedicated `modes:` field.
- */
+/** Project native permission policies into the mode picker. */
 export function buildModeOption(currentModeId: AcpModeId): SessionConfigOption {
   const options: SessionConfigSelectOption[] = ACP_MODES.map((mode) => ({
     value: mode.id,

@@ -5,6 +5,7 @@ import type { RendererRootUI } from '#/tui/renderer';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { MoonLoader } from '#/tui/components/chrome/moon-loader';
 import { ActivityPaneComponent } from '#/tui/components/panes/activity-pane';
+import { formatTurnStatusLabel } from '#/tui/features/transcript/turn-status';
 import {
   advanceAppearanceAnimationClock,
   setActiveAppearancePreferences,
@@ -94,8 +95,8 @@ describe('ActivityPaneComponent', () => {
         resolveStatus: () => ({
           phase: 'tool',
           tools: [
-            { name: 'Read', running: true },
-            { name: 'Read', running: true },
+            { name: 'Bash', running: true },
+            { name: 'SessionControl', running: true },
           ],
           startedAt: Date.parse('2026-07-01T00:00:00Z'),
           now: Date.now(),
@@ -104,7 +105,12 @@ describe('ActivityPaneComponent', () => {
         }),
       });
       const out = strip(pane.render(80).join('\n'));
-      expect(out).toContain('Reading 2 files');
+      expect(out).toContain('◐');
+      expect(out).not.toContain('loading');
+      expect(out).toContain(formatTurnStatusLabel({
+        phase: 'tool',
+        tools: [{ name: 'Bash', running: true }, { name: 'SessionControl', running: true }],
+      }));
       expect(out).toContain('12s');
       expect(out).toContain('⇣42k');
       expect(out).toContain('2 queued');
@@ -122,7 +128,7 @@ describe('ActivityPaneComponent', () => {
         tools: [],
         startedAt: Date.now(),
         now: Date.now(),
-        watchers: { commands: 1, questions: 0, subagents: 2 },
+        watchers: { commands: 1, subagents: 2 },
       }),
     });
     const out = strip(pane.render(80).join('\n'));
@@ -141,7 +147,7 @@ describe('ActivityPaneComponent', () => {
         now: Date.now(),
         contextTokens: 12_000,
         parked: true,
-        watchers: { commands: 1, questions: 0, subagents: 0 },
+        watchers: { commands: 1, subagents: 0 },
       }),
     });
     const out = strip(pane.render(80).join('\n'));

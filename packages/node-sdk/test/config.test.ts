@@ -13,11 +13,6 @@ import {
 } from '../../agent-core/src/config';
 import { TEST_IDENTITY } from './test-identity';
 
-// node-sdk/agent-core normalize paths to forward slashes (pathe). Mirror that
-// in path assertions so they hold on Windows, where node:path produces
-// backslashes.
-const toPosix = (p: string): string => p.replaceAll('\\', '/');
-
 const tempDirs: string[] = [];
 
 afterEach(async () => {
@@ -37,13 +32,9 @@ const COMPLETE_TOML = `
 default_model = "kimi-for-coding"
 default_thinking = false
 default_permission_mode = "auto"
-skip_afk_prompt_injection = false
-default_plan_mode = false
 default_editor = ""
 theme = "dark"
 show_thinking_stream = true
-merge_all_available_skills = true
-extra_skill_dirs = ["~/team-skills", ".agents/team-skills"]
 
 [providers.kimi-for-coding]
 type = "kimi"
@@ -66,39 +57,16 @@ max_context_size = 262144
 capabilities = ["image_in", "thinking", "video_in"]
 display_name = "Kimi for Coding"
 
-[loop_control]
-max_retries_per_step = 3
-max_ralph_iterations = 0
-reserved_context_size = 50000
-compaction_trigger_ratio = 0.85
-
 [background]
 max_running_tasks = 4
-keep_alive_on_exit = false
 kill_grace_period_ms = 2000
 print_wait_ceiling_s = 3600
-
-[services.moonshot_search]
-base_url = "https://api.kimi.com/coding/v1/search"
-api_key = "sk-search"
-custom_headers = { "X-Search" = "1" }
-
-[services.moonshot_fetch]
-base_url = "https://api.kimi.com/coding/v1/fetch"
-api_key = "sk-fetch"
 
 [notifications]
 claim_stale_after_ms = 15000
 `;
 
 describe('SDK config TOML', () => {
-  it('resolves config paths through the config RPC wrapper', async () => {
-    const dir = await makeTempDir();
-    const rpc = createLioraConfigRpc();
-
-    await expect(rpc.resolveConfigPath({ homeDir: dir })).resolves.toBe(toPosix(join(dir, 'config.toml')));
-  });
-
   it('returns structured validation issues through the config RPC wrapper', async () => {
     const rpc = createLioraConfigRpc();
 
@@ -132,9 +100,6 @@ max_context_size = "large"
     expect(config.defaultModel).toBe('kimi-for-coding');
     expect(config.defaultThinking).toBe(false);
     expect(config.defaultPermissionMode).toBe('auto');
-    expect(config.defaultPlanMode).toBe(false);
-    expect(config.mergeAllAvailableSkills).toBe(true);
-    expect(config.extraSkillDirs).toEqual(['~/team-skills', '.agents/team-skills']);
 
     const provider = config.providers['kimi-for-coding'];
     expect(provider).toMatchObject({
@@ -155,24 +120,14 @@ max_context_size = "large"
       displayName: 'Kimi for Coding',
     });
 
-    expect(config.loopControl).toEqual({
-      maxRetriesPerStep: 3,
-      maxRalphIterations: 0,
-      reservedContextSize: 50000,
-      compactionTriggerRatio: 0.85,
-    });
-    expect(config.background).toEqual({
+    expect(config.background).toMatchObject({
       maxRunningTasks: 4,
-      keepAliveOnExit: false,
       killGracePeriodMs: 2000,
       printWaitCeilingS: 3600,
     });
-    expect(config.services?.moonshotSearch?.customHeaders).toEqual({ 'X-Search': '1' });
-    expect(config.services?.moonshotFetch?.apiKey).toBe('sk-fetch');
 
     expect('theme' in config).toBe(false);
     expect(config.raw?.['theme']).toBe('dark');
-    expect(config.raw?.['skip_afk_prompt_injection']).toBe(false);
     expect(config.raw?.['show_thinking_stream']).toBe(true);
     expect(config.raw?.['notifications']).toEqual({ claim_stale_after_ms: 15000 });
   });
@@ -194,7 +149,6 @@ max_context_size = "large"
     const text = await readFile(configPath, 'utf-8');
     expect(text).toContain('default_model = "kimi-for-coding"');
     expect(text).toContain('default_permission_mode = "auto"');
-    expect(text).toContain('extra_skill_dirs = [ "~/team-skills", ".agents/team-skills" ]');
     expect(text).toContain('[[providers.kimi-for-coding.oauths]]');
     expect(text).toContain('key = "oauth/backup"');
     expect(text).not.toContain('default_yolo');
@@ -226,12 +180,8 @@ maxContextSize = 128000
 displayName = "Camel Model"
 custom_model_field = "raw-only"
 
-[services.moonshotSearch]
-baseUrl = "https://example.test/search"
-apiKey = "sk-search"
-
 [loopControl]
-maxStepsPerRun = 7
+maxStepsPerTurn = 7
 
 [background]
 maxRunningTasks = 2
@@ -247,10 +197,6 @@ maxRunningTasks = 2
       maxContextSize: 128000,
       displayName: 'Camel Model',
     });
-    expect(config.services?.moonshotSearch).toMatchObject({
-      baseUrl: 'https://example.test/search',
-      apiKey: 'sk-search',
-    });
     expect(config.loopControl?.maxStepsPerTurn).toBe(7);
     expect(config.background?.maxRunningTasks).toBe(2);
 
@@ -265,7 +211,7 @@ maxRunningTasks = 2
 });
 
 describe('LioraHarness config API', () => {
-  it('loads default config when missing and deep-merges setConfig patches from disk', async () => {
+  it('deep-merges provider patches from disk while preserving unknown fields', async () => {
     const homeDir = await makeTempDir();
     const configPath = join(homeDir, 'config.toml');
     await writeFile(configPath, COMPLETE_TOML, 'utf-8');
@@ -278,11 +224,6 @@ describe('LioraHarness config API', () => {
           apiKey: 'sk-updated',
         },
       },
-      services: {
-        moonshotSearch: {
-          apiKey: 'sk-search-updated',
-        },
-      },
     });
 
     const config = await harness.getConfig({ reload: true });
@@ -292,7 +233,6 @@ describe('LioraHarness config API', () => {
       apiKey: 'sk-updated',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
     });
-    expect(config.services?.moonshotSearch?.apiKey).toBe('sk-search-updated');
     expect(config.raw?.['theme']).toBe('dark');
 
     const text = await readFile(configPath, 'utf-8');
@@ -316,73 +256,24 @@ max_context_size = 128000
 display_name = "K2"
 future_override = true
 
-[media]
-non_vision_fallback = "path"
-future_flag = true
 
-[mcp]
-auto_provider_servers = false
-
-[extras]
-disabled_providers = ["zai"]
-
-[agent]
-profile = "core"
 `,
       'utf-8',
     );
     const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     await harness.setConfig({
-      media: { nonVisionFallback: 'block' },
-      mcp: { autoProviderServers: true },
-      extras: { disabledProviders: ['qwen-token-plan'] },
-      agent: { profile: 'superliora-full' },
       models: { k2: { overrides: { displayName: 'K2 patched' } } },
     });
 
     const config = await harness.getConfig({ reload: true });
-    expect(config.media).toEqual({ nonVisionFallback: 'block' });
-    expect(config.mcp).toEqual({ autoProviderServers: true });
-    expect(config.extras).toEqual({ disabledProviders: ['qwen-token-plan'] });
-    expect(config.agent).toEqual({ profile: 'superliora-full' });
     expect(config.models?.['k2']?.overrides).toMatchObject({
       displayName: 'K2 patched',
     });
     const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('future_flag = true');
     expect(text).toContain('future_override = true');
   });
 
-  it('forwards config field deletions through the harness RPC', async () => {
-    const homeDir = await makeTempDir();
-    const configPath = join(homeDir, 'config.toml');
-    await writeFile(
-      configPath,
-      COMPLETE_TOML.replace(
-        'compaction_trigger_ratio = 0.85',
-        'compaction_trigger_ratio = 0.85\ncompaction_model = "compact"\ncompletion_model = "complete"',
-      ),
-      'utf-8',
-    );
-    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
-
-    const deleted = await harness.deleteConfigFields([
-      'loopControl.compactionModel',
-      'loopControl.completionModel',
-    ]);
-
-    expect(deleted.loopControl?.maxRetriesPerStep).toBe(3);
-    expect(deleted.loopControl).not.toHaveProperty('compactionModel');
-    expect(deleted.loopControl).not.toHaveProperty('completionModel');
-
-    const reloaded = await harness.getConfig({ reload: true });
-    expect(reloaded.loopControl).not.toHaveProperty('compactionModel');
-    expect(reloaded.loopControl).not.toHaveProperty('completionModel');
-    const text = await readFile(configPath, 'utf-8');
-    expect(text).not.toContain('compaction_model');
-    expect(text).not.toContain('completion_model');
-  });
 
   it('does not write invalid config patches', async () => {
     const homeDir = await makeTempDir();
@@ -408,66 +299,6 @@ profile = "core"
     await expect(readFile(configPath, 'utf-8')).resolves.toBe(before);
   });
 
-  it('uses default config when the config file is absent', async () => {
-    const homeDir = await makeTempDir();
-    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
-
-    await expect(harness.getConfig()).resolves.toEqual({
-      providers: {},
-      defaultPermissionMode: 'yolo',
-    });
-  });
-
-  it('returns experimental feature metadata through the harness', async () => {
-    vi.stubEnv('SUPERLIORA_EXPERIMENTAL_FLAG', '0');
-    vi.stubEnv('SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION', '');
-    const homeDir = await makeTempDir();
-    await writeFile(
-      join(homeDir, 'config.toml'),
-      `
-[experimental]
-async_compaction = false
-`,
-      'utf-8',
-    );
-    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
-
-    const features = await harness.getExperimentalFeatures();
-    const asyncCompaction = features.find((feature) => feature.id === 'async_compaction');
-
-    expect(asyncCompaction).toMatchObject({
-      id: 'async_compaction',
-      title: 'Async background compaction',
-      enabled: false,
-      source: 'config',
-      configValue: false,
-      env: 'SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION',
-    });
-    expect(features).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 'async_compaction', enabled: false }),
-      ]),
-    );
-  });
-
-  it('can create the default config scaffold without selecting a model', async () => {
-    const homeDir = await makeTempDir();
-    const configPath = join(homeDir, 'config.toml');
-    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
-
-    await harness.ensureConfigFile();
-
-    const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('Runtime settings for SuperLiora.');
-    expect(text).not.toMatch(/^default_thinking =/m);
-    expect(text).not.toMatch(/^default_model =/m);
-
-    const config = await harness.getConfig({ reload: true });
-    expect(config.providers).toEqual({});
-    expect(config.defaultModel).toBeUndefined();
-    expect(config.defaultThinking).toBeUndefined();
-  });
-
   it('reloads an active session without closing the SDK session wrapper', async () => {
     const homeDir = await makeTempDir();
     const workDir = join(homeDir, 'work');
@@ -490,22 +321,4 @@ async_compaction = false
     await expect(session.getStatus()).resolves.toMatchObject({ model: 'kimi-for-coding' });
   });
 
-  it('forwards forcePluginSessionStartReminder to the active session reload', async () => {
-    const homeDir = await makeTempDir();
-    const workDir = join(homeDir, 'work');
-    const configPath = join(homeDir, 'config.toml');
-    await writeFile(configPath, COMPLETE_TOML, 'utf-8');
-    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
-    const session = await harness.createSession({
-      id: 'session-sdk-reload-forward',
-      workDir,
-      model: 'kimi-for-coding',
-    });
-
-    const reloadSpy = vi.spyOn(session, 'reloadSession').mockResolvedValue({} as never);
-
-    await harness.reloadSession({ id: session.id, forcePluginSessionStartReminder: true });
-
-    expect(reloadSpy).toHaveBeenCalledWith({ forcePluginSessionStartReminder: true });
-  });
 });

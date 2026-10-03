@@ -19,11 +19,8 @@ function fakeAppState(overrides: Partial<AppState> = {}): AppState {
   return {
     theme: 'dark',
     model: 'example-model',
-    planMode: false,
-    askMode: false,
     streamingPhase: 'composing',
     isCompacting: false,
-    isBackgroundCompacting: false,
     inputMode: 'prompt',
     appearance: { ...DEFAULT_APPEARANCE_PREFERENCES },
     ...overrides,
@@ -33,12 +30,11 @@ function fakeAppState(overrides: Partial<AppState> = {}): AppState {
 function createHost() {
   const state = createTUIState({
     initialAppState: fakeAppState(),
-    startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    startup: { continueLast: false, yolo: false, auto: false },
   });
   const entries: TranscriptEntry[] = [];
   const host: StreamingUIHost = {
     state,
-    session: undefined,
     motionBeats: createMotionBeatController(),
     setAppState(patch) {
       state.appState = { ...state.appState, ...patch };
@@ -47,9 +43,6 @@ function createHost() {
     resetLivePane() {},
     updateActivityPane() {},
     updateQueueDisplay() {},
-    requireSession() {
-      throw new Error('no session in unit test');
-    },
     deferUserMessages: false,
     shiftQueuedMessage() {
       return undefined;

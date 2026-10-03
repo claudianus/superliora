@@ -2,11 +2,11 @@ import { Text } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { ttui } from '#/tui/utils/tui-i18n';
 
-/** Delay before a long-running foreground Bash/Agent card advertises Ctrl+B. */
+/** Delay before a long-running foreground Bash card advertises Ctrl+B. */
 const DETACH_HINT_DELAY_MS = 6_000;
 
 export function isDetachHintEligible(toolName: string): boolean {
-  return toolName === 'Bash' || toolName === 'Agent';
+  return toolName === 'Bash';
 }
 
 export class ToolCallDetachHint {
@@ -25,13 +25,6 @@ export class ToolCallDetachHint {
     if (!isDetachHintEligible(toolName)) return;
     if (this.host.hasResult()) return;
     if (!uiDefined) return;
-    if (toolName === 'Agent') {
-      if (this.visible) return;
-      this.visible = true;
-      this.host.rebuildBody();
-      this.host.requestRender();
-      return;
-    }
     if (this.timer !== undefined) return;
     this.timer = setTimeout(() => {
       this.timer = undefined;

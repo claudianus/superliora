@@ -1,12 +1,10 @@
-import type { Component, MarkdownTheme } from '#/tui/renderer';
-import { Text } from '#/tui/renderer';
+import type { Component } from '#/tui/renderer';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 import { computeStagedLineReveal } from '#/tui/utils/streaming/streaming-text-reveal';
 
 import { ShellExecutionComponent } from '../shell/shell-execution';
 import {
-  buildPlanCallPreviewComponents,
   buildSettledCallPreviewComponents,
   buildStreamingCallPreviewComponents,
 } from './call-preview-body';
@@ -19,9 +17,6 @@ export interface ToolCallCallPreviewHost {
   getToolCall(): ToolCallBlockData;
   getResult(): ToolResultBlockData | undefined;
   isExpanded(): boolean;
-  getCurrentPlan(): string | undefined;
-  getPlanPath(): string | undefined;
-  getMarkdownTheme(): MarkdownTheme;
   clearRenderCache(): void;
 }
 
@@ -36,18 +31,6 @@ export class ToolCallCallPreview {
     this.builtPreviewItemCount = 0;
     const toolCall = host.getToolCall();
     const result = host.getResult();
-    if (toolCall.name === 'ExitPlanMode') {
-      for (const child of buildPlanCallPreviewComponents({
-        toolCall,
-        result,
-        currentPlan: host.getCurrentPlan(),
-        planPath: host.getPlanPath(),
-        markdownTheme: host.getMarkdownTheme(),
-      })) {
-        host.addChild(child);
-      }
-      return;
-    }
     if (result === undefined && toolCall.truncated === true) {
       this.addItems(
         host,

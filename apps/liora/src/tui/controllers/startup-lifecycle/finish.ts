@@ -55,7 +55,7 @@ export async function finishStartupSession(
     }
     try {
       await host.sessionReplay.hydrateFromReplay(session);
-      host.sessionBrowser.applyStartupPermissionAndPlanToAppState();
+      host.sessionBrowser.applyStartupPermissionToAppState();
     } finally {
       pruneTuiSessionToolOutputViewports(host);
       if (ownsColdStartOverlay) {
@@ -93,12 +93,8 @@ export async function finishStartupSession(
   ) {
     void host.sessionBrowser.showFolderPicker({ startup: true });
   }
-  void host.refreshDynamicSlashCommands(host.session);
   host.usageMonitor.start();
   maybeShowHubIntro(host);
-  if (host.options.startup.resumeGoal === true) {
-    void resumeGoalFromQueue(host);
-  }
 }
 
 /**
@@ -130,29 +126,6 @@ export async function showSessionWarnings(
     }
   } catch {
     // Best-effort: startup must not block on warning retrieval.
-  }
-}
-
-async function resumeGoalFromQueue(host: StartupLifecycleHost): Promise<void> {
-  const session = host.session;
-  if (session === undefined) return;
-
-  try {
-    const { readGoalQueue, removeGoalQueueItem } = await import('../../goal-queue-store');
-    const queue = await readGoalQueue(session);
-    const firstGoal = queue.goals[0];
-    if (firstGoal === undefined) {
-      host.showStatus(ttui('tui.session.noGoalsResume'), 'textMuted');
-      return;
-    }
-
-    await removeGoalQueueItem(session, { goalId: firstGoal.id });
-    host.showStatus(ttui('tui.finish.resumeGoal', { objective: firstGoal.objective.slice(0, 100) }), 'textMuted');
-    host.sendNormalUserInput(`/goal ${firstGoal.objective}`, {
-      displayText: `🎯 ${firstGoal.objective.slice(0, 50)}...`,
-    });
-  } catch (error) {
-    host.showStatus(ttui('tui.finish.resumeGoalFailed', { string: String(error) }), 'error');
   }
 }
 

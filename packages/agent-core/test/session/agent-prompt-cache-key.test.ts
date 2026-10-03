@@ -50,9 +50,7 @@ describe('Session agent prompt_cache_key', () => {
       kaos: testKaos,
       homedir: sessionDir,
       rpc: createSessionRpc(),
-      initializeMainAgent: false,
       providerManager: manager,
-      skills: { explicitDirs: [join(sessionDir, 'missing-skills')] },
     });
 
     const main = await session.createAgent({ type: 'main' });
@@ -65,6 +63,7 @@ describe('Session agent prompt_cache_key', () => {
     expect(cacheKey(worker.agent.modelProvider)).toBe(`sess-abc:${worker.id}`);
     expect(cacheKey(sibling.agent.modelProvider)).toBe(`sess-abc:${sibling.id}`);
     expect(cacheKey(worker.agent.modelProvider)).not.toBe(cacheKey(sibling.agent.modelProvider));
+    await session.close();
   });
 });
 
@@ -78,10 +77,10 @@ function cacheKey(provider: ModelProvider | undefined): string | undefined {
 }
 
 function createSessionRpc(): SDKSessionRPC {
-  return new Proxy(
-    {},
-    {
-      get: () => vi.fn(),
-    },
-  ) as SDKSessionRPC;
+  return {
+    emitEvent: vi.fn(async () => {}),
+    requestApproval: vi.fn(async () => ({ decision: 'cancelled' as const })),
+    requestQuestion: vi.fn(async () => null),
+    requestCredential: vi.fn(async () => null),
+  };
 }

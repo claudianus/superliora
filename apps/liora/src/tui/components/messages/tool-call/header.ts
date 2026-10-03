@@ -26,16 +26,13 @@ import {
   shouldRenderAmbientEffects,
   type MotionToolPhase,
 } from '#/tui/features/appearance/appearance-effects';
-import { decodeMcpToolName } from '#/tui/utils/mcp/mcp-tool-name';
 import {
   composeCompactActivityHeader,
   usesCompactNarrativeHeader,
 } from '#/tui/features/transcript/compact-activity';
 import type { TranscriptDetailLevel } from '#/tui/types';
 
-import { buildGoalToolHeader } from '../tool-renderers/goal';
 import { isGenericToolResult } from '../tool-renderers/registry';
-import { pickChip } from '../tool-renderers/chip';
 import {
   extractKeyArgument,
   formatElapsed,
@@ -44,7 +41,6 @@ import {
   usageTotal,
   str,
 } from './format';
-import { interpretExitPlanModeOutcome } from './plan';
 import type { SubagentPhase } from './subagent';
 
 /**
@@ -102,12 +98,7 @@ function buildToolCallHeaderChip(
   result: ToolResultBlockData,
   finishedAtMs: number | undefined,
 ): string {
-  const provider = pickChip(toolCall.name);
   const parts: string[] = [];
-  if (provider !== undefined) {
-    const text = provider(toolCall, result);
-    if (text.length > 0) parts.push(text);
-  }
   const durationChip = formatToolCallDurationChip(toolCall, result, finishedAtMs);
   if (durationChip !== undefined) parts.push(durationChip);
   if (parts.length === 0) return '';
@@ -211,13 +202,6 @@ function collectCompactMetricParts(
   finishedAtMs: number | undefined,
 ): string[] {
   const parts: string[] = [];
-  if (result !== undefined) {
-    const provider = pickChip(toolCall.name);
-    if (provider !== undefined) {
-      const text = provider(toolCall, result);
-      if (text.length > 0) parts.push(text);
-    }
-  }
   const duration = formatToolCallDurationChip(toolCall, result, finishedAtMs);
   if (duration !== undefined) parts.push(duration);
   return parts;
@@ -228,9 +212,8 @@ function buildCompactNarrativeHeader(
   isFinished: boolean,
   isError: boolean,
 ): string {
-  const decoded = decodeMcpToolName(state.toolCall.name);
-  const toolName = decoded === null ? state.toolCall.name : decoded.toolName;
-  const entity = extractKeyArgument(state.toolCall.name, state.toolCall.args, state.workspaceDir);
+  const toolName = state.toolCall.name;
+  const entity = extractKeyArgument(state.toolCall.name, state.toolCall.args);
   return composeCompactActivityHeader({
     toolName,
     entity,
@@ -240,11 +223,7 @@ function buildCompactNarrativeHeader(
   });
 }
 
-/**
- * Composes the full header string for a tool call card, mirroring the
- * per-tool branching (plan mode, ask-user, goal tools, single subagent,
- * generic MCP tools, default) previously inlined on the class.
- */
+/** Compose live autonomous tool headers using shared motion and density. */
 export function composeToolCallHeader(state: ToolCallHeaderState): string {
   const { toolCall, result } = state;
   const isFinished = result !== undefined;
@@ -279,48 +258,6 @@ export function composeToolCallHeader(state: ToolCallHeaderState): string {
       : renderPulseText(STATUS_BULLET, `tool:${toolCall.id}:bullet`, 'text');
   }
 
-  if (toolCall.name === 'ExitPlanMode') {
-    const label = currentTheme.boldFg('primary', 'Current plan');
-    if (!isFinished || result === undefined || result.is_error === true) {
-      return label;
-    }
-    const outcome = interpretExitPlanModeOutcome(result.output);
-    if (outcome.kind === 'approved') {
-      const chipText =
-        outcome.chosen !== undefined && outcome.chosen.length > 0
-          ? `Approved: ${outcome.chosen}`
-          : 'Approved';
-      return `${label}${currentTheme.fg('success', ` · ${chipText}`)}`;
-    }
-    return label;
-  }
-
-  if (toolCall.name === 'AskUserQuestion') {
-    const isBackgroundAsk = toolCall.args['background'] === true;
-    const label = isFinished
-      ? isError
-        ? 'Could not collect your input'
-        : isBackgroundAsk
-          ? 'Started background question'
-        : 'Collected your answers'
-      : isBackgroundAsk
-        ? 'Starting background question'
-        : 'Waiting for your input';
-    const tone = isError ? 'error' : 'primary';
-    const labelStyled = renderToolActivityLabel(label, `tool:${toolCall.id}:ask`, tone);
-    return renderRendererToolActivityHeader({
-      marker: bullet,
-      label: labelStyled,
-    });
-  }
-
-  const goalHeader = buildGoalToolHeader({
-    toolCall,
-    result,
-    bullet,
-    chip: isFinished && result !== undefined ? buildToolCallHeaderChip(toolCall, result, state.finishedAtMs) : '',
-  });
-  if (goalHeader !== undefined) return goalHeader;
 
   if (state.isSingleSubagentView) {
     return buildSingleSubagentHeader(state);
@@ -335,17 +272,13 @@ export function composeToolCallHeader(state: ToolCallHeaderState): string {
     : phase === 'truncated'
       ? 'Truncated'
       : 'Using';
-  const keyArg = extractKeyArgument(toolCall.name, toolCall.args, state.workspaceDir);
-  const decoded = decodeMcpToolName(toolCall.name);
+  const keyArg = extractKeyArgument(toolCall.name, toolCall.args);
   const verbStyled = isTruncated
     ? currentTheme.fg('error', verb)
     : isFinished
       ? verb
       : renderPulseText(verb, `tool:${toolCall.id}:verb`, 'text');
-  const toolNameLabel =
-    decoded === null
-      ? toolCall.name
-      : decoded.toolName;
+  const toolNameLabel = toolCall.name;
   const argStr = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
   let chipStr = '';
   if (isFinished && result) {
@@ -373,12 +306,10 @@ export function composeToolCallHeader(state: ToolCallHeaderState): string {
       `tool:${toolCall.id}`,
       appearance,
     );
-    const mcpSuffix =
-      decoded === null ? '' : currentTheme.dim(` · MCP/${decoded.serverName}`);
     return renderRendererToolActivityHeader({
       marker: bullet,
       action: verbStyled,
-      label: `${phaseChip}${mcpSuffix}`,
+      label: phaseChip,
       detail: argStr,
       chip: chipStr,
     });
@@ -387,10 +318,7 @@ export function composeToolCallHeader(state: ToolCallHeaderState): string {
   const toolNameStyled = isFinished
     ? renderToolActivityLabel(toolNameLabel, `tool:${toolCall.id}:label`)
     : renderAnimatedGradientText(toolNameLabel, `tool:${toolCall.id}:label`);
-  const toolLabel =
-    decoded === null
-      ? toolNameStyled
-      : `${toolNameStyled}${currentTheme.dim(` · MCP/${decoded.serverName}`)}`;
+  const toolLabel = toolNameStyled;
   return renderRendererToolActivityHeader({
     marker: bullet,
     action: verbStyled,

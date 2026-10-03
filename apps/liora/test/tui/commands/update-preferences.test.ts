@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { applyUpdatePreferenceChoice } from '#/tui/commands/config/upgrade/update-preference';
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
-  DEFAULT_CONDUCTOR_PREFERENCES,
   DEFAULT_FOOTER_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
 } from '#/tui/config';
@@ -57,7 +56,6 @@ describe('update preference commands', () => {
       appearance: DEFAULT_APPEARANCE_PREFERENCES,
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
-      conductor: DEFAULT_CONDUCTOR_PREFERENCES,
       locale: 'auto',
       performanceMode: 'off',
     });

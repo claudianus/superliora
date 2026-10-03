@@ -37,18 +37,10 @@ export function isReplayUserTurnRecord(record: AgentReplayRecord): boolean {
   switch (origin.kind) {
     case 'user':
       return true;
-    case 'skill_activation':
-      return origin.trigger === 'user-slash';
-    case 'plugin_command':
-      return origin.trigger === 'user-slash';
     case 'shell_command':
       return origin.phase === 'input';
     case 'background_task':
     case 'compaction_summary':
-    case 'cron_job':
-    case 'cron_missed':
-    case 'hook_result':
-    case 'injection':
     case 'retry':
     case 'system_trigger':
       return false;

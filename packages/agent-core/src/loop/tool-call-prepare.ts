@@ -9,9 +9,8 @@ import { dispatchToolCall } from './tool-call-dispatch';
 import { runRunnableToolCall } from './tool-call-execute';
 import {
   abortedToolOutput,
-  isAlwaysSideEffectingTool,
   writePathsFromAccesses,
-} from './tool-call-guards';
+} from './tool-call-support';
 import {
   validateExecutableToolArgs,
 } from './tool-call-preflight';
@@ -140,7 +139,7 @@ export async function prepareToolCall(
   // reconcile (e.g. verify a file write already landed) instead of silently
   // redoing it or assuming it never happened.
   const writePaths = writePathsFromAccesses(execution.accesses);
-  const intended = writePaths !== undefined || isAlwaysSideEffectingTool(call.toolName);
+  const intended = writePaths !== undefined || call.toolName === 'Bash' || call.toolName === 'SessionControl';
   if (intended) {
     await step.dispatchEvent({
       type: 'tool.intend',

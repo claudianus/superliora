@@ -47,7 +47,6 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'metadata':
       return;
     case 'forked':
-      agent.goal.restoreForked(input);
       return;
     case 'turn.prompt':
       agent.turn.restorePrompt();
@@ -77,31 +76,13 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
       agent.fullCompaction.cancel();
       return;
     case 'full_compaction.complete':
-      agent.fullCompaction.markCompleted();
-      return;
-    case 'micro_compaction.apply':
-      agent.microCompaction.apply(input.cutoff);
-      return;
-    case 'plan_mode.enter':
-      agent.planMode.restoreEnter(input);
-      return;
-    case 'plan_mode.state':
-      agent.planMode.restoreState(input);
-      return;
-    case 'plan_mode.cancel':
-      agent.planMode.cancel(input.id);
-      return;
-    case 'plan_mode.exit':
-      agent.planMode.exit(input.id);
       return;
     case 'context.append_message':
       agent.context.appendMessage(input.message);
       return;
     case 'context.append_loop_event':
       agent.context.appendLoopEvent(input.event);
-      // Advance the turn counter past internally-driven turns (goal
-      // continuations, steer-launched turns) that allocate a turnId without a
-      // `turn.prompt` record. Their loop events still carry the real turnId.
+      // Restore the counter for explicit steer and child turns without a turn.prompt record.
       if ('turnId' in input.event) {
         const restoredTurnId = Number.parseInt(input.event.turnId, 10);
         if (!Number.isNaN(restoredTurnId)) {
@@ -120,38 +101,17 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'context.undo':
       agent.context.undo(input.count);
       return;
-    case 'context.rollback_attempt':
-      agent.context.rollbackAttempt(input.turnId, input.historyLength);
+    case 'job.ledger':
+      agent.tools.updateStore('job_ledger', input.ledger);
       return;
-    case 'tools.register_user_tool':
-      agent.tools.registerUserTool(input);
+    case 'job.inbox':
+      agent.tools.updateStore('job_inbox', input.inbox);
       return;
-    case 'tools.unregister_user_tool':
-      agent.tools.unregisterUserTool(input.name);
-      return;
-    case 'tools.set_active_tools':
-      agent.tools.setActiveTools(input.names);
-      return;
-    case 'tools.update_store':
-      agent.tools.updateStore(input.key, input.value);
-      return;
-    case 'goal.create':
-      agent.goal.restoreCreate(input);
-      return;
-    case 'goal.update':
-      agent.goal.restoreUpdate(input);
-      return;
-    case 'goal.clear':
-      agent.goal.restoreClear(input);
-      return;
-    case 'harness.state':
-      agent.refine?.restoreState(input.state);
+    case 'job.pool':
+      agent.tools.updateStore('job_project_mode', input.pool);
       return;
     case 'subagent.lifecycle':
       agent.replayBuilder.push({ type: 'agent_event', event: input.event as AgentEvent });
-      return;
-    case 'premium-quality.mode':
-      agent.premiumQuality.restoreMode(input);
       return;
   }
 }
@@ -248,7 +208,8 @@ export class AgentRecords {
         let migratedRecord = migrateWireRecord(
           record as WireMigrationRecord,
           migrations,
-        ) as AgentRecord;
+        ) as AgentRecord | null;
+        if (migratedRecord === null) continue;
         if (migratedRecord.type === 'metadata') {
           migratedRecord = {
             ...migratedRecord,
@@ -299,7 +260,13 @@ export class AgentRecords {
   }
 
   async flush(): Promise<void> {
+    this.agent.tools.flushRecordWrites();
     await this.persistence?.flush();
+  }
+
+  async close(): Promise<void> {
+    this.agent.tools.flushRecordWrites();
+    await this.persistence?.close();
   }
 
   flushSync(): void {

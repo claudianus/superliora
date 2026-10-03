@@ -7,7 +7,6 @@ import {
   isWithinWorkspace,
   normalizeUserPath,
   PathSecurityError,
-  assertPathAllowed,
   resolvePathAccess,
   resolvePathAccessPath,
 } from '../../src/tools/policies/path-access';
@@ -47,25 +46,6 @@ describe('path access policy', () => {
     ).toThrow(/absolute path/);
   });
 
-  it('does not duplicate outside-working-directory wording for search paths', () => {
-    try {
-      resolvePathAccess('../../outside.txt', '/workspace/project', WORKSPACE, {
-        operation: 'search',
-        policy: DEFAULT_WORKSPACE_ACCESS_POLICY,
-      });
-    } catch (error) {
-      expect(error).toBeInstanceOf(PathSecurityError);
-      const message = (error as PathSecurityError).message;
-      const matches = message.match(/outside the working directory/g) ?? [];
-      expect(matches).toHaveLength(1);
-      expect(message).toBe(
-        '"../../outside.txt" is not an absolute path. You must provide an absolute path to search outside the working directory.',
-      );
-      return;
-    }
-
-    throw new Error('Expected resolvePathAccess to reject escaping relative search path');
-  });
 
   it('disabled policy allows relative paths that escape workspace roots', () => {
     const result = resolvePathAccess('../../outside.txt', '/workspace/project', WORKSPACE, {
@@ -107,7 +87,7 @@ describe('path access policy', () => {
     ).toThrow(/sensitive-file pattern/);
   });
 
-  it('resolves only the canonical path for file tools', () => {
+  it('resolves canonical paths before security checks', () => {
     const result = resolvePathAccessPath('src/../README.md', {
       kaos: POSIX_KAOS,
       workspace: { workspaceDir: '/workspace/project', additionalDirs: [] },
@@ -117,7 +97,7 @@ describe('path access policy', () => {
     expect(result).toBe('/workspace/project/README.md');
   });
 
-  it('expands home for file tools unless explicitly disabled', () => {
+  it('expands home paths unless explicitly disabled', () => {
     const workspace = { workspaceDir: '/workspace', additionalDirs: [] };
 
     expect(
@@ -137,19 +117,6 @@ describe('path access policy', () => {
     ).toBe('/workspace/~/notes/today.txt');
   });
 
-  it('legacy assertPathAllowed allows absolute outside paths but rejects relative escapes', () => {
-    expect(
-      assertPathAllowed('/workspace-evil/secrets.txt', '/workspace', WORKSPACE, {
-        mode: 'read',
-      }),
-    ).toBe('/workspace-evil/secrets.txt');
-
-    expect(() =>
-      assertPathAllowed('../../outside.txt', '/workspace/project', WORKSPACE, {
-        mode: 'read',
-      }),
-    ).toThrow(/absolute path/);
-  });
 
   it('canonicalizes paths with an explicit posix path class', () => {
     expect(canonicalizePath('../file.txt', '/workspace/project', 'posix')).toBe(

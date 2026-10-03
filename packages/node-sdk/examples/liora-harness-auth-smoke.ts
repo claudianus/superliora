@@ -6,7 +6,7 @@ import { createLioraHarness, type LioraHarness } from '@superliora/sdk';
 
 import { smokeIdentityFromEnv, runPromptToEnd } from './runtime-smoke-helpers';
 
-const MANAGED_SUPERLIORA_PROVIDER = 'managed:kimi-code';
+const MANAGED_SUPERLIORA_PROVIDER = 'managed:kimi-api';
 
 async function main(): Promise<void> {
   const explicitHomeDir = process.env['KIMI_SDK_AUTH_SMOKE_HOME'];

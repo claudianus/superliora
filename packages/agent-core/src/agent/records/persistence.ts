@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   appendFileSync,
   closeSync,
@@ -7,7 +8,7 @@ import {
   openSync,
 } from 'node:fs';
 import { existsSync } from 'node:fs';
-import { mkdir, open, rename, truncate, unlink } from 'node:fs/promises';
+import { appendFile, link, mkdir, open, rename, truncate, unlink } from 'node:fs/promises';
 import { dirname } from 'pathe';
 import { createGunzip } from 'node:zlib';
 import type { Readable } from 'node:stream';
@@ -224,6 +225,7 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
             partsBytes += segment.length;
           }
           const lineBuf = takeLine();
+          const lineStart = consumedBytes;
           const corruptAt = consumedBytes + partsBytes;
           parts.length = 0;
           partsBytes = 0;
@@ -242,7 +244,7 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
             record = undefined;
           }
           if (record === undefined) {
-            this.readCorruption = { lineNumber, truncateBytes: corruptAt };
+            this.readCorruption = { lineNumber, truncateBytes: lineStart };
             break;
           }
           yielded++;
@@ -262,6 +264,7 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
       if (this.readCorruption !== undefined) stream.destroy();
     }
 
+    let trailingRecordValid = false;
     if (partsBytes > 0 && this.readCorruption === undefined) {
       lineNumber++;
       if (partsBytes > MAX_WIRE_LINE_BYTES) {
@@ -270,8 +273,11 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
       const rawLine = takeLine().toString('utf8');
       const record = parseRecordLine(rawLine, lineNumber, this.filePath, true);
       if (record !== undefined) {
+        trailingRecordValid = true;
         yielded++;
         yield record;
+      } else {
+        this.readCorruption = { lineNumber, truncateBytes: consumedBytes };
       }
     }
 
@@ -279,13 +285,52 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
       // Recovery mode: drop everything past the seam so the append offset
       // stays consistent with the readable prefix.
       const seam = this.readCorruption.truncateBytes;
-      await truncate(this.appendPath, seam).catch(() => {});
+      if (isGzipWirePath(resolved)) {
+        await this.recoverCompressedPrefix(resolved, seam);
+      } else {
+        await truncate(resolved, seam);
+      }
+    } else if (trailingRecordValid) {
+      if (isGzipWirePath(resolved)) {
+        await this.recoverCompressedPrefix(resolved, consumedBytes + partsBytes, true);
+      } else {
+        await appendFile(resolved, '\n');
+      }
     }
 
     // Seed the committed offset from the records just read, so a freshly
     // resumed persistence reflects the existing durable log length before any
     // new appends or rewrites land.
     this.committedRecordCount = yielded;
+  }
+
+  private async recoverCompressedPrefix(source: string, bytes: number, appendTerminator = false): Promise<void> {
+    const target = this.appendPath;
+    const temporary = `${target}.recovering.${randomUUID()}`;
+    const file = await open(temporary, 'wx');
+    try {
+      let remaining = bytes;
+      for await (const chunk of this.openReadStream(source)) {
+        if (remaining === 0) break;
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        const prefix = buffer.subarray(0, Math.min(buffer.length, remaining));
+        await file.writeFile(prefix);
+        remaining -= prefix.length;
+      }
+      if (remaining !== 0) throw new Error('Compressed journal ended before its readable prefix.');
+      if (appendTerminator) await file.writeFile('\n');
+      await file.sync();
+      await file.close();
+      await link(source, `${target}.pre-native.${randomUUID()}.gz`);
+      await rename(temporary, target);
+      await unlink(source);
+      await syncDir(dirname(target));
+      this.directorySynced = true;
+    } catch (error) {
+      await file.close().catch(() => {});
+      await unlink(temporary).catch(() => {});
+      throw error;
+    }
   }
 
   /**
@@ -325,6 +370,11 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
       commit: async () => {
         await fh.sync();
         await closeOnce();
+        const source = await this.resolveReadablePath();
+        if (source !== undefined) {
+          const suffix = isGzipWirePath(source) ? '.gz' : '';
+          await link(source, `${target}.pre-native.${randomUUID()}${suffix}`);
+        }
         // Replace plain wire; drop any leftover gzip so history is not dual-sourced.
         await rename(tmpPath, target);
         await unlink(`${target}.gz`).catch(() => {});

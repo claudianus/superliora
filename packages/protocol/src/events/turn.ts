@@ -56,19 +56,6 @@ export interface TurnStepCompletedEvent {
   readonly providerRouteSelection?: ProviderRouteSelection;
 }
 
-export interface TurnStepRetryingEvent {
-  readonly type: 'turn.step.retrying';
-  readonly turnId: number;
-  readonly step: number;
-  readonly stepId?: string;
-  readonly failedAttempt: number;
-  readonly nextAttempt: number;
-  readonly maxAttempts: number;
-  readonly delayMs: number;
-  readonly errorName: string;
-  readonly errorMessage: string;
-  readonly statusCode?: number;
-}
 
 export interface TurnStepInterruptedEvent {
   readonly type: 'turn.step.interrupted';
@@ -84,14 +71,6 @@ export interface AssistantDeltaEvent {
   readonly type: 'assistant.delta';
   readonly turnId: number;
   readonly delta: string;
-}
-
-export interface HookResultEvent {
-  readonly type: 'hook.result';
-  readonly turnId: number;
-  readonly hookEvent: string;
-  readonly content: string;
-  readonly blocked?: boolean;
 }
 
 export interface ThinkingDeltaEvent {
@@ -150,19 +129,6 @@ export const turnStepCompletedEventSchema = z.object({
   providerRouteSelection: providerRouteSelectionSchema.optional(),
 }) satisfies z.ZodType<TurnStepCompletedEvent>;
 
-export const turnStepRetryingEventSchema = z.object({
-  type: z.literal('turn.step.retrying'),
-  turnId: z.number(),
-  step: z.number(),
-  stepId: z.string().optional(),
-  failedAttempt: z.number(),
-  nextAttempt: z.number(),
-  maxAttempts: z.number(),
-  delayMs: z.number(),
-  errorName: z.string(),
-  errorMessage: z.string(),
-  statusCode: z.number().optional(),
-}) satisfies z.ZodType<TurnStepRetryingEvent>;
 
 export const turnStepInterruptedEventSchema = z.object({
   type: z.literal('turn.step.interrupted'),
@@ -179,14 +145,6 @@ export const assistantDeltaEventSchema = z.object({
   turnId: z.number(),
   delta: z.string(),
 }) satisfies z.ZodType<AssistantDeltaEvent>;
-
-export const hookResultEventSchema = z.object({
-  type: z.literal('hook.result'),
-  turnId: z.number(),
-  hookEvent: z.string(),
-  content: z.string(),
-  blocked: z.boolean().optional(),
-}) satisfies z.ZodType<HookResultEvent>;
 
 export const thinkingDeltaEventSchema = z.object({
   type: z.literal('thinking.delta'),

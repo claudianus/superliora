@@ -3,8 +3,6 @@ import type { CompactionPhase } from '@superliora/sdk';
 import type { AgentGroupComponent } from '../../components/messages/agent-group';
 import { AssistantMessageComponent } from '../../components/messages/assistant-message';
 import type { CompactionComponent } from '../../components/dialogs/session/compaction';
-import type { ReadGroupComponent } from '../../components/messages/read-group';
-import type { SearchGroupComponent } from '../../components/messages/search-group';
 import type { ThinkingComponent } from '../../components/messages/thinking';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import {
@@ -44,7 +42,6 @@ import {
   streamingBeginCompaction,
   streamingCancelCompaction,
   streamingEndCompaction,
-  streamingPromoteCompaction,
   streamingUpdateCompactionProgress,
 } from './todo-compaction';
 import {
@@ -141,8 +138,6 @@ export class StreamingUIController {
   private _chainSummary: ChainSummaryState = { active: null, turnIndex: -1 };
   private _phaseBoundary: PhaseBoundaryState = createPhaseBoundaryState();
   private _pendingAgentGroup: PendingToolGroup<AgentGroupComponent> | null = null;
-  private _pendingReadGroup: PendingToolGroup<ReadGroupComponent> | null = null;
-  private _pendingSearchGroup: PendingToolGroup<SearchGroupComponent> | null = null;
 
   constructor(private readonly host: StreamingUIHost) {}
 
@@ -230,14 +225,6 @@ export class StreamingUIController {
     return this._pendingAgentGroup !== null;
   }
 
-  hasPendingReadGroup(): boolean {
-    return this._pendingReadGroup !== null;
-  }
-
-  hasPendingSearchGroup(): boolean {
-    return this._pendingSearchGroup !== null;
-  }
-
   removeToolComponentIfInactive(toolCallId: string): void {
     removeStreamingToolComponentIfInactive(
       this._activeToolCalls,
@@ -315,12 +302,6 @@ export class StreamingUIController {
       pendingToolComponents: this._pendingToolComponents,
       clearPendingAgentGroup: () => {
         this._pendingAgentGroup = null;
-      },
-      clearPendingReadGroup: () => {
-        this._pendingReadGroup = null;
-      },
-      clearPendingSearchGroup: () => {
-        this._pendingSearchGroup = null;
       },
       completedToolCallIds,
       flushState: this._flushState,
@@ -436,8 +417,6 @@ export class StreamingUIController {
     this._streamingToolCallArguments.clear();
     this.disposeAndClearPendingToolComponents();
     this._pendingAgentGroup = null;
-    this._pendingReadGroup = null;
-    this._pendingSearchGroup = null;
   }
 
   resetToolCallState(): void {
@@ -519,7 +498,7 @@ export class StreamingUIController {
 
   beginCompaction(
     instruction?: string,
-    options?: { readonly background?: boolean; readonly modelAlias?: string },
+    options?: { readonly modelAlias?: string },
   ): void {
     streamingBeginCompaction(this.compactionHost(), instruction, options);
   }
@@ -530,10 +509,6 @@ export class StreamingUIController {
 
   cancelCompaction(): void {
     streamingCancelCompaction(this.compactionHost());
-  }
-
-  promoteCompactionToBlocking(): void {
-    streamingPromoteCompaction(this.compactionHost());
   }
 
   updateCompactionProgress(
@@ -577,8 +552,6 @@ export class StreamingUIController {
       chainSummary: this._chainSummary,
       phaseBoundary: this._phaseBoundary,
       pendingAgentGroup: this._pendingAgentGroup,
-      pendingReadGroup: this._pendingReadGroup,
-      pendingSearchGroup: this._pendingSearchGroup,
       setStreamingBlock: (block) => {
         this._streamingBlock = block;
       },
@@ -590,12 +563,6 @@ export class StreamingUIController {
       },
       setPendingAgentGroup: (group) => {
         this._pendingAgentGroup = group;
-      },
-      setPendingReadGroup: (group) => {
-        this._pendingReadGroup = group;
-      },
-      setPendingSearchGroup: (group) => {
-        this._pendingSearchGroup = group;
       },
       finalizeLiveTextBuffers: (mode) =>{  this.finalizeLiveTextBuffers(mode); },
       onToolCallStart: (toolCall) =>{  this.onToolCallStart(toolCall); },

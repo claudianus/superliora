@@ -1,8 +1,6 @@
 /**
- * A turn is parked when every in-flight tool is a blocking TaskOutput wait.
- * The model is not producing; busy chrome (moon spinner, elapsed, tokens)
- * would look like active work. SuperLiora Enter still queues during a wait,
- * so the cue must not claim that sending interrupts — grok-build can, we cannot.
+ * A turn is parked when every in-flight tool is a blocking SessionControl wait.
+ * Enter still queues rather than interrupting the waiting parent turn.
  */
 
 export interface ParkedWaitTool {
@@ -10,22 +8,20 @@ export interface ParkedWaitTool {
   readonly args?: Record<string, unknown>;
 }
 
-/** `TaskOutput` with `block: true` — the SuperLiora analog of grok's sendable wait. */
-export function isTaskOutputBlockingWait(tool: ParkedWaitTool): boolean {
-  if (tool.name !== 'TaskOutput') return false;
-  const block = tool.args?.['block'];
-  return block === true || block === 'true';
+/** SessionControl `wait` blocks unless timeout is explicitly zero. */
+export function isSessionControlBlockingWait(tool: ParkedWaitTool): boolean {
+  return tool.name === 'SessionControl' && tool.args?.['operation'] === 'wait' &&
+    tool.args['timeout'] !== 0;
 }
 
 /**
  * Park only when at least one tool is running and every running tool is a
- * blocking TaskOutput. A mixed step (Read + wait) stays on busy chrome.
- * Foreground Agent waits stay busy — the subagent is still producing.
+ * blocking wait. A mixed step with Bash stays on busy chrome.
  */
 export function isParkedSendableWait(tools: Iterable<ParkedWaitTool>): boolean {
   let count = 0;
   for (const tool of tools) {
-    if (!isTaskOutputBlockingWait(tool)) return false;
+    if (!isSessionControlBlockingWait(tool)) return false;
     count += 1;
   }
   return count > 0;

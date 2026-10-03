@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { getCliLocale, setCliLocale } from '#/cli/i18n';
 import {
   createToolChainStats,
-  DEFAULT_TRANSCRIPT_DETAIL,
   formatChainLiveSummary,
   formatChainSettledSummary,
   formatDiffChip,
@@ -30,21 +29,6 @@ describe('resolveTranscriptDetail', () => {
   });
 });
 
-describe('default transcript expansion density', () => {
-  it('exports standard as the product default for unset / new sessions', () => {
-    expect(DEFAULT_TRANSCRIPT_DETAIL).toBe('standard');
-    // Restore the product default after other suites may have mutated the mirror.
-    setActiveTranscriptDetail(DEFAULT_TRANSCRIPT_DETAIL);
-    expect(getActiveTranscriptDetail()).toBe('standard');
-  });
-
-  it('cycles unknown levels from standard (product default), not compact', () => {
-    // Cast: nextTranscriptDetailLevel only accepts valid levels at the type level,
-    // but the runtime fallback must still start from the product default.
-    // From standard: next is full.
-    expect(nextTranscriptDetailLevel('not-a-level' as never)).toBe('full');
-  });
-});
 
 describe('isOneLineToolLevel', () => {
   it('collapses bodies only for compact and minimal', () => {
@@ -144,10 +128,12 @@ describe('formatDurationShort', () => {
 });
 
 describe('chain summaries', () => {
-  it('builds a live summary with label, count, and diff', () => {
+  it('builds a live summary with count and diff', () => {
     let stats = createToolChainStats(0);
     stats = recordChainTool(stats, { file: 'x.ts', linesAdded: 42, linesRemoved: 10 });
-    expect(formatChainLiveSummary(stats, 'Edit src/x.ts')).toBe('⚙ Editing 1 file · +42/−10');
+    const summary = formatChainLiveSummary(stats, 'Bash git diff');
+    expect(summary).toMatch(/\b1\b/);
+    expect(summary).toContain('+42/−10');
     stats = recordChainTool(stats, {});
     expect(formatChainLiveSummary(stats)).toBe('⚙ 2 tools · +42/−10');
   });

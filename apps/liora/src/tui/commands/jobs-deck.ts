@@ -5,11 +5,7 @@
  */
 
 import type { SlashCommandHost } from './hub/dispatch';
-import {
-  formatShellCommandPreview,
-  highlightLines,
-  langFromPath,
-} from '../components/media/code-highlight';
+import { formatShellCommandPreview } from '../components/media/code-highlight';
 import {
   JobDeckViewerComponent,
   type JobDeckWorkerLoad,
@@ -26,7 +22,6 @@ import {
   hotpathJobCancel,
   hotpathJobResume,
   hotpathJobSteer,
-  isConductorUxV2Enabled,
 } from './job-hotpath';
 import { resyncJobBoardFromSession } from '../features/control-tower/job-resync';
 import {
@@ -78,12 +73,9 @@ export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void 
   host.mountEditorReplacement(panel);
   rememberOpenSurface(SURFACE_JOB_DECK, panel);
 
-  // F18: pull authoritative jobList into the store while the deck is open.
-  if (isConductorUxV2Enabled()) {
-    void resyncJobBoardFromSession(host).then((ok) => {
-      if (ok) host.state.renderer.requestRender('manual');
-    });
-  }
+  void resyncJobBoardFromSession(host).then((ok) => {
+    if (ok) host.state.renderer.requestRender('manual');
+  });
 }
 
 async function loadJobDeckWorker(
@@ -115,8 +107,8 @@ async function loadJobDeckWorker(
       lines: formatJobDeckTraceLines(trace.context.history),
       usage: usageLoad,
     };
-  } catch (caught) {
-    return { lines: [], error: formatErrorMessage(caught) };
+  } catch (error) {
+    return { lines: [], error: formatErrorMessage(error) };
   }
 }
 
@@ -137,7 +129,6 @@ export function routeJobDeckAction(
   }
   host.restoreEditor();
   const id = card.id;
-  if (isConductorUxV2Enabled()) {
     switch (action) {
       case 'steer':
         void hotpathJobSteer(host, id, text ?? '');
@@ -155,39 +146,6 @@ export function routeJobDeckAction(
         void retryFailedJob(host, card);
         return;
     }
-  }
-  switch (action) {
-    case 'steer':
-      host.sendNormalUserInput(
-        `Use JobSteer with job_id=${id} and message=${JSON.stringify(text ?? '')} to steer the running Conductor worker in real time. Report ACK state briefly.`,
-        { displayText: `/job steer ${shortJobId(id)} ${text ?? ''}` },
-      );
-      return;
-    case 'answer':
-      host.sendNormalUserInput(
-        `Use JobResume with job_id=${id} and answer=${JSON.stringify(text ?? '')} to inject the user answer into the needs_user card and re-queue the job. Report the resumed state.`,
-        { displayText: `/job answer ${shortJobId(id)} ${text ?? ''}` },
-      );
-      return;
-    case 'resume':
-      host.sendNormalUserInput(
-        `Use JobResume with job_id=${id} to re-queue and schedule that job. Report ACK state.`,
-        { displayText: `/job resume ${shortJobId(id)}` },
-      );
-      return;
-    case 'cancel':
-      host.sendNormalUserInput(
-        `Use JobCancel with job_id=${id} to cancel the job and abort its worker if live. Report final state.`,
-        { displayText: `/job cancel ${shortJobId(id)}` },
-      );
-      return;
-    case 'retry':
-      host.sendNormalUserInput(
-        `Use JobCreate with title=${JSON.stringify(card.title)} and prompt=${JSON.stringify(retryPromptHint(card))} to retry the failed Conductor job. Report the new job id.`,
-        { displayText: `/job retry ${shortJobId(id)}` },
-      );
-      return;
-  }
 }
 
 function retryPromptHint(card: ConductorJobCard): string {
@@ -263,7 +221,6 @@ export function formatJobDeckTraceLines(
         message.toolCallId,
         contentValue(message.content),
         message.isError === true,
-        call?.input,
       );
     }
   }
@@ -312,7 +269,6 @@ function appendMessageContent(
         toolCallId,
         valueToText(part['output'] ?? part['content']),
         part['isError'] === true || part['is_error'] === true,
-        call?.input,
       );
     }
 }
@@ -354,16 +310,13 @@ function appendToolResult(
   toolCallId: string | undefined,
   output: string,
   isError: boolean,
-  input: unknown,
 ): void {
   const status = isError ? '✗' : '✓';
   const id = toolCallId === undefined ? '' : ` · ${toolCallId}`;
   lines.push(`${status} ${name} result${id}`);
-  const path = pathFromToolInput(input);
   const formatted = formatTranscriptOutput(output, {
     isError,
     mode: name === 'Bash' ? 'bash' : 'tool',
-    ...(path === undefined ? {} : { pathHint: path }),
   });
   if (formatted.length === 0) {
     lines.push('  │ (empty)');
@@ -376,7 +329,6 @@ function appendToolResult(
 
 function formatToolInputLines(name: string, input: unknown): readonly string[] {
   const record = asRecord(input);
-  const path = pathFromToolInput(input);
   const command = stringValue(record?.['command']);
   if (name === 'Bash' && command !== undefined) {
     const lines = ['command:', ...formatShellCommandPreview(command)];
@@ -387,31 +339,13 @@ function formatToolInputLines(name: string, input: unknown): readonly string[] {
     return lines;
   }
 
-  if (path !== undefined && record !== undefined) {
-    const lines = [`path: ${path}`];
-    for (const key of ['content', 'old_string', 'new_string']) {
-      const code = stringValue(record[key]);
-      if (code === undefined) continue;
-      lines.push(
-        `${key}:`,
-        ...highlightLines(code, langFromPath(path), { pathHint: path }),
-      );
-    }
-    const extras = withoutKeys(record, ['content', 'old_string', 'new_string', 'path', 'file_path', 'filePath']);
-    if (Object.keys(extras).length > 0) {
-      lines.push('arguments:', ...formatJsonLines(extras));
-    }
-    return lines;
-  }
 
-  const serialized = serializeTraceValue(input);
-  return formatJsonLines(serialized, path);
+  return formatJsonLines(input);
 }
 
-function formatJsonLines(value: unknown, pathHint?: string): string[] {
+function formatJsonLines(value: unknown): string[] {
   const formatted = formatTranscriptOutput(serializeTraceValue(value), {
     mode: 'tool',
-    ...(pathHint === undefined ? {} : { pathHint }),
   });
   return formatted.length === 0 ? [] : formatted.split('\n');
 }
@@ -463,14 +397,6 @@ function parseToolArguments(raw: string): unknown {
   }
 }
 
-function pathFromToolInput(input: unknown): string | undefined {
-  const record = asRecord(input);
-  return (
-    stringValue(record?.['file_path']) ??
-    stringValue(record?.['path']) ??
-    stringValue(record?.['filePath'])
-  );
-}
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;

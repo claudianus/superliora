@@ -4,12 +4,11 @@
 // Usage:
 //   node scripts/debug-local.mjs                 # interactive source TUI
 //   node scripts/debug-local.mjs -- -p "…"       # headless harness prompt
-//   node scripts/debug-local.mjs --env           # print the debug env and exit
+//   node scripts/debug-local.mjs --env           # report settings; omit inherited values
 //   node scripts/debug-local.mjs --self-check    # assert env decisions
 //   node scripts/debug-local.mjs --ephemeral     # tmpdir SUPERLIORA_HOME
 //   node scripts/debug-local.mjs --home real     # operator ~/.superliora (dangerous)
 //   node scripts/debug-local.mjs --no-keys       # chrome-only; strip provider keys
-//   node scripts/debug-local.mjs --cli-only      # skip isolated marketplace server
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -22,9 +21,8 @@ import {
   selfCheckDebugEnv,
 } from './debug-local-env.mjs';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = resolve(import.meta.dirname, '..');
 const DEV_SCRIPT = join(repoRoot, 'apps/liora/scripts/dev.mjs');
-const DEV_CLI_ONLY_SCRIPT = join(repoRoot, 'apps/liora/scripts/dev-cli-only.mjs');
 
 function printHelp() {
   console.log(`debug-local — source TUI/harness with analysis on (not installed liora.exe)
@@ -33,18 +31,17 @@ Usage:
   node scripts/debug-local.mjs [options] [-- <cli args>]
 
 Options:
-  --env           print the debug env and exit
+  --env           report debug settings without inherited environment values
   --self-check    assert env decisions
   --ephemeral     tmpdir SUPERLIORA_HOME (deleted with the OS temp dir)
   --home real     use the operator SUPERLIORA_HOME / ~/.superliora (writes real state)
   --no-keys       strip provider keys (chrome / layout only)
-  --cli-only      skip the isolated plugin marketplace server
   --help          this text
 
 Examples:
   node scripts/debug-local.mjs
   node scripts/debug-local.mjs -- -p "say hello"
-  pnpm run debug:cli -- --cli-only
+  pnpm run debug:cli
 `);
 }
 
@@ -64,8 +61,7 @@ function parseArgs(argv) {
       arg === '--help' ||
       arg === '-h' ||
       arg === '--ephemeral' ||
-      arg === '--no-keys' ||
-      arg === '--cli-only'
+      arg === '--no-keys'
     ) {
       local.add(arg);
       continue;
@@ -124,12 +120,12 @@ function printBanner(built, forwarded) {
     (built.env.SSH_CONNECTION ?? '').length > 0 ||
     (built.env.SSH_CLIENT ?? '').length > 0;
   console.error('debug-local: source TUI/harness (tsx) — not installed liora.exe');
-  console.error(`  SUPERLIORA_HOME=${built.home} (${built.homeMode})`);
-  console.error(`  SUPERLIORA_DEBUG_LOG=${built.debugLog}`);
+  console.error(`  home: ${built.homeMode} (path omitted)`);
+  console.error('  debug log: configured (path omitted)');
   console.error(
     ssh
       ? '  motion: off (SSH_* present — same as a remote user session)'
-      : `  motion: on (CI/NO_COLOR unset; TERM=${built.env.TERM}${built.termUpgraded ? ', upgraded from dumb/empty' : ''})`,
+      : `  motion: on (CI/NO_COLOR unset; TERM ${built.termUpgraded ? 'upgraded to xterm-256color' : 'inherited; value omitted'})`,
   );
   console.error(
     '  analysis: SUPERLIORA_DEBUG=1 · renderer trace · scroll probe · stdio persist · log=debug',
@@ -175,8 +171,7 @@ mkdirSync(join(built.home, 'logs'), { recursive: true });
 warnNodeVersion();
 printBanner(built, forwarded);
 
-const script = local.has('--cli-only') ? DEV_CLI_ONLY_SCRIPT : DEV_SCRIPT;
-const child = spawn(process.execPath, [script, ...forwarded], {
+const child = spawn(process.execPath, [DEV_SCRIPT, ...forwarded], {
   cwd: repoRoot,
   env: built.env,
   stdio: 'inherit',

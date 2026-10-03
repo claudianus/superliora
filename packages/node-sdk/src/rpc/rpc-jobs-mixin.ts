@@ -26,9 +26,9 @@ import type {
 } from '#/session/types';
 
 import type { SessionIdRpcInput } from './rpc-types';
-import { SDKRpcClientGoalsMixin } from './rpc-goals-mixin';
+import { SDKRpcClientInteractiveBase } from './rpc-interactive-base';
 
-export abstract class SDKRpcClientJobsMixin extends SDKRpcClientGoalsMixin {
+export abstract class SDKRpcClientJobsMixin extends SDKRpcClientInteractiveBase {
   async jobList(input: SessionIdRpcInput): Promise<readonly JobSnapshot[]> {
     const rpc = await this.getRpc();
     return rpc.jobList({ sessionId: input.sessionId, agentId: this.interactiveAgentId });
@@ -80,6 +80,11 @@ export abstract class SDKRpcClientJobsMixin extends SDKRpcClientGoalsMixin {
       jobId: input.jobId,
       reason: input.reason,
     });
+  }
+
+  async jobPause(input: SessionIdRpcInput & { jobId: string }): Promise<JobActionResult> {
+    const rpc = await this.getRpc();
+    return rpc.jobPause({ sessionId: input.sessionId, agentId: this.interactiveAgentId, jobId: input.jobId });
   }
 
   async jobResume(

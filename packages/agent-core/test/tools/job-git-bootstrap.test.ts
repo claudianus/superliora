@@ -9,8 +9,8 @@ import {
   ensureGitRepoForWorktrees,
   GIT_BOOTSTRAP_BASELINE_MESSAGE,
   resetGitBootstrapCache,
-  SUPERLIORA_AUTO_GIT_INIT_ENV,
-} from '../../src/tools/builtin/job/job-git-bootstrap';
+  AUTO_GIT_INIT_ENV,
+} from '../../src/session/git-bootstrap';
 import { assignJobWorktree } from '../../src/tools/builtin/job/job-runtime';
 import { createJob } from '../../src/tools/builtin/job/job-ledger';
 import type { ToolStore } from '../../src/tools/store';
@@ -154,15 +154,6 @@ describe('ensureGitRepoForWorktrees', () => {
     await expect(git(kaos, repo, 'rev-parse', '--verify', 'HEAD')).resolves.toBeDefined();
   });
 
-  it('honors the legacy conductor opt-out env too', async () => {
-    const repo = await makeTempDir('liora-gitlegacyoptout-');
-    const result = await ensureGitRepoForWorktrees(kaos, repo, {
-      SUPERLIORA_CONDUCTOR_AUTO_GIT_INIT: '0',
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContain('SUPERLIORA_CONDUCTOR_AUTO_GIT_INIT');
-  });
 
   it('memoizes a successful bootstrap per path', async () => {
     const repo = await makeTempDir('liora-gitmemo-');
@@ -178,11 +169,11 @@ describe('ensureGitRepoForWorktrees', () => {
   it('honors the opt-out env and does not initialize', async () => {
     const repo = await makeTempDir('liora-gitoptout-');
     const result = await ensureGitRepoForWorktrees(kaos, repo, {
-      [SUPERLIORA_AUTO_GIT_INIT_ENV]: '0',
+      [AUTO_GIT_INIT_ENV]: '0',
     });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toContain(SUPERLIORA_AUTO_GIT_INIT_ENV);
+    expect(result.error).toContain(AUTO_GIT_INIT_ENV);
     expect(result.error).toContain('git init');
     await expect(git(kaos, repo, 'rev-parse', '--git-dir')).rejects.toThrow();
   });
@@ -191,7 +182,7 @@ describe('ensureGitRepoForWorktrees', () => {
     const repo = await makeTempDir('liora-gitretry-');
     await writeFile(join(repo, 'a.txt'), 'a\n', 'utf-8');
     const blocked = await ensureGitRepoForWorktrees(kaos, repo, {
-      [SUPERLIORA_AUTO_GIT_INIT_ENV]: 'off',
+      [AUTO_GIT_INIT_ENV]: 'off',
     });
     expect(blocked.ok).toBe(false);
     const retry = await ensureGitRepoForWorktrees(kaos, repo, {});
@@ -253,13 +244,13 @@ describe('assignJobWorktree with git bootstrap', () => {
       jobId: job.id,
       kaos,
       repoPath: repo,
-      env: { [SUPERLIORA_AUTO_GIT_INIT_ENV]: '0' },
+      env: { [AUTO_GIT_INIT_ENV]: '0' },
       createWorktree: async () => {
         throw new Error('must not run');
       },
     });
 
-    expect(assigned.error).toContain(SUPERLIORA_AUTO_GIT_INIT_ENV);
+    expect(assigned.error).toContain(AUTO_GIT_INIT_ENV);
     expect(assigned.job?.status).toBe('blocked');
     expect(assigned.job?.notes).toContain('worktree_failed:');
     expect(assigned.job?.notes).toContain('JobResume');

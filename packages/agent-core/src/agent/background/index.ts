@@ -11,8 +11,6 @@ export { AgentBackgroundTask } from './agent-task';
 export type { AgentBackgroundTaskInfo } from './agent-task';
 export { ProcessBackgroundTask } from './process-task';
 export type { ProcessBackgroundTaskInfo } from './process-task';
-export { QuestionBackgroundTask } from './question-task';
-export type { QuestionBackgroundTaskInfo } from './question-task';
 export { BackgroundTaskPersistence } from './persist';
 export type { BackgroundTaskInfo, BackgroundTaskStatus } from './task';
 export type {

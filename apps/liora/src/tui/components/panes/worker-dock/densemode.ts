@@ -32,10 +32,6 @@ import {
   type ConductorJobsSnapshot,
 } from '#/tui/utils/job/job-strip';
 import {
-  collapseLowSignalOps,
-  formatMissionTarget,
-} from '#/tui/utils/tools/mission-target';
-import {
   formatMissionTokenRate,
   formatMissionTokens,
   liveWorkerElapsedMs,
@@ -112,7 +108,7 @@ export function compactElapsed(ms: number): string {
 }
 
 export interface DenseLiveCell {
-  readonly kind: 'thinking' | 'answer' | 'action' | 'stall' | 'idle' | 'stdout' | 'stderr' | 'progress' | 'status';
+  readonly kind: 'thinking' | 'answer' | 'action' | 'idle' | 'stdout' | 'stderr' | 'progress' | 'status';
   readonly text: string;
 }
 
@@ -122,17 +118,11 @@ export function denseLiveCell(
   revealedLive: string | undefined,
   actionText: string | undefined,
 ): DenseLiveCell {
-  if (worker.status === 'stalled') {
-    const silent =
-      worker.stalledSilentMs === undefined ? '' : ` ${formatJobDuration(worker.stalledSilentMs)}`;
-    const last = worker.lastTool === undefined ? '' : ` · last ${worker.lastTool}`;
-    return { kind: 'stall', text: `stall${silent}${last}` };
-  }
   const liveText =
     revealedLive !== undefined && revealedLive.length > 0 ? revealedLive : undefined;
   if (
     liveText !== undefined &&
-    (worker.status === 'running' || worker.status === 'finishing')
+    (worker.status === 'running')
   ) {
     if (isToolProgressLiveKind(worker.liveKind)) {
       return { kind: worker.liveKind, text: liveText };
@@ -144,11 +134,6 @@ export function denseLiveCell(
       };
     }
   }
-  // Intent beats action (paths never dominate the LIVE cell).
-  const focus = worker.focusTodo?.trim();
-  if (focus !== undefined && focus.length > 0) {
-    return { kind: 'idle', text: focus };
-  }
   const description = worker.description?.trim();
   if (description !== undefined && description.length > 0) {
     return { kind: 'idle', text: description };
@@ -159,44 +144,10 @@ export function denseLiveCell(
   return { kind: 'idle', text: '—' };
 }
 
-/**
- * Prefer real ops; when the ring is empty, synthesize a row from each worker's
- * lastTool (helpers / tests; densemode paint is workers-only).
- */
-export function resolveDenseOps(
-  ops: readonly DockOpsEntry[],
-  workers: readonly DockWorker[],
-): DockOpsEntry[] {
-  const collapsed = collapseLowSignalOps(ops);
-  if (collapsed.length > 0) return [...collapsed];
-  const synthetic: DockOpsEntry[] = [];
-  for (const worker of workers) {
-    if (worker.lastTool === undefined || worker.lastTool.length === 0) continue;
-    synthetic.push({
-      toolCallId: `synth:${worker.id}`,
-      workerId: worker.id,
-      workerName: worker.name,
-      name: worker.lastTool,
-      ...(worker.lastTarget === undefined ? {} : { target: worker.lastTarget }),
-      status: worker.status === 'failed' ? 'error' : 'running',
-      atMs: worker.lastActivityAtMs,
-    });
-  }
-  return synthetic;
-}
 
 /** Job-lane counts line shared by solo BOARD and densemode BOARD strip. */
 export function formatMissionJobCounts(jobs: ConductorJobsSnapshot): string {
-  const done = Math.max(
-    0,
-    jobs.total -
-      jobs.running -
-      jobs.queued -
-      jobs.blocked -
-      jobs.needsUser -
-      jobs.interrupted -
-      jobs.failed,
-  );
+  const done = jobs.jobs.reduce((count, card) => count + Number(card.status === 'done'), 0);
   const needsYou = interviewNeedsUserCount(jobs);
   const parts = [
     needsYou > 0 ? currentTheme.fg('warning', `your reply ${String(needsYou)}`) : undefined,
@@ -252,7 +203,7 @@ export function formatAttentionJobRow(
   const idPlain = card.id.trim();
   if (titlePlain.length === 0 && idPlain.length === 0) return undefined;
   const meta = JOB_STATUS_META[card.status] ?? JOB_STATUS_META.running;
-  const waitingParent = card.status === 'queued' && card.deliveryPhase !== undefined;
+  const waitingParent = card.status === 'queued' && card.parentJobId !== undefined;
   const token: ColorToken =
     card.status === 'needs_user' || card.status === 'blocked' || card.status === 'interrupted'
       ? 'warning'
@@ -456,30 +407,11 @@ function buildKpiLine(
   appearance: AppearancePreferences,
   jobs: ConductorJobsSnapshot | undefined,
 ): string {
-  const active = workers.filter(
-    (w) =>
-      w.status === 'running' ||
-      w.status === 'stalled' ||
-      w.status === 'suspended' ||
-      w.status === 'finishing',
-  );
-  const stalled = workers.filter((w) => w.status === 'stalled').length;
+  const active = workers.filter((worker) => worker.status === 'running');
   const failedWorkers = workers.filter((w) => w.status === 'failed').length;
-  const finishing = workers.filter((w) => w.status === 'finishing').length;
   const sumRate = active.reduce((sum, w) => sum + (w.tokenRatePerSec ?? 0), 0);
   const sumTok = active.reduce((sum, w) => sum + w.tokens, 0);
   const wall = active.reduce((max, w) => Math.max(max, liveWorkerElapsedMs(w, now)), 0);
-  const budgetParts = active
-    .map((w) => {
-      if (w.budgetMs === undefined || w.budgetMs <= 0) return undefined;
-      const remaining = Math.max(0, w.budgetRemainingMs ?? w.budgetMs);
-      return 1 - remaining / w.budgetMs;
-    })
-    .filter((ratio): ratio is number => ratio !== undefined);
-  const budgetRatio =
-    budgetParts.length === 0
-      ? undefined
-      : budgetParts.reduce((a, b) => a + b, 0) / budgetParts.length;
 
   const parts = [
     renderPulseCountChip(`WORKERS ${String(active.length)}`, 'mc:kpi:fleet', 'primary', appearance),
@@ -490,10 +422,8 @@ function buildKpiLine(
   }
   if (sumTok > 0) parts.push(currentTheme.fg('textMuted', `Σ${formatMissionTokens(sumTok)}`));
   if (wall > 0) parts.push(currentTheme.fg('textDim', `wall ${formatJobDuration(wall)}`));
-  if (stalled > 0) parts.push(currentTheme.fg('warning', `stall${String(stalled)}`));
   // Failed is calm dim — never paint dock KPI chrome as error solely for fails.
   if (failedWorkers > 0) parts.push(currentTheme.fg('textDim', `err${String(failedWorkers)}`));
-  if (finishing > 0) parts.push(currentTheme.fg('info', `fin${String(finishing)}`));
   if (jobs !== undefined) {
     const needsYou = interviewNeedsUserCount(jobs);
     if (needsYou > 0) {
@@ -506,22 +436,11 @@ function buildKpiLine(
       parts.push(currentTheme.fg('warning', `⏸${String(jobs.interrupted)}`));
     }
   }
-  if (budgetRatio !== undefined) {
-    parts.push(currentTheme.fg('textMuted', renderBudgetBar(budgetRatio, 8)));
-  }
   // `now` kept for API symmetry / future live KPI ticks.
   void now;
   return parts.join(currentTheme.fg('textMuted', ' · '));
 }
 
-function renderBudgetBar(ratio: number, width: number): string {
-  const filled = Math.min(width, Math.max(0, Math.round(ratio * width)));
-  let bar = '';
-  for (let i = 0; i < width; i += 1) {
-    bar += i < filled ? '█' : '░';
-  }
-  return bar;
-}
 
 /**
  * Header labels positioned from the SAME column math as the dense rows
@@ -545,8 +464,7 @@ function buildHeaderLine(narrow: boolean): string {
         [43, 'TOK'],
         [50, '/s'],
         [56, 'SPARK'],
-        [60, 'TODO'],
-        [66, 'LIVE'],
+        [60, 'LIVE'],
       ];
   let out = '';
   let cursor = 0;
@@ -568,7 +486,7 @@ function isResumePlaceholder(text: string | undefined): boolean {
   return text !== undefined && RESUME_PLACEHOLDERS.has(text);
 }
 
-/** Role plus job title so the dock row is not just explore/plan/coder. */
+/** Worker name plus recorded Job title or description. */
 export function workerRosterLabel(
   worker: DockWorker,
   jobs: ConductorJobsSnapshot | undefined,
@@ -576,7 +494,6 @@ export function workerRosterLabel(
   const role = worker.name.trim().length > 0 ? worker.name.trim() : worker.id;
   const jobTitle = jobs?.jobs.find((card) => card.workerAgentId === worker.id)?.title.trim();
   const description = worker.description?.trim();
-  const focus = worker.focusTodo?.trim();
   // Ledger ghosts keep the bare title here — their mirrored lane text
   // (description) already fills the LIVE cell; suffixing it would duplicate.
   if (worker.ledger !== undefined) return role;
@@ -588,9 +505,7 @@ export function workerRosterLabel(
           description !== role &&
           !isResumePlaceholder(description)
         ? description
-        : focus !== undefined && focus.length > 0 && focus !== role
-          ? focus
-          : undefined;
+        : undefined;
   if (title !== undefined && title !== role) return `${role} · ${title}`;
   return role;
 }
@@ -619,8 +534,6 @@ function buildWorkerRow(args: {
   const nameToken: ColorToken =
     worker.status === 'failed' || worker.status === 'completed'
       ? 'textDim'
-      : worker.status === 'stalled'
-        ? 'warning'
         : args.selected
           ? 'primary'
           : 'text';
@@ -631,12 +544,9 @@ function buildWorkerRow(args: {
     worker.lastTool === undefined
       ? undefined
       : (() => {
-          const target = formatMissionTarget(
-            worker.lastTool,
-            worker.lastTarget,
-            workDir,
-            narrow ? 16 : 28,
-          );
+          const target = worker.lastTarget === undefined
+            ? undefined
+            : truncateToWidth(worker.lastTarget, narrow ? 16 : 28, '…');
           return target === undefined ? worker.lastTool : `${worker.lastTool} ${target}`;
         })();
   const live = denseLiveCell(worker, now, revealed, action);
@@ -662,8 +572,6 @@ function buildWorkerRow(args: {
     livePaint = currentTheme.fg('error', liveBody);
   } else if (live.kind === 'stdout' || live.kind === 'progress' || live.kind === 'status') {
     livePaint = currentTheme.fg('textMuted', liveBody);
-  } else if (live.kind === 'stall') {
-    livePaint = currentTheme.fg('warning', liveBody);
   } else {
     livePaint = currentTheme.fg('textDim', liveBody);
   }
@@ -696,8 +604,7 @@ function buildWorkerRow(args: {
     return `${glyph} ${namePaint} ${elapsed} ${ratePaint} ${livePaint}`;
   }
 
-  // Ledger ghosts paint their provenance chip in the MODEL column — a
-  // goal-desk umbrella has no model, so the slot would otherwise sit blank.
+  // Ledger ghosts show their recorded Job kind instead of an absent model.
   const ledgerChip = workerLedgerChip(worker);
   const model = currentTheme.fg(
     'textMuted',
@@ -717,12 +624,5 @@ function buildWorkerRow(args: {
         : currentTheme.fg('accent', rateLabel.padStart(5))
       : currentTheme.fg('textMuted', '    —');
   const spark = currentTheme.fg('textMuted', formatRateSparkline(worker.rateSamples, 3));
-  const todo =
-    worker.todoTotal !== undefined && worker.todoTotal > 0
-      ? currentTheme.fg(
-          'textMuted',
-          `${String(worker.todoDone ?? 0)}/${String(worker.todoTotal)}`.padStart(5),
-        )
-      : currentTheme.fg('textMuted', '    —');
-  return `${glyph} ${namePaint} ${model} ${elapsed} ${tools} ${tok} ${ratePaint} ${spark} ${todo} ${livePaint}`;
+  return `${glyph} ${namePaint} ${model} ${elapsed} ${tools} ${tok} ${ratePaint} ${spark} ${livePaint}`;
 }

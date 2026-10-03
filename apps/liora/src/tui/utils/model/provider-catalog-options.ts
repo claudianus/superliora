@@ -23,7 +23,6 @@ import {
   type Catalog,
 } from '@superliora/sdk';
 
-import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 import { CUSTOM_ENDPOINT_PRESETS } from '#/tui/utils/model/custom-endpoint-presets';
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
 import {
@@ -105,10 +104,7 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
     });
   }
 
-  // Experimental OAuth providers (e.g. Anthropic) — only shown when their
-  // gating flag is enabled. Implemented ahead of policy/availability changes.
   for (const entry of EXPERIMENTAL_PROVIDER_PROFILES) {
-    if (!isExperimentalFlagEnabled(entry.flag)) continue;
     options.push({
       value: `oauth:${entry.profile.id}`,
       label: entry.profile.displayName,

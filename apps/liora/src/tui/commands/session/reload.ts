@@ -9,7 +9,6 @@ import {
 } from '../../config';
 import { resolveEffectiveAppearance } from '../../features/appearance/performance-mode';
 import type { SlashCommandHost } from '../hub/dispatch';
-import { setExperimentalFeatures } from '../experimental-flags';
 import { resolveCliLocale, setCliLocale } from '#/cli/i18n';
 import { formatErrorMessage } from '#/tui/utils/event-payload';
 import { restoreTuiSessionState } from '#/tui/utils/tui-session-state';
@@ -26,12 +25,11 @@ export async function handleReloadCommand(host: SlashCommandHost): Promise<void>
   const session = host.session;
 
   if (session !== undefined) {
-    await session.reloadSession({ forcePluginSessionStartReminder: true });
+    await session.reloadSession();
     await host.reloadCurrentSessionView(session, 'Session reloaded.');
   }
 
   const config = await host.harness.getConfig({ reload: true });
-  setExperimentalFeatures(await host.harness.getExperimentalFeatures(), true);
   host.refreshSlashCommandAutocomplete();
   applyRuntimeConfig(host, config);
   await applyReloadedTuiConfig(host, tuiConfig);
@@ -89,8 +87,5 @@ function applyRuntimeConfig(host: SlashCommandHost, config: LioraConfig): void {
   host.setAppState({
     availableModels: config.models ?? {},
     availableProviders: config.providers ?? {},
-    nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
-    mediaAnalyzerModels: config.media?.analyzerModels,
-    mediaAnalyzerAutoScan: config.media?.analyzerAutoScan === true,
   });
 }

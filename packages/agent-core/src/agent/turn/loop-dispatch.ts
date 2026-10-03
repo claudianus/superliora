@@ -6,13 +6,12 @@
  */
 
 import type { Agent } from '..';
-import type { AgentEvent, TurnEndedEvent } from '../../rpc/events';
+import type { TurnEndedEvent } from '../../rpc/events';
 import {
   createLoopEventDispatcher,
   type LoopEvent,
   type LoopRecordedEvent,
 } from '../../loop/index';
-import type { StreamingThinkScrubber } from '../../utils/think-scrubber';
 import { mapLoopEvent } from './event-handler';
 import {
   ABANDONED_TOOL_WARNING_CODE,
@@ -25,7 +24,6 @@ import type { TurnTelemetry } from './telemetry';
 export interface LoopDispatchDeps {
   readonly agent: Agent;
   readonly turnTelemetry: TurnTelemetry;
-  readonly assistantThinkScrubber: StreamingThinkScrubber;
   readonly getActiveTurn: () => 'resuming' | ActiveTurn | null;
 }
 
@@ -45,41 +43,12 @@ export function createTurnLoopDispatch(deps: LoopDispatchDeps, turnId: number) {
     emitLiveEvent: (event: LoopEvent) => {
       noteFirstRequestEvent(deps.getActiveTurn, event);
       deps.turnTelemetry.trackLoopTelemetry(event, turnId);
-      const mapped = mapLiveLoopEvent(deps.assistantThinkScrubber, event, turnId);
+      const mapped = mapLoopEvent(event, turnId);
       if (mapped !== undefined) deps.agent.emitEvent(mapped);
-      if (event.type === 'tool.result') {
-        const output = event.result.output;
-        if (typeof output === 'string' && /\bdegraded:\s*true\b/.test(output)) {
-          deps.agent.emitEvent({
-            type: 'runtime.degraded',
-            scope: 'search',
-            reason: 'tool_result_degraded',
-            hint: 'Search ran on free fallback only; retry with a simpler query, FetchURL, or local repo evidence.',
-            toolCallId: event.toolCallId,
-            atMs: Date.now(),
-          });
-        }
-      }
     },
   });
 }
 
-export function mapLiveLoopEvent(
-  assistantThinkScrubber: StreamingThinkScrubber,
-  event: LoopEvent,
-  turnId: number,
-): AgentEvent | undefined {
-  if (event.type === 'text.delta') {
-    const scrubbed = assistantThinkScrubber.feed(event.delta);
-    if (scrubbed.length === 0) return undefined;
-    return {
-      type: 'assistant.delta',
-      turnId,
-      delta: scrubbed,
-    };
-  }
-  return mapLoopEvent(event, turnId);
-}
 
 export function noteFirstRequestEvent(
   getActiveTurn: () => 'resuming' | ActiveTurn | null,
@@ -123,5 +92,6 @@ export function closeAbandonedToolExchangeAtTurnEnd(agent: Agent, ended: TurnEnd
     });
   } catch (error) {
     agent.log.warn('failed to close abandoned tool exchange', { error });
+    throw error;
   }
 }

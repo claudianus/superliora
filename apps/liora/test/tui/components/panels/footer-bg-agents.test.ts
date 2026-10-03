@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { FooterComponent } from '#/tui/components/chrome/footer/footer';
 import type { AppState } from '#/tui/types';
 
-const ANSI_SGR = /\x1b\[[0-9;]*m/g;
+const ANSI_SGR = /\x1B\[[0-9;]*m/g;
 function strip(text: string): string {
   return text.replaceAll(ANSI_SGR, '');
 }
@@ -15,14 +15,11 @@ function baseState(overrides: Partial<AppState> = {}): AppState {
     additionalDirs: [],
     sessionId: 'sess_1',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 200_000,
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,

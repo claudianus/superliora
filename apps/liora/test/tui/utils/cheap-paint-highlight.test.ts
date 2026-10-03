@@ -9,10 +9,6 @@ import {
 } from '#/tui/utils/transcript/deferred-format-queue';
 import { TruncatedOutputComponent } from '#/tui/components/messages/tool-renderers/truncated';
 import { DIFF_LCS_SOFT_CAP_LINES, computeDiffLines } from '#/tui/components/media/diff-preview';
-import {
-  HIGHLIGHT_WINDOW_SOFT_CAP,
-} from '#/tui/components/media/code-highlight';
-import { buildWriteCallPreviewItems } from '#/tui/components/messages/tool-call/preview';
 
 describe('pure-scroll cheap paint freezes class', () => {
   afterEach(() => {
@@ -90,16 +86,4 @@ describe('pure-scroll cheap paint freezes class', () => {
     expect(lines.length).toBeLessThanOrEqual(DIFF_LCS_SOFT_CAP_LINES * 2 + 8);
   });
 
-  it('expanded Write preview never highlights more than soft-cap window', () => {
-    const content = Array.from({ length: HIGHLIGHT_WINDOW_SOFT_CAP + 300 }, (_, i) => {
-      return `export const line${i} = ${i};`;
-    }).join('\n');
-    const items = buildWriteCallPreviewItems({
-      content,
-      filePath: 'huge.ts',
-      expanded: true,
-    });
-    // Items are Text components for the windowed highlight (+ optional more footer).
-    expect(items.length).toBeLessThanOrEqual(HIGHLIGHT_WINDOW_SOFT_CAP + 2);
-  });
 });

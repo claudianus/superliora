@@ -114,7 +114,6 @@ export const DEFAULT_PROMPT_CONTROLS = {
   model: 'kimi-code/kimi-for-coding',
   thinking: 'off' as PromptThinking,
   permission_mode: 'manual' as PromptPermissionMode,
-  plan_mode: false,
 } as const;
 
 /**
@@ -125,7 +124,7 @@ export const DEFAULT_PROMPT_CONTROLS = {
  */
 export type PromptSubmitInput =
   Pick<PromptSubmission, 'content'>
-  & Partial<Pick<PromptSubmission, 'metadata' | 'model' | 'thinking' | 'permission_mode' | 'plan_mode'>>;
+  & Partial<Pick<PromptSubmission, 'metadata' | 'model' | 'thinking' | 'permission_mode'>>;
 
 export interface TerminalAttachOptions {
   sinceSeq?: number;
@@ -182,7 +181,10 @@ export class DaemonClient {
   private readonly _disposers: Array<() => void> = [];
 
   constructor(opts: DaemonClientOptions = {}) {
-    this.baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
+    const baseUrl = opts.baseUrl ?? DEFAULT_BASE_URL;
+    let end = baseUrl.length;
+    while (end > 0 && baseUrl[end - 1] === '/') end--;
+    this.baseUrl = baseUrl.slice(0, end);
     this.apiPrefix = opts.apiPrefix ?? DEFAULT_API_PREFIX;
     this.clientId = opts.clientId ?? `server-e2e-${ulid()}`;
     this._wsImpl = opts.wsImpl ?? WsWebSocket;

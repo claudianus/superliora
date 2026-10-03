@@ -1,20 +1,10 @@
-import type { GoalBudgetLimits } from '../../../agent/goal/types';
 import type { ToolStore } from '../../store';
 import { resolveRepoRootForNewJob } from './job-git-root';
-import {
-  resolveJobTaskTrack,
-  taskTrackCreateDefaults,
-  type JobTaskTrack,
-} from './job-task-track';
-import type { JobTaskTrackSource } from './job-store-key';
 import {
   createJobId,
   defaultSessionName,
   emptyJobLedger,
   JOB_LEDGER_STORE_KEY,
-  type JobDeliveryClass,
-  type JobDeliveryMode,
-  type JobDeliveryPhase,
   type JobKind,
   type JobLandReceipt,
   type JobLedger,
@@ -131,32 +121,10 @@ export function createJob(
     readonly successCriteria?: readonly string[];
     readonly mustNotTouch?: readonly string[];
     readonly verificationCommands?: readonly string[];
-    readonly testSeams?: readonly string[];
-    readonly tddMode?: JobRecord['tddMode'];
-    readonly reproCommand?: string;
-    readonly debugFixer?: boolean;
-    readonly explorePrototype?: boolean;
     readonly blockedByJobIds?: readonly string[];
-    readonly deliveryMode?: JobDeliveryMode;
-    readonly deliveryClass?: JobDeliveryClass;
-    readonly deliveryPhase?: JobDeliveryPhase;
     readonly parentJobId?: string;
-    /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs). */
-    readonly goalObjective?: string;
-    readonly goalCompletionCriterion?: string;
-    readonly goalGateCommand?: string;
-    readonly goalBudgetLimits?: GoalBudgetLimits;
-    /** Plan Desk: ultra structured pipeline vs regular free-form plan. */
-    readonly planStructured?: boolean;
-    readonly expertId?: string;
-    readonly expertScore?: number;
-    readonly staffQuery?: string;
-    readonly reviewAxis?: JobRecord['reviewAxis'];
     readonly modelAlias?: string;
-    readonly surfaceKind?: JobRecord['surfaceKind'];
-    readonly taskTrack?: JobTaskTrack;
-    readonly taskTrackSource?: JobTaskTrackSource;
-    readonly verifyVerdict?: JobRecord['verifyVerdict'];
+    readonly timeoutMs?: number;
     /** Affinity reuse: bind an existing worktree before schedule assigns one. */
     readonly worktreePath?: string;
     readonly worktreeBranch?: string;
@@ -167,7 +135,6 @@ export function createJob(
     /** Affinity reuse: prefer host.resume on this agent id before cold spawn. */
     readonly workerResumeAgentId?: string;
     readonly workerCheckpointAt?: string;
-    readonly workerDeadlineStartedAt?: string;
     readonly sessionName?: string;
     readonly sessionNamePinned?: boolean;
     readonly landChoice?: JobRecord['landChoice'];
@@ -179,30 +146,6 @@ export function createJob(
   const now = new Date().toISOString();
   const id = createJobId();
   const kind = input.kind ?? 'task';
-  const resolved = resolveJobTaskTrack({
-    kind,
-    deliveryMode: input.deliveryMode,
-    greenfieldChain: input.deliveryMode === 'greenfield' || input.deliveryPhase !== undefined,
-    explicit: input.taskTrack,
-    ownershipPaths: input.ownershipPaths,
-    contextPaths: input.contextPaths,
-    destPath: input.repoRoot,
-  });
-  const pending = input.taskTrackSource === 'pending' || (input.taskTrack === undefined && resolved.source === 'pending');
-  const taskTrack = pending ? undefined : (input.taskTrack ?? (resolved.source === 'pending' ? undefined : resolved.track));
-  const taskTrackSource: JobTaskTrackSource =
-    input.taskTrackSource ??
-    (pending ? 'pending' : input.taskTrack !== undefined ? 'declared' : resolved.source === 'pending' ? 'pending' : resolved.source);
-  const codingKind = kind === 'task' || kind === 'implement';
-  const defaults = taskTrackCreateDefaults({
-    codingKind,
-    track: taskTrack,
-    pending,
-    tddMode: input.tddMode,
-    surfaceKind: input.surfaceKind,
-  });
-  const tddMode = defaults.tddMode;
-  const surfaceKind = defaults.surfaceKind;
   const parent = input.parentJobId !== undefined ? getJob(store, input.parentJobId) : undefined;
   const repoRoot = resolveRepoRootForNewJob({
     persistedRepoRoot: input.repoRoot ?? parent?.repoRoot,
@@ -216,8 +159,6 @@ export function createJob(
     sessionName: input.sessionName?.trim() || defaultSessionName(input.title, id),
     status: 'queued',
     kind,
-    taskTrack,
-    taskTrackSource,
     priority: input.priority ?? 0,
     createdAt: now,
     updatedAt: now,
@@ -227,34 +168,15 @@ export function createJob(
     successCriteria: input.successCriteria,
     mustNotTouch: input.mustNotTouch,
     verificationCommands: input.verificationCommands,
-    testSeams: input.testSeams,
-    tddMode,
-    reproCommand: input.reproCommand?.trim() || undefined,
-    debugFixer: input.debugFixer === true ? true : undefined,
-    explorePrototype: input.explorePrototype === true ? true : undefined,
     blockedByJobIds: input.blockedByJobIds,
-    deliveryMode: input.deliveryMode,
-    deliveryClass: input.deliveryClass,
-    deliveryPhase: input.deliveryPhase,
     parentJobId: input.parentJobId,
-    goalObjective: input.goalObjective,
-    goalCompletionCriterion: input.goalCompletionCriterion,
-    goalGateCommand: input.goalGateCommand,
-    goalBudgetLimits: input.goalBudgetLimits,
-    planStructured: input.planStructured,
-    expertId: input.expertId,
-    expertScore: input.expertScore,
-    staffQuery: input.staffQuery,
-    reviewAxis: input.reviewAxis,
     modelAlias: input.modelAlias?.trim() || undefined,
-    surfaceKind,
-    verifyVerdict: input.verifyVerdict,
+    timeoutMs: input.timeoutMs,
     worktreePath: input.worktreePath?.trim() || undefined,
     worktreeBranch: input.worktreeBranch?.trim() || undefined,
     repoRoot: repoRoot?.trim() || undefined,
     workerResumeAgentId: input.workerResumeAgentId?.trim() || undefined,
     workerCheckpointAt: input.workerCheckpointAt?.trim() || undefined,
-    workerDeadlineStartedAt: input.workerDeadlineStartedAt?.trim() || undefined,
     sessionNamePinned: input.sessionNamePinned === true ? true : undefined,
     landChoice: input.landChoice,
     portOffset: input.portOffset,
@@ -267,49 +189,7 @@ export function createJob(
 export function patchJob(
   store: ToolStore,
   id: string,
-  patch: Partial<
-    Pick<
-      JobRecord,
-      | 'status'
-      | 'title'
-      | 'priority'
-      | 'worktreePath'
-      | 'worktreeBranch'
-      | 'repoRoot'
-      | 'workerAgentId'
-      | 'workerResumeAgentId'
-      | 'workerCheckpointAt'
-      | 'workerDeadlineStartedAt'
-      | 'resultSummary'
-      | 'resultContract'
-      | 'landReceipt'
-      | 'notes'
-      | 'prompt'
-      | 'progress'
-      | 'goalId'
-      | 'modelAlias'
-      | 'surfaceKind'
-      | 'verifyVerdict'
-      | 'ownershipPaths'
-      | 'contextPaths'
-      | 'successCriteria'
-      | 'mustNotTouch'
-      | 'verificationCommands'
-      | 'testSeams'
-      | 'tddMode'
-      | 'reproCommand'
-      | 'kind'
-      | 'taskTrack'
-      | 'taskTrackSource'
-      | 'autoRetryCount'
-      | 'premiumDensity'
-      | 'sessionName'
-      | 'sessionNamePinned'
-      | 'landChoice'
-      | 'portOffset'
-      | 'workerHomedir'
-    >
-  >,
+  patch: Partial<Omit<JobRecord, 'id' | 'createdAt' | 'updatedAt'>>,
 ): JobRecord | undefined {
   const existing = getJob(store, id);
   if (existing === undefined) return undefined;
@@ -341,8 +221,6 @@ export function isPinnedJobDiagnosticLine(line: string): boolean {
   if (/\bsha\s*[=:]\s*[0-9a-f]{7,40}\b/i.test(text)) return true;
   if (/\bstderr\b/i.test(text)) return true;
   if (/^push:\s*failed/i.test(text)) return true;
-  if (/^task_track:/i.test(text)) return true;
-  if (/^premium_density:/i.test(text)) return true;
   if (/^effect:/i.test(text)) return true;
   return false;
 }
@@ -441,11 +319,9 @@ export function renderJobLine(job: JobRecord): string {
   return `- ${job.id} [${job.status}] (${job.kind} p${job.priority}) ${job.title}${paths}${model}${live}${wait}`;
 }
 
-/** Queued child of a greenfield parent: `wait=queued(parent-phase)` so idle slots are not mistaken for free workers. */
-export function renderJobWaitLabel(job: Pick<JobRecord, 'status' | 'parentJobId' | 'deliveryPhase'>): string {
+export function renderJobWaitLabel(job: Pick<JobRecord, 'status' | 'parentJobId'>): string {
   if (job.status !== 'queued' || job.parentJobId === undefined) return '';
-  const phase = job.deliveryPhase === undefined ? 'parent' : job.deliveryPhase.replace('_', '-');
-  return ` wait=queued(parent-phase:${phase})`;
+  return ' wait=queued(parent)';
 }
 
 /**
@@ -474,9 +350,6 @@ export function renderJobLedger(jobs: readonly JobRecord[]): string {
 }
 
 export type {
-  JobDeliveryClass,
-  JobDeliveryMode,
-  JobDeliveryPhase,
   JobKind,
   JobLandReceipt,
   JobLedger,

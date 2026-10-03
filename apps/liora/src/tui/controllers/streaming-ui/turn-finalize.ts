@@ -9,7 +9,6 @@ import {
   beginCompaction as beginCompactionHelper,
   cancelCompaction as cancelCompactionHelper,
   endCompaction as endCompactionHelper,
-  promoteCompactionToBlocking as promoteCompactionToBlockingHelper,
   updateCompactionProgress as updateCompactionProgressHelper,
 } from './compaction';
 import type { StreamingUIHost } from './host-types';
@@ -74,7 +73,7 @@ export function runStreamingCompactionAction(
     | {
         readonly kind: 'begin';
         readonly instruction?: string;
-        readonly options?: { readonly background?: boolean; readonly modelAlias?: string };
+        readonly options?: { readonly modelAlias?: string };
       }
     | {
         readonly kind: 'end';
@@ -83,7 +82,6 @@ export function runStreamingCompactionAction(
         readonly detail?: string;
       }
     | { readonly kind: 'cancel' }
-    | { readonly kind: 'promote' }
     | {
         readonly kind: 'progress';
         readonly phase: CompactionPhase;
@@ -112,9 +110,6 @@ export function runStreamingCompactionAction(
     case 'cancel':
       cancelCompactionHelper(host, activeCompactionBlock);
       return;
-    case 'promote':
-      promoteCompactionToBlockingHelper(host, activeCompactionBlock);
-      return activeCompactionBlock;
     case 'progress':
       updateCompactionProgressHelper(host, activeCompactionBlock, action.phase, action.delta, action.meta);
       requestTUILayoutRender(host.state);

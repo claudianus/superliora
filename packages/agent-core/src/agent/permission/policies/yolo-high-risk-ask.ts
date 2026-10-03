@@ -3,15 +3,9 @@ import { PERMISSION_HIGH_RISK_GUARD_ENV } from '../types';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 
 /**
- * High-risk Bash guard for the unattended permission modes (`auto`, `yolo`).
- *
- * **Opt-in (H4).** Earlier this policy fired on every `yolo` session, so an
- * auto-mode run that spawned a child with `permissionMode: yolo`
- * (`subagent-child-config.ts`) stalled on a confirmation dialog it could never
- * answer. `auto` and `yolo` mean "run without asking", so the guard is off
- * unless {@link PERMISSION_HIGH_RISK_GUARD_ENV} is set; then it asks before the
- * destructive command runs. Manual mode is untouched — it already asks for
- * anything not explicitly allowed.
+ * Opt-in native Bash consent for destructive commands and sensitive material
+ * in `auto` and `yolo` mode. Explicit user rules and session grants take
+ * precedence. Manual mode already asks for unmatched native calls.
  */
 export class YoloHighRiskAskPermissionPolicy implements PermissionPolicy {
   readonly name = 'yolo-high-risk-ask';
@@ -45,10 +39,7 @@ export function isHighRiskGuardEnabled(): boolean {
   return raw === '1' || raw === 'true' || raw === 'on' || raw === 'yes';
 }
 
-/**
- * Modes that must never raise an unattended confirmation dialog. Both `auto`
- * and `yolo` are prompt-free postures (H4 mode-parity requirement).
- */
+/** Permission modes that approve unmatched native calls without prompting. */
 export function isUnattendedMode(mode: string): boolean {
   return mode === 'auto' || mode === 'yolo';
 }
@@ -60,7 +51,7 @@ export function classifyYoloHighRiskBash(command: string): string | undefined {
   const destructive = matchPattern(text, [
     [/\brm\s+-(?=[a-z]*r)(?=[a-z]*f)[a-z]*\b/i, 'recursive force delete'],
     [/\brm\s+-[a-z]*f[a-z]*\b/i, 'force delete'],
-    [/\b(?:Remove-Item|rm)\b.*\b(?:-Recurse|-Force)\b/i, 'recursive or forced remove'],
+    [/\b(?:Remove-Item|rm)\b.*(?:^|\s)-(?:Recurse|Force)\b/i, 'recursive or forced remove'],
     [/\b(?:del|rd|rmdir)\b.*\/[sq]\b/i, 'Windows recursive or quiet delete'],
     [/\bmkfs(?:\.[a-z0-9]+)?\b/i, 'filesystem formatting command'],
     [/\bdd\s+if=.*\bof=\/dev\//i, 'raw disk write'],

@@ -16,6 +16,7 @@ const fakeProviderState = vi.hoisted(() => ({
   calls: [] as Array<{
     readonly systemPrompt: string;
     readonly history: unknown;
+    readonly tools: unknown;
   }>,
   providerConfigs: [] as unknown[],
   responseText: 'hello from fake provider',
@@ -31,13 +32,8 @@ vi.mock('@superliora/kosong', async (importOriginal) => {
         name: 'fake',
         modelName: 'fake-model',
         thinkingEffort: null,
-        async generate(systemPrompt: string, _tools: unknown, history: unknown) {
-          fakeProviderState.calls.push({ systemPrompt, history });
-          // Response-language detection issues its own generate call with a
-          // dedicated system prompt before the main agent turn. Return compact
-          // JSON so the detector can parse a language preference.
-          const detectionJson = detectResponseLanguageJson(systemPrompt, history);
-          const responseText = detectionJson ?? fakeProviderState.responseText;
+        async generate(systemPrompt: string, tools: unknown, history: unknown) {
+          fakeProviderState.calls.push({ systemPrompt, history, tools });
           return {
             id: 'fake-response',
             usage: {
@@ -49,7 +45,7 @@ vi.mock('@superliora/kosong', async (importOriginal) => {
             finishReason: 'completed',
             rawFinishReason: 'stop',
             async *[Symbol.asyncIterator]() {
-              yield { type: 'text', text: responseText };
+              yield { type: 'text', text: fakeProviderState.responseText };
             },
           };
         },
@@ -213,13 +209,14 @@ describe('Session.prompt events', () => {
           reason: 'completed',
         }),
       );
-      const mainCall = fakeProviderState.calls.find((call) =>
-        call.systemPrompt.includes('You are SuperLiora CLI'),
+      const mainCall = fakeProviderState.calls[0];
+      expect(mainCall?.tools).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'Bash' }),
+          expect.objectContaining({ name: 'SessionControl' }),
+        ]),
       );
-      expect(mainCall?.systemPrompt).toContain('You are SuperLiora CLI');
-      // Skill Runtime only when Skill tools are exposed (invocable skills).
-      expect(mainCall?.systemPrompt).toContain('## Research');
-      expect(mainCall?.systemPrompt).toMatch(/WebSearch\s*\/\s*FetchURL/);
+      expect(Array.isArray(mainCall?.tools) && mainCall.tools.length).toBe(2);
       expect(fakeProviderState.providerConfigs[0]).toMatchObject({
         type: 'kimi',
         defaultHeaders: expect.objectContaining({
@@ -233,73 +230,67 @@ describe('Session.prompt events', () => {
     }
   });
 
-  it('locks detected response language and injects a fresh reminder', async () => {
+  it('restores real usage and conversation history before continuing a resumed session', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = createLioraHarness({
-      identity: TEST_IDENTITY,
-      homeDir,
-    });
-
+    const harness = createLioraHarness({ identity: TEST_IDENTITY, homeDir });
     try {
       await configureFakeProvider(harness);
-      const session = await harness.createSession({ id: 'ses_response_language', workDir });
-
-      let done = waitForEvent(session, (event) => event.type === 'turn.ended');
-      await session.prompt('이 작업을 분석하고 다음 단계를 정리해줘.');
-      await done;
-
-      const statePath = join(session.summary!.sessionDir, 'state.json');
-      const firstState = JSON.parse(await readFile(statePath, 'utf-8')) as {
-        custom?: Record<string, unknown>;
-      };
-      expect(firstState.custom?.['responseLanguage']).toMatchObject({
-        code: 'ko',
-        label: 'Korean',
-        source: 'detected',
-        locked: true,
-        updatedAt: expect.any(String),
-      });
-      const firstMainCall = mainAgentCall(0);
-      expect(JSON.stringify(firstMainCall?.history)).toContain(
-        '<response_language>',
-      );
-      expect(JSON.stringify(firstMainCall?.history)).toContain('Korean (ko)');
-
-      done = waitForEvent(session, (event) => event.type === 'turn.ended');
-      await session.prompt('continue with implementation details');
-      await done;
-
-      const secondState = JSON.parse(await readFile(statePath, 'utf-8')) as {
-        custom?: Record<string, unknown>;
-      };
-      expect(secondState.custom?.['responseLanguage']).toMatchObject({
-        code: 'ko',
-        source: 'detected',
-      });
-      expect(JSON.stringify(mainAgentCall(1)?.history)).toContain('Korean (ko)');
-
-      const fork = await harness.forkSession({
-        id: session.id,
-        forkId: 'ses_response_language_fork',
-        title: 'Response Language Fork',
-      });
-      const forkState = JSON.parse(
-        await readFile(join(fork.summary!.sessionDir, 'state.json'), 'utf-8'),
-      ) as {
-        custom?: Record<string, unknown>;
-      };
-      expect(forkState.custom?.['responseLanguage']).toMatchObject({
-        code: 'ko',
-        source: 'detected',
-      });
-
+      const session = await harness.createSession({ id: 'ses_native_usage_replay', workDir });
+      const ended = waitForEvent(session, (event) => event.type === 'turn.ended');
+      await session.prompt('Remember the supplied deployment target: staging.');
+      await ended;
+      const usage = await session.getUsage();
+      expect(usage.total?.output).toBe(1);
+      expect(usage.byModel?.['fake-model']?.output).toBe(1);
+      const context = await session.getContext();
+      expect(JSON.stringify(context.history)).toContain('deployment target: staging');
       await session.close();
-      const resumed = await harness.resumeSession({ id: 'ses_response_language' });
-      done = waitForEvent(resumed, (event) => event.type === 'turn.ended');
-      await resumed.prompt('continue after resume');
-      await done;
-      expect(JSON.stringify(mainAgentCall(2)?.history)).toContain('Korean (ko)');
+      const resumed = await harness.resumeSession({ id: session.id });
+      await expect(resumed.getUsage()).resolves.toMatchObject({
+        total: usage.total,
+        byModel: usage.byModel,
+      });
+      await expect(resumed.getContext()).resolves.toMatchObject({ history: context.history });
+      const continuation = waitForEvent(resumed, (event) => event.type === 'turn.ended');
+      await resumed.prompt('Continue deploying to the previously supplied target.');
+      await continuation;
+      expect(JSON.stringify(fakeProviderState.calls[1]?.history)).toContain('deployment target: staging');
+      await expect(resumed.getUsage()).resolves.toMatchObject({ total: { output: 2 } });
+      await expect(resumed.getStatus()).resolves.toMatchObject({ model: 'fake-model', usage: { total: { output: 2 } } });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it('compacts only on explicit request and replaces the completed conversation with its summary', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const harness = createLioraHarness({ identity: TEST_IDENTITY, homeDir });
+    try {
+      await configureFakeProvider(harness);
+      const session = await harness.createSession({ id: 'ses_native_manual_compaction', workDir });
+      const ended = waitForEvent(session, (event) => event.type === 'turn.ended');
+      await session.prompt('Original context to summarize.');
+      await ended;
+      expect(fakeProviderState.calls).toHaveLength(1);
+      const latestEnded = waitForEvent(session, (event) => event.type === 'turn.ended');
+      await session.prompt('Latest deployment request: deploy to staging.');
+      await latestEnded;
+      expect(fakeProviderState.calls).toHaveLength(2);
+      fakeProviderState.responseText = 'The user requested a summary of the original context.';
+      const events: Event[] = [];
+      session.onEvent((event) => events.push(event));
+      const completed = waitForEvent(session, (event) => event.type === 'compaction.completed');
+      await session.compact({ instruction: 'Preserve the user request.' });
+      await completed;
+      expect(events).toContainEqual(expect.objectContaining({ type: 'compaction.started', trigger: 'manual' }));
+      expect(fakeProviderState.calls).toHaveLength(3);
+      expect(fakeProviderState.calls[2]?.tools).toEqual([]);
+      const context = await session.getContext();
+      expect(JSON.stringify(context.history)).toContain(fakeProviderState.responseText);
+      expect(JSON.stringify(context.history)).not.toContain('Original context to summarize.');
+      expect(JSON.stringify(context.history)).toContain('Latest deployment request: deploy to staging.');
     } finally {
       await harness.close();
     }
@@ -332,68 +323,7 @@ describe('Session.prompt events', () => {
     }
   });
 
-  it('runs init through generateAgentsMd RPC as a subagent system trigger without prompt metadata updates', async () => {
-    const homeDir = await makeTempDir();
-    const workDir = await makeTempDir();
-    const harness = createLioraHarness({
-      identity: TEST_IDENTITY,
-      homeDir,
-    });
-
-    try {
-      await configureFakeProvider(harness);
-      const session = await harness.createSession({ id: 'ses_init_rpc', workDir });
-      const events: Event[] = [];
-      const unsubscribe = session.onEvent((event) => {
-        events.push(event);
-      });
-
-      await session.init();
-      unsubscribe();
-
-      const spawned = events.find((event) => event.type === 'subagent.spawned');
-      expect(spawned).toMatchObject({
-        type: 'subagent.spawned',
-        sessionId: session.id,
-        agentId: 'main',
-        subagentName: 'coder',
-        parentToolCallId: 'generate-agents-md',
-      });
-      expect(events).toContainEqual(
-        expect.objectContaining({
-          type: 'turn.started',
-          sessionId: session.id,
-          agentId: spawned?.type === 'subagent.spawned' ? spawned.subagentId : undefined,
-          origin: { kind: 'system_trigger', name: 'subagent' },
-        }),
-      );
-      expect(events).not.toContainEqual(
-        expect.objectContaining({
-          type: 'session.meta.updated',
-        }),
-      );
-      expect(fakeProviderState.calls[0]?.history).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            role: 'user',
-            content: expect.arrayContaining([
-              expect.objectContaining({
-                text: expect.stringContaining('Task requirements:'),
-              }),
-            ]),
-          }),
-        ]),
-      );
-
-      const statePath = join(session.summary!.sessionDir, 'state.json');
-      const state = JSON.parse(await readFile(statePath, 'utf-8')) as Record<string, unknown>;
-      expect(state['lastPrompt']).toBeUndefined();
-    } finally {
-      await harness.close();
-    }
-  });
-
-  it('starts btw through RPC as a forked subagent without prompt metadata updates', async () => {
+  it('persists a user-requested aside with completed parent history without changing prompt metadata', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
     const harness = createLioraHarness({
@@ -451,39 +381,45 @@ describe('Session.prompt events', () => {
           type: 'session.meta.updated',
         }),
       );
-      expect(mainAgentCall(1)?.systemPrompt).toBe(mainAgentCall(0)?.systemPrompt);
-      // Under denser default compaction, intermediate generate calls may run
-      // before /btw and the parent context may already be summarized. Find the
-      // side-channel history that carries the btw prompt.
-      const btwCall = fakeProviderState.calls.find((call) => {
-        if (call.systemPrompt.startsWith('You detect the response language')) return false;
-        const historyText = JSON.stringify(call.history);
-        return historyText.includes('What are you working on right now?');
-      });
+      expect(fakeProviderState.calls[1]?.systemPrompt).toBe(fakeProviderState.calls[0]?.systemPrompt);
+      const btwCall = fakeProviderState.calls.find((call) =>
+        JSON.stringify(call.history).includes('What are you working on right now?'),
+      );
       expect(btwCall).toBeDefined();
       const btwHistoryText = JSON.stringify(btwCall?.history);
       expect(btwHistoryText).toContain('What are you working on right now?');
-      // Projected parent context should still be present either verbatim or as a
-      // compaction summary handoff under denser reclaim defaults.
-      expect(
-        btwHistoryText.includes('main task context') ||
-          btwHistoryText.includes('CONTEXT COMPACTION') ||
-          btwHistoryText.includes('Context Compaction'),
-      ).toBe(true);
-      expect(btwHistoryText).toContain('side-channel conversation');
+      expect(btwHistoryText).toContain('main task context');
+      expect(btwHistoryText).toContain('hello from fake provider');
+      const completedAside = await harness.withInteractiveAgent(agentId, () => session.getContext());
+      expect(JSON.stringify(completedAside.history)).toContain(fakeProviderState.responseText);
+      const mainContext = await session.getContext();
+      expect(JSON.stringify(mainContext.history)).not.toContain('What are you working on right now?');
+      expect(JSON.stringify(mainContext.history)).not.toContain(fakeProviderState.responseText);
+
+      await harness.closeSession(session.id);
 
       const statePath = join(session.summary!.sessionDir, 'state.json');
       const state = JSON.parse(await readFile(statePath, 'utf-8')) as Record<string, unknown>;
       expect(state['lastPrompt']).toBe('main task context');
       expect(state['agents']).toMatchObject({ main: expect.any(Object) });
-      expect(state['agents']).not.toHaveProperty(agentId);
+      expect(state['agents']).toMatchObject({
+        [agentId]: { type: 'sub', parentAgentId: 'main' },
+      });
 
-      await harness.closeSession(session.id);
       const resumed = await harness.resumeSession({ id: session.id });
       const resumeState = resumed.getResumeState();
       expect(resumeState?.agents).toMatchObject({ main: expect.any(Object) });
-      expect(resumeState?.agents).not.toHaveProperty(agentId);
-      expect(resumeState?.sessionMetadata.agents).not.toHaveProperty(agentId);
+      // Children remain durable but replay lazily on explicit agent access.
+      expect(Object.keys(resumeState!.agents)).toEqual(['main']);
+      expect(resumeState?.sessionMetadata.agents[agentId]).toMatchObject({
+        type: 'sub',
+        parentAgentId: 'main',
+      });
+      await expect(resumed.getContext()).resolves.toMatchObject({ history: mainContext.history });
+      await expect(
+        harness.withInteractiveAgent(agentId, () => resumed.getContext()),
+      ).resolves.toMatchObject({ history: completedAside.history });
+      expect(harness.interactiveAgentId).toBe('main');
     } finally {
       await harness.close();
     }
@@ -548,32 +484,3 @@ function waitForEvent(
   });
 }
 
-/**
- * The response-language detector issues a dedicated `generate` call with its
- * own system prompt before the main agent turn. Return compact JSON the
- * detector can parse when this is that call, otherwise return `undefined` so
- * the fake provider streams the normal response text.
- */
-function detectResponseLanguageJson(systemPrompt: string, history: unknown): string | undefined {
-  if (!systemPrompt.startsWith('You detect the response language')) return undefined;
-  const text = JSON.stringify(history);
-  // Korean Hangul syllables (U+AC00–U+D7A3) mark the Korean detection case.
-  const isKorean = /[\uAC00-\uD7A3]/u.test(text);
-  const result = isKorean
-    ? { language_code: 'ko', language_name: 'Korean', explicit_override: false, confidence: 0.95 }
-    : { language_code: 'en', language_name: 'English', explicit_override: false, confidence: 0.9 };
-  return JSON.stringify(result);
-}
-
-/**
- * Index into only the main-agent generate calls, skipping the interleaved
- * response-language detection calls that now precede each turn.
- */
-function mainAgentCall(
-  index: number,
-): { readonly systemPrompt: string; readonly history: unknown } | undefined {
-  const mainCalls = fakeProviderState.calls.filter(
-    (call) => !call.systemPrompt.startsWith('You detect the response language'),
-  );
-  return mainCalls[index];
-}

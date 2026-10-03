@@ -12,9 +12,9 @@ function ctrl(): AbortSignal {
 }
 
 const NO_FD = null;
-const GOAL_COMMAND = {
-  name: 'goal',
-  description: 'Start or manage a goal',
+const JOBS_COMMAND = {
+  name: 'jobs',
+  description: 'Inspect operator jobs',
   getArgumentCompletions: (prefix: string) =>
     prefix.length === 0
       ? [
@@ -32,11 +32,6 @@ const NEW_COMMAND = {
   description: 'Start a fresh session in the current workspace',
 };
 
-const LARK_CALENDAR_COMMAND = {
-  name: 'skill:lark-calendar',
-  aliases: [],
-  description: 'Manage Lark calendars',
-};
 
 const HELP_COMMAND = {
   name: 'help',
@@ -110,17 +105,17 @@ describe('FileMentionProvider', () => {
   });
 
   it('does not complete slash arguments before existing free text', async () => {
-    const provider = new FileMentionProvider([GOAL_COMMAND], workDir, NO_FD);
-    const line = '/goal Fix the checkout docs';
-    const result = await provider.getSuggestions([line], 0, '/goal '.length, { signal: ctrl() });
+    const provider = new FileMentionProvider([JOBS_COMMAND], workDir, NO_FD);
+    const line = '/jobs Inspect the checkout work';
+    const result = await provider.getSuggestions([line], 0, '/jobs '.length, { signal: ctrl() });
     expect(result).toBeNull();
   });
 
   it('opens @ file mentions inside slash command arguments', async () => {
     writeFileSync(join(workDir, 'README.md'), 'readme');
-    const provider = new FileMentionProvider([GOAL_COMMAND], workDir, NO_FD);
-    const line = '/goal Fix the @checkout docs';
-    const result = await provider.getSuggestions([line], 0, '/goal Fix the @'.length, {
+    const provider = new FileMentionProvider([JOBS_COMMAND], workDir, NO_FD);
+    const line = '/jobs Inspect the @checkout work';
+    const result = await provider.getSuggestions([line], 0, '/jobs Inspect the @'.length, {
       signal: ctrl(),
     });
 
@@ -130,8 +125,8 @@ describe('FileMentionProvider', () => {
   });
 
   it('still completes slash arguments at the end of an empty argument', async () => {
-    const provider = new FileMentionProvider([GOAL_COMMAND], workDir, NO_FD);
-    const line = '/goal ';
+    const provider = new FileMentionProvider([JOBS_COMMAND], workDir, NO_FD);
+    const line = '/jobs ';
     const result = await provider.getSuggestions([line], 0, line.length, { signal: ctrl() });
     expect(result).not.toBeNull();
     expect(result!.prefix).toBe('');
@@ -166,83 +161,6 @@ describe('FileMentionProvider', () => {
     });
   });
 
-  it('prefers exact alias matches over fuzzy skill matches', async () => {
-    const provider = new FileMentionProvider(
-      [NEW_COMMAND, LARK_CALENDAR_COMMAND],
-      workDir,
-      NO_FD,
-    );
-    const line = '/clear';
-
-    const result = await provider.getSuggestions([line], 0, line.length, { signal: ctrl() });
-
-    expect(result).not.toBeNull();
-    expect(result!.items[0]).toMatchObject({
-      value: 'new',
-      label: 'new (clear)',
-    });
-    expect(result!.items[0]?.value).not.toBe('skill:lark-calendar');
-  });
-
-  it('fetches skill-prefixed slash completions from the dynamic provider', async () => {
-    const calls: string[] = [];
-    const provider = new FileMentionProvider(
-      [HELP_COMMAND],
-      workDir,
-      NO_FD,
-      [],
-      async (query) => {
-        calls.push(query);
-        return [LARK_CALENDAR_COMMAND];
-      },
-    );
-    const line = '/skill:lark';
-
-    const result = await provider.getSuggestions([line], 0, line.length, { signal: ctrl() });
-
-    expect(calls).toEqual(['skill:lark']);
-    expect(result).not.toBeNull();
-    expect(result!.prefix).toBe('/skill:lark');
-    expect(result!.items[0]).toMatchObject({
-      value: 'skill:lark-calendar',
-      label: 'skill:lark-calendar',
-    });
-  });
-
-  it('fetches bare skill: completions from the dynamic provider', async () => {
-    const calls: string[] = [];
-    const provider = new FileMentionProvider(
-      [HELP_COMMAND],
-      workDir,
-      NO_FD,
-      [],
-      async (query) => {
-        calls.push(query);
-        return [LARK_CALENDAR_COMMAND];
-      },
-    );
-    const line = '/skill:';
-
-    const result = await provider.getSuggestions([line], 0, line.length, { signal: ctrl() });
-
-    expect(calls).toEqual(['skill:']);
-    expect(result).not.toBeNull();
-    expect(result!.items.some((item) => item.value === 'skill:lark-calendar')).toBe(true);
-  });
-
-  it('does not call the dynamic slash provider for normal built-in prefixes', async () => {
-    let calls = 0;
-    const provider = new FileMentionProvider([HELP_COMMAND], workDir, NO_FD, [], async () => {
-      calls += 1;
-      return [LARK_CALENDAR_COMMAND];
-    });
-
-    const result = await provider.getSuggestions(['/h'], 0, 2, { signal: ctrl() });
-
-    expect(calls).toBe(0);
-    expect(result).not.toBeNull();
-    expect(result!.items[0]?.value).toBe('help');
-  });
 
   it('does not show aliases when the primary name already matches', async () => {
     const provider = new FileMentionProvider([HELP_COMMAND], workDir, NO_FD);
@@ -301,17 +219,17 @@ describe('FileMentionProvider', () => {
 
   it('includes the argument hint in the description like the inner provider does', async () => {
     const provider = new FileMentionProvider(
-      [{ name: 'goal', description: 'Start or manage a goal', argumentHint: '<objective>' }],
+      [{ name: 'jobs', description: 'Inspect operator jobs', argumentHint: '<job-id>' }],
       workDir,
       NO_FD,
     );
 
-    const result = await provider.getSuggestions(['/go'], 0, 3, { signal: ctrl() });
+    const result = await provider.getSuggestions(['/jo'], 0, 3, { signal: ctrl() });
 
     expect(result).not.toBeNull();
     expect(result!.items[0]).toMatchObject({
-      value: 'goal',
-      description: '<objective> — Start or manage a goal',
+      value: 'jobs',
+      description: '<job-id> — Inspect operator jobs',
     });
   });
 
@@ -540,7 +458,7 @@ describe('FileMentionProvider', () => {
       writeFileSync(join(workDir, '.dotfile'), '');
       writeFileSync(join(workDir, 'normal.txt'), '');
 
-      const provider = new FileMentionProvider([], workDir, NO_FD, [], undefined, () => 'bash');
+      const provider = new FileMentionProvider([], workDir, NO_FD, [], () => 'bash');
       const text = 'cd ./';
       const result = await provider.getSuggestions([text], 0, text.length, {
         signal: ctrl(),
@@ -573,7 +491,7 @@ describe('FileMentionProvider', () => {
     });
 
     it('does not double a leading slash when applying a bash path completion', () => {
-      const provider = new FileMentionProvider([], workDir, NO_FD, [], undefined, () => 'bash');
+      const provider = new FileMentionProvider([], workDir, NO_FD, [], () => 'bash');
       const result = provider.applyCompletion(
         ['/'],
         0,
@@ -587,7 +505,7 @@ describe('FileMentionProvider', () => {
     });
 
     it('replaces a bash path prefix without adding a trailing space', () => {
-      const provider = new FileMentionProvider([], workDir, NO_FD, [], undefined, () => 'bash');
+      const provider = new FileMentionProvider([], workDir, NO_FD, [], () => 'bash');
       const result = provider.applyCompletion(
         ['cd /App'],
         0,
@@ -607,7 +525,6 @@ describe('FileMentionProvider', () => {
         workDir,
         NO_FD,
         [],
-        undefined,
         () => 'bash',
       );
 

@@ -53,7 +53,7 @@ describe('job.* protocol events', () => {
         priority: 2,
         progress: {
           phase: 'running tests',
-          recentTools: ['Read', 'Edit', 'Bash'],
+          recentTools: ['Bash', 'SessionControl', 'Bash'],
           lastHeartbeatAt: '2026-08-03T12:00:00.000Z',
           stepsCompleted: 3,
           stepsTotal: 5,
@@ -63,7 +63,7 @@ describe('job.* protocol events', () => {
     const parsed = jobUpdatedEventSchema.parse(event);
     expect(parsed.schemaVersion).toBe(2);
     expect(parsed.job.progress?.phase).toBe('running tests');
-    expect(parsed.job.progress?.recentTools).toEqual(['Read', 'Edit', 'Bash']);
+    expect(parsed.job.progress?.recentTools).toEqual(['Bash', 'SessionControl', 'Bash']);
     expect(agentEventSchema.parse(event).type).toBe('job.updated');
   });
 
@@ -149,7 +149,7 @@ describe('job.* protocol events', () => {
     expect(agentEventSchema.parse(event).type).toBe('job.updated');
   });
 
-  it('v3: parses briefPreview, gateChecklist, landReceipt, actionHints', () => {
+  it('parses operator brief, land receipt and action hints', () => {
     const updated = {
       type: 'job.updated' as const,
       schemaVersion: JOB_EVENT_SCHEMA_VERSION_V3,
@@ -159,32 +159,21 @@ describe('job.* protocol events', () => {
         status: 'done' as const,
         kind: 'implement' as const,
         priority: 1,
-        deliveryPhase: 'fill' as const,
         briefPreview: {
           successCriteria: ['tests green'],
           mustNotTouch: ['apps/liora'],
           verificationCommands: ['pnpm test'],
         },
-        gateChecklist: {
-          visual: 'na' as const,
-          review: 'pass' as const,
-          tests: 'pass' as const,
-          typecheck: 'pending' as const,
-          land: 'pending' as const,
-        },
         landReceipt: {
           mergeSha: 'abc123',
           branch: 'liora/job',
           merged: true,
-          gcRemoved: false,
         },
       },
     };
     const parsed = jobUpdatedEventSchema.parse(updated);
     expect(parsed.schemaVersion).toBe(3);
     expect(parsed.job.briefPreview?.successCriteria).toEqual(['tests green']);
-    expect(parsed.job.gateChecklist?.tests).toBe('pass');
-    expect(parsed.job.gateChecklist?.land).toBe('pending');
     expect(parsed.job.landReceipt?.merged).toBe(true);
 
     const inbox = {
@@ -213,9 +202,7 @@ describe('job.* protocol events', () => {
         effectPreview: {
           isolation: 'checkout' as const,
           chip: 'checkout',
-          summary: 'general · this checkout · Conductor judged',
-          taskTrack: 'general' as const,
-          taskTrackSource: 'inferred' as const,
+          summary: 'This checkout',
         },
       },
       change: { reason: 'effect' },
@@ -223,7 +210,7 @@ describe('job.* protocol events', () => {
     const parsed = jobUpdatedEventSchema.parse(updated);
     expect(parsed.schemaVersion).toBe(4);
     expect(parsed.job.effectPreview?.chip).toBe('checkout');
-    expect(parsed.job.effectPreview?.summary).toContain('Conductor judged');
+    expect(parsed.job.effectPreview?.summary).toBe('This checkout');
     expect(agentEventSchema.parse(updated).type).toBe('job.updated');
   });
 
@@ -283,5 +270,38 @@ describe('job.* protocol events', () => {
       },
     };
     expect(jobUpdatedEventSchema.parse(v2Updated).schemaVersion).toBe(2);
+  });
+});
+
+describe('native Job results', () => {
+  it('round-trips actual changed files and provider usage on completion', () => {
+    const event = {
+      type: 'job.updated',
+      schemaVersion: JOB_EVENT_SCHEMA_VERSION,
+      job: {
+        id: 'job_1',
+        title: 'Update parser',
+        kind: 'implement',
+        status: 'done',
+        priority: 0,
+        filesChanged: ['src/parser.ts'],
+        usage: { inputOther: 100, output: 20, inputCacheRead: 200, inputCacheCreation: 0 },
+      },
+    } as const;
+    expect(jobUpdatedEventSchema.parse(event)).toEqual(event);
+  });
+
+  it('preserves factual held recovery and operator action hints', () => {
+    const event = {
+      type: 'job.inbox',
+      schemaVersion: JOB_EVENT_SCHEMA_VERSION,
+      eventId: 'inbox_1',
+      kind: 'recovery.held',
+      jobId: 'job_1',
+      status: 'interrupted',
+      title: 'Update parser',
+      actionHints: ['jobInspect', 'jobResume', 'jobCancel'],
+    } as const;
+    expect(jobInboxEventSchema.parse(event)).toEqual(event);
   });
 });

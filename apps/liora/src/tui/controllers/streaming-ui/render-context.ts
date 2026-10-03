@@ -1,6 +1,4 @@
 import type { AgentGroupComponent } from '../../components/messages/agent-group';
-import type { ReadGroupComponent } from '../../components/messages/read-group';
-import type { SearchGroupComponent } from '../../components/messages/search-group';
 import type { ThinkingComponent } from '../../components/messages/thinking';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import type { LivePaneState, ToolCallBlockData } from '../../types';
@@ -43,14 +41,10 @@ export function createStreamingRenderContextState(args: {
   chainSummary: ChainSummaryState;
   phaseBoundary: PhaseBoundaryState;
   pendingAgentGroup: PendingToolGroup<AgentGroupComponent> | null;
-  pendingReadGroup: PendingToolGroup<ReadGroupComponent> | null;
-  pendingSearchGroup: PendingToolGroup<SearchGroupComponent> | null;
   setStreamingBlock: (block: StreamingTextBlock | null) => void;
   setTurnStartCueArmed: (armed: boolean) => void;
   setActiveThinkingComponent: (component: ThinkingComponent | undefined) => void;
   setPendingAgentGroup: (group: PendingToolGroup<AgentGroupComponent> | null) => void;
-  setPendingReadGroup: (group: PendingToolGroup<ReadGroupComponent> | null) => void;
-  setPendingSearchGroup: (group: PendingToolGroup<SearchGroupComponent> | null) => void;
   finalizeLiveTextBuffers: (mode: LivePaneState['mode']) => void;
   onToolCallStart: (toolCall: ToolCallBlockData) => void;
 }): StreamingRenderContextState {
@@ -87,14 +81,10 @@ export interface StreamingUIRenderContextHost {
   readonly chainSummary: ChainSummaryState;
   readonly phaseBoundary: PhaseBoundaryState;
   readonly pendingAgentGroup: PendingToolGroup<AgentGroupComponent> | null;
-  readonly pendingReadGroup: PendingToolGroup<ReadGroupComponent> | null;
-  readonly pendingSearchGroup: PendingToolGroup<SearchGroupComponent> | null;
   setStreamingBlock(block: StreamingTextBlock | null): void;
   setTurnStartCueArmed(armed: boolean): void;
   setActiveThinkingComponent(component: ThinkingComponent | undefined): void;
   setPendingAgentGroup(group: PendingToolGroup<AgentGroupComponent> | null): void;
-  setPendingReadGroup(group: PendingToolGroup<ReadGroupComponent> | null): void;
-  setPendingSearchGroup(group: PendingToolGroup<SearchGroupComponent> | null): void;
   finalizeLiveTextBuffers(mode: LivePaneState['mode']): void;
   onToolCallStart(toolCall: ToolCallBlockData): void;
 }
@@ -138,14 +128,10 @@ export interface StreamingRenderContextState {
   chainSummary: ChainSummaryState;
   phaseBoundary: PhaseBoundaryState;
   pendingAgentGroup: PendingToolGroup<AgentGroupComponent> | null;
-  pendingReadGroup: PendingToolGroup<ReadGroupComponent> | null;
-  pendingSearchGroup: PendingToolGroup<SearchGroupComponent> | null;
   setStreamingBlock(block: StreamingTextBlock | null): void;
   setTurnStartCueArmed(armed: boolean): void;
   setActiveThinkingComponent(component: ThinkingComponent | undefined): void;
   setPendingAgentGroup(group: PendingToolGroup<AgentGroupComponent> | null): void;
-  setPendingReadGroup(group: PendingToolGroup<ReadGroupComponent> | null): void;
-  setPendingSearchGroup(group: PendingToolGroup<SearchGroupComponent> | null): void;
   finalizeLiveTextBuffers(mode: LivePaneState['mode']): void;
   onToolCallStart(toolCall: ToolCallBlockData): void;
 }
@@ -170,8 +156,6 @@ export function buildTextRenderContext(state: StreamingRenderContextState): Text
     getPhaseBoundary: () => state.phaseBoundary,
     clearPendingToolGroups: () => {
       state.setPendingAgentGroup(null);
-      state.setPendingReadGroup(null);
-      state.setPendingSearchGroup(null);
     },
     settleActiveChainSummary: () => {
       settleActiveChainSummaryHelper(state.chainSummary);
@@ -194,14 +178,6 @@ export function buildToolRenderContext(state: StreamingRenderContextState): Tool
     getPendingAgentGroup: () => state.pendingAgentGroup,
     setPendingAgentGroup: (group) => {
       state.setPendingAgentGroup(group);
-    },
-    getPendingReadGroup: () => state.pendingReadGroup,
-    setPendingReadGroup: (group) => {
-      state.setPendingReadGroup(group);
-    },
-    getPendingSearchGroup: () => state.pendingSearchGroup,
-    setPendingSearchGroup: (group) => {
-      state.setPendingSearchGroup(group);
     },
     getThinkingDraftLength: () => state.thinkingDraft.length,
     hasStreamingBlock: () => state.streamingBlock !== null,

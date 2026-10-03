@@ -12,43 +12,10 @@ import type { TranscriptDetailLevel } from '#/tui/types';
 import { formatDurationShort, type ToolChainStats } from './transcript-density';
 
 const COMPACT_VERBS: Record<string, { readonly live: string; readonly done: string }> = {
-  Read: { live: 'Reading', done: 'Read' },
-  LioraRead: { live: 'Reading', done: 'Read' },
-  Edit: { live: 'Editing', done: 'Edited' },
-  Write: { live: 'Writing', done: 'Wrote' },
-  Grep: { live: 'Searching', done: 'Searched' },
-  Glob: { live: 'Finding', done: 'Found' },
   Bash: { live: 'Running', done: 'Ran' },
-  WebSearch: { live: 'Searching', done: 'Searched' },
-  FetchURL: { live: 'Fetching', done: 'Fetched' },
-  LioraSymbol: { live: 'Looking up', done: 'Looked up' },
-  LioraTree: { live: 'Listing', done: 'Listed' },
-  LioraCallgraph: { live: 'Tracing', done: 'Traced' },
-  LioraReview: { live: 'Reviewing', done: 'Reviewed' },
-  Review: { live: 'Reviewing', done: 'Reviewed' },
-  Agent: { live: 'Delegating', done: 'Delegated' },
-  Skill: { live: 'Running', done: 'Ran' },
-  Memory: { live: 'Remembering', done: 'Remembered' },
-  TodoList: { live: 'Updating todos', done: 'Updated todos' },
-  GenerateImage: { live: 'Generating', done: 'Generated' },
-  GenerateVideo: { live: 'Generating', done: 'Generated' },
-  BrowserAct: { live: 'Browsing', done: 'Browsed' },
-  BrowserObserve: { live: 'Observing', done: 'Observed' },
-  BrowserScreenshot: { live: 'Capturing', done: 'Captured' },
-  BrowserStatus: { live: 'Checking browser', done: 'Checked browser' },
-  ComputerAct: { live: 'Controlling', done: 'Controlled' },
-  ComputerCapture: { live: 'Capturing', done: 'Captured' },
-  ComputerStatus: { live: 'Checking computer', done: 'Checked computer' },
+  SessionControl: { live: 'Managing sessions', done: 'Managed sessions' },
 };
 
-const NARRATIVE_SKIP = new Set([
-  'ExitPlanMode',
-  'AskUserQuestion',
-  'CreateGoal',
-  'GetGoal',
-  'SetGoalBudget',
-  'UpdateGoal',
-]);
 
 const DIFF_TOKEN_RE = /(\+\d+|−\d+|-\d+)/g;
 
@@ -59,7 +26,7 @@ export function isCompactQuietChrome(level: TranscriptDetailLevel): boolean {
 
 export function usesCompactNarrativeHeader(toolName: string, isSingleSubagentView: boolean): boolean {
   if (isSingleSubagentView) return false;
-  return !NARRATIVE_SKIP.has(toolName);
+  return toolName === 'Bash' || toolName === 'SessionControl';
 }
 
 export function compactToolVerb(toolName: string, live: boolean): string {

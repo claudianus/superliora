@@ -137,7 +137,7 @@ function createPromptServiceOverride(
     getCurrentPromptId: () => undefined,
     applyAgentState: async () => undefined,
     getAgentStateSnapshot: () => undefined,
-    startBtw: async () => 'prompt_btw_test',
+    startBtw: async () => 'agent_btw_test',
     onDidComplete: noopComplete,
     onDidAbort: noopAbort,
   };
@@ -284,7 +284,6 @@ describe('POST /api/v1/sessions/{sid}/prompts — submit validation (W7.2 / Chai
         model: 'x',
         thinking: 'off',
         permission_mode: 'manual',
-        plan_mode: false,
       },
     });
     const env = envelopeOf(res.json());
@@ -1108,7 +1107,7 @@ describe('POST /api/v1/sessions/{sid}:abort — session-level cancel', () => {
     expect(env.data).toEqual({ aborted: true });
   });
 
-  it('cancels a non-prompt turn (skill activation) without requiring prompt_id', async () => {
+  it('cancels a non-prompt shell turn without requiring prompt_id', async () => {
     const r = await bootDaemon();
     const sid = await createSession(r);
 
@@ -1117,7 +1116,7 @@ describe('POST /api/v1/sessions/{sid}:abort — session-level cancel', () => {
     eventBus.publish({
       type: 'turn.started',
       turnId: 3,
-      origin: { kind: 'skill_activation', skillName: 'demo', activationId: 'act_1' },
+      origin: { kind: 'shell_command', phase: 'input' },
       sessionId: sid,
       agentId: 'main',
     } as unknown as Event);

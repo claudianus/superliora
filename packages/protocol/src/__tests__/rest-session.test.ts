@@ -146,18 +146,16 @@ describe('updateSessionProfileRequestSchema', () => {
     expect(parsed.agent_config?.model).toBe('moonshot-v1-128k');
   });
 
-  it('accepts agent_config runtime controls (thinking + permission_mode + plan_mode)', () => {
+  it('accepts agent_config runtime controls (thinking + permission_mode)', () => {
     const parsed = updateSessionProfileRequestSchema.parse({
       agent_config: {
         thinking: 'medium',
         permission_mode: 'auto',
-        plan_mode: false,
       },
     });
     expect(parsed.agent_config).toEqual({
       thinking: 'medium',
       permission_mode: 'auto',
-      plan_mode: false,
     });
   });
 });
@@ -306,8 +304,7 @@ describe('sessionStatusResponseSchema', () => {
       status: 'running',
       model: 'moonshot-v1-128k',
       thinking_level: 'on',
-      permission: 'ask',
-      plan_mode: true,
+      permission: 'manual',
       context_tokens: 1024,
       max_context_tokens: 128000,
       context_usage: 0.008,
@@ -343,7 +340,6 @@ describe('sessionStatusResponseSchema', () => {
     });
     expect(parsed.status).toBe('running');
     expect(parsed.model).toBe('moonshot-v1-128k');
-    expect(parsed.plan_mode).toBe(true);
     expect(parsed.provider_route?.modelAlias).toBe('kimi/k2');
     expect(parsed.context_usage).toBe(0.008);
   });
@@ -353,7 +349,6 @@ describe('sessionStatusResponseSchema', () => {
       status: 'idle',
       thinking_level: 'off',
       permission: 'auto',
-      plan_mode: false,
       context_tokens: 0,
       max_context_tokens: 0,
       context_usage: 0,
@@ -367,7 +362,6 @@ describe('sessionStatusResponseSchema', () => {
       status: 'idle',
       thinking_level: 'off',
       permission: 'auto',
-      plan_mode: false,
       context_tokens: 0,
       max_context_tokens: 0,
       context_usage: 0,
@@ -382,7 +376,6 @@ describe('sessionStatusResponseSchema', () => {
         status: 'idle',
         thinking_level: 'off',
         permission: 'auto',
-        plan_mode: false,
         context_tokens: 0,
         max_context_tokens: 0,
         context_usage: 0,
@@ -391,46 +384,12 @@ describe('sessionStatusResponseSchema', () => {
     ).toBe(false);
   });
 
-  it('accepts optional role_models with nullable role entries', () => {
-    const parsed = sessionStatusResponseSchema.parse({
-      status: 'idle',
-      thinking_level: 'off',
-      permission: 'auto',
-      plan_mode: false,
-      context_tokens: 0,
-      max_context_tokens: 0,
-      context_usage: 0,
-      role_models: {
-        compaction: 'kimi-turbo',
-        completion: null,
-      },
-    });
-    expect(parsed.role_models?.compaction).toBe('kimi-turbo');
-    expect(parsed.role_models?.completion).toBeNull();
-    expect(parsed.role_models?.exploration).toBeUndefined();
-  });
-
-  it('rejects empty role_models aliases', () => {
-    expect(
-      sessionStatusResponseSchema.safeParse({
-        status: 'idle',
-        thinking_level: 'off',
-        permission: 'auto',
-        plan_mode: false,
-        context_tokens: 0,
-        max_context_tokens: 0,
-        context_usage: 0,
-        role_models: { compaction: '' },
-      }).success,
-    ).toBe(false);
-  });
 
   it('rejects missing status', () => {
     expect(
       sessionStatusResponseSchema.safeParse({
         thinking_level: 'off',
         permission: 'auto',
-        plan_mode: false,
         context_tokens: 0,
         max_context_tokens: 0,
         context_usage: 0,
@@ -444,7 +403,6 @@ describe('sessionStatusResponseSchema', () => {
         status: 'unknown',
         thinking_level: 'off',
         permission: 'auto',
-        plan_mode: false,
         context_tokens: 0,
         max_context_tokens: 0,
         context_usage: 0,
@@ -458,7 +416,6 @@ describe('sessionStatusResponseSchema', () => {
         status: 'idle',
         thinking_level: 'off',
         permission: 'auto',
-        plan_mode: false,
         context_tokens: -1,
         max_context_tokens: 0,
         context_usage: 0,
@@ -472,7 +429,6 @@ describe('sessionStatusResponseSchema', () => {
         status: 'idle',
         thinking_level: 'off',
         permission: 'auto',
-        plan_mode: false,
         context_tokens: 10,
         max_context_tokens: 5,
         context_usage: 2,
@@ -480,55 +436,12 @@ describe('sessionStatusResponseSchema', () => {
     ).toBe(false);
   });
 
-  it('accepts optional context_os health', () => {
-    const parsed = sessionStatusResponseSchema.parse({
-      status: 'idle',
-      thinking_level: 'off',
-      permission: 'manual',
-      plan_mode: false,
-      context_tokens: 10,
-      max_context_tokens: 1000,
-      context_usage: 0.01,
-      context_os: {
-        page_count: 2,
-        ready_page_count: 1,
-        needs_rehydration_page_count: 1,
-        at_risk_page_count: 0,
-        missing_evidence_page_count: 1,
-        evidence_id_recall_score: 0.5,
-        latest_continuity_status: 'needs_rehydration',
-      },
-    });
-    expect(parsed.context_os?.missing_evidence_page_count).toBe(1);
-    expect(parsed.context_os?.evidence_id_recall_score).toBe(0.5);
-  });
-
-  it('accepts optional micro_compaction dashboard', () => {
-    const parsed = sessionStatusResponseSchema.parse({
-      status: 'idle',
-      thinking_level: 'off',
-      permission: 'manual',
-      plan_mode: false,
-      context_tokens: 10,
-      max_context_tokens: 1000,
-      context_usage: 0.01,
-      micro_compaction: {
-        total: 2,
-        last_trigger: 'usage_pressure',
-        last_context_usage_ratio: 0.6,
-        by_trigger: { usage_pressure: 2 },
-      },
-    });
-    expect(parsed.micro_compaction?.total).toBe(2);
-    expect(parsed.micro_compaction?.last_trigger).toBe('usage_pressure');
-  });
 
   it('accepts optional oauth pool snapshot', () => {
     const parsed = sessionStatusResponseSchema.parse({
       status: 'idle',
       thinking_level: 'off',
       permission: 'manual',
-      plan_mode: false,
       context_tokens: 0,
       max_context_tokens: 0,
       context_usage: 0,
@@ -606,7 +519,6 @@ describe('undoSessionResponseSchema', () => {
         model: 'kimi-k2',
         thinking_level: 'auto',
         permission: 'manual',
-        plan_mode: false,
         context_tokens: 10,
         max_context_tokens: 100,
         context_usage: 0.1,

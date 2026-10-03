@@ -75,10 +75,5 @@ debug-local.ndjson
 __pycache__/
 skills-lock.json
 
-# External skill catalog — fetched at build time (`pnpm run build:skill-catalog`).
-# Fresh checkouts ship builtin skills only; SearchSkill degrades gracefully.
-packages/agent-core/src/skill/catalog/
-packages/agent-core/src/skill/catalog-search-index.json
-packages/agent-core/src/skill/catalog-manifest.generated.ts
 .agents/skills/caveman*/
 .agents/skills/cavecrew/

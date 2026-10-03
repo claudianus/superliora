@@ -220,6 +220,21 @@ function makeMockInner(opts?: { pathClass?: 'posix' | 'win32' }): MockInnerKaos 
 }
 
 describe('AcpKaos', () => {
+  it('routes read and write capabilities independently, including after derivation', async () => {
+    const conn = makeMockConn({ readHandler: async () => ({ content: 'EDITOR' }) });
+    const inner = makeMockInner();
+    const readOnly = new AcpKaos(conn.asConn(), 's1', inner, { fs: { readTextFile: true } });
+    expect(await readOnly.readText('/file')).toBe('EDITOR');
+    await readOnly.writeText('/file', 'LOCAL');
+    expect(inner.__spy.writeTextCalls).toEqual([{ path: '/file', data: 'LOCAL' }]);
+    expect(conn.writeCalls).toEqual([]);
+
+    const writeOnly = new AcpKaos(conn.asConn(), 's2', inner, { fs: { writeTextFile: true } });
+    expect(await writeOnly.readText('/file')).toBe('INNER');
+    await writeOnly.withCwd('/other').withEnv({ FLAG: 'on' }).writeText('/file', 'EDITOR');
+    expect(inner.__spy.readTextCalls).toEqual(['/file']);
+    expect(conn.writeCalls).toEqual([{ sessionId: 's2', path: '/file', content: 'EDITOR' }]);
+  });
   describe('readText', () => {
     it('forwards path and sessionId to conn.readTextFile, returning response.content', async () => {
       const conn = makeMockConn({

@@ -17,7 +17,7 @@ import {
 } from '#/tui/renderer';
 
 import { looksLikePromptLeak } from '../../utils/editor/prompt-leak-guard';
-import type { TUIEditor, TUIEditorGhostKind, TUIEditorInputMode } from './editor-contract';
+import type { TUIEditor, TUIEditorInputMode } from './editor-contract';
 import {
   applyNativeTUIEditorAutocompleteCompletion,
   requestNativeTUIEditorAutocomplete,
@@ -46,11 +46,11 @@ type NativeTUIEditorInternalHost = NativeTUIEditorShortcutHost &
     getOverlayLineCount(width: number): number;
     getOverlayLines(width: number): readonly RendererRegionLine[];
     getLayoutRowCountCache():
-      | { width: number; text: string; overlayCount: number; ghost: string; rows: number }
+      | { width: number; text: string; overlayCount: number; rows: number }
       | undefined;
     setLayoutRowCountCache(
       cache:
-        | { width: number; text: string; overlayCount: number; ghost: string; rows: number }
+        | { width: number; text: string; overlayCount: number; rows: number }
         | undefined,
     ): void;
   };
@@ -103,14 +103,10 @@ export class NativeTUIEditor implements TUIEditor {
   onCommandHub?: () => void;
   onOpenJobDeck?: () => void;
   onOpenJobInbox?: () => void;
-  onOpenIntentComposer?: () => void;
   onOpenQuota?: () => void;
-  onOpenPlan?: () => void;
   canActivateIdleShortcut?: () => boolean;
   onTranscriptSearch?: () => void;
   onStashToggle?: () => void;
-  onAcceptGhost?: () => void;
-  onCycleGhost?: (direction: -1 | 1) => void;
 
   private readonly pasteBurst = new PasteBurst();
   private disablePasteBurst = false;
@@ -133,13 +129,10 @@ export class NativeTUIEditor implements TUIEditor {
   private historyIndex: number | undefined;
   private argumentHints: ReadonlyMap<string, string> = new Map();
   private layoutRowCountCache:
-    | { width: number; text: string; overlayCount: number; ghost: string; rows: number }
+    | { width: number; text: string; overlayCount: number; rows: number }
     | undefined;
   /** Last measured content width so ↑/↓ can navigate soft-wrap rows between paints. */
   private lastContentWidth: number | undefined;
-  /** Ghost text (prompt intelligence) shown dimmed after the cursor. */
-  private ghostText: string | undefined;
-  private ghostKind: TUIEditorGhostKind = 'inline';
 
   constructor(private options: NativeTUIEditorOptions = {}) {
     this.autocomplete = new RendererEditorAutocompleteController({
@@ -177,8 +170,6 @@ export class NativeTUIEditor implements TUIEditor {
 
   setCursorPosition(cursor: RendererEditorCursor): void {
     this.input.setCursor({ line: cursor.line, column: cursor.col });
-    // Caret move invalidates any suffix ghost (would otherwise paint mid-buffer).
-    this.clearGhost();
     // Cursor-only updates must still schedule present; otherwise ambient paints
     // keep a stale editor row (Windows conpty black lines / vanished glyphs).
     this.requestRender();
@@ -197,15 +188,6 @@ export class NativeTUIEditor implements TUIEditor {
       this.historyIndex = undefined;
     }
     this.input.setCursor({ line: cursor.line, column: cursor.col });
-    // Any native sync that changes text OR caret must drop ghost so a stale
-    // suffix cannot overwrite committed display cells after the new caret.
-    if (
-      text !== before ||
-      beforeCursor.line !== cursor.line ||
-      beforeCursor.col !== cursor.col
-    ) {
-      this.clearGhost();
-    }
     if (text !== before) {
       // Text path: onChange callers schedule render (and more) as today.
       this.onChange?.(text);
@@ -240,35 +222,6 @@ export class NativeTUIEditor implements TUIEditor {
     return this.autocomplete.isOpen();
   }
 
-  setGhostText(text: string | undefined, kind: TUIEditorGhostKind): void {
-    // Inline ghost is a suffix-only overlay after the caret. Refuse mid-buffer
-    // paints so dimmed completion cells cannot replace already-committed text
-    // that still lives after the cursor on the same visual line.
-    if (
-      text !== undefined &&
-      kind === 'inline' &&
-      !this.isInlineGhostCaretAtBufferEnd()
-    ) {
-      if (this.ghostText === undefined && this.ghostKind === kind) {
-        // Nothing to clear; still record kind for callers that query it.
-        this.ghostKind = kind;
-        return;
-      }
-      this.ghostText = undefined;
-      this.ghostKind = kind;
-      this.layoutRowCountCache = undefined;
-      this.options.requestRender?.();
-      return;
-    }
-    this.ghostText = text;
-    this.ghostKind = kind;
-    this.layoutRowCountCache = undefined;
-    this.options.requestRender?.();
-  }
-
-  getGhostText(): string | undefined {
-    return this.ghostText;
-  }
 
   addToHistory(text: string): void {
     const trimmed = text.trim();
@@ -442,45 +395,21 @@ export class NativeTUIEditor implements TUIEditor {
 
   private applyInputMutation(mutate: () => boolean): boolean {
     const before = this.getText();
-    const beforeCursor = this.getCursor();
     const handled = mutate();
     if (!handled) return false;
     const after = this.getText();
-    const afterCursor = this.getCursor();
-    const textChanged = after !== before;
-    const cursorChanged =
-      afterCursor.line !== beforeCursor.line || afterCursor.col !== beforeCursor.col;
-    // Keystroke or caret move: drop ghost immediately so a late LLM paint cannot
-    // race back over the display. onChange stays text-only.
-    if (textChanged || cursorChanged) {
-      this.clearGhost();
-    }
-    if (textChanged) {
+    if (after !== before) {
       this.historyIndex = undefined;
       this.onChange?.(after);
     }
     return true;
   }
 
-  /**
-   * True when the caret is at the end of the last line — the only safe place for
-   * an inline suffix ghost that must not cover committed characters.
-   */
-  private isInlineGhostCaretAtBufferEnd(): boolean {
-    const lines = this.input.getLines();
-    const cursor = this.input.getCursor();
-    if (cursor.line !== lines.length - 1) return false;
-    const line = lines[cursor.line] ?? '';
-    // Treat mid-cluster positions as "not at end" so a ghost cannot paint over
-    // the trailing half of a Hangul/emoji cluster that still lives in the buffer.
-    return cursor.column >= line.length;
-  }
 
   private setTextInternal(text: string, notify: boolean): void {
     if (this.rejectPromptLeak(text)) return;
     const before = this.getText();
     this.input.setText(text);
-    if (text !== before) this.clearGhost();
     if (notify && this.getText() !== before) this.onChange?.(this.getText());
   }
 
@@ -502,28 +431,6 @@ export class NativeTUIEditor implements TUIEditor {
     return this.autocomplete.close(requestRender);
   }
 
-  private clearGhost(): void {
-    if (this.ghostText === undefined) return;
-    this.ghostText = undefined;
-    this.layoutRowCountCache = undefined;
-    this.options.requestRender?.();
-  }
-
-  private acceptGhost(): void {
-    const ghost = this.ghostText;
-    if (ghost === undefined) return;
-    if (this.ghostKind === 'inline') {
-      this.applyInputMutation(() =>
-        this.input.handleInput({ type: 'paste', raw: ghost, text: ghost }),
-      );
-    } else {
-      this.setTextInternal(ghost, true);
-    }
-    this.ghostText = undefined;
-    this.layoutRowCountCache = undefined;
-    this.onAcceptGhost?.();
-    this.options.requestRender?.();
-  }
 
   private applyAutocompleteCompletion(
     result: RendererEditorAutocompleteCompletion,
@@ -634,14 +541,14 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   private getLayoutRowCountCache():
-    | { width: number; text: string; overlayCount: number; ghost: string; rows: number }
+    | { width: number; text: string; overlayCount: number; rows: number }
     | undefined {
     return this.layoutRowCountCache;
   }
 
   private setLayoutRowCountCache(
     cache:
-      | { width: number; text: string; overlayCount: number; ghost: string; rows: number }
+      | { width: number; text: string; overlayCount: number; rows: number }
       | undefined,
   ): void {
     this.layoutRowCountCache = cache;

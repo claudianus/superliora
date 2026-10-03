@@ -18,13 +18,8 @@
  *     `rejected` (which would be a confusing audit trail) and not
  *     leak the await (which would wedge the next turn).
  *
- * These tests are the dev-2 analogue of the kimi-cli regression at
- * `tests/acp/test_session_notifications.py::test_acp_prompt_cancel_closes_abandoned_approval_stream`.
- * The Python side cancels the prompt task directly (asyncio
- * `CancelledError`); in TS land cancellation is observable as a
- * `session/cancel` notification that the SDK turns into a
- * `turn.ended { reason: 'cancelled' }` event — so the test exercises
- * the path the harness will actually take.
+ * Cancellation acknowledgement is not turn settlement: pending permission
+ * and prompt requests remain live until their native operations finish.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -83,21 +78,26 @@ function makeCancellableApprovalSession(sessionId: string): {
   invokeHandler: (req: ApprovalRequest) => Promise<ApprovalResponse> | ApprovalResponse;
   resolvePrompt: () => void;
   cancelCalls: () => number;
+  promptStarted: Promise<void>;
+  cancelObserved: Promise<void>;
+  listenerCount: () => number;
 } {
   const listeners = new Set<(event: Event) => void>();
   let approvalHandler: ApprovalHandler | undefined;
-  let releasePrompt: (() => void) | undefined;
+  const promptCompletion = Promise.withResolvers<void>();
+  const promptStarted = Promise.withResolvers<void>();
+  const cancelObserved = Promise.withResolvers<void>();
   let cancelCount = 0;
 
   const session = {
     id: sessionId,
     prompt: async (_input: unknown) => {
-      await new Promise<void>((resolve) => {
-        releasePrompt = resolve;
-      });
+      promptStarted.resolve();
+      await promptCompletion.promise;
     },
     cancel: async () => {
       cancelCount += 1;
+      cancelObserved.resolve();
     },
     onEvent: (fn: (event: Event) => void) => {
       listeners.add(fn);
@@ -121,8 +121,11 @@ function makeCancellableApprovalSession(sessionId: string): {
       }
       return approvalHandler(req);
     },
-    resolvePrompt: () => releasePrompt?.(),
+    resolvePrompt: () => promptCompletion.resolve(),
     cancelCalls: () => cancelCount,
+    promptStarted: promptStarted.promise,
+    cancelObserved: cancelObserved.promise,
+    listenerCount: () => listeners.size,
   };
 }
 
@@ -139,14 +142,8 @@ class ParkingPermissionClient implements Client {
   private pending: ((response: RequestPermissionResponse) => void) | undefined;
 
   /** Resolves on the first `requestPermission` call so the test can synchronise. */
-  readonly received: Promise<void>;
-  private signalReceived: (() => void) | undefined;
-
-  constructor() {
-    this.received = new Promise((resolve) => {
-      this.signalReceived = resolve;
-    });
-  }
+  private readonly firstRequest = Promise.withResolvers<void>();
+  readonly received = this.firstRequest.promise;
 
   /** Settle the parked request with the supplied outcome. */
   respond(response: RequestPermissionResponse): void {
@@ -162,11 +159,10 @@ class ParkingPermissionClient implements Client {
 
   async requestPermission(p: RequestPermissionRequest): Promise<RequestPermissionResponse> {
     this.permissionRequests.push(p);
-    this.signalReceived?.();
-    this.signalReceived = undefined;
-    return new Promise<RequestPermissionResponse>((resolve) => {
-      this.pending = resolve;
-    });
+    const response = Promise.withResolvers<RequestPermissionResponse>();
+    this.pending = response.resolve;
+    this.firstRequest.resolve();
+    return response.promise;
   }
 
   async sessionUpdate(n: SessionNotification): Promise<void> {
@@ -205,9 +201,13 @@ describe('AcpServer cancel ⇄ pending requestPermission', () => {
       sessionId,
       prompt: [textBlock('do the thing')],
     });
+    let promptSettled = false;
+    void pending.then(
+      () => { promptSettled = true; },
+      () => { promptSettled = true; },
+    );
 
-    // Yield once so the agent-side subscribes to events before we emit.
-    await new Promise((r) => setTimeout(r, 5));
+    await handle.promptStarted;
 
     // Advance the turnId so `buildPermissionToolCallUpdate` uses the
     // prefixed `${turnId}:${rawId}` form — proves the cancel test also
@@ -246,9 +246,11 @@ describe('AcpServer cancel ⇄ pending requestPermission', () => {
     // blocked on the pending request, `Session.cancel()` would never
     // fire and this would hang / fail.
     await clientConn.cancel({ sessionId });
-    // Give the agent a tick to dispatch the notification.
-    await new Promise((r) => setTimeout(r, 10));
+    await handle.cancelObserved;
     expect(handle.cancelCalls()).toBe(1);
+    expect(promptSettled).toBe(false);
+    expect(client.isPending()).toBe(true);
+    expect(handle.listenerCount()).toBeGreaterThan(0);
 
     // Now the client honours the cancel by closing the permission
     // prompt: `outcome: 'cancelled'`. The bridge must translate that
@@ -258,9 +260,8 @@ describe('AcpServer cancel ⇄ pending requestPermission', () => {
     const decision = await approvalPromise;
     expect(decision.decision).toBe('cancelled');
 
-    // Close out the parked prompt so the test exits cleanly. The
-    // adapter resolves the prompt promise with `stopReason: 'cancelled'`
-    // when the SDK lands the `turn.ended` event below.
+    // The terminal event is factual, but the SDK prompt still owns cleanup
+    // until its operation promise settles.
     handle.emit({
       type: 'turn.ended',
       sessionId,
@@ -268,9 +269,16 @@ describe('AcpServer cancel ⇄ pending requestPermission', () => {
       turnId,
       reason: 'cancelled',
     } as Event);
+    // A wire round-trip drains earlier responses without wall-clock sleeps.
+    await expect(clientConn.extMethod('test/barrier', {})).rejects.toMatchObject({
+      code: -32601,
+    });
+    expect(promptSettled).toBe(false);
+    expect(handle.listenerCount()).toBeGreaterThan(0);
     handle.resolvePrompt();
     const promptResp = await pending;
     expect(promptResp.stopReason).toBe('cancelled');
+    expect(handle.listenerCount()).toBe(0);
   });
 
   it('a client that ignores the cancel and approves the parked request still resolves the bridge to { decision: approved } — cancel and approval are independent channels', async () => {
@@ -297,7 +305,7 @@ describe('AcpServer cancel ⇄ pending requestPermission', () => {
       sessionId,
       prompt: [textBlock('hi')],
     });
-    await new Promise((r) => setTimeout(r, 5));
+    await handle.promptStarted;
 
     handle.emit({
       type: 'tool.call.started',
@@ -320,7 +328,7 @@ describe('AcpServer cancel ⇄ pending requestPermission', () => {
 
     await client.received;
     await clientConn.cancel({ sessionId });
-    await new Promise((r) => setTimeout(r, 10));
+    await handle.cancelObserved;
     expect(handle.cancelCalls()).toBe(1);
 
     // Client decides to approve anyway. The bridge does not unilaterally

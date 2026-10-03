@@ -17,12 +17,10 @@ function strip(text: string): string {
 
 const RAW = 'raw-line-one\nraw-line-two';
 
-const CHECK: ToolResultDisplay = {
-  kind: 'check_report',
-  tool: 'vitest',
+const COMMAND_OUTPUT: ToolResultDisplay = {
+  kind: 'command_output',
   exit_code: 1,
-  passed: 12,
-  failed: 3,
+  stdout: 'native-command-tail',
 };
 
 function state(display?: ToolResultDisplay): SingleSubagentBlockState {
@@ -63,15 +61,15 @@ afterEach(() => {
 
 describe('subagent neat cards', () => {
   it('replaces the raw tail with a card below full detail', () => {
-    const out = render('standard', CHECK);
-    expect(out).toContain('vitest');
-    expect(out).toContain('3');
+    const out = render('standard', COMMAND_OUTPUT);
+    expect(out).toContain('exit 1');
+    expect(out).toContain('native-command-tail');
     expect(out).not.toContain('raw-line-one');
   });
 
   it('keeps the raw tail below the card at full detail', () => {
-    const out = render('full', CHECK);
-    expect(out).toContain('vitest');
+    const out = render('full', COMMAND_OUTPUT);
+    expect(out).toContain('exit 1');
     expect(out).toContain('raw-line-one');
   });
 
@@ -82,8 +80,8 @@ describe('subagent neat cards', () => {
 
   it('shows the raw tail when neat mode is off', () => {
     setActiveNeatMode(false);
-    const out = render('standard', CHECK);
+    const out = render('standard', COMMAND_OUTPUT);
     expect(out).toContain('raw-line-one');
-    expect(out).not.toContain('12 passed');
+    expect(out).not.toContain('native-command-tail');
   });
 });

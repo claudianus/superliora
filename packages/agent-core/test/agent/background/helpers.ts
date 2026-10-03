@@ -1,3 +1,5 @@
+import { setTimeout as delay } from 'node:timers/promises';
+
 import type { KaosProcess } from '@superliora/kaos';
 import { vi } from 'vitest';
 
@@ -8,52 +10,37 @@ import {
   ProcessBackgroundTask,
   type BackgroundTaskInfo,
 } from '../../../src/agent/background';
-import type { SessionSubagentHost, SubagentHandle } from '../../../src/session/subagent/subagent-host';
+import type { SessionSubagentHost, SubagentCompletion, SubagentHandle } from '../../../src/session/subagent/subagent-host';
 import type { AgentEvent } from '../../../src/rpc/events';
-
-export interface FakeBackgroundAgent {
-  emitEvent: ReturnType<typeof vi.fn>;
-  emittedEvents: AgentEvent[];
-  kimiConfig?: { background?: { maxRunningTasks?: number } };
-  telemetry: { track: ReturnType<typeof vi.fn> };
-  context: { appendUserMessage: ReturnType<typeof vi.fn> };
-  turn: { steer: ReturnType<typeof vi.fn> };
-  hooks?: { fireAndForgetTrigger: ReturnType<typeof vi.fn> };
-}
-
-export interface BackgroundManagerFixture {
-  agent: FakeBackgroundAgent;
-  manager: BackgroundManager;
-  persistence?: BackgroundTaskPersistence;
-}
+import { testAgent } from '../harness/agent';
 
 export function createBackgroundManager(options: {
   sessionDir?: string;
   maxRunningTasks?: number;
-  hooks?: FakeBackgroundAgent['hooks'];
-} = {}): BackgroundManagerFixture {
+} = {}) {
+  const ctx = testAgent({
+    initialConfig: {
+      providers: {},
+      ...(options.maxRunningTasks === undefined
+        ? {}
+        : { background: { maxRunningTasks: options.maxRunningTasks } }),
+    },
+  });
   const emittedEvents: AgentEvent[] = [];
-  const agent: FakeBackgroundAgent = {
-    emittedEvents,
-    emitEvent: vi.fn((event: AgentEvent) => {
-      emittedEvents.push(event);
-    }),
-    kimiConfig:
-      options.maxRunningTasks === undefined
-        ? undefined
-        : { background: { maxRunningTasks: options.maxRunningTasks } },
-    telemetry: { track: vi.fn() },
-    context: { appendUserMessage: vi.fn() },
-    turn: { steer: vi.fn() },
-    hooks: options.hooks,
-  };
-  const persistence =
-    options.sessionDir === undefined
-      ? undefined
-      : new BackgroundTaskPersistence(options.sessionDir);
+  const emitEvent = vi.spyOn(ctx.agent, 'emitEvent').mockImplementation((event) => {
+    emittedEvents.push(event);
+  });
+  const track = vi.spyOn(ctx.agent.telemetry, 'track').mockImplementation(() => {});
+  const persistence = options.sessionDir === undefined
+    ? undefined
+    : new BackgroundTaskPersistence(options.sessionDir);
   return {
-    agent,
-    manager: new BackgroundManager(agent as never, persistence),
+    agent: Object.assign(ctx.agent, {
+      emittedEvents,
+      emitEvent,
+      telemetry: Object.assign(ctx.agent.telemetry, { track }),
+    }),
+    manager: new BackgroundManager(ctx.agent, persistence),
     persistence,
   };
 }
@@ -64,11 +51,11 @@ export function registerProcess(
   command: string,
   description: string,
 ): string {
-  return manager.registerTask(new ProcessBackgroundTask(proc, command, description));
+  return manager.registerTask(new ProcessBackgroundTask(proc, command, description, manager.agent.kaos.getcwd()));
 }
 
 export function agentTask(
-  completion: Promise<{ result: string }>,
+  completion: Promise<SubagentCompletion>,
   description: string,
   options: {
     readonly agentId?: string;
@@ -79,7 +66,7 @@ export function agentTask(
 ): AgentBackgroundTask {
   const handle: SubagentHandle = {
     agentId: options.agentId ?? 'agent-child',
-    profileName: options.subagentType ?? 'coder',
+    profileName: options.subagentType ?? 'agent',
     resumed: false,
     completion,
   };
@@ -96,21 +83,7 @@ export async function waitForTerminal(
   taskId: string,
   timeoutMs = 30_000,
 ): Promise<BackgroundTaskInfo | undefined> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() <= deadline) {
-    const info = await manager.wait(taskId, 5);
-    if (
-      info?.status === 'completed' ||
-      info?.status === 'failed' ||
-      info?.status === 'timed_out' ||
-      info?.status === 'killed' ||
-      info?.status === 'lost'
-    ) {
-      return info;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1));
-  }
-  return manager.getTask(taskId);
+  return manager.wait(taskId, timeoutMs);
 }
 
 export async function waitForOutput(
@@ -121,7 +94,7 @@ export async function waitForOutput(
   for (let i = 0; i < 20; i++) {
     const output = await manager.readOutput(taskId);
     if (output.includes(expected)) return;
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await delay(5);
   }
   throw new Error(`Timed out waiting for output: ${expected}`);
 }

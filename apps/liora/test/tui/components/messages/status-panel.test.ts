@@ -27,8 +27,6 @@ describe('status panel report lines', () => {
       sessionTitle: 'Implement status',
       thinking: true,
       permissionMode: 'manual',
-      planMode: false,
-      goalStatus: 'active',
       contextUsage: 0.005,
       contextTokens: 50,
       maxContextTokens: 10000,
@@ -54,8 +52,6 @@ describe('status panel report lines', () => {
         model: 'k2',
         thinkingLevel: 'high',
         permission: 'auto',
-        planMode: true,
-        askMode: false,
         contextTokens: 1440,
         maxContextTokens: 12000,
         contextUsage: 0.005,
@@ -90,34 +86,13 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Directory\s+\/tmp\/project/);
     expect(output).toMatch(/Worktree\s+main \[\+12 -3 ↑1\] clean/);
     expect(output).toMatch(/Permissions\s+auto/);
-    expect(output).toMatch(/Visual Quality\s+mode off/);
     expect(output).toMatch(/Session\s+ses-1/);
     expect(output).toMatch(/Title\s+Implement status/);
     expect(output).toContain('Context window');
     expect(output).toContain('0.5%');
     expect(output).toContain('(1.4K / 12.0K)');
-    expect(output).toContain('Readiness');
-    expect(output).toMatch(/State\s+Ready/);
-    expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+research → interview → goal → integrate → verify → learn/);
-    expect(output).toMatch(/Engine\s+Plan \| Goal \| Research \| Integrate \| Verify \| Learn/);
-    expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
-    expect(output).toMatch(/Tools\s+search first; load tools on demand/);
-    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(
-      /Media\s+set QWEN_TOKEN_PLAN_API_KEY, OPENAI_API_KEY, or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
-    );
-    expect(output).toMatch(/Catalog\s+1 models \/ 1 providers; active managed:kimi-api/);
-    expect(output).toMatch(/Memory\s+prefs \| session recall \| reflection/);
-    expect(output).toMatch(/Flow\s+███░ 3\/4 verify queued/);
-    expect(output).toMatch(/Stages\s+Plan on \| Goal active \| Verify queued/);
-    expect(output).toMatch(/Blockers\s+none detected/);
-    expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
-    expect(output).toMatch(/Coverage\s+test public behavior changes/);
-    expect(output).toMatch(/Writing\s+human voice lanes; detectors advisory-only/);
-    expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
-    expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
-    expect(output).toMatch(/Next\s+Type your task, or \/plan to plan it first\./);
+    expect(output).toMatch(/Runtime\s+autonomous/);
+    expect(output).toMatch(/Tools\s+Bash \+ SessionControl \(2\)/);
     expect(output).not.toContain('helpers');
     expect(output).not.toContain('Advanced');
     expect(output).not.toContain('manual workflow commands');
@@ -128,13 +103,10 @@ describe('status panel report lines', () => {
     expect(output).not.toContain('/bench');
     expect(output).not.toContain('Recovery');
     expect(output).not.toMatch(/\bBench\b/);
-    expect(output).toContain('Plan');
-    expect(output).toContain('Goal');
     expect(output).toContain('Plan usage');
     expect(output).toContain('8% used');
     expect(output).not.toContain('Account');
     expect(output).not.toContain('AGENTS.md');
-    expect(output).not.toContain('Runtime');
   });
 
   it('shows the upstream baseline under the release version', () => {
@@ -147,7 +119,6 @@ describe('status panel report lines', () => {
       sessionTitle: null,
       thinking: false,
       permissionMode: 'manual',
-      planMode: false,
       contextUsage: 0,
       contextTokens: 0,
       maxContextTokens: 0,
@@ -168,7 +139,6 @@ describe('status panel report lines', () => {
       sessionTitle: null,
       thinking: false,
       permissionMode: 'manual',
-      planMode: false,
       contextUsage: 0,
       contextTokens: 0,
       maxContextTokens: 0,
@@ -180,30 +150,12 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Model\s+not set/);
     expect(output).toMatch(/Session\s+none/);
     expect(output).toMatch(/Warning\s+No active session/);
-    expect(output).toMatch(/Visual Quality\s+mode off/);
     expect(output).toContain('No context window data available.');
-    expect(output).toMatch(/State\s+Model needed/);
-    expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+research → interview → goal → integrate → verify → learn/);
-    expect(output).toMatch(/Engine\s+Plan \| Goal \| Research \| Integrate \| Verify \| Learn/);
-    expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
-    expect(output).toMatch(/Tools\s+search first; load tools on demand/);
-    expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(
-      /Media\s+set QWEN_TOKEN_PLAN_API_KEY, OPENAI_API_KEY, or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
-    );
-    expect(output).toMatch(/Memory\s+prefs \| session recall \| reflection/);
-    expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
-    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Verify blocked/);
-    expect(output).toMatch(/Blockers\s+model setup/);
+    expect(output).toMatch(/Permissions\s+manual/);
+    expect(output).toMatch(/Runtime\s+autonomous/);
+    expect(output).toMatch(/Tools\s+Bash \+ SessionControl \(2\)/);
     expect(output).not.toContain('Recovery');
     expect(output).not.toMatch(/\bBench\b/);
-    expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
-    expect(output).toMatch(/Coverage\s+test public behavior changes/);
-    expect(output).toMatch(/Writing\s+human voice lanes; detectors advisory-only/);
-    expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
-    expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
-    expect(output).toMatch(/Next\s+Run \/login to add a provider, then \/model to pick one\./);
   });
 
   it('shows provider route health without exposing secret key values', () => {
@@ -220,7 +172,6 @@ describe('status panel report lines', () => {
         sessionTitle: null,
         thinking: true,
         permissionMode: 'manual',
-        planMode: false,
         contextUsage: 0.005,
         contextTokens: 50,
         maxContextTokens: 10000,
@@ -277,325 +228,6 @@ describe('status panel report lines', () => {
     expect(output).not.toContain('sk-real');
   });
 
-  it('keeps readiness gate values compact enough for an 80 column status panel', () => {
-    const lines = buildStatusReportLines({
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null,
-      thinking: true,
-      permissionMode: 'manual',
-      planMode: true,
-      contextUsage: 0.005,
-      contextTokens: 50,
-      maxContextTokens: 10000,
-      availableModels: {},
-      humanWriting: {
-        ready: true,
-        advisoryOnly: true,
-        nextAction: 'ready',
-      },
-    }).map(strip);
-
-    const output = lines.join('\n');
-    expect(output).toMatch(/Flow\s+███░ 3\/4 verify queued/);
-    const readinessLabels = [
-      'Checks',
-      'Workflow',
-      'Engine',
-      'Auto',
-      'Autonomy',
-      'Tools',
-      'Research',
-      'Catalog',
-      'Memory',
-      'Flow',
-      'Stages',
-      'Blockers',
-      'Scope',
-      'Coverage',
-      'Writing',
-      'Screen check',
-      'Done gate',
-    ];
-    for (const label of readinessLabels) {
-      const line = lines.find((candidate) => candidate.includes(label));
-      expect(line, `${label} row`).toBeDefined();
-      if (line === undefined) throw new Error(`${label} row missing`);
-      expect(line.length, `${label} row should fit narrow terminals`).toBeLessThanOrEqual(100);
-      expect(line).not.toContain('...');
-    }
-  });
-  it('surfaces Context7 readiness when research tools are active', () => {
-    const lines = buildStatusReportLines({
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null,
-      thinking: true,
-      permissionMode: 'manual',
-      planMode: false,
-      contextUsage: 0.005,
-      contextTokens: 50,
-      maxContextTokens: 10000,
-      availableModels: {},
-      activeToolNames: ['WebSearch', 'FetchURL', 'Context7Resolve', 'Context7Docs'],
-      humanWriting: {
-        ready: true,
-        advisoryOnly: true,
-        nextAction: 'ready',
-      },
-    }).map(strip);
-
-    // Prefer the readiness Research row over the Engine gate that also contains the word Research.
-    const researchRow =
-      lines.find((line) => /Research\s+ready ·/.test(line) || /Research\s+WebSearch/.test(line) || /Research\s+partial/.test(line) || /Research\s+unavailable/.test(line)) ??
-      lines.find((line) => line.includes('WebSearch + FetchURL'));
-    expect(researchRow).toBeDefined();
-    expect(researchRow ?? '').toContain('WebSearch + FetchURL active');
-    expect(researchRow ?? '').toContain('Context7 on');
-  });
-
-  it('surfaces active tool inventory on the Tools readiness row when activeToolNames is provided', () => {
-    const lines = buildStatusReportLines({
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null,
-      thinking: true,
-      permissionMode: 'manual',
-      planMode: false,
-      contextUsage: 0.005,
-      contextTokens: 50,
-      maxContextTokens: 10000,
-      availableModels: {},
-      activeToolNames: ['Read', 'Bash', 'SearchTools', 'SearchSkill', 'WebSearch'],
-      humanWriting: {
-        ready: true,
-        advisoryOnly: true,
-        nextAction: 'ready',
-      },
-    }).map(strip);
-
-    const toolsRow =
-      lines.find((line) => /Tools\s+\d+ active tools/.test(line)) ??
-      lines.find((line) => line.includes('SearchTools on'));
-    expect(toolsRow).toBeDefined();
-    expect(toolsRow ?? '').toMatch(/5 active tools/);
-    expect(toolsRow ?? '').toContain('SearchTools on');
-    expect(toolsRow ?? '').toContain('SearchSkill on');
-    expect(toolsRow ?? '').toContain('Conductor · worker core');
-  });
-
-
-  it('keeps ready next action before plan mode is enabled', () => {
-    const lines = buildStatusReportLines({
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null,
-      thinking: true,
-      permissionMode: 'auto',
-      planMode: false,
-      contextUsage: 0.005,
-      contextTokens: 50,
-      maxContextTokens: 10000,
-      availableModels: {},
-    }).map(strip);
-
-    const output = lines.join('\n');
-    expect(output).toMatch(/State\s+Ready/);
-    expect(output).toMatch(/Flow\s+████ 4\/4 ready to run/);
-    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Verify ready/);
-    expect(output).toMatch(/Blockers\s+none detected/);
-    expect(output).toMatch(/Next\s+Type your task, or \/plan to plan it first\./);
-    expect(output).not.toContain('helpers');
-  });
-
-  it('surfaces context pressure as the next readiness action', () => {
-    const lines = buildStatusReportLines({
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null,
-      thinking: true,
-      permissionMode: 'manual',
-      planMode: false,
-      contextUsage: 0.9,
-      contextTokens: 9000,
-      maxContextTokens: 10000,
-      availableModels: {},
-    }).map(strip);
-
-    const output = lines.join('\n');
-    expect(output).toMatch(/State\s+Context high/);
-    expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
-    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Verify blocked/);
-    expect(output).toMatch(/Blockers\s+context high/);
-    expect(output).toMatch(/Next\s+Run \/compact before long work\./);
-  });
-
-  it('surfaces a dirty worktree as the next readiness action', () => {
-    const lines = buildStatusReportLines({
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null,
-      thinking: true,
-      permissionMode: 'manual',
-      planMode: true,
-      contextUsage: 0.005,
-      contextTokens: 50,
-      maxContextTokens: 10000,
-      availableModels: {},
-      gitStatus: {
-        branch: 'feature',
-        dirty: true,
-        ahead: 0,
-        behind: 0,
-        diffAdded: 0,
-        diffDeleted: 0,
-        changedFileCount: 0,
-        changedFiles: [],
-        pullRequest: null,
-      },
-    }).map(strip);
-
-    const output = lines.join('\n');
-    expect(output).toMatch(/Worktree\s+feature \[±\] dirty/);
-    expect(output).toMatch(/State\s+Worktree dirty/);
-    expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
-    expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Verify blocked/);
-    expect(output).toMatch(/Blockers\s+worktree dirty/);
-    expect(output).toMatch(/Next\s+Review changed files before finishing\./);
-  });
-
-  it('surfaces blocked writing guidance without exposing internal command names', () => {
-    const lines = buildStatusReportLines({
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null,
-      thinking: true,
-      permissionMode: 'manual',
-      planMode: false,
-      contextUsage: 0.005,
-      contextTokens: 50,
-      maxContextTokens: 10000,
-      availableModels: {},
-      humanWriting: {
-        ready: false,
-        advisoryOnly: false,
-        nextAction: 'Restore writing-quality guidance before long autonomous work.',
-      },
-    }).map(strip);
-
-    const output = lines.join('\n');
-    expect(output).toMatch(/State\s+Writing guidance blocked/);
-    expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
-    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Verify blocked/);
-    expect(output).toMatch(/Blockers\s+writing guidance/);
-    expect(output).toMatch(/Writing\s+voice-lane guidance blocked; detectors must stay advisory-only/);
-    expect(output).toMatch(/Next\s+Restore writing-quality guidance before long autonomous work\./);
-    expect(output).not.toContain('/preflight');
-    expect(output).not.toContain('/bench');
-    expect(output).not.toContain('harness QA');
-    expect(output).not.toContain('internal QA');
-  });
-
-  it('surfaces blocked goal state in the Stages row', () => {
-    const lines = buildStatusReportLines({
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null,
-      thinking: true,
-      permissionMode: 'manual',
-      planMode: true,
-      goalStatus: 'blocked',
-      contextUsage: 0.005,
-      contextTokens: 50,
-      maxContextTokens: 10000,
-      availableModels: {},
-    }).map(strip);
-
-    const output = lines.join('\n');
-    expect(output).toMatch(/State\s+Goal blocked/);
-    expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
-    expect(output).toMatch(/Stages\s+Plan on \| Goal blocked \| Verify blocked/);
-    expect(output).toMatch(/Blockers\s+goal blocked/);
-    expect(output).toMatch(/Next\s+Resolve or replace the blocked goal before continuing\./);
-  });
-
-
-
-
-  it('surfaces reflection run counts on the Memory gate when available', () => {
-    const lines = buildStatusReportLines({
-      version: '0.0.0-test',
-      model: 'test-model',
-      workDir: '/tmp/work',
-      sessionId: 'sess-1',
-      sessionTitle: null,
-      thinking: false,
-      permissionMode: 'manual',
-      planMode: false,
-      contextUsage: 0.1,
-      contextTokens: 1000,
-      maxContextTokens: 10_000,
-      availableModels: {},
-      autoDream: {
-        enabled: true,
-        inFlight: false,
-        runs: 3,
-        lastDreamAt: Date.now(),
-        lastExamined: 12,
-        lastMerged: 2,
-        minHours: 4,
-        minActiveRecords: 8,
-      },
-    });
-    expect(lines.join('\n')).toMatch(/Memory\s+prefs \| session recall \| reflection×3/);
-  });
-
-  it('includes Context OS health when compacted pages exist', () => {
-    const lines = buildStatusReportLines({
-      version: '0.0.0-test',
-      model: 'test-model',
-      workDir: '/tmp/work',
-      sessionId: 'sess-1',
-      sessionTitle: null,
-      thinking: false,
-      permissionMode: 'manual',
-      planMode: false,
-      contextUsage: 0.005,
-      contextTokens: 50,
-      maxContextTokens: 10000,
-      availableModels: {},
-      contextOS: {
-        pageCount: 2,
-        readyPageCount: 1,
-        needsRehydrationPageCount: 1,
-        atRiskPageCount: 0,
-        missingEvidencePageCount: 1,
-        evidenceIdRecallScore: 0.5,
-        latestContinuityStatus: 'needs_rehydration',
-      },
-    });
-    const joined = lines.join('\n');
-    expect(joined).toContain('Context OS');
-    expect(joined).toContain('needs_rehydration');
-    expect(joined).toContain('evidence 0.50');
-    expect(joined).toContain('missing 1');
-  });
 
 
   it('shows privacy/ZDR posture when telemetry flag is known', () => {
@@ -607,7 +239,6 @@ describe('status panel report lines', () => {
       sessionTitle: null,
       thinking: false,
       permissionMode: 'manual',
-      planMode: false,
       contextUsage: 0.005,
       contextTokens: 50,
       maxContextTokens: 10000,
@@ -625,7 +256,6 @@ describe('status panel report lines', () => {
       sessionTitle: null,
       thinking: false,
       permissionMode: 'manual',
-      planMode: false,
       contextUsage: 0.005,
       contextTokens: 50,
       maxContextTokens: 10000,
@@ -635,26 +265,6 @@ describe('status panel report lines', () => {
     expect(off).toContain('Telemetry OFF');
   });
 
-  it('labels premium harness toggle as Visual Quality in runtime rows', () => {
-    const output = buildStatusReportLines({
-      version: '0.0.0-test',
-      model: 'test-model',
-      workDir: '/tmp/work',
-      sessionId: 'sess-1',
-      sessionTitle: null,
-      thinking: false,
-      permissionMode: 'manual',
-      planMode: false,
-      contextUsage: 0,
-      contextTokens: 0,
-      maxContextTokens: 10000,
-      availableModels: {},
-      premiumQualityMode: true,
-    })
-      .map(strip)
-      .join('\n');
-    expect(output).toMatch(/Visual Quality\s+mode on/);
-  });
 
   describe('field value crossfade', () => {
     const previous = {
@@ -702,8 +312,6 @@ describe('status panel report lines', () => {
         sessionTitle: null as string | null,
         thinking: false,
         permissionMode: 'manual' as const,
-        planMode: false,
-        askMode: false,
         contextUsage: 0.1,
         contextTokens: 100,
         maxContextTokens: 1000,
@@ -742,8 +350,6 @@ describe('status panel report lines', () => {
       sessionTitle: null as string | null,
       thinking: false,
       permissionMode: 'manual' as const,
-      planMode: false,
-      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,
@@ -753,8 +359,6 @@ describe('status panel report lines', () => {
       model: 'k2',
       thinkingLevel: 'high',
       permission: 'auto' as const,
-      planMode: false,
-      askMode: false,
       contextTokens: 100,
       maxContextTokens: 1000,
       contextUsage: 0.1,
@@ -781,8 +385,6 @@ describe('status panel report lines', () => {
       sessionTitle: null as string | null,
       thinking: false,
       permissionMode: 'manual' as const,
-      planMode: false,
-      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,
@@ -792,8 +394,6 @@ describe('status panel report lines', () => {
       model: 'k2',
       thinkingLevel: 'high',
       permission: 'auto' as const,
-      planMode: false,
-      askMode: false,
       contextTokens: 100,
       maxContextTokens: 1000,
       contextUsage: 0.1,
@@ -827,8 +427,6 @@ describe('status panel report lines', () => {
       sessionTitle: null as string | null,
       thinking: false,
       permissionMode: 'manual' as const,
-      planMode: false,
-      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,
@@ -838,8 +436,6 @@ describe('status panel report lines', () => {
       model: 'k2',
       thinkingLevel: 'high',
       permission: 'auto' as const,
-      planMode: false,
-      askMode: false,
       contextTokens: 100,
       maxContextTokens: 1000,
       contextUsage: 0.1,
@@ -889,58 +485,6 @@ describe('status panel report lines', () => {
     expect(withoutCounts).not.toContain('Miss reasons');
   });
 
-  it('shows Role models rows with auto fallback for unset roles', () => {
-    const base = {
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null as string | null,
-      thinking: false,
-      permissionMode: 'manual' as const,
-      planMode: false,
-      askMode: false,
-      contextUsage: 0.1,
-      contextTokens: 100,
-      maxContextTokens: 1000,
-      availableModels: {},
-    };
-    const status = {
-      model: 'k2',
-      thinkingLevel: 'high',
-      permission: 'auto' as const,
-      planMode: false,
-      askMode: false,
-      contextTokens: 100,
-      maxContextTokens: 1000,
-      contextUsage: 0.1,
-      roleModels: {},
-    };
-
-    const configured = buildStatusReportLines({
-      ...base,
-      status: {
-        ...status,
-        roleModels: { compaction: 'kimi-turbo', exploration: 'kimi-research' },
-      },
-    }).map(strip);
-    const configuredOutput = configured.join('\n');
-    expect(configuredOutput).toContain('Role models');
-    expect(configuredOutput).not.toContain('Loop model routing');
-    const compactionRow = configured.find((line) => line.includes('Compaction'));
-    expect(compactionRow).toContain('override · kimi-turbo');
-    const completionRow = configured.find((line) => line.includes('Completion'));
-    expect(completionRow).toContain('auto');
-    const explorationRow = configured.find((line) => line.includes('Exploration'));
-    expect(explorationRow).toContain('override · kimi-research');
-    expect(configured.find((line) => line.includes('Coding'))).toContain('auto');
-    expect(configured.find((line) => line.includes('Planning'))).toContain('auto');
-    expect(configured.find((line) => line.includes('Debugging'))).toContain('auto');
-
-    const withoutRoles = buildStatusReportLines({ ...base, status }).map(strip);
-    expect(withoutRoles.join('\n')).toContain('Role models');
-    expect(withoutRoles.find((line) => line.includes('Coding'))).toContain('auto');
-  });
 
   it('surfaces last effective model route and failover notice', () => {
     const base = {
@@ -951,8 +495,6 @@ describe('status panel report lines', () => {
       sessionTitle: null as string | null,
       thinking: false,
       permissionMode: 'manual' as const,
-      planMode: false,
-      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,
@@ -994,7 +536,7 @@ describe('status panel report lines', () => {
     expect(output).toContain('provider-failover');
   });
 
-  it('surfaces completion-role model route in Last model route', () => {
+  it('surfaces the recorded provider failover reason in Last model route', () => {
     const base = {
       version: '1.2.3',
       model: 'k2',
@@ -1003,8 +545,6 @@ describe('status panel report lines', () => {
       sessionTitle: null as string | null,
       thinking: false,
       permissionMode: 'manual' as const,
-      planMode: false,
-      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,
@@ -1026,48 +566,18 @@ describe('status panel report lines', () => {
     const lines = buildStatusReportLines({
       ...base,
       lastModelRouteNotice: {
-        kind: 'selection',
+        kind: 'failover',
         fromAlias: 'k2',
         toAlias: 'turbo',
-        reason: 'completion:inline',
+        reason: 'rate_limit',
         atMs: Date.now() - 1000,
       },
     }).map(strip);
     const output = lines.join('\n');
     expect(output).toContain('Last model route');
     expect(output).toContain('Kimi K2 → Kimi Turbo');
-    expect(output).toContain('ghost complete');
+    expect(output).toMatch(/Failover\s+Kimi K2 → Kimi Turbo · rate_limit/);
   });
 
-  it('projects explicit loop model routing overrides without inventing provider defaults', () => {
-    const lines = buildStatusReportLines({
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null,
-      thinking: false,
-      permissionMode: 'manual',
-      planMode: false,
-      contextUsage: 0.1,
-      contextTokens: 100,
-      maxContextTokens: 1000,
-      availableModels: {},
-      loopModelRouting: {
-        loopControl: {
-          codingModel: 'code-pro',
-          debuggingModel: 'debug-pro',
-        },
-      },
-    }).map(strip);
-    const output = lines.join('\n');
-
-    expect(output).toContain('Role models');
-    expect(output).not.toContain('Loop model routing');
-    expect(lines.find((line) => line.includes('Coding'))).toContain('override · code-pro');
-    expect(lines.find((line) => line.includes('Debugging'))).toContain('override · debug-pro');
-    expect(lines.find((line) => line.includes('Completion'))).toContain('auto');
-    expect(output).not.toContain('completion: auto');
-  });
 
 });

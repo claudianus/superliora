@@ -15,9 +15,9 @@ describe('approval-adapter · toBrokerRequest (in-process → protocol)', () => 
   const inProc: InProcessApprovalRequest = {
     turnId: 7,
     toolCallId: 'tc_abc',
-    toolName: 'shell.run',
+    toolName: 'Bash',
     action: 'Run `rm -rf foo/`',
-    display: { kind: 'command', command: 'rm -rf foo/', summary: 'rm' } as never,
+    display: { kind: 'command', command: 'rm -rf foo/', summary: 'rm' },
   };
 
   it('maps camelCase → snake_case', () => {
@@ -33,7 +33,7 @@ describe('approval-adapter · toBrokerRequest (in-process → protocol)', () => 
       session_id: 'sess_x',
       turn_id: 7,
       tool_call_id: 'tc_abc',
-      tool_name: 'shell.run',
+      tool_name: 'Bash',
       action: 'Run `rm -rf foo/`',
       tool_input_display: { kind: 'command', command: 'rm -rf foo/', summary: 'rm' },
       created_at: '2026-06-04T10:30:00.000Z',
@@ -41,8 +41,8 @@ describe('approval-adapter · toBrokerRequest (in-process → protocol)', () => 
     });
   });
 
-  it('preserves tool_input_display verbatim (12-arm passthrough)', () => {
-    const exotic = { kind: 'plan_review', plan: '...', options: [{ label: 'ok' }] } as never;
+  it('preserves the native tool_input_display verbatim', () => {
+    const exotic = { kind: 'command', command: 'pwd', summary: 'Working directory' } satisfies InProcessApprovalRequest['display'];
     const protoReq = toBrokerRequest(
       { ...inProc, display: exotic },
       {
@@ -69,20 +69,6 @@ describe('approval-adapter · toBrokerRequest (in-process → protocol)', () => 
 });
 
 describe('approval-adapter · toAgentCoreResponse (protocol → in-process)', () => {
-  it('maps snake_case selected_label → camelCase selectedLabel', () => {
-    const inProcResp = toAgentCoreResponse({
-      decision: 'approved',
-      scope: 'session',
-      feedback: 'looks good',
-      selected_label: 'Run command',
-    });
-    expect(inProcResp).toEqual({
-      decision: 'approved',
-      scope: 'session',
-      feedback: 'looks good',
-      selectedLabel: 'Run command',
-    });
-  });
 
   it('omits optional fields when absent', () => {
     const inProcResp = toAgentCoreResponse({ decision: 'rejected' });
@@ -90,7 +76,6 @@ describe('approval-adapter · toAgentCoreResponse (protocol → in-process)', ()
       decision: 'rejected',
       scope: undefined,
       feedback: undefined,
-      selectedLabel: undefined,
     });
   });
 

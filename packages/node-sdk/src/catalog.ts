@@ -13,7 +13,6 @@ import {
   type ModelCapability,
   type ProviderType,
 } from '@superliora/kosong';
-import { applyXaiPricingSafeContextTokens } from '@superliora/oauth';
 
 // Catalog metadata and the wire profile registry are re-exported so app code
 // only ever depends on the SDK, never on `@superliora/kosong` directly.
@@ -83,11 +82,7 @@ export function catalogModelToAlias(providerId: string, model: CatalogModel): Mo
   return {
     provider: providerId,
     model: model.id,
-    maxContextSize: applyXaiPricingSafeContextTokens(model.capability.max_context_tokens, {
-      provider: providerId,
-      model: model.id,
-      cost: model.cost,
-    }),
+    maxContextSize: model.capability.max_context_tokens,
     maxOutputSize: model.maxOutputSize,
     capabilities:
       model.alwaysThinking && capabilities !== undefined

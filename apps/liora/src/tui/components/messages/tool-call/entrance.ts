@@ -45,7 +45,7 @@ export function toolHeaderEntranceStartedAt(toolCallId: string): number {
 
 /**
  * First-seen timestamps for the staged preview reveal keyed by toolCallId.
- * The settled Write/Edit preview is rebuilt whenever streaming args finalize
+ * The settled tool preview is rebuilt whenever streaming args finalize
  * or the result lands; the registry pins the reveal start to the first
  * settled build so those rebuilds grow the preview in place instead of
  * replaying the entrance. Same bounded-map sweep as the header registry.

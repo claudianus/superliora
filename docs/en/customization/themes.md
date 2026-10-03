@@ -8,13 +8,13 @@ Custom themes can override the tokens below. The `dark` and `light` columns show
 
 | Token | `dark` | `light` | What it controls |
 | --- | --- | --- | --- |
-| `primary` | `#3D9BFF` | `#1565C0` | The most-used color. Links, inline code, the selected item in nearly every dialog, the focused editor border, Plan/"running" badges, spinners |
+| `primary` | `#3D9BFF` | `#1565C0` | Links, inline code, selected items, focused editor borders, running badges, spinners |
 | `accent` | `#2DD4BF` | `#0F766E` | Secondary highlight. Approval `▶` prefix, device-code box, image placeholder, BTW / queue panes, registry import |
-| `text` | `#E0E0E0` | `#1A1A1A` | Body text. Dialog bodies, todo titles, footer model label, Markdown headings, assistant/tool message bullets, list bullets |
+| `text` | `#E0E0E0` | `#1A1A1A` | Body text, dialog bodies, footer model label, Markdown headings, message and list bullets |
 | `textStrong` | `#F5F5F5` | `#1A1A1A` | Emphasized / bold text. Input dialogs, status messages |
-| `textDim` | `#888888` | `#454545` | Secondary, dimmed text. Thinking, hints, descriptions, completed todos, Markdown quotes, footer status bar |
+| `textDim` | `#888888` | `#454545` | Secondary text, thinking, hints, descriptions, Markdown quotes, footer status bar |
 | `textMuted` | `#6B6B6B` | `#5F5F5F` | Faintest text. Counters, scroll info, descriptions, Markdown link URLs, code-block borders |
-| `ghostText` | `#616161` | `#6E6E6E` | Dimmed inline ghost text. Autocomplete / next-task suggestion preview after the editor cursor (Tab to accept) |
+| `ghostText` | `#616161` | `#6E6E6E` | Dimmed inline completion preview after the editor cursor |
 | `background` | `#0B0F14` | `#FFFFFF` | Root TUI canvas background |
 | `surface` | `#111827` | `#F4F7FB` | Default panel and dialog surface |
 | `surfaceRaised` | `#182233` | `#E8F0FA` | Raised surface for focused or premium chrome |
@@ -25,16 +25,16 @@ Custom themes can override the tokens below. The `dark` and `light` columns show
 | `selectionText` | `#F5F5F5` | `#0B1020` | Selection text |
 | `cursor` | `#E0E0E0` | `#1A1A1A` | Cursor color for opt-in terminal palette mutation |
 | `success` | `#4EC87E` | `#0E7A38` | Success state. `✓`, "enabled", completed |
-| `warning` | `#E8A838` | `#92660A` | Warning state. auto/yolo badges, stale markers, Plan mode hint |
+| `warning` | `#E8A838` | `#92660A` | Warning state, auto/yolo badges, stale markers |
 | `error` | `#E85454` | `#B91C1C` | Error state. Error messages, failed tool output |
-| `info` | `#3D9BFF` | `#1565C0` | Info state. Neutral notices (failover, recovered, idempotent replays) |
+| `info` | `#3D9BFF` | `#1565C0` | Neutral operational notices |
 | `diffAdded` | `#4EC87E` | `#0E7A38` | Diff added lines |
 | `diffRemoved` | `#E85454` | `#B91C1C` | Diff removed lines |
 | `diffAddedStrong` | `#7AD99B` | `#0E7A38` | Diff intra-line changed words, added and bold |
 | `diffRemovedStrong` | `#F08585` | `#B91C1C` | Diff intra-line changed words, removed and bold |
 | `diffGutter` | `#6B6B6B` | `#737373` | Diff line-number gutter |
 | `diffMeta` | `#888888` | `#5F5F5F` | Diff meta / hunk headers |
-| `roleUser` | `#FBBF24` | `#9A4A00` | User message bullet and text, skill-activation name |
+| `roleUser` | `#FBBF24` | `#9A4A00` | User message bullet and text |
 | `shellMode` | `#E879F9` | `#7C3AED` | Shell mode (`!`) prompt, editor border, and the echoed `$ command` line |
 | `glow` | `#67E8F9` | `#075985` | Glow / halo accent for focus effects |
 | `particle` | `#A78BFA` | `#6D28D9` | Particle accent for event bursts and ambient effects |
@@ -51,18 +51,6 @@ Custom themes can override the tokens below. The `dark` and `light` columns show
 | `syntaxOperator` | `#89DDFF` | `#0F766E` | Code highlight operators, punctuation, and symbols |
 | `syntaxTag` | `#F07178` | `#B91C1C` | Code highlight tags, selectors, and markup names |
 | `syntaxMeta` | `#7FDBCA` | `#5F5F5F` | Code highlight metadata, decorators, and preprocessor lines |
-
-## Use the custom-theme skill
-
-You do not need to write the JSON by hand. Run the built-in `/custom-theme [extra text]` skill command to enter the custom-theme workflow; the skill can choose colors, write the file under `~/.superliora/themes/`, validate the hex values, and tell you how to apply it.
-
-Example invocations:
-
-- `/custom-theme Create a warm dark theme with amber accents.`
-- `/custom-theme Make a light theme based on Solarized, but keep errors easy to see.`
-- `/custom-theme Tweak my ember theme so diffs have higher contrast.`
-
-After activation, the skill usually asks whether you want a light or dark base, what mood or palette you prefer, and whether you have exact colors to include. If you use it to edit an existing theme, make sure it reads and backs up the file before overwriting it.
 
 ## Create a theme
 

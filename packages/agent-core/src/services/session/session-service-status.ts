@@ -1,14 +1,12 @@
 import type { SessionStatusResponse } from '@superliora/protocol';
 
 import type { ICoreProcessService } from '../coreProcess/coreProcess';
-import type { IPromptService } from '../prompt/prompt';
 
 import { SessionNotFoundError } from './session';
 
 export async function buildSessionStatusResponse(
   id: string,
   core: ICoreProcessService,
-  promptService: IPromptService,
   computeStatus: (sessionId: string) => SessionStatusResponse['status'],
 ): Promise<SessionStatusResponse> {
   const all = await core.rpc.listSessions({});
@@ -16,12 +14,12 @@ export async function buildSessionStatusResponse(
   if (summary === undefined) {
     throw new SessionNotFoundError(id);
   }
+  await core.rpc.resumeSession({ sessionId: id });
 
   const [
     config,
     context,
     permission,
-    plan,
     providerRoute,
     usage,
     circuitBreakers,
@@ -32,7 +30,6 @@ export async function buildSessionStatusResponse(
     core.rpc.getConfig({ sessionId: id, agentId: 'main' }),
     core.rpc.getContext({ sessionId: id, agentId: 'main' }),
     core.rpc.getPermission({ sessionId: id, agentId: 'main' }),
-    core.rpc.getPlan({ sessionId: id, agentId: 'main' }),
     core.rpc.getProviderRouteStatus({ sessionId: id, agentId: 'main' }),
     core.rpc.getUsage({ sessionId: id, agentId: 'main' }).catch(() => undefined),
     core.rpc.getCircuitBreakers({ sessionId: id, agentId: 'main' }).catch(() => undefined),
@@ -45,15 +42,11 @@ export async function buildSessionStatusResponse(
   const contextTokens = context.tokenCount;
   const contextUsage = maxContextTokens > 0 ? contextTokens / maxContextTokens : 0;
 
-  const agentState = promptService.getAgentStateSnapshot(id);
-
-  const contextOS = context.contextOS;
   return {
     status: computeStatus(id),
     model: config.modelAlias ?? config.provider?.model,
     thinking_level: config.thinkingLevel,
     permission: permission.mode,
-    plan_mode: plan !== null,
     context_tokens: contextTokens,
     max_context_tokens: maxContextTokens,
     context_usage: contextUsage,
@@ -87,39 +80,7 @@ export async function buildSessionStatusResponse(
           },
         }
       : {}),
-    role_models:
-      config.roleModels === undefined
-        ? undefined
-        : {
-            compaction: config.roleModels.compaction ?? null,
-            completion: config.roleModels.completion ?? null,
-            exploration: config.roleModels.exploration ?? null,
-            coding: config.roleModels.coding ?? null,
-            planning: config.roleModels.planning ?? null,
-            debugging: config.roleModels.debugging ?? null,
-          },
     provider_route: providerRoute,
-    context_os:
-      contextOS === undefined
-        ? undefined
-        : {
-            page_count: contextOS.pageCount,
-            ready_page_count: contextOS.readyPageCount,
-            needs_rehydration_page_count: contextOS.needsRehydrationPageCount,
-            at_risk_page_count: contextOS.atRiskPageCount,
-            missing_evidence_page_count: contextOS.missingEvidencePageCount,
-            evidence_id_recall_score: contextOS.evidenceIdRecallScore,
-            latest_continuity_status: contextOS.latestContinuityStatus,
-          },
-    micro_compaction:
-      context.microCompaction === undefined
-        ? undefined
-        : {
-            total: context.microCompaction.total,
-            last_trigger: context.microCompaction.lastTrigger,
-            last_context_usage_ratio: context.microCompaction.lastContextUsageRatio,
-            by_trigger: { ...context.microCompaction.byTrigger },
-          },
     oauth:
       oauth === undefined
         ? undefined

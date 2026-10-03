@@ -4,7 +4,6 @@ import type { NativeRenderCause } from '#/tui/renderer';
 
 import {
   frameInvalidationIntentToCause,
-  isLiveGoalChromeActive,
   isPureInputFrame,
   isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,
@@ -186,7 +185,7 @@ describe('shouldReuseTUIChromeCache', () => {
     ).toBe(false);
   });
 
-  it('rejects on manual causes so the goal-timer tick repaints', () => {
+  it('rejects on manual causes so explicit chrome updates repaint', () => {
     expect(
       shouldReuseTUIChromeCache({
         ...base,
@@ -516,51 +515,11 @@ describe('tuiChromeEpoch', () => {
     expect(a).not.toBe(b);
   });
 
-  it('changes when a live goal id or status changes', () => {
-    const a = tuiChromeEpoch({
-      streamingPhase: 'idle',
-      thinking: false,
-      liveGoalId: 'g-1',
-      liveGoalStatus: 'active',
-    });
-    const b = tuiChromeEpoch({
-      streamingPhase: 'idle',
-      thinking: false,
-      liveGoalId: 'g-1',
-      liveGoalStatus: 'paused',
-    });
-    const c = tuiChromeEpoch({
-      streamingPhase: 'idle',
-      thinking: false,
-      liveGoalId: 'g-2',
-      liveGoalStatus: 'active',
-    });
-    expect(a).not.toBe(b);
-    expect(a).not.toBe(c);
-  });
 
-  it('is stable when no live goal is attached', () => {
+  it('is stable when streaming and thinking state are unchanged', () => {
     const a = tuiChromeEpoch({ streamingPhase: 'idle', thinking: false });
     const b = tuiChromeEpoch({ streamingPhase: 'idle', thinking: false });
     expect(a).toBe(b);
   });
 });
 
-describe('isLiveGoalChromeActive', () => {
-  it('returns true for active/paused/blocked statuses', () => {
-    expect(isLiveGoalChromeActive({ status: 'active' })).toBe(true);
-    expect(isLiveGoalChromeActive({ status: 'paused' })).toBe(true);
-    expect(isLiveGoalChromeActive({ status: 'blocked' })).toBe(true);
-  });
-
-  it('returns false for terminal statuses', () => {
-    expect(isLiveGoalChromeActive({ status: 'done' })).toBe(false);
-    expect(isLiveGoalChromeActive({ status: 'cancelled' })).toBe(false);
-    expect(isLiveGoalChromeActive({ status: 'failed' })).toBe(false);
-  });
-
-  it('returns false for null and undefined', () => {
-    expect(isLiveGoalChromeActive(null)).toBe(false);
-    expect(isLiveGoalChromeActive(undefined)).toBe(false);
-  });
-});

@@ -266,4 +266,13 @@ describe('workspace local config', () => {
       'workspace.sandbox_profile must be one of: off, workspace, read-only',
     );
   });
+  it('rejects retired configuration rather than retaining it through workspace writes', async () => {
+    const root = await makeProject();
+    await mkdir(join(root, '.superliora'), { recursive: true });
+    const configPath = join(root, '.superliora', 'local.toml');
+    await writeFile(configPath, '[memory]\nenabled = true\n', 'utf-8');
+    await expect(loadWorkspaceLocalConfig(testKaos, root)).rejects.toBeInstanceOf(LioraError);
+    await expect(writeWorkspaceSandboxProfile(testKaos, root, 'workspace')).rejects.toBeInstanceOf(LioraError);
+    expect(await readFile(configPath, 'utf-8')).toBe('[memory]\nenabled = true\n');
+  });
 });

@@ -7,7 +7,7 @@
  * - `mono`: --flags, $env:VARS, CAPS_IDENTS → dim mono chips
  *
  * Everything else stays plain text. The patterns are deliberately narrow:
- * prose around a command ("Use /plan for big design") must not be swallowed.
+ * prose around a command ("Use /jobs to inspect work") must not be swallowed.
  */
 
 export type RichKind = 'plain' | 'kbd' | 'cmd' | 'mono';

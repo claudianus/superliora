@@ -1,5 +1,4 @@
 import type { BackgroundManagerHost } from './manager-host';
-import { notifyBackgroundTaskOnTerminal } from './manager-notify-delivery';
 import type { BackgroundTaskInfo } from './task';
 import type { ManagedTask } from './managed-types';
 
@@ -20,8 +19,7 @@ export function emitTaskTerminated(host: BackgroundManagerHost, info: Background
 }
 
 export function fireTerminalEffects(host: BackgroundManagerHost, entry: ManagedTask): void {
-  if (!host.isDetached(entry)) return;
+  if (!host.isDetached(entry) || entry.task.resourcesSettled === false) return;
   const info = host.toInfo(entry);
-  void notifyBackgroundTaskOnTerminal(host, info).catch(() => { });
   emitTaskTerminated(host, info);
 }

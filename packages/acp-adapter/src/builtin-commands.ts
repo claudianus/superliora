@@ -15,10 +15,6 @@ export const ACP_BUILTIN_SLASH_COMMANDS = [
     description: 'Show session token usage',
   },
   {
-    name: 'mcp',
-    description: 'Show MCP server status',
-  },
-  {
     name: 'tasks',
     description: 'List background tasks',
   },

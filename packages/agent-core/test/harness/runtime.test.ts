@@ -1,5 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { text } from 'node:stream/consumers';
 import { join, normalize } from 'pathe';
 
 import type { Kaos } from '@superliora/kaos';
@@ -18,33 +19,13 @@ import {
   type CoreAPI,
   type SDKAPI,
 } from '../../src';
-import { FLAG_DEFINITIONS } from '../../src/flags/registry';
-import { MASTER_ENV } from '../../src/flags/resolver';
 import {
   __resetRootLoggerForTest,
-  getRootLogger,
-  resolveGlobalLogPath,
 } from '../../src/logging/logger';
-import { resolveLoggingConfig } from '../../src/logging/resolve-config';
-import type { OAuthTokenProviderResolver } from '../../src/session/provider/provider-manager';
+import { openWireReadStream, resolveWirePath } from '../../src/session/store/wire-gzip';
+import { isWithinWorkspace } from '../../src/tools/policies/path-access';
 import { testKaos } from '../fixtures/test-kaos';
 
-function requiredFlagEnv(id: string): string {
-  const def = FLAG_DEFINITIONS.find((item) => item.id === id);
-  if (def === undefined) throw new Error(`Missing flag definition: ${id}`);
-  return def.env;
-}
-
-function clearExperimentalEnv(): void {
-  vi.stubEnv(MASTER_ENV, '0');
-  for (const def of FLAG_DEFINITIONS) {
-    vi.stubEnv(def.env, '');
-  }
-}
-
-function experimentalFeatureEnabled(core: LioraCore, id: string): boolean | undefined {
-  return core.getExperimentalFeatures().find((feature) => feature.id === id)?.enabled;
-}
 
 function setCoreKaos(core: LioraCore, kaos: Promise<Kaos>): void {
   (core as unknown as { kaos?: Promise<Kaos> }).kaos = kaos;
@@ -98,135 +79,6 @@ describe('LioraCore runtime config', () => {
     vi.unstubAllGlobals();
   });
 
-  it('logs all enabled experimental flags once on core startup', async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'kimi-core-runtime-'));
-    const homeDir = join(tmp, 'home');
-    await mkdir(homeDir, { recursive: true });
-    await getRootLogger().configure(
-      resolveLoggingConfig({ homeDir, env: { SUPERLIORA_LOG_LEVEL: 'info' } }),
-    );
-
-    vi.stubEnv(MASTER_ENV, '0');
-    for (const def of FLAG_DEFINITIONS) {
-      vi.stubEnv(def.env, '0');
-    }
-    vi.stubEnv(requiredFlagEnv('async_compaction'), '1');
-
-    void new LioraCore(async () => ({}) as never, { homeDir });
-    await getRootLogger().flushGlobal();
-
-    const text = await readFile(resolveGlobalLogPath(homeDir), 'utf-8');
-    expect(text).toContain('experimental flags enabled');
-    expect(text).toContain('async_compaction');
-    expect(text.match(/experimental flags enabled/g)).toHaveLength(1);
-  });
-
-  it('resolves experimental flags from each core config independently', async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'kimi-core-runtime-'));
-    const firstHome = join(tmp, 'first-home');
-    const secondHome = join(tmp, 'second-home');
-    await mkdir(firstHome, { recursive: true });
-    await mkdir(secondHome, { recursive: true });
-    await writeFile(
-      join(firstHome, 'config.toml'),
-      `
-[experimental]
-async_compaction = true
-`,
-    );
-    await writeFile(
-      join(secondHome, 'config.toml'),
-      `
-[experimental]
-async_compaction = false
-`,
-    );
-    clearExperimentalEnv();
-
-    const first = new LioraCore(async () => ({}) as never, { homeDir: firstHome });
-    const second = new LioraCore(async () => ({}) as never, { homeDir: secondHome });
-
-    expect(experimentalFeatureEnabled(first, 'async_compaction')).toBe(true);
-    expect(experimentalFeatureEnabled(second, 'async_compaction')).toBe(false);
-  });
-
-  it('updates the scoped experimental resolver after setKimiConfig', async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'kimi-core-runtime-'));
-    const homeDir = join(tmp, 'home');
-    await mkdir(homeDir, { recursive: true });
-    await writeFile(
-      join(homeDir, 'config.toml'),
-      `
-[experimental]
-async_compaction = false
-`,
-    );
-    clearExperimentalEnv();
-
-    const core = new LioraCore(async () => ({}) as never, { homeDir });
-    expect(experimentalFeatureEnabled(core, 'async_compaction')).toBe(false);
-
-    await core.setKimiConfig({
-      experimental: {
-        'async_compaction': true,
-      },
-    });
-
-    expect(experimentalFeatureEnabled(core, 'async_compaction')).toBe(true);
-  });
-
-  it('updates the shared experimental resolver while goal tools stay available', async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'kimi-core-runtime-'));
-    const homeDir = join(tmp, 'home');
-    const workDir = join(tmp, 'work');
-    await mkdir(homeDir, { recursive: true });
-    await mkdir(workDir, { recursive: true });
-    await writeFile(
-      join(homeDir, 'config.toml'),
-      `${baseModelConfig()}
-[experimental]
-async_compaction = false
-`,
-    );
-    clearExperimentalEnv();
-
-    const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new LioraCore(coreRpc, { homeDir });
-    const rpc = await sdkRpc({
-      emitEvent: vi.fn(),
-      requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
-      requestQuestion: vi.fn(async () => null),
-      requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
-    });
-
-    const created = await rpc.createSession({
-      id: 'ses_runtime_experimental_refresh',
-      workDir,
-      model: 'default-mock',
-    });
-    const session = core.sessions.get(created.id);
-    const mainAgent = session?.getReadyAgent('main');
-
-    expect(session?.experimentalFlags.enabled('async_compaction')).toBe(false);
-    expect(mainAgent?.experimentalFlags.enabled('async_compaction')).toBe(false);
-    // Conductor keeps GetGoal + CreateGoal (Session Goal API → Goal Desk).
-    expect(mainAgent?.tools.data().some((tool) => tool.name === 'GetGoal')).toBe(true);
-
-    await core.setKimiConfig({
-      experimental: {
-        'async_compaction': true,
-      },
-    });
-
-    expect(session?.experimentalFlags.enabled('async_compaction')).toBe(true);
-    expect(mainAgent?.experimentalFlags.enabled('async_compaction')).toBe(true);
-    expect(mainAgent?.tools.data().some((tool) => tool.name === 'GetGoal')).toBe(true);
-
-    await rpc.reloadSession({ sessionId: created.id });
-    const reloadedMainAgent = core.sessions.get(created.id)?.getReadyAgent('main');
-    expect(reloadedMainAgent?.tools.data().some((tool) => tool.name === 'GetGoal')).toBe(true);
-  });
 
   // Regression for https://github.com/MoonshotAI/kimi-code/issues/988: during
   // ACP `session/new` the tool kaos is the reverse-RPC bridge and the client
@@ -255,7 +107,6 @@ async_compaction = false
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await core.createSessionWithOverrides(
@@ -268,76 +119,6 @@ async_compaction = false
     expect(session?.getAdditionalDirs()).toContain(normalize(sharedDir));
   });
 
-  it('uses the shared OAuth resolver for Moonshot service tokens', async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'kimi-core-runtime-'));
-    const homeDir = join(tmp, 'home');
-    const workDir = join(tmp, 'work');
-    await mkdir(homeDir, { recursive: true });
-    await mkdir(workDir, { recursive: true });
-    await writeFile(
-      join(homeDir, 'config.toml'),
-      `
-[services.moonshot_search]
-base_url = "https://search.example/v1"
-oauth = { storage = "file", key = "oauth/custom-kimi-code" }
-custom_headers = { "X-Test" = "1" }
-`,
-    );
-
-    const getAccessToken = vi.fn().mockResolvedValue('service-token');
-    const resolveOAuthTokenProvider = vi.fn<OAuthTokenProviderResolver>(() => ({
-      getAccessToken,
-    }));
-    const fetchImpl = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ search_results: [] }), {
-        status: 200,
-      }),
-    );
-    vi.stubGlobal('fetch', fetchImpl);
-
-    const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new LioraCore(coreRpc, {
-      homeDir,
-      kimiRequestHeaders: {
-        'User-Agent': 'kimi-code-cli/0.0.0-test',
-        'X-Msh-Version': '0.0.0-test',
-      },
-      resolveOAuthTokenProvider,
-    });
-    const rpc = await sdkRpc({
-      emitEvent: vi.fn(),
-      requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
-      requestQuestion: vi.fn(async () => null),
-      requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
-    });
-
-    const created = await rpc.createSession({ id: 'ses_runtime_service_oauth', workDir });
-    const session = core.sessions.get(created.id);
-
-    expect(resolveOAuthTokenProvider).toHaveBeenCalledWith('managed:kimi-api', {
-      storage: 'file',
-      key: 'oauth/custom-kimi-code',
-    });
-    expect(session?.options.toolServices?.webSearcher).toBeDefined();
-
-    await session!.options.toolServices?.webSearcher!.search('kimi');
-
-    expect(getAccessToken).toHaveBeenCalledWith();
-    // Browser-channel probes run before the search request, so pick the
-    // moonshot POST out by URL rather than assuming call order.
-    const moonshotCall = fetchImpl.mock.calls.find(
-      (call) => String(call[0]) === 'https://search.example/v1',
-    );
-    expect(moonshotCall).toBeDefined();
-    const init = moonshotCall?.[1] as RequestInit;
-    expect(init.headers).toMatchObject({
-      Authorization: 'Bearer service-token',
-      'User-Agent': 'kimi-code-cli/0.0.0-test',
-      'X-Msh-Version': '0.0.0-test',
-      'X-Test': '1',
-    });
-  });
 
   it('falls back to defaultModel when createSession receives no model option', async () => {
     tmp = await mkdtemp(join(tmpdir(), 'kimi-core-runtime-'));
@@ -367,7 +148,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({ id: 'ses_runtime_default_model', workDir });
@@ -399,7 +179,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -413,8 +192,6 @@ max_context_size = 100000
     expect(created.additionalDirs).toEqual([extraDir]);
     expect(session?.getAdditionalDirs()).toEqual([extraDir]);
     expect(mainAgent?.getAdditionalDirs()).toEqual([extraDir]);
-    expect(mainAgent?.config.systemPrompt).toContain('## Additional Directories');
-    expect(mainAgent?.config.systemPrompt).toContain(extraDir);
   });
 
   it('returns additionalDirs when resuming an active session', async () => {
@@ -439,7 +216,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -475,7 +251,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -518,7 +293,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -562,7 +336,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -600,7 +373,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -632,7 +404,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -646,11 +417,11 @@ max_context_size = 100000
     expect(core.sessions.get(created.id)?.getAdditionalDirs()).toEqual([sharedDir]);
   });
 
-  it('records a local-command-stdout message when adding a remembered dir', async () => {
+  it('adds a remembered directory without injecting conversation messages', async () => {
     tmp = await mkdtemp(join(tmpdir(), 'kimi-core-runtime-'));
     const homeDir = join(tmp, 'home');
     const workDir = join(tmp, 'work');
-    const extraDir = join(workDir, 'extra');
+    const extraDir = join(tmp, 'extra');
     await mkdir(homeDir, { recursive: true });
     await mkdir(workDir, { recursive: true });
     await mkdir(extraDir, { recursive: true });
@@ -663,7 +434,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -671,33 +441,40 @@ max_context_size = 100000
       workDir,
       model: 'default-mock',
     });
+    const scoped = { sessionId: created.id, agentId: 'main' };
+    const beforeConfig = await rpc.getConfig(scoped);
+    const beforePermission = await rpc.getPermission(scoped);
+    expect(isWithinWorkspace(extraDir, {
+      workspaceDir: workDir,
+      additionalDirs: core.sessions.get(created.id)!.getAdditionalDirs(),
+    })).toBe(false);
 
     await rpc.addAdditionalDir({
       sessionId: created.id,
-      path: 'extra',
+      path: extraDir,
       persist: true,
     });
     await core.sessions.get(created.id)?.getReadyAgent('main')?.records.flush();
 
     const records = await readMainWire(created.sessionDir);
-    expect(records).toContainEqual(
-      expect.objectContaining({
-        type: 'context.append_message',
-        message: expect.objectContaining({
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `<local-command-stdout>\nAdded workspace directory:\n  extra\n  Saved to:\n  ${join(workDir, '.superliora', 'local.toml')}\n</local-command-stdout>`,
-            },
-          ],
-          origin: { kind: 'injection', variant: 'local-command-stdout' },
-        }),
-      }),
-    );
+    expect(records.filter((record) => record['type'] === 'context.append_message')).toEqual([]);
     expect(core.sessions.get(created.id)?.getReadyAgent('main')?.getAdditionalDirs()).toEqual([
       extraDir,
     ]);
+    expect(isWithinWorkspace(extraDir, {
+      workspaceDir: workDir,
+      additionalDirs: core.sessions.get(created.id)!.getReadyAgent('main')!.getAdditionalDirs(),
+    })).toBe(true);
+    expect((await rpc.getConfig(scoped)).systemPrompt).toBe(beforeConfig.systemPrompt);
+    expect(await rpc.getPermission(scoped)).toEqual(beforePermission);
+
+    await rpc.closeSession({ sessionId: created.id });
+    expect((await readMainWire(created.sessionDir))
+      .filter((record) => record['type'] === 'context.append_message')).toEqual([]);
+    const resumed = await rpc.resumeSession({ sessionId: created.id });
+    expect(resumed.additionalDirs).toEqual([extraDir]);
+    expect(core.sessions.get(created.id)?.getReadyAgent('main')?.getAdditionalDirs()).toEqual([extraDir]);
+    expect(await rpc.getPermission(scoped)).toEqual(beforePermission);
   });
 
   it('adds an additional dir through the session RPC', async () => {
@@ -717,7 +494,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -744,6 +520,10 @@ max_context_size = 100000
     expect(localToml).toContain('additional_dir = [');
     expect(session?.getAdditionalDirs()).toEqual([extraDir]);
     expect(mainAgent?.getAdditionalDirs()).toEqual([extraDir]);
+    await rpc.closeSession({ sessionId: created.id });
+    const resumed = await rpc.resumeSession({ sessionId: created.id });
+    expect(resumed.additionalDirs).toEqual([extraDir]);
+    expect(core.sessions.get(created.id)?.getReadyAgent('main')?.getAdditionalDirs()).toEqual([extraDir]);
   });
 
   it('adds a session-only additional dir without writing local.toml', async () => {
@@ -763,7 +543,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -787,22 +566,11 @@ max_context_size = 100000
       persisted: false,
     });
     expect(core.sessions.get(created.id)?.getAdditionalDirs()).toEqual([extraDir]);
-    expect(records).toContainEqual(
-      expect.objectContaining({
-        type: 'context.append_message',
-        message: expect.objectContaining({
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: '<local-command-stdout>\nAdded workspace directory:\n  extra\n  For this session only\n</local-command-stdout>',
-            },
-          ],
-          origin: { kind: 'injection', variant: 'local-command-stdout' },
-        }),
-      }),
-    );
+    expect(records.filter((record) => record['type'] === 'context.append_message')).toEqual([]);
     await expect(readFile(join(workDir, '.superliora', 'local.toml'), 'utf-8')).rejects.toThrow();
+    const reloaded = await rpc.reloadSession({ sessionId: created.id });
+    expect(reloaded.additionalDirs).toEqual([extraDir]);
+    expect(core.sessions.get(created.id)?.getReadyAgent('main')?.getAdditionalDirs()).toEqual([extraDir]);
   });
 
   it('rejects createSession when shell runtime initialization fails', async () => {
@@ -820,7 +588,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
     setCoreKaosFailure(
       core,
@@ -852,7 +619,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
     setCoreKaos(core, Promise.resolve(testKaos));
     const created = await rpc.createSession({
@@ -872,7 +638,7 @@ max_context_size = 100000
     expect(core.sessions.has(created.id)).toBe(false);
   });
 
-  it('reloads an active session with fresh runtime services from config.toml', async () => {
+  it('reloads an active session with updated native model capabilities from config.toml', async () => {
     tmp = await mkdtemp(join(tmpdir(), 'kimi-core-runtime-'));
     const homeDir = join(tmp, 'home');
     const workDir = join(tmp, 'work');
@@ -888,7 +654,6 @@ max_context_size = 100000
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -897,14 +662,11 @@ max_context_size = 100000
       model: 'default-mock',
     });
     const before = core.sessions.get(created.id);
-    expect(before?.options.toolServices?.webSearcher).toBeDefined();
+    expect((await rpc.getConfig({ sessionId: created.id, agentId: 'main' })).modelCapabilities.max_context_tokens).toBe(100000);
 
     await writeFile(
       configPath,
-      `${baseModelConfig()}
-[services.moonshot_search]
-base_url = "https://search.example.test/v1"
-`,
+      baseModelConfig().replace('max_context_size = 100000', 'max_context_size = 200000'),
     );
 
     const reloaded = await rpc.reloadSession({ sessionId: created.id });
@@ -912,8 +674,8 @@ base_url = "https://search.example.test/v1"
 
     expect(after).toBeDefined();
     expect(after).not.toBe(before);
-    expect(after?.options.toolServices?.webSearcher).toBeDefined();
-    expect(reloaded.agents['main']).toBeDefined();
+    expect(reloaded.agents['main']?.config.modelCapabilities.max_context_tokens).toBe(200000);
+    expect((await rpc.getConfig({ sessionId: created.id, agentId: 'main' })).modelCapabilities.max_context_tokens).toBe(200000);
   });
 
   it('rejects reloadSession while the active session has a running turn', async () => {
@@ -931,7 +693,6 @@ base_url = "https://search.example.test/v1"
       requestApproval: vi.fn(async (): Promise<ApprovalResponse> => ({ decision: 'rejected' })),
       requestQuestion: vi.fn(async () => null),
       requestCredential: vi.fn(async () => null),
-      toolCall: vi.fn(async () => ({ output: '' })),
     });
 
     const created = await rpc.createSession({
@@ -951,7 +712,9 @@ base_url = "https://search.example.test/v1"
 });
 
 async function readMainWire(sessionDir: string): Promise<readonly Record<string, unknown>[]> {
-  const wire = await readFile(join(sessionDir, 'agents', 'main', 'wire.jsonl'), 'utf-8');
+  const wirePath = await resolveWirePath(join(sessionDir, 'agents', 'main'));
+  expect(wirePath).toBeDefined();
+  const wire = await text(openWireReadStream(wirePath!));
   return wire
     .trim()
     .split('\n')

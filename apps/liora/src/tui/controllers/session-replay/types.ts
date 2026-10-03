@@ -1,6 +1,5 @@
 import type {
   AgentReplayRecord,
-  GoalChange,
   Session,
 } from '@superliora/sdk';
 
@@ -10,10 +9,8 @@ import type { SessionEventHandler } from '../session-event/handler';
 import type { TUIState } from '../../tui-state';
 import type { MotionBeatController } from '#/tui/utils/render/motion-beats';
 
-export type GoalReplayRecord = Extract<AgentReplayRecord, { type: 'goal_updated' }>;
 export type CompactionReplayRecord = Extract<AgentReplayRecord, { type: 'compaction' }>;
 export type AgentEventReplayRecord = Extract<AgentReplayRecord, { type: 'agent_event' }>;
-export type GoalReplayLifecycleChange = GoalChange & { readonly kind: 'lifecycle' };
 
 export interface SessionLoadingProgress {
   readonly phase?: 'opening' | 'loading' | 'building' | 'finishing' | 'ready';

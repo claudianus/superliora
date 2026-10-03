@@ -8,7 +8,6 @@ import type { CoreAPI, CoreRPC, SDKAPI } from '../../rpc';
 import type { OAuthTokenProviderResolver } from '../../session/provider/provider-manager';
 import {
   createKimiDefaultHeaders,
-  type KimiHostIdentity,
 } from '@superliora/oauth';
 
 import { createManagedAuthFacade } from '../auth/managedAuth';
@@ -44,12 +43,10 @@ export class CoreProcessService extends Disposable implements ICoreProcessServic
    */
   private readonly _coreRpcPromise: Promise<CoreRPC>;
 
-  /**
-   * Cached readiness signal. We treat "SDK-side RPC bound" as the readiness
-   * marker today; once `LioraCore.pluginsReady` is publicly exposed we can
-   * combine them here.
-   */
   private readonly _ready: Promise<void>;
+  private _closing = false;
+  private _shutdown: Promise<void> | undefined;
+  private readonly _pendingCalls = new Set<Promise<unknown>>();
 
   constructor(
     options: CoreProcessServiceOptions,
@@ -57,7 +54,7 @@ export class CoreProcessService extends Disposable implements ICoreProcessServic
     @IEventService eventService: IEventService,
     @IApprovalService approvalService: IApprovalService,
     @IQuestionService questionService: IQuestionService,
-    @ILogService logService: ILogService,
+    @ILogService private readonly logService: ILogService,
   ) {
     super();
 
@@ -79,7 +76,10 @@ export class CoreProcessService extends Disposable implements ICoreProcessServic
     // tests) can still override via `options.resolveOAuthTokenProvider`.
     const resolveOAuthTokenProvider: OAuthTokenProviderResolver =
       options.resolveOAuthTokenProvider ??
-      CoreProcessService._defaultOAuthTokenResolver(env.homeDir, env.configPath);
+      createManagedAuthFacade({
+        homeDir: env.homeDir,
+        configPath: env.configPath,
+      }).resolveOAuthTokenProvider;
 
     // Default-wire the Kimi request headers (User-Agent + X-Msh-* device
     // identity). Without this, LioraCore's outbound fetch carries the
@@ -93,7 +93,10 @@ export class CoreProcessService extends Disposable implements ICoreProcessServic
     // trip the 40340 guard.
     const kimiRequestHeaders: Record<string, string> | undefined =
       options.kimiRequestHeaders ??
-      CoreProcessService._defaultKimiRequestHeaders(env.homeDir, options.identity);
+      (options.identity === undefined ? undefined : createKimiDefaultHeaders({
+        homeDir: env.homeDir,
+        ...options.identity,
+      }));
 
     // `appVersion` flows into Session records (`app_version`) and tool
     // call ctx. Prefer explicit > identity.version so callers can pin
@@ -123,9 +126,7 @@ export class CoreProcessService extends Disposable implements ICoreProcessServic
     });
     this._coreRpcPromise = sdkRpc(clientApi);
 
-    // 4. Readiness is "the RPC pair is bound on both sides". Plugin load
-    //    happens inside LioraCore's ctor and self-heals (the worker captures
-    //    the error rather than surfacing it; see core-impl.ts:170-172).
+    // Both directions are bound; native configuration loaded in the constructor.
     this._ready = this._coreRpcPromise.then(() => undefined);
 
     // 5. Build the dispatch proxy. Each method on the proxy awaits the resolved
@@ -137,89 +138,67 @@ export class CoreProcessService extends Disposable implements ICoreProcessServic
     return this._ready;
   }
 
-  override dispose(): void {
-    if (this._store.isDisposed) return;
-    this._core.close();
+  shutdown(): Promise<void> {
+    if (this._shutdown !== undefined) return this._shutdown;
+    this._closing = true;
+    const completion = Promise.withResolvers<void>();
+    this._shutdown = completion.promise;
+    void this._close().then(completion.resolve, completion.reject);
+    return this._shutdown;
+  }
+
+  private async _close(): Promise<void> {
+    try {
+      await this._core.close();
+    } finally {
+      await Promise.allSettled(this._pendingCalls);
+    }
     super.dispose();
+  }
+
+  override dispose(): void {
+    void this.shutdown().catch((error: unknown) => {
+      this.logService.error({ error }, 'native core shutdown failed');
+    });
   }
 
   private _buildRpcProxy(): CoreRPC {
     const rpcPromise = this._coreRpcPromise;
-    const isDisposedRef = () => this._store.isDisposed;
 
     // We don't know the concrete method set at compile time here (CoreAPI is
     // a structural interface; `RPCMethods<CoreAPI>` is a mapped type).
     // The Proxy lets us intercept every property access and return a function
     // that awaits the underlying RPC and forwards.
     return new Proxy({} as CoreRPC, {
-      get(_target, prop) {
+      get: (_target, prop) => {
         // Symbols / well-known properties (Symbol.toPrimitive, then-able
         // probe, etc.) should not be RPC-dispatched.
         if (typeof prop !== 'string') return undefined;
         // Returning a function keeps `typeof rpc.foo === 'function'` true,
         // which downstream code may probe.
         return (...args: unknown[]) => {
-          if (isDisposedRef()) {
+          if (this._closing) {
             return Promise.reject(new Error('CoreProcessService has been disposed'));
           }
-          return rpcPromise.then((methods) => {
+          const call = rpcPromise.then((methods) => {
+            if (this._closing) {
+              throw new Error('CoreProcessService has been disposed');
+            }
             const fn = (methods as unknown as Record<string, unknown>)[prop];
             if (typeof fn !== 'function') {
-              throw new Error(`CoreProcessService.rpc.${prop} is not a function`);
+              throw new TypeError(`CoreProcessService.rpc.${prop} is not a function`);
             }
             return (fn as (...args: unknown[]) => unknown)(...args);
+          }).finally(() => {
+            this._pendingCalls.delete(call);
           });
+          this._pendingCalls.add(call);
+          return call;
         };
       },
     });
   }
 
-  /**
-   * Build the default `resolveOAuthTokenProvider` from the same home + config
-   * paths LioraCore resolves internally. Mirrors `SDKRpcClient`'s default in
-   * `packages/node-sdk/src/sdk-rpc-client.ts` so the daemon and the SDK
-   * runtimes share OAuth credentials when both run against the same
-   * `~/.superliora`.
-   *
-   * Exposed as `static` so tests can assert the wiring without exercising the
-   * full agent-core turn loop.
-   */
-  static _defaultOAuthTokenResolver(
-    homeDir: string,
-    configPath: string,
-  ): OAuthTokenProviderResolver {
-    const facade = createManagedAuthFacade({ homeDir, configPath });
-    return facade.resolveOAuthTokenProvider;
-  }
-
-  /**
-   * Build the default `kimiRequestHeaders` from `options.identity` so the
-   * outbound `User-Agent` + device-identity headers identify this process
-   * as a real Coding Agent host (e.g. `kimi-code-cli/<ver>`). Without
-   * these, the managed Kimi-for-Coding endpoint rejects with 40340.
-   *
-   * Returns `undefined` when no identity is provided — preserves the
-   * pre-fix contract for hosts that pass headers explicitly via
-   * `options.kimiRequestHeaders` (or for legacy callers / tests that
-   * don't talk to the managed endpoint at all).
-   *
-   * `homeDir` resolution matches LioraCore's so the per-device id (minted
-   * + cached at `<homeDir>/device_id` on first call) lives in the same
-   * root as everything else LioraCore touches.
-   *
-   * Exposed as `static` so tests can assert the wiring without booting
-   * the service.
-   */
-  static _defaultKimiRequestHeaders(
-    homeDir: string,
-    identity?: KimiHostIdentity,
-  ): Record<string, string> | undefined {
-    if (identity === undefined) return undefined;
-    return createKimiDefaultHeaders({
-      homeDir,
-      ...identity,
-    });
-  }
 }
 
 // Self-register under the global singleton registry. Ctor signature is

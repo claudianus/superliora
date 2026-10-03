@@ -1,13 +1,11 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 import { darkColors, lightColors, type ColorPalette } from '#/tui/theme/colors';
 
 const THEMES_DOC_REL = 'docs/en/customization/themes.md';
-const SKILL_DOC_REL = 'packages/agent-core/src/skill/builtin/custom-theme.md';
 const SCHEMA_REL = 'apps/liora/src/tui/theme/theme-schema.json';
 
 /** Walk up to the repo root (marker: pnpm-workspace.yaml) — robust to vitest transforms. */
@@ -22,7 +20,6 @@ function findRepoRoot(): string {
 
 const REPO_ROOT = findRepoRoot();
 const THEMES_DOC = join(REPO_ROOT, THEMES_DOC_REL);
-const SKILL_DOC = join(REPO_ROOT, SKILL_DOC_REL);
 const SCHEMA = join(REPO_ROOT, SCHEMA_REL);
 
 /** Parse the built-in token table rows of themes.md → { token: { dark, light } }. */
@@ -37,16 +34,6 @@ function parseThemesDocTable(): Map<string, { dark?: string; light?: string }> {
   return table;
 }
 
-/** Parse the custom-theme skill doc's token table → token names. */
-function parseSkillDocTokenNames(): Set<string> {
-  const names = new Set<string>();
-  const text = readFileSync(SKILL_DOC, 'utf8');
-  for (const line of text.split('\n')) {
-    const match = /^\| `([a-zA-Z]+)` \|/.exec(line);
-    if (match !== null) names.add(match[1]!);
-  }
-  return names;
-}
 
 function parseSchemaTokenNames(): Set<string> {
   const schema = JSON.parse(readFileSync(SCHEMA, 'utf8')) as {
@@ -83,16 +70,10 @@ describe('theme docs token mirrors', () => {
     expect(drift, 'themes.md hex drift from colors.ts').toEqual([]);
   });
 
-  it('custom-theme skill doc and schema list every ColorPalette token', () => {
+  it('schema lists every ColorPalette token', () => {
     const code = new Set([...paletteKeys(darkColors), ...paletteKeys(lightColors)]);
-    const skillDoc = parseSkillDocTokenNames();
     const schema = parseSchemaTokenNames();
-    const missingFromSkill = [...code].filter((token) => !skillDoc.has(token));
     const missingFromSchema = [...code].filter((token) => !schema.has(token));
-    expect(
-      missingFromSkill,
-      `custom-theme.md is missing tokens: ${missingFromSkill.join(', ')}`,
-    ).toEqual([]);
     expect(
       missingFromSchema,
       `theme-schema.json is missing tokens: ${missingFromSchema.join(', ')}`,
@@ -108,7 +89,6 @@ describe('theme docs token mirrors', () => {
 
   it('guards exist in the repo tree (layout sanity for this test itself)', () => {
     expect(existsSync(THEMES_DOC)).toBe(true);
-    expect(existsSync(SKILL_DOC)).toBe(true);
     expect(readdirSync(join(REPO_ROOT, 'docs/en')).length).toBeGreaterThan(0);
     expect(existsSync(SCHEMA)).toBe(true);
   });

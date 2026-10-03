@@ -1,11 +1,8 @@
 import type {
-  ContextOSRetrievalDiagnostics,
-  McpServerInfo,
   AllProvidersUsageSnapshot,
 } from '@superliora/sdk';
 import { resolveGlobalLogPath, resolveSessionLogPath } from '@superliora/sdk';
 
-import { buildMcpStatusReportLines } from '../../components/messages/mcp-status-panel';
 import {
   buildStatusReportLines,
   createStatusFieldMotionState,
@@ -20,7 +17,6 @@ import {
 import { isManagedUsageProvider } from '../../constant/liora-tui';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
-import { formatErrorMessage } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { resolveLiveQuotaSnapshot } from '#/tui/utils/usage/quota-glance';
 import { createGitStatusCache } from '#/utils/git/git-status';
@@ -28,16 +24,12 @@ import { getDataDir } from '#/utils/paths';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { ttui } from '../../utils/tui-i18n';
 
-import { buildContextOsReportLines, loadPrivacySnapshot } from './context-os-report';
 import {
-  loadActiveToolNames,
   loadContextComposition,
-  loadLoopModelRouting,
   loadManagedUsageReport,
   loadRuntimeStatusReport,
   loadSessionUsageReport,
 } from './info-loaders';
-export { buildContextOsReportLines } from './context-os-report';
 
 function playStatusOpenBeat(host: SlashCommandHost, title: string, seed: string): void {
   host.motionBeats.play({
@@ -86,7 +78,6 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
       contextUsage: host.state.appState.contextUsage,
       contextTokens: host.state.appState.contextTokens,
       maxContextTokens: host.state.appState.maxContextTokens,
-      workingSet: host.state.appState.workingSet,
       managedUsage: reportState.managedUsage,
       managedUsageError: reportState.managedUsageError,
       managedUsageFillProgress: fillProgress,
@@ -188,14 +179,13 @@ export async function showQuota(host: SlashCommandHost): Promise<void> {
 }
 
 export async function showStatusReport(host: SlashCommandHost): Promise<void> {
-  const [runtimeStatus, managedUsage, activeToolNames, loopModelRouting] = await Promise.all([
+  const [runtimeStatus, managedUsage, config] = await Promise.all([
     loadRuntimeStatusReport(host),
     loadManagedUsageReport(host),
-    loadActiveToolNames(host),
-    loadLoopModelRouting(host),
+    host.harness.getConfig(),
   ]);
   const appState = host.state.appState;
-  const privacy = loadPrivacySnapshot(host);
+  const privacyTelemetryEnabled = config.telemetry === true;
   const fieldMotion = createStatusFieldMotionState();
   const homeDir = host.harness.homeDir ?? getDataDir();
   const sessionDir = host.session?.summary?.sessionDir;
@@ -212,9 +202,6 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     sessionTitle: appState.sessionTitle,
     thinking: appState.thinking,
     permissionMode: appState.permissionMode,
-    planMode: appState.planMode,
-    premiumQualityMode: appState.premiumQualityMode,
-    goalStatus: appState.goal?.status,
     contextUsage: appState.contextUsage,
     contextTokens: appState.contextTokens,
     maxContextTokens: appState.maxContextTokens,
@@ -225,17 +212,12 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     lastModelRouteNotice: appState.lastModelRouteNotice ?? null,
     status: runtimeStatus.status,
     statusError: runtimeStatus.error,
-    contextOS: runtimeStatus.status?.contextOS,
-    autoDream: runtimeStatus.status?.autoDream,
-    privacyTelemetryEnabled: privacy.telemetryEnabled,
+    privacyTelemetryEnabled,
     gitStatus: createGitStatusCache(appState.workDir).getStatus(),
     managedUsage: managedUsage?.usage,
     managedUsageError: managedUsage?.error,
-    loopModelRouting: loopModelRouting.config,
-    loopModelRoutingError: loopModelRouting.error,
     upstreamBaseline: formatUpstreamBaselineSummary(),
     fieldMotion,
-    activeToolNames,
   };
   // When the session has 2+ Conductor jobs, open the outcome board (Job Deck)
   // instead of only the usage/status panel — same key/slash, no third board.
@@ -259,46 +241,3 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
   requestTUILayoutRender(host.state);
 }
 
-export async function showMcpServers(host: SlashCommandHost): Promise<void> {
-  let servers: readonly McpServerInfo[];
-  try {
-    servers = await host.requireSession().listMcpServers();
-  } catch (error) {
-    host.showError(ttui('tui.info.mcpLoadFailed', { message: formatErrorMessage(error) }));
-    return;
-  }
-
-  const title = servers.length > 0 ? ` MCP (${servers.length}) ` : ' MCP ';
-  playStatusOpenBeat(host, 'MCP', 'mcp');
-  const panel = new UsagePanelComponent({
-    buildLines: () => buildMcpStatusReportLines({ servers }),
-    borderToken: 'primary',
-    title,
-    enterBeatSeed: 'mcp',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
-  });
-  host.state.transcriptContainer.addChild(panel);
-  requestTUILayoutRender(host.state);
-}
-
-export async function showContextOsReport(host: SlashCommandHost, rawArgs = ''): Promise<void> {
-  const query = rawArgs.trim();
-  let diagnostics: ContextOSRetrievalDiagnostics;
-  try {
-    const session = host.requireSession();
-    if (typeof session.diagnoseContextOS !== 'function') {
-      host.showError(ttui('tui.info.contextOsUnavailable'));
-      return;
-    }
-    diagnostics = await session.diagnoseContextOS(query.length > 0 ? query : 'current work');
-  } catch (error) {
-    host.showError(ttui('tui.info.contextOsFailed', { message: formatErrorMessage(error) }));
-    return;
-  }
-
-  const privacy = loadPrivacySnapshot(host);
-  const lines = buildContextOsReportLines(diagnostics, privacy, query);
-  const panel = new UsagePanelComponent(() => lines, 'primary', ' Context OS ');
-  host.state.transcriptContainer.addChild(panel);
-  requestTUILayoutRender(host.state);
-}

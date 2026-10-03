@@ -41,7 +41,7 @@
  *     toolCallId      → tool_call_id
  *     toolName        → tool_name
  *     turnId          → turn_id          (optional)
- *     display         → tool_input_display  (passthrough — 12-arm union)
+ *     display         → tool_input_display (native command/generic passthrough)
  *     selectedLabel   → selected_label   (response side)
  *
  * **Anti-corruption**: this is the ONLY place protocol↔SDK shape translation
@@ -146,6 +146,5 @@ export function toAgentCoreResponse(
     decision: resp.decision,
     scope: resp.scope,
     feedback: resp.feedback,
-    selectedLabel: resp.selected_label,
   };
 }

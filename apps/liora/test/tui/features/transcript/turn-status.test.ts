@@ -12,26 +12,21 @@ import {
 } from '#/tui/features/transcript/turn-status';
 
 describe('formatTurnStatusLabel', () => {
-  it('prefers verb groups over the phase label', () => {
-    expect(
-      formatTurnStatusLabel({
-        phase: 'waiting',
-        tools: [{ name: 'Read', running: true }],
-      }),
-    ).toBe('Reading 1 file');
+  it('prefers native tool activity over the phase label', () => {
+    const tools = [{ name: 'Bash', running: true }];
+    const label = formatTurnStatusLabel({ phase: 'waiting', tools });
+    expect(label).not.toBe(formatTurnStatusLabel({ phase: 'waiting', tools: [] }));
+    expect(label).toBe(formatTurnStatusLabel({ phase: 'tool', tools }));
   });
 
   it('keeps the tip only when no tools are running', () => {
     expect(formatTurnStatusLabel({ phase: 'thinking', tools: [], tip: 'ctrl+s: steer' })).toBe(
       'Thinking · ctrl+s: steer',
     );
-    expect(
-      formatTurnStatusLabel({
-        phase: 'tool',
-        tools: [{ name: 'Read', running: true }],
-        tip: 'hidden',
-      }),
-    ).toBe('Reading 1 file');
+    const tools = [{ name: 'Bash', running: true }];
+    const label = formatTurnStatusLabel({ phase: 'tool', tools, tip: 'hidden' });
+    expect(label).not.toContain('hidden');
+    expect(label).toBe(formatTurnStatusLabel({ phase: 'tool', tools }));
   });
 
   it('uses the still-running cue when leftover watchers keep the row up', () => {
@@ -39,7 +34,7 @@ describe('formatTurnStatusLabel', () => {
       formatTurnStatusLabel({
         phase: 'watching',
         tools: [],
-        watchers: { commands: 2, questions: 0, subagents: 1 },
+        watchers: { commands: 2, subagents: 1 },
       }),
     ).toBe('2 commands · 1 subagent still running');
   });
@@ -50,7 +45,7 @@ describe('formatTurnStatusLabel', () => {
         phase: 'tool',
         tools: [{ name: 'TaskOutput', running: true }],
         parked: true,
-        watchers: { commands: 1, questions: 0, subagents: 0 },
+        watchers: { commands: 1, subagents: 0 },
       }),
     ).toBe('1 command still running · ctrl+s: steer');
     expect(
@@ -116,13 +111,16 @@ describe('buildTurnStatusParts', () => {
   it('builds label and right from a snapshot', () => {
     const parts = buildTurnStatusParts({
       phase: 'tool',
-      tools: [{ name: 'Read', running: true }, { name: 'Grep', running: true }],
+      tools: [{ name: 'Bash', running: true }, { name: 'SessionControl', running: true }],
       startedAt: 1_000,
       now: 13_000,
       contextTokens: 12_000,
       queued: 2,
     });
-    expect(parts.label).toBe('Reading 1 file · Searching 1 pattern');
+    expect(parts.label).toBe(formatTurnStatusLabel({
+      phase: 'tool',
+      tools: [{ name: 'Bash', running: true }, { name: 'SessionControl', running: true }],
+    }));
     expect(parts.right).toBe('12s  ⇣12k  2 queued');
   });
 
@@ -134,7 +132,7 @@ describe('buildTurnStatusParts', () => {
       now: 13_000,
       contextTokens: 12_000,
       queued: 1,
-      watchers: { commands: 1, questions: 0, subagents: 0 },
+      watchers: { commands: 1, subagents: 0 },
     });
     expect(parts.label).toBe('1 command still running');
     expect(parts.right).toBe('1 queued');

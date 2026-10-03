@@ -3,7 +3,6 @@
  */
 
 import type { FooterLabels } from '#/tui/config';
-import { formatTokenCount } from '#/tui/utils/agent/context-working-set';
 
 export function isPlainLabels(labels: FooterLabels): boolean {
   return labels !== 'compact';
@@ -17,17 +16,6 @@ export function labelModeAuto(labels: FooterLabels): string {
   return isPlainLabels(labels) ? 'Auto' : 'auto';
 }
 
-export function labelModePlan(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Plan' : 'plan';
-}
-
-export function labelModeAsk(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Ask' : 'ask';
-}
-
-export function labelModePremium(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Premium' : 'premium';
-}
 
 export function labelCompact(labels: FooterLabels, background: boolean): string {
   if (isPlainLabels(labels)) {
@@ -36,27 +24,6 @@ export function labelCompact(labels: FooterLabels, background: boolean): string 
   return background ? 'compact-bg' : 'compact';
 }
 
-export function labelPromptIntel(labels: FooterLabels, phase: 'inline' | 'suggest'): string {
-  if (isPlainLabels(labels)) {
-    return phase === 'inline' ? 'Completing…' : 'Suggesting…';
-  }
-  return phase === 'inline' ? 'ghost…' : 'suggest…';
-}
-
-export function labelMedia(
-  labels: FooterLabels,
-  image: boolean,
-  video: boolean,
-): string {
-  if (isPlainLabels(labels)) {
-    if (image && video) return 'Media ready';
-    if (image) return 'Images ready';
-    return 'Video ready';
-  }
-  if (image && video) return 'img·vid';
-  if (image) return 'img';
-  return 'vid';
-}
 
 export function labelHistoryViewport(labels: FooterLabels, rowsBehind: number): string {
   if (isPlainLabels(labels)) {
@@ -65,9 +32,6 @@ export function labelHistoryViewport(labels: FooterLabels, rowsBehind: number): 
   return `history +${String(rowsBehind)} rows`;
 }
 
-export function labelGoalXp(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Goal +' : 'xp';
-}
 
 export function labelFleetDone(labels: FooterLabels): string {
   return isPlainLabels(labels) ? 'Worker done' : 'done';
@@ -81,38 +45,8 @@ export function labelGitChurn(labels: FooterLabels): string {
   return isPlainLabels(labels) ? 'Files changed' : 'diff↑';
 }
 
-export function labelOpsCombo(labels: FooterLabels, score: number): string {
-  return isPlainLabels(labels) ? 'On a roll' : `combo×${String(score)}`;
-}
 
-export function labelExtensionsReload(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Extensions reloaded' : 'ext↻';
-}
 
-export function labelRuntimeDegraded(labels: FooterLabels, scope: string): string {
-  const s = scope.trim().length > 0 ? scope : 'runtime';
-  if (isPlainLabels(labels)) {
-    if (s === 'search') return 'Search issue';
-    if (s === 'oauth') return 'Auth issue';
-    if (s === 'llm') return 'Model issue';
-    return `${s} issue`;
-  }
-  return s === 'search' ? 'search↓' : `${s}↓`;
-}
-
-export function labelMcp(
-  labels: FooterLabels,
-  kind: 'error' | 'auth' | 'ok',
-): string {
-  if (isPlainLabels(labels)) {
-    if (kind === 'error') return 'MCP error';
-    if (kind === 'auth') return 'MCP needs login';
-    return 'MCP ok';
-  }
-  if (kind === 'error') return 'mcp!';
-  if (kind === 'auth') return 'mcp?';
-  return 'mcp';
-}
 
 export function labelCacheWarm(labels: FooterLabels, streakSpark: string): string {
   if (isPlainLabels(labels)) {
@@ -125,39 +59,6 @@ export function labelCacheRate(labels: FooterLabels, pct: number): string {
   return isPlainLabels(labels) ? `Cache ${String(pct)}%` : `cache ${String(pct)}%`;
 }
 
-export function labelIndex(
-  labels: FooterLabels,
-  kind: 'warm' | 'cold' | 'off' | 'stub',
-): string {
-  if (isPlainLabels(labels)) {
-    if (kind === 'warm') return 'Index ready';
-    if (kind === 'cold') return 'Index cold';
-    if (kind === 'stub') return 'Index off';
-    return 'Index off';
-  }
-  if (kind === 'warm') return 'idx·warm';
-  if (kind === 'cold') return 'idx·cold';
-  if (kind === 'stub') return 'idx·stub-off';
-  return 'idx·off';
-}
-
-export function labelSearchCascade(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Research active' : 'research↻';
-}
-
-export function labelWorkingSet(
-  labels: FooterLabels,
-  snapshot: { maxWorkingSetTokens: number; presetId?: string },
-): string | null {
-  if (snapshot.maxWorkingSetTokens <= 0) {
-    if (snapshot.presetId === 'full_window') {
-      return isPlainLabels(labels) ? 'Working set full' : 'ws:full';
-    }
-    return isPlainLabels(labels) ? 'Working set off' : 'ws:off';
-  }
-  const size = formatTokenCount(snapshot.maxWorkingSetTokens);
-  return isPlainLabels(labels) ? `Working set ${size}` : `ws:${size}`;
-}
 
 export function labelQuota(labels: FooterLabels, pct: number): string {
   return isPlainLabels(labels) ? `Quota ${String(pct)}%` : `quota ${String(pct)}%`;
@@ -193,7 +94,6 @@ export function labelConductorJobs(
     readonly maxConcurrent?: number;
   },
   extras?: {
-    readonly projectMode?: string;
     /** Optional session token glance when running jobs expose usage. */
     readonly tokenGlance?: string;
     /** Live session names (cap 2) for the strip. */
@@ -201,13 +101,11 @@ export function labelConductorJobs(
   },
 ): string {
   const parts: string[] = [];
-  const mode = extras?.projectMode;
   const pool =
     snap.maxConcurrent !== undefined ? `pool=${String(snap.maxConcurrent)}` : undefined;
   const tok = extras?.tokenGlance;
   const names = extras?.liveNames?.filter((name) => name.trim().length > 0).slice(0, 2);
   if (isPlainLabels(labels)) {
-    if (mode !== undefined) parts.push(`mode=${mode}`);
     if (pool !== undefined) parts.push(pool);
     if (names !== undefined && names.length > 0) parts.push(names.join(', '));
     if (snap.running > 0) parts.push(`${String(snap.running)} running`);
@@ -221,7 +119,6 @@ export function labelConductorJobs(
     if (parts.length === 0) return 'Jobs idle';
     return `Jobs · ${parts.join(' · ')}`;
   }
-  if (mode !== undefined) parts.push(`m=${mode}`);
   if (pool !== undefined) parts.push(pool);
   if (names !== undefined && names.length > 0) parts.push(names.join(','));
   if (snap.running > 0) parts.push(`${String(snap.running)}▸`);

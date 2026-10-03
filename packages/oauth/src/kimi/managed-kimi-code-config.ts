@@ -191,18 +191,6 @@ export function applyManagedKimiCodeConfig(
   config.models = existingModels;
   config.defaultModel = selectedDefault.modelKey;
   config.defaultThinking = selectedDefault.thinking;
-  config.services = {
-    moonshotSearch: {
-      baseUrl: `${baseUrl}/search`,
-      apiKey: '',
-      oauth,
-    },
-    moonshotFetch: {
-      baseUrl: `${baseUrl}/fetch`,
-      apiKey: '',
-      oauth,
-    },
-  };
 
   return {
     defaultModel: selectedDefault.modelKey,
@@ -230,13 +218,6 @@ export function applyManagedKimiCodeLogoutConfig(config: ManagedKimiConfigShape)
     config['defaultProvider'] = undefined;
   }
 
-  if (config.services !== undefined) {
-    delete config.services.moonshotSearch;
-    delete config.services.moonshotFetch;
-    if (Object.keys(config.services).length === 0) {
-      config.services = undefined;
-    }
-  }
 }
 
 export function clearManagedKimiCodeConfig(
@@ -261,25 +242,12 @@ export function clearManagedKimiCodeConfig(
     defaultModelCleared = true;
   }
 
-  const removedServices: string[] = [];
-  if (config.services?.moonshotSearch !== undefined) {
-    delete config.services.moonshotSearch;
-    removedServices.push('moonshotSearch');
-  }
-  if (config.services?.moonshotFetch !== undefined) {
-    delete config.services.moonshotFetch;
-    removedServices.push('moonshotFetch');
-  }
-  if (config.services !== undefined && Object.keys(config.services).length === 0) {
-    config.services = undefined;
-  }
 
   return {
     providerName: SUPERLIORA_PROVIDER_NAME,
     removedProvider,
     removedModels,
     defaultModelCleared,
-    removedServices,
   };
 }
 

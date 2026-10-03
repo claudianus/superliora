@@ -27,10 +27,7 @@
   ],
   "type": "module",
   "imports": {
-    "#/mission": "./src/mission/index.ts",
     "#/fleet": "./src/fleet/index.ts",
-    "#/ultrawork": "./src/mission/index.ts",
-    "#/collaboration": "./src/fleet/index.ts",
     "#/*": [
       "./src/*.ts",
       "./src/*/index.ts"
@@ -49,19 +46,7 @@
       "types": "./src/session/store/index.ts",
       "default": "./src/session/store/index.ts"
     },
-    "./mission": {
-      "types": "./src/mission/index.ts",
-      "default": "./src/mission/index.ts"
-    },
     "./fleet": {
-      "types": "./src/fleet/index.ts",
-      "default": "./src/fleet/index.ts"
-    },
-    "./ultrawork": {
-      "types": "./src/mission/index.ts",
-      "default": "./src/mission/index.ts"
-    },
-    "./collaboration": {
       "types": "./src/fleet/index.ts",
       "default": "./src/fleet/index.ts"
     },
@@ -74,12 +59,6 @@
     "build": "tsdown",
     "test": "vitest run",
     "test:baseline": "vitest run",
-    "cache:warm-kpi": "node scripts/cache-warm-kpi.mjs",
-    "search:never-empty-kpi": "node scripts/search-never-empty-kpi.mjs",
-    "deep-research:never-empty-kpi": "node scripts/deep-research-never-empty-kpi.mjs",
-    "prove:claude-plugins": "node scripts/prove-claude-plugins.mjs",
-    "retrieval:build": "node --import tsx scripts/retrieval-build.mjs",
-    "retrieval:bootstrap": "node --import tsx scripts/retrieval-bootstrap.mjs",
     "typecheck": "tsc -p tsconfig.src.json --noEmit",
     "typecheck:src": "tsc -p tsconfig.src.json --noEmit",
     "typecheck:tests": "tsc -p tsconfig.json --noEmit",
@@ -87,36 +66,26 @@
   },
   "dependencies": {
     "@antfu/utils": "^9.3.0",
-    "@huggingface/transformers": "^4.2.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "@superliora/gui-use": "workspace:^",
     "@superliora/kaos": "workspace:^",
     "@superliora/kosong": "workspace:^",
     "@superliora/oauth": "workspace:^",
     "@superliora/protocol": "workspace:^",
-    "@upstash/context7-sdk": "^0.3.1",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "chokidar": "^4.0.3",
-    "defuddle": "^0.19.1",
     "ignore": "^5.3.2",
     "jimp": "^1.6.1",
     "js-yaml": "^4.3.2",
-    "linkedom": "^0.18.12",
-    "minisearch": "7.2.0",
     "node-pty": "^1.1.0",
     "nunjucks": "^3.2.4",
     "open": "^10.2.0",
-    "oxc-parser": "^0.141.0",
     "pathe": "^2.0.3",
     "picomatch": "^4.0.4",
     "proper-lockfile": "^4.1.2",
     "regexp.escape": "^2.0.1",
-    "retry": "0.13.1",
     "smol-toml": "^1.7.1",
     "socks": "^2.8.9",
     "tar": "^7.5.22",
-    "turndown": "^7.2.4",
     "ulid": "^3.0.1",
     "undici": "^7.30.0",
     "yauzl": "^3.3.0",
@@ -128,10 +97,8 @@
     "@types/picomatch": "^4.0.3",
     "@types/proper-lockfile": "^4.1.4",
     "@types/regexp.escape": "^2.0.0",
-    "@types/retry": "0.12.0",
     "@types/sinon": "^21.0.1",
     "@types/tar": "^7.0.87",
-    "@types/turndown": "^5.0.6",
     "@types/yauzl": "^2.10.3",
     "@types/yazl": "^2.4.6",
     "sinon": "^22.0.0",

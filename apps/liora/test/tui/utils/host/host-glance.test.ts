@@ -15,16 +15,12 @@ import {
   computeHostTtftP50Ms,
   formatHostTtftLine,
   formatHostTtftP50Line,
-  formatHostSovereignUmbrellaStatusLine,
-  HOST_SOVEREIGN_UMBRELLA_TIP,
   HOST_TTFT_WINDOW_MAX,
   isInProcessHarness,
-  isSovereignUmbrellaEnabled,
   loadHostGlance,
   readLocalServerDaemon,
   resolveHostServerUrlFromEnv,
 } from '#/tui/utils/host/host-glance';
-import { buildHostSessionLiveLines, resolveSovereignUmbrellaSoftGates } from '#/tui/utils/host/sovereign-umbrella-glance';
 
 describe('host-glance', () => {
   describe('host-glance', () => {
@@ -214,96 +210,6 @@ describe('host-glance', () => {
       await rm(home, { recursive: true, force: true });
     });
 
-    it('HOST_SOVEREIGN_UMBRELLA_TIP documents all umbrella soft gates', () => {
-      expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('SUPERLIORA_SOVEREIGN=1');
-      expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('core profile');
-      expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('Legacy compat aliases hide by product default');
-      expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('codemap');
-    });
-
-    it('isSovereignUmbrellaEnabled detects SUPERLIORA_SOVEREIGN=1', () => {
-      expect(isSovereignUmbrellaEnabled({})).toBe(false);
-      expect(isSovereignUmbrellaEnabled({ SUPERLIORA_SOVEREIGN: '1' })).toBe(true);
-      expect(isSovereignUmbrellaEnabled({ SUPERLIORA_SOVEREIGN: 'true' })).toBe(true);
-      expect(formatHostSovereignUmbrellaStatusLine({ SUPERLIORA_SOVEREIGN: '1' })).toContain(
-        'Sovereign umbrella: ON',
-      );
-      expect(formatHostSovereignUmbrellaStatusLine({})).toBeUndefined();
-    });
-
-    it('buildHostSettingsLines surfaces umbrella tip and live Session gate checklist when active', () => {
-      const base = {
-        runtimeMode: 'in-process' as const,
-        transportLine: 'Transport: SDK in-process RPC · ui_mode=shell',
-        configPath: '/tmp/config.toml',
-        homeDir: '/tmp/home',
-        uiMode: 'shell',
-      };
-      const idle = buildHostSettingsLines(base).join('\n');
-      expect(idle).toContain(HOST_SOVEREIGN_UMBRELLA_TIP);
-      expect(idle).not.toContain('Sovereign umbrella: ON');
-      expect(idle).not.toContain('── Session (live) ─');
-
-      const sessionLive = buildHostSessionLiveLines({ env: { SUPERLIORA_SOVEREIGN: '1' } });
-      const active = buildHostSettingsLines({
-        ...base,
-        sovereignUmbrellaActive: true,
-        sessionLiveLines: sessionLive,
-      }).join('\n');
-      expect(active).toContain('── Session (live) ─');
-      expect(active).toContain('Sovereign umbrella: ON');
-      expect(active).toContain('· core profile: ON');
-      expect(active).toContain('· hide-legacy: ON');
-      expect(active).toContain('· codemap warm: ON');
-      const statusIdx = active.indexOf('── Status ─');
-      const liveIdx = active.indexOf('── Session (live) ─');
-      expect(liveIdx).toBeGreaterThan(-1);
-      expect(statusIdx).toBeGreaterThan(liveIdx);
-    });
-
-    it('loadHostGlance forwards sovereignUmbrellaActive from env', () => {
-      const harness = createLioraHarness({ homeDir: '/tmp/host-glance-home' });
-      const glance = loadHostGlance({
-        harness,
-        env: { SUPERLIORA_SOVEREIGN: '1' },
-      });
-      expect(glance.sovereignUmbrellaActive).toBe(true);
-    });
   });
 });
 
-describe('sovereign-umbrella-glance', () => {
-  describe('sovereign-umbrella-glance', () => {
-    it('resolveSovereignUmbrellaSoftGates keeps hide-legacy ON and warm ON by default without umbrella env', () => {
-      const gates = resolveSovereignUmbrellaSoftGates({});
-      expect(gates.coreProfile).toBe(false);
-      expect(gates.hideLegacy).toBe(true);
-      expect(gates.warm).toBe(true);
-    });
-
-    it('resolveSovereignUmbrellaSoftGates allows warm opt-out via SUPERLIORA_REPO_INDEX_WARM=0', () => {
-      const gates = resolveSovereignUmbrellaSoftGates({ SUPERLIORA_REPO_INDEX_WARM: '0' });
-      expect(gates.warm).toBe(false);
-    });
-
-    it('resolveSovereignUmbrellaSoftGates enables all gates when SUPERLIORA_SOVEREIGN=1', () => {
-      const gates = resolveSovereignUmbrellaSoftGates({ SUPERLIORA_SOVEREIGN: '1' });
-      expect(gates.coreProfile).toBe(true);
-      expect(gates.hideLegacy).toBe(true);
-      expect(gates.warm).toBe(true);
-    });
-
-    it('buildHostSessionLiveLines is empty when umbrella env is unset', () => {
-      expect(buildHostSessionLiveLines({ env: {} })).toEqual([]);
-    });
-
-    it('buildHostSessionLiveLines lists ON gates when SUPERLIORA_SOVEREIGN=1', () => {
-      const text = buildHostSessionLiveLines({ env: { SUPERLIORA_SOVEREIGN: '1' } }).join('\n');
-      expect(text).toContain('── Session (live) ─');
-      expect(text).toContain('Sovereign umbrella: ON');
-      expect(text).toContain('· core profile: ON');
-      expect(text).toContain('· hide-legacy: ON');
-      expect(text).toContain('· codemap warm: ON');
-    });
-  });
-});

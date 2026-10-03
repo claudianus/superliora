@@ -6,13 +6,15 @@ export function managedModelKey(modelId: string): string {
 }
 
 export function defaultBaseUrl(baseUrl: string | undefined): string {
-  return (baseUrl ?? kimiCodeBaseUrl()).replace(/\/+$/, '');
+  return normalizeBaseUrl(baseUrl ?? kimiCodeBaseUrl());
 }
 
 export function normalizeBaseUrl(baseUrl: string): string {
-  return baseUrl.replace(/\/+$/, '');
+  let end = baseUrl.length;
+  while (end > 0 && baseUrl[end - 1] === '/') end--;
+  return baseUrl.slice(0, end);
 }
 
 export function normalizeEndpoint(value: string): string {
-  return value.trim().replace(/\/+$/, '');
+  return normalizeBaseUrl(value.trim());
 }

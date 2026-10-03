@@ -17,7 +17,7 @@ import type { Environment } from './environment';
 import { KaosError, KaosFileExistsError, KaosValueError } from './errors';
 import { BufferedReadable, decodeTextWithErrors, globPatternToRegex } from './internal';
 import type { Kaos } from './kaos';
-import type { KaosProcess } from './process';
+import { disposeProcessStreams, type KaosProcess } from './process';
 import type { StatResult } from './types';
 
 // ── stat mode constants ────────────────────────────────────────────────
@@ -218,12 +218,13 @@ export class SSHProcess implements KaosProcess {
   readonly stdin: Writable;
   readonly stdout: Readable;
   readonly stderr: Readable;
-  readonly pid: number = -1;
+  readonly pid: number | undefined = undefined;
 
   private _exitCode: number | null = null;
-  private readonly _exitPromise: Promise<number>;
+  private readonly _exitPromise: Promise<number | null>;
   private readonly _channel: ClientChannel;
-  private _disposed = false;
+  private _exitObserved = false;
+  private _disposePromise: Promise<void> | undefined;
 
   constructor(channel: ClientChannel) {
     this._channel = channel;
@@ -231,25 +232,28 @@ export class SSHProcess implements KaosProcess {
     this.stdout = new BufferedReadable(channel as unknown as Readable);
     this.stderr = new BufferedReadable(channel.stderr);
 
-    this._exitPromise = new Promise<number>((resolve) => {
-      // Listen to 'close' on the channel, not 'exit', to ensure all
-      // buffered output is flushed before we resolve.
-      channel.on('close', (code: number | null) => {
-        // Some ssh2 backends surface the exit status only on 'close'.
-        this._exitCode ??= code ?? 1;
-        resolve(this._exitCode);
-      });
-      channel.on('exit', (code: number | null) => {
-        this._exitCode = code ?? 1;
-      });
+    const completion = Promise.withResolvers<number | null>();
+    this._exitPromise = completion.promise;
+    channel.on('close', (code: number | null | undefined) => {
+      if (typeof code === 'number') {
+        this._exitCode = code;
+        this._exitObserved = true;
+      }
+      if (!this._exitObserved) completion.reject(new Error('SSH channel closed without confirmed remote process exit.'));
+      else completion.resolve(this._exitCode);
     });
+    channel.on('exit', (code: number | null) => {
+      this._exitCode = code;
+      this._exitObserved = true;
+    });
+    channel.on('error', completion.reject);
   }
 
   get exitCode(): number | null {
     return this._exitCode;
   }
 
-  async wait(): Promise<number> {
+  async wait(): Promise<number | null> {
     return this._exitPromise;
   }
 
@@ -264,12 +268,13 @@ export class SSHProcess implements KaosProcess {
     return Promise.resolve();
   }
 
-  dispose(): void {
-    if (this._disposed) return;
-    this._disposed = true;
-    this.stdin.destroy();
-    this.stdout.destroy();
-    this.stderr.destroy();
+  get resourcesSettled(): boolean | undefined {
+    if (this._exitObserved && this.stdin.closed && this.stdout.closed && this.stderr.closed) return true;
+    return this._disposePromise === undefined ? undefined : false;
+  }
+
+  dispose(): Promise<void> {
+    return this._disposePromise ??= disposeProcessStreams([this.stdin, this.stdout, this.stderr]);
   }
 }
 

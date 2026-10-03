@@ -135,9 +135,8 @@ export interface RunnableToolExecution {
   readonly accesses?: ToolAccesses | undefined;
   /**
    * True when the tool never mutates files, runstate, or external state.
-   * Permission policies use this to allow read-only tools in restricted
-   * phases (e.g. UltraPlan) without relying solely on a hardcoded name set.
-   * Defaults to false (safe) when unset.
+   * Permission policies can use this declaration to honor user-selected
+   * read-only boundaries. Defaults to false when unset.
    */
   readonly readOnly?: boolean | undefined;
   readonly display?: ToolInputDisplay | undefined;
@@ -208,10 +207,6 @@ export interface LoopAfterStepContext extends LoopStepHookContext {
   readonly stopReason: LoopStepStopReason;
 }
 
-export interface LoopStoppedStepContext extends LoopStepHookContext {
-  readonly usage: TokenUsage;
-  readonly stopReason: LoopTerminalStepStopReason;
-}
 
 export interface BeforeStepResult {
   readonly block?: boolean | undefined;
@@ -234,9 +229,6 @@ export interface RecordStepUsageInfo {
   readonly model?: string;
 }
 
-export interface ShouldContinueAfterStopResult {
-  readonly continue: boolean;
-}
 
 export type BeforeStepHook = (ctx: LoopStepHookContext) => Promise<BeforeStepResult | undefined>;
 
@@ -254,9 +246,6 @@ export type FinalizeToolResultHook = (
   ctx: FinalizeToolResultContext,
 ) => Promise<ExecutableToolResult | undefined>;
 
-export type ShouldContinueAfterStopHook = (
-  ctx: LoopStoppedStepContext,
-) => Promise<ShouldContinueAfterStopResult | undefined>;
 
 export interface LoopToolBatchContext extends LoopStepHookContext {
   readonly toolCalls: readonly ToolCall[];
@@ -281,5 +270,6 @@ export interface LoopHooks {
   prepareToolExecution?: PrepareToolExecutionHook | undefined;
   authorizeToolExecution?: AuthorizeToolExecutionHook | undefined;
   finalizeToolResult?: FinalizeToolResultHook | undefined;
-  shouldContinueAfterStop?: ShouldContinueAfterStopHook | undefined;
+  /** Append pending user/host input at a terminal boundary; true if input was consumed. */
+  consumePendingInput?: (() => boolean | Promise<boolean>) | undefined;
 }

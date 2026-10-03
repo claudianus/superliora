@@ -1,12 +1,4 @@
-/**
- * H4 regression: auto and yolo are prompt-free postures.
- *
- * Before this fix, `YoloHighRiskAskPermissionPolicy` asked on every `yolo`
- * session, so an auto-mode run that spawned a child with
- * `permissionMode: yolo` (`subagent-child-config.ts`) stalled on a dialog it
- * could never answer. The guard is now opt-in via
- * `SUPERLIORA_PERMISSION_HIGH_RISK_GUARD`.
- */
+/** Native Bash guard honors the user's explicit mode and opt-in guard setting. */
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -63,7 +55,7 @@ describe('H4 — guard default is OFF', () => {
   );
 });
 
-describe('H4 — modes that must never prompt', () => {
+describe('Native guard disabled in approving modes', () => {
   it.each(['auto', 'yolo'])('does not ask in %s mode with the guard off', (mode) => {
     delete process.env[PERMISSION_HIGH_RISK_GUARD_ENV];
     expect(evaluate(mode, DESTRUCTIVE)).toBeUndefined();

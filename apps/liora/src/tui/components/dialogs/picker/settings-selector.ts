@@ -8,46 +8,28 @@ import { ttui } from '../../../utils/tui-i18n';
 
 export type SettingsSelection =
   | 'model'
-  | 'model-routing'
   | 'model-fallback'
   | 'model-reset'
   | 'theme'
   | 'appearance'
   | 'footer'
-  | 'persona'
   | 'editor'
   | 'permission'
   | 'providers-api'
   | 'security'
   | 'accounts'
   | 'keybindings'
-  | 'context'
-  | 'compaction'
-  | 'media'
-  | 'harness'
-  | 'tools'
-  | 'eyes'
-  | 'premium'
-  | 'mcp'
-  | 'extensions'
-  | 'hooks'
-  | 'skills'
-  | 'search'
-  | 'provider-extras'
-  | 'index'
   | 'host'
   | 'cache'
-  | 'never-halt'
   | 'telemetry'
   | 'network'
   | 'storage'
-  | 'experiments'
   | 'upgrade'
   | 'usage'
-  | 'memory'
-  | 'locale';
+  | 'locale'
+  | 'limits';
 
-/** Exported for Settings → Harness → Settings inventory (SSOT §9 audit). */
+/** Available operator settings. */
 export const SETTINGS_OPTIONS_BASE: readonly (SettingsOptionDef & {
   readonly value: SettingsSelection;
 })[] = [
@@ -56,12 +38,6 @@ export const SETTINGS_OPTIONS_BASE: readonly (SettingsOptionDef & {
     sectionKey: 'tui.settings.section.models',
     labelKey: 'tui.settings.model.label',
     descriptionKey: 'tui.settings.model.desc',
-  },
-  {
-    value: 'model-routing',
-    sectionKey: 'tui.settings.section.models',
-    labelKey: 'tui.settings.modelRouting.label',
-    descriptionKey: 'tui.settings.modelRouting.desc',
   },
   {
     value: 'model-fallback',
@@ -106,18 +82,6 @@ export const SETTINGS_OPTIONS_BASE: readonly (SettingsOptionDef & {
     descriptionKey: 'tui.settings.footer.desc',
   },
   {
-    value: 'premium',
-    sectionKey: 'tui.settings.section.lookAndFeel',
-    labelKey: 'tui.settings.premium.label',
-    descriptionKey: 'tui.settings.premium.desc',
-  },
-  {
-    value: 'persona',
-    sectionKey: 'tui.settings.section.lookAndFeel',
-    labelKey: 'tui.settings.persona.label',
-    descriptionKey: 'tui.settings.persona.desc',
-  },
-  {
     value: 'editor',
     sectionKey: 'tui.settings.section.lookAndFeel',
     labelKey: 'tui.settings.editor.label',
@@ -136,94 +100,16 @@ export const SETTINGS_OPTIONS_BASE: readonly (SettingsOptionDef & {
     descriptionKey: 'tui.settings.locale.desc',
   },
   {
-    value: 'context',
+    value: 'limits',
     sectionKey: 'tui.settings.section.agent',
-    labelKey: 'tui.settings.context.label',
-    descriptionKey: 'tui.settings.context.desc',
-  },
-  {
-    value: 'compaction',
-    sectionKey: 'tui.settings.section.agent',
-    labelKey: 'tui.settings.compaction.label',
-    descriptionKey: 'tui.settings.compaction.desc',
-  },
-  {
-    value: 'never-halt',
-    sectionKey: 'tui.settings.section.agent',
-    labelKey: 'tui.settings.neverHalt.label',
-    descriptionKey: 'tui.settings.neverHalt.desc',
-  },
-  {
-    value: 'extensions',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.extensions.label',
-    descriptionKey: 'tui.settings.extensions.desc',
-  },
-  {
-    value: 'mcp',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.mcp.label',
-    descriptionKey: 'tui.settings.mcp.desc',
-  },
-  {
-    value: 'skills',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.skills.label',
-    descriptionKey: 'tui.settings.skills.desc',
-  },
-  {
-    value: 'hooks',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.hooks.label',
-    descriptionKey: 'tui.settings.hooks.desc',
-  },
-  {
-    value: 'tools',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.tools.label',
-    descriptionKey: 'tui.settings.tools.desc',
-  },
-  {
-    value: 'media',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.media.label',
-    descriptionKey: 'tui.settings.media.desc',
-  },
-  {
-    value: 'search',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.search.label',
-    descriptionKey: 'tui.settings.search.desc',
-  },
-  {
-    value: 'provider-extras',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.providerExtras.label',
-    descriptionKey: 'tui.settings.providerExtras.desc',
-  },
-  {
-    value: 'index',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.index.label',
-    descriptionKey: 'tui.settings.index.desc',
+    labelKey: 'tui.settings.limits.label',
+    descriptionKey: 'tui.settings.limits.desc',
   },
   {
     value: 'cache',
     sectionKey: 'tui.settings.section.integrations',
     labelKey: 'tui.settings.cache.label',
     descriptionKey: 'tui.settings.cache.desc',
-  },
-  {
-    value: 'eyes',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.eyes.label',
-    descriptionKey: 'tui.settings.eyes.desc',
-  },
-  {
-    value: 'memory',
-    sectionKey: 'tui.settings.section.integrations',
-    labelKey: 'tui.settings.memory.label',
-    descriptionKey: 'tui.settings.memory.desc',
   },
   {
     value: 'providers-api',
@@ -273,18 +159,6 @@ export const SETTINGS_OPTIONS_BASE: readonly (SettingsOptionDef & {
     labelKey: 'tui.settings.telemetry.label',
     descriptionKey: 'tui.settings.telemetry.desc',
   },
-  {
-    value: 'experiments',
-    sectionKey: 'tui.settings.section.system',
-    labelKey: 'tui.settings.experiments.label',
-    descriptionKey: 'tui.settings.experiments.desc',
-  },
-  {
-    value: 'harness',
-    sectionKey: 'tui.settings.section.system',
-    labelKey: 'tui.settings.harness.label',
-    descriptionKey: 'tui.settings.harness.desc',
-  },
 ];
 
 function withSettingsKeywords(
@@ -320,12 +194,7 @@ export const HUB_PINNED_SETTINGS: readonly SettingsSelection[] = [
   'theme',
   'appearance',
   'footer',
-  'persona',
   'locale',
-  'context',
-  'extensions',
-  'search',
-  'media',
   'accounts',
   'usage',
   'upgrade',

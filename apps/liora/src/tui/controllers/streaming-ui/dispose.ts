@@ -19,8 +19,6 @@ export function cleanupStreamingUiAfterReplay(args: {
   activeToolCalls: Map<string, ToolCallBlockData>;
   pendingToolComponents: Map<string, ToolCallComponent>;
   clearPendingAgentGroup: () => void;
-  clearPendingReadGroup: () => void;
-  clearPendingSearchGroup: () => void;
   completedToolCallIds: Set<string>;
   flushState: StreamingFlushState;
   host: StreamingUIHost;
@@ -36,8 +34,6 @@ export function cleanupStreamingUiAfterReplay(args: {
     args.pendingToolComponents.delete(toolCallId);
   }
   args.clearPendingAgentGroup();
-  args.clearPendingReadGroup();
-  args.clearPendingSearchGroup();
   args.setCurrentTurnId(undefined);
   args.setCurrentStep(0);
   args.clearStreamingToolCallArguments();

@@ -1,6 +1,5 @@
 import type { ToolCall, ContentPart } from '@superliora/sdk';
 
-import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import type { ToolCallBlockData, ToolResultBlockData } from '../../types';
 import {
   REPLAY_MAX_TOOL_MOUNTS_PER_TURN,
@@ -117,23 +116,4 @@ export class SessionReplayToolContext {
     this.host.streamingUI.cleanupAfterReplay(context.completedToolCallIds);
   }
 
-  removeToolCall(toolCallId: string): void {
-    const { state, streamingUI } = this.host;
-    streamingUI.removeActiveToolCall(toolCallId);
-    streamingUI.removeToolComponent(toolCallId);
-    const index = state.transcriptEntries.findIndex(
-      (entry) => entry.toolCallData?.id === toolCallId,
-    );
-    if (index >= 0) state.transcriptEntries.splice(index, 1);
-    const children = state.transcriptContainer.children;
-    const childIndex = children.findIndex(
-      (child) => child instanceof ToolCallComponent && child.toolCallView.id === toolCallId,
-    );
-    if (childIndex >= 0) {
-      children.splice(childIndex, 1);
-      // Slot removal only — full invalidate() would wipe every sibling render
-      // cache and force an O(transcript) remeasure storm.
-      state.transcriptContainer.invalidateGeometryAndPaint();
-    }
-  }
 }

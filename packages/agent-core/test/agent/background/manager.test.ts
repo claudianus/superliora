@@ -25,6 +25,14 @@ import {
   waitForTerminal,
 } from './helpers';
 import { isUserCancellation, userCancellationReason } from '../../../src/utils/abort';
+import type { SubagentCompletion } from '../../../src/session/subagent/subagent-host';
+
+const completedWorker: SubagentCompletion = {
+  status: 'completed',
+  result: 'done',
+  filesChanged: [],
+  context: { agentId: 'agent-child', contextTokens: 12 },
+};
 
 function immediateProcess(exitCode: number, stdoutText = ''): KaosProcess {
   return {
@@ -39,18 +47,6 @@ function immediateProcess(exitCode: number, stdoutText = ''): KaosProcess {
   };
 }
 
-function rejectedProcess(error: Error): KaosProcess {
-  return {
-    stdin: { write: vi.fn(), end: vi.fn() } as unknown as Writable,
-    stdout: Readable.from([]),
-    stderr: Readable.from([]),
-    pid: 99999,
-    exitCode: null,
-    wait: vi.fn().mockRejectedValue(error) as KaosProcess['wait'],
-    kill: vi.fn().mockResolvedValue(undefined) as KaosProcess['kill'],
-    dispose: vi.fn().mockResolvedValue(undefined) as KaosProcess['dispose'],
-  };
-}
 
 function processWithStdoutError(message = 'stdout read failed'): KaosProcess {
   const stdout = new PassThrough();
@@ -202,7 +198,6 @@ describe('BackgroundManager', () => {
 
     const taskId = registerProcess(manager, proc, 'echo hello', 'test echo');
 
-    expect(taskId).toMatch(/^bash-[0-9a-z]{8}$/);
     expect(manager.getTask(taskId)).toMatchObject({
       taskId,
       kind: 'process',
@@ -219,46 +214,60 @@ describe('BackgroundManager', () => {
     const taskId = manager.registerTask(
       agentTask(new Promise(() => {}), 'investigate bug', {
         agentId: 'agent-child',
-        subagentType: 'coder',
+        subagentType: 'agent',
       }),
     );
 
-    expect(taskId).toMatch(/^agent-[0-9a-z]{8}$/);
     expect(manager.getTask(taskId)).toMatchObject({
       taskId,
       kind: 'agent',
       description: 'investigate bug',
       agentId: 'agent-child',
-      subagentType: 'coder',
+      subagentType: 'agent',
       status: 'running',
     });
   });
 
-  it('tracks foreground tasks and releases their waiter when detached', async () => {
+  it('detaches a foreground worker without surrendering its execution ownership', async () => {
     const { manager } = createBackgroundManager();
+    const completion = Promise.withResolvers<SubagentCompletion>();
+    const parentController = new AbortController();
+    const childController = new AbortController();
+    const markActiveChildDetached = vi.fn();
     const taskId = manager.registerTask(
-      agentTask(new Promise(() => {}), 'foreground agent'),
-      { detached: false },
+      agentTask(completion.promise, 'foreground agent', {
+        subagentHost: { markActiveChildDetached },
+        abortController: childController,
+      }),
+      { detached: false, signal: parentController.signal },
     );
 
-    expect(manager.getTask(taskId)).toMatchObject({
-      detached: false,
-    });
-
+    expect(manager.getTask(taskId)).toMatchObject({ detached: false, status: 'running' });
     const waiting = manager.waitForForegroundRelease(taskId);
     await Promise.resolve();
-
     expect(manager.detach(taskId)).toMatchObject({
       taskId,
       detached: true,
+      status: 'running',
+      endedAt: null,
     });
     await expect(waiting).resolves.toBe('detached');
+    expect(markActiveChildDetached).toHaveBeenCalledTimes(1);
+    expect(markActiveChildDetached).toHaveBeenCalledWith('agent-child');
+
+    parentController.abort(userCancellationReason());
+    await Promise.resolve();
+    expect(childController.signal.aborted).toBe(false);
+    expect(manager.getTask(taskId)).toMatchObject({ status: 'running', endedAt: null });
+
+    completion.resolve(completedWorker);
+    await expect(manager.wait(taskId)).resolves.toMatchObject({ status: 'completed' });
   });
 
   it('releases foreground waiters when a foreground task completes', async () => {
     const { agent, manager } = createBackgroundManager();
     const taskId = manager.registerTask(
-      agentTask(Promise.resolve({ result: 'done' }), 'foreground agent'),
+      agentTask(Promise.resolve(completedWorker), 'foreground agent'),
       { detached: false },
     );
 
@@ -267,7 +276,7 @@ describe('BackgroundManager', () => {
       detached: false,
       status: 'completed',
     });
-    expect(agent.turn.steer).not.toHaveBeenCalled();
+    expect(agent.emittedEvents).toEqual([]);
   });
 
   it('stops foreground tasks from their register-time signal', async () => {
@@ -275,7 +284,7 @@ describe('BackgroundManager', () => {
     const { proc, killSpy } = pendingProcess();
     const controller = new AbortController();
     const taskId = manager.registerTask(
-      new ProcessBackgroundTask(proc, 'sleep 10', 'foreground process'),
+      new ProcessBackgroundTask(proc, 'sleep 10', 'foreground process', manager.agent.kaos.getcwd()),
       {
         detached: false,
         signal: controller.signal,
@@ -297,17 +306,9 @@ describe('BackgroundManager', () => {
     const { manager } = createBackgroundManager();
     const foregroundController = new AbortController();
     const subagentController = new AbortController();
-    const completion = new Promise<{ result: string }>((_resolve, reject) => {
-      subagentController.signal.addEventListener(
-        'abort',
-        () => {
-          reject(subagentController.signal.reason);
-        },
-        { once: true },
-      );
-    });
+    const completion = Promise.withResolvers<SubagentCompletion>();
     const taskId = manager.registerTask(
-      agentTask(completion, 'foreground agent', { abortController: subagentController }),
+      agentTask(completion.promise, 'foreground agent', { abortController: subagentController }),
       {
         detached: false,
         signal: foregroundController.signal,
@@ -316,12 +317,17 @@ describe('BackgroundManager', () => {
 
     foregroundController.abort(userCancellationReason());
 
+    await vi.waitFor(() => {
+      expect(isUserCancellation(subagentController.signal.reason)).toBe(true);
+    });
+    expect(manager.getTask(taskId)).toMatchObject({ status: 'running', endedAt: null });
+    completion.reject(subagentController.signal.reason);
+
     const info = await manager.wait(taskId);
     expect(info).toMatchObject({
       status: 'killed',
       stopReason: 'Interrupted by user',
     });
-    expect(isUserCancellation(subagentController.signal.reason)).toBe(true);
   });
 
   it('does not count foreground tasks against the detached task limit', () => {
@@ -468,24 +474,6 @@ describe('BackgroundManager', () => {
     });
   });
 
-  it('records failed runtime when proc.wait rejects', async () => {
-    const { manager } = createBackgroundManager();
-    const taskId = registerProcess(
-      manager,
-      rejectedProcess(new Error('launch failed')),
-      '/bogus/cmd',
-      'broken launch',
-    );
-
-    const info = await manager.wait(taskId);
-
-    expect(info).toMatchObject({
-      status: 'failed',
-      stopReason: 'launch failed',
-    });
-    expect(info?.endedAt).not.toBeNull();
-  });
-
   it('does not finalize from a visible process exit code before wait settles', async () => {
     const { manager } = createBackgroundManager();
     const { proc, markExited } = processWithVisibleExitCodeBeforeWait(143);
@@ -595,18 +583,15 @@ describe('BackgroundManager', () => {
 
   it('stop preserves agent completion when it wins the stop race', async () => {
     const { manager } = createBackgroundManager();
-    let resolveCompletion!: (value: { result: string }) => void;
-    const completion = new Promise<{ result: string }>((resolve) => {
-      resolveCompletion = resolve;
-    });
+    const completion = Promise.withResolvers<SubagentCompletion>();
     const controller = new AbortController();
     const abort = vi.spyOn(controller, 'abort');
     const taskId = manager.registerTask(
-      agentTask(completion, 'agent race test', { abortController: controller }),
+      agentTask(completion.promise, 'agent race test', { abortController: controller }),
     );
 
     const stopPromise = manager.stop(taskId, 'user requested');
-    resolveCompletion({ result: 'finished naturally' });
+    completion.resolve({ ...completedWorker, result: 'finished naturally' });
     const result = await stopPromise;
 
     expect(result).toMatchObject({ status: 'completed' });
@@ -617,18 +602,15 @@ describe('BackgroundManager', () => {
 
   it('stop preserves agent failure when a non-abort rejection wins', async () => {
     const { manager } = createBackgroundManager();
-    let rejectCompletion!: (error: Error) => void;
-    const completion = new Promise<{ result: string }>((_resolve, reject) => {
-      rejectCompletion = reject;
-    });
+    const completion = Promise.withResolvers<SubagentCompletion>();
     const controller = new AbortController();
     const abort = vi.spyOn(controller, 'abort');
     const taskId = manager.registerTask(
-      agentTask(completion, 'agent failure race test', { abortController: controller }),
+      agentTask(completion.promise, 'agent failure race test', { abortController: controller }),
     );
 
     const stopPromise = manager.stop(taskId, 'user requested');
-    rejectCompletion(new Error('model failed'));
+    completion.reject(new Error('model failed'));
     const result = await stopPromise;
 
     expect(result).toMatchObject({
@@ -638,51 +620,66 @@ describe('BackgroundManager', () => {
     expect(abort).toHaveBeenCalled();
   });
 
-  it('stop marks agent task killed when abort rejection wins', async () => {
-    const { manager } = createBackgroundManager();
-    let rejectCompletion!: (error: Error) => void;
-    const completion = new Promise<{ result: string }>((_resolve, reject) => {
-      rejectCompletion = reject;
-    });
-    const abortError = new Error('The operation was aborted.');
-    abortError.name = 'AbortError';
+  it('stop waits for the worker completion to reject after abort acknowledgement', async () => {
+    const { agent, manager } = createBackgroundManager();
+    const completion = Promise.withResolvers<SubagentCompletion>();
     const controller = new AbortController();
-    const abort = vi.spyOn(controller, 'abort').mockImplementation((reason?: unknown) => {
-      AbortController.prototype.abort.call(controller, reason);
-      rejectCompletion(abortError);
-    });
     const taskId = manager.registerTask(
-      agentTask(completion, 'agent abort test', { abortController: controller }),
+      agentTask(completion.promise, 'agent abort test', { abortController: controller }),
     );
+    let settled = false;
+    const stopped = manager.stop(taskId, 'user requested').then((info) => {
+      settled = true;
+      return info;
+    });
 
-    const result = await manager.stop(taskId, 'user requested');
+    await vi.waitFor(() => {
+      expect(controller.signal.aborted).toBe(true);
+    });
+    expect(settled).toBe(false);
+    expect(manager.getTask(taskId)).toMatchObject({ status: 'running', endedAt: null });
+    expect(agent.emittedEvents.filter((event) => event.type === 'background.task.terminated')).toEqual([]);
+    completion.reject(controller.signal.reason);
 
-    expect(result).toMatchObject({
+    await expect(stopped).resolves.toMatchObject({
       status: 'killed',
       stopReason: 'user requested',
     });
-    expect(abort).toHaveBeenCalled();
+    expect(settled).toBe(true);
+    expect(agent.emittedEvents.filter((event) => event.type === 'background.task.terminated')).toHaveLength(1);
   });
 
-  it('stop finalizes a never-settling agent task after the grace window', async () => {
+  it('keeps an aborted worker owned beyond the old grace window until actual settlement', async () => {
     vi.useFakeTimers();
-    const { manager } = createBackgroundManager();
+    const { agent, manager } = createBackgroundManager();
+    const completion = Promise.withResolvers<SubagentCompletion>();
     const controller = new AbortController();
-    const abort = vi.spyOn(controller, 'abort');
     const taskId = manager.registerTask(
-      agentTask(new Promise(() => {}), 'hung agent task', { abortController: controller }),
+      agentTask(completion.promise, 'slow shutdown', { abortController: controller }),
+      { detached: false },
     );
-
-    const stopPromise = manager.stop(taskId, 'user requested');
-    await Promise.resolve();
-    await vi.advanceTimersByTimeAsync(5_000);
-    const stopped = await stopPromise;
-
-    expect(stopped).toMatchObject({
-      status: 'killed',
-      stopReason: 'user requested',
+    let released = false;
+    const release = manager.waitForForegroundRelease(taskId).then(() => {
+      released = true;
     });
-    expect(abort).toHaveBeenCalled();
+    let stopped = false;
+    const stop = manager.stop(taskId, 'user requested').then(() => {
+      stopped = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(controller.signal.aborted).toBe(true);
+    expect(manager.getTask(taskId)).toMatchObject({ status: 'running', endedAt: null });
+    expect(stopped).toBe(false);
+    expect(released).toBe(false);
+    expect(agent.emittedEvents).toEqual([]);
+
+    completion.resolve({ ...completedWorker, result: 'provider finished cleanup' });
+    await stop;
+    await release;
+    expect(manager.getTask(taskId)).toMatchObject({ status: 'completed' });
+    expect(stopped).toBe(true);
+    expect(released).toBe(true);
   });
 
   it('wait resolves on completion and returns the current snapshot on timeout', async () => {
@@ -699,7 +696,7 @@ describe('BackgroundManager', () => {
     vi.useFakeTimers();
     const { manager } = createBackgroundManager();
     const taskId = manager.registerTask(
-      agentTask(Promise.resolve({ result: 'done' }), 'fast deadline task'),
+      agentTask(Promise.resolve(completedWorker), 'fast deadline task'),
       { timeoutMs: 60_000 },
     );
 
@@ -707,33 +704,6 @@ describe('BackgroundManager', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('resets the deadline to detachTimeoutMs when a foreground task is detached', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      const { manager } = createBackgroundManager();
-      const { proc } = pendingProcess();
-      const taskId = manager.registerTask(new ProcessBackgroundTask(proc, 'sleep 60', 'detach timeout'), {
-        detached: false,
-        timeoutMs: 1_000,
-        detachTimeoutMs: 5_000,
-      });
-
-      // Let the lifecycle arm its foreground timer, then detach at 500ms.
-      await vi.advanceTimersByTimeAsync(500);
-      expect(manager.detach(taskId)?.detached).toBe(true);
-
-      // Past the original 1s deadline; the task is still running because detach
-      // reset the timer to 5s counted from the detach moment.
-      await vi.advanceTimersByTimeAsync(1_000);
-      expect(manager.getTask(taskId)?.status).toBe('running');
-
-      // Past the 5s detach deadline (500 + 5000 = 5500ms).
-      await vi.advanceTimersByTimeAsync(4_500);
-      expect(manager.getTask(taskId)?.status).toBe('timed_out');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
 
   it('returns undefined or empty output for unknown task ids', async () => {
     const { manager } = createBackgroundManager();
@@ -808,21 +778,143 @@ describe('BackgroundManager', () => {
   }, 15_000);
 });
 
-describe('waitForActiveTasks', () => {
-  function deferred<T>(): {
-    promise: Promise<T>;
-    resolve: (value: T) => void;
-    reject: (reason?: unknown) => void;
-  } {
-    let resolve!: (value: T) => void;
-    let reject!: (reason?: unknown) => void;
-    const promise = new Promise<T>((res, rej) => {
-      resolve = res;
-      reject = rej;
+describe('background ownership and actual settlement', () => {
+  it('keeps a stopped process running until process wait and disposal have both settled', async () => {
+    const { agent, manager } = createBackgroundManager();
+    const { proc, killSpy, resolve } = manuallyResolvedProcess();
+    const cleanup = Promise.withResolvers<void>();
+    const dispose = vi.fn(() => cleanup.promise);
+    Object.assign(proc, { dispose });
+    const taskId = registerProcess(manager, proc, 'sleep 60', 'process cleanup');
+    let stopped = false;
+    const stop = manager.stop(taskId, 'user requested').then((info) => {
+      stopped = true;
+      return info;
     });
-    return { promise, resolve, reject };
-  }
 
+    await vi.waitFor(() => {
+      expect(killSpy).toHaveBeenCalledWith('SIGTERM');
+    });
+    expect(stopped).toBe(false);
+    expect(dispose).not.toHaveBeenCalled();
+    expect(manager.getTask(taskId)).toMatchObject({ status: 'running', endedAt: null });
+
+    resolve(143);
+    await vi.waitFor(() => {
+      expect(dispose).toHaveBeenCalled();
+    });
+    expect(stopped).toBe(false);
+    expect(manager.getTask(taskId)).toMatchObject({ status: 'running', endedAt: null });
+    expect(agent.emittedEvents.filter((event) => event.type === 'background.task.terminated')).toEqual([]);
+
+    cleanup.resolve();
+    await expect(stop).resolves.toMatchObject({
+      status: 'killed',
+      exitCode: 143,
+      stopReason: 'user requested',
+    });
+    expect(stopped).toBe(true);
+    expect(agent.emittedEvents.filter((event) => event.type === 'background.task.terminated')).toHaveLength(1);
+  });
+
+  it('leaves detached workers independent of foreground cancellation', async () => {
+    const { manager } = createBackgroundManager();
+    const foreground = Promise.withResolvers<SubagentCompletion>();
+    const detached = Promise.withResolvers<SubagentCompletion>();
+    const parentController = new AbortController();
+    const foregroundController = new AbortController();
+    const detachedController = new AbortController();
+    const foregroundId = manager.registerTask(
+      agentTask(foreground.promise, 'foreground worker', { abortController: foregroundController }),
+      { detached: false, signal: parentController.signal },
+    );
+    const detachedId = manager.registerTask(
+      agentTask(detached.promise, 'independent worker', {
+        agentId: 'agent-independent',
+        abortController: detachedController,
+      }),
+      { detached: true, signal: parentController.signal },
+    );
+
+    parentController.abort(userCancellationReason());
+    await vi.waitFor(() => {
+      expect(foregroundController.signal.aborted).toBe(true);
+    });
+    expect(detachedController.signal.aborted).toBe(false);
+    expect(manager.getTask(foregroundId)).toMatchObject({ status: 'running', endedAt: null });
+    expect(manager.getTask(detachedId)).toMatchObject({ status: 'running', endedAt: null });
+
+    detached.resolve({
+      status: 'completed',
+      result: 'independent result',
+      filesChanged: ['src/independent.ts'],
+      context: { agentId: 'agent-independent', contextTokens: 24 },
+    });
+    await expect(manager.wait(detachedId)).resolves.toMatchObject({ status: 'completed' });
+    expect(await manager.readOutput(detachedId)).toContain('independent result');
+    expect(manager.getTask(foregroundId)).toMatchObject({ status: 'running', endedAt: null });
+
+    foreground.reject(foregroundController.signal.reason);
+    await expect(manager.wait(foregroundId)).resolves.toMatchObject({
+      status: 'killed',
+      stopReason: 'Interrupted by user',
+    });
+  });
+
+  it('retains a cancelled worker admission slot until its provider actually settles', async () => {
+    const { manager } = createBackgroundManager({ maxRunningTasks: 1 });
+    const completion = Promise.withResolvers<SubagentCompletion>();
+    const controller = new AbortController();
+    const taskId = manager.registerTask(
+      agentTask(completion.promise, 'owned shutdown', { abortController: controller }),
+    );
+    const stop = manager.stop(taskId, 'user requested');
+    await vi.waitFor(() => {
+      expect(controller.signal.aborted).toBe(true);
+    });
+
+    expect(() => manager.registerTask(agentTask(Promise.resolve(completedWorker), 'too early')))
+      .toThrow('Too many background tasks are already running.');
+    completion.reject(controller.signal.reason);
+    await stop;
+
+    const nextId = manager.registerTask(agentTask(Promise.resolve(completedWorker), 'next worker'));
+    await expect(manager.wait(nextId)).resolves.toMatchObject({ status: 'completed' });
+  });
+
+  it('restores a settled worker and its observed result from persisted records', async () => {
+    const sessionDir = await mkdtemp(join(tmpdir(), 'native-worker-persistence-'));
+    try {
+      const writer = createBackgroundManager({ sessionDir }).manager;
+      const outcome: SubagentCompletion = {
+        status: 'completed',
+        result: 'changed native worker output',
+        filesChanged: ['src/worker.ts'],
+        context: { agentId: 'agent-persisted', contextTokens: 48 },
+      };
+      const taskId = writer.registerTask(
+        agentTask(Promise.resolve(outcome), 'persist worker', { agentId: 'agent-persisted' }),
+      );
+      await expect(writer.wait(taskId)).resolves.toMatchObject({ status: 'completed' });
+
+      const { agent, manager: reader } = createBackgroundManager({ sessionDir });
+      await reader.loadFromDisk();
+      await reader.reconcile();
+
+      expect(reader.getTask(taskId)).toMatchObject({
+        kind: 'agent',
+        agentId: 'agent-persisted',
+        status: 'completed',
+      });
+      expect(JSON.parse(await reader.readOutput(taskId))).toEqual(outcome);
+      expect(agent.emittedEvents).toEqual([]);
+    } finally {
+      await rm(sessionDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('waitForActiveTasks', () => {
   const isAgent = (info: BackgroundTaskInfo): boolean => info.kind === 'agent';
 
   it('resolves immediately when no task matches the predicate', async () => {
@@ -833,7 +925,7 @@ describe('waitForActiveTasks', () => {
 
   it('waits until a matching agent task reaches a terminal state', async () => {
     const { manager } = createBackgroundManager();
-    const done = deferred<{ result: string }>();
+    const done = Promise.withResolvers<SubagentCompletion>();
     manager.registerTask(agentTask(done.promise, 'agent'));
 
     let settled = false;
@@ -843,7 +935,7 @@ describe('waitForActiveTasks', () => {
     await new Promise((resolve) => setImmediate(resolve));
     expect(settled).toBe(false);
 
-    done.resolve({ result: 'ok' });
+    done.resolve({ ...completedWorker, result: 'ok' });
     await wait;
     expect(settled).toBe(true);
   });

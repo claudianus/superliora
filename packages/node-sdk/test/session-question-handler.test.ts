@@ -1,177 +1,55 @@
-import { describe, expect, it, vi } from 'vitest';
+import { ErrorCodes } from '@superliora/agent-core';
+import { describe, expect, it } from 'vitest';
 
-import {
-  Session,
-  type InteractionHandlerOptions,
-  type QuestionHandler,
-  type QuestionRequest,
-  type QuestionResult,
-} from '#/index';
-import type { SDKRpcClientBase } from '#/rpc/rpc';
+import type { Event, QuestionRequest } from '#/index';
+import { SdkEventBridge } from '#/rpc/rpc-event-bridge';
 
-describe('Session question handler', () => {
-  it('registers a question handler and returns handler results', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_question_handler',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-    const handler = vi.fn(async (request: QuestionRequest) => {
-      expect(request).toMatchObject({
-        questions: [
-          {
-            question: 'Pick one?',
-            options: [{ label: 'A' }],
-          },
-        ],
-      });
-      return { 'Pick one?': 'A' };
-    });
-    session.setQuestionHandler(handler);
-
-    await expect(
-      rpc.requestQuestion(session.id, 'main', questionRequest('Pick one?')),
-    ).resolves.toEqual({ 'Pick one?': 'A' });
-    expect(handler).toHaveBeenCalledTimes(1);
-  });
-
-  it('sends null question results when no handler is registered', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_question_default',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-
-    await expect(
-      rpc.requestQuestion(session.id, 'main', questionRequest('Continue?')),
-    ).resolves.toBeNull();
-    await session.close();
-    expect(rpc.closeSession).toHaveBeenCalledWith({ sessionId: session.id });
-  });
-
-  it('sends null question results when the handler throws', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_question_throw',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-    session.setQuestionHandler(() => {
-      throw new Error('boom');
-    });
-
-    await expect(
-      rpc.requestQuestion(session.id, 'main', questionRequest('Continue?')),
-    ).resolves.toBeNull();
-  });
-
-  it('responds to concurrent question requests', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_question_concurrent',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-    session.setQuestionHandler((request) => ({ [request.questions[0]!.question]: true }));
-
-    await expect(rpc.requestQuestion(session.id, 'main', questionRequest('A?'))).resolves.toEqual({
-      'A?': true,
-    });
-    await expect(rpc.requestQuestion(session.id, 'main', questionRequest('B?'))).resolves.toEqual({
-      'B?': true,
-    });
-  });
-
-  it('responds to the original subagent id', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_question_subagent',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-    const handler = vi.fn(() => ({ 'Continue?': 'yes' }));
-    session.setQuestionHandler(handler);
-
-    await expect(
-      rpc.requestQuestion(session.id, 'agent-1', questionRequest('Continue?')),
-    ).resolves.toEqual({ 'Continue?': 'yes' });
-
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sessionId: session.id,
-        agentId: 'agent-1',
-      }),
-    );
-  });
-
-  it('forwards the caller abort signal to the question handler', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_question_abort',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-    const signal = new AbortController().signal;
-    const handler = vi.fn(
-      (_request: QuestionRequest, options?: InteractionHandlerOptions): QuestionResult => {
-        expect(options?.signal).toBe(signal);
-        return { 'Continue?': 'yes' };
-      },
-    );
-    session.setQuestionHandler(handler);
-
-    await expect(
-      rpc.requestQuestion(session.id, 'agent-1', questionRequest('Continue?'), { signal }),
-    ).resolves.toEqual({ 'Continue?': 'yes' });
-  });
-});
-
-function questionRequest(question: string): QuestionRequest {
+function questionRequest(sessionId: string): QuestionRequest & { sessionId: string; agentId: string } {
   return {
-    questions: [
-      {
-        question,
-        options: [{ label: 'A' }],
-      },
-    ],
+    sessionId,
+    agentId: 'main',
+    questions: [{ question: 'Continue with this account?', options: [{ label: 'Continue' }, { label: 'Stop' }] }],
   };
 }
 
-class FakeSDKRpcClient {
-  private readonly questionHandlers = new Map<string, QuestionHandler>();
-  readonly closeSession = vi.fn(async (_input: { readonly sessionId: string }) => {});
+describe('SDK native operator questions', () => {
+  it('returns no answer when no host is registered or the host session is cleared', async () => {
+    const bridge = new SdkEventBridge();
+    const request = questionRequest('operator-session');
+    await expect(bridge.requestQuestion(request)).resolves.toBeNull();
+    bridge.setQuestionHandler(request.sessionId, () => ({ answers: { 'Continue with this account?': 'Continue' }, method: 'enter' }));
+    await expect(bridge.requestQuestion(request)).resolves.toEqual({ answers: { 'Continue with this account?': 'Continue' }, method: 'enter' });
+    bridge.clearSessionHandlers(request.sessionId);
+    await expect(bridge.requestQuestion(request)).resolves.toBeNull();
+  });
 
-  asRpc(): SDKRpcClientBase {
-    return this as unknown as SDKRpcClientBase;
-  }
-
-  setQuestionHandler(sessionId: string, handler: QuestionHandler | undefined): void {
-    if (handler === undefined) {
-      this.questionHandlers.delete(sessionId);
-      return;
-    }
-    this.questionHandlers.set(sessionId, handler);
-  }
-
-  async requestQuestion(
-    sessionId: string,
-    agentId: string,
-    request: QuestionRequest,
-    options?: InteractionHandlerOptions,
-  ): Promise<QuestionResult> {
-    const handler = this.questionHandlers.get(sessionId);
-    if (handler === undefined) return null;
-    try {
-      const withAgent = { ...request, sessionId, agentId } as QuestionRequest;
-      return options === undefined ? await handler(withAgent) : await handler(withAgent, options);
-    } catch {
+  it('propagates cancellation to the pending host interaction and waits for its response', async () => {
+    const bridge = new SdkEventBridge();
+    const controller = new AbortController();
+    const hostReady = Promise.withResolvers<void>();
+    bridge.setQuestionHandler('operator-session', async (_request, options) => {
+      const signal = options?.signal;
+      if (signal === undefined) throw new Error('Missing host interaction signal');
+      const aborted = Promise.withResolvers<void>();
+      signal.addEventListener('abort', () => aborted.resolve(), { once: true });
+      hostReady.resolve();
+      await aborted.promise;
       return null;
-    }
-  }
+    });
+    const answer = bridge.requestQuestion(questionRequest('operator-session'), { signal: controller.signal });
+    await hostReady.promise;
+    controller.abort();
+    await expect(answer).resolves.toBeNull();
+  });
 
-  clearSessionHandlers(sessionId: string): void {
-    this.questionHandlers.delete(sessionId);
-  }
-}
+  it('reports a host failure with session identity without fabricating an answer', async () => {
+    const bridge = new SdkEventBridge();
+    const events: Event[] = [];
+    bridge.onEvent((event) => events.push(event));
+    bridge.setQuestionHandler('operator-session', () => { throw new Error('Host disconnected'); });
+    await expect(bridge.requestQuestion(questionRequest('operator-session'))).resolves.toBeNull();
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'error', sessionId: 'operator-session', agentId: 'main', code: ErrorCodes.SESSION_QUESTION_HANDLER_ERROR,
+    }));
+  });
+});

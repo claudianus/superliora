@@ -12,22 +12,14 @@ import {
   mountPickerDialog,
 } from '../utils/ui/mount-picker';
 import type { SlashCommandHost } from './hub/dispatch';
-import { isConductorUxV2Enabled } from './job-hotpath';
 
 const CONTINUE_PREFIX = 'continue:';
 const ARCHIVE_PREFIX = 'archive:';
 
-export function isDrawerArgs(args: string): boolean {
-  return args === 'drawer' || args === 'sessions' || args === 'shelf';
-}
 
 export async function openJobsDrawer(host: SlashCommandHost): Promise<void> {
   if (host.session === undefined) {
     host.showError(ttui('tui.jobs.deckNoSession'));
-    return;
-  }
-  if (!isConductorUxV2Enabled()) {
-    host.showStatus(ttui('tui.jobs.drawerNeedsUx'), 'warning');
     return;
   }
   try {

@@ -1,1312 +1,203 @@
-import { mkdtempSync } from 'node:fs';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
-
 import { afterEach, describe, expect, it } from 'vitest';
-
-import { ErrorCodes, LioraError } from '../../src/errors';
 import {
-  LioraConfigSchema,
-  ensureConfigFile,
-  loadRuntimeConfig,
-  loadRuntimeConfigSafe,
-  mergeConfigPatch,
-  parseConfigString,
-  parseBooleanEnv,
-  readConfigFile,
-  readConfigFileForUpdate,
-  resolveConfigPath,
-  resolveConfigValue,
-  resolveLioraHome,
-  validateConfig,
-  writeConfigFile,
+  configToTomlData, ensureConfigFile, loadRuntimeConfigSafe, mergeConfigPatch,
+  parseConfigString, readConfigFileForUpdate, validateConfig, writeConfigFile,
 } from '../../src/config';
+import { LioraError } from '../../src/errors';
+import type { LioraConfigPatch } from '../../src/config';
 
 const tempDirs: string[] = [];
-
 afterEach(async () => {
-  for (const dir of tempDirs.splice(0)) {
-    await rm(dir, { recursive: true, force: true });
-  }
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
-
-function makeTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'kimi-core-config-'));
+async function configPath(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'liora-native-config-'));
   tempDirs.push(dir);
-  return dir;
+  return join(dir, 'config.toml');
 }
 
-function expectKimiErrorCode(fn: () => unknown, code: string): void {
-  try {
-    fn();
-  } catch (error) {
-    expect(error).toBeInstanceOf(LioraError);
-    expect((error as LioraError).code).toBe(code);
-    return;
-  }
-  throw new Error('expected function to throw');
-}
-
-const COMPLETE_TOML = `
-default_model = "kimi-code/kimi-for-coding"
-default_thinking = true
-default_permission_mode = "auto"
-default_plan_mode = false
-merge_all_available_skills = true
-extra_skill_dirs = ["~/team-skills", ".agents/team-skills"]
+const NATIVE_TOML = `
+default_provider = "native-provider"
+default_model = "native-model"
+default_permission_mode = "manual"
+sandbox_profile = "workspace"
+sandbox_enforcement = "process"
 telemetry = false
-theme = "dark"
-
-[providers."managed:kimi-code"]
-type = "kimi"
-base_url = "https://api.kimi.com/coding/v1"
-api_key = "sk-file"
-custom_headers = { "X-Test" = "1" }
-
-[providers."managed:kimi-code".env]
-GOOGLE_CLOUD_PROJECT = "project-1"
-
-[models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
-model = "kimi-for-coding"
-max_context_size = 262144
-capabilities = ["image_in", "thinking", "video_in"]
-display_name = "Kimi for Coding"
-
+[providers.native-provider]
+type = "openai"
+api_keys = ["first", "second"]
+default_model = "wire-model"
+[providers.native-provider.custom_headers]
+X_Custom_Header = "verbatim"
+[providers.native-provider.env]
+API_ENV_VAR = "verbatim"
+[providers.native-provider.source]
+source_key = "verbatim"
+[[providers.native-provider.credentials]]
+api_key = "third"
+base_url = "https://example.com/v1"
+rpm = 5
+[[providers.native-provider.oauths]]
+storage = "file"
+key = "auth"
+oauth_host = "https://example.com"
+[models.native-model]
+provider = "native-provider"
+model = "wire-model"
+max_context_size = 32768
+max_output_size = 4096
+capabilities = ["thinking"]
+support_efforts = ["low", "high"]
+default_effort = "low"
+fallback_models = ["fallback-model"]
+[models.native-model.cost]
+input = 1.5
+cache_read = 0.1
+[models.native-model.routing]
+strategy = "round_robin"
+preferred_credential = "third"
+[models.native-model.routing.weights]
+native-model = 2
+fallback-model = 1
+[models.native-model.overrides]
+max_output_size = 2048
+[models.fallback-model]
+provider = "native-provider"
+model = "fallback-wire"
+max_context_size = 16384
 [thinking]
-mode = "auto"
-effort = "medium"
-
+mode = "on"
+effort = "high"
 [permission]
-mode = "manual"
-
 [[permission.rules]]
-decision = "deny"
-scope = "user"
-pattern = "Bash(rm *)"
-reason = "no rm"
-
-[[permission.allow]]
-tool = "Read"
-match = "src/**"
-reason = "read src"
-
+decision = "ask"
+scope = "project"
+pattern = "Bash(git push*)"
 [loop_control]
-max_steps_per_run = 42
-max_retries_per_step = 3
-reserved_context_size = 50000
-compaction_trigger_ratio = 0.85
-
+max_steps_per_turn = 9
 [background]
-max_running_tasks = 4
-keep_alive_on_exit = false
-kill_grace_period_ms = 2000
-print_wait_ceiling_s = 3600
-
+max_running_tasks = 3
+kill_grace_period_ms = 1000
+[cache]
+invalidate_epoch = 2
 [model_catalog]
-refresh_interval_ms = 60000
-refresh_on_start = false
-
-[browser_use]
-enabled = true
-provider = "cloakbrowser"
-fallback_provider = "camoufox"
-fallback_enabled = true
-auto_install = true
-auto_update = true
-cache_dir = "/tmp/kimi-cloak"
-binary_path = "/opt/cloakbrowser"
-version = "0.4.5"
-license_key_env = "CLOAKBROWSER_LICENSE_KEY"
-obey_robots = true
-
-[computer_use]
-enabled = true
-provider = "cua-driver"
-auto_install = true
-driver_cmd = "cua-driver"
-require_approval = true
-
-[[hooks]]
-event = "PreToolUse"
-matcher = "Shell"
-command = "echo pre"
-timeout = 5
-
-[[hooks]]
-event = "Stop"
-command = "echo stop"
-
-[services.moonshot_search]
-base_url = "https://api.kimi.com/coding/v1/search"
-api_key = "sk-search"
-custom_headers = { "X-Search" = "1" }
-
-[services.moonshot_fetch]
-base_url = "https://api.kimi.com/coding/v1/fetch"
-api_key = "sk-fetch"
-
-[research]
-enabled = true
-intensity = "premium"
-persist_verified_findings = true
-
-[research.local_search]
-enabled = true
-concurrency = 8
-timeout_ms = 15000
-searxng_url = "http://127.0.0.1:8080"
-yacy_url = "http://127.0.0.1:8090"
-offline_mode = "auto"
-
-[research.local_search.direct_sources]
-github = true
-arxiv = true
-npm = true
-pypi = false
-crates = true
-
-[notifications]
-claim_stale_after_ms = 15000
+refresh_interval_ms = 3600000
+refresh_on_start = true
 `;
 
-describe('harness config TOML loader', () => {
-  it('parses the current config.toml shape through explicit field mappings', () => {
-    const config = parseConfigString(COMPLETE_TOML, 'config.toml');
-
-    expect(config.defaultModel).toBe('kimi-code/kimi-for-coding');
-    expect(config.defaultThinking).toBe(true);
-    expect(config.defaultPermissionMode).toBe('auto');
-    expect(config.defaultPlanMode).toBe(false);
-    expect(config.mergeAllAvailableSkills).toBe(true);
-    expect(config.extraSkillDirs).toEqual(['~/team-skills', '.agents/team-skills']);
-    expect(config.telemetry).toBe(false);
-    expect(config.providers['managed:kimi-code']).toMatchObject({
-      type: 'kimi',
-      baseUrl: 'https://api.kimi.com/coding/v1',
-      apiKey: 'sk-file',
-      env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
-      customHeaders: { 'X-Test': '1' },
-    });
-    expect(config.models?.['kimi-code/kimi-for-coding']).toMatchObject({
-      provider: 'managed:kimi-code',
-      model: 'kimi-for-coding',
-      maxContextSize: 262144,
-      capabilities: ['image_in', 'thinking', 'video_in'],
-      displayName: 'Kimi for Coding',
-    });
-    expect(config.thinking).toEqual({ mode: 'auto', effort: 'medium' });
-    expect(config.permission).toEqual({
-      rules: [
-        {
-          decision: 'deny',
-          scope: 'user',
-          pattern: 'Bash(rm *)',
-          reason: 'no rm',
-        },
-        {
-          decision: 'allow',
-          scope: 'user',
-          pattern: 'Read(src/**)',
-          reason: 'read src',
-        },
-      ],
-    });
-    expect(config.loopControl).toMatchObject({
-      maxStepsPerTurn: 42,
-      maxRetriesPerStep: 3,
-      reservedContextSize: 50000,
-      compactionTriggerRatio: 0.85,
-    });
-    expect(config.background).toMatchObject({
-      maxRunningTasks: 4,
-      keepAliveOnExit: false,
-      killGracePeriodMs: 2000,
-      printWaitCeilingS: 3600,
-    });
-    expect(config.modelCatalog).toEqual({
-      refreshIntervalMs: 60000,
-      refreshOnStart: false,
-    });
-    expect(config.browserUse).toEqual({
-      enabled: true,
-      provider: 'cloakbrowser',
-      fallbackProvider: 'camoufox',
-      fallbackEnabled: true,
-      autoInstall: true,
-      autoUpdate: true,
-      cacheDir: '/tmp/kimi-cloak',
-      binaryPath: '/opt/cloakbrowser',
-      version: '0.4.5',
-      licenseKeyEnv: 'CLOAKBROWSER_LICENSE_KEY',
-      obeyRobots: true,
-    });
-    expect(config.computerUse).toEqual({
-      enabled: true,
-      provider: 'cua-driver',
-      autoInstall: true,
-      driverCmd: 'cua-driver',
-      requireApproval: true,
-    });
-    expect(config.hooks).toEqual([
-      {
-        event: 'PreToolUse',
-        matcher: 'Shell',
-        command: 'echo pre',
-        timeout: 5,
-      },
-      {
-        event: 'Stop',
-        command: 'echo stop',
-      },
-    ]);
-    expect(config.services?.moonshotSearch?.customHeaders).toEqual({ 'X-Search': '1' });
-    expect(config.services?.moonshotFetch?.apiKey).toBe('sk-fetch');
-    expect(config.research).toEqual({
-      enabled: true,
-      intensity: 'premium',
-      persistVerifiedFindings: true,
-      localSearch: {
-        enabled: true,
-        concurrency: 8,
-        timeoutMs: 15000,
-        searxngUrl: 'http://127.0.0.1:8080',
-        yacyUrl: 'http://127.0.0.1:8090',
-        offlineMode: 'auto',
-        directSources: {
-          github: true,
-          arxiv: true,
-          npm: true,
-          pypi: false,
-          crates: true,
-        },
-      },
-    });
-
-    expect('theme' in config).toBe(false);
-    expect(config.raw?.['theme']).toBe('dark');
-    expect(config.raw?.['notifications']).toEqual({ claim_stale_after_ms: 15000 });
+describe('native config TOML', () => {
+  it('round-trips native auth, model metadata, transport, sandbox and runtime settings', async () => {
+    const path = await configPath();
+    const parsed = parseConfigString(NATIVE_TOML);
+    expect(parsed.providers['native-provider']?.credentials?.[0]?.apiKey).toBe('third');
+    expect(parsed.models?.['native-model']?.routing?.weights).toEqual({ 'native-model': 2, 'fallback-model': 1 });
+    await writeConfigFile(path, parsed);
+    const text = await readFile(path, 'utf-8');
+    expect(configToTomlData(parseConfigString(text))).toEqual(configToTomlData(parsed));
+    expect(text).toContain('X_Custom_Header');
+    expect(text).toContain('API_ENV_VAR');
+    expect(text).toContain('cache_read');
   });
 
-  it('round-trips a custom registry source field on a provider', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'round-trip.toml');
-    const toml = `
-[providers.custom]
-type = "openai"
-base_url = "https://custom.example/v1"
-api_key = "sk-test"
-source = { kind = "apiJson", url = "https://registry.example/api.json", apiKey = "sk-registry" }
-`;
-    const config = parseConfigString(toml, configPath);
-    expect(config.providers['custom']).toMatchObject({
-      type: 'openai',
-      baseUrl: 'https://custom.example/v1',
-      apiKey: 'sk-test',
-      source: { kind: 'apiJson', url: 'https://registry.example/api.json', apiKey: 'sk-registry' },
-    });
-
-    await writeConfigFile(configPath, config);
-    const text = await readFile(configPath, 'utf-8');
-    const roundTripped = parseConfigString(text, configPath);
-    expect(roundTripped.providers['custom']?.source).toEqual({
-      kind: 'apiJson',
-      url: 'https://registry.example/api.json',
-      apiKey: 'sk-registry',
-    });
+  it('rejects retired cognitive sections and scalar controls', () => {
+    for (const text of [
+      'plan_mode = true', 'free_mode = true', 'merge_all_available_skills = true',
+      'extra_skill_dirs = ["skills"]', '[memory]\nenabled = true',
+      '[research]\nenabled = true', '[persona]\nname = "guide"',
+      '[mcp]\nauto_provider_servers = true', '[plugin]\nenabled = true',
+      '[context_os]\nenabled = true', '[experimental]\nauto_compaction = true',
+      '[goals]\nenabled = true', '[quality]\nenabled = true',
+      '[refine]\nenabled = true', '[dream]\nenabled = true',
+      '[[hooks]]\nevent = "Stop"\ncommand = "echo retired"',
+    ]) expect(() => parseConfigString(text)).toThrow(LioraError);
   });
 
-  it('round-trips media, MCP, extras, agent, and nested model overrides', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'sections.toml');
-    const config = parseConfigString(
-      `
-[providers.kimi]
-type = "kimi"
-api_key = "sk-test"
-
-[models.k2]
-provider = "kimi"
-model = "kimi-for-coding"
-max_context_size = 128000
-
-[models.k2.overrides]
-display_name = "K2 custom"
-max_output_size = 8192
-future_override = true
-
-[models.k2.overrides.cost]
-cache_read = 0.25
-
-[media]
-non_vision_fallback = "path"
-future_flag = true
-
-[mcp]
-auto_provider_servers = false
-
-[extras]
-disabled_providers = ["zai"]
-
-[agent]
-profile = "core"
-`,
-      configPath,
-    );
-
-    expect(config.media).toEqual({ nonVisionFallback: 'path' });
-    expect(config.mcp).toEqual({ autoProviderServers: false });
-    expect(config.extras).toEqual({ disabledProviders: ['zai'] });
-    expect(config.agent).toEqual({ profile: 'core' });
-    expect(config.models?.k2?.overrides).toMatchObject({
-      displayName: 'K2 custom',
-      maxOutputSize: 8192,
-      cost: { cache_read: 0.25 },
-    });
-
-    const patched = mergeConfigPatch(config, {
-      media: { nonVisionFallback: 'block' },
-      mcp: { autoProviderServers: true },
-      extras: { disabledProviders: ['qwen-token-plan'] },
-      agent: { profile: 'superliora-full' },
-      models: { k2: { overrides: { displayName: 'K2 patched' } } },
-    });
-    await writeConfigFile(configPath, patched);
-
-    const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('future_flag = true');
-    expect(text).toContain('future_override = true');
-    const reloaded = parseConfigString(text, configPath);
-    expect(reloaded.media).toEqual({ nonVisionFallback: 'block' });
-    expect(reloaded.mcp).toEqual({ autoProviderServers: true });
-    expect(reloaded.extras).toEqual({ disabledProviders: ['qwen-token-plan'] });
-    expect(reloaded.agent).toEqual({ profile: 'superliora-full' });
-    expect(reloaded.models?.k2?.overrides).toMatchObject({
-      displayName: 'K2 patched',
-      maxOutputSize: 8192,
-      cost: { cache_read: 0.25 },
-    });
-  });
-
-  it('round-trips [media.analyzer_models] per-kind overrides', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'analyzer-models.toml');
-    const config = parseConfigString(
-      `
-[media]
-non_vision_fallback = "analyze"
-
-[media.analyzer_models]
-image = "commandcode/claude-sonnet-5"
-pdf = "commandcode/z-ai/glm-5.3-flash"
-audio = ""
-`,
-      configPath,
-    );
-    expect(config.media).toEqual({
-      nonVisionFallback: 'analyze',
-      analyzerModels: {
-        image: 'commandcode/claude-sonnet-5',
-        pdf: 'commandcode/z-ai/glm-5.3-flash',
-        audio: '',
-      },
-    });
-
-    await writeConfigFile(configPath, config);
-    const text = await readFile(configPath, 'utf-8');
-    const reloaded = parseConfigString(text, configPath);
-    expect(reloaded.media?.analyzerModels).toEqual({
-      image: 'commandcode/claude-sonnet-5',
-      pdf: 'commandcode/z-ai/glm-5.3-flash',
-      audio: '',
-    });
-  });
-
-  it('round-trips [media.analyzer_fallbacks] per-kind lists', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'analyzer-fallbacks.toml');
-    const config = parseConfigString(
-      `
-[media]
-non_vision_fallback = "analyze"
-
-[media.analyzer_models]
-pdf = "commandcode/z-ai/glm-5.3-flash"
-
-[media.analyzer_fallbacks]
-pdf = ["commandcode/gemini-3.8-flash", "moonshot/kimi-k2"]
-image = []
-`,
-      configPath,
-    );
-    expect(config.media?.analyzerFallbacks).toEqual({
-      pdf: ['commandcode/gemini-3.8-flash', 'moonshot/kimi-k2'],
-      image: [],
-    });
-
-    await writeConfigFile(configPath, config);
-    const text = await readFile(configPath, 'utf-8');
-    const reloaded = parseConfigString(text, configPath);
-    expect(reloaded.media?.analyzerFallbacks).toEqual({
-      pdf: ['commandcode/gemini-3.8-flash', 'moonshot/kimi-k2'],
-      image: [],
-    });
-  });
-
-  it('parses and round-trips provider api key pools', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'provider-api-keys.toml');
-    const toml = `
-[providers.openai]
-type = "openai"
-api_keys = ["sk-primary", "sk-secondary"]
-`;
-    const config = parseConfigString(toml, configPath);
-
-    expect(config.providers['openai']).toMatchObject({
-      type: 'openai',
-      apiKeys: ['sk-primary', 'sk-secondary'],
-    });
-
-    await writeConfigFile(configPath, config);
-    const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('api_keys = [ "sk-primary", "sk-secondary" ]');
-    expect(parseConfigString(text, configPath).providers['openai']?.apiKeys).toEqual([
-      'sk-primary',
-      'sk-secondary',
-    ]);
-  });
-
-  it('parses and round-trips per-credential endpoint overrides', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'provider-credentials.toml');
-    const toml = `
-[providers.cloudflare]
-type = "openai"
-base_url = "https://api.cloudflare.com/client/v4/accounts/account-1/ai/v1"
-
-[[providers.cloudflare.credentials]]
-label = "account-1"
-api_key = "{env:CLOUDFLARE_ONE}"
-rpm = 3
-tpm = 1000
-
-[[providers.cloudflare.credentials]]
-label = "account-2"
-api_key = "{env:CLOUDFLARE_TWO}"
-base_url = "https://api.cloudflare.com/client/v4/accounts/account-2/ai/v1"
-`;
-    const config = parseConfigString(toml, configPath);
-
-    expect(config.providers['cloudflare']).toMatchObject({
-      type: 'openai',
-      baseUrl: 'https://api.cloudflare.com/client/v4/accounts/account-1/ai/v1',
-      credentials: [
-        {
-          label: 'account-1',
-          apiKey: '{env:CLOUDFLARE_ONE}',
-          rpm: 3,
-          tpm: 1000,
-        },
-        {
-          label: 'account-2',
-          apiKey: '{env:CLOUDFLARE_TWO}',
-          baseUrl: 'https://api.cloudflare.com/client/v4/accounts/account-2/ai/v1',
-        },
-      ],
-    });
-
-    await writeConfigFile(configPath, config);
-    const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('[[providers.cloudflare.credentials]]');
-    expect(text).toContain('api_key = "{env:CLOUDFLARE_TWO}"');
-    expect(text).toContain('rpm = 3');
-    expect(text).toContain('tpm = 1000');
-    expect(text).toContain(
-      'base_url = "https://api.cloudflare.com/client/v4/accounts/account-2/ai/v1"',
-    );
-    expect(parseConfigString(text, configPath).providers['cloudflare']?.credentials).toEqual(
-      config.providers['cloudflare']?.credentials,
-    );
-  });
-
-  it('round-trips OAuth refs with scoped OAuth hosts', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'oauth-ref.toml');
-    const toml = `
-[providers."managed:kimi-code"]
-type = "kimi"
-base_url = "https://api.dev.example.test/coding/v1"
-api_key = ""
-oauth = { storage = "file", key = "oauth/kimi-code-env-1234", oauth_host = "https://auth.dev.example.test", label = "work" }
-
-[services.moonshot_search]
-base_url = "https://api.dev.example.test/coding/v1/search"
-api_key = ""
-oauth = { storage = "file", key = "oauth/kimi-code-env-1234", oauth_host = "https://auth.dev.example.test" }
-`;
-    const config = parseConfigString(toml, configPath);
-    expect(config.providers['managed:kimi-code']?.oauth).toEqual({
-      storage: 'file',
-      key: 'oauth/kimi-code-env-1234',
-      oauthHost: 'https://auth.dev.example.test',
-      label: 'work',
-    });
-    expect(config.services?.moonshotSearch?.oauth?.oauthHost).toBe('https://auth.dev.example.test');
-
-    await writeConfigFile(configPath, config);
-    const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('oauth_host = "https://auth.dev.example.test"');
-    expect(text).toContain('label = "work"');
-    const roundTripped = parseConfigString(text, configPath);
-    expect(roundTripped.providers['managed:kimi-code']?.oauth?.oauthHost).toBe(
-      'https://auth.dev.example.test',
-    );
-  });
-
-  it('parses and round-trips experimental feature flags', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'experimental.toml');
-    const toml = `
-[experimental]
-async_compaction = false
-`;
-    const config = parseConfigString(toml, configPath);
-
-    expect(config.experimental).toEqual({
-      'async_compaction': false,
-    });
-
-    await writeConfigFile(configPath, config);
-    const text = await readFile(configPath, 'utf-8');
-
-    expect(text).toContain('[experimental]');
-    expect(text).toContain('async_compaction = false');
-    expect(parseConfigString(text, configPath).experimental).toEqual(config.experimental);
-  });
-
-  it('accepts obsolete experimental feature keys as inert config', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'obsolete-experimental.toml');
-    const toml = `
-[experimental]
-legacy_feature = true
-obsolete_feature = false
-removed_flag = true
-`;
-
-    const config = parseConfigString(toml, configPath);
-
-    expect(config.experimental).toEqual({
-      'legacy_feature': true,
-      'obsolete_feature': false,
-      'removed_flag': true,
-    });
-
-    await writeConfigFile(configPath, config);
-    const text = await readFile(configPath, 'utf-8');
-    expect(parseConfigString(text, configPath).experimental).toEqual(config.experimental);
-  });
-
-  it('loads defaults for absent files and writes typed fields without dropping raw sections', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'config.toml');
-
-    expect(readConfigFile(configPath)).toEqual({ providers: {}, defaultPermissionMode: 'yolo' });
-
-    const config = parseConfigString(COMPLETE_TOML, configPath);
-    const loopControl = config.loopControl;
-    expect(loopControl).toBeDefined();
-    await writeConfigFile(configPath, {
-      ...config,
-      defaultModel: 'kimi-code/kimi-for-coding',
-      loopControl: {
-        ...loopControl!,
-        maxStepsPerTurn: 7,
-      },
-    });
-
-    const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('default_model = "kimi-code/kimi-for-coding"');
-    expect(text).toContain('default_permission_mode = "auto"');
-    expect(text).toContain('extra_skill_dirs = [ "~/team-skills", ".agents/team-skills" ]');
-    expect(text).toContain('telemetry = false');
-    expect(text).not.toContain('default_yolo');
-    expect(text).toContain('[[permission.rules]]');
-    expect(text).toContain('pattern = "Bash(rm *)"');
-    expect(text).toContain('pattern = "Read(src/**)"');
-    expect(text).not.toContain('[[permission.allow]]');
-    expect(text).toContain('max_steps_per_turn = 7');
-    expect(text).toContain('GOOGLE_CLOUD_PROJECT = "project-1"');
-    expect(text).toContain('theme = "dark"');
-    expect(text).toContain('claim_stale_after_ms = 15000');
-    expect(text).toContain('[[hooks]]');
-    expect(text).toContain('event = "PreToolUse"');
-    expect(text).toContain('command = "echo pre"');
-
-    const reloaded = readConfigFile(configPath);
-    expect(reloaded.loopControl?.maxStepsPerTurn).toBe(7);
-    expect(reloaded.hooks?.[0]?.event).toBe('PreToolUse');
-    expect(reloaded.raw?.['theme']).toBe('dark');
-  });
-
-  it('creates a parseable default config scaffold without changing runtime defaults', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'config.toml');
-
-    await ensureConfigFile(configPath);
-
-    const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('Runtime settings for SuperLiora.');
-    expect(text).not.toMatch(/^default_thinking =/m);
-    expect(text).not.toMatch(/^default_model =/m);
-
-    const config = readConfigFile(configPath);
-    expect(config.providers).toEqual({});
-    expect(config.defaultModel).toBeUndefined();
-    expect(config.defaultThinking).toBeUndefined();
-  });
-
-  it('does not overwrite an existing config file', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'config.toml');
-    const existing = 'default_model = "custom"\n';
-    await writeFile(configPath, existing, 'utf-8');
-
-    await ensureConfigFile(configPath);
-
-    await expect(readFile(configPath, 'utf-8')).resolves.toBe(existing);
-  });
-
-  it('drops deprecated default_yolo when rewriting config files', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'config.toml');
-    const config = parseConfigString('default_yolo = true\n', configPath);
-
-    expect(config.defaultPermissionMode).toBeUndefined();
-
-    await writeConfigFile(configPath, config);
-
-    const text = await readFile(configPath, 'utf-8');
-    expect(text).not.toContain('default_yolo');
-    expect(text).not.toContain('default_permission_mode');
-  });
-
-  it('rejects invalid TOML and invalid schema with LioraError(config.invalid)', () => {
-    expectKimiErrorCode(
-      () => parseConfigString('[[[', 'broken.toml'),
-      ErrorCodes.CONFIG_INVALID,
-    );
-    expectKimiErrorCode(
-      () =>
-        parseConfigString(
-          `
-[providers.bad]
-type = "not-a-provider"
-`,
-          'broken.toml',
-        ),
-      ErrorCodes.CONFIG_INVALID,
-    );
-    expectKimiErrorCode(
-      () =>
-        parseConfigString(
-          `
-[[permission.rules]]
-decision = "deny"
-pattern = "Bash(rm *"
-`,
-          'broken.toml',
-        ),
-      ErrorCodes.CONFIG_INVALID,
-    );
-  });
-
-  it('parses hooks config from TOML arrays of tables', () => {
-    const config = parseConfigString(
-      `
-[[hooks]]
-event = "PreToolUse"
-matcher = "Shell"
-command = "echo hi"
-timeout = 5
-`,
-      'hooks.toml',
-    );
-
-    expect(config.hooks).toEqual([
-      {
-        event: 'PreToolUse',
-        matcher: 'Shell',
-        command: 'echo hi',
-        timeout: 5,
-      },
-    ]);
-  });
-
-  it('rejects invalid hooks config', () => {
-    expectKimiErrorCode(
-      () =>
-        parseConfigString(
-          `
-hooks = [{ type = "pre-tool-call", command = "echo hi" }]
-`,
-          'hooks.toml',
-        ),
-      ErrorCodes.CONFIG_INVALID,
-    );
-  });
-});
-
-describe('harness config schema and patch merge', () => {
-  it('accepts the empty public config and requires model context size in full configs', () => {
-    expect(LioraConfigSchema.parse({})).toEqual({ providers: {} });
-    expect(LioraConfigSchema.parse({ agent: { profile: 'core' } })).toEqual({
-      providers: {},
-      agent: { profile: 'core' },
-    });
-    expect(() =>
-      validateConfig({
-        providers: {
-          local: { type: 'openai', apiKey: 'sk-test' },
-        },
-        models: {
-          broken: { provider: 'local', model: 'gpt-test' },
-        },
-      }),
-    ).toThrow(/max_context_size/);
-  });
-
-  it('deep-merges validated patches while preserving existing typed and raw data', () => {
-    const base = parseConfigString(COMPLETE_TOML);
-    const merged = mergeConfigPatch(base, {
-      providers: {
-        'managed:kimi-code': {
-          apiKey: 'sk-patched',
-          baseUrl: undefined,
-        },
-      },
-      models: {
-        'kimi-code/kimi-for-coding': {
-          capabilities: ['tool_use'],
-        },
-      },
-      thinking: {
-        effort: 'high',
-      },
-    });
-
-    expect(merged.providers['managed:kimi-code']).toMatchObject({
-      type: 'kimi',
-      baseUrl: 'https://api.kimi.com/coding/v1',
-      apiKey: 'sk-patched',
-      env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
-    });
-    expect(merged.models?.['kimi-code/kimi-for-coding']).toMatchObject({
-      provider: 'managed:kimi-code',
-      model: 'kimi-for-coding',
-      maxContextSize: 262144,
-      capabilities: ['tool_use'],
-    });
-    expect(merged.thinking).toEqual({ mode: 'auto', effort: 'high' });
-    expect(merged.hooks).toEqual(base.hooks);
-    expect(merged.raw?.['theme']).toBe('dark');
-  });
-
-  it('accepts extras.disabledProviders patches and replaces the list wholesale', () => {
-    const base = parseConfigString(`
-[extras]
-disabled_providers = ["zai"]
-`);
-    const merged = mergeConfigPatch(base, {
-      extras: { disabledProviders: ['openai-codex', 'xai-grok'] },
-    });
-    expect(merged.extras?.disabledProviders).toEqual(['openai-codex', 'xai-grok']);
-  });
-
-  it('deep-merges experimental config patches', () => {
-    const base = parseConfigString(`
-[experimental]
-async_compaction = false
-`);
-
-    const merged = mergeConfigPatch(base, {
-      experimental: {
-        'async_compaction': true,
-      },
-    });
-
-    expect(merged.experimental).toEqual({
-      'async_compaction': true,
-    });
-  });
-
-  it('rejects unknown fields in config patches', () => {
-    expectKimiErrorCode(
-      () => mergeConfigPatch({ providers: {} }, { theme: 'dark' } as never),
-      ErrorCodes.CONFIG_INVALID,
-    );
-  });
-
-  it('drops __proto__/constructor/prototype keys from patches (prototype pollution)', () => {
-    const base = parseConfigString(`
-[models.opus]
-provider = "p1"
-model = "claude-opus-4-7"
-max_context_size = 100000
-`);
-    // A JSON.parse'd patch carries `__proto__` as an own property; the merge
-    // path must never let it become a prototype reassignment or an own key on
-    // the merged config. Polluting values are schema-valid aliases so the
-    // patch itself validates.
-    const patch = JSON.parse(
-      '{"models":{"__proto__":{"provider":"evil","model":"evil","maxContextSize":100000},"constructor":{"provider":"evil","model":"evil","maxContextSize":100000},"real":{"provider":"p2","model":"m2","maxContextSize":100000}}}',
-    );
-    const merged = mergeConfigPatch(base, patch);
-
-    const models = merged.models!;
-    expect(Object.getPrototypeOf(merged)).toBe(Object.prototype);
-    expect(Object.getPrototypeOf(models)).toBe(Object.prototype);
-    expect(Object.prototype.hasOwnProperty.call(models, '__proto__')).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(models, 'constructor')).toBe(false);
-    expect(models['real']).toEqual({
-      provider: 'p2',
-      model: 'm2',
-      maxContextSize: 100000,
-    });
-    expect(models['opus']).toEqual({
-      provider: 'p1',
-      model: 'claude-opus-4-7',
-      maxContextSize: 100000,
-    });
-  });
-
-  it('replaces hooks arrays in config patches', () => {
-    const base = parseConfigString(COMPLETE_TOML);
-    const merged = mergeConfigPatch(base, {
-      hooks: [{ event: 'Notification', matcher: 'task_completed', command: 'echo notified' }],
-    });
-
-    expect(merged.hooks).toEqual([
-      { event: 'Notification', matcher: 'task_completed', command: 'echo notified' },
-    ]);
-  });
-
-  it('accepts maxOutputSize on a model alias and round-trips it', () => {
-    const parsed = LioraConfigSchema.parse({
-      providers: { local: { type: 'anthropic', apiKey: 'sk-test' } },
-      models: {
-        opus: {
-          provider: 'local',
-          model: 'claude-opus-4-7',
-          maxContextSize: 200000,
-          maxOutputSize: 32000,
-        },
-      },
-    });
-    expect(parsed.models?.['opus']).toMatchObject({
-      maxContextSize: 200000,
-      maxOutputSize: 32000,
-    });
-  });
-
-  it('leaves maxOutputSize undefined when omitted', () => {
-    const parsed = LioraConfigSchema.parse({
-      providers: { local: { type: 'anthropic', apiKey: 'sk-test' } },
-      models: {
-        opus: {
-          provider: 'local',
-          model: 'claude-opus-4-7',
-          maxContextSize: 200000,
-        },
-      },
-    });
-    expect(parsed.models?.['opus']?.maxOutputSize).toBeUndefined();
-  });
-
-  it('parses and round-trips model fallback routing', async () => {
-    const dir = makeTempDir();
-    const configPath = join(dir, 'routing.toml');
-    const config = parseConfigString(
-      `
-[providers.primary]
-type = "openai"
-api_key = "sk-primary"
-
-[providers.backup]
-type = "anthropic"
-api_key = "sk-backup"
-
-[models.primary]
-provider = "primary"
-model = "gpt-primary"
-max_context_size = 200000
-fallback_models = ["backup"]
-
-[models.primary.routing]
-strategy = "weighted_round_robin"
-cooldown_ms = 120000
-preferred_credential = "primary:api_key:1"
-
-[models.primary.routing.weights]
-primary = 3
-backup = 1
-
-[models.backup]
-provider = "backup"
-model = "claude-backup"
-max_context_size = 200000
-`,
-      configPath,
-    );
-
-    expect(config.models?.['primary']).toMatchObject({
-      fallbackModels: ['backup'],
-      routing: {
-        strategy: 'weighted_round_robin',
-        cooldownMs: 120000,
-        preferredCredential: 'primary:api_key:1',
-        weights: { primary: 3, backup: 1 },
-      },
-    });
-
-    await writeConfigFile(configPath, config);
-    const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('fallback_models = [ "backup" ]');
-    expect(text).toContain('cooldown_ms = 120000');
-    expect(text).toContain('preferred_credential = "primary:api_key:1"');
-    expect(text).toContain('primary = 3');
-    expect(text).toContain('backup = 1');
-    expect(parseConfigString(text, configPath).models?.['primary']).toMatchObject({
-      fallbackModels: ['backup'],
-      routing: {
-        strategy: 'weighted_round_robin',
-        cooldownMs: 120000,
-        preferredCredential: 'primary:api_key:1',
-        weights: { primary: 3, backup: 1 },
-      },
-    });
-  });
-
-  it('rejects maxOutputSize <= 0', () => {
-    expect(() =>
-      LioraConfigSchema.parse({
-        providers: { local: { type: 'anthropic', apiKey: 'sk-test' } },
-        models: {
-          opus: {
-            provider: 'local',
-            model: 'claude-opus-4-7',
-            maxContextSize: 200000,
-            maxOutputSize: 0,
-          },
-        },
-      }),
-    ).toThrow();
-  });
-});
-
-describe('config path env override', () => {
-  it('uses SUPERLIORA_HOME when no explicit homeDir is supplied', () => {
-    const saved = process.env['SUPERLIORA_HOME'];
-    try {
-      process.env['SUPERLIORA_HOME'] = '/tmp/kimi-from-env';
-
-      expect(resolveLioraHome()).toBe('/tmp/kimi-from-env');
-      expect(resolveLioraHome('/tmp/kimi-explicit')).toBe('/tmp/kimi-explicit');
-      expect(resolveConfigPath({})).toBe('/tmp/kimi-from-env/config.toml');
-      expect(resolveConfigPath({ configPath: '/tmp/custom.toml' })).toBe('/tmp/custom.toml');
-    } finally {
-      if (saved === undefined) delete process.env['SUPERLIORA_HOME'];
-      else process.env['SUPERLIORA_HOME'] = saved;
+  it('rejects retired loop controls and aliases rather than ignoring them', () => {
+    for (const field of ['max_retries_per_step', 'max_ralph_iterations', 'reserved_context_size', 'compaction_trigger_ratio',
+      'compaction_model', 'coding_model', 'worker_inherit_parent', 'smart_router_budget_usd',
+      'max_steps_per_run', 'auto_continue']) {
+      expect(() => parseConfigString(`[loop_control]\n${field} = 1`)).toThrow(LioraError);
     }
-  });
-});
-
-describe('config value env override helpers', () => {
-  it('parses boolean env values', () => {
-    expect(parseBooleanEnv('1')).toBe(true);
-    expect(parseBooleanEnv(' true ')).toBe(true);
-    expect(parseBooleanEnv('yes')).toBe(true);
-    expect(parseBooleanEnv('on')).toBe(true);
-    expect(parseBooleanEnv('0')).toBe(false);
-    expect(parseBooleanEnv(' false ')).toBe(false);
-    expect(parseBooleanEnv('no')).toBe(false);
-    expect(parseBooleanEnv('off')).toBe(false);
-    expect(parseBooleanEnv('')).toBeUndefined();
-    expect(parseBooleanEnv('maybe')).toBeUndefined();
+    expect(validateConfig({ providers: {} }).loopControl).toBeUndefined();
+    expect(parseConfigString('[loop_control]\nmax_steps_per_turn = 0').loopControl?.maxStepsPerTurn).toBe(0);
   });
 
-  it('resolves env before config before default', () => {
-    expect(
-      resolveConfigValue({
-        env: { KIMI_TEST_FLAG: '0' },
-        envKey: 'KIMI_TEST_FLAG',
-        configValue: true,
-        defaultValue: true,
-        parseEnv: parseBooleanEnv,
-      }),
-    ).toBe(false);
-
-    expect(
-      resolveConfigValue({
-        env: {},
-        envKey: 'KIMI_TEST_FLAG',
-        configValue: false,
-        defaultValue: true,
-        parseEnv: parseBooleanEnv,
-      }),
-    ).toBe(false);
-
-    expect(
-      resolveConfigValue({
-        env: {},
-        envKey: 'KIMI_TEST_FLAG',
-        defaultValue: true,
-        parseEnv: parseBooleanEnv,
-      }),
-    ).toBe(true);
+  it('rejects unknown nested config fields and invalid native metadata', () => {
+    expect(() => parseConfigString('[background]\nauto_continue = true')).toThrow(LioraError);
+    expect(() => parseConfigString('[background]\nkeep_alive_on_exit = true')).toThrow(LioraError);
+    expect(() => parseConfigString('[models.native]\nprovider = "p"\nmodel = "m"')).toThrow(/max_context_size/);
+    expect(() => parseConfigString('[loop_control]\nmax_steps_per_turn = -1')).toThrow(LioraError);
+    expect(() => parseConfigString('[permission]\n[[permission.rules]]\ndecision = "allow"\npattern = ""')).toThrow(LioraError);
   });
 
-  it('ignores invalid env values', () => {
-    expect(
-      resolveConfigValue({
-        env: { KIMI_TEST_FLAG: 'invalid' },
-        envKey: 'KIMI_TEST_FLAG',
-        configValue: false,
-        defaultValue: true,
-        parseEnv: parseBooleanEnv,
-      }),
-    ).toBe(false);
+  it('preserves unrelated raw configuration without serializing retired fields', () => {
+    const data = configToTomlData({ providers: {}, raw: { memory: { enabled: true }, theme: 'dark' } });
+    expect(data).toEqual({ theme: 'dark' });
   });
-});
 
-describe('loadRuntimeConfigSafe', () => {
-  const VALID_TOML = `
-default_model = "k2"
-
-[providers.kimi]
-type = "kimi"
-api_key = "sk-good"
-
-[models.k2]
-provider = "kimi"
-model = "kimi-for-coding"
+  it('preserves custom sections and model names that match retired section names', () => {
+    const config = parseConfigString(`
+[custom_section]
+user_key = "preserved"
+[providers.memory]
+type = "openai"
+api_key = "test-key"
+custom_provider_field = true
+[models.agent]
+provider = "memory"
+model = "native-model"
 max_context_size = 128000
-`;
-
-  async function writeTempConfig(text: string): Promise<string> {
-    const configPath = join(makeTempDir(), 'config.toml');
-    await writeFile(configPath, text, 'utf-8');
-    return configPath;
-  }
-
-  it('loads a valid file with no warnings, matching the strict loader', async () => {
-    const configPath = await writeTempConfig(VALID_TOML);
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.fileWarnings).toEqual([]);
-    expect(result.envWarnings).toEqual([]);
-    expect(result.config).toEqual(loadRuntimeConfig(configPath, {}));
+custom_model_field = true
+`);
+    expect(configToTomlData(config)).toMatchObject({
+      custom_section: { user_key: 'preserved' },
+      providers: { memory: { custom_provider_field: true } },
+      models: { agent: { custom_model_field: true } },
+    });
+    expect(() => validateConfig({ providers: {}, customSection: {} })).toThrow(LioraError);
   });
 
-  it('returns defaults with no warnings when the file is missing', () => {
-    const configPath = join(makeTempDir(), 'config.toml');
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.fileWarnings).toEqual([]);
-    expect(result.envWarnings).toEqual([]);
-    expect(result.config.providers).toEqual({});
+  it('creates an empty readable file without overwriting existing config', async () => {
+    const path = await configPath();
+    await ensureConfigFile(path);
+    expect(parseConfigString(await readFile(path, 'utf-8')).providers).toEqual({});
+    await writeFile(path, NATIVE_TOML);
+    await ensureConfigFile(path);
+    expect(await readFile(path, 'utf-8')).toBe(NATIVE_TOML);
   });
 
-  it('reports a fileError and defaults on invalid TOML syntax', async () => {
-    const configPath = await writeTempConfig('[[[');
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.config.providers).toEqual({});
-    // The whole file is unusable: callers decide to fail startup (fileError)
-    // or keep the last good config mid-run (fileWarnings).
+  it('reports unsupported config as an explicit runtime file error', async () => {
+    const path = await configPath();
+    await writeFile(path, '[memory]\nenabled = true');
+    const result = loadRuntimeConfigSafe(path, {});
     expect(result.fileError).toBeInstanceOf(LioraError);
-    expect(result.fileError?.code).toBe(ErrorCodes.CONFIG_INVALID);
-    expect(result.fileError?.message).toContain('Invalid TOML');
-    expect(result.fileError?.message).toContain(configPath);
-    expect(result.fileWarnings).toHaveLength(1);
-    const warning = result.fileWarnings[0]!;
-    expect(warning).toContain('Invalid TOML');
-    // Single-line summary with the error location, not the multi-line code frame.
-    expect(warning).not.toContain('\n');
-    expect(warning).toContain('line 1');
+    expect(result.fileWarnings.length).toBeGreaterThan(0);
+    expect(() => readConfigFileForUpdate(path)).toThrow(LioraError);
   });
+});
 
-  it('does not set fileError when only sections are dropped', async () => {
-    const configPath = await writeTempConfig(`${VALID_TOML}
-[loop_control]
-max_steps_per_turn = "nope"
-`);
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.fileError).toBeUndefined();
-    expect(result.fileWarnings).toHaveLength(1);
-  });
-
-  it('drops only an invalid section on schema errors and keeps the rest', async () => {
-    const configPath = await writeTempConfig(`${VALID_TOML}
-[loop_control]
-max_steps_per_turn = "not-a-number"
-`);
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.config.loopControl).toBeUndefined();
-    expect(result.config.providers['kimi']).toMatchObject({ type: 'kimi', apiKey: 'sk-good' });
-    expect(result.config.models?.['k2']).toMatchObject({ maxContextSize: 128000 });
-    expect(result.config.defaultModel).toBe('k2');
-    expect(result.fileWarnings).toHaveLength(1);
-    expect(result.fileWarnings[0]).toContain('loop_control');
-    // The original file content stays visible in raw so nothing is lost.
-    expect(result.config.raw?.['loop_control']).toEqual({ max_steps_per_turn: 'not-a-number' });
-  });
-
-  it('drops only the broken provider entry, keeping other providers', async () => {
-    const configPath = await writeTempConfig(`${VALID_TOML}
-[providers.bad]
-type = "not-a-provider"
-`);
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.config.providers['bad']).toBeUndefined();
-    expect(result.config.providers['kimi']).toMatchObject({ type: 'kimi' });
-    expect(result.fileWarnings).toHaveLength(1);
-    expect(result.fileWarnings[0]).toContain('providers.bad');
-  });
-
-  it('keeps other providers when one entry has multiple validation issues', async () => {
-    // Two issues on the same entry: the second must not escalate to
-    // deleting the whole providers section after the first dropped the entry.
-    const configPath = await writeTempConfig(`${VALID_TOML}
-[providers.bad]
-type = "not-a-provider"
-api_key = 123
-`);
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.config.providers['bad']).toBeUndefined();
-    expect(result.config.providers['kimi']).toMatchObject({ type: 'kimi' });
-    expect(result.fileWarnings).toHaveLength(1);
-    expect(result.fileWarnings[0]).toContain('providers.bad');
-    expect(result.fileWarnings[0]).not.toMatch(/providers[,.]? /);
-  });
-
-  it('drops only the broken model entry', async () => {
-    const configPath = await writeTempConfig(`${VALID_TOML}
-[models.broken]
-provider = "kimi"
-model = "x"
-max_context_size = -5
-`);
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.config.models?.['broken']).toBeUndefined();
-    expect(result.config.models?.['k2']).toBeDefined();
-    expect(result.fileWarnings[0]).toContain('models.broken');
-  });
-
-  it('drops the whole hooks list when one hook is invalid', async () => {
-    const configPath = await writeTempConfig(`${VALID_TOML}
-[[hooks]]
-event = "NotARealEvent"
-command = "echo hi"
-`);
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.config.hooks).toBeUndefined();
-    expect(result.config.providers['kimi']).toBeDefined();
-    expect(result.fileWarnings[0]).toContain('hooks');
-  });
-
-  it('reports every dropped section in the warning', async () => {
-    const configPath = await writeTempConfig(`${VALID_TOML}
-[loop_control]
-max_steps_per_turn = "nope"
-
-[background]
-max_running_tasks = 0
-`);
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.config.loopControl).toBeUndefined();
-    expect(result.config.background).toBeUndefined();
-    expect(result.fileWarnings).toHaveLength(1);
-    expect(result.fileWarnings[0]).toContain('loop_control');
-    expect(result.fileWarnings[0]).toContain('background');
-  });
-
-  it('applies KIMI_MODEL_* env overrides on top of a salvaged config', async () => {
-    const configPath = await writeTempConfig(`${VALID_TOML}
-[loop_control]
-max_steps_per_turn = "nope"
-`);
-    const result = loadRuntimeConfigSafe(configPath, {
-      KIMI_MODEL_NAME: 'env-model',
-      KIMI_MODEL_API_KEY: 'sk-env',
-      KIMI_MODEL_MAX_CONTEXT_SIZE: '262144',
+describe('native config patch merge', () => {
+  it('merges native sections without losing provider credentials or model metadata', () => {
+    const config = parseConfigString(NATIVE_TOML);
+    const merged = mergeConfigPatch(config, {
+      providers: { 'native-provider': { baseUrl: 'https://new.example/v1' } },
+      models: { 'native-model': { maxOutputSize: 8192 } },
+      loopControl: { maxStepsPerTurn: 12 },
+      cache: { invalidateEpoch: 3 },
     });
-    expect(result.envWarnings).toEqual([]);
-    expect(result.config.models?.['__kimi_env_model__']).toBeDefined();
-    expect(result.config.providers['kimi']).toBeDefined();
-    expect(result.fileWarnings).toHaveLength(1);
+    expect(merged.providers['native-provider']?.credentials).toEqual(config.providers['native-provider']?.credentials);
+    expect(merged.models?.['native-model']?.maxOutputSize).toBe(8192);
+    expect(merged.models?.['native-model']?.model).toBe('wire-model');
+    expect(merged.loopControl).toEqual({ maxStepsPerTurn: 12 });
   });
 
-  it('skips KIMI_MODEL_* overrides with an env warning instead of throwing', async () => {
-    const configPath = await writeTempConfig(VALID_TOML);
-    const result = loadRuntimeConfigSafe(configPath, {
-      KIMI_MODEL_NAME: 'env-model',
-    });
-    expect(result.fileWarnings).toEqual([]);
-    expect(result.envWarnings).toHaveLength(1);
-    expect(result.envWarnings[0]).toContain('KIMI_MODEL');
-    expect(result.config).toEqual(readConfigFile(configPath));
-  });
-
-  it('readConfigFileForUpdate rewraps validation errors with an actionable message', async () => {
-    const configPath = await writeTempConfig(`${VALID_TOML}
-[loop_control]
-max_steps_per_turn = "nope"
-`);
-    try {
-      readConfigFileForUpdate(configPath);
-      throw new Error('expected readConfigFileForUpdate to throw');
-    } catch (error) {
-      expect(error).toBeInstanceOf(LioraError);
-      expect((error as LioraError).message).toContain('fix it first');
-      expect((error as LioraError).message).toContain('liora doctor');
-      expect((error as LioraError).message).not.toContain('invalid_type');
+  it('rejects retired patch fields at top level and inside native sections', () => {
+    for (const patch of [{ memory: {} }, { loopControl: { codingModel: 'native-model' } },
+      { background: { autoContinue: true } }]) {
+      expect(() => mergeConfigPatch({ providers: {} }, patch as LioraConfigPatch)).toThrow(LioraError);
     }
-
-    const goodPath = await writeTempConfig(VALID_TOML);
-    expect(readConfigFileForUpdate(goodPath)).toEqual(readConfigFile(goodPath));
-  });
-
-  it('drops invalid top-level scalars and keeps the rest', async () => {
-    const configPath = await writeTempConfig(`default_thinking = "not-a-boolean"
-${VALID_TOML}`);
-    const result = loadRuntimeConfigSafe(configPath, {});
-    expect(result.config.defaultThinking).toBeUndefined();
-    expect(result.config.providers['kimi']).toBeDefined();
-    expect(result.fileWarnings).toHaveLength(1);
-    expect(result.fileWarnings[0]).toContain('default_thinking');
-  });
-
-
-  it('accepts optional sandboxProfile and rejects invalid values', () => {
-    expect(LioraConfigSchema.parse({}).sandboxProfile).toBeUndefined();
-    expect(LioraConfigSchema.parse({ sandboxProfile: 'off' }).sandboxProfile).toBe('off');
-    expect(LioraConfigSchema.parse({ sandboxProfile: 'workspace' }).sandboxProfile).toBe(
-      'workspace',
-    );
-    expect(LioraConfigSchema.parse({ sandboxProfile: 'read-only' }).sandboxProfile).toBe(
-      'read-only',
-    );
-    expect(() => LioraConfigSchema.parse({ sandboxProfile: 'bubblewrap' })).toThrow();
-  });
-
-  it('accepts optional sandboxEnforcement and rejects invalid values', () => {
-    expect(LioraConfigSchema.parse({}).sandboxEnforcement).toBeUndefined();
-    expect(LioraConfigSchema.parse({ sandboxEnforcement: 'lexical' }).sandboxEnforcement).toBe(
-      'lexical',
-    );
-    expect(LioraConfigSchema.parse({ sandboxEnforcement: 'process' }).sandboxEnforcement).toBe(
-      'process',
-    );
-    expect(() => LioraConfigSchema.parse({ sandboxEnforcement: 'bubblewrap' })).toThrow();
   });
 });

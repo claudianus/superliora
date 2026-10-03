@@ -4,83 +4,19 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  applyLoopModelRoutingChoice,
-  resetLoopModelRoutingChoice,
-  showLoopModelRoutingPicker,
-  showModelSettingsReset,
-} from '#/tui/commands/config/model/model';
+import { handleModelCommand, showModelPicker, showModelSettingsReset } from '#/tui/commands/config/model/model';
+import { handleCompactCommand } from '#/tui/commands/session/compact';
+import { applyExecutionStepLimit } from '#/tui/commands/config/limits';
+import { openSettingsPane } from '#/tui/commands/config/settings';
 import { handleAppearanceCommand, commitAppearanceChange } from '#/tui/commands/config/appearance/appearance';
-import { handleContextCommand } from '#/tui/commands/config/context/context';
-import { handlePlanCommand } from '#/tui/commands/config/plan/plan';
+
+
 import { handleThemeCommand } from '#/tui/commands/config/appearance/editor-theme';
 import { handleThinkingCommand } from '#/tui/commands/config/thinking/thinking';
-import { showHarnessPanel, showSettingsSelector } from '#/tui/commands/config/settings';
-import { showSecuritySettings } from '#/tui/commands/config/security/security-settings';
-import { showCompactionSettings } from '#/tui/commands/config/context/compaction-settings';
-import { showHooksSettings } from '#/tui/commands/config/hooks/hooks-settings';
-import { showNetworkSettings } from '#/tui/commands/config/network/network-settings';
-import { showHarnessEyesReadiness } from '#/tui/commands/config/eyes/eyes-settings';
-import { showToolsInventory } from '#/tui/commands/config/harness/harness-tools';
-import { SETTINGS_OPTIONS } from '#/tui/components/dialogs/picker/settings-selector';
 
-function settingsOptionIndex(value: string): number {
-  const index = SETTINGS_OPTIONS.findIndex((option) => option.value === value);
-  if (index < 0) throw new Error(`missing settings option: ${value}`);
-  return index;
-}
-import { LOOP_MODEL_ROUTING_ROLES } from '#/tui/utils/model/loop-model-routing';
 import { dispatchInput, type SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';
-import {
-  BALANCED_ASYNC_WORKING_SET_TOKENS,
-  BALANCED_MAX_WORKING_SET_TOKENS,
-  ECONOMY_ASYNC_WORKING_SET_TOKENS,
-  ECONOMY_MAX_WORKING_SET_TOKENS,
-} from '#/tui/utils/agent/context-working-set';
-import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
-vi.mock('#/tui/utils/harness-eyes-readiness', () => ({
-  loadHarnessEyesReadiness: vi.fn(async () => ({
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    lines: [],
-  })),
-}));
-
-function makeHost(
-  options: {
-    planMode?: boolean;
-    planPath?: string | undefined;
-    /** When true, simulate Conductor Plan Desk (enterPlan does not activate main planMode). */
-    planDeskDelegate?: boolean;
-  } = {},
-) {
-  let planMode = options.planMode ?? false;
-  const session = {
-    clearPlan: vi.fn(async () => {}),
-    getPlan: vi.fn(async () => (
-      options.planPath === undefined ? null : { path: options.planPath }
-    )),
-    setPlanMode: vi.fn(async (enabled: boolean) => {
-      // Non-Conductor: plan mode sticks. Plan Desk: RPC succeeds but status stays off.
-      planMode = options.planDeskDelegate === true ? false : enabled;
-    }),
-    getStatus: vi.fn(async () => ({ planMode })),
-  };
-  const host = {
-    session,
-    state: {
-      centerModalStack: [],
-      appState: {
-        planMode: options.planMode ?? false,
-      },
-    },
-    setAppState: vi.fn((patch: Record<string, unknown>) => Object.assign(host.state.appState, patch)),
-    showError: vi.fn(),
-    showNotice: vi.fn(),
-  } as unknown as SlashCommandHost;
-  return { host, session };
-}
 
 function makeThemeHost() {
   const appState = {
@@ -128,7 +64,6 @@ function makeThinkingHost(
     thinking: false,
     streamingPhase: 'idle',
     isCompacting: false,
-    isBackgroundCompacting: false,
     availableModels: {
       k2: {
         provider: 'managed:kimi-api',
@@ -153,8 +88,6 @@ function makeThinkingHost(
       setConfig: vi.fn(async () => ({})),
       getConfig: vi.fn(async () => ({ defaultModel: 'k2', defaultThinking: false })),
     },
-    skillCommandMap: new Map<string, string>(),
-    pluginCommandMap: new Map<string, string>(),
     showError: vi.fn(),
     showStatus: vi.fn(),
     sendNormalUserInput: vi.fn(),
@@ -182,65 +115,6 @@ async function withTempHome<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-describe('handlePlanCommand', () => {
-  it('announces plan mode with the plan file location when enabling planning', async () => {
-    const { host, session } = makeHost({ planPath: '/tmp/plans/test-plan.md' });
-
-    await handlePlanCommand(host, 'on');
-
-    expect(session.setPlanMode).toHaveBeenCalledWith(true, false);
-    expect(host.showNotice).toHaveBeenCalledWith(
-      'Plan mode: ON (free-form)',
-      'Plan file: /tmp/plans/test-plan.md',
-    );
-  });
-
-  it('announces plan mode OFF when disabling planning', async () => {
-    const { host, session } = makeHost({ planMode: true });
-
-    await handlePlanCommand(host, 'off');
-
-    expect(session.setPlanMode).toHaveBeenCalledWith(false, false);
-    expect(host.showNotice).toHaveBeenCalledWith('Plan mode: OFF');
-  });
-
-  it('announces the structured plan pipeline for the explicit ultra option', async () => {
-    const { host, session } = makeHost();
-
-    await handlePlanCommand(host, 'ultra');
-
-    expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
-    expect(host.showNotice).toHaveBeenCalledWith('Plan mode: ON (structured pipeline)', undefined);
-  });
-
-  it('announces Plan Desk when Conductor delegates instead of activating plan mode', async () => {
-    const { host, session } = makeHost({ planDeskDelegate: true });
-
-    await handlePlanCommand(host, 'on');
-
-    expect(session.setPlanMode).toHaveBeenCalledWith(true, false);
-    expect(host.showNotice).toHaveBeenCalledWith(
-      'Plan Desk: planning delegated to a Job',
-      'Conductor stays free — plan worker runs research/interview. Check Job strip / JobInbox.',
-    );
-    expect(host.state.appState.planMode).toBe(false);
-  });
-
-  it('keeps plan mode on when the session status cannot be read', async () => {
-    const { host, session } = makeHost();
-    session.getStatus.mockRejectedValue(new Error('rpc down'));
-
-    await handlePlanCommand(host, 'on');
-
-    // A stale `false` here would make the next bare `/plan` re-enter instead of
-    // toggling off, so an unreadable status counts as on.
-    expect(host.state.appState.planMode).toBe(true);
-    expect(host.showNotice).toHaveBeenCalledWith(
-      'Plan mode requested',
-      'Could not read session status — check the footer or /status for where planning landed.',
-    );
-  });
-});
 
 describe('handleThemeCommand', () => {
   it('applies bundled SuperLiora themes by name', async () => {
@@ -462,1033 +336,156 @@ describe('handleThinkingCommand', () => {
   });
 });
 
-describe('context working-set command', () => {
-  function makeContextHost() {
-    const setConfig = vi.fn(async () => ({}));
-    const getConfig = vi.fn(async () => ({
-      loopControl: {
-        maxWorkingSetTokens: BALANCED_MAX_WORKING_SET_TOKENS,
-        asyncWorkingSetTokens: BALANCED_ASYNC_WORKING_SET_TOKENS,
-      },
-    }));
+
+
+describe('manual compact', () => {
+  it('compacts the active session with an optional instruction', async () => {
+    const compact = vi.fn(async (_options: { instruction?: string }) => {});
+    const host = { session: { compact }, showError: vi.fn() } as unknown as SlashCommandHost;
+    await handleCompactCommand(host, '  Preserve unfinished changes  ');
+    await handleCompactCommand(host, '   ');
+    expect(compact.mock.calls).toEqual([[{ instruction: 'Preserve unfinished changes' }], [{ instruction: undefined }]]);
+  });
+
+  it('reports no session without starting compaction', async () => {
+    const host = { session: undefined, showError: vi.fn() } as unknown as SlashCommandHost;
+    await handleCompactCommand(host, '');
+    expect(host.showError).toHaveBeenCalledWith(expect.stringMatching(/session/i));
+  });
+
+  it('propagates compaction failures to command dispatch', async () => {
+    const host = { session: { compact: vi.fn(async () => { throw new Error('compact failed'); }) } } as unknown as SlashCommandHost;
+    await expect(handleCompactCommand(host, '')).rejects.toThrow('compact failed');
+  });
+});
+
+describe('user hard execution limit', () => {
+  function makeLimitHost() {
     const host = {
-      harness: { getConfig, setConfig },
-      state: {
-        centerModalStack: [],
-        appState: {
-          model: 'big-model',
-          availableModels: {
-            'big-model': { maxContextSize: 1_000_000 },
-          },
-        },
+      harness: {
+        getConfig: vi.fn(async () => ({ loopControl: { maxStepsPerTurn: 12 } })),
+        setConfig: vi.fn(async () => {}),
       },
-      mountEditorReplacement: vi.fn(),
-      mountCenterModal: vi.fn(),
+      session: { reloadSession: vi.fn(async () => {}) },
+      state: { centerModalStack: [] },
+      mountCenterModal: vi.fn((_component: unknown) => {}),
       closeCenterModal: vi.fn(),
       restoreEditor: vi.fn(),
-      setAppState: vi.fn(),
-      showError: vi.fn(),
       showStatus: vi.fn(),
-      track: vi.fn(),
+      showError: vi.fn(),
     };
     return host as unknown as SlashCommandHost & typeof host;
   }
 
-  it('applies the economy preset through setConfig', async () => {
-    const host = makeContextHost();
-    await handleContextCommand(host, 'economy');
-    expect(host.harness.setConfig).toHaveBeenCalledWith({
-      loopControl: {
-        maxWorkingSetTokens: ECONOMY_MAX_WORKING_SET_TOKENS,
-        asyncWorkingSetTokens: ECONOMY_ASYNC_WORKING_SET_TOKENS,
-      },
-    });
-    expect(host.setAppState).toHaveBeenCalledWith({
-      workingSet: {
-        maxWorkingSetTokens: ECONOMY_MAX_WORKING_SET_TOKENS,
-        asyncWorkingSetTokens: ECONOMY_ASYNC_WORKING_SET_TOKENS,
-        presetId: 'economy',
-      },
-    });
-    expect(host.showStatus).toHaveBeenCalled();
-    expect(host.track).toHaveBeenCalledWith('context_working_set_changed', {
-      preset: 'economy',
-    });
+  it('persists the explicit hard step limit and reloads the live session', async () => {
+    const host = makeLimitHost();
+    await applyExecutionStepLimit(host, ' 40 ');
+    expect(host.harness.setConfig).toHaveBeenCalledExactlyOnceWith({ loopControl: { maxStepsPerTurn: 40 } });
+    expect(host.session.reloadSession).toHaveBeenCalledOnce();
+    expect(host.showStatus).toHaveBeenCalledWith('Maximum steps per turn: 40', 'success');
   });
 
-  it('shows status without mutating config', async () => {
-    const host = makeContextHost();
-    await handleContextCommand(host, 'status');
-    expect(host.harness.setConfig).not.toHaveBeenCalled();
-    expect(host.showStatus).toHaveBeenCalled();
-    const status = String(host.showStatus.mock.calls[0]?.[0] ?? '');
-    expect(status).toContain('balanced');
+  it('supports unlimited execution without requiring a session', async () => {
+    const host = makeLimitHost();
+    const sessionless = { ...host, session: undefined } as unknown as SlashCommandHost;
+    await applyExecutionStepLimit(sessionless, '0');
+    expect(host.harness.setConfig).toHaveBeenCalledWith({ loopControl: { maxStepsPerTurn: 0 } });
+    expect(host.showStatus).toHaveBeenCalledWith('Maximum steps per turn: unlimited', 'success');
   });
 
-  it('rejects unknown preset names', async () => {
-    const host = makeContextHost();
-    await handleContextCommand(host, 'turbo');
+  it.each(['', '-1', '1.5', 'Infinity', '9007199254740992'])('rejects an invalid hard limit %j without saving', async (value) => {
+    const host = makeLimitHost();
+    await applyExecutionStepLimit(host, value);
     expect(host.harness.setConfig).not.toHaveBeenCalled();
+    expect(host.session.reloadSession).not.toHaveBeenCalled();
     expect(host.showError).toHaveBeenCalled();
   });
 
-  it('opens the picker when args are empty', async () => {
-    const host = makeContextHost();
-    await handleContextCommand(host, '');
-    expect(host.mountCenterModal).toHaveBeenCalledOnce();
+  it('surfaces persistence failure without claiming the limit changed', async () => {
+    const host = makeLimitHost();
+    host.harness.setConfig.mockRejectedValueOnce(new Error('write denied'));
+    await applyExecutionStepLimit(host, '40');
+    expect(host.showError).toHaveBeenCalledWith('write denied');
+    expect(host.session.reloadSession).not.toHaveBeenCalled();
+    expect(host.showStatus).not.toHaveBeenCalled();
+  });
+
+  it('routes the settings pane to a real hard-limit input', async () => {
+    const host = makeLimitHost();
+    openSettingsPane(host, 'limits');
+    await vi.waitFor(() => expect(host.mountCenterModal).toHaveBeenCalled());
+    const picker = host.mountCenterModal.mock.calls[0]![0] as { opts: { onSelect: (value: string) => void } };
+    picker.opts.onSelect('steps');
+    const input = host.mountCenterModal.mock.calls[1]![0] as { opts: { onDone: (result: { kind: 'ok'; value: string }) => void } };
+    input.opts.onDone({ kind: 'ok', value: '6' });
+    await vi.waitFor(() => expect(host.harness.setConfig).toHaveBeenCalledWith({ loopControl: { maxStepsPerTurn: 6 } }));
   });
 });
 
-describe('harness panel and tools inventory', () => {
-  function makeHarnessHost(options: {
-    session?: Record<string, unknown> | undefined;
-    activeSession?: Record<string, unknown> | undefined;
-    premiumQualityMode?: boolean;
-    configProfile?: string;
-  } = {}) {
-    const transcriptContainer = {
-      addChild: vi.fn(),
-      isBatchMounting: false,
-    };
-    const session =
-      options.session === undefined
-        ? undefined
-        : {
-            listMcpServers: vi.fn(async () => []),
-            setPremiumQuality: vi.fn(async () => undefined),
-            ...options.session,
-          };
-    return {
-      session,
-      activeSession: options.activeSession ?? session,
-      requireSession: vi.fn(() => {
-        if (session === undefined) throw new Error('no session');
-        return session;
-      }),
-      motionBeats: { play: vi.fn() },
-      state: {
-        centerModalStack: [],
-        appState: {
-          premiumQualityMode: options.premiumQualityMode === true,
-          model: 'big-model',
-          availableModels: {
-            'big-model': {
-              provider: 'managed:kimi-api',
-              model: 'big-model',
-              maxContextSize: 1_000_000,
-            },
-          },
-        },
-        transcriptContainer,
-        renderer: { invalidateFrame: vi.fn() },
-      },
-      setAppState: vi.fn(),
-      harness: {
-        getExperimentalFeatures: vi.fn(async () => []),
-        getConfig: vi.fn(async () => ({
-          loopControl: {
-            maxWorkingSetTokens: 48_000,
-            asyncWorkingSetTokens: 16_000,
-          },
-          ...(options.configProfile !== undefined
-            ? { agent: { profile: options.configProfile } }
-            : {}),
-        })),
-        setConfig: vi.fn(async () => undefined),
-        deleteConfigFields: vi.fn(async () => ({ loopControl: {} })),
-        planSmartLoopRoleRouting: vi.fn(async () => ({
-          pins: [
-            {
-              role: 'compaction',
-              configKey: 'compactionModel',
-              label: 'Compaction',
-              alias: 'big-model',
-              reason: 'ultra-cheap tier by value (q=90 v=40.0)',
-            },
-            {
-              role: 'completion',
-              configKey: 'completionModel',
-              label: 'Completion',
-              alias: 'big-model',
-              reason: 'balanced tier by value (q=90 v=40.0)',
-            },
-            {
-              role: 'exploration',
-              configKey: 'explorationModel',
-              label: 'Exploration',
-              alias: 'big-model',
-              reason: 'ultra-cheap tier by value (q=90 v=40.0)',
-            },
-            {
-              role: 'coding',
-              configKey: 'codingModel',
-              label: 'Coding',
-              alias: 'big-model',
-              reason: 'high tier by quality (q=90 v=40.0 · models.dev benches×2)',
-            },
-            {
-              role: 'planning',
-              configKey: 'planningModel',
-              label: 'Planning',
-              alias: 'big-model',
-              reason: 'high tier by quality (q=90 v=40.0 · models.dev benches×2)',
-            },
-            {
-              role: 'debugging',
-              configKey: 'debuggingModel',
-              label: 'Debugging',
-              alias: 'big-model',
-              reason: 'high tier by quality (q=90 v=40.0 · models.dev benches×2)',
-            },
-          ],
-          skipped: [],
-          patch: {
-            loopControl: {
-              compactionModel: 'big-model',
-              completionModel: 'big-model',
-              explorationModel: 'big-model',
-              codingModel: 'big-model',
-              planningModel: 'big-model',
-              debuggingModel: 'big-model',
-            },
-          },
-          clearPaths: [
-            'loopControl.compactionModel',
-            'loopControl.completionModel',
-            'loopControl.explorationModel',
-            'loopControl.codingModel',
-            'loopControl.planningModel',
-            'loopControl.debuggingModel',
-          ],
-        })),
-      },
-      mountEditorReplacement: vi.fn(),
-      mountCenterModal: vi.fn(),
+describe('model settings reset', () => {
+  it('clears model choices and fallback chains after explicit confirmation', async () => {
+    const host = {
+      state: { centerModalStack: [] },
+      mountCenterModal: vi.fn((_component: unknown) => {}),
       closeCenterModal: vi.fn(),
       restoreEditor: vi.fn(),
+      showStatus: vi.fn(),
       showError: vi.fn(),
+      harness: {
+        getConfig: vi.fn(async () => ({ models: { primary: { fallbackModels: ['backup'] } } })),
+        setConfig: vi.fn(async () => {}),
+        deleteConfigFields: vi.fn(async () => {}),
+      },
+    };
+    showModelSettingsReset(host as unknown as SlashCommandHost);
+    const picker = host.mountCenterModal.mock.calls[0]![0] as { opts: { onSelect: (value: string) => void } };
+    expect(host.harness.deleteConfigFields).not.toHaveBeenCalled();
+    picker.opts.onSelect('reset');
+    await vi.waitFor(() => expect(host.harness.deleteConfigFields).toHaveBeenCalled());
+    expect(host.harness.setConfig).toHaveBeenCalledWith({ models: { primary: { fallbackModels: [] } } });
+    expect(host.harness.deleteConfigFields).toHaveBeenCalledWith([
+      'defaultProvider', 'defaultModel', 'defaultThinking', 'thinking.mode', 'thinking.effort',
+    ]);
+  });
+});
+
+describe('native model choices', () => {
+  function modelHost(includeNativeAuto: boolean) {
+    const primary = { provider: 'native', model: 'real-model', maxContextSize: 128000, capabilities: ['tool_use'] };
+    const models = includeNativeAuto ? { primary, auto: { ...primary, model: 'auto', maxContextSize: 256000 } } : { primary };
+    const host = {
+      state: { centerModalStack: [], appState: { availableModels: models, model: 'primary', thinking: false } },
+      authFlow: { refreshOAuthProviderModels: vi.fn(async () => ({ failed: [] })) },
+      mountCenterModal: vi.fn((_component: unknown) => {}),
       showNotice: vi.fn(),
       showStatus: vi.fn(),
-      showProgressSpinner: vi.fn(() => ({
-        setLabel: vi.fn(),
-        stop: vi.fn(),
-      })),
-      showExtensionsModal: vi.fn(),
-      showExperimentsModal: vi.fn(),
-      track: vi.fn(),
-    } as unknown as SlashCommandHost & {
-      mountEditorReplacement: ReturnType<typeof vi.fn>;
-      mountCenterModal: ReturnType<typeof vi.fn>;
-      closeCenterModal: ReturnType<typeof vi.fn>;
-      restoreEditor: ReturnType<typeof vi.fn>;
-      showError: ReturnType<typeof vi.fn>;
-      showNotice: ReturnType<typeof vi.fn>;
-      showStatus: ReturnType<typeof vi.fn>;
-      showProgressSpinner: ReturnType<typeof vi.fn>;
-      setAppState: ReturnType<typeof vi.fn>;
-      requireSession: ReturnType<typeof vi.fn>;
-      motionBeats: { play: ReturnType<typeof vi.fn> };
-      harness: {
-        getExperimentalFeatures: ReturnType<typeof vi.fn>;
-        getConfig: ReturnType<typeof vi.fn>;
-        setConfig: ReturnType<typeof vi.fn>;
-        deleteConfigFields: ReturnType<typeof vi.fn>;
-        planSmartLoopRoleRouting: ReturnType<typeof vi.fn>;
-      };
-      state: {
-        centerModalStack: [],
-        appState: {
-          premiumQualityMode?: boolean;
-          model: string;
-          availableModels: Record<string, { maxContextSize: number }>;
-        };
-        transcriptContainer: {
-          addChild: ReturnType<typeof vi.fn>;
-          isBatchMounting: boolean;
-        };
-        renderer: { invalidateFrame: ReturnType<typeof vi.fn> };
-      };
+      showError: vi.fn(),
     };
+    return host as unknown as SlashCommandHost & typeof host;
   }
 
-  async function selectHarnessOption(
-    host: { mountCenterModal: ReturnType<typeof vi.fn> },
-    optionIndex: number,
-  ): Promise<void> {
-    showHarnessPanel(host as unknown as SlashCommandHost);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    for (let i = 0; i < optionIndex; i++) {
-      component.handleInput('\u001B[B');
-    }
-    component.handleInput('\r');
-    await Promise.resolve();
-    await Promise.resolve();
-  }
-
-  it('opens the harness panel modal with live observation actions', () => {
-    const host = makeHarnessHost();
-    showHarnessPanel(host);
-    expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void; render: (width: number) => string[] },
-    ];
-    expect(component).toBeTruthy();
-    const body = component.render(80).join('\n');
-    expect(body).toContain('Agent profile');
-    expect(body).toContain('Tools inventory');
-    expect(body).toContain('Eyes readiness');
-    expect(body).toContain('Visual Quality');
-    expect(body).not.toContain('MCP servers');
-    expect(body).not.toContain('Extensions');
-    expect(body).toContain('Experiments');
-    expect(body).toContain('Context working set');
+  it('passes configured aliases and their actual context windows to the picker without synthetic rows', () => {
+    const host = modelHost(false);
+    showModelPicker(host);
+    const picker = host.mountCenterModal.mock.calls[0]![0] as { opts: { models: typeof host.state.appState.availableModels } };
+    expect(picker.opts.models).toBe(host.state.appState.availableModels);
+    expect(Object.keys(picker.opts.models)).toEqual(['primary']);
+    expect(picker.opts.models.primary?.maxContextSize).toBe(128000);
   });
 
-  it('routes harness panel tools selection to live tools inventory', async () => {
-    const getTools = vi.fn(async () => [
-      { name: 'Read', description: 'Read a file', source: 'builtin', active: true },
-    ]);
-    const host = makeHarnessHost({ session: { getTools } });
-    showHarnessPanel(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    // presets=0, agent-profile=1, tools=2
-    component.handleInput('\u001B[B');
-    component.handleInput('\u001B[B');
-    component.handleInput('\r');
-    // showToolsInventory is async
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(host.restoreEditor).toHaveBeenCalled();
-    expect(getTools).toHaveBeenCalledOnce();
-    expect(host.showNotice).toHaveBeenCalledOnce();
-    expect(String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '')).toContain('Tools:');
+  it('rejects auto when no native configured alias exists', async () => {
+    const host = modelHost(false);
+    await handleModelCommand(host, 'auto');
+    expect(host.showError).toHaveBeenCalledWith(expect.stringContaining('auto'));
+    expect(host.mountCenterModal).not.toHaveBeenCalled();
   });
 
-  it('routes harness panel eyes selection to eyes readiness panel', async () => {
-    const host = makeHarnessHost();
-    showHarnessPanel(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    // presets=0, agent-profile=1, tools=2, eyes=3
-    component.handleInput('\u001B[B');
-    component.handleInput('\u001B[B');
-    component.handleInput('\u001B[B');
-    component.handleInput('\r');
-    expect(host.restoreEditor).toHaveBeenCalled();
-    const eyesPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | { opts: { onSelect: (value: string) => void; title?: string } }
-      | undefined;
-    expect(eyesPicker?.opts.title).toBe('Eyes readiness');
-    eyesPicker!.opts.onSelect('status');
-    await vi.waitFor(
-      () => {
-        expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-      },
-      { timeout: 5000 },
-    );
+  it('allows an explicitly configured native auto alias with its real context window', async () => {
+    const host = modelHost(true);
+    await handleModelCommand(host, 'auto');
+    const picker = host.mountCenterModal.mock.calls[0]![0] as { opts: { models: typeof host.state.appState.availableModels; selectedValue: string } };
+    expect(picker.opts.selectedValue).toBe('auto');
+    expect(picker.opts.models.auto?.maxContextSize).toBe(256000);
+    expect(host.showError).not.toHaveBeenCalled();
   });
-
-  it('reports missing session for tools inventory', async () => {
-    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
-    await showToolsInventory(host);
-    expect(host.showError).toHaveBeenCalledWith(expect.stringMatching(/session/i));
-  });
-
-  it('reports when getTools is unavailable on the session', async () => {
-    const host = makeHarnessHost({ session: {} });
-    await showToolsInventory(host);
-    expect(host.showError).toHaveBeenCalledWith('Tools inventory is not available on this session.');
-  });
-
-  it('lists active and inactive tools from live getTools()', async () => {
-    const getTools = vi.fn(async () => [
-      {
-        name: 'Write',
-        description: 'Write a file',
-        source: 'builtin',
-        active: true,
-        helpVisibility: 'primary',
-      },
-      {
-        name: 'Read',
-        description: 'Read a file',
-        source: 'builtin',
-        active: true,
-        helpVisibility: 'primary',
-      },
-      {
-        name: 'Review',
-        description: 'Review diff',
-        source: 'builtin',
-        active: true,
-        helpVisibility: 'primary',
-      },
-      {
-        name: 'LioraReview',
-        description: 'Legacy review',
-        source: 'builtin',
-        active: true,
-        helpVisibility: 'advanced',
-      },
-      {
-        name: 'LegacyTool',
-        description: 'old',
-        source: 'plugin',
-        active: false,
-        helpVisibility: 'primary',
-      },
-    ]);
-    const host = makeHarnessHost({ session: { getTools } });
-    await showToolsInventory(host);
-    expect(getTools).toHaveBeenCalledOnce();
-    expect(host.showNotice).toHaveBeenCalledOnce();
-    const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
-    expect(notice).toContain('── Session (live) ──');
-    expect(notice).toContain('Conductor: ON (default) · profile=conductor tools=26');
-    expect(notice).toContain('Tools: 3 active / 5 registered');
-    expect(notice).toContain('Hide legacy: ON (default)');
-    expect(notice).toContain('Read');
-    expect(notice).toContain('Write');
-    expect(notice).toContain('Review');
-    expect(notice).not.toContain('  LioraReview');
-    expect(notice).toContain('Compat aliases hidden (1): LioraReview→Review');
-    expect(notice).toContain('Inactive (1): LegacyTool');
-    expect(notice).toContain('ApplyPatch+RepoQuery');
-    expect(notice).toContain('DeepResearch via agent/full');
-    expect(notice).not.toContain('SearchTools dumps');
-  });
-
-  it('appends SearchTools schema tip when SearchTools is registered', async () => {
-    const host = makeHarnessHost({
-      session: {
-        getTools: vi.fn(async () => [
-          {
-            name: 'Read',
-            description: 'Read a file',
-            source: 'builtin',
-            active: true,
-            helpVisibility: 'primary',
-          },
-          {
-            name: 'SearchTools',
-            description: 'Search tool inventory',
-            source: 'builtin',
-            active: true,
-            helpVisibility: 'primary',
-          },
-        ]),
-      },
-    });
-    await showToolsInventory(host);
-    const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
-    expect(notice).toContain('ApplyPatch+RepoQuery');
-    expect(notice).toContain('SearchTools dumps tool schemas mid-turn');
-  });
-
-  it('shows hide-legacy live status when SUPERLIORA_SOVEREIGN=1', async () => {
-    const prev = process.env['SUPERLIORA_SOVEREIGN'];
-    process.env['SUPERLIORA_SOVEREIGN'] = '1';
-    try {
-      const host = makeHarnessHost({
-        configProfile: 'core',
-        session: {
-          getTools: vi.fn(async () => [
-            {
-              name: 'Read',
-              description: 'Read a file',
-              source: 'builtin',
-              active: true,
-              helpVisibility: 'primary',
-            },
-          ]),
-        },
-      });
-      await showToolsInventory(host);
-      const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
-      expect(notice).toContain('── Session (live) ──');
-      expect(notice).toContain('Core waist: ON (SUPERLIORA_SOVEREIGN=1) · profile=core tools=12');
-      expect(notice).toContain('Hide legacy: ON (SUPERLIORA_SOVEREIGN=1)');
-      expect(notice).not.toContain('soft-hides legacy tool aliases');
-    } finally {
-      if (prev === undefined) delete process.env['SUPERLIORA_SOVEREIGN'];
-      else process.env['SUPERLIORA_SOVEREIGN'] = prev;
-    }
-  });
-
-  it('shows sovereign core live status when SUPERLIORA_SOVEREIGN_CORE=1', async () => {
-    const prev = process.env['SUPERLIORA_SOVEREIGN_CORE'];
-    process.env['SUPERLIORA_SOVEREIGN_CORE'] = '1';
-    try {
-      const host = makeHarnessHost({
-        configProfile: 'core',
-        session: {
-          getTools: vi.fn(async () => [
-            {
-              name: 'Read',
-              description: 'Read a file',
-              source: 'builtin',
-              active: true,
-              helpVisibility: 'primary',
-            },
-          ]),
-        },
-      });
-      await showToolsInventory(host);
-      const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
-      expect(notice).toContain('Core waist: ON (SUPERLIORA_SOVEREIGN_CORE=1) · profile=core tools=12');
-    } finally {
-      if (prev === undefined) delete process.env['SUPERLIORA_SOVEREIGN_CORE'];
-      else process.env['SUPERLIORA_SOVEREIGN_CORE'] = prev;
-    }
-  });
-
-  it('surfaces getTools failures without crashing', async () => {
-    const host = makeHarnessHost({
-      session: {
-        getTools: vi.fn(async () => {
-          throw new Error('rpc down');
-        }),
-      },
-    });
-    await showToolsInventory(host);
-    expect(host.showError).toHaveBeenCalledWith('Failed to load tools: rpc down');
-  });
-
-
-  it('routes harness panel premium selection to Visual Quality settings panel', async () => {
-    const host = makeHarnessHost({ session: {}, premiumQualityMode: true });
-    // presets=0, agent-profile=1, tools=2, eyes=3, premium=4
-    await selectHarnessOption(host, 4);
-    expect(host.restoreEditor).toHaveBeenCalled();
-    const premiumPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | { opts: { onSelect: (value: string) => void; title?: string } }
-      | undefined;
-    expect(premiumPicker?.opts.title).toBe('Visual Quality');
-    premiumPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-  });
-
-  it('routes harness panel experiments selection to experiments panel', async () => {
-    const host = makeHarnessHost({ session: {} });
-    // experiments=5 (presets, agent-profile, tools, eyes, premium, experiments)
-    await selectHarnessOption(host, 5);
-    expect(host.restoreEditor).toHaveBeenCalled();
-    await vi.waitFor(() => {
-      expect(host.harness.getExperimentalFeatures).toHaveBeenCalled();
-    });
-  });
-
-  it('routes harness panel context selection to context working-set picker', async () => {
-    const host = makeHarnessHost({ session: {} });
-    // context=6
-    await selectHarnessOption(host, 6);
-    expect(host.restoreEditor).toHaveBeenCalled();
-    // picker remounts via mountEditorReplacement after restore
-    await vi.waitFor(() => {
-      expect(host.harness.getConfig).toHaveBeenCalled();
-      expect((host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(2);
-    });
-  });
-
-  it('routes /tools slash command to live tools inventory', async () => {
-    const getTools = vi.fn(async () => [
-      { name: 'Read', description: 'Read a file', source: 'builtin', active: true },
-    ]);
-    const host = makeHarnessHost({ session: { getTools } });
-    dispatchInput(host, '/tools');
-    await vi.waitFor(() => {
-      expect(getTools).toHaveBeenCalledOnce();
-    });
-    expect(host.showNotice).toHaveBeenCalled();
-    expect(String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '')).toContain('Tools:');
-  });
-
-  it('routes /eyes slash command to eyes readiness panel', async () => {
-    const host = makeHarnessHost();
-    dispatchInput(host, '/eyes');
-    await vi.waitFor(
-      () => {
-        expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-      },
-      { timeout: 5000 },
-    );
-  });
-
-  it('routes /eye alias to eyes readiness panel', async () => {
-    const host = makeHarnessHost();
-    dispatchInput(host, '/eye');
-    await vi.waitFor(
-      () => {
-        expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-      },
-      { timeout: 5000 },
-    );
-  });
-
-
-  it('lists model routing and Eyes readiness in the settings selector', () => {
-    const host = makeHarnessHost();
-    showSettingsSelector(host);
-    expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void; render: (width: number) => string[] },
-    ];
-    const firstPage = component.render(120).join('\n');
-    expect(firstPage).toContain('Model routing');
-    expect(firstPage).toContain('Security');
-
-    let combined = firstPage;
-    for (let page = 0; page < 6; page++) {
-      component.handleInput('\u001B[6~'); // PageDown — grid uses ←→ for columns
-      combined += `\n${component.render(120).join('\n')}`;
-    }
-    expect(combined).toContain('Harness');
-    expect(combined).toContain('Eyes readiness');
-  });
-
-  it('lists Security alongside Permission in the settings selector', () => {
-    const host = makeHarnessHost();
-    showSettingsSelector(host);
-    expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void; render: (width: number) => string[] },
-    ];
-    // Move to Security (grid: right then down into Safety row).
-    component.handleInput('\u001B[B'); // down
-    const firstPage = component.render(120).join('\n');
-    expect(firstPage).toContain('Security');
-    expect(firstPage).toMatch(/Sandbox|secret redaction|Permission/i);
-  });
-
-  it('routes settings security selection to security panel', async () => {
-    const host = makeHarnessHost({
-      session: {
-        getStatus: vi.fn(async () => ({ permission: 'auto' })),
-        listMcpServers: vi.fn(async () => [
-          { name: 'demo', transport: 'stdio', status: 'connected', toolCount: 2 },
-        ]),
-      },
-    });
-    Object.assign(host.state.appState, {
-      permissionMode: 'auto',
-      workDir: '/tmp/security-ws',
-      additionalDirs: [],
-    });
-    showSettingsSelector(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    // security is index 5: model, routing, fallback, reset, permission, security
-    for (let i = 0; i < 5; i++) {
-      component.handleInput('\u001B[B');
-    }
-    component.handleInput('\r');
-    expect(host.restoreEditor).toHaveBeenCalled();
-    const securityPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(securityPicker).toBeDefined();
-    securityPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-  });
-
-  it('renders security panel without session', async () => {
-    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
-    Object.assign(host.state.appState, {
-      permissionMode: 'manual',
-      workDir: '/tmp/no-session',
-      additionalDirs: [],
-    });
-    showSecuritySettings(host);
-    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-      | { opts: { onSelect: (action: string) => void } }
-      | undefined;
-    expect(picker).toBeDefined();
-    picker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
-    });
-  });
-
-  it('lists Compaction in the settings selector', () => {
-    const host = makeHarnessHost();
-    showSettingsSelector(host);
-    expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void; render: (width: number) => string[] },
-    ];
-    let combined = component.render(120).join('\n');
-    for (let page = 0; page < 6; page++) {
-      component.handleInput('\u001B[6~'); // PageDown
-      combined += `\n${component.render(120).join('\n')}`;
-    }
-    expect(combined).toContain('Compaction');
-    expect(combined).not.toContain('Mission / Goals');
-    expect(combined).not.toContain('Fleet / Parallel');
-    // Descriptions appear for the highlighted cell — search to surface them.
-    for (const ch of 'compact') component.handleInput(ch);
-    combined += `\n${component.render(120).join('\n')}`;
-    expect(combined).toMatch(/compact|Compaction/i);
-  });
-
-  it('routes settings compaction selection to compaction panel', async () => {
-    const host = makeHarnessHost({ session: {} });
-    showSettingsSelector(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    for (let i = 0; i < settingsOptionIndex('compaction'); i++) {
-      component.handleInput('\u001B[B');
-    }
-    component.handleInput('\r');
-    expect(host.restoreEditor).toHaveBeenCalled();
-    const compactionPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(compactionPicker).toBeDefined();
-    compactionPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
-    expect(panel.snapshotBodyLines(1).join('\n')).toContain('/compact');
-    expect(panel.snapshotBodyLines(1).join('\n')).toContain('compactionTriggerRatio');
-    expect(panel.snapshotBodyLines(1).join('\n')).toContain('Expand recover');
-    expect(panel.snapshotBodyLines(1).join('\n')).toContain('Expand(id=<archiveId>)');
-    expect(panel.snapshotBodyLines(1).join('\n')).toContain('context-archive store');
-  });
-
-  it('routes settings context selection to context tips panel', async () => {
-    const host = makeHarnessHost({ session: {} });
-    showSettingsSelector(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    for (let i = 0; i < settingsOptionIndex('context'); i++) {
-      component.handleInput('\u001B[B');
-    }
-    component.handleInput('\r');
-    expect(host.restoreEditor).toHaveBeenCalled();
-    const contextPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(contextPicker).toBeDefined();
-    contextPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
-    const lines = panel.snapshotBodyLines(1).join('\n');
-    expect(lines).toContain('Instruction vs Learning');
-    expect(lines).toContain('/context');
-  });
-
-  it('renders compaction settings panel without session', async () => {
-    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
-    showCompactionSettings(host);
-    const compactionPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(compactionPicker).toBeDefined();
-    compactionPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-  });
-
-  it('lists Hooks, Skills, Network, and Storage in the settings selector', () => {
-    const host = makeHarnessHost();
-    showSettingsSelector(host);
-    expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void; render: (width: number) => string[] },
-    ];
-    let combined = component.render(120).join('\n');
-    for (let page = 0; page < 6; page++) {
-      component.handleInput('\u001B[6~'); // PageDown — grid uses ←→ for columns
-      combined += `\n${component.render(120).join('\n')}`;
-    }
-    expect(combined).toContain('Hooks');
-    expect(combined).toContain('Skills');
-    expect(combined).not.toContain('Bench / Diagnostics');
-    expect(combined).toContain('Network / Proxy');
-    expect(combined).toContain('Storage');
-  });
-
-  it('routes settings hooks selection to hooks panel', async () => {
-    const host = makeHarnessHost({
-      session: {
-        listPlugins: vi.fn(async () => [{ id: 'p', enabled: true, hookCount: 1 }]),
-        getHookRegistry: vi.fn(async () => ({ totalCount: 1, events: { PreToolUse: 1 } })),
-      },
-    });
-    showSettingsSelector(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    for (let i = 0; i < settingsOptionIndex('hooks'); i++) {
-      component.handleInput('\u001B[B');
-    }
-    component.handleInput('\r');
-    expect(host.restoreEditor).toHaveBeenCalled();
-    const hooksPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(hooksPicker).toBeDefined();
-    hooksPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
-    expect(panel.snapshotBodyLines(1).join('\n')).toContain('PreToolUse');
-  });
-
-  it('renders network settings panel with proxy env', () => {
-    const prior = process.env['HTTPS_PROXY'];
-    process.env['HTTPS_PROXY'] = 'http://127.0.0.1:3128';
-    const host = makeHarnessHost();
-    showNetworkSettings(host);
-    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-      | { opts: { onSelect: (action: string) => void } }
-      | undefined;
-    picker?.opts.onSelect('status');
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
-    expect(panel.snapshotBodyLines(1).join('\n')).toContain('127.0.0.1:3128');
-    if (prior != null) process.env['HTTPS_PROXY'] = prior;
-    else delete process.env['HTTPS_PROXY'];
-  });
-
-  it('renders hooks panel without session', async () => {
-    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
-    showHooksSettings(host);
-    const hooksPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(hooksPicker).toBeDefined();
-    hooksPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-  });
-
-  it('routes settings eyes selection to eyes readiness panel', async () => {
-    const host = makeHarnessHost();
-    showSettingsSelector(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    for (let i = 0; i < settingsOptionIndex('eyes'); i++) {
-      component.handleInput('\u001B[B');
-    }
-    component.handleInput('\r');
-    expect(host.restoreEditor).toHaveBeenCalled();
-    const eyesPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | { opts: { onSelect: (value: string) => void; title?: string } }
-      | undefined;
-    expect(eyesPicker?.opts.title).toBe('Eyes readiness');
-    eyesPicker!.opts.onSelect('status');
-    await vi.waitFor(
-      () => {
-        expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-      },
-      { timeout: 5000 },
-    );
-  });
-
-  it('surfaces eyes readiness load failures in panel without crashing', async () => {
-    const host = makeHarnessHost();
-    await showHarnessEyesReadiness(host);
-    expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-  });
-
-  it('routes a selected loop role model through setConfig and reloads the routing picker', async () => {
-    const host = makeHarnessHost();
-    await showLoopModelRoutingPicker(host);
-
-    expect(host.harness.getConfig).toHaveBeenCalledWith({ reload: true });
-    const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void; render: (width: number) => string[] },
-    ];
-    const routingBody = routingPicker.render(120).join('\n');
-    for (const label of ['Compaction', 'Completion', 'Exploration', 'Coding', 'Planning', 'Debugging']) {
-      expect(routingBody).toContain(label);
-    }
-    expect(routingBody).toContain('auto');
-
-    for (let i = 0; i < 4; i++) routingPicker.handleInput('\u001B[B');
-    routingPicker.handleInput('\r');
-    const [modelPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1] as [
-      { handleInput: (data: string) => void },
-    ];
-    modelPicker.handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(host.harness.setConfig).toHaveBeenCalledWith({
-        loopControl: { codingModel: 'big-model' },
-      });
-    });
-    await vi.waitFor(() => {
-      expect(host.harness.getConfig).toHaveBeenLastCalledWith({ reload: true });
-      expect(host.showStatus).toHaveBeenCalledWith(
-        expect.stringContaining('Coding routing override set to big-model'),
-        'success',
-      );
-    });
-  });
-
-  it('does not mutate loop routing when the role model picker is cancelled', async () => {
-    const host = makeHarnessHost();
-    await showLoopModelRoutingPicker(host);
-    const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    for (let i = 0; i < 4; i++) routingPicker.handleInput('\u001B[B');
-    routingPicker.handleInput('\r');
-    const [modelPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1] as [
-      { handleInput: (data: string) => void },
-    ];
-    modelPicker.handleInput('\u001B');
-
-    expect(host.harness.setConfig).not.toHaveBeenCalled();
-    expect(host.harness.deleteConfigFields).not.toHaveBeenCalled();
-  });
-
-  it('clears every role override from the smart auto routing action', async () => {
-    const host = makeHarnessHost();
-    host.harness.getConfig.mockResolvedValue({
-      loopControl: {
-        compactionModel: 'compact',
-        completionModel: 'complete',
-        explorationModel: 'explore',
-        codingModel: 'code',
-        planningModel: 'plan',
-        debuggingModel: 'debug',
-      },
-    });
-    host.harness.setConfig.mockResolvedValue({ loopControl: {} });
-    await showLoopModelRoutingPicker(host);
-    const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-
-    routingPicker.handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(host.harness.planSmartLoopRoleRouting).toHaveBeenCalled();
-    });
-    await vi.waitFor(() => {
-      expect(host.harness.deleteConfigFields).toHaveBeenCalledWith([
-        'loopControl.compactionModel',
-        'loopControl.completionModel',
-        'loopControl.explorationModel',
-        'loopControl.codingModel',
-        'loopControl.planningModel',
-        'loopControl.debuggingModel',
-      ]);
-    });
-    await vi.waitFor(() => {
-      expect(host.harness.setConfig).toHaveBeenCalled();
-    });
-    const setPatch = host.harness.setConfig.mock.calls.at(-1)?.[0] as {
-      loopControl?: Record<string, string>;
-    };
-    expect(setPatch.loopControl).toBeDefined();
-    for (const alias of Object.values(setPatch.loopControl ?? {})) {
-      expect(alias).toBe('big-model');
-    }
-    expect(host.showProgressSpinner).toHaveBeenCalledWith(
-      expect.stringMatching(/live-probing|live probe/i),
-    );
-    const spinner = host.showProgressSpinner.mock.results[0]?.value as {
-      stop: ReturnType<typeof vi.fn>;
-    };
-    expect(spinner.stop).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ok: true,
-        label: expect.stringMatching(/Smart auto pinned|live-probed/i),
-      }),
-    );
-  });
-
-  it('routes Alt+R from a configured role to deleteConfigFields', async () => {
-    const host = makeHarnessHost();
-    host.harness.getConfig.mockResolvedValue({ loopControl: { codingModel: 'code-pro' } });
-    await showLoopModelRoutingPicker(host);
-    const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    for (let i = 0; i < 4; i++) routingPicker.handleInput('\u001B[B');
-    routingPicker.handleInput('\r');
-    const [modelPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1] as [
-      { handleInput: (data: string) => void },
-    ];
-    modelPicker.handleInput('\u001Br');
-
-    await vi.waitFor(() => {
-      expect(host.harness.deleteConfigFields).toHaveBeenCalledWith(['loopControl.codingModel']);
-    });
-    expect(host.showStatus).toHaveBeenCalledWith(
-      expect.stringContaining('Coding routing reset to auto'),
-      'success',
-    );
-  });
-
-  it('surfaces loop routing save and reset errors without remounting a result', async () => {
-    const host = makeHarnessHost();
-    host.harness.setConfig.mockRejectedValueOnce(new Error('write denied'));
-    await applyLoopModelRoutingChoice(host, LOOP_MODEL_ROUTING_ROLES[3], 'code-pro');
-    expect(host.showError).toHaveBeenCalledWith('Failed to set Coding routing override: write denied');
-
-    host.harness.deleteConfigFields.mockRejectedValueOnce(new Error('delete denied'));
-    await resetLoopModelRoutingChoice(host, { ...LOOP_MODEL_ROUTING_ROLES[3], model: 'code-pro' });
-    expect(host.showError).toHaveBeenCalledWith('Failed to reset Coding routing override: delete denied');
-  });
-
-  it('confirms and resets all model settings through the config APIs', async () => {
-    const host = makeHarnessHost();
-    host.harness.getConfig.mockResolvedValue({
-      models: {
-        primary: { fallbackModels: ['backup'] },
-      },
-    });
-    showModelSettingsReset(host);
-    const [resetPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-
-    resetPicker.handleInput('\r');
-
-    await vi.waitFor(() => {
-      expect(host.harness.setConfig).toHaveBeenCalledWith({
-        models: { primary: { fallbackModels: [] } },
-      });
-      expect(host.harness.deleteConfigFields).toHaveBeenCalledWith([
-        'defaultProvider',
-        'defaultModel',
-        'defaultThinking',
-        'thinking.mode',
-        'thinking.effort',
-        'loopControl.compactionModel',
-        'loopControl.completionModel',
-        'loopControl.explorationModel',
-        'loopControl.codingModel',
-        'loopControl.planningModel',
-        'loopControl.debuggingModel',
-      ]);
-    });
-    expect(host.showStatus).toHaveBeenCalledWith(
-      expect.stringContaining('Model settings reset to defaults'),
-      'success',
-    );
-  });
-
 });

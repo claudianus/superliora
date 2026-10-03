@@ -18,7 +18,6 @@ import {
   type ConductorJobCard,
   type ConductorJobsSnapshot,
 } from '#/tui/utils/job/job-strip';
-import { cycleConductorProjectMode } from '#/tui/utils/job/intent-brief';
 
 function card(
   partial: Pick<ConductorJobCard, 'id' | 'title' | 'status'> &
@@ -37,15 +36,17 @@ describe('conductor timeline', () => {
     setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
   });
 
-  it('maps job statuses to stages and orders intake→land→failed', () => {
-    expect(stageForJob(card({ id: 'a', title: 'q', status: 'queued' }))).toBe('intake');
+  it('maps recorded Job statuses and orders queued→done→failed', () => {
+    expect(stageForJob(card({ id: 'a', title: 'q', status: 'queued' }))).toBe('queued');
     expect(stageForJob(card({ id: 'b', title: 'r', status: 'running' }))).toBe('running');
     expect(stageForJob(card({ id: 'c', title: 'n', status: 'needs_user' }))).toBe(
       'needs_user',
     );
-    expect(stageForJob(card({ id: 'd', title: 'd', status: 'done' }))).toBe('land');
+    expect(stageForJob(card({ id: 'd', title: 'd', status: 'done' }))).toBe('done');
     expect(stageForJob(card({ id: 'e', title: 'f', status: 'failed' }))).toBe('failed');
-    expect(stageForJob(card({ id: 'f', title: 'x', status: 'cancelled' }))).toBe('failed');
+    expect(stageForJob(card({ id: 'f', title: 'x', status: 'cancelled' }))).toBe('cancelled');
+    expect(stageForJob(card({ id: 'paused', title: 'Resume manually', status: 'interrupted' }))).toBe('interrupted');
+    expect(stageForJob(card({ id: 'blocked', title: 'Blocked', status: 'blocked' }))).toBe('blocked');
 
     const snap: ConductorJobsSnapshot = {
       ...emptyConductorJobsSnapshot(),
@@ -57,7 +58,7 @@ describe('conductor timeline', () => {
       ],
     };
     const entries = buildConductorTimeline(snap);
-    expect(entries.map((e) => e.stage)).toEqual(['intake', 'running', 'land', 'failed']);
+    expect(entries.map((e) => e.stage)).toEqual(['queued', 'running', 'done', 'failed']);
   });
 
   it('renders timeline panel with stage headers (profile off)', () => {
@@ -70,7 +71,7 @@ describe('conductor timeline', () => {
       getSnapshot: () => snap,
     });
     const text = panel.render(80).join('\n');
-    expect(text).toContain('Conductor Timeline');
+    expect(text).toContain('Job Timeline');
     expect(text).toContain('Running');
     expect(text).toContain('Build UI');
     expect(text).toContain('↑↓ navigate');
@@ -105,7 +106,4 @@ describe('conductor timeline', () => {
     expect(scrolled[0]?.jobId).not.toBe(windowed[0]?.jobId);
   });
 
-  it('cycles project mode for Hub wiring', () => {
-    expect(cycleConductorProjectMode('hotfix')).toBe('review');
-  });
 });

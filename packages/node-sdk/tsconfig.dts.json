@@ -24,7 +24,6 @@
     "examples",
     "test",
     "../*/dist",
-    "../*/test",
-    "../agent-core/src/skill/catalog/**"
+    "../*/test"
   ]
 }

@@ -11,7 +11,9 @@ export async function getBackgroundTaskOutputSnapshot(
   taskId: string,
   maxPreviewBytes: number,
 ): Promise<BackgroundTaskOutputSnapshot> {
-  if (host.getTask(taskId) === undefined) return emptyOutputSnapshot();
+  const info = host.getTask(taskId);
+  if (info === undefined) return emptyOutputSnapshot();
+  const sourceTruncated = info.kind === 'process' && info.outputTruncated === true;
 
   await host.tasks.get(taskId)?.outputWriteQueue;
 
@@ -26,8 +28,8 @@ export async function getBackgroundTaskOutputSnapshot(
       outputPath: persistence.taskOutputFile(taskId),
       outputSizeBytes,
       previewBytes,
-      truncated: previewOffset > 0,
-      fullOutputAvailable: true,
+      truncated: sourceTruncated || previewOffset > 0,
+      fullOutputAvailable: !sourceTruncated,
       preview,
     };
   }
@@ -41,7 +43,7 @@ export async function getBackgroundTaskOutputSnapshot(
   return {
     outputSizeBytes: entry.outputSizeBytes,
     previewBytes,
-    truncated: entry.outputSizeBytes > previewBytes,
+    truncated: sourceTruncated || entry.outputSizeBytes > previewBytes,
     fullOutputAvailable: false,
     preview: available.subarray(previewOffset).toString('utf-8'),
   };

@@ -4,19 +4,9 @@ import {
   parseSlashInput,
   resolveSlashCommandAvailability,
   addDirArgumentCompletions,
-  contextArgumentCompletions,
-  cronArgumentCompletions,
   editorArgumentCompletions,
-  extensionsArgumentCompletions,
   helpArgumentCompletions,
-  loopArgumentCompletions,
-  memoryArgumentCompletions,
   permissionArgumentCompletions,
-  personaArgumentCompletions,
-  planArgumentCompletions,
-  premiumArgumentCompletions,
-  profileArgumentCompletions,
-  pluginsArgumentCompletions,
   slashCommandsForHelp,
   sortSlashCommands,
   thinkingArgumentCompletions,
@@ -66,22 +56,9 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('ur')).toBeUndefined();
     expect(findBuiltInSlashCommand('vibe')).toBeUndefined();
     expect(findBuiltInSlashCommand('code')).toBeUndefined();
-    expect(findBuiltInSlashCommand('mcp')?.name).toBe('mcp');
-    expect(findBuiltInSlashCommand('tools')?.name).toBe('tools');
-    expect(findBuiltInSlashCommand('tool')?.name).toBe('tools');
-    expect(findBuiltInSlashCommand('eyes')?.name).toBe('eyes');
-    expect(findBuiltInSlashCommand('eye')?.name).toBe('eyes');
-    expect(findBuiltInSlashCommand('harness')?.name).toBe('harness');
-    expect(findBuiltInSlashCommand('premium')?.name).toBe('premium');
-    expect(findBuiltInSlashCommand('pq')?.name).toBe('premium');
-    expect(findBuiltInSlashCommand('profile')?.name).toBe('profile');
-    expect(findBuiltInSlashCommand('persona')?.name).toBe('persona');
-    expect(findBuiltInSlashCommand('character')?.name).toBe('persona');
-    expect(findBuiltInSlashCommand('feed')?.name).toBe('feed');
-    expect(findBuiltInSlashCommand('food')?.name).toBe('feed');
-    expect(findBuiltInSlashCommand('context')?.name).toBe('context');
-    expect(findBuiltInSlashCommand('working-set')?.name).toBe('context');
-    expect(findBuiltInSlashCommand('workingset')?.name).toBe('context');
+    for (const retired of ['plan', 'ask', 'goal', 'refine', 'skills', 'mcp', 'tools', 'tool', 'eyes', 'eye', 'harness', 'premium', 'pq', 'profile', 'persona', 'character', 'feed', 'food', 'context', 'working-set', 'workingset', 'free', 'free-mode', 'freemode']) {
+      expect(findBuiltInSlashCommand(retired)).toBeUndefined();
+    }
     expect(findBuiltInSlashCommand('status')?.name).toBe('status');
     expect(findBuiltInSlashCommand('thinking')?.name).toBe('thinking');
     expect(findBuiltInSlashCommand('think')?.name).toBe('thinking');
@@ -93,243 +70,15 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('unknown')).toBeUndefined();
   });
 
-  it('registers /profile in advanced help with Core waist guidance', () => {
-    const profile = findBuiltInSlashCommand('profile');
-    expect(profile?.name).toBe('profile');
-    expect(profile?.description).toContain('Conductor default');
-    expect(profile?.visibility).toBe('advanced');
-    expect(slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced').some((c) => c.name === 'profile')).toBe(
-      true,
-    );
-    expect(profileArgumentCompletions('')?.some((item) => item.description?.includes('Core waist'))).toBe(
-      true,
-    );
-  });
 
-  it('lists harness observation commands in help with eyes aliases', () => {
-    // Primary help mode keeps high-signal harness observation commands visible.
-    const helpNames = new Set(slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary').map((c) => c.name));
-    expect(helpNames.has('tools')).toBe(true);
-    expect(helpNames.has('eyes')).toBe(true);
-    expect(helpNames.has('harness')).toBe(true);
-    const eyes = findBuiltInSlashCommand('eyes');
-    expect(eyes?.aliases).toContain('eye');
-    expect(eyes?.description.toLowerCase()).toMatch(/eyes|browser|computer-use|readiness/);
-    const harness = findBuiltInSlashCommand('harness');
-    expect(harness?.description.toLowerCase()).toMatch(/tools|eyes|premium|mcp/);
-  });
 
-  it('marks plan clear as idle-only while normal plan toggles are always available', () => {
-    const plan = findBuiltInSlashCommand('plan');
-    expect(plan).toBeDefined();
-    expect(resolveSlashCommandAvailability(plan!, '')).toBe('always');
-    expect(resolveSlashCommandAvailability(plan!, 'on')).toBe('always');
-    expect(resolveSlashCommandAvailability(plan!, 'ultra')).toBe('always');
-    expect(resolveSlashCommandAvailability(plan!, 'clear')).toBe('idle-only');
-  });
 
-  it('offers plan mode argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = planArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
 
-    expect(values('')).toEqual(['on', 'off', 'clear']);
-    expect(values('u')).toBeNull();
-    expect(planArgumentCompletions('')).toEqual([
-      { value: 'on', label: 'on', description: 'Enable free-form plan mode' },
-      { value: 'off', label: 'off', description: 'Disable plan mode' },
-      { value: 'clear', label: 'clear', description: 'Clear current plan' },
-    ]);
-    expect(values('ultra')).toBeNull();
-    expect(values('Ship feature X')).toBeNull();
-  });
 
-  it('offers premium quality argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = premiumArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
 
-    expect(values('')).toEqual(['on', 'off', 'status']);
-    expect(values('o')).toEqual(['on', 'off']);
-    expect(values('s')).toEqual(['status']);
-    expect(premiumArgumentCompletions('st')).toEqual([
-      { value: 'status', label: 'status', description: 'Show Visual Quality status' },
-    ]);
-    expect(values('on')).toBeNull();
-    expect(values('off')).toBeNull();
-    expect(values('status')).toBeNull();
-    expect(values('turbo')).toBeNull();
-  });
 
-  it('offers persona argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = personaArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
 
-    expect(values('')).toEqual([
-      'list',
-      'set',
-      'name',
-      'tone',
-      'personality',
-      'instructions',
-      'clear',
-      'help',
-      'liora',
-      'efficient',
-      'professional',
-      'friendly',
-      'candid',
-      'mentor',
-      'reviewer',
-      'pair',
-      'creative',
-      'nerdy',
-      'playful',
-      'skeptical',
-      'caveman',
-      'adhd',
-    ]);
-    expect(values('l')).toEqual(['list', 'liora']);
-    expect(values('p')).toEqual(['personality', 'professional', 'pair', 'playful']);
-    expect(values('i')).toEqual(['instructions']);
-    expect(values('fr')).toEqual(['friendly']);
-    expect(personaArgumentCompletions('to')).toEqual([
-      { value: 'tone', label: 'tone', description: 'Set response tone' },
-    ]);
-    expect(values('list')).toBeNull();
-    expect(values('clear')).toBeNull();
-    expect(values('friendly')).toBeNull();
-    expect(values('unknown')).toBeNull();
-    expect(values('set ')).toEqual([
-      'set liora',
-      'set efficient',
-      'set professional',
-      'set friendly',
-      'set candid',
-      'set mentor',
-      'set reviewer',
-      'set pair',
-      'set creative',
-      'set nerdy',
-      'set playful',
-      'set skeptical',
-      'set caveman',
-      'set adhd',
-    ]);
-    expect(values('set p')).toEqual(['set professional', 'set pair', 'set playful']);
-    expect(values('set professional')).toBeNull();
-    expect(values('preset m')).toEqual(['preset mentor']);
-    // Free-form second tokens for name/tone/instructions stay unclobbered.
-    expect(values('name ')).toBeNull();
-    expect(values('tone warm')).toBeNull();
-    expect(values('set extra token')).toBeNull();
-    expect(findBuiltInSlashCommand('persona')?.completeArgs).toBe(personaArgumentCompletions);
-    expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('persona')!, '')).toBe('always');
-  });
 
-  it('offers context working-set argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = contextArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
-
-    expect(values('')).toEqual(['economy', 'balanced', 'deep', 'full', 'status']);
-    expect(values('e')).toEqual(['economy']);
-    expect(values('b')).toEqual(['balanced']);
-    expect(values('d')).toEqual(['deep']);
-    expect(values('f')).toEqual(['full']);
-    expect(values('s')).toEqual(['status']);
-    expect(contextArgumentCompletions('ba')).toEqual([
-      { value: 'balanced', label: 'balanced', description: 'Default working-set balance' },
-    ]);
-    expect(values('economy')).toBeNull();
-    expect(values('status')).toBeNull();
-    expect(values('turbo')).toBeNull();
-    expect(findBuiltInSlashCommand('context')?.completeArgs).toBe(contextArgumentCompletions);
-    expect(findBuiltInSlashCommand('working-set')?.completeArgs).toBe(contextArgumentCompletions);
-    expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('context')!, 'deep')).toBe(
-      'always',
-    );
-  });
-
-  it('offers loop list/stop argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = loopArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
-
-    expect(values('')).toEqual(['list', 'stop']);
-    expect(values('l')).toEqual(['list']);
-    expect(values('s')).toEqual(['stop']);
-    expect(loopArgumentCompletions('st')).toEqual([
-      { value: 'stop', label: 'stop', description: 'Stop a conversation loop (optional id)' },
-    ]);
-    expect(values('list')).toBeNull();
-    expect(values('2m')).toBeNull();
-    expect(findBuiltInSlashCommand('loop')?.completeArgs).toBe(loopArgumentCompletions);
-  });
-
-  it('offers cron list/delete/help argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = cronArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
-
-    expect(values('')).toEqual(['list', 'delete', 'help']);
-    expect(values('d')).toEqual(['delete']);
-    expect(values('h')).toEqual(['help']);
-    expect(cronArgumentCompletions('li')).toEqual([
-      { value: 'list', label: 'list', description: 'List scheduled cron jobs' },
-    ]);
-    expect(values('list')).toBeNull();
-    expect(values('delete')).toBeNull();
-    expect(values('unknown')).toBeNull();
-    expect(findBuiltInSlashCommand('cron')?.completeArgs).toBe(cronArgumentCompletions);
-  });
-
-  it('offers extensions tab and Claude import argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = extensionsArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
-
-    expect(values('')).toEqual([
-      'plugins',
-      'hooks',
-      'skills',
-      'mcp',
-      'claude',
-      'import-claude',
-      'import',
-    ]);
-    expect(values('p')).toEqual(['plugins']);
-    expect(values('h')).toEqual(['hooks']);
-    expect(values('s')).toEqual(['skills']);
-    expect(values('m')).toEqual(['mcp']);
-    expect(values('c')).toEqual(['claude']);
-    expect(values('i')).toEqual(['import-claude', 'import']);
-    expect(extensionsArgumentCompletions('import-c')).toEqual([
-      {
-        value: 'import-claude',
-        label: 'import-claude',
-        description: 'Import from Claude allowlist inventory',
-      },
-    ]);
-    expect(values('plugins')).toBeNull();
-    expect(values('claude')).toBeNull();
-    expect(values('unknown')).toBeNull();
-    expect(findBuiltInSlashCommand('extensions')?.completeArgs).toBe(
-      extensionsArgumentCompletions,
-    );
-    expect(findBuiltInSlashCommand('ext')?.completeArgs).toBe(extensionsArgumentCompletions);
-    expect(findBuiltInSlashCommand('import-claude')?.completeArgs).toBe(
-      extensionsArgumentCompletions,
-    );
-  });
 
   it('offers yolo/auto on/off argument completions', () => {
     const values = (prefix: string): string[] | null => {
@@ -482,7 +231,7 @@ describe('built-in slash command registry', () => {
 
     expect(primaryNames).not.toContain('bench');
     expect(primaryNames).not.toContain('renderer');
-    expect(primaryNames).toContain('plan');
+    expect(primaryNames).toContain('compact');
     expect(primaryNames).not.toContain('ops');
     expect(primaryNames).not.toContain('experiments');
     expect(primaryNames).toContain('permission');
@@ -498,11 +247,7 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).not.toContain('export-debug-zip');
     expect(advancedNames).toEqual(
       expect.arrayContaining([
-        'aquarium',
         'auto',
-        'experiments',
-        'feed',
-        'plugins',
         'quota',
         'reload',
         'reload-tui',
@@ -524,37 +269,6 @@ describe('built-in slash command registry', () => {
     expect(help?.argumentHint).toBeUndefined();
   });
 
-  it('offers /plugins subcommand and mcp enable|disable completions', () => {
-    expect(pluginsArgumentCompletions('')?.map((item) => item.value)).toEqual([
-      'list',
-      'install',
-      'marketplace',
-      'info',
-      'mcp',
-      'enable',
-      'disable',
-      'remove',
-      'reload',
-    ]);
-    expect(pluginsArgumentCompletions('i')?.map((item) => item.value)).toEqual([
-      'install',
-      'info',
-    ]);
-    expect(pluginsArgumentCompletions('list')).toBeNull();
-    expect(pluginsArgumentCompletions('install ./plugins/foo')).toBeNull();
-    expect(pluginsArgumentCompletions('mcp ')?.map((item) => item.value)).toEqual([
-      'mcp enable',
-      'mcp disable',
-    ]);
-    expect(pluginsArgumentCompletions('mcp e')?.map((item) => item.value)).toEqual([
-      'mcp enable',
-    ]);
-    expect(pluginsArgumentCompletions('mcp enable')).toBeNull();
-    expect(pluginsArgumentCompletions('mcp enable foo')).toBeNull();
-    const plugins = findBuiltInSlashCommand('plugins') as LioraSlashCommand | undefined;
-    expect(plugins?.completeArgs).toBe(pluginsArgumentCompletions);
-    expect(plugins?.argumentHint).toContain('mcp');
-  });
 
   it('puts core vibe-coding controls first in primary help order', () => {
     const primaryNames = sortSlashCommands(slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary')).map(
@@ -566,9 +280,9 @@ describe('built-in slash command registry', () => {
       'help',
       'model',
       'permission',
-      'premium',
       'settings',
       'status',
+      'thinking',
     ]);
   });
 
@@ -616,18 +330,6 @@ describe('built-in slash command registry', () => {
     })).toEqual(['off']);
   });
 
-  it('describes plan and goal controls', () => {
-    const plan = findBuiltInSlashCommand('plan');
-    const goal = findBuiltInSlashCommand('goal');
-
-    expect(plan?.description).toBe(
-      'Plan mode — model writes a plan file, you approve (interview → write)',
-    );
-    expect(goal?.description).toBe(
-      'Simple goal loop: set objective, agent iterates until done (Ralph Loop)',
-    );
-    expect(goal?.description).not.toContain('/goal');
-  });
 
   it('offers add-dir list and directory argument completions', () => {
     const values = (prefix: string): string[] | null => {
@@ -650,16 +352,6 @@ describe('built-in slash command registry', () => {
     expect(homeCompletions.some((value) => value.startsWith('~/sers/'))).toBe(false);
   });
 
-  it('keeps memory diagnostics out of the default memory completion list', () => {
-    const primaryValues = memoryArgumentCompletions('')?.map((item) => item.value);
-
-    expect(primaryValues).not.toContain('wiki');
-    expect(primaryValues).not.toContain('verify');
-    expect(primaryValues).not.toContain('readiness');
-    expect(primaryValues).not.toContain('health');
-    expect(memoryArgumentCompletions('r')?.map((item) => item.value)).not.toContain('readiness');
-    expect(memoryArgumentCompletions('h')).toBeNull();
-  });
 
   it('defaults commands without explicit availability to idle-only', () => {
     const command: LioraSlashCommand = {
@@ -687,77 +379,11 @@ describe('built-in slash command registry', () => {
     ]);
   });
 
-  it('registers goal with subcommand-aware availability', () => {
-    const goal = findBuiltInSlashCommand('goal');
-    expect(goal).toBeDefined();
-    expect((goal as LioraSlashCommand).experimentalFlag).toBeUndefined();
-    expect(resolveSlashCommandAvailability(goal!, '')).toBe('always');
-    expect(resolveSlashCommandAvailability(goal!, 'status')).toBe('always');
-    expect(resolveSlashCommandAvailability(goal!, 'pause')).toBe('always');
-    expect(resolveSlashCommandAvailability(goal!, 'cancel')).toBe('always');
-    expect(resolveSlashCommandAvailability(goal!, 'next')).toBe('always');
-    expect(resolveSlashCommandAvailability(goal!, 'next Ship feature Y')).toBe('always');
-    expect(resolveSlashCommandAvailability(goal!, 'next manage')).toBe('always');
-    expect(resolveSlashCommandAvailability(goal!, 'status report')).toBe('idle-only');
-    expect(resolveSlashCommandAvailability(goal!, 'pause the rollout')).toBe('idle-only');
-    expect(resolveSlashCommandAvailability(goal!, 'cancel the migration')).toBe('idle-only');
-    // `clear` is no longer a subcommand; it parses as an objective -> idle-only.
-    expect(resolveSlashCommandAvailability(goal!, 'clear')).toBe('idle-only');
-    expect(resolveSlashCommandAvailability(goal!, 'resume')).toBe('idle-only');
-    expect(resolveSlashCommandAvailability(goal!, 'Ship feature X')).toBe('idle-only');
-    expect(resolveSlashCommandAvailability(goal!, 'replace Ship feature Y')).toBe('idle-only');
-  });
 
-  it('contains the expected command names once', () => {
+  it('registers each command name once', () => {
     const names = BUILTIN_SLASH_COMMANDS.map((command) => command.name);
 
     expect(new Set(names).size).toBe(names.length);
-    expect(names).toContain('web');
-    expect(names).toContain('aquarium');
-    expect(names).toContain('feed');
-    expect(names).not.toContain('bench');
-    expect(names).not.toContain('renderer');
-    expect(names).not.toContain('term');
-    expect(names).not.toContain('export-debug-zip');
-    expect(names).not.toContain('improve-harness');
-    expect(names).not.toContain('preflight');
-    expect(names).toEqual(
-      expect.arrayContaining([
-        'add-dir',
-        'aquarium',
-        'blame',
-        'compact',
-        'btw',
-        'editor',
-        'errors',
-        'exit',
-        'feed',
-        'fork',
-        'help',
-        'init',
-        'login',
-        'logout',
-        'mcp',
-        'model',
-        'new',
-        'permission',
-        'plan',
-        'reload',
-        'reload-tui',
-        'sessions',
-        'settings',
-        'status',
-        'theme',
-        'thinking',
-        'title',
-        'undo',
-        'usage',
-        'version',
-        'web',
-        'host-setup',
-        'yolo',
-      ]),
-    );
   });
 
   it('keeps TUI reload always available and full reload idle-only', () => {

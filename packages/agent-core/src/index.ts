@@ -1,5 +1,4 @@
 export { Agent } from './agent';
-export type { ToolInfo } from './agent';
 export {
   ConversationLoopController,
   createConversationLoop,
@@ -31,42 +30,6 @@ export {
   type HumanizedCollaborationEvent,
 } from '#/fleet';
 export {
-  CHECK_LIKE_EVIDENCE_TOKENS,
-  applyEvidenceHardGate,
-  evaluateEvidenceHardGate,
-  evidenceMatchesToken,
-  findEvidenceHardGateViolation,
-  isCheckLikeEvidenceToken,
-  normalizeEvidenceToken,
-  type EvidenceGateNode,
-  type EvidenceGateResult,
-} from '#/fleet';
-export {
-  clearStaffingOutcomes,
-  getOutcome,
-  hydrateStaffingOutcomesFromDisk,
-  listStaffingOutcomes,
-  persistStaffingOutcomesToDisk,
-  recordOutcome,
-  recordOutcomesFromSwarmResults,
-  resolveStaffingOutcomesPath,
-  scoreBoost,
-  type StaffingOutcomeFileV1,
-  type StaffingOutcomeInput,
-  type StaffingOutcomeRecord,
-  type SwarmVerdictOutcomeInput,
-} from './expert-agents/staffing-outcome';
-export {
-  STAFFING_GOLD_SEED,
-  collectStaffingGoldLabels,
-  dcgAtK,
-  meanNdcgAtK,
-  ndcgAtK,
-  staffingGoldCasesForLabel,
-  staffingGoldLabelCoverage,
-  type StaffingGoldCase,
-} from './expert-agents/staffing-gold';
-export {
   isJpegBuffer,
   isPngBuffer,
   readImageDimensions,
@@ -78,32 +41,6 @@ export {
   type VisualDiffResult,
   type VisualDiffStatus,
 } from './tools/visual-diff';
-export { VisualDiffTool, createVisualDiffTool } from './tools/visual-diff-tool';
-export { createLioraReviewTool } from './tools/builtin/review/code-review';
-export {
-  inventoryDiffFile,
-  inventoryDiffFiles,
-  scanAddedLine,
-  scanDiffFile,
-  scanDiffFiles,
-  type ReviewFileInventory,
-  type ReviewHeuristicComment,
-  type ReviewHeuristicFile,
-  type ReviewHeuristicHunk,
-  type ReviewHeuristicLine,
-  type ReviewSeverity,
-} from './tools/builtin/review/review-heuristics';
-
-export {
-  DEFAULT_MAX_PER_DIVISION,
-  applyStaffingDiversity,
-  containsHangul,
-  expertIdPrefix,
-  formatSelectionReason,
-  rewriteExpertSearchQuery,
-  type RewriteExpertSearchQueryOptions,
-  type StaffingDiversityOptions,
-} from './expert-agents/staffing-diversity';
 export {
   SESSION_WORKTREE_CUSTOM_KEY,
   buildWorktreeMetadata,
@@ -146,7 +83,6 @@ export {
   classifyDiskFull,
   classifyPressureLevel,
   configureDiskPressure,
-  consumeRecoveredInjection,
   diskFullToolError,
   formatDiskFullToolOutput,
   getDiskPressureSnapshot,
@@ -155,8 +91,6 @@ export {
   isStorageWriteDegraded,
   probeVolumeSpace,
   listVolumeSpaces,
-  renderDiskPressureInjection,
-  renderDiskPressureRecoveredInjection,
   reportDiskPressure,
   resetDiskPressureForTests,
   subscribeDiskPressure,
@@ -196,18 +130,10 @@ export type {
   BackgroundConfig,
   LioraConfig,
   LoopControl,
-  McpServerConfig,
-  MediaAnalyzerModelsConfig,
-  MediaAnalyzerFallbacksConfig,
-  MediaConfig,
   ModelAlias,
-  MoonshotServiceConfig,
   OAuthRef,
-  PersonaConfig,
-  PersonaPresetSchemaId,
   ProviderConfig,
   ProviderType,
-  ServicesConfig,
   ThinkingConfig,
 } from './config';
 export {
@@ -225,62 +151,6 @@ export {
   writeLioraHomeRedirect,
   sameHomePath,
 } from './config';
-export type {
-  PersonaPresetDefinition,
-  PersonaPresetId,
-  PersonaPresetInputId,
-  PersonaPresetLegacyId,
-  PersonaSkillBundle,
-} from './persona';
-export {
-  DEFAULT_PERSONA_PRESET_ID,
-  PERSONA_PRESET_CATALOG,
-  PERSONA_PRESET_IDS,
-  PERSONA_PRESET_SCHEMA_VALUES,
-  PERSONA_PRESETS,
-  atomicPersonaConfigForPreset,
-  buildPersonaRoleAdditional,
-  getPersonaPreset,
-  isEmptyPersona,
-  isPersonaPresetId,
-  normalizePersonaPresetId,
-} from './persona';
-export type {
-  AgentMemoryRuntime,
-  LioraMemoryConfig,
-  MemoryAuditEvent,
-  MemoryCreateInput,
-  MemoryEpistemic,
-  MemoryEvidenceRef,
-  MemoryExportResult,
-  MemoryImportResult,
-  MemoryInspectResult,
-  MemoryLink,
-  MemoryListRequest,
-  MemoryRecord,
-  MemoryReflectInput,
-  MemoryReflectResult,
-  MemoryRuntimeAgentContext,
-  MemoryRuntimeSessionContext,
-  MemoryScope,
-  MemorySearchRequest,
-  MemorySearchResult,
-  MemorySourceRef,
-  MemoryStats,
-  MemoryStatus,
-  MemoryTurnCaptureInput,
-  MemoryType,
-  MemoryUpdateInput,
-} from './memory';
-export type {
-  ExperimentalFeatureState,
-  ExperimentalFlagMap,
-  ExperimentalFlagSource,
-  FlagDefinition,
-  FlagDefinitionInput,
-  FlagId,
-  FlagSurface,
-} from './flags';
 export { Emitter } from './base/common/event';
 
 export {
@@ -304,14 +174,6 @@ export {
   type LioraErrorOptions,
   type LioraErrorPayload,
 } from './errors';
-export type {
-  PluginGithubMetadata,
-  PluginGithubRef,
-  PluginMcpServerInfo,
-  PluginSource,
-  PluginThemeDef,
-  ReloadSummary,
-} from './plugin';
 export {
   flushDiagnosticLogs,
   getRootLogger,
@@ -328,54 +190,11 @@ export {
   pathsIdentical,
 } from './utils/path-identity';
 export {
-  ROLE_PRESETS,
-  applyModelScores,
-  autoAssignRoleModels,
-  buildFallbackChain,
-  isAuthOrCreditFailure,
-  isHardExcludedForRole,
   lookupModelsDevModel,
   peekModelsDevData,
-  previewLoopRoleModelRouting,
-  rolePresetFor,
   warmModelsDevData,
-  type LocalRoleCatalogModel,
-  type LoopRoleModelPreview,
-  type ModelRole,
-  type RoleAssignHints,
-  type RoleModelAssignment,
-  type RolePreset,
-} from './utils/model-presets';
-export {
-  SMART_AUTO_SESSION_ALIAS,
-  assertLoopRolesMatchPresets,
-  buildLocalModelMetadata,
-  classifySessionRole,
-  classifyTurnRouting,
-  configWithoutRoleModelOverrides,
-  defaultIntensityForRole,
-  isConfigAliasHealthy,
-  isSmartAutoSessionAlias,
-  loopRoleRoutingEntries,
-  mergeRouteFallbackAliases,
-  planSmartLoopRoleRoutingLive,
-  resetModelRouteHealthStoreForTests,
-  resetRouteOutcomeStoreForTests,
-  resolveSessionSmartRoute,
-  resolveSessionSmartRouteAsync,
-  resolveSmartRoute,
-  resolveSmartRouteAsync,
-  sharedModelRouteHealthStore,
-  type LoopRoleModelConfigKey,
-  type LoopRoleRoutingClearPath,
-  type RouteIntensity,
-  type SmartLoopProbeProgress,
-  type SmartLoopRolePinPlan,
-  type SmartLoopRoleRoutingPlan,
-  type SmartLoopRoleSkipPlan,
-  type SmartRoute,
-  type TurnSignals,
-} from './agent/routing';
+} from './utils/model-metadata';
+export { resolveConfiguredSessionRoute, sharedModelRouteHealthStore } from './agent/routing';
 export type {
   LogContext,
   LogLevel,
@@ -395,7 +214,6 @@ export type {
   BackgroundTaskInfo,
   BackgroundTaskStatus,
   ProcessBackgroundTaskInfo,
-  QuestionBackgroundTaskInfo,
 } from './agent/background';
 export {
   buildImageCompressionCaption,
@@ -413,23 +231,6 @@ export type {
   OAuthTokenProviderResolver,
   ResolvedRuntimeProvider,
 } from './session/provider/provider-manager';
-export {
-  analyzeMediaPart,
-  DEFAULT_NON_VISION_FALLBACK,
-  formatAnalysisText,
-  isVisionMediaPart,
-  mediaKind,
-  modelSupportsMediaKind,
-  pathOnlyText,
-  selectVisionModel,
-  transformMediaForNonVisionModel,
-} from './session/vision-analyzer';
-export type {
-  AnalyzeMediaResult,
-  MediaKind,
-  NonVisionFallbackPolicy,
-  VisionAnalyzerDeps,
-} from './session/vision-analyzer';
 
 // ─── Wire records (for in-monorepo debug tooling) ───────────────────────────
 export type {
@@ -463,56 +264,6 @@ export * from './di';
 // and re-exporting them again would collide (TS2308).
 export * from './services';
 
-export type {
-  ContextOSHealthSnapshot,
-  ContextOSRetrievalDiagnostics,
-} from './agent/context-os';
-export {
-  formatContextOSDiagnoseLine,
-  formatContextOSHealthLine,
-} from './agent/context-os';
-
-export type { RepoIndexBackend, RepoIndexEngine, RepoIndexStatus } from './repo-index/status';
-export type { RepoIndexContentQueryResult, RepoIndexEngineWireStatus, SqliteDriver } from './repo-index/engine';
-export {
-  REPO_INDEX_ENGINE_ENV,
-  REPO_INDEX_FTS_BACKEND_TIP,
-  REPO_INDEX_FUTURE_ENABLE_TIP,
-  REPO_INDEX_PREFERRED_ENGINE,
-  REPO_INDEX_PREFERRED_ENGINE_TIP,
-  REPO_INDEX_WARM_PARALLEL_TIP,
-  formatRepoIndexBackendLine,
-  formatRepoIndexEngineLine,
-  formatRepoIndexWiredLine,
-  getRepoIndexStatus,
-  isRepoIndexEngineEnvUnset,
-  isRepoIndexEngineModulePresent,
-  isRepoIndexEngineWired,
-  parseRepoIndexEngineEnv,
-  repoIndexPreferredEngineTipLine,
-} from './repo-index/status';
-export {
-  REPO_INDEX_CONTENT_STUB_HINT,
-  REPO_INDEX_CONTENT_STUB_NEXT_STEP,
-  REPO_INDEX_ZOEKT_STUB_HINT,
-  REPO_INDEX_ZOEKT_STUB_NEXT_STEP,
-  getRepoIndexEngineWireStatus,
-  probeSqliteDriver,
-  queryRepoIndexContent,
-  queryRepoIndexContentAsync,
-} from './repo-index/engine';
-export {
-  REPO_INDEX_WARM_ENV,
-  isRepoIndexWarmEnabled,
-  maybeWarmCodemapAtSessionStart,
-  repoIndexWarmEnableReason,
-  repoIndexWarmStatusLine,
-} from './repo-index/warm';
-export type { RepoIndexRebuildResult, RebuildRepoIndexOptions } from './repo-index/rebuild';
-export {
-  formatRepoIndexRebuildResultLine,
-  rebuildRepoIndex,
-} from './repo-index/rebuild';
 
 export {
   REDTEAM_SOFT_SUITE_REL_PATH,
@@ -522,93 +273,3 @@ export {
   redactSecretsStatusLine,
 } from './security/status';
 
-export {
-  VERIFICATION_SENSOR_GOAL_DONE_TIP,
-  VERIFICATION_SENSOR_GOAL_DONE_TIP_KO,
-  VERIFICATION_SENSOR_MAX_FAILURES,
-  VERIFICATION_SENSOR_RECENCY_MS,
-  buildTestFailureSoftTips,
-  createVerificationSensorLedger,
-  filterRecentVerificationFailures,
-  formatGoalSoftAdvisoryOpsLine,
-  goalSoftAdvisoryFromLedger,
-  isCheckLikeBashCommand,
-  isVerificationCheckTool,
-  observeVerificationToolResult,
-  recordVerificationFailure,
-  recordVerificationPass,
-} from './sensors/verification-sensor-ledger';
-export type {
-  VerificationFailureRecord,
-  VerificationSensorLedger,
-} from './sensors/verification-sensor-ledger';
-
-export {
-  FILE_MUTATION_TOOL_NAMES,
-  MUTATION_SENSOR_GOAL_DONE_TIP,
-  MUTATION_SENSOR_MAX_PENDING,
-  MUTATION_SENSOR_RECENCY_MS,
-  MUTATION_VERIFY_NUDGE,
-  appendMutationNudge,
-  buildPendingMutationSoftTips,
-  clearPendingMutations,
-  createMutationVerificationLedger,
-  deriveMutationPackageDir,
-  extractMutationPathsFromToolArgs,
-  extractPathsFromOpenCodePatch,
-  filterRecentMutations,
-  formatMutationVerifyNudge,
-  isFileMutationTool,
-  observeFileMutationToolResult,
-  recordFileMutation,
-} from './sensors/mutation-verification-sensor';
-export {
-  AUTO_CHECK_ENV,
-  AUTO_CHECK_ENV_ALIAS,
-  AUTO_CHECK_PREFIX,
-  AUTO_CHECK_SPAWN_DEFAULT_CHECKS,
-  AUTO_CHECK_SPAWN_ENV,
-  AUTO_CHECK_SPAWN_MAX_PER_SESSION,
-  AUTO_CHECK_SPAWN_MIN_INTERVAL_MS,
-  AUTO_CHECK_SPAWN_PREFIX,
-  appendAutoCheckSpawnBlock,
-  createAutoCheckSpawnState,
-  decideAutoCheckSpawn,
-  formatAutoCheckDirective,
-  formatAutoCheckSpawnResult,
-  isAutoCheckEnabled,
-  isAutoCheckSpawnEnabled,
-  recordAutoCheckSpawn,
-  resolveAutoCheckPackageDir,
-  wasRecentAutoCheckSpawnOk,
-  withAutoCheckDirective,
-} from './sensors/auto-check-sensor';
-export {
-  STEP_BUDGET_PREFIX,
-  STEP_BUDGET_SENSOR_ORIGIN,
-  STEP_BUDGET_WARN_REMAINING,
-  decideStepBudgetWarn,
-  formatStepBudgetWarnTip,
-} from './sensors/step-budget-sensor';
-export type {
-  DecideStepBudgetWarnInput,
-  StepBudgetWarnDecision,
-} from './sensors/step-budget-sensor';
-export type {
-  AutoCheckSpawnDecision,
-  AutoCheckSpawnState,
-} from './sensors/auto-check-sensor';
-export type {
-  MutationRecord,
-  MutationVerificationLedger,
-} from './sensors/mutation-verification-sensor';
-
-export type { CodemapStatus, CodemapWarmth } from './codemap/status';
-export {
-  CODEMAP_SYMBOL_VIA_REPOQUERY_TIP,
-  formatCodemapDbLine,
-  formatCodemapStatusLine,
-  getCodemapStatus,
-  isCodemapGitWorkspace,
-} from './codemap/status';
-export { resolveCodemapDbPath } from './codemap/code-map';

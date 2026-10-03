@@ -8,7 +8,6 @@ import type { SubagentToolDetail } from '@superliora/protocol';
 const SUBAGENT_TOOL_ARGS_PREVIEW_LENGTH = 400;
 const SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH = 500;
 const SUBAGENT_TOOL_COMMAND_PREVIEW_LENGTH = 120;
-const SUBAGENT_EDIT_DIFF_LINE_CAP = 300;
 
 export interface SubagentProgressStats {
   readonly toolCount: number;
@@ -276,13 +275,7 @@ export function previewSubagentToolProgress(update: {
   return { kind: update.kind, textPreview };
 }
 
-/**
- * Structured chip detail for the common child tools (Phase 1-B realtime
- * overhaul). Computed from the FULL child args before preview truncation so
- * clients can render the same numeric chips the main agent's tool stream
- * shows. Unknown tools and missing/invalid args yield `undefined`, keeping
- * the `subagent.tool_call` payload strictly additive.
- */
+/** Bounded, factual chip details for the two model tools. */
 export function describeSubagentToolDetail(
   name: string,
   args: unknown,
@@ -290,29 +283,6 @@ export function describeSubagentToolDetail(
   if (typeof args !== 'object' || args === null) return undefined;
   const record = args as Record<string, unknown>;
   switch (name) {
-    case 'Edit': {
-      const path = toolDetailStringArg(record, 'path');
-      if (path === undefined) return undefined;
-      const oldString = typeof record['old_string'] === 'string' ? record['old_string'] : '';
-      const newString = typeof record['new_string'] === 'string' ? record['new_string'] : '';
-      const { added, removed } = countEditLineChanges(oldString, newString);
-      return { kind: 'edit', path, addedLines: added, removedLines: removed };
-    }
-    case 'Write': {
-      const path = toolDetailStringArg(record, 'path');
-      const content = typeof record['content'] === 'string' ? record['content'] : undefined;
-      if (path === undefined || content === undefined) return undefined;
-      // `split('\n').length` allocates an array proportional to the file just
-      // to count it. A newline scan is allocation-free, and the trailing
-      // newline is trimmed first so the count matches the split semantics.
-      const normalized = content.endsWith('\n') ? content.slice(0, -1) : content;
-      const lines = normalized.length === 0 ? 0 : countNewlines(normalized) + 1;
-      return { kind: 'write', path, lines, bytes: Buffer.byteLength(content, 'utf8') };
-    }
-    case 'Read': {
-      const path = toolDetailStringArg(record, 'path');
-      return path === undefined ? undefined : { kind: 'read', path };
-    }
     case 'Bash': {
       const command = toolDetailStringArg(record, 'command');
       if (command === undefined) return undefined;
@@ -323,10 +293,17 @@ export function describeSubagentToolDetail(
         command: truncateToolPayloadPreview(flat, SUBAGENT_TOOL_COMMAND_PREVIEW_LENGTH) ?? flat,
       };
     }
-    case 'Grep':
-    case 'Glob': {
-      const pattern = toolDetailStringArg(record, 'pattern');
-      return pattern === undefined ? undefined : { kind: 'search', pattern };
+    case 'SessionControl': {
+      const operation = toolDetailStringArg(record, 'operation');
+      if (operation === undefined) return undefined;
+      const description = toolDetailStringArg(record, 'description');
+      return {
+        kind: 'session',
+        operation,
+        ...(description === undefined ? {} : {
+          description: truncateToolPayloadPreview(description, SUBAGENT_TOOL_COMMAND_PREVIEW_LENGTH),
+        }),
+      };
     }
     default:
       return undefined;
@@ -341,102 +318,3 @@ function toolDetailStringArg(
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-/** Newline count without materializing the split array. */
-function countNewlines(text: string): number {
-  let count = 0;
-  for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) count++;
-  return count;
-}
-
-/**
- * Added / removed line counts between Edit `old_string` and `new_string`.
- *
- * Counts need a common-subsequence diff, which is O(old × new). A 300-line cap
- * still meant a 300×300 DP — ~90k cells and ~2.4 ms on the emitter's hot path,
- * once per `tool.call.started` per subagent, enough to stall the TUI event
- * loop on a large mechanical edit.
- *
- * Two exact shortcuts keep the DP small without approximating the answer:
- *
- * 1. Peel the common prefix and suffix. The chip's real workload is a small
- *    edit inside a large file, and that collapses to a tiny (often 0×0)
- *    matrix. Only a genuine mid-file rewrite reaches the DP.
- * 2. When the two sides share no line at all, the common subsequence is
- *    provably empty, so raw line counts are already exact — no matrix.
- *
- * `SUBAGENT_EDIT_DIFF_LINE_CAP` still caps the matrix for what remains.
- */
-function countEditLineChanges(
-  oldString: string,
-  newString: string,
-): { added: number; removed: number } {
-  if (oldString.length === 0 && newString.length === 0) return { added: 0, removed: 0 };
-  // Empty side counts as zero lines (matches the TUI diff chip semantics).
-  const oldAll = oldString.length > 0 ? oldString.split('\n') : [];
-  const newAll = newString.length > 0 ? newString.split('\n') : [];
-
-  // The cap is a property of the input, not of the peeled remainder: a
-  // 500-line file with a 2-line edit is still "too big to diff" and must keep
-  // its raw-count answer. Check before peeling so the shortcut never changes
-  // a result the cap used to decide.
-  if (
-    oldAll.length > SUBAGENT_EDIT_DIFF_LINE_CAP ||
-    newAll.length > SUBAGENT_EDIT_DIFF_LINE_CAP
-  ) {
-    return { added: newAll.length, removed: oldAll.length };
-  }
-
-  // (1) Peel the common prefix and suffix. Removing lines common to both sides
-  // cannot change the LCS length, so the counts below are exactly what the
-  // full DP would have produced.
-  let head = 0;
-  const maxHead = Math.min(oldAll.length, newAll.length);
-  while (head < maxHead && oldAll[head] === newAll[head]) head++;
-  let tail = 0;
-  const maxTail = maxHead - head;
-  while (
-    tail < maxTail &&
-    oldAll[oldAll.length - 1 - tail] === newAll[newAll.length - 1 - tail]
-  ) {
-    tail++;
-  }
-  const oldLines = oldAll.slice(head, oldAll.length - tail);
-  const newLines = newAll.slice(head, newAll.length - tail);
-
-  if (oldLines.length === 0) return { added: newLines.length, removed: 0 };
-  if (newLines.length === 0) return { added: 0, removed: oldLines.length };
-
-  // (2) No shared line anywhere => the common subsequence is empty, so raw
-  // counts are exact. This is the mechanical-rewrite case that used to be the
-  // most expensive one.
-  if (!sharesAnyLine(oldLines, newLines)) {
-    return { added: newLines.length, removed: oldLines.length };
-  }
-
-  const oldCount = oldLines.length;
-  const newCount = newLines.length;
-  const dp: number[][] = Array.from({ length: oldCount + 1 }, () =>
-    Array.from({ length: newCount + 1 }, () => 0),
-  );
-  for (let i = 1; i <= oldCount; i++) {
-    for (let j = 1; j <= newCount; j++) {
-      dp[i]![j] =
-        oldLines[i - 1] === newLines[j - 1]
-          ? dp[i - 1]![j - 1]! + 1
-          : Math.max(dp[i - 1]![j]!, dp[i]![j - 1]!);
-    }
-  }
-  const common = dp[oldCount]![newCount]!;
-  return { added: newCount - common, removed: oldCount - common };
-}
-
-/** True when any line appears on both sides. O(n + m) via a line-count map. */
-function sharesAnyLine(a: readonly string[], b: readonly string[]): boolean {
-  const counts = new Map<string, number>();
-  for (const line of a) counts.set(line, (counts.get(line) ?? 0) + 1);
-  for (const line of b) {
-    const seen = counts.get(line);
-    if (seen !== undefined && seen > 0) return true;
-  }
-  return false;
-}

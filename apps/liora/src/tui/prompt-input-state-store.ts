@@ -1,14 +1,10 @@
 /**
  * Durable prompt-input state for crash/resume recovery.
  *
- * Goal queue already lives on disk (`ui/goals.json`). The in-memory
- * prompt queue, Ctrl-X stash, and editor draft did not — a hard kill mid-turn
- * dropped everything the user still expected to send. This store mirrors that
- * goal-queue pattern under `<sessionDir>/ui/draft.json`.
- *
- * Media attachment ids and structured PromptParts are intentionally omitted:
- * they point at process-local image store state that cannot be resurrected
- * after a restart. Text (and bash mode) is always enough to re-submit.
+ * The prompt queue, Ctrl-X stash, and editor draft are stored under
+ * `<sessionDir>/ui/draft.json`. Queued PromptParts carry their media content
+ * or durable URLs across session switches and restarts; process-local preview
+ * ids are not persisted.
  */
 
 import { z } from 'zod';
@@ -33,17 +29,23 @@ const MAX_STASH_ITEMS = 50;
 
 const modeSchema = z.enum(['prompt', 'bash']);
 
+const mediaUrlSchema = z.object({ url: z.string(), id: z.string().optional() });
+const promptPartSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({ type: z.literal('image_url'), imageUrl: mediaUrlSchema }),
+  z.object({ type: z.literal('audio_url'), audioUrl: mediaUrlSchema }),
+  z.object({ type: z.literal('video_url'), videoUrl: mediaUrlSchema }),
+  z.object({ type: z.literal('file_url'), fileUrl: mediaUrlSchema.extend({ filename: z.string().optional() }) }),
+]);
+
 const queuedMessageSchema = z.object({
   text: z.string().max(MAX_TEXT_LENGTH),
   displayText: z.string().max(MAX_TEXT_LENGTH).optional(),
   agentId: z.string().max(200).optional(),
   mode: modeSchema.optional(),
-  /**
-   * True when the in-memory message carried image/media attachments or
-   * structured parts. Those cannot survive a restart (process-local store),
-   * so restore surfaces a warning instead of silently sending placeholder
-   * text like "[Image #1]" without the image.
-   */
+  parts: z.array(promptPartSchema).optional(),
+  combinedDisplayTexts: z.array(z.string().max(MAX_TEXT_LENGTH)).optional(),
+  /** Older queue snapshots may contain placeholders without their media. */
   hadAttachments: z.boolean().optional(),
 });
 
@@ -222,13 +224,15 @@ export function queuedMessagesFromSnapshot(
     ...(item.displayText !== undefined ? { displayText: item.displayText } : {}),
     ...(item.agentId !== undefined ? { agentId: item.agentId } : {}),
     ...(item.mode !== undefined ? { mode: item.mode } : {}),
+    ...(item.parts !== undefined ? { parts: item.parts } : {}),
+    ...(item.combinedDisplayTexts !== undefined ? { combinedDisplayTexts: item.combinedDisplayTexts } : {}),
     ...(item.hadAttachments === true ? { hadAttachments: true } : {}),
   }));
 }
 
 /** Count of restored queue items whose attachments were lost to the restart. */
 export function countRestoredAttachmentLosses(snapshot: PromptInputStateSnapshot): number {
-  return snapshot.messages.filter((item) => item.hadAttachments === true).length;
+  return snapshot.messages.filter((item) => item.hadAttachments === true && item.parts === undefined).length;
 }
 
 export function stashEntriesFromSnapshot(
@@ -251,14 +255,15 @@ function emptySnapshot(): PromptInputStateSnapshot {
 }
 
 function serializeQueuedMessage(item: QueuedMessage): z.infer<typeof queuedMessageSchema> {
-  const hadAttachments =
-    (item.imageAttachmentIds !== undefined && item.imageAttachmentIds.length > 0) ||
-    item.parts !== undefined;
+  const hadAttachments = item.parts === undefined &&
+    (item.hadAttachments === true || (item.imageAttachmentIds?.length ?? 0) > 0);
   return {
     text: truncate(item.text),
     ...(item.displayText !== undefined ? { displayText: truncate(item.displayText) } : {}),
     ...(item.agentId !== undefined ? { agentId: item.agentId.slice(0, 200) } : {}),
     ...(item.mode !== undefined ? { mode: item.mode } : {}),
+    ...(item.parts !== undefined ? { parts: [...item.parts] } : {}),
+    ...(item.combinedDisplayTexts !== undefined ? { combinedDisplayTexts: [...item.combinedDisplayTexts] } : {}),
     ...(hadAttachments ? { hadAttachments: true } : {}),
   };
 }

@@ -1,12 +1,9 @@
 /**
  * Workspace side dock — toggle lifecycle and frame-region construction.
- * The flag snapshot is driven through `setExperimentalFeatures` so both the
- * enabled and disabled paths are covered hermetically.
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import { WorkerTranscriptViewerComponent } from '#/tui/components/dialogs/worker-dock/worker-transcript-viewer';
 import {
   closeWorkspaceDock,
@@ -37,29 +34,12 @@ function stubViewer(): WorkerTranscriptViewerComponent {
 
 afterEach(() => {
   closeWorkspaceDock(fakeState());
-  setExperimentalFeatures([]);
   setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
 });
 
 describe('workspace dock controller', () => {
-  it('stays fully inert while the flag is off', () => {
-    setExperimentalFeatures([{ id: 'workspace_dock', enabled: false }]);
-    const state = fakeState();
-    toggleWorkspaceDock({ state, workerId: 'agent_w1', createViewer: stubViewer });
-
-    expect(isWorkspaceDockOpen()).toBe(false);
-    expect(getWorkspaceDockCenterRect({ columns: 200, rows: 50 })).toBeNull();
-    expect(
-      createWorkspaceDockFrameRegion({
-        center: { x: 0, y: 0, width: 100, height: 40 },
-        width: 200,
-        height: 50,
-      }),
-    ).toBeUndefined();
-  });
 
   it('supplies a center band only while open, and toggles closed on re-open', () => {
-    setExperimentalFeatures([{ id: 'workspace_dock', enabled: true }]);
     const state = fakeState();
 
     expect(getWorkspaceDockCenterRect({ columns: 200, rows: 50 })).toBeNull();
@@ -79,7 +59,6 @@ describe('workspace dock controller', () => {
   });
 
   it('builds a dock region right of the center band while open', () => {
-    setExperimentalFeatures([{ id: 'workspace_dock', enabled: true }]);
     const state = fakeState();
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
     toggleWorkspaceDock({ state, workerId: 'agent_w1', createViewer: stubViewer });
@@ -99,7 +78,6 @@ describe('workspace dock controller', () => {
   });
 
   it('skips the region when the remaining columns are too narrow', () => {
-    setExperimentalFeatures([{ id: 'workspace_dock', enabled: true }]);
     const state = fakeState();
     toggleWorkspaceDock({ state, workerId: 'agent_w1', createViewer: stubViewer });
 

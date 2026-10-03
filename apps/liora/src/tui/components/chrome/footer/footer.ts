@@ -2,7 +2,7 @@
  * Footer/status bar — multi-line status display at the bottom of the TUI.
  *
  * Layout:
- *   Line 1: [yolo] [mission] [plan] <model> <cwd>  <git-badge>  <shortcut hints>
+ *   Line 1: permissions, model, cwd, jobs, git and shortcut hints
  *   Line 2: context: XX.X% (tokens/max)
  */
 
@@ -17,8 +17,6 @@ import {
 } from '#/utils/git/git-status';
 
 import type { FooterTranscriptViewportSnapshot } from '#/tui/components/chrome/footer/footer-chrome';
-import { collectFooterStaleAppStatePatches } from '#/tui/components/chrome/footer/footer-badges';
-import { goalClockIdentityKey } from '#/tui/components/chrome/footer/footer-goal';
 import {
   renderFooterLine1,
   type FooterLine1TipState,
@@ -28,14 +26,8 @@ import { renderFooterLine2 } from '#/tui/components/chrome/footer/footer-render-
 export { buildWeightedTips } from '#/tui/components/chrome/footer/footer-tips';
 export {
   contextUsageSeverity,
-  formatContextOSFooterBadge,
   formatCacheHitFooterBadge,
-  formatMediaFooterBadge,
   formatProviderQuotaFooterBadge,
-  formatWorkingSetFooterBadge,
-  mediaImageKeyReady,
-  mediaProviderKeyReady,
-  mediaVideoKeyReady,
   type FooterBadge,
   type FooterBadgeSeverity,
 } from '#/tui/components/chrome/footer/footer-badges';
@@ -45,16 +37,13 @@ export class FooterComponent implements Component {
   private state: AppState;
   private readonly onRefresh: () => void;
   private readonly getTranscriptViewport: (() => FooterTranscriptViewportSnapshot) | undefined;
-  private onStaleAppState: ((patch: Partial<AppState>) => void) | undefined;
   private gitCache: GitStatusCache;
   private gitCacheWorkDir: string;
   private transientHint: string | null = null;
-  private goalSnapshotKey: string | null = null;
-  private goalObservedAtMs = Date.now();
   /**
    * Non-terminal background-task counts split by kind so the footer can
    * render two distinct badges. `bashTasks` covers `bash-*` BPM tasks
-   * spawned via `Shell run_in_background=true`; `agentTasks` covers
+   * spawned via Bash; `agentTasks` covers SessionControl child sessions.
    * `agent-*` BPM tasks (background subagents). Either zero hides its
    * respective badge.
    */
@@ -73,7 +62,6 @@ export class FooterComponent implements Component {
     this.getTranscriptViewport = getTranscriptViewport;
     this.gitCacheWorkDir = state.workDir;
     this.gitCache = createGitStatusCache(state.workDir, { onChange: this.onRefresh });
-    this.syncGoalClock(state.goal);
   }
 
   /** Optional source for mode_enter/mode_exit shimmer while a beat is live. */
@@ -81,17 +69,12 @@ export class FooterComponent implements Component {
     this.getActiveMotionBeat = getActive;
   }
 
-  /** Clears expired TTL footer glance fields (search cascade, runtime degraded). */
-  setStaleAppStateHandler(handler: (patch: Partial<AppState>) => void): void {
-    this.onStaleAppState = handler;
-  }
 
   setState(state: AppState): void {
     if (state.workDir !== this.gitCacheWorkDir) {
       this.gitCacheWorkDir = state.workDir;
       this.gitCache = createGitStatusCache(state.workDir, { onChange: this.onRefresh });
     }
-    this.syncGoalClock(state.goal);
     this.state = state;
   }
 
@@ -122,10 +105,6 @@ export class FooterComponent implements Component {
   invalidate(): void {}
 
   render(width: number): string[] {
-    const stalePatch = collectFooterStaleAppStatePatches(this.state);
-    if (Object.keys(stalePatch).length > 0) {
-      this.onStaleAppState?.(stalePatch);
-    }
     const state = this.state;
     const appearance = state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
     const activeBeat = this.getActiveMotionBeat?.();
@@ -136,7 +115,6 @@ export class FooterComponent implements Component {
       appearance,
       activeBeat,
       getTranscriptViewport: this.getTranscriptViewport,
-      goalWallClockMs: this.goalWallClockMs(state.goal),
       backgroundBashTaskCount: this.backgroundBashTaskCount,
       backgroundAgentCount: this.backgroundAgentCount,
       git,
@@ -147,7 +125,6 @@ export class FooterComponent implements Component {
     const line2 = renderFooterLine2({
       state,
       appearance,
-      git,
       width,
       transientHint: this.transientHint,
       activeBeat,
@@ -165,17 +142,4 @@ export class FooterComponent implements Component {
     this.gitCache.dispose();
   }
 
-  private syncGoalClock(goal: AppState['goal']): void {
-    // Re-anchor only on identity/status flips — progress ticks must not zero elapsed.
-    const key = goalClockIdentityKey(goal);
-    if (key === this.goalSnapshotKey) return;
-    this.goalSnapshotKey = key;
-    this.goalObservedAtMs = Date.now();
-  }
-
-  private goalWallClockMs(goal: AppState['goal']): number | undefined {
-    if (goal === null || goal === undefined) return undefined;
-    if (goal.status !== 'active') return goal.wallClockMs;
-    return goal.wallClockMs + Math.max(0, Date.now() - this.goalObservedAtMs);
-  }
 }

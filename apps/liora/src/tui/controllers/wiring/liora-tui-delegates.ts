@@ -1,6 +1,6 @@
 import type { Component, Focusable } from '#/tui/renderer';
 import type { DeviceAuthorization } from '@superliora/oauth';
-import type { BackgroundTaskInfo, Session } from '@superliora/sdk';
+import type { BackgroundTaskInfo, PromptPart, Session } from '@superliora/sdk';
 import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 import type { GitLogReport } from '#/utils/git/git-log';
@@ -8,7 +8,6 @@ import type { GitLogReport } from '#/utils/git/git-log';
 import type {
   RendererDiagnosticsOverlayCommand,
   RendererTraceCommand,
-  SkillListSession,
 } from '../../commands';
 import * as slashCommands from '../../commands/hub/dispatch';
 import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
@@ -26,17 +25,10 @@ import type {
 } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { LioraTUI } from '../../liora-tui';
-import {
-  handlePlanToggleFromHost,
-  openUndoSelectorFromHost,
-  setAskModeFromHost,
-} from './liora-tui-wiring';
+import { openUndoSelectorFromHost } from './liora-tui-wiring';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 import { openJobDeckViewer } from '../../commands/jobs-deck';
 import { openInbox } from '../../features/control-tower/inbox-controller';
-import { openPlanBrowserForUser } from '../../features/surfaces/plan-browser-controller';
-import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
-import { maybeDefaultTimelineOnce } from '../../features/control-tower/conductor-ux';
 import { openMergePreview } from '../../features/control-tower/merge-preview-controller';
 import {
   emptyConductorJobsSnapshot,
@@ -55,21 +47,15 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.dispatchSlash = function (command: string) {
     slashCommands.dispatchInput(this, command);
   };
-  proto.runPluginsCommand = function () {
-    return slashCommands.handlePluginsCommand(this, '');
-  };
+  
   proto.setupAutocomplete = function () {
     this.autocomplete.setupAutocomplete();
   };
   proto.refreshSlashCommandAutocomplete = function () {
     this.autocomplete.refreshSlashCommandAutocomplete();
   };
-  proto.refreshSkillCommands = function (session?: SkillListSession) {
-    return this.autocomplete.refreshSkillCommands(session);
-  };
-  proto.refreshDynamicSlashCommands = function (session?: Session) {
-    return this.autocomplete.refreshDynamicSlashCommands(session);
-  };
+  
+  
 
   proto.start = function () {
     return this.startupLifecycle.start();
@@ -110,9 +96,7 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.scrollTranscriptViewport = function (action: TranscriptScrollAction) {
     return this.startupLifecycle.scrollTranscriptViewport(action);
   };
-  proto.getStartupMcpMs = function () {
-    return this.startupLifecycle.getStartupMcpMs();
-  };
+  
   proto.setNativeRendererDiagnosticsOverlay = function (command: RendererDiagnosticsOverlayCommand) {
     this.nativeRendererDiagnostics.setNativeRendererDiagnosticsOverlay(command);
   };
@@ -123,12 +107,8 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
     return this.startupLifecycle.showSessionWarnings(session);
   };
 
-  proto.handlePlanToggle = function (next: boolean, ultra = false) {
-    handlePlanToggleFromHost(this, next, ultra);
-  };
-  proto.setAskMode = function (enabled: boolean) {
-    setAskModeFromHost(this, enabled);
-  };
+  
+  
   proto.handleInputModeChange = function (mode: 'prompt' | 'bash') {
     this.setAppState({ inputMode: mode });
     this.updateEditorBorderHighlight();
@@ -177,22 +157,14 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.sendQueuedMessage = function (session: Session, item: QueuedMessage) {
     this.messageDispatch.sendQueuedMessage(session, item);
   };
-  proto.requestQueuedGoalPromotion = function () {
-    this.sessionRequests.requestQueuedGoalPromotion();
-  };
-  proto.sendSkillActivation = function (session: Session, skillName: string, skillArgs: string) {
-    this.sessionRequests.sendSkillActivation(session, skillName, skillArgs);
-  };
-  proto.activatePluginCommand = function (
-    session: Session,
-    pluginId: string,
-    commandName: string,
-    args: string,
-  ) {
-    this.sessionRequests.activatePluginCommand(session, pluginId, commandName, args);
-  };
-  proto.steerMessage = function (session: Session, input: string[]) {
-    this.sessionRequests.steerMessage(session, input);
+  
+  
+  
+  proto.steerMessage = function (session: Session, input: string[], options?: {
+    readonly parts?: readonly PromptPart[];
+    readonly imageAttachmentIds?: readonly number[];
+  }) {
+    this.sessionRequests.steerMessage(session, input, options);
   };
 
   proto.setStartupReady = function () {
@@ -239,9 +211,7 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.setAppState = function (patch: Partial<AppState>) {
     this.appStateController.setAppState(patch);
   };
-  proto.syncGoalMonitorPanel = function () {
-    this.appStateController.syncGoalMonitorPanel();
-  };
+  
   proto.patchLivePane = function (patch: Partial<LivePaneState>) {
     this.appStateController.patchLivePane(patch);
   };
@@ -300,9 +270,6 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   };
   proto.appendTranscriptEntry = function (entry: TranscriptEntry) {
     this.transcriptRender.appendTranscriptEntry(entry);
-  };
-  proto.appendPlanReviewTranscript = function (toolCallId, plan) {
-    return this.transcriptRender.appendPlanReviewTranscript(toolCallId, plan);
   };
   proto.clearTranscriptAndRedraw = function () {
     this.transcriptRender.clearTranscriptAndRedraw();
@@ -471,12 +438,8 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.showSessionPicker = function () {
     return this.sessionBrowser.showSessionPicker();
   };
-  proto.showExtensionsModal = function (args?: string) {
-    return this.sessionBrowser.showExtensionsModal(args);
-  };
-  proto.hideExtensionsModal = function () {
-    this.sessionBrowser.hideExtensionsModal();
-  };
+  
+  
   proto.hideSessionPicker = function () {
     this.sessionBrowser.hideSessionPicker();
   };
@@ -487,36 +450,14 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
     openJobDeckViewer(this, jobId);
   };
   proto.openJobInbox = function () {
-    if (!isConductorUxV2Enabled()) {
-      this.showStatus(
-        'Job Inbox drawer needs conductor_ux_v2 — use /job inbox (agent path) or enable the flag.',
-        'textMuted',
-      );
-      return;
-    }
     openInbox(this);
   };
-  // P shortcut (empty idle prompt). When plan mode is already active, P opens
-  // (or reopens) the Plan browser overlay; when off, P switches plan mode on
-  // first and surfaces the plan once it lands inline. P/Esc on the open
-  // browser only closes it; turning plan mode off stays with /plan.
-  proto.openPlan = function () {
-    void openPlanBrowserForUser(this);
-  };
+  
   proto.openMergePreviewForJob = function (jobId: string) {
     const snap = this.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
     const card = resolveConductorJobCard(snap.jobs, jobId);
     if (card === undefined) return;
     openMergePreview(this, card);
-  };
-  proto.maybeDefaultConductorTimeline = function () {
-    maybeDefaultTimelineOnce({
-      state: this.state,
-      session: this.session,
-      setAppState: (patch) => this.setAppState(patch),
-      showStatus: (msg, color) => this.showStatus(msg, color),
-      jobBoardController: this.jobBoardController,
-    });
   };
   proto.showApprovalPanel = function (payload: ApprovalPanelData) {
     this.reverseRpcPanels.showApprovalPanel(payload);

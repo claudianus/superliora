@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { collectSubagentProgressStats } from '../../src/session/subagent/subagent-host';
+import { Agent } from '../../src/agent';
+import { attachToolStreamBridge, startProgressReporter } from '../../src/session/subagent/subagent-telemetry';
+import { testKaos } from '../fixtures/test-kaos';
 
 const emptyUsage = { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 };
 
@@ -18,7 +21,7 @@ describe('collectSubagentProgressStats', () => {
       {
         role: 'assistant',
         toolCalls: [
-          { name: 'Read', arguments: JSON.stringify({ path: 'src/a.ts' }) },
+          { name: 'SessionControl', arguments: JSON.stringify({ operation: 'spawn', description: 'child work' }) },
           { name: 'Bash', arguments: JSON.stringify({ command: 'pnpm test' }) },
         ],
       },
@@ -40,11 +43,11 @@ describe('collectSubagentProgressStats', () => {
   });
 
   it('truncates long targets to 80 chars with an ellipsis', () => {
-    const longPath = `${'x'.repeat(120)}.ts`;
+    const longCommand = 'x'.repeat(120);
     const child = fakeChild([
       {
         role: 'assistant',
-        toolCalls: [{ name: 'Read', arguments: JSON.stringify({ path: longPath }) }],
+        toolCalls: [{ name: 'Bash', arguments: JSON.stringify({ command: longCommand }) }],
       },
     ]);
     expect(collectSubagentProgressStats(child).lastTarget).toBe(`${'x'.repeat(80)}…`);
@@ -52,8 +55,41 @@ describe('collectSubagentProgressStats', () => {
 
   it('falls back to the raw argument snippet for invalid JSON', () => {
     const child = fakeChild([
-      { role: 'assistant', toolCalls: [{ name: 'X', arguments: 'not-json' }] },
+      { role: 'assistant', toolCalls: [{ name: 'Bash', arguments: 'not-json' }] },
     ]);
     expect(collectSubagentProgressStats(child).lastTarget).toBe('not-json');
+  });
+});
+
+describe('worker emitter ownership', () => {
+  it('supports detached emission and restores the exact callback after nested telemetry', async () => {
+    const childEvents = vi.fn(async () => {});
+    const parentEvents = vi.fn(async () => {});
+    const child = new Agent({ kaos: testKaos, rpc: { emitEvent: childEvents } });
+    const parent = new Agent({ kaos: testKaos, rpc: { emitEvent: parentEvents } });
+    const emit = child.emitEvent;
+    const event = { type: 'tool.call.started' as const, toolCallId: 'bash', name: 'Bash', args: { command: 'pwd' } };
+    emit(event);
+    expect(childEvents).toHaveBeenCalledWith(event);
+    const stopProgress = startProgressReporter(parent, child, 'worker', 'agent');
+    const progressEmit = child.emitEvent;
+    const stopStream = attachToolStreamBridge(parent, child, 'worker', 'agent', {
+      parentToolCallId: 'parent-tool', prompt: 'work', description: 'work',
+      runInBackground: true, signal: new AbortController().signal,
+    });
+    try {
+      child.emitEvent(event);
+      expect(parentEvents).toHaveBeenCalledWith(expect.objectContaining({ type: 'subagent.tool_call', subagentId: 'worker' }));
+      stopStream();
+      expect(child.emitEvent).toBe(progressEmit);
+      await stopProgress();
+      expect(child.emitEvent).toBe(emit);
+      emit(event);
+      expect(childEvents).toHaveBeenCalledTimes(3);
+    } finally {
+      stopStream();
+      await stopProgress();
+      await Promise.all([child.records.close(), parent.records.close()]);
+    }
   });
 });

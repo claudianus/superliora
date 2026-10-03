@@ -21,7 +21,6 @@
 import {
   emptyUsage,
   generate as kosongGenerate,
-  isRetryableGenerateError,
   type ChatProvider,
   type GenerateCallbacks,
   type LayeredSystemPrompt,
@@ -47,11 +46,6 @@ import {
 import type { GenerateOptionsWithRequestLogFields } from '../llm-request-logger';
 import { sharedModelRouteHealthStore } from '../routing/model-route-health';
 import { shouldMarkProviderCredential } from '../routing/provider-failure-scope';
-import {
-  invalidateLiveProbeSuccess,
-  invalidateLiveProbeSuccessForProvider,
-} from '../routing/live-probe';
-import { unslopText } from '../../utils/unslop';
 import {
   classifyProviderRouteFailure,
   classifyProviderRouteHeaders,
@@ -207,18 +201,10 @@ export class KosongLLM implements LLM {
           throw error;
         }
         const failure = classifyProviderRouteFailure(error, route.cooldownMs);
-        // A pre-dead abort signal shared across hops (already-fired request
-        // deadline or watchdog) kills every following candidate in
-        // milliseconds with a timeout-classified error and no network I/O.
-        // Recording those as real failures poisoned the whole fallback
-        // chain: one hung primary cooled down every healthy alternate for
-        // the full window (observed: 8 route switches in 28 ms, all
-        // "timeout"), leaving the route single-candidate and every turn
-        // failing for the cooldown duration. After a real attempt, an
-        // instant timeout abort means the next candidate was never really
-        // attempted: record nothing, stop hopping, and let the retry layer
-        // start a fresh attempt with fresh deadlines. (A first candidate
-        // failing instantly keeps the existing fail-over semantics.)
+        // A shared, already-fired request deadline can fail a later candidate
+        // before it performs network I/O. Do not record that as a new provider
+        // failure or continue hopping with the same expired deadline. Surface
+        // the error; only an explicit operator request can start another step.
         const instantAbort =
           index > 0 &&
           failure?.kind === 'timeout' &&
@@ -228,8 +214,6 @@ export class KosongLLM implements LLM {
             this.onRouteStatusChanged?.();
           }
           this.circuitObserver?.onFailure({ route, candidate, failure, error });
-          invalidateLiveProbeSuccess(candidate.modelAlias);
-          invalidateLiveProbeSuccessForProvider(candidate.providerName);
           const failureReason =
             error instanceof Error ? error.message : `provider ${failure.kind} failure`;
           if (failure.kind === 'model_unavailable') {
@@ -268,7 +252,7 @@ export class KosongLLM implements LLM {
               });
             } else {
               sharedModelRouteHealthStore.markUnavailable(candidate.modelAlias, {
-                kind: 'probe_fail',
+                kind: 'route_fail',
                 failureReason,
                 cooldownMs: failure.cooldownMs,
               });
@@ -383,14 +367,6 @@ export class KosongLLM implements LLM {
       options,
     );
 
-    // Apply unslop post-processing on the generated message content text parts to filter out AI slop
-    if (result.message?.content) {
-      for (const part of result.message.content) {
-        if (part.type === 'text') {
-          part.text = unslopText(part.text);
-        }
-      }
-    }
 
     // Replay merged content parts onto loop per-block callbacks after the
     // stream drained. This preserves WAL append order and stops partial
@@ -434,9 +410,6 @@ export class KosongLLM implements LLM {
     return response;
   }
 
-  isRetryableError(error: unknown): boolean {
-    return isRetryableGenerateError(error);
-  }
 }
 
 export function routeUnavailableError(

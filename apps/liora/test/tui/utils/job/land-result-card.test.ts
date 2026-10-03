@@ -37,14 +37,6 @@ describe('land-result-card', () => {
     expect(notice?.detail).toMatch(/Inspect/i);
   });
 
-  it('appends GC line when landReceipt.gcRemoved', () => {
-    const notice = formatLandResultNotice({
-      kind: 'job.completed',
-      title: 'Land merge',
-      landReceipt: { mergeSha: 'abcdef0123456789', merged: true, gcRemoved: true },
-    });
-    expect(notice?.detail).toContain('GC: worktree removed');
-  });
 
   it('maps hold/reject through trust copy', () => {
     const notice = formatLandResultNotice({

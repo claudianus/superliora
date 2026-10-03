@@ -1,9 +1,6 @@
-import { applyXaiPricingSafeContextTokens } from '@superliora/oauth';
 import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sdk';
-import type { SkillListSession } from '../../commands';
 
 import {  OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE } from '../../constant/liora-tui';
-import { contextWorkingSetSnapshotFromLoopControl } from '../../utils/agent/context-working-set';
 import { resolveThinkingLevelForApply } from '../../utils/model/thinking-effort';
 import {
   refreshAllProviderModels,
@@ -34,7 +31,6 @@ export interface AuthFlowHost {
   readonly sessionEventHandler: SessionEventHandler;
   fetchSessions(): Promise<void>;
   updateTerminalTitle(): void;
-  refreshSkillCommands(session?: SkillListSession): Promise<void>;
 }
 
 export class AuthFlowController {
@@ -45,9 +41,6 @@ export class AuthFlowController {
     this.host.setAppState({
       availableModels: config.models ?? {},
       availableProviders: config.providers ?? {},
-      nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
-      mediaAnalyzerModels: config.media?.analyzerModels,
-      mediaAnalyzerAutoScan: config.media?.analyzerAutoScan === true,
     });
   }
 
@@ -95,7 +88,6 @@ export class AuthFlowController {
         : host.options.startup.yolo
           ? 'yolo'
           : host.state.appState.permissionMode,
-      planMode: host.state.appState.planMode,
     };
     if (host.state.appState.additionalDirs.length > 0) {
       options.additionalDirs = [...host.state.appState.additionalDirs];
@@ -110,7 +102,6 @@ export class AuthFlowController {
     host.sessionEventHandler.startSubscription();
     void host.fetchSessions();
     host.updateTerminalTitle();
-    void host.refreshSkillCommands(host.session);
   }
 
   async clearActiveSessionAfterLogout(): Promise<void> {
@@ -121,7 +112,6 @@ export class AuthFlowController {
       model: '',
       sessionTitle: null,
     });
-    await this.host.refreshSkillCommands();
   }
 
   async refreshConfigAfterLogin(): Promise<void> {
@@ -136,9 +126,6 @@ export class AuthFlowController {
       host.setAppState({
         availableModels,
         availableProviders,
-        nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
-        mediaAnalyzerModels: config.media?.analyzerModels,
-        mediaAnalyzerAutoScan: config.media?.analyzerAutoScan === true,
       });
       return;
     }
@@ -151,19 +138,8 @@ export class AuthFlowController {
     const appStatePatch: Partial<AppState> = {
       availableModels,
       availableProviders,
-      nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
-      mediaAnalyzerModels: config.media?.analyzerModels,
-      mediaAnalyzerAutoScan: config.media?.analyzerAutoScan === true,
       model: defaultModel,
-      maxContextTokens: applyXaiPricingSafeContextTokens(selected.maxContextSize, {
-        provider: selected.provider,
-        model: defaultModel,
-      }),
-      workingSet: contextWorkingSetSnapshotFromLoopControl({
-        maxWorkingSetTokens: config.loopControl?.maxWorkingSetTokens,
-        asyncWorkingSetTokens: config.loopControl?.asyncWorkingSetTokens,
-        model: defaultModel,
-      }),
+      maxContextTokens: selected.maxContextSize,
     };
     if (config.defaultThinking !== undefined) {
       appStatePatch.thinking = config.defaultThinking;
@@ -181,9 +157,6 @@ export class AuthFlowController {
     this.host.setAppState({
       availableModels: config.models ?? {},
       availableProviders: config.providers ?? {},
-      nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
-      mediaAnalyzerModels: config.media?.analyzerModels,
-      mediaAnalyzerAutoScan: config.media?.analyzerAutoScan === true,
       model: '',
       thinking: false,
       thinkingLevel: 'off',

@@ -1,161 +1,38 @@
 import type { AgentConfigData } from '#/agent/config';
 import type { AgentContextData, ContextComposition } from '#/agent/context';
-import type { ContextOSRetrievalDiagnostics } from '#/agent/context-os';
 import type { BackgroundTaskInfo } from '#/agent/background';
-import type { GoalSnapshot, GoalToolResult } from '#/agent/goal';
-import type {
-  HarnessRefinementEvent,
-  HarnessStatusView,
-  RefineRunResult,
-} from '#/agent/refine';
 import type { PermissionData } from '#/agent/permission';
-import type { CircuitBreakerStatus, ProviderExtrasStatus } from '@superliora/protocol';
-import type { PlanData } from '#/agent/plan';
-import type { ToolInfo } from '#/agent/tool';
+import type { CircuitBreakerStatus, SessionWarning } from '@superliora/protocol';
 import type { LioraConfig } from '#/config';
-import type { ExperimentalFeatureState } from '#/flags';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
-import type {
-  MemoryExportResult,
-  MemoryImportResult,
-  MemoryInspectResult,
-  MemoryRecord,
-  MemoryReflectResult,
-  MemorySearchResult,
-  MemoryStats,
-} from '#/memory';
-import type { SessionWarning } from '@superliora/protocol';
-
 import type { ProviderRouteStatus, UsageStatus } from '../events';
 import type { WithAgentId, WithSessionId } from '../types';
 import type { SessionTrace } from './session-trace';
 import type {
-  AddAdditionalDirPayload,
-  AddAdditionalDirResult,
-  ArchiveSessionPayload,
-  CloseSessionPayload,
-  ConversationLoopStateData,
-  CoreInfo,
-  CreateSessionPayload,
-  EmptyPayload,
-  ExportSessionPayload,
-  ExportSessionResult,
-  ForkSessionPayload,
-  ListSessionsPayload,
-  ReloadSessionPayload,
-  RenameSessionPayload,
-  ResumeSessionPayload,
-  RewindFilesPayload,
-  RewindFilesResult,
-  SessionSummary,
-  StartConversationLoopPayload,
-  StopConversationLoopPayload,
-  UpdateSessionMetadataPayload,
+  AddAdditionalDirPayload, AddAdditionalDirResult, ArchiveSessionPayload, CloseSessionPayload,
+  ConversationLoopStateData, CoreInfo, CreateSessionPayload, EmptyPayload, ExportSessionPayload,
+  ExportSessionResult, ForkSessionPayload, ListSessionsPayload, ReloadSessionPayload,
+  RenameSessionPayload, ResumeSessionPayload, RewindFilesPayload, RewindFilesResult,
+  SessionSummary, StartConversationLoopPayload, StopConversationLoopPayload, UpdateSessionMetadataPayload,
 } from './payloads-session';
 import type {
-  ActivatePluginCommandPayload,
-  ActivateSkillPayload,
-  GetPluginInfoPayload,
-  InstallPluginPayload,
-  McpServerInfo,
-  McpStartupMetrics,
-  PluginCommandDef,
-  PluginInfo,
-  PluginSummary,
-  ReconnectMcpServerPayload,
-  ReloadPluginsResult,
-  RemovePluginPayload,
-  SearchSkillsPayload,
-  SetPluginEnabledPayload,
-  SetPluginMcpServerEnabledPayload,
-  HookRegistrySummary,
-  SkillSearchResult,
-  SkillSummary,
-} from './payloads-plugins';
-import type {
-  BeginCompactionPayload,
-  CancelPayload,
-  CancelPlanPayload,
-  CancelShellCommandPayload,
-  CreateGoalPayload,
-  DetachBackgroundPayload,
-  DiagnoseContextOSPayload,
-  EnterPlanPayload,
-  GetBackgroundOutputPayload,
-  GetBackgroundPayload,
-  InlineCompletePayload,
-  InlineCompleteResult,
-  PromptIntelligenceCallOptions,
-  PromptPayload,
-  RegisterToolPayload,
-  RefineHarnessPayload,
-  RollbackHarnessRefinementPayload,
-  RunShellCommandPayload,
-  SetModelPayload,
-  SetModelResult,
-  SetPermissionPayload,
-  SetAskModePayload,
-  SetPremiumQualityPayload,
-  SetThinkingPayload,
-  ShellCommandResult,
-  SteerPayload,
-  StopBackgroundPayload,
-  SuggestPromptsResult,
-  UndoHistoryPayload,
-  UnregisterToolPayload,
-  SetActiveToolsPayload,
+  BeginCompactionPayload, CancelPayload, CancelShellCommandPayload, DetachBackgroundPayload,
+  GetBackgroundOutputPayload, GetBackgroundPayload, PromptPayload, RunShellCommandPayload,
+  SetModelPayload, SetModelResult, SetPermissionPayload, SetThinkingPayload, ShellCommandResult,
+  SteerPayload, StopBackgroundPayload, UndoHistoryPayload,
 } from './payloads-agent';
-
 import type {
-  JobActionResult,
-  JobCancelPayload,
-  JobCreateBatchPayload,
-  JobCreatePayload,
-  JobCreateResult,
-  JobGcWorktreesPayload,
-  JobGcWorktreesResult,
-  JobInboxPayload,
-  JobInboxResult,
-  JobIdPayload,
-  JobInspectResult,
-  JobMergePayload,
-  JobMergeResult,
-  JobPushPayload,
-  JobPushResult,
-  JobPreviewSplitPayload,
-  JobResumePayload,
-  JobResumeResult,
-  JobAdoptPayload,
-  JobAdoptResult,
-  JobLandChoicePayload,
-  JobRenamePayload,
-  JobSetProjectModePayload,
-  JobSetProjectModeResult,
-  JobSnapshot,
-  JobWorkspaceCatalogPayload,
-  JobWorkspaceCatalogResult,
-  JobSteerPayload,
-  SplitJobIntent,
+  JobActionResult, JobCancelPayload, JobCreateBatchPayload, JobCreatePayload, JobCreateResult,
+  JobGcWorktreesPayload, JobGcWorktreesResult, JobInboxPayload, JobInboxResult, JobIdPayload,
+  JobInspectResult, JobMergePayload, JobMergeResult, JobPushPayload, JobPushResult, JobPreviewSplitPayload,
+  JobResumePayload, JobResumeResult, JobAdoptPayload, JobAdoptResult, JobLandChoicePayload,
+  JobRenamePayload, JobSetProjectModePayload, JobSetProjectModeResult, JobSnapshot,
+  JobWorkspaceCatalogPayload, JobWorkspaceCatalogResult, JobSteerPayload, SplitJobIntent,
 } from './payloads-job';
 import type {
-  ConfigDiagnostics,
-  DeleteConfigFieldsPayload,
-  GetKimiConfigPayload,
-  PlanSmartLoopRoleRoutingResult,
-  RemoveKimiProviderPayload,
-  SetKimiConfigPayload,
+  ConfigDiagnostics, DeleteConfigFieldsPayload, GetKimiConfigPayload, RemoveKimiProviderPayload, SetKimiConfigPayload,
 } from './payloads-config';
-import type {
-  MemoryForgetPayload,
-  MemoryGetPayload,
-  MemoryImportPayload,
-  MemoryListPayload,
-  MemoryRecallPayload,
-  MemoryRememberPayload,
-  MemoryReflectPayload,
-  MemoryUpdatePayload,
-} from './payloads-memory';
 
 export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;
@@ -168,39 +45,17 @@ export interface AgentAPI {
   setPermission: (payload: SetPermissionPayload) => void;
   setModel: (payload: SetModelPayload) => SetModelResult;
   getModel: (payload: EmptyPayload) => string;
-  enterPlan: (payload: EnterPlanPayload) => void;
-  cancelPlan: (payload: CancelPlanPayload) => void;
-  clearPlan: (payload: EmptyPayload) => void;
-  setAskMode: (payload: SetAskModePayload) => Promise<void>;
-  getAskMode: (payload: EmptyPayload) => boolean;
-  setPremiumQuality: (payload: SetPremiumQualityPayload) => void;
-  getPremiumQuality: (payload: EmptyPayload) => boolean;
   beginCompaction: (payload: BeginCompactionPayload) => void;
   cancelCompaction: (payload: EmptyPayload) => void;
-  refineHarness: (payload: RefineHarnessPayload) => Promise<RefineRunResult>;
-  rollbackHarnessRefinement: (
-    payload: RollbackHarnessRefinementPayload,
-  ) => Promise<HarnessRefinementEvent>;
-  getHarnessStatus: (payload: EmptyPayload) => HarnessStatusView;
-  registerTool: (payload: RegisterToolPayload) => void;
-  unregisterTool: (payload: UnregisterToolPayload) => void;
-  setActiveTools: (payload: SetActiveToolsPayload) => void;
-  stopBackground: (payload: StopBackgroundPayload) => void;
+  stopBackground: (payload: StopBackgroundPayload) => Promise<void>;
   detachBackground: (payload: DetachBackgroundPayload) => BackgroundTaskInfo | undefined;
   clearContext: (payload: EmptyPayload) => void;
-  activateSkill: (payload: ActivateSkillPayload) => Promise<void>;
-  activatePluginCommand: (payload: ActivatePluginCommandPayload) => Promise<void>;
-  startBtw: (payload: EmptyPayload) => string;
-  createGoal: (payload: CreateGoalPayload) => GoalSnapshot;
-  getGoal: (payload: EmptyPayload) => GoalToolResult;
-  pauseGoal: (payload: EmptyPayload) => GoalSnapshot;
-  resumeGoal: (payload: EmptyPayload) => GoalSnapshot;
-  cancelGoal: (payload: EmptyPayload) => GoalSnapshot;
   jobList: (payload: EmptyPayload) => readonly JobSnapshot[];
   jobInspect: (payload: JobIdPayload) => JobInspectResult | undefined;
   jobInbox: (payload: JobInboxPayload) => JobInboxResult;
   jobSteer: (payload: JobSteerPayload) => Promise<JobActionResult>;
   jobCancel: (payload: JobCancelPayload) => Promise<JobActionResult>;
+  jobPause: (payload: JobCancelPayload) => Promise<JobActionResult>;
   jobResume: (payload: JobResumePayload) => Promise<JobResumeResult>;
   jobCreate: (payload: JobCreatePayload) => Promise<JobCreateResult>;
   jobCreateBatch: (payload: JobCreateBatchPayload) => Promise<JobCreateResult>;
@@ -217,81 +72,40 @@ export interface AgentAPI {
   getBackgroundOutput: (payload: GetBackgroundOutputPayload) => string;
   getContext: (payload: EmptyPayload) => AgentContextData;
   getContextComposition: (payload: EmptyPayload) => ContextComposition;
-  diagnoseContextOS: (payload: DiagnoseContextOSPayload) => ContextOSRetrievalDiagnostics;
   getConfig: (payload: EmptyPayload) => AgentConfigData;
   getPermission: (payload: EmptyPayload) => PermissionData;
   getCircuitBreakers: (payload: EmptyPayload) => CircuitBreakerStatus | undefined;
   getCacheFrozen: (payload: EmptyPayload) => boolean;
-  /** Loop22b: soft/hard tool-list drift count (session lifetime). */
   getCacheFreezeViolations: (payload: EmptyPayload) => number;
-  getParallelToolsStatus: (payload: EmptyPayload) => {
-    readonly parallelToolsInFlight: number;
-    readonly maxParallelTools?: number;
-  };
-  getOAuthStatus: (payload: EmptyPayload) => Promise<
-    | {
-        readonly poolSize?: number;
-        readonly nextRefreshAtMs?: number;
-      }
-    | undefined
-  >;
-  getPlan: (payload: EmptyPayload) => PlanData;
+  getParallelToolsStatus: (payload: EmptyPayload) => { readonly parallelToolsInFlight: number; readonly maxParallelTools?: number };
+  getOAuthStatus: (payload: EmptyPayload) => Promise<{ readonly poolSize?: number; readonly nextRefreshAtMs?: number } | undefined>;
   getUsage: (payload: EmptyPayload) => UsageStatus;
   getProviderRouteStatus: (payload: EmptyPayload) => ProviderRouteStatus | null;
-  /** Provider-extras harness status (detected services, search cascade, media routing). */
-  getProviderExtrasStatus: (payload: EmptyPayload) => ProviderExtrasStatus;
   resetProviderRouteStatus: (payload: EmptyPayload) => ProviderRouteStatus | null;
-  getTools: (payload: EmptyPayload) => readonly ToolInfo[];
   getBackground: (payload: GetBackgroundPayload) => readonly BackgroundTaskInfo[];
-  inlineComplete: (
-    payload: InlineCompletePayload,
-    options?: PromptIntelligenceCallOptions,
-  ) => Promise<InlineCompleteResult>;
-  suggestPrompts: (
-    payload: EmptyPayload,
-    options?: PromptIntelligenceCallOptions,
-  ) => Promise<SuggestPromptsResult>;
 }
 
-type AgentAPIWithId = WithAgentId<AgentAPI>;
-
-export interface SessionAPI extends AgentAPIWithId {
+export interface SessionAPI extends WithAgentId<AgentAPI> {
   renameSession: (payload: RenameSessionPayload) => void;
   updateSessionMetadata: (payload: UpdateSessionMetadataPayload) => void;
   getSessionMetadata: (payload: EmptyPayload) => SessionMeta;
-  listSkills: (payload: EmptyPayload) => readonly SkillSummary[];
-  getHookRegistry: (payload: EmptyPayload) => HookRegistrySummary;
-  searchSkills: (payload: SearchSkillsPayload) => readonly SkillSearchResult[];
-  listPluginCommands: (payload: EmptyPayload) => readonly PluginCommandDef[];
-  listMcpServers: (payload: EmptyPayload) => readonly McpServerInfo[];
-  getMcpStartupMetrics: (payload: EmptyPayload) => McpStartupMetrics;
-  reconnectMcpServer: (payload: ReconnectMcpServerPayload) => void;
-  generateAgentsMd: (payload: EmptyPayload) => void;
+  startBtw: (payload: EmptyPayload & { readonly agentId: string }) => string;
   getSessionWarnings: (payload: EmptyPayload) => readonly SessionWarning[];
   addAdditionalDir: (payload: AddAdditionalDirPayload) => AddAdditionalDirResult;
   getSessionTrace: (payload: EmptyPayload & { readonly agentId: string }) => Promise<SessionTrace>;
-  /**
-   * Restore files mutated during a sealed turn. Does not rewrite conversation
-   * history — pair with `undoHistory` when the transcript should also roll back.
-   */
   rewindFiles: (payload: RewindFilesPayload) => RewindFilesResult;
   startConversationLoop: (payload: StartConversationLoopPayload) => ConversationLoopStateData;
   stopConversationLoop: (payload: StopConversationLoopPayload) => ConversationLoopStateData | undefined;
   listConversationLoops: (payload: EmptyPayload) => readonly ConversationLoopStateData[];
 }
 
-type SessionAPIWithId = WithSessionId<SessionAPI>;
-
-export interface CoreAPI extends SessionAPIWithId {
+export interface CoreAPI extends WithSessionId<SessionAPI> {
   getCoreInfo: (payload: EmptyPayload) => CoreInfo;
-  getExperimentalFeatures: (payload: EmptyPayload) => readonly ExperimentalFeatureState[];
   getKimiConfig: (payload: GetKimiConfigPayload) => LioraConfig;
   getConfigDiagnostics: (payload: EmptyPayload) => ConfigDiagnostics;
   setKimiConfig: (payload: SetKimiConfigPayload) => LioraConfig;
   removeKimiProvider: (payload: RemoveKimiProviderPayload) => LioraConfig;
   deleteConfigFields: (payload: DeleteConfigFieldsPayload) => LioraConfig;
-  /** Settings Smart auto — live-probe role chains and return healthy pins. */
-  planSmartLoopRoleRouting: (payload: EmptyPayload) => PlanSmartLoopRoleRoutingResult;
   createSession: (payload: CreateSessionPayload) => SessionSummary;
   closeSession: (payload: CloseSessionPayload) => void;
   archiveSession: (payload: ArchiveSessionPayload) => void;
@@ -300,23 +114,4 @@ export interface CoreAPI extends SessionAPIWithId {
   forkSession: (payload: ForkSessionPayload) => ResumeSessionResult;
   listSessions: (payload: ListSessionsPayload) => readonly SessionSummary[];
   exportSession: (payload: ExportSessionPayload) => ExportSessionResult;
-  listPlugins: (payload: EmptyPayload) => readonly PluginSummary[];
-  installPlugin: (payload: InstallPluginPayload) => PluginSummary;
-  setPluginEnabled: (payload: SetPluginEnabledPayload) => void;
-  setPluginMcpServerEnabled: (payload: SetPluginMcpServerEnabledPayload) => void;
-  removePlugin: (payload: RemovePluginPayload) => void;
-  reloadPlugins: (payload: EmptyPayload) => ReloadPluginsResult;
-  getPluginInfo: (payload: GetPluginInfoPayload) => PluginInfo;
-  listPluginThemes: (payload: EmptyPayload) => readonly import('#/plugin/themes').PluginThemeDef[];
-  memoryRecall: (payload: MemoryRecallPayload) => readonly MemorySearchResult[];
-  memoryList: (payload: MemoryListPayload) => readonly MemoryRecord[];
-  memoryGet: (payload: MemoryGetPayload) => MemoryRecord | undefined;
-  memoryRemember: (payload: MemoryRememberPayload) => MemoryRecord;
-  memoryUpdate: (payload: MemoryUpdatePayload) => MemoryRecord;
-  memoryForget: (payload: MemoryForgetPayload) => boolean;
-  memoryStats: (payload: EmptyPayload) => MemoryStats;
-  memoryExport: (payload: MemoryListPayload) => MemoryExportResult;
-  memoryImport: (payload: MemoryImportPayload) => MemoryImportResult;
-  memoryReflect: (payload: MemoryReflectPayload) => MemoryReflectResult;
-  memoryInspect: (payload: EmptyPayload) => MemoryInspectResult;
 }

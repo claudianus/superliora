@@ -54,7 +54,7 @@ export function createGenerateProxy(agent: Agent): typeof generate {
     // Side LLM path (Ultra Plan Seed Spec, ambiguity, classifiers, dream…):
     // share the main-turn candidate order + routeState so a quota-exhausted
     // primary account fails over to the next healthy credential.
-    const route = buildLLMRoute(agent, agent.kimiConfig?.loopControl?.reservedContextSize);
+    const route = buildLLMRoute(agent);
     if (route === undefined || route.candidates.length <= 1) {
       const withAuth =
         modelAlias === undefined
@@ -259,7 +259,7 @@ function wrapLifecycleCallbacks(
   };
 }
 
-export function buildLLMRoute(agent: Agent, reservedContextSize: number | undefined): KosongLLMRoute | undefined {
+export function buildLLMRoute(agent: Agent): KosongLLMRoute | undefined {
   const route = agent.config.providerRoute;
   if (route === undefined || route.candidates.length === 0) return undefined;
   return {
@@ -279,7 +279,6 @@ export function buildLLMRoute(agent: Agent, reservedContextSize: number | undefi
         capability: candidate.modelCapabilities,
         completionBudgetConfig: resolveCompletionBudget({
           maxOutputSize: candidate.maxOutputSize,
-          reservedContextSize,
         }),
       };
     }),

@@ -14,14 +14,12 @@ import {
 import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { isPrintableChar, printableChar } from '#/tui/utils/printable-key';
-import { formatMissingGateEvidence } from '#/tui/utils/job/gate-preview';
 import { formatTrustReasonForUser } from '#/tui/utils/job/trust-copy';
 import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { DiffReviewComponent } from '#/tui/components/dialogs/workspace/diff-review';
 import type { ConductorJobCard } from '#/tui/utils/job/job-strip';
 import type { GitDiffReport } from '#/utils/git/git-diff';
-import type { JobGateChecklist } from '@superliora/protocol';
 
 export interface MergePreviewPanelOptions {
   readonly job: ConductorJobCard;
@@ -136,16 +134,6 @@ export class MergePreviewPanelComponent extends Container implements Focusable {
     body.push(theme.fg('textStrong', job.title));
     body.push(theme.fg('textMuted', `${shortJobId(job.id)} · ${job.kind} · ${job.status}`));
     body.push('');
-    body.push(theme.fg('textMuted', ttui('tui.dialog.mergePreview.gates')));
-    body.push(...renderGateLines(job.gateChecklist, width));
-    const missing = formatMissingGateEvidence(job.gateChecklist);
-    if (missing.length > 0) {
-      body.push(theme.fg('warning', ttui('tui.dialog.mergePreview.missingEvidence')));
-      for (const line of missing) {
-        body.push(theme.fg('textDim', `  · ${line}`));
-      }
-    }
-    body.push('');
     const diffReport = this.opts.diffReport;
     if (diffReport === null) {
       body.push(theme.fg('warning', ttui('tui.dialog.mergePreview.diffUnavailable')));
@@ -210,21 +198,3 @@ export class MergePreviewPanelComponent extends Container implements Focusable {
   }
 }
 
-function renderGateLines(
-  gates: JobGateChecklist | undefined,
-  width: number,
-): string[] {
-  const theme = currentTheme;
-  if (gates === undefined) {
-    return [theme.fg('textDim', ttui('tui.dialog.mergePreview.noGates'))];
-  }
-  const parts = [
-    `tests=${gates.tests}`,
-    `typecheck=${gates.typecheck}`,
-    `review=${gates.review}`,
-    `visual=${gates.visual}`,
-  ];
-  return [
-    truncateToWidth(`  ${theme.fg('text', parts.join('  ·  '))}`, Math.max(1, width), '…'),
-  ];
-}

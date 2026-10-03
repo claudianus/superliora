@@ -1,46 +1,21 @@
 import { describe, expect, it } from 'vitest';
+import { formatParkedWaitLabel, isParkedSendableWait, isSessionControlBlockingWait } from '#/tui/features/transcript/parked-wait';
+const wait = { name: 'SessionControl', args: { operation: 'wait', id: 'child' } };
 
-import {
-  formatParkedWaitLabel,
-  isParkedSendableWait,
-  isTaskOutputBlockingWait,
-} from '#/tui/features/transcript/parked-wait';
-
-describe('isTaskOutputBlockingWait', () => {
-  it('accepts only blocking TaskOutput', () => {
-    expect(isTaskOutputBlockingWait({ name: 'TaskOutput', args: { block: true } })).toBe(true);
-    expect(isTaskOutputBlockingWait({ name: 'TaskOutput', args: { block: 'true' } })).toBe(true);
-    expect(isTaskOutputBlockingWait({ name: 'TaskOutput', args: { block: false } })).toBe(false);
-    expect(isTaskOutputBlockingWait({ name: 'TaskOutput', args: {} })).toBe(false);
-    expect(isTaskOutputBlockingWait({ name: 'Agent', args: { block: true } })).toBe(false);
+describe('SessionControl blocking waits', () => {
+  it('uses default and positive timeouts as blocking, zero as an output snapshot', () => {
+    expect(isSessionControlBlockingWait(wait)).toBe(true);
+    expect(isSessionControlBlockingWait({ ...wait, args: { ...wait.args, timeout: 5 } })).toBe(true);
+    expect(isSessionControlBlockingWait({ ...wait, args: { ...wait.args, timeout: 0 } })).toBe(false);
+    expect(isSessionControlBlockingWait({ name: 'SessionControl', args: { operation: 'list' } })).toBe(false);
+    expect(isSessionControlBlockingWait({ name: 'Bash', args: { command: 'sleep 2' } })).toBe(false);
   });
-});
-
-describe('isParkedSendableWait', () => {
-  it('parks only when every running tool is a blocking TaskOutput', () => {
+  it('parks only when every in-flight operation is a blocking wait', () => {
     expect(isParkedSendableWait([])).toBe(false);
-    expect(isParkedSendableWait([{ name: 'TaskOutput', args: { block: true } }])).toBe(true);
-    expect(
-      isParkedSendableWait([
-        { name: 'TaskOutput', args: { block: true } },
-        { name: 'TaskOutput', args: { block: true, task_id: 'b' } },
-      ]),
-    ).toBe(true);
-    expect(
-      isParkedSendableWait([
-        { name: 'TaskOutput', args: { block: true } },
-        { name: 'Read', args: { path: 'a.ts' } },
-      ]),
-    ).toBe(false);
-    expect(isParkedSendableWait([{ name: 'Agent', args: {} }])).toBe(false);
+    expect(isParkedSendableWait([wait, wait])).toBe(true);
+    expect(isParkedSendableWait([wait, { name: 'Bash' }])).toBe(false);
   });
-});
-
-describe('formatParkedWaitLabel', () => {
-  it('keeps the SuperLiora steer hint instead of claiming send interrupts', () => {
+  it('keeps the steer hint rather than claiming Enter interrupts', () => {
     expect(formatParkedWaitLabel('waiting')).toBe('waiting · ctrl+s: steer');
-    expect(formatParkedWaitLabel('1 command still running')).toBe(
-      '1 command still running · ctrl+s: steer',
-    );
   });
 });

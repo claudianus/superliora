@@ -15,63 +15,47 @@ function SdkCode() {
   return (
     <pre className="overflow-x-auto font-[family-name:var(--font-mono)] text-[12px] leading-[1.75]">
       <code>
-        <span className={KW}>import</span> <span className={PL}>{`{ LioraHarness }`}</span> <span className={KW}>from</span>{" "}
+        <span className={KW}>import</span> <span className={PL}>{`{ createLioraHarness }`}</span> <span className={KW}>from</span>{" "}
         <span className={STR}>"@superliora/sdk"</span>
         <span className={PL}>;</span>
         {"\n\n"}
         <span className={KW}>const</span> <span className={FN}>liora</span> <span className={PL}>=</span>{" "}
-        <span className={KW}>await</span> <span className={TY}>LioraHarness</span>
-        <span className={PL}>.</span>
-        <span className={FN}>create</span>
-        <span className={PL}>({`{ home: `}</span>
+        <span className={FN}>createLioraHarness</span>
+        <span className={PL}>({`{ homeDir: `}</span>
         <span className={TY}>process</span>
         <span className={PL}>.env.</span>
         <span className={STR}>SUPERLIORA_HOME</span> <span className={PL}>{`}`});</span>
         {"\n\n"}
-        <span className={KW}>const</span> <span className={FN}>job</span> <span className={PL}>=</span> <span className={KW}>await</span>{" "}
-        <span className={FN}>liora.jobs.create</span>
-        <span className={PL}>({`{`}</span>
+        <span className={KW}>try</span> <span className={PL}>{`{`}</span>
         {"\n  "}
-        <span className={PL}>kind:</span> <span className={STR}>"implement"</span>
-        <span className={PL}>,</span>
+        <span className={KW}>const</span> <span className={FN}>session</span> <span className={PL}>=</span> <span className={KW}>await</span>{" "}
+        <span className={FN}>liora.createSession</span>
+        <span className={PL}>({`{ workDir: `}</span>
+        <span className={TY}>process</span>
+        <span className={PL}>.cwd() {`}`});</span>
         {"\n  "}
-        <span className={PL}>title:</span> <span className={STR}>"Bound webhook retries"</span>
-        <span className={PL}>,</span>
-        {"\n  "}
-        <span className={PL}>ownershipPaths: [</span>
-        <span className={STR}>"src/webhooks"</span>
-        <span className={PL}>],</span>
-        {"\n  "}
-        <span className={PL}>contextPaths: [</span>
-        <span className={STR}>"AGENTS.md"</span>
-        <span className={PL}>],</span>
-        {"\n"}
-        <span className={PL}>{`}`});</span>
-        {"\n\n"}
-        <span className={KW}>for await</span> <span className={PL}>(</span>
-        <span className={KW}>const</span> <span className={FN}>ev</span> <span className={KW}>of</span>{" "}
-        <span className={FN}>job.stream</span>
-        <span className={PL}>()) {`{`}</span>
-        {"\n  "}
-        <span className={KW}>if</span> <span className={PL}>(</span>
-        <span className={FN}>ev.type</span> <span className={PL}>===</span> <span className={STR}>"tool_call"</span>
-        <span className={PL}>)</span> <span className={FN}>render</span>
+        <span className={FN}>session.onEvent</span>
         <span className={PL}>(</span>
-        <span className={FN}>ev</span>
+        <span className={FN}>console.log</span>
         <span className={PL}>);</span>
+        {"\n\n  "}
+        <span className={KW}>await</span>{" "}
+        <span className={FN}>session.prompt</span>
+        <span className={PL}>(</span>
+        <span className={STR}>"Cap the webhook retry backoff"</span>
+        <span className={PL}>);</span>
+        {"\n"}
+        <span className={PL}>{`}`}</span>{" "}
+        <span className={KW}>finally</span>{" "}
+        <span className={PL}>{`{`}</span>
         {"\n  "}
-        <span className={KW}>if</span> <span className={PL}>(</span>
-        <span className={FN}>ev.type</span> <span className={PL}>===</span> <span className={STR}>"needs_user"</span>
-        <span className={PL}>)</span> <span className={KW}>await</span> <span className={FN}>job.answer</span>
-        <span className={PL}>(</span>
-        <span className={FN}>ask</span>
-        <span className={PL}>(</span>
-        <span className={FN}>ev</span>
-        <span className={PL}>));</span>
+        <span className={KW}>await</span>{" "}
+        <span className={FN}>liora.close</span>
+        <span className={PL}>();</span>
         {"\n"}
         <span className={PL}>{`}`}</span>
         {"\n"}
-        <span className={CM}>// → ACK job_x7f2p1q [queued] model=opencode-go/kimi-k3</span>
+        <span className={CM}>// Bash + SessionControl · current workspace</span>
       </code>
     </pre>
   );
@@ -112,7 +96,7 @@ export default function Surfaces() {
               <div>
                 <p className="mb-6 flex items-center gap-2 font-[family-name:var(--font-mono)] text-[11px] tracking-[0.18em] text-faint uppercase">
                   <TerminalSquare className="size-4 text-primary" />
-                  argv keep-list
+                  CLI · interactive commands
                 </p>
                 <div className="divide-y divide-line">
                   {t.surfaces.cli.map((c) => (
@@ -211,7 +195,7 @@ export default function Surfaces() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {["Zed", "JetBrains", "browser-use", "computer-use"].map((chip) => (
+                    {["Zed", "JetBrains", "Bash", "SessionControl"].map((chip) => (
                       <span key={chip} className="rounded-full border border-line bg-panel px-4 py-2 font-[family-name:var(--font-mono)] text-[11.5px] text-dim">
                         {chip}
                       </span>

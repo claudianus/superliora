@@ -9,11 +9,9 @@ SuperLiora CLI's TUI interactive mode keeps a small main-prompt keymap and route
 | `Ctrl-K` | Open the Command Hub menu (`Ctrl-Space` also works) |
 | `Enter` | Submit the current input |
 | `Shift-Enter` / `Ctrl-J` | Insert a newline |
-| `Shift-Tab` | Switch Ask / Build mode |
 | `Esc` | Close a popup / cancel completion / interrupt streaming; press twice while idle for **session undo** |
 | `Ctrl-C` | Stop the current turn, or clear input / confirm exit when idle |
 | `Ctrl-O` | Cycle transcript density (minimal → compact → standard → full) |
-| `Ctrl-T` | Expand / collapse the todo list |
 
 Pressing `Ctrl-C` **during streaming** cancels immediately — no second confirmation needed.
 
@@ -33,15 +31,11 @@ Pressing `Ctrl-C` **during streaming** cancels immediately — no second confirm
 | `!` | Enter shell mode (empty prompt) |
 | `Alt-J` | Open the Conductor Job Deck monitor (worker transcripts, tokens, elapsed). Press `Alt-J` again while it is open to close it. Same entry as `/jobs deck` or clicking a Job Desk card. In Kitty on macOS, set `macos_option_as_alt yes` (or `left`) so Option sends Alt |
 | `Alt-I` | Open the Conductor Inbox drawer (questions waiting on you). Press `Alt-I` again to close it. Same entry as `/job inbox` |
-| `Alt-B` | Focus the Intent Composer brief slots above the editor |
 | `Q` | Open the live Quota (remaining-credits) report as an overlay — empty prompt only. Press `Q` again (or `Esc`) while it is open to close it |
-| `P` | Start Plan mode and open the plan in a scrollable overlay — empty prompt only. Press `P` or `Esc` while it is open to close it; `/plan` exits Plan mode |
-
-`Q` / `P` are single-key and fire only when the prompt is empty and idle, so they never steal letters from a draft you are typing. (`q`/`Q` inside an already-open help popup still means "close", which is a different context.)
 
 If a gated key cannot run (for example Hub while a turn is streaming, or `Ctrl-R` with a non-empty prompt), the TUI shows a short toast instead of doing nothing.
 
-Press `Shift-Tab` (or `/ask`) to switch Ask and Build. Ask mode reads, searches, and answers without editing or starting new jobs. Switch back to Build to delegate work. Plan mode is `/plan`, not Shift-Tab.
+Normal requests run directly in the workspace. Planning is ordinary conversation; Ask/Build toggles and Plan mode are retired.
 
 Type `!` in an empty input box to enter shell mode and run terminal commands directly; while a command is running, press `Ctrl-B` to move it to a background task. See [Interaction and input](../guides/interaction.md#shell-mode).
 
@@ -76,11 +70,11 @@ When pasting an image or video, a placeholder is shown in the input box — the 
 
 ## Hub & slash (not main chords)
 
-Plan mode and retry are toggled from the Command Hub or slash commands (`/plan`, `/retry`, …), and tool-output / todo expansion are the `Ctrl-O` / `Ctrl-T` chords above. Beyond that, most workflow actions live in Command Hub (`Ctrl-K`) or slash commands rather than dedicated main-prompt chords.
+Most workflow actions live in the Command Hub or slash commands. `/retry` is an explicit operator action, not an automatic retry policy; `Ctrl-O` cycles transcript density.
 
 ## Approval Panel
 
-When the Agent initiates a tool call that requires confirmation, the TUI displays an approval panel. For the full approval workflow, see [Interaction & Input](../guides/interaction.md#审批流程). The available keys inside the panel are:
+When a tool call requires confirmation, the TUI displays an approval panel. See [Approval flow](../guides/interaction.md#approval-flow). Available keys inside the panel are:
 
 | Shortcut | Function |
 | --- | --- |

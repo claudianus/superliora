@@ -1,12 +1,11 @@
 /**
  * Model-related slash command handlers and pickers extracted from config.ts.
  *
- * Covers: /model command, model routing (loop roles), fallback chain editor,
+ * Covers: /model command and provider fallback chain editor,
  * and the tabbed model picker with thinking-level selection.
  */
 
 import {
-  SMART_AUTO_SESSION_ALIAS,
   type DeleteConfigFieldPath,
   type ModelAlias,
 } from '@superliora/sdk';
@@ -26,13 +25,6 @@ import {
   resolveThinkingLevelForApply,
 } from '#/tui/utils/model/thinking-effort';
 import {
-  loopModelRoutingDeletePath,
-  loopModelRoutingPatch,
-  loopModelRoutingRows,
-  type LoopModelRoutingConfig,
-  type LoopModelRoutingRole,
-} from '#/tui/utils/model/loop-model-routing';
-import {
   getFallbackModels,
   fallbackModelsPatch,
   clearFallbackModelsPatch,
@@ -49,12 +41,6 @@ const MODEL_SETTINGS_RESET_PATHS: readonly DeleteConfigFieldPath[] = [
   'defaultThinking',
   'thinking.mode',
   'thinking.effort',
-  'loopControl.compactionModel',
-  'loopControl.completionModel',
-  'loopControl.explorationModel',
-  'loopControl.codingModel',
-  'loopControl.planningModel',
-  'loopControl.debuggingModel',
 ];
 
 export async function handleModelCommand(host: SlashCommandHost, args: string): Promise<void> {
@@ -64,8 +50,7 @@ export async function handleModelCommand(host: SlashCommandHost, args: string): 
     showModelPicker(host);
     return;
   }
-  const isSmartAuto = alias.trim().toLowerCase() === SMART_AUTO_SESSION_ALIAS;
-  if (!isSmartAuto && host.state.appState.availableModels[alias] === undefined) {
+  if (host.state.appState.availableModels[alias] === undefined) {
     host.showError(ttui('tui.model.unknownAlias', { alias }));
     return;
   }
@@ -112,289 +97,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 }
 
-export async function showLoopModelRoutingPicker(host: SlashCommandHost): Promise<void> {
-  try {
-    const config = await host.harness.getConfig({ reload: true });
-    mountLoopModelRoutingPicker(host, config as LoopModelRoutingConfig);
-  } catch (error) {
-    host.showError(ttui('tui.model.routingLoadFailed', { message: formatErrorMessage(error) }));
-  }
-}
-
-function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRoutingConfig): void {
-  const rows = loopModelRoutingRows(
-    config,
-    host.state.appState.availableModels,
-    host.state.appState.availableProviders,
-  );
-  const autoRoutingValue = '__smart_auto__';
-  const mediaRoutingValue = '__media_routing__';
-  mountPickerDialog(
-    host,
-    new ChoicePickerComponent({
-      title: ttui('tui.model.routing.title'),
-      notice: ttui('tui.model.routing.notice'),
-      noticeTone: 'warning',
-      options: [
-        {
-          value: autoRoutingValue,
-          label: ttui('tui.model.routing.smartAuto'),
-          description: ttui('tui.model.routing.smartAutoDesc'),
-        },
-        ...rows.map((row) => ({
-          value: row.key,
-          label: row.label,
-          description: `${row.state} — ${row.description}`,
-        })),
-        {
-          value: mediaRoutingValue,
-          label: ttui('tui.model.routing.media'),
-          description: ttui('tui.model.routing.mediaDesc'),
-        },
-      ],
-      onSelect: (value) => {
-        if (value === autoRoutingValue) {
-          dismissPickerDialog(host);
-          void resetAllLoopModelRouting(host);
-          return;
-        }
-        if (value === mediaRoutingValue) {
-          dismissPickerDialog(host);
-          // Dynamic import: media-settings imports handleModelCommand from
-          // this module, so a static edge would be a cycle.
-          void import('../media/media-settings').then(({ showMediaSettings }) => {
-            showMediaSettings(host);
-          });
-          return;
-        }
-        const row = rows.find((candidate) => candidate.key === value);
-        if (row === undefined) return;
-        dismissPickerDialog(host);
-        showLoopRoleModelPicker(host, row);
-      },
-      onCancel: () => {
-        dismissPickerDialog(host);
-      },
-    }),
-    { label: 'Model routing' },
-  );
-}
-
-async function resetAllLoopModelRouting(host: SlashCommandHost): Promise<void> {
-  // Smart auto: live-probe each role chain, clear stale overrides, pin survivors only.
-  const spinner = host.showProgressSpinner(ttui('tui.model.smartAutoProbing'));
-
-  let plan: Awaited<ReturnType<typeof host.harness.planSmartLoopRoleRouting>>;
-  try {
-    plan = await host.harness.planSmartLoopRoleRouting({
-      onProgress: (progress) => {
-        spinner.setLabel(formatSmartAutoProbeProgress(progress));
-      },
-    });
-  } catch (error) {
-    spinner.stop({
-      ok: false,
-      label: ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }),
-    });
-    return;
-  }
-
-  try {
-    // Always clear every role key first so exhausted prior pins cannot linger.
-    if (plan.clearPaths.length > 0) {
-      await host.harness.deleteConfigFields([...plan.clearPaths]);
-    }
-    let config: LoopModelRoutingConfig;
-    if (Object.keys(plan.patch.loopControl).length > 0) {
-      config = (await host.harness.setConfig(plan.patch)) as LoopModelRoutingConfig;
-    } else {
-      config = (await host.harness.getConfig({ reload: true })) as LoopModelRoutingConfig;
-    }
-
-    if (plan.pins.length === 0) {
-      spinner.stop({ ok: false, label: ttui('tui.model.smartAutoNoHealthy') });
-    } else if (plan.skipped.length > 0) {
-      const skippedLabels = plan.skipped.map((s) => s.label).join(', ');
-      spinner.stop({
-        ok: true,
-        label: ttui('tui.model.smartAutoPartial', {
-          pinned: String(plan.pins.length),
-          skipped: skippedLabels,
-        }),
-      });
-      host.showNotice(
-        ttui('tui.model.smartAutoReasonsTitle'),
-        formatSmartAutoPinReasons(plan.pins, plan.skipped),
-      );
-    } else {
-      spinner.stop({
-        ok: true,
-        label: ttui('tui.model.smartAutoPinned', { count: String(plan.pins.length) }),
-      });
-      host.showNotice(
-        ttui('tui.model.smartAutoReasonsTitle'),
-        formatSmartAutoPinReasons(plan.pins),
-      );
-    }
-    mountLoopModelRoutingPicker(host, config);
-  } catch (error) {
-    spinner.stop({
-      ok: false,
-      label: ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }),
-    });
-  }
-}
-
-function formatSmartAutoPinReasons(
-  pins: readonly {
-    readonly label: string;
-    readonly alias: string;
-    readonly reason?: string;
-  }[],
-  skipped: readonly { readonly label: string; readonly reason: string }[] = [],
-): string {
-  const lines = pins.map((pin) => {
-    const why = pin.reason?.trim();
-    return why !== undefined && why.length > 0
-      ? `${pin.label}: ${pin.alias}\n  ${why}`
-      : `${pin.label}: ${pin.alias}`;
-  });
-  for (const skip of skipped) {
-    lines.push(`${skip.label}: skipped — ${skip.reason}`);
-  }
-  return lines.join('\n');
-}
-
-function formatSmartAutoProbeProgress(progress: {
-  readonly label: string;
-  readonly index: number;
-  readonly total: number;
-  readonly alias?: string;
-  readonly chainIndex?: number;
-  readonly chainTotal?: number;
-}): string {
-  const current = String(progress.index);
-  const total = String(progress.total);
-  if (
-    progress.alias !== undefined &&
-    progress.chainIndex !== undefined &&
-    progress.chainTotal !== undefined
-  ) {
-    return ttui('tui.model.smartAutoProbingAlias', {
-      role: progress.label,
-      current,
-      total,
-      alias: progress.alias,
-      chain: String(progress.chainIndex),
-      chainTotal: String(progress.chainTotal),
-    });
-  }
-  return ttui('tui.model.smartAutoProbingRole', {
-    role: progress.label,
-    current,
-    total,
-  });
-}
-
-function showLoopRoleModelPicker(host: SlashCommandHost, role: LoopModelRoutingRole & { readonly model?: string }): void {
-  if (Object.keys(host.state.appState.availableModels).length === 0) {
-    host.showNotice(
-      'No models configured',
-      'Run /login to sign in or add a provider, then choose a routing override.',
-    );
-    return;
-  }
-  const inheritKey = '__inherit_parent__';
-  const modelsWithInherit: Record<string, import('@superliora/sdk').ModelAlias> = {
-    ...host.state.appState.availableModels,
-    [inheritKey]: {
-      model: 'inherit',
-      provider: 'inherit',
-      displayName: 'Inherit parent model',
-      maxContextSize: 128000,
-      capabilities: ['tool_use'],
-    } as unknown as import('@superliora/sdk').ModelAlias,
-  };
-  mountPickerDialog(
-    host,
-    new TabbedModelSelectorComponent({
-      models: modelsWithInherit,
-      currentValue: role.model ?? '',
-      selectedValue: role.model,
-      currentThinking: false,
-      onSelect: ({ alias }) => {
-        dismissPickerDialog(host);
-        const target = alias === inheritKey ? 'inherit' : alias;
-        void applyLoopModelRoutingChoice(host, role, target);
-      },
-      onReset: () => {
-        dismissPickerDialog(host);
-        void resetLoopModelRoutingChoice(host, role);
-      },
-      onCancel: () => {
-        dismissPickerDialog(host);
-      },
-      notice: `${role.label}: inherit uses parent model, or pick a fixed alias.`,
-    }),
-    { label: `${role.label} model routing` },
-  );
-}
-
-export async function applyLoopModelRoutingChoice(
-  host: SlashCommandHost,
-  role: LoopModelRoutingRole,
-  alias: string,
-): Promise<void> {
-  try {
-    await host.harness.setConfig(loopModelRoutingPatch(role, alias));
-  } catch (error) {
-    host.showError(ttui('tui.model.roleRoutingFailed', { role: role.label, message: formatErrorMessage(error) }));
-    return;
-  }
-
-  let config: LoopModelRoutingConfig;
-  try {
-    config = (await host.harness.getConfig({ reload: true })) as LoopModelRoutingConfig;
-  } catch (error) {
-    host.showError(
-      ttui('tui.model.routingReloadFailed', { role: role.label, message: formatErrorMessage(error) }),
-    );
-    return;
-  }
-
-  host.showStatus(
-    ttui('tui.model.routingSet', { role: role.label, alias }),
-    'success',
-  );
-  mountLoopModelRoutingPicker(host, config);
-}
-
-export async function resetLoopModelRoutingChoice(
-  host: SlashCommandHost,
-  role: LoopModelRoutingRole & { readonly model?: string },
-): Promise<void> {
-  if (role.model === undefined) {
-    host.showStatus(ttui('tui.model.roleRoutingAuto', { role: role.label }));
-    void showLoopModelRoutingPicker(host);
-    return;
-  }
-
-  let config: LoopModelRoutingConfig;
-  try {
-    config = (await host.harness.deleteConfigFields([
-      loopModelRoutingDeletePath(role),
-    ])) as LoopModelRoutingConfig;
-  } catch (error) {
-    host.showError(ttui('tui.model.roleResetFailed', { role: role.label, message: formatErrorMessage(error) }));
-    return;
-  }
-
-  host.showStatus(
-    ttui('tui.model.routingReset', { role: role.label }),
-    'success',
-  );
-  mountLoopModelRoutingPicker(host, config);
-}
 
 export function showModelSettingsReset(host: SlashCommandHost): void {
   mountPickerDialog(
@@ -658,15 +360,6 @@ export function showModelPicker(host: SlashCommandHost, selectedValue: string = 
     );
     return;
   }
-  const modelsWithSmartAuto: Record<string, ModelAlias> = {
-    [SMART_AUTO_SESSION_ALIAS]: {
-      model: SMART_AUTO_SESSION_ALIAS,
-      provider: 'smart-auto',
-      displayName: 'Smart Auto',
-      maxContextSize: 1_000_000,
-    },
-    ...host.state.appState.availableModels,
-  };
   const currentEffort =
     host.state.appState.thinkingLevel !== undefined &&
     host.state.appState.thinkingLevel !== 'off' &&
@@ -676,7 +369,7 @@ export function showModelPicker(host: SlashCommandHost, selectedValue: string = 
   mountPickerDialog(
     host,
     new TabbedModelSelectorComponent({
-      models: modelsWithSmartAuto,
+      models: host.state.appState.availableModels,
       currentValue: host.state.appState.model,
       selectedValue,
       currentThinking: host.state.appState.thinking,
@@ -705,7 +398,7 @@ export async function promptCustomModel(host: SlashCommandHost): Promise<void> {
   const config = await host.harness.getConfig();
   const providerIds = Object.keys(config.providers);
   const currentProvider = host.state.appState.availableModels[host.state.appState.model]?.provider;
-  const hintProvider = currentProvider !== undefined && currentProvider !== 'smart-auto' ? currentProvider : providerIds[0];
+  const hintProvider = currentProvider ?? providerIds[0];
 
   let catalogPromise: Promise<import('@superliora/sdk').Catalog | undefined> | undefined;
   try {
@@ -860,9 +553,8 @@ async function performModelSwitch(
     return;
   }
 
-  const isSmartAuto = alias.trim().toLowerCase() === SMART_AUTO_SESSION_ALIAS;
-  const model = isSmartAuto ? undefined : host.state.appState.availableModels[alias];
-  if (!isSmartAuto && model === undefined) {
+  const model = host.state.appState.availableModels[alias];
+  if (model === undefined) {
     host.showError(ttui('tui.model.unknownAlias', { alias }));
     return;
   }
@@ -899,16 +591,6 @@ async function performModelSwitch(
     model: alias,
     thinking,
     thinkingLevel: display.requested,
-    ...(isSmartAuto
-      ? {
-          lastModelRouteNotice: {
-            kind: 'selection' as const,
-            toAlias: SMART_AUTO_SESSION_ALIAS,
-            reason: 'smart-auto pin',
-            atMs: Date.now(),
-          },
-        }
-      : {}),
   });
   if (session === undefined && runtimeChanged) {
     if (alias !== prevModel) {
@@ -979,10 +661,3 @@ async function persistModelSelection(
   return true;
 }
 
-export async function showConductorPoolPicker(host: SlashCommandHost): Promise<void> {
-  const config = (await host.harness.getConfig({ reload: true })) as { loopControl?: Record<string, unknown> };
-  const currentPool = (config.loopControl?.['conductorModelPool'] as string[] | undefined) ?? [];
-  const mode = (config.loopControl?.['conductorPoolMode'] as string | undefined) ?? 'allowlist';
-  const hint = currentPool.length === 0 ? ttui('tui.model.conductorPoolAllHealthy') : `Pool (${mode}): ${currentPool.join(', ')}`;
-  host.showNotice(ttui('tui.model.conductorPoolTitle'), ttui('tui.model.conductorPoolDetail', { hint }));
-}

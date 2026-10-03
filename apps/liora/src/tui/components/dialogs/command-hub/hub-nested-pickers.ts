@@ -61,22 +61,7 @@ export function showHubJobOpsPicker(host: HubNestedPickerHost): void {
           label: ttui('tui.hub.nested.jobOps.inspect.label'),
           description: ttui('tui.hub.nested.jobOps.inspect.desc'),
         },
-        {
-          value: '/job schedule',
-          label: ttui('tui.hub.nested.jobOps.schedule.label'),
-          description: ttui('tui.hub.nested.jobOps.schedule.desc'),
-        },
         { value: '/job gc', label: ttui('tui.hub.nested.jobOps.gc.label'), description: ttui('tui.hub.nested.jobOps.gc.desc') },
-        {
-          value: '/job split-preview',
-          label: ttui('tui.hub.nested.jobOps.splitPreview.label'),
-          description: ttui('tui.hub.nested.jobOps.splitPreview.desc'),
-        },
-        {
-          value: '/job mode hotfix',
-          label: ttui('tui.hub.nested.jobOps.hotfix.label'),
-          description: ttui('tui.hub.nested.jobOps.hotfix.desc'),
-        },
         {
           value: '/jobs deck',
           label: ttui('tui.hub.nested.jobOps.deck.label'),
@@ -94,60 +79,3 @@ export function showHubJobOpsPicker(host: HubNestedPickerHost): void {
   );
 }
 
-export function showHubLoopsPicker(host: HubNestedPickerHost): void {
-  mountPickerDialog(
-    host,
-    new ChoicePickerComponent({
-      title: ttui('tui.hub.nested.loops.title'),
-      hint: ttui('tui.hub.nested.common.hint'),
-      options: [
-        {
-          value: '/loop list',
-          label: ttui('tui.hub.nested.loops.list.label'),
-          description: ttui('tui.hub.nested.loops.list.desc'),
-        },
-        {
-          value: '/loop stop',
-          label: ttui('tui.hub.nested.loops.stop.label'),
-          description: ttui('tui.hub.nested.loops.stop.desc'),
-        },
-      ],
-      onSelect: (value) => {
-        runSlashAndCloseHub(host, value);
-      },
-      onCancel: () => {
-        dismissPickerDialog(host);
-      },
-    }),
-    { label: ttui('tui.hub.nested.loops.title') },
-  );
-}
-
-export function showHubCronPicker(host: HubNestedPickerHost): void {
-  mountPickerDialog(
-    host,
-    new ChoicePickerComponent({
-      title: ttui('tui.hub.nested.cron.title'),
-      hint: ttui('tui.hub.nested.common.hint'),
-      options: [
-        {
-          value: '/cron list',
-          label: ttui('tui.hub.nested.cron.list.label'),
-          description: ttui('tui.hub.nested.cron.list.desc'),
-        },
-        {
-          value: '/cron delete',
-          label: ttui('tui.hub.nested.cron.delete.label'),
-          description: ttui('tui.hub.nested.cron.delete.desc'),
-        },
-      ],
-      onSelect: (value) => {
-        runSlashAndCloseHub(host, value);
-      },
-      onCancel: () => {
-        dismissPickerDialog(host);
-      },
-    }),
-    { label: ttui('tui.hub.nested.cron.title') },
-  );
-}

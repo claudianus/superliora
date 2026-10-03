@@ -47,7 +47,6 @@ function describeOption(option: Option): CompletionOption {
 /** The command tree as the generators need it: names, options, choices. */
 export function describeProgram(program: Command): readonly CompletionCommand[] {
   return program.commands
-    .filter((command) => command.name() !== '__plugin_run_node')
     .map((command) => ({
       name: command.name(),
       description: command.description(),

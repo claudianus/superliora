@@ -16,7 +16,6 @@ All sessions are saved under `$SUPERLIORA_HOME/sessions/` (default: `~/.superlio
             ├── state.json
             ├── ui/
             │   ├── draft.json
-            │   ├── goals.json
             │   └── prefs.json
             └── agents/
                 ├── main/
@@ -70,7 +69,7 @@ You can manage sessions without leaving the terminal. The following slash comman
 
 ## Context compression
 
-As a conversation grows, SuperLiora CLI automatically compresses the message history when the context approaches the window limit, freeing up token space. You can also trigger compression manually at any time:
+Context compaction is explicit: run `/compact` when you want to replace the superseded completed conversation prefix with a summary. The latest real user request is retained. The harness does not automatically compact at a configured threshold.
 
 ```
 /compact
@@ -82,6 +81,8 @@ You can pass a hint to tell the model what to prioritize when compressing:
 /compact Keep the discussion about database migrations
 ```
 
+The model can request the same full compaction through SessionControl. A supplied `summary` avoids a summarization model call; `instruction` guides a generated summary. Stored conversation and journal records support recovery and replay, but replay never reruns shell commands or other effects.
+
 ## Forking a session
 
 To explore a new direction without disrupting the current conversation, use `/fork`:
@@ -90,7 +91,7 @@ To explore a new direction without disrupting the current conversation, use `/fo
 /fork
 ```
 
-The two resulting sessions are completely independent and do not affect each other. You can switch back to the original at any time using `/sessions`. A saved `/goal` is not copied to the fork. Start a new goal there if you want autonomous goal work.
+The fork has its own durable conversation and can be resumed through `/sessions`. It is not a filesystem branch: both sessions can use the same workspace. `/btw` uses a durable aside fork to answer a side question without replacing the main conversation.
 
 ## Exporting a session
 

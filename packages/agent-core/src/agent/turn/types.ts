@@ -10,7 +10,6 @@ import type { TurnEndedEvent } from '../../rpc/events';
 export interface TurnEndResult {
   readonly event: TurnEndedEvent;
   readonly stopReason?: LoopTurnStopReason;
-  readonly blockedByUserPromptHook?: boolean;
 }
 
 export interface ActiveTurn {

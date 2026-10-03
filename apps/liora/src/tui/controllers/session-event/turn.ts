@@ -1,17 +1,14 @@
 import type {
   AssistantDeltaEvent,
-  GoalChange,
   ThinkingDeltaEvent,
   TokenUsage,
   TurnEndedEvent,
   TurnStartedEvent,
   TurnStepCompletedEvent,
   TurnStepInterruptedEvent,
-  TurnStepRetryingEvent,
   TurnStepStartedEvent,
 } from '@superliora/sdk';
 
-import { buildGoalMarker } from '../../components/messages/goal/goal-markers';
 import type { AppState, LivePaneState, QueuedMessage, TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { ColorToken } from '#/tui/theme';
@@ -22,7 +19,6 @@ import {
   decideModelRouteSurface,
   modelRouteDisplayName,
 } from '../../utils/model/model-route-notice';
-import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyTurnComplete } from '../../utils/notification/desktop-notification';
 import { appendHostTtftMsSample } from '../../utils/host/host-glance';
@@ -42,26 +38,10 @@ export interface TurnEventHost {
   setLastTurnFailed(failed: boolean): void;
 }
 
-/**
- * Coordination owned by SessionEventHandler because goal-queue / hook.result
- * also read/write the shared flags, and goal promotion lives on a sibling
- * delegate. Injected so turn end promotion stays coordinated.
- */
-export interface TurnEventCoordination {
-  scheduleQueuedGoalPromotion(): void;
-  setCurrentTurnHasAssistantText(value: boolean): void;
-  setGoalCompletionTurnEnded(value: boolean): void;
-  getPendingModelBlockedFallback(): GoalChange | undefined;
-  setPendingModelBlockedFallback(value: GoalChange | undefined): void;
-}
-
 export class SessionEventTurn {
   private currentTurnUsage: TokenUsage | undefined;
 
-  constructor(
-    private readonly host: TurnEventHost,
-    private readonly coordination: TurnEventCoordination,
-  ) {}
+  constructor(private readonly host: TurnEventHost) {}
 
   resetRuntimeState(): void {
     this.currentTurnUsage = undefined;
@@ -69,7 +49,6 @@ export class SessionEventTurn {
 
   handleTurnBegin(_event: TurnStartedEvent): void {
     void _event;
-    this.coordination.setCurrentTurnHasAssistantText(false);
     this.currentTurnUsage = undefined;
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.setStep(0);
@@ -87,7 +66,7 @@ export class SessionEventTurn {
   handleTurnEnd(event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
     this.host.streamingUI.flushNow();
     if (event.reason === 'filtered') {
-      // Loop37a: status alone is easy to miss; named notice + goal-pause implication.
+      // Keep provider filtering visible even when no assistant text was returned.
       this.host.showNotice(
         ttui('tui.step.providerFiltered.title'),
         ttui('tui.step.providerFiltered.detail'),
@@ -107,51 +86,14 @@ export class SessionEventTurn {
     }
     // A cleanly-ended turn clears the retry flag (only errors set it).
     this.host.setLastTurnFailed(false);
-    const todos = this.host.state.todoPanel.getTodos();
-    if (todos.length > 0 && todos.every((t) => t.status === 'done')) {
-      this.host.streamingUI.setTodoList([]);
-    }
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.finalizeTurn(sendQueued);
     this.appendTurnSummary(event);
-    this.renderPendingModelBlockedFallback();
-    this.coordination.setCurrentTurnHasAssistantText(false);
     this.currentTurnUsage = undefined;
-    this.coordination.setGoalCompletionTurnEnded(true);
-    this.coordination.scheduleQueuedGoalPromotion();
     // Desktop notification on successful turn completion
     if (event.reason !== 'cancelled' && event.reason !== 'filtered') {
       notifyTurnComplete(this.host.state, undefined, { key: `turn-complete:${event.turnId}` });
     }
-  }
-
-  handleStepRetrying(event: TurnStepRetryingEvent): void {
-    // The payload carries no model/route info — build the cue from the error
-    // identity, attempt counts, and backoff delay only (no invented fields).
-    const name = event.errorName.trim();
-    const detail = event.errorMessage.trim().replaceAll(/\s+/g, ' ');
-    const shortDetail = detail.length > 90 ? `${detail.slice(0, 89)}…` : detail;
-    const reason =
-      name.length > 0
-        ? shortDetail.length > 0
-          ? `${name}: ${shortDetail}`
-          : name
-        : shortDetail.length > 0
-          ? shortDetail
-          : ttui('tui.step.retryingTransient');
-    const delay =
-      event.delayMs > 0
-        ? ttui('tui.step.retryingDelay', { delay: formatRetryDelay(event.delayMs) })
-        : '';
-    this.host.showStatus(
-      ttui('tui.step.retrying', {
-        step: event.step,
-        attempt: event.nextAttempt,
-        max: event.maxAttempts,
-        reason,
-      }) + delay,
-      'warning',
-    );
   }
 
   handleStepBegin(event: TurnStepStartedEvent): void {
@@ -231,14 +173,6 @@ export class SessionEventTurn {
       );
       return;
     }
-    // Loop23b: max_steps is a named terminal budget state (exhausted), not a
-    // generic error — surface recovery guidance (pairs with STEP_BUDGET soft tip).
-    if (reason === 'max_steps') {
-      const notice = formatMaxStepsExhaustedNotice();
-      this.host.showNotice(notice.title, notice.detail, { coalesceKey: 'step-budget-exhausted' });
-      this.host.showStatus(notice.status, 'warning');
-      return;
-    }
     this.host.showError(ttui('tui.step.interrupted', { reason }));
   }
 
@@ -259,10 +193,6 @@ export class SessionEventTurn {
       streamingUI.flushThinkingToTranscript('idle');
     }
 
-    if (event.delta.trim().length > 0) {
-      this.coordination.setCurrentTurnHasAssistantText(true);
-      this.coordination.setPendingModelBlockedFallback(undefined);
-    }
     streamingUI.appendAssistantDelta(event.delta);
 
     this.host.patchLivePane({
@@ -412,31 +342,6 @@ export class SessionEventTurn {
     if (providerKey === undefined) return false;
     return state.appState.availableProviders[providerKey]?.type === 'anthropic';
   }
-
-  private renderPendingModelBlockedFallback(): void {
-    const change = this.coordination.getPendingModelBlockedFallback();
-    if (change === undefined) return;
-    this.coordination.setPendingModelBlockedFallback(undefined);
-    const { state } = this.host;
-    const marker = buildGoalMarker(change, state.toolOutputExpanded, 'model');
-    if (marker !== null) {
-      state.transcriptContainer.addChild(marker);
-      requestTUILayoutRender(state);
-    }
-  }
-}
-
-/** User-facing copy when a turn hits the hard per-turn step ceiling. */
-export function formatMaxStepsExhaustedNotice(): {
-  readonly title: string;
-  readonly detail: string;
-  readonly status: string;
-} {
-  return {
-    title: ttui('tui.notice.stepBudgetExhausted.title'),
-    detail: ttui('tui.notice.stepBudgetExhausted.detail'),
-    status: ttui('tui.notice.stepBudgetExhausted.status'),
-  };
 }
 
 function formatTurnSummary(durationMs: number | undefined, usage: TokenUsage | undefined): string | undefined {
@@ -461,11 +366,6 @@ function formatTurnDuration(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}m${seconds.toString().padStart(2, '0')}s`;
-}
-
-function formatRetryDelay(delayMs: number): string {
-  if (delayMs >= 1000) return `${(delayMs / 1000).toFixed(1)}s`;
-  return `${String(Math.max(0, Math.round(delayMs)))}ms`;
 }
 
 function addTokenUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {

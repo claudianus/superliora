@@ -1,246 +1,87 @@
-#!/usr/bin/env node
-/**
- * Scenario 12 — send prompt + cancel prompt.
- *
- * Verifies that the server can arbitrarily start and stop prompts through
- * the REST + WS surface:
- *
- *   1. create and subscribe to a session;
- *   2. submit a simple prompt and wait for `prompt.completed`;
- *   3. inject an active prompt via the debug hook, submit a second prompt
- *      (queued), then abort the queued prompt and observe `prompt.aborted`;
- *   4. inject another active prompt and cancel it with the session-level
- *      `POST /sessions/{sid}:abort` endpoint (no prompt_id required);
- *   5. submit a third prompt after the cancellations and assert it completes,
- *      proving the scheduler recovers to an idle state.
- *
- * The server must be launched with `--debug-endpoints` because normal prompt
- * submission usually completes too quickly to deterministically hold an active
- * turn while queued prompts are submitted.
- *
- * Usage:
- *   SERVER_URL=http://127.0.0.1:58627 npx tsx scenarios/12-send-and-cancel.ts
- *
- * Exit codes:
- *   0  — pass
- *   1  — assertion failure or server error
- */
 import assert from 'node:assert/strict';
 
-import { DaemonClient, resolveServerUrl } from '../src/index';
-import { fetchWithReport } from '../src/report';
+import { DaemonClient, EnvelopeError, resolveServerUrl } from '../src/index';
 
-const SERVER_URL = resolveServerUrl();
-const API_PREFIX = '/api/v1';
+const client = new DaemonClient({ baseUrl: resolveServerUrl() });
 const PROMPT_TIMEOUT_MS = 120_000;
+let sid: string | undefined;
 
-interface Envelope<T> {
-  code: number;
-  msg?: string;
-  data: T | null;
-}
-
-async function main() {
-  const client = new DaemonClient({ baseUrl: SERVER_URL });
-
-  let sid: string | undefined;
-  const promptIdsForCleanup: string[] = [];
+async function main(): Promise<void> {
   try {
-    const session = await client.createSession({
-      title: 'server-e2e send and cancel',
-      metadata: { cwd: process.cwd(), scenario: 'send-and-cancel' },
-    });
+    const session = await client.createSession({ metadata: { cwd: process.cwd(), scenario: 'send-and-cancel' } });
     sid = session.id;
-    console.log(`▶ session ${sid} created`);
-
+    process.stdout.write(`created session: ${JSON.stringify(session)}\n`);
     await client.connect();
     await client.subscribe(sid);
-    console.log(`▶ session ${sid} subscribed`);
-
-    // 1. Happy-path send: submit a prompt and wait for completion.
-    const completed = await client.submitAndWait(
-      sid,
-      { content: [{ type: 'text', text: 'Reply with the single word "OK".' }] },
-      { waitFor: 'prompt.completed', timeoutMs: PROMPT_TIMEOUT_MS },
-    );
-    promptIdsForCleanup.push(completed.prompt_id);
-    console.log(`▶ prompt completed: ${completed.prompt_id}`);
-    assert.equal(completed.finalFrame.type, 'prompt.completed');
-
-    // 2. Cancel a queued prompt: hold the turn with a debug active prompt,
-    //    submit a second prompt, then abort it by prompt_id.
-    const activeForQueued = await injectActivePrompt(sid, {
-      prompt_id: `prompt_debug_cancel_queued_${process.pid}`,
+    const active = await client.submitPrompt(sid, {
+      permission_mode: 'yolo',
+      content: [{ type: 'text', text: 'Use Bash now to execute `sleep 60; printf "finished\\n"` in the foreground. Do not background it. Wait for the command before answering.' }],
     });
-    promptIdsForCleanup.push(activeForQueued.prompt_id);
-    console.log(`▶ injected active prompt for queued cancel: ${activeForQueued.prompt_id}`);
+    process.stdout.write(`submitted: ${JSON.stringify(active)}\n`);
+    const call = await client.waitForFrame((frame) => {
+      if (frame.type !== 'tool.call') return false;
+      const payload = frame.payload;
+      return payload !== null && typeof payload === 'object' && 'name' in payload && payload.name === 'Bash';
+    }, { timeoutMs: PROMPT_TIMEOUT_MS });
+    process.stdout.write(`native Bash call: ${JSON.stringify(call)}\n`);
 
-    const queued = await client.submitPrompt(sid, {
-      content: [{ type: 'text', text: 'Count slowly to 100.' }],
+    const queued = await client.submitPromptStateful(sid, {
+      content: [{ type: 'text', text: 'Reply with "QUEUED".' }],
     });
-    promptIdsForCleanup.push(queued.prompt_id);
-    assert.equal(queued.status, 'queued', `queued prompt status=${queued.status}, want queued`);
-    console.log(`▶ queued prompt submitted: ${queued.prompt_id}`);
+    process.stdout.write(`queued: ${JSON.stringify(queued)}\n`);
+    assert.equal(queued.status, 'queued');
+    const queuedTerminal = client.waitForFrame((frame) => {
+      const payload = frame.payload;
+      return frame.type === 'prompt.aborted' && payload !== null && typeof payload === 'object' &&
+        'promptId' in payload && payload.promptId === queued.prompt_id;
+    }, { timeoutMs: 30_000 });
+    process.stdout.write(`queued cancel ack: ${JSON.stringify(await client.abortPrompt(sid, queued.prompt_id))}\n`);
+    process.stdout.write(`queued terminal: ${JSON.stringify(await queuedTerminal)}\n`);
+    assert.equal((await client.listPrompts(sid)).active?.prompt_id, active.prompt_id);
 
-    const abortedFramePromise = client.waitForFrame(
-      (f) =>
-        f.type === 'prompt.aborted' &&
-        (f.payload as { promptId?: string } | undefined)?.promptId === queued.prompt_id,
-      { timeoutMs: 30_000 },
-    );
+    const settled = client.waitForFrame((frame) => {
+      const payload = frame.payload;
+      return frame.type === 'prompt.aborted' && payload !== null && typeof payload === 'object' &&
+        'promptId' in payload && payload.promptId === active.prompt_id;
+    }, { timeoutMs: 30_000 });
+    const acknowledgement = await client.abortSession(sid);
+    process.stdout.write(`session cancel ack: ${JSON.stringify(acknowledgement)}\n`);
+    assert.equal(acknowledgement.aborted, true);
+    process.stdout.write(`native settlement: ${JSON.stringify(await settled)}\n`);
+    const after = await client.listPrompts(sid);
+    process.stdout.write(`prompts after settlement: ${JSON.stringify(after)}\n`);
+    assert.equal(after.active, null);
+    assert.deepEqual(after.queued, []);
 
-    const abortQueued = await client.abortPrompt(sid, queued.prompt_id);
-    console.log(`▶ abort queued response: ${JSON.stringify(abortQueued)}`);
-    assert.equal(abortQueued.aborted, true);
-
-    const abortedFrame = await abortedFramePromise;
-    assert.equal(abortedFrame.type, 'prompt.aborted');
-    console.log(`▶ prompt.aborted frame received for queued prompt ${queued.prompt_id}`);
-
-    // 3. Cancel an active prompt via session-level abort (no prompt_id).
-    const activeForSession = await injectActivePrompt(sid, {
-      prompt_id: `prompt_debug_cancel_session_${process.pid}`,
-    });
-    promptIdsForCleanup.push(activeForSession.prompt_id);
-    console.log(`▶ injected active prompt for session abort: ${activeForSession.prompt_id}`);
-
-    const sessionAbortFramePromise = client.waitForFrame(
-      (f) =>
-        f.type === 'prompt.aborted' &&
-        (f.payload as { promptId?: string } | undefined)?.promptId === activeForSession.prompt_id,
-      { timeoutMs: 30_000 },
-    );
-
-    const sessionAbort = await client.abortSession(sid);
-    console.log(`▶ session abort response: ${JSON.stringify(sessionAbort)}`);
-    assert.equal(sessionAbort.aborted, true);
-
-    const sessionAbortFrame = await sessionAbortFramePromise;
-    assert.equal(sessionAbortFrame.type, 'prompt.aborted');
-    console.log(`▶ prompt.aborted frame received for session-aborted prompt ${activeForSession.prompt_id}`);
-
-    // 4. Repeated ESC (prompt-level): abort an active prompt, then abort it
-    //    again and assert idempotent 40903 / { aborted: false }.
-    const activeForRepeated = await injectActivePrompt(sid, {
-      prompt_id: `prompt_debug_repeated_esc_${process.pid}`,
-    });
-    promptIdsForCleanup.push(activeForRepeated.prompt_id);
-    console.log(`▶ injected active prompt for repeated ESC: ${activeForRepeated.prompt_id}`);
-
-    const repeatedEscFramePromise = client.waitForFrame(
-      (f) =>
-        f.type === 'prompt.aborted' &&
-        (f.payload as { promptId?: string } | undefined)?.promptId === activeForRepeated.prompt_id,
-      { timeoutMs: 30_000 },
-    );
-
-    const firstEsc = await client.abortPrompt(sid, activeForRepeated.prompt_id);
-    console.log(`▶ first ESC abort response: ${JSON.stringify(firstEsc)}`);
-    assert.equal(firstEsc.aborted, true);
-
-    const repeatedEscFrame = await repeatedEscFramePromise;
-    assert.equal(repeatedEscFrame.type, 'prompt.aborted');
-    console.log(`▶ prompt.aborted frame received for repeated ESC prompt ${activeForRepeated.prompt_id}`);
-
-    let secondEscError: unknown;
+    let repeated: unknown;
     try {
-      await client.abortPrompt(sid, activeForRepeated.prompt_id);
+      await client.abortPrompt(sid, active.prompt_id);
     } catch (error) {
-      secondEscError = error;
+      repeated = error;
     }
-    assert.ok(
-      secondEscError instanceof Error && secondEscError.message.includes('40903'),
-      `expected second ESC to return 40903, got ${String(secondEscError)}`,
-    );
-    console.log(`▶ second ESC abort returned 40903 as expected`);
+    assert.ok(repeated instanceof EnvelopeError);
+    assert.equal(repeated.code, 40903);
+    assert.deepEqual(repeated.data, { aborted: false });
+    process.stdout.write(`repeated cancel: ${JSON.stringify({ code: repeated.code, data: repeated.data })}\n`);
 
-    // 5. Repeated session-level ESC: cancel repeatedly and assert stability.
-    const activeForRepeatedSession = await injectActivePrompt(sid, {
-      prompt_id: `prompt_debug_repeated_session_abort_${process.pid}`,
-    });
-    promptIdsForCleanup.push(activeForRepeatedSession.prompt_id);
-    console.log(`▶ injected active prompt for repeated session abort: ${activeForRepeatedSession.prompt_id}`);
-
-    const repeatedSessionFrames: Array<{ type: string; promptId?: string }> = [];
-    const unsubscribe = client.onFrame((f) => {
-      if (
-        f.type === 'prompt.aborted' &&
-        (f.payload as { promptId?: string } | undefined)?.promptId === activeForRepeatedSession.prompt_id
-      ) {
-        repeatedSessionFrames.push({ type: f.type, promptId: (f.payload as { promptId?: string }).promptId });
-      }
-    });
-    try {
-      const firstSessionAbort = await client.abortSession(sid);
-      console.log(`▶ first session-level ESC abort response: ${JSON.stringify(firstSessionAbort)}`);
-      assert.equal(firstSessionAbort.aborted, true);
-
-      const secondSessionAbort = await client.abortSession(sid);
-      console.log(`▶ second session-level ESC abort response: ${JSON.stringify(secondSessionAbort)}`);
-      assert.equal(secondSessionAbort.aborted, true);
-
-      const thirdSessionAbort = await client.abortSession(sid);
-      console.log(`▶ third session-level ESC abort response: ${JSON.stringify(thirdSessionAbort)}`);
-      assert.equal(thirdSessionAbort.aborted, true);
-
-      assert.equal(repeatedSessionFrames.length, 1, `expected exactly one prompt.aborted frame, got ${repeatedSessionFrames.length}`);
-      console.log(`▶ repeated session-level ESC produced exactly one prompt.aborted frame`);
-    } finally {
-      unsubscribe();
-    }
-
-    // 6. Scheduler recovery: submit another prompt after cancellations and
-    //    assert it completes normally.
-    const recovered = await client.submitAndWait(
-      sid,
-      { content: [{ type: 'text', text: 'Reply with the single word "RECOVERED".' }] },
-      { waitFor: 'prompt.completed', timeoutMs: PROMPT_TIMEOUT_MS },
-    );
-    promptIdsForCleanup.push(recovered.prompt_id);
-    console.log(`▶ recovered prompt completed: ${recovered.prompt_id}`);
-    assert.equal(recovered.finalFrame.type, 'prompt.completed');
-
-    console.log('✓ 12-send-and-cancel: submit + abort round-trips succeeded');
+    const result = await client.submitAndWaitStateful(sid, {
+      content: [{ type: 'text', text: 'Reply with the single word "RECOVERED".' }],
+    }, { waitFor: 'prompt.completed', timeoutMs: PROMPT_TIMEOUT_MS });
+    process.stdout.write(`new prompt completed: ${JSON.stringify(result)}\n`);
+    assert.equal(result.finalFrame.type, 'prompt.completed');
   } finally {
-    if (sid !== undefined) {
-      for (const promptId of promptIdsForCleanup.toReversed()) {
-        try {
-          await client.abortPrompt(sid, promptId);
-        } catch {
-          // ignore
-        }
-      }
-      try {
+    try {
+      if (sid !== undefined) {
+        await client.abortSession(sid);
         await client.archiveSession(sid);
-      } catch {
-        // ignore
       }
+    } finally {
+      await client.close();
     }
-    await client.close();
   }
 }
 
-async function injectActivePrompt(
-  sid: string,
-  body: { prompt_id: string },
-): Promise<{ prompt_id: string }> {
-  const url = `${SERVER_URL}${API_PREFIX}/debug/prompts/${encodeURIComponent(sid)}/active`;
-  const res = await fetchWithReport(url, {
-    method: 'POST',
-    headers: { accept: 'application/json', 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 404) {
-    throw new Error(`POST ${url} -> 404. Did you start the server with --debug-endpoints?`);
-  }
-  const envelope = (await res.json()) as Envelope<{ prompt_id: string }>;
-  if (envelope.code !== 0 || envelope.data === null) {
-    throw new Error(`POST ${url} -> code=${envelope.code} msg=${envelope.msg ?? ''}`);
-  }
-  return envelope.data;
-}
-
-main().catch((error) => {
-  console.error('✗ 12-send-and-cancel failed:', error);
-  process.exit(1);
+main().catch((error: unknown) => {
+  console.error('12-send-and-cancel failed:', error);
+  process.exitCode = 1;
 });

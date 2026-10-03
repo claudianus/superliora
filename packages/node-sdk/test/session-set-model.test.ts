@@ -66,7 +66,7 @@ describe('Session.setModel', () => {
     try {
       await harness.setConfig({
         providers: {
-          'managed:kimi-code': {
+          'managed:kimi-api': {
             type: 'kimi',
             baseUrl: 'https://api.kimi.com/coding/v1',
             apiKey: '',
@@ -75,12 +75,12 @@ describe('Session.setModel', () => {
         },
         models: {
           'kimi-code/initial': {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-initial',
             maxContextSize: 262144,
           },
           'kimi-code/kimi-for-coding': {
-            provider: 'managed:kimi-code',
+            provider: 'managed:kimi-api',
             model: 'kimi-for-coding',
             maxContextSize: 262144,
           },

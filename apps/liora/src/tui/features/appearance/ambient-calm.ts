@@ -38,7 +38,6 @@ export const UNSTABLE_IDLE_CLOCK_GRID_MS = 3_600_000;
 export interface AmbientCalmSignals {
   readonly streamingPhase: string | undefined;
   readonly compacting: boolean;
-  readonly liveGoal: boolean;
   readonly fullscreenTakeover: boolean;
   readonly streamRevealArmed: boolean;
   /**
@@ -54,7 +53,6 @@ export function isAmbientCalmIdle(signals: AmbientCalmSignals): boolean {
   return (
     (signals.streamingPhase ?? 'idle') === 'idle' &&
     !signals.compacting &&
-    !signals.liveGoal &&
     !signals.fullscreenTakeover &&
     !signals.streamRevealArmed &&
     !signals.backgroundWork

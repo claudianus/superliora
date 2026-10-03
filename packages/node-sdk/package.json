@@ -27,10 +27,6 @@
   ],
   "type": "module",
   "imports": {
-    "#/mission": "./src/mission.ts",
-    "#/fleet": "./src/fleet.ts",
-    "#/ultrawork": "./src/mission.ts",
-    "#/collaboration": "./src/fleet.ts",
     "#/*": [
       "./src/*.ts",
       "./src/*/index.ts"
@@ -40,22 +36,6 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    },
-    "./mission": {
-      "types": "./src/mission.ts",
-      "default": "./src/mission.ts"
-    },
-    "./fleet": {
-      "types": "./src/fleet.ts",
-      "default": "./src/fleet.ts"
-    },
-    "./ultrawork": {
-      "types": "./src/mission.ts",
-      "default": "./src/mission.ts"
-    },
-    "./collaboration": {
-      "types": "./src/fleet.ts",
-      "default": "./src/fleet.ts"
     }
   },
   "publishConfig": {
@@ -65,26 +45,6 @@
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs",
         "default": "./dist/index.mjs"
-      },
-      "./mission": {
-        "types": "./dist/mission.d.mts",
-        "import": "./dist/mission.mjs",
-        "default": "./dist/mission.mjs"
-      },
-      "./fleet": {
-        "types": "./dist/fleet.d.mts",
-        "import": "./dist/fleet.mjs",
-        "default": "./dist/fleet.mjs"
-      },
-      "./ultrawork": {
-        "types": "./dist/mission.d.mts",
-        "import": "./dist/mission.mjs",
-        "default": "./dist/mission.mjs"
-      },
-      "./collaboration": {
-        "types": "./dist/fleet.d.mts",
-        "import": "./dist/fleet.mjs",
-        "default": "./dist/fleet.mjs"
       }
     },
     "provenance": true
@@ -97,6 +57,9 @@
   },
   "dependencies": {
     "@antfu/utils": "^9.3.0",
+    "@anthropic-ai/sdk": "^0.95.2",
+    "@google/genai": "^1.49.0",
+    "openai": "^6.34.0",
     "smol-toml": "^1.7.1",
     "yazl": "^3.3.1",
     "zod": "^4.3.6"
@@ -106,7 +69,6 @@
     "@superliora/gui-use": "workspace:^",
     "@superliora/kaos": "workspace:^",
     "@superliora/kosong": "workspace:^",
-    "@superliora/oauth": "workspace:^",
-    "@types/yazl": "^2.4.6"
+    "@superliora/oauth": "workspace:^"
   }
 }

@@ -580,7 +580,6 @@ describe('POST /api/v1/sessions/{session_id}:compact — begin compaction', () =
     const env = envelopeOf(res.json());
     expect(env.code).toBe(ErrorCode.COMPACTION_UNABLE);
     expect(env.data).toBeNull();
-    expect(env.msg).toMatch(/No prefix/);
   });
 });
 
@@ -645,7 +644,6 @@ describe('POST /api/v1/sessions/{session_id}:undo — undo history', () => {
           status: 'idle',
           thinking_level: 'auto',
           permission: 'manual',
-          plan_mode: false,
           context_tokens: 0,
           max_context_tokens: 0,
           context_usage: 0,

@@ -12,7 +12,6 @@ export interface ResolvedPromptSession {
   readonly resumed: boolean;
   readonly restorePermission: () => Promise<void>;
   readonly telemetryModel?: string;
-  readonly goalModel?: string;
 }
 
 export async function resolvePromptSession(
@@ -60,7 +59,6 @@ export async function resolvePromptSession(
       resumed: true,
       restorePermission,
       telemetryModel: configuredModel(opts.model, status.model, defaultModel),
-      goalModel: configuredModel(opts.model, status.model),
     };
   }
 
@@ -87,7 +85,6 @@ export async function resolvePromptSession(
         resumed: true,
         restorePermission,
         telemetryModel: configuredModel(opts.model, status.model, defaultModel),
-        goalModel: configuredModel(opts.model, status.model),
       };
     }
     stderr.write(tln('cli.runtime.prompt.noSessionsContinue', { workDir }));
@@ -99,7 +96,6 @@ export async function resolvePromptSession(
     model,
     permission: 'auto',
     additionalDirs: opts.addDirs?.length ? opts.addDirs : undefined,
-    drainAgentTasksOnStop: true,
     metadata: {
       ...sessionMetadata,
       ...sandboxSessionMetadata(opts),
@@ -111,7 +107,6 @@ export async function resolvePromptSession(
     resumed: false,
     restorePermission: async () => {},
     telemetryModel: model,
-    goalModel: model,
   };
 }
 

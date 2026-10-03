@@ -4,19 +4,14 @@ import {
   ApprovalPanelComponent,
   type ApprovalPanelResponse,
 } from '../../components/dialogs/approval/approval-panel';
-import {
-  ApprovalPreviewViewer,
-  type ApprovalPreviewBlock,
-} from '../../components/dialogs/approval/approval-preview';
 import { QuestionDialogComponent } from '../../components/dialogs/question/question-dialog';
 import { adaptPanelResponse } from '../../reverse-rpc/approval/adapter';
 import type { ApprovalController } from '../../reverse-rpc/approval/controller';
 import type { QuestionController } from '../../reverse-rpc/question/controller';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 import type { TUIState } from '../../tui-state';
-import type { AppState, LivePaneState, PlanTranscriptData } from '../../types';
+import type { AppState, LivePaneState } from '../../types';
 import { shouldPermissionApproveFlourish } from '../../utils/never-halt/permission-approve-flourish';
-import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { notifyUserAttentionOnce } from '../../utils/terminal/terminal-notification';
 import { ttui } from '#/tui/utils/tui-i18n';
 
@@ -34,7 +29,6 @@ export interface ReverseRpcPanelsHost {
   mountEditorReplacement(panel: Component & Focusable): void;
   restoreEditor(): void;
   toggleToolOutputExpansion(): void;
-  appendPlanReviewTranscript(toolCallId: string, plan: PlanTranscriptData): boolean;
 }
 
 /**
@@ -51,13 +45,6 @@ export class ReverseRpcPanelsController {
    * can tell "our own takeover" from a foreign command dialog.
    */
   private mountedQuestionDialog: QuestionDialogComponent | undefined;
-  private approvalPreview:
-    | {
-        component: ApprovalPreviewViewer;
-        savedChildren: ReverseRpcPanelsHost['state']['ui']['children'][number][];
-        panel: ApprovalPanelComponent;
-      }
-    | undefined;
 
   constructor(private readonly host: ReverseRpcPanelsHost) {}
 
@@ -91,13 +78,6 @@ export class ReverseRpcPanelsController {
       this.host.deferredApproval = payload;
       return;
     }
-    if (payload.planReview !== undefined) {
-      this.host.appendPlanReviewTranscript(payload.tool_call_id, {
-        content: payload.planReview.content,
-        path: payload.planReview.path,
-        toolCallId: payload.tool_call_id,
-      });
-    }
     this.host.patchLivePane({ pendingApproval: { data: payload } });
     notifyUserAttentionOnce(this.host.state, `approval:${payload.id}`, {
       title: ttui('tui.notice.approvalRequired'),
@@ -110,16 +90,11 @@ export class ReverseRpcPanelsController {
           this.host.setAppState({ permissionApproveFlourish: { atMs: Date.now() } });
         }
         this.host.approvalController.respond(
-          adaptPanelResponse(response, {
-            plan: payload.planReview?.content,
-          }),
+          adaptPanelResponse(response),
         );
       },
       () => {
         this.host.toggleToolOutputExpansion();
-      },
-      (block) => {
-        this.openApprovalPreview(panel, block);
       },
     );
     this.activeApprovalPanel = panel;
@@ -127,7 +102,6 @@ export class ReverseRpcPanelsController {
   }
 
   hideApprovalPanel(): void {
-    if (this.approvalPreview !== undefined) this.closeApprovalPreview();
     this.activeApprovalPanel = undefined;
     this.host.patchLivePane({ pendingApproval: null });
     this.host.restoreEditor();
@@ -253,34 +227,4 @@ export class ReverseRpcPanelsController {
     this.host.restoreEditor();
   }
 
-  private openApprovalPreview(panel: ApprovalPanelComponent, block: ApprovalPreviewBlock): void {
-    if (this.approvalPreview !== undefined) return;
-    const savedChildren = [...this.host.state.ui.children];
-    const viewer = new ApprovalPreviewViewer(
-      {
-        block,
-        onClose: () => {
-          this.closeApprovalPreview();
-        },
-      },
-      this.host.state.terminal,
-    );
-    this.host.state.ui.clear();
-    this.host.state.ui.addChild(viewer);
-    this.host.state.ui.setFocus(viewer);
-    requestTUILayoutRender(this.host.state);
-    this.approvalPreview = { component: viewer, savedChildren, panel };
-  }
-
-  private closeApprovalPreview(): void {
-    const preview = this.approvalPreview;
-    if (preview === undefined) return;
-    this.approvalPreview = undefined;
-    this.host.state.ui.clear();
-    for (const child of preview.savedChildren) {
-      this.host.state.ui.addChild(child);
-    }
-    this.host.state.ui.setFocus(preview.panel);
-    requestTUILayoutRender(this.host.state);
-  }
 }

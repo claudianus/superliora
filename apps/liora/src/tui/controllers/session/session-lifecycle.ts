@@ -1,14 +1,12 @@
 import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sdk';
 import { writeDebugLog } from '#/utils/debug-session';
-import { gcSessionWorktreesAuto, maybeWarmCodemapAtSessionStart } from '@superliora/sdk';
+import { gcSessionWorktreesAuto } from '@superliora/sdk';
 import { resolve } from 'pathe';
 
 import type { Component, Focusable } from '#/tui/renderer';
 
-import type { LioraSlashCommand } from '../../commands';
 import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
 import {  LLM_NOT_SET_MESSAGE,  NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
-import { createContext7CredentialHandler } from '../../reverse-rpc/credential/handler';
 import type { ApprovalController } from '../../reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from '../../reverse-rpc/approval/handler';
 import type { QuestionController } from '../../reverse-rpc/question/controller';
@@ -16,10 +14,8 @@ import { createQuestionAskHandler } from '../../reverse-rpc/question/handler';
 import type { ColorToken } from '../../theme';
 import type { AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
-import { contextWorkingSetSnapshotFromLoopControl } from '../../utils/agent/context-working-set';
 import { cacheMeterFromHitRate } from '../../utils/cache/cache-glance';
 import { formatErrorMessage } from '../../utils/event-payload';
-import { resetGoalSoftAdvisoryLedger } from '../../utils/goal/goal-soft-advisory-glance';
 import {
   flushPromptInputState,
   restorePromptInputState,
@@ -57,10 +53,6 @@ export interface SessionLifecycleHost extends PromptInputRuntimeHost {
   sessionEventUnsubscribe: (() => void) | undefined;
   aborted: boolean;
   lastUserInput: string | undefined;
-  skillCommands: LioraSlashCommand[];
-  pluginCommands: LioraSlashCommand[];
-  readonly skillCommandMap: Map<string, string>;
-  readonly pluginCommandMap: Map<string, string>;
   readonly harness: LioraHarness;
   readonly promptStash: PromptStash;
   readonly sessionEventHandler: SessionEventHandler;
@@ -80,7 +72,6 @@ export interface SessionLifecycleHost extends PromptInputRuntimeHost {
   updateQueueDisplay(): void;
   mountEditorReplacement(panel: Component & Focusable): void;
   restoreEditor(): void;
-  refreshDynamicSlashCommands(session?: Session): Promise<void>;
   clearTranscriptAndRedraw(): void;
   showError(msg: string): void;
   showStatus(msg: string, color?: ColorToken): void;
@@ -139,7 +130,6 @@ export class SessionLifecycleController {
       }),
     );
     session.setQuestionHandler(createQuestionAskHandler(host.questionController));
-    session.setCredentialHandler(createContext7CredentialHandler(host));
   }
 
   resetSessionRuntime(): void {
@@ -154,27 +144,19 @@ export class SessionLifecycleController {
     host.streamingUI.resetToolCallState();
     host.streamingUI.resetToolUi();
     host.sessionEventHandler.resetRuntimeState();
-    host.skillCommands = [];
-    host.skillCommandMap.clear();
-    host.pluginCommands = [];
-    host.pluginCommandMap.clear();
     host.tasksBrowserController.close();
     host.btwPanelController.clear();
     host.state.footer.setBackgroundCounts({ bashTasks: 0, agentTasks: 0 });
     host.streamingUI.setTodoList([]);
     host.streamingUI.setTurnId(undefined);
-    resetGoalSoftAdvisoryLedger(host.state.appState.sessionId);
     // Session-scoped runtime surfaces must not bleed into the next session:
-    // cost, model-failover badge, intervention counters, cache meter, and
+    // cost, model-failover badge, cache meter, and
     // TTFT are all owned by the outgoing session until its events arrive.
     host.setAppState({
-      mcpServersSummary: null,
-      goalSoftAdvisory: null,
+      transcriptRegionMode: 'chat',
       sessionCostUsd: undefined,
       lastModelRouteNotice: null,
       lastProviderRouteSelection: null,
-      interventionCount: 0,
-      staleInterventionCount: 0,
       cacheMeter: null,
       lastStepTtft: undefined,
     });
@@ -194,6 +176,7 @@ export class SessionLifecycleController {
     const previous = this.unloadCurrentSession('switching session');
     await previous?.close();
     host.session = session;
+    host.setAppState({ transcriptRegionMode: 'chat' });
     // Keep TUI workspace aligned when forking into a worktree or opening a folder.
     if (
       typeof session.workDir === 'string' &&
@@ -215,48 +198,29 @@ export class SessionLifecycleController {
       message: 'session attached',
       data: { sessionId: session.id, workDir: session.workDir },
     });
-    maybeWarmCodemapAtSessionStart(session.workDir);
     // Opportunistic age-GC for ~/.superliora/worktrees (missing + >14d idle).
     void gcSessionWorktreesAuto({ maxAgeDays: 14 }).catch(() => undefined);
   }
 
   async syncRuntimeState(session: Session = this.requireSession()): Promise<void> {
     const { host } = this;
-    const [status, goalResult, config] = await Promise.all([
-      session.getStatus(),
-      session.getGoal(),
-      host.harness.getConfig({ reload: false }).catch(() => null),
-    ]);
+    const status = await session.getStatus();
     host.setAppState({
       sessionId: session.id,
       model: status.model ?? '',
       thinking: status.thinkingLevel !== 'off',
       thinkingLevel: status.thinkingLevel,
       permissionMode: status.permission,
-      planMode: status.planMode,
-      premiumQualityMode: status.premiumQualityMode ?? false,
       contextTokens: status.contextTokens,
       maxContextTokens: status.maxContextTokens,
       contextUsage: status.contextUsage,
-      contextOS: status.contextOS ?? null,
-      autoDream: status.autoDream ?? null,
       providerRouteStatus: status.providerRouteStatus ?? null,
       sessionTitle: session.summary?.title ?? null,
-      goal: goalResult.goal,
       ...(cacheMeterFromHitRate(status.cacheHitRate, status.cacheWarmStreak) != null
         ? { cacheMeter: cacheMeterFromHitRate(status.cacheHitRate, status.cacheWarmStreak)! }
         : {}),
       ...(status.circuitBreakers !== undefined
         ? { circuitBreakers: status.circuitBreakers }
-        : {}),
-      ...(config !== null
-        ? {
-            workingSet: contextWorkingSetSnapshotFromLoopControl({
-              maxWorkingSetTokens: config.loopControl?.maxWorkingSetTokens,
-              asyncWorkingSetTokens: config.loopControl?.asyncWorkingSetTokens,
-              model: status.model ?? config.defaultModel,
-            }),
-          }
         : {}),
     });
     this.syncAdditionalDirs(session);
@@ -290,11 +254,6 @@ export class SessionLifecycleController {
     await this.setSession(session);
     await this.syncRuntimeState(session);
     host.updateTerminalTitle();
-    try {
-      await host.refreshDynamicSlashCommands(host.session);
-    } catch {
-      /* keep the switched session usable even if dynamic skills fail */
-    }
     host.state.toolOutputViewports.clear();
     await restoreTuiSessionState(host);
     host.clearTranscriptAndRedraw();
@@ -353,11 +312,7 @@ export class SessionLifecycleController {
         host.setAppState({
           activityTip: null,
           isCompacting: false,
-          isBackgroundCompacting: false,
           streamingPhase: 'idle',
-          // New session has no goal yet; clear before redraw so the monitor
-          // does not reappear from the previous session's snapshot.
-          goal: null,
         });
         await this.setSession(session);
         host.setAppState({ sessionId: session.id });
@@ -376,11 +331,6 @@ export class SessionLifecycleController {
           const msg = formatErrorMessage(error);
           host.showError(ttui('tui.session.postCreateFailed', { message: msg }));
           return;
-        }
-        try {
-          await host.refreshDynamicSlashCommands(host.session);
-        } catch {
-          /* keep the new session usable even if dynamic skills fail */
         }
         host.sessionEventHandler.startSubscription();
         host.showStatus(ttui('tui.session.newStarted', { id: session.id }));
@@ -411,7 +361,6 @@ export class SessionLifecycleController {
           : (host.state.appState.thinkingLevel ??
             (host.state.appState.thinking ? 'on' : 'off')),
       permission: host.state.appState.permissionMode,
-      planMode: host.state.appState.planMode,
     };
     if (host.state.appState.additionalDirs.length > 0) {
       options.additionalDirs = [...host.state.appState.additionalDirs];
@@ -428,7 +377,6 @@ export class SessionLifecycleController {
     return host.harness.createSession(options);
   }
 
-  // Plan mode is set by createSession — do not re-enter it here.
   private async activateRuntime(): Promise<void> {
     const session = this.requireSession();
     await session.setPermission(this.host.state.appState.permissionMode);
@@ -443,12 +391,10 @@ export class SessionLifecycleController {
     host.reverseRpcPanels.clearReverseRpcPanels();
     previous?.setApprovalHandler(undefined);
     previous?.setQuestionHandler(undefined);
-    previous?.setCredentialHandler(undefined);
     host.reverseRpcPanels.cancelPendingReverseRpc(reason);
     host.session = undefined;
     host.state.toolOutputViewports.clear();
     host.harness.setTelemetryContext({ sessionId: null });
-    host.setAppState({ goal: null });
     return previous;
   }
 

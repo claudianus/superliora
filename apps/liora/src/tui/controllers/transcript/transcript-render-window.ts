@@ -1,9 +1,6 @@
 import type { Component } from '../../renderer';
 import { AgentGroupComponent } from '../../components/messages/agent-group';
 import { AssistantMessageComponent } from '../../components/messages/assistant-message';
-import { PluginCommandComponent } from '../../components/messages/plugin-command';
-import { ReadGroupComponent } from '../../components/messages/read-group';
-import { SearchGroupComponent } from '../../components/messages/search-group';
 import { StepSummaryComponent } from '../../components/messages/step-summary';
 import { ThinkingComponent } from '../../components/messages/thinking';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
@@ -26,11 +23,7 @@ import type { TranscriptRenderHost } from './transcript-render';
 
 function collectMergedToolNames(child: Component): string[] {
   if (child instanceof ToolCallComponent) return [child.toolCallView.name];
-  if (
-    child instanceof AgentGroupComponent ||
-    child instanceof ReadGroupComponent ||
-    child instanceof SearchGroupComponent
-  ) {
+  if (child instanceof AgentGroupComponent) {
     return child.getToolComponents().map((tc) => tc.toolCallView.name);
   }
   return [];
@@ -47,9 +40,7 @@ function performanceTranscriptCaps(host: TranscriptRenderHost): {
 }
 
 export function isTurnBoundaryComponent(child: Component): boolean {
-  if (!(child instanceof UserMessageComponent) && !(child instanceof PluginCommandComponent)) {
-    return false;
-  }
+  if (!(child instanceof UserMessageComponent)) return false;
   const entry = getTranscriptComponentEntry(child);
   if (entry === undefined) return false;
   return entry.turnId === undefined || entry.turnId.startsWith('replay:');

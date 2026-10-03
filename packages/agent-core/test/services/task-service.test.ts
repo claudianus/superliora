@@ -2,7 +2,7 @@
  * `TaskService` (Chain 8 / P1.8, W9.2) unit tests.
  *
  * Hermetic: mocks `ICoreProcessService` with an in-memory `rpc` proxy. Coverage:
- *   - kind mapping (process/agent/question → bash/subagent/tool)
+ *   - native kind mapping (process/agent -> bash/subagent)
  *   - status mapping (running/completed/failed/timed_out/killed/lost → wire)
  *   - timestamp synthesis (created_at = started_at from startedAt; completed_at
  *     omitted when endedAt is null)
@@ -40,6 +40,7 @@ interface FakeState {
 function makeBridge(state: FakeState): ICoreProcessService {
   const rpc: Partial<CoreRPC> = {
     listSessions: async () => state.sessions,
+    resumeSession: async () => undefined,
     getBackground: async (p: { sessionId: string; agentId: string; activeOnly?: boolean }) =>
       state.tasksBySession.get(p.sessionId) ?? [],
     getBackgroundOutput: async (p: { sessionId: string; agentId: string; taskId: string; tail?: number }) => {
@@ -59,6 +60,7 @@ function makeBridge(state: FakeState): ICoreProcessService {
   return {
     rpc: rpc as CoreRPC,
     ready: async () => undefined,
+    shutdown: async () => undefined,
     dispose: () => undefined,
     _serviceBrand: undefined,
   };
@@ -143,18 +145,6 @@ describe('toProtocolTask adapter', () => {
     expect(toProtocolTask('s', info).kind).toBe('subagent');
   });
 
-  it("maps 'question' kind → 'tool'", () => {
-    const info: BackgroundTaskInfo = {
-      taskId: 't_q',
-      kind: 'question',
-      description: 'q',
-      status: 'running',
-      startedAt: 0,
-      endedAt: null,
-      questionCount: 1,
-    };
-    expect(toProtocolTask('s', info).kind).toBe('tool');
-  });
 });
 
 // --- Service impl ---------------------------------------------------------
@@ -240,13 +230,14 @@ describe('TaskService.get', () => {
     expect(task.output_preview).toBe('6789');
   });
 
-  it('survives missing output when withOutput is true', async () => {
+  it('reports an actually empty output preview when requested', async () => {
     const state = fresh();
     state.sessions.push(session('s1'));
     state.tasksBySession.set('s1', [bashTask('t1', 'running')]);
     const svc = new TaskService(makeBridge(state));
     const task = await svc.get('s1', 't1', { withOutput: true });
-    expect(task.output_preview).toBeUndefined();
+    expect(task.output_preview).toBe('');
+    expect(task.output_bytes).toBe(0);
     expect(task.id).toBe('t1');
   });
 });

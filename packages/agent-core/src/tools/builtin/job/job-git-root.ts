@@ -13,6 +13,8 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, normalize, resolve as resolvePath } from 'node:path';
 
+import { sessionWorktreePathsEqual } from '../../../session/worktree';
+
 /** Folder-name fallback when paths are not on disk (unit tests / diagnostics). */
 export type OwnedRepoHint = 'superliora' | 'metalslug';
 
@@ -32,7 +34,7 @@ export function normalizeRepoPathKey(path: string): string {
 }
 
 export function sameRepoPath(a: string, b: string): boolean {
-  return normalizeRepoPathKey(a) === normalizeRepoPathKey(b);
+  return sessionWorktreePathsEqual(a.trim(), b.trim());
 }
 
 /** True when a path segment equals the repo folder name. */

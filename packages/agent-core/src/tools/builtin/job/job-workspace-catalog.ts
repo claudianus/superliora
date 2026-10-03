@@ -15,8 +15,6 @@ import type {
   JobLandReceipt,
   JobRecord,
   JobStatus,
-  JobSurfaceKind,
-  JobTaskTrack,
 } from './job-store-key';
 import { slugifySessionName } from './job-store-key';
 
@@ -46,9 +44,15 @@ export interface WorkspaceSessionEntry {
   readonly archivedAt?: string;
   readonly prompt?: string;
   readonly ownershipPaths?: readonly string[];
-  readonly surfaceKind?: JobSurfaceKind;
   readonly successCriteria?: readonly string[];
-  readonly taskTrack?: JobTaskTrack;
+  readonly contextPaths?: readonly string[];
+  readonly mustNotTouch?: readonly string[];
+  readonly verificationCommands?: readonly string[];
+  readonly timeoutMs?: number;
+  readonly modelAlias?: string;
+  readonly resultSummary?: string;
+  readonly filesChanged?: readonly string[];
+  readonly usage?: JobRecord['usage'];
   readonly notes?: string;
 }
 
@@ -149,9 +153,15 @@ export function jobRecordToWorkspaceEntry(
     archivedAt: input.archivedAt,
     prompt: job.prompt,
     ownershipPaths: job.ownershipPaths,
-    surfaceKind: job.surfaceKind,
     successCriteria: job.successCriteria,
-    taskTrack: job.taskTrack,
+    contextPaths: job.contextPaths,
+    mustNotTouch: job.mustNotTouch,
+    verificationCommands: job.verificationCommands,
+    timeoutMs: job.timeoutMs,
+    modelAlias: job.modelAlias,
+    resultSummary: job.resultSummary,
+    filesChanged: job.filesChanged,
+    usage: job.usage,
     notes: job.notes,
   };
 }
@@ -292,9 +302,15 @@ export function workspaceEntryToJobRecord(entry: WorkspaceSessionEntry): JobReco
     updatedAt: entry.updatedAt,
     prompt: entry.prompt,
     ownershipPaths: entry.ownershipPaths,
-    surfaceKind: entry.surfaceKind,
     successCriteria: entry.successCriteria,
-    taskTrack: entry.taskTrack,
+    contextPaths: entry.contextPaths,
+    mustNotTouch: entry.mustNotTouch,
+    verificationCommands: entry.verificationCommands,
+    timeoutMs: entry.timeoutMs,
+    modelAlias: entry.modelAlias,
+    resultSummary: entry.resultSummary,
+    filesChanged: entry.filesChanged,
+    usage: entry.usage,
     notes: [
       entry.notes,
       runningElsewhere

@@ -19,7 +19,6 @@ import {
   forkCustomMetadata,
   isDirectory,
   isSafeSessionId,
-  latestAgentWireMtime,
   latestRecordedAgentWireMtime,
   metadataFromState,
   normalizeForkTitle,

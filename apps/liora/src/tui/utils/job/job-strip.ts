@@ -8,12 +8,10 @@ import type {
   JobEffectPreview,
   JobEventKind,
   JobEventStatus,
-  JobGateChecklist,
   JobInboxEvent,
   JobLandReceiptSnapshot,
   JobProgressSnapshot,
   JobSnapshot,
-  JobVerifyVerdictSnapshot,
 } from '@superliora/protocol';
 
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
@@ -53,22 +51,14 @@ export interface ConductorJobCard {
    * drill-down fetch). Survives plain `job.updated` refreshes.
    */
   readonly usage?: ConductorJobUsage;
-  /** Greenfield chain phase (schemaVersion 3). */
-  readonly deliveryPhase?: JobSnapshot['deliveryPhase'];
   /** Structured brief excerpt (schemaVersion 3). */
   readonly briefPreview?: JobBriefPreview;
-  /** Verification gate strip (schemaVersion 3). */
-  readonly gateChecklist?: JobGateChecklist;
   /** Post-merge land receipt (schemaVersion 3). */
   readonly landReceipt?: JobLandReceiptSnapshot;
   /** Isolation / track / surface provenance (schemaVersion 4). */
   readonly effectPreview?: JobEffectPreview;
   /** Immediate parent in a verify/debug chain (schemaVersion 4). */
   readonly parentJobId?: string;
-  /** Structured verify verdict when kind=verify is terminal (schemaVersion 4). */
-  readonly verifyVerdict?: JobVerifyVerdictSnapshot;
-  /** Debug-fixer implement child (schemaVersion 4). */
-  readonly debugFixer?: boolean;
   readonly sessionName?: string;
   readonly landChoice?: JobSnapshot['landChoice'];
   readonly portOffset?: number;
@@ -183,13 +173,9 @@ export function upsertConductorJobCard(
   const statusChanged = existing !== undefined && existing.status !== job.status;
   const usage = usageFromProgress(job.progress) ?? existing?.usage;
   const briefPreview = job.briefPreview ?? existing?.briefPreview;
-  const gateChecklist = job.gateChecklist ?? existing?.gateChecklist;
   const landReceipt = job.landReceipt ?? existing?.landReceipt;
-  const deliveryPhase = job.deliveryPhase ?? existing?.deliveryPhase;
   const effectPreview = job.effectPreview ?? existing?.effectPreview;
   const parentJobId = job.parentJobId ?? existing?.parentJobId;
-  const verifyVerdict = job.verifyVerdict ?? existing?.verifyVerdict;
-  const debugFixer = job.debugFixer ?? existing?.debugFixer;
   const sessionName = job.sessionName ?? existing?.sessionName;
   const landChoice = job.landChoice ?? existing?.landChoice;
   const portOffset = job.portOffset ?? existing?.portOffset;
@@ -216,14 +202,10 @@ export function upsertConductorJobCard(
     ...(existing?.workerName === undefined ? {} : { workerName: existing.workerName }),
     ...(existing?.liveTokens === undefined ? {} : { liveTokens: existing.liveTokens }),
     ...(usage === undefined ? {} : { usage }),
-    ...(deliveryPhase === undefined ? {} : { deliveryPhase }),
     ...(briefPreview === undefined ? {} : { briefPreview }),
-    ...(gateChecklist === undefined ? {} : { gateChecklist }),
     ...(landReceipt === undefined ? {} : { landReceipt }),
     ...(effectPreview === undefined ? {} : { effectPreview }),
     ...(parentJobId === undefined ? {} : { parentJobId }),
-    ...(verifyVerdict === undefined ? {} : { verifyVerdict }),
-    ...(debugFixer === undefined ? {} : { debugFixer }),
     ...(sessionName === undefined ? {} : { sessionName }),
     ...(landChoice === undefined ? {} : { landChoice }),
     ...(portOffset === undefined ? {} : { portOffset }),
@@ -269,146 +251,6 @@ export function appendJobInboxEntry(
   return next.length > JOB_BOARD_MAX_INBOX ? next.slice(next.length - JOB_BOARD_MAX_INBOX) : next;
 }
 
-/** Parse JobList / JobInbox tool text for best-effort strip updates. */
-export function parseJobStripFromToolOutput(
-  output: string,
-  nowMs: number = Date.now(),
-): Partial<ConductorJobsSnapshot> | null {
-  const text = output.trim();
-  if (text.length === 0) return null;
-
-  const maxConcurrent = parseMaxConcurrent(text);
-
-  // "Jobs: 2▸ 1… inbox 3" from formatJobStripLine
-  const stripMatch = text.match(/Jobs:\s*([^\n]+)/i);
-  if (stripMatch) {
-    const body = stripMatch[1] ?? '';
-    if (/idle/i.test(body)) {
-      return { ...emptyConductorJobsSnapshot(), ...(maxConcurrent === undefined ? {} : { maxConcurrent }) };
-    }
-    const running = Number((body.match(/(\d+)▸/) ?? [])[1] ?? 0);
-    const queued = Number((body.match(/(\d+)…/) ?? [])[1] ?? 0);
-    const blocked = Number((body.match(/(\d+)⛔/) ?? [])[1] ?? 0);
-    const needsUser = Number((body.match(/(\d+)\?/) ?? [])[1] ?? 0);
-    const interrupted = Number((body.match(/(\d+)⏸/) ?? [])[1] ?? 0);
-    const failed = Number((body.match(/(\d+)✗/) ?? [])[1] ?? 0);
-    const unreadInbox = Number((body.match(/inbox\s+(\d+)/i) ?? [])[1] ?? 0);
-    const total = running + queued + blocked + needsUser + interrupted + failed;
-    return {
-      total,
-      running,
-      queued,
-      blocked,
-      needsUser,
-      interrupted,
-      failed,
-      unreadInbox,
-      ...(maxConcurrent === undefined ? {} : { maxConcurrent }),
-    };
-  }
-
-  // Ledger lines: `- job_xxx [running] (task p1) title`
-  const cards = parseJobLedgerCards(text, nowMs);
-  if (cards.length === 0) return null;
-  let running = 0;
-  let queued = 0;
-  let blocked = 0;
-  let needsUser = 0;
-  let interrupted = 0;
-  let failed = 0;
-  for (const card of cards) {
-    if (card.status === 'running') running += 1;
-    else if (card.status === 'queued') queued += 1;
-    else if (card.status === 'blocked') blocked += 1;
-    else if (card.status === 'needs_user') needsUser += 1;
-    else if (card.status === 'interrupted') interrupted += 1;
-    else if (card.status === 'failed') failed += 1;
-  }
-  return {
-    total: cards.length,
-    running,
-    queued,
-    blocked,
-    needsUser,
-    interrupted,
-    failed,
-    unreadInbox: 0,
-    jobs: cards,
-    ...(maxConcurrent === undefined ? {} : { maxConcurrent }),
-  };
-}
-
-/** `pool: warm=2 maxConcurrent=4` lines from JobCreate / JobSchedule output. */
-function parseMaxConcurrent(text: string): number | undefined {
-  const m = text.match(/maxConcurrent\s*=\s*(\d+)/i);
-  if (m === null) return undefined;
-  const value = Number(m[1]);
-  return Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-const JOB_LEDGER_LINE = /^\s*-\s+(job_[A-Za-z0-9_-]+)\s+\[([a-z_]+)\]\s+\(([a-z]+)\s+p(\d+)\)\s+(.*)$/i;
-
-/** Best-effort per-job cards from `renderJobLedger` style output. */
-export function parseJobLedgerCards(
-  text: string,
-  nowMs: number = Date.now(),
-): readonly ConductorJobCard[] {
-  const cards: ConductorJobCard[] = [];
-  for (const line of text.split('\n')) {
-    const m = line.match(JOB_LEDGER_LINE);
-    if (m === null) continue;
-    const status = normalizeJobStatus(m[2] ?? '');
-    if (status === undefined) continue;
-    const kind = normalizeJobKind(m[3] ?? '');
-    const rest = (m[5] ?? '').trim();
-    // Trailing ` paths=a,b` metadata belongs to the ledger, not the title.
-    const title = rest.replace(/\s+paths=\S+$/i, '').trim();
-    cards.push({
-      id: m[1]!,
-      title: title.length > 0 ? title : m[1]!,
-      status,
-      kind,
-      priority: Number(m[4] ?? 0),
-      updatedAtMs: nowMs,
-    });
-  }
-  return cards;
-}
-
-const JOB_STATUSES: readonly JobEventStatus[] = [
-  'queued',
-  'running',
-  'blocked',
-  'needs_user',
-  'done',
-  'failed',
-  'cancelled',
-  'interrupted',
-];
-
-const JOB_KINDS: readonly JobEventKind[] = [
-  'task',
-  'explore',
-  'research',
-  'implement',
-  'verify',
-  'mission',
-  'merge',
-  'push',
-  'desk',
-  'goal-desk',
-  'goal-driver',
-];
-
-function normalizeJobStatus(raw: string): JobEventStatus | undefined {
-  const lower = raw.toLowerCase();
-  return JOB_STATUSES.find((status) => status === lower);
-}
-
-function normalizeJobKind(raw: string): JobEventKind {
-  const lower = raw.toLowerCase();
-  return JOB_KINDS.find((kind) => kind === lower) ?? 'task';
-}
 
 /**
  * Interview / needs_user count only. Blocked or failed land leftovers must

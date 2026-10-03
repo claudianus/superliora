@@ -20,13 +20,6 @@ export const DELETE_CONFIG_FIELD_PATHS = new Set<DeleteConfigFieldPath>([
   'defaultThinking',
   'thinking.mode',
   'thinking.effort',
-  'loopControl.compactionModel',
-  'loopControl.completionModel',
-  'loopControl.explorationModel',
-  'loopControl.codingModel',
-  'loopControl.planningModel',
-  'loopControl.debuggingModel',
-  'persona',
 ]);
 const CONFIG_PATH_SEGMENT = /^[A-Za-z][A-Za-z0-9]*$/;
 const MODELS_PATH_PREFIX = 'models.';
@@ -117,12 +110,6 @@ function deleteConfigField(config: LioraConfig, path: DeleteConfigFieldPath): bo
     return true;
   }
 
-  if (path === 'persona') {
-    if (!Object.hasOwn(config, 'persona')) return false;
-    delete config.persona;
-    return true;
-  }
-
   if (path === 'defaultProvider' || path === 'defaultModel' || path === 'defaultThinking') {
     if (!Object.hasOwn(config, path)) return false;
     delete config[path];
@@ -139,13 +126,7 @@ function deleteConfigField(config: LioraConfig, path: DeleteConfigFieldPath): bo
     return true;
   }
 
-  const loopControl = config.loopControl;
-  if (loopControl === undefined) return false;
-
-  const field = path.slice('loopControl.'.length) as keyof typeof loopControl;
-  if (!Object.hasOwn(loopControl, field)) return false;
-  delete loopControl[field];
-  return true;
+  return false;
 }
 
 /** Applies every validated path to `config` in place; returns whether anything changed. */

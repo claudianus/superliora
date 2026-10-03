@@ -1,13 +1,14 @@
 /**
  * WorkerDockRegistry — pure data layer behind the Mission Control dock.
- * Merges worker lifecycle / progress / tool telemetry, todo updates,
- * background tasks, and child `thinking`/`assistant` deltas into one roster
+ * Merges worker lifecycle / progress / tool telemetry, background tasks,
+ * and child `thinking`/`assistant` deltas into one roster
  * projection. No TUIState / component dependencies; the panel component
  * renders {@link WorkerDockSnapshot} and the session-event handler feeds
  * events via {@link WorkerDockRegistry.apply}.
  */
 
 import type { Event } from '@superliora/sdk';
+import { MAIN_AGENT_ID } from '../../constant/liora-tui';
 
 import { monotonicMotionNowMs } from '../../features/appearance/appearance-effects';
 import { lastNonEmptyLine, resolveSubagentToolTarget } from '../../utils/tools/subagent-tool-detail';
@@ -60,9 +61,6 @@ export function isToolProgressLiveKind(
 
 export type DockWorkerStatus =
   | 'running'
-  | 'stalled'
-  | 'suspended'
-  | 'finishing'
   | 'completed'
   | 'failed';
 
@@ -97,13 +95,9 @@ export interface DockWorker {
    */
   readonly progressAtMs?: number;
   readonly progressElapsedMs?: number;
+  /** Explicit caller timeout/deadline; never a heuristic step budget. */
   readonly budgetMs?: number;
   readonly budgetRemainingMs?: number;
-  readonly todoDone?: number;
-  readonly todoTotal?: number;
-  /** Current focus: `in_progress` title, else first `pending`. */
-  readonly focusTodo?: string;
-  readonly stalledSilentMs?: number;
   readonly error?: string;
   readonly terminalAtMs?: number;
   /** Wall time when the worker first entered the roster (stable sort key). */
@@ -115,17 +109,12 @@ export interface DockWorker {
   readonly liveText?: string;
   /** Wall time of the last live-stream delta. */
   readonly liveAtMs?: number;
-  /**
-   * Ledger provenance for ghost rows seeded from the Conductor Job ledger
-   * (`job-ghost:*`). `kind` tells a goal-desk umbrella (no worker behind it)
-   * apart from a real driver; `status` is the raw ledger status at hydrate.
-   */
+  /** Raw Job ledger provenance for ghost rows seeded before live workers arrive. */
   readonly ledger?: { readonly kind: string; readonly status: string };
 }
 
 /**
- * Job-card subset the ghost hydrator consumes (structural — ConductorJobCard
- * satisfies it). Telemetry fields make ghost rows show the lane's live state
+ * Recorded Job-card subset the ghost hydrator consumes. Telemetry fields show live state
  * instead of a bare title.
  */
 export interface WorkerDockGhostJob {
@@ -134,12 +123,9 @@ export interface WorkerDockGhostJob {
   readonly status: string;
   readonly workerAgentId?: string;
   readonly kind?: string;
-  readonly parentJobId?: string;
   readonly progress?: {
     readonly phase?: string;
     readonly recentTools?: readonly string[];
-    readonly stepsCompleted?: number;
-    readonly stepsTotal?: number;
   };
   readonly liveActivity?: {
     readonly name: string;
@@ -189,14 +175,12 @@ interface MutableWorker {
   tokensSampleAtMs?: number;
   /** Token total at {@link tokensSampleAtMs} (held across sub-min-gap beats). */
   tokensSampleTokens?: number;
+  lastToolCallId?: string;
+  seenToolCallIds?: Set<string>;
   tokenRatePerSec?: number;
   rateSamples?: number[];
   budgetMs?: number;
   budgetRemainingMs?: number;
-  todoDone?: number;
-  todoTotal?: number;
-  focusTodo?: string;
-  stalledSilentMs?: number;
   error?: string;
   spawnedAtMs: number;
   progressElapsedMs?: number;
@@ -210,16 +194,10 @@ interface MutableWorker {
   liveAtMs?: number;
   /** `subagent.tool_progress` tail is keyed by this toolCallId. */
   liveToolCallId?: string;
+  liveProgressSource?: 'raw' | 'summary';
   /** Ledger provenance (see {@link DockWorker.ledger}). */
   ledger?: { readonly kind: string; readonly status: string };
 }
-
-const ACTIVE_STATUSES: ReadonlySet<DockWorkerStatus> = new Set([
-  'running',
-  'stalled',
-  'suspended',
-  'finishing',
-]);
 
 export class WorkerDockRegistry {
   private readonly workers = new Map<string, MutableWorker>();
@@ -242,22 +220,16 @@ export class WorkerDockRegistry {
   }
 
   /**
-   * Seed suspended/finishing ghost rows from the Job ledger so Worker Dock
+   * Seed running ghost rows from the recorded Job ledger so Worker Dock
    * is not empty after crash/resume before live subagent events arrive.
    * Ghost ids are `job-ghost:<jobId>`; dropped when a live workerAgentId is present.
-   * Goal-desk ghosts mirror their driver lane (phase/status) so the desk row
-   * reflects live goal state instead of sitting as a bare title.
    */
   hydrateJobGhosts(jobs: readonly WorkerDockGhostJob[]): boolean {
     let changed = false;
     const wanted = new Set<string>();
     const nowMs = this.now();
     for (const job of jobs) {
-      if (
-        job.status !== 'interrupted' &&
-        job.status !== 'queued' &&
-        job.status !== 'running'
-      ) {
+      if (job.status !== 'running') {
         continue;
       }
       const ghostId = `job-ghost:${job.id}`;
@@ -270,36 +242,19 @@ export class WorkerDockRegistry {
         continue;
       }
       wanted.add(ghostId);
-      const status: DockWorkerStatus =
-        job.status === 'running' ? 'finishing' : 'suspended';
+      const status: DockWorkerStatus = 'running';
       const title = job.title.trim();
       const ledger =
         job.kind === undefined || job.kind.length === 0
           ? undefined
           : { kind: job.kind, status: job.status };
-      // Goal-desk umbrella: mirror the driver lane so the row reads live.
-      const driver =
-        job.kind === 'goal-desk' ? pickDeskDriver(jobs, job.id) : undefined;
-      const driverPhase = driver?.progress?.phase?.trim();
-      const driverLabel =
-        driver !== undefined
-          ? driverPhase !== undefined && driverPhase.length > 0
-            ? `driver · ${driverPhase}`
-            : `driver ${driver.status}`
-          : undefined;
       const phase = job.progress?.phase?.trim();
       // Paint the job title, not a "Resuming…" placeholder — the dock LIVE
       // cell used to look like every worker was stuck resuming.
-      const description =
-        driverLabel ??
-        (phase && phase.length > 0 ? phase : title.length > 0 ? title : job.id);
+      const description = phase && phase.length > 0 ? phase : title.length > 0 ? title : job.id;
       const lastTool = job.liveActivity?.name ?? job.progress?.recentTools?.at(-1);
       const lastTarget = job.liveActivity?.target;
       const tokens = job.liveTokens;
-      const stepsTotal = job.progress?.stepsTotal;
-      const todoTotal = stepsTotal !== undefined && stepsTotal > 0 ? stepsTotal : undefined;
-      const todoDone =
-        todoTotal !== undefined ? (job.progress?.stepsCompleted ?? 0) : undefined;
       const preview = job.liveActivity?.preview;
       const previewText =
         preview === undefined || preview.length === 0 ? undefined : preview;
@@ -320,8 +275,6 @@ export class WorkerDockRegistry {
           existing.lastTool !== lastTool ||
           existing.lastTarget !== lastTarget ||
           existing.tokens !== (tokens ?? existing.tokens) ||
-          existing.todoDone !== todoDone ||
-          existing.todoTotal !== todoTotal ||
           existing.liveBuffer !== liveText
         ) {
           existing.status = status;
@@ -334,10 +287,6 @@ export class WorkerDockRegistry {
           if (lastTarget === undefined) delete existing.lastTarget;
           else existing.lastTarget = lastTarget;
           if (tokens !== undefined) existing.tokens = tokens;
-          if (todoDone === undefined) delete existing.todoDone;
-          else existing.todoDone = todoDone;
-          if (todoTotal === undefined) delete existing.todoTotal;
-          else existing.todoTotal = todoTotal;
           if (liveText === undefined) delete existing.liveBuffer;
           else existing.liveBuffer = liveText;
           if (liveKind === undefined) delete existing.liveKind;
@@ -356,9 +305,6 @@ export class WorkerDockRegistry {
         ...(ledger === undefined ? {} : { ledger }),
         ...(lastTool === undefined ? {} : { lastTool }),
         ...(lastTarget === undefined ? {} : { lastTarget }),
-        ...(tokens === undefined ? {} : { tokens }),
-        ...(todoDone === undefined ? {} : { todoDone }),
-        ...(todoTotal === undefined ? {} : { todoTotal }),
         ...(liveKind === undefined || liveText === undefined
           ? {}
           : { liveKind, liveBuffer: liveText, liveAtMs: nowMs }),
@@ -388,10 +334,6 @@ export class WorkerDockRegistry {
         return this.touch(event.subagentId);
       case 'subagent.progress':
         return this.applyProgress(event);
-      case 'subagent.stalled':
-        return this.applyStalled(event);
-      case 'subagent.suspended':
-        return this.applyStatus(event.subagentId, 'suspended');
       case 'subagent.completed':
         return this.applyCompleted(event);
       case 'subagent.failed':
@@ -402,8 +344,6 @@ export class WorkerDockRegistry {
         return this.applyToolResult(event);
       case 'subagent.tool_progress':
         return this.applyToolProgress(event);
-      case 'subagent.todo.updated':
-        return this.applyTodo(event);
       case 'background.task.started':
         return this.applyBackgroundStarted(event.info);
       case 'background.task.terminated':
@@ -412,6 +352,16 @@ export class WorkerDockRegistry {
         return this.applyLiveDelta(event.agentId, 'thinking', event.delta);
       case 'assistant.delta':
         return this.applyLiveDelta(event.agentId, 'answer', event.delta);
+      case 'tool.call.started':
+        return this.applyRawToolCall(event);
+      case 'tool.result':
+        return this.applyRawToolResult(event);
+      case 'tool.progress':
+        return this.applyRawToolProgress(event);
+      case 'shell.started':
+        return event.agentId === MAIN_AGENT_ID ? false : this.touch(event.agentId);
+      case 'shell.output':
+        return this.applyRawShellOutput(event);
       default:
         return false;
     }
@@ -425,7 +375,7 @@ export class WorkerDockRegistry {
       if (isDockWorkerPastLinger(worker, nowMs)) {
         continue;
       }
-      const active = ACTIVE_STATUSES.has(worker.status);
+      const active = worker.status === 'running';
       if (active) {
         activeCount += 1;
         totalTokens += worker.tokens;
@@ -455,15 +405,7 @@ export class WorkerDockRegistry {
           ? {}
           : { progressElapsedMs: worker.progressElapsedMs }),
         ...(worker.budgetMs === undefined ? {} : { budgetMs: worker.budgetMs }),
-        ...(worker.budgetRemainingMs === undefined
-          ? {}
-          : { budgetRemainingMs: worker.budgetRemainingMs }),
-        ...(worker.todoDone === undefined ? {} : { todoDone: worker.todoDone }),
-        ...(worker.todoTotal === undefined ? {} : { todoTotal: worker.todoTotal }),
-        ...(worker.focusTodo === undefined ? {} : { focusTodo: worker.focusTodo }),
-        ...(worker.stalledSilentMs === undefined
-          ? {}
-          : { stalledSilentMs: worker.stalledSilentMs }),
+        ...(worker.budgetRemainingMs === undefined ? {} : { budgetRemainingMs: worker.budgetRemainingMs }),
         ...(worker.error === undefined ? {} : { error: worker.error }),
         ...(worker.terminalAtMs === undefined ? {} : { terminalAtMs: worker.terminalAtMs }),
         spawnedAtMs: worker.spawnedAtMs,
@@ -480,7 +422,7 @@ export class WorkerDockRegistry {
     // (lastActivityAtMs) cannot reshuffle rows every progress tick.
     workers.sort((a, b) => {
       const rank = (w: DockWorker): number =>
-        ACTIVE_STATUSES.has(w.status) ? 0 : w.status === 'failed' ? 1 : 2;
+        w.status === 'running' ? 0 : w.status === 'failed' ? 1 : 2;
       return (
         rank(a) - rank(b) ||
         a.spawnedAtMs - b.spawnedAtMs ||
@@ -575,21 +517,22 @@ export class WorkerDockRegistry {
     const prevTokens = worker.tokens;
     const prevStatus = worker.status;
     const prevRate = worker.tokenRatePerSec;
+    const prevBudgetMs = worker.budgetMs;
+    const prevBudgetRemainingMs = worker.budgetRemainingMs;
 
     if (event.subagentName !== undefined) worker.name = event.subagentName;
     worker.lastTool = event.lastTool ?? worker.lastTool;
     worker.lastTarget = event.lastTarget ?? worker.lastTarget;
-    worker.toolCount = event.toolCount;
+    worker.toolCount = Math.max(event.toolCount, worker.seenToolCallIds?.size ?? 0);
     const atMs = this.now();
     this.sampleTokenRate(worker, event.tokens, atMs);
     worker.tokens = event.tokens;
     worker.progressElapsedMs = event.elapsedMs;
     worker.progressAtMs = atMs;
     worker.lastActivityAtMs = atMs;
-    worker.budgetMs = event.budgetMs ?? worker.budgetMs;
-    worker.budgetRemainingMs = event.budgetRemainingMs ?? worker.budgetRemainingMs;
-    worker.stalledSilentMs = undefined;
-    worker.status = event.finishing === true ? 'finishing' : 'running';
+    worker.budgetMs = event.budgetMs;
+    worker.budgetRemainingMs = event.budgetRemainingMs;
+    worker.status = 'running';
 
     // Always mutate clocks/rate samples; only bump the roster version when
     // layout-visible fields change. Elapsed still advances at paint via
@@ -600,6 +543,8 @@ export class WorkerDockRegistry {
       worker.lastTarget !== prevTarget ||
       worker.toolCount !== prevToolCount ||
       worker.status !== prevStatus ||
+      worker.budgetMs !== prevBudgetMs ||
+      worker.budgetRemainingMs !== prevBudgetRemainingMs ||
       worker.tokens !== prevTokens ||
       (worker.tokenRatePerSec ?? 0) !== (prevRate ?? 0);
     return material ? this.bump() : false;
@@ -644,26 +589,6 @@ export class WorkerDockRegistry {
     }
   }
 
-  private applyStalled(event: Extract<Event, { type: 'subagent.stalled' }>): boolean {
-    const worker = this.ensureWorker(event.subagentId, {
-      name: event.subagentName ?? event.subagentId,
-    });
-    if (event.subagentName !== undefined) worker.name = event.subagentName;
-    worker.status = 'stalled';
-    worker.stalledSilentMs = event.silentMs;
-    worker.toolCount = event.toolCount;
-    worker.tokenRatePerSec = undefined;
-    worker.lastActivityAtMs = this.now();
-    return this.bump();
-  }
-
-  private applyStatus(subagentId: string, status: DockWorkerStatus): boolean {
-    const worker = this.workers.get(subagentId);
-    if (worker === undefined || worker.status === status) return false;
-    worker.status = status;
-    worker.lastActivityAtMs = this.now();
-    return this.bump();
-  }
 
   private applyCompleted(event: Extract<Event, { type: 'subagent.completed' }>): boolean {
     const worker = this.ensureWorker(event.subagentId, { name: event.subagentId });
@@ -696,20 +621,52 @@ export class WorkerDockRegistry {
       name: event.subagentName ?? event.subagentId,
     });
     if (event.subagentName !== undefined) worker.name = event.subagentName;
-    const { target, chip } = resolveSubagentToolTarget(event.detail, event.argsPreview);
-    const targetText = target;
-    worker.lastTool = event.name;
-    if (targetText !== undefined && targetText.length > 0) worker.lastTarget = targetText;
-    // Tool phase: drop stale inference so NOW shows the action, not old thoughts.
+    const target = resolveSubagentToolTarget(event.detail, event.argsPreview);
+    return this.recordToolCall(worker, event.toolCallId, event.name, target);
+  }
+
+  private applyRawToolCall(event: Extract<Event, { type: 'tool.call.started' }>): boolean {
+    if (event.agentId === MAIN_AGENT_ID) return false;
+    const worker = this.workers.get(event.agentId);
+    if (worker === undefined) return false;
+    return this.recordToolCall(worker, event.toolCallId, event.name, event.description);
+  }
+
+  private recordToolCall(
+    worker: MutableWorker,
+    toolCallId: string,
+    name: string,
+    target?: string,
+  ): boolean {
+    const index = this.ops.findIndex(
+      (entry) => entry.workerId === worker.id && entry.toolCallId === toolCallId,
+    );
+    if (index >= 0) {
+      const entry = this.ops[index]!;
+      const nextTarget = target ?? entry.target;
+      if (entry.name === name && entry.target === nextTarget) return false;
+      this.ops[index] = { ...entry, name, target: nextTarget };
+      if (worker.lastToolCallId === toolCallId && nextTarget !== undefined) {
+        worker.lastTarget = nextTarget;
+      }
+      return this.bump();
+    }
+    const seen = worker.seenToolCallIds ??= new Set<string>();
+    if (seen.has(toolCallId)) return false;
+    seen.add(toolCallId);
+    worker.toolCount = Math.max(worker.toolCount, seen.size);
+    worker.lastToolCallId = toolCallId;
+    worker.lastTool = name;
+    worker.lastTarget = target;
+    // Repeated raw/summary copies do not clear fresh output or reopen settled rows.
     clearLiveStream(worker);
     worker.lastActivityAtMs = this.now();
     this.pushOps({
-      toolCallId: event.toolCallId,
+      toolCallId,
       workerId: worker.id,
       workerName: worker.name,
-      name: event.name,
-      ...(targetText === undefined || targetText.length === 0 ? {} : { target: targetText }),
-      ...(chip === undefined ? {} : { chip }),
+      name,
+      ...(target === undefined || target.length === 0 ? {} : { target }),
       status: 'running',
       atMs: worker.lastActivityAtMs,
     });
@@ -717,38 +674,55 @@ export class WorkerDockRegistry {
   }
 
   private applyToolResult(event: Extract<Event, { type: 'subagent.tool_result' }>): boolean {
+    return this.recordToolResult(
+      event.subagentId, event.toolCallId, event.isError === true, event.resultPreview, event.name,
+    );
+  }
+
+  private applyRawToolResult(event: Extract<Event, { type: 'tool.result' }>): boolean {
+    if (event.agentId === MAIN_AGENT_ID || !this.workers.has(event.agentId)) return false;
+    const preview = typeof event.output === 'string'
+      ? event.output.slice(-MISSION_LIVE_TEXT_CAP)
+      : undefined;
+    return this.recordToolResult(event.agentId, event.toolCallId, event.isError === true, preview);
+  }
+
+  private recordToolResult(
+    workerId: string,
+    toolCallId: string,
+    isError: boolean,
+    preview?: string,
+    name?: string,
+  ): boolean {
     const atMs = this.now();
-    const status = event.isError === true ? 'error' : 'ok';
-    const resultChip = compactResultChip(event.resultPreview);
-    const entry = this.ops.find((candidate) => candidate.toolCallId === event.toolCallId);
-    if (entry !== undefined) {
-      const index = this.ops.indexOf(entry);
-      this.ops[index] = {
-        ...entry,
-        ...(event.name !== undefined && event.name.length > 0 ? { name: event.name } : {}),
-        ...(resultChip === undefined || entry.chip !== undefined ? {} : { chip: resultChip }),
-        status,
-        settledAtMs: atMs,
-      };
+    const status = isError ? 'error' : 'ok';
+    const resultChip = compactResultChip(preview);
+    const index = this.ops.findIndex(
+      (entry) => entry.workerId === workerId && entry.toolCallId === toolCallId,
+    );
+    if (index >= 0) {
+      const entry = this.ops[index]!;
+      const nextName = name !== undefined && name.length > 0 ? name : entry.name;
+      const nextChip = entry.chip ?? resultChip;
+      if (entry.status === status && entry.name === nextName && entry.chip === nextChip) return false;
+      this.ops[index] = { ...entry, name: nextName, chip: nextChip, status, settledAtMs: atMs };
     } else {
-      const worker = this.workers.get(event.subagentId);
+      const worker = this.workers.get(workerId);
       this.pushOps({
-        toolCallId: event.toolCallId,
-        workerId: event.subagentId,
-        workerName: worker?.name ?? event.subagentId,
-        name: event.name ?? 'tool',
+        toolCallId,
+        workerId,
+        workerName: worker?.name ?? workerId,
+        name: name ?? 'tool',
         ...(resultChip === undefined ? {} : { chip: resultChip }),
         status,
         atMs,
         settledAtMs: atMs,
       });
     }
-    const worker = this.workers.get(event.subagentId);
+    const worker = this.workers.get(workerId);
     if (worker !== undefined) {
       worker.lastActivityAtMs = atMs;
-      if (worker.liveToolCallId === event.toolCallId) {
-        clearLiveStream(worker);
-      }
+      if (worker.liveToolCallId === toolCallId) clearLiveStream(worker);
     }
     return this.bump();
   }
@@ -761,32 +735,59 @@ export class WorkerDockRegistry {
   private applyToolProgress(
     event: Extract<Event, { type: 'subagent.tool_progress' }>,
   ): boolean {
-    const preview = event.textPreview;
-    if (preview === undefined || preview.length === 0) return false;
-    const tail = lastNonEmptyLine(preview);
-    if (tail.length === 0) return false;
     const worker = this.workers.get(event.subagentId);
     if (worker === undefined) return false;
-    if (worker.liveToolCallId !== event.toolCallId) {
-      worker.liveToolCallId = event.toolCallId;
+    return this.recordToolProgress(worker, event.toolCallId, event.kind, 'summary', event.textPreview, event.name);
+  }
+
+  private applyRawToolProgress(event: Extract<Event, { type: 'tool.progress' }>): boolean {
+    if (event.agentId === MAIN_AGENT_ID || !isToolProgressLiveKind(event.update.kind)) return false;
+    const worker = this.workers.get(event.agentId);
+    if (worker === undefined) return false;
+    return this.recordToolProgress(worker, event.toolCallId, event.update.kind, 'raw', event.update.text);
+  }
+
+  private applyRawShellOutput(event: Extract<Event, { type: 'shell.output' }>): boolean {
+    if (event.agentId === MAIN_AGENT_ID || !isToolProgressLiveKind(event.update.kind)) return false;
+    const worker = this.workers.get(event.agentId);
+    if (worker === undefined) return false;
+    return this.recordToolProgress(worker, event.commandId, event.update.kind, 'raw', event.update.text);
+  }
+
+  private recordToolProgress(
+    worker: MutableWorker,
+    toolCallId: string,
+    kind: MissionLiveKind,
+    source: 'raw' | 'summary',
+    preview?: string,
+    name?: string,
+  ): boolean {
+    if (preview === undefined || preview.length === 0) return false;
+    if (source === 'summary' && lastNonEmptyLine(preview).length === 0) return false;
+    const atMs = this.now();
+    worker.liveAtMs = atMs;
+    worker.lastActivityAtMs = atMs;
+    if (worker.liveToolCallId === toolCallId && source === 'summary' && worker.liveProgressSource === 'raw') {
+      return false;
+    }
+    if (
+      worker.liveToolCallId !== toolCallId ||
+      (source === 'raw' && worker.liveProgressSource === 'summary')
+    ) {
+      worker.liveToolCallId = toolCallId;
       worker.liveBuffer = '';
     }
-    worker.liveKind = event.kind;
+    worker.liveProgressSource = source;
+    worker.liveKind = kind;
     const sep =
+      source === 'summary' &&
       worker.liveBuffer !== undefined &&
       worker.liveBuffer.length > 0 &&
       !worker.liveBuffer.endsWith('\n')
         ? '\n'
         : '';
     worker.liveBuffer = appendLiveBuffer(worker.liveBuffer ?? '', `${sep}${preview}`);
-    const atMs = this.now();
-    worker.liveAtMs = atMs;
-    worker.lastActivityAtMs = atMs;
-    if (event.name !== undefined && event.name.length > 0) {
-      worker.lastTool = event.name;
-    }
-    if (worker.status === 'stalled') worker.status = 'running';
-    worker.stalledSilentMs = undefined;
+    if (name !== undefined && name.length > 0) worker.lastTool = name;
     return this.bump();
   }
 
@@ -803,6 +804,7 @@ export class WorkerDockRegistry {
     const worker = this.workers.get(agentId);
     if (worker === undefined) return false;
     if (worker.liveKind !== kind) {
+      clearLiveStream(worker);
       worker.liveKind = kind;
       worker.liveBuffer = '';
     }
@@ -810,29 +812,12 @@ export class WorkerDockRegistry {
     const atMs = this.now();
     worker.liveAtMs = atMs;
     worker.lastActivityAtMs = atMs;
-    if (worker.status === 'stalled') worker.status = 'running';
-    worker.stalledSilentMs = undefined;
-    return this.bump();
-  }
-
-  private applyTodo(event: Extract<Event, { type: 'subagent.todo.updated' }>): boolean {
-    const worker = this.ensureWorker(event.subagentId, { name: event.subagentName });
-    worker.name = event.subagentName;
-    worker.todoTotal = event.todos.length;
-    worker.todoDone = event.todos.filter((todo) => todo.status === 'done').length;
-    const inProgress = event.todos.find((todo) => todo.status === 'in_progress');
-    const pending = event.todos.find((todo) => todo.status === 'pending');
-    const focus = inProgress?.title ?? pending?.title;
-    if (focus !== undefined && focus.length > 0) worker.focusTodo = focus;
-    else delete worker.focusTodo;
-    worker.lastActivityAtMs = this.now();
     return this.bump();
   }
 
   private applyBackgroundStarted(
     info: Extract<Event, { type: 'background.task.started' }>['info'],
   ): boolean {
-    if (info.kind === 'question') return false;
     if (info.kind === 'agent' && info.agentId !== undefined) {
       const existing = this.workers.get(info.agentId);
       if (existing !== undefined) {
@@ -907,20 +892,7 @@ function clearLiveStream(worker: MutableWorker): void {
   delete worker.liveBuffer;
   delete worker.liveAtMs;
   delete worker.liveToolCallId;
-}
-
-/** Running driver first, else the first driver child of the desk job. */
-function pickDeskDriver(
-  jobs: readonly WorkerDockGhostJob[],
-  deskJobId: string,
-): WorkerDockGhostJob | undefined {
-  let first: WorkerDockGhostJob | undefined;
-  for (const job of jobs) {
-    if (job.kind !== 'goal-driver' || job.parentJobId !== deskJobId) continue;
-    if (job.status === 'running') return job;
-    first ??= job;
-  }
-  return first;
+  delete worker.liveProgressSource;
 }
 
 function ledgerEqual(

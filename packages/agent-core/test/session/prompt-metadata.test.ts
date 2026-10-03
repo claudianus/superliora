@@ -1,11 +1,9 @@
 import type { ContentPart } from '@superliora/kosong';
-import type { ActivatePluginCommandPayload, ActivateSkillPayload, PromptPayload } from '#/rpc';
+import type { PromptPayload } from '#/rpc';
 import { describe, expect, it } from 'vitest';
 
 import {
   promptMetadataTextFromPayload,
-  promptMetadataTextFromPluginCommand,
-  promptMetadataTextFromSkill,
   titleFromPromptMetadataText,
 } from '../../src/session/prompt-metadata';
 
@@ -82,30 +80,3 @@ describe('prompt-metadata.ts — promptMetadataTextFromPayload', () => {
   });
 });
 
-describe('prompt-metadata.ts — promptMetadataTextFromSkill / promptMetadataTextFromPluginCommand', () => {
-  it('formats skill activation with optional args and trims args', () => {
-    const a: ActivateSkillPayload = { name: 'commit', args: '  -m feat  ' };
-    expect(promptMetadataTextFromSkill(a)).toBe('/commit -m feat');
-  });
-
-  it('omits the trailing space when skill args are empty/undefined', () => {
-    const a1: ActivateSkillPayload = { name: 'commit', args: '   ' };
-    const a2: ActivateSkillPayload = { name: 'commit' };
-    expect(promptMetadataTextFromSkill(a1)).toBe('/commit');
-    expect(promptMetadataTextFromSkill(a2)).toBe('/commit');
-  });
-
-  it('formats plugin command with command and optional args', () => {
-    const a: ActivatePluginCommandPayload = {
-      pluginId: 'p1',
-      commandName: 'review',
-      args: '  --strict  ',
-    };
-    expect(promptMetadataTextFromPluginCommand(a)).toBe('/p1:review --strict');
-  });
-
-  it('omits the trailing space when plugin args are empty', () => {
-    const a: ActivatePluginCommandPayload = { pluginId: 'p1', commandName: 'review' };
-    expect(promptMetadataTextFromPluginCommand(a)).toBe('/p1:review');
-  });
-});

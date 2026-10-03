@@ -16,15 +16,18 @@ export interface BackgroundTaskInfoBase {
   readonly startedAt: number;
   readonly endedAt: number | null;
   readonly stopReason?: string;
-  readonly terminalNotificationSuppressed?: boolean;
   readonly timeoutMs?: number;
+  readonly resourcesSettled?: boolean;
 }
 
 export interface ProcessBackgroundTaskInfo extends BackgroundTaskInfoBase {
   readonly kind: 'process';
   readonly command: string;
-  readonly pid: number;
+  readonly cwd?: string;
+  /** Absent when the native terminal provider does not expose an OS process id. */
+  readonly pid?: number;
   readonly exitCode: number | null;
+  readonly outputTruncated?: boolean;
 }
 
 export interface AgentBackgroundTaskInfo extends BackgroundTaskInfoBase {
@@ -33,16 +36,8 @@ export interface AgentBackgroundTaskInfo extends BackgroundTaskInfoBase {
   readonly subagentType?: string;
 }
 
-export interface QuestionBackgroundTaskInfo extends BackgroundTaskInfoBase {
-  readonly kind: 'question';
-  readonly questionCount: number;
-  readonly toolCallId?: string;
-}
 
-export type BackgroundTaskInfo =
-  | ProcessBackgroundTaskInfo
-  | AgentBackgroundTaskInfo
-  | QuestionBackgroundTaskInfo;
+export type BackgroundTaskInfo = ProcessBackgroundTaskInfo | AgentBackgroundTaskInfo;
 
 export interface BackgroundTaskStartedEvent {
   readonly type: 'background.task.started';
@@ -71,15 +66,17 @@ export const backgroundTaskInfoBaseSchema = z.object({
   startedAt: z.number(),
   endedAt: z.number().nullable(),
   stopReason: z.string().optional(),
-  terminalNotificationSuppressed: z.boolean().optional(),
   timeoutMs: z.number().optional(),
+  resourcesSettled: z.boolean().optional(),
 }) satisfies z.ZodType<BackgroundTaskInfoBase>;
 
 export const processBackgroundTaskInfoSchema = backgroundTaskInfoBaseSchema.extend({
   kind: z.literal('process'),
   command: z.string(),
-  pid: z.number(),
+  cwd: z.string().optional(),
+  pid: z.number().optional(),
   exitCode: z.number().nullable(),
+  outputTruncated: z.boolean().optional(),
 }) satisfies z.ZodType<ProcessBackgroundTaskInfo>;
 
 export const agentBackgroundTaskInfoSchema = backgroundTaskInfoBaseSchema.extend({
@@ -88,16 +85,10 @@ export const agentBackgroundTaskInfoSchema = backgroundTaskInfoBaseSchema.extend
   subagentType: z.string().optional(),
 }) satisfies z.ZodType<AgentBackgroundTaskInfo>;
 
-export const questionBackgroundTaskInfoSchema = backgroundTaskInfoBaseSchema.extend({
-  kind: z.literal('question'),
-  questionCount: z.number(),
-  toolCallId: z.string().optional(),
-}) satisfies z.ZodType<QuestionBackgroundTaskInfo>;
 
 export const backgroundTaskInfoSchema = z.discriminatedUnion('kind', [
   processBackgroundTaskInfoSchema,
   agentBackgroundTaskInfoSchema,
-  questionBackgroundTaskInfoSchema,
 ]) satisfies z.ZodType<BackgroundTaskInfo>;
 
 export const backgroundTaskStartedEventSchema = z.object({

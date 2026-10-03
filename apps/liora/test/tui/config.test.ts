@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
   DEFAULT_FOOTER_PREFERENCES,
-  DEFAULT_CONDUCTOR_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
   DEFAULT_TUI_THEME,
   DEFAULT_TUI_CONFIG,
@@ -109,7 +108,6 @@ terminal_palette = true
       },
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
-      conductor: DEFAULT_CONDUCTOR_PREFERENCES,
     });
   });
 
@@ -222,7 +220,6 @@ command = "   "
       appearance: DEFAULT_APPEARANCE_PREFERENCES,
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
-      conductor: DEFAULT_CONDUCTOR_PREFERENCES,
     });
   });
 
@@ -302,7 +299,6 @@ command = "   "
       },
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
-      conductor: DEFAULT_CONDUCTOR_PREFERENCES,
     });
   });
 

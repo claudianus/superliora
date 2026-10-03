@@ -12,19 +12,13 @@ import type { SDKSessionRPC } from '#/rpc';
 
 import { Agent, type AgentOptions, type AgentType } from '../../agent';
 import type { PermissionManagerOptions } from '../../agent/permission';
-import { HookEngine } from '../hooks';
-import { McpConnectionManager } from '../../mcp';
-import { prepareSystemPromptContext, type ResolvedAgentProfile } from '../../profile';
-import type { SessionSkillRegistry } from '../../skill';
+import { prepareSystemPromptContext, resolveMainAgentProfile, type ResolvedAgentProfile } from '../../profile';
 import type { TelemetryClient } from '../../telemetry';
 import type { SandboxEnforcement } from '../../config/sandbox-enforcement';
 import type { SandboxProfile } from '../../tools/policies/path-access';
 import { FileSnapshotStore } from '../file-snapshot';
 import type { FileProvenanceRecorder } from '../file-provenance';
-import type { ExperimentalFlagResolver } from '../../flags';
-import { responseLanguagePreferenceFromUnknown } from '../response-language';
 import { ProviderManager } from '../provider/provider-manager';
-import { SessionSubagentHost } from '../subagent/subagent-host';
 import type { Session } from '../index';
 import type {
   AgentEntry,
@@ -38,12 +32,7 @@ export interface SessionAgentLifecycleOptions {
   readonly options: SessionOptions;
   readonly agents: Map<string, AgentEntry>;
   getMetadata: () => SessionMeta;
-  readonly skills: SessionSkillRegistry;
-  getSkillsReady: () => Promise<void>;
-  readonly mcp: McpConnectionManager;
-  readonly hookEngine: HookEngine;
   readonly telemetry: TelemetryClient;
-  readonly experimentalFlags: ExperimentalFlagResolver;
   readonly fileSnapshots: FileSnapshotStore;
   readonly fileProvenance: FileProvenanceRecorder;
   readonly log: Logger;
@@ -62,9 +51,7 @@ export class SessionAgentLifecycle {
   constructor(private readonly opts: SessionAgentLifecycleOptions) {}
 
   /**
-   * Applies a profile's derived config — cwd, system prompt, active tools — to
-   * an agent. Fresh creation and resume-of-an-incomplete-wire both route
-   * through here so the two paths cannot drift apart.
+   * Applies the minimal environment/AGENTS prompt for fresh and resumed agents.
    */
   async bootstrapAgentProfile(agent: Agent, profile: ResolvedAgentProfile): Promise<void> {
     const context = await prepareSystemPromptContext(
@@ -93,38 +80,20 @@ export class SessionAgentLifecycle {
     parentAgentId: string | null = null,
   ): Agent {
     const parentAgent = parentAgentId !== null ? this.getReadyAgent(parentAgentId) : undefined;
-    const cwd = parentAgent?.config.cwd ?? this.opts.getToolKaos().getcwd();
+    const cwd = config.kaos?.getcwd() ?? parentAgent?.config.cwd ?? this.opts.getToolKaos().getcwd();
     return new Agent({
       ...config,
       type,
-      kaos: this.opts.getToolKaos().withCwd(cwd),
-      toolServices: this.opts.options.toolServices,
-      config: this.opts.options.config,
+      kaos: (config.kaos ?? this.opts.getToolKaos()).withCwd(cwd),
+      config: config.config ?? this.opts.options.config,
       homedir,
-      skills: this.opts.skills,
       rpc: proxyWithExtraPayload(this.opts.rpc, { agentId: id }),
-      modelProvider: providerManagerForAgent(this.opts.options.providerManager, id),
-      hookEngine: config.hookEngine ?? this.opts.hookEngine,
-      subagentHost: config.subagentHost ?? new SessionSubagentHost(this.opts.session, id),
-      mcp: this.opts.mcp,
+      modelProvider: config.modelProvider ?? providerManagerForAgent(this.opts.options.providerManager, id),
+      sessionControl: config.sessionControl ?? this.opts.session.getSubagentHost(id),
       permission: this.permissionOptions(parentAgentId, config.permission),
       telemetry: this.opts.telemetry,
       log: this.opts.log.createChild({ agentId: id }),
-      pluginSessionStarts: type === 'main' ? this.opts.options.pluginSessionStarts : undefined,
-      pluginCommands: type === 'main' ? this.opts.options.pluginCommands : undefined,
-      pluginAgents: this.opts.options.pluginAgents,
-      pluginBinDirs: this.opts.options.pluginBinDirs,
-      experimentalFlags: this.opts.experimentalFlags,
-      additionalDirs: parentAgent?.getAdditionalDirs() ?? this.opts.getAdditionalDirs(),
-      memory: this.opts.options.memory?.forAgent({
-        sessionId: this.opts.options.id ?? '',
-        agentId: id,
-        agentType: type,
-        workDir: cwd,
-      }),
-      responseLanguagePreference: () =>
-        responseLanguagePreferenceFromUnknown(this.opts.getMetadata().custom['responseLanguage']),
-      dreamStore: type === 'main' ? this.opts.options.dreamStore : undefined,
+      additionalDirs: config.additionalDirs ?? parentAgent?.getAdditionalDirs() ?? this.opts.getAdditionalDirs(),
       fileSnapshots: config.fileSnapshots ?? this.opts.fileSnapshots,
       fileProvenance: config.fileProvenance ?? this.opts.fileProvenance,
       sandboxProfile: config.sandboxProfile ?? this.resolveSandboxProfile(),
@@ -175,7 +144,7 @@ export class SessionAgentLifecycle {
     const entry = this.opts.agents.get(id);
     if (entry !== undefined) return this.resolveAgentEntry(entry);
 
-    const promise = this.resumePersistedAgent(id, stack);
+    const promise = Promise.resolve().then(() => this.resumePersistedAgent(id, stack));
     this.opts.agents.set(id, promise);
     return promise;
   }
@@ -184,7 +153,6 @@ export class SessionAgentLifecycle {
     id: string,
     stack: readonly string[] = [],
   ): Promise<ResumedAgent> {
-    await this.opts.getSkillsReady();
     const meta = this.opts.getMetadata().agents[id];
     if (meta === undefined) {
       throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, `Session agent "${id}" is missing`);
@@ -198,10 +166,10 @@ export class SessionAgentLifecycle {
 
     try {
       const agent = this.instantiateAgent(id, meta.homedir, meta.type, {}, parentAgentId);
-      // Publish before resume so fleet autopilot spawn → ensureAgentResumed(parent)
-      // does not await this resume Promise (deadlock → jobs stuck queued/blocked).
+      // Publish before replay so nested lookups cannot wait on this resume.
       this.opts.agents.set(id, agent);
       const result = await agent.resume();
+      await this.bootstrapAgentProfile(agent, resolveMainAgentProfile());
       return { agent, warning: parent?.warning ?? result.warning };
     } catch (error) {
       // Drop the failed agent we published, or the resume Promise placeholder.

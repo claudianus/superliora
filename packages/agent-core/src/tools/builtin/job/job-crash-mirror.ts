@@ -1,7 +1,7 @@
 /**
  * Durable job-ledger crash mirror.
  *
- * Wire `tools.update_store` appends are async-buffered; a hard kill can lose
+ * Wire job.ledger appends are async-buffered; a hard kill can lose
  * the last ledger patch. This mirror writes `<agentHomedir>/job-ledger.crash.json`
  * (debounced) and can fsync synchronously on emergency flush paths so resume
  * can merge a fresher ledger than the wire replay.
@@ -34,15 +34,21 @@ interface MirrorBinding {
 const bindings = new WeakMap<ToolStore, MirrorBinding>();
 const boundStores = new Set<ToolStore>();
 
+function stripTrailingSlashes(path: string): string {
+  let end = path.length;
+  while (end > 0 && path.codePointAt(end - 1) === 47) end--;
+  return end === path.length ? path : path.slice(0, end);
+}
+
 export function jobLedgerCrashMirrorPath(agentDir: string): string {
-  return join(agentDir.replace(/\/+$/, ''), JOB_LEDGER_CRASH_MIRROR_FILE);
+  return join(stripTrailingSlashes(agentDir), JOB_LEDGER_CRASH_MIRROR_FILE);
 }
 
 /** Bind a main-agent tool store to a durable crash mirror under `agentDir`. */
 export function bindJobLedgerCrashMirror(store: ToolStore, agentDir: string): void {
   const trimmed = agentDir.trim();
   if (trimmed.length === 0) return;
-  bindings.set(store, { agentDir: trimmed.replace(/\/+$/, '') });
+  bindings.set(store, { agentDir: stripTrailingSlashes(trimmed) });
   boundStores.add(store);
 }
 
@@ -129,7 +135,7 @@ export function mergeCrashMirrorIntoStore(store: ToolStore, agentDir?: string): 
   if (!changed) return false;
   writeJobLedger(store, {
     schemaVersion: 1,
-    jobs: [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    jobs: [...byId.values()].toSorted((a, b) => a.createdAt.localeCompare(b.createdAt)),
   });
   // Avoid re-writing the same mirror from this merge.
   return true;

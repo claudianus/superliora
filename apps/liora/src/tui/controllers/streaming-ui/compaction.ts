@@ -19,7 +19,7 @@ export function beginCompaction(
   host: CompactionHost,
   activeBlock: CompactionComponent | undefined,
   instruction?: string,
-  options?: { readonly background?: boolean; readonly modelAlias?: string },
+  options?: { readonly modelAlias?: string },
 ): CompactionComponent {
   const { state } = host;
   if (activeBlock !== undefined) {
@@ -31,7 +31,6 @@ export function beginCompaction(
     instruction,
     workingTip === undefined ? undefined : tipText(workingTip),
     {
-      background: options?.background === true,
       modelAlias: options?.modelAlias,
     },
   );
@@ -39,7 +38,7 @@ export function beginCompaction(
   host.motionBeats.play({
     name: 'compaction_start',
     seed: 'compaction',
-    title: options?.background === true ? 'Compacting context (bg)' : 'Compacting context',
+    title: 'Compacting context',
     nowMs: appearanceAnimationNow(),
   });
   // Structural: new transcript card → layout.
@@ -80,16 +79,6 @@ export function cancelCompaction(
   activeBlock.markCanceled();
   requestTUILayoutRender(host.state);
   return undefined;
-}
-
-export function promoteCompactionToBlocking(
-  host: CompactionHost,
-  activeBlock: CompactionComponent | undefined,
-): void {
-  if (activeBlock === undefined) return;
-  activeBlock.promoteToBlocking();
-  // Header label change only — content is enough.
-  requestTUIContentRender(host.state);
 }
 
 export function updateCompactionProgress(

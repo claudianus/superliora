@@ -22,7 +22,6 @@ import {
   mergeProviderOAuthLogin,
   OAuthProviderManager,
   SUPERLIORA_PROVIDER_NAME,
-  applyXaiPricingSafeContextTokens,
   fetchGitHubCopilotModels,
   readGitHubCopilotEnvToken,
   readGitHubCopilotGhCliToken,
@@ -467,10 +466,7 @@ function presetModelToAlias(providerId: string, preset: ProviderModelPreset): Mo
   return {
     provider: providerId,
     model: preset.id,
-    maxContextSize: applyXaiPricingSafeContextTokens(preset.maxContextSize, {
-      provider: providerId,
-      model: preset.id,
-    }),
+    maxContextSize: preset.maxContextSize,
     capabilities: preset.capabilities !== undefined ? [...preset.capabilities] : undefined,
     ...(preset.supportEfforts !== undefined
       ? { supportEfforts: [...preset.supportEfforts] }

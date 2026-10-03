@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { handleAgentsCommand } from '#/tui/commands/agents';
-import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import type { WorkerDockMode } from '#/tui/features/worker-dock/dock';
 
 const { saveTuiConfigMock } = vi.hoisted(() => ({ saveTuiConfigMock: vi.fn() }));
@@ -41,9 +40,8 @@ function createHost(mode: WorkerDockMode) {
   };
 }
 
-describe('/agents', () => {
+describe('worker dock command', () => {
   it('cycles auto → pinned → hidden → auto and persists', async () => {
-    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
     saveTuiConfigMock.mockClear();
     const host = createHost('auto');
     await handleAgentsCommand(host, '');

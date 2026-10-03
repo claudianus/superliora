@@ -10,13 +10,12 @@ import { buildDefaultCommandHubItems } from '#/tui/components/dialogs/command-hu
 import { commandHubActionToSlash } from '#/tui/utils/command/command-hub-actions';
 
 describe('slash hub jumps', () => {
-  it('builds searchOnly slash and skill rows', () => {
+  it('builds searchOnly slash rows', () => {
     const items = buildSlashJumpHubItems(
       [
         { name: 'compact', description: 'Compact context', aliases: [] },
-        { name: 'my-skill', description: 'A skill', aliases: ['ms'] },
+        { name: 'jobs', description: 'Operator Jobs', aliases: [] },
       ],
-      new Set(['my-skill']),
     );
     expect(items).toHaveLength(2);
     expect(items[0]).toMatchObject({
@@ -26,8 +25,8 @@ describe('slash hub jumps', () => {
       searchOnly: true,
     });
     expect(items[1]).toMatchObject({
-      id: 'slash.my-skill',
-      section: 'Skills',
+      id: 'slash.jobs',
+      section: 'Commands',
       searchOnly: true,
     });
     expect(isSlashHubActionId('slash.compact')).toBe(true);
@@ -48,7 +47,7 @@ describe('slash hub jumps', () => {
   });
 
   it('dedupes a command listed under multiple visibility surfaces', () => {
-    const command = { name: 'memory', description: 'Memory', aliases: [] };
+    const command = { name: 'compact', description: 'Compact context', aliases: [] };
     const items = buildSlashJumpHubItems([command, { ...command }]);
     expect(items).toHaveLength(1);
   });

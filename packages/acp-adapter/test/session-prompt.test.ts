@@ -173,6 +173,30 @@ describe('AcpServer session/prompt', () => {
     expect(response.stopReason).toBe('cancelled');
     expect(unsubscribeCount()).toBe(1);
   });
+  it('rejects failed native turns with internalError instead of fake end_turn', async () => {
+    const sessionId = 'sess-native-failure';
+    const { session, unsubscribeCount } = makeScriptedSession(sessionId, [
+      { type: 'assistant.delta', sessionId, agentId: 'main', turnId: 1, delta: 'partial' } as Event,
+      { type: 'turn.ended', sessionId, agentId: 'main', turnId: 1, reason: 'failed' } as Event,
+    ]);
+    const harness = {
+      auth: { status: async () => AUTHED_STATUS },
+      createSession: async () => session,
+    } as unknown as LioraHarness;
+    const { agentStream, clientStream } = makeInMemoryStreamPair();
+    new AgentSideConnection((connection) => new AcpServer(harness, connection), agentStream);
+    const collecting = new CollectingClient();
+    const client = new ClientSideConnection(() => collecting, clientStream);
+    await client.newSession({ cwd: '/tmp/x', mcpServers: [] });
+    await expect(client.prompt({ sessionId, prompt: [textBlock('hi')] }))
+      .rejects.toMatchObject({ code: -32603 });
+    expect(unsubscribeCount()).toBe(1);
+    expect(collecting.promptUpdates).toHaveLength(1);
+    expect(collecting.promptUpdates[0]?.update).toMatchObject({
+      sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'partial' },
+    });
+  });
+
 
   it('rejects prompt with invalid_params when sessionId is unknown', async () => {
     const harness = {
@@ -257,18 +281,14 @@ describe('AcpServer session/prompt', () => {
     expect(unsubscribeCount()).toBe(1);
   });
 
-  it('does not reject an already-started prompt when a later prompt gets busy', async () => {
+  it('isolates a rejected concurrent prompt from the active native turn', async () => {
     const sessionId = 'sess-busy-active';
     const listeners = new Set<(event: Event) => void>();
     let unsubCount = 0;
     let promptCall = 0;
     let firstError: unknown;
-    let resolveFirstTurn: (() => void) | undefined;
-    const firstTurn = new Promise<void>((resolve) => {
-      resolveFirstTurn = () => {
-        resolve();
-      };
-    });
+    const { promise: firstTurn, resolve: resolveFirstTurn } = Promise.withResolvers<void>();
+    const started = Promise.withResolvers<void>();
     void firstTurn.then(() => {
       for (const fn of listeners) {
         fn({ type: 'turn.ended', sessionId, agentId: 'main', turnId: 1, reason: 'completed' } as Event);
@@ -278,31 +298,17 @@ describe('AcpServer session/prompt', () => {
       id: sessionId,
       prompt: async (_input: unknown) => {
         promptCall += 1;
-        await Promise.resolve();
-        if (promptCall === 1) {
-          for (const fn of listeners) {
-            fn({
-              type: 'turn.started',
-              sessionId,
-              agentId: 'main',
-              turnId: 1,
-              origin: { kind: 'user' },
-            } as unknown as Event);
-          }
-          await firstTurn;
-          return;
-        }
         for (const fn of listeners) {
           fn({
-            type: 'error',
+            type: 'turn.started',
             sessionId,
             agentId: 'main',
-            code: 'turn.agent_busy',
-            message: 'Cannot launch a new turn while another turn (ID 1) is active',
-            details: { turnId: 1 },
-            retryable: true,
+            turnId: 1,
+            origin: { kind: 'user' },
           } as unknown as Event);
         }
+        started.resolve();
+        await firstTurn;
       },
       cancel: async () => undefined,
       onEvent: (fn: (event: Event) => void) => {
@@ -333,16 +339,20 @@ describe('AcpServer session/prompt', () => {
           throw error;
         },
       );
-    await Promise.resolve();
+    await started.promise;
 
     await expect(
       client.prompt({ sessionId, prompt: [textBlock('busy')] }),
     ).rejects.toMatchObject({ code: -32600 });
     expect(firstError).toBeUndefined();
+    expect(promptCall).toBe(1);
+    expect(listeners.size).toBe(1);
+    expect(unsubCount).toBe(0);
 
-    resolveFirstTurn?.();
+    resolveFirstTurn();
     await expect(firstPrompt).resolves.toMatchObject({ stopReason: 'end_turn' });
-    expect(unsubCount).toBe(2);
+    expect(listeners.size).toBe(0);
+    expect(unsubCount).toBe(1);
   });
 
   it('ignores a subagent turn.ended and resolves on the main agent turn.ended', async () => {
@@ -357,7 +367,7 @@ describe('AcpServer session/prompt', () => {
         agentId: 'sub-1',
         turnId: 99,
         toolCallId: 'sub-tool',
-        name: 'Shell',
+        name: 'Bash',
         args: { command: 'echo leak' },
       } as Event,
       {

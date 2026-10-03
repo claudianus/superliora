@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { landJobToMain } from '../../src/tools/builtin/job/job-land';
 import { createJob, getJob, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import type { ToolStore } from '../../src/tools/store';
+import { removeSessionWorktree } from '../../src/session/worktree';
 
 vi.mock('../../src/session/worktree', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/session/worktree')>();
@@ -24,7 +25,6 @@ vi.mock('../../src/session/worktree', async (importOriginal) => {
   };
 });
 
-import { removeSessionWorktree } from '../../src/session/worktree';
 
 function memoryStore(): ToolStore {
   const data: Record<string, unknown> = {};
@@ -41,7 +41,7 @@ function memoryStore(): ToolStore {
 function stubKaos(): Kaos {
   return {
     exec: async (...args: string[]) => {
-      const gitArgs = args[0] === 'git' && args[1] === '-C' ? args.slice(3) : args;
+      const gitArgs = args[0] === 'git' ? args.slice(args.indexOf('-C') + 2) : args;
       let stdout = '';
       if (gitArgs[0] === 'status') stdout = '';
       else if (gitArgs[0] === 'merge') stdout = 'Fast-forward';
@@ -53,15 +53,18 @@ function stubKaos(): Kaos {
       else if (gitArgs[0] === 'config') {
         stdout = gitArgs[1] === 'user.name' ? 'Test\n' : 'test@example.com\n';
       }
+      let exited = false;
+      let released = false;
       return {
         stdin: { end: () => {} },
         stdout: Readable.from([stdout]),
         stderr: Readable.from(['']),
         pid: 1,
-        exitCode: null,
-        wait: async () => 0,
-        kill: async () => {},
-        dispose: () => {},
+        get exitCode() { return exited ? 0 : null; },
+        get resourcesSettled() { return released; },
+        wait: async () => { exited = true; return 0; },
+        kill: async () => { exited = true; },
+        dispose: () => { released = exited; },
       };
     },
   } as unknown as Kaos;

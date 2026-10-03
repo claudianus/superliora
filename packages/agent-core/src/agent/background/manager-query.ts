@@ -12,13 +12,14 @@ export function startedInBackground(entry: ManagedTask): boolean {
 export function activeBackgroundAdmissionCount(tasks: ReadonlyMap<string, ManagedTask>): number {
   let count = 0;
   for (const entry of tasks.values()) {
-    if (!TERMINAL_STATUSES.has(entry.status) && startedInBackground(entry)) count++;
+    if ((!TERMINAL_STATUSES.has(entry.status) || entry.task.resourcesSettled === false) && startedInBackground(entry)) count++;
   }
   return count;
 }
 
 export function shouldListTask(info: BackgroundTaskInfo, activeOnly: boolean): boolean {
   if (!TERMINAL_STATUSES.has(info.status)) return true;
+  if (info.resourcesSettled === false) return true;
   if (activeOnly) return false;
   return info.detached !== false;
 }
@@ -32,8 +33,8 @@ export function toManagedTaskInfo(entry: ManagedTask): BackgroundTaskInfo {
     startedAt: entry.startedAt,
     endedAt: entry.endedAt,
     stopReason: entry.stopReason,
-    terminalNotificationSuppressed: entry.terminalNotificationSuppressed,
     timeoutMs: entry.options.timeoutMs,
+    ...(entry.task.resourcesSettled !== undefined ? { resourcesSettled: entry.task.resourcesSettled } : {}),
   };
   return entry.task.toInfo(base);
 }

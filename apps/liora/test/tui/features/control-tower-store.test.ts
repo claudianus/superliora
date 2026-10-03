@@ -1,20 +1,15 @@
 /**
  * V5-3 — job desk board store single-source convergence.
  *
- * All Conductor job state flows through one store: `job.updated` /
- * `job.inbox` protocol events plus best-effort Job* tool output. Counters
- * derive from the per-job cards (no manual delta math), and a static guard
- * keeps `appState.conductorJobs` writes confined to the control-tower feature.
+ * Job state flows through recorded job.updated/job.inbox events and RPC
+ * snapshots; counters derive from the cards without model-tool backfill.
  */
 
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, relative } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
 import type { JobInboxEvent, JobUpdatedEvent } from '@superliora/protocol';
 
-import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import { ControlTowerJobDesk } from '#/tui/features/control-tower/job-desk-events';
 import { JobBoardStore } from '#/tui/features/control-tower/job-board-store';
 import { createTerminalState } from '#/tui/utils/terminal/terminal-state';
@@ -125,7 +120,7 @@ describe('JobBoardStore — worker heartbeat joins onto the owning card', () => 
     expect(
       store.applySubagentProgress({
         subagentId: 'agent_1',
-        lastTool: 'Grep',
+        lastTool: 'Bash',
         lastTarget: 'src/parser.ts',
         toolCount: 4,
         atMs: Date.parse('2026-08-05T00:00:00.000Z'),
@@ -134,7 +129,7 @@ describe('JobBoardStore — worker heartbeat joins onto the owning card', () => 
 
     const progress = store.snapshot().jobs.find((card) => card.id === 'job_a')?.progress;
     expect(progress?.phase).toBe('src/parser.ts');
-    expect(progress?.recentTools).toEqual(['Grep']);
+    expect(progress?.recentTools).toEqual(['Bash']);
     expect(progress?.stepsCompleted).toBe(4);
     expect(progress?.lastHeartbeatAt).toBe('2026-08-05T00:00:00.000Z');
   });
@@ -142,10 +137,10 @@ describe('JobBoardStore — worker heartbeat joins onto the owning card', () => 
   it('keeps a bounded tool trail and drops repeats', () => {
     const store = new JobBoardStore();
     store.applyJobUpdated(withWorker('job_a', 'agent_1'));
-    for (const lastTool of ['Read', 'Read', 'Grep', 'Edit', 'Shell']) {
+    for (const lastTool of ['Bash', 'Bash', 'Bash', 'Edit', 'Shell']) {
       store.applySubagentProgress({ subagentId: 'agent_1', lastTool });
     }
-    expect(store.snapshot().jobs[0]?.progress?.recentTools).toEqual(['Grep', 'Edit', 'Shell']);
+    expect(store.snapshot().jobs[0]?.progress?.recentTools).toEqual(['Bash', 'Edit', 'Shell']);
   });
 
   it('ignores heartbeats from subagents no job owns', () => {
@@ -153,56 +148,13 @@ describe('JobBoardStore — worker heartbeat joins onto the owning card', () => 
     store.applyJobUpdated(withWorker('job_a', 'agent_1'));
     const listener = vi.fn();
     store.subscribe(listener);
-    expect(store.applySubagentProgress({ subagentId: 'agent_other', lastTool: 'Read' })).toBe(
+    expect(store.applySubagentProgress({ subagentId: 'agent_other', lastTool: 'Bash' })).toBe(
       false,
     );
     expect(listener).not.toHaveBeenCalled();
   });
 });
 
-describe('JobBoardStore — tool output backfill converges on the same store', () => {
-  it('applies strip-line counts and maxConcurrent', () => {
-    const store = new JobBoardStore();
-    const changed = store.applyToolOutput('Jobs: 2▸ 1… 1? inbox 3\npool: warm=2 maxConcurrent=4');
-    expect(changed).toBe(true);
-    const snap = store.snapshot();
-    expect(snap.running).toBe(2);
-    expect(snap.queued).toBe(1);
-    expect(snap.needsUser).toBe(1);
-    expect(snap.unreadInbox).toBe(3);
-    expect(snap.maxConcurrent).toBe(4);
-  });
-
-  it('applies ledger cards and derives counters from them', () => {
-    const store = new JobBoardStore();
-    const changed = store.applyToolOutput(
-      '- job_a1 [running] (task p1) build parser\n- job_a2 [needs_user] (task p2) review diff',
-    );
-    expect(changed).toBe(true);
-    const snap = store.snapshot();
-    expect(snap.jobs).toHaveLength(2);
-    expect(snap.running).toBe(1);
-    expect(snap.needsUser).toBe(1);
-    expect(snap.total).toBe(2);
-  });
-
-  it('returns false for unparseable or unchanged output', () => {
-    const store = new JobBoardStore();
-    expect(store.applyToolOutput('no job data here')).toBe(false);
-    store.applyToolOutput('Jobs: 1▸ inbox 0');
-    expect(store.applyToolOutput('Jobs: 1▸ inbox 0')).toBe(false);
-  });
-
-  it('keeps event truth over stale tool output', () => {
-    const store = new JobBoardStore();
-    store.applyJobUpdated(jobUpdated('job_a', 'running'));
-    store.applyJobUpdated(jobUpdated('job_b', 'running'));
-    // Strip line without cards must not wipe event-sourced cards.
-    store.applyToolOutput('Jobs: 2▸ inbox 0');
-    expect(store.snapshot().jobs).toHaveLength(2);
-    expect(store.snapshot().running).toBe(2);
-  });
-});
 
 describe('ControlTowerJobDesk — single sink side effects', () => {
   function fakeDeskHost() {
@@ -227,7 +179,6 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
   }
 
   it('publishes the store snapshot into appState on job events', () => {
-    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
     const host = fakeDeskHost();
     const store = new JobBoardStore();
     const desk = new ControlTowerJobDesk(host, store);
@@ -247,36 +198,19 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
       'done',
       { coalesceKey: 'job-inbox:evt_1' },
     );
-    setExperimentalFeatures([]);
   });
 
-  it('notices stalled workers and clears unread via markInboxRead', () => {
-    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
+  it('clears the unread inbox count when the operator marks it read', () => {
     const host = fakeDeskHost();
     const store = new JobBoardStore();
     const desk = new ControlTowerJobDesk(host, store);
-    desk.handleUpdated({
-      ...jobUpdated('job_stall', 'running'),
-      change: { reason: 'stalled' },
-      job: {
-        ...jobUpdated('job_stall', 'running').job,
-        progress: { phase: 'stalled — no tool activity for 3m' },
-      },
-    });
-    expect(host.showNotice).toHaveBeenCalledWith(
-      'Worker may be stuck — Steer or Cancel',
-      expect.stringContaining('stall'),
-      { coalesceKey: 'job-stall:job_stall' },
-    );
-    desk.handleInbox(jobInbox('evt_stall', 'job_stall'));
+    desk.handleInbox(jobInbox('evt_read', 'job_read'));
     expect(store.snapshot().unreadInbox).toBe(1);
     desk.markInboxRead();
     expect(store.snapshot().unreadInbox).toBe(0);
-    setExperimentalFeatures([]);
   });
 
   it('publishes immediate worker tool activity without waiting for a heartbeat', () => {
-    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: false }]);
     const host = fakeDeskHost();
     const store = new JobBoardStore();
     const desk = new ControlTowerJobDesk(host, store);
@@ -290,34 +224,32 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
       type: 'subagent.tool_call',
       subagentId: 'agent_worker',
       toolCallId: 'call_1',
-      name: 'Read',
-      detail: { kind: 'read', path: 'src/parser.ts' },
+      name: 'Bash',
+      detail: { kind: 'bash', command: 'cat src/parser.ts' },
     });
 
     let card = store.snapshot().jobs.find((entry) => entry.id === 'job_worker');
     expect(card?.liveActivity).toMatchObject({
       toolCallId: 'call_1',
-      name: 'Read',
-      target: 'src/parser.ts',
+      name: 'Bash',
+      target: 'cat src/parser.ts',
       status: 'running',
     });
-    expect(card?.progress?.recentTools).toEqual(['Read']);
+    expect(card?.progress?.recentTools).toEqual(['Bash']);
 
     desk.handleSubagentToolResult({
       type: 'subagent.tool_result',
       subagentId: 'agent_worker',
       toolCallId: 'call_1',
-      name: 'Read',
+      name: 'Bash',
     });
 
     card = store.snapshot().jobs.find((entry) => entry.id === 'job_worker');
     expect(card?.liveActivity?.status).toBe('ok');
-    expect(host.setAppState).toHaveBeenCalledTimes(3);
-    setExperimentalFeatures([]);
+    expect(host.appStatePatch.at(-1)?.conductorJobs).toBe(store.snapshot());
   });
 
   it('publishes live tool_progress stdout onto the owning job without waiting for tool_result', () => {
-    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: false }]);
     const host = fakeDeskHost();
     const store = new JobBoardStore();
     const desk = new ControlTowerJobDesk(host, store);
@@ -370,11 +302,9 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
     card = store.snapshot().jobs.find((entry) => entry.id === 'job_worker');
     expect(card?.liveActivity?.status).toBe('ok');
     expect(card?.liveActivity?.preview).toBeUndefined();
-    setExperimentalFeatures([]);
   });
 
   it('shows the board hint once while a job runs and the board is closed', () => {
-    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
     const host = fakeDeskHost();
     const desk = new ControlTowerJobDesk(host, new JobBoardStore());
     desk.handleUpdated(jobUpdated('job_a', 'running'));
@@ -389,70 +319,7 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
       (c) => c[2]?.coalesceKey === 'job-deck-hint',
     );
     expect(hintCalls).toHaveLength(1);
-    setExperimentalFeatures([]);
   });
 
-  it('shows legacy Job Desk status hint when conductor_ux_v2 is off', () => {
-    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: false }]);
-    const host = fakeDeskHost();
-    const desk = new ControlTowerJobDesk(host, new JobBoardStore());
-    desk.handleUpdated(jobUpdated('job_a', 'running'));
-    expect(host.showStatus).toHaveBeenCalledTimes(1);
-    expect(host.showStatus.mock.calls[0]?.[0]).toContain('/jobs deck');
-    setExperimentalFeatures([]);
-  });
-
-  it('tool-output backfill republishes only when the store changed', () => {
-    const host = fakeDeskHost();
-    const desk = new ControlTowerJobDesk(host, new JobBoardStore());
-    expect(desk.applyToolOutput('Jobs: 1▸ inbox 0')).toBe(true);
-    expect(host.setAppState).toHaveBeenCalledTimes(1);
-    expect(desk.applyToolOutput('Jobs: 1▸ inbox 0')).toBe(false);
-    expect(host.setAppState).toHaveBeenCalledTimes(1);
-  });
 });
 
-describe('V5-3 single-source guard (static)', () => {
-  const SRC_ROOT = join(__dirname, '../../../src');
-
-  function walkTypeScriptFiles(dir: string): string[] {
-    const found: string[] = [];
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        found.push(...walkTypeScriptFiles(full));
-        continue;
-      }
-      if (!entry.name.endsWith('.ts') || entry.name.endsWith('.d.ts')) continue;
-      found.push(full);
-    }
-    return found;
-  }
-
-  it('appState.conductorJobs writes stay inside features/control-tower', () => {
-    const offenders: string[] = [];
-    for (const file of walkTypeScriptFiles(SRC_ROOT)) {
-      const rel = relative(SRC_ROOT, file).replaceAll('\\', '/');
-      if (rel.startsWith('tui/features/control-tower/')) continue;
-      const source = readFileSync(file, 'utf8');
-      if (/conductorJobs\s*:/.test(source)) {
-        offenders.push(rel);
-      }
-    }
-    expect(offenders).toEqual([]);
-  });
-
-  it('no surviving references to the old delta path or direct strip parsers', () => {
-    const offenders: string[] = [];
-    for (const file of walkTypeScriptFiles(SRC_ROOT)) {
-      const rel = relative(SRC_ROOT, file).replaceAll('\\', '/');
-      if (rel.startsWith('tui/features/control-tower/')) continue;
-      if (rel === 'tui/utils/job/job-strip.ts') continue;
-      const source = readFileSync(file, 'utf8');
-      if (/SessionEventJobDesk|parseJobStripFromToolOutput|mergeConductorJobsSnapshot/.test(source)) {
-        offenders.push(rel);
-      }
-    }
-    expect(offenders).toEqual([]);
-  });
-});

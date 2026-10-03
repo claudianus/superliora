@@ -8,7 +8,6 @@ import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 import type { GitLogReport } from '#/utils/git/git-log';
 
-import {  LLM_NOT_SET_MESSAGE } from '../../constant/liora-tui';
 import type { AuthFlowController } from '../../controllers/auth/auth-flow';
 import type { BtwPanelController } from '../../controllers/panes/btw-panel';
 import type { StreamingUIController } from '../../controllers/streaming-ui/index';
@@ -36,34 +35,19 @@ import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPerm
 import { handleAppearanceCommand } from '../config/appearance/appearance';
 import { handlePerformanceCommand } from '../config/appearance/performance';
 import { handleLocaleCommand } from '../config/locale/locale';
-import { handleAskCommand } from '../config/plan/ask';
-import { handleCompactCommand, handlePlanCommand } from '../config/plan/plan';
-import { handleRefineCommand } from '../refine';
-import { handleContextCommand } from '../config/context/context';
+import { handleCompactCommand } from '../session/compact';
 import { handleEditorCommand, handleThemeCommand } from '../config/appearance/editor-theme';
-import { handleMediaCommand } from '../config/media/media';
-import { handleModelCommand, showModelPicker } from '../config/model/model';
+import { handleModelCommand } from '../config/model/model';
 import { handleThinkingCommand } from '../config/thinking/thinking';
-import { showExperimentsPanel } from '../config/experiments/experiments';
-import { showSettingsSelector, showHarnessPanel } from '../config/settings';
-import { showHarnessEyesReadiness } from '../config/eyes/eyes-settings';
-import { showToolsInventory } from '../config/harness/harness-tools';
-import { handleGoalCommand } from '../goal';
-import { handleCronCommand } from '../cron';
+import { showSettingsSelector } from '../config/settings';
 import { handleJobCommand, handleJobsCommand } from '../jobs';
 import { showDiff } from '../session/diff';
 import { showLog } from '../log';
-import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from '../info/info';
+import { showQuota, showStatusReport, showUsage } from '../info/info';
 import { handleHostSetupCommand } from '../info/host-setup';
 import { handleAddDirCommand } from '../session/add-dir';
 import { handleFolderCommand } from '../session/folder';
-import { handleAquariumCommand } from '../aquarium';
-import { handleFeedCommand } from '../feed';
-import { handleMemoryCommand } from '../memory/memory';
-import { handlePersonaCommand } from '../persona';
 import { parseSlashInput } from './parse';
-import { handlePluginsCommand } from '../plugins/plugins';
-import { handlePremiumQualityCommand } from '../premium';
 import type {
   RendererDiagnosticsOverlayCommand,
   RendererTraceCommand,
@@ -74,51 +58,16 @@ import { resolveSlashCommandInput, slashBusyMessage } from './resolve';
 import {
   handleExportMdCommand,
   handleForkCommand,
-  handleInitCommand,
   handleTitleCommand,
 } from '../session/session';
 import { showSearch } from '../search';
 
-import { handleLoopCommand } from '../loop';
 import { handleRewindCommand } from '../session/rewind';
 import { handleTranscriptCommand } from '../session/transcript';
 import { handleNeatCommand } from '../session/neat';
 import { handleUndoCommand } from '../session/undo';
 import { handleQueueCommand } from '../session/queue';
 import { handleUpgradeCommand, parseUpgradeSlashArgs } from '../info/upgrade';
-
-// ---------------------------------------------------------------------------
-// Re-exports — keep existing consumers working
-// ---------------------------------------------------------------------------
-
-export { handleLoginCommand, handleLogoutCommand } from '../auth/login';
-export { handleGithubConnectCommand } from '../auth/github-connect';
-export { handleBtwCommand } from '../btw';
-export { handleAddDirCommand } from '../session/add-dir';
-export { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
-export { handleAppearanceCommand } from '../config/appearance/appearance';
-export { handleAskCommand, setAskMode } from '../config/plan/ask';
-export { handleCompactCommand, handlePlanCommand } from '../config/plan/plan';
-export { handleEditorCommand, handleThemeCommand } from '../config/appearance/editor-theme';
-export { handleModelCommand, showModelPicker } from '../config/model/model';
-export { handleThinkingCommand } from '../config/thinking/thinking';
-export { showExperimentsPanel } from '../config/experiments/experiments';
-export { showSettingsSelector } from '../config/settings';
-export { showMcpServers, showQuota, showStatusReport, showUsage } from '../info/info';
-export { handleMemoryCommand } from '../memory/memory';
-export { handlePersonaCommand } from '../persona';
-export { handlePluginsCommand } from '../plugins/plugins';
-export { handleReloadCommand, handleReloadTuiCommand } from '../session/reload';
-export { handleGoalCommand } from '../goal';
-export {
-  handleExportMdCommand,
-  handleForkCommand,
-  handleInitCommand,
-  handleTitleCommand,
-} from '../session/session';
-export { handleUndoCommand } from '../session/undo';
-export { handleRewindCommand } from '../session/rewind';
-export { handleLoopCommand } from '../loop';
 
 // ---------------------------------------------------------------------------
 // Host interface
@@ -168,7 +117,6 @@ export interface SlashCommandHost {
   beginSessionRequest(): void;
   failSessionRequest(message: string): void;
   sendQueuedMessage(session: Session, item: QueuedMessage): void;
-  requestQueuedGoalPromotion?(): void;
 
   // UI
   showLoginProgressSpinner(label: string): LoginProgressSpinnerHandle;
@@ -217,19 +165,7 @@ export interface SlashCommandHost {
   createNewSession(): Promise<void>;
   openWorkspace(dir: string, options?: { readonly resumeSessionId?: string }): Promise<void>;
   showSessionPicker(): Promise<void>;
-  showExtensionsModal(args?: string): Promise<void>;
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
-  sendSkillActivation(session: Session, skillName: string, skillArgs: string): void;
-  activatePluginCommand(
-    session: Session,
-    pluginId: string,
-    commandName: string,
-    args: string,
-  ): void;
-  readonly skillCommandMap: Map<string, string>;
-  readonly pluginCommandMap: Map<string, string>;
-  refreshSkillCommands?(session?: Session): Promise<void>;
-  refreshDynamicSlashCommands?(session?: Session): Promise<void>;
 
   // Controller refs
   readonly streamingUI: StreamingUIController;
@@ -244,7 +180,7 @@ export interface SlashCommandHost {
   };
   readonly workerDock: WorkerDockController;
   readonly authFlow: AuthFlowController;
-  /** Transition beat queue (status open, plan enter/exit, …). */
+  /** Transition beat queue for visible UI state changes. */
   readonly motionBeats: MotionBeatController;
 }
 
@@ -257,12 +193,6 @@ export function dispatchInput(host: SlashCommandHost, text: string): void {
     void executeSlashCommand(host, text);
     return;
   }
-  if (host.state.appState.streamingPhase !== 'idle' || host.state.appState.isCompacting) {
-    host.sendNormalUserInput(text);
-    return;
-  }
-  // No pre-agent routing: natural language goes straight to the main agent,
-  // which delegates through the Job ledger on the Conductor lane.
   host.sendNormalUserInput(text);
 }
 
@@ -270,8 +200,6 @@ async function executeSlashCommand(host: SlashCommandHost, input: string): Promi
   const parsedCommand = parseSlashInput(input);
   const intent = resolveSlashCommandInput({
     input,
-    skillCommandMap: host.skillCommandMap,
-    pluginCommandMap: host.pluginCommandMap,
     isStreaming: host.state.appState.streamingPhase !== 'idle',
     isCompacting: host.state.appState.isCompacting,
   });
@@ -283,36 +211,6 @@ async function executeSlashCommand(host: SlashCommandHost, input: string): Promi
       host.track('input_command_invalid', { reason: 'blocked', command: intent.commandName });
       host.showError(slashBusyMessage(intent.commandName, intent.reason));
       return;
-    case 'invalid':
-      host.track('input_command_invalid', {
-        reason: intent.reason,
-        command: intent.commandName,
-      });
-      host.showError(ttui('tui.hub.invalidSlash', { name: intent.commandName }));
-      return;
-    case 'skill': {
-      const session = host.session;
-      if (host.state.appState.model.trim().length === 0 || session === undefined) {
-        host.showError(LLM_NOT_SET_MESSAGE());
-        return;
-      }
-      host.track('input_command', {
-        command: intent.commandName,
-        skill_name: intent.skillName,
-      });
-      host.sendSkillActivation(session, intent.skillName, intent.args);
-      return;
-    }
-    case 'plugin-command': {
-      const session = host.session;
-      if (host.state.appState.model.trim().length === 0 || session === undefined) {
-        host.showError(LLM_NOT_SET_MESSAGE());
-        return;
-      }
-      host.track('input_command', { command: `${intent.pluginId}:${intent.commandName}` });
-      host.activatePluginCommand(session, intent.pluginId, intent.commandName, intent.args);
-      return;
-    }
     case 'message':
       host.sendNormalUserInput(intent.input);
       return;
@@ -364,44 +262,17 @@ async function handleBuiltInSlashCommand(
     case 'sessions':
       void host.showSessionPicker();
       return;
-    case 'extensions':
-      void host.showExtensionsModal(args);
-      return;
     case 'jobs':
       handleJobsCommand(host, args);
       return;
     case 'job':
       handleJobCommand(host, args);
       return;
-    case 'cron':
-      handleCronCommand(host, args);
-      return;
-    case 'mcp':
-      void import('../config/mcp/mcp-manage').then(({ showMcpManagePanel }) => showMcpManagePanel(host));
-      return;
-    case 'tools':
-      void showToolsInventory(host);
-      return;
-    case 'eyes':
-      void showHarnessEyesReadiness(host);
-      return;
-    case 'harness':
-      showHarnessPanel(host);
-      return;
-    case 'plugins':
-      void handlePluginsCommand(host, args);
-      return;
-    case 'memory':
-      await handleMemoryCommand(host, args);
-      return;
     case 'add-dir':
       await handleAddDirCommand(host, args);
       return;
     case 'folder':
       await handleFolderCommand(host, args);
-      return;
-    case 'experiments':
-      await showExperimentsPanel(host);
       return;
     case 'reload':
       await handleReloadCommand(host);
@@ -415,9 +286,6 @@ async function handleBuiltInSlashCommand(
     case 'theme':
       await handleThemeCommand(host, args);
       return;
-    case 'media':
-      handleMediaCommand(host, args);
-      return;
     case 'appearance':
       await handleAppearanceCommand(host, args);
       return;
@@ -427,31 +295,17 @@ async function handleBuiltInSlashCommand(
     case 'locale':
       await handleLocaleCommand(host, args);
       return;
-    case 'persona':
-      await handlePersonaCommand(host, args);
-      return;
-    case 'profile':
-      await import('../config/harness/agent-profile').then(({ handleProfileCommand }) =>
-        handleProfileCommand(host, args),
-      );
-      return;
     case 'model':
       await handleModelCommand(host, args);
       return;
     case 'thinking':
       await handleThinkingCommand(host, args);
       return;
-    case 'free':
-      await import('../config/free').then(({ handleFreeCommand }) => handleFreeCommand(host, args));
-      return;
     case 'permission':
       void handlePermissionCommand(host, args);
       return;
     case 'settings':
       showSettingsSelector(host);
-      return;
-    case 'context':
-      await handleContextCommand(host, args);
       return;
     case 'usage':
       void showUsage(host);
@@ -479,19 +333,10 @@ async function handleBuiltInSlashCommand(
     case 'errors':
       host.showErrors();
       return;
-    case 'aquarium':
-      handleAquariumCommand(host);
-      return;
-    case 'feed':
-      handleFeedCommand(host);
-      return;
     case 'upgrade':
       // Canonical name is `upgrade`; `/update` resolves here via aliases.
       // `/upgrade --main` (or `main`) skips published releases for tip of origin/main.
       await handleUpgradeCommand(host, {}, parseUpgradeSlashArgs(args));
-      return;
-    case 'context-os':
-      void showContextOsReport(host, args);
       return;
     case 'btw':
       await handleBtwCommand(host, args);
@@ -511,29 +356,11 @@ async function handleBuiltInSlashCommand(
     case 'auto':
       await handleAutoCommand(host, args);
       return;
-    case 'premium':
-      await handlePremiumQualityCommand(host, args);
-      return;
-    case 'plan':
-      await handlePlanCommand(host, args);
-      return;
-    case 'ask':
-      await handleAskCommand(host, args);
-      return;
     case 'compact':
       await handleCompactCommand(host, args);
       return;
     case 'queue':
       handleQueueCommand(host, args);
-      return;
-    case 'refine':
-      await handleRefineCommand(host, args);
-      return;
-    case 'goal':
-      await handleGoalCommand(host, args);
-      return;
-    case 'init':
-      await handleInitCommand(host);
       return;
     case 'fork':
       await handleForkCommand(host, args);
@@ -558,9 +385,6 @@ async function handleBuiltInSlashCommand(
       return;
     case 'rewind':
       await handleRewindCommand(host, args);
-      return;
-    case 'loop':
-      await handleLoopCommand(host, args);
       return;
     case 'retry':
       await host.retryLastTurn();

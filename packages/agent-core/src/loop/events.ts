@@ -35,19 +35,6 @@ export interface LoopStepEndEvent {
   readonly providerRouteSelection?: LLMProviderRouteSelection | undefined;
 }
 
-export interface LoopStepRetryingEvent {
-  readonly type: 'step.retrying';
-  readonly turnId: string;
-  readonly step: number;
-  readonly stepUuid: string;
-  readonly failedAttempt: number;
-  readonly nextAttempt: number;
-  readonly maxAttempts: number;
-  readonly delayMs: number;
-  readonly errorName: string;
-  readonly errorMessage: string;
-  readonly statusCode?: number;
-}
 
 export interface LoopContentPartEvent {
   readonly type: 'content.part';
@@ -154,14 +141,13 @@ export type LoopRecordedEvent =
 
 export type LoopLiveOnlyEvent =
   | LoopTurnInterruptedEvent
-  | LoopStepRetryingEvent
   | LoopTextDeltaEvent
   | LoopThinkingDeltaEvent
   | LoopToolCallDeltaEvent
   | LoopToolProgressEvent;
 
 export type LoopEvent = LoopRecordedEvent | LoopLiveOnlyEvent;
-export type LoopLiveEventEmitter = (event: LoopEvent) => void;
+export type LoopLiveEventEmitter = (event: LoopEvent) => void | Promise<void>;
 
 export type LoopEventDispatcher = {
   (event: LoopRecordedEvent): Promise<void>;

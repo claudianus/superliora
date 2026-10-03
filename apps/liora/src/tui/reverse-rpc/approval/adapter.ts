@@ -1,337 +1,56 @@
-import type { ApprovalRequest, ApprovalResponse, ToolInputDisplay } from '@superliora/sdk';
+import type { ApprovalRequest, ApprovalResponse } from '@superliora/sdk';
 
 import type { ApprovalPanelResponse } from '#/tui/components/dialogs/approval/approval-panel';
-import { goalStartOptions } from '#/tui/components/dialogs/goal/goal-start-permission-prompt';
 import type { ApprovalPanelChoice, ApprovalPanelData, DisplayBlock } from '#/tui/reverse-rpc/types';
 import { ttui } from '#/tui/utils/tui-i18n';
-import { decodeMcpToolName } from '#/tui/utils/mcp/mcp-tool-name';
-import {
-  enrichReviseFeedbackWithLineComment,
-  numberPlanLines,
-} from '#/tui/utils/plan-line-comments';
 
 function defaultApprovalChoices(): ApprovalPanelChoice[] {
   return [
     { label: ttui('tui.approval.approveOnce'), response: 'approved' },
     { label: ttui('tui.approval.approveSession'), response: 'approved_for_session' },
     { label: ttui('tui.approval.reject'), response: 'rejected' },
-    {
-      label: ttui('tui.approval.rejectFeedback'),
-      response: 'rejected',
-      requires_feedback: true,
-    },
-  ];
-}
-
-function planRejectChoices(): ApprovalPanelChoice[] {
-  return [
-    { label: ttui('tui.approval.reject'), response: 'rejected', selected_label: 'Reject' },
-    {
-      label: ttui('tui.approval.lineComment'),
-      response: 'rejected',
-      selected_label: 'line_comment',
-      requires_feedback: true,
-      description: ttui('tui.approval.lineCommentDesc'),
-    },
-    {
-      label: ttui('tui.approval.revise'),
-      response: 'rejected',
-      selected_label: 'Revise',
-      requires_feedback: true,
-    },
+    { label: ttui('tui.approval.rejectFeedback'), response: 'rejected', requires_feedback: true },
   ];
 }
 
 export function adaptApprovalRequest(event: ApprovalRequest): ApprovalPanelData {
-  const resolved = resolveDisplay(event.toolName, event.display, event.action);
+  const display = event.display;
+  const detail = display.kind === 'generic' && typeof display.detail === 'object' && display.detail !== null
+    ? display.detail as Record<string, unknown>
+    : undefined;
+  const command = display.kind === 'command'
+    ? display.command
+    : typeof detail?.['command'] === 'string' ? detail['command'] : undefined;
+  const description = display.kind === 'command'
+    ? display.description ?? event.action
+    : display.kind === 'generic' ? display.summary ?? event.action : event.action;
+  const blocks: DisplayBlock[] = command === undefined ? [{ type: 'brief', text: description }] : [{
+    type: 'shell',
+    command,
+    language: display.kind === 'command' ? display.language ?? 'bash' : 'bash',
+    cwd: display.kind === 'command' ? display.cwd : typeof detail?.['cwd'] === 'string' ? detail['cwd'] : undefined,
+    description,
+    danger: detectDanger(command),
+  }];
   return {
     id: event.toolCallId,
     tool_call_id: event.toolCallId,
     tool_name: event.toolName,
     action: event.action,
-    description: resolved.description,
-    display: resolved.blocks,
-    choices: adaptChoices(event.toolName, event.display),
-    planReview: resolved.planReview,
+    description,
+    display: blocks,
+    choices: defaultApprovalChoices(),
   };
 }
 
-interface ResolvedDisplay {
-  blocks: DisplayBlock[];
-  description: string;
-  planReview?: { content: string; path?: string | undefined };
-}
-
-function resolveDisplay(
-  toolName: string,
-  display: ToolInputDisplay,
-  action: string,
-): ResolvedDisplay {
-  if (display.kind === 'generic' && isRecord(display.detail)) {
-    const extracted = extractFromArgs(toolName, display.detail);
-    if (extracted !== null) return extracted;
-  }
-  const mcpDisplay = resolveMcpDisplay(toolName, display);
-  if (mcpDisplay !== null) return mcpDisplay;
-  const blocks = adaptDisplay(display);
-  if (display.kind === 'plan_review') {
-    const content = typeof display.plan === 'string' ? display.plan : '';
-    const path =
-      typeof display.path === 'string' && display.path.length > 0 ? display.path : undefined;
-    return {
-      blocks,
-      description: describeApproval(display, action),
-      planReview: { content, path },
-    };
-  }
-  return {
-    blocks,
-    description: describeApproval(display, action),
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function stringField(detail: Record<string, unknown>, key: string): string | undefined {
-  const value = detail[key];
-  return typeof value === 'string' ? value : undefined;
-}
-
-function extractFromArgs(
-  toolName: string,
-  detail: Record<string, unknown>,
-): ResolvedDisplay | null {
-  const command = stringField(detail, 'command');
-  if (command !== undefined) {
-    const cwd = stringField(detail, 'cwd');
-    const toolDescription = stringField(detail, 'description');
-    const danger = detectDanger(command);
-    const language = stringField(detail, 'language') ?? 'bash';
-    return {
-      blocks: [
-        {
-          type: 'shell',
-          language,
-          command,
-          cwd,
-          description: toolDescription,
-          danger,
-        },
-      ],
-      description: toolDescription ?? '',
-    };
-  }
-
-  const oldString = stringField(detail, 'old_string');
-  const newString = stringField(detail, 'new_string');
-  if (oldString !== undefined && newString !== undefined) {
-    const path = stringField(detail, 'file_path') ?? stringField(detail, 'path') ?? '';
-    // Diff block carries its own `+N -M path` header — no separate
-    // file_op title row needed.
-    return {
-      blocks: [{ type: 'diff', path, old_text: oldString, new_text: newString }],
-      description: '',
-    };
-  }
-
-  const filePath = stringField(detail, 'file_path') ?? stringField(detail, 'path');
-  const content = stringField(detail, 'content');
-  if (filePath !== undefined && content !== undefined) {
-    // Write is a brand-new file: render the content as a syntax-
-    // highlighted code block, not a diff full of `+` markers.
-    return {
-      blocks: [{ type: 'file_content', path: filePath, content }],
-      description: '',
-    };
-  }
-
-  const url = stringField(detail, 'url');
-  if (url !== undefined) {
-    const method = stringField(detail, 'method');
-    return {
-      blocks: [{ type: 'url_fetch', url, method }],
-      description: '',
-    };
-  }
-
-  const query = stringField(detail, 'query');
-  if (query !== undefined) {
-    return {
-      blocks: [{ type: 'search', query }],
-      description: '',
-    };
-  }
-
-  const pattern = stringField(detail, 'pattern');
-  if (pattern !== undefined) {
-    const scope = stringField(detail, 'path');
-    return {
-      blocks: [{ type: 'search', query: pattern, scope }],
-      description: '',
-    };
-  }
-
-  if (filePath !== undefined) {
-    const operation = inferFileOp(toolName);
-    return {
-      blocks: [{ type: 'file_op', operation, path: filePath }],
-      description: '',
-    };
-  }
-
-  return null;
-}
-
-function resolveMcpDisplay(toolName: string, display: ToolInputDisplay): ResolvedDisplay | null {
-  const mcp = decodeMcpToolName(toolName);
-  if (mcp === null) return null;
-
-  const argumentSummary = summarizeMcpArguments(display) ?? 'none';
-  return {
-    blocks: [
-      {
-        type: 'brief',
-        text: ttui('tui.approval.mcpBrief', {
-          server: mcp.serverName,
-          tool: mcp.toolName,
-          args: argumentSummary,
-        }),
-      },
-    ],
-    description: '',
-  };
-}
-
-function summarizeMcpArguments(display: ToolInputDisplay): string | undefined {
-  if (display.kind !== 'generic') return undefined;
-  const detail = display.detail;
-  if (detail === undefined || detail === null) return undefined;
-  if (typeof detail === 'string') {
-    const trimmed = detail.trim();
-    if (trimmed.length === 0 || /^(approve|call)\s+mcp__/i.test(trimmed)) return undefined;
-    return truncateSummary(trimmed);
-  }
-  if (isRecord(detail)) {
-    const entries = Object.entries(detail);
-    if (entries.length === 0) return undefined;
-    return truncateSummary(JSON.stringify(detail));
-  }
-  if (Array.isArray(detail)) {
-    if (detail.length === 0) return undefined;
-    return truncateSummary(JSON.stringify(detail));
-  }
-  if (
-    typeof detail === 'number' ||
-    typeof detail === 'boolean' ||
-    typeof detail === 'bigint'
-  ) {
-    return truncateSummary(String(detail));
-  }
-  return undefined;
-}
-
-function truncateSummary(text: string): string {
-  return text.length > 200 ? `${text.slice(0, 199)}…` : text;
-}
-
-function inferFileOp(toolName: string): 'read' | 'write' | 'edit' | 'glob' | 'grep' {
-  const lower = toolName.toLowerCase();
-  if (lower.includes('glob')) return 'glob';
-  if (lower.includes('grep')) return 'grep';
-  if (lower.includes('edit')) return 'edit';
-  if (lower.includes('write')) return 'write';
-  return 'read';
-}
-
-export function adaptPanelResponse(
-  response: ApprovalPanelResponse,
-  context: { readonly plan?: string } = {},
-): ApprovalResponse {
-  const feedback = enrichPlanLineCommentFeedback(response, context.plan);
+export function adaptPanelResponse(response: ApprovalPanelResponse): ApprovalResponse {
   if (response.response === 'approved_for_session') {
-    return {
-      decision: 'approved',
-      scope: 'session',
-      feedback,
-      selectedLabel: response.selected_label,
-    };
+    return { decision: 'approved', scope: 'session', feedback: response.feedback };
   }
   return {
-    decision:
-      response.response === 'approved'
-        ? 'approved'
-        : response.response === 'rejected'
-          ? 'rejected'
-          : 'cancelled',
-    feedback,
-    selectedLabel: response.selected_label,
+    decision: response.response === 'approved' ? 'approved' : response.response === 'rejected' ? 'rejected' : 'cancelled',
+    feedback: response.feedback,
   };
-}
-
-/**
- * Line comments are always revise-style rejected feedback — never approve.
- * Accepts "L12: …" free text even when the operator picked generic Revise.
- */
-function enrichPlanLineCommentFeedback(
-  response: ApprovalPanelResponse,
-  plan: string | undefined,
-): string | undefined {
-  const raw = response.feedback;
-  if (raw === undefined || raw.trim().length === 0) return raw;
-  if (plan === undefined || plan.length === 0) return raw;
-  const isLinePath =
-    response.selected_label === 'line_comment' ||
-    response.selected_label === 'Revise' ||
-    response.response === 'rejected';
-  if (!isLinePath) return raw;
-  return enrichReviseFeedbackWithLineComment(raw, plan);
-}
-
-function describeApproval(display: ToolInputDisplay, action: string): string {
-  switch (display.kind) {
-    case 'plan_review':
-      return '';
-    case 'goal_start':
-      return ttui('tui.approval.startGoal');
-    case 'generic':
-      if (typeof display.detail === 'string' && display.detail.length > 0) {
-        return display.detail;
-      }
-      return display.summary ?? action;
-    case 'command':
-      return display.description ?? display.command ?? action;
-    case 'diff':
-      return ttui('tui.approval.desc.edit', { path: display.path ?? '' }).trim();
-    case 'file_io':
-      return ttui('tui.approval.desc.fileIo', {
-        operation: display.operation ?? 'file',
-        path: display.path ?? '',
-      }).trim();
-    case 'task_stop':
-      return ttui('tui.approval.desc.taskStop', {
-        target: display.task_description ?? display.task_id ?? '',
-      }).trim();
-    case 'agent_call':
-      return ttui('tui.approval.desc.agentCall', { agent: display.agent_name ?? 'agent' });
-    case 'skill_call':
-      return ttui('tui.approval.desc.skillCall', { name: display.skill_name ?? '' }).trim();
-    case 'url_fetch':
-      return ttui('tui.approval.desc.urlFetch', { url: display.url ?? '' }).trim();
-    case 'search':
-      return ttui('tui.approval.desc.search', { query: display.query ?? '' }).trim();
-    case 'todo_list':
-      return ttui('tui.approval.desc.todoList', { count: display.items?.length ?? 0 });
-    case 'background_task':
-      return ttui('tui.approval.desc.backgroundTask', {
-        status: display.status ?? 'background',
-        id: display.task_id ?? '',
-        description: display.description ?? '',
-      }).trim();
-    default:
-      return action;
-  }
 }
 
 const DANGER_PATTERNS: Array<{ pattern: RegExp; labelKey: string }> = [
@@ -350,191 +69,4 @@ function detectDanger(command: string): string | undefined {
     if (pattern.test(command)) return ttui(labelKey);
   }
   return undefined;
-}
-
-function adaptDisplay(display: ToolInputDisplay): DisplayBlock[] {
-  switch (display.kind) {
-    case 'command': {
-      const command = display.command ?? '';
-      const danger = detectDanger(command);
-      return [
-        {
-          type: 'shell',
-          language: display.language ?? 'bash',
-          command,
-          cwd: display.cwd,
-          description: display.description,
-          danger,
-        },
-      ];
-    }
-    case 'diff':
-      return [
-        {
-          type: 'diff',
-          path: display.path ?? '',
-          old_text: display.before ?? '',
-          new_text: display.after ?? '',
-        },
-      ];
-    case 'file_io': {
-      const path = display.path ?? '';
-      // Write attaches the full file content — render it as a syntax-
-      // highlighted code block so the approval panel can preview (and
-      // ctrl+e expand) what is about to land on disk.
-      if (display.operation === 'write' && typeof display.content === 'string') {
-        return [{ type: 'file_content', path, content: display.content }];
-      }
-      // Edit attaches the old_string/new_string hunk as before/after — render
-      // it as a diff block so ctrl+e expansion works on the change.
-      if (
-        display.operation === 'edit' &&
-        typeof display.before === 'string' &&
-        typeof display.after === 'string'
-      ) {
-        return [{ type: 'diff', path, old_text: display.before, new_text: display.after }];
-      }
-      return [
-        {
-          type: 'file_op',
-          operation: display.operation,
-          path,
-          detail: display.detail,
-        },
-      ];
-    }
-    case 'url_fetch':
-      return [
-        {
-          type: 'url_fetch',
-          url: display.url ?? '',
-          method: display.method,
-        },
-      ];
-    case 'search':
-      return [
-        {
-          type: 'search',
-          query: display.query ?? '',
-          scope: display.scope,
-        },
-      ];
-    case 'agent_call':
-      return [
-        {
-          type: 'invocation',
-          kind: 'agent',
-          name: display.agent_name ?? '',
-          description: display.prompt,
-        },
-      ];
-    case 'skill_call':
-      return [
-        {
-          type: 'invocation',
-          kind: 'skill',
-          name: display.skill_name ?? '',
-          description: display.args,
-        },
-      ];
-    case 'task_stop':
-      return [
-        {
-          type: 'brief',
-          text: ttui('tui.approval.stopTaskBrief', {
-            id: display.task_id ?? '',
-            description: display.task_description ?? '',
-          }),
-        },
-      ];
-    case 'plan_review': {
-      // Compact decide card: summary + file_content (10-line panel, ctrl+e full).
-      // Raw plan stays on ApprovalPanelData.planReview for line comments / transcript.
-      const plan = typeof display.plan === 'string' ? display.plan : '';
-      const path =
-        typeof display.path === 'string' && display.path.length > 0 ? display.path : 'plan';
-      const lineCount = numberPlanLines(plan).length;
-      const pathLine =
-        typeof display.path === 'string' && display.path.length > 0
-          ? `${ttui('tui.approval.planReview.path', { path: display.path })}\n`
-          : '';
-      return [
-        {
-          type: 'brief',
-          text: `${pathLine}${ttui('tui.approval.planReview.lineCount', { count: lineCount })}\n${ttui('tui.approval.planReview.lineCommentHint')}`,
-        },
-        {
-          type: 'file_content',
-          path,
-          content: plan,
-          language: 'markdown',
-        },
-      ];
-    }
-    case 'goal_start': {
-      const lines = [ttui('tui.approval.goalStart.objective', { objective: display.objective })];
-      if (typeof display.completionCriterion === 'string' && display.completionCriterion.length > 0) {
-        lines.push(ttui('tui.approval.goalStart.doneWhen', { criterion: display.completionCriterion }));
-      }
-      return [{ type: 'brief', text: lines.join('\n') }];
-    }
-    case 'generic':
-      return [];
-    case 'todo_list':
-      return [];
-    case 'background_task':
-      return [];
-    default:
-      return [];
-  }
-}
-
-function adaptChoices(toolName: string, display: ToolInputDisplay): ApprovalPanelChoice[] {
-  if (toolName === 'ExitPlanMode' || display.kind === 'plan_review') {
-    return adaptPlanReviewChoices(display);
-  }
-  if (display.kind === 'goal_start') {
-    return adaptGoalStartChoices(display);
-  }
-
-  return defaultApprovalChoices().map((choice) => cloneChoice(choice));
-}
-
-function adaptGoalStartChoices(
-  display: Extract<ToolInputDisplay, { kind: 'goal_start' }>,
-): ApprovalPanelChoice[] {
-  // Reuse the exact options the /goal start menu shows. Each mode option starts
-  // the goal under that permission mode (the policy reads selected_label); "Do
-  // not start" declines so no goal is created.
-  return goalStartOptions(display.mode).map((option) =>
-    option.value === 'cancel'
-      ? {
-          label: option.label,
-          response: 'cancelled',
-          selected_label: 'cancel',
-          description: option.description,
-        }
-      : {
-          label: option.label,
-          response: 'approved',
-          selected_label: option.value,
-          description: option.description,
-        },
-  );
-}
-
-function adaptPlanReviewChoices(display: ToolInputDisplay): ApprovalPanelChoice[] {
-  const optionChoices =
-    display.kind === 'plan_review' && display.options !== undefined && display.options.length >= 2
-      ? display.options.map((option) => ({
-          label: option.label,
-          response: 'approved' as const,
-          selected_label: option.label,
-        }))
-      : [{ label: ttui('tui.approval.approve'), response: 'approved' as const, selected_label: 'Approve' }];
-  return [...optionChoices, ...planRejectChoices()].map((choice) => cloneChoice(choice));
-}
-
-function cloneChoice(choice: ApprovalPanelChoice): ApprovalPanelChoice {
-  return { ...choice };
 }

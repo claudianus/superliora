@@ -16,10 +16,14 @@ describe('deriveThinkingSupported', () => {
     expect(deriveThinkingSupported(alias('custom-model', ['always_thinking']))).toBe(true);
   });
 
-  it('keeps the existing thinking-capability and name-heuristic triggers', () => {
+  it('uses declared thinking capability only', () => {
     expect(deriveThinkingSupported(alias('custom-model', ['thinking']))).toBe(true);
-    expect(deriveThinkingSupported(alias('some-thinking-model'))).toBe(true);
-    expect(deriveThinkingSupported(alias('plain-model'))).toBe(false);
+    expect(deriveThinkingSupported(alias('some-thinking-model'))).toBe(false);
+    expect(deriveThinkingSupported(alias('reasoning-model'))).toBe(false);
+    expect(deriveThinkingSupported(alias('kimi-k2.5'))).toBe(false);
+    expect(deriveThinkingSupported(alias('kimi-for-coding'))).toBe(false);
+    expect(deriveThinkingSupported(alias('kimi-code'))).toBe(false);
+    expect(deriveThinkingSupported(alias('plain-model', []))).toBe(false);
   });
 });
 
@@ -30,8 +34,7 @@ describe('deriveAlwaysThinking', () => {
   });
 
   it('does not infer always-thinking from the model name', () => {
-    // Name heuristics keep working for thinkingSupported, but only the
-    // server-declared capability may lock the toggle to on.
+    // Only an explicit capability may lock the toggle to on.
     expect(deriveAlwaysThinking(alias('some-thinking-model'))).toBe(false);
   });
 });

@@ -128,22 +128,17 @@ If `KIMI_MODEL_NAME` is set but a required variable is missing, startup fails im
 
 ## Runtime switches
 
-Switches that control the behavior of subsystems such as telemetry, background tasks, and the plugin marketplace:
+Switches for telemetry, shell execution, provider requests, and updates:
 
 | Variable | Purpose | Valid values |
 | --- | --- | --- |
 | `KIMI_DISABLE_TELEMETRY` | Disable anonymous telemetry reporting | `1`, `true`, `yes`, `y` (case-insensitive) |
-| `SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT` | Whether to keep background tasks when the session closes; takes higher priority than `config.toml`. The default is to stop them on exit | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
-| `SUPERLIORA_PLUGIN_MARKETPLACE_URL` | Override the plugin marketplace JSON loaded by `/plugins`; useful for dev loopback servers, staging CDN files, or alternate marketplace directories | `https://raw.githubusercontent.com/claudianus/superliora/main/plugins/marketplace.json`; also accepts `http://`, `file://` URLs, and local paths |
-| `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY` | Cap how many subagents run concurrently during the initial ramp; leave unset for the default cap | Positive integer; invalid values fail fast |
-| `SUPERLIORA_EXPERIMENTAL_FLAG` | Enable all registered experimental features for this process | Truthy: `1`/`true`/`yes`/`on` |
 | `LIORA_SHELL_PATH` | Override the Git Bash path on Windows when auto-detection fails. Legacy alias: `KIMI_SHELL_PATH` | Absolute path to `bash.exe` |
 | `KIMI_MODEL_MAX_COMPLETION_TOKENS` | Hard cap on `max_completion_tokens` per LLM step; applies to the `kimi` provider only | Positive integer; `0` or negative disables clamping |
 | `KIMI_MODEL_TEMPERATURE` | Sampling temperature for every request; applies to the `kimi` provider only (global — independent of `KIMI_MODEL_NAME`) | Number, e.g. `0.3` |
 | `KIMI_MODEL_TOP_P` | Nucleus-sampling `top_p` for every request; applies to the `kimi` provider only (global) | Number, e.g. `0.95` |
 | `KIMI_MODEL_THINKING_KEEP` | Moonshot preserved-thinking passthrough (`thinking.keep`); applies to the `kimi` provider only, and only while Thinking is on | A value the API accepts, e.g. `all` |
 | `SUPERLIORA_NO_AUTO_UPDATE` | Fully disable the update preflight — no check, background install, or prompt. Legacy alias `KIMI_CLI_NO_AUTO_UPDATE` is also honored | Truthy: `1`/`true`/`yes`/`on` |
-| `KIMI_DISABLE_CRON` | Disable the scheduled-task tool (`CronCreate` rejects new schedules; existing tasks do not fire) | `1` to disable |
 
 ## Diagnostic logs
 
@@ -173,7 +168,7 @@ The CLI also reads several standard system variables to detect the runtime envir
 
 ## HTTP proxy
 
-SuperLiora honors the standard proxy environment variables for all outbound traffic — model API calls, MCP servers, web tools, telemetry, sign-in, and update checks:
+SuperLiora honors standard proxy environment variables for model API calls, telemetry, sign-in, and update checks:
 
 - `HTTP_PROXY` / `http_proxy`: proxy for `http://` requests
 - `HTTPS_PROXY` / `https_proxy`: proxy for `https://` requests
@@ -182,9 +177,7 @@ SuperLiora honors the standard proxy environment variables for all outbound traf
 
 Both HTTP(S) and SOCKS proxies are supported. A SOCKS proxy is recognized by its scheme — `socks5://`, `socks5h://`, `socks4://`, or `socks://` (an alias for `socks5://`) — and is typically set via `ALL_PROXY` (the form used by tools like Clash and V2RayN). An HTTP(S) proxy takes precedence over `ALL_PROXY` for HTTP/HTTPS traffic.
 
-The proxy is applied only when one of these variables is set; otherwise connections are made directly. Loopback hosts (`localhost`, `127.0.0.1`, `::1`) always bypass the proxy, so a local server such as a localhost MCP server keeps working when a proxy is configured — add your own internal hosts to `NO_PROXY` to exempt them too.
-
-Stdio MCP servers that run as Node child processes honor `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` automatically when the child's Node version supports `NODE_USE_ENV_PROXY` (Node ≥ 22.21 or ≥ 24.5); SOCKS proxying applies to SuperLiora's own traffic only.
+The proxy is applied only when one of these variables is set; otherwise connections are direct. Loopback hosts (`localhost`, `127.0.0.1`, `::1`) always bypass the proxy. Add internal hosts to `NO_PROXY` to exempt them too.
 
 ## Next steps
 

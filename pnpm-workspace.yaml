@@ -1,6 +1,7 @@
 packages:
   - packages/*
-  - apps/*
+  - apps/liora
+  - apps/site
 
 allowBuilds:
   esbuild: true
