@@ -51,6 +51,7 @@ import {
   type TUIStartupState,
 } from './types';
 import type { CenterModalEntry } from './utils/ui/center-modal';
+import type { PaintedFrameGeometry } from './features/native-layout/painted-frame-geometry';
 import { requestTUIContentRender } from './utils/render/frame-render';
 
 export interface TUIState {
@@ -160,6 +161,11 @@ export interface TUIState {
    * `[stop]` cancels, `[↓]` detaches, and the leftover cue opens /jobs bg.
    */
   cachedActivityRect?: RendererRect;
+  /**
+   * Region rects and transcript window of the frame currently on screen.
+   * Pointer hit-tests read this instead of re-planning or re-rendering.
+   */
+  paintedFrameGeometry?: PaintedFrameGeometry;
   /**
    * User-chosen stage size from a corner/edge drag-resize. When set, the stage
    * holds this size (clamped to the terminal) instead of the responsive reading

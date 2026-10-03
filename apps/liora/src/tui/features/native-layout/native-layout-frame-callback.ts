@@ -308,6 +308,19 @@ export function createTUIStateNativeRenderCallback(
       suppressLiveToolTicks:
         pureScrollFrame || frame.causes.includes('transcript-scroll'),
     });
+    // Publish what this frame paints so pointer hit-tests read it in O(1)
+    // instead of re-planning the stage or re-rendering the transcript per event.
+    state.paintedFrameGeometry = isNativeFullscreenTakeover(state)
+      ? undefined
+      : {
+          columns: size.columns,
+          rows: size.rows,
+          stageWidth: nativeFrame.stageWidth,
+          regions: nativeFrame.regionRects,
+          transcriptVisibleRows: nativeFrame.transcriptVisibleRows,
+          transcriptViewportStart: state.transcriptViewport.start(),
+          transcriptLines: nativeFrame.transcriptLines,
+        };
     // Refresh the cache only when chrome was freshly built this frame. Reused
     // frames keep the existing cache (its lines already match nativeFrame.chrome).
     const fullscreenTakeover = isNativeFullscreenTakeover(state);

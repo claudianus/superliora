@@ -192,7 +192,11 @@ function renderBoard(
         .map((lane) => {
           const todo = lane.todos[row];
           if (todo === undefined) {
-            return padCell(currentTheme.fg('textMuted', 'No cards'), columnWidth, {
+            // Empty lanes get one label; padding below real cards stays blank.
+            const filler = row === 0 && lane.todos.length === 0
+              ? currentTheme.fg('textMuted', 'No cards')
+              : '';
+            return padCell(filler, columnWidth, {
               seed: `empty:${lane.status}:${String(row)}`,
             });
           }
@@ -572,7 +576,7 @@ export function marqueeFitAnsi(
 function hashSeed(seed: string): number {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i += 1) {
-    h ^= seed.charCodeAt(i);
+    h ^= seed.codePointAt(i);
     h = Math.imul(h, 16777619);
   }
   return h >>> 0;

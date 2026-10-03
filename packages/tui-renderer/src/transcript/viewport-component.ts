@@ -276,9 +276,25 @@ export class RendererTranscriptViewportComponent extends Container {
   }
 
   override removeChild(component: Component): void {
+    const index = this.children.indexOf(component);
+    if (index === -1) return;
     unregisterTranscriptGeometryParent(component);
+    // Renderer children are not DOM nodes.
+    // oxlint-disable-next-line unicorn/prefer-dom-node-remove
     super.removeChild(component);
+    // Keep counts aligned with their children on the cheap-scroll path too.
+    // Truncation alone would attribute the removed child's height to its successor.
+    for (const geometry of this.lineCountCache.values()) {
+      geometry.childRefs.splice(index, 1);
+      geometry.counts.splice(index, 1);
+      let total = 0;
+      geometry.rowEnds = geometry.counts.map((count) => (total += count));
+      geometry.total = total;
+    }
+    this.invalidatePaint();
     this.geometrySnapshot = undefined;
+    this.lastPaintedStart = undefined;
+    this.bumpGeometryGeneration();
   }
 
   /**
@@ -317,7 +333,13 @@ export class RendererTranscriptViewportComponent extends Container {
       unregisterTranscriptGeometryParent(child);
     }
     super.clear();
-    this.geometrySnapshot = undefined;
+    this.lineCountCache.clear();
+    this.invalidateGeometryAndPaint();
+    this.materializeContinuePending = false;
+    this.lastPaintedStart = undefined;
+    this.lastPresentResult = undefined;
+    this.incrementalPresenter.invalidate();
+    this.viewport.sync(0, this.viewport.lastVisibleRows);
   }
 
   /**
@@ -344,10 +366,7 @@ export class RendererTranscriptViewportComponent extends Container {
    */
   invalidateGeometryAndPaint(): void {
     this.invalidatePaint();
-    this.lineCountCache.clear();
-    this.geometrySnapshot = undefined;
-    this.geometryNeedsContinue = false;
-    this.bumpGeometryGeneration();
+    this.markCachedGeometryDirty();
   }
 
   /**
@@ -382,10 +401,18 @@ export class RendererTranscriptViewportComponent extends Container {
 
   override invalidate(): void {
     this.invalidatePaint();
-    this.lineCountCache.clear();
+    this.markCachedGeometryDirty();
+    super.invalidate();
+  }
+
+  /** Preserve last-known heights until budgeted remeasurement converges. */
+  private markCachedGeometryDirty(): void {
+    for (const geometry of this.lineCountCache.values()) {
+      geometry.childRefs.fill(undefined);
+    }
     this.geometrySnapshot = undefined;
     this.bumpGeometryGeneration();
-    super.invalidate();
+    this.geometryNeedsContinue = this.children.length > 0;
   }
 
   override render(width: number): string[] {
@@ -450,7 +477,8 @@ export class RendererTranscriptViewportComponent extends Container {
    * rows (that left stale scrolled content + endless progressive content).
    */
   get needsMaterializeContinue(): boolean {
-    return this.materializeContinuePending || this.geometryNeedsContinue;
+    return this.viewport.lastVisibleRows > 0 &&
+      (this.materializeContinuePending || this.geometryNeedsContinue);
   }
 
   /**
@@ -547,6 +575,12 @@ export class RendererTranscriptViewportComponent extends Container {
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
     this.materializeContinuePending = false;
     this.childPaintCallsThisFrame = 0;
+    // A collapsed transcript must not cold-measure hidden history or keep
+    // scheduling materialization frames. Geometry resumes when space returns.
+    if (visibleRows <= 0) {
+      this.viewport.sync(this.viewport.lastContentRows, 0);
+      return [];
+    }
 
     // Pure-scroll cold layout is cost-gated, not banned. Materializing a multi-k
     // legacy card per wheel frame during rapid up/down allocated string heaps
@@ -737,7 +771,7 @@ export class RendererTranscriptViewportComponent extends Container {
         if (hitBudget) {
           hasProvisionalCounts = true;
           const provisional =
-            Number.isFinite(geometry.counts[i]) && (geometry.counts[i] ?? 0) > 0
+            Number.isFinite(geometry.counts[i]) && (geometry.counts[i] ?? 0) >= 0
               ? geometry.counts[i]!
               : 1;
           geometry.counts[i] = provisional;

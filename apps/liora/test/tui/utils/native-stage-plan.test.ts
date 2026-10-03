@@ -220,4 +220,21 @@ describe('planTUINativeStage stack panels', () => {
     expect(plan.chrome.queue).toEqual([]);
     expect(plan.chrome.btw).toEqual([]);
   });
+  it.each([24, 30, 40])('reserves the existing editor under populated panels at %i rows', (height) => {
+    const state = createSizedState(80, height);
+    state.editor.setText('keep this input');
+    state.todoPanel.setTodos(Array.from({ length: 30 }, (_, i) => ({
+      title: `card ${i}`, status: 'pending' as const,
+    })));
+    state.todoPanelContainer.addChild(state.todoPanel);
+    // A populated Conductor band uses its existing bounded four-row surface.
+    state.workerDockContainer.addChild(new Text('workers\nactive\nqueued\ncompleted', 0, 0));
+    const regions = buildTUIStateNativeFrameRegions(state, 80, height);
+    const editor = regions.find((region) => region.id === 'editor')?.rect;
+    expect(editor).toBeDefined();
+    expect(editor!.height).toBeGreaterThanOrEqual(3);
+    expect(editor!.y + editor!.height).toBeLessThanOrEqual(height);
+    expect(state.editor.getText()).toBe('keep this input');
+  });
+
 });

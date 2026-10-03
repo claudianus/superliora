@@ -52,6 +52,9 @@ export interface TUIStateNativeFrame {
   readonly stageWidth: number;
   /** Rendered transcript region lines (cacheable across pure-input frames). */
   readonly transcriptLines: readonly RendererRegionLine[];
+  /** Stack region rects this frame was laid out with (empty on takeover). */
+  readonly regionRects: Partial<Record<RendererRegionId, RendererRect>>;
+  readonly transcriptVisibleRows: number;
 }
 
 export function isNativeFullscreenTakeover(state: TUIState): boolean {
@@ -157,6 +160,8 @@ function buildNativeFullscreenTakeoverFrame(
     chrome: emptyNativeFrameChrome(),
     stageWidth: width,
     transcriptLines: [],
+    regionRects: {},
+    transcriptVisibleRows: 0,
   };
 }
 
@@ -331,11 +336,15 @@ export function buildTUIStateNativeFrame(
   const editorTopY = layout?.regions?.find((region) => region.id === 'editor')?.rect?.y;
   const toastOverlay = createTUIToastOverlayRegion(state, width, height, editorTopY);
   if (toastOverlay !== undefined) regions.push(toastOverlay);
+  const regionRects: Partial<Record<RendererRegionId, RendererRect>> = {};
+  for (const region of layout.regions) regionRects[region.id] = region.rect;
   return {
     regions,
     cursor,
     chrome,
     stageWidth,
     transcriptLines,
+    regionRects,
+    transcriptVisibleRows: layout.transcriptRows,
   };
 }
