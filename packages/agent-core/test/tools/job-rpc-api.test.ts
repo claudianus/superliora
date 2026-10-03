@@ -5,6 +5,7 @@ import {
   jobCreate,
   jobList,
   jobPause,
+  jobMerge,
   jobPush,
   jobResume,
   jobSetProjectMode,
@@ -108,6 +109,20 @@ describe('job-rpc-api', () => {
 
     expect(result).toMatchObject({ ok: false, error: 'Job runtime is closed.' });
     expect(result.pushJob).toBeUndefined();
+    expect(getJob(store, source.id)?.status).toBe('done');
+    expect(jobList(store).map((job) => job.id)).toEqual([source.id]);
+  });
+
+  it('propagates a landing dispatch failure without changing the source job or creating work', async () => {
+    const store = memoryStore();
+    const source = createJob(store, { title: 'Closed landing' });
+    patchJob(store, source.id, { status: 'done' });
+    closeJobAdmissions(store);
+
+    const result = await jobMerge(store, { jobId: source.id, approve: true });
+
+    expect(result).toMatchObject({ ok: false, error: 'Job runtime is closed.' });
+    expect(result.mergeJob).toBeUndefined();
     expect(getJob(store, source.id)?.status).toBe('done');
     expect(jobList(store).map((job) => job.id)).toEqual([source.id]);
   });

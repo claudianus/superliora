@@ -329,7 +329,9 @@ Fallback model presets (used when the live models.dev catalog is unavailable): `
 
 Native provider authentication remains available after the minimal-runtime cutover. Anthropic, Cursor, GLM ZCode, Google Gemini Code Assist, and Kiro account-login rows are shown by default and retain their individual environment off switches. GitHub Copilot token login remains opt-in with `SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT=1`; unset, `0`, or `false` keeps its picker row hidden. See [Native provider login controls](./env-vars.md#native-provider-login-controls) for all six switches and their exact value rules.
 
-These switches affect picker visibility only, not existing credentials or configured routes. GitLab Duo remains an always-available login profile; its former general-framework flag is not supported. The retired `[experimental]` config section and master switch do not control authentication.
+These switches do not revoke existing credentials, remove configured providers, or disable an existing route. The Anthropic switch also controls the optional `/api/oauth/usage` probe: trimmed, case-insensitive `0`, `false`, or `off` skips that request while retaining the `count_tokens`/header fallback. Its probe parser is separate from the picker parser: `no` hides the login row but does not skip the probe.
+
+GitLab Duo remains an always-available login profile; its former general-framework flag is not supported. The retired `[experimental]` config section and former master switch no longer control authentication. `SUPERLIORA_EXPERIMENTAL_FLAG` retains only its native update-rollout bypass.
 
 Native **Auto** resolves the configured provider's advertised default model when no explicit `auto` model alias exists. Its first concrete selection is not a failover. An explicitly configured alias named `auto` behaves like any other model alias; configured fallbacks remain native provider routing, not task-role model selection.
 

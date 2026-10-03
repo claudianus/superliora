@@ -108,7 +108,9 @@ These six environment variables control which optional account-login rows appear
 
 Set `1`, `true`, `yes`, or `on` to show a row, or `0`, `false`, `no`, or `off` to hide it. Values are trimmed and case-insensitive; other values use the unset default. These picker controls do not revoke stored credentials, remove configured providers, or disable an existing route. Upstream account policy and availability still apply; showing a login row does not guarantee that a third-party client is authorized.
 
-The general experimental framework, `[experimental]` config section, and `SUPERLIORA_EXPERIMENTAL_FLAG` master switch are retired. They no longer override these native login controls. `SUPERLIORA_EXPERIMENTAL_GITLAB_DUO_OAUTH` is not a supported picker control: GitLab Duo remains an always-available account-login profile.
+The Anthropic switch additionally controls the optional `/api/oauth/usage` request. Its separate probe parser skips that request for trimmed, case-insensitive `0`, `false`, or `off`, then uses the `count_tokens`/header fallback. `no` hides the picker row but does not skip the usage probe.
+
+The general experimental framework and `[experimental]` config section are retired. `SUPERLIORA_EXPERIMENTAL_FLAG` no longer overrides native login controls, but its standalone native update-rollout bypass remains: trimmed, case-insensitive `1`, `true`, `yes`, or `on` makes the newest update visible without staged rollout delays. `SUPERLIORA_EXPERIMENTAL_GITLAB_DUO_OAUTH` is not a supported picker control: GitLab Duo remains an always-available account-login profile.
 
 ### Retired Conductor UI switch
 

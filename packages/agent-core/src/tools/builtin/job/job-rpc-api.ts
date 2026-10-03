@@ -454,15 +454,21 @@ export async function jobMerge(
     agent,
   });
   const latest = getJob(store, input.jobId) ?? existing;
+  if (!dispatch.dispatched || !dispatch.mergeJob) {
+    return {
+      ok: false,
+      job: snapshot(latest),
+      text: `Merge held: ${dispatch.reason}`,
+      error: dispatch.reason,
+    };
+  }
   return {
-    ok: dispatch.dispatched,
+    ok: true,
     job: snapshot(latest),
-    mergeJob: dispatch.mergeJob ? snapshot(dispatch.mergeJob) : undefined,
+    mergeJob: snapshot(dispatch.mergeJob),
     text: [
       'Merge approved by operator.',
-      dispatch.mergeJob
-        ? `Execution offloaded to landing worker ${dispatch.mergeJob.id}`
-        : 'Dispatch failed — merge held for manual resolve.',
+      `Execution offloaded to landing worker ${dispatch.mergeJob.id}`,
     ].join('\n'),
   };
 }
