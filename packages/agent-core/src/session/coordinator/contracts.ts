@@ -87,3 +87,13 @@ export interface CoordinationFact {
   result?: string;
   error?: string;
 }
+
+export interface CoordinationFacts {
+  records: CoordinationFact[];
+  total: number;
+  truncated: boolean;
+  counts: {
+    byStatus: Record<CoordinationStatus, number>;
+    attention: number;
+  };
+}

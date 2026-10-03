@@ -9,7 +9,7 @@ import { canonicalPath, containsPath } from './authorized-path';
 import { coordinatorProjectionSchema } from './projection-schema';
 import { IndependentSessionUnsettledError } from './contracts';
 import type {
-  ConductorPolicy, CoordinationFact, CoordinationRecord, CoordinatorProjection, CoordinatorStore,
+  ConductorPolicy, CoordinationFact, CoordinationFacts, CoordinationRecord, CoordinatorProjection, CoordinatorStore,
   IndependentSessionHandle, IndependentSessionRequest, IndependentSessionRuntime,
 } from './contracts';
 
@@ -88,8 +88,9 @@ export class SessionCoordinator {
     return record === undefined ? undefined : structuredClone(record);
   }
 
-  facts(limit = 32): { records: CoordinationFact[]; total: number } {
-    const priority = (record: CoordinationRecord): number => this.active.has(record.id) ? 0 : record.status === 'accepted' ? 1 : record.status === 'interrupted' ? 2 : record.status === 'idle' || record.status === 'yielded' ? 3 : 4;
+  facts(limit = 32): CoordinationFacts {
+    const attention = (record: CoordinationRecord): boolean => record.status === 'failed' || record.status === 'interrupted' || ['failed', 'stale', 'source_changed', 'interrupted'].includes(record.verification?.status ?? '') || record.pipeline?.status === 'blocked';
+    const priority = (record: CoordinationRecord): number => this.active.has(record.id) || this.verificationControllers.has(record.id) || ['admitting', 'running', 'cancel_requested'].includes(record.status) ? 0 : record.status === 'accepted' ? 1 : attention(record) ? 2 : record.status === 'idle' || record.status === 'yielded' ? 3 : 4;
     const records = this.projection.records.toReversed().toSorted((a, b) => priority(a) - priority(b)).slice(0, Math.min(Math.max(1, limit), 100));
     const cards: CoordinationFact[] = [];
     for (const record of records) {
@@ -97,7 +98,9 @@ export class SessionCoordinator {
       if (Buffer.byteLength(JSON.stringify([...cards, card])) > 12 * 1024) break;
       cards.push(card);
     }
-    return { total: this.projection.records.length, records: cards };
+    const byStatus: CoordinationFacts['counts']['byStatus'] = { accepted: 0, admitting: 0, running: 0, completed: 0, failed: 0, cancelled: 0, interrupted: 0, cancel_requested: 0, idle: 0, yielded: 0, finished: 0 };
+    for (const record of this.projection.records) byStatus[record.status]++;
+    return { total: this.projection.records.length, records: cards, truncated: cards.length < this.projection.records.length, counts: { byStatus, attention: this.projection.records.filter(attention).length } };
   }
 
   fact(id: string): CoordinationFact | undefined {

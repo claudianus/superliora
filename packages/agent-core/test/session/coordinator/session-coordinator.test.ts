@@ -360,3 +360,34 @@ describe('bounded facts retain physically owned work', () => {
     expect(Buffer.byteLength(JSON.stringify(snapshot.records))).toBeLessThanOrEqual(12 * 1024);
   });
 });
+
+describe('whole-graph counts with bounded attention-first cards', () => {
+  it('keeps old running and failed owners ahead of more than 32 terminal rows and reports exact hidden totals', async () => {
+    const { coordinator, completions } = await setup();
+    const older = await coordinator.dispatch(request, 'long-owner');
+    await coordinator.tick();
+    await flush();
+    const failure = await coordinator.dispatch({ ...request, ownership: ['failure'] }, 'attention');
+    await coordinator.tick();
+    await flush();
+    completions.get(failure.id)!.reject(new Error('Provider failure needs attention'));
+    await flush();
+    for (let index = 0; index < 40; index++) {
+      const recent = await coordinator.dispatch({ ...request, ownership: ['other'] }, `terminal-${index}`);
+      await coordinator.tick();
+      await flush();
+      completions.get(recent.id)!.resolve('Turn ended');
+      await flush();
+      await coordinator.park(recent.id, 'finished', coordinator.get(recent.id)!.revision);
+    }
+    const snapshot = coordinator.facts();
+    expect(snapshot.records.slice(0, 2).map((record) => record.id)).toEqual([older.id, failure.id]);
+    expect(snapshot.total).toBe(42);
+    expect(snapshot.truncated).toBe(true);
+    expect(snapshot.counts.byStatus).toMatchObject({ running: 1, failed: 1, finished: 40 });
+    expect(Object.values(snapshot.counts.byStatus).reduce((sum, count) => sum + count, 0)).toBe(snapshot.total);
+    expect(snapshot.counts.attention).toBe(1);
+    expect(snapshot.records.length).toBeLessThanOrEqual(32);
+    expect(Buffer.byteLength(JSON.stringify(snapshot.records))).toBeLessThanOrEqual(12 * 1024);
+  });
+});

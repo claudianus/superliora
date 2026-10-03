@@ -92,6 +92,7 @@ export {
 export type {
   ConductorPolicy,
   CoordinationFact,
+  CoordinationFacts,
   CoordinationRecord,
   CoordinationStatus,
   CoordinatorProjection,
