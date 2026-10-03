@@ -67,6 +67,48 @@ describe('revision sealed verification', () => {
     expect(receipt.stages[0]?.exitCode).not.toBe(0);
   });
 
+  it('cancels an owned running process tree and resolves only with settled evidence', async () => {
+    const f = await fixture();
+    const marker = join(f.root, 'started-marker');
+    const script = "require('child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {stdio: 'inherit'}); " +
+      "console.log('started'); require('fs').writeFileSync(" + JSON.stringify(marker) + ", 'ready'); setInterval(() => {}, 1000)";
+    const artifact = await f.seal([stage('owned_tree', script), stage('later', "throw new Error('must not run')")]);
+    const controller = new AbortController();
+    let settled = false;
+    const pending = runArtifactVerification({ hostPolicy, repoPath: f.root, artifact,
+      evidenceRoot: join(f.root, 'evidence'), currentRequirementsHash: () => requirementsHash,
+      signal: controller.signal }).then(receipt => { settled = true; return receipt; });
+    // Synchronize to command readiness, not elapsed runtime.
+    while (true) {
+      try { await readFile(marker); break; } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+    }
+    controller.abort(new Error('operator stop'));
+    expect(settled).toBe(false); // Request acknowledgement is not settlement.
+    const receipt = await pending;
+    expect(receipt.status).toBe('cancelled');
+    expect(receipt.stages).toHaveLength(1);
+    expect(receipt.stages[0]?.cancelled).toBe(true);
+    expect(receipt.stages[0]?.timedOut).toBe(false);
+    expect(receipt.stages[0]?.exitCode).not.toBe(0);
+    expect(await readFile(receipt.stages[0]!.stdoutPath, 'utf8')).toContain('started');
+    expect(JSON.parse(await readFile(receipt.evidencePath, 'utf8'))).toEqual(receipt);
+  });
+
+  it('records a pre-aborted verification without starting any stage', async () => {
+    const f = await fixture();
+    const artifact = await f.seal([stage('never_started', "throw new Error('must not run')")]);
+    const controller = new AbortController();
+    controller.abort(new Error('stopped before admission'));
+    const receipt = await runArtifactVerification({ hostPolicy, repoPath: f.root, artifact,
+      evidenceRoot: join(f.root, 'evidence'), currentRequirementsHash: () => requirementsHash, signal: controller.signal });
+    expect(receipt.status).toBe('cancelled');
+    expect(receipt.stages).toHaveLength(0);
+    expect(receipt.failure).toBe('stopped before admission');
+  });
+
   it('records spawn failures instead of losing the receipt', async () => {
     const f = await fixture();
     const receipt = await f.run([{ id: 'missing', command: ['nonexistent-verifier-example-test'], scope: '.', timeoutMs: 1000 }]);

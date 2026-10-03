@@ -52,6 +52,7 @@ export interface VerificationStageReceipt {
   readonly exitCode: number | null;
   readonly signal: string | null;
   readonly timedOut: boolean;
+  readonly cancelled: boolean;
   readonly outputTruncated: boolean;
   readonly startedAt: string;
   readonly finishedAt: string;
@@ -67,7 +68,7 @@ export interface VerificationReceipt {
   readonly sourceRevision: string;
   readonly sourceTree: string;
   readonly requirementsHash: string;
-  readonly status: 'passed' | 'failed' | 'stale' | 'source_changed';
+  readonly status: 'passed' | 'failed' | 'stale' | 'source_changed' | 'cancelled';
   readonly stages: readonly VerificationStageReceipt[];
   readonly evidencePath: string;
   readonly failure?: string;
@@ -104,12 +105,13 @@ function validateStages(stages: readonly VerificationStage[]): void {
 
 interface CommandResult {
   stdout: string; stderr: string; exitCode: number | null; signal: string | null;
-  timedOut: boolean; outputTruncated: boolean; failure?: string;
+  timedOut: boolean; cancelled: boolean; outputTruncated: boolean; failure?: string;
 }
 /** Bounded output and process-group timeout; no implicit retries. */
-function execute(command: readonly string[], cwd: string, env: Readonly<Record<string, string>>, timeoutMs: number): Promise<CommandResult> {
+function execute(command: readonly string[], cwd: string, env: Readonly<Record<string, string>>, timeoutMs: number, signal?: AbortSignal): Promise<CommandResult> {
   return new Promise(resolveResult => {
-    const result: CommandResult = { stdout: '', stderr: '', exitCode: null, signal: null, timedOut: false, outputTruncated: false };
+    const result: CommandResult = { stdout: '', stderr: '', exitCode: null, signal: null, timedOut: false, cancelled: false, outputTruncated: false };
+    if (signal?.aborted) { result.cancelled = true; resolveResult(result); return; }
     const child = spawn(command[0]!, command.slice(1), { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
     const collect = (key: 'stdout' | 'stderr', chunk: Buffer): void => {
       const text = chunk.toString('utf8');
@@ -119,41 +121,58 @@ function execute(command: readonly string[], cwd: string, env: Readonly<Record<s
     };
     child.stdout.on('data', (chunk: Buffer) => { collect('stdout', chunk); });
     child.stderr.on('data', (chunk: Buffer) => { collect('stderr', chunk); });
-    const timer = setTimeout(() => {
-      result.timedOut = true;
-      if (child.pid) {
-        if (process.platform === 'win32') {
-          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { env, stdio: 'ignore' }).on('error', () => child.kill('SIGKILL'));
-        } else {
-          try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
-        }
+    let termination: Promise<void> | undefined;
+    const stop = (): void => {
+      if (!child.pid || termination) return;
+      if (process.platform === 'win32') {
+        termination = new Promise<void>(settled => {
+          const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { env, stdio: 'ignore' });
+          killer.once('error', () => { child.kill('SIGKILL'); });
+          killer.once('close', code => {
+            if (code !== 0) child.kill('SIGKILL');
+            settled();
+          });
+        });
+      } else {
+        try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
+        termination = Promise.resolve();
       }
-    }, timeoutMs);
+    };
+    const onAbort = (): void => { result.cancelled = true; stop(); };
+    const timer = setTimeout(() => { result.timedOut = true; stop(); }, timeoutMs);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    // Handle an abort racing spawn/listener installation.
+    if (signal?.aborted) onAbort();
     child.on('error', error => { result.failure = error.message; });
-    child.once('close', (code, signal) => {
+    child.once('close', (code, exitSignal) => {
       timer[Symbol.dispose]();
+      signal?.removeEventListener('abort', onAbort);
       result.exitCode = result.failure ? null : code;
-      result.signal = signal;
-      resolveResult(result);
+      result.signal = exitSignal;
+      // Cancellation acknowledgement is not resource settlement. Wait for the
+      // Windows tree-kill helper as well as the owned command close event.
+      void (termination ?? Promise.resolve()).then(() => { resolveResult(result); });
     });
   });
 }
-async function git(repo: string, args: readonly string[]): Promise<string> {
-  const result = await execute(['git', '--no-pager', '-C', repo, ...args], repo, verificationEnvironment(repo).values, 60_000);
+async function git(repo: string, args: readonly string[], signal?: AbortSignal): Promise<string> {
+  const result = await execute(['git', '--no-pager', '-C', repo, ...args], repo, verificationEnvironment(repo).values, 60_000, signal);
+  if (result.cancelled) throw new Error('Verification cancelled');
   if (result.exitCode !== 0 || result.timedOut || result.outputTruncated) throw new Error(result.failure ?? (result.stderr || 'Git verification operation failed'));
   return result.stdout.trim();
 }
 
 /** Seal only a full commit id, never HEAD/a branch or uncommitted files. */
 async function resolveArtifact(input: {
+  readonly signal?: AbortSignal;
   readonly repoPath: string; readonly sourceRevision: string;
   readonly requirementsHash: string; readonly stages: readonly VerificationStage[];
 }): Promise<VerificationArtifact> {
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(input.sourceRevision)) throw new Error('A full committed revision is required');
   if (!/^[a-f0-9]{64}$/.test(input.requirementsHash)) throw new Error('Requirements must be a SHA-256 digest');
   validateStages(input.stages);
-  const sourceRevision = await git(input.repoPath, ['rev-parse', '--verify', `${input.sourceRevision}^{commit}`]);
-  const sourceTree = await git(input.repoPath, ['rev-parse', `${sourceRevision}^{tree}`]);
+  const sourceRevision = await git(input.repoPath, ['rev-parse', '--verify', `${input.sourceRevision}^{commit}`], input.signal);
+  const sourceTree = await git(input.repoPath, ['rev-parse', `${sourceRevision}^{tree}`], input.signal);
   const body = { version: 1 as const, sourceRevision, sourceTree, requirementsHash: input.requirementsHash,
     stages: input.stages.map(stage => ({ id: stage.id, command: [...stage.command], scope: stage.scope, timeoutMs: stage.timeoutMs })) };
   return { ...body, artifactHash: hash(body) };
@@ -185,6 +204,8 @@ export async function runArtifactVerification(input: {
   readonly hostPolicy: VerificationHostPolicy;
   readonly repoPath: string; readonly artifact: VerificationArtifact;
   readonly evidenceRoot: string;
+  /** Verification-owned cancellation, never the conductor inference signal. */
+  readonly signal?: AbortSignal;
   readonly currentRequirementsHash: () => string | Promise<string>;
 }): Promise<VerificationReceipt> {
   // Snapshot caller data before the async policy hook; mutation cannot change the authorized plan.
@@ -192,12 +213,17 @@ export async function runArtifactVerification(input: {
   const repoPath = input.repoPath;
   const evidenceRoot = input.evidenceRoot;
   const currentRequirementsHash = input.currentRequirementsHash;
+  const signal = input.signal;
   await input.hostPolicy.authorize({ operation: 'verify', repoPath,
     sourceRevision: requested.sourceRevision, requirementsHash: requested.requirementsHash,
     stages: structuredClone(requested.stages), evidenceRoot });
   if (requested.version !== 1) throw new Error('Unsupported artifact version');
-  const artifact = await resolveArtifact({ ...requested, repoPath });
-  if (artifact.artifactHash !== requested.artifactHash || artifact.sourceTree !== requested.sourceTree) throw new Error('Artifact seal mismatch');
+  validateStages(requested.stages);
+  const body = { version: 1 as const, sourceRevision: requested.sourceRevision, sourceTree: requested.sourceTree,
+    requirementsHash: requested.requirementsHash,
+    stages: requested.stages.map(stage => ({ id: stage.id, command: [...stage.command], scope: stage.scope, timeoutMs: stage.timeoutMs })) };
+  if (hash(body) !== requested.artifactHash) throw new Error('Artifact seal mismatch');
+  const artifact = requested;
   await mkdir(evidenceRoot, { recursive: true });
   const evidenceDir = await mkdtemp(join(resolve(evidenceRoot), 'verification-'));
   const evidencePath = join(evidenceDir, 'receipt.json');
@@ -210,39 +236,45 @@ export async function runArtifactVerification(input: {
   const fresh = async (): Promise<boolean> => await currentRequirementsHash() === artifact.requirementsHash;
   let failure: string | undefined;
   try {
+    signal?.throwIfAborted();
+    const resolved = await resolveArtifact({ ...artifact, repoPath, signal });
+    if (resolved.artifactHash !== artifact.artifactHash) throw new Error('Artifact seal mismatch');
     if (!await fresh()) status = 'stale';
     else {
-      await git(repoPath, ['worktree', 'add', '--detach', checkout, artifact.sourceRevision]);
+      await git(repoPath, ['worktree', 'add', '--detach', checkout, artifact.sourceRevision], signal);
       const unchanged = async (): Promise<boolean> =>
-        await git(checkout, ['rev-parse', 'HEAD']) === artifact.sourceRevision &&
-        !(await git(checkout, ['status', '--porcelain', '--untracked-files=no']));
+        await git(checkout, ['rev-parse', 'HEAD'], signal) === artifact.sourceRevision &&
+        !(await git(checkout, ['status', '--porcelain', '--untracked-files=no'], signal));
       for (const stage of artifact.stages) {
+        signal?.throwIfAborted();
         if (!await fresh()) { status = 'stale'; break; }
         if (!await unchanged()) { status = 'source_changed'; break; }
         const cwd = await realpath(resolve(checkout, stage.scope));
         const scopePath = relative(await realpath(checkout), cwd);
         if (isAbsolute(scopePath) || scopePath.split(/[\\/]/).includes('..')) throw new Error('Scope resolves outside the artifact');
         const startedAt = new Date().toISOString();
-        const result = await execute(stage.command, cwd, environment.values, stage.timeoutMs);
+        const result = await execute(stage.command, cwd, environment.values, stage.timeoutMs, signal);
         const stdoutPath = join(evidenceDir, `${stage.id}.stdout.log`);
         const stderrPath = join(evidenceDir, `${stage.id}.stderr.log`);
         await writeFile(stdoutPath, result.stdout, { flag: 'wx' });
         await writeFile(stderrPath, result.stderr, { flag: 'wx' });
         stages.push({ stageId: stage.id, command: stage.command, scope: stage.scope, cwd, environment,
-          exitCode: result.exitCode, signal: result.signal, timedOut: result.timedOut,
+          exitCode: result.exitCode, signal: result.signal, timedOut: result.timedOut, cancelled: result.cancelled,
           outputTruncated: result.outputTruncated, startedAt, finishedAt: new Date().toISOString(),
           stdoutPath, stderrPath,
           stdoutHash: createHash('sha256').update(result.stdout).digest('hex'),
           stderrHash: createHash('sha256').update(result.stderr).digest('hex'), ...(result.failure ? { failure: result.failure } : {}) });
+        if (result.cancelled || signal?.aborted) { status = 'cancelled'; break; }
         if (!await fresh()) { status = 'stale'; break; }
         if (!await unchanged()) { status = 'source_changed'; break; }
         if (result.exitCode !== 0 || result.timedOut || result.failure) { status = 'failed'; break; }
       }
     }
   } catch (error) {
-    status = 'failed';
+    status = signal?.aborted ? 'cancelled' : 'failed';
     failure = error instanceof Error ? error.message : String(error);
   }
+  if (signal?.aborted) status = 'cancelled';
   const receipt: VerificationReceipt = { version: 1, artifactHash: artifact.artifactHash,
     sourceRevision: artifact.sourceRevision, sourceTree: artifact.sourceTree,
     requirementsHash: artifact.requirementsHash, status, stages, evidencePath,
