@@ -326,6 +326,8 @@ export interface GenerateAbortScope {
   readonly openTimedOut: () => boolean;
   /** Clear only the open-phase timer after the stream object is returned. */
   readonly clearOpenTimer: () => void;
+  /** Abort the request transport with an internal deadline reason. */
+  readonly abortWith: (reason: unknown) => void;
   /** Drop the caller-signal listener after generate finishes. */
   readonly dispose: () => void;
 }
@@ -359,7 +361,7 @@ export function createGenerateAbortScope(
         controller.abort(source.reason);
       };
       source.addEventListener('abort', onAbort);
-      unlink = () => source.removeEventListener('abort', onAbort);
+      unlink = () => { source.removeEventListener('abort', onAbort); };
     }
   }
 
@@ -384,6 +386,9 @@ export function createGenerateAbortScope(
         openTimer = undefined;
       }
     },
+    abortWith: (reason: unknown) => {
+      controller.abort(reason);
+    },
     dispose: () => {
       if (openTimer !== undefined) {
         clearTimeout(openTimer);
@@ -407,4 +412,60 @@ export function openTimeoutError(openMs: number, label?: string): APITimeoutErro
   return new APITimeoutError(
     `Stream open timeout: no stream established for ${String(openMs)}ms.` + formatLabel(label),
   );
+}
+
+
+/** A stream deadline remains armed while its consumer is processing a part. */
+export function createStreamLivenessGuard(options: {
+  readonly idleMs?: number;
+  readonly firstTokenMs?: number;
+  readonly maxDurationMs?: number;
+  readonly label?: string;
+  readonly onTimeout: (error: APITimeoutError) => void;
+}): { activity(): void; dispose(): void } {
+  const idleMs = resolveIdleTimeoutMs(options.idleMs);
+  const firstTokenMs = resolveFirstTokenTimeoutMs(options.firstTokenMs);
+  const maxDurationMs = resolveStreamMaxDurationMs(options.maxDurationMs);
+  const startedAt = Date.now();
+  let lastActivityAt = startedAt;
+  let sawActivity = false;
+  let disposed = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const dispose = (): void => {
+    disposed = true;
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
+  };
+  const arm = (): void => {
+    if (timer !== undefined) clearTimeout(timer);
+    const idleBudget = idleMs > 0 ? idleMs : Number.POSITIVE_INFINITY;
+    const silenceBudget = !sawActivity && firstTokenMs !== undefined && firstTokenMs > 0
+      ? Math.min(firstTokenMs, idleBudget) : idleBudget;
+    const totalDeadline = maxDurationMs > 0 ? startedAt + maxDurationMs : Number.POSITIVE_INFINITY;
+    const deadline = Math.min(lastActivityAt + silenceBudget, totalDeadline);
+    // All deadlines disabled: neither a timer nor transport abort is introduced.
+    if (!Number.isFinite(deadline)) return;
+    timer = setTimeout(() => {
+      dispose();
+      const description = Date.now() >= totalDeadline
+        ? `Stream duration timeout: stream exceeded ${String(maxDurationMs)}ms total.`
+        : !sawActivity && firstTokenMs !== undefined && firstTokenMs > 0
+          ? `Stream first-token timeout: no first token for ${String(firstTokenMs)}ms.`
+          : `Stream idle timeout: no data received for ${String(idleMs)}ms.`;
+      options.onTimeout(new APITimeoutError(description + formatLabel(options.label)));
+    }, Math.max(0, deadline - Date.now()));
+  };
+  arm();
+  return {
+    // Only substantive parts count. Keepalives cannot extend first-token/idle
+    // deadlines, and activity never extends the absolute stream duration cap.
+    activity: () => {
+      if (disposed) return;
+      sawActivity = true;
+      lastActivityAt = Date.now();
+      arm();
+    },
+    dispose,
+  };
 }
