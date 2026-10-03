@@ -576,7 +576,9 @@ export function marqueeFitAnsi(
 function hashSeed(seed: string): number {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i += 1) {
-    h ^= seed.codePointAt(i);
+    // The seed hash intentionally consumes UTF-16 code units, not Unicode points.
+    // oxlint-disable-next-line unicorn/prefer-code-point
+    h ^= seed.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
   return h >>> 0;
