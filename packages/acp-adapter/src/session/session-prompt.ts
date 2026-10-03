@@ -14,7 +14,6 @@ import {
   acpSubagentToolCallId,
   acpToolCallId,
   assistantDeltaToSessionUpdate,
-  planFromDisplayBlock,
   stringifyArgs,
   subagentToolCallToSessionUpdate,
   subagentToolProgressToSessionUpdate,
@@ -30,23 +29,7 @@ import {
 } from '#/convert/events-map';
 import { MAIN_AGENT_ID } from './session-constants';
 
-/**
- * Body of `AcpSession.prompt`'s turn-driving event stream, extracted
- * so the event-listener invariants — single `onEvent` subscription,
- * `settled` flag semantics, `currentTurnId` tracking — live in one
- * place and can be driven by either `Session.prompt(parts)` or
- * `Session.activateSkill(name, args)`. Both entry points trigger the
- * same downstream turn (skill activation internally calls
- * `agent.turn.prompt(...)` after injecting the `<liora-skill-loaded>`
- * block — see `packages/agent-core/src/agent/skill/index.ts`), so the
- * event subscription's `turn.started` / `turn.ended` semantics apply
- * uniformly.
- *
- * `getCurrentTurnId` / `setCurrentTurnId` thread the adapter's
- * `currentTurnId` field through without this module depending on
- * `AcpSession` — `handleApproval` (still owned by `AcpSession`) reads
- * the same field to compose the prefixed `${turnId}:${rawId}` wire id.
- */
+/** Native turn subscription and actual tool activity forwarded to the editor. */
 export interface PromptTurnDeps {
   readonly session: Pick<Session, 'onEvent'>;
   readonly conn: AgentSideConnection;
@@ -83,21 +66,13 @@ export interface PromptTurnDeps {
  *    rejection is propagated as a `prompt` request error so the client
  *    sees a JSON-RPC error rather than a hung request.
  */
-/**
- * A turn that emits NO events at all for this long is treated as wedged
- * (hung provider stream, dead agent loop) and the prompt request fails with
- * an internal error instead of pending forever in the IDE. Any event
- * (deltas, tool calls, turn lifecycle) resets the timer, so long-but-active
- * turns are never killed. Override via ACP_PROMPT_INACTIVITY_TIMEOUT_MS.
- */
-const PROMPT_INACTIVITY_TIMEOUT_MS = Number(
-  process.env['ACP_PROMPT_INACTIVITY_TIMEOUT_MS'] ?? '600000',
-);
-
 export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
   const { session, conn, sessionId, kick, getCurrentTurnId, setCurrentTurnId } = deps;
-  return new Promise<PromptResponse>((resolve, reject) => {
+  const { promise, resolve, reject } = Promise.withResolvers<PromptResponse>();
     let settled = false;
+    let kickSettled = false;
+    let terminalResponse: PromptResponse | undefined;
+    let terminalError: RequestError | undefined;
     const isFromMainAgent = (event: { agentId?: string }): boolean =>
       event.agentId === undefined || event.agentId === MAIN_AGENT_ID;
     // Per-tool-call streaming args accumulator. Lives in the Promise
@@ -117,8 +92,7 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
     // call not found" until the create eventually lands. We instead
     // lazy-create the wire `tool_call` on the first delta and
     // downgrade the eventual started event into a `tool_call_update`
-    // carrying the canonical title/kind/rawInput (and any
-    // `display`-derived diff).
+    // carrying the canonical title/kind/rawInput and native display summary.
     //
     // Keyed on the wire id (`${turnId}:${rawToolCallId}`) — not the
     // raw SDK `toolCallId` — because providers may legitimately
@@ -126,42 +100,24 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
     // each turn produces a distinct wire-level tool call that needs
     // its own CREATE.
     const startedToolCalls = new Set<string>();
-    const outputByToolCall = new Map<string, { output: string }>();
+    const outputByToolCall = new Map<string, { output: string; terminalId?: string }>();
     const startedSubagentToolCalls = new Set<string>();
-    const subagentOutputByToolCall = new Map<string, { output: string }>();
+    const subagentOutputByToolCall = new Map<string, { output: string; terminalId?: string }>();
     const initialActiveTurnId = getCurrentTurnId();
     let hasReceivedOwnTurnStarted = false;
-    const inactivityTimer = { current: null as ReturnType<typeof setTimeout> | null };
-    const armInactivityWatchdog = (): void => {
-      if (inactivityTimer.current !== null) clearTimeout(inactivityTimer.current);
-      if (!Number.isFinite(PROMPT_INACTIVITY_TIMEOUT_MS) || PROMPT_INACTIVITY_TIMEOUT_MS <= 0) {
-        return;
-      }
-      inactivityTimer.current = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        unsub();
-        clearInactivityWatchdog();
-        log.warn('acp: prompt wedged; no turn events observed; failing request', {
-          sessionId,
-          timeoutMs: PROMPT_INACTIVITY_TIMEOUT_MS,
-        });
-        reject(
-          RequestError.internalError(
-            undefined,
-            `session prompt stalled: no agent events for ${String(PROMPT_INACTIVITY_TIMEOUT_MS)}ms`,
-          ),
-        );
-      }, PROMPT_INACTIVITY_TIMEOUT_MS);
-    };
-    const clearInactivityWatchdog = (): void => {
-      if (inactivityTimer.current !== null) {
-        clearTimeout(inactivityTimer.current);
-        inactivityTimer.current = null;
-      }
+    const finish = (): void => {
+      if (!settled || !kickSettled) return;
+      argsByToolCall.clear();
+      startedToolCalls.clear();
+      outputByToolCall.clear();
+      startedSubagentToolCalls.clear();
+      subagentOutputByToolCall.clear();
+      setCurrentTurnId(undefined);
+      unsub();
+      if (terminalError !== undefined) reject(terminalError);
+      else if (terminalResponse !== undefined) resolve(terminalResponse);
     };
     const unsub = session.onEvent((event) => {
-      armInactivityWatchdog();
       if (
         event.type === 'turn.started' &&
         isFromMainAgent(event) &&
@@ -191,23 +147,14 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         if (event.code !== ErrorCodes.TURN_AGENT_BUSY) return;
         if (hasReceivedOwnTurnStarted) return;
         settled = true;
-        argsByToolCall.clear();
-        startedToolCalls.clear();
-        outputByToolCall.clear();
-        startedSubagentToolCalls.clear();
-        subagentOutputByToolCall.clear();
-        setCurrentTurnId(undefined);
-        unsub();
         log.warn('acp: prompt rejected because another turn is active', {
           sessionId,
           details: event.details,
         });
-        reject(
-          RequestError.invalidRequest(
-            { code: event.code, details: event.details },
-            event.message,
-          ),
+        terminalError = RequestError.invalidRequest(
+          { code: event.code, details: event.details }, event.message,
         );
+        finish();
         return;
       }
       if (event.type === 'assistant.delta') {
@@ -242,6 +189,7 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
       }
       if (event.type === 'tool.call.started') {
         if (!isFromMainAgent(event)) return;
+        if (event.name !== 'Bash' && event.name !== 'SessionControl') return;
         // Seed the accumulator with the **stringified initial args**.
         // The wire-level `tool_call_update` is REPLACE-content (not
         // append) so each subsequent delta emits the cumulative args
@@ -252,7 +200,7 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         // the wire `tool_call` for this id:
         //  - YES → we cannot send a second `tool_call` CREATE; emit a
         //    `tool_call_update` (the "upgrade") so `title`/`kind`/
-        //    `rawInput`/`display`-derived diff land on the existing
+        //    `rawInput`/native display summary land on the existing
         //    card and `status` flips to `'in_progress'`.
         //  - NO  → no prior deltas (e.g. provider doesn't stream args);
         //    take the original path and emit the `tool_call` CREATE.
@@ -279,28 +227,13 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
               });
             });
         }
-        // Phase 9.3: when the tool exposed a structured TodoList
-        // display, additionally fire a `plan` session_update so ACP
-        // clients can render the agent's evolving TODO list. Other
-        // display kinds (diff/file_io/command/…) are already folded
-        // into the tool_call card; only `todo_list` becomes a plan.
-        // The emission is fire-and-forget under the same idle-stream
-        // discipline as the assistant deltas above.
-        if (event.display) {
-          const planNote = planFromDisplayBlock(sessionId, event.turnId, event.display);
-          if (planNote !== null) {
-            conn.sessionUpdate(planNote).catch((error) => {
-              log.warn('acp: failed to push plan', {
-                sessionId,
-                error: error instanceof Error ? error.message : String(error),
-              });
-            });
-          }
-        }
         return;
       }
       if (event.type === 'tool.call.delta') {
         if (!isFromMainAgent(event)) return;
+        const knownWireId = acpToolCallId(event.turnId, event.toolCallId);
+        if (event.name !== 'Bash' && event.name !== 'SessionControl' &&
+            !(event.name === undefined && startedToolCalls.has(knownWireId))) return;
         // The agent-core emits these args-stream deltas BEFORE the
         // `tool.call.started` event (deltas come from the provider's
         // streaming phase; started is dispatched afterwards). If we
@@ -344,6 +277,7 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
       }
       if (event.type === 'tool.progress') {
         if (!isFromMainAgent(event)) return;
+        if (!startedToolCalls.has(acpToolCallId(event.turnId, event.toolCallId))) return;
         let acc = outputByToolCall.get(event.toolCallId);
         if (!acc) {
           acc = { output: '' };
@@ -362,9 +296,11 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
       }
       if (event.type === 'tool.result') {
         if (!isFromMainAgent(event)) return;
+        if (!startedToolCalls.has(acpToolCallId(event.turnId, event.toolCallId))) return;
+        const terminalId = outputByToolCall.get(event.toolCallId)?.terminalId;
         outputByToolCall.delete(event.toolCallId);
         conn
-          .sessionUpdate(toolResultToSessionUpdate(sessionId, event))
+          .sessionUpdate(toolResultToSessionUpdate(sessionId, event, terminalId))
           .catch((error) => {
             log.warn('acp: failed to push tool_call_update (result)', {
               sessionId,
@@ -376,6 +312,7 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
       }
       if (event.type === 'subagent.tool_call') {
         if (!isFromMainAgent(event)) return;
+        if (event.name !== 'Bash' && event.name !== 'SessionControl') return;
         const wireId = acpSubagentToolCallId(event.subagentId, event.toolCallId);
         startedSubagentToolCalls.add(wireId);
         conn.sessionUpdate(subagentToolCallToSessionUpdate(sessionId, event)).catch((error) => {
@@ -390,25 +327,7 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
       if (event.type === 'subagent.tool_progress') {
         if (!isFromMainAgent(event)) return;
         const wireId = acpSubagentToolCallId(event.subagentId, event.toolCallId);
-        if (!startedSubagentToolCalls.has(wireId)) {
-          startedSubagentToolCalls.add(wireId);
-          conn
-            .sessionUpdate(
-              subagentToolCallToSessionUpdate(sessionId, {
-                type: 'subagent.tool_call',
-                subagentId: event.subagentId,
-                toolCallId: event.toolCallId,
-                name: event.name ?? 'tool',
-              }),
-            )
-            .catch((error) => {
-              log.warn('acp: failed to push tool_call (subagent lazy create)', {
-                sessionId,
-                toolCallId: event.toolCallId,
-                error: error instanceof Error ? error.message : String(error),
-              });
-            });
-        }
+        if (!startedSubagentToolCalls.has(wireId)) return;
         let acc = subagentOutputByToolCall.get(wireId);
         if (!acc) {
           acc = { output: '' };
@@ -428,27 +347,10 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
       if (event.type === 'subagent.tool_result') {
         if (!isFromMainAgent(event)) return;
         const wireId = acpSubagentToolCallId(event.subagentId, event.toolCallId);
+        const terminalId = subagentOutputByToolCall.get(wireId)?.terminalId;
         subagentOutputByToolCall.delete(wireId);
-        if (!startedSubagentToolCalls.has(wireId)) {
-          startedSubagentToolCalls.add(wireId);
-          conn
-            .sessionUpdate(
-              subagentToolCallToSessionUpdate(sessionId, {
-                type: 'subagent.tool_call',
-                subagentId: event.subagentId,
-                toolCallId: event.toolCallId,
-                name: event.name ?? 'tool',
-              }),
-            )
-            .catch((error) => {
-              log.warn('acp: failed to push tool_call (subagent result create)', {
-                sessionId,
-                toolCallId: event.toolCallId,
-                error: error instanceof Error ? error.message : String(error),
-              });
-            });
-        }
-        conn.sessionUpdate(subagentToolResultToSessionUpdate(sessionId, event)).catch((error) => {
+        if (!startedSubagentToolCalls.has(wireId)) return;
+        conn.sessionUpdate(subagentToolResultToSessionUpdate(sessionId, event, terminalId)).catch((error) => {
           log.warn('acp: failed to push tool_call_update (subagent result)', {
             sessionId,
             toolCallId: event.toolCallId,
@@ -461,63 +363,29 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         if (settled) return;
         if (!isFromMainAgent(event)) return;
         settled = true;
-        clearInactivityWatchdog();
         if (event.reason === 'failed') {
-          // Failures bubble up via the SDK `error` payload. Phase 11.1
-          // upgrades the prior "log + resolve end_turn" behaviour to
-          // route auth-coded failures through `RequestError.authRequired()`
-          // so the client can trigger its re-auth UX. Other failure
-          // codes still resolve with `end_turn` (the spec discourages
-          // signaling errors through `stopReason`; the failure is
-          // observable in the log).
-          log.warn('acp: turn ended with failed reason', {
-            sessionId,
-            error: event.error,
-          });
-          argsByToolCall.clear();
-          startedToolCalls.clear();
-          outputByToolCall.clear();
-          startedSubagentToolCalls.clear();
-          subagentOutputByToolCall.clear();
-          setCurrentTurnId(undefined);
-          unsub();
-          const authErr = authRequiredFromPayload(event.error);
-          if (authErr) {
-            reject(authErr);
-            return;
-          }
+          log.warn('acp: turn ended with failed reason', { sessionId, error: event.error });
+          terminalError = authRequiredFromPayload(event.error) ??
+            RequestError.internalError(undefined, 'session prompt failed');
         } else {
-          if (event.reason === 'filtered') {
-            // The provider's safety policy blocked the response. It is
-            // mapped to ACP `refusal` (see turnEndReasonToStopReason); log
-            // it here too so the block stays observable in the agent logs,
-            // mirroring the `failed` branch above.
-            log.warn('acp: turn ended with filtered reason', { sessionId });
-          }
-          argsByToolCall.clear();
-          startedToolCalls.clear();
-          outputByToolCall.clear();
-          startedSubagentToolCalls.clear();
-          subagentOutputByToolCall.clear();
-          // Drop the turnId so a late-arriving approval (e.g. an SDK
-          // reverse-RPC racing the turn boundary) falls back to the raw
-          // SDK id rather than re-prefixing with a stale value.
-          setCurrentTurnId(undefined);
-          unsub();
+          terminalResponse = { stopReason: turnEndReasonToStopReason(event.reason) };
         }
-        resolve({ stopReason: turnEndReasonToStopReason(event.reason) });
+        finish();
       }
     });
 
-    armInactivityWatchdog();
-    kick().catch((error) => {
-      if (settled) return;
+    // Some SDK transports acknowledge dispatch early; others resolve after cleanup.
+    // Neither may release this adapter subscription before both boundaries settle.
+    void Promise.resolve().then(kick).then(() => {
+      kickSettled = true;
+      finish();
+    }, (error: unknown) => {
+      kickSettled = true;
       settled = true;
-      unsub();
-      clearInactivityWatchdog();
-      reject(mapPromptError(error, sessionId));
+      terminalError = mapPromptError(error, sessionId);
+      finish();
     });
-  });
+  return promise;
 }
 
 /**

@@ -10,7 +10,6 @@ import {
 } from '../../components/dialogs/inbox/inbox-drawer';
 import {
   hotpathJobResume,
-  isConductorUxV2Enabled,
 } from '../../commands/job-hotpath';
 import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import { shortJobId } from '../../components/job-board/job-board-helpers';
@@ -37,12 +36,8 @@ export function openInbox(host: SlashCommandHost): void {
   // Alt+I toggles the already-open Inbox drawer shut (homepage demo overlay
   // model) rather than mounting a second copy.
   if (toggleOffOpenSurface(host, SURFACE_JOB_INBOX)) return;
-  if (!isConductorUxV2Enabled()) {
-    host.showStatus(ttui('tui.conductor.inboxNeedsUx'), 'textMuted');
-    return;
-  }
   if (host.session === undefined) {
-    host.showError(ttui('tui.conductor.inboxNoSession'));
+    host.showError(ttui('tui.job.inboxNoSession'));
     return;
   }
 
@@ -57,7 +52,7 @@ export function openInbox(host: SlashCommandHost): void {
       const snap = host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
       const card = resolveConductorJobCard(snap.jobs, item.jobId);
       if (card === undefined || !canOpenMergePreview(card)) {
-        host.showStatus(ttui('tui.conductor.mergeNeedsJob'), 'textMuted');
+        host.showStatus(ttui('tui.job.mergeNeedsJob'), 'textMuted');
         return;
       }
       openMergePreview(host, card);
@@ -67,7 +62,7 @@ export function openInbox(host: SlashCommandHost): void {
       const snap = host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
       const card = resolveConductorJobCard(snap.jobs, item.jobId);
       if (card === undefined || !canOpenPushPreview(card)) {
-        host.showStatus(ttui('tui.conductor.pushNeedsJob'), 'textMuted');
+        host.showStatus(ttui('tui.job.pushNeedsJob'), 'textMuted');
         return;
       }
       openPushPreview(host, card);
@@ -103,8 +98,8 @@ export function buildInboxItems(host: SlashCommandHost): readonly InboxDrawerIte
     rows.push({
       id: 'glance:approval',
       kind: 'approval',
-      title: pendingApproval.data.tool_name || ttui('tui.conductor.pendingApproval'),
-      detail: ttui('tui.conductor.focusApprovalPanel'),
+      title: pendingApproval.data.tool_name || ttui('tui.job.pendingApproval'),
+      detail: ttui('tui.job.focusApprovalPanel'),
     });
   }
 
@@ -113,8 +108,8 @@ export function buildInboxItems(host: SlashCommandHost): readonly InboxDrawerIte
     rows.push({
       id: 'glance:question',
       kind: 'question',
-      title: ttui('tui.conductor.pendingQuestion'),
-      detail: ttui('tui.conductor.answerInDialog'),
+      title: ttui('tui.job.pendingQuestion'),
+      detail: ttui('tui.job.answerInDialog'),
     });
   }
 
@@ -167,7 +162,7 @@ async function actOnInboxItem(host: SlashCommandHost, item: InboxDrawerItem): Pr
   }
   if (item.kind === 'question') {
     host.restoreEditor();
-    host.showStatus(ttui('tui.conductor.answerInPanel'), 'info');
+    host.showStatus(ttui('tui.job.answerInPanel'), 'info');
     return;
   }
 

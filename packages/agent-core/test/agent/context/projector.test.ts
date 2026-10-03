@@ -1,91 +1,77 @@
+import type { Message } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { trimTrailingOpenToolExchange } from '#/agent/context/projector';
-import type { Message } from '@superliora/kosong';
 
-type AnyMessage = Message;
-
-function userMessage(text: string): AnyMessage {
-  return { role: 'user', content: [{ type: 'text', text }] } as AnyMessage;
+function userMessage(text: string): Message {
+  return { role: 'user', content: [{ type: 'text', text }], toolCalls: [] };
 }
 
-function assistantWithToolCall(toolCallId: string, id: string): AnyMessage {
+function assistantWithToolCalls(...ids: string[]): Message {
   return {
     role: 'assistant',
     content: [],
-    toolCalls: [
-      {
-        id,
-        type: 'function',
-        function: { name: 'noop', arguments: '{}' },
-      },
-    ],
-  } as AnyMessage;
+    toolCalls: ids.map((id) => ({
+      id,
+      type: 'function',
+      name: 'Bash',
+      arguments: '{"command":"pwd"}',
+    })),
+  };
 }
 
-function toolResult(toolCallId: string, text: string): AnyMessage {
-  return {
-    role: 'tool',
-    content: [{ type: 'text', text }],
-    toolCallId,
-  } as AnyMessage;
+function toolResult(toolCallId: string, text: string): Message {
+  return { role: 'tool', content: [{ type: 'text', text }], toolCallId, toolCalls: [] };
 }
 
-describe('agent/context/projector — trimTrailingOpenToolExchange', () => {
-  it('returns an empty array for an empty history', () => {
+describe('trimTrailingOpenToolExchange', () => {
+  it('returns no messages when no non-tool turn is available', () => {
     expect(trimTrailingOpenToolExchange([])).toEqual([]);
+    expect(trimTrailingOpenToolExchange([toolResult('orphan', 'output')])).toEqual([]);
   });
 
-  it('returns an empty array when history contains only tool messages', () => {
-    expect(trimTrailingOpenToolExchange([toolResult('a', 'r1')])).toEqual([]);
-  });
-
-  it('returns a copy of the history when the tail is a user message', () => {
-    const history = [assistantWithToolCall('a', '1'), toolResult('a', 'r'), userMessage('hi')];
-    const trimmed = trimTrailingOpenToolExchange(history);
-    expect(trimmed).toEqual(history);
-  });
-
-  it('returns a copy of the history when the assistant has no tool calls', () => {
+  it('preserves settled exchanges and returns an independent array', () => {
     const history = [
-      { role: 'assistant', content: [{ type: 'text', text: 'just text' }], toolCalls: [] } as AnyMessage,
+      userMessage('run both commands'),
+      assistantWithToolCalls('one', 'two'),
+      toolResult('two', 'second finished first'),
+      toolResult('one', 'first finished second'),
     ];
     const trimmed = trimTrailingOpenToolExchange(history);
     expect(trimmed).toEqual(history);
+    expect(trimmed).not.toBe(history);
+    expect(trimmed[0]).toBe(history[0]);
   });
 
-  it('returns a copy of the history when the trailing assistant tool calls are all closed', () => {
+  it('does not trim a trailing user or assistant text turn', () => {
     const history = [
-      userMessage('hi'),
-      assistantWithToolCall('a', 'a'),
-      toolResult('a', 'result'),
+      userMessage('hello'),
+      { role: 'assistant', content: [{ type: 'text', text: 'answer' }], toolCalls: [] } satisfies Message,
     ];
-    const trimmed = trimTrailingOpenToolExchange(history);
-    expect(trimmed).toEqual(history);
+    expect(trimTrailingOpenToolExchange(history)).toEqual(history);
+    expect(trimTrailingOpenToolExchange([...history, userMessage('next')])).toEqual([
+      ...history,
+      userMessage('next'),
+    ]);
   });
 
-  it('trims the trailing assistant + open tool results back to the last user turn', () => {
-    const user = userMessage('hi');
-    const assistant = assistantWithToolCall('a', '1');
-    const open = toolResult('a', 'partial');
-    const history = [user, assistant, open];
-    const trimmed = trimTrailingOpenToolExchange(history);
-    expect(trimmed).toEqual([user]);
+  it('removes the entire trailing exchange when even one parallel result is missing', () => {
+    const settled = [userMessage('first'), assistantWithToolCalls('closed'), toolResult('closed', 'ok')];
+    const latestUser = userMessage('run two more');
+    const history = [
+      ...settled,
+      latestUser,
+      assistantWithToolCalls('one', 'two'),
+      toolResult('two', 'done'),
+    ];
+    expect(trimTrailingOpenToolExchange(history)).toEqual([...settled, latestUser]);
+    expect(history).toHaveLength(6);
   });
 
-  it('trims only when at least one tool call id is missing from the trailing tool results', () => {
-    const user = userMessage('hi');
-    const assistant = {
-      role: 'assistant',
-      content: [],
-      toolCalls: [
-        { id: '1', type: 'function', function: { name: 'a', arguments: '{}' } },
-        { id: '2', type: 'function', function: { name: 'b', arguments: '{}' } },
-      ],
-    } as AnyMessage;
-    const onlyOneClosed = toolResult('1', 'r1');
-    const history = [user, assistant, onlyOneClosed];
-    const trimmed = trimTrailingOpenToolExchange(history);
-    expect(trimmed).toEqual([user]);
+  it('does not treat an unrelated result as closing the pending call', () => {
+    const user = userMessage('run command');
+    expect(
+      trimTrailingOpenToolExchange([user, assistantWithToolCalls('pending'), toolResult('other', 'ok')]),
+    ).toEqual([user]);
   });
 });

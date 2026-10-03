@@ -1,5 +1,5 @@
 /**
- * Settings → Providers & API — live login / model / search actions (SSOT §9.2).
+ * Settings → Providers & API — live login and model actions.
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -16,8 +16,6 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 import { ttui } from '#/tui/utils/tui-i18n';
 import { handleLoginCommand } from '../../auth/login';
 import { handleModelCommand } from '../model/model';
-import { showSearchSettings } from '../search/search-settings';
-import { SEARCH_PREFER_XAI_TIP } from '../search/search-status';
 import {
   applyXaiGrokRouteToProvider,
   promptXaiGrokRoute,
@@ -27,10 +25,9 @@ import {
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
-export { PROVIDERS_API_KEY_ENVS_TIP, PROVIDERS_LOGIN_TIP, SEARCH_PREFER_XAI_TIP };
+export { PROVIDERS_API_KEY_ENVS_TIP, PROVIDERS_LOGIN_TIP };
 
 interface ProvidersSessionSnapshot {
-  readonly webSearchActive?: boolean;
   readonly session: ReturnType<typeof resolveProvidersApiSessionGlance>;
 }
 
@@ -47,14 +44,10 @@ async function loadProvidersSessionSnapshot(
     catalogModels,
     catalogProviders,
   });
-  let webSearchActive: boolean | undefined;
 
   try {
     const live = host.requireSession();
-    const [status, tools] = await Promise.all([
-      live.getStatus(),
-      typeof live.getTools === 'function' ? live.getTools() : Promise.resolve([]),
-    ]);
+    const status = await live.getStatus();
 
     session = resolveProvidersApiSessionGlance({
       statusModel: status.model,
@@ -64,7 +57,6 @@ async function loadProvidersSessionSnapshot(
       catalogModels,
       catalogProviders,
     });
-    webSearchActive = tools.some((tool) => tool.name === 'WebSearch' && tool.active);
   } catch {
     session = resolveProvidersApiSessionGlance({
       appStateModel: appState.model,
@@ -75,7 +67,7 @@ async function loadProvidersSessionSnapshot(
     });
   }
 
-  return { webSearchActive, session };
+  return { session };
 }
 
 export function showProvidersApiSettings(host: SlashCommandHost): void {
@@ -117,11 +109,6 @@ async function openProvidersApiSettings(host: SlashCommandHost): Promise<void> {
       label: 'Change model…',
       description: 'Open the model picker for the active session.',
     },
-    {
-      value: 'search',
-      label: 'Search channels…',
-      description: 'Prefer xAI · browser · free fallback · strategy pickers.',
-    },
   ];
   if (xaiConfigured) {
     options.splice(2, 0, {
@@ -153,10 +140,6 @@ async function openProvidersApiSettings(host: SlashCommandHost): Promise<void> {
         }
         if (value === 'model') {
           void handleModelCommand(host, '');
-          return;
-        }
-        if (value === 'search') {
-          showSearchSettings(host);
           return;
         }
       },
@@ -196,7 +179,6 @@ async function showProvidersApiSettingsPanel(host: SlashCommandHost): Promise<vo
       [
         ...buildProvidersApiSettingsLines({
           ...loadProvidersApiGlance(process.env),
-          webSearchActive: snapshot.webSearchActive,
           session: snapshot.session,
         }),
       ],

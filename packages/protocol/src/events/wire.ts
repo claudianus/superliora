@@ -24,23 +24,12 @@ import {
   runtimeDegradedEventSchema,
   type RuntimeDegradedEvent,
 } from './runtime';
-import { goalUpdatedEventSchema, type GoalUpdatedEvent } from './goal';
 import {
   jobInboxEventSchema,
   jobUpdatedEventSchema,
   type JobInboxEvent,
   type JobUpdatedEvent,
 } from './job';
-import {
-  cronFiredEventSchema,
-  pluginCommandActivatedEventSchema,
-  skillActivatedEventSchema,
-  skillCreatedEventSchema,
-  type CronFiredEvent,
-  type PluginCommandActivatedEvent,
-  type SkillActivatedEvent,
-  type SkillCreatedEvent,
-} from './origin';
 import {
   configChangedEventSchema,
   modelCatalogChangedEventSchema,
@@ -64,10 +53,7 @@ import {
   subagentFailedEventSchema,
   subagentProgressEventSchema,
   subagentSpawnedEventSchema,
-  subagentStalledEventSchema,
   subagentStartedEventSchema,
-  subagentSuspendedEventSchema,
-  subagentTodoUpdatedEventSchema,
   subagentToolCallEventSchema,
   subagentToolProgressEventSchema,
   subagentToolResultEventSchema,
@@ -75,54 +61,41 @@ import {
   type SubagentFailedEvent,
   type SubagentProgressEvent,
   type SubagentSpawnedEvent,
-  type SubagentStalledEvent,
   type SubagentStartedEvent,
-  type SubagentSuspendedEvent,
-  type SubagentTodoUpdatedEvent,
   type SubagentToolCallEvent,
   type SubagentToolProgressEvent,
   type SubagentToolResultEvent,
 } from './subagent';
 import {
-  mcpServerStatusEventSchema,
   shellOutputEventSchema,
   shellStartedEventSchema,
   toolCallDeltaEventSchema,
   toolCallStartedEventSchema,
-  toolListUpdatedEventSchema,
   toolProgressEventSchema,
   toolResultEventSchema,
-  toolsUpdateStoreEventSchema,
-  type McpServerStatusEvent,
   type ShellOutputEvent,
   type ShellStartedEvent,
   type ToolCallDeltaEvent,
   type ToolCallStartedEvent,
-  type ToolListUpdatedEvent,
   type ToolProgressEvent,
   type ToolResultEvent,
-  type ToolsUpdateStoreEvent,
 } from './tool';
 import {
   assistantDeltaEventSchema,
-  hookResultEventSchema,
   promptSubmittedEventSchema,
   thinkingDeltaEventSchema,
   turnEndedEventSchema,
   turnStartedEventSchema,
   turnStepCompletedEventSchema,
   turnStepInterruptedEventSchema,
-  turnStepRetryingEventSchema,
   turnStepStartedEventSchema,
   type AssistantDeltaEvent,
-  type HookResultEvent,
   type PromptSubmittedEvent,
   type ThinkingDeltaEvent,
   type TurnEndedEvent,
   type TurnStartedEvent,
   type TurnStepCompletedEvent,
   type TurnStepInterruptedEvent,
-  type TurnStepRetryingEvent,
   type TurnStepStartedEvent,
 } from './turn';
 
@@ -138,20 +111,14 @@ export type AgentEvent =
   | SessionStatusChangedEvent
   | ConfigChangedEvent
   | ModelCatalogChangedEvent
-  | GoalUpdatedEvent
   | JobUpdatedEvent
   | JobInboxEvent
-  | SkillActivatedEvent
-  | SkillCreatedEvent
-  | PluginCommandActivatedEvent
   | TurnStartedEvent
   | TurnEndedEvent
   | TurnStepStartedEvent
   | TurnStepCompletedEvent
-  | TurnStepRetryingEvent
   | TurnStepInterruptedEvent
   | AssistantDeltaEvent
-  | HookResultEvent
   | ThinkingDeltaEvent
   | ToolCallDeltaEvent
   | ToolCallStartedEvent
@@ -159,20 +126,14 @@ export type AgentEvent =
   | ShellOutputEvent
   | ShellStartedEvent
   | ToolResultEvent
-  | ToolListUpdatedEvent
-  | McpServerStatusEvent
   | SubagentSpawnedEvent
   | SubagentStartedEvent
-  | SubagentSuspendedEvent
   | SubagentProgressEvent
-  | SubagentStalledEvent
   | SubagentToolCallEvent
   | SubagentToolResultEvent
   | SubagentToolProgressEvent
   | SubagentCompletedEvent
   | SubagentFailedEvent
-  | SubagentTodoUpdatedEvent
-  | ToolsUpdateStoreEvent
   | CompactionStartedEvent
   | CompactionBlockedEvent
   | CompactionCancelledEvent
@@ -180,7 +141,6 @@ export type AgentEvent =
   | CompactionProgressEvent
   | BackgroundTaskStartedEvent
   | BackgroundTaskTerminatedEvent
-  | CronFiredEvent
   | PromptSubmittedEvent
   | RuntimeDegradedEvent;
 
@@ -196,21 +156,16 @@ const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   workspaceUpdatedEventSchema,
   workspaceDeletedEventSchema,
   sessionStatusChangedEventSchema,
+  configChangedEventSchema,
   modelCatalogChangedEventSchema,
-  goalUpdatedEventSchema,
   jobUpdatedEventSchema,
   jobInboxEventSchema,
-  skillActivatedEventSchema,
-  skillCreatedEventSchema,
-  pluginCommandActivatedEventSchema,
   turnStartedEventSchema,
   turnEndedEventSchema,
   turnStepStartedEventSchema,
   turnStepCompletedEventSchema,
-  turnStepRetryingEventSchema,
   turnStepInterruptedEventSchema,
   assistantDeltaEventSchema,
-  hookResultEventSchema,
   thinkingDeltaEventSchema,
   toolCallDeltaEventSchema,
   toolCallStartedEventSchema,
@@ -218,20 +173,14 @@ const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   shellOutputEventSchema,
   shellStartedEventSchema,
   toolResultEventSchema,
-  toolListUpdatedEventSchema,
-  mcpServerStatusEventSchema,
   subagentSpawnedEventSchema,
   subagentStartedEventSchema,
-  subagentSuspendedEventSchema,
   subagentProgressEventSchema,
-  subagentStalledEventSchema,
   subagentToolCallEventSchema,
   subagentToolResultEventSchema,
   subagentToolProgressEventSchema,
   subagentCompletedEventSchema,
   subagentFailedEventSchema,
-  subagentTodoUpdatedEventSchema,
-  toolsUpdateStoreEventSchema,
   compactionStartedEventSchema,
   compactionBlockedEventSchema,
   compactionCancelledEventSchema,
@@ -239,7 +188,6 @@ const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   compactionProgressEventSchema,
   backgroundTaskStartedEventSchema,
   backgroundTaskTerminatedEventSchema,
-  cronFiredEventSchema,
   promptSubmittedEventSchema,
   runtimeDegradedEventSchema,
 ]);
@@ -274,8 +222,6 @@ export const VOLATILE_EVENT_TYPES = [
   'shell.output',
   'shell.started',
   'agent.status.updated',
-  'subagent.todo.updated',
-  'tools.update_store',
   'compaction.progress',
   'runtime.degraded',
 ] as const satisfies readonly AgentEvent['type'][];

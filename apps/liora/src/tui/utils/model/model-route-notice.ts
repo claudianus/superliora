@@ -150,15 +150,6 @@ export function decideModelRouteSurface(input: {
     return { kind: 'none', toAlias, credentialChanged: false };
   }
 
-  // Virtual smart-auto pin resolving to a concrete alias is a selection, not failover.
-  if (sessionModel.trim().toLowerCase() === 'auto') {
-    return {
-      kind: 'selection',
-      fromAlias: sessionModel,
-      toAlias,
-      credentialChanged: false,
-    };
-  }
 
   const sessionIdentity = resolveModelRouteIdentity(sessionModel, availableModels);
   if (isSameEffectiveModel(sessionIdentity, toIdentity)) {

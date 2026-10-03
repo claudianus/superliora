@@ -114,7 +114,6 @@ export const DEFAULT_PROMPT_CONTROLS = {
   model: 'kimi-code/kimi-for-coding',
   thinking: 'off' as PromptThinking,
   permission_mode: 'manual' as PromptPermissionMode,
-  plan_mode: false,
 } as const;
 
 /**
@@ -125,7 +124,7 @@ export const DEFAULT_PROMPT_CONTROLS = {
  */
 export type PromptSubmitInput =
   Pick<PromptSubmission, 'content'>
-  & Partial<Pick<PromptSubmission, 'metadata' | 'model' | 'thinking' | 'permission_mode' | 'plan_mode'>>;
+  & Partial<Pick<PromptSubmission, 'metadata' | 'model' | 'thinking' | 'permission_mode'>>;
 
 export interface TerminalAttachOptions {
   sinceSeq?: number;

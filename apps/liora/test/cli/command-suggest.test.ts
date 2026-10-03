@@ -23,11 +23,11 @@ describe('suggestSimilarCommand', () => {
 
   it('ignores exact matches and hidden plumbing commands', () => {
     const visible = commands('server');
-    const hidden = new Command('__plugin_run_node');
+    const hidden = new Command('__internal');
     (hidden as unknown as { _hidden: boolean })._hidden = true;
     expect(suggestSimilarCommand('server', [visible[0]!])).toBeUndefined();
     // Close to the hidden command only → do not leak plumbing into UX.
-    expect(suggestSimilarCommand('__plugin_run_nod', [visible[0]!, hidden])).toBeUndefined();
+    expect(suggestSimilarCommand('__interna', [visible[0]!, hidden])).toBeUndefined();
   });
 
   it('matches aliases', () => {

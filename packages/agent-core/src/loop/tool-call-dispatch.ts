@@ -19,8 +19,6 @@ export async function dispatchToolCall(
   displayFields?: ToolCallDisplayFields | undefined,
 ): Promise<void> {
   const { toolCall, toolName } = call;
-  // Track call patterns for loop stagnation detection.
-  step.guards.trackToolCallPattern(toolName, args, step.log);
   await step.dispatchEvent({
     type: 'tool.call',
     uuid: toolCall.id,

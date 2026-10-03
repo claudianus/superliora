@@ -3,6 +3,8 @@ import os from 'node:os';
 
 import { Disposable, registerSingleton, SyncDescriptor } from '../../di';
 import type { IDisposable } from '../../di';
+import { log } from '../../logging/logger';
+import { registerSessionWorktreeOwnershipGuard, sessionWorktreeContainsPath } from '../../session/worktree';
 import type {
   CreateTerminalRequest,
   Terminal,
@@ -37,7 +39,10 @@ interface TerminalRecord {
   buffer: TerminalFrame[];
   nextSeq: number;
   disposables: IDisposable[];
-  closed: boolean;
+  stopping: boolean;
+  settled: Promise<void>;
+  settle: () => void;
+  stopFailure?: { error: unknown };
 }
 
 export class TerminalService extends Disposable implements ITerminalService {
@@ -49,6 +54,9 @@ export class TerminalService extends Disposable implements ITerminalService {
   private readonly defaultRows: number;
   private readonly maxBufferedFrames: number;
   private readonly records = new Map<string, TerminalRecord>();
+  private readonly pendingCreates = new Set<Promise<Terminal>>();
+  private closing = false;
+  private shutdownPromise: Promise<void> | undefined;
 
   constructor(
     options: TerminalServiceOptions = {},
@@ -60,9 +68,28 @@ export class TerminalService extends Disposable implements ITerminalService {
     this.defaultCols = options.defaultCols ?? DEFAULT_COLS;
     this.defaultRows = options.defaultRows ?? DEFAULT_ROWS;
     this.maxBufferedFrames = options.maxBufferedFrames ?? DEFAULT_MAX_BUFFERED_FRAMES;
+    this._register({
+      dispose: registerSessionWorktreeOwnershipGuard((path) => {
+        for (const record of this.records.values()) {
+          if (record.terminal.status !== 'exited' && sessionWorktreeContainsPath(path, record.terminal.cwd)) return true;
+        }
+        return false;
+      }),
+    });
   }
 
-  async create(sessionId: string, input: CreateTerminalRequest): Promise<Terminal> {
+  create(sessionId: string, input: CreateTerminalRequest): Promise<Terminal> {
+    if (this.closing) {
+      return Promise.reject(new Error('TerminalService has been disposed'));
+    }
+    const creation = this.createTerminal(sessionId, input).finally(() => {
+      this.pendingCreates.delete(creation);
+    });
+    this.pendingCreates.add(creation);
+    return creation;
+  }
+
+  private async createTerminal(sessionId: string, input: CreateTerminalRequest): Promise<Terminal> {
     const session = await this.sessionService.get(sessionId);
     const cwd =
       input.cwd === undefined
@@ -72,6 +99,7 @@ export class TerminalService extends Disposable implements ITerminalService {
     const cols = input.cols ?? this.defaultCols;
     const rows = input.rows ?? this.defaultRows;
     const process = await this.backend.spawn({ cwd, shell, cols, rows });
+    const settlement = Promise.withResolvers<void>();
     const terminal: Terminal = {
       id: `term_${ulid()}`,
       session_id: sessionId,
@@ -89,14 +117,20 @@ export class TerminalService extends Disposable implements ITerminalService {
       buffer: [],
       nextSeq: 0,
       disposables: [],
-      closed: false,
+      stopping: false,
+      settled: settlement.promise,
+      settle: settlement.resolve,
     };
     record.disposables.push(
       process.onData((data) =>{  this.onData(record, data); }),
       process.onExit((event) =>{  this.onExit(record, event.exitCode); }),
     );
     this.records.set(recordKey(sessionId, terminal.id), record);
-    return { ...terminal };
+    if (this.closing) {
+      this.requestStop(record);
+      await record.settled;
+    }
+    return { ...record.terminal };
   }
 
   async list(sessionId: string): Promise<readonly Terminal[]> {
@@ -138,6 +172,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 
   async write(sessionId: string, terminalId: string, data: string): Promise<void> {
     const record = await this.requireRecord(sessionId, terminalId);
+    if (this.closing || record.stopping) {
+      throw new Error('TerminalService is shutting down this terminal');
+    }
     record.process.write(data);
   }
 
@@ -148,30 +185,59 @@ export class TerminalService extends Disposable implements ITerminalService {
     rows: number,
   ): Promise<void> {
     const record = await this.requireRecord(sessionId, terminalId);
+    if (this.closing || record.stopping) {
+      throw new Error('TerminalService is shutting down this terminal');
+    }
     record.terminal = { ...record.terminal, cols, rows };
     record.process.resize(cols, rows);
   }
 
   async close(sessionId: string, terminalId: string): Promise<{ closed: true }> {
     const record = await this.requireRecord(sessionId, terminalId);
-    if (!record.closed) {
-      record.closed = true;
-      record.process.kill();
-      this.markExited(record, null);
-    }
+    this.requestStop(record);
+    await record.settled;
     return { closed: true };
   }
 
-  override dispose(): void {
-    for (const record of this.records.values()) {
-      disposeAll(record.disposables);
-      try {
-        record.process.kill();
-      } catch {
-      }
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise !== undefined) return this.shutdownPromise;
+    this.closing = true;
+    const completion = Promise.withResolvers<void>();
+    this.shutdownPromise = completion.promise;
+    void this.shutdownNative().then(completion.resolve, completion.reject);
+    return this.shutdownPromise;
+  }
+
+  private async shutdownNative(): Promise<void> {
+    const exits = Array.from(this.records.values(), async (record) => {
+      this.requestStop(record);
+      await record.settled;
+    });
+    const results = await Promise.allSettled([...exits, ...this.pendingCreates]);
+    const failures = results.filter((result) => result.status === 'rejected');
+    if (failures.length > 0) {
+      throw new AggregateError(failures.map((result) => result.reason), 'native terminal shutdown failed');
     }
     this.records.clear();
     super.dispose();
+  }
+
+  override dispose(): void {
+    void this.shutdown().catch((error: unknown) => {
+      log.error('native terminal shutdown failed', { error });
+    });
+  }
+
+  private requestStop(record: TerminalRecord): void {
+    if (record.stopFailure !== undefined) throw record.stopFailure.error;
+    if (record.stopping || record.terminal.status === 'exited') return;
+    record.stopping = true;
+    try {
+      record.process.kill();
+    } catch (error) {
+      record.stopFailure = { error };
+      throw error;
+    }
   }
 
   private async requireRecord(
@@ -199,12 +265,8 @@ export class TerminalService extends Disposable implements ITerminalService {
   }
 
   private onExit(record: TerminalRecord, exitCode: number | null): void {
-    this.markExited(record, exitCode);
-  }
-
-  private markExited(record: TerminalRecord, exitCode: number | null): void {
     if (record.terminal.status === 'exited') return;
-    record.closed = true;
+    record.stopping = true;
     record.terminal = {
       ...record.terminal,
       status: 'exited',
@@ -218,9 +280,13 @@ export class TerminalService extends Disposable implements ITerminalService {
       timestamp: new Date().toISOString(),
       payload: { exit_code: exitCode },
     };
-    this.pushFrame(record, frame);
-    disposeAll(record.disposables);
-    record.disposables = [];
+    try {
+      this.pushFrame(record, frame);
+    } finally {
+      disposeAll(record.disposables);
+      record.disposables = [];
+      record.settle();
+    }
   }
 
   private pushFrame(record: TerminalRecord, frame: TerminalFrame): void {
@@ -247,10 +313,10 @@ export class NodePtyTerminalBackend implements TerminalBackend {
     return {
       onData: (listener) => proc.onData(listener),
       onExit: (listener) =>
-        proc.onExit((event) => listener({ exitCode: event.exitCode })),
+        proc.onExit((event) => listener({ exitCode: event.signal ? null : event.exitCode })),
       write: (data) =>{  proc.write(data); },
       resize: (cols, rows) =>{  proc.resize(cols, rows); },
-      kill: () =>{  proc.kill(); },
+      kill: () =>{  proc.kill('SIGKILL'); },
     };
   }
 }

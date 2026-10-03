@@ -1,7 +1,6 @@
 import type { LioraHarness, PromptPart, Session } from '@superliora/sdk';
 
 import {  LLM_NOT_SET_MESSAGE, MAIN_AGENT_ID } from '../../constant/liora-tui';
-import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
 import { slashBusyMessage } from '../../commands/hub/resolve';
 import type { ColorToken } from '../../theme';
 import type { AppState, QueuedMessage, TranscriptEntry } from '../../types';
@@ -13,7 +12,7 @@ import {
 } from '../../utils/prompt-input-state';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
-import { extractMediaAttachments } from '../../utils/image/image-placeholder';
+import { extractMediaAttachments, type ExtractionResult } from '../../utils/image/image-placeholder';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import {
   combineQueuedPrefixLen,
@@ -21,11 +20,6 @@ import {
   stampCombinedDisplayTexts,
   type CombineQueuedGate,
 } from '../../features/transcript/combine-queued';
-import {
-  askUserQuestionTemplateForIncompleteBrief,
-  attachStructuredBrief,
-  intentBriefIncompleteForGreenfield,
-} from '../../utils/job/intent-brief';
 import { ttui } from '../../utils/tui-i18n';
 import type { PromptStash } from '../../utils/prompt-stash';
 import type { BtwPanelController } from '../panes/btw-panel';
@@ -60,14 +54,11 @@ export interface MessageDispatchHost extends PromptInputRuntimeHost {
   runShellCommandFromInput(command: string): void;
   updateQueueDisplay(): void;
   dispatchSlashInput(text: string): void;
-  readonly appStateController: { supportsCurrentModelCapability(capability: string): boolean };
   beginSessionRequest(): void;
   failSessionRequest(message: string): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   track(event: string, properties?: Parameters<LioraHarness['track']>[1]): void;
   updateEditorBorderHighlight?(text?: string): void;
-  /** V3-1 latency window start; the job desk closes it on the first job event. */
-  readonly controlTowerDesk: { markInputSubmitted(): void };
 }
 
 /**
@@ -165,6 +156,10 @@ export class MessageDispatchController {
     if (host.state.appState.isReplaying) {
       // Replay viewing has no live session to submit to. Keep the busy error,
       // but hand the draft back — the editor already cleared on submit.
+      if (wasBashMode) {
+        host.state.editor.inputMode = 'bash';
+        host.handleInputModeChange('bash');
+      }
       this.restoreRejectedDraft(text);
       host.showError(ttui('tui.sessionLoading.busy'));
       return;
@@ -197,23 +192,18 @@ export class MessageDispatchController {
       host.showError(LLM_NOT_SET_MESSAGE());
       return;
     }
-    const extraction = extractMediaAttachments(text, host.imageStore);
-    if (!this.validateMediaCapabilities(extraction)) {
+    let extraction: ExtractionResult;
+    try {
+      extraction = extractMediaAttachments(text, host.imageStore);
+    } catch (error) {
       this.restoreRejectedDraft(text);
+      host.showError(formatErrorMessage(error));
       return;
     }
     const session = host.session;
     if (session === undefined) {
       this.restoreRejectedDraft(text);
       host.showError(LLM_NOT_SET_MESSAGE());
-      return;
-    }
-
-    // Conductor UX v2: Intent Composer brief → hotfix jobCreate or structured prefix.
-    const briefSend = this.maybeSendWithIntentBrief(session, text, options?.displayText);
-    if (briefSend) {
-      host.updateQueueDisplay();
-      requestTUIContentRender(host.state);
       return;
     }
 
@@ -231,80 +221,6 @@ export class MessageDispatchController {
     requestTUIContentRender(host.state);
   }
 
-  /**
-   * When Intent Composer has fields and conductor_ux_v2 is on:
-   * - hotfix → session.jobCreate with structured brief (skip Conductor prompt)
-   * - otherwise → attach structured brief prefix to the prompt
-   * Returns true when the send was fully handled here.
-   */
-  private maybeSendWithIntentBrief(
-    session: Session,
-    text: string,
-    displayText: string | undefined,
-  ): boolean {
-    if (!isConductorUxV2Enabled()) return false;
-    const composer = this.host.state.intentComposer;
-    if (composer === undefined || !composer.hasFields()) return false;
-    const fields = composer.getFields();
-    const mode = this.host.state.appState.conductorProjectMode ?? 'balanced';
-    const shown = displayText ?? text;
-
-    if (mode === 'greenfield' && intentBriefIncompleteForGreenfield(fields)) {
-      const template = askUserQuestionTemplateForIncompleteBrief(fields);
-      const prompt = [
-        template,
-        '',
-        'User idea:',
-        text,
-        '',
-        'Use AskUserQuestion to collect the missing brief fields, then JobCreate with delivery_mode=greenfield (and greenfield_chain when appropriate). Do not spawn a guesser.',
-      ].join('\n');
-      this.sendMessage(session, prompt, { displayText: shown });
-      return true;
-    }
-
-    if (mode === 'hotfix') {
-      const title = text.trim().split('\n')[0]?.slice(0, 120) || 'Hotfix';
-      void session
-        .jobCreate({
-          title,
-          kind: 'implement',
-          prompt: text,
-          successCriteria: fields.successCriteria,
-          mustNotTouch: fields.mustNotTouch,
-          verificationCommands: fields.verificationCommands,
-          contextPaths: fields.contextPaths,
-        })
-        .then((result) => {
-          this.host.showStatus(
-            result.jobs.length > 0
-              ? `Hotfix job created (${String(result.jobs.length)})`
-              : result.text,
-            'info',
-          );
-          this.host.controlTowerDesk.markInputSubmitted();
-        })
-        .catch((error: unknown) => {
-          this.host.showError(formatErrorMessage(error));
-        });
-      // Echo the user line without prompting the main agent.
-      this.host.appendTranscriptEntry({
-        id: nextTranscriptId(),
-        kind: 'user',
-        turnId: undefined,
-        renderMode: 'plain',
-        content: shown,
-        timestamp: Date.now(),
-      });
-      composer.clearFields();
-      return true;
-    }
-
-    const withBrief = attachStructuredBrief(text, fields);
-    this.sendMessage(session, withBrief, { displayText: shown });
-    composer.clearFields();
-    return true;
-  }
 
   sendQueuedMessage(session: Session, item: QueuedMessage): void {
     const { host } = this;
@@ -322,26 +238,18 @@ export class MessageDispatchController {
     });
   }
 
-  sendSkillActivation(session: Session, skillName: string, skillArgs: string): void {
-    const { host } = this;
-    host.beginSessionRequest();
-    void session.activateSkill(skillName, skillArgs).catch((error: unknown) => {
-      const message = formatErrorMessage(error);
-      host.failSessionRequest(`Skill "${skillName}" failed: ${message}`);
-    });
-  }
 
-  steerMessage(session: Session, input: string[]): void {
+  steerMessage(session: Session, input: string[], options?: SendMessageOptions): void {
     const { host } = this;
     if (host.deferUserMessages || host.state.appState.isCompacting) {
       for (const part of input) {
-        this.enqueueMessage(part);
+        this.enqueueMessage(part, input.length === 1 ? options : undefined);
       }
       return;
     }
     if (host.state.appState.streamingPhase === 'idle') {
       for (const part of input) {
-        this.sendMessageInternal(session, part);
+        this.sendMessageInternal(session, part, input.length === 1 ? options : undefined);
       }
       return;
     }
@@ -352,18 +260,19 @@ export class MessageDispatchController {
         kind: 'user',
         turnId: host.streamingUI.getTurnContext().turnId,
         renderMode: 'plain',
-        content: part,
+        content: options?.displayText ?? part,
+        imageAttachmentIds: options?.imageAttachmentIds,
         timestamp: Date.now(),
       });
     }
 
-    void session.steer(input.join('\n\n')).catch((error: unknown) => {
+    void session.steer(options?.parts ?? input.join('\n\n')).catch((error: unknown) => {
       const message = formatErrorMessage(error);
       host.showError(ttui('tui.transcript.steerFailed', { message }));
       // The queue-drain removed these parts before steer() ran; restore them
       // so a failed steer (network drop, engine error) doesn't eat the text.
       for (const part of input) {
-        this.enqueueMessage(part);
+        this.enqueueMessage(part, input.length === 1 ? options : undefined);
       }
       host.updateQueueDisplay();
     });
@@ -394,15 +303,13 @@ export class MessageDispatchController {
     }
 
     host.beginSessionRequest();
-    // V3-1 latency window start: t0 for input → first JobCreate ACK. The job
-    // desk closes the window when a job event arrives; non-Conductor sessions
-    // simply never produce an ACK sample.
-    host.controlTowerDesk.markInputSubmitted();
 
     const sdkInput = options?.parts ?? input;
     void session.prompt(sdkInput).catch((error: unknown) => {
       const message = formatErrorMessage(error);
       host.failSessionRequest(`Failed to send: ${message}`);
+      this.enqueueMessage(input, options);
+      host.updateQueueDisplay();
     });
   }
 
@@ -415,6 +322,7 @@ export class MessageDispatchController {
     host.state.queuedMessages.push({
       text,
       displayText: options?.displayText,
+      combinedDisplayTexts: options?.combinedDisplayTexts,
       agentId: host.harness.interactiveAgentId,
       parts: options?.parts,
       imageAttachmentIds:
@@ -440,88 +348,6 @@ export class MessageDispatchController {
     this.sendMessageInternal(session, input, options);
   }
 
-  private validateMediaCapabilities(
-    extraction: ReturnType<typeof extractMediaAttachments>,
-  ): boolean {
-    const { host } = this;
-    if (!extraction.hasMedia) return true;
-    const imageUnsupported =
-      extraction.imageAttachmentIds.length > 0 &&
-      !host.appStateController.supportsCurrentModelCapability('image_in');
-    const videoUnsupported =
-      extraction.videoAttachmentIds.length > 0 &&
-      !host.appStateController.supportsCurrentModelCapability('video_in');
-    const fileUnsupported =
-      extraction.fileAttachmentIds.length > 0 &&
-      !host.appStateController.supportsCurrentModelCapability('pdf_in');
-    const audioUnsupported =
-      extraction.audioAttachmentIds.length > 0 &&
-      !host.appStateController.supportsCurrentModelCapability('audio_in');
-    if (!imageUnsupported && !videoUnsupported && !fileUnsupported && !audioUnsupported) {
-      return true;
-    }
-
-    // 'block' keeps the legacy hard error. 'analyze'/'path' send anyway: the
-    // core transforms media (analyzer text or path note) before the model
-    // sees it, so the prompt is never lost.
-    if ((host.state.appState.nonVisionFallbackPolicy ?? 'analyze') === 'block') {
-      host.showError(
-        imageUnsupported
-          ? 'Current model does not support image input.'
-          : videoUnsupported
-            ? 'Current model does not support video input.'
-            : fileUnsupported
-              ? 'Current model does not support PDF input.'
-              : 'Current model does not support audio input.',
-      );
-      return false;
-    }
-    if ((host.state.appState.nonVisionFallbackPolicy ?? 'analyze') === 'analyze') {
-      const wantsKind: 'image' | 'video' | 'pdf' | 'audio' =
-        videoUnsupported && !imageUnsupported
-          ? 'video'
-          : fileUnsupported && !imageUnsupported && !videoUnsupported
-            ? 'pdf'
-            : audioUnsupported && !imageUnsupported && !videoUnsupported && !fileUnsupported
-              ? 'audio'
-              : 'image';
-      const analyzer = this.findVisionAnalyzerModel(wantsKind);
-      if (analyzer !== undefined) {
-        host.showStatus(
-          ttui('tui.media.textOnlyAnalyze', { analyzer }),
-          'success',
-        );
-      }
-    }
-    return true;
-  }
-
-  /**
-   * Catalog heuristic for the pre-send toast: a model capable of the media
-   * kind whose provider entry exists, preferring the current model's provider.
-   * A configured per-kind override (`[media.analyzer_models]`) wins when it is
-   * present and capable. The core makes the authoritative (credential-aware)
-   * selection at send time.
-   */
-  private findVisionAnalyzerModel(kind: 'image' | 'video' | 'pdf' | 'audio'): string | undefined {
-    const models = this.host.state.appState.availableModels;
-    const wanted =
-      kind === 'video' ? 'video_in' : kind === 'pdf' ? 'pdf_in' : kind === 'audio' ? 'audio_in' : 'image_in';
-    const currentProvider = models[this.host.state.appState.model]?.provider;
-    const configured = this.host.state.appState.mediaAnalyzerModels?.[kind]?.trim();
-    if (configured !== undefined && configured.length > 0) {
-      const overrideEntry = models[configured];
-      if (overrideEntry?.capabilities?.includes(wanted) === true) return configured;
-    }
-    let first: string | undefined;
-    for (const alias of Object.keys(models).toSorted()) {
-      const entry = models[alias];
-      if (entry?.capabilities?.includes(wanted) !== true) continue;
-      if (currentProvider !== undefined && entry.provider === currentProvider) return alias;
-      first ??= alias;
-    }
-    return first;
-  }
 }
 
 function queuedMessageToCombineGate(message: QueuedMessage): CombineQueuedGate {
@@ -529,21 +355,28 @@ function queuedMessageToCombineGate(message: QueuedMessage): CombineQueuedGate {
   const expanded =
     message.displayText !== undefined && message.displayText.trim() !== message.text.trim();
   return {
+    agentId: message.agentId,
     isPlainPrompt: message.mode !== 'bash' && !expanded,
     isBash: message.mode === 'bash',
-    hasImages: (message.imageAttachmentIds?.length ?? 0) > 0,
-    isExpandedSkill: expanded,
+    hasImages: (message.imageAttachmentIds?.length ?? 0) > 0 || message.parts !== undefined,
+    isExpandedPrompt: expanded,
     text,
   };
 }
 
 function joinQueuedMessages(messages: readonly QueuedMessage[]): QueuedMessage {
   const first = messages[0]!;
-  const segs = messages.map((message) => message.displayText ?? message.text);
+  const segs = messages.flatMap((message) => message.combinedDisplayTexts ?? [message.displayText ?? message.text]);
   return {
     ...first,
     text: joinQueuedTexts(messages.map((message) => message.text)),
     displayText: joinQueuedTexts(segs),
+    parts: messages.some((message) => message.parts !== undefined)
+      ? messages.flatMap((message, index): PromptPart[] => [
+          ...(index === 0 ? [] : [{ type: 'text' as const, text: '\n\n' }]),
+          ...(message.parts ?? [{ type: 'text' as const, text: message.text }]),
+        ])
+      : undefined,
     combinedDisplayTexts: stampCombinedDisplayTexts(segs),
   };
 }

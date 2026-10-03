@@ -19,9 +19,8 @@ async function main(): Promise<void> {
     defaultModel: 'kimi-code/kimi-for-coding',
     defaultThinking: true,
     defaultPermissionMode: 'manual',
-    defaultPlanMode: false,
     providers: {
-      'managed:kimi-code': {
+      'managed:kimi-api': {
         type: 'kimi',
         baseUrl: 'https://api.kimi.com/coding/v1',
         apiKey: '',
@@ -30,29 +29,11 @@ async function main(): Promise<void> {
     },
     models: {
       'kimi-code/kimi-for-coding': {
-        provider: 'managed:kimi-code',
+        provider: 'managed:kimi-api',
         model: 'kimi-for-coding',
         maxContextSize: 262144,
         capabilities: ['image_in', 'thinking', 'video_in'],
         displayName: 'Kimi for Coding',
-      },
-    },
-    loopControl: {
-      maxRetriesPerStep: 3,
-      maxRalphIterations: 0,
-      reservedContextSize: 50000,
-      compactionTriggerRatio: 0.85,
-    },
-    services: {
-      moonshotSearch: {
-        baseUrl: 'https://api.kimi.com/coding/v1/search',
-        apiKey: '',
-        oauth: { storage: 'file', key: 'oauth/kimi-code' },
-      },
-      moonshotFetch: {
-        baseUrl: 'https://api.kimi.com/coding/v1/fetch',
-        apiKey: '',
-        oauth: { storage: 'file', key: 'oauth/kimi-code' },
       },
     },
   });
@@ -62,10 +43,9 @@ async function main(): Promise<void> {
   for (const expected of [
     'default_model = "kimi-code/kimi-for-coding"',
     'default_permission_mode = "manual"',
-    '[providers."managed:kimi-code"]',
-    '[providers."managed:kimi-code".oauth]',
+    '[providers."managed:kimi-api"]',
+    '[providers."managed:kimi-api".oauth]',
     '[models."kimi-code/kimi-for-coding"]',
-    '[services.moonshot_search]',
   ]) {
     if (!text.includes(expected)) {
       throw new Error(`missing ${expected} in written config`);
@@ -76,7 +56,7 @@ async function main(): Promise<void> {
   if (reloaded.defaultModel !== 'kimi-code/kimi-for-coding') {
     throw new Error('reloaded config did not preserve defaultModel');
   }
-  if (reloaded.providers['managed:kimi-code']?.oauth?.key !== 'oauth/kimi-code') {
+  if (reloaded.providers['managed:kimi-api']?.oauth?.key !== 'oauth/kimi-code') {
     throw new Error('reloaded config did not preserve provider oauth');
   }
 

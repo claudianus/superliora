@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { FanoutHost, FanoutSpec, FanoutTask } from '#/fleet';
-import {
-  baseRunOptions,
-  runOptionsForTask,
-  spawnAgents,
-  spawnOneAgent,
-  spawnOptionsForTask,
-} from '#/fleet';
+import { spawnAgents } from '#/fleet';
 
 interface RecordedCall {
   readonly kind: 'spawn' | 'resume';
@@ -25,10 +19,13 @@ function fakeHost(): { calls: RecordedCall[] } & FanoutHost {
       calls.push({ kind: 'spawn', options: options as unknown as Record<string, unknown> });
       return {
         agentId: `agent-${String(seq)}`,
-        profileName: options.profileName,
+        profileName: 'agent',
         resumed: false,
-        completion: Promise.resolve('done'),
-      } as never;
+        completion: Promise.resolve({
+          status: 'completed' as const, result: 'done', filesChanged: [],
+          context: { agentId: `agent-${String(seq)}`, contextTokens: 0 },
+        }),
+      };
     },
     resume: async (agentId, options) => {
       calls.push({
@@ -38,21 +35,22 @@ function fakeHost(): { calls: RecordedCall[] } & FanoutHost {
       });
       return {
         agentId,
-        profileName: 'coder',
+        profileName: 'agent',
         resumed: true,
-        completion: Promise.resolve('done'),
-      } as never;
+        completion: Promise.resolve({
+          status: 'completed' as const, result: 'done', filesChanged: [],
+          context: { agentId, contextTokens: 0 },
+        }),
+      };
     },
   };
 }
 
 function makeSpec(tasks: readonly FanoutTask[]): FanoutSpec {
   return {
-    mode: 'manual',
     parentToolCallId: 'call-1',
     runInBackground: false,
     signal: new AbortController().signal,
-    contractPath: 'src/contract.ts',
     timeoutMs: 60_000,
     tasks,
   };
@@ -61,33 +59,14 @@ function makeSpec(tasks: readonly FanoutTask[]): FanoutSpec {
 const sampleTask: FanoutTask = {
   prompt: 'Do the work',
   description: 'work',
-  profileName: 'coder',
+  profileName: 'agent',
   ownership: ['src/a.ts'],
 };
 
 describe('fan-out primitive', () => {
-  it('derives shared run options from the spec', () => {
-    const base = baseRunOptions(makeSpec([]));
-    expect(base).toMatchObject({
-      parentToolCallId: 'call-1',
-      runInBackground: false,
-      contractPath: 'src/contract.ts',
-      timeoutMs: 60_000,
-    });
-    expect(base.signal).toBeInstanceOf(AbortSignal);
-  });
 
-  it('maps a task to run and spawn options', () => {
-    const spec = makeSpec([sampleTask]);
-    expect(runOptionsForTask(spec, sampleTask)).toMatchObject({
-      prompt: 'Do the work',
-      description: 'work',
-      ownership: ['src/a.ts'],
-    });
-    expect(spawnOptionsForTask(spec, sampleTask)).toMatchObject({ profileName: 'coder' });
-  });
 
-  it('routes resume tasks by agent id and spawn tasks by profile', async () => {
+  it('routes resume tasks by agent id and launches new workers otherwise', async () => {
     const host = fakeHost();
     const spec = makeSpec([sampleTask, { ...sampleTask, resumeAgentId: 'agent-9' }]);
 
@@ -99,10 +78,4 @@ describe('fan-out primitive', () => {
     expect(handles[1]?.resumed).toBe(true);
   });
 
-  it('spawnOneAgent launches a single task through the same wiring', async () => {
-    const host = fakeHost();
-    const handle = await spawnOneAgent(host, makeSpec([sampleTask]), sampleTask);
-    expect(handle.agentId).toBe('agent-1');
-    expect(host.calls).toHaveLength(1);
-  });
 });

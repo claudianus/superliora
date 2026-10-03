@@ -87,8 +87,8 @@ export interface PromptAbortResult {
 
 /**
  * Partial bag of runtime controls accepted by `applyAgentState`. Mirrors the
- * four fields the per-session shadow tracks (`model`, `thinking`,
- * `permission_mode`, `plan_mode`) on protocol's wire vocabulary. Every key is
+ * native fields the per-session shadow tracks (`model`, `thinking`,
+ * `permission_mode`) on protocol's wire vocabulary. Every key is
  * optional: only present keys diff-dispatch a setter.
  *
  * Used by both `PromptService.submit` (when the caller carries per-turn
@@ -99,9 +99,6 @@ export interface AgentStatePatch {
   model?: string;
   thinking?: string;
   permission_mode?: string;
-  plan_mode?: boolean;
-  goal_objective?: string;
-  goal_control?: 'pause' | 'resume' | 'cancel';
 }
 
 /**
@@ -132,10 +129,6 @@ export interface IPromptService {
    */
   submit(sid: string, body: PromptSubmission): Promise<PromptSubmitResult>;
 
-  /**
-   * Start a BTW side-channel agent for a session. Returns the forked agent id;
-   * callers submit follow-up prompts with `PromptSubmission.agent_id`.
-   */
   startBtw(sid: string): Promise<string>;
 
   /**
@@ -175,7 +168,7 @@ export interface IPromptService {
    * If `IPromptService` has an active prompt, this delegates to `abort()` so
    * the normal synthetic `prompt.aborted` event is emitted. Otherwise it calls
    * `core.rpc.cancel({ sessionId, agentId: 'main' })` without a `turnId`, which
-   * cancels any active agent-core turn (including skill activations).
+   * requests cancellation of any active agent-core turn.
    *
    * Returns `{ aborted: true }` when a cancel RPC was issued, `{ aborted: false }`
    * when the session was idle. Throws `SessionNotFoundError` (→ 40401) for
@@ -342,7 +335,7 @@ export interface SyntheticPromptSteeredEvent {
 }
 
 /**
- * Per-session shadow of the four stateless prompt controls. Exposed
+ * Per-session shadow of native runtime prompt controls. Exposed
  * via `PromptService._agentStateForTest(sid)` for debug-only routes
  * and unit tests; not part of the day-to-day surface.
  */
@@ -350,7 +343,6 @@ export interface AgentStateSnapshot {
   model?: string;
   thinking?: string;
   permissionMode?: string;
-  planMode?: boolean;
 }
 
 /**
@@ -368,15 +360,7 @@ export interface PromptDispatchLogEntry {
   readonly kind:
     | 'setModel'
     | 'setThinking'
-    | 'setPermission'
-    | 'enterPlan'
-    | 'cancelPlan'
-    | 'enterSwarm'
-    | 'exitSwarm'
-    | 'createGoal'
-    | 'pauseGoal'
-    | 'resumeGoal'
-    | 'cancelGoal';
+    | 'setPermission';
   /** Verbatim payload passed to the setter (sessionId redacted by caller if needed). */
   readonly payload: Record<string, unknown>;
   /**

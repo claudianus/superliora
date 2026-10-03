@@ -1,7 +1,4 @@
 import type {
-  GoalChange,
-  GoalSnapshot,
-  MediaAnalyzerModelsConfig,
   ModelAlias,
   PermissionMode,
   ProviderRouteSelection,
@@ -19,13 +16,11 @@ import type { ConductorJobsSnapshot } from './utils/job/job-strip';
 
 import type {
   AppearancePreferences,
-  ConductorPreferences,
   FooterPreferences,
   NotificationsConfig,
   OnboardingPreferences,
   UpgradePreferences,
 } from './config';
-import type { ConductorProjectMode } from './utils/job/intent-brief';
 import type { PendingApproval, PendingQuestion } from './reverse-rpc/types';
 import type { ColorToken, ThemeName } from './theme';
 
@@ -46,23 +41,10 @@ export interface AppState {
   additionalDirs: readonly string[];
   sessionId: string;
   permissionMode: PermissionMode;
-  planMode: boolean;
-  /** Ask mode: read/search/web only — edits and worker delegation are blocked. */
-  askMode: boolean;
-  /** Visual Quality mode: art direction, anti-slop visuals, skill routing, screenshot proof. */
-  premiumQualityMode?: boolean;
-  /**
-   * Conductor Job desk state (meta-orchestrator). Populated when Job* tools
-   * update the ledger, `job.*` events arrive, or after /jobs refresh;
-   * optional until first job event. `jobs` / `inbox` feed the Job board view.
-   */
+  /** Live operator Job ledger and inbox, synchronized from job events. */
   conductorJobs?: ConductorJobsSnapshot | null;
-  /** Conductor UX v2 project mode (pool + Intent Composer defaults). */
-  conductorProjectMode?: ConductorProjectMode;
   /** Transcript region: chat transcript vs Conductor Timeline. */
   transcriptRegionMode?: 'chat' | 'timeline';
-  /** Persisted conductor prefs mirror (timeline defaulted flag, …). */
-  conductor?: ConductorPreferences;
   /** 'bash' when the editor is in `!` shell-command mode. */
   inputMode: 'prompt' | 'bash';
   /** Whether thinking is enabled (true when {@link thinkingLevel} is not `'off'`). */
@@ -76,58 +58,12 @@ export interface AppState {
   contextUsage: number;
   contextTokens: number;
   maxContextTokens: number;
-  /**
-   * Soft working-set policy from loopControl (Settings → Context / `/context`).
-   * Used by the footer badge and `/usage` gauge. Missing until config sync.
-   */
-  workingSet?: {
-    readonly maxWorkingSetTokens: number;
-    readonly asyncWorkingSetTokens: number;
-    readonly presetId?: 'balanced' | 'economy' | 'deep' | 'full_window';
-  } | null;
   /** Accumulated session cost in USD (best-effort; undefined when unknown). */
   sessionCostUsd?: number;
-  /** Context OS continuity/evidence health when compacted pages exist. */
-  contextOS?: {
-    readonly pageCount: number;
-    readonly readyPageCount: number;
-    readonly needsRehydrationPageCount: number;
-    readonly atRiskPageCount: number;
-    readonly missingEvidencePageCount: number;
-    readonly evidenceIdRecallScore: number;
-    readonly latestContinuityStatus: string;
-  } | null;
-  /** Liora Memory reflection scheduler dashboard. */
-  autoDream?: {
-    readonly enabled: boolean;
-    readonly inFlight: boolean;
-    readonly runs: number;
-    readonly lastDreamAt: number | null;
-    readonly lastExamined: number | null;
-    readonly lastMerged: number | null;
-    readonly minHours: number;
-    readonly minActiveRecords: number;
-  } | null;
-  /** Permission interventions queued while waiting on host approval. */
-  interventionCount?: number;
-  /** Queue entries older than agent-core stale threshold (Ops tray stale×N). */
-  staleInterventionCount?: number;
-  /** Longest-waiting queued intervention age in ms (Ops/Never-Halt glance). */
-  oldestInterventionAgeMs?: number;
   isCompacting: boolean;
-  /**
-   * Background (async) full compaction is summarizing while the turn may continue.
-   * Distinct from `isCompacting`, which means the session is blocked on compaction.
-   */
-  isBackgroundCompacting: boolean;
   isReplaying: boolean;
   streamingPhase: 'idle' | 'waiting' | 'thinking' | 'composing' | 'shell';
   streamingStartTime: number;
-  /**
-   * Prompt-intelligence (LLM ghost) activity for the footer badge / spinner.
-   * `idle` when nothing is in flight; `inline` / `suggest` while a request runs.
-   */
-  promptIntelligencePhase?: 'idle' | 'inline' | 'suggest';
   activityTip?: string | null;
   theme: ThemeName;
   /** Persisted UI language preference (`tui.toml` `locale`). */
@@ -150,25 +86,6 @@ export interface AppState {
   onboarding?: OnboardingPreferences;
   availableModels: Record<string, ModelAlias>;
   availableProviders: Record<string, ProviderConfig>;
-  /**
-   * Media policy when the current chat model is text-only (config.toml
-   * `[media] nonVisionFallback`). 'analyze' renders attached images/videos
-   * to text with a vision-capable catalog model; 'path' leaves a pointer
-   * note; 'block' refuses the send. Fail-open default: 'analyze'.
-   */
-  nonVisionFallbackPolicy?: 'analyze' | 'path' | 'block';
-  /**
-   * Per-kind analyzer model overrides (config.toml
-   * `[media.analyzer_models]`). Keys: image | video | audio | pdf; values
-   * are model aliases; empty/missing means auto-select.
-   */
-  mediaAnalyzerModels?: MediaAnalyzerModelsConfig | undefined;
-  /**
-   * Opt-in catalog-wide auto model selection for multimodal work
-   * (config.toml `[media] analyzer_auto_scan`, default off): media analysis
-   * and vision-preferred workers only use user-configured models unless set.
-   */
-  mediaAnalyzerAutoScan?: boolean;
   providerRouteStatus?: ProviderRouteStatus | null;
   /**
    * Last successful step-level provider route selection (effective model +
@@ -190,60 +107,18 @@ export interface AppState {
     readonly atMs: number;
   } | null;
   sessionTitle: string | null;
-  /** Current goal snapshot for the footer badge; null/undefined when no active goal. */
-  goal?: GoalSnapshot | null;
-  /** Brief goal progress pulse (Dopamine Ops) — ~2s footer `xp` badge. */
-  goalXpPulse?: { readonly atMs: number } | null;
-  /** Goal progress/evidence ticks for Ops Goal pane when contextOS pages are absent. */
-  goalEvidenceCount?: number;
-  /** W6 verification sensor soft advisory for Ops Goal pane (recent test/check failures). */
-  goalSoftAdvisory?: string | null;
   /** Brief worker-completion pulse (Dopamine Ops) — ~2s footer `done` badge. */
   fleetFlourish?: { readonly atMs: number } | null;
   /** Brief permission approval pulse (Dopamine Ops) — ~2s footer `perm✓` badge. */
   permissionApproveFlourish?: { readonly atMs: number } | null;
   /** Brief git file-count churn pulse (Dopamine Ops) — ~2s footer `diff↑` badge. */
   gitChurn?: { readonly atMs: number; readonly count: number } | null;
-  /** Ephemeral triple-alignment combo (goal-xp + cache target + fleet); render-computed. */
-  opsCombo?: { readonly atMs: number; readonly score: number } | null;
-  mcpServersSummary: string | null;
-  /** Short-lived footer badge after extensions hot-reload (MCP/skills/import). */
-  extensionsReload?: { readonly atMs: number } | null;
-  /**
-   * Never-Halt degraded runtime (search/oauth/llm/…). Cleared on turn end or recovery.
-   * Drives Ops footer badge without hard-stopping Goal/Mission.
-   */
-  runtimeDegraded?: {
-    readonly scope: string;
-    readonly reason: string;
-    readonly hint?: string;
-    readonly atMs: number;
-  } | null;
-  /** Brief DeepResearch / search channel cascade hint for footer + Ops (~30s). */
-  searchCascade?: {
-    readonly channelsTried: readonly string[];
-    readonly hops?: number;
-    readonly atMs: number;
-  } | null;
   /** Optional banner shown below the welcome panel; null means no banner to render. */
   banner?: BannerState | null;
   /** Live provider quota / usage snapshot for the footer badge and /usage panel. */
   providerQuota?: AllProvidersUsageSnapshot | null;
   /** Prompt-cache hit meter synced from agent.status.updated / getStatus. */
   cacheMeter?: { readonly rate: number; readonly streak: number } | null;
-  /** Circuit breaker registry synced from agent.status.updated / getStatus. */
-  circuitBreakers?: {
-    readonly closed: number;
-    readonly open: number;
-    readonly halfOpen: number;
-    readonly lastTripReason?: string;
-    readonly scopes?: ReadonlyArray<{
-      readonly id: string;
-      readonly state: string;
-      readonly failures: number;
-      readonly lastTripReason?: string;
-    }>;
-  } | null;
   /** Update available notice from preflight; shown as a header badge. */
   updateNotice?: { readonly currentVersion: string; readonly targetVersion: string; readonly installCommand: string } | null;
   /**
@@ -342,18 +217,7 @@ export interface CompactionTranscriptData {
   readonly instruction?: string;
 }
 
-export interface CronTranscriptData {
-  readonly jobId?: string;
-  readonly cron?: string;
-  readonly recurring?: boolean;
-  readonly coalescedCount?: number;
-  readonly stale?: boolean;
-  readonly missedCount?: number;
-}
 
-export type GoalTranscriptData =
-  | { readonly kind: 'created' }
-  | { readonly kind: 'lifecycle'; readonly change: GoalChange };
 
 /**
  * How much detail the transcript renders for tool activity. See
@@ -368,23 +232,8 @@ export type TranscriptEntryKind =
   | 'assistant'
   | 'tool_call'
   | 'thinking'
-  | 'status'
-  | 'skill_activation'
-  | 'plugin_command'
-  | 'cron'
-  | 'goal'
-  | 'plan';
+  | 'status';
 
-/** Full plan markdown mirrored into the main transcript for plan_review. */
-export interface PlanTranscriptData {
-  readonly content: string;
-  readonly path?: string | undefined;
-  /** Approval tool_call_id — used to dedupe mirrors for the same review. */
-  readonly toolCallId?: string | undefined;
-}
-
-export type SkillActivationTrigger = 'user-slash' | 'model-tool' | 'nested-skill';
-export type PluginCommandTrigger = 'user-slash';
 
 export interface TranscriptEntry {
   id: string;
@@ -401,21 +250,9 @@ export interface TranscriptEntry {
   toolCallData?: ToolCallBlockData;
   backgroundAgentStatus?: BackgroundAgentStatusData;
   compactionData?: CompactionTranscriptData;
-  cronData?: CronTranscriptData;
-  goalData?: GoalTranscriptData;
-  planData?: PlanTranscriptData;
   imageAttachmentIds?: readonly number[];
   /** Original follow-ups when adjacent queued prompts were combined. */
   combinedDisplayTexts?: readonly string[];
-  skillActivationId?: string;
-  skillName?: string;
-  skillArgs?: string;
-  skillTrigger?: SkillActivationTrigger;
-  pluginCommandActivationId?: string;
-  pluginId?: string;
-  pluginCommandName?: string;
-  pluginCommandArgs?: string;
-  pluginCommandTrigger?: PluginCommandTrigger;
 }
 
 export type LivePaneMode =
@@ -439,7 +276,7 @@ export interface TurnActivityTool {
 
 export interface TurnActivityState {
   readonly tools: readonly TurnActivityTool[];
-  /** True while every in-flight tool is a blocking TaskOutput wait. */
+  /** True while each in-flight SessionControl call waits on child activity. */
   readonly parked?: boolean;
 }
 
@@ -475,10 +312,8 @@ export interface TUIStartupOptions {
   readonly continueLast: boolean;
   readonly yolo: boolean;
   readonly auto: boolean;
-  readonly plan: boolean;
   readonly model?: string;
   readonly startupNotice?: string;
-  readonly resumeGoal?: boolean;
 }
 
 export type TUIStartupState = 'pending' | 'ready' | 'picker';

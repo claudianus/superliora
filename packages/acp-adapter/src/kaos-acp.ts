@@ -18,7 +18,7 @@
 
 import { Buffer } from 'node:buffer';
 
-import type { AgentSideConnection } from '@agentclientprotocol/sdk';
+import type { AgentSideConnection, ClientCapabilities } from '@agentclientprotocol/sdk';
 import { RequestError } from '@agentclientprotocol/sdk';
 import {
   KaosError,
@@ -27,6 +27,7 @@ import {
   type KaosProcess,
   type StatResult,
 } from '@superliora/kaos';
+import { AcpTerminalProcess } from './terminal-process';
 
 /**
  * `Kaos` that routes `read*` / `write*` through the ACP reverse-RPC
@@ -44,6 +45,10 @@ export class AcpKaos implements Kaos {
     private readonly conn: AgentSideConnection,
     private readonly sessionId: string,
     private readonly inner: Kaos,
+    private readonly capabilities: ClientCapabilities = {
+      fs: { readTextFile: true, writeTextFile: true },
+    },
+    private readonly envOverlays: readonly Record<string, string>[] = [],
   ) {}
 
   // ── identity ────────────────────────────────────────────────────────
@@ -86,11 +91,11 @@ export class AcpKaos implements Kaos {
    * to local filesystem reads.
    */
   withCwd(cwd: string): Kaos {
-    return new AcpKaos(this.conn, this.sessionId, this.inner.withCwd(cwd));
+    return new AcpKaos(this.conn, this.sessionId, this.inner.withCwd(cwd), this.capabilities, this.envOverlays);
   }
 
   withEnv(env: Record<string, string>): Kaos {
-    return new AcpKaos(this.conn, this.sessionId, this.inner.withEnv(env));
+    return new AcpKaos(this.conn, this.sessionId, this.inner.withEnv(env), this.capabilities, [...this.envOverlays, env]);
   }
 
   stat(path: string, options?: { followSymlinks?: boolean }): Promise<StatResult> {
@@ -155,6 +160,7 @@ export class AcpKaos implements Kaos {
     path: string,
     _options?: { encoding?: BufferEncoding; errors?: 'strict' | 'replace' | 'ignore' },
   ): Promise<string> {
+    if (!this.capabilities.fs?.readTextFile) return this.inner.readText(path, _options);
     const rpcPath = this.toClientPath(path);
     try {
       const resp = await this.conn.readTextFile({ sessionId: this.sessionId, path: rpcPath });
@@ -229,6 +235,7 @@ export class AcpKaos implements Kaos {
     data: string,
     options?: { mode?: 'w' | 'a'; encoding?: BufferEncoding },
   ): Promise<number> {
+    if (!this.capabilities.fs?.writeTextFile) return this.inner.writeText(path, data, options);
     if (options?.mode === 'a') {
       let existing = '';
       try {
@@ -250,6 +257,7 @@ export class AcpKaos implements Kaos {
    * (Read/Write/Edit tools), not binary streaming.
    */
   async writeBytes(path: string, data: Buffer): Promise<number> {
+    if (!this.capabilities.fs?.writeTextFile) return this.inner.writeBytes(path, data);
     await this.acpWrite(path, data.toString('utf8'));
     return data.byteLength;
   }
@@ -268,14 +276,25 @@ export class AcpKaos implements Kaos {
     return path.replaceAll('/', '\\');
   }
 
-  // ── process execution: delegate to inner ───────────────────────────
-
+  // Process execution belongs to the editor only when terminal support is declared.
   exec(...args: string[]): Promise<KaosProcess> {
-    return this.inner.exec(...args);
+    if (!this.capabilities.terminal) return this.inner.exec(...args);
+    return this.execWithEnv(args);
   }
 
-  execWithEnv(args: string[], env?: Record<string, string>): Promise<KaosProcess> {
-    return this.inner.execWithEnv(args, env);
+  async execWithEnv(args: string[], env?: Record<string, string>): Promise<KaosProcess> {
+    if (!this.capabilities.terminal) return this.inner.execWithEnv(args, env);
+    const command = args[0];
+    if (!command) throw new KaosError('Cannot create an ACP terminal without a command.');
+    const terminalEnv = Object.assign({}, ...this.envOverlays, env) as Record<string, string>;
+    const terminal = await this.conn.createTerminal({
+      sessionId: this.sessionId,
+      command,
+      args: args.slice(1),
+      cwd: this.inner.getcwd(),
+      env: Object.entries(terminalEnv).map(([name, value]) => ({ name, value })),
+    });
+    return new AcpTerminalProcess(terminal);
   }
 }
 

@@ -7,13 +7,6 @@ import {
   backgroundTaskStatusSchema,
 } from '../task';
 import {
-  mcpServerSchema,
-  mcpServerStatusSchema,
-  mcpServerTransportSchema,
-  toolDescriptorSchema,
-  toolSourceSchema,
-} from '../tool';
-import {
   fsChangeEventSchema,
   fsEntrySchema,
   fsGitStatusSchema,
@@ -62,7 +55,7 @@ describe('protocol/file — file meta', () => {
 
 describe('protocol/task — background task', () => {
   it('backgroundTaskKindSchema accepts the canonical set', () => {
-    for (const v of ['subagent', 'bash', 'tool']) {
+    for (const v of ['subagent', 'bash']) {
       expect(backgroundTaskKindSchema.parse(v)).toBe(v);
     }
     expect(() => backgroundTaskKindSchema.parse('x')).toThrow();
@@ -87,46 +80,6 @@ describe('protocol/task — background task', () => {
   });
 });
 
-describe('protocol/tool — tool descriptor + mcp server', () => {
-  it('toolSourceSchema accepts builtin/skill/mcp', () => {
-    for (const v of ['builtin', 'skill', 'mcp']) {
-      expect(toolSourceSchema.parse(v)).toBe(v);
-    }
-  });
-
-  it('toolDescriptorSchema accepts a minimal descriptor', () => {
-    const t = toolDescriptorSchema.parse({
-      name: 'Bash',
-      description: 'run',
-      input_schema: { type: 'object' },
-      source: 'builtin',
-    });
-    expect(t.name).toBe('Bash');
-  });
-
-  it('mcpServerStatusSchema accepts the connection states', () => {
-    for (const v of ['connected', 'connecting', 'disconnected', 'error']) {
-      expect(mcpServerStatusSchema.parse(v)).toBe(v);
-    }
-  });
-
-  it('mcpServerTransportSchema accepts stdio/http/sse', () => {
-    for (const v of ['stdio', 'http', 'sse']) {
-      expect(mcpServerTransportSchema.parse(v)).toBe(v);
-    }
-  });
-
-  it('mcpServerSchema accepts a minimal server', () => {
-    const s = mcpServerSchema.parse({
-      id: 'm-1',
-      name: 'srv',
-      transport: 'http',
-      status: 'connected',
-      tool_count: 3,
-    });
-    expect(s.tool_count).toBe(3);
-  });
-});
 
 describe('protocol/fs — fs entries and search', () => {
   it('fsKindSchema accepts file/directory/symlink', () => {

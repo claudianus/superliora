@@ -109,8 +109,8 @@ export class ConductorTimelinePanelComponent extends Container implements Focusa
     // Focus ring (PREMIUM §8.1): the focused panel owns the bright title;
     // unfocused, the pane reads dim so exactly one surface reads active.
     const title = this.focused
-      ? renderPremiumHeadline('Conductor Timeline', 'conductor-timeline:title')
-      : theme.fg('textMuted', 'Conductor Timeline');
+      ? renderPremiumHeadline('Job Timeline', 'job-timeline:title')
+      : theme.fg('textMuted', 'Job Timeline');
     const lines: string[] = [
       title,
       theme.fg('textMuted', ' ↑↓ navigate · Enter select · Esc cancel'),

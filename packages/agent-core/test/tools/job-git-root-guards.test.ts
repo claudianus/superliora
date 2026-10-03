@@ -1,23 +1,7 @@
-/**
- * Three harness guards:
- * 1) resolveGitRoot / push cwd from ownership (not metalslug isolation)
- * 2) cross-ownership Merge/Push hold
- * 3) host_browser=einval — visual failed but mechanical-green implement not hard-fail
- */
+/** Git root resolution and cross-repository land/push integrity. */
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  classifyHostBrowserFromText,
-  createVerificationSensorLedger,
-  observeVerificationToolResult,
-} from '../../src/sensors/verification-sensor-ledger';
-import {
-  buildSubagentResultContract,
-  computeVerificationFailed,
-  verificationHasFailure,
-  verificationIsGreen,
-} from '../../src/session/subagent/subagent-result-contract';
 import {
   evaluateCrossOwnershipHold,
   inferOwnershipRepoHint,
@@ -49,7 +33,7 @@ const ISOLATION_WT =
   'C:/Users/Administrator/.superliora/worktrees/metalslug-6394865b/conductor-jmswlvown18jrcs';
 
 function slash(path: string | undefined): string {
-  return (path ?? '').toLowerCase().replaceAll(/\\/g, '/');
+  return (path ?? '').toLowerCase().replaceAll('\\', '/');
 }
 
 describe('guard1: persist repo identity; never follow live session cwd', () => {
@@ -309,75 +293,3 @@ describe('guard2: cross-repo land hold', () => {
   });
 });
 
-describe('guard3: host_browser=einval vs implement fail', () => {
-  it('classifies EINVAL from VerifySurface output', () => {
-    expect(classifyHostBrowserFromText('Error: spawn EINVAL')).toBe('einval');
-    expect(classifyHostBrowserFromText('Browser-use runtime is not available')).toBe(
-      'missing',
-    );
-  });
-
-  it('records host_browser=einval on the sensor ledger as visual=skipped_host', () => {
-    const ledger = createVerificationSensorLedger();
-    observeVerificationToolResult(ledger, 'VerifySurface', {}, {
-      isError: true,
-      output: JSON.stringify({
-        pass: false,
-        axes: { load: 'failed', interaction: 'not_run', craft: 'not_run' },
-        consoleErrors: [],
-        notes: ['spawn EINVAL on Windows host'],
-      }),
-    });
-    expect(ledger.visualVerdict).toBe('skipped_host');
-    expect(ledger.hostBrowser).toBe('einval');
-    expect(ledger.failures.some((f) => f.summary.includes('host_browser=einval'))).toBe(
-      true,
-    );
-  });
-
-  it('mechanical-green + host_browser=einval → verification_failed false (visual=skipped_host)', () => {
-    const verification = {
-      tests: 'passed' as const,
-      typecheck: 'passed' as const,
-      lint: 'passed' as const,
-      visual: 'skipped_host' as const,
-      host_browser: 'einval' as const,
-    };
-    expect(verificationIsGreen(verification)).toBe(true);
-    expect(computeVerificationFailed(verification)).toBe(false);
-    expect(verificationHasFailure(verification)).toBe(false);
-
-    const contract = buildSubagentResultContract({
-      agentId: 'a',
-      profile: 'implement',
-      summary: 'mechanical green',
-      filesChanged: ['packages/agent-core/src/x.ts'],
-      verification,
-    });
-    expect(contract.verification.visual).toBe('skipped_host');
-    expect(contract.verification.host_browser).toBe('einval');
-    expect(contract.verification_failed).toBe(false);
-  });
-
-  it('real visual product fail still hard-fails when not einval', () => {
-    const verification = {
-      tests: 'passed' as const,
-      typecheck: 'passed' as const,
-      lint: 'passed' as const,
-      visual: 'failed' as const,
-    };
-    expect(computeVerificationFailed(verification)).toBe(true);
-    expect(verificationHasFailure(verification)).toBe(true);
-  });
-
-  it('product check fail still hard-fails even with host_browser=einval', () => {
-    const verification = {
-      tests: 'failed' as const,
-      typecheck: 'passed' as const,
-      lint: 'passed' as const,
-      visual: 'failed' as const,
-      host_browser: 'einval' as const,
-    };
-    expect(computeVerificationFailed(verification)).toBe(true);
-  });
-});

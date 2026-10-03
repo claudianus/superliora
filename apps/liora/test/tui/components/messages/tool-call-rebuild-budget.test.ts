@@ -5,16 +5,20 @@ import {
   tickToolCallRenderClock,
   type ToolCallRenderTickInput,
 } from '#/tui/components/messages/tool-call/render-tick';
-import { advanceAppearanceAnimationClock } from '#/tui/features/appearance/appearance-effects';
+import {
+  advanceAppearanceAnimationClock,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/features/appearance/appearance-effects';
 
-function streamingEditInput(id: string): ToolCallRenderTickInput {
+function streamingBashInput(id: string): ToolCallRenderTickInput {
   return {
     toolCall: {
       id,
-      name: 'Edit',
-      args: { file_path: 'x.ts' },
+      name: 'Bash',
+      args: { command: 'cat x.ts' },
       streamingStartedAtMs: Date.now(),
-      streamingArguments: '{"file_path":"x.ts"}',
+      streamingArguments: '{"command":"cat x.ts',
     },
     result: undefined,
     previewRevealEligible: false,
@@ -27,7 +31,6 @@ function streamingEditInput(id: string): ToolCallRenderTickInput {
     resultSettledAtMs: undefined,
     isSingleSubagentView: false,
     derivedSubagentPhase: undefined,
-    isStreamingEditPreview: true,
     subagentSpawnEntranceAtMs: undefined,
     subagentStartedAtMs: undefined,
     // Idle phase — must not compete with body rebuild budget in this suite.
@@ -40,8 +43,8 @@ function runningSubagentInput(id: string): ToolCallRenderTickInput {
   return {
     toolCall: {
       id,
-      name: 'Task',
-      args: { description: 'work' },
+      name: 'SessionControl',
+      args: { operation: 'spawn', description: 'work', prompt: 'work' },
     },
     result: undefined,
     previewRevealEligible: false,
@@ -53,7 +56,6 @@ function runningSubagentInput(id: string): ToolCallRenderTickInput {
     resultSettledAtMs: undefined,
     isSingleSubagentView: true,
     derivedSubagentPhase: 'running',
-    isStreamingEditPreview: false,
     subagentSpawnEntranceAtMs: undefined,
     subagentStartedAtMs: Date.now() - 5_000,
     subagentPhase: 'running',
@@ -64,11 +66,13 @@ function runningSubagentInput(id: string): ToolCallRenderTickInput {
 describe('tool-call rebuild budget (ambient storm guard)', () => {
   beforeEach(() => {
     resetToolCallRebuildBudgetForTest();
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
     // Far enough into the clock that progress interval (1s) has elapsed from 0.
     advanceAppearanceAnimationClock(5_000);
   });
 
-  it('allows four full body rebuilds per tick under healthy full/high quality', () => {
+  it('refreshes every Bash progress header without rebuilding its body', () => {
     const rebuildBody = vi.fn();
     const requestRender = vi.fn();
     const callbacks = {
@@ -85,15 +89,15 @@ describe('tool-call rebuild budget (ambient storm guard)', () => {
     };
 
     for (const id of ['a', 'b', 'c', 'd', 'e']) {
-      tickToolCallRenderClock(streamingEditInput(id), callbacks);
+      tickToolCallRenderClock(streamingBashInput(id), callbacks);
     }
 
-    // Healthy full/high budget = 4; remaining cards still request follow-up frames.
-    expect(rebuildBody).toHaveBeenCalledTimes(4);
+    expect(callbacks.refreshHeader).toHaveBeenCalledTimes(5);
+    expect(rebuildBody).not.toHaveBeenCalled();
     expect(requestRender.mock.calls.length).toBeGreaterThanOrEqual(5);
   });
 
-  it('shares the rebuild budget with subagent block rebuilds', () => {
+  it('caps subagent block rebuilds while refreshing every active header', () => {
     const rebuildBody = vi.fn();
     const rebuildSubagentBlock = vi.fn();
     const requestRender = vi.fn();
@@ -114,7 +118,7 @@ describe('tool-call rebuild budget (ambient storm guard)', () => {
       tickToolCallRenderClock(runningSubagentInput(id), callbacks);
     }
 
-    // Shared healthy budget = 4; fifth card only refreshes header + requestRender.
+    // Healthy budget = 4; fifth card only refreshes header + requestRender.
     expect(rebuildSubagentBlock).toHaveBeenCalledTimes(4);
     expect(rebuildBody).toHaveBeenCalledTimes(0);
     expect(requestRender.mock.calls.length).toBeGreaterThanOrEqual(5);

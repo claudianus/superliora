@@ -62,12 +62,6 @@ export async function budgetToolResultForModel(
     { homedir: options.homedir, toolName: options.toolName, toolCallId: options.toolCallId },
     text,
   );
-  if (outputPath === undefined) {
-    const output = renderInMemoryBudgetedResult(options.toolName, options.toolCallId, text, maxChars);
-    return options.result.isError === true
-      ? { ...options.result, output, isError: true, truncated: true }
-      : { ...options.result, output, truncated: true };
-  }
   const output = renderPersistedToolResult(
     options.toolName,
     options.toolCallId,
@@ -93,20 +87,16 @@ function persistableToolResultText(output: ExecutableToolResult['output']): stri
 async function saveToolResult(
   options: { readonly homedir: string; readonly toolName: string; readonly toolCallId: string },
   text: string,
-): Promise<string | undefined> {
-  try {
-    const dir = join(options.homedir, 'tool-results');
-    await mkdir(dir, { recursive: true, mode: 0o700 });
-    const outputPath = join(
-      dir,
-      `${safeToolResultFileStem(options.toolName, options.toolCallId)}-${randomUUID()}.txt`,
-    );
-    await writeFile(outputPath, text, { encoding: 'utf8', flag: 'wx' });
-    await pruneToolResultSpills(dir);
-    return outputPath;
-  } catch {
-    return undefined;
-  }
+): Promise<string> {
+  const dir = join(options.homedir, 'tool-results');
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const outputPath = join(
+    dir,
+    `${safeToolResultFileStem(options.toolName, options.toolCallId)}-${randomUUID()}.txt`,
+  );
+  await writeFile(outputPath, text, { encoding: 'utf8', flag: 'wx' });
+  await pruneToolResultSpills(dir);
+  return outputPath;
 }
 
 /**
@@ -181,7 +171,6 @@ function renderPersistedToolResult(
     `captured_at: ${receipt.captured_at}`,
     `output_path: ${outputPath}`,
     `summary1: ${receipt.summary1}`,
-    'next_step: Re-acquire precisely with Read(output_path, line_offset, n_lines) — the full output is on disk; do not re-run the tool.',
     '',
     '### Preview (head/tail)',
     preview,

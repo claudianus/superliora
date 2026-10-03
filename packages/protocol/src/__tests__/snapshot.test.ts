@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isVolatileEventType, VOLATILE_EVENT_TYPES } from '../events';
+import { isVolatileEventType } from '../events';
 import {
   inFlightTurnSchema,
   sessionSnapshotResponseSchema,
@@ -136,15 +136,11 @@ describe('events — volatile classification', () => {
       'shell.output',
       'shell.started',
       'agent.status.updated',
-      'subagent.todo.updated',
-      'tools.update_store',
       'compaction.progress',
       'runtime.degraded',
     ]) {
       expect(isVolatileEventType(type)).toBe(true);
     }
-    // Length parity with the list above catches drift in both directions.
-    expect(VOLATILE_EVENT_TYPES).toHaveLength(12);
   });
 
   it('keeps timeline-bearing events durable', () => {

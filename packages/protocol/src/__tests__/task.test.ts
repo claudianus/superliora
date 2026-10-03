@@ -8,7 +8,7 @@ import {
 } from '../task';
 
 describe('backgroundTaskKindSchema', () => {
-  it.each(['subagent', 'bash', 'tool'] as const)('accepts %s', (k) => {
+  it.each(['subagent', 'bash'] as const)('accepts %s', (k) => {
     expect(backgroundTaskKindSchema.parse(k)).toBe(k);
   });
 

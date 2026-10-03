@@ -28,7 +28,7 @@ Prefer not to edit TOML by hand? Type `/login` in the TUI to add a provider inte
 
 Once signed in, use `/model` to switch between the models you just configured.
 
-The same operations are also available in non-interactive environments via the shell command: [`liora provider`](../reference/liora-command.md#kimi-provider).
+The same operations are available through the native `liora provider` shell commands.
 
 ## `kimi`
 
@@ -152,7 +152,7 @@ xAI prepaid API keys use the same path (`XAI_API_KEY`, `https://api.x.ai/v1`). A
 
 ### Z.AI (GLM Coding Plan)
 
-[Z.AI Coding Plan](https://docs.z.ai/devpack/overview) is a SuperLiora-curated OpenAI-compatible overlay (`zai-coding-plan`). MCP extras inject when the key is present.
+[Z.AI Coding Plan](https://docs.z.ai/devpack/overview) is a SuperLiora-curated OpenAI-compatible provider (`zai-coding-plan`). Provider extras and automatic MCP injection are retired.
 
 - Credential env: `Z_AI_API_KEY` or `ZAI_API_KEY`
 
@@ -239,7 +239,7 @@ GOOGLE_CLOUD_LOCATION = "us-central1"
 
 ```sh
 gcloud auth application-default login   # one-time authentication
-kimi
+liora
 ```
 
 ## OAuth and credential injection
@@ -296,11 +296,8 @@ export QWEN_TOKEN_PLAN_BASE_URL=https://token-plan.ap-southeast-1.maas.aliyuncs.
 ```
 
 - **Text models** — `qwen3.8-max` (default), `qwen3.8-flash`, `qwen3.7-max`, `qwen3.7-plus`, `qwen3.6-flash`, `glm-5.2`, `deepseek-v4-pro`, `deepseek-v4-pro-0813`, `deepseek-v4-flash-0731`. The retired id `qwen3.8-max-preview` still works and is routed to production `qwen3.8-max`; prefer the production id in new configs.
-- **Visual understanding** — the qwen3.8 series and `qwen3.7-plus` / `qwen3.6-flash` accept image and video input directly (`qwen3.8-max` also accepts PDF). For text-only plan models (`glm-5.2`, DeepSeek) attach a vision-capable analyzer so screenshots and diagrams are transcribed by a plan model instead of failing: `media.analyzer_models.image = qwen-token-plan/qwen3.7-plus` (see [Configuration files](./config-files.md)).
-- **Harness tools** — the plan ships server-side web search, code interpreter, web scraping, and image search. On Chat Completions, web search is enabled via `enable_search` for the qwen3.7/3.8 harness models (`qwen3.8-max`, `qwen3.8-flash`, `qwen3.7-plus` get the full set; `qwen3.7-max` the core three). The remaining server tools require the Responses API tool entries and are mutually exclusive with client function calling, so the CLI does not inject them into the agent tool loop — the agent's own `WebSearch`/`Bash` tools stay in charge.
-- **Image generation** — the `generate_image` tool targets `wan2.7-image` by default; `wan2.7-image-pro`, `qwen-image-3.0-pro`, `qwen-image-2.0`, and `qwen-image-2.0-pro` are available through the `model` argument. Media API hosts follow the configured Token Plan chat base URL.
-- **Video generation** — the `generate_video` tool uses `happyhorse-1.1` (720P/1080P, 3–15 s, 24 fps MP4): text-to-video by default, `image_path` for image-to-video (first frame), `reference_image_paths` (1–9) for reference-to-video.
-- **Speech models** — `qwen-audio-3.0-tts-plus` (synthesis), `qwen-audio-3.0-asr-flash` (recognition), and `qwen-audio-3.0-realtime-plus` (realtime voice) are part of the plan's Credits pool but are exposed only through the DashScope WebSocket/SDK APIs; SuperLiora does not (yet) call them natively. Multimodal image/video models must use the dedicated `services/aigc/...` endpoints — sending them to the chat endpoint returns `url error` / `model_not_supported`, which is why the media tools above exist.
+- **Visual understanding** — choose a chat model with the required image/video capabilities. Automatic cross-model media analyzers and dedicated model-visible generation tools are retired.
+- **Harness tools** — the upstream service may offer server-side APIs, but SuperLiora exposes only Bash and SessionControl to the model. Call external APIs with ordinary shell programs when appropriate.
 - **Quota and billing** — Personal Edition uses a 7-day fixed-window Credits limit (paused until the window resets when exhausted; unused quota does not carry over); Team Edition is monthly per seat. Calls on plan models draw down Credits; `429 Allocated quota exceeded` marks the pause, and the router skips the credential until the window resets. Half-price nights (22:00–08:00 UTC+8) apply to `qwen3.8-max`, `deepseek-v4-pro-0813`, and `deepseek-v4-flash-0731` on the Personal plan.
 
 Keep to the plan rules: Token Plan keys are for interactive use inside agent/coding tools only (no backend automation), the `sk-sp-` key is not interchangeable with regular `sk-`/`sk-ws-` keys, and mixing the plan key with the standard `dashscope-intl.aliyuncs.com` base URL silently re-routes your calls to pay-as-you-go billing.
@@ -316,7 +313,7 @@ Credits and plan windows are visible in the Qwen Cloud console; the CLI surfaces
 
 The same OAuth token works for both; only the request host (and Build CLI headers) change. Switch later without signing in again from **Settings → Providers & API → Switch xAI Grok route**.
 
-Or set a prepaid API key for extras (web search / image / video) and optional chat:
+For prepaid API chat, use the native provider connection flow or an explicit configured API-key reference. These provider-specific variables remain available where supported:
 
 ```sh
 export XAI_API_KEY=YOUR_API_KEY
@@ -328,18 +325,9 @@ export SUPERLIORA_XAI_GROK_CLIENT_VERSION=1.0.0
 
 Fallback model presets (used when the live models.dev catalog is unavailable): `grok-4.5`, `grok-4.3`, `grok-build-0.1`.
 
-## Provider extras
+## Minimal tool surface
 
-Some plans ship API surface beyond text chat. When a matching key or OAuth mount is detected — from a configured provider entry, an environment variable, or `/login` — the CLI routes the extra into the corresponding built-in tool automatically; no further setup is needed.
-
-| Service | Detection | Feeds |
-| --- | --- | --- |
-| Z.AI (GLM Coding Plan) | `Z_AI_API_KEY` / `ZAI_API_KEY`, `zai` provider | `web_search`, MCP servers |
-| Alibaba Token Plan | `QWEN_TOKEN_PLAN_API_KEY` / `ALIBABA_TOKEN_PLAN_API_KEY` | `generate_image`, `generate_video` |
-| xAI Grok Build | `XAI_API_KEY`, `xai-grok` provider | `web_search`, `generate_image`, `generate_video` |
-| OpenAI Codex (ChatGPT) | ChatGPT OAuth mount | `web_search`, `generate_image` |
-
-`/status` shows an **Extras** section with what was detected, and **Settings → Provider extras** lists each service with a per-service off switch. Turning a service off persists to [`extras.disabledProviders`](./config-files.md#extras) and applies to new sessions; explicit configuration (for example a `search.providers` entry) is never affected.
+Provider authentication, metadata, credential pools, and configured native routes remain available. They do not install additional model-visible tools. Automatic provider extras, MCP injection, agent capability catalogs, and task-role model selection are retired. Failed harness steps and workers are not automatically restarted.
 
 ## Next steps
 

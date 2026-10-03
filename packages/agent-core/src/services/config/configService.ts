@@ -1,5 +1,6 @@
 import { Disposable, InstantiationType, registerSingleton } from '../../di';
 import type { LioraConfig, ProviderConfig } from '../../config';
+import { transformTomlData } from '../../config/toml-transform';
 import type { ConfigResponse, PatchConfigRequest } from '@superliora/protocol';
 
 import { ICoreProcessService } from '../coreProcess/coreProcess';
@@ -22,7 +23,7 @@ export class ConfigService extends Disposable implements IConfigService {
   }
 
   async set(patch: PatchConfigRequest): Promise<ConfigResponse> {
-    const camelPatch = convertKeysSnakeToCamel(patch) as Record<string, unknown>;
+    const camelPatch = transformTomlData(patch as Record<string, unknown>);
     const updated = await this.core.rpc.setKimiConfig(camelPatch);
     const response = toConfigResponse(updated);
 
@@ -54,32 +55,17 @@ function toConfigResponse(config: LioraConfig): ConfigResponse {
     default_provider: config.defaultProvider,
     default_model: config.defaultModel,
     models: config.models,
-    free_mode: config.freeMode,
     thinking: config.thinking,
-    plan_mode: config.planMode,
     yolo: config.yolo,
     default_thinking: config.defaultThinking,
     default_permission_mode: config.defaultPermissionMode,
-    default_plan_mode: config.defaultPlanMode,
     permission: config.permission,
-    hooks: config.hooks,
-    services: config.services,
-    merge_all_available_skills: config.mergeAllAvailableSkills,
-    extra_skill_dirs: config.extraSkillDirs,
+    sandbox_profile: config.sandboxProfile,
+    sandbox_enforcement: config.sandboxEnforcement,
     loop_control: config.loopControl,
     background: config.background,
-    media: config.media,
-    memory: config.memory,
     cache: config.cache,
-    research: config.research,
     model_catalog: config.modelCatalog,
-    browser_use: config.browserUse,
-    computer_use: config.computerUse,
-    mcp: config.mcp,
-    extras: config.extras,
-    persona: config.persona,
-    agent: config.agent,
-    experimental: config.experimental,
     telemetry: config.telemetry,
     raw: config.raw === undefined ? undefined : redactConfigRaw(config.raw),
   };
@@ -119,22 +105,5 @@ function isCredentialKey(key: string): boolean {
   return /api[_-]?key|oauth|credential|access[_-]?token|refresh[_-]?token|secret|password/i.test(key);
 }
 
-function convertKeysSnakeToCamel(obj: unknown): unknown {
-  if (Array.isArray(obj)) {
-    return obj.map(convertKeysSnakeToCamel);
-  }
-  if (obj !== null && typeof obj === 'object') {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      result[snakeToCamel(key)] = convertKeysSnakeToCamel(value);
-    }
-    return result;
-  }
-  return obj;
-}
-
-function snakeToCamel(str: string): string {
-  return str.replaceAll(/_([a-z])/g, (_, ch: string) => ch.toUpperCase());
-}
 
 registerSingleton(IConfigService, ConfigService, InstantiationType.Delayed);

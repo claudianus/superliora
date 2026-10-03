@@ -1,4 +1,3 @@
-import { isExperimentalFlagEnabled } from '../../../commands/experimental-flags';
 import { buildSettingsJumpHubItems } from '../../../commands/config/settings-hub-jumps';
 import type { CommandHubItem } from './command-hub-types';
 
@@ -25,9 +24,6 @@ function hub(
 }
 
 export function buildDefaultCommandHubItems(state: {
-  readonly planMode?: boolean;
-  readonly askMode?: boolean;
-  readonly premiumQualityMode?: boolean;
   readonly permissionMode?: string;
   readonly model?: string;
   readonly thinkingLevel?: string;
@@ -35,14 +31,11 @@ export function buildDefaultCommandHubItems(state: {
   readonly isCompacting?: boolean;
   /** True when a provider/model is already connected. */
   readonly signedIn?: boolean;
-  readonly conductorProjectMode?: string;
   readonly transcriptRegionMode?: string;
 }): CommandHubItem[] {
-  const onOff = (on: boolean | undefined): string => (on === true ? 'ON' : 'off');
   const streaming =
     (state.streamingPhase !== undefined && state.streamingPhase !== 'idle') ||
     state.isCompacting === true;
-  const conductorUx = isExperimentalFlagEnabled('conductor_ux_v2');
   const items: CommandHubItem[] = [];
 
   if (streaming) {
@@ -72,67 +65,12 @@ export function buildDefaultCommandHubItems(state: {
 
   items.push(
     hub(
-      'modes.plan',
-      'tui.hub.section.modes',
-      'tui.hub.modes.plan.label',
-      'tui.hub.modes.plan.desc',
-      { badge: onOff(state.planMode), kind: 'toggle' },
-    ),
-    hub(
-      'modes.ask',
-      'tui.hub.section.modes',
-      'tui.hub.modes.ask.label',
-      'tui.hub.modes.ask.desc',
-      {
-        keywords: ['ask', 'read', 'research', 'explore'],
-        badge: onOff(state.askMode),
-        kind: 'toggle',
-      },
-    ),
-    hub(
-      'modes.goals',
-      'tui.hub.section.modes',
-      'tui.hub.modes.goals.label',
-      'tui.hub.modes.goals.desc',
-      { keywords: ['goal', 'queue', 'ralph', 'next'] },
-    ),
-    hub(
-      'modes.premium',
-      'tui.hub.section.modes',
-      'tui.hub.modes.premium.label',
-      'tui.hub.modes.premium.desc',
-      { badge: onOff(state.premiumQualityMode), kind: 'toggle' },
-    ),
-    hub(
       'modes.permission',
       'tui.hub.section.modes',
       'tui.hub.modes.permission.label',
       'tui.hub.modes.permission.desc',
       { badge: state.permissionMode, kind: 'cycle' },
     ),
-    ...(conductorUx
-      ? [
-          hub(
-            'modes.conductorProject',
-            'tui.hub.section.modes',
-            'tui.hub.modes.conductorProject.label',
-            'tui.hub.modes.conductorProject.desc',
-            {
-              badge: state.conductorProjectMode ?? 'balanced',
-              kind: 'cycle',
-              keywords: ['conductor', 'pool', 'hotfix', 'greenfield'],
-            },
-          ),
-          hub(
-            'modes.reduceParallelism',
-            'tui.hub.section.modes',
-            'tui.hub.modes.reduceParallelism.label',
-            'tui.hub.modes.reduceParallelism.desc',
-            {
-              badge: state.conductorProjectMode === 'hotfix' ? 'hotfix' : undefined,
-              keywords: ['conductor', 'hotfix', 'pool', 'parallel', 'cost', 'throttle'],
-            },
-          ),
           hub(
             'modes.transcriptRegion',
             'tui.hub.section.modes',
@@ -141,11 +79,9 @@ export function buildDefaultCommandHubItems(state: {
             {
               badge: state.transcriptRegionMode ?? 'chat',
               kind: 'cycle',
-              keywords: ['timeline', 'conductor', 'region'],
+              keywords: ['timeline', 'jobs', 'region'],
             },
           ),
-        ]
-      : []),
   );
 
   items.push(
@@ -176,17 +112,6 @@ export function buildDefaultCommandHubItems(state: {
       'tui.hub.start.fork.desc',
       { keywords: ['fork', 'worktree', 'branch'] },
     ),
-    ...(conductorUx
-      ? [
-          hub(
-            'start.conductorHowto',
-            'tui.hub.section.start',
-            'tui.hub.start.conductorHowto.label',
-            'tui.hub.start.conductorHowto.desc',
-            { keywords: ['conductor', 'jobs', 'howto', 'tour', 'onboarding'] },
-          ),
-        ]
-      : []),
     hub('chat.model', 'tui.hub.section.chat', 'tui.hub.chat.model.label', 'tui.hub.chat.model.desc', {
       badge: state.model !== undefined && state.model.length > 0 ? state.model : undefined,
     }),
@@ -237,13 +162,6 @@ export function buildDefaultCommandHubItems(state: {
   items.push(
     hub('chat.btw', 'tui.hub.section.chat', 'tui.hub.chat.btw.label', 'tui.hub.chat.btw.desc'),
     hub(
-      'chat.loops',
-      'tui.hub.section.chat',
-      'tui.hub.chat.loops.label',
-      'tui.hub.chat.loops.desc',
-      { keywords: ['loop', 'interval', 'repeat'] },
-    ),
-    hub(
       'workspace.files',
       'tui.hub.section.workspace',
       'tui.hub.workspace.files.label',
@@ -288,6 +206,13 @@ export function buildDefaultCommandHubItems(state: {
       { keywords: ['jobs', 'dock', 'workers', 'monitor', 'subagent'] },
     ),
     hub(
+      'workspace.jobCreate',
+      'tui.hub.section.workspace',
+      'tui.hub.workspace.jobCreate.label',
+      'tui.hub.workspace.jobCreate.desc',
+      { keywords: ['job', 'new', 'create', 'task', 'prompt'] },
+    ),
+    hub(
       'workspace.jobDeck',
       'tui.hub.section.workspace',
       'tui.hub.workspace.jobDeck.label',
@@ -316,13 +241,6 @@ export function buildDefaultCommandHubItems(state: {
       { keywords: ['job', 'conductor', 'inbox', 'resume', 'cancel', 'gc'] },
     ),
     hub(
-      'workspace.cron',
-      'tui.hub.section.workspace',
-      'tui.hub.workspace.cron.label',
-      'tui.hub.workspace.cron.desc',
-      { keywords: ['cron', 'schedule', 'scheduled'] },
-    ),
-    hub(
       'workspace.status',
       'tui.hub.section.workspace',
       'tui.hub.workspace.status.label',
@@ -334,13 +252,6 @@ export function buildDefaultCommandHubItems(state: {
       'tui.hub.workspace.quota.label',
       'tui.hub.workspace.quota.desc',
       { keywords: ['quota', 'usage', 'credits', 'remaining', 'rate-limit'] },
-    ),
-    hub(
-      'extend.extensions',
-      'tui.hub.section.extend',
-      'tui.hub.extend.extensions.label',
-      'tui.hub.extend.extensions.desc',
-      { keywords: ['plugins', 'mcp', 'skills', 'hooks', 'marketplace'] },
     ),
     hub(
       'appearance.theme',

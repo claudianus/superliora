@@ -4,7 +4,6 @@
  * tool-call-entrance.ts / tool-call.ts.
  */
 
-import { isAbsolute, relative, sep } from 'node:path';
 
 import {
   STREAMING_ARGS_FIELD_RE,
@@ -170,128 +169,41 @@ export function parseArgsPreview(value: string): Record<string, unknown> {
   return result;
 }
 
-const PATH_KEYS = new Set(['path', 'file_path']);
-
-function truncateArgValue(key: string, value: string): string {
-  if (value.length <= MAX_ARG_LENGTH) return value;
-  if (PATH_KEYS.has(key)) {
-    // Preserve the tail (filename) — drop the prefix so the user can
-    // still tell which file is being touched.
-    return '…' + value.slice(value.length - (MAX_ARG_LENGTH - 1));
-  }
-  return value.slice(0, MAX_ARG_LENGTH - 3) + '...';
-}
-
-export function makeWorkspaceRelativePath(filePath: string, workspaceDir: string | undefined): string {
-  if (workspaceDir === undefined || workspaceDir.length === 0 || !isAbsolute(filePath)) {
-    return filePath;
-  }
-  const relativePath = relative(workspaceDir, filePath);
-  if (
-    relativePath.length === 0 ||
-    relativePath === '..' ||
-    relativePath.startsWith(`..${sep}`) ||
-    isAbsolute(relativePath)
-  ) {
-    return filePath;
-  }
-  return relativePath;
-}
-
-function formatKeyArgument(
-  toolName: string,
-  key: string,
-  value: string,
-  workspaceDir: string | undefined,
-): string {
-  const displayValue =
-    toolName === 'Read' && PATH_KEYS.has(key)
-      ? makeWorkspaceRelativePath(value, workspaceDir)
-      : value;
-  return truncateArgValue(key, displayValue);
-}
+const KEY_ARGUMENTS: Readonly<Record<string, readonly string[]>> = {
+  Bash: ['command'],
+  SessionControl: ['operation', 'description', 'id', 'prompt'],
+};
 
 export function extractKeyArgument(
   toolName: string,
   args: Record<string, unknown>,
-  workspaceDir?: string,
 ): string | null {
-  const keyMap: Record<string, string[]> = {
-    Bash: ['command'],
-    Read: ['path', 'file_path'],
-    LioraRead: ['path', 'file_path'],
-    LioraSymbol: ['name', 'path'],
-    LioraTree: ['path'],
-    Expand: ['id'],
-    LioraCallgraph: ['symbol', 'path'],
-    Write: ['path', 'file_path'],
-    GenerateImage: ['path', 'prompt'],
-    GenerateVideo: ['path', 'prompt'],
-    Edit: ['path', 'file_path'],
-    Grep: ['pattern'],
-    Glob: ['pattern'],
-    FetchURL: ['url'],
-    WebSearch: ['query'],
-    Context7Resolve: ['library_name', 'query'],
-    Context7Docs: ['library_id', 'query'],
-    SearchSkill: ['query', 'keywords'],
-    SearchExpert: ['query', 'keywords'],
-    Skill: ['skill', 'name', 'args'],
-    Memory: ['search', 'write', 'read', 'list', 'forget'],
-    NextPhase: ['phase'],
-    RecordInterviewFinding: ['origin', 'question_answered'],
-    EnterPlanMode: ['ultra'],
-    ExitPlanMode: ['options'],
-    AskUserQuestion: ['questions', 'header'],
-    LioraReview: ['diff_source', 'from_ref', 'to_ref'],
-    Review: ['diff_source', 'from_ref', 'to_ref'],
-    TaskList: ['active_only', 'limit'],
-    TaskOutput: ['task_id'],
-    TaskStop: ['task_id'],
-    CronList: [],
-    CronCreate: ['cron', 'prompt'],
-    CronDelete: ['id'],
-    TaskGraph: ['run_id', 'graph_id'],
-    // Prefer short description for Agent so multi-line prompts never spill into chrome.
-    Agent: ['description', 'subagent_type', 'resume', 'prompt'],
-    BrowserStatus: ['url'],
-    BrowserObserve: ['url'],
-    BrowserScreenshot: ['url', 'full_page'],
-    BrowserAct: ['actions'],
-    BrowserConsole: ['url'],
-    ComputerCapture: ['mode', 'app'],
-    ComputerAct: ['actions'],
-    ComputerStatus: ['app'],
-    TodoList: ['todos'],
-  };
-
-  // Glob: concatenate multiple args into a single summary so the header
-  // shows pattern, optional explicit path, and ignored-file inclusion.
-  if (toolName === 'Glob') {
-    const pattern = args['pattern'];
-    if (typeof pattern !== 'string' || pattern.length === 0) return null;
-    let summary = pattern;
-    const path = args['path'];
-    if (typeof path === 'string' && path.length > 0) {
-      summary += ` · ${makeWorkspaceRelativePath(path, workspaceDir)}`;
+  const candidates = KEY_ARGUMENTS[toolName];
+  let value: string | undefined;
+  if (candidates !== undefined) {
+    for (const key of candidates) {
+      const candidate = args[key];
+      if (typeof candidate === 'string' && candidate.length > 0) {
+        value = candidate;
+        break;
+      }
     }
-    if (args['include_ignored'] === true) {
-      summary += ' · include ignored';
-    }
-    return truncateArgValue('pattern', summary);
-  }
-
-  const candidates = keyMap[toolName] ?? Object.keys(args);
-  for (const key of candidates) {
-    const val = args[key];
-    if (typeof val === 'string' && val.length > 0) {
-      const firstLine = val.split('\n')[0] ?? val;
-      const displayValue =
-        toolName === 'Bash' && val.includes('\n') ? `${firstLine}…` : firstLine;
-      return formatKeyArgument(toolName, key, displayValue, workspaceDir);
+  } else {
+    for (const key in args) {
+      const candidate = args[key];
+      if (typeof candidate === 'string' && candidate.length > 0) {
+        value = candidate;
+        break;
+      }
     }
   }
-  return null;
+  if (value === undefined) return null;
+  const lineEnd = value.indexOf('\n');
+  const firstLine = lineEnd < 0 ? value : value.slice(0, lineEnd);
+  const displayValue = toolName === 'Bash' && lineEnd >= 0 ? `${firstLine}…` : firstLine;
+  return displayValue.length <= MAX_ARG_LENGTH
+    ? displayValue
+    : displayValue.slice(0, MAX_ARG_LENGTH - 3) + '...';
 }
 
 export function formatSubagentLabel(agentName: string | undefined): string {
@@ -316,8 +228,7 @@ export function formatActivityLine(
   verb: string,
   toolName: string,
   args: Record<string, unknown>,
-  workspaceDir?: string,
 ): string {
-  const keyArg = extractKeyArgument(toolName, args, workspaceDir);
+  const keyArg = extractKeyArgument(toolName, args);
   return keyArg ? `${verb} ${toolName} (${keyArg})` : `${verb} ${toolName}`;
 }

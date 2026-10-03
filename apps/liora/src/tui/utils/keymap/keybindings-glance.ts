@@ -15,10 +15,10 @@ export const KEYBINDINGS_REGISTRY_TIP =
 
 /** Compact /help reference tip — full keyboard shortcut panel in the TUI. */
 export const KEYBINDINGS_HELP_TIP =
-  '/help — full keyboard shortcut reference in the TUI. Plan / Agents / Transcript samples in Settings → Keyboard status mirror live registry bindings.';
+  '/help — full keyboard shortcut reference in the TUI. Agents / Transcript samples in Settings → Keyboard status mirror live registry bindings.';
 
 /** Compact Command Hub tip — primary-modifier K menu and ? when the prompt is empty. */
-export const KEYBINDINGS_COMMAND_HUB_TIP = `${primaryChord('K')} — Command Hub (One-search: settings, slash, skills). ? — Hub when the prompt is empty.`;
+export const KEYBINDINGS_COMMAND_HUB_TIP = `${primaryChord('K')} — Command Hub (settings and slash commands). ? — Hub when the prompt is empty.`;
 
 /** Compact future editor tip — custom keybinding editor not yet available. */
 export const KEYBINDINGS_FUTURE_EDITOR_TIP = `Custom keybinding editor — future slice (not editable here). Settings → Editor covers external editor command (${primaryChord('G')}); Settings → Appearance covers motion / Visual Quality.`;
@@ -28,7 +28,6 @@ export interface KeybindingsGlanceInput {
   readonly alwaysCount: number;
   readonly idleCount: number;
   readonly streamingCount: number;
-  readonly planSamples: readonly string[];
   readonly agentsSamples: readonly string[];
   readonly transcriptSamples: readonly string[];
 }
@@ -48,7 +47,6 @@ export function loadKeybindingsGlance(): KeybindingsGlanceInput {
     alwaysCount: counts.always,
     idleCount: counts.idle,
     streamingCount: counts.streaming,
-    planSamples: sampleLinesForSlash('/plan'),
     agentsSamples: sampleLinesForSlash('/jobs dock'),
     transcriptSamples: sampleLinesForSlash('/transcript'),
   };
@@ -64,8 +62,7 @@ export function buildKeybindingsSettingsLines(input: KeybindingsGlanceInput): re
     '· Footer tips, Command Hub cheatsheet, and /help consume this list',
     '· Do not fork shortcut copy elsewhere',
     '',
-    '── Plan / Agents / Transcript samples ───────',
-    ...input.planSamples,
+    '── Agents / Transcript samples ──────────────',
     ...input.agentsSamples,
     ...input.transcriptSamples,
     '',

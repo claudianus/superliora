@@ -69,6 +69,19 @@ describe('swarm-file-lease', () => {
     expect(registry.listClaims('run-1')).toHaveLength(0);
   });
 
+  it('releaseOwner removes only one sibling claims and waiters within a shared run', () => {
+    const registry = createSwarmFileLeaseRegistry({ baseDir: '/work' });
+    registry.claim('a.ts', 'a', 'shared-run');
+    registry.claim('b.ts', 'b', 'shared-run');
+    registry.claim('blocked.ts', 'outside', 'other-run');
+    registry.claim('blocked.ts', 'a', 'shared-run');
+    registry.claim('blocked.ts', 'b', 'shared-run');
+    expect(registry.releaseOwner('a', 'shared-run')).toBe(1);
+    expect(registry.listClaims('shared-run').map((claim) => claim.ownerId)).toEqual(['b']);
+    expect(registry.listQueue('blocked.ts').map((waiter) => waiter.ownerId)).toEqual(['b']);
+    expect(registry.holder('blocked.ts')?.ownerId).toBe('outside');
+  });
+
   it('releaseAll clears only the given run and drops its waiters', () => {
     const registry = createSwarmFileLeaseRegistry({ baseDir: '/work' });
     registry.claim('a.ts', 'a', 'run-1');

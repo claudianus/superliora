@@ -4,11 +4,9 @@ import { LocalKaos } from '@superliora/kaos';
 import {
   FLEET_WORKTREE_ENV,
   FLEET_WORKTREE_FALLBACK_TIP,
-  applyFleetWorktreeToSpawnTasks,
   isFleetWorktreeEnvEnabled,
   resolveFleetWorkerWorktreeDir,
 } from '#/fleet';
-import type { QueuedSubagentTask } from '#/session/subagent/subagent-batch-types';
 
 describe('fleet worktree soft path', () => {
   it('is disabled unless SUPERLIORA_FLEET_WORKTREE is truthy', () => {
@@ -38,13 +36,18 @@ describe('fleet worktree soft path', () => {
         lastAccessedAt: '2026-01-01T00:00:00.000Z',
       },
     }));
+    const signal = new AbortController().signal;
+    const onWorktreePath = vi.fn();
 
     const result = await resolveFleetWorkerWorktreeDir(
-      { kaos: new LocalKaos('/repo'), repoPath: '/repo', workerKey: 'fleet-x' },
+      { kaos: new LocalKaos('/repo'), repoPath: '/repo', workerKey: 'fleet-x', signal, onWorktreePath },
       { env: { [FLEET_WORKTREE_ENV]: '1' }, createWorktree },
     );
 
     expect(createWorktree).toHaveBeenCalledOnce();
+    expect(createWorktree).toHaveBeenCalledWith(expect.any(LocalKaos), {
+      repoPath: '/repo', name: 'fleet-x', signal, onWorktreePath,
+    });
     expect(result.worktreeDir).toBe('/tmp/fleet-worker');
     expect(result.fallbackTip).toBeUndefined();
   });
@@ -71,53 +74,28 @@ describe('fleet worktree soft path', () => {
     expect(log.warn).toHaveBeenCalledOnce();
   });
 
-  it('enriches spawn tasks only when env is on', async () => {
-    const createWorktree = vi.fn(async (_kaos, input: { name: string }) => ({
-      workDir: `/wt/${input.name}`,
-      meta: {
-        path: `/wt/${input.name}`,
-        branch: `liora/${input.name}`,
-        repoRoot: '/repo',
-        name: input.name,
-        baseRef: 'HEAD',
-        createdAt: '2026-01-01T00:00:00.000Z',
-      },
-      record: {
-        name: input.name,
-        path: `/wt/${input.name}`,
-        repoRoot: '/repo',
-        branch: `liora/${input.name}`,
-        baseRef: 'HEAD',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        lastAccessedAt: '2026-01-01T00:00:00.000Z',
-      },
-    }));
-
-    const baseTask = {
-      kind: 'spawn' as const,
-      data: { index: 1 },
-      profileName: 'coder',
-      parentToolCallId: 'toolcall-abc',
-      prompt: 'do work',
-      description: 'worker #1',
-      swarmIndex: 1,
-      runInBackground: false,
-    } satisfies QueuedSubagentTask<{ index: number }>;
-
-    const off = await applyFleetWorktreeToSpawnTasks([baseTask], {
-      kaos: new LocalKaos('/repo'),
-      repoPath: '/repo',
-      parentToolCallId: 'toolcall-abc',
-    }, { env: {} });
-    expect(off.tasks[0]?.worktreeDir).toBeUndefined();
-    expect(createWorktree).not.toHaveBeenCalled();
-
-    const on = await applyFleetWorktreeToSpawnTasks([baseTask], {
-      kaos: new LocalKaos('/repo'),
-      repoPath: '/repo',
-      parentToolCallId: 'toolcall-abc',
-    }, { env: { [FLEET_WORKTREE_ENV]: '1' }, createWorktree });
-    expect(on.tasks[0]?.worktreeDir).toBe('/wt/fleet-toolcall-1');
-    expect(createWorktree).toHaveBeenCalledOnce();
+  it('does not fall back while native preparation resources remain unsettled', async () => {
+    const failure = Object.assign(new Error('process disposal failed'), { resourcesSettled: false });
+    const error = new AggregateError([failure], 'worktree preparation failed');
+    const log = { warn: vi.fn() };
+    await expect(resolveFleetWorkerWorktreeDir(
+      { kaos: new LocalKaos('/repo'), repoPath: '/repo', workerKey: 'fleet-x', log: log as never },
+      { env: { [FLEET_WORKTREE_ENV]: '1' }, createWorktree: vi.fn().mockRejectedValue(error) },
+    )).rejects.toBe(error);
+    expect(log.warn).not.toHaveBeenCalled();
   });
+
+  it('does not fall back when preparation is cancelled', async () => {
+    const controller = new AbortController();
+    const error = new Error('cancelled');
+    const createWorktree = vi.fn(async () => {
+      controller.abort(error);
+      throw error;
+    });
+    await expect(resolveFleetWorkerWorktreeDir(
+      { kaos: new LocalKaos('/repo'), repoPath: '/repo', workerKey: 'fleet-x', signal: controller.signal },
+      { env: { [FLEET_WORKTREE_ENV]: '1' }, createWorktree },
+    )).rejects.toBe(error);
+  });
+
 });

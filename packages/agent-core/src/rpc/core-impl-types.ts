@@ -1,6 +1,5 @@
 import type { OAuthTokenProviderResolver } from '../session/provider/provider-manager';
 import type { TelemetryClient } from '../telemetry';
-import type { ToolServices } from '../tools/support/services';
 import type { RenameSessionPayload, UpdateSessionMetadataPayload } from './core-api';
 
 type AgentScopedPayload<T> = T & { readonly agentId: string };
@@ -13,25 +12,8 @@ export type UpdateSessionMetadataRequest = SessionScopedPayload<UpdateSessionMet
 export interface LioraCoreOptions {
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
-  readonly runtime?: ToolServices | undefined;
   readonly kimiRequestHeaders?: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
-  readonly skillDirs?: readonly string[];
-  /** Project root for `.superliora/plugins/installed.json` merge. */
-  readonly projectDir?: string;
-  /** Ephemeral `--plugin-dir` roots (session scope, not persisted). */
-  readonly pluginDirs?: readonly string[];
-  /**
-   * Opt-in Claude channel MCP server names (bare or `plugin:<id>:<server>`).
-   * When non-empty, inbound `notifications/claude/channel` injects into sessions.
-   */
-  readonly channelServers?: readonly string[];
-  /**
-   * Resolve marketplace plugin id → install source for dependency auto-install.
-   */
-  readonly resolveMarketplaceSource?: (
-    pluginId: string,
-  ) => Promise<string | undefined> | string | undefined;
   readonly telemetry?: TelemetryClient | undefined;
   readonly appVersion?: string;
 }

@@ -17,7 +17,6 @@ export function setStreamingTodoList(
   todos: readonly TodoItem[],
 ): void {
   const { state } = host;
-  state.todoPanel.setGoal(state.appState.goal);
   state.todoPanel.setTodos(todos);
   state.todoPanelContainer.clear();
   if (!state.todoPanel.isEmpty()) {
@@ -33,7 +32,7 @@ export function applyStreamingCompactionAction(
     | {
         readonly kind: 'begin';
         readonly instruction?: string;
-        readonly options?: { readonly background?: boolean; readonly modelAlias?: string };
+        readonly options?: { readonly modelAlias?: string };
       }
     | {
         readonly kind: 'end';
@@ -42,7 +41,6 @@ export function applyStreamingCompactionAction(
         readonly detail?: string;
       }
     | { readonly kind: 'cancel' }
-    | { readonly kind: 'promote' }
     | {
         readonly kind: 'progress';
         readonly phase: CompactionPhase;
@@ -69,7 +67,7 @@ function withCompactionBlock(
 export function streamingBeginCompaction(
   ctx: StreamingCompactionHost,
   instruction?: string,
-  options?: { readonly background?: boolean; readonly modelAlias?: string },
+  options?: { readonly modelAlias?: string },
 ): void {
   withCompactionBlock(ctx, { kind: 'begin', instruction, options });
 }
@@ -85,10 +83,6 @@ export function streamingEndCompaction(
 
 export function streamingCancelCompaction(ctx: StreamingCompactionHost): void {
   withCompactionBlock(ctx, { kind: 'cancel' });
-}
-
-export function streamingPromoteCompaction(ctx: StreamingCompactionHost): void {
-  withCompactionBlock(ctx, { kind: 'promote' });
 }
 
 export function streamingUpdateCompactionProgress(

@@ -1,9 +1,9 @@
 /**
  * Turn-level loop for a stateless agent run.
  *
- * Owns convergence across steps: abort checks at loop boundaries, max-step
- * enforcement, usage aggregation, optional continuation after non-tool stops,
- * and final `TurnResult` mapping. One-step execution lives in `turn-step.ts`.
+ * Owns abort checks at loop boundaries, explicit max-step enforcement, usage
+ * aggregation, consumption of pending input, and final `TurnResult` mapping.
+ * One-step execution lives in `turn-step.ts`.
  */
 
 import { addUsage, emptyUsage, type TokenUsage } from '@superliora/kosong';
@@ -19,7 +19,6 @@ import {
 } from './errors';
 import type { LoopInterruptReason, LoopEventDispatcher, LoopTurnInterruptedEvent } from './events';
 import type { LLM } from './llm';
-import { ToolGuardState } from './tool-call-guards';
 import { executeLoopStep } from './turn-step';
 import type { ToolParallelStatus } from './tool-parallel-status';
 import type {
@@ -38,20 +37,12 @@ export interface RunTurnInput {
   readonly signal: AbortSignal;
   readonly llm: LLM;
   readonly buildMessages: LoopMessageBuilder;
-  readonly buildMessagesStrict?: LoopMessageBuilder | undefined;
   readonly dispatchEvent: LoopEventDispatcher;
   readonly tools?: readonly ExecutableTool[] | undefined;
   readonly hooks?: LoopHooks | undefined;
   readonly log?: Logger | undefined;
   readonly maxSteps?: number | undefined;
-  readonly maxRetryAttempts?: number;
   readonly toolParallelStatus?: ToolParallelStatus | undefined;
-  /**
-   * Guard state for the agent running this turn. Hosts pass their own instance
-   * so circuit breakers survive across the agent's turns; omitting it gives
-   * this turn a private, fully isolated set.
-   */
-  readonly guards?: ToolGuardState | undefined;
   readonly recordStepUsage?:
     | ((
         usage: TokenUsage,
@@ -66,19 +57,14 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
     signal,
     llm,
     buildMessages,
-    buildMessagesStrict,
     dispatchEvent,
     tools,
     hooks,
     log,
     maxSteps,
-    maxRetryAttempts,
     recordStepUsage: hostRecordStepUsage,
     toolParallelStatus,
   } = input;
-  const guards = input.guards ?? new ToolGuardState();
-  // Reset tool failure + mutation idempotency at turn boundary (no cross-turn leaks).
-  guards.resetForTurn();
   const turnStartMs = Date.now();
   let usage: TokenUsage = emptyUsage();
   let steps = 0;
@@ -107,17 +93,14 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
         turnId,
         signal,
         buildMessages,
-        buildMessagesStrict,
         dispatchEvent,
         llm,
         tools,
         hooks,
         log,
         currentStep: steps,
-        maxRetryAttempts,
         recordUsage: recordStepUsage,
         toolParallelStatus,
-        guards,
       });
       activeStep = undefined;
 
@@ -128,17 +111,7 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
       const terminalStopReason: LoopTerminalStepStopReason = stepResult.stopReason;
       stopReason = terminalStopReason;
 
-      const continuation = await hooks?.shouldContinueAfterStop?.({
-        turnId,
-        stepNumber: steps,
-        usage: stepResult.usage,
-        stopReason: terminalStopReason,
-        signal,
-        llm,
-      });
-      if (continuation?.continue !== true) {
-        break;
-      }
+      if (await hooks?.consumePendingInput?.() !== true) break;
     }
   } catch (error) {
     if (isAbortError(error) || signal.aborted) {

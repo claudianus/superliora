@@ -17,15 +17,12 @@ function fakeInitialAppState(): AppState {
     additionalDirs: [],
     sessionId: 'sess-1',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     inputMode: 'prompt',
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
@@ -37,7 +34,6 @@ function fakeInitialAppState(): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
-    mcpServersSummary: null,
   };
 }
 
@@ -47,7 +43,7 @@ describe('native stage frame layout', () => {
     const height = 80;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -77,7 +73,7 @@ describe('native stage frame layout', () => {
     const height = 80;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -110,7 +106,7 @@ describe('native stage frame layout', () => {
     const height = 64;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -135,7 +131,7 @@ describe('native stage frame layout', () => {
     const height = 24;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -160,7 +156,7 @@ describe('native stage frame layout', () => {
     const height = 80;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -194,7 +190,7 @@ describe('planTUINativeStage stack panels', () => {
   function createSizedState(width: number, height: number) {
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });

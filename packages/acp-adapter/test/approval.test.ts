@@ -21,7 +21,7 @@ import type {
   Session,
   ToolInputDisplay,
 } from '@superliora/sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   APPROVE_ALWAYS_OPTION_ID,
@@ -32,6 +32,7 @@ import {
   permissionResponseToApprovalResponse,
 } from '../src/approval';
 import { AcpServer } from '../src/server';
+import { handleSessionApproval } from '../src/session/session-reverse-rpc';
 import { AUTHED_STATUS } from './_helpers/harness-stubs';
 
 function makeInMemoryStreamPair(): {
@@ -154,7 +155,7 @@ describe('approvalRequestToPermissionOptions', () => {
 
 describe('permissionResponseToApprovalResponse', () => {
   it('maps approve_once → { decision: approved } with no scope', () => {
-    const result = permissionResponseToApprovalResponse(undefined, {
+    const result = permissionResponseToApprovalResponse({
       outcome: { outcome: 'selected', optionId: APPROVE_ONCE_OPTION_ID },
     });
     expect(result).toEqual({ decision: 'approved' });
@@ -162,43 +163,31 @@ describe('permissionResponseToApprovalResponse', () => {
   });
 
   it('maps approve_always → { decision: approved, scope: session }', () => {
-    const result = permissionResponseToApprovalResponse(undefined, {
+    const result = permissionResponseToApprovalResponse({
       outcome: { outcome: 'selected', optionId: APPROVE_ALWAYS_OPTION_ID },
     });
     expect(result).toEqual({ decision: 'approved', scope: 'session' });
   });
 
   it('maps reject → { decision: rejected }', () => {
-    const result = permissionResponseToApprovalResponse(undefined, {
+    const result = permissionResponseToApprovalResponse({
       outcome: { outcome: 'selected', optionId: REJECT_OPTION_ID },
     });
     expect(result).toEqual({ decision: 'rejected' });
   });
 
-  it('maps legacy "approve" → { decision: approved } (Python kimi-cli compat)', () => {
-    const result = permissionResponseToApprovalResponse(undefined, {
-      outcome: { outcome: 'selected', optionId: 'approve' },
-    });
-    expect(result).toEqual({ decision: 'approved' });
-    expect(result.scope).toBeUndefined();
-  });
-
-  it('maps legacy "approve_for_session" → { decision: approved, scope: session } (Python kimi-cli compat)', () => {
-    const result = permissionResponseToApprovalResponse(undefined, {
-      outcome: { outcome: 'selected', optionId: 'approve_for_session' },
-    });
-    expect(result).toEqual({ decision: 'approved', scope: 'session' });
-  });
-
-  it('defensively maps an unknown optionId to { decision: rejected }', () => {
-    const result = permissionResponseToApprovalResponse(undefined, {
-      outcome: { outcome: 'selected', optionId: 'unknown_option_id' },
-    });
-    expect(result).toEqual({ decision: 'rejected' });
-  });
+  it.each(['approve', 'approve_for_session', 'unknown_option_id'])(
+    'rejects noncanonical optionId %s',
+    (optionId) => {
+      const result = permissionResponseToApprovalResponse({
+        outcome: { outcome: 'selected', optionId },
+      });
+      expect(result).toEqual({ decision: 'rejected' });
+    },
+  );
 
   it('maps cancelled → { decision: cancelled }', () => {
-    const result = permissionResponseToApprovalResponse(undefined, {
+    const result = permissionResponseToApprovalResponse({
       outcome: { outcome: 'cancelled' },
     });
     expect(result).toEqual({ decision: 'cancelled' });
@@ -228,6 +217,42 @@ describe('buildPermissionToolCallUpdate (Phase 5.1 minimal shape)', () => {
 });
 
 describe('AcpSession ↔ requestPermission bridge (end-to-end via wire)', () => {
+  it('rejects retired tool approval requests without creating editor activity', async () => {
+    const requestPermission = vi.fn(async () => ({
+      outcome: { outcome: 'selected' as const, optionId: APPROVE_ONCE_OPTION_ID },
+    }));
+    const decision = await handleSessionApproval({
+      sessionId: 'native-session',
+      conn: { requestPermission } as unknown as AgentSideConnection,
+      getCurrentTurnId: () => 3,
+      emitTelemetry: () => {},
+    }, {
+      toolCallId: 'retired-call',
+      toolName: 'Read',
+      action: 'read file',
+      display: { kind: 'command', command: 'cat /file' },
+    });
+    expect(decision).toEqual({ decision: 'rejected' });
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('uses the native request turn id instead of an unrelated tracked turn', async () => {
+    const requestPermission = vi.fn(async () => ({
+      outcome: { outcome: 'selected' as const, optionId: APPROVE_ONCE_OPTION_ID },
+    }));
+    await handleSessionApproval({
+      sessionId: 'native-session',
+      conn: { requestPermission } as unknown as AgentSideConnection,
+      getCurrentTurnId: () => 3,
+      emitTelemetry: () => {},
+    }, {
+      turnId: 9, toolCallId: 'native-call', toolName: 'Bash', action: 'execute',
+      display: { kind: 'command', command: 'pwd' },
+    });
+    expect(requestPermission).toHaveBeenCalledWith(expect.objectContaining({
+      toolCall: expect.objectContaining({ toolCallId: '9:native-call' }),
+    }));
+  });
   it('emits a request_permission with options length 3 and prefixed toolCallId when the SDK invokes the registered handler, and resolves it to { decision: approved }', async () => {
     const sessionId = 'sess-approval-wire';
     const turnId = 7;
@@ -282,8 +307,6 @@ describe('AcpSession ↔ requestPermission bridge (end-to-end via wire)', () => 
     };
     const decision = await handle.invokeHandler(approvalReq);
 
-    // Phase 5.2 lifts `selectedLabel` from the matched option name.
-    // The 5.1 contract (decision discriminator) is preserved.
     expect(decision.decision).toBe('approved');
     expect(decision.scope).toBeUndefined();
     expect(client.permissionRequests).toHaveLength(1);

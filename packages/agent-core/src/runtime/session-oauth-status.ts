@@ -31,6 +31,12 @@ export async function buildSessionOAuthStatus(
   if (providerName === undefined) return undefined;
 
   const provider = input.config.providers[providerName];
+  // Static API credentials take precedence over OAuth in native request auth.
+  if (
+    provider?.apiKey?.trim() ||
+    provider?.apiKeys?.some((key) => key.trim().length > 0) ||
+    provider?.credentials?.some((credential) => credential.apiKey.trim().length > 0)
+  ) return undefined;
   const refs = listProviderOAuthRefs(provider as Record<string, unknown> | undefined);
   if (refs.length === 0) return undefined;
 

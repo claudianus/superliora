@@ -89,13 +89,13 @@ jobs:
       # Windows-sensitive agent-core suites. The full agent-core suite does not
       # fit the per-shard budget, but these are the paths whose behaviour
       # actually differs on Windows — spawn/shim resolution, atomic writes and
-      # durable renames, worktree lifecycle, hook exec-form splitting, and
+      # durable renames, worktree lifecycle, and
       # case-insensitive path identity. Every Windows-only defect found so far
       # lived in one of them and none was caught per-push, because agent-core
       # was absent from this shard entirely. Keep this list in sync when
       # touching platform-conditional code.
       - name: Windows-sensitive agent-core suites
-        run: node scripts/test-local.mjs packages/agent-core/test/session/worktree.test.ts packages/agent-core/test/session/worktree-removal-safety.test.ts packages/agent-core/test/hooks/runner.test.ts packages/agent-core/test/tools/rg-locator.test.ts packages/agent-core/test/tools/bash.test.ts packages/agent-core/test/utils/fs-atomic-write.test.ts packages/agent-core/test/services/fs-watcher-path-identity.test.ts --testTimeout=30000 --maxWorkers=2 --retry=1
+        run: node scripts/test-local.mjs packages/agent-core/test/session/worktree.test.ts packages/agent-core/test/session/worktree-removal-safety.test.ts packages/agent-core/test/tools/rg-locator.test.ts packages/agent-core/test/tools/bash.test.ts packages/agent-core/test/utils/fs-atomic-write.test.ts packages/agent-core/test/services/fs-watcher-path-identity.test.ts --testTimeout=30000 --maxWorkers=2 --retry=1
       - run: node scripts/test-local.mjs apps/liora/test packages/tui-renderer/test packages/kaos/test packages/acp-adapter/test packages/server-e2e/test --shard=${{ matrix.shard }}/2 --testTimeout=30000 --maxWorkers=2 --retry=1
 
   test-windows-full:
@@ -144,7 +144,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm run check:imports
-      - run: pnpm run check:retire-guardrails
       - run: pnpm run check:layering -- --fail
       - run: pnpm run check:loc -- --fail
       - run: pnpm run check:dir -- --fail
@@ -154,7 +153,6 @@ jobs:
       - run: pnpm run check:slop
       - run: pnpm run check:nix-workspace
       - run: pnpm run sherif
-      - run: pnpm run check:branding:strict
       - run: pnpm run check:cdn-latest
       - name: Theme contrast check (WCAG AA)
         run: pnpm --filter @superliora/liora run check:contrast
@@ -175,13 +173,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check:settings-inventory
-      - run: pnpm run check:mission-fleet-path
-      - name: Cache warm KPI (50-turn mock)
-        run: pnpm -C packages/agent-core run cache:warm-kpi
-      - name: Search never-empty KPI (free-only mock)
-        run: pnpm -C packages/agent-core run search:never-empty-kpi
-      - name: DeepResearch never-empty KPI (empty-cascade mock)
-        run: pnpm -C packages/agent-core run deep-research:never-empty-kpi
+      - name: Native prompt-cache contracts
+        run: node scripts/test-local.mjs packages/agent-core/test/agent/cache-freeze-guard.test.ts packages/agent-core/test/config/prompt-cache-key.test.ts packages/agent-core/test/session/agent-prompt-cache-key.test.ts
 
   typecheck:
     runs-on: ubuntu-latest

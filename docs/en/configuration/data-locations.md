@@ -16,12 +16,7 @@ If you need to move the data directory elsewhere (for example, to isolate config
 export SUPERLIORA_HOME="$HOME/.config/kimi-code"
 ```
 
-Once set, **all** SuperLiora data — config, sessions, logs, OAuth credentials, Kimi-specific user Skills, global `AGENTS.md`, and more — lands under the new path. For the full reference on `SUPERLIORA_HOME`, see [Environment variables](./env-vars.md).
-
-::: tip Note
-
-**Generic `.agents` resources** stay under the real OS home so they can be shared across tools. For example, user-level generic Skills remain at `~/.agents/skills/`, while Kimi-specific user Skills move with `SUPERLIORA_HOME` as `$SUPERLIORA_HOME/skills/`.
-:::
+`SUPERLIORA_HOME` relocates runtime configuration, sessions, logs, and provider OAuth credentials. It does not isolate the working checkout. Skills, plugins, MCP declarations, and durable Memory are no longer current runtime resources.
 
 ## Directory layout
 
@@ -29,25 +24,13 @@ Once set, **all** SuperLiora data — config, sessions, logs, OAuth credentials,
 $SUPERLIORA_HOME  (default: ~/.superliora)
 ├── config.toml             # User configuration
 ├── tui.toml                # Terminal UI preferences (including auto-update toggle)
-├── AGENTS.md               # Global Kimi-specific agent instructions (optional)
-├── mcp.json                # User-level MCP server declarations (optional)
-├── skills/                 # Kimi-specific user-level Skills (optional)
-├── plugins/
-│   ├── installed.json      # Installed plugin records and enabled state
-│   └── managed/            # Plugin copies installed from zip/local paths
 ├── credentials/            # OAuth credentials (dir 0700, files 0600)
 │   ├── <name>.json
-│   └── mcp/
-│       └── <key>-<suffix>.json
 ├── sessions/               # Session data (see below)
 │   ├── index.jsonl         # Session index
 │   └── <workDirKey>/<sessionId>/
-├── memory/
-│   ├── liora-memory.sqlite # Canonical durable Liora Memory store
-│   ├── records/             # Human-readable recovery mirror
-│   └── episodes/            # Legacy JSON input, imported once when present
 ├── bin/
-│   ├── rg                  # managed ripgrep binary for Grep (rg.exe on Windows)
+│   ├── rg                  # managed search helper (rg.exe on Windows)
 │   └── fd                  # managed fd binary for file references (fd.exe on Windows)
 ├── logs/
 │   └── liora.log       # Global diagnostic log
@@ -66,14 +49,7 @@ Each top-level file under the data root serves a specific purpose; most are mana
 
 - **`config.toml`**: the main runtime configuration file, storing user-level settings such as providers, models, and loop control. See [Configuration files](./config-files.md).
 - **`tui.toml`**: terminal UI client preferences, including `[upgrade].auto_install` (auto-update, on by default). You can disable it in `/settings` or by manually setting `auto_install = false`.
-- **`AGENTS.md`**: global Kimi-specific agent instructions. This file moves with `SUPERLIORA_HOME`; generic cross-tool instructions can still live under `~/.agents/AGENTS.md`.
-- **`mcp.json`**: user-level MCP server declarations, merged with the project-local `.superliora/mcp.json` on startup. See [MCP](../customization/mcp.md).
-- **`skills/`**: Kimi-specific user-level Skills. This directory moves with `SUPERLIORA_HOME`; generic cross-tool Skills can still live under `~/.agents/skills/`. See [Agent Skills](../customization/skills.md).
-- **`plugins/installed.json`**: records installed plugins, each plugin's enabled state, and MCP server capability state changes made via `/plugins` or `/plugins mcp disable|enable`. Files installed from local paths or zip URLs are copied to `plugins/managed/<id>/`. See [Plugins](../customization/plugins.md).
-- **`credentials/`**: OAuth credential directory, with permissions `0o700` (directory) / `0o600` (files), readable and writable only by the current user. Managed provider credentials are stored as `credentials/<name>.json`; MCP server credentials are stored under `credentials/mcp/`. Credentials are written using an atomic flow (tmp → fsync → rename) to prevent corruption.
-- **`memory/liora-memory.sqlite`**: the only authoritative durable memory store. It contains fact, event, procedure, task, and rule records, their provenance, temporal fields, links, and audit events.
-- **`memory/records/`**: a Markdown projection used for human inspection and recovery. SQLite remains authoritative; editing a mirror file is not a supported write API.
-- **`memory/episodes/`**: a one-shot migration input for legacy JSON episodes. Existing `kimi-recall.sqlite` / `liora-recall.sqlite` files and legacy record markers are migrated when the new store opens; they are not used as the v2 API.
+- **`credentials/`**: native provider OAuth credential directory, with permissions `0o700` (directory) / `0o600` (files). Credentials are written atomically.
 
 ## Session data
 
@@ -82,19 +58,16 @@ Each session's data is stored under `sessions/<workDirKey>/<sessionId>/`, and `s
 Inside each session directory:
 
 - **`state.json`**: session metadata including `version`, title, `lastPrompt` (capped), creation/update timestamps, and `forkedFrom`. Agent `homedir` values are stored relative to the session directory (`agents/main`). Writes use a temp file plus `state.json.bak`.
-- **`ui/goals.json`**: the TUI-only queue created by `/goal next <objective>`. It is not part of the agent conversation until a queued goal is promoted after the current goal completes. Older sessions may still have `upcoming-goals.json` at the session root.
 - **`ui/draft.json`**: crash/resume draft, prompt queue, and Ctrl-X stash for the editor.
 - **`ui/prefs.json`**: session-scoped TUI preferences such as transcript detail.
 - **`agents/main/wire.jsonl`**: the main Agent's complete communication record, used for session resumption and replay.
-- **`agents/main/plans/`**: plan files written in Plan mode, named by plan id (`<id>.md`).
 - **`agents/agent-0/` etc.**: sub-Agent instance directories, each containing their own `wire.jsonl`.
 - **`logs/liora.log`**: diagnostic log for this session; only present when a diagnostic event occurs.
 - **`tasks/`**: background task persistence — `tasks/<task_id>.json` stores status/pid/exit code; `tasks/<task_id>/output.log` stores output.
-- **`cron/`**: scheduled task persistence; reloaded into the scheduler when `liora --continue` runs. See [Scheduled tasks](../reference/tools.md#scheduled-tasks).
 
-## Built-in tool cache
+## Managed UI search helpers
 
-The first time the `Grep` tool needs ripgrep, the CLI can automatically download `rg` and cache it at `bin/rg` (`bin/rg.exe` on Windows). File-reference completion in the terminal UI uses `fd`; the CLI downloads and caches it at `bin/fd` (`bin/fd.exe` on Windows) in the background when needed. Subsequent runs reuse the cached binaries. `rg` prefers the system `PATH` before the cache, while `fd` checks the managed cache before falling back to system `fd` / `fdfind`. Deleting the `bin/` directory triggers a fresh download on the next use.
+The TUI can cache search and file-reference helpers under `bin/`. These are executable helpers, not model-visible Grep/Glob tools. The agent performs filesystem work through Bash.
 
 ## Logs and update state
 
@@ -118,17 +91,11 @@ Deleting the data root directory (`~/.superliora/` or the path set by `SUPERLIOR
 | Reset configuration | Delete `~/.superliora/config.toml` |
 | Reset terminal UI preferences | Delete `~/.superliora/tui.toml` |
 | Clear all sessions | Delete `~/.superliora/sessions/` (and leftover `session_index.jsonl` if present) |
-| Reset durable Liora Memory | Delete `~/.superliora/memory/` |
 | Clear diagnostic logs | Delete `~/.superliora/logs/` |
 | Clear input history | Delete `~/.superliora/user-history/` |
 | Reset update state | Delete `~/.superliora/updates/latest.json` |
 | Force re-download of managed `rg` and `fd` | Delete `~/.superliora/bin/` |
 | Clear provider OAuth login state | Run `/logout`, or delete the corresponding `credentials/<name>.json` |
-| Clear MCP server OAuth login state | Delete `credentials/mcp/` (`/logout` does not clear MCP credentials) |
-| Remove user-level MCP declarations | Delete `$SUPERLIORA_HOME/mcp.json` (default `~/.superliora/mcp.json`) |
-| Clear global Kimi-specific agent instructions | Delete `$SUPERLIORA_HOME/AGENTS.md` (default `~/.superliora/AGENTS.md`) |
-| Clear plugin install records | Delete `$SUPERLIORA_HOME/plugins/` (local plugin source directories are not affected) |
-| Clear Kimi-specific user-level Skills | Delete `$SUPERLIORA_HOME/skills/` (default `~/.superliora/skills/`) |
 
 ## Next steps
 

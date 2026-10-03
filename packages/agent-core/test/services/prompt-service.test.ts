@@ -19,13 +19,13 @@
  *   - bus.publish of nested turn.ended ignored (non-top-level)
  *   - bus.publish on events for an unknown session is a no-op
  *   - abort() rejects PromptNotFoundError when no active prompt
- *   - abort() returns {aborted: true} + publishes prompt.aborted
+ *   - abort() requests cancellation; prompt.aborted follows terminal settlement
  *   - second abort() → PromptAlreadyCompletedError (40903)
  *   - busy submit queues instead of throwing; list returns active + queued
  *   - steer removes queued prompts and dispatches core.rpc.steer
  *   - failed steer restores queued prompts
- *   - per-request stateless controls (model / thinking / permission_mode /
- *     plan_mode) bootstrap once, diff-dispatch on change, no-op on match,
+ *   - native model / thinking / permission controls bootstrap once,
+ *     diff-dispatch on change, no-op on match,
  *     reseed after session close, agent.status.updated mirrors into shadow.
  */
 
@@ -72,7 +72,7 @@ function mkSummary(id = SID): SessionSummary {
 
 /**
  * Default body for a submit() that exercises the per-turn override path —
- * all four runtime controls are populated, so bootstrap + diff-dispatch
+ * native runtime controls are populated, so bootstrap + diff-dispatch
  * fire. Spread overrides on top per-test as needed. Tests that want the
  * content-only path (zero bootstrap, zero setters) use `mkBodyMinimal`.
  */
@@ -82,7 +82,6 @@ function mkBody(over: Partial<PromptSubmission> = {}): PromptSubmission {
     model: 'kimi-code/k2',
     thinking: 'off',
     permission_mode: 'manual',
-    plan_mode: false,
     ...over,
   };
 }
@@ -107,23 +106,15 @@ interface RpcRecord {
   setModelCalls: unknown[];
   setThinkingCalls: unknown[];
   setPermissionCalls: unknown[];
-  enterPlanCalls: unknown[];
-  cancelPlanCalls: unknown[];
   startBtwCalls: unknown[];
-  createGoalCalls: unknown[];
-  pauseGoalCalls: unknown[];
-  resumeGoalCalls: unknown[];
-  cancelGoalCalls: unknown[];
   getConfigCalls: number;
   getPermissionCalls: number;
-  getPlanCalls: number;
 }
 
 interface BridgeStubOptions {
-  /** Initial bootstrap values returned by getConfig/getPermission/getPlan. */
+  /** Initial native bootstrap values returned by getConfig/getPermission. */
   config?: { modelAlias?: string; thinkingLevel?: string };
   permission?: { mode: 'manual' | 'yolo' | 'auto' };
-  plan?: null | { id: string; content: string; path: string };
   sessions?: SessionSummary[];
   onPrompt?: (payload: unknown) => void | Promise<void>;
 }
@@ -138,16 +129,9 @@ function makeBridge(
     setModelCalls: [],
     setThinkingCalls: [],
     setPermissionCalls: [],
-    enterPlanCalls: [],
-    cancelPlanCalls: [],
     startBtwCalls: [],
-    createGoalCalls: [],
-    pauseGoalCalls: [],
-    resumeGoalCalls: [],
-    cancelGoalCalls: [],
     getConfigCalls: 0,
     getPermissionCalls: 0,
-    getPlanCalls: 0,
   };
   const config = {
     cwd: '/tmp/ws',
@@ -157,7 +141,6 @@ function makeBridge(
     modelAlias: opts.config?.modelAlias ?? 'kimi-code/k2',
   };
   const permission = { mode: opts.permission?.mode ?? 'manual', rules: [] };
-  const plan = opts.plan === undefined ? null : opts.plan;
   const sessions = opts.sessions ?? [mkSummary()];
 
   const rpc: Partial<CoreRPC> = {
@@ -187,10 +170,6 @@ function makeBridge(
       record.getPermissionCalls += 1;
       return permission;
     }),
-    getPlan: vi.fn().mockImplementation(async () => {
-      record.getPlanCalls += 1;
-      return plan;
-    }),
     setModel: vi.fn().mockImplementation(async (payload) => {
       record.setModelCalls.push(payload);
       return { model: (payload as { model: string }).model };
@@ -201,40 +180,15 @@ function makeBridge(
     setPermission: vi.fn().mockImplementation(async (payload) => {
       record.setPermissionCalls.push(payload);
     }),
-    enterPlan: vi.fn().mockImplementation(async (payload) => {
-      record.enterPlanCalls.push(payload);
-    }),
-    cancelPlan: vi.fn().mockImplementation(async (payload) => {
-      record.cancelPlanCalls.push(payload);
-    }),
     startBtw: vi.fn().mockImplementation(async (payload) => {
       record.startBtwCalls.push(payload);
       return 'agent_btw';
-    }),
-    createGoal: vi.fn().mockImplementation(async (payload) => {
-      record.createGoalCalls.push(payload);
-      return {
-        goalId: 'goal_1',
-        objective: (payload as { objective: string }).objective,
-        status: 'active',
-      };
-    }),
-    pauseGoal: vi.fn().mockImplementation(async (payload) => {
-      record.pauseGoalCalls.push(payload);
-      return { goalId: 'goal_1', status: 'paused' };
-    }),
-    resumeGoal: vi.fn().mockImplementation(async (payload) => {
-      record.resumeGoalCalls.push(payload);
-      return { goalId: 'goal_1', status: 'active' };
-    }),
-    cancelGoal: vi.fn().mockImplementation(async (payload) => {
-      record.cancelGoalCalls.push(payload);
-      return { goalId: 'goal_1', status: 'cancelled' };
     }),
   };
   const bridge: ICoreProcessService = {
     rpc: rpc as CoreRPC,
     ready: vi.fn().mockResolvedValue(undefined),
+    shutdown: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
     _serviceBrand: undefined,
   };
@@ -644,16 +598,15 @@ describe('PromptService.submit', () => {
 });
 
 describe('PromptService.startBtw', () => {
-  it('starts a side-channel agent through core RPC', async () => {
+  it('starts an explicit secondary lane through core RPC', async () => {
     const { bridge, record } = makeBridge();
     const { bus } = makeBus();
     const impl = newSvc(bridge, bus);
-
     await expect(impl.startBtw(SID)).resolves.toBe('agent_btw');
-
     expect(record.startBtwCalls).toEqual([{ sessionId: SID, agentId: 'main' }]);
   });
 });
+
 
 describe('PromptService lifecycle synthesis (via IEventService.onDidPublish)', () => {
   it('captures turnId on the first turn.started after submit', async () => {
@@ -833,7 +786,7 @@ describe('PromptService.abort', () => {
     );
   });
 
-  it('returns {aborted: true} and publishes prompt.aborted', async () => {
+  it('acknowledges cancel but emits prompt.aborted only after real settlement', async () => {
     const { bridge, record } = makeBridge();
     const { bus, events, triggerSubscribers } = makeBus();
     const impl = newSvc(bridge, bus);
@@ -854,8 +807,21 @@ describe('PromptService.abort', () => {
       agentId: 'main',
       turnId: 5,
     });
-    expect(events).toHaveLength(1);
-    expect((events[0] as unknown as { type: string }).type).toBe('prompt.aborted');
+    expect(events).toEqual([]);
+    expect(impl.getCurrentPromptId(SID)).toBe(submit.prompt_id);
+    expect((await impl.list(SID)).active?.status).toBe('running');
+    const queued = await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'later' }] }));
+    expect(queued.status).toBe('queued');
+    expect(record.promptCalls).toHaveLength(1);
+    events.length = 0;
+    triggerSubscribers({
+      type: 'turn.ended',
+      turnId: 5,
+      reason: 'cancelled',
+      sessionId: SID,
+      agentId: 'main',
+    } as unknown as Event);
+    expect(events.filter((event) => event.type === 'prompt.aborted')).toHaveLength(1);
   });
 
   it('throws PromptAlreadyCompletedError on the second abort', async () => {
@@ -936,7 +902,7 @@ describe('PromptService.getCurrentPromptId', () => {
 });
 
 describe('PromptService.abortBySession', () => {
-  it('delegates to abort when a daemon prompt is active', async () => {
+  it('cancels the active daemon turn and publishes abort only after settlement', async () => {
     const { bridge, record } = makeBridge();
     const { bus, events, triggerSubscribers } = makeBus();
     const impl = newSvc(bridge, bus);
@@ -959,8 +925,21 @@ describe('PromptService.abortBySession', () => {
       agentId: 'main',
       turnId: 7,
     });
-    expect(events).toHaveLength(1);
-    expect((events[0] as unknown as { type: string }).type).toBe('prompt.aborted');
+    expect(events).toEqual([]);
+    expect(impl.getCurrentPromptId(SID)).toBe(submit.prompt_id);
+    await expect(impl.abortBySession(SID)).resolves.toEqual({ aborted: false });
+    expect(record.cancelCalls).toHaveLength(1);
+    triggerSubscribers({
+      type: 'turn.ended',
+      turnId: 7,
+      reason: 'cancelled',
+      sessionId: SID,
+      agentId: 'main',
+    } as unknown as Event);
+    expect(events.filter((event) => event.type === 'prompt.aborted')).toEqual([
+      expect.objectContaining({ promptId: submit.prompt_id, sessionId: SID }),
+    ]);
+    expect(impl.getCurrentPromptId(SID)).toBeUndefined();
   });
 
   it('calls core.rpc.cancel without turnId when no daemon prompt is active', async () => {
@@ -1066,37 +1045,31 @@ describe('PromptService queue steer', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stateless per-request session controls (model / thinking / permission_mode /
-// plan_mode)
+// Stateless native model / thinking / permission controls.
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('PromptService stateless controls — bootstrap + shadow', () => {
-  it('bootstraps shadow from getConfig/getPermission/getPlan on first submit', async () => {
+  it('bootstraps shadow from getConfig/getPermission on first submit', async () => {
     const { bridge, record } = makeBridge({
       config: { modelAlias: 'kimi-code/k2', thinkingLevel: 'medium' },
       permission: { mode: 'yolo' },
-      plan: { id: 'plan_abc', content: '', path: '/tmp/p' },
     });
     const { bus } = makeBus();
     const impl = newSvc(bridge, bus);
-    await impl.submit(SID, mkBody({ thinking: 'medium', permission_mode: 'yolo', plan_mode: true }));
+    await impl.submit(SID, mkBody({ thinking: 'medium', permission_mode: 'yolo' }));
     const snap = impl._agentStateForTest(SID);
     expect(snap).toEqual({
       model: 'kimi-code/k2',
       thinking: 'medium',
       permissionMode: 'yolo',
-      planMode: true,
     });
     // Getters fired exactly once each.
     expect(record.getConfigCalls).toBe(1);
     expect(record.getPermissionCalls).toBe(1);
-    expect(record.getPlanCalls).toBe(1);
     // No setters fired because body matched the bootstrap snapshot.
     expect(record.setModelCalls).toEqual([]);
     expect(record.setThinkingCalls).toEqual([]);
     expect(record.setPermissionCalls).toEqual([]);
-    expect(record.enterPlanCalls).toEqual([]);
-    expect(record.cancelPlanCalls).toEqual([]);
   });
 
   it('does not re-bootstrap on subsequent submits in the same session', async () => {
@@ -1123,7 +1096,6 @@ describe('PromptService stateless controls — bootstrap + shadow', () => {
     await impl.submit(SID, mkBody({ content: [{ type: 'text', text: 'again' }] }));
     expect(record.getConfigCalls).toBe(1);
     expect(record.getPermissionCalls).toBe(1);
-    expect(record.getPlanCalls).toBe(1);
   });
 
   it('re-bootstraps after the session closes', async () => {
@@ -1155,7 +1127,6 @@ describe('PromptService stateless controls — bootstrap + shadow', () => {
     await impl.submit(SID, mkBody({ content: [{ type: 'text', text: 'after-close' }] }));
     expect(record.getConfigCalls).toBe(2);
     expect(record.getPermissionCalls).toBe(2);
-    expect(record.getPlanCalls).toBe(2);
   });
 });
 
@@ -1246,31 +1217,6 @@ describe('PromptService stateless controls — diff dispatch', () => {
     ]);
   });
 
-  it('enters plan mode when plan_mode goes false→true', async () => {
-    const { bridge, record } = makeBridge({ plan: null });
-    const { bus } = makeBus();
-    const impl = newSvc(bridge, bus);
-    await impl.submit(SID, mkBody({ plan_mode: true }));
-    expect(record.enterPlanCalls).toEqual([
-      { sessionId: SID, agentId: 'main' },
-    ]);
-    expect(record.cancelPlanCalls).toEqual([]);
-    expect(impl._agentStateForTest(SID)?.planMode).toBe(true);
-  });
-
-  it('cancels plan mode when plan_mode goes true→false', async () => {
-    const { bridge, record } = makeBridge({
-      plan: { id: 'plan_xyz', content: '', path: '/tmp/p' },
-    });
-    const { bus } = makeBus();
-    const impl = newSvc(bridge, bus);
-    await impl.submit(SID, mkBody({ plan_mode: false }));
-    expect(record.cancelPlanCalls).toEqual([
-      { sessionId: SID, agentId: 'main' },
-    ]);
-    expect(record.enterPlanCalls).toEqual([]);
-    expect(impl._agentStateForTest(SID)?.planMode).toBe(false);
-  });
 
   it('no-ops on repeated identical submissions (no extra setter RPCs)', async () => {
     const { bridge, record } = makeBridge();
@@ -1301,8 +1247,6 @@ describe('PromptService stateless controls — diff dispatch', () => {
     expect(record.setModelCalls).toEqual([]);
     expect(record.setThinkingCalls).toEqual([]);
     expect(record.setPermissionCalls).toEqual([]);
-    expect(record.enterPlanCalls).toEqual([]);
-    expect(record.cancelPlanCalls).toEqual([]);
   });
 });
 
@@ -1316,14 +1260,12 @@ describe('PromptService stateless controls — live shadow updates', () => {
       type: 'agent.status.updated',
       model: 'kimi-code/k1',
       permission: 'yolo',
-      planMode: true,
       sessionId: SID,
       agentId: 'main',
     } as unknown as Event);
     expect(impl._agentStateForTest(SID)).toMatchObject({
       model: 'kimi-code/k1',
       permissionMode: 'yolo',
-      planMode: true,
     });
   });
 
@@ -1380,17 +1322,16 @@ describe('PromptService stateless controls — dispatch log', () => {
     const impl = newSvc(bridge, bus);
     expect(impl._dispatchLogForTest(SID)).toBeUndefined();
     // Default body matches the default bridge bootstrap (model=k2,
-    // thinking=off, permission=manual, plan=null).
+    // thinking=off, permission=manual).
     await impl.submit(SID, mkBody());
     // No setter fired -> buffer never allocated -> still undefined.
     expect(impl._dispatchLogForTest(SID)).toBeUndefined();
   });
 
-  it('appends one entry per setter dispatched, in the order setModel/setThinking/setPermission/(enter|cancel)Plan', async () => {
+  it('appends one entry per native setter in model/thinking/permission order', async () => {
     const { bridge } = makeBridge({
       config: { modelAlias: 'kimi-code/k2', thinkingLevel: 'off' },
       permission: { mode: 'manual' },
-      plan: null,
     });
     const { bus } = makeBus();
     const impl = newSvc(bridge, bus);
@@ -1400,19 +1341,17 @@ describe('PromptService stateless controls — dispatch log', () => {
         model: 'kimi-code/k1',
         thinking: 'high',
         permission_mode: 'yolo',
-        plan_mode: true,
       }),
     );
     const log = impl._dispatchLogForTest(SID);
     expect(log).toBeDefined();
     const kinds = (log ?? []).map((e) => e.kind);
-    expect(kinds).toEqual(['setModel', 'setThinking', 'setPermission', 'enterPlan']);
+    expect(kinds).toEqual(['setModel', 'setThinking', 'setPermission']);
     expect(log?.[0]?.payload).toEqual({
       sessionId: SID,
       agentId: 'main',
       model: 'kimi-code/k1',
     });
-    expect(log?.[3]?.payload).toEqual({ sessionId: SID, agentId: 'main' });
     // Every entry from a prompt-body override path is tagged source='prompt'.
     expect((log ?? []).every((e) => e.source === 'prompt')).toBe(true);
     // Each entry should be attributed to the prompt id returned by submit;
@@ -1421,11 +1360,10 @@ describe('PromptService stateless controls — dispatch log', () => {
   });
 
   it('does NOT append entries when a repeat submit matches the shadow', async () => {
-    const { bridge } = makeBridge({ plan: null });
+    const { bridge } = makeBridge();
     const { bus, triggerSubscribers } = makeBus();
     const impl = newSvc(bridge, bus);
-    // First submit toggles plan_mode on -> 1 entry.
-    await impl.submit(SID, mkBody({ plan_mode: true }));
+    await impl.submit(SID, mkBody({ permission_mode: 'yolo' }));
     triggerSubscribers({
       type: 'turn.started',
       turnId: 1,
@@ -1441,67 +1379,23 @@ describe('PromptService stateless controls — dispatch log', () => {
       agentId: 'main',
     } as unknown as Event);
     expect(impl._dispatchLogForTest(SID)?.length).toBe(1);
-    expect(impl._dispatchLogForTest(SID)?.[0]?.kind).toBe('enterPlan');
+    expect(impl._dispatchLogForTest(SID)?.[0]?.kind).toBe('setPermission');
 
-    // Second submit with the same plan_mode -> shadow suppresses dispatch.
-    // This is the property scenario 04 cannot observe over WS frames alone.
-    await impl.submit(SID, mkBody({ plan_mode: true }));
+    await impl.submit(SID, mkBody({ permission_mode: 'yolo' }));
     expect(impl._dispatchLogForTest(SID)?.length).toBe(1);
   });
 
   it('clears the buffer when the session closes (re-bootstrap on next submit)', async () => {
-    const { bridge } = makeBridge({ plan: null });
+    const { bridge } = makeBridge();
     const { bus } = makeBus();
     const { sessionService, triggerClose } = makeSessionService();
     const impl = new PromptService(bridge, bus, makeAuth(), sessionService, new NoopLogService());
-    await impl.submit(SID, mkBody({ plan_mode: true }));
+    await impl.submit(SID, mkBody({ permission_mode: 'yolo' }));
     expect(impl._dispatchLogForTest(SID)?.length).toBe(1);
     triggerClose(SID);
     expect(impl._dispatchLogForTest(SID)).toBeUndefined();
   });
 
-
-
-
-  it('dispatches createGoal and records it in the log', async () => {
-    const { bridge, record } = makeBridge({
-      config: { modelAlias: 'kimi-code/k2', thinkingLevel: 'off' },
-      permission: { mode: 'manual' },
-      plan: null,
-    });
-    const { bus } = makeBus();
-    const impl = newSvc(bridge, bus);
-    await impl.submit(SID, mkBody({ goal_objective: 'Refactor the auth module' }));
-    expect(record.createGoalCalls.length).toBe(1);
-    expect(record.createGoalCalls[0]).toEqual({
-      sessionId: SID,
-      agentId: 'main',
-      objective: 'Refactor the auth module',
-      replace: false,
-    });
-    const log = impl._dispatchLogForTest(SID);
-    expect(log?.some((e) => e.kind === 'createGoal')).toBe(true);
-  });
-
-  it('dispatches goal control actions and records them in the log', async () => {
-    const { bridge, record } = makeBridge({
-      config: { modelAlias: 'kimi-code/k2', thinkingLevel: 'off' },
-      permission: { mode: 'manual' },
-      plan: null,
-    });
-    const { bus } = makeBus();
-    const impl = newSvc(bridge, bus);
-    await impl.applyAgentState(SID, { goal_control: 'pause' }, 'meta');
-    expect(record.pauseGoalCalls.length).toBe(1);
-    await impl.applyAgentState(SID, { goal_control: 'resume' }, 'meta');
-    expect(record.resumeGoalCalls.length).toBe(1);
-    await impl.applyAgentState(SID, { goal_control: 'cancel' }, 'meta');
-    expect(record.cancelGoalCalls.length).toBe(1);
-    const log = impl._dispatchLogForTest(SID);
-    expect(log?.filter((e) => e.kind === 'pauseGoal').length).toBe(1);
-    expect(log?.filter((e) => e.kind === 'resumeGoal').length).toBe(1);
-    expect(log?.filter((e) => e.kind === 'cancelGoal').length).toBe(1);
-  });
 });
 
 describe('PromptService stateful session — content-only path', () => {
@@ -1513,13 +1407,10 @@ describe('PromptService stateful session — content-only path', () => {
     // Bootstrap getters never ran (no body control to diff against).
     expect(record.getConfigCalls).toBe(0);
     expect(record.getPermissionCalls).toBe(0);
-    expect(record.getPlanCalls).toBe(0);
     // No setters fired either.
     expect(record.setModelCalls).toEqual([]);
     expect(record.setThinkingCalls).toEqual([]);
     expect(record.setPermissionCalls).toEqual([]);
-    expect(record.enterPlanCalls).toEqual([]);
-    expect(record.cancelPlanCalls).toEqual([]);
     // Shadow stays absent — there's nothing to remember.
     expect(impl._agentStateForTest(SID)).toBeUndefined();
     // Dispatch log untouched.

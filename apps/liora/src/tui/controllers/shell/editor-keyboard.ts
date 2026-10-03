@@ -1,4 +1,4 @@
-import type { Session } from '@superliora/sdk';
+import { formatBytes, type PromptPart, type Session } from '@superliora/sdk';
 
 import {
   ClipboardMediaError,
@@ -29,15 +29,14 @@ import {
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { ttui } from '../../utils/tui-i18n';
 import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
+import { extractMediaAttachments, type ExtractionResult } from '../../utils/image/image-placeholder';
 import { parseDroppedFilePaths } from '../../utils/media/media-drop';
-import { formatBytes } from '../../components/messages/tool-renderers/chip-format';
 import { copyTranscriptSelectionToClipboard } from '../../features/transcript/transcript-selection';
 import type { ColorToken } from '../../theme';
 import type { PendingExit, QueuedMessage } from '../../types';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import type { TUIState } from '../../tui-state';
 import type { PromptStash } from '../../utils/prompt-stash';
-import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
 import type { BtwPanelController } from '../panes/btw-panel';
 
 export interface EditorKeyboardHost extends PromptInputRuntimeHost {
@@ -49,7 +48,10 @@ export interface EditorKeyboardHost extends PromptInputRuntimeHost {
 
   handleUserInput(text: string): void;
   readonly btwPanelController: BtwPanelController;
-  steerMessage(session: Session, input: string[]): void;
+  steerMessage(session: Session, input: string[], options?: {
+    readonly parts?: readonly PromptPart[];
+    readonly imageAttachmentIds?: readonly number[];
+  }): void;
   readonly messageDispatch: { recallLastQueued(): QueuedMessage | undefined };
   showError(msg: string): void;
   track(event: string, props?: Record<string, unknown>): void;
@@ -60,7 +62,6 @@ export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   detachCurrentForegroundTask(): void;
   cancelRunningShellCommand(): void;
   hideSessionPicker(): void;
-  hideExtensionsModal(): void;
   openUndoSelector(): void;
   stop(exitCode?: number): Promise<void>;
   handleInputModeChange(mode: 'prompt' | 'bash'): void;
@@ -72,22 +73,12 @@ export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   setExternalEditorRunning(running: boolean): void;
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
   showStatus(msg: string, color?: ColorToken): void;
-  setAskMode(enabled: boolean): void;
   readonly jobBoardController: { openDeck(jobId?: string): void };
   openJobInbox?(): void;
-  /** P: open the Plan browser (entering Plan mode first if it is off). */
-  openPlan?(): void;
   /** Route a slash command, reusing the exact Command Hub / prompt path. */
   dispatchSlash?(command: string): void;
 }
 
-/**
- * Shift-Tab cycles the convenience modes. Build (the default, no mode) and Ask
- * (investigate only) are the two stops.
- */
-export function nextShiftTabMode(askMode: boolean): 'build' | 'ask' {
-  return askMode ? 'build' : 'ask';
-}
 
 function pasteKind(
   imageCount: number,
@@ -136,11 +127,6 @@ export class EditorKeyboardController {
       this.clearPendingUndoEsc();
     };
 
-    editor.onShiftTab = () => {
-      const next = nextShiftTabMode(host.state.appState.askMode);
-      host.track('shift_tab_mode', { target: next });
-      host.setAskMode(next === 'ask');
-    };
 
     editor.onCtrlC = () => {
       if (host.state.transcriptSelection.hasSelection) {
@@ -222,11 +208,6 @@ export class EditorKeyboardController {
         this.clearPendingUndoEsc();
         return;
       }
-      if (host.state.activeDialog === 'extensions') {
-        host.hideExtensionsModal();
-        this.clearPendingUndoEsc();
-        return;
-      }
       if (host.state.appState.isCompacting) {
         this.cancelCurrentCompaction();
         this.clearPendingUndoEsc();
@@ -280,27 +261,28 @@ export class EditorKeyboardController {
         host.state.toast.show(ttui('tui.editor.steerIdleHint'), 2200);
         return;
       }
-      const text = editor.getText().trim();
-      const editorIsBash = editor.inputMode === 'bash';
-
-      // Steer only what the editor shows. The old behavior swept the entire
-      // queued-message buffer into one interjection, silently consuming
-      // follow-ups the user had queued for after the turn; the queue hint
-      // never said Ctrl-S would eat the whole queue.
-      const parts: string[] = [];
-      if (!editorIsBash && text.length > 0) parts.push(text);
-
-      if (parts.length === 0) {
+      const text = editor.getText();
+      if (editor.inputMode === 'bash' || text.trim().length === 0) {
         host.state.toast.show(ttui('tui.editor.steerTypeFirst', { chord: primaryChord('S') }), 2200);
         return;
       }
-      editor.setText('');
       const session = host.session;
       if (host.state.appState.model.trim().length === 0 || session === undefined) {
         host.showError(LLM_NOT_SET_MESSAGE());
-      } else {
-        host.steerMessage(session, parts);
+        return;
       }
+      let extraction: ExtractionResult;
+      try {
+        extraction = extractMediaAttachments(text, this.imageStore);
+      } catch (error) {
+        host.showError(formatErrorMessage(error));
+        return;
+      }
+      editor.setText('');
+      host.steerMessage(session, [text], extraction.hasMedia ? {
+        parts: extraction.parts,
+        imageAttachmentIds: extraction.imageAttachmentIds,
+      } : undefined);
       host.updateQueueDisplay();
       flushPromptInputState(host);
       requestTUILayoutRender(host.state);
@@ -431,14 +413,6 @@ export class EditorKeyboardController {
     editor.onOpenJobInbox = () => {
       host.openJobInbox?.();
     };
-    editor.onOpenIntentComposer = () => {
-      focusIntentComposer({
-        state: host.state,
-        session: host.session,
-        showStatus: (msg, color) => host.showStatus(msg, color),
-        jobBoardController: host.jobBoardController,
-      });
-    };
     // Q / P (empty prompt, idle only). Reuse the slash-command path so the
     // existing busy/streaming/compacting gating (and its toasts) applies for
     // free. The idle predicate below keeps the low-level handler from ever
@@ -448,11 +422,6 @@ export class EditorKeyboardController {
     editor.onOpenQuota = () => {
       host.track('shortcut_quota');
       host.dispatchSlash?.('/quota');
-    };
-    editor.onOpenPlan = () => {
-      host.track('shortcut_plan');
-      if (host.openPlan !== undefined) host.openPlan();
-      else host.dispatchSlash?.('/plan');
     };
     editor.onTranscriptSearch = () => {
       host.showTranscriptSearch();

@@ -1,13 +1,13 @@
 /**
  * Workspace side dock — a worker's live transcript in a right-hand column
- * beside the main transcript (flag: `workspace_dock`, off by default).
+ * beside the main transcript, opened by selecting a worker.
  *
  * Split of responsibilities:
  * - `getWorkspaceDockCenterRect` is wired as the frame callback's
  *   `workspaceCenter` provider: while the dock is open it returns the
  *   measured center band so the stage (chrome + transcript + editor) shrinks
  *   to make room; closed it returns `null` and layout is bit-for-bit the
- *   pre-flag behavior.
+ *   full-width behavior.
  * - `createWorkspaceDockFrameRegion` builds the dock overlay region from the
  *   measured right-dock rect; the viewer instance is owned here so its live
  *   fetch cycle survives across frames.
@@ -23,7 +23,6 @@ import {
   type RendererRect,
 } from '#/tui/renderer';
 
-import { isExperimentalFlagEnabled } from '../../commands/experimental-flags';
 import { WorkerTranscriptViewerComponent } from '../../components/dialogs/worker-dock/worker-transcript-viewer';
 import { currentTheme } from '../../theme';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
@@ -49,9 +48,6 @@ const dock: {
   viewer: WorkerTranscriptViewerComponent | undefined;
 } = { open: false, workerId: undefined, viewer: undefined };
 
-export function isWorkspaceDockEnabled(): boolean {
-  return isExperimentalFlagEnabled('workspace_dock');
-}
 
 export function isWorkspaceDockOpen(): boolean {
   return dock.open;
@@ -68,7 +64,6 @@ export function toggleWorkspaceDock(input: {
   readonly workerId: string;
   readonly createViewer: () => WorkerTranscriptViewerComponent;
 }): void {
-  if (!isWorkspaceDockEnabled()) return;
   if (dock.open && dock.workerId === input.workerId) {
     closeWorkspaceDock(input.state);
     return;
@@ -91,15 +86,13 @@ export function closeWorkspaceDock(state: TUIState): void {
 
 /**
  * Center-band provider for the frame callback's `workspaceCenter` option.
- * Returns `null` whenever the dock should not occupy a column — flag off,
- * closed, or a terminal too narrow for a side dock (measureWorkspaceLayout
- * collapses the dock and hands back the full-width center).
+ * Returns `null` when closed or the terminal is too narrow for a side dock.
  */
 export function getWorkspaceDockCenterRect(ctx: {
   readonly columns: number;
   readonly rows: number;
 }): RendererRect | null {
-  if (!isWorkspaceDockEnabled() || !dock.open) return null;
+  if (!dock.open) return null;
   const layout = measureWorkspaceLayout({
     viewport: { x: 0, y: 0, width: ctx.columns, height: ctx.rows },
     rightDockWidth: WORKSPACE_DOCK_WIDTH,
@@ -118,7 +111,7 @@ export function createWorkspaceDockFrameRegion(input: {
   readonly width: number;
   readonly height: number;
 }): RendererFrameRegion | undefined {
-  if (!isWorkspaceDockEnabled() || !dock.open) return undefined;
+  if (!dock.open) return undefined;
   const dockX = input.center.x + input.center.width + DOCK_GAP;
   // One terminal column is left of the shell edge; the rest is dock body.
   const dockWidth = input.width - dockX - 1;

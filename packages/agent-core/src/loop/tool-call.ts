@@ -14,6 +14,7 @@
  */
 
 import type { LLMChatResponse } from './llm';
+import { errorMessage } from './errors';
 import { finalizePendingToolResult } from './tool-call-finalize';
 import { preflightToolCall } from './tool-call-preflight';
 import { prepareSkippedToolCall, prepareToolCall } from './tool-call-prepare';
@@ -45,6 +46,8 @@ export async function runToolCallBatch(
   // once execution settles, so the intend→ack durability window is closed.
   const finalizedIntends = new Set<string>();
   let stopTurn = false;
+  let finalizationFailed = false;
+  let finalizationError: unknown;
 
   try {
     for (let index = 0; index < calls.length; index += 1) {
@@ -67,7 +70,23 @@ export async function runToolCallBatch(
     // provider order. Await all tasks so each recorded `tool.call` gets a
     // paired `tool.result`; the caller checks abort before writing `step.end`.
     for (const pendingResult of pendingResults) {
-      const result = await finalizePendingToolResult(batchStep, await pendingResult);
+      const pending = await pendingResult;
+      let result: PendingToolResult;
+      try {
+        result = await finalizePendingToolResult(batchStep, pending);
+      } catch (error) {
+        if (!finalizationFailed) finalizationError = error;
+        finalizationFailed = true;
+        // Keep the execution outcome without persisting an output that failed
+        // its redaction/budget boundary. The turn fails after all pairs drain.
+        result = {
+          ...pending,
+          result: {
+            isError: pending.result.isError,
+            output: `Tool execution ${pending.result.isError === true ? 'failed' : 'succeeded'}, but its result could not be finalized: ${errorMessage(error)}`,
+          },
+        };
+      }
       if (result.stopTurn === true) stopTurn = true;
       // Acknowledge that execution settled, closing the intend→ack window so a
       // crash after this point is unambiguous (the side effect completed).
@@ -91,5 +110,6 @@ export async function runToolCallBatch(
     // execute promises cannot surface as detached unhandled rejections.
     await Promise.allSettled(pendingResults);
   }
+  if (finalizationFailed) throw finalizationError;
   return { stopTurn };
 }

@@ -29,7 +29,6 @@ export interface DialogsHost extends PromptInputRuntimeHost {
   session: Session | undefined;
   readonly promptStash: PromptStash;
   lastUserInput: string | undefined;
-  skillCommands: readonly LioraSlashCommand[];
   nativeInputRouter: TUIStateNativeInputRouter | undefined;
   nativeInputModalDispose: (() => void) | undefined;
   nativeInputModalSequence: number;
@@ -38,6 +37,7 @@ export interface DialogsHost extends PromptInputRuntimeHost {
   deferredApproval: ApprovalPanelData | undefined;
   deferredQuestion: QuestionPanelData | undefined;
   sessionLoadingOverlay: SessionLoadingOverlayComponent | undefined;
+  readonly jobBoardController?: { openDeck(jobId?: string): void };
   sessionLoadingPulseTimer: ReturnType<typeof setInterval> | undefined;
 
   setAppState(patch: Partial<AppState>): void;

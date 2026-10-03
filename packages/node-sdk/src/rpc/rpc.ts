@@ -1,27 +1,16 @@
 import {
   type AgentContextData,
   type ContextComposition,
-  type ContextOSRetrievalDiagnostics,
   type ApprovalRequest,
   type ApprovalResponse,
   type CredentialRequest,
   type CredentialResponse,
   type Event,
-  type ExperimentalFeatureState,
-  type HarnessRefinementEvent,
-  type HarnessStatusView,
-  type InlineCompleteResult,
   type QuestionRequest,
   type QuestionResult,
   type RPCCallOptions,
-  type RefineRunResult,
-  type SuggestPromptsResult,
-  type ToolCallRequest,
-  type ToolCallResponse,
-  type ToolInfo,
   type SessionTrace,
   type RuntimeDegradedEvent,
-  type SmartLoopProbeProgress,
 } from '@superliora/agent-core';
 
 import type { ApprovalHandler, CredentialHandler, QuestionHandler } from '#/session/events';
@@ -36,68 +25,42 @@ import type {
   GetConfigOptions,
   LioraConfig,
   LioraConfigPatch,
-  SmartLoopRoleRoutingPlan,
   ProviderRouteStatus,
   CompactOptions,
-  RefineOptions,
-  SessionPlan,
   SessionStatus,
   SessionUsage,
-  SkillSearchResult,
-  SkillSummary,
-  HookRegistrySummary,
   Unsubscribe,
 } from '#/session/types';
 import {
-  type ActivatePluginCommandRpcInput,
-  type ActivateSkillRpcInput,
   type CancelSessionRpcInput,
   type ConversationLoopState,
-  type InlineCompleteRpcInput,
-  type ReconnectMcpServerRpcInput,
-  type ReloadSessionRpcInput,
   type RewindFilesRpcResult,
   type RunShellCommandRpcInput,
   type RunShellCommandRpcResult,
-  type SearchSkillsRpcInput,
   type SessionIdRpcInput,
   type SessionPromptRpcInput,
   type SetSessionModelRpcInput,
   type SetSessionModelRpcResult,
   type SetSessionPermissionRpcInput,
-  type SetSessionAskModeRpcInput,
-  type SetSessionPlanModeRpcInput,
-  type SetSessionPremiumQualityRpcInput,
   type SetSessionThinkingRpcInput,
   type StartConversationLoopRpcInput,
   type StopConversationLoopRpcInput,
-  type SuggestPromptsRpcInput,
 } from './rpc-types';
 
 export type {
-  ActivatePluginCommandRpcInput,
-  ActivateSkillRpcInput,
   CancelSessionRpcInput,
   ConversationLoopState,
-  InlineCompleteRpcInput,
-  ReconnectMcpServerRpcInput,
-  ReloadSessionRpcInput,
   RewindFilesRpcResult,
   RunShellCommandRpcInput,
   RunShellCommandRpcResult,
-  SearchSkillsRpcInput,
   SessionIdRpcInput,
   SessionPromptRpcInput,
   SetSessionModelRpcInput,
   SetSessionModelRpcResult,
   SetSessionPermissionRpcInput,
-  SetSessionPlanModeRpcInput,
-  SetSessionAskModeRpcInput,
-  SetSessionPremiumQualityRpcInput,
   SetSessionThinkingRpcInput,
   StartConversationLoopRpcInput,
   StopConversationLoopRpcInput,
-  SuggestPromptsRpcInput,
 } from './rpc-types';
 
 export { ClientAPI } from './rpc-client-api';
@@ -130,10 +93,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     return rpc.getConfigDiagnostics({});
   }
 
-  async getExperimentalFeatures(): Promise<readonly ExperimentalFeatureState[]> {
-    const rpc = await this.getRpc();
-    return rpc.getExperimentalFeatures({});
-  }
 
   async setConfig(input: LioraConfigPatch): Promise<LioraConfig> {
     const rpc = await this.getRpc();
@@ -145,17 +104,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     return rpc.deleteConfigFields({ paths });
   }
 
-  /**
-   * Settings Smart auto — live-probe role chains; does not write config.
-   * `onProgress` is honored by in-process {@link SDKRpcClient}; remote RPC ignores it.
-   */
-  async planSmartLoopRoleRouting(options?: {
-    readonly onProgress?: (progress: SmartLoopProbeProgress) => void;
-  }): Promise<SmartLoopRoleRoutingPlan> {
-    void options?.onProgress;
-    const rpc = await this.getRpc();
-    return rpc.planSmartLoopRoleRouting({});
-  }
 
   async removeProvider(providerId: string): Promise<LioraConfig> {
     const rpc = await this.getRpc();
@@ -203,10 +151,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     });
   }
 
-  async generateAgentsMd(input: SessionIdRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.generateAgentsMd({ sessionId: input.sessionId });
-  }
 
   async getSessionWarnings(input: SessionIdRpcInput) {
     const rpc = await this.getRpc();
@@ -264,59 +208,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     });
   }
 
-  async setPremiumQuality(input: SetSessionPremiumQualityRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.setPremiumQuality({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      enabled: input.enabled,
-    });
-  }
-
-  async setAskMode(input: SetSessionAskModeRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.setAskMode({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      enabled: input.enabled,
-    });
-  }
-
-  async setPlanMode(input: SetSessionPlanModeRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    if (!input.enabled) {
-      return rpc.cancelPlan({
-        sessionId: input.sessionId,
-        agentId: this.interactiveAgentId,
-      });
-    }
-    return rpc.enterPlan({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      ultra: input.ultra ? true : undefined,
-      initialContext: input.initialContext,
-    });
-  }
-
-
-
-
-
-  async getPlan(input: SessionIdRpcInput): Promise<SessionPlan> {
-    const rpc = await this.getRpc();
-    return rpc.getPlan({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
-
-  async clearPlan(input: SessionIdRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    await rpc.clearPlan({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
 
   async compact(input: SessionIdRpcInput & CompactOptions): Promise<void> {
     const rpc = await this.getRpc();
@@ -327,34 +218,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     });
   }
 
-  async refineHarness(input: SessionIdRpcInput & RefineOptions): Promise<RefineRunResult> {
-    const rpc = await this.getRpc();
-    return rpc.refineHarness({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      ...(input.scope !== undefined ? { scope: input.scope } : {}),
-      ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
-    });
-  }
-
-  async rollbackHarnessRefinement(
-    input: SessionIdRpcInput & { refinementId: string },
-  ): Promise<HarnessRefinementEvent> {
-    const rpc = await this.getRpc();
-    return rpc.rollbackHarnessRefinement({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      refinementId: input.refinementId,
-    });
-  }
-
-  async getHarnessStatus(input: SessionIdRpcInput): Promise<HarnessStatusView> {
-    const rpc = await this.getRpc();
-    return rpc.getHarnessStatus({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
 
   async cancelCompaction(input: SessionIdRpcInput): Promise<void> {
     const rpc = await this.getRpc();
@@ -423,17 +286,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     });
   }
 
-  async diagnoseContextOS(
-    input: SessionIdRpcInput & { readonly query?: string; readonly limit?: number },
-  ): Promise<ContextOSRetrievalDiagnostics> {
-    const rpc = await this.getRpc();
-    return rpc.diagnoseContextOS({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      query: input.query,
-      limit: input.limit,
-    });
-  }
 
   async getSessionTrace(input: SessionIdRpcInput): Promise<SessionTrace> {
     const rpc = await this.getRpc();
@@ -451,85 +303,19 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     });
   }
 
-  async inlineComplete(input: InlineCompleteRpcInput): Promise<InlineCompleteResult> {
-    const rpc = await this.getRpc();
-    return rpc.inlineComplete(
-      {
-        sessionId: input.sessionId,
-        agentId: this.interactiveAgentId,
-        text: input.text,
-        cursorLine: input.cursorLine,
-        cursorCol: input.cursorCol,
-      },
-      input.signal !== undefined ? { signal: input.signal } : undefined,
-    );
-  }
-
-  async suggestPrompts(input: SuggestPromptsRpcInput): Promise<SuggestPromptsResult> {
-    const rpc = await this.getRpc();
-    return rpc.suggestPrompts(
-      {
-        sessionId: input.sessionId,
-        agentId: this.interactiveAgentId,
-      },
-      input.signal !== undefined ? { signal: input.signal } : undefined,
-    );
-  }
 
   async getStatus(input: SessionIdRpcInput): Promise<SessionStatus> {
     const rpc = await this.getRpc();
-    const agentId = this.interactiveAgentId;
-    const scoped = { sessionId: input.sessionId, agentId };
-
-    // Fetch all facets in parallel. Individual failures degrade to undefined
-    // instead of failing the entire status query.
-    const [
-      config,
-      context,
-      permission,
-      plan,
-      askMode,
-      premiumQualityMode,
-      usage,
-      providerRouteStatus,
-      circuitBreakers,
-      cacheFrozen,
-      cacheFreezeViolations,
-      parallelTools,
-      oauth,
-      providerExtras,
-    ] = await Promise.all([
-      rpc.getConfig(scoped),
-      rpc.getContext(scoped),
-      rpc.getPermission(scoped),
-      rpc.getPlan(scoped),
-      rpc.getAskMode(scoped).catch(() => undefined),
-      rpc.getPremiumQuality(scoped).catch(() => undefined),
-      rpc.getUsage(scoped).catch(() => undefined),
-      rpc.getProviderRouteStatus(scoped).catch(() => null),
-      rpc.getCircuitBreakers(scoped).catch(() => undefined),
-      rpc.getCacheFrozen(scoped).catch(() => undefined),
-      rpc.getCacheFreezeViolations(scoped).catch(() => undefined),
-      rpc.getParallelToolsStatus(scoped).catch(() => undefined),
-      rpc.getOAuthStatus(scoped).catch(() => undefined),
-      rpc.getProviderExtrasStatus(scoped).catch(() => undefined),
+    const scoped = { sessionId: input.sessionId, agentId: this.interactiveAgentId };
+    const [config, context, permission, usage, providerRouteStatus, circuitBreakers,
+      cacheFrozen, cacheFreezeViolations, parallelTools, oauth] = await Promise.all([
+      rpc.getConfig(scoped), rpc.getContext(scoped), rpc.getPermission(scoped),
+      rpc.getUsage(scoped), rpc.getProviderRouteStatus(scoped), rpc.getCircuitBreakers(scoped),
+      rpc.getCacheFrozen(scoped), rpc.getCacheFreezeViolations(scoped),
+      rpc.getParallelToolsStatus(scoped), rpc.getOAuthStatus(scoped),
     ]);
-    return buildSessionStatus({
-      config,
-      context,
-      permission,
-      plan,
-      askMode,
-      premiumQualityMode,
-      usage,
-      providerRouteStatus,
-      circuitBreakers,
-      cacheFrozen,
-      cacheFreezeViolations,
-      parallelTools,
-      oauth,
-      providerExtras,
-    });
+    return buildSessionStatus({ config, context, permission, usage, providerRouteStatus,
+      circuitBreakers, cacheFrozen, cacheFreezeViolations, parallelTools, oauth });
   }
 
   async resetProviderRouteStatus(input: SessionIdRpcInput): Promise<ProviderRouteStatus | null> {
@@ -540,32 +326,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     });
   }
 
-  async listSkills(input: SessionIdRpcInput): Promise<readonly SkillSummary[]> {
-    const rpc = await this.getRpc();
-    return rpc.listSkills({ sessionId: input.sessionId });
-  }
-
-  async getHookRegistry(input: SessionIdRpcInput): Promise<HookRegistrySummary> {
-    const rpc = await this.getRpc();
-    return rpc.getHookRegistry({ sessionId: input.sessionId });
-  }
-
-  async getTools(input: SessionIdRpcInput): Promise<readonly ToolInfo[]> {
-    const rpc = await this.getRpc();
-    return rpc.getTools({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
-
-  async searchSkills(input: SearchSkillsRpcInput): Promise<readonly SkillSearchResult[]> {
-    const rpc = await this.getRpc();
-    return rpc.searchSkills({
-      sessionId: input.sessionId,
-      query: input.query,
-      limit: input.limit,
-    });
-  }
 
   onEvent(listener: (event: Event) => void): Unsubscribe {
     return this.eventBridge.onEvent(listener);
@@ -610,10 +370,4 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     return this.eventBridge.requestCredential(request);
   }
 
-  async toolCall(request: ToolCallRequest): Promise<ToolCallResponse> {
-    return {
-      output: `SDK custom tool calls are not supported: ${request.toolCallId}`,
-      isError: true,
-    };
-  }
 }

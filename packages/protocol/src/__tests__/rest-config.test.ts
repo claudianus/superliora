@@ -8,17 +8,13 @@ import {
 describe('REST config contract', () => {
   it('accepts every persisted config section without falling back to raw', () => {
     const sections = {
-      media: { non_vision_fallback: 'path' },
-      memory: { enabled: true },
       cache: { invalidate_epoch: 2 },
-      research: { enabled: true },
       model_catalog: { refresh_on_start: false },
-      browser_use: { enabled: true },
-      computer_use: { enabled: false },
-      mcp: { auto_provider_servers: false },
-      extras: { disabled_providers: ['zai'] },
-      persona: { preset: 'efficient' },
-      agent: { profile: 'core' },
+      sandbox_profile: 'workspace-write',
+      sandbox_enforcement: 'required',
+      permission: { mode: 'manual' },
+      loop_control: { max_steps_per_turn: 50 },
+      background: { max_output_bytes: 4096 },
     };
 
     expect(
@@ -28,5 +24,9 @@ describe('REST config contract', () => {
       }),
     ).toMatchObject(sections);
     expect(patchConfigRequestSchema.parse(sections)).toMatchObject(sections);
+  });
+
+  it('rejects unsupported configuration sections instead of acknowledging a no-op', () => {
+    expect(patchConfigRequestSchema.safeParse({ unsupported_section: {} }).success).toBe(false);
   });
 });

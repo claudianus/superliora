@@ -1,5 +1,5 @@
 /**
- * Command Hub One-search entries for slash commands + skills (searchOnly).
+ * Command Hub One-search entries for slash commands (searchOnly).
  */
 
 import type { LioraSlashCommand } from '../types';
@@ -13,10 +13,9 @@ export function slashNameFromHubId(id: `slash.${string}`): string {
   return id.slice('slash.'.length);
 }
 
-/** Slash + skill commands as Hub searchOnly rows (idle list stays curated). */
+/** Slash commands as Hub searchOnly rows (idle list stays curated). */
 export function buildSlashJumpHubItems(
   commands: readonly LioraSlashCommand[],
-  skillNames: ReadonlySet<string> = new Set(),
 ): CommandHubItem[] {
   const seen = new Set<string>();
   const items: CommandHubItem[] = [];
@@ -25,20 +24,18 @@ export function buildSlashJumpHubItems(
     // per command name so the Hub search list never shows duplicates.
     if (seen.has(command.name)) continue;
     seen.add(command.name);
-    const isSkill = skillNames.has(command.name);
     items.push({
       id: `slash.${command.name}`,
       // Localized section key (not a raw English label) so the row description
       // prefix and the section sort rank agree with the curated rows.
-      section: isSkill ? 'Skills' : 'Commands',
-      sectionKey: isSkill ? 'tui.hub.section.skills' : 'tui.hub.section.commands',
+      section: 'Commands',
+      sectionKey: 'tui.hub.section.commands',
       label: `/${command.name}`,
       description: command.description,
       searchOnly: true,
       keywords: [
         'slash',
         'command',
-        ...(isSkill ? (['skill'] as const) : []),
         ...(command.aliases ?? []),
       ],
     });

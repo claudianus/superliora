@@ -3,19 +3,11 @@ import type { Kaos } from '@superliora/kaos';
 import type { LioraConfig, SDKSessionRPC } from '#/rpc';
 
 import type { Agent, AgentType } from '../../agent';
-import type { HookDef } from '../hooks';
 import type { PermissionRule } from '../../agent/permission';
 import type { BackgroundConfig } from '../../config';
-import type { SessionMcpConfig } from '../../mcp';
-import type { EnabledPluginSessionStart, PluginAgentDef, PluginCommandDef } from '../../plugin';
 import type { ResolvedAgentProfile } from '../../profile';
 import type { ProviderManager } from '../provider/provider-manager';
-import type { SkillRoot } from '../../skill';
 import type { TelemetryClient } from '../../telemetry';
-import type { ToolServices } from '../../tools/support/services';
-import type { ExperimentalFlagResolver } from '../../flags';
-import type { SessionMemoryRuntime } from '../../memory';
-import type { LioraMemoryStore } from '../../memory/store';
 
 export interface SessionOptions {
   readonly kaos: Kaos;
@@ -25,41 +17,15 @@ export interface SessionOptions {
   readonly homedir: string;
   readonly kimiHomeDir?: string;
   readonly rpc: SDKSessionRPC;
-  readonly toolServices?: ToolServices;
   readonly initializeMainAgent?: boolean | undefined;
   readonly providerManager?: ProviderManager | undefined;
   readonly background?: BackgroundConfig | undefined;
-  readonly hooks?: readonly HookDef[];
   readonly permissionRules?: readonly PermissionRule[];
-  readonly skills?: SessionSkillConfig;
-  readonly mcpConfig?: SessionMcpConfig;
   readonly telemetry?: TelemetryClient | undefined;
-  readonly pluginSessionStarts?: readonly EnabledPluginSessionStart[];
-  readonly pluginCommands?: readonly PluginCommandDef[];
-  readonly pluginAgents?: readonly PluginAgentDef[];
-  readonly pluginBinDirs?: readonly string[];
   readonly appVersion?: string;
-  readonly experimentalFlags?: ExperimentalFlagResolver;
   readonly additionalDirs?: readonly string[];
-  readonly memory?: SessionMemoryRuntime;
-  readonly dreamStore?: LioraMemoryStore;
-  /**
-   * Print-mode (`liora -p`) only: hold the main turn open while background
-   * subagents are still running before the run exits.
-   */
-  readonly drainAgentTasksOnStop?: boolean;
 }
 
-export interface SessionSkillConfig {
-  readonly userHomeDir?: string;
-  /** Brand data dir (SUPERLIORA_HOME); user brand skills live under `<brandHomeDir>/skills`. */
-  readonly brandHomeDir?: string;
-  readonly explicitDirs?: readonly string[];
-  readonly extraDirs?: readonly string[];
-  readonly pluginSkillRoots?: readonly SkillRoot[];
-  readonly mergeAllAvailableSkills?: boolean;
-  readonly builtinDir?: string;
-}
 
 export interface AgentMeta {
   readonly homedir: string;

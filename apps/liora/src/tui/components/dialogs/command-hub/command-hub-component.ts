@@ -536,26 +536,7 @@ export class CommandHubComponent extends Container implements Focusable {
   ): string {
     const theme = currentTheme;
     const chips: string[] = [];
-    const push = (label: string, on: boolean, id: CommandHubActionId): void => {
-      const led = ttui(on ? 'tui.hub.strip.on' : 'tui.hub.strip.off');
-      if (this.flashId === id) {
-        chips.push(renderSettleFlash(`${label} ${led}`, `hub:chip:${label}`, this.flashAtMs, appearance));
-        return;
-      }
-      chips.push(
-        theme.fg('textMuted', `${label} `) +
-          (on
-            ? renderPulseText(led, `hub:chip:${label}`, 'glow', appearance)
-            : theme.fg('textDim', led)),
-      );
-    };
-    const plan = this.items.find((i) => i.id === 'modes.plan');
-    const premium = this.items.find((i) => i.id === 'modes.premium');
     const perm = this.items.find((i) => i.id === 'modes.permission');
-    const ask = this.items.find((i) => i.id === 'modes.ask');
-    push(ttui('tui.hub.strip.plan'), plan?.badge === 'ON', 'modes.plan');
-    push(ttui('tui.hub.strip.ask'), ask?.badge === 'ON', 'modes.ask');
-    push(ttui('tui.hub.strip.visual'), premium?.badge === 'ON', 'modes.premium');
     const permLabel = formatPermissionChip(perm?.badge);
     chips.push(
       this.flashId === 'modes.permission'
@@ -626,7 +607,7 @@ export class CommandHubComponent extends Container implements Focusable {
 }
 
 function isFlipTarget(item: CommandHubItem | undefined): boolean {
-  return item?.kind === 'toggle' || item?.kind === 'cycle';
+  return item?.kind === 'cycle';
 }
 
 function hubListPageSize(terminalRows: number): number {

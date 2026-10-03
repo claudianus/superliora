@@ -44,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubus
 >
 > The installer prints a host-setup plan, then applies it: Nerd Font, Oh My Posh (Neon Noir), zoxide, fzf, and a managed shell profile. On Windows it also bootstraps `winget` when missing, installs Windows Terminal, writes a SuperLiora fragment, and adds Start Menu and Desktop shortcuts that open Windows Terminal and start `liora`. On macOS and Linux it writes a Desktop launcher that opens a terminal and starts `liora`. Failures never block the CLI. Pass `--no-host-setup` / `SUPERLIORA_NO_HOST_SETUP=1` to skip the whole sidecar, or `--no-terminal` / `SUPERLIORA_NO_TERMINAL=1` to skip Windows Terminal only. In the TUI, `/host-setup` (aliases `/windows-setup`, `/macos-setup`, `/linux-setup`) shows the same list and asks before applying. Startup prompts when pieces are missing; it does not apply silently.
 
-The script does **not** require a pre-installed Node.js. When Node is missing or older than 24.15.0, it downloads an official Node build into `~/.superliora/runtime/node` (user-local, no admin). By default it installs the latest **published** GitHub Release prebuilt SEA (`manifest.json` + `liora-<platform>.zip`), verifies the checksum, and puts `liora` on your `PATH`. It does **not** fall back to an unreleased git tip unless you opt in. Browser-use, computer-use, and local retrieval sidecars are installed best-effort afterward.
+The script does **not** require a pre-installed Node.js. When Node is missing or older than 24.15.0, it downloads an official Node build into `~/.superliora/runtime/node` (user-local, no admin). By default it installs the latest **published** GitHub Release prebuilt SEA (`manifest.json` + `liora-<platform>.zip`), verifies the checksum, and puts `liora` on your `PATH`. It does **not** fall back to an unreleased git tip unless you opt in.
 
 ### Install details
 
@@ -106,10 +106,10 @@ On first launch you need to connect a model. In the interactive UI, enter `/logi
 
 `/login` connects OAuth, a catalog provider, or a custom endpoint. Catalog rows include Groq, Mistral, Together, xAI API keys, Cerebras, Perplexity, and Vercel AI Gateway. To sign out, enter `/logout` to clear the current credentials.
 
-If a provider returns HTTP 5xx (not only 504), Never-Halt retries and fails over so the turn stays alive.
+Provider failures are reported to the operator. There is no automatic harness worker/step retry, strict resend, role failover probing, or effect replay. Native configured provider routes may handle configured candidates before output is emitted.
 
 ::: tip Using other AI providers
-If you want to connect Anthropic, OpenAI, Google, Groq, Mistral, Together, xAI API keys, Cerebras, Perplexity, Vercel AI Gateway, or another catalog host, use `/login` in the TUI or `liora provider catalog add` / `liora provider custom add` from the shell. For teams with multiple accounts or API keys, `liora provider key add`, `liora provider oauth add`, and `liora provider route auto` can create quota-aware fallback routes without exposing secrets. See [Providers and models](../configuration/providers.md) for details.
+Use `/login` or the native provider CLI to connect an OAuth account or API endpoint. Provider credentials and model aliases remain configurable; models are selected explicitly rather than by task-role routing. See [Providers and models](../configuration/providers.md).
 :::
 
 ## Your first conversation
@@ -120,7 +120,7 @@ Once logged in, describe a task in natural language. A good starting point is to
 Take a look at this project's directory structure and briefly describe what each directory is for.
 ```
 
-SuperLiora CLI automatically calls file-reading, search, and other tools to browse the relevant content before responding. Read-only operations are executed automatically by default without requiring confirmation. For operations that modify files or run shell commands, it asks for your confirmation before proceeding.
+SuperLiora uses Bash to read and search files, modify code, and run programs. Approval behavior follows your configured permission mode and rules. SessionControl manages child sessions and background work.
 
 You can also describe a more concrete task directly:
 
@@ -128,7 +128,7 @@ You can also describe a more concrete task directly:
 Add a function in src/utils that converts any string to kebab-case, and add a unit test for it.
 ```
 
-SuperLiora CLI plans the steps, modifies the code, runs the tests, and tells you what it did at each step.
+The agent can modify code and run the checks you request. Tests and review are not forced by the harness; ask for them explicitly and inspect the reported evidence. Normal requests execute directly in your workspace; use a native Job or `liora --worktree` when you want a separate checkout.
 
 ::: tip Not sure what to do? Type `/help`
 Type `/help` at any time to open the built-in command and keyboard shortcut panel. Use `↑`/`↓` to browse and `Esc` to close. To exit, type `/exit`, press `Ctrl-C` twice, or press `Ctrl-D` with the input box empty.
@@ -154,7 +154,6 @@ For a first-time user, the following is all you need to know:
 | --- | --- |
 | `Esc` | Interrupt streaming output / close a popup |
 | `Ctrl-C` | Interrupt output; press twice while idle to exit |
-| `Shift-Tab` | Switch Ask / Build mode |
 | `Ctrl-S` | Inject a message mid-stream without waiting for the current response to finish |
 | `Ctrl-O` | Collapse / expand tool output |
 
@@ -166,6 +165,6 @@ SuperLiora CLI stores its local data under `~/.superliora/` by default — confi
 
 ## Next steps
 
-- [Interaction and input](./interaction.md) — input box operations, approval flow, Plan mode, and YOLO mode explained
+- [Interaction and input](./interaction.md) — input box operations, approval flow, and shell mode
 - [Sessions and context](./sessions.md) — resuming sessions, compressing context, exporting sessions
 - [Common use cases](./use-cases.md) — prompt examples for typical tasks

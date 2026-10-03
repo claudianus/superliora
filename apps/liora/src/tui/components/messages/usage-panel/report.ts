@@ -8,7 +8,6 @@ import {
 } from './session';
 import {
   buildContextWindowSection,
-  buildWorkingSetUsageLines,
 } from './context';
 import { severityColor } from './helpers';
 import type { UsageReportOptions } from './types';
@@ -64,19 +63,6 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
     lines.push(...contextWindow);
   }
 
-  const workingSetLines = buildWorkingSetUsageLines({
-    contextTokens: options.contextTokens,
-    maxContextTokens: options.maxContextTokens,
-    workingSet: options.workingSet,
-    accent,
-    value,
-    muted,
-    severityColor,
-  });
-  if (workingSetLines.length > 0) {
-    lines.push('');
-    lines.push(...workingSetLines);
-  }
 
   const managedSection = buildManagedUsageReportLines({
     managedUsage: options.managedUsage,

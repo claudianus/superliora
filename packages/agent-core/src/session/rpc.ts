@@ -1,71 +1,17 @@
 import { ErrorCodes, LioraError } from '#/errors/index';
-import type { AgentRecord } from '#/agent';
 import type { SessionWarning } from '@superliora/protocol';
 import type {
-  ActivateSkillPayload,
-  ActivatePluginCommandPayload,
-  AddAdditionalDirPayload,
-  AddAdditionalDirResult,
-  AgentAPI,
-  BeginCompactionPayload,
-  CancelPayload,
-  CancelPlanPayload,
-  CancelShellCommandPayload,
-  CreateGoalPayload,
-  DetachBackgroundPayload,
-  EmptyPayload,
-  JobCancelPayload,
-  JobCreateBatchPayload,
-  JobCreatePayload,
-  JobGcWorktreesPayload,
-  JobInboxPayload,
-  JobIdPayload,
-  JobMergePayload,
-  JobPushPayload,
-  JobPreviewSplitPayload,
-  JobResumePayload,
-  JobAdoptPayload,
-  JobLandChoicePayload,
-  JobRenamePayload,
-  JobSetProjectModePayload,
-  JobSteerPayload,
-  JobWorkspaceCatalogPayload,
-  DiagnoseContextOSPayload,
-  EnterPlanPayload,
-  GetBackgroundOutputPayload,
-  GetBackgroundPayload,
-  InlineCompletePayload,
-  PromptIntelligenceCallOptions,
-  McpServerInfo,
-  McpStartupMetrics,
-  PromptPayload,
-  RunShellCommandPayload,
-  ReconnectMcpServerPayload,
-  RefineHarnessPayload,
-  RenameSessionPayload,
-  RegisterToolPayload,
-  RollbackHarnessRefinementPayload,
-  SearchSkillsPayload,
-  SessionAPI,
-  SetActiveToolsPayload,
-  SetModelPayload,
-  SetPermissionPayload,
-  SetAskModePayload,
-  SetPremiumQualityPayload,
-  SetThinkingPayload,
-  SkillSummary,
-  SkillSearchResult,
-  PluginCommandDef,
-  SteerPayload,
-  StopBackgroundPayload,
-  StartConversationLoopPayload,
-  StopConversationLoopPayload,
-  ConversationLoopStateData,
-  RewindFilesPayload,
-  RewindFilesResult,
-  UndoHistoryPayload,
-  UnregisterToolPayload,
-  UpdateSessionMetadataPayload,
+  AddAdditionalDirPayload, AddAdditionalDirResult, AgentAPI, BeginCompactionPayload,
+  CancelPayload, CancelShellCommandPayload, ConversationLoopStateData, DetachBackgroundPayload,
+  EmptyPayload, GetBackgroundOutputPayload, GetBackgroundPayload, PromptPayload,
+  RenameSessionPayload, RewindFilesPayload, RewindFilesResult, RunShellCommandPayload,
+  SessionAPI, SetModelPayload, SetPermissionPayload, SetThinkingPayload, SteerPayload,
+  StopBackgroundPayload, StartConversationLoopPayload, StopConversationLoopPayload,
+  UndoHistoryPayload, UpdateSessionMetadataPayload,
+  JobCancelPayload, JobCreateBatchPayload, JobCreatePayload, JobGcWorktreesPayload,
+  JobInboxPayload, JobIdPayload, JobMergePayload, JobPushPayload, JobPreviewSplitPayload,
+  JobResumePayload, JobAdoptPayload, JobLandChoicePayload, JobRenamePayload,
+  JobSetProjectModePayload, JobSteerPayload, JobWorkspaceCatalogPayload,
 } from '#/rpc';
 import type { PromisableMethods } from '#/utils/types';
 
@@ -77,17 +23,8 @@ import {
 } from '#/tools/builtin/job/job-workspace-bind';
 import type { Session, SessionMeta } from '.';
 import { buildSessionTrace } from './trace';
-import {
-  promptMetadataTextFromPayload,
-  promptMetadataTextFromPluginCommand,
-  promptMetadataTextFromSkill,
-} from './prompt-metadata';
-import {
-  maybeTransformNonVisionMedia,
-  toConversationLoopStateData,
-  updatePromptMetadata,
-  updateResponseLanguagePreference,
-} from './rpc-prompt-handlers';
+import { promptMetadataTextFromPayload } from './prompt-metadata';
+import { toConversationLoopStateData, updatePromptMetadata } from './rpc-prompt-handlers';
 
 type AgentScopedPayload<T> = T & { agentId: string };
 
@@ -140,40 +77,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return this.session.metadata;
   }
 
-  listSkills(_payload: EmptyPayload): Promise<readonly SkillSummary[]> {
-    return this.session.listSkills();
-  }
-
-  getHookRegistry(_payload: EmptyPayload) {
-    return this.session.getHookRegistry();
-  }
-
-  listPluginCommands(_payload: EmptyPayload): readonly PluginCommandDef[] {
-    return this.session.listPluginCommands();
-  }
-
-  searchSkills(payload: SearchSkillsPayload): Promise<readonly SkillSearchResult[]> {
-    return this.session.searchSkills(payload.query, payload.limit);
-  }
-
-  listMcpServers(_payload: EmptyPayload): readonly McpServerInfo[] {
-    return this.session.mcp.list();
-  }
-
-  async getMcpStartupMetrics(_payload: EmptyPayload): Promise<McpStartupMetrics> {
-    // Per-server connect already has a 30s startup timeout; still bound the
-    // wait so a stuck initialLoad promise cannot hang the RPC forever.
-    await this.session.mcp.waitForInitialLoad(AbortSignal.timeout(60_000));
-    return { durationMs: this.session.mcp.initialLoadDurationMs() };
-  }
-
-  async reconnectMcpServer(payload: ReconnectMcpServerPayload): Promise<void> {
-    await this.session.mcp.reconnect(payload.name);
-  }
-
-  generateAgentsMd(_payload: EmptyPayload): Promise<void> {
-    return this.session.generateAgentsMd();
-  }
 
   getSessionWarnings(_payload: EmptyPayload): Promise<readonly SessionWarning[]> {
     return this.session.getSessionWarnings();
@@ -210,23 +113,11 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   async prompt({ agentId, ...payload }: AgentScopedPayload<PromptPayload>) {
     if (agentId === 'main') {
       await updatePromptMetadata(this.session, promptMetadataTextFromPayload(payload));
-      await updateResponseLanguagePreference(this.session, payload.input);
-    }
-    const mediaTransformed = await maybeTransformNonVisionMedia(this.session, agentId, payload.input);
-    if (mediaTransformed !== undefined) {
-      payload = { ...payload, input: mediaTransformed };
     }
     return (await this.getAgent(agentId)).prompt(payload);
   }
 
   async steer({ agentId, ...payload }: AgentScopedPayload<SteerPayload>) {
-    if (agentId === 'main') {
-      await updateResponseLanguagePreference(this.session, payload.input);
-    }
-    const mediaTransformed = await maybeTransformNonVisionMedia(this.session, agentId, payload.input);
-    if (mediaTransformed !== undefined) {
-      payload = { ...payload, input: mediaTransformed };
-    }
     return (await this.getAgent(agentId)).steer(payload);
   }
 
@@ -262,33 +153,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return (await this.getAgent(agentId)).getModel(payload);
   }
 
-  async enterPlan({ agentId, ...payload }: AgentScopedPayload<EnterPlanPayload>) {
-    return (await this.getAgent(agentId)).enterPlan(payload);
-  }
-
-  async cancelPlan({ agentId, ...payload }: AgentScopedPayload<CancelPlanPayload>) {
-    return (await this.getAgent(agentId)).cancelPlan(payload);
-  }
-
-  async clearPlan({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).clearPlan(payload);
-  }
-
-  async setAskMode({ agentId, ...payload }: AgentScopedPayload<SetAskModePayload>) {
-    return (await this.getAgent(agentId)).setAskMode(payload);
-  }
-
-  async getAskMode({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).getAskMode(payload);
-  }
-
-  async setPremiumQuality({ agentId, ...payload }: AgentScopedPayload<SetPremiumQualityPayload>) {
-    return (await this.getAgent(agentId)).setPremiumQuality(payload);
-  }
-
-  async getPremiumQuality({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).getPremiumQuality(payload);
-  }
 
   async beginCompaction({ agentId, ...payload }: AgentScopedPayload<BeginCompactionPayload>) {
     return (await this.getAgent(agentId)).beginCompaction(payload);
@@ -298,29 +162,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return (await this.getAgent(agentId)).cancelCompaction(payload);
   }
 
-  async refineHarness({ agentId, ...payload }: AgentScopedPayload<RefineHarnessPayload>) {
-    return (await this.getAgent(agentId)).refineHarness(payload);
-  }
-
-  async rollbackHarnessRefinement({ agentId, ...payload }: AgentScopedPayload<RollbackHarnessRefinementPayload>) {
-    return (await this.getAgent(agentId)).rollbackHarnessRefinement(payload);
-  }
-
-  async getHarnessStatus({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).getHarnessStatus(payload);
-  }
-
-  async registerTool({ agentId, ...payload }: AgentScopedPayload<RegisterToolPayload>) {
-    return (await this.getAgent(agentId)).registerTool(payload);
-  }
-
-  async unregisterTool({ agentId, ...payload }: AgentScopedPayload<UnregisterToolPayload>) {
-    return (await this.getAgent(agentId)).unregisterTool(payload);
-  }
-
-  async setActiveTools({ agentId, ...payload }: AgentScopedPayload<SetActiveToolsPayload>) {
-    return (await this.getAgent(agentId)).setActiveTools(payload);
-  }
 
   async stopBackground({ agentId, ...payload }: AgentScopedPayload<StopBackgroundPayload>) {
     return (await this.getAgent(agentId)).stopBackground(payload);
@@ -334,46 +175,11 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return (await this.getAgent(agentId)).clearContext(payload);
   }
 
-  async activateSkill({ agentId, ...payload }: AgentScopedPayload<ActivateSkillPayload>) {
-    await (await this.getAgent(agentId)).activateSkill(payload);
-    if (agentId === 'main') {
-      await updatePromptMetadata(this.session, promptMetadataTextFromSkill(payload));
-    }
+
+  async startBtw({ agentId }: AgentScopedPayload<EmptyPayload>): Promise<string> {
+    return this.session.getSubagentHost(agentId).startBtw();
   }
 
-  async activatePluginCommand({
-    agentId,
-    ...payload
-  }: AgentScopedPayload<ActivatePluginCommandPayload>) {
-    await (await this.getAgent(agentId)).activatePluginCommand(payload);
-    if (agentId === 'main') {
-      await updatePromptMetadata(this.session, promptMetadataTextFromPluginCommand(payload));
-    }
-  }
-
-  async startBtw({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>): Promise<string> {
-    return (await this.getAgent(agentId)).startBtw(payload);
-  }
-
-  async createGoal({ agentId, ...payload }: AgentScopedPayload<CreateGoalPayload>) {
-    return (await this.getAgent(agentId)).createGoal(payload);
-  }
-
-  async getGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).getGoal(payload);
-  }
-
-  async pauseGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).pauseGoal(payload);
-  }
-
-  async resumeGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).resumeGoal(payload);
-  }
-
-  async cancelGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).cancelGoal(payload);
-  }
 
   async jobList({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).jobList(payload);
@@ -393,6 +199,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async jobCancel({ agentId, ...payload }: AgentScopedPayload<JobCancelPayload>) {
     return (await this.getAgent(agentId)).jobCancel(payload);
+  }
+
+  async jobPause({ agentId, ...payload }: AgentScopedPayload<JobCancelPayload>) {
+    return (await this.getAgent(agentId)).jobPause(payload);
   }
 
   async jobResume({ agentId, ...payload }: AgentScopedPayload<JobResumePayload>) {
@@ -488,22 +298,11 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return (await this.getAgent(agentId)).getContextComposition(payload);
   }
 
-  async diagnoseContextOS({
-    agentId,
-    ...payload
-  }: AgentScopedPayload<DiagnoseContextOSPayload>) {
-    return (await this.getAgent(agentId)).diagnoseContextOS(payload);
-  }
 
   async getSessionTrace({ agentId }: AgentScopedPayload<EmptyPayload>) {
     const agent = await this.session.ensureAgentResumed(agentId);
     const context = agent.context.data();
-    let records: readonly AgentRecord[] = [];
-    try {
-      records = [...(await agent.records.readAll())];
-    } catch {
-      records = [];
-    }
+    const records = await agent.records.readAll();
     return buildSessionTrace({
       sessionId: this.session.options.id ?? '',
       agentId,
@@ -550,9 +349,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     });
   }
 
-  async getPlan({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).getPlan(payload);
-  }
 
   async getUsage({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).getUsage(payload);
@@ -562,38 +358,20 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return (await this.getAgent(agentId)).getProviderRouteStatus(payload);
   }
 
-  async getProviderExtrasStatus({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).getProviderExtrasStatus(payload);
-  }
 
   async resetProviderRouteStatus({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).resetProviderRouteStatus(payload);
   }
 
-  async getTools({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).getTools(payload);
-  }
 
   async getBackground({ agentId, ...payload }: AgentScopedPayload<GetBackgroundPayload>) {
     return (await this.getAgent(agentId)).getBackground(payload);
   }
 
-  async inlineComplete(
-    { agentId, ...payload }: AgentScopedPayload<InlineCompletePayload>,
-    options?: PromptIntelligenceCallOptions,
-  ) {
-    return (await this.getAgent(agentId)).inlineComplete(payload, options);
-  }
-
-  async suggestPrompts(
-    { agentId, ...payload }: AgentScopedPayload<EmptyPayload>,
-    options?: PromptIntelligenceCallOptions,
-  ) {
-    return (await this.getAgent(agentId)).suggestPrompts(payload, options);
-  }
 
   private async getAgent(agentId: string): Promise<PromisableMethods<AgentAPI>> {
     const agent = await this.session.ensureAgentResumed(agentId);
+    this.session.getSubagentHost(agentId);
     return agent.rpcMethods;
   }
 }

@@ -9,7 +9,6 @@ import { PRODUCT_NAME } from '#/constant/app';
 import { renderRendererRatioProgressBar } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { ttui } from '#/tui/utils/tui-i18n';
-import { loopModelRoutingRows } from '#/tui/utils/model/loop-model-routing';
 import {
   formatTokenCount,
   ratioSeverity,
@@ -18,19 +17,15 @@ import {
 
 import { buildManagedUsageReportLines } from '../usage-panel/index';
 import { contextValues } from './context';
-import { extrasStatusRows } from './extras';
 import { addStatusFieldRows, createStatusFieldMotionState } from './field-motion';
 import {
   formatProviderRouteSummary,
   providerRouteRows,
   type StatusFieldRow,
 } from './provider-route';
-import { readinessRows } from './readiness';
 import {
   cacheMissReasonStatusRows,
-  contextOSStatusRows,
   formatModelStatus,
-  formatPremiumQualityStatus,
   formatWorktreeStatus,
   privacyStatusRows,
 } from './runtime-rows';
@@ -39,11 +34,11 @@ import {
   formatLastRouteSelection,
   noticeKindLabel,
 } from './route-notice';
-import type { StatusHumanWritingReadiness, StatusReportOptions } from './types';
+import type { StatusReportOptions } from './types';
 
 export type { StatusFieldMotionState } from './field-motion';
 export { createStatusFieldMotionState };
-export type { StatusHumanWritingReadiness, StatusReportOptions };
+export type { StatusReportOptions };
 
 export function buildStatusReportLines(options: StatusReportOptions): string[] {
   const accent = (text: string) => currentTheme.boldFg('primary', text);
@@ -60,8 +55,8 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     { label: ttui('tui.statusPanel.model'), value: formatModelStatus(options) },
     { label: ttui('tui.statusPanel.directory'), value: options.workDir },
     { label: ttui('tui.statusPanel.permissions'), value: permission },
-    { label: ttui('tui.statusPanel.visualQuality'), value: formatPremiumQualityStatus(options) },
-    ...contextOSStatusRows(options),
+    { label: 'Runtime', value: 'autonomous' },
+    { label: ttui('tui.statusPanel.tools'), value: 'Bash + SessionControl (2)' },
     ...privacyStatusRows(options),
     { label: ttui('tui.statusPanel.session'), value: sessionId },
   ];
@@ -163,32 +158,6 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     );
   }
 
-  const roleModelRows = buildRoleModelStatusRows(options);
-  if (roleModelRows !== undefined) {
-    lines.push('');
-    lines.push(accent(ttui('tui.statusPanel.roleModels')));
-    if (options.loopModelRoutingError !== undefined && options.loopModelRouting === undefined) {
-      addStatusFieldRows(
-        lines,
-        [{ label: ttui('tui.statusPanel.overrides'), value: options.loopModelRoutingError, severity: 'error' }],
-        muted,
-        value,
-        errorStyle,
-        warningStyle,
-        options.fieldMotion,
-      );
-    } else {
-      addStatusFieldRows(
-        lines,
-        roleModelRows,
-        muted,
-        value,
-        errorStyle,
-        warningStyle,
-        options.fieldMotion,
-      );
-    }
-  }
 
   if (options.providerRouteStatus !== undefined && options.providerRouteStatus !== null) {
     lines.push('');
@@ -204,20 +173,6 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     );
   }
 
-  const extras = options.status?.extras;
-  if (extras !== undefined && extras.providers.length > 0) {
-    lines.push('');
-    lines.push(accent(ttui('tui.statusPanel.extras')));
-    addStatusFieldRows(
-      lines,
-      extrasStatusRows(extras),
-      muted,
-      value,
-      errorStyle,
-      warningStyle,
-      options.fieldMotion,
-    );
-  }
 
   const lastSelection = options.lastProviderRouteSelection;
   const lastNotice = options.lastModelRouteNotice;
@@ -243,17 +198,6 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     addStatusFieldRows(lines, routeRows, muted, value, errorStyle, warningStyle, options.fieldMotion);
   }
 
-  lines.push('');
-  lines.push(accent(ttui('tui.statusPanel.readiness')));
-  addStatusFieldRows(
-    lines,
-    readinessRows(options),
-    muted,
-    value,
-    errorStyle,
-    warningStyle,
-    options.fieldMotion,
-  );
 
   const managedSection = buildManagedUsageReportLines({
     managedUsage: options.managedUsage,
@@ -267,39 +211,3 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   return lines;
 }
 
-function buildRoleModelStatusRows(
-  options: StatusReportOptions,
-): readonly StatusFieldRow[] | undefined {
-  if (options.loopModelRouting !== undefined) {
-    return loopModelRoutingRows(
-      options.loopModelRouting,
-      options.availableModels,
-      options.availableProviders,
-    ).map((role) => ({
-      label: role.label,
-      value: role.state,
-    }));
-  }
-
-  const roleModels = options.status?.roleModels;
-  if (roleModels === undefined && options.loopModelRoutingError === undefined) return undefined;
-
-  // Fall back to session status overrides when harness config is unavailable.
-  return loopModelRoutingRows(
-    {
-      loopControl: {
-        compactionModel: roleModels?.compaction,
-        completionModel: roleModels?.completion,
-        explorationModel: roleModels?.exploration,
-        codingModel: roleModels?.coding,
-        planningModel: roleModels?.planning,
-        debuggingModel: roleModels?.debugging,
-      },
-    },
-    options.availableModels,
-    options.availableProviders,
-  ).map((role) => ({
-    label: role.label,
-    value: role.state,
-  }));
-}

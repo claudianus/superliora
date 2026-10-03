@@ -1,1 +1,0 @@
-Stop a running background task. Destructive cancellation — may leave partial side effects. General-purpose for any background task (shell or agent). Use only when cancellation is required; otherwise wait or use `TaskOutput`. Already-finished tasks return current status.

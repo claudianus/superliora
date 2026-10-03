@@ -35,15 +35,12 @@ function appState(): AppState {
     additionalDirs: [],
     sessionId: 'sess-1',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     inputMode: 'prompt',
     thinking: true,
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 500_000,
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
@@ -55,7 +52,6 @@ function appState(): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
-    mcpServersSummary: null,
     appearance: {
       ...DEFAULT_APPEARANCE_PREFERENCES,
       profile: 'premium',
@@ -108,7 +104,7 @@ describe('idle aquarium clear tear', () => {
     const rows = 80;
     const state = createTUIState({
       initialAppState: appState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => rows });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => cols });
@@ -143,7 +139,7 @@ describe('idle aquarium clear tear', () => {
     const rows = 60;
     const state = createTUIState({
       initialAppState: appState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => rows });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => cols });
@@ -193,7 +189,7 @@ describe('idle aquarium clear tear', () => {
     const rows = 40;
     const state = createTUIState({
       initialAppState: appState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => rows });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => cols });

@@ -8,18 +8,10 @@ import type {
 } from '@superliora/sdk';
 
 import type { GitStatus } from '#/utils/git/git-status';
-import type { LoopModelRoutingConfig } from '#/tui/utils/model/loop-model-routing';
 
 import type { ManagedUsageReport } from '../usage-panel/index';
 import type { StatusFieldMotionState } from './field-motion';
 
-export type StatusGoalStatus = 'active' | 'paused' | 'blocked' | 'complete';
-
-export interface StatusHumanWritingReadiness {
-  readonly ready: boolean;
-  readonly advisoryOnly: boolean;
-  readonly nextAction: string;
-}
 
 export interface StatusReportOptions {
   readonly version: string;
@@ -33,9 +25,6 @@ export interface StatusReportOptions {
   readonly sessionTitle: string | null;
   readonly thinking: boolean;
   readonly permissionMode: PermissionMode;
-  readonly planMode: boolean;
-  readonly premiumQualityMode?: boolean;
-  readonly goalStatus?: StatusGoalStatus;
   readonly contextUsage: number;
   readonly contextTokens: number;
   readonly maxContextTokens: number;
@@ -58,35 +47,10 @@ export interface StatusReportOptions {
   readonly managedUsage?: ManagedUsageReport;
   readonly managedUsageError?: string;
   readonly gitStatus?: GitStatus | null;
-  readonly humanWriting?: StatusHumanWritingReadiness;
   readonly upstreamBaseline?: string;
-  readonly contextOS?: {
-    readonly pageCount: number;
-    readonly readyPageCount: number;
-    readonly needsRehydrationPageCount: number;
-    readonly atRiskPageCount: number;
-    readonly missingEvidencePageCount: number;
-    readonly evidenceIdRecallScore: number;
-    readonly latestContinuityStatus: string;
-  };
-  readonly autoDream?: {
-    readonly enabled: boolean;
-    readonly inFlight: boolean;
-    readonly runs: number;
-    readonly lastDreamAt: number | null;
-    readonly lastExamined: number | null;
-    readonly lastMerged: number | null;
-    readonly minHours: number;
-    readonly minActiveRecords: number;
-  } | null;
   /** Product telemetry enabled (false ≈ ZDR-friendlier local posture). */
   readonly privacyTelemetryEnabled?: boolean;
-  /** Active tool names from the session (for research/media readiness). */
-  readonly activeToolNames?: readonly string[];
-  /** Explicit loop-role model overrides loaded from persisted harness config. */
-  readonly loopModelRouting?: LoopModelRoutingConfig;
-  /** Error while loading explicit loop-role model overrides. */
-  readonly loopModelRoutingError?: string;
+  /** Active runtime tools. */
   /** Optional field-value crossfade tracker across rebuilds. */
   readonly fieldMotion?: StatusFieldMotionState;
 }

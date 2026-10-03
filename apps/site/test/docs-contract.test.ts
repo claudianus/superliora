@@ -217,14 +217,6 @@ describe('docs inline tokenizer', () => {
       { text: 'Alt+I', kind: 'kbd' },
       { text: ' 질문함', kind: 'plain' },
     ]);
-    // Prose around a command stays plain.
-    expect(splitRichText('Use /plan for big design, /goal to push until done.')).toEqual([
-      { text: 'Use ', kind: 'plain' },
-      { text: '/plan', kind: 'cmd' },
-      { text: ' for big design, ', kind: 'plain' },
-      { text: '/goal', kind: 'cmd' },
-      { text: ' to push until done.', kind: 'plain' },
-    ]);
     expect(splitRichText('liora upgrade 또는 /upgrade로 갱신')).toEqual([
       { text: 'liora upgrade', kind: 'cmd' },
       { text: ' 또는 ', kind: 'plain' },

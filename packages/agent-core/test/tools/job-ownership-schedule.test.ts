@@ -121,7 +121,7 @@ describe('job ownership schedule gate', () => {
     expect(listJobs(store).filter((j) => j.status === 'running')).toHaveLength(1);
   });
 
-  it('re-queues on Ownership conflict spawn instead of failing', async () => {
+  it('reports an ownership-conflict spawn failure without automatic requeue or replay', async () => {
     const store = memoryStore();
     const job = createJob(store, {
       title: 'animate',
@@ -139,25 +139,26 @@ describe('job ownership schedule gate', () => {
         'Ownership conflict on Boss.js: already claimed by owner=agent_x run=job:job_holder:abcd1234. Resolve the overlap before fan-out.',
       );
     });
-    const agent = { subagentHost: { spawn: async () => ({}) }, log: undefined } as never;
+    const agent = { config: { cwd: '/repo' }, log: undefined } as never;
 
     const result = await launchJobWorker({
       store,
       agent,
       job: running,
+      workerHost: {} as never,
       spawnOne: spawnOne as never,
     });
 
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/Ownership conflict/);
     const after = getJob(store, job.id);
-    expect(after?.status).toBe('queued');
-    expect(after?.resultSummary).toBeUndefined();
-    expect(after?.notes).toMatch(/ownership_deferred:.*held_by=job_holder/);
-    expect(after?.notes).not.toMatch(/spawn_failed:/);
+    expect(after?.status).toBe('failed');
+    expect(after?.resultSummary).toMatch(/Ownership conflict/);
+    expect(after?.notes).toMatch(/spawn_failed:/);
+    expect(spawnOne).toHaveBeenCalledTimes(1);
   });
 
-  it('verify workers do not pass ownership to spawn', async () => {
+  it('preserves explicitly requested ownership for an operator verification Job', async () => {
     const store = memoryStore();
     const job = createJob(store, {
       title: 'Verify: footer',
@@ -177,18 +178,20 @@ describe('job ownership schedule gate', () => {
         agentId: 'agent_verify',
         profileName: 'verify',
         resumed: false,
+        resourcesSettled: true,
         completion: Promise.resolve({ result: 'ok' }),
       };
     });
-    const agent = { subagentHost: { spawn: async () => ({}) } } as never;
+    const agent = { config: { cwd: '/repo' } } as never;
 
     const result = await launchJobWorker({
       store,
       agent,
       job: running,
+      workerHost: {} as never,
       spawnOne: spawnOne as never,
     });
     expect(result.ok).toBe(true);
-    expect(sawOwnership).toBeUndefined();
+    expect(sawOwnership).toEqual(['Footer.tsx']);
   });
 });

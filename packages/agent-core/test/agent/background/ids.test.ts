@@ -1,47 +1,8 @@
-/**
- * Background task id format.
- */
-
-import { Readable } from 'node:stream';
-import type { Writable } from 'node:stream';
-
-import type { KaosProcess } from '@superliora/kaos';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { BackgroundTaskPersistence } from '../../../src/agent/background';
-import { agentTask, createBackgroundManager, registerProcess } from './helpers';
 
-function pendingProcess(): KaosProcess {
-  return {
-    stdin: { write: vi.fn(), end: vi.fn() } as unknown as Writable,
-    stdout: Readable.from([]),
-    stderr: Readable.from([]),
-    pid: 54321,
-    exitCode: null,
-    wait: () => new Promise<number>(() => {}),
-    kill: vi.fn().mockResolvedValue(undefined) as KaosProcess['kill'],
-    dispose: vi.fn().mockResolvedValue(undefined) as KaosProcess['dispose'],
-  };
-}
-
-describe('background task id format', () => {
-  it('assigns bash-prefixed ids to process tasks', () => {
-    const { manager } = createBackgroundManager();
-    const id = registerProcess(manager, pendingProcess(), 'sleep 60', 'process task');
-
-    expect(id).toMatch(/^bash-[0-9a-z]{8}$/);
-    expect(manager.getTask(id)).toMatchObject({ taskId: id, kind: 'process' });
-  });
-
-  it('assigns agent-prefixed ids to agent tasks', () => {
-    const { manager } = createBackgroundManager();
-    const id = manager.registerTask(
-      agentTask(new Promise(() => {}), 'agent task'),
-    );
-
-    expect(id).toMatch(/^agent-[0-9a-z]{8}$/);
-    expect(manager.getTask(id)).toMatchObject({ taskId: id, kind: 'agent' });
-  });
+describe('background persistence task id validation', () => {
 
   it('rejects malformed ids at the persistence path boundary', () => {
     const persistence = new BackgroundTaskPersistence('/tmp/kimi-bg-id-test');

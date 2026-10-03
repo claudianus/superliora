@@ -9,15 +9,13 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { isRecoverableRequestStructureError, type TokenUsage } from '@superliora/kosong';
+import type { TokenUsage } from '@superliora/kosong';
 import type { Logger } from '#/logging/types';
 
 import type { LoopEventDispatcher } from './events';
 import { errorMessage } from './errors';
 import type { LLM, LLMChatParams, LLMChatResponse } from './llm';
-import { chatWithRetry } from './retry';
 import { runToolCallBatch, type ToolCallStepContext } from './tool-call';
-import type { ToolGuardState } from './tool-call-guards';
 import type { ToolParallelStatus } from './tool-parallel-status';
 import type {
   ExecutableTool,
@@ -37,16 +35,13 @@ export interface ExecuteLoopStepDeps {
   readonly turnId: string;
   readonly signal: AbortSignal;
   readonly buildMessages: LoopMessageBuilder;
-  readonly buildMessagesStrict?: LoopMessageBuilder | undefined;
   readonly dispatchEvent: LoopEventDispatcher;
   readonly llm: LLM;
   readonly tools?: readonly ExecutableTool[] | undefined;
   readonly hooks?: LoopHooks | undefined;
   readonly log?: Logger | undefined;
   readonly currentStep: number;
-  readonly maxRetryAttempts?: number;
   readonly toolParallelStatus?: ToolParallelStatus | undefined;
-  readonly guards: ToolGuardState;
   readonly recordUsage: (
     usage: TokenUsage,
     info?: RecordStepUsageInfo | undefined,
@@ -61,17 +56,14 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
     turnId,
     signal,
     buildMessages,
-    buildMessagesStrict,
     dispatchEvent,
     llm,
     tools,
     hooks,
     log,
     currentStep,
-    maxRetryAttempts,
     recordUsage,
     toolParallelStatus,
-    guards,
   } = deps;
 
   if (hooks?.beforeStep !== undefined) {
@@ -104,7 +96,6 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
     currentStep,
     stepUuid,
     toolParallelStatus,
-    guards,
   };
 
   await dispatchEvent({
@@ -114,58 +105,27 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
     step: currentStep,
   });
 
+  const streaming = createChatStreamingCallbacks({ dispatchEvent, turnId, currentStep, stepUuid });
   const chatParams: LLMChatParams = {
     messages,
     tools: tools ?? [],
     signal,
-    ...createChatStreamingCallbacks({
-      dispatchEvent,
-      turnId,
-      currentStep,
-      stepUuid,
-    }),
+    requestLogFields: { turnStep: `${turnId}.${String(currentStep)}` },
+    ...streaming,
   };
-  const retryInput = {
-    llm,
-    dispatchEvent,
-    turnId,
-    currentStep,
-    stepUuid,
-    maxAttempts: maxRetryAttempts,
-    log,
-  } as const;
   let response: LLMChatResponse;
   try {
-    response = await chatWithRetry({ ...retryInput, params: chatParams });
+    response = await llm.chat(chatParams);
   } catch (error) {
-    if (buildMessagesStrict === undefined || !isRecoverableRequestStructureError(error)) {
-      throw error;
-    }
-
-    signal.throwIfAborted();
-    log?.warn('provider rejected request structure; resending strict projection', {
-      turnStep: `${turnId}.${String(currentStep)}`,
-      model: llm.modelName,
-    });
-    const strictMessages = await buildMessagesStrict();
-    signal.throwIfAborted();
-    try {
-      response = await chatWithRetry({
-        ...retryInput,
-        params: { ...chatParams, messages: strictMessages },
-      });
-    } catch (strictError) {
-      log?.error('strict projection resend failed', {
+    if (!signal.aborted) {
+      log?.warn('llm request failed', {
         turnStep: `${turnId}.${String(currentStep)}`,
         model: llm.modelName,
-        originalError: errorMessage(error),
-        strictError: errorMessage(strictError),
+        errorName: error instanceof Error ? error.name : typeof error,
+        errorMessage: errorMessage(error),
       });
-      throw strictError;
     }
-    log?.info('recovered after strict projection resend', {
-      turnStep: `${turnId}.${String(currentStep)}`,
-    });
+    throw error;
   }
   const usage = response.usage;
   const usageResult = await recordUsage(usage, { model: response.usageModel });
@@ -217,19 +177,15 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
 
   let stopTurnAfterStep = stopTurnAfterUsage;
   if (hooks?.afterStep !== undefined) {
-    try {
-      const afterStep = await hooks.afterStep({
-        turnId,
-        stepNumber: currentStep,
-        usage,
-        stopReason: effectiveStopReason,
-        signal,
-        llm,
-      });
-      stopTurnAfterStep = stopTurnAfterStep || afterStep?.stopTurn === true;
-    } catch {
-      // The step is already sealed; observer hooks cannot change the result.
-    }
+    const afterStep = await hooks.afterStep({
+      turnId,
+      stepNumber: currentStep,
+      usage,
+      stopReason: effectiveStopReason,
+      signal,
+      llm,
+    });
+    stopTurnAfterStep = stopTurnAfterStep || afterStep?.stopTurn === true;
   }
 
   return {
@@ -314,7 +270,7 @@ function createChatStreamingCallbacks(deps: {
 }): ChatStreamingCallbacks {
   const { dispatchEvent, turnId, currentStep, stepUuid } = deps;
 
-  return {
+  const callbacks: ChatStreamingCallbacks = {
     onTextDelta: (delta) => {
       dispatchEvent({ type: 'text.delta', delta });
     },
@@ -350,4 +306,5 @@ function createChatStreamingCallbacks(deps: {
       });
     },
   };
+  return callbacks;
 }

@@ -23,10 +23,7 @@ function strip(text: string): string {
 }
 
 describe('AssistantMessageComponent', () => {
-  it('defines the shared status bullet as a stable non-emoji glyph', () => {
-    expect(STATUS_BULLET).toBe('● ');
-    expect(visibleWidth(STATUS_BULLET)).toBe(2);
-  });
+  
 
   it('uses the stable status bullet without stealing content width', () => {
     const component = new AssistantMessageComponent();
@@ -47,7 +44,7 @@ describe('AssistantMessageComponent', () => {
     component.updateContent('hello breath');
     const lines = component.render(40).map(strip);
     expect(lines[0]).toBe('');
-    expect(lines[lines.length - 1]).toBe('');
+    expect(lines.at(-1)).toBe('');
     expect(lines.some((line) => line.includes('hello breath'))).toBe(true);
   });
 

@@ -4,12 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { ApprovalPanelComponent } from '#/tui/components/dialogs/approval/approval-panel';
 import type {
-  DiffDisplayBlock,
-  FileContentDisplayBlock,
   PendingApproval,
 } from '#/tui/reverse-rpc/types';
-import { currentTheme } from '#/tui/theme';
 import * as appearanceEffects from '#/tui/features/appearance/appearance-effects';
+import { currentTheme } from '#/tui/theme';
 import {
   advanceAppearanceAnimationClock,
   motionEffectsAllowed,
@@ -19,7 +17,6 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/features/appearance/appearance-effects';
 
-import { captureProcessWrite } from '../../../helpers/process';
 
 const previousEnv = {
   TERM: process.env['TERM'],
@@ -103,9 +100,9 @@ function makePending(): PendingApproval {
     data: {
       id: 'approval_1',
       tool_call_id: 'tool_1',
-      tool_name: 'WriteFile',
-      action: 'write a file',
-      description: 'Update README.md',
+      tool_name: 'Bash',
+      action: 'run',
+      description: 'Update README.md using a shell command',
       display: [],
       choices: [
         { label: 'Approve once', response: 'approved' },
@@ -172,42 +169,42 @@ describe('ApprovalPanelComponent', () => {
   it('renders choice descriptions beneath the label when present', () => {
     const pending: PendingApproval = {
       data: {
-        id: 'approval_goal',
-        tool_call_id: 'tool_goal',
-        tool_name: 'CreateGoal',
-        action: 'Creating a goal',
+        id: 'approval_choice',
+        tool_call_id: 'tool_choice',
+        tool_name: 'Bash',
+        action: 'Run a shell command',
         description: '',
         display: [],
         choices: [
           {
-            label: 'Switch to Auto and start',
+            label: 'Approve once',
             response: 'approved',
-            selected_label: 'auto',
-            description: 'Tools are approved automatically, and questions are skipped.',
+            selected_label: 'once',
+            description: 'Run this command once without changing permissions.',
           },
           { label: 'Do not start', response: 'cancelled', selected_label: 'cancel' },
         ],
       },
     };
     const out = strip(new ApprovalPanelComponent(pending, () => {}).render(80).join('\n'));
-    expect(out).toContain('1. Switch to Auto and start');
-    expect(out).toContain('Tools are approved automatically, and questions are skipped.');
+    expect(out).toContain('1. Approve once');
+    expect(out).toContain('Run this command once without changing permissions.');
     // A choice without a description stays label-only — no stray blank helper line.
     expect(out).toContain('2. Do not start');
   });
 
-  it('renders MCP approvals with a readable title and structured details', () => {
+  it('renders brief approval details beneath the command title', () => {
     const pending: PendingApproval = {
       data: {
-        id: 'approval_mcp',
-        tool_call_id: 'tool_mcp',
-        tool_name: 'mcp__maru-deep-pro-search__list_engines',
-        action: 'Call mcp__maru-deep-pro-search__list_engines',
+        id: 'approval_brief',
+        tool_call_id: 'tool_brief',
+        tool_name: 'Bash',
+        action: 'run',
         description: '',
         display: [
           {
             type: 'brief',
-            text: 'MCP server: maru-deep-pro-search\nTool: list_engines\nArguments: none',
+            text: 'Workspace: /tmp/project\nCommand: printf ready\nOutput: terminal',
           },
         ],
         choices: [{ label: 'Approve once', response: 'approved' }],
@@ -215,11 +212,10 @@ describe('ApprovalPanelComponent', () => {
     };
     const out = strip(new ApprovalPanelComponent(pending, () => {}).render(80).join('\n'));
 
-    expect(out).toContain('Approve MCP tool list_engines?');
-    expect(out).toContain('MCP server: maru-deep-pro-search');
-    expect(out).toContain('Tool: list_engines');
-    expect(out).toContain('Arguments: none');
-    expect(out).not.toContain('Approve mcp__maru-deep-pro-search__list_engines?');
+    expect(out).toContain('Run this command?');
+    expect(out).toContain('Workspace: /tmp/project');
+    expect(out).toContain('Command: printf ready');
+    expect(out).toContain('Output: terminal');
   });
 
   it('renders dangerous shell warnings with simple copy and no icon', () => {
@@ -358,151 +354,20 @@ describe('ApprovalPanelComponent', () => {
     },
   );
 
-  it('renders ExitPlanMode with plan-specific header and plan-review choices', () => {
-    const pending: PendingApproval = {
-      data: {
-        id: 'approval_plan',
-        tool_call_id: 'tool_plan',
-        tool_name: 'ExitPlanMode',
-        action: 'review plan',
-        description: '',
-        display: [],
-        choices: [
-          { label: 'Approve', response: 'approved' },
-          { label: 'Reject', response: 'rejected' },
-          { label: 'Revise', response: 'rejected', requires_feedback: true },
-        ],
-      },
-    };
-    const dialog = new ApprovalPanelComponent(pending, () => {});
-
-    const out = strip(dialog.render(80).join('\n'));
-    expect(out).toContain('Ready to build with this plan?');
-    expect(out).not.toContain('Approve ExitPlanMode?');
-    expect(out).toContain('Approve');
-    expect(out).toContain('Reject');
-    expect(out).toContain('Revise');
-    expect(out).not.toContain('Approve for this session');
-    expect(out).not.toContain('Investigate');
-  });
-
-  it('keeps a long plan_review file_content compact and opens preview on ctrl+e', () => {
-    const planLines = Array.from({ length: 40 }, (_, i) => `line-${String(i + 1)}`);
-    const planBlock: FileContentDisplayBlock = {
-      type: 'file_content',
-      path: '/tmp/long-plan.md',
-      content: planLines.join('\n'),
-      language: 'markdown',
-    };
-    const pending: PendingApproval = {
-      data: {
-        id: 'approval_long_plan',
-        tool_call_id: 'tool_long_plan',
-        tool_name: 'ExitPlanMode',
-        action: 'review plan',
-        description: '',
-        display: [
-          {
-            type: 'brief',
-            text: '경로: /tmp/long-plan.md\n40 lines · Ctrl+E preview\n라인 코멘트: L12: 수정 요청 형식',
-          },
-          planBlock,
-        ],
-        choices: [{ label: 'Approve', response: 'approved' }],
-        planReview: { content: planBlock.content, path: planBlock.path },
-      },
-    };
-    const previewCalls: Array<DiffDisplayBlock | FileContentDisplayBlock> = [];
-    const dialog = new ApprovalPanelComponent(
-      pending,
-      () => {},
-      undefined,
-      (block) => previewCalls.push(block),
-    );
-
-    const out = strip(dialog.render(100).join('\n'));
-    expect(out).toContain('Ready to build with this plan?');
-    expect(out).toContain('line-1');
-    expect(out).toContain('more line');
-    expect(out).not.toContain('line-40');
-    expect(out).toContain('Ctrl+E preview');
-
-    dialog.handleInput('\u0005'); // Ctrl+E
-    expect(previewCalls).toEqual([planBlock]);
-  });
-
-  // Inline expand-in-place used to inflate the panel past the viewport on
-  // any non-trivial Edit, which then collided with pi-tui's inline scroll
-  // and made the terminal flicker / refuse to scroll. The panel now always
-  // renders the diff in its compact cluster form; ctrl+e instead asks the
-  // host to open a dedicated full-screen preview that can manage its own
-  // scrolling.
-  it('renders an Edit diff in compact form and asks the host to open a preview on ctrl+e', () => {
-    const responses: Array<{ response: string }> = [];
-    const oldLines: string[] = [];
-    const newLines: string[] = [];
-    for (let i = 1; i <= 30; i++) {
-      oldLines.push(`old${String(i)}`);
-      newLines.push(`new${String(i)}`);
-    }
-    const diffBlock: DiffDisplayBlock = {
-      type: 'diff',
-      path: 'src/foo.ts',
-      old_text: oldLines.join('\n'),
-      new_text: newLines.join('\n'),
-    };
-    const pending: PendingApproval = {
-      data: {
-        id: 'approval_diff',
-        tool_call_id: 'tool_diff',
-        tool_name: 'Edit',
-        action: 'edit',
-        description: '',
-        display: [diffBlock],
-        choices: [{ label: 'Approve once', response: 'approved' }],
-      },
-    };
-    let toolOutputToggles = 0;
-    const previewCalls: Array<DiffDisplayBlock | FileContentDisplayBlock> = [];
-    const dialog = new ApprovalPanelComponent(
-      pending,
-      (r) => responses.push(r),
-      () => toolOutputToggles++,
-      (block) => previewCalls.push(block),
-    );
-
-    const before = strip(dialog.render(120).join('\n'));
-    expect(before).toContain('+30');
-    expect(before).toContain('-30');
-    expect(before).toContain('Ctrl+E preview');
-    expect(before).not.toContain('new30'); // compact view stays compact
-
-    dialog.handleInput('\u0005'); // Ctrl+E
-
-    // The panel itself does not expand; it delegates to the host.
-    const after = strip(dialog.render(120).join('\n'));
-    expect(after).not.toContain('new30');
-    expect(after).toContain('Ctrl+E preview');
-    expect(previewCalls).toEqual([diffBlock]);
-    // The unrelated forward-only callback must not fire for ctrl+e.
-    expect(toolOutputToggles).toBe(0);
-    expect(responses).toEqual([]);
-  });
 
   it('forwards ctrl+o to the global tool-output toggle without affecting the panel', () => {
     const pending: PendingApproval = {
       data: {
         id: 'approval_forward',
         tool_call_id: 'tool_forward',
-        tool_name: 'Edit',
-        action: 'edit',
+        tool_name: 'Bash',
+        action: 'run',
         description: '',
         display: [
           {
-            type: 'diff',
-            path: 'src/foo.ts',
-            old_text: Array.from({ length: 30 }, (_, i) => `old${String(i + 1)}`).join('\n'),
-            new_text: Array.from({ length: 30 }, (_, i) => `new${String(i + 1)}`).join('\n'),
+            type: 'shell',
+            language: 'bash',
+            command: 'printf approval-forwarded',
           },
         ],
         choices: [{ label: 'Approve once', response: 'approved' }],
@@ -515,151 +380,9 @@ describe('ApprovalPanelComponent', () => {
 
     const after = strip(dialog.render(120).join('\n'));
     expect(globalToggleCalls).toBe(1);
-    expect(after).toContain('Ctrl+E preview');
-    expect(after).not.toContain('new30');
+    expect(after).toContain('approval-forwarded');
   });
 
-  it('does nothing on ctrl+e when there is nothing to preview', () => {
-    const pending: PendingApproval = {
-      data: {
-        id: 'approval_plan_only',
-        tool_call_id: 'tool_plan_only',
-        tool_name: 'ExitPlanMode',
-        action: 'review plan',
-        description: '',
-        display: [],
-        choices: [{ label: 'Approve', response: 'approved' }],
-      },
-    };
-    const previewCalls: Array<DiffDisplayBlock | FileContentDisplayBlock> = [];
-    const dialog = new ApprovalPanelComponent(
-      pending,
-      () => {},
-      undefined,
-      (block) => previewCalls.push(block),
-    );
-
-    dialog.handleInput('\u0005'); // Ctrl+E
-    expect(previewCalls).toEqual([]);
-  });
-
-  it('renders Write as a syntax-highlighted code block (file_content), not a diff', () => {
-    const responses: Array<{ response: string }> = [];
-    const lines: string[] = [];
-    for (let i = 1; i <= 30; i++) lines.push(`const x${String(i)} = ${String(i)};`);
-    const contentBlock: FileContentDisplayBlock = {
-      type: 'file_content',
-      path: 'src/new.ts',
-      content: lines.join('\n'),
-    };
-    const pending: PendingApproval = {
-      data: {
-        id: 'approval_write',
-        tool_call_id: 'tool_write',
-        tool_name: 'Write',
-        action: 'write',
-        description: '',
-        display: [contentBlock],
-        choices: [{ label: 'Approve once', response: 'approved' }],
-      },
-    };
-    const previewCalls: Array<DiffDisplayBlock | FileContentDisplayBlock> = [];
-    const dialog = new ApprovalPanelComponent(
-      pending,
-      (r) => responses.push(r),
-      undefined,
-      (block) => previewCalls.push(block),
-    );
-
-    const collapsed = strip(dialog.render(120).join('\n'));
-    // No diff markers, no +N -M header.
-    expect(collapsed).not.toMatch(/^\s*\+\d+/m);
-    expect(collapsed).not.toMatch(/^\s*-\d+/m);
-    expect(collapsed).toContain('src/new.ts');
-    expect(collapsed).toContain('const x1 = 1;');
-    expect(collapsed).toContain('const x10 = 10;');
-    expect(collapsed).not.toContain('const x25 = 25;');
-    expect(collapsed).toContain('20 more lines hidden (Ctrl+E preview)');
-    expect(collapsed).toContain('Ctrl+E preview');
-
-    dialog.handleInput('\u0005'); // Ctrl+E hands off to the host preview.
-    const after = strip(dialog.render(120).join('\n'));
-    // The panel itself stays compact; the full content is opened elsewhere.
-    expect(after).not.toContain('const x30 = 30;');
-    expect(previewCalls).toEqual([contentBlock]);
-    expect(responses).toEqual([]);
-  });
-
-  it('renders unknown file_content extensions as plain text without stderr noise', () => {
-    const pending: PendingApproval = {
-      data: {
-        id: 'approval_unknown_write',
-        tool_call_id: 'tool_unknown_write',
-        tool_name: 'Write',
-        action: 'write',
-        description: '',
-        display: [{ type: 'file_content', path: 'demo.abcxyz', content: 'hello\nworld' }],
-        choices: [{ label: 'Approve once', response: 'approved' }],
-      },
-    };
-    const stderr = captureProcessWrite('stderr');
-    try {
-      const previewCalls: Array<DiffDisplayBlock | FileContentDisplayBlock> = [];
-      const dialog = new ApprovalPanelComponent(
-        pending,
-        () => {},
-        undefined,
-        (block) => previewCalls.push(block),
-      );
-      const collapsed = strip(dialog.render(120).join('\n'));
-      expect(collapsed).toContain('hello');
-
-      dialog.handleInput('\u0005'); // Ctrl+E
-      expect(previewCalls).toHaveLength(1);
-      expect(stderr.text()).not.toContain('Could not find the language');
-    } finally {
-      stderr.restore();
-    }
-  });
-
-  it('returns feedback for plan-review revise choice', () => {
-    const responses: Array<{
-      response: string;
-      feedback?: string | undefined;
-      selected_label?: string | undefined;
-    }> = [];
-    const pending: PendingApproval = {
-      data: {
-        id: 'approval_plan',
-        tool_call_id: 'tool_plan',
-        tool_name: 'ExitPlanMode',
-        action: 'review plan',
-        description: '',
-        display: [],
-        choices: [
-          { label: 'Approve', response: 'approved' },
-          {
-            label: 'Revise',
-            response: 'rejected',
-            selected_label: 'Revise',
-            requires_feedback: true,
-          },
-        ],
-      },
-    };
-    const dialog = new ApprovalPanelComponent(
-      pending,
-      (response) => responses.push(response),
-    );
-
-    dialog.handleInput('2');
-    dialog.handleInput('n');
-    dialog.handleInput('o');
-    dialog.handleInput('\r');
-    expect(responses).toEqual([
-      { response: 'rejected', feedback: 'no', selected_label: 'Revise' },
-    ]);
-  });
 
   it('breathes dangerous shell command ANSI across ticks under premium (plain text stable)', () => {
     chalk.level = 3;

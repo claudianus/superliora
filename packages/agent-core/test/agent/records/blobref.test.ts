@@ -1,12 +1,17 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { BlobStore, isBlobRef } from '../../../src/agent/records/blobref';
-import type { AgentRecord } from '../../../src/agent/records';
+import {
+  AGENT_WIRE_PROTOCOL_VERSION,
+  FileSystemAgentRecordPersistence,
+  type AgentRecord,
+} from '../../../src/agent/records';
+import { testAgent } from '../harness/agent';
 
 const cleanups: string[] = [];
 
@@ -17,7 +22,12 @@ afterEach(async () => {
 });
 
 function firstImageUrl(record: AgentRecord): string {
-  return (record as unknown as { input: [{ imageUrl: { url: string } }] }).input[0].imageUrl.url;
+  if (record.type !== 'turn.prompt' && record.type !== 'turn.steer') {
+    throw new Error(`Expected prompt media, received ${record.type}`);
+  }
+  const part = record.input[0];
+  if (part?.type !== 'image_url') throw new Error('Expected an image content part');
+  return part.imageUrl.url;
 }
 
 async function makeStore(options?: { maxCacheSize?: number; threshold?: number }): Promise<{ store: BlobStore; blobsDir: string }> {
@@ -35,6 +45,50 @@ async function makeStore(options?: { maxCacheSize?: number; threshold?: number }
 }
 
 describe('blobref', () => {
+  it.each(['https://example.com/media', 'file:///tmp/media', 'data:image/png;base64,YQ==', '', 'abc123'])(
+    'does not classify ordinary media URLs as blob references: %s',
+    (url) => {
+      expect(isBlobRef(url)).toBe(false);
+    },
+  );
+
+  it('rehydrates persisted context media for both context and replay consumers', async () => {
+    const homedir = await mkdtemp(join(tmpdir(), 'native-record-media-'));
+    cleanups.push(homedir);
+    const wirePath = join(homedir, 'wire.jsonl');
+    const payload = 'Y'.repeat(5_000);
+    const dataUri = `data:image/png;base64,${payload}`;
+    const writer = new FileSystemAgentRecordPersistence(wirePath, {
+      blobStore: new BlobStore({ blobsDir: join(homedir, 'blobs') }),
+    });
+    writer.append({ type: 'metadata', protocol_version: AGENT_WIRE_PROTOCOL_VERSION, created_at: 1 });
+    writer.append({
+      type: 'context.append_message',
+      message: {
+        role: 'user', toolCalls: [], origin: { kind: 'user' },
+        content: [{ type: 'image_url', imageUrl: { url: dataUri } }],
+      },
+    });
+    await writer.close();
+    const diskRecord = await readFile(wirePath, 'utf8');
+    expect(diskRecord).toContain('blobref:image/png;');
+    expect(diskRecord).not.toContain(dataUri);
+
+    const reader = new FileSystemAgentRecordPersistence(wirePath);
+    const ctx = testAgent({ persistence: reader, homedir, type: 'sub' });
+    await ctx.agent.records.replay();
+    const media = ctx.agent.context.history[0]?.content[0];
+    if (media?.type !== 'image_url') throw new Error('Expected replayed image media');
+    expect(media.imageUrl.url).toBe(dataUri);
+    const replay = ctx.agent.replayBuilder.buildResult()[0];
+    if (replay?.type !== 'message') throw new Error('Expected a replay message');
+    expect(replay.message).toBe(ctx.agent.context.history[0]);
+    expect(replay.message.content[0]).toBe(media);
+    expect(await readFile(wirePath, 'utf8')).toBe(diskRecord);
+    expect(ctx.llmCalls).toEqual([]);
+    await ctx.agent.records.close();
+  });
+
   it('offloads large data URIs and replaces with blobref', async () => {
     const { store, blobsDir } = await makeStore();
     const payload = 'A'.repeat(5000);
@@ -48,8 +102,7 @@ describe('blobref', () => {
 
     const offloaded = await store.offload(record);
 
-    const url = (offloaded as unknown as { input: [{ imageUrl: { url: string } }] }).input[0]
-      .imageUrl.url;
+    const url = firstImageUrl(offloaded);
     expect(isBlobRef(url)).toBe(true);
     expect(url.startsWith('blobref:')).toBe(true);
     expect(url.startsWith('blobref:image/png;')).toBe(true);
@@ -67,24 +120,20 @@ describe('blobref', () => {
     const part = { type: 'image_url', imageUrl: innerImageUrl } as const;
     const record: AgentRecord = {
       type: 'turn.prompt',
-      input: [part as unknown as { type: 'image_url'; imageUrl: { url: string } }],
+      input: [part],
       origin: { kind: 'user' },
-    } as unknown as AgentRecord;
+    };
 
     const offloaded = await store.offload(record);
 
     // The original record/parts must remain untouched.
-    expect(
-      (record as unknown as { input: unknown[] }).input[0],
-    ).toBe(part);
+    expect(record.input[0]).toBe(part);
     expect(part.imageUrl).toBe(innerImageUrl);
     expect(innerImageUrl.url).toBe(dataUri);
 
     // The returned record carries the blobref URL.
     expect(offloaded).not.toBe(record);
-    const returnedUrl = (
-      offloaded as unknown as { input: [{ imageUrl: { url: string } }] }
-    ).input[0].imageUrl.url;
+    const returnedUrl = firstImageUrl(offloaded);
     expect(returnedUrl.startsWith('blobref:image/png;')).toBe(true);
   });
 
@@ -102,7 +151,7 @@ describe('blobref', () => {
         toolCallId: 'tc',
         result: { isError: false, output: [part] },
       },
-    } as unknown as AgentRecord;
+    };
 
     const offloaded = await store.offload(record);
 
@@ -112,11 +161,15 @@ describe('blobref', () => {
     expect(part.imageUrl).toBe(innerImageUrl);
 
     // Returned record has blobref URL on a fresh imageUrl object.
-    const returned = offloaded as unknown as {
-      event: { result: { output: [{ imageUrl: { url: string } }] } };
-    };
-    expect(returned.event.result.output[0].imageUrl).not.toBe(innerImageUrl);
-    expect(returned.event.result.output[0].imageUrl.url.startsWith('blobref:image/png;')).toBe(true);
+    if (offloaded.type !== 'context.append_loop_event' || offloaded.event.type !== 'tool.result') {
+      throw new Error('Expected a persisted tool result');
+    }
+    const output = offloaded.event.result.output;
+    if (typeof output === 'string' || output[0]?.type !== 'image_url') {
+      throw new Error('Expected tool-result image media');
+    }
+    expect(output[0].imageUrl).not.toBe(innerImageUrl);
+    expect(output[0].imageUrl.url.startsWith('blobref:image/png;')).toBe(true);
 
     const files = await readdir(blobsDir);
     expect(files).toHaveLength(1);
@@ -128,7 +181,7 @@ describe('blobref', () => {
       type: 'turn.prompt',
       input: [{ type: 'text', text: 'just text' }],
       origin: { kind: 'user' },
-    } as unknown as AgentRecord;
+    };
 
     const offloaded = await store.offload(record);
     expect(offloaded).toBe(record);
@@ -181,8 +234,7 @@ describe('blobref', () => {
     const offloaded = await store.offload(record);
     await store.rehydrate(offloaded);
 
-    const url = (offloaded as unknown as { input: [{ imageUrl: { url: string } }] }).input[0]
-      .imageUrl.url;
+    const url = firstImageUrl(offloaded);
     expect(url).toBe(dataUri);
   });
 
@@ -196,7 +248,7 @@ describe('blobref', () => {
 
     await store.rehydrate(record);
 
-    const url = (record.input as unknown as [{ imageUrl: { url: string } }])[0].imageUrl.url;
+    const url = firstImageUrl(record);
     expect(url).toBe('[media missing]');
   });
 
@@ -241,8 +293,7 @@ describe('blobref', () => {
 
     // Should still rehydrate because offload populated the cache.
     await store.rehydrate(offloaded);
-    const url = (offloaded as unknown as { input: [{ imageUrl: { url: string } }] }).input[0]
-      .imageUrl.url;
+    const url = firstImageUrl(offloaded);
     expect(url).toBe(dataUri);
   });
 
@@ -258,23 +309,20 @@ describe('blobref', () => {
     };
 
     const offloaded = await store.offload(record);
-    await store.rehydrate(offloaded);
+    const blobUrl = firstImageUrl(offloaded);
+    const reader = new BlobStore({ blobsDir });
+    await reader.rehydrate(offloaded);
 
     const files = await readdir(blobsDir);
     expect(files).toHaveLength(1);
     await rm(join(blobsDir, files[0]!));
 
-    // Second rehydrate (of a fresh record pointing to the same blobref)
-    // should still succeed because the first rehydrate populated the read cache.
-    // After the rehydrate above, `offloaded` carries the data URI again — pull
-    // the blobref back out by re-offloading or re-using the original offload run.
-    const offloadedFresh = await store.offload(record);
     const record2: AgentRecord = {
       type: 'turn.prompt',
-      input: [{ type: 'image_url', imageUrl: { url: firstImageUrl(offloadedFresh) } }],
+      input: [{ type: 'image_url', imageUrl: { url: blobUrl } }],
       origin: { kind: 'user' },
     };
-    await store.rehydrate(record2);
+    await reader.rehydrate(record2);
     expect(firstImageUrl(record2)).toBe(dataUri);
   });
 

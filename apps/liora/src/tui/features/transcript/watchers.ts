@@ -1,6 +1,6 @@
 /**
  * Idle-surviving background work that can wake a new turn after the agent
- * looks idle — process commands, detached questions, and background subagents.
+ * looks idle — process commands and background subagents.
  * Counts-first "still running" copy matches the grok pager cue, using
  * SuperLiora task kinds only (no invented monitor/loop/workflow buckets).
  */
@@ -9,13 +9,11 @@ import type { BackgroundTaskInfo } from '@superliora/sdk';
 
 export interface Watchers {
   readonly commands: number;
-  readonly questions: number;
   readonly subagents: number;
 }
 
 export const EMPTY_WATCHERS: Watchers = {
   commands: 0,
-  questions: 0,
   subagents: 0,
 };
 
@@ -28,11 +26,11 @@ const TERMINAL_STATUSES = new Set<BackgroundTaskInfo['status']>([
 ]);
 
 export function watcherTotal(watchers: Watchers): number {
-  return watchers.commands + watchers.questions + watchers.subagents;
+  return watchers.commands + watchers.subagents;
 }
 
 export function watchersIdentity(watchers: Watchers): string {
-  return `${String(watchers.commands)}:${String(watchers.questions)}:${String(watchers.subagents)}`;
+  return `${String(watchers.commands)}:${String(watchers.subagents)}`;
 }
 
 export function hasLiveWatchers(
@@ -44,19 +42,16 @@ export function hasLiveWatchers(
 
 export function countWatchers(tasks: Iterable<BackgroundTaskInfo>): Watchers {
   let commands = 0;
-  let questions = 0;
   let subagents = 0;
   for (const info of tasks) {
     if (TERMINAL_STATUSES.has(info.status)) continue;
     if (info.kind === 'agent') {
       subagents += 1;
-    } else if (info.kind === 'question') {
-      questions += 1;
     } else {
       commands += 1;
     }
   }
-  return { commands, questions, subagents };
+  return { commands, subagents };
 }
 
 /** Counts-first cue, e.g. `"1 command · 2 subagents still running"`. */
@@ -76,7 +71,6 @@ export function stillRunningLabel(watchers: Watchers | undefined): string | unde
   if (watchers === undefined) return undefined;
   return formatStillRunning([
     [watchers.commands, 'command'],
-    [watchers.questions, 'question'],
     [watchers.subagents, 'subagent'],
   ]);
 }

@@ -3,7 +3,7 @@
  *
  * Lifecycle:
  *   - constructed on `compaction.started` → blinking white bullet +
- *     "Compacting context..." (or background variant) and optional custom instruction
+ *     "Compacting context..." and optional custom instruction
  *   - `markDone()` on `compaction.completed` → solid green bullet +
  *     "Compaction complete (X → Y tokens)"
  *   - `markCanceled()` on `compaction.cancelled` → solid warning bullet +
@@ -98,7 +98,6 @@ export class CompactionComponent extends Container {
   private readonly instruction: string | undefined;
   private readonly tip: string | undefined;
   private readonly modelAlias: string | undefined;
-  private background: boolean;
   private done = false;
   private canceled = false;
   private tokensBefore: number | undefined;
@@ -119,14 +118,13 @@ export class CompactionComponent extends Container {
     ui?: RendererRootUI,
     instruction?: string | undefined,
     tip?: string,
-    options?: { readonly background?: boolean; readonly modelAlias?: string },
+    options?: { readonly modelAlias?: string },
   ) {
     super();
     this.ui = ui;
     this.instruction = instruction;
     this.tip = tip;
     this.modelAlias = options?.modelAlias;
-    this.background = options?.background === true;
 
     // Top margin so the block isn't glued to the previous transcript
     // entry (status line, tool result, etc.).
@@ -189,9 +187,7 @@ export class CompactionComponent extends Container {
       animated &&
       now - this.startedAtMs < enterBeatDurationMs(appearance)
     ) {
-      const title = this.background
-        ? ttui('tui.dialog.compaction.titleActiveBg')
-        : ttui('tui.dialog.compaction.titleActive');
+      const title = ttui('tui.dialog.compaction.titleActive');
       // Pin to a single title line so geometry stays stable while the beat
       // paints (renderEnterBeat otherwise toggles 1↔2 lines).
       const beatHead = renderEnterBeat(title, width, 'compaction', this.startedAtMs, appearance);
@@ -264,12 +260,6 @@ export class CompactionComponent extends Container {
     this.ui?.requestRender();
   }
 
-  promoteToBlocking(): void {
-    if (this.done || this.canceled || !this.background) return;
-    this.background = false;
-    this.headerText.setText(this.buildHeader());
-    this.ui?.requestRender();
-  }
 
   /** Advance the phase-driven progress bar (wire `compaction.progress`). */
   setPhase(phase: CompactionPhase): void {
@@ -553,16 +543,14 @@ export class CompactionComponent extends Container {
     const bullet = animated
       ? renderPulseText(STATUS_BULLET, 'compaction:active-bullet', 'text')
       : currentTheme.fg('text', STATUS_BULLET);
-    const activeLabel = this.background
-      ? ttui('tui.dialog.compaction.titleProgressBg')
-      : ttui('tui.dialog.compaction.titleProgress');
+    const activeLabel = ttui('tui.dialog.compaction.titleProgress');
     const label = animated
       ? renderPremiumHeadline(
           activeLabel,
-          this.background ? 'compaction:bg' : 'compaction:active',
+          'compaction:active',
           appearance,
         )
-      : currentTheme.boldFg(this.background ? 'warning' : 'primary', activeLabel);
+      : currentTheme.boldFg('primary', activeLabel);
     const model =
       this.modelAlias !== undefined && this.modelAlias.length > 0
         ? currentTheme.fg('glow', ` · ${this.modelAlias}`)

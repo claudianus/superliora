@@ -30,6 +30,7 @@ function makeHost(sessionDir: string, overrides: Record<string, unknown> = {}) {
     sessionsScope: 'cwd' as const,
     terminal: { columns: 80, rows: 24 },
     transcriptEntries: [] as Array<{ toolCallData?: { id: string } }>,
+    appState: { transcriptRegionMode: 'chat' as 'chat' | 'timeline' },
     ...overrides,
   };
   return {
@@ -50,6 +51,7 @@ describe('tui session state', () => {
       userStageSize: { width: 200, height: 100 },
       sessionsScope: 'all',
       transcriptEntries: [{ toolCallData: { id: 'tool-1' } }],
+      appState: { transcriptRegionMode: 'timeline' },
     });
     source.state.toolOutputViewports.set(
       'tool-1',
@@ -65,6 +67,7 @@ describe('tui session state', () => {
     expect(restored.state.userStageSize).toEqual({ width: 80, height: 24 });
     expect(restored.state.sessionsScope).toBe('all');
     expect(restored.state.toolOutputViewports.get('tool-1')?.height).toBe(10);
+    expect(restored.state.appState?.transcriptRegionMode).toBe('timeline');
   });
 
   it('drops viewport entries that are absent from replayed history', async () => {

@@ -17,7 +17,7 @@ async function runSh(
   kaos: Kaos,
   command: string,
   options?: { timeout?: number; stdinData?: string },
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
   const proc: KaosProcess = await kaos.exec('/bin/sh', '-c', command);
 
   // Set up timeout if requested

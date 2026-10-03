@@ -374,9 +374,7 @@ export class TasksBrowserApp extends Container implements Focusable {
       ? 'primary'
       : task.kind === 'agent'
         ? 'success'
-        : task.kind === 'question'
-          ? 'warning'
-          : 'accent';
+        : 'accent';
     const idText = selected
       ? currentTheme.boldFg(idColor, task.taskId)
       : currentTheme.fg(idColor, task.taskId);
@@ -438,12 +436,6 @@ export class TasksBrowserApp extends Container implements Focusable {
     if (task.kind === 'agent' && task.subagentType !== undefined) {
       lines.push(`${label('Agent type:')}${value(task.subagentType)}`);
     }
-    if (task.kind === 'question') {
-      lines.push(`${label('Questions:')}${currentTheme.fg('textMuted', String(task.questionCount))}`);
-      if (task.toolCallId !== undefined) {
-        lines.push(`${label('Tool call:')}${currentTheme.fg('textMuted', task.toolCallId)}`);
-      }
-    }
     const timing =
       task.status === 'running'
         ? `running ${formatRelativeTime(task.startedAt)}`
@@ -451,7 +443,7 @@ export class TasksBrowserApp extends Container implements Focusable {
           ? `finished ${formatRelativeTime(task.endedAt)}`
           : '';
     if (timing.length > 0) lines.push(`${label('Time:')}${currentTheme.fg('textMuted', timing)}`);
-    if (task.kind === 'process' && task.pid > 0) {
+    if (task.kind === 'process' && typeof task.pid === 'number' && task.pid > 0) {
       lines.push(`${label('Pid:')}${currentTheme.fg('textMuted', String(task.pid))}`);
     }
     if (task.kind === 'process' && task.exitCode !== null) {

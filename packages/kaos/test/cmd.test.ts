@@ -15,7 +15,7 @@ import type { KaosProcess } from '#/process';
 async function runCmd(
   kaos: Kaos,
   command: string,
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
   const proc: KaosProcess = await kaos.exec('cmd.exe', '/c', `chcp 65001>nul & ${command}`);
 
   proc.stdin.end();

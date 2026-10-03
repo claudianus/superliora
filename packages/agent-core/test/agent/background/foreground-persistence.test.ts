@@ -72,7 +72,7 @@ function registerForeground(
   command: string,
   description: string,
 ): string {
-  return manager.registerTask(new ProcessBackgroundTask(proc, command, description), {
+  return manager.registerTask(new ProcessBackgroundTask(proc, command, description, manager.agent.kaos.getcwd()), {
     detached: false,
   });
 }

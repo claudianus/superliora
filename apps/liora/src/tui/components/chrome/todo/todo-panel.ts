@@ -1,28 +1,11 @@
 /**
- * TodoPanel — live-updating TODO list shown before the input area.
- *
- * Mounted as a dedicated `Container` slot between the activity pane
- * (spinners / thinking stream) and the queue / editor block. The host
- * calls {@link setTodos} whenever the LLM invokes the `TodoList`
- * tool; state survives across turns so the list stays visible until
- * explicitly cleared (`todos: []`), a new session starts, or `/clear`
- * is issued.
- *
- * When a live goal (active / paused / blocked) is set via {@link setGoal},
- * the panel stays mounted even with an empty todo list and prepends a
- * goal monitor header (objective, status pulse, progress, budget).
+ * TodoPanel — live Job board shown before the input area.
+ * The host projects operator Job cards into lanes; card movement, focus and
+ * streaming reveals share the existing appearance animation clock.
  */
 
 import { truncateToWidth, type Component } from '#/tui/renderer';
-import type { GoalSnapshot } from '@superliora/sdk';
 
-import {
-  goalMonitorBorderToken,
-  goalMonitorSnapshotKey,
-  goalMonitorTitle,
-  isLiveGoal,
-  renderGoalMonitorLines,
-} from '#/tui/components/chrome/goal-monitor';
 import { currentTheme } from '#/tui/theme/theme';
 import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import {
@@ -37,11 +20,7 @@ import {
   chromeBandInteriorWidth,
   renderRoundedPanel,
 } from '#/tui/utils/ui/panel-frame';
-import {
-  goalDeskLiveKey,
-  resolveGoalDeskLive,
-} from '#/tui/utils/job/goal-driver-live';
-import { formatJobDuration, type ConductorJobCard } from '#/tui/utils/job/job-strip';
+import { formatJobDuration } from '#/tui/utils/job/job-strip';
 import {
   createStreamingTextRevealState,
   isRevealCaughtUp,
@@ -119,11 +98,6 @@ export class TodoPanelComponent implements Component {
   private recentChanges = new Map<string, TodoChangeKind>();
   private changeSummary: TodoPanelChangeSummary | undefined;
   private callsSinceUpdate = 0;
-  private goal: GoalSnapshot | null = null;
-  private goalObservedAtMs = Date.now();
-  private goalSnapshotKey: string | null = null;
-  private goalChangedAtMs: number | undefined;
-  private goalDeskJobs: readonly ConductorJobCard[] | undefined;
   private lastBoardRows = 0;
   private boardShrinkRequestedAtMs: number | undefined;
   private readonly motion = new TodoPanelMotionTracker();
@@ -133,8 +107,6 @@ export class TodoPanelComponent implements Component {
         readonly width: number;
         readonly expanded: boolean;
         readonly todos: readonly TodoItem[];
-        readonly goal: GoalSnapshot | null;
-        readonly deskLiveKey: string;
         readonly calls: number;
         readonly secondBucket: number;
         readonly scroll: number;
@@ -187,47 +159,6 @@ export class TodoPanelComponent implements Component {
       title === undefined ? undefined : appearanceAnimationNow();
   }
 
-  /**
-   * Bind the live goal snapshot. When status is active/paused/blocked the
-   * panel stays visible even with zero todos. Complete / null clears the
-   * monitor chrome. Optional `deskJobs` feeds Goal Desk lane honesty
-   * (driver / fleet / awaiting Conductor).
-   */
-  setGoal(
-    goal: GoalSnapshot | null | undefined,
-    deskJobs?: readonly ConductorJobCard[] | null,
-  ): void {
-    const next = goal ?? null;
-    const nextKey = goalMonitorSnapshotKey(next);
-    if (nextKey !== this.goalSnapshotKey) {
-      const identityChanged =
-        this.goal?.status !== next?.status || this.goal?.goalId !== next?.goalId;
-      this.goalSnapshotKey = nextKey;
-      // Only re-anchor the live clock when the goal identity/status flips —
-      // progress ticks (turns/tokens) must not zero the elapsed label.
-      if (identityChanged) {
-        this.goalObservedAtMs = Date.now();
-        if (isLiveGoal(next)) {
-          this.goalChangedAtMs = appearanceAnimationNow();
-        }
-      }
-    }
-    this.goal = next;
-    if (next?.execution === 'goal-desk') {
-      // Omit `deskJobs` to keep the last board snapshot (compaction / goal-only sync).
-      if (deskJobs !== undefined && deskJobs !== null) {
-        this.goalDeskJobs = deskJobs;
-      } else if (this.goalDeskJobs === undefined) {
-        this.goalDeskJobs = [];
-      }
-    } else {
-      this.goalDeskJobs = undefined;
-    }
-  }
-
-  getGoal(): GoalSnapshot | null {
-    return this.goal;
-  }
 
   getTodos(): readonly TodoItem[] {
     return this.todos;
@@ -247,10 +178,6 @@ export class TodoPanelComponent implements Component {
     this.recentChanges = new Map();
     this.changeSummary = undefined;
     this.callsSinceUpdate = 0;
-    this.goal = null;
-    this.goalSnapshotKey = null;
-    this.goalChangedAtMs = undefined;
-    this.goalDeskJobs = undefined;
     this.lastBoardRows = 0;
     this.boardShrinkRequestedAtMs = undefined;
     this.motion.reset();
@@ -259,12 +186,9 @@ export class TodoPanelComponent implements Component {
   }
 
   isEmpty(): boolean {
-    return this.todos.length === 0 && !isLiveGoal(this.goal);
+    return this.todos.length === 0;
   }
 
-  hasLiveGoal(): boolean {
-    return isLiveGoal(this.goal);
-  }
 
   /** True when the list exceeds the collapsed cap, i.e. there is something to expand. */
   hasOverflow(): boolean {
@@ -321,8 +245,7 @@ export class TodoPanelComponent implements Component {
   invalidate(): void {}
 
   render(width: number): string[] {
-    const liveGoal = isLiveGoal(this.goal) ? this.goal : null;
-    if (this.todos.length === 0 && liveGoal === null) return [];
+    if (this.todos.length === 0) return [];
 
     // While the change flash is active the frame is time-driven; otherwise
     // unchanged state must yield byte-identical lines so the renderer's line
@@ -339,21 +262,10 @@ export class TodoPanelComponent implements Component {
       this.currentChangeSummary() !== undefined ||
       boardNeedsMarquee(this.todos, contentWidthForMarquee) ||
       revealPending ||
-      (ambient && this.todos.some((todo) => todo.status === 'in_progress')) ||
-      (ambient && liveGoal !== null && liveGoal.status === 'active');
-    // The goal wall-clock label advances once per second; bucketing keeps the
-    // memo valid within that second.
+      (ambient && this.todos.some((todo) => todo.status === 'in_progress'));
+    // Focus age advances once per second while resting frames remain memoized.
     const secondBucket = Math.floor(appearanceAnimationNow() / 1000);
     const budget = this.boardRowBudget() ?? -1;
-    const wallClockMsForDesk =
-      liveGoal !== null && liveGoal.execution === 'goal-desk'
-        ? this.goalWallClockMs(liveGoal)
-        : 0;
-    const deskLive =
-      liveGoal !== null && liveGoal.execution === 'goal-desk'
-        ? resolveGoalDeskLive(liveGoal, this.goalDeskJobs, wallClockMsForDesk)
-        : undefined;
-    const deskLiveKey = goalDeskLiveKey(deskLive);
     const memo = this.lastRender;
     if (
       !animating &&
@@ -361,8 +273,6 @@ export class TodoPanelComponent implements Component {
       memo.width === width &&
       memo.expanded === this.expanded &&
       memo.todos === this.todos &&
-      memo.goal === this.goal &&
-      memo.deskLiveKey === deskLiveKey &&
       memo.calls === this.callsSinceUpdate &&
       memo.secondBucket === secondBucket &&
       memo.scroll === this.scrollOffset &&
@@ -380,22 +290,6 @@ export class TodoPanelComponent implements Component {
     const contentWidth = this.interiorWidth(width, profile);
     const lines: string[] = [];
 
-    if (liveGoal !== null) {
-      const wallClockMs = this.goalWallClockMs(liveGoal);
-      lines.push(
-        ...renderGoalMonitorLines({
-          goal: liveGoal,
-          width: contentWidth,
-          wallClockMs,
-          changedAtMs: this.goalChangedAtMs,
-          profile,
-          ...(deskLive !== undefined ? { deskLive } : {}),
-        }),
-      );
-      if (this.todos.length > 0) {
-        lines.push(currentTheme.fg('border', `  ${'─'.repeat(Math.max(4, Math.min(24, contentWidth - 2)))}`));
-      }
-    }
 
     if (this.todos.length > 0) {
       lines.push(...this.buildTodoContent(width, profile));
@@ -408,7 +302,7 @@ export class TodoPanelComponent implements Component {
       // still-flashing bytes instead of settling.
       return animating
         ? tinyLines
-        : this.memoizeRender(width, secondBucket, budget, deskLiveKey, tinyLines);
+: this.memoizeRender(width, secondBucket, budget, tinyLines);
     }
 
     const counts = countTodos(this.todos);
@@ -417,18 +311,8 @@ export class TodoPanelComponent implements Component {
       focusAge !== undefined && focusAge > 0
         ? ` · focus ${formatJobDuration(focusAge)}`
         : '';
-    const title =
-      liveGoal !== null
-        ? this.todos.length > 0
-          ? ` Goal · ${liveGoal.status} · ${String(counts.done)}/${String(this.todos.length)} done `
-          : goalMonitorTitle(liveGoal, profile)
-        : ` Todo Board · ${String(counts.done)}/${String(this.todos.length)} done${focusChip} `;
-    const borderToken =
-      liveGoal !== null
-        ? goalMonitorBorderToken(liveGoal.status)
-        : counts.in_progress > 0
-          ? 'primary'
-          : 'border';
+    const title = ` Job Board · ${String(counts.done)}/${String(this.todos.length)} done${focusChip} `;
+    const borderToken = counts.in_progress > 0 ? 'primary' : 'border';
 
     const panelLines = renderRoundedPanel({
       title,
@@ -444,7 +328,7 @@ export class TodoPanelComponent implements Component {
     // cues settle to resting bytes on the very next render.
     return animating
       ? panelLines
-      : this.memoizeRender(width, secondBucket, budget, deskLiveKey, panelLines);
+      : this.memoizeRender(width, secondBucket, budget, panelLines);
   }
 
   private focusAgeMs(): number | undefined {
@@ -452,10 +336,6 @@ export class TodoPanelComponent implements Component {
     return Math.max(0, appearanceAnimationNow() - this.focusStartedAtMs);
   }
 
-  private goalWallClockMs(goal: GoalSnapshot): number {
-    if (goal.status !== 'active') return goal.wallClockMs;
-    return goal.wallClockMs + Math.max(0, Date.now() - this.goalObservedAtMs);
-  }
 
   private buildTodoContent(
     width: number,
@@ -642,15 +522,12 @@ export class TodoPanelComponent implements Component {
     width: number,
     secondBucket: number,
     budget: number,
-    deskLiveKey: string,
     lines: string[],
   ): string[] {
     this.lastRender = {
       width,
       expanded: this.expanded,
       todos: this.todos,
-      goal: this.goal,
-      deskLiveKey,
       calls: this.callsSinceUpdate,
       secondBucket,
       scroll: this.scrollOffset,

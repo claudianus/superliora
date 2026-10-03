@@ -62,139 +62,7 @@ describe('TodoPanelComponent', () => {
     expect(panel.isEmpty()).toBe(true);
   });
 
-  it('stays mounted with only a live goal (no todos)', () => {
-    const panel = new TodoPanelComponent();
-    panel.setGoal({
-      goalId: 'g-live',
-      objective: 'Keep the goal monitor on screen',
-      completionCriterion: 'Always visible while active',
-      status: 'active',
-      turnsUsed: 3,
-      tokensUsed: 12_000,
-      wallClockMs: 90_000,
-      budget: {
-        turnBudget: 10,
-        tokenBudget: null,
-        wallClockBudgetMs: null,
-        remainingTurns: 7,
-        remainingTokens: null,
-        remainingWallClockMs: null,
-        tokenBudgetReached: false,
-        turnBudgetReached: false,
-        wallClockBudgetReached: false,
-        overBudget: false,
-      },
-    } as never);
-    expect(panel.isEmpty()).toBe(false);
-    expect(panel.hasLiveGoal()).toBe(true);
-    const joined = panel.render(80).map(strip).join('\n');
-    expect(joined).toMatch(/Goal/);
-    expect(joined).toContain('Keep the goal monitor on screen');
-    expect(joined).toMatch(/active/);
-    expect(joined).toMatch(/3\/10 turns|3 turns/);
-  });
-
-  it('hides again when goal completes / clears', () => {
-    const panel = new TodoPanelComponent();
-    panel.setGoal({
-      goalId: 'g-done',
-      objective: 'Done goal should hide',
-      status: 'complete',
-      turnsUsed: 1,
-      tokensUsed: 100,
-      wallClockMs: 1_000,
-      budget: {
-        turnBudget: null,
-        tokenBudget: null,
-        wallClockBudgetMs: null,
-        remainingTurns: null,
-        remainingTokens: null,
-        remainingWallClockMs: null,
-        tokenBudgetReached: false,
-        turnBudgetReached: false,
-        wallClockBudgetReached: false,
-        overBudget: false,
-      },
-    } as never);
-    expect(panel.isEmpty()).toBe(true);
-    expect(panel.render(80)).toEqual([]);
-    panel.setGoal(null);
-    expect(panel.isEmpty()).toBe(true);
-  });
-
-  it('restores live goal after clear() when re-bound from appState (session redraw path)', () => {
-    const panel = new TodoPanelComponent();
-    const liveGoal = {
-      goalId: 'g-redraw',
-      objective: 'Survive transcript clear',
-      status: 'active' as const,
-      turnsUsed: 4,
-      tokensUsed: 9_000,
-      wallClockMs: 60_000,
-      budget: {
-        turnBudget: null,
-        tokenBudget: null,
-        wallClockBudgetMs: null,
-        remainingTurns: null,
-        remainingTokens: null,
-        remainingWallClockMs: null,
-        tokenBudgetReached: false,
-        turnBudgetReached: false,
-        wallClockBudgetReached: false,
-        overBudget: false,
-      },
-    };
-    panel.setGoal(liveGoal as never);
-    panel.setTodos([{ title: 'ephemeral todo', status: 'pending' }]);
-    expect(panel.isEmpty()).toBe(false);
-
-    // Mirrors clearTranscriptAndRedraw: wipe todos, then re-bind goal from appState.
-    panel.clear();
-    expect(panel.isEmpty()).toBe(true);
-    expect(panel.render(80)).toEqual([]);
-    panel.setGoal(liveGoal as never);
-    expect(panel.hasLiveGoal()).toBe(true);
-    expect(panel.isEmpty()).toBe(false);
-    const joined = panel.render(80).map(strip).join('\n');
-    expect(joined).toContain('Survive transcript clear');
-    expect(joined).not.toContain('ephemeral todo');
-  });
-
-  it('combines goal monitor header with the todo board', () => {
-    const panel = new TodoPanelComponent();
-    panel.setGoal({
-      goalId: 'g-combo',
-      objective: 'Ship goal + todos together',
-      status: 'active',
-      turnsUsed: 2,
-      tokensUsed: 4_000,
-      wallClockMs: 30_000,
-      budget: {
-        turnBudget: null,
-        tokenBudget: null,
-        wallClockBudgetMs: null,
-        remainingTurns: null,
-        remainingTokens: null,
-        remainingWallClockMs: null,
-        tokenBudgetReached: false,
-        turnBudgetReached: false,
-        wallClockBudgetReached: false,
-        overBudget: false,
-      },
-    } as never);
-    panel.setTodos([
-      { title: 'Wire setGoal', status: 'done' },
-      { title: 'Render monitor', status: 'in_progress' },
-      { title: 'Add tests', status: 'pending' },
-    ]);
-    const joined = panel.render(80).map(strip).join('\n');
-    expect(joined).toMatch(/Goal · active/);
-    expect(joined).toContain('Ship goal + todos together');
-    expect(joined).toMatch(/Wire setGoal|Render monitor|Add tests/);
-    expect(joined).toMatch(/wip 1\/1|Doing|Todo/);
-  });
-
-  it('renders a Todo header + one row per entry', () => {
+  it('renders a board with one card per entry', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos([
       { title: 'Investigate parser', status: 'done' },
@@ -203,7 +71,6 @@ describe('TodoPanelComponent', () => {
     ]);
     const lines = panel.render(80).map(strip);
     const joined = lines.join('\n');
-    expect(joined).toMatch(/Todo/);
     expect(joined).toMatch(/FLOW \+3/);
     expect(joined).toMatch(/wip 1\/1/);
     expect(joined).toMatch(/✓ Investigate pars/);
@@ -224,7 +91,7 @@ describe('TodoPanelComponent', () => {
     expect(joined).toMatch(/wip 1\/1/);
   });
 
-  it('renders todos as kanban lanes by status', () => {
+  it('renders cards as kanban lanes by status', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos([
       { title: 'Investigate parser', status: 'done' },
@@ -234,8 +101,7 @@ describe('TodoPanelComponent', () => {
 
     const joined = panel.render(80).map(strip).join('\n');
 
-    expect(joined).toContain('Todo Board');
-    expect(joined).toMatch(/Todo Board · \d+\/\d+ done/);
+    expect(joined).toMatch(/1\/3 done/);
     expect(joined).toContain('DOING');
     expect(joined).toContain('DONE');
     expect(joined).toContain('NEXT');

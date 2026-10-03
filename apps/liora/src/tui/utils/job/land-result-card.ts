@@ -64,11 +64,8 @@ export function formatLandResultNotice(input: {
   const sha = shortMergeSha(input.landReceipt?.mergeSha);
   const shaPart = sha === undefined ? '' : ` · ${sha}`;
   const hints = formatLandActionHints(input.actionHints);
-  const gcLine =
-    input.landReceipt?.gcRemoved === true ? ttui('tui.notice.gcRemoved') : undefined;
   const detailParts = [
     ttui('tui.notice.landedLocal', { sha: shaPart }),
-    gcLine,
     hints,
   ].filter((part): part is string => part !== undefined && part.length > 0);
 

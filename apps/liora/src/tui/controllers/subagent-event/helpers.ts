@@ -8,7 +8,6 @@ export function isSubagentLifecycleEvent(event: Event): event is SubagentLifecyc
   return (
     event.type === 'subagent.spawned' ||
     event.type === 'subagent.started' ||
-    event.type === 'subagent.suspended' ||
     event.type === 'subagent.completed' ||
     event.type === 'subagent.failed'
   );

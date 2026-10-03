@@ -3,8 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { TUIState } from '#/tui/liora-tui';
 import {
   notifyBackgroundTaskAttention,
-  notifyGoalBlockedAttention,
-  notifyGoalCompletedAttention,
   notifySubagentAttention,
 } from '#/tui/utils/notification/attention-notifications';
 import {
@@ -472,66 +470,6 @@ describe('supportsTerminalProgress', () => {
 describe('attention notifications', () => {
   const terminalOnly = { platform: 'freebsd' as NodeJS.Platform };
 
-  it('emits goal completion attention once per goal id', () => {
-    const state = makeNotificationState();
-    const goal = {
-      goalId: 'g1',
-      objective: 'Ship feature',
-      status: 'complete' as const,
-      turnsUsed: 1,
-      tokensUsed: 10,
-      wallClockMs: 100,
-      budget: {
-        tokenBudget: null,
-        turnBudget: 20,
-        wallClockBudgetMs: null,
-        remainingTokens: null,
-        remainingTurns: 19,
-        remainingWallClockMs: null,
-        tokenBudgetReached: false,
-        turnBudgetReached: false,
-        wallClockBudgetReached: false,
-        overBudget: false,
-      },
-    };
-
-    notifyGoalCompletedAttention(state, goal, terminalOnly);
-    notifyGoalCompletedAttention(state, goal, terminalOnly);
-
-    expect(state.terminal.write).toHaveBeenCalledTimes(1);
-    expect(state.terminal.write).toHaveBeenCalledWith(']9;SuperLiora goal complete: Ship feature');
-  });
-
-  it('emits goal blocked attention with the blocker reason', () => {
-    const state = makeNotificationState();
-    const goal = {
-      goalId: 'g2',
-      objective: 'Deploy',
-      status: 'blocked' as const,
-      turnsUsed: 1,
-      tokensUsed: 10,
-      wallClockMs: 100,
-      budget: {
-        tokenBudget: null,
-        turnBudget: 20,
-        wallClockBudgetMs: null,
-        remainingTokens: null,
-        remainingTurns: 19,
-        remainingWallClockMs: null,
-        tokenBudgetReached: false,
-        turnBudgetReached: false,
-        wallClockBudgetReached: false,
-        overBudget: false,
-      },
-      terminalReason: 'needs credentials',
-    };
-
-    notifyGoalBlockedAttention(state, goal, 'missing API key', terminalOnly);
-
-    expect(state.terminal.write).toHaveBeenCalledWith(
-      ']9;SuperLiora goal blocked: missing API key',
-    );
-  });
 
   it('emits background task attention with terminal status details', () => {
     const state = makeNotificationState();
@@ -544,6 +482,7 @@ describe('attention notifications', () => {
         status: 'completed',
         description: 'pnpm test',
         command: 'pnpm test',
+        cwd: '/tmp/project',
         pid: 1,
         exitCode: 0,
         startedAt: 0,

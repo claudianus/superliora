@@ -8,7 +8,7 @@ import {
 import type { PermissionRule } from '#/agent/permission/types';
 
 const rule = (pattern: string): PermissionRule =>
-  ({ action: 'allow', pattern } as unknown as PermissionRule);
+  ({ decision: 'allow', scope: 'user', pattern });
 
 const exec = (matchesRule: PermissionRuleMatchExecution['matchesRule'] = undefined): PermissionRuleMatchExecution =>
   matchesRule ? { matchesRule } : {};
@@ -19,13 +19,13 @@ describe('agent/permission/matches-rule — parsePattern', () => {
   });
 
   it('trims surrounding whitespace', () => {
-    expect(parsePattern('  Write  ')).toEqual({ toolName: 'Write' });
+    expect(parsePattern('  SessionControl  ')).toEqual({ toolName: 'SessionControl' });
   });
 
   it('parses a tool + arg-pattern into toolName and argPattern', () => {
-    expect(parsePattern('Read(/etc/**)')).toEqual({
-      toolName: 'Read',
-      argPattern: '/etc/**',
+    expect(parsePattern('Bash(git *)')).toEqual({
+      toolName: 'Bash',
+      argPattern: 'git *',
     });
   });
 
@@ -36,8 +36,8 @@ describe('agent/permission/matches-rule — parsePattern', () => {
     });
   });
 
-  it('treats "Tool()" as tool-name-only with no arg pattern', () => {
-    expect(parsePattern('Tool()')).toEqual({ toolName: 'Tool' });
+  it('treats an empty native argument pattern as tool-name-only', () => {
+    expect(parsePattern('SessionControl()')).toEqual({ toolName: 'SessionControl' });
   });
 
   it('throws on an empty pattern', () => {
@@ -52,9 +52,6 @@ describe('agent/permission/matches-rule — parsePattern', () => {
     expect(() => parsePattern('(/etc/**)')).toThrow(/empty tool name/);
   });
 
-  it('parses an mcp__server__* glob as the literal toolName', () => {
-    expect(parsePattern('mcp__github__*')).toEqual({ toolName: 'mcp__github__*' });
-  });
 });
 
 describe('agent/permission/matches-rule — matchPermissionRule', () => {
@@ -69,26 +66,18 @@ describe('agent/permission/matches-rule — matchPermissionRule', () => {
 
   it('returns undefined when the tool name does not match the literal pattern', () => {
     expect(
-      matchPermissionRule({ rule: rule('Bash'), toolName: 'Read', execution: exec() }),
+      matchPermissionRule({ rule: rule('Bash'), toolName: 'SessionControl', execution: exec() }),
     ).toBeUndefined();
   });
 
   it('matches every tool when the pattern is "*"', () => {
-    const match = matchPermissionRule({ rule: rule('*'), toolName: 'Anything', execution: exec() });
+    const match = matchPermissionRule({ rule: rule('*'), toolName: 'SessionControl', execution: exec() });
     expect(match?.strategy).toBe('tool_name_only');
   });
 
-  it('matches mcp__server__* style globs', () => {
-    const match = matchPermissionRule({
-      rule: rule('mcp__github__*'),
-      toolName: 'mcp__github__create_issue',
-      execution: exec(),
-    });
-    expect(match?.strategy).toBe('tool_name_only');
-  });
 
   it('uses execution.matchesRule for arg-pattern matching when provided', () => {
-    const matchesRule = vi_fn((p: string) => p === 'safe');
+    const matchesRule = (pattern: string) => pattern === 'safe';
     const match = matchPermissionRule({
       rule: rule('Bash(safe)'),
       toolName: 'Bash',
@@ -124,7 +113,3 @@ describe('agent/permission/matches-rule — matchPermissionRule', () => {
   });
 });
 
-// Tiny inline stub for `vi` without importing the full vitest runtime in this file
-function vi_fn<T extends (...args: never[]) => unknown>(fn: T): T {
-  return fn;
-}

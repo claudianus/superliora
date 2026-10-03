@@ -1,5 +1,5 @@
 /**
- * Core Session lifecycle, prompt/control, plan/compact, and context RPC delegation.
+ * Session lifecycle, user input, native execution, and explicit context control.
  */
 
 import {
@@ -7,12 +7,7 @@ import {
   LioraError,
   type AgentContextData,
   type ContextComposition,
-  type ContextOSRetrievalDiagnostics,
-  type HarnessRefinementEvent,
-  type HarnessStatusView,
-  type InlineCompleteResult,
-  type RefineRunResult,
-  type SuggestPromptsResult,
+  type PermissionMode,
   type TurnCancelSource,
 } from '@superliora/agent-core';
 
@@ -30,29 +25,13 @@ import type {
   AddAdditionalDirOptions,
   AddAdditionalDirResult,
   CompactOptions,
-  RefineOptions,
-  MemoryCreateInput,
-  MemoryRecord,
-  MemorySearchRequest,
-  MemorySearchResult,
-  PermissionMode,
-  PluginCommandDef,
-  PluginInfo,
-  PluginSummary,
-  PluginThemeDef,
   PromptInput,
-  ReloadSessionOptions,
   ResumedSessionState,
   ResumedSessionSummary,
-  SessionPlan,
   SessionStatus,
   SessionTrace,
   SessionSummary,
   SessionUsage,
-  SkillSearchResult,
-  SkillSummary,
-  HookRegistrySummary,
-  ToolInfo,
   Unsubscribe,
 } from '#/session/types';
 
@@ -77,6 +56,7 @@ export abstract class SessionCore {
   protected readonly onClose?: (() => void | Promise<void>) | undefined;
   protected readonly eventUnsubscribers: Array<() => void> = [];
   protected closed = false;
+  private closePromise: Promise<void> | undefined;
 
   constructor(options: SessionOptions) {
     this.id = options.id;
@@ -96,12 +76,9 @@ export abstract class SessionCore {
     return this.resumeState;
   }
 
-  async reloadSession(options?: ReloadSessionOptions): Promise<ResumedSessionSummary> {
+  async reloadSession(): Promise<ResumedSessionSummary> {
     this.ensureOpen();
-    const summary = await this.rpc.reloadSession({
-      sessionId: this.id,
-      forcePluginSessionStartReminder: options?.forcePluginSessionStartReminder,
-    });
+    const summary = await this.rpc.reloadSession({ sessionId: this.id });
     this._summary = summary;
     this.resumeState = resumeStateFromSummary(summary);
     return summary;
@@ -175,11 +152,6 @@ export abstract class SessionCore {
     });
   }
 
-
-  async init(): Promise<void> {
-    this.ensureOpen();
-    await this.rpc.generateAgentsMd({ sessionId: this.id });
-  }
 
   async getSessionWarnings() {
     this.ensureOpen();
@@ -304,51 +276,6 @@ export abstract class SessionCore {
     }
   }
 
-  async setPlanMode(enabled: boolean, ultra = false, initialContext?: string): Promise<void> {
-    this.ensureOpen();
-    if (typeof enabled !== 'boolean') {
-      throw new LioraError(
-        ErrorCodes.SESSION_PLAN_MODE_INVALID,
-        'Session plan mode must be a boolean',
-      );
-    }
-    await this.rpc.setPlanMode({
-      sessionId: this.id,
-      enabled,
-      ultra: ultra ? true : undefined,
-      initialContext,
-    });
-  }
-
-
-  async setPremiumQuality(enabled: boolean): Promise<void> {
-    this.ensureOpen();
-    if (typeof enabled !== 'boolean') {
-      throw new LioraError(
-        ErrorCodes.REQUEST_INVALID,
-        'Session premium quality mode must be a boolean',
-      );
-    }
-    await this.rpc.setPremiumQuality({ sessionId: this.id, enabled });
-  }
-
-  async setAskMode(enabled: boolean): Promise<void> {
-    this.ensureOpen();
-    if (typeof enabled !== 'boolean') {
-      throw new LioraError(ErrorCodes.REQUEST_INVALID, 'Session ask mode must be a boolean');
-    }
-    await this.rpc.setAskMode({ sessionId: this.id, enabled });
-  }
-
-  async getPlan(): Promise<SessionPlan> {
-    this.ensureOpen();
-    return this.rpc.getPlan({ sessionId: this.id });
-  }
-
-  async clearPlan(): Promise<void> {
-    this.ensureOpen();
-    await this.rpc.clearPlan({ sessionId: this.id });
-  }
 
   async compact(options: CompactOptions = {}): Promise<void> {
     this.ensureOpen();
@@ -359,28 +286,6 @@ export abstract class SessionCore {
     });
   }
 
-  async refine(options: RefineOptions = {}): Promise<RefineRunResult> {
-    this.ensureOpen();
-    const instructions = normalizeOptionalString(options.instructions);
-    return this.rpc.refineHarness({
-      sessionId: this.id,
-      ...(options.scope !== undefined ? { scope: options.scope } : {}),
-      ...(instructions !== undefined ? { instructions } : {}),
-    });
-  }
-
-  async rollbackRefinement(refinementId: string): Promise<HarnessRefinementEvent> {
-    this.ensureOpen();
-    return this.rpc.rollbackHarnessRefinement({
-      sessionId: this.id,
-      refinementId,
-    });
-  }
-
-  async getHarnessStatus(): Promise<HarnessStatusView> {
-    this.ensureOpen();
-    return this.rpc.getHarnessStatus({ sessionId: this.id });
-  }
 
   async cancelCompaction(): Promise<void> {
     this.ensureOpen();
@@ -420,13 +325,6 @@ export abstract class SessionCore {
     return this.rpc.getContextComposition({ sessionId: this.id });
   }
 
-  async diagnoseContextOS(
-    query = '',
-    limit?: number,
-  ): Promise<ContextOSRetrievalDiagnostics> {
-    this.ensureOpen();
-    return this.rpc.diagnoseContextOS({ sessionId: this.id, query, limit });
-  }
 
   async getSessionTrace(): Promise<SessionTrace> {
     this.ensureOpen();
@@ -438,31 +336,6 @@ export abstract class SessionCore {
     return this.rpc.getUsage({ sessionId: this.id });
   }
 
-  /**
-   * Predict the next words/sentence for the text the user is currently typing.
-   * Returns a short continuation to render as dimmed ghost text (Tab to accept).
-   * Pass `signal` to cancel an in-flight request when the user keeps typing.
-   */
-  async inlineComplete(input: {
-    readonly text: string;
-    readonly cursorLine: number;
-    readonly cursorCol: number;
-    readonly signal?: AbortSignal;
-  }): Promise<InlineCompleteResult> {
-    this.ensureOpen();
-    return this.rpc.inlineComplete({ sessionId: this.id, ...input });
-  }
-
-  /**
-   * Suggest contextually relevant next tasks for an empty prompt box. Returns
-   * up to a handful of short imperative prompts (Tab fills the first one).
-   */
-  async suggestPrompts(
-    options: { readonly signal?: AbortSignal } = {},
-  ): Promise<SuggestPromptsResult> {
-    this.ensureOpen();
-    return this.rpc.suggestPrompts({ sessionId: this.id, signal: options.signal });
-  }
 
   async getStatus(): Promise<SessionStatus> {
     this.ensureOpen();
@@ -476,87 +349,22 @@ export abstract class SessionCore {
     return this.rpc.resetProviderRouteStatus({ sessionId: this.id });
   }
 
-  async recall(
-    query: string,
-    options: Omit<MemorySearchRequest, 'query' | 'sessionId' | 'workspaceKey'> = {},
-  ): Promise<readonly MemorySearchResult[]> {
-    this.ensureOpen();
-    const memoryQuery = normalizeRequiredString(
-      query,
-      'Memory recall query cannot be empty',
-      ErrorCodes.REQUEST_INVALID,
-    );
-    return this.rpc.memoryRecall({
-      ...options,
-      query: memoryQuery,
-      sessionId: this.id,
-      workspaceKey: this.workDir,
-    });
-  }
 
-  async remember(input: MemoryCreateInput): Promise<MemoryRecord> {
-    this.ensureOpen();
-    const scopeKey = input.scopeKey ?? (input.scope === 'session' ? this.id : input.scope === 'workspace' ? this.workDir : undefined);
-    if (scopeKey === undefined) return this.rpc.memoryRemember(input);
-    return this.rpc.memoryRemember({ ...input, scopeKey });
-  }
-
-  async listSkills(): Promise<readonly SkillSummary[]> {
-    this.ensureOpen();
-    return this.rpc.listSkills({ sessionId: this.id });
-  }
-
-  getHookRegistry(): Promise<HookRegistrySummary> {
-    this.ensureOpen();
-    return this.rpc.getHookRegistry({ sessionId: this.id });
-  }
-
-  async getTools(): Promise<readonly ToolInfo[]> {
-    this.ensureOpen();
-    return this.rpc.getTools({ sessionId: this.id });
-  }
-
-  async listPluginCommands(): Promise<readonly PluginCommandDef[]> {
-    this.ensureOpen();
-    return this.rpc.listPluginCommands({ sessionId: this.id });
-  }
-
-  async listPluginThemes(): Promise<readonly PluginThemeDef[]> {
-    this.ensureOpen();
-    return this.rpc.listPluginThemes();
-  }
-
-  async searchSkills(
-    query: string,
-    options: { readonly limit?: number } = {},
-  ): Promise<readonly SkillSearchResult[]> {
-    this.ensureOpen();
-    const skillQuery = normalizeRequiredString(
-      query,
-      'Skill search query cannot be empty',
-      ErrorCodes.REQUEST_INVALID,
-    );
-    return this.rpc.searchSkills({
-      sessionId: this.id,
-      query: skillQuery,
-      limit: options.limit,
-    });
-  }
-
-  async close(): Promise<void> {
-    if (this.closed) return;
+  close(): Promise<void> {
+    if (this.closePromise !== undefined) return this.closePromise;
+    const completion = Promise.withResolvers<void>();
+    this.closePromise = completion.promise;
     this.closed = true;
-    try {
-      // Release all event subscriptions registered via onEvent().
-      for (const unsubscribe of this.eventUnsubscribers) {
-        unsubscribe();
-      }
-      this.eventUnsubscribers.length = 0;
-      await this.rpc.closeSession({ sessionId: this.id });
-    } finally {
-      this.rpc.clearSessionHandlers(this.id);
-      await this.onClose?.();
-    }
+    void this.settleClose().then(completion.resolve, completion.reject);
+    return this.closePromise;
+  }
+
+  private async settleClose(): Promise<void> {
+    await this.rpc.closeSession({ sessionId: this.id });
+    for (const unsubscribe of this.eventUnsubscribers) unsubscribe();
+    this.eventUnsubscribers.length = 0;
+    this.rpc.clearSessionHandlers(this.id);
+    await this.onClose?.();
   }
 
   /** @internal */

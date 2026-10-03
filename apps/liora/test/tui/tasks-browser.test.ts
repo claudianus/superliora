@@ -46,6 +46,7 @@ function task(overrides: Partial<BackgroundTaskInfo> = {}): BackgroundTaskInfo {
     taskId: 'bash-abcd1234',
     kind: 'process',
     command: 'npm run dev',
+    cwd: '/tmp/project',
     description: 'dev server',
     status: 'running',
     pid: 1234,
@@ -152,29 +153,16 @@ describe('TasksBrowserApp — full-screen rendering', () => {
     expect(out).toContain('long running task');
   });
 
-  it('shows question task details in the Detail pane', () => {
-    const out = strip(
-      makeApp({
-        tasks: [
-          task({
-            taskId: 'question-aaaaaaaa',
-            kind: 'question',
-            description: 'Which database?',
-            questionCount: 1,
-            toolCallId: 'call_question',
-          }),
-        ],
-        selectedTaskId: 'question-aaaaaaaa',
-      })
-        .render(120)
-        .join('\n'),
-    );
-    expect(out).toContain('question-aaaaaaaa');
-    expect(out).toContain('Questions:');
-    expect(out).toContain('1');
-    expect(out).toContain('Tool call:');
-    expect(out).toContain('call_question');
+  it('omits PID details when a native terminal task has no OS process id', () => {
+    const out = strip(makeApp({
+      tasks: [task({ pid: undefined })],
+      selectedTaskId: 'bash-abcd1234',
+    }).render(120).join('\n'));
+    expect(out).toContain('bash-abcd1234');
+    expect(out).not.toContain('Pid:');
+    expect(out).not.toContain('undefined');
   });
+
 
   it('renders tail output in the Preview Output pane', () => {
     const out = strip(

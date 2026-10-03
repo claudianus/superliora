@@ -35,9 +35,10 @@ export function workerDockBandActive(state: WorkerDockBandStateLike): boolean {
 export function shouldWorkerDockConsumeEnter(input: {
   readonly editorText: string;
   readonly selectedWorkerId: string | undefined;
+  readonly dockFocused: boolean;
 }): boolean {
   if (input.editorText.trim().length > 0) return false;
-  return input.selectedWorkerId !== undefined;
+  return input.dockFocused && input.selectedWorkerId !== undefined;
 }
 
 /**
@@ -45,11 +46,11 @@ export function shouldWorkerDockConsumeEnter(input: {
  *
  * Product rule: the editor owns ↑ when it is focused (empty prompt, first-line
  * caret, or a queued/history recall). The dock only consumes ↑/↓ after an
- * explicit row selection — same gate as Enter. A visible-but-unfocused dock
- * must not steal prompt-history recall.
+ * focused dock. Selection survives returning focus to the editor.
  */
 export function shouldWorkerDockConsumeArrow(input: {
   readonly selectedWorkerId: string | undefined;
+  readonly dockFocused: boolean;
 }): boolean {
-  return input.selectedWorkerId !== undefined;
+  return input.dockFocused && input.selectedWorkerId !== undefined;
 }

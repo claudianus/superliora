@@ -24,25 +24,10 @@ export interface CacheDiagnostics {
   readonly toolBlockHash: string;
   /** True when the tool block changed since the previous step. */
   readonly toolBlockChanged: boolean;
-  /** Number of injection messages appended in the last step. */
-  readonly injectionCount: number;
   /** Total conversation message count at the last step. */
   readonly messageCount: number;
-  /** Session step-level prompt-cache miss buckets (harness stub until provider reports). */
+  /** Session step-level prompt-cache miss buckets. */
   readonly missReasons?: CacheMissReasonHistogram;
-}
-
-/** W13 never-empty search counters (WebSearch / DeepResearch degrade paths). */
-export interface SearchNeverEmptyTelemetry {
-  readonly hardFailCount: number;
-  readonly softDegradeCount: number;
-}
-
-/** W13 LocalResearchCache session lookup counters (WebSearch / DeepResearch). */
-export interface LocalResearchCacheTelemetry {
-  readonly hits: number;
-  readonly misses: number;
-  readonly hitRate?: number;
 }
 
 export interface UsageStatus {
@@ -67,15 +52,9 @@ export interface UsageStatus {
    * at least one step; used by TUI/status to surface cache-busting events.
    */
   readonly cacheDiagnostics?: CacheDiagnostics;
-  /** W13 never-empty counters when search tools record degrade paths. */
-  readonly searchNeverEmpty?: SearchNeverEmptyTelemetry;
-  /** W13 LocalResearchCache hit/miss when disk cache lookups occur in session. */
-  readonly localResearchCache?: LocalResearchCacheTelemetry;
 }
 
 export type PermissionMode = 'manual' | 'yolo' | 'auto';
-
-export type SkillSource = 'project' | 'user' | 'extra' | 'builtin';
 
 export type LioraErrorCode =
   | 'config.invalid'
@@ -94,7 +73,6 @@ export type LioraErrorCode =
   | 'session.permission_mode_invalid'
   | 'session.thinking_empty'
   | 'session.model_empty'
-  | 'session.plan_mode_invalid'
   | 'session.approval_handler_error'
   | 'session.question_handler_error'
   | 'session.credential_handler_error'
@@ -107,13 +85,6 @@ export type LioraErrorCode =
   | 'worktree.not_found'
   | 'agent.not_found'
   | 'turn.agent_busy'
-  | 'goal.already_exists'
-  | 'goal.not_found'
-  | 'goal.objective_empty'
-  | 'goal.objective_too_long'
-  | 'goal.status_invalid'
-  | 'goal.metadata_reserved'
-  | 'goal.not_resumable'
   | 'model.not_configured'
   | 'model.config_invalid'
   | 'auth.login_required'
@@ -123,20 +94,11 @@ export type LioraErrorCode =
   | 'provider.rate_limit'
   | 'provider.auth_error'
   | 'provider.connection_error'
-  | 'skill.not_found'
-  | 'skill.type_unsupported'
-  | 'skill.name_empty'
   | 'records.write_failed'
   | 'storage.disk_full'
   | 'compaction.failed'
   | 'compaction.unable'
   | 'background.task_id_empty'
-  | 'mcp.server_not_found'
-  | 'mcp.server_disabled'
-  | 'mcp.startup_failed'
-  | 'mcp.tool_name_collision'
-  | 'plugin.not_found'
-  | 'plugin.load_failed'
   | 'request.invalid'
   | 'request.work_dir_required'
   | 'request.prompt_input_empty'
@@ -160,10 +122,7 @@ export interface WarningEvent {
   readonly type: 'warning';
   readonly message: string;
   readonly code?: string;
-  /**
-   * Machine-readable supplement for code-specific handling (for example
-   * `vision_analyzer.analyzed` toasts that render model/count details).
-   */
+  /** Machine-readable supplement for code-specific handling. */
   readonly details?: Record<string, unknown>;
 }
 
@@ -175,13 +134,6 @@ export interface ToolUpdate {
   readonly percent?: number;
   readonly customKind?: string;
   readonly customData?: unknown;
-}
-
-export const MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE = 'mcp.oauth.authorization_url';
-
-export interface McpOAuthAuthorizationUrlUpdateData {
-  readonly serverName: string;
-  readonly authorizationUrl: string;
 }
 
 export const tokenUsageSchema = z.object({
@@ -211,21 +163,9 @@ const cacheMissReasonHistogramSchema = z
 export const cacheDiagnosticsSchema = z.object({
   toolBlockHash: z.string(),
   toolBlockChanged: z.boolean(),
-  injectionCount: z.number(),
   messageCount: z.number(),
   missReasons: cacheMissReasonHistogramSchema.optional(),
 }) satisfies z.ZodType<CacheDiagnostics>;
-
-export const searchNeverEmptyTelemetrySchema = z.object({
-  hardFailCount: z.number().int().nonnegative(),
-  softDegradeCount: z.number().int().nonnegative(),
-}) satisfies z.ZodType<SearchNeverEmptyTelemetry>;
-
-export const localResearchCacheTelemetrySchema = z.object({
-  hits: z.number().int().nonnegative(),
-  misses: z.number().int().nonnegative(),
-  hitRate: z.number().min(0).max(1).optional(),
-}) satisfies z.ZodType<LocalResearchCacheTelemetry>;
 
 export const usageStatusSchema = z.object({
   byModel: z.record(z.string(), tokenUsageSchema).optional(),
@@ -234,13 +174,9 @@ export const usageStatusSchema = z.object({
   cacheHitRate: z.number().optional(),
   cacheWarmStreak: z.number().int().nonnegative().optional(),
   cacheDiagnostics: cacheDiagnosticsSchema.optional(),
-  searchNeverEmpty: searchNeverEmptyTelemetrySchema.optional(),
-  localResearchCache: localResearchCacheTelemetrySchema.optional(),
 }) satisfies z.ZodType<UsageStatus>;
 
 export const permissionModeSchema = z.enum(['manual', 'yolo', 'auto']) satisfies z.ZodType<PermissionMode>;
-
-export const skillSourceSchema = z.enum(['project', 'user', 'extra', 'builtin']) satisfies z.ZodType<SkillSource>;
 
 export const kimiErrorCodeSchema = z.enum([
   'config.invalid',
@@ -259,7 +195,6 @@ export const kimiErrorCodeSchema = z.enum([
   'session.permission_mode_invalid',
   'session.thinking_empty',
   'session.model_empty',
-  'session.plan_mode_invalid',
   'session.approval_handler_error',
   'session.question_handler_error',
   'session.credential_handler_error',
@@ -272,13 +207,6 @@ export const kimiErrorCodeSchema = z.enum([
   'worktree.not_found',
   'agent.not_found',
   'turn.agent_busy',
-  'goal.already_exists',
-  'goal.not_found',
-  'goal.objective_empty',
-  'goal.objective_too_long',
-  'goal.status_invalid',
-  'goal.metadata_reserved',
-  'goal.not_resumable',
   'model.not_configured',
   'model.config_invalid',
   'auth.login_required',
@@ -288,20 +216,11 @@ export const kimiErrorCodeSchema = z.enum([
   'provider.rate_limit',
   'provider.auth_error',
   'provider.connection_error',
-  'skill.not_found',
-  'skill.type_unsupported',
-  'skill.name_empty',
   'records.write_failed',
   'storage.disk_full',
   'compaction.failed',
   'compaction.unable',
   'background.task_id_empty',
-  'mcp.server_not_found',
-  'mcp.server_disabled',
-  'mcp.startup_failed',
-  'mcp.tool_name_collision',
-  'plugin.not_found',
-  'plugin.load_failed',
   'request.invalid',
   'request.work_dir_required',
   'request.prompt_input_empty',
@@ -339,7 +258,3 @@ export const toolUpdateSchema = z.object({
   customData: z.unknown().optional(),
 }) satisfies z.ZodType<ToolUpdate>;
 
-export const mcpOAuthAuthorizationUrlUpdateDataSchema = z.object({
-  serverName: z.string(),
-  authorizationUrl: z.string(),
-}) satisfies z.ZodType<McpOAuthAuthorizationUrlUpdateData>;

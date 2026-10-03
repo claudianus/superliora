@@ -5,7 +5,7 @@ import { KeyCap, Reveal, SectionHead } from "./shared";
 import { toneClass, type Span } from "../tui/session";
 import { cn } from "../utils/cn";
 
-type Overlay = "none" | "deck" | "inbox" | "hub" | "quota" | "plan";
+type Overlay = "none" | "deck" | "inbox" | "hub" | "quota" | "sessions";
 
 interface Job {
   id: string;
@@ -15,21 +15,20 @@ interface Job {
   model: string;
   owns: string;
   progress: number;
-  verify?: string;
   sha?: string;
 }
 
 const seedJobs: Job[] = [
   { id: "job_1x9m4qt", kind: "implement", title: { ko: "웹훅 재시도 상한 + 실패 테스트", en: "Bound webhook retries + failure test" }, state: "running", model: "opencode-go/kimi-k3", owns: "src/webhooks", progress: 63 },
   { id: "job_4dd81x0", kind: "implement", title: { ko: "enqueue 멱등성 키", en: "Idempotency keys on enqueue" }, state: "needs_user", model: "opencode-go/kimi-k3", owns: "src/queue", progress: 41 },
-  { id: "job_9z2k7aa", kind: "explore", title: { ko: "결제 경로 접점 지도", en: "Map billing touchpoints" }, state: "done", model: "opencode-go/qwen3.8-flash", owns: "src/billing", progress: 100, verify: "green", sha: "9be31d7" },
+  { id: "job_9z2k7aa", kind: "explore", title: { ko: "결제 경로 접점 지도", en: "Map billing touchpoints" }, state: "done", model: "opencode-go/kimi-k3", owns: "src/billing", progress: 100, sha: "9be31d7" },
   { id: "job_77ac2mb", kind: "review", title: { ko: "스냅샷 커밋 정책 점검", en: "Audit snapshot commit policy" }, state: "queued", model: "groq/llama-4.1-scout", owns: "packages/agent-core", progress: 0 },
 ];
 
 const baseTranscript: Span[][] = [
   [["◆ ", "primary"], ["ACK ", "faint"], ["job_1x9m4qt", "azure"], [" [running] kind=implement model=", "dim"], ["opencode-go/kimi-k3", "primary"]],
   [["◆ ", "primary"], ["ACK ", "faint"], ["job_4dd81x0", "azure"], [" [needs_user] ", "dim"], ["1 question in inbox", "primary"]],
-  [["  ✓ ", "mint"], ["job_9z2k7aa", "azure"], [" done · verify=green · sha 9be31d7", "faint"]],
+  [["  ✓ ", "mint"], ["job_9z2k7aa", "azure"], [" done · awaiting review · sha 9be31d7", "faint"]],
 ];
 
 function subseq(q: string, s: string) {
@@ -59,7 +58,6 @@ export default function ControlRoom() {
   const [overlay, setOverlay] = useState<Overlay>("none");
   const [jobs, setJobs] = useState<Job[]>(seedJobs);
   const [inbox, setInbox] = useState<"open" | "answered" | "empty">("open");
-  const [planOn, setPlanOn] = useState(false);
   const [hubQ, setHubQ] = useState("");
   const [hubIdx, setHubIdx] = useState(0);
   const [log, setLog] = useState<Span[][]>(baseTranscript);
@@ -101,13 +99,13 @@ export default function ControlRoom() {
       clearInterval(iv);
       setJobs((js) =>
         js.map((j) =>
-          j.id === "job_4dd81x0" ? { ...j, state: "done", progress: 100, verify: "green", sha: "c07f12e" } : j,
+          j.id === "job_4dd81x0" ? { ...j, state: "done", progress: 100, sha: "c07f12e" } : j,
         ),
       );
       push([
         ["  ✓ ", "mint"],
         ["job_4dd81x0", "azure"],
-        [" done · verify=green · sha c07f12e", "faint"],
+        [" done · awaiting review · sha c07f12e", "faint"],
       ]);
     }, 3600);
     setTimeout(() => setOverlay("none"), 1500);
@@ -124,10 +122,7 @@ export default function ControlRoom() {
       if (overlay === "hub") return; // arrows handled by input
       if (e.key === "?") return toggle("hub");
       if (k === "q") return toggle("quota");
-      if (k === "p") {
-        setPlanOn((p) => !p);
-        return toggle("plan");
-      }
+      if (k === "s") return toggle("sessions");
     },
     [overlay, toggle],
   );
@@ -154,10 +149,8 @@ export default function ControlRoom() {
     if (it.hint === "Alt+J") toggle("deck");
     else if (it.hint === "Alt+I") toggle("inbox");
     else if (it.hint === "/quota") toggle("quota");
-    else if (it.hint === "/plan") {
-      setPlanOn(true);
-      toggle("plan");
-    } else if (it.label.includes("언어") || it.label.toLowerCase().includes("language")) {
+    else if (it.hint === "/sessions" || it.hint === "/jobs dock") toggle("sessions");
+    else if (it.label.includes("언어") || it.label.toLowerCase().includes("language")) {
       toggle("none");
     } else toggle("none");
   };
@@ -178,7 +171,6 @@ export default function ControlRoom() {
                     <button
                       onClick={() => {
                         setAttach(true);
-                        if (k.action === "plan") setPlanOn(true);
                         toggle(k.action as Overlay);
                       }}
                       className={cn(
@@ -295,7 +287,7 @@ export default function ControlRoom() {
                       )}
                       {j.state === "done" && (
                         <p className="mt-2 font-[family-name:var(--font-mono)] text-[10px] text-mint">
-                          {t.demo.deck.ledger}: {t.demo.deck.verifyOk} · {j.sha}
+                          {t.demo.deck.ledger}: {t.demo.deck.completion} · {j.sha}
                         </p>
                       )}
                     </div>
@@ -404,27 +396,27 @@ export default function ControlRoom() {
                 </div>
               </OverlayShell>
 
-              {/* Plan mode */}
-              <OverlayShell on={overlay === "plan"} side="right" label={t.demo.plan.title} onClose={() => setOverlay("none")}>
+              {/* Session and worker controls */}
+              <OverlayShell on={overlay === "sessions"} side="right" label={t.demo.sessions.title} onClose={() => setOverlay("none")}>
                 <div className="rounded-lg border border-line bg-black/40 p-4">
-                  <p className="font-[family-name:var(--font-mono)] text-[11px] text-violet">{t.demo.plan.unspecified}</p>
+                  <p className="font-[family-name:var(--font-mono)] text-[11px] text-violet">{t.demo.sessions.heading}</p>
                   <ul className="mt-3 space-y-2">
-                    {t.demo.plan.items.map((it) => (
+                    {t.demo.sessions.items.map((it) => (
                       <li key={it} className="flex gap-2.5 text-[12.5px] leading-6 text-dim">
                         <span className="mt-2.5 size-1 shrink-0 rounded-full bg-violet/70" />
                         {it}
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-4 border-t border-line pt-3 text-[11.5px] leading-5 text-faint">{t.demo.plan.handoff}</p>
+                  <p className="mt-4 border-t border-line pt-3 text-[11.5px] leading-5 text-faint">{t.demo.sessions.note}</p>
                 </div>
               </OverlayShell>
 
               {/* status bar */}
               <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-sunken/95 px-4 py-2 font-[family-name:var(--font-mono)] text-[10.5px] backdrop-blur sm:px-5">
-                <span className={cn("flex items-center gap-1.5", planOn ? "text-violet" : "text-primary")}>
-                  <span className={cn("inline-block size-1.5 animate-pulse rounded-full", planOn ? "bg-violet" : "bg-primary")} />
-                  {planOn ? "PLAN" : "BUILD"}
+                <span className="flex items-center gap-1.5 text-primary">
+                  <span className="inline-block size-1.5 animate-pulse rounded-full bg-primary" />
+                  SESSION
                 </span>
                 <span className="text-dim">main*</span>
                 <span className="hidden text-faint sm:inline">opencode-go/kimi-k3</span>

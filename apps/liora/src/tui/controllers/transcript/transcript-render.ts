@@ -14,16 +14,6 @@ import { WelcomeComponent } from '../../components/chrome/welcome';
 import { CompactionComponent } from '../../components/dialogs/session/compaction';
 import { AssistantMessageComponent } from '../../components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from '../../components/messages/background-agent-status';
-import { CronMessageComponent } from '../../components/messages/cron-message';
-import { buildGoalMarker } from '../../components/messages/goal/goal-markers';
-import {
-  GoalCompletionMessageComponent,
-  GoalSetMessageComponent,
-} from '../../components/messages/goal/goal-panel';
-import { PluginCommandComponent } from '../../components/messages/plugin-command';
-import { PlanBoxComponent } from '../../components/messages/plan-box';
-import { SkillActivationComponent } from '../../components/messages/skill-activation';
-import { StepSummaryComponent } from '../../components/messages/step-summary';
 import {
   NoticeMessageComponent,
   StatusMessageComponent,
@@ -35,17 +25,14 @@ import type { ShowNoticeOptions } from '../../commands/hub/dispatch';
 import { getActiveAppearancePreferences } from '../../features/appearance/appearance-effects';
 import type { AppearanceController } from '../appearance/index';
 import type { BtwPanelController } from '../panes/btw-panel';
-import type { SessionEventHandler } from '../session-event/handler';
 import type { StreamingUIController } from '../streaming-ui/index';
 import { currentTheme } from '../../theme';
 import type { ColorToken } from '../../theme';
-import { createMarkdownTheme } from '../../theme/pi-tui-theme';
 import type { TUIState } from '../../tui-state';
 import type { ImageAttachment, ImageAttachmentStore } from '../../utils/image/image-attachment-store';
 import { resolveImageProtocol } from '../../utils/image/image-protocol-detect';
 import type {
   LoginProgressSpinnerHandle,
-  PlanTranscriptData,
   TranscriptEntry,
 } from '../../types';
 import { resolveStageLayout } from '../layout/stage-layout';
@@ -54,7 +41,6 @@ import { hasDispose } from '../../utils/component-capabilities';
 import { noteErrorFeedback } from '../../utils/render/feedback-vfx';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
-  getTranscriptComponentEntry,
   markTranscriptComponent,
 } from '../../features/transcript/transcript-component-metadata';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
@@ -73,10 +59,8 @@ export interface TranscriptRenderHost {
   splashForcesAmbient: boolean;
   readonly imageStore: ImageAttachmentStore;
   readonly streamingUI: StreamingUIController;
-  readonly sessionEventHandler: SessionEventHandler;
   readonly appearanceController: AppearanceController;
   readonly btwPanelController: BtwPanelController;
-  syncGoalMonitorPanel(): void;
 }
 
 /**
@@ -85,9 +69,6 @@ export interface TranscriptRenderHost {
  * LioraTUI keeps thin public delegates so call sites stay stable.
  */
 export class TranscriptRenderController {
-  /** tool_call_ids already mirrored as plan_review PlanBox entries this session. */
-  private readonly mirroredPlanReviewIds = new Set<string>();
-
   constructor(private readonly host: TranscriptRenderHost) {}
 
   private createTranscriptComponent(entry: TranscriptEntry): Component | null {
@@ -104,16 +85,6 @@ export class TranscriptRenderController {
     }
 
     switch (entry.kind) {
-      case 'plan': {
-        const plan = entry.planData?.content ?? entry.content;
-        if (plan.trim().length === 0) return null;
-        return new PlanBoxComponent(
-          plan,
-          createMarkdownTheme(),
-          currentTheme.color('success'),
-          entry.planData?.path,
-        );
-      }
       case 'user': {
         const images = entry.imageAttachmentIds
           ?.map((id) => host.imageStore.get(id))
@@ -129,33 +100,7 @@ export class TranscriptRenderController {
           entry.combinedDisplayTexts,
         );
       }
-      case 'skill_activation':
-        return new SkillActivationComponent(
-          entry.skillName ?? entry.content,
-          entry.skillArgs,
-          entry.skillTrigger,
-        );
-      case 'plugin_command':
-        return new PluginCommandComponent(
-          entry.pluginId ?? '',
-          entry.pluginCommandName ?? entry.content,
-          entry.pluginCommandArgs,
-          entry.pluginCommandTrigger,
-        );
-      case 'cron':
-        return new CronMessageComponent(entry.content, entry.cronData ?? {});
-      case 'goal':
-        if (entry.goalData?.kind === 'created') {
-          return new GoalSetMessageComponent();
-        }
-        if (entry.goalData?.kind === 'lifecycle') {
-          return buildGoalMarker(entry.goalData.change, host.state.toolOutputExpanded);
-        }
-        return null;
       case 'assistant': {
-        if (entry.content.trimStart().startsWith('✓ Goal complete')) {
-          return new GoalCompletionMessageComponent(entry.content);
-        }
         const component = new AssistantMessageComponent();
         component.updateContent(entry.content);
         return component;
@@ -222,42 +167,7 @@ export class TranscriptRenderController {
     }
   }
 
-  /**
-   * Mirror a plan_review body into the main transcript as a PlanBox so operators
-   * (including Conductor plan-worker reviews) can read the full plan outside the
-   * compact approval card. Idempotent per tool_call_id.
-   */
-  appendPlanReviewTranscript(
-    toolCallId: string,
-    plan: PlanTranscriptData,
-  ): boolean {
-    if (toolCallId.length > 0 && this.mirroredPlanReviewIds.has(toolCallId)) {
-      return false;
-    }
-    const content = plan.content.trim();
-    if (content.length === 0) return false;
-    if (toolCallId.length > 0) this.mirroredPlanReviewIds.add(toolCallId);
-    this.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'plan',
-      renderMode: 'markdown',
-      content,
-      planData: {
-        content,
-        path: plan.path,
-        toolCallId: toolCallId.length > 0 ? toolCallId : undefined,
-      },
-    });
-    return true;
-  }
-
   appendApprovalTranscriptEntry(request: ApprovalRequest, response: ApprovalResponse): void {
-    if (
-      request.toolName === 'ExitPlanMode' ||
-      request.display.kind === 'plan_review' ||
-      request.display.kind === 'goal_start'
-    )
-      return;
     const parts: string[] = [];
     switch (response.decision) {
       case 'approved':
@@ -421,11 +331,9 @@ export class TranscriptRenderController {
     const { host } = this;
     host.streamingUI.discardPending();
     host.state.transcriptEntries = [];
-    this.mirroredPlanReviewIds.clear();
     host.streamingUI.disposeActiveCompactionBlock();
     host.streamingUI.resetLiveText();
     host.streamingUI.resetToolUi();
-    host.sessionEventHandler.stopAllMcpServerStatusSpinners();
     // Dispose disposable children (e.g. ShellRunComponent's 1s timer) before
     // dropping them, so a /clear or session switch can't leak intervals that
     // keep firing requestRender on a removed component.
@@ -437,12 +345,6 @@ export class TranscriptRenderController {
     host.state.transcriptContainer.invalidateGeometryAndPaint();
     host.btwPanelController.clear();
     this.clearTerminalInlineImages();
-    // Drop todo cards, then re-bind any live goal from appState so session
-    // switches (goal already hydrated) and mid-session redraws keep the
-    // monitor chrome. New sessions null goal before/after this via setAppState.
-    host.state.todoPanel.clear();
-    host.state.todoPanelContainer.clear();
-    host.syncGoalMonitorPanel();
     host.imageStore.clear();
     this.renderWelcome();
     requestTUILayoutRender(host.state);

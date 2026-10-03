@@ -2,35 +2,29 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { OAUTH_LOGIN_REQUIRED_CODE } from '#/constant/app';
 import {
-  buildOAuthRefreshDegradedEvent,
-  buildOAuthRefreshDegradedEventFromOutcome,
-  OAUTH_REFRESH_DEGRADED_HINT,
+  buildOAuthRefreshFailure,
+  buildOAuthRefreshFailureFromOutcome,
+  OAUTH_REFRESH_FAILURE_HINT,
   startHarnessOAuthProactiveRefresh,
 } from '#/utils/oauth/proactive-refresh-host';
 
-describe('buildOAuthRefreshDegradedEventFromOutcome', () => {
+describe('buildOAuthRefreshFailureFromOutcome', () => {
   it('maps OAuthManager refresh failure outcomes', () => {
     expect(
-      buildOAuthRefreshDegradedEventFromOutcome({ success: false, reason: 'unauthorized' }),
+      buildOAuthRefreshFailureFromOutcome({ success: false, reason: 'unauthorized' }),
     ).toEqual({
-      type: 'runtime.degraded',
-      scope: 'oauth',
       reason: 'OAuth refresh unauthorized; re-login required',
-      hint: OAUTH_REFRESH_DEGRADED_HINT,
-      atMs: expect.any(Number),
+      hint: OAUTH_REFRESH_FAILURE_HINT,
     });
   });
 });
 
-describe('buildOAuthRefreshDegradedEvent', () => {
-  it('maps errors to oauth runtime.degraded', () => {
-    const event = buildOAuthRefreshDegradedEvent(new Error('token expired'), 1_700);
-    expect(event).toEqual({
-      type: 'runtime.degraded',
-      scope: 'oauth',
+describe('buildOAuthRefreshFailure', () => {
+  it('normalizes error messages for credential warnings', () => {
+    const failure = buildOAuthRefreshFailure(new Error('  token   expired  '));
+    expect(failure).toEqual({
       reason: 'token expired',
-      hint: OAUTH_REFRESH_DEGRADED_HINT,
-      atMs: 1_700,
+      hint: OAUTH_REFRESH_FAILURE_HINT,
     });
   });
 });
@@ -47,8 +41,7 @@ describe('startHarnessOAuthProactiveRefresh', () => {
 
   it('skips ensureFresh when managed OAuth has no cached token', async () => {
     vi.useFakeTimers();
-    const onDegraded = vi.fn();
-    const broadcastRuntimeDegraded = vi.fn();
+    const onRefreshFailure = vi.fn();
     const getAccessToken = vi.fn(async () => {
       throw new Error('should not refresh without a token');
     });
@@ -58,26 +51,23 @@ describe('startHarnessOAuthProactiveRefresh', () => {
         resolveOAuthTokenProvider: () => ({ getAccessToken }),
         getCachedAccessToken,
       },
-      broadcastRuntimeDegraded,
     } as never;
 
-    const handle = startHarnessOAuthProactiveRefresh(harness, { onDegraded });
+    const handle = startHarnessOAuthProactiveRefresh(harness, { onRefreshFailure });
     expect(handle).toBeDefined();
 
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
     expect(getCachedAccessToken).toHaveBeenCalled();
     expect(getAccessToken).not.toHaveBeenCalled();
-    expect(onDegraded).not.toHaveBeenCalled();
-    expect(broadcastRuntimeDegraded).not.toHaveBeenCalled();
+    expect(onRefreshFailure).not.toHaveBeenCalled();
 
     handle?.stop();
     vi.useRealTimers();
   });
 
-  it('does not surface idle login-required as runtime.degraded', async () => {
+  it('does not warn about idle login-required credentials', async () => {
     vi.useFakeTimers();
-    const onDegraded = vi.fn();
-    const broadcastRuntimeDegraded = vi.fn();
+    const onRefreshFailure = vi.fn();
     const error = Object.assign(
       new Error('OAuth provider "managed:kimi-api" requires login before it can be used.'),
       { code: OAUTH_LOGIN_REQUIRED_CODE },
@@ -89,23 +79,20 @@ describe('startHarnessOAuthProactiveRefresh', () => {
       auth: {
         resolveOAuthTokenProvider: () => ({ getAccessToken }),
       },
-      broadcastRuntimeDegraded,
     } as never;
 
-    const handle = startHarnessOAuthProactiveRefresh(harness, { onDegraded });
+    const handle = startHarnessOAuthProactiveRefresh(harness, { onRefreshFailure });
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
     expect(getAccessToken).toHaveBeenCalledTimes(1);
-    expect(onDegraded).not.toHaveBeenCalled();
-    expect(broadcastRuntimeDegraded).not.toHaveBeenCalled();
+    expect(onRefreshFailure).not.toHaveBeenCalled();
 
     handle?.stop();
     vi.useRealTimers();
   });
 
-  it('surfaces refresh failures via onDegraded and runtime.degraded broadcast', async () => {
+  it('surfaces actual refresh failures through the host callback', async () => {
     vi.useFakeTimers();
-    const onDegraded = vi.fn();
-    const broadcastRuntimeDegraded = vi.fn();
+    const onRefreshFailure = vi.fn();
     const error = new Error('refresh failed');
     const getAccessToken = vi.fn(async () => {
       throw error;
@@ -116,28 +103,17 @@ describe('startHarnessOAuthProactiveRefresh', () => {
         resolveOAuthTokenProvider: () => ({ getAccessToken }),
         getCachedAccessToken,
       },
-      broadcastRuntimeDegraded,
     } as never;
 
-    const handle = startHarnessOAuthProactiveRefresh(harness, { onDegraded });
+    const handle = startHarnessOAuthProactiveRefresh(harness, { onRefreshFailure });
     expect(handle).toBeDefined();
 
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
     expect(getAccessToken).toHaveBeenCalledTimes(1);
-    expect(onDegraded).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'runtime.degraded',
-        scope: 'oauth',
-        reason: 'refresh failed',
-      }),
-    );
-    expect(broadcastRuntimeDegraded).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'runtime.degraded',
-        scope: 'oauth',
-        reason: 'refresh failed',
-      }),
-    );
+    expect(onRefreshFailure).toHaveBeenCalledWith({
+      reason: 'refresh failed',
+      hint: OAUTH_REFRESH_FAILURE_HINT,
+    });
 
     handle?.stop();
     vi.useRealTimers();

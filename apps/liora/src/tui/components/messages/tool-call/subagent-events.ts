@@ -147,7 +147,7 @@ export function getToolCallSubagentAgentId(host: ToolCallSubagentEventHost): str
 }
 
 export function getToolCallAgentToolDescription(host: ToolCallSubagentEventHost): string | undefined {
-  if (host.toolCall.name !== 'Agent') return undefined;
+  if (host.toolCall.name !== 'SessionControl') return undefined;
   const desc = host.toolCall.args['description'];
   return typeof desc === 'string' ? desc : undefined;
 }

@@ -157,16 +157,10 @@ describe('ChoicePickerComponent', () => {
     expect(filtered).not.toContain('Switch the active model');
   });
 
-  it('filters settings by keyword aliases (freeze, FTS, redaction, DDG)', () => {
-    const settings = new SettingsSelectorComponent({
-      onSelect: vi.fn(),
-      onCancel: vi.fn(),
-    });
+  it('filters settings by keyword aliases (freeze, redaction)', () => {
     const cases: ReadonlyArray<{ readonly query: string; readonly label: string }> = [
       { query: 'freeze', label: 'Cache' },
-      { query: 'fts', label: 'Index' },
       { query: 'redaction', label: 'Security' },
-      { query: 'ddg', label: 'Search' },
     ];
     for (const { query, label } of cases) {
       const picker = new SettingsSelectorComponent({
@@ -213,8 +207,7 @@ describe('ChoicePickerComponent', () => {
     expect(settingsOutput).toContain('Active model and thinking effort.');
     expect(settingsOutput).toContain('Safety');
     expect(settingsOutput).toContain('Look & feel');
-    expect(settingsOutput).toContain('Model routing');
-    // Practical groups paginate; PgDn until Advanced / Updates appear.
+    // Practical groups paginate; PgDn until Updates appears.
     // (←→ are column moves in grid layout — do not use them for paging.)
     let settingsPage = settingsOutput;
     for (let i = 0; i < 8 && !settingsPage.includes('Updates'); i++) {
@@ -222,7 +215,6 @@ describe('ChoicePickerComponent', () => {
       settingsPage = settings.render(120).map(strip).join('\n');
     }
     expect(settingsPage).toMatch(/Updates|Automatic updates|upgrade/i);
-    expect(settingsPage).toMatch(/Experiments|Advanced|Telemetry|Harness/i);
 
     const upgradePreference = new UpdatePreferenceSelectorComponent({
       currentValue: true,

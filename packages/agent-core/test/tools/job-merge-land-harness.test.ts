@@ -10,7 +10,6 @@ import type { Kaos } from '@superliora/kaos';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
-import { CONDUCTOR_WAKE_ORIGIN } from '../../src/session/job/conductor-wake';
 import {
   landJobToMain,
   resolveJobWorktreeMergeRef,
@@ -186,8 +185,7 @@ describe('landJobToMain branch resolve', () => {
     const kaos = {
       exec: async (...args: string[]) => {
         execCalls.push([...args]);
-        // autopilot/git: kaos.exec('git', '-C', cwd, ...gitArgs)
-        const gitArgs = args[0] === 'git' && args[1] === '-C' ? args.slice(3) : args;
+        const gitArgs = args[0] === 'git' ? args.slice(args.indexOf('-C') + 2) : args;
         let stdout = '';
         let code = 0;
         if (gitArgs[0] === 'status') stdout = '';
@@ -201,15 +199,18 @@ describe('landJobToMain branch resolve', () => {
           code = 0;
           stdout = '';
         }
+        let exited = false;
+        let released = false;
         return {
           stdin: { end: () => {} },
           stdout: Readable.from([stdout]),
           stderr: Readable.from(['']),
           pid: 1,
-          exitCode: null,
-          wait: async () => code,
-          kill: async () => {},
-          dispose: () => {},
+          get exitCode() { return exited ? code : null; },
+          get resourcesSettled() { return released; },
+          wait: async () => { exited = true; return code; },
+          kill: async () => { exited = true; },
+          dispose: () => { released = exited; },
         };
       },
     } as unknown as Kaos;
@@ -299,7 +300,7 @@ describe('kind=merge launch runs deterministic land (no LLM)', () => {
       return { code: 0, stdout: '', stderr: '' };
     };
 
-    const agent = { kaos: undefined, config: { cwd: '/repo/main' }, subagentHost: {} } as never;
+    const agent = { kaos: undefined, config: { cwd: '/repo/main' } } as never;
     const result = await launchJobWorker({
       store,
       agent,
@@ -330,7 +331,7 @@ describe('kind=merge launch runs deterministic land (no LLM)', () => {
     expect(getJob(store, mergeJob.id)?.status).toBe('blocked');
   });
 
-  it('pushes inbox + wakes Conductor when land fails', async () => {
+  it('pushes operator inbox notices when land fails without waking a model turn', async () => {
     const store = memoryStore();
     const source = createJob(store, { title: 'source', kind: 'implement' });
     patchJob(store, source.id, {
@@ -379,8 +380,6 @@ describe('kind=merge launch runs deterministic land (no LLM)', () => {
     const unread = listUnreadJobInbox(store);
     expect(unread.some((e) => e.jobId === mergeJob.id && e.kind === 'job.blocked')).toBe(true);
     expect(unread.some((e) => e.jobId === source.id && e.kind === 'job.blocked')).toBe(true);
-    // Source + merge both notify; a live main lane coalesces via hasActiveTurn.
-    expect(prompts.length).toBeGreaterThanOrEqual(1);
-    expect(prompts.every((p) => p.origin === CONDUCTOR_WAKE_ORIGIN)).toBe(true);
+    expect(prompts).toHaveLength(0);
   });
 });

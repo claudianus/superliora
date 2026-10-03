@@ -1,26 +1,13 @@
-/**
- * Bridge so job workers (subagents) can mark their parent Job `needs_user`
- * when AskUserQuestion runs — Plan Desk interview cards land on JobInbox
- * while the question UI still uses the shared session RPC.
- *
- * Also owns pre-abort resume handoff: when finishing mode or a wall-clock
- * deadline hits, last progress + open files land on the Job result so
- * continue_from does not restart a repo-wide scan from zero.
- */
+/** Mirror worker activity and explicit input requests onto the Job ledger. */
 
 import type { JobProgressSnapshot } from '@superliora/protocol';
 
 import type { Agent } from '../../../agent/index';
-import { requestConductorWake } from '../../../session/job/conductor-wake';
-import { JOB_WORKER_PROGRESS_STALL_MS } from '../../../session/job/worker-spawner';
 import { readSubagentCheckpoint } from '../../../session/subagent/subagent-checkpoint';
-import { pauseActiveChildDeadline } from '../../../session/subagent/subagent-run-lifecycle';
 import type { ToolStore } from '../../store';
 import { emitJobEvents, jobRecordToUpdatedEvent } from './job-emit';
 import { pushJobInboxEvent } from './job-inbox';
 import { getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
-import { patchJobAndNotify } from './job-notify';
-import { evaluateWorkerVerificationGuard } from './job-worker-guards';
 
 interface WorkerLedgerBinding {
   readonly store: ToolStore;
@@ -30,8 +17,6 @@ interface WorkerLedgerBinding {
 
 const byWorkerAgentId = new Map<string, WorkerLedgerBinding>();
 
-/** Post-spawn progress-stall timers keyed by worker agent id. */
-const progressStallTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function bindJobWorkerLedger(
   workerAgentId: string,
@@ -43,7 +28,6 @@ export function bindJobWorkerLedger(
 }
 
 export function unbindJobWorkerLedger(workerAgentId: string): void {
-  clearJobWorkerProgressStall(workerAgentId);
   byWorkerAgentId.delete(workerAgentId);
 }
 
@@ -65,10 +49,6 @@ export function raiseJobNeedsUserForWorker(
   if (binding === undefined) return undefined;
   const job = listJobs(binding.store).find((j) => j.id === binding.jobId);
   if (job === undefined) return undefined;
-  // Interview wait is meaningful progress: cancel the post-spawn stall and
-  // freeze the wall-clock deadline so 30m/45m does not burn while waiting.
-  clearJobWorkerProgressStall(workerAgentId);
-  pauseActiveChildDeadline(workerAgentId);
   const pause = job.status !== 'running';
   const next = patchJob(binding.store, job.id, {
     ...(pause ? { status: 'needs_user' as const } : {}),
@@ -89,82 +69,9 @@ export function raiseJobNeedsUserForWorker(
     title: next.title,
     summary: `Job ${next.id} needs input: ${input.question}`,
   });
-  // Shared-RPC interviews (status stays `running`) reach the user through the
-  // question UI directly — waking the conductor there would double-ask. Only
-  // the paused path relies on the conductor relay, so only it wakes.
-  if (pause && binding.agent !== undefined) {
-    requestConductorWake({ agent: binding.agent, store: binding.store });
-  }
   return next;
 }
 
-/**
- * Arm a one-shot post-spawn progress stall. Independent of the 30s handshake
- * budget: after the worker attaches, no first tool / needs_user within
- * {@link JOB_WORKER_PROGRESS_STALL_MS} → job blocked + inbox.
- * Returns a disposer that cancels the timer (call on completion or first progress).
- */
-export function armJobWorkerProgressStall(
-  workerAgentId: string,
-  options: { readonly stallMs?: number } = {},
-): () => void {
-  clearJobWorkerProgressStall(workerAgentId);
-  const stallMs = options.stallMs ?? JOB_WORKER_PROGRESS_STALL_MS;
-  if (stallMs <= 0) return () => {};
-  const timer = setTimeout(() => {
-    progressStallTimers.delete(workerAgentId);
-    const binding = byWorkerAgentId.get(workerAgentId);
-    if (binding === undefined) return;
-    const job = getJob(binding.store, binding.jobId);
-    if (job === undefined || job.status !== 'running') return;
-    patchJobAndNotify(
-      binding.store,
-      job.id,
-      {
-        status: 'blocked',
-        notes: [
-          job.notes,
-          `spawn.progress_stall: no tool/needs_user progress within ${stallMs}ms after spawn`,
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      },
-      {
-        agent: binding.agent,
-        summary: `spawn progress stall (${stallMs}ms without progress)`,
-      },
-    );
-    pushJobInboxEvent(binding.store, {
-      kind: 'job.blocked',
-      jobId: job.id,
-      status: 'blocked',
-      title: job.title,
-      summary: `spawn.progress_stall: no meaningful progress within ${stallMs}ms after spawn — held for resume/cancel`,
-    });
-  }, stallMs);
-  (timer as { unref?: () => void }).unref?.();
-  progressStallTimers.set(workerAgentId, timer);
-  return () => clearJobWorkerProgressStall(workerAgentId);
-}
-
-export function clearJobWorkerProgressStall(workerAgentId: string): void {
-  const timer = progressStallTimers.get(workerAgentId);
-  if (timer === undefined) return;
-  clearTimeout(timer);
-  progressStallTimers.delete(workerAgentId);
-}
-
-/** True when progress shows a real first step (not the idle "starting" phase). */
-function isMeaningfulWorkerProgress(progress: JobProgressSnapshot): boolean {
-  const phase = (progress.phase ?? '').trim();
-  if (phase.length > 0 && phase !== 'starting' && !phase.startsWith('stalled')) {
-    return true;
-  }
-  if ((progress.recentTools?.length ?? 0) > 0) return true;
-  if ((progress.stepsCompleted ?? 0) > 0) return true;
-  if ((progress.tokensOut ?? 0) > 0) return true;
-  return false;
-}
 
 /**
  * Mirror a live worker heartbeat onto the job ledger (`progress` field) and
@@ -181,71 +88,15 @@ export function reportJobWorkerProgress(
   if (binding === undefined) return;
   const job = getJob(binding.store, binding.jobId);
   if (job === undefined || job.status !== 'running') return;
-  // First real tool / tokens clears the post-spawn 120s stall watchdog.
-  if (isMeaningfulWorkerProgress(progress)) {
-    clearJobWorkerProgressStall(workerAgentId);
-  }
+  if (job.workerAgentId !== undefined && job.workerAgentId !== workerAgentId) return;
   // Skip ledger write + job.updated when only the heartbeat timestamp moved —
   // subagent.progress already drives the live dock strip.
   if (isHeartbeatOnlyProgress(job.progress, progress)) return;
-
-  // verification_commands budget / Read-Grep loop → pre-abort (no 30m sleep).
-  const toolCount =
-    progress.stepsCompleted ??
-    progress.recentTools?.length ??
-    job.progress?.stepsCompleted ??
-    0;
-  const guard = evaluateWorkerVerificationGuard({
-    verificationCommands: job.verificationCommands,
-    toolCount,
-    recentTools: progress.recentTools ?? job.progress?.recentTools,
-    jobKind: job.kind,
-  });
-  if (guard.abort) {
-    clearJobWorkerProgressStall(workerAgentId);
-    const handoff = buildWorkerResumeHandoff({
-      job: { ...job, progress },
-      workerAgentId,
-      reason: 'pre_abort',
-      errorMessage: guard.reason,
-    });
-    const failed = patchJobAndNotify(
-      binding.store,
-      job.id,
-      {
-        status: 'failed',
-        progress,
-        resultSummary: handoff,
-        notes: [job.notes, guard.reason, 'verification_guard: pre-abort']
-          .filter(Boolean)
-          .join('\n'),
-      },
-      binding.agent !== undefined ? { agent: binding.agent } : undefined,
-    );
-    if (failed !== undefined) {
-      emitJobEvents(binding.agent, [jobRecordToUpdatedEvent(failed, { reason: 'failed' })]);
-    }
-    // Best-effort: pause the child so it does not keep burning tools.
-    try {
-      pauseActiveChildDeadline(workerAgentId);
-    } catch {
-      // ignore — ledger already failed
-    }
-    return;
-  }
 
   // Progress-only patch: structural-share other jobs (writeJobLedger uses slice).
   const next = patchJob(binding.store, job.id, { progress });
   if (next !== undefined) {
     emitJobEvents(binding.agent, [jobRecordToUpdatedEvent(next, { reason: 'progress' })]);
-    // Goal Desk: mirror driver heartbeats onto the session Goal snapshot so the
-    // Conductor Goal Monitor / XP pulse move without a main-lane turn.
-    if (next.kind === 'goal-driver' && binding.agent !== undefined) {
-      // Dynamic import: facade → job-worker → this bridge (avoid init cycle).
-      void import('../goal/goal-desk-facade').then(({ emitGoalDeskSnapshot }) => {
-        emitGoalDeskSnapshot(binding.agent!, binding.store);
-      });
-    }
   }
 }
 
@@ -267,27 +118,6 @@ function isHeartbeatOnlyProgress(
   return true;
 }
 
-/**
- * One-shot stall signal from the progress reporter: mark the phase and leave
- * a ledger note so the conductor can tell a wedged worker from a slow one.
- */
-export function reportJobWorkerStalled(workerAgentId: string, silentMs: number): void {
-  const binding = byWorkerAgentId.get(workerAgentId);
-  if (binding === undefined) return;
-  const job = getJob(binding.store, binding.jobId);
-  if (job === undefined || job.status !== 'running') return;
-  const minutes = Math.max(1, Math.round(silentMs / 60_000));
-  const next = patchJob(binding.store, job.id, {
-    progress: {
-      ...job.progress,
-      phase: `stalled — no tool activity for ${minutes}m`,
-    },
-    notes: [job.notes, `stall: no tool activity for ${minutes}m`].filter(Boolean).join('\n'),
-  });
-  if (next !== undefined) {
-    emitJobEvents(binding.agent, [jobRecordToUpdatedEvent(next, { reason: 'stalled' })]);
-  }
-}
 
 /**
  * Build a one-page resume handoff so continue_from / cold reattach does not
@@ -296,7 +126,7 @@ export function reportJobWorkerStalled(workerAgentId: string, silentMs: number):
 export function buildWorkerResumeHandoff(input: {
   readonly job: JobRecord;
   readonly workerAgentId?: string;
-  readonly reason: 'pre_abort' | 'deadline' | 'finishing';
+  readonly reason: 'deadline';
   readonly errorMessage?: string;
   /** Inject checkpoint for tests; default reads disk for workerAgentId. */
   readonly checkpoint?: {
@@ -314,7 +144,7 @@ export function buildWorkerResumeHandoff(input: {
     (input.workerAgentId !== undefined ? readSubagentCheckpoint(input.workerAgentId) : undefined);
 
   const lines: string[] = [
-    '## Resume handoff (wall-clock / pre-abort)',
+    '## Resume handoff',
     `reason: ${reason}`,
     `job: ${job.id} (${job.kind}) — ${job.title}`,
   ];
@@ -362,43 +192,9 @@ export function buildWorkerResumeHandoff(input: {
     );
   }
   if (job.worktreePath) lines.push(`worktree: ${job.worktreePath}`);
-  lines.push(
-    'continue_from: Do not restart a repo-wide scan. Verify open_files + last_command, then finish the brief from there.',
-  );
   return lines.join('\n').slice(0, 3500);
 }
 
-/**
- * Persist a resume handoff onto a still-running job (finishing / pre-abort)
- * without flipping status. Idempotent note stamp.
- */
-export function persistJobWorkerPreAbortHandoff(
-  workerAgentId: string,
-  options: { readonly reason?: 'pre_abort' | 'finishing' } = {},
-): JobRecord | undefined {
-  const binding = byWorkerAgentId.get(workerAgentId);
-  if (binding === undefined) return undefined;
-  const job = getJob(binding.store, binding.jobId);
-  if (job === undefined || job.status !== 'running') return undefined;
-  const reason = options.reason ?? 'pre_abort';
-  const handoff = buildWorkerResumeHandoff({
-    job,
-    workerAgentId,
-    reason,
-  });
-  // Avoid rewriting every 5s once finishing is active.
-  if (job.resultSummary?.includes('## Resume handoff') === true) {
-    return job;
-  }
-  const next = patchJob(binding.store, job.id, {
-    resultSummary: handoff,
-    notes: [job.notes, `resume_handoff: ${reason} checkpoint written`].filter(Boolean).join('\n'),
-  });
-  if (next !== undefined) {
-    emitJobEvents(binding.agent, [jobRecordToUpdatedEvent(next, { reason: 'progress' })]);
-  }
-  return next;
-}
 
 /**
  * Terminal deadline path: always write a resume handoff into the failed result
@@ -418,7 +214,5 @@ export function buildDeadlineFailureSummary(
 }
 
 export function __resetJobWorkerLedgerBridgeForTests(): void {
-  for (const timer of progressStallTimers.values()) clearTimeout(timer);
-  progressStallTimers.clear();
   byWorkerAgentId.clear();
 }

@@ -26,7 +26,6 @@ import {
 import {
   maybeStartOnboarding,
   maybeWarnTightDataHome,
-  prepareStartupExperimentalFeatures,
   refreshProviderModelsInBackground,
 } from './onboarding';
 import { initStartupSession } from './session-init';
@@ -36,7 +35,6 @@ import {
   unregisterStartupSignalHandlers,
 } from './signals';
 import type { StartupLifecycleHost } from './types';
-import { mountIntentComposer } from '../../features/control-tower/conductor-ux';
 import { restoreMountedTuiStdioGuard } from '../../utils/stdio/tui-stdio-guard';
 import { startupTrace } from '#/utils/startup-trace';
 
@@ -129,7 +127,7 @@ export class StartupLifecycleController {
     host.state.footer.dispose();
     host.state.header.dispose();
     // Return the terminal before awaiting session/harness cleanup. Otherwise a
-    // stuck MCP/background/hook close keeps alternate-screen/raw mode up and
+    // stuck background/hook close keeps alternate-screen/raw mode up and
     // /exit feels frozen.
     await host.state.renderer.drainInput();
     host.state.ui.stop();
@@ -151,7 +149,6 @@ export class StartupLifecycleController {
       host.sessionEventHandler.resetRuntimeState();
       host.tasksBrowserController.close();
       host.usageMonitor.dispose();
-      host.promptIntelligence.dispose();
       host.disposables.disposeAll();
       if (host.onExit) {
         await host.onExit(exitCode);
@@ -187,21 +184,10 @@ export class StartupLifecycleController {
     return changed;
   }
 
-  async getStartupMcpMs(): Promise<number> {
-    const session = this.host.session;
-    if (session === undefined) return 0;
-    try {
-      const metrics = await session.getMcpStartupMetrics();
-      return metrics.durationMs;
-    } catch {
-      return 0;
-    }
-  }
-
   async init(): Promise<boolean> {
     startupTrace('lifecycle:init:enter');
-    await prepareStartupExperimentalFeatures(this.host);
-    startupTrace('lifecycle:init:after-experimental');
+    await this.host.authFlow.refreshAvailableModels();
+    startupTrace('lifecycle:init:after-models');
     void this.refreshProviderModelsInBackground();
     const result = await initStartupSession(this.host);
     startupTrace('lifecycle:init:after-session');
@@ -218,12 +204,6 @@ export class StartupLifecycleController {
     host.state.editorContainer.clear();
     host.state.editorContainer.addChild(host.state.editor);
     host.state.ui.setFocus(host.state.editor);
-    mountIntentComposer({
-      state: host.state,
-      session: host.session,
-      showStatus: (msg, color) => host.showStatus(msg, color),
-      jobBoardController: host.jobBoardController,
-    });
     this.ensureNativeInputRouter();
     this.attachNativeRendererCallback();
     return shouldReplayHistory;

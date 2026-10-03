@@ -24,7 +24,6 @@ export function canUndoHistory(history: readonly ContextMessage[], count: number
   for (let i = history.length - 1; i >= 0; i--) {
     const message = history[i];
     if (message === undefined) continue;
-    if (message.origin?.kind === 'injection') continue;
     if (message.origin?.kind === 'compaction_summary') return false;
     if (isRealUserPrompt(message)) {
       found++;
@@ -36,10 +35,7 @@ export function canUndoHistory(history: readonly ContextMessage[], count: number
 
 function isRealUserPrompt(message: ContextMessage): boolean {
   if (message.role !== 'user') return false;
-  const origin = message.origin;
-  if (origin === undefined || origin.kind === 'user') return true;
-  if (origin.kind === 'plugin_command') return origin.trigger === 'user-slash';
-  return origin.kind === 'skill_activation' && origin.trigger === 'user-slash';
+  return message.origin === undefined || message.origin.kind === 'user';
 }
 
 export function pageContextMessages(

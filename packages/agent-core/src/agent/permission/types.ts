@@ -1,4 +1,4 @@
-import type { PrepareToolExecutionResult, ResolvedToolExecutionHookContext } from '../../loop';
+import type { ResolvedToolExecutionHookContext } from '../../loop';
 import type { ToolInputDisplay } from '../../tools/display';
 
 export type PermissionRuleDecision = 'allow' | 'deny' | 'ask';
@@ -10,21 +10,12 @@ export type PermissionRuleDecision = 'allow' | 'deny' | 'ask';
  */
 export type PermissionRuleScope = 'turn-override' | 'session-runtime' | 'project' | 'user';
 
-/**
- * Top-level user-facing permission posture. Controls how non-deny rules
- * are treated when the closure is constructed. Independent of rule
- * merging: deny rules always fire regardless of mode.
- *
- *   - `manual` — rule set drives decision; unmatched tool calls ask
- *   - `yolo`   — only deny rules can block; everything else allows
- *   - `auto`   — caller may bypass rule checks entirely
- */
+/** User-selected posture for native calls not matched by explicit rules. */
 export type PermissionMode = 'manual' | 'yolo' | 'auto';
 
 /**
- * A single permission rule. `pattern` is the DSL form (`Read(/etc/**)`,
- * `Bash(rm *)`, or bare `Write`). Rule arguments are interpreted only by
- * tools that provide a matcher; other tools match by name only.
+ * A native permission rule, e.g. `Bash(rm *)` or bare `SessionControl`.
+ * Arguments match through the native tool's matcher.
  */
 export interface PermissionRule {
   readonly decision: PermissionRuleDecision;
@@ -44,7 +35,6 @@ export interface ApprovalResponse {
   decision: 'approved' | 'rejected' | 'cancelled';
   scope?: 'session';
   feedback?: string;
-  selectedLabel?: string;
 }
 
 export interface PermissionApprovalResultRecord {
@@ -56,33 +46,15 @@ export interface PermissionApprovalResultRecord {
   readonly result: ApprovalResponse;
 }
 
-/** Ops / Never-Halt visibility threshold for stale intervention badges. */
+/** Visibility threshold for stale operator intervention badges. */
 export const STALE_INTERVENTION_AGE_MS = 120_000;
 
 /** Opt-in: drop orphaned queue entries older than this ms (env-only). */
 export const PERMISSION_AUTO_EXPIRE_ENV = 'SUPERLIORA_PERMISSION_AUTO_EXPIRE_MS';
 
 /**
- * Opt-in: approve `ask` policies when no approval RPC channel is connected.
- * Without it such calls are denied — an `ask` policy exists because a human is
- * meant to see the call, so a host that cannot show one must not silently run
- * every gated tool.
- */
-export const PERMISSION_ALLOW_WITHOUT_APPROVAL_ENV =
-  'SUPERLIORA_PERMISSION_ALLOW_WITHOUT_APPROVAL';
-
-/**
- * Opt-in high-risk Bash guard (H4). **Default OFF.**
- *
- * Historically the destructive-command guard (`rm -rf`, `mkfs`, `terraform
- * destroy`, credential reads) was on for every `yolo` session, which meant
- * auto-mode runs stalled on a confirmation dialog whenever a child agent was
- * spawned with `permissionMode: yolo`. Auto/yolo are unattended postures: a
- * prompt there is a hang, not a safety win.
- *
- * Setting this to a truthy value (`1`/`true`/`on`/`yes`) turns the guard back
- * on for both `auto` and `yolo`, where it asks before the destructive command
- * is allowed to run. Manual mode is unaffected — it already asks.
+ * Opt-in destructive/sensitive Bash consent guard for `auto` and `yolo`.
+ * Manual mode already asks for calls not explicitly granted by the user.
  */
 export const PERMISSION_HIGH_RISK_GUARD_ENV = 'SUPERLIORA_PERMISSION_HIGH_RISK_GUARD';
 
@@ -93,7 +65,7 @@ export interface PermissionData {
   pendingInterventions?: number;
   /** Queue entries older than {@link STALE_INTERVENTION_AGE_MS} (visibility only). */
   staleInterventions?: number;
-  /** Age in ms of the longest-waiting queued intervention (Ops/Never-Halt glance). */
+  /** Age in ms of the longest-waiting queued intervention. */
   oldestInterventionAgeMs?: number;
 }
 
@@ -103,17 +75,12 @@ export type PermissionReasonValue = string | number | boolean | null;
 
 export type PermissionDecisionReason = Readonly<Record<string, PermissionReasonValue>>;
 
-export type PermissionPolicyResolution =
-  | PermissionPolicyResult
-  | ({ readonly kind: 'result' } & PrepareToolExecutionResult);
-
 export interface PermissionPolicyContext extends ResolvedToolExecutionHookContext {}
 
 export type PermissionPolicyResult =
   | {
       readonly kind: 'approve';
       readonly reason?: PermissionDecisionReason;
-      readonly executionMetadata?: unknown;
     }
   | {
       readonly kind: 'deny';
@@ -123,10 +90,6 @@ export type PermissionPolicyResult =
   | {
       readonly kind: 'ask';
       readonly reason?: PermissionDecisionReason;
-      readonly resolveApproval?: (
-        result: ApprovalResponse,
-      ) => PermissionPolicyResolution | undefined;
-      readonly resolveError?: (error: unknown) => PermissionPolicyResolution | undefined;
     };
 
 export interface PermissionPolicy {

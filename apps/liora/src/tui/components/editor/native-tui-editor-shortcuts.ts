@@ -21,10 +21,8 @@ export interface NativeTUIEditorShortcutHost {
   onCommandHub?: () => void;
   onOpenJobDeck?: () => void;
   onOpenJobInbox?: () => void;
-  onOpenIntentComposer?: () => void;
   onOpenQuota?: () => void;
-  onOpenPlan?: () => void;
-  /** True when idle-only single-key shortcuts (Q / P) may fire. Absent → allowed. */
+  /** True when the idle-only quota shortcut may fire. Absent means allowed. */
   canActivateIdleShortcut?: () => boolean;
   onTranscriptSearch?: () => void;
   onStashToggle?: () => void;
@@ -115,14 +113,9 @@ export function handleNativeTUIEditorAppShortcut(
     host.onOpenJobDeck?.();
     return true;
   }
-  // Alt+I: Conductor Inbox drawer (gated inside the host callback).
+  // Alt+I: operator Job Inbox.
   if (matchesKey(data, Key.alt('i'))) {
     host.onOpenJobInbox?.();
-    return true;
-  }
-  // Alt+B: Intent Composer brief slots (gated inside the host callback).
-  if (matchesKey(data, Key.alt('b'))) {
-    host.onOpenIntentComposer?.();
     return true;
   }
   // "?": open Command Hub when the editor is empty (native pre-handler path).
@@ -130,13 +123,7 @@ export function handleNativeTUIEditorAppShortcut(
     host.onCommandHub?.();
     return true;
   }
-  // Q / P: on an empty prompt and only while idle, open the live Quota report
-  // / toggle Plan mode. Three gates keep this safe: (a) the editor must be
-  // empty so the letters still type normally once a draft exists, (b) an idle
-  // check ensures we never swallow a keystroke while a turn is streaming or
-  // compacting (when the user may be typing a queued follow-up), and (c) we
-  // only consume when a real action is wired, so plain-text editors/tests that
-  // type a leading q/p still insert the letter.
+  // Q opens quota on an idle empty prompt only when a real handler is wired.
   if (
     host.getText().length === 0 &&
     host.inputMode === 'prompt' &&
@@ -146,11 +133,6 @@ export function handleNativeTUIEditorAppShortcut(
     if (printable === 'q') {
       if (host.onOpenQuota !== undefined) {
         host.onOpenQuota();
-        return true;
-      }
-    } else if (printable === 'p') {
-      if (host.onOpenPlan !== undefined) {
-        host.onOpenPlan();
         return true;
       }
     }

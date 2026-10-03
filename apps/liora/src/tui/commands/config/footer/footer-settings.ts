@@ -63,12 +63,7 @@ function openFooterSettingsPicker(host: SlashCommandHost): void {
     {
       value: 'reset',
       label: ttui('tui.footer.resetLabel'),
-      description: 'Plain labels · essentials auto · index off · pulses on.',
-    },
-    {
-      value: 'tip',
-      label: ttui('tui.footer.tipLabel'),
-      description: footerStatusTip(),
+      description: 'Plain labels · essentials auto · pulses on.',
     },
   ];
 
@@ -93,10 +88,6 @@ function openFooterSettingsPicker(host: SlashCommandHost): void {
         }
         if (value === 'status') {
           host.showStatus(buildFooterOverview(currentFooter(host)), 'info');
-          return;
-        }
-        if (value === 'tip') {
-          host.showStatus(footerStatusTip(), 'info');
           return;
         }
         if (value === 'reset') {
@@ -167,8 +158,8 @@ function buildFooterOverview(footer: FooterPreferences): string {
   return [
     `Labels: ${footer.labels}`,
     `Core: modes ${footer.modes} · model ${footer.model} · path ${footer.cwd} · git ${footer.git}`,
-    `Context ${footer.context} · goal ${footer.goal} · menu ${footer.menu} · bg ${footer.background}`,
-    `Soft: tips ${footer.tips} · next ${footer.nextAction} · ws ${footer.workingSet} · quota ${footer.quota}`,
-    `Ops: media ${footer.mediaReady} · index ${footer.index} · mcp ${footer.mcp} · cache ${footer.cache}`,
+    `Context ${footer.context} · menu ${footer.menu} · bg ${footer.background}`,
+    `Soft: tips ${footer.tips} · quota ${footer.quota}`,
+    `Cache ${footer.cache}`,
   ].join(' · ');
 }

@@ -1,11 +1,9 @@
 /**
  * Headless job feedback for `liora -p "…"`.
  *
- * Conductor jobs are fired asynchronously from the main turn, so a plain
- * prompt run ends with nothing on stdout about the very work the user asked
- * for. After the turn, diff the job ledger against the baseline captured
- * before the prompt and report every job created during this run, with a
- * machine-readable exit code:
+ * Explicit operator jobs can outlive the prompt turn. Diff the job ledger
+ * against the baseline captured before the prompt and report every job
+ * created during this run, with a machine-readable exit code:
  *
  * - 0  every job created this run is `done`
  * - 4  work remains: a job is still queued/running/blocked/needs_user, or a

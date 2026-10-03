@@ -1,6 +1,6 @@
 /**
  * WorkerDockController — owns the worker registry and pushes composed
- * views (registry snapshot + Conductor jobs ledger) into the shared panel.
+ * views (registry snapshot + operator Job ledger) into the shared panel.
  * The session-event handler feeds every session event through
  * {@link handleEvent}; the app-state sync calls {@link pushView} when the
  * `conductorJobs` ledger changes. Render invalidation escalates to a layout
@@ -42,9 +42,7 @@ export class WorkerDockController {
    * job titles before live subagent events arrive.
    */
   hydrateGhostsFromJobs(
-    jobs: ReturnType<typeof emptyConductorJobsSnapshot> | {
-      readonly jobs: readonly WorkerDockGhostJob[];
-    },
+    jobs: { readonly jobs: readonly WorkerDockGhostJob[] },
   ): void {
     if (this.registry.hydrateJobGhosts(jobs.jobs)) {
       this.pushView();

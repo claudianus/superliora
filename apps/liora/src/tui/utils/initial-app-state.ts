@@ -3,15 +3,12 @@ import type { PermissionMode } from '@superliora/sdk';
 import type { CLIOptions } from '#/cli/options';
 
 import {
-  applyAutoResumeFleetEnv,
   DEFAULT_APPEARANCE_PREFERENCES,
-  DEFAULT_CONDUCTOR_PREFERENCES,
   DEFAULT_FOOTER_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
   type TuiConfig,
 } from '../config';
 import type { AppState } from '../types';
-import { contextWorkingSetSnapshotFromLoopControl } from '#/tui/utils/agent/context-working-set';
 
 /** Inputs required to seed {@link AppState} before the TUI mounts. */
 export interface InitialAppStateInput {
@@ -33,32 +30,22 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
   const startupPermission: PermissionMode = input.cliOptions.auto
     ? 'auto'
     : input.tuiConfig.permissionMode;
-  const conductor = input.tuiConfig.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES;
-  // Must land before harness.resumeSession so Agent.resume autopilot sees it.
-  applyAutoResumeFleetEnv(conductor);
   return {
     model: '',
     workDir: input.workDir,
     additionalDirs: [...(input.additionalDirs ?? [])],
     sessionId: '',
     permissionMode: startupPermission,
-    planMode: input.cliOptions.plan,
-    askMode: false,
-    premiumQualityMode: false,
     inputMode: 'prompt',
     thinking: false,
     thinkingLevel: 'off',
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
-    // Balanced defaults until harness config is loaded (footer badge stays stable).
-    workingSet: contextWorkingSetSnapshotFromLoopControl({}),
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
-    promptIntelligencePhase: 'idle',
     activityTip: null,
     theme: input.tuiConfig.theme,
     locale: input.tuiConfig.locale,
@@ -71,20 +58,13 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
     appearance: input.tuiConfig.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
     footer: input.tuiConfig.footer ?? DEFAULT_FOOTER_PREFERENCES,
     onboarding: input.tuiConfig.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
-    conductor,
-    conductorProjectMode: conductor.projectMode,
-    transcriptRegionMode: conductor.transcriptRegionMode,
+    transcriptRegionMode: 'chat',
     availableModels: {},
     availableProviders: {},
-    nonVisionFallbackPolicy: 'analyze',
-    mediaAnalyzerModels: undefined,
-    mediaAnalyzerAutoScan: false,
     providerRouteStatus: null,
     lastProviderRouteSelection: null,
     lastModelRouteNotice: null,
     sessionTitle: null,
-    goal: null,
-    mcpServersSummary: null,
     providerQuota: null,
     banner: undefined,
     updateNotice: input.updateNotice ?? null,

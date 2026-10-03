@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "preserve",
     "moduleResolution": "bundler",
-    "lib": ["ES2023"],
+    "lib": ["ES2024"],
     "jsx": "react-jsx",
     "jsxImportSource": "react",
 

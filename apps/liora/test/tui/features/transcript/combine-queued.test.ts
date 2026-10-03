@@ -23,7 +23,7 @@ describe('combineQueuedPrefixLen', () => {
     expect(combineQueuedPrefixLen([plain('one'), plain('two'), plain('three')])).toBe(3);
   });
 
-  it('stops at bash, images (followers), and expanded skills', () => {
+  it('stops at shell commands, media followers, and expanded prompts', () => {
     expect(
       combineQueuedPrefixLen([
         plain('one'),
@@ -34,7 +34,11 @@ describe('combineQueuedPrefixLen', () => {
     ).toBe(2);
     expect(combineQueuedPrefixLen([plain('one'), plain('see', { hasImages: true })])).toBe(1);
     expect(combineQueuedPrefixLen([plain('see', { hasImages: true }), plain('two')])).toBe(2);
-    expect(combineQueuedPrefixLen([plain('one'), plain('body', { isExpandedSkill: true })])).toBe(1);
+    expect(combineQueuedPrefixLen([plain('one'), plain('body', { isExpandedPrompt: true })])).toBe(1);
+  });
+
+  it('keeps different interactive agents in separate turns', () => {
+    expect(combineQueuedPrefixLen([plain('one', { agentId: 'main' }), plain('two', { agentId: 'worker' })])).toBe(1);
   });
 
   it('takes an ineligible front alone', () => {

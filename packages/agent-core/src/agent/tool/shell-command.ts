@@ -60,13 +60,8 @@ export async function runShellCommand(
     // Detached to background (ctrl+b): the BashTool returns the background
     // metadata (task_id / status / output path) — the same payload a normal
     // foreground Bash call returns as its tool result when backgrounded.
-    // Inject it as a user-invisible message and immediately send it to the
-    // model (mirrors the background-task completion notification, but hidden).
     if (typeof result.output === 'string' && result.output.startsWith('task_id: ')) {
-      host.agent.context.injectAndNotify(result.output, {
-        kind: 'injection',
-        variant: 'shell_command_backgrounded',
-      });
+      host.agent.context.appendBashOutput(result.output, '', false);
       return { stdout: result.output, stderr: '', isError: false, backgrounded: true };
     }
 

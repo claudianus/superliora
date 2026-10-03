@@ -31,7 +31,6 @@ const SEARCH_ROOTS = [
 const IGNORED_DIR_NAMES = new Set([
   'dist',
   'node_modules',
-  'catalog',
   'generated',
   'coverage',
 ]);
@@ -70,7 +69,6 @@ function walk(dir) {
     }
     if (entry.endsWith('.ts') || entry.endsWith('.tsx')) {
       if (entry.endsWith('.d.ts') || entry.includes('.generated.')) continue;
-      if (entry === 'catalog-meta.ts') continue;
       files.push(entryPath);
     }
   }

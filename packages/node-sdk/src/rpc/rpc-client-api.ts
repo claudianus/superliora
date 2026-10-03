@@ -12,8 +12,6 @@ import type {
   QuestionResult,
   RPCCallOptions,
   SDKAPI,
-  ToolCallRequest,
-  ToolCallResponse,
 } from '@superliora/agent-core';
 
 import type { SDKRpcClientBase } from './rpc';
@@ -44,7 +42,4 @@ export class ClientAPI implements SDKAPI {
     return this.client.requestCredential(request);
   }
 
-  toolCall(request: ToolCallRequest): Promise<ToolCallResponse> {
-    return this.client.toolCall(request);
-  }
 }

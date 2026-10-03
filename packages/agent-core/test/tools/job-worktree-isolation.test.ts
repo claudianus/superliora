@@ -1,0 +1,62 @@
+
+import { describe, expect, it } from 'vitest';
+
+import { createJob, getJob } from '../../src/tools/builtin/job/job-ledger';
+import { scheduleQueuedJobs } from '../../src/tools/builtin/job/job-runtime';
+import type { JobKind } from '../../src/tools/builtin/job/job-store-key';
+import type { ToolStore } from '../../src/tools/store';
+
+function memoryStore(): ToolStore {
+  const data: Record<string, unknown> = {};
+  return {
+    get(key) {
+      return data[key] as never;
+    },
+    set(key, value) {
+      data[key] = value;
+    },
+  };
+}
+
+/** Records which jobs asked for a worktree; the real factory shells out to git. */
+function countingWorktreeFactory(created: string[]) {
+  return async (_kaos: unknown, input: { readonly name: string }) => {
+    created.push(input.name);
+    return { workDir: `/tmp/wt/${input.name}`, branch: `job/${input.name}` };
+  };
+}
+
+async function scheduleOne(kind: JobKind, created: string[]) {
+  const store = memoryStore();
+  const job = createJob(store, { title: `${kind} job`, kind });
+  const result = await scheduleQueuedJobs({
+    store,
+    kaos: {} as never,
+    repoPath: '/repo',
+    createWorktree: countingWorktreeFactory(created) as never,
+    ensureGitRepo: false,
+  });
+  return { store, jobId: job.id, result };
+}
+
+describe('Job worktree scheduling', () => {
+
+  it('still isolates kinds that can write', async () => {
+    for (const kind of ['implement', 'task', 'mission'] as const) {
+      const created: string[] = [];
+      const { store, jobId } = await scheduleOne(kind, created);
+      expect(getJob(store, jobId)?.worktreePath, kind).toBeDefined();
+      expect(created, kind).toHaveLength(1);
+    }
+  });
+
+  it('skips the worktree for merge landing jobs (lands the source worktree)', async () => {
+    const created: string[] = [];
+    const { store, jobId } = await scheduleOne('merge', created);
+
+    expect(getJob(store, jobId)?.status).toBe('running');
+    expect(getJob(store, jobId)?.worktreePath).toBeUndefined();
+    expect(created).toEqual([]);
+  });
+
+});

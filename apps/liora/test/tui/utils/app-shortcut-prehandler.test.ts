@@ -12,15 +12,12 @@ function fakeInitialAppState(): AppState {
     additionalDirs: [],
     sessionId: 'sess-1',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     inputMode: 'prompt',
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
@@ -32,14 +29,13 @@ function fakeInitialAppState(): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
-    mcpServersSummary: null,
   };
 }
 
 function createState() {
   return createTUIState({
     initialAppState: fakeInitialAppState(),
-    startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    startup: { continueLast: false, yolo: false, auto: false },
   });
 }
 
@@ -126,7 +122,7 @@ describe('app shortcut pre-handler (native path)', () => {
     const legacy = encodeNativeInputAsLegacySequence({
       type: 'key',
       key: 'character',
-      raw: '\u001bj',
+      raw: '\u001Bj',
       text: 'j',
       ctrl: false,
       alt: true,
@@ -144,7 +140,7 @@ describe('app shortcut pre-handler (native path)', () => {
     const legacy = encodeNativeInputAsLegacySequence({
       type: 'key',
       key: 'character',
-      raw: '\u001bi',
+      raw: '\u001Bi',
       text: 'i',
       ctrl: false,
       alt: true,
@@ -284,24 +280,17 @@ describe('OS primary-modifier app shortcuts', () => {
     expect(openQuota).not.toHaveBeenCalled();
   });
 
-  it('never swallows Q/P while a turn is streaming or compacting', () => {
+  it('never swallows Q while a turn is streaming or compacting', () => {
     const state = createState();
     const openQuota = vi.fn();
-    const openPlan = vi.fn();
     state.editor.onOpenQuota = openQuota;
-    state.editor.onOpenPlan = openPlan;
     state.editor.canActivateIdleShortcut = () => false; // streaming / compacting
     expect(state.editor.tryHandleAppShortcut?.('q')).toBe(false);
-    expect(state.editor.tryHandleAppShortcut?.('p')).toBe(false);
     expect(openQuota).not.toHaveBeenCalled();
-    expect(openPlan).not.toHaveBeenCalled();
   });
 
-  it('opens Plan on bare P when the editor is empty, idle, and wired', () => {
+  it('leaves P for ordinary input when the editor is empty and idle', () => {
     const state = createState();
-    const openPlan = vi.fn();
-    state.editor.onOpenPlan = openPlan;
-    expect(state.editor.tryHandleAppShortcut?.('p')).toBe(true);
-    expect(openPlan).toHaveBeenCalledOnce();
+    expect(state.editor.tryHandleAppShortcut?.('p')).toBe(false);
   });
 });

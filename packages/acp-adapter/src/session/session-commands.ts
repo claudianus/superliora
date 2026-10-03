@@ -2,7 +2,6 @@ import type { AgentSideConnection, AvailableCommand, PromptResponse } from '@age
 import {
   type BackgroundTaskInfo,
   type Event,
-  type McpServerInfo,
   type Session,
   type SessionStatus,
   type SessionUsage,
@@ -13,7 +12,7 @@ import { MAIN_AGENT_ID } from './session-constants';
 
 /**
  * Built-in ACP slash-command handling extracted from `AcpSession`:
- * `/compact`, `/status`, `/usage`, `/mcp`, `/tasks`, `/help`, and the
+ * `/compact`, `/status`, `/usage`, `/tasks`, `/help`, and the
  * unknown-command fallback, plus the local report formatters each one
  * renders. `AcpSession.prompt` intercepts these before they ever reach
  * `Session.prompt`; see its JSDoc for the full slash-interception
@@ -22,7 +21,7 @@ import { MAIN_AGENT_ID } from './session-constants';
 export interface SessionCommandDeps {
   readonly session: Pick<
     Session,
-    'getStatus' | 'getUsage' | 'listMcpServers' | 'listBackgroundTasks' | 'compact' | 'onEvent'
+    'getStatus' | 'getUsage' | 'listBackgroundTasks' | 'compact' | 'onEvent'
   >;
   readonly conn: Pick<AgentSideConnection, 'sessionUpdate'>;
   readonly sessionId: string;
@@ -54,9 +53,6 @@ export async function runBuiltInSlashCommand(
           deps,
           formatUsageReport(await deps.session.getUsage(), await deps.session.getStatus()),
         );
-        break;
-      case 'mcp':
-        await emitLocalCommandMessage(deps, formatMcpReport(await deps.session.listMcpServers()));
         break;
       case 'tasks':
         await emitLocalCommandMessage(
@@ -102,64 +98,34 @@ export async function emitLocalCommandMessage(
 
 async function runCompactCommand(deps: SessionCommandDeps, args: string): Promise<void> {
   const instruction = args.trim() || undefined;
-  let started = false;
   let settled = false;
-  let unsubscribe: (() => void) | undefined;
-  // The agent-core compaction worker emits events in this order on
-  // failure: `compaction.cancelled` (from `markCanceled`) followed by
-  // `error` (unless the failure happened while blocked-by-turn, in
-  // which case `compact()` itself rejects). We resolve on whichever
-  // terminal event arrives first and ignore the rest, so a follow-up
-  // `error` after a cancelled never causes a double-settle.
-  const completion = new Promise<CompactionOutcome>((resolve, reject) => {
-    const settle = (action: () => void): void => {
-      if (settled) return;
+  const { promise: completion, resolve, reject } = Promise.withResolvers<CompactionOutcome>();
+  // Register before explicit dispatch; a transport acknowledgement is not completion.
+  void completion.catch(() => {});
+  const unsubscribe = deps.session.onEvent((event: Event) => {
+    if (event.agentId !== undefined && event.agentId !== MAIN_AGENT_ID) return;
+    if (settled) return;
+    if (event.type === 'compaction.started') {
+      void emitLocalCommandMessage(
+        deps,
+        instruction === undefined ? 'Compacting conversation context…'
+          : `Compacting conversation context with instruction: ${instruction}`,
+      );
+    } else if (event.type === 'compaction.completed') {
       settled = true;
-      action();
-    };
-    unsubscribe = deps.session.onEvent((event: Event) => {
-      if (event.agentId !== undefined && event.agentId !== MAIN_AGENT_ID) return;
-      if (event.type === 'compaction.started') {
-        started = true;
-        void emitLocalCommandMessage(
-          deps,
-          instruction === undefined
-            ? 'Compacting conversation context…'
-            : `Compacting conversation context with instruction: ${instruction}`,
-        );
-        return;
-      }
-      if (event.type === 'compaction.completed') {
-        settle(() =>{  resolve({ kind: 'completed', result: event.result }); });
-        return;
-      }
-      if (event.type === 'compaction.cancelled') {
-        settle(() =>{  resolve({ kind: 'cancelled' }); });
-        return;
-      }
-      if (event.type === 'compaction.blocked') {
-        void emitLocalCommandMessage(
-          deps,
-          'Compaction is blocked by the current turn; retry when the turn is idle.',
-        );
-        return;
-      }
-      // Surface any error event the worker emits, even if it lands
-      // before `compaction.started` — that path is currently empty
-      // (begin() throws synchronously and rejects compact()), but
-      // dropping pre-start errors would silently hang the prompt if
-      // the worker is ever restructured.
-      if (event.type === 'error') {
-        settle(() =>{  reject(new Error(event.message)); });
-      }
-    });
+      resolve({ kind: 'completed', result: event.result });
+    } else if (event.type === 'compaction.cancelled') {
+      settled = true;
+      resolve({ kind: 'cancelled' });
+    } else if (event.type === 'compaction.blocked') {
+      void emitLocalCommandMessage(deps, 'Compaction is blocked by the current turn.');
+    } else if (event.type === 'error') {
+      settled = true;
+      reject(new Error(event.message));
+    }
   });
   try {
     await deps.session.compact({ instruction });
-    if (!started && !settled) {
-      await emitLocalCommandMessage(deps, 'Compaction was not started.');
-      return;
-    }
     const outcome = await completion;
     if (outcome.kind === 'completed') {
       await emitLocalCommandMessage(deps, formatCompactionCompleted(outcome.result));
@@ -167,7 +133,7 @@ async function runCompactCommand(deps: SessionCommandDeps, args: string): Promis
       await emitLocalCommandMessage(deps, 'Compaction cancelled.');
     }
   } finally {
-    unsubscribe?.();
+    unsubscribe();
   }
 }
 
@@ -195,7 +161,6 @@ function formatStatusReport(status: SessionStatus): string {
     `- Model: ${status.model ?? '(not set)'}`,
     `- Thinking: ${status.thinkingLevel}`,
     `- Permission: ${status.permission}`,
-    `- Plan mode: ${status.planMode ? 'on' : 'off'}`,
     `- Context: ${status.contextTokens.toLocaleString('en-US')} / ${maxTokens}${usage}`,
   ].join('\n');
 }
@@ -217,16 +182,6 @@ function formatUsageReport(usage: SessionUsage, status: SessionStatus): string {
   return lines.join('\n');
 }
 
-function formatMcpReport(servers: readonly McpServerInfo[]): string {
-  if (servers.length === 0) return 'No MCP servers are configured for this session.';
-  return [
-    `MCP servers (${servers.length}):`,
-    ...servers.map((server) => {
-      const base = `- ${server.name}: ${server.status} (${server.transport}, ${server.toolCount} tools)`;
-      return server.error === undefined ? base : `${base}\n  Error: ${server.error}`;
-    }),
-  ].join('\n');
-}
 
 function formatTasksReport(tasks: readonly BackgroundTaskInfo[]): string {
   if (tasks.length === 0) return 'No background tasks for this session.';

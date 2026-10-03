@@ -15,23 +15,16 @@ export interface PromptAgentStateStore {
   dispatchLog: Map<string, PromptDispatchLogEntry[]>;
 }
 
-/**
- * Seed the per-session shadow from `getConfig` / `getPermission` /
- * `getPlan` if not yet bootstrapped. Idempotent across submits within a
- * session lifetime; cleared on `ISessionService.onDidClose`.
- *
- * The three RPCs run in parallel — they share no preconditions.
- */
+/** Seed the native model, thinking, and permission shadow once per session. */
 export async function ensureAgentStateBootstrapped(
   core: ICoreProcessService,
   store: PromptAgentStateStore,
   sid: string,
 ): Promise<void> {
   if (store.agentState.has(sid)) return;
-  const [config, permission, plan] = await Promise.all([
+  const [config, permission] = await Promise.all([
     core.rpc.getConfig({ sessionId: sid, agentId: MAIN_AGENT_ID }),
     core.rpc.getPermission({ sessionId: sid, agentId: MAIN_AGENT_ID }),
-    core.rpc.getPlan({ sessionId: sid, agentId: MAIN_AGENT_ID }),
   ]);
   const snapshot: AgentStateSnapshot = {};
   if (config.modelAlias !== undefined) snapshot.model = config.modelAlias;
@@ -41,12 +34,11 @@ export async function ensureAgentStateBootstrapped(
   // protocol to import from agent-core.
   snapshot.thinking = config.thinkingLevel as PromptThinking;
   snapshot.permissionMode = permission.mode;
-  snapshot.planMode = plan !== null;
   store.agentState.set(sid, snapshot);
 }
 
 /**
- * Diff-dispatch: for each of the four controls present on `patch`,
+ * Diff-dispatch: for each native control present on `patch`,
  * call the matching `core.rpc.*` setter ONLY when the value differs
  * from the shadow. Each setter runs serially so any failure surfaces
  * to the caller. Each successful setter also appends to the per-session
@@ -98,59 +90,6 @@ export async function applyAgentStateInternal(
     await core.rpc.setPermission(payload);
     shadow.permissionMode = patch.permission_mode as PermissionMode;
     recordDispatch(store, sid, 'setPermission', payload, promptId, source);
-  }
-  if (patch.plan_mode !== undefined && patch.plan_mode !== shadow.planMode) {
-    const payload = { sessionId: sid, agentId };
-    if (patch.plan_mode) {
-      await core.rpc.enterPlan(payload);
-      recordDispatch(store, sid, 'enterPlan', payload, promptId, source);
-    } else {
-      // `cancelPlan({id?})` accepts an omitted id — `PlanMode.cancel`
-      // clears whatever id is currently active. Shadow doesn't track
-      // ids, so we always omit.
-      await core.rpc.cancelPlan(payload);
-      recordDispatch(store, sid, 'cancelPlan', payload, promptId, source);
-    }
-    shadow.planMode = patch.plan_mode;
-  }
-
-  // Goal creation. createGoal throws LioraError on invalid input
-  // (GOAL_OBJECTIVE_EMPTY, GOAL_OBJECTIVE_TOO_LONG) or when a goal is
-  // already active without replace=true (GOAL_ALREADY_EXISTS). Let these
-  // propagate so the REST route layer can map them to the right code.
-  if (patch.goal_objective !== undefined) {
-    const payload = {
-      sessionId: sid,
-      agentId,
-      objective: patch.goal_objective,
-      replace: false,
-    };
-    await core.rpc.createGoal(payload);
-    recordDispatch(store, sid, 'createGoal', payload, promptId, source);
-    // `goal_objective` is a one-shot creation trigger; do not keep it on
-    // the shadow.
-  }
-
-  // Goal lifecycle control. Each action maps to its own RPC; errors
-  // (GOAL_NOT_FOUND, GOAL_STATUS_INVALID, GOAL_NOT_RESUMABLE) propagate.
-  if (patch.goal_control !== undefined) {
-    const payload = { sessionId: sid, agentId };
-    switch (patch.goal_control) {
-      case 'pause':
-        await core.rpc.pauseGoal(payload);
-        recordDispatch(store, sid, 'pauseGoal', payload, promptId, source);
-        break;
-      case 'resume':
-        await core.rpc.resumeGoal(payload);
-        recordDispatch(store, sid, 'resumeGoal', payload, promptId, source);
-        break;
-      case 'cancel':
-        await core.rpc.cancelGoal(payload);
-        recordDispatch(store, sid, 'cancelGoal', payload, promptId, source);
-        break;
-    }
-    // `goal_control` is a one-shot action trigger; do not keep it on the
-    // shadow.
   }
 }
 

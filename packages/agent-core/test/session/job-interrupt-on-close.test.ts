@@ -1,127 +1,121 @@
-/**
- * Session close must record in-flight Conductor Jobs as `interrupted` before
- * turns are cancelled, so the next session's `/job resume` has something to
- * restore. The ordering is the contract: a job marked here has to survive the
- * worker cancellation that follows instead of landing as `failed`/`done`.
- */
+import { execPath } from 'node:process';
+import type { KaosProcess } from '@superliora/kaos';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { afterEach, describe, expect, it } from 'vitest';
-
-import type { Agent } from '../../src/agent';
+import { Agent } from '../../src/agent';
 import { SessionCloseLifecycle } from '../../src/session/lifecycle/session-close-lifecycle';
-import { __resetJobWorkerHandlesForTests } from '../../src/tools/builtin/job/job-handles';
+import type { SubagentCompletion } from '../../src/session/subagent/subagent-host';
+import { __resetJobWorkerHandlesForTests, getJobWorkerHandle, type JobWorkerHost } from '../../src/tools/builtin/job/job-handles';
 import { createJob, getJob, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import { launchJobWorker } from '../../src/tools/builtin/job/job-worker';
 import type { ToolStore } from '../../src/tools/store';
-
-function memoryStore(): ToolStore {
-  const data: Record<string, unknown> = {};
-  return {
-    get(key) {
-      return data[key] as never;
-    },
-    set(key, value) {
-      data[key] = value;
-    },
-  };
-}
-
-function fakeAgent(type: 'main' | 'sub', store: ToolStore): Agent {
-  return {
-    type,
-    subagentHost: { spawn: async () => ({}) },
-    turn: { hasActiveTurn: false, prompt: () => null },
-    tools: { getStore: () => store },
-  } as unknown as Agent;
-}
-
-function lifecycleFor(agents: readonly Agent[]): SessionCloseLifecycle {
-  return new SessionCloseLifecycle({
-    log: { debug() {}, info() {}, warn() {}, error() {} } as never,
-    agents: new Map(),
-    readyAgents: () => agents,
-    background: undefined,
-  });
-}
-
-function runningJob(store: ToolStore, title: string) {
-  const job = createJob(store, { title, kind: 'implement' });
-  const running = patchJob(store, job.id, {
-    status: 'running',
-    worktreePath: `/tmp/close/${job.id}`,
-  });
-  if (!running) throw new Error('failed to promote job to running');
-  return running;
-}
-
-async function drainMicrotasks(rounds = 4): Promise<void> {
-  for (let i = 0; i < rounds; i += 1) {
-    await Promise.resolve();
-  }
-}
+import { testKaos } from '../fixtures/test-kaos';
 
 afterEach(() => {
   __resetJobWorkerHandlesForTests();
 });
+function fixture(types: readonly ('main' | 'sub')[]) {
+  const ready = types.map((type) => new Agent({ type, kaos: testKaos }));
+  const lifecycle = new SessionCloseLifecycle({
+    log: ready[0]!.log,
+    agents: new Map(ready.map((agent, index) => [String(index), agent])),
+    readyAgents: () => ready,
+  });
+  return { ready, lifecycle };
+}
 
-describe('interruptJobsOnClose', () => {
-  it('marks running jobs interrupted and leaves queued jobs schedulable', () => {
-    const store = memoryStore();
+function runningJob(store: ToolStore, title: string) {
+  const job = createJob(store, { title, kind: 'implement' });
+  const running = patchJob(store, job.id, { status: 'running' });
+  if (running === undefined) throw new Error('Failed to promote job to running');
+  return running;
+}
+
+describe('Session Job interruption', () => {
+  it('marks unowned running jobs interrupted while preserving queued jobs', async () => {
+    const { ready: [main], lifecycle } = fixture(['main']);
+    const store = main!.tools.getStore();
     const running = runningJob(store, 'in flight');
     const queued = createJob(store, { title: 'waiting', kind: 'implement' });
-
-    lifecycleFor([fakeAgent('main', store)]).interruptJobsOnClose();
-
+    await lifecycle.interruptJobsOnClose();
     expect(getJob(store, running.id)?.status).toBe('interrupted');
     expect(getJob(store, queued.id)?.status).toBe('queued');
   });
 
-  it('reads the ledger from the main lane only', () => {
-    const mainStore = memoryStore();
-    const subStore = memoryStore();
+  it('interrupts only the main lane ledger', async () => {
+    const { ready: [sub, main], lifecycle } = fixture(['sub', 'main']);
+    const mainStore = main!.tools.getStore();
+    const subStore = sub!.tools.getStore();
     const onMain = runningJob(mainStore, 'main lane job');
     const onSub = runningJob(subStore, 'sub lane job');
-
-    lifecycleFor([
-      fakeAgent('sub', subStore),
-      fakeAgent('main', mainStore),
-    ]).interruptJobsOnClose();
-
+    await lifecycle.interruptJobsOnClose();
     expect(getJob(mainStore, onMain.id)?.status).toBe('interrupted');
     expect(getJob(subStore, onSub.id)?.status).toBe('running');
   });
 
-  it('survives the worker cancellation that follows it', async () => {
-    // This is why the call sits before cancelActiveTurnsOnClose: the worker
-    // completion callback keeps an already-terminal state, so the ledger must
-    // say `interrupted` before the turn cancel resolves the worker.
-    const store = memoryStore();
+  it('joins a native worker before publishing interrupted even if completion arrives after abort', async () => {
+    const { ready: [main], lifecycle } = fixture(['main']);
+    const store = main!.tools.getStore();
     const job = runningJob(store, 'cancelled mid-flight');
-    const agent = fakeAgent('main', store);
-
-    let settleWorker!: (value: { result: string }) => void;
-    const completion = new Promise<{ result: string }>((resolve) => {
-      settleWorker = resolve;
-    });
-    const launched = await launchJobWorker({
-      store,
-      agent,
-      job,
-      spawnOne: (async () => ({
-        agentId: 'agent_close_1',
-        profileName: 'coder',
-        resumed: false,
-        completion,
-      })) as never,
-    });
-    expect(launched.ok).toBe(true);
-
-    lifecycleFor([agent]).interruptJobsOnClose();
-    expect(getJob(store, job.id)?.status).toBe('interrupted');
-
-    settleWorker({ result: 'worker finished after close' });
-    await drainMicrotasks();
-    await drainMicrotasks();
-    expect(getJob(store, job.id)?.status).toBe('interrupted');
+    const worker = Promise.withResolvers<SubagentCompletion>();
+    const aborted = Promise.withResolvers<void>();
+    const allowCleanup = Promise.withResolvers<void>();
+    let proc: KaosProcess | undefined;
+    const host: JobWorkerHost = {
+      spawn: async (options) => {
+        const owned = await main!.kaos.exec(execPath, '-e', 'process.stdin.resume()');
+        proc = owned;
+        options.signal.addEventListener('abort', () => aborted.resolve(), { once: true });
+        return {
+          agentId: 'worker-close', profileName: 'agent', resumed: false,
+          completion: worker.promise,
+          get resourcesSettled() { return owned.resourcesSettled; },
+        };
+      },
+      resume: async () => { throw new Error('Unexpected resume'); },
+      steerChild: () => false,
+      stopAndJoin: vi.fn(async () => {
+        await allowCleanup.promise;
+        if (proc === undefined) throw new Error('Worker process was not spawned');
+        await proc.kill('SIGTERM');
+        await proc.wait();
+        await proc.dispose();
+        worker.resolve({
+          status: 'completed', result: 'worker finished after close', filesChanged: [],
+          context: { agentId: 'worker-close', contextTokens: 0 },
+        });
+        return true;
+      }),
+    };
+    let closing: Promise<void> | undefined;
+    try {
+      const launched = await launchJobWorker({ store, agent: main!, workerHost: host, job });
+      expect(launched.ok).toBe(true);
+      let interrupted = false;
+      closing = lifecycle.interruptJobsOnClose();
+      void closing.then(() => { interrupted = true; }, () => { interrupted = true; });
+      await aborted.promise;
+      expect(interrupted).toBe(false);
+      expect(getJob(store, job.id)?.status).toBe('running');
+      expect(proc).toBeDefined();
+      expect(proc!.resourcesSettled).not.toBe(true);
+      expect(proc!.exitCode).toBeNull();
+      expect(proc!.stdin.closed).toBe(false);
+      expect(getJobWorkerHandle(job.id)?.executionFinished).toBe(false);
+      expect(getJobWorkerHandle(job.id)?.resourcesSettled?.()).not.toBe(true);
+      allowCleanup.resolve();
+      await closing;
+      expect(host.stopAndJoin).toHaveBeenCalledOnce();
+      expect(proc?.resourcesSettled).toBe(true);
+      expect(await proc!.wait()).toBeNull();
+      expect(proc!.stdin.closed).toBe(true);
+      expect(proc!.stdout.closed).toBe(true);
+      expect(proc!.stderr.closed).toBe(true);
+      expect(getJobWorkerHandle(job.id)).toBeUndefined();
+      expect(getJob(store, job.id)?.status).toBe('interrupted');
+    } finally {
+      allowCleanup.resolve();
+      await (closing ?? lifecycle.interruptJobsOnClose());
+    }
   });
 });

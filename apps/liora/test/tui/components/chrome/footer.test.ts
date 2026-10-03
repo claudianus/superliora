@@ -31,12 +31,9 @@ const appState: AppState = {
   contextTokens: 0,
   maxContextTokens: 0,
   isCompacting: false,
-  isBackgroundCompacting: false,
   isReplaying: false,
   streamingPhase: 'idle',
   streamingStartTime: 0,
-  planMode: false,
-  askMode: false,
   inputMode: 'prompt',
   theme: 'dark',
   editorCommand: null,
@@ -44,7 +41,6 @@ const appState: AppState = {
   upgrade: { autoInstall: true },
   availableModels: {},
   availableProviders: {},
-  mcpServersSummary: null,
 };
 
 /** Pick a rotation seed where consecutive 10s slots show different tip text. Returns previous seed. */
@@ -70,16 +66,6 @@ describe('FooterComponent', () => {
 
   afterEach(() => {
     chalk.level = previousChalkLevel;
-  });
-
-  it('renders the premium badge when premium quality mode is on', () => {
-    const footer = new FooterComponent({
-      ...appState,
-      premiumQualityMode: true,
-      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
-    });
-    const rendered = footer.render(120).join('\n');
-    expect(rendered).toContain('Premium');
   });
 
   it('does not surface transcript density on the status bar', () => {
@@ -108,7 +94,7 @@ describe('FooterComponent', () => {
     expect(rendered).toContain('kimi-k2');
   });
 
-  it('does not surface a completion-role badge (ghost complete is already visible in-editor)', () => {
+  it('expires an old provider failover badge without changing the session model', () => {
     const footer = new FooterComponent({
       ...appState,
       model: 'kimi-k2',
@@ -127,17 +113,17 @@ describe('FooterComponent', () => {
         } as AppState['availableModels'][string],
       },
       lastModelRouteNotice: {
-        kind: 'selection',
+        kind: 'failover',
         fromAlias: 'kimi-k2',
         toAlias: 'turbo',
-        reason: 'completion:inline',
-        atMs: Date.now(),
+        reason: 'provider-failover',
+        atMs: Date.now() - 46_000,
       },
       appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
     });
 
     const rendered = footer.render(160).join('\n');
-    expect(rendered).not.toMatch(/Completing with|complete /);
+    expect(rendered).not.toMatch(/Failover|failover/);
     expect(rendered).toContain('Kimi K2');
     expect(rendered).not.toContain('Kimi Turbo');
   });
@@ -231,62 +217,6 @@ describe('FooterComponent', () => {
     }
   });
 
-  it('suggests media keys in the next-action line when no image/video key is set', () => {
-    const previous = {
-      OPENAI_API_KEY: process.env['OPENAI_API_KEY'],
-      GOOGLE_API_KEY: process.env['GOOGLE_API_KEY'],
-      GEMINI_API_KEY: process.env['GEMINI_API_KEY'],
-    };
-    delete process.env['OPENAI_API_KEY'];
-    delete process.env['GOOGLE_API_KEY'];
-    delete process.env['GEMINI_API_KEY'];
-    try {
-      const footer = new FooterComponent(appState);
-      const [, line2 = ''] = footer.render(160);
-      expect(line2).toMatch(/OPENAI_API_KEY|GOOGLE_API_KEY|image\/video|\/status/i);
-    } finally {
-      for (const [key, value] of Object.entries(previous)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
-    }
-  });
-
-  it('keeps the default next-action when media keys are already present', () => {
-    const previous = {
-      OPENAI_API_KEY: process.env['OPENAI_API_KEY'],
-      GOOGLE_API_KEY: process.env['GOOGLE_API_KEY'],
-      GEMINI_API_KEY: process.env['GEMINI_API_KEY'],
-    };
-    process.env['OPENAI_API_KEY'] = 'test-key';
-    delete process.env['GOOGLE_API_KEY'];
-    delete process.env['GEMINI_API_KEY'];
-    try {
-      const footer = new FooterComponent(appState);
-      const [, line2 = ''] = footer.render(160);
-      // Only assert the next-action line — rotating tips may mention media keys.
-      expect(line2).toMatch(/Shift-Tab switches Build\/Ask|\/plan to plan first/i);
-      expect(line2).not.toMatch(/OPENAI_API_KEY or GOOGLE_API_KEY for image\/video/);
-    } finally {
-      for (const [key, value] of Object.entries(previous)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
-    }
-  });
-
-  it('suggests /compact once usage reaches the soft reclaim threshold', () => {
-    const previous = process.env['OPENAI_API_KEY'];
-    process.env['OPENAI_API_KEY'] = 'test-key';
-    try {
-      const footer = new FooterComponent({ ...appState, contextUsage: 0.70 });
-      const [, line2 = ''] = footer.render(160);
-      expect(line2).toMatch(/\/compact before long work/i);
-    } finally {
-      if (previous === undefined) delete process.env['OPENAI_API_KEY'];
-      else process.env['OPENAI_API_KEY'] = previous;
-    }
-  });
 
   it('shows Approved dopamine badge after permission approval', () => {
     const footer = new FooterComponent({

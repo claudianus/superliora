@@ -10,14 +10,14 @@ export function promptKey(sessionId: string, agentId: string): string {
 export const DISPATCH_LOG_CAP = 100;
 
 /**
- * Per-session "active prompt" state. Cleared on completion/abort.
+ * Per-session prompt state; the last terminal state remains until replacement.
  *
  * `turnId === null` when the prompt has been submitted but the first
  * `turn.started` hasn't arrived yet (the RPC pair queues calls before
  * `ready()` so the gap is small but non-zero in practice).
  *
- * `terminal === true` is set when `turn.ended` arrives — we keep the record
- * around so abort-on-already-completed surfaces as 40903, not 40402.
+ * Terminal flags are set only when the turn settles; retained state makes
+ * repeated cancellation idempotent until the next prompt replaces it.
  */
 export interface PromptState {
   agentId: string;
@@ -28,8 +28,9 @@ export interface PromptState {
   turnId: number | null;
   /** Set on `turn.ended` for the top-level turn (reason='completed'|'failed'|'filtered'). */
   completed: boolean;
-  /** Set on `turn.ended` with reason='cancelled' or after a successful abort RPC. */
+  /** Set only after the top-level turn settles with reason='cancelled'. */
   aborted: boolean;
+  cancelRequested?: boolean;
 }
 
 export function toPromptItem(state: PromptState, status: 'running' | 'queued'): PromptItem {

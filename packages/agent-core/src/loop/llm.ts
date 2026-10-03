@@ -99,6 +99,5 @@ export interface LLM {
   readonly systemPrompt: string;
   readonly modelName: string;
   readonly capability?: ModelCapability | undefined;
-  isRetryableError?(error: unknown): boolean;
   chat(params: LLMChatParams): Promise<LLMChatResponse>;
 }

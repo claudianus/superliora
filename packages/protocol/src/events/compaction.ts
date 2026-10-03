@@ -11,19 +11,12 @@ export interface CompactionResult {
 
 export interface CompactionStartedEvent {
   readonly type: 'compaction.started';
-  /**
-   * `overflow` = reactive recovery after CONTEXT_OVERFLOW (Loop25b).
-   * `agent` = the model's own Compact tool call.
-   */
-  readonly trigger: 'manual' | 'auto' | 'overflow' | 'agent';
+  /** Operator request or an explicit SessionControl compact operation. */
+  readonly trigger: 'manual' | 'agent';
   readonly instruction?: string;
-  /**
-   * `background` means full compaction is summarizing while the turn continues
-   * (async pre-rot). Omitted / `blocking` means the UI should treat the session
-   * as busy until completion.
-   */
-  readonly mode?: 'blocking' | 'background';
-  /** Effective summarizer model alias after cheap-model resolve (may equal main). */
+  /** Explicit compaction occupies the native session until settlement. */
+  readonly mode?: 'blocking';
+  /** Actual summarizer model alias. */
   readonly modelAlias?: string;
 }
 
@@ -99,11 +92,9 @@ export const compactionResultSchema = z.object({
 
 export const compactionStartedEventSchema = z.object({
   type: z.literal('compaction.started'),
-  // Loop25b: overflow recovery is distinct from threshold pre-rot auto.
-  // `agent` covers the model-initiated Compact tool.
-  trigger: z.enum(['manual', 'auto', 'overflow', 'agent']),
+  trigger: z.enum(['manual', 'agent']),
   instruction: z.string().optional(),
-  mode: z.enum(['blocking', 'background']).optional(),
+  mode: z.literal('blocking').optional(),
   modelAlias: z.string().optional(),
 }) satisfies z.ZodType<CompactionStartedEvent>;
 

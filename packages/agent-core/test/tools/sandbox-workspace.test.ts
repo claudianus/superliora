@@ -7,12 +7,7 @@ import {
   policyForSandboxProfile,
   resolvePathAccess,
   resolvePathAccessPath,
-  sandboxProfileToGuardMode,
 } from '../../src/tools/policies/path-access';
-import {
-  DEFAULT_SANDBOX_PROFILE,
-  resolveSandboxProfileFromSources,
-} from '../../src/config/sandbox-profile';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
 
 const WORKSPACE: WorkspaceConfig = {
@@ -21,11 +16,6 @@ const WORKSPACE: WorkspaceConfig = {
 };
 
 describe('sandbox profile mapping (unit-sandbox-workspace)', () => {
-  it('maps product profiles to guard modes', () => {
-    expect(sandboxProfileToGuardMode('off')).toBe('absolute-outside-allowed');
-    expect(sandboxProfileToGuardMode('workspace')).toBe('workspace');
-    expect(sandboxProfileToGuardMode('read-only')).toBe('read-only');
-  });
 
   it('workspace mode denies absolute write outside roots', () => {
     const policy = policyForSandboxProfile('workspace');
@@ -65,7 +55,7 @@ describe('sandbox profile mapping (unit-sandbox-workspace)', () => {
     ).toEqual({ path: '/extra/note.md', outsideWorkspace: false });
   });
 
-  it('workspace mode denies absolute read outside roots (Read/Grep/Glob path)', () => {
+  it('workspace mode denies absolute read and search outside roots', () => {
     const policy = policyForSandboxProfile('workspace');
     expect(() =>
       resolvePathAccess('/etc/hosts', '/workspace', WORKSPACE, {
@@ -147,33 +137,6 @@ describe('sandbox profile mapping (unit-sandbox-workspace)', () => {
     }
   });
 
-  it('resolveSandboxProfileFromSources defaults to off and honors priority', () => {
-    expect(resolveSandboxProfileFromSources({}).profile).toBe(DEFAULT_SANDBOX_PROFILE);
-    expect(resolveSandboxProfileFromSources({}).source).toBe('default');
-
-    expect(
-      resolveSandboxProfileFromSources({
-        userConfig: 'off',
-        localToml: 'workspace',
-      }).profile,
-    ).toBe('workspace');
-
-    expect(
-      resolveSandboxProfileFromSources({
-        cli: 'read-only',
-        env: { SUPERLIORA_SANDBOX: 'workspace' },
-        localToml: 'off',
-        userConfig: 'workspace',
-      }).profile,
-    ).toBe('read-only');
-
-    const badEnv = resolveSandboxProfileFromSources({
-      env: { SUPERLIORA_SANDBOX: 'nope' },
-      userConfig: 'workspace',
-    });
-    expect(badEnv.profile).toBe('workspace');
-    expect(badEnv.warning).toMatch(/SUPERLIORA_SANDBOX/);
-  });
 
   it('resolvePathAccessPath uses workspace.sandboxProfile when policy is omitted', () => {
     const kaos = {

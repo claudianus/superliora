@@ -73,6 +73,19 @@ describe('decideModelRouteSurface', () => {
     });
     expect(decision.kind).toBe('none');
   });
+  it('treats a configured auto alias as its actual underlying model', () => {
+    const decision = decideModelRouteSurface({
+      selection: {
+        modelAlias: 'grok-4.5',
+        providerName: 'xai',
+        providerModel: 'grok-4.5',
+      },
+      previous: null,
+      sessionModel: 'auto',
+      availableModels: { ...models, auto: models['grok-4.5']! },
+    });
+    expect(decision.kind).toBe('none');
+  });
 
   it('suppresses repeated same-route steps (main spam path)', () => {
     const selection = {

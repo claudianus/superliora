@@ -2,7 +2,7 @@
 /**
  * LOC budget for hand-written TypeScript.
  *
- * Thresholds (generated/catalog excluded):
+ * Thresholds (generated code excluded):
  *   >1500  fail (unless allowlisted)
  *   >1000  warn
  *
@@ -48,14 +48,12 @@ const ROOTS = [
 const IGNORED_DIR_NAMES = new Set([
   'dist',
   'node_modules',
-  'catalog',
   'generated',
   'coverage',
   '.tmp-api-extractor',
 ]);
 
 const IGNORED_FILE_NAMES = new Set([
-  'catalog-meta.ts',
   'bundled-external-themes.generated.ts',
 ]);
 
@@ -108,7 +106,7 @@ fails.sort((a, b) => b.lines - a.lines);
 warns.sort((a, b) => b.lines - a.lines);
 allowlisted.sort((a, b) => b.lines - a.lines);
 
-console.log(`LOC budget (warn>${WARN_AT}, fail>${FAIL_AT}; generated/catalog excluded)`);
+console.log(`LOC budget (warn>${WARN_AT}, fail>${FAIL_AT}; generated code excluded)`);
 
 if (fails.length === 0 && warns.length === 0 && allowlisted.length === 0) {
   console.log('All scanned files within budget.');

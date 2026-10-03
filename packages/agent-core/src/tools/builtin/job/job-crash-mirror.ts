@@ -1,7 +1,7 @@
 /**
  * Durable job-ledger crash mirror.
  *
- * Wire `tools.update_store` appends are async-buffered; a hard kill can lose
+ * Wire job.ledger appends are async-buffered; a hard kill can lose
  * the last ledger patch. This mirror writes `<agentHomedir>/job-ledger.crash.json`
  * (debounced) and can fsync synchronously on emergency flush paths so resume
  * can merge a fresher ledger than the wire replay.
@@ -129,7 +129,7 @@ export function mergeCrashMirrorIntoStore(store: ToolStore, agentDir?: string): 
   if (!changed) return false;
   writeJobLedger(store, {
     schemaVersion: 1,
-    jobs: [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    jobs: [...byId.values()].toSorted((a, b) => a.createdAt.localeCompare(b.createdAt)),
   });
   // Avoid re-writing the same mirror from this merge.
   return true;

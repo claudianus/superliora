@@ -1,5 +1,4 @@
 import type { AutocompleteItem, SlashCommand } from '#/tui/renderer';
-import type { FlagId } from '@superliora/sdk';
 
 export type SlashCommandAvailability = 'always' | 'idle-only';
 export type SlashCommandVisibility = 'primary' | 'advanced' | 'diagnostic' | 'hidden';
@@ -12,8 +11,6 @@ export interface LioraSlashCommand<Name extends string = string> extends SlashCo
   readonly priority?: number;
   readonly availability?: SlashCommandAvailability | ((args: string) => SlashCommandAvailability);
   readonly visibility?: SlashCommandVisibility;
-  /** When set, the command is hidden from Hub/autocomplete and blocked unless this flag is enabled. */
-  readonly experimentalFlag?: FlagId;
   /**
    * Generic argument autocompletion. `argumentPrefix` is the text typed after
    * `/<command> `; return suggestions or `null`. Declared as a plain function
@@ -30,4 +27,3 @@ export interface ParsedSlashInput {
 
 export type SlashCommandBusyReason = 'streaming' | 'compacting';
 
-export type SlashCommandInvalidReason = 'unknown';

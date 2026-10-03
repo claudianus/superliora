@@ -71,6 +71,8 @@ export interface ITerminalService {
   resize(sessionId: string, terminalId: string, cols: number, rows: number): Promise<void>;
 
   close(sessionId: string, terminalId: string): Promise<{ closed: true }>;
+
+  shutdown(): Promise<void>;
 }
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');

@@ -5,8 +5,6 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  SyncDescriptor,
-  getSingletonServiceDescriptors,
   type ApprovalRequest,
   type ApprovalResponse,
   type Event,
@@ -14,17 +12,15 @@ import {
   type QuestionResult,
 } from '../../src';
 import { Emitter } from '../../src/base/common/event';
-import { TestInstantiationService } from '../../src/di/test';
 
 import {
   BridgeClientAPI,
   CoreProcessService,
-  IApprovalService,
-  IEnvironmentService,
-  IEventService,
-  ILogService,
-  ICoreProcessService,
-  IQuestionService,
+  type IApprovalService,
+  type IEnvironmentService,
+  type IEventService,
+  type ILogService,
+  type IQuestionService,
 } from '../../src/services';
 
 class RecordingEventService implements IEventService {
@@ -132,7 +128,7 @@ function makeEnv(homeDir: string): IEnvironmentService {
 }
 
 describe('BridgeClientAPI', () => {
-  it('routes emitEvent / requestApproval / requestQuestion / toolCall to peer services', async () => {
+  it('routes native event, approval, question and credential interactions', async () => {
     const { eventService, approvalService, questionService, logService } = makePeers();
     const api = new BridgeClientAPI({ eventService, approvalService, questionService, logService });
 
@@ -147,9 +143,9 @@ describe('BridgeClientAPI', () => {
 
     const approvalReq = {
       toolCallId: 'tc-1',
-      toolName: 'shell.run',
+      toolName: 'Bash',
       action: 'execute',
-      display: { kind: 'generic', summary: 'do thing' } as ApprovalRequest['display'],
+      display: { kind: 'bash', command: 'printf native' } as ApprovalRequest['display'],
       sessionId: 'sess-1',
       agentId: 'main',
     };
@@ -166,35 +162,16 @@ describe('BridgeClientAPI', () => {
     expect(questionResp).toBeNull();
     expect(questionService.received).toHaveLength(1);
 
-    const toolResp = await api.toolCall({
-      toolCallId: 'tc-2',
-      args: {},
+    await expect(api.requestCredential({
+      id: 'credential-1',
+      title: 'Provider credential',
       sessionId: 'sess-1',
       agentId: 'main',
-    });
-    expect(toolResp.isError).toBe(true);
-    expect(toolResp.output).toMatch(/SDK custom tool calls are not supported/);
+    })).resolves.toBeNull();
   });
 });
 
 describe('CoreProcessService direct construction', () => {
-  it('constructs, exposes a callable rpc proxy, and ready() resolves', async () => {
-    const { eventService, approvalService, questionService, logService } = makePeers();
-    const core = new CoreProcessService(
-      {},
-      makeEnv(tmpHome),
-      eventService,
-      approvalService,
-      questionService,
-      logService,
-    );
-    try {
-      await expect(core.ready()).resolves.toBeUndefined();
-      expect(typeof core.rpc.getCoreInfo).toBe('function');
-    } finally {
-      core.dispose();
-    }
-  });
 
   it('rpc round-trip through createRPC reaches LioraCore (getCoreInfo smoke)', async () => {
     const { eventService, approvalService, questionService, logService } = makePeers();
@@ -212,7 +189,7 @@ describe('CoreProcessService direct construction', () => {
       expect(info).toHaveProperty('version');
       expect(typeof info.version).toBe('string');
     } finally {
-      core.dispose();
+      await core.shutdown();
     }
   });
 
@@ -231,74 +208,51 @@ describe('CoreProcessService direct construction', () => {
     core.dispose();
 
     await expect(core.rpc.getCoreInfo({})).rejects.toThrow(/disposed/);
+    const shutdown = core.shutdown();
+    expect(core.shutdown()).toBe(shutdown);
+    await shutdown;
   });
 
-  it('default-wires a resolveOAuthTokenProvider when caller omits one', () => {
-    const resolver = CoreProcessService._defaultOAuthTokenResolver(tmpHome, join(tmpHome, 'config.toml'));
-    expect(typeof resolver).toBe('function');
-    const tokenProvider = resolver('managed:kimi-code');
-    expect(tokenProvider).toBeDefined();
-    expect(typeof tokenProvider?.getAccessToken).toBe('function');
-  });
-
-  it('default-wires kimiRequestHeaders from identity when caller omits headers', () => {
-    const headers = CoreProcessService._defaultKimiRequestHeaders(
-      tmpHome,
-      { userAgentProduct: 'kimi-code-cli', version: '9.9.9' },
+  it('shutdown awaits a native shell command before releasing the adapter', async () => {
+    const peers = makePeers();
+    const core = new CoreProcessService(
+      {},
+      makeEnv(tmpHome),
+      peers.eventService,
+      peers.approvalService,
+      peers.questionService,
+      peers.logService,
     );
-    expect(headers).toBeDefined();
-    expect(headers!['User-Agent']).toMatch(/^kimi-code-cli\/9\.9\.9/);
-    expect(headers!['X-Msh-Platform']).toBe('kimi_code_cli');
-    expect(headers!['X-Msh-Version']).toBe('9.9.9');
-    expect(headers!['X-Msh-Device-Id']).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-    );
-  });
-
-  it('returns undefined headers when no identity is provided (back-compat)', () => {
-    const headers = CoreProcessService._defaultKimiRequestHeaders(tmpHome);
-    expect(headers).toBeUndefined();
-  });
-
-  it('caller-supplied kimiRequestHeaders win over identity-derived defaults', () => {
-    const explicit = { 'User-Agent': 'override/1.0' };
-    const picked =
-      explicit ?? CoreProcessService._defaultKimiRequestHeaders(
-        tmpHome,
-        { userAgentProduct: 'kimi-code-cli', version: '9.9.9' },
-      );
-    expect(picked).toBe(explicit);
-  });
-});
-
-describe('singleton registry composition', () => {
-  it('returns a CoreProcessService descriptor that composes with the DI container', async () => {
-    const { eventService, approvalService, questionService } = makePeers();
-    const moduleEntries = getSingletonServiceDescriptors();
-    expect(moduleEntries.length).toBeGreaterThanOrEqual(1);
-    expect(moduleEntries[0]![0]).toBe(ICoreProcessService);
-    expect(moduleEntries[0]![1]).toBeInstanceOf(SyncDescriptor);
-
-    const ix = new TestInstantiationService();
-    for (const [id, desc] of moduleEntries) {
-      ix.set(id, desc);
-    }
-    ix.stub(IEventService, eventService);
-    ix.stub(IApprovalService, approvalService);
-    ix.stub(IQuestionService, questionService);
-    ix.stub(IEnvironmentService, makeEnv(tmpHome));
-    ix.stub(ILogService, new NoopLogService());
-
-    try {
-      const core = ix.createInstance(CoreProcessService, {});
-      try {
-        await core.ready();
-        expect(typeof core.rpc.getCoreInfo).toBe('function');
-      } finally {
-        core.dispose();
+    const started = Promise.withResolvers<void>();
+    const subscription = peers.eventService.onDidPublish((event) => {
+      if (event.type === 'shell.output' && event.commandId === 'shutdown-command') {
+        started.resolve();
       }
+    });
+    try {
+      await core.ready();
+      const session = await core.rpc.createSession({ workDir: tmpHome });
+      let commandSettled = false;
+      const command = core.rpc.runShellCommand({
+        sessionId: session.id,
+        agentId: 'main',
+        commandId: 'shutdown-command',
+        command: 'printf transport-ready; exec sleep 30',
+      }).finally(() => {
+        commandSettled = true;
+      });
+      await started.promise;
+      expect(commandSettled).toBe(false);
+      core.dispose();
+      await core.shutdown();
+      expect(commandSettled).toBe(true);
+      await command;
+      await expect(core.rpc.getCoreInfo({})).rejects.toThrow(/disposed/);
     } finally {
-      ix.dispose();
+      subscription.dispose();
+      await core.shutdown();
     }
   });
+
 });
+

@@ -34,8 +34,8 @@ function createAgent(
   const component = new ToolCallComponent(
     {
       id,
-      name: 'Agent',
-      args: { description },
+      name: 'SessionControl',
+      args: { operation: 'spawn', description, prompt: description },
     },
     undefined,
     ui,
@@ -72,8 +72,8 @@ describe('AgentGroupComponent', () => {
     startAgent(running, 'call_agent_1', 'explore');
     running.appendSubToolCall({
       id: 'sub_call_agent_1:read',
-      name: 'Read',
-      args: { path: 'src/a.ts' },
+      name: 'Bash',
+      args: { command: 'cat src/a.ts' },
     });
 
     group.attach('call_agent_1', running);
@@ -82,7 +82,7 @@ describe('AgentGroupComponent', () => {
     const output = renderText(group);
     expect(output).toContain('Running 2 agents (1 running, 1 waiting) · 0s');
     expect(output).toContain('explore · inspect project · 0 tools · 0s · Running');
-    expect(output).toContain('Using Read (src/a.ts)');
+    expect(output).toContain('Using Bash (cat src/a.ts)');
     expect(output).toContain('coder · write tests · 0 tools · 0s · Waiting');
     expect(output).toContain('Waiting to start…');
     expect(output).not.toContain('Initializing…');
@@ -111,6 +111,14 @@ describe('AgentGroupComponent', () => {
 
     b.markBackgrounded();
     expect(renderText(group)).not.toContain('Press Ctrl+B to background this task · /jobs bg to inspect');
+    expect(renderText(group)).not.toContain('agents finished');
+    expect(a.getSubagentSnapshot().phase).toBe('backgrounded');
+    expect(b.getSubagentSnapshot().phase).toBe('backgrounded');
+
+    a.setBackgroundTaskTerminalStatus('completed');
+    expect(renderText(group)).not.toContain('agents finished');
+    b.setBackgroundTaskTerminalStatus('completed');
+    expect(renderText(group)).toContain('agents finished');
 
     group.dispose();
     a.dispose();
@@ -224,7 +232,7 @@ describe('AgentGroupComponent', () => {
     a.markBackgrounded();
     a.setResult({
       tool_call_id: 'call_agent_1',
-      output: 'agent_id: sub_call_agent_1\nactual_subagent_type: explore\n',
+      output: JSON.stringify({ agentId: 'sub_call_agent_1', taskId: 'task_1', status: 'running' }),
       is_error: false,
     });
 

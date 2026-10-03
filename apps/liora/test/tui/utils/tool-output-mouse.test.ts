@@ -23,15 +23,12 @@ function fakeInitialAppState(): AppState {
     additionalDirs: [],
     sessionId: 'sess-tool-output',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     inputMode: 'prompt',
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
@@ -43,14 +40,13 @@ function fakeInitialAppState(): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
-    mcpServersSummary: null,
   };
 }
 
 function createState(): TUIState {
   const state = createTUIState({
     initialAppState: fakeInitialAppState(),
-    startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    startup: { continueLast: false, yolo: false, auto: false },
   });
   Object.defineProperty(state.terminal, 'columns', {
     configurable: true,

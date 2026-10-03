@@ -34,7 +34,6 @@ import { applyDebugCliFlag, resolveDebugLogPath } from './utils/debug-session';
 import { runPrompt } from './cli/run-prompt';
 import { runShell } from './cli/run-shell';
 import { formatStartupError } from './cli/startup-error';
-import { runPluginNodeEntry } from './cli/sub/plugin-run-node';
 import { handleUpgrade } from './cli/sub/upgrade';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './cli/telemetry';
 import { runUpdatePreflight } from './cli/update/preflight';
@@ -107,12 +106,10 @@ export async function handleMainCommand(
       : undefined;
 
   if (validated.uiMode === 'print') {
-    applyCliProfileOverride(validated.options.profile);
     await runPrompt(validated.options, version);
     return { headlessCompleted: true };
   }
 
-  applyCliProfileOverride(validated.options.profile);
   await runShell(validated.options, version, updateNotice, updateLifecycle);
   return { headlessCompleted: false };
 }
@@ -225,13 +222,6 @@ async function bootstrapCli(argv: readonly string[]): Promise<void> {
           process.exit(1);
         });
     },
-    (entry, args) => {
-      void runPluginNodeEntry(entry, args).catch(async (error: unknown) => {
-        await logStartupFailure('run plugin node entry', error);
-        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-        process.exit(1);
-      });
-    },
     (opts) => {
       void handleUpgradeCommand(version, opts).catch(async (error: unknown) => {
         await logStartupFailure('upgrade', error);
@@ -249,11 +239,6 @@ async function bootstrapCli(argv: readonly string[]): Promise<void> {
 
 main();
 
-function applyCliProfileOverride(profile: string | undefined): void {
-  const trimmed = profile?.trim();
-  if (trimmed === undefined || trimmed.length === 0) return;
-  process.env['SUPERLIORA_PROFILE'] = trimmed;
-}
 
 /**
  * Paint a dim brand line before the update preflight so the terminal is never

@@ -33,8 +33,6 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Keyboard shortcuts/);
     expect(out).toMatch(process.platform === 'darwin' ? /Cmd-K/ : /Ctrl-K/);
     expect(out).toMatch(/Open the Command Hub menu/);
-    expect(out).toMatch(/Shift-Tab/);
-    expect(out).toMatch(/Switch Build \/ Ask mode/);
     // Streaming/idle chords follow the OS primary modifier (Cmd on darwin).
     const primary = process.platform === 'darwin' ? 'Cmd' : 'Ctrl';
     expect(out).toMatch(new RegExp(`${primary}-S`));
@@ -49,55 +47,16 @@ describe('HelpPanelComponent', () => {
     expect(out).not.toMatch(/Ctrl-Y/);
     expect(out).toMatch(/Alt\+J/);
     expect(out).toMatch(/Alt\+I/);
-    expect(out).toMatch(/Alt\+B/);
     expect(out).toMatch(/Slash commands/);
     expect(out).toMatch(/\/exit \(\/quit, \/q\)/);
     expect(out).toMatch(/Exit/);
   });
 
-  it('preserves provided command order while keeping skill commands last', () => {
-    const panel = new HelpPanelComponent({
-      commands: [
-        cmd('zebra', 'Z'),
-        cmd('skill:bravo', 'B'),
-        cmd('alpha', 'A'),
-        cmd('mcp-config', 'M'),
-      ],
-      maxVisible: 200,
-      onClose: () => {},
-    });
-    const out = strip(panel.render(120).join('\n'));
-    const alphaIdx = out.indexOf('/alpha');
-    const mcpConfigIdx = out.indexOf('/mcp-config');
-    const zebraIdx = out.indexOf('/zebra');
-    const skillBravoIdx = out.indexOf('/skill:bravo');
-    expect(zebraIdx).toBeGreaterThan(-1);
-    expect(zebraIdx).toBeLessThan(alphaIdx);
-    expect(alphaIdx).toBeLessThan(mcpConfigIdx);
-    expect(zebraIdx).toBeLessThan(skillBravoIdx);
-    expect(mcpConfigIdx).toBeLessThan(skillBravoIdx);
-  });
 
-  it('floats plan, goal, then jobs to the front of the command list', () => {
-    const panel = new HelpPanelComponent({
-      commands: [cmd('zebra', 'Z'), cmd('jobs', 'J'), cmd('goal', 'G'), cmd('plan', 'P')],
-      maxVisible: 200,
-      onClose: () => {},
-    });
-    const out = strip(panel.render(120).join('\n'));
-    const planIdx = out.indexOf('/plan');
-    const goalIdx = out.indexOf('/goal');
-    const jobsIdx = out.indexOf('/jobs');
-    const zebraIdx = out.indexOf('/zebra');
-    expect(planIdx).toBeGreaterThan(-1);
-    expect(planIdx).toBeLessThan(goalIdx);
-    expect(goalIdx).toBeLessThan(jobsIdx);
-    expect(jobsIdx).toBeLessThan(zebraIdx);
-  });
 
   it('renders the advanced intro and section title when provided', () => {
     const panel = new HelpPanelComponent({
-      commands: [cmd('plan', 'Steer Plan mode')],
+      commands: [cmd('compact', 'Compact context')],
       intro: ADVANCED_HELP_INTRO,
       shortcuts: advancedKeyboardShortcuts(),
       commandSectionTitle: 'Advanced controls',
@@ -107,24 +66,31 @@ describe('HelpPanelComponent', () => {
     const out = strip(panel.render(120).join('\n'));
     expect(out).toContain(ADVANCED_HELP_INTRO.split('\n')[0]!);
     expect(out).toMatch(/Advanced controls/);
-    expect(out).toMatch(/\/plan/);
+    expect(out).toMatch(/\/compact/);
     expect(out).not.toMatch(/Ctrl-Shift-Tab/);
   });
 
-  it('keeps plan and goal reachable in the windowed advanced help panel', () => {
+  it('keeps native commands reachable in the windowed advanced help panel', () => {
+    const commands = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced');
+    expect(commands.length).toBeGreaterThan(0);
     const advancedPanel = new HelpPanelComponent({
-      commands: slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced'),
+      commands,
       intro: ADVANCED_HELP_INTRO,
       shortcuts: advancedKeyboardShortcuts(),
       commandSectionTitle: 'Advanced controls',
-      // Extra keymap rows (Alt+J/I/B) push the command section down; keep a
-      // tall window so Advanced controls stays on the first page in tests.
-      maxVisible: 40,
+      maxVisible: 5,
       onClose: () => {},
     });
-    const advancedOut = strip(advancedPanel.render(120).join('\n'));
-    expect(advancedOut).toMatch(/\/plan/);
-    expect(advancedOut).toMatch(/Advanced controls/);
+    let output = strip(advancedPanel.render(120).join('\n'));
+    const scrollSteps = commands.length + KEYMAP_ALL.length + ADVANCED_HELP_INTRO.split('\n').length + 4;
+    for (let step = 0; step < scrollSteps; step++) {
+      advancedPanel.handleInput('\u001B[B');
+      output += '\n' + strip(advancedPanel.render(120).join('\n'));
+    }
+    expect(output).toContain('Advanced controls');
+    for (const command of commands) {
+      expect(output).toContain(`/${command.name}`);
+    }
   });
 
   it('shares the same shortcut rows as KEYMAP_ALL', () => {

@@ -4,12 +4,6 @@
 
 import { log } from '#/logging/logger';
 
-import type { Agent } from '../agent';
-import {
-  configWithoutRoleModelOverrides,
-  planSmartLoopRoleRoutingLive,
-  type SmartLoopProbeProgress,
-} from '../agent/routing';
 import {
   loadRuntimeConfigSafe,
   mergeConfigPatch,
@@ -17,18 +11,12 @@ import {
   writeConfigFile,
   type LioraConfig,
 } from '../config';
-import type { FlagResolver } from '../flags';
-import {
-  ProviderManager,
-  type OAuthTokenProviderResolver,
-} from '../session/provider/provider-manager';
 import { applyDeleteConfigFields, removeProviderFromConfig, validateDeleteConfigFields } from './config-ops';
 import type {
   ConfigDiagnostics,
   DeleteConfigFieldsPayload,
   EmptyPayload,
   GetKimiConfigPayload,
-  PlanSmartLoopRoleRoutingResult,
   RemoveKimiProviderPayload,
   SetKimiConfigPayload,
 } from './core-api';
@@ -37,14 +25,8 @@ export interface CoreConfigMethodsContext {
   readonly configPath: string;
   config: LioraConfig;
   configWarnings: readonly string[];
-  readonly experimentalFlags: FlagResolver;
 }
 
-/** Probe host for Settings Smart auto (OAuth-aware ProviderManager). */
-export interface PlanSmartLoopRoleRoutingContext extends CoreConfigMethodsContext {
-  readonly kimiRequestHeaders?: Record<string, string> | undefined;
-  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
-}
 
 export function getKimiConfig(
   context: CoreConfigMethodsContext,
@@ -94,40 +76,6 @@ export async function removeKimiProvider(
   return reloadRuntimeConfig(context);
 }
 
-export type PlanSmartLoopRoleRoutingOptions = {
-  readonly signal?: AbortSignal;
-  readonly onProgress?: (progress: SmartLoopProbeProgress) => void;
-};
-
-/**
- * Settings Smart auto routing: live-probe each role chain and return pins.
- * Does not mutate config — caller clears/writes via deleteConfigFields + setConfig.
- * `onProgress` is in-process only (not serializable over RPC).
- */
-export async function planSmartLoopRoleRouting(
-  context: PlanSmartLoopRoleRoutingContext,
-  _input?: EmptyPayload,
-  options?: PlanSmartLoopRoleRoutingOptions,
-): Promise<PlanSmartLoopRoleRoutingResult> {
-  const rankingConfig = configWithoutRoleModelOverrides(context.config);
-  const modelProvider = new ProviderManager({
-    config: () => context.config,
-    kimiRequestHeaders: context.kimiRequestHeaders,
-    resolveOAuthTokenProvider: context.resolveOAuthTokenProvider,
-  });
-  const agent = {
-    runtimeConfig: rankingConfig,
-    kimiConfig: rankingConfig,
-    modelProvider,
-    log,
-    config: {
-      modelAlias: 'auto',
-      effectiveModelAlias: undefined,
-      setSmartRouteAlias: () => {},
-    },
-  } as unknown as Agent;
-  return planSmartLoopRoleRoutingLive(agent, rankingConfig, options);
-}
 
 export function readConfigForWrite(context: CoreConfigMethodsContext): LioraConfig {
   return readConfigFileForUpdate(context.configPath);
@@ -157,6 +105,5 @@ export function setRuntimeConfig(
   config: LioraConfig,
 ): LioraConfig {
   context.config = config;
-  context.experimentalFlags.setConfigOverrides(config.experimental);
   return context.config;
 }

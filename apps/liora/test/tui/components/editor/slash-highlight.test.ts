@@ -26,22 +26,12 @@ describe('highlightFirstSlashToken', () => {
     expectHighlighted(out!, '/help');
   });
 
-  it('colours next in /goal next', () => {
-    const out = highlightFirstSlashToken('/goal next Ship feature X');
+  it('keeps operator job arguments unchanged while highlighting the command', () => {
+    const out = highlightFirstSlashToken('/jobs bg inspect');
     expect(out).toBeDefined();
-    expect(strip(out!)).toBe('/goal next Ship feature X');
-    expectHighlighted(out!, '/goal');
-    expectHighlighted(out!, 'next');
-    expect(out!).toContain(' Ship feature X');
-  });
-
-  it('colours manage in /goal next manage', () => {
-    const out = highlightFirstSlashToken('/goal next manage');
-    expect(out).toBeDefined();
-    expect(strip(out!)).toBe('/goal next manage');
-    expectHighlighted(out!, '/goal');
-    expectHighlighted(out!, 'next');
-    expectHighlighted(out!, 'manage');
+    expect(strip(out!)).toBe('/jobs bg inspect');
+    expectHighlighted(out!, '/jobs');
+    expect(out!).toContain(' bg inspect');
   });
 
   it('returns undefined when the line has no slash', () => {

@@ -40,7 +40,7 @@ export const CustomThemeSchema = z.object({
 });
 
 export type CustomThemeDefinition = z.infer<typeof CustomThemeSchema>;
-export type ThemeSource = 'bundled' | 'bundled-external' | 'custom' | 'plugin';
+export type ThemeSource = 'bundled' | 'bundled-external' | 'custom';
 
 export interface ThemeListEntry {
   readonly name: string;
@@ -51,24 +51,6 @@ export interface ThemeListEntry {
   readonly overridesBundled?: boolean;
 }
 
-export interface PluginThemeCatalogEntry {
-  readonly name: string;
-  readonly displayName: string;
-  readonly pluginId: string;
-  readonly base: ResolvedTheme;
-  readonly palette: ColorPalette;
-}
-
-let pluginThemeCatalog: readonly PluginThemeCatalogEntry[] = [];
-
-/** Replace the in-memory catalog of enabled-plugin themes (TUI host). */
-export function setPluginThemeCatalog(entries: readonly PluginThemeCatalogEntry[]): void {
-  pluginThemeCatalog = [...entries];
-}
-
-export function getPluginThemeCatalog(): readonly PluginThemeCatalogEntry[] {
-  return pluginThemeCatalog;
-}
 
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -138,24 +120,17 @@ export async function loadCustomTheme(name: string): Promise<Partial<ColorPalett
 }
 
 export async function loadCustomThemeMerged(name: string): Promise<ColorPalette | null> {
-  const plugin = readPluginTheme(name);
-  if (plugin !== null) return plugin.palette;
   const parsed = (await readCustomTheme(name)) ?? readBundledTheme(name);
   if (parsed === null) return null;
   return { ...getBuiltInPalette(parsed.base), ...parsed.colors };
 }
 
 export function loadCustomThemeMergedSync(name: string): ColorPalette | null {
-  const plugin = readPluginTheme(name);
-  if (plugin !== null) return plugin.palette;
   const parsed = readCustomThemeSync(name) ?? readBundledTheme(name);
   if (parsed === null) return null;
   return { ...getBuiltInPalette(parsed.base), ...parsed.colors };
 }
 
-function readPluginTheme(name: string): PluginThemeCatalogEntry | null {
-  return pluginThemeCatalog.find((entry) => entry.name === name) ?? null;
-}
 
 function toThemeNames(files: readonly string[]): string[] {
   return files
@@ -198,27 +173,16 @@ function customThemeEntries(names: readonly string[]): ThemeListEntry[] {
   }));
 }
 
-function pluginThemeEntries(): ThemeListEntry[] {
-  return pluginThemeCatalog.map((theme) => ({
-    name: theme.name,
-    displayName: theme.displayName,
-    source: 'plugin' as const,
-    base: theme.base,
-    pack: theme.pluginId,
-  }));
-}
 
 function mergeThemeEntries(customNames: readonly string[]): ThemeListEntry[] {
   const customNameSet = new Set(customNames);
-  const pluginNameSet = new Set(pluginThemeCatalog.map((theme) => theme.name));
   return [
     ...superLioraThemeEntries().filter(
-      (theme) => !customNameSet.has(theme.name) && !pluginNameSet.has(theme.name),
+      (theme) => !customNameSet.has(theme.name),
     ),
-    ...customThemeEntries(customNames).filter((theme) => !pluginNameSet.has(theme.name)),
-    ...pluginThemeEntries(),
+    ...customThemeEntries(customNames),
     ...externalBundledThemeEntries().filter(
-      (theme) => !customNameSet.has(theme.name) && !pluginNameSet.has(theme.name),
+      (theme) => !customNameSet.has(theme.name),
     ),
   ];
 }

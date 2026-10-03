@@ -1,6 +1,5 @@
 import type { LoopEventDispatcher, LoopToolCallEvent } from './events';
 import type { LLM } from './llm';
-import type { ToolGuardState } from './tool-call-guards';
 import type { ToolCallTask } from './tool-scheduler';
 import type { ToolParallelStatus } from './tool-parallel-status';
 import type { Logger } from '#/logging/types';
@@ -22,8 +21,6 @@ export interface ToolCallStepContext {
   readonly currentStep: number;
   readonly stepUuid: string;
   readonly toolParallelStatus?: ToolParallelStatus | undefined;
-  /** Failure / circuit-breaker / idempotency state for the owning agent. */
-  readonly guards: ToolGuardState;
 }
 
 export interface ToolCallBatchContext extends ToolCallStepContext {
@@ -53,7 +50,7 @@ export type PrepareToolExecutionDecision =
       readonly kind: 'allowed';
       readonly args: unknown;
       readonly metadata?: unknown;
-      /** Per-call force-stop signal combined with the turn signal (V1-4). */
+      /** Optional host-selected cancellation signal for this call. */
       readonly executionSignal?: AbortSignal | undefined;
     }
   | { readonly kind: 'synthetic'; readonly args: unknown; readonly result: ExecutableToolResult }

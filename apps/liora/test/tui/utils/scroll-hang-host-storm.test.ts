@@ -61,15 +61,12 @@ function fakeInitialAppState(): AppState {
     additionalDirs: [],
     sessionId: 'sess-scroll-hang',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     inputMode: 'prompt',
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
@@ -81,7 +78,6 @@ function fakeInitialAppState(): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
-    mcpServersSummary: null,
   };
 }
 
@@ -194,7 +190,7 @@ describe('scroll hang host storm', () => {
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     state.transcriptContainer.clear();
     for (let row = 0; row < 200; row++) {
@@ -233,7 +229,7 @@ describe('scroll hang host storm', () => {
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     state.transcriptContainer.clear();
     for (let row = 0; row < 30; row++) {
@@ -275,7 +271,7 @@ describe('scroll hang host storm', () => {
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     state.transcriptContainer.clear();
     for (let row = 0; row < 30; row++) state.transcriptContainer.addChild(fixedLines([`row-${row}`]));
@@ -350,7 +346,6 @@ describe('scroll hang host storm', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });

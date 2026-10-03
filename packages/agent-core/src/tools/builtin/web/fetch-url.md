@@ -1,1 +1,0 @@
-Fetch a public `http`/`https` URL. HTML → extracted main article as cleaned markdown; plain/markdown → full body verbatim. No private/loopback/other schemes. Large pages may truncate. Prefer primary source URLs.

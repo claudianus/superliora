@@ -189,36 +189,4 @@ describe('BackgroundManager — loadFromDisk + reconcile', () => {
     ).toHaveLength(1);
   });
 
-  it('restores terminal ghost notifications into context', async () => {
-    await persistence.writeTask(
-      persistedProcess({
-        taskId: 'bash-done0001',
-        command: 'echo done',
-        description: 'one-shot',
-        pid: 42,
-        endedAt: 1_700_000_010,
-        exitCode: 0,
-        status: 'completed',
-      }),
-    );
-    const { agent, manager } = createBackgroundManager({ sessionDir });
-
-    await manager.loadFromDisk();
-    await manager.reconcile();
-
-    expect(agent.context.appendUserMessage).toHaveBeenCalledWith(
-      [
-        expect.objectContaining({
-          type: 'text',
-          text: expect.stringContaining('task.completed'),
-        }),
-      ],
-      expect.objectContaining({
-        kind: 'background_task',
-        taskId: 'bash-done0001',
-        status: 'completed',
-      }),
-    );
-    expect(agent.emittedEvents).toEqual([]);
-  });
 });

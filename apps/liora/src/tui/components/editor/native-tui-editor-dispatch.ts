@@ -18,7 +18,6 @@ export interface NativeTUIEditorDispatchHost extends NativeTUIEditorShortcutHost
   getTextInput(): RendererTextInput;
   getPasteBurst(): PasteBurst;
   getDisablePasteBurst(): boolean;
-  getGhostText(): string | undefined;
   getText(): string;
   getLines(): string[];
   getCursor(): import('#/tui/renderer').RendererEditorCursor;
@@ -31,8 +30,6 @@ export interface NativeTUIEditorDispatchHost extends NativeTUIEditorShortcutHost
   onEscape?: () => void;
   navigateHistory(direction: -1 | 1): void;
   closeAutocomplete(requestRender: boolean): boolean;
-  clearGhost(): void;
-  acceptGhost(): void;
   shouldQueryAutocomplete(): boolean;
   applyPromptAwareMutation(mutate: () => boolean, insertedText?: string): boolean;
   submit(): void;
@@ -102,7 +99,6 @@ export function dispatchNativeTUIEditorDecodedEvents(
     if (event.key === 'up' && shouldNavigateNativeTUIEditorHistory(host)) {
       // Empty-prompt ↑ is bash-style history (or queue/BTW via onUpArrowEmpty).
       // After the first restore, keep browsing while historyIndex is set.
-      // Next-task ghost stays a suffix overlay; Tab accepts, arrows do not cycle.
       if (host.getText().length === 0 && host.onUpArrowEmpty?.() === true) continue;
       host.navigateHistory(-1);
       continue;
@@ -118,8 +114,6 @@ export function dispatchNativeTUIEditorDecodedEvents(
     if (event.key === 'escape') {
       if (host.closeAutocomplete(true)) {
         continue;
-      } else if (host.getGhostText() !== undefined) {
-        host.clearGhost();
       } else if (host.inputMode === 'bash' && host.getText().length === 0) {
         host.setInputMode('prompt');
       } else {
@@ -133,12 +127,7 @@ export function dispatchNativeTUIEditorDecodedEvents(
         // Legacy string path should not steal focus while the menu is open.
         continue;
       }
-      if (host.getGhostText() !== undefined) {
-        host.acceptGhost();
-        continue;
-      }
-      // No ghost: open autocomplete when the line has a known trigger (/ @ path)
-      // or bash mode. Avoid Tab spam on plain prose (no force).
+      // Open autocomplete on recognized path/slash triggers or bash mode.
       if (host.shouldQueryAutocomplete() || host.inputMode === 'bash') {
         void host.requestAutocomplete({ force: true });
       }

@@ -4,13 +4,11 @@
 
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
-  DEFAULT_CONDUCTOR_PREFERENCES,
   DEFAULT_FOOTER_PREFERENCES,
   DEFAULT_LOCALE_PREFERENCE,
   DEFAULT_ONBOARDING_PREFERENCES,
   DEFAULT_PERFORMANCE_MODE,
   type AppearancePreferences,
-  type ConductorPreferences,
   type FooterPreferences,
   type LocalePreference,
   type OnboardingPreferences,
@@ -37,11 +35,6 @@ export function currentFooter(host: {
   return host.state.appState.footer ?? DEFAULT_FOOTER_PREFERENCES;
 }
 
-export function currentConductor(host: {
-  readonly state: { readonly appState: { readonly conductor?: ConductorPreferences } };
-}): ConductorPreferences {
-  return host.state.appState.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES;
-}
 
 export function tuiConfigFromHost(
   host: {
@@ -60,7 +53,6 @@ export function tuiConfigFromHost(
         readonly appearance?: AppearancePreferences;
         readonly footer?: FooterPreferences;
         readonly onboarding?: OnboardingPreferences;
-        readonly conductor?: ConductorPreferences;
       };
     };
   },
@@ -76,7 +68,6 @@ export function tuiConfigFromHost(
     appearance: currentAppearance(host),
     footer: currentFooter(host),
     onboarding: host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
-    conductor: currentConductor(host),
     locale: host.state.appState.locale ?? DEFAULT_LOCALE_PREFERENCE,
     performanceMode: currentPerformanceMode(host),
     ...patch,

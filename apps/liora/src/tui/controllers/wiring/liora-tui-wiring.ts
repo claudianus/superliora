@@ -1,6 +1,6 @@
 import type { LioraHarness } from '@superliora/sdk';
 
-import * as slashCommands from '../../commands/hub/dispatch';
+import { handleUndoCommand } from '../../commands/session/undo';
 import { DEFAULT_APPEARANCE_PREFERENCES, DEFAULT_PERFORMANCE_MODE } from '../../config';
 import { registerReverseRPCHandlers } from '../../reverse-rpc/index';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
@@ -23,7 +23,6 @@ import {
 } from '../../features/appearance/ambient-calm';
 import { hasLiveWatchers } from '../../features/transcript/watchers';
 import { isStreamRevealArmed } from '../streaming-ui/reveal';
-import { isLiveGoalChromeActive } from '../../features/native-layout/native-frame-policy';
 import { isNativeFullscreenTakeover } from '../../features/native-layout/native-layout-frame-build';
 import { BtwPanelController } from '../panes/btw-panel';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
@@ -38,7 +37,6 @@ import {
   nativeRendererDiagnosticsOverlayEnabled,
 } from '../diagnostics/native-renderer-diagnostics';
 import { PanesController } from '../panes/panes';
-import { PromptIntelligenceController } from '../prompt/prompt-intelligence';
 import { ReverseRpcPanelsController } from '../panes/reverse-rpc-panels';
 import { SessionBrowserController } from '../session/session-browser';
 import { SessionEventHandler } from '../session-event/handler';
@@ -85,10 +83,8 @@ export function wireLioraTUIControllers(
       continueLast: startupInput.cliOptions.continue,
       yolo: startupInput.cliOptions.yolo,
       auto: startupInput.cliOptions.auto,
-      plan: startupInput.cliOptions.plan,
       model: startupInput.cliOptions.model,
       startupNotice: startupInput.startupNotice,
-      resumeGoal: startupInput.cliOptions.resumeGoal,
     },
     sessionMetadata: startupInput.sessionMetadata,
   };
@@ -147,9 +143,6 @@ export function wireLioraTUIControllers(
       // and stall labels keep updating even when decorative motion is off.
       isStreamingPhaseActive(tui.state.appState.streamingPhase) ||
       tui.state.appState.isCompacting === true ||
-      // Active goal wall-clock in the footer needs chrome rebuilds even when
-      // the agent is idle and decorative motion is off.
-      tui.state.appState.goal?.status === 'active' ||
       // Conductor workers run independently of the main turn, so their live
       // desk and open Job Deck need the same shared ambient clock.
       tui.state.appState.conductorJobs?.jobs.some(
@@ -164,7 +157,6 @@ export function wireLioraTUIControllers(
       isAmbientCalmIdle({
         streamingPhase: tui.state.appState.streamingPhase,
         compacting: tui.state.appState.isCompacting,
-        liveGoal: isLiveGoalChromeActive(tui.state.appState.goal),
         fullscreenTakeover: isNativeFullscreenTakeover(tui.state),
         streamRevealArmed: isStreamRevealArmed(),
         // Mirror forceAmbientSchedule's background-work terms so live Conductor
@@ -209,9 +201,6 @@ export function wireLioraTUIControllers(
   tui.autocomplete = new AutocompleteController(tui);
   tui.shellInput = new ShellInputController(tui);
   tui.appStateController = new AppStateController(tui);
-  tui.state.footer.setStaleAppStateHandler((patch) => {
-    tui.appStateController.setAppState(patch);
-  });
   tui.sessionRequests = new SessionRequestsController(tui);
   tui.startupLifecycle = new StartupLifecycleController(tui);
   tui.nativeRendererDiagnostics = new NativeRendererDiagnosticsController(tui);
@@ -224,22 +213,11 @@ export function wireLioraTUIControllers(
   });
   tui.editorKeyboard = new EditorKeyboardController(tui, tui.imageStore);
   tui.editorKeyboard.install();
-  tui.promptIntelligence = new PromptIntelligenceController(tui);
-  tui.promptIntelligence.install();
   tui.nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
   tui.startupLifecycle.buildLayout();
 }
 
-/** Slash-command plan toggles routed from the coordinator surface. */
-export function handlePlanToggleFromHost(tui: LioraTUI, next: boolean, ultra = false): void {
-  void slashCommands.handlePlanCommand(tui, next ? (ultra ? 'ultra' : 'on') : 'off');
-}
-
-/** Shift-Tab Build/Ask cycle routed from the coordinator surface. */
-export function setAskModeFromHost(tui: LioraTUI, enabled: boolean): void {
-  void slashCommands.setAskMode(tui, enabled);
-}
 
 export function openUndoSelectorFromHost(tui: LioraTUI): void {
-  void slashCommands.handleUndoCommand(tui, '');
+  void handleUndoCommand(tui, '');
 }

@@ -43,6 +43,7 @@ export interface SwarmFileLeaseRegistry {
   release(path: string, ownerId: string): boolean;
   listClaims(runId?: string): readonly SwarmFileLeaseClaim[];
   listQueue(path?: string): readonly SwarmFileLeaseWaiter[];
+  releaseOwner(ownerId: string, runId?: string): number;
   releaseAll(runId: string): number;
   holder(path: string): SwarmFileLeaseClaim | undefined;
   clear(): void;
@@ -208,6 +209,23 @@ export function createSwarmFileLeaseRegistry(options?: {
         return queues.get(normalized) ?? [];
       }
       return [...queues.values()].flat();
+    },
+
+    releaseOwner(ownerId: string, runId?: string): number {
+      let released = 0;
+      for (const [key, claim] of claims) {
+        if (claim.ownerId !== ownerId || (runId !== undefined && claim.runId !== runId)) continue;
+        claims.delete(key);
+        released += 1;
+      }
+      for (const [key, waiters] of queues) {
+        const next = waiters.filter(
+          (waiter) => waiter.ownerId !== ownerId || (runId !== undefined && waiter.runId !== runId),
+        );
+        if (next.length === 0) queues.delete(key);
+        else queues.set(key, next);
+      }
+      return released;
     },
 
     releaseAll(runId: string): number {

@@ -12,10 +12,7 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.options.showThinkingPromptOnly':
     'Show thinking is only supported in prompt mode.',
   'cli.runtime.options.promptWithYolo': 'Cannot combine --prompt with --yolo.',
-  'cli.runtime.options.autonomousGateNeedsGoal':
-    '--autonomous-gate only applies to a headless goal run: use with -p "/goal <objective>".',
   'cli.runtime.options.promptWithAuto': 'Cannot combine --prompt with --auto.',
-  'cli.runtime.options.promptWithPlan': 'Cannot combine --prompt with --plan.',
   'cli.runtime.options.sessionNoIdPrompt':
     'Cannot use --session without an id in prompt mode.',
   'cli.runtime.options.continueWithSession': 'Cannot combine --continue, --session.',
@@ -87,11 +84,6 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
     'Browser-use {action} failed. Retry with `{command}`.',
   'cli.runtime.browserUse.doctorSourceRestart':
     'Packaged host has no source packageRoot. Restart from the source GUI (`pnpm -C apps/liora run dev`) instead of looping doctor/install.',
-  'cli.runtime.browserUse.aside.enabled':
-    'Aside MCP registered: {command} mcp → {path}. Reload the session or /mcp to connect.',
-  'cli.runtime.browserUse.aside.disabled': 'Aside MCP removed from {path}.',
-  'cli.runtime.browserUse.aside.notRegistered':
-    'Aside MCP was not registered in {path}.',
 
   // computer-use
   'cli.runtime.computerUse.autoInstallFailed':
@@ -260,10 +252,7 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.options.showThinkingPromptOnly':
     '사고 출력은 프롬프트 모드에서만 지원됩니다.',
   'cli.runtime.options.promptWithYolo': '--prompt와 --yolo는 함께 사용할 수 없습니다.',
-  'cli.runtime.options.autonomousGateNeedsGoal':
-    '--autonomous-gate는 헤드리스 goal 실행에만 적용됩니다. -p "/goal <목표>"와 함께 사용하세요.',
   'cli.runtime.options.promptWithAuto': '--prompt와 --auto는 함께 사용할 수 없습니다.',
-  'cli.runtime.options.promptWithPlan': '--prompt와 --plan은 함께 사용할 수 없습니다.',
   'cli.runtime.options.sessionNoIdPrompt':
     '프롬프트 모드에서는 ID 없이 --session을 사용할 수 없습니다.',
   'cli.runtime.options.continueWithSession':
@@ -330,11 +319,6 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
     'Browser-use {action} 실패. `{command}`(으)로 다시 시도하세요.',
   'cli.runtime.browserUse.doctorSourceRestart':
     '패키징된 호스트에는 소스 packageRoot가 없습니다. doctor/install을 반복하지 말고 소스 GUI에서 다시 시작하세요 (`pnpm -C apps/liora run dev`).',
-  'cli.runtime.browserUse.aside.enabled':
-    'Aside MCP 등록됨: {command} mcp → {path}. 세션을 다시 열거나 /mcp로 연결하세요.',
-  'cli.runtime.browserUse.aside.disabled': '{path}에서 Aside MCP를 제거했습니다.',
-  'cli.runtime.browserUse.aside.notRegistered':
-    '{path}에 Aside MCP가 등록되어 있지 않습니다.',
 
   'cli.runtime.computerUse.autoInstallFailed':
     'Computer-use 자동 설치 실패. `liora computer-use install`로 다시 시도하세요.',

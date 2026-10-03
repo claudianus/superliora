@@ -208,6 +208,7 @@ export const abortMessageSchema = z.object({
 export type AbortMessage = z.infer<typeof abortMessageSchema>;
 
 export const abortAckPayloadSchema = z.object({
+  /** Acknowledges the cancellation request, not provider or tool settlement. */
   aborted: z.boolean().optional(),
   at_seq: z.number().int().nonnegative().optional(),
 });
@@ -499,7 +500,7 @@ export const clientControlOperations = [
     kind: 'control',
     messageSchema: abortMessageSchema,
     ackSchema: abortAckMessageSchema,
-    description: 'Abort a running prompt in a session.',
+    description: 'Request prompt cancellation; acknowledgement does not signal settlement.',
   },
   {
     type: 'terminal_attach',

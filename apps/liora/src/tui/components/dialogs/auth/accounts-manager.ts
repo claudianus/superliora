@@ -10,7 +10,6 @@ import {
   type ProviderOAuthRef,
 } from '@superliora/oauth';
 
-import { ACCOUNTS_POOL_RESILIENCE_HINT } from '#/tui/utils/never-halt/auth-glance';
 import { CURRENT_MARK } from '#/tui/constant/symbols';
 import {
   Container,
@@ -151,7 +150,6 @@ export class AccountsListPickerComponent extends ChoicePickerComponent {
     const primaryValue = opts.rows[0] === undefined ? undefined : String(opts.rows[0].index);
     super({
       title: ttui('tui.accounts.listTitle', { provider: opts.providerId }),
-      notice: ACCOUNTS_POOL_RESILIENCE_HINT,
       noticeTone: 'success',
       hint: ttui('tui.accounts.hintPicker'),
       searchable: opts.rows.length > 8,

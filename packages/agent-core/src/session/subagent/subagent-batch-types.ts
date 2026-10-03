@@ -8,8 +8,7 @@ import type {
 
 type BaseQueuedSubagentTask<T> = {
   readonly data: T;
-  readonly profileName: string;
-  readonly profileBaseName?: string;
+  readonly profileName?: 'agent';
   readonly parentToolCallId: string;
   readonly parentToolCallUuid?: string;
   readonly prompt: string;
@@ -18,10 +17,12 @@ type BaseQueuedSubagentTask<T> = {
   readonly swarmItem?: string;
   readonly runInBackground: boolean;
   readonly timeout?: number;
-  readonly contractPath?: string;
   readonly signal?: AbortSignal;
   /** Per-worker git worktree cwd when fleet env opt-in is enabled. */
   readonly worktreeDir?: string;
+  readonly ownership?: readonly string[];
+  readonly modelAlias?: string;
+  readonly permissionMode?: 'yolo' | 'auto' | 'manual';
 };
 
 export type SpawnQueuedSubagentTask<T = unknown> = BaseQueuedSubagentTask<T> & {
@@ -45,6 +46,8 @@ export type SubagentResult<T = unknown> = {
   readonly state?: 'started' | 'not_started';
   readonly result?: string;
   readonly usage?: TokenUsage;
+  readonly filesChanged?: readonly string[];
+  readonly context?: { readonly agentId: string; readonly contextTokens: number };
   readonly error?: string;
   /**
    * Structured reason for failed/aborted outcomes. Lets downstream recovery
@@ -55,52 +58,14 @@ export type SubagentResult<T = unknown> = {
   readonly failureReason?: 'max_tokens' | 'transient' | 'aborted' | 'other';
 };
 
-export type SubagentSuspendedEvent = {
-  readonly task: QueuedSubagentTask;
-  readonly agentId: string;
-  readonly reason: string;
-};
 
 export type SubagentBatchLauncher = {
   spawn(options: SpawnSubagentOptions): Promise<SubagentHandle>;
   resume(agentId: string, options: RunSubagentOptions): Promise<SubagentHandle>;
-  retry(agentId: string, options: RunSubagentOptions): Promise<SubagentHandle>;
-  suspended?(event: SubagentSuspendedEvent): void;
 };
 
-export type RateLimitedOutcome = {
-  readonly type: 'rate_limited';
-  readonly agentId: string;
-  readonly error: string;
-};
-
-export type AttemptOutcome<T> = SubagentResult<T> | RateLimitedOutcome;
-
-export type TaskState<T> = {
-  readonly index: number;
-  readonly task: QueuedSubagentTask<T>;
-  agentId?: string;
-  retryAgentId?: string;
-  retryCount: number;
-  retryReadyAt: number;
-  started: boolean;
-  /** In-place retries spent on transient provider failures (bounded). */
-  transientRetryCount: number;
-};
-
-export type ActiveAttempt<T> = {
-  readonly state: TaskState<T>;
-  readonly controller: AbortController;
-  cleanup: () => void;
-  ready: boolean;
-  timedOut: boolean;
-};
 
 export type SubagentBatchOptions = {
-  /**
-   * Optional cap on how many subagents may run concurrently during the normal
-   * phase. `undefined` means no cap (legacy ramp behavior). The rate-limit
-   * phase is governed by its own capacity logic and is not affected.
-   */
+  /** Maximum simultaneous launches for this explicitly requested batch. */
   readonly maxConcurrency?: number;
 };

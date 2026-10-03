@@ -15,15 +15,6 @@ export interface BriefDisplayBlock {
   text: string;
 }
 
-export interface DiffDisplayBlock {
-  type: 'diff';
-  path: string;
-  old_text: string;
-  new_text: string;
-  old_start?: number | undefined;
-  new_start?: number | undefined;
-  is_summary?: boolean | undefined;
-}
 
 export interface ShellDisplayBlock {
   type: 'shell';
@@ -34,69 +25,7 @@ export interface ShellDisplayBlock {
   danger?: string | undefined;
 }
 
-export interface FileOpDisplayBlock {
-  type: 'file_op';
-  operation: 'read' | 'write' | 'edit' | 'glob' | 'grep';
-  path: string;
-  detail?: string | undefined;
-}
-
-/** Full file content preview for Write — a code block, not a diff. */
-export interface FileContentDisplayBlock {
-  type: 'file_content';
-  path: string;
-  content: string;
-  language?: string | undefined;
-}
-
-export interface UrlFetchDisplayBlock {
-  type: 'url_fetch';
-  url: string;
-  method?: string | undefined;
-}
-
-export interface SearchDisplayBlock {
-  type: 'search';
-  query: string;
-  scope?: string | undefined;
-}
-
-export interface InvocationDisplayBlock {
-  type: 'invocation';
-  kind: 'agent' | 'skill';
-  name: string;
-  description?: string | undefined;
-}
-
-export interface TodoDisplayItem {
-  title: string;
-  status: 'pending' | 'in_progress' | 'done';
-}
-
-export interface TodoDisplayBlock {
-  type: 'todo';
-  items: TodoDisplayItem[];
-}
-
-export interface BackgroundTaskDisplayBlock {
-  type: 'background_task';
-  task_id: string;
-  kind: string;
-  status: string;
-  description: string;
-}
-
-export type DisplayBlock =
-  | BriefDisplayBlock
-  | DiffDisplayBlock
-  | ShellDisplayBlock
-  | FileOpDisplayBlock
-  | FileContentDisplayBlock
-  | UrlFetchDisplayBlock
-  | SearchDisplayBlock
-  | InvocationDisplayBlock
-  | TodoDisplayBlock
-  | BackgroundTaskDisplayBlock;
+export type DisplayBlock = BriefDisplayBlock | ShellDisplayBlock;
 
 export interface ApprovalPanelChoice {
   label: string;
@@ -110,11 +39,6 @@ export interface ApprovalPanelChoice {
 
 // ── Approval / Question view payloads ────────────────────────────────
 
-export interface ApprovalPlanReview {
-  /** Raw plan markdown (1-based lines match ctrl+e preview gutter). */
-  content: string;
-  path?: string | undefined;
-}
 
 export interface ApprovalPanelData {
   id: string;
@@ -124,8 +48,6 @@ export interface ApprovalPanelData {
   description: string;
   display: DisplayBlock[];
   choices: ApprovalPanelChoice[];
-  /** Set for ExitPlanMode / plan_review — raw plan for line comments + transcript mirror. */
-  planReview?: ApprovalPlanReview | undefined;
 }
 
 export interface QuestionPanelItem {

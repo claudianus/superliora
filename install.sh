@@ -24,7 +24,6 @@ NO_BUILD=0
 NO_SHELL_RC=0
 NO_BROWSER_USE=0
 NO_COMPUTER_USE=0
-NO_RETRIEVAL=0
 NO_GIT=0
 NO_TERMINAL=0
 NO_HOST_SETUP=0
@@ -121,7 +120,6 @@ origin/main 최신으로 빌드하려면 --main 을 쓰세요.
   --no-build            checkout 후 pnpm install/build 건너뛰기
   --no-browser-use      browser-use sidecar 설치 건너뛰기
   --no-computer-use     cua-driver computer-use 설치 건너뛰기
-  --no-retrieval        로컬 Granite-97M 임베더 + passage 인덱스 건너뛰기
   --no-git              Git / Git Bash 준비 건너뛰기
   --no-terminal         Windows Terminal만 건너뛰기 (글꼴 / 프롬프트 / 셸은 유지)
   --no-host-setup       호스트 설정 건너뛰기 (터미널, 글꼴, Oh My Posh, 셸)
@@ -136,7 +134,7 @@ origin/main 최신으로 빌드하려면 --main 을 쓰세요.
   SUPERLIORA_BIN_DIR, SUPERLIORA_COMMAND, SUPERLIORA_NODE_MIN,
   SUPERLIORA_MANIFEST_URL, SUPERLIORA_VERSION, SUPERLIORA_RAW_BASE,
   SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE,
-  SUPERLIORA_SKIP_RETRIEVAL, SUPERLIORA_SKIP_GIT, SUPERLIORA_NO_TERMINAL,
+  SUPERLIORA_SKIP_GIT, SUPERLIORA_NO_TERMINAL,
   SUPERLIORA_SKIP_TERMINAL, SUPERLIORA_NO_HOST_SETUP, SUPERLIORA_PREFER_SOURCE,
   SUPERLIORA_FROM_MAIN, SUPERLIORA_FORCE_PREBUILT, SUPERLIORA_NO_SHELL_RC
 EOF
@@ -162,7 +160,6 @@ Options:
   --no-build            Skip pnpm install/build after checkout
   --no-browser-use      Skip browser-use sidecar install
   --no-computer-use     Skip cua-driver computer-use install
-  --no-retrieval        Skip local Granite-97M embedder + passage indexes
   --no-git              Skip Git / Git Bash bootstrap
   --no-terminal         Skip Windows Terminal only (font / prompt / shell still run)
   --no-host-setup       Skip host setup (terminal, font, Oh My Posh, shell)
@@ -177,7 +174,7 @@ Environment variables:
   SUPERLIORA_BIN_DIR, SUPERLIORA_COMMAND, SUPERLIORA_NODE_MIN,
   SUPERLIORA_MANIFEST_URL, SUPERLIORA_VERSION, SUPERLIORA_RAW_BASE,
   SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE,
-  SUPERLIORA_SKIP_RETRIEVAL, SUPERLIORA_SKIP_GIT, SUPERLIORA_NO_TERMINAL,
+  SUPERLIORA_SKIP_GIT, SUPERLIORA_NO_TERMINAL,
   SUPERLIORA_LOCALE (en|ko), SUPERLIORA_SKIP_TERMINAL, SUPERLIORA_NO_HOST_SETUP,
   SUPERLIORA_PREFER_SOURCE, SUPERLIORA_FROM_MAIN, SUPERLIORA_FORCE_PREBUILT,
   SUPERLIORA_NO_SHELL_RC
@@ -233,7 +230,6 @@ while [ "$#" -gt 0 ]; do
     --no-build) NO_BUILD=1; shift ;;
     --no-browser-use) NO_BROWSER_USE=1; shift ;;
     --no-computer-use) NO_COMPUTER_USE=1; shift ;;
-    --no-retrieval) NO_RETRIEVAL=1; shift ;;
     --no-git) NO_GIT=1; shift ;;
     --no-terminal) NO_TERMINAL=1; shift ;;
     --no-host-setup) NO_HOST_SETUP=1; shift ;;
@@ -405,7 +401,6 @@ orch_args=(
 [ "$NO_SHELL_RC" -eq 1 ] && orch_args+=(--no-shell-rc)
 [ "$NO_BROWSER_USE" -eq 1 ] && orch_args+=(--no-browser-use)
 [ "$NO_COMPUTER_USE" -eq 1 ] && orch_args+=(--no-computer-use)
-[ "$NO_RETRIEVAL" -eq 1 ] && orch_args+=(--no-retrieval)
 [ "$NO_GIT" -eq 1 ] && orch_args+=(--no-git)
 [ "$NO_TERMINAL" -eq 1 ] && orch_args+=(--no-terminal)
 [ "$NO_HOST_SETUP" -eq 1 ] && orch_args+=(--no-host-setup)

@@ -1,4 +1,4 @@
-import type { ActivatePluginCommandPayload, ActivateSkillPayload, PromptPayload } from '#/rpc';
+import type { PromptPayload } from '#/rpc';
 import { extractImageCompressionCaptions } from '#/tools/support/image-compress';
 import type { ContentPart } from '@superliora/kosong';
 
@@ -18,24 +18,6 @@ export function promptMetadataTextFromPayload(payload: PromptPayload): string | 
   return sanitizeAndTruncatePromptText(parts.join('\n'), MAX_LAST_PROMPT_LENGTH);
 }
 
-export function promptMetadataTextFromSkill(payload: ActivateSkillPayload): string | undefined {
-  const args = payload.args?.trim();
-  return sanitizeAndTruncatePromptText(
-    args === undefined || args.length === 0 ? `/${payload.name}` : `/${payload.name} ${args}`,
-    MAX_LAST_PROMPT_LENGTH,
-  );
-}
-
-export function promptMetadataTextFromPluginCommand(
-  payload: ActivatePluginCommandPayload,
-): string | undefined {
-  const args = payload.args?.trim();
-  const command = `/${payload.pluginId}:${payload.commandName}`;
-  return sanitizeAndTruncatePromptText(
-    args === undefined || args.length === 0 ? command : `${command} ${args}`,
-    MAX_LAST_PROMPT_LENGTH,
-  );
-}
 
 function promptPartText(part: ContentPart): string | undefined {
   switch (part.type) {

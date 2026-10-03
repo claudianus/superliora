@@ -7,7 +7,6 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { buildSubagentResultContract } from '../../src/session/subagent/subagent-result-contract';
 import {
   createJob,
   getJob,
@@ -103,22 +102,15 @@ describe('renderJobInspect', () => {
       workerAgentId: 'agent_7',
       resultSummary: 'held on a trust gap',
       notes: 'worker: worktree_failed',
-      resultContract: buildSubagentResultContract({
-        agentId: 'agent_7',
-        profile: 'coder',
-        summary: 'held',
-        filesChanged: ['src/fix.ts'],
-        verification: { tests: 'passed', typecheck: 'not_run', lint: 'not_run' },
-      }),
+      filesChanged: ['src/fix.ts'],
     });
     if (!patched) throw new Error('failed to patch job');
 
     const text = renderJobInspect(patched);
     expect(text).toContain('[blocked]');
     expect(text).toContain('worktree: /tmp/wt/1');
-    expect(text).toContain('verification: tests=passed typecheck=not_run lint=not_run');
     expect(text).toContain('files_changed: src/fix.ts');
-    expect(text).toContain('notes: \nworker: worktree_failed');
+    expect(text).toContain('notes:\nworker: worktree_failed');
     expect(text).toContain('[truncated]');
     // The old JSON dump paid for the whole record on every diagnosis.
     expect(text.length).toBeLessThan(JSON.stringify(patched, null, 2).length / 2);

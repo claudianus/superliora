@@ -4,7 +4,6 @@ import type { Event } from '../../base/common/event';
 import type { SessionSummary } from '../../rpc';
 import type { SessionMeta } from '../../session';
 import {
-  emptySessionUsage,
   type CompactSessionRequest,
   type CompactSessionResponse,
   type CursorQuery,
@@ -100,12 +99,9 @@ export function toProtocolSession(
     (typeof summaryMetadata['cwd'] === 'string' && summaryMetadata['cwd']) ||
     summary.workDir;
 
-  const { goal: _dropSummaryGoal, ...summaryWithoutGoal } = summaryMetadata;
-  const { goal: _dropCustomGoal, ...customWithoutGoal } = customMetadata;
-
   const mergedMetadata: Session['metadata'] = {
-    ...summaryWithoutGoal,
-    ...customWithoutGoal,
+    ...summaryMetadata,
+    ...customMetadata,
     cwd,
   };
 
@@ -122,12 +118,5 @@ export function toProtocolSession(
     archived: summary.archived === true,
     last_prompt: summary.lastPrompt,
     metadata: mergedMetadata,
-    agent_config: {
-      model: '',
-    },
-    usage: emptySessionUsage(),
-    permission_rules: [],
-    message_count: 0,
-    last_seq: 0,
   };
 }

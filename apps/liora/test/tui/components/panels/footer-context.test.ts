@@ -1,15 +1,10 @@
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import chalk from 'chalk';
 
 import {
   FooterComponent,
   formatFooterGitBadge,
-  formatContextOSFooterBadge,
   buildWeightedTips,
 } from '#/tui/components/chrome/footer/footer';
 import { currentTheme } from '#/tui/theme';
@@ -44,14 +39,11 @@ function baseState(overrides: Partial<AppState> = {}): AppState {
     additionalDirs: [],
     sessionId: 'sess_1',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
@@ -64,12 +56,6 @@ function baseState(overrides: Partial<AppState> = {}): AppState {
   } as AppState;
 }
 
-function dirtyGitWorktree(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'kimi-footer-'));
-  execFileSync('git', ['init', '-b', 'main'], { cwd: dir, stdio: 'ignore' });
-  writeFileSync(join(dir, 'scratch.txt'), 'dirty\n');
-  return dir;
-}
 
 describe('FooterComponent — context NaN resilience', () => {
   it('NaN usage → renders 0.0% (never literal "NaN%")', () => {
@@ -145,44 +131,6 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(strip(line2 ?? '')).toMatch(/Context.*0\.0%/);
   });
 
-  it('keeps the idle next action visible beside context usage', () => {
-    const previous = process.env['OPENAI_API_KEY'];
-    process.env['OPENAI_API_KEY'] = 'test-key';
-    try {
-      const footer = new FooterComponent(baseState());
-
-      const [, line2] = footer.render(120);
-
-      expect(strip(line2 ?? '')).toContain('next: Shift-Tab switches Build/Ask · /plan to plan first');
-      expect(strip(line2 ?? '')).not.toContain('helpers');
-      expect(strip(line2 ?? '')).toMatch(/Context.*0\.0%/);
-    } finally {
-      if (previous === undefined) delete process.env['OPENAI_API_KEY'];
-      else process.env['OPENAI_API_KEY'] = previous;
-    }
-  });
-
-  it('points idle users without media keys at zero-config image/video setup', () => {
-    const previous = {
-      OPENAI_API_KEY: process.env['OPENAI_API_KEY'],
-      GOOGLE_API_KEY: process.env['GOOGLE_API_KEY'],
-      GEMINI_API_KEY: process.env['GEMINI_API_KEY'],
-    };
-    delete process.env['OPENAI_API_KEY'];
-    delete process.env['GOOGLE_API_KEY'];
-    delete process.env['GEMINI_API_KEY'];
-    try {
-      const footer = new FooterComponent(baseState());
-      const [, line2] = footer.render(120);
-      expect(strip(line2 ?? '')).toContain('OPENAI_API_KEY or GOOGLE_API_KEY for image/video');
-      expect(strip(line2 ?? '')).toMatch(/Context.*0\.0%/);
-    } finally {
-      for (const [key, value] of Object.entries(previous)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
-    }
-  });
 
   it('shows a compact history badge while transcript follow output is paused', () => {
     let followOutput = false;
@@ -198,38 +146,6 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(strip(footer.render(120)[0] ?? '')).not.toContain('[history');
   });
 
-  it('points logged-out users at setup before describing a task', () => {
-    const footer = new FooterComponent(baseState({ model: '' }));
-
-    const [, line2] = footer.render(120);
-
-    expect(strip(line2 ?? '')).toContain('next: /login to add a provider, then /model');
-    expect(strip(line2 ?? '')).not.toContain('next: describe task');
-  });
-
-  it('points idle dirty worktrees at review instead of new tasks', async () => {
-    const workDir = dirtyGitWorktree();
-    try {
-      const footer = new FooterComponent(baseState({ workDir }));
-
-      // Git status now refreshes asynchronously off the render path — poll
-      // until the first refresh lands and the badge/hint pick up `dirty`.
-      await vi.waitFor(
-        () => {
-          const [, line2] = footer.render(120);
-          expect(strip(line2 ?? '')).toContain('next: review changes');
-        },
-        { timeout: 5_000, interval: 50 },
-      );
-      expect(strip(footer.render(120)[1] ?? '')).not.toContain('next: describe task');
-    } finally {
-      try {
-        rmSync(workDir, { recursive: true, force: true });
-      } catch {
-        // Windows can keep a git/gh handle on the temp worktree after spawnSync.
-      }
-    }
-  });
 
   it('highlights the pull request badge separately from git status text', () => {
     const previousLevel = chalk.level;
@@ -266,38 +182,6 @@ describe('FooterComponent — context NaN resilience', () => {
   });
 });
 
-  it('keeps Context OS diagnostics out of the footer but retains the formatter', () => {
-    const footer = new FooterComponent(
-      baseState({
-        contextUsage: 0.2,
-        contextTokens: 1000,
-        maxContextTokens: 10_000,
-        contextOS: {
-          pageCount: 2,
-          readyPageCount: 1,
-          needsRehydrationPageCount: 1,
-          atRiskPageCount: 0,
-          missingEvidencePageCount: 1,
-          evidenceIdRecallScore: 0.5,
-          latestContinuityStatus: 'needs_rehydration',
-        },
-      }),
-    );
-    const lines = footer.render(120).map(strip);
-    const joined = lines.join('\n');
-    // Internal Context OS diagnostics are hidden from the footer.
-    expect(joined).not.toContain('ctx-os:');
-    expect(formatContextOSFooterBadge({
-      pageCount: 2,
-      readyPageCount: 1,
-      needsRehydrationPageCount: 1,
-      atRiskPageCount: 0,
-      missingEvidencePageCount: 1,
-      evidenceIdRecallScore: 0.5,
-      latestContinuityStatus: 'needs_rehydration',
-    })).toEqual({ text: 'ctx-os:evidence↓0.50', severity: 'danger' });
-    expect(formatContextOSFooterBadge(null)).toBeNull();
-  });
 
 
 describe('buildWeightedTips — weighted rotation', () => {

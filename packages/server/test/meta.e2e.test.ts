@@ -28,7 +28,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { metaResponseSchema, ulidRegex } from '@superliora/protocol';
+import { metaResponseSchema, sessionSchema, ulidRegex } from '@superliora/protocol';
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -97,6 +97,32 @@ function appOf(r: RunningServer): {
   };
 }
 
+describe('retired cognitive endpoints', () => {
+  it('does not register tools, MCP, skills, or memory routes', async () => {
+    const daemon = await bootDaemon();
+    const app = appOf(daemon);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/sessions',
+      payload: { metadata: { cwd: tmpDir } },
+    });
+    const envelope = created.json();
+    if (envelope === null || typeof envelope !== 'object' || !('data' in envelope)) {
+      throw new Error('Session creation returned no envelope data');
+    }
+    const session = sessionSchema.parse(envelope.data);
+    for (const url of [
+      '/api/v1/tools',
+      '/api/v1/mcp/servers',
+      '/api/v1/memories',
+      `/api/v1/sessions/${session.id}/skills`,
+    ]) {
+      const response = await app.inject({ method: 'GET', url });
+      expect(response.statusCode, url).toBe(404);
+    }
+  });
+});
+
 describe('GET /api/v1/meta — envelope + metaResponseSchema', () => {
   it('responds 200 with code 0 + schema-conforming data', async () => {
     const r = await bootDaemon();
@@ -116,7 +142,6 @@ describe('GET /api/v1/meta — envelope + metaResponseSchema', () => {
       websocket: true,
       file_upload: true,
       fs_query: true,
-      mcp: true,
       background_tasks: true,
       terminal: true,
     });

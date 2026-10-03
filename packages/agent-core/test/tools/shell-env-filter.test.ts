@@ -261,7 +261,7 @@ describe('BashTool spawn secret filter (unit-env-filter)', () => {
         }),
         'C:\\workspace',
         createBackgroundManager().manager,
-        { pathPrefix: ['C:\\plugin\\bin'] },
+        { pathPrefix: ['C:\\runtime\\bin'] },
       );
       await executeTool(tool, {
         turnId: '0',
@@ -271,9 +271,9 @@ describe('BashTool spawn secret filter (unit-env-filter)', () => {
       });
 
       const childEnv = execWithEnv.mock.calls[0]?.[1] as Record<string, string>;
-      expect(childEnv['Path']).toBe('C:\\plugin\\bin;C:\\Windows\\System32');
+      expect(childEnv['Path']).toBe('C:\\runtime\\bin;C:\\Windows\\System32');
       // Mirrored at the same value so a POSIX-style lookup still finds it.
-      expect(childEnv['PATH']).toBe('C:\\plugin\\bin;C:\\Windows\\System32');
+      expect(childEnv['PATH']).toBe('C:\\runtime\\bin;C:\\Windows\\System32');
     } finally {
       if (previousPath === undefined) delete process.env['PATH'];
       else process.env['PATH'] = previousPath;

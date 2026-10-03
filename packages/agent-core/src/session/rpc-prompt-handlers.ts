@@ -1,24 +1,6 @@
-import type { PromptPayload } from '#/rpc';
 import type { ConversationLoopState } from '../agent/conversation-loop';
 import type { ConversationLoopStateData } from '#/rpc';
-import { sessionMediaOriginalsDir } from '../tools/support/image-originals';
-import {
-  DEFAULT_NON_VISION_FALLBACK,
-  isVisionMediaPart,
-  transformMediaForNonVisionModel,
-  type NonVisionFallbackPolicy,
-} from './vision-analyzer';
-import {
-  promptMetadataTextFromPayload,
-  titleFromPromptMetadataText,
-} from './prompt-metadata';
-import {
-  mayRequestLanguageSwitch,
-  promptTextOf,
-  resolveResponseLanguagePreference,
-  responseLanguagePreferenceFromUnknown,
-} from './response-language';
-import { detectResponseLanguageWithLlm } from './response-language-llm';
+import { titleFromPromptMetadataText } from './prompt-metadata';
 import type { Session, SessionMeta } from '.';
 import { truncateLastPrompt } from './session-meta-format';
 
@@ -37,16 +19,6 @@ export function toConversationLoopStateData(state: ConversationLoopState): Conve
   };
 }
 
-export function responseLanguagePreferencesEqual(
-  a: ReturnType<typeof responseLanguagePreferenceFromUnknown>,
-  b: ReturnType<typeof responseLanguagePreferenceFromUnknown>,
-): boolean {
-  return (
-    a?.code === b?.code &&
-    a?.source === b?.source &&
-    a?.locked === b?.locked
-  );
-}
 
 export function isUntitled(title: unknown): boolean {
   return typeof title !== 'string' || title.trim().length === 0 || title === 'New Session';
@@ -98,116 +70,3 @@ export async function updatePromptMetadata(
   });
 }
 
-/**
- * Vision analyzer fallback: when the target agent's current model cannot
- * consume attached media, replace media parts with analyzer text (policy
- * 'analyze') or path-only notes ('path'). 'block' is enforced by clients
- * before submission. Returns undefined when nothing was transformed.
- * Analyzer failures degrade to path notes — never block the prompt.
- */
-export async function maybeTransformNonVisionMedia(
-  session: Session,
-  agentId: string,
-  input: PromptPayload['input'],
-): Promise<PromptPayload['input'] | undefined> {
-  const providerManager = session.options.providerManager;
-  if (providerManager === undefined) return undefined;
-  if (!input.some(isVisionMediaPart)) return undefined;
-
-  const policy: NonVisionFallbackPolicy =
-    providerManager.currentConfig().media?.nonVisionFallback ?? DEFAULT_NON_VISION_FALLBACK;
-  if (policy === 'block') return undefined;
-
-  const agent = await session.ensureAgentResumed(agentId);
-  const result = await transformMediaForNonVisionModel(
-    {
-      generate: agent.generate,
-      providerManager,
-      currentModelAlias: agent.config.modelAlias,
-      currentCapabilities: agent.config.modelCapabilities,
-    },
-    input,
-    { policy, originalsDir: sessionMediaOriginalsDir(session.options.homedir) },
-  );
-  if (result.analyzedCount === 0 && result.pathOnlyCount === 0) return undefined;
-  if (result.analyzedCount > 0) {
-    await session.rpc.emitEvent({
-      type: 'warning',
-      agentId,
-      code: 'vision_analyzer.analyzed',
-      message: `Analyzed ${result.analyzedCount} media attachment(s) with ${result.analyzerModels.join(', ')} because the current model is text-only.`,
-      details: {
-        analyzerModel: result.analyzerModels.join(', '),
-        kind:
-          result.analyzedKinds.length === 1
-            ? (result.analyzedKinds[0] as string)
-            : 'mixed',
-        count: result.analyzedCount,
-      },
-    });
-  }
-  if (result.pathOnlyCount > 0) {
-    await session.rpc.emitEvent({
-      type: 'warning',
-      agentId,
-      code: 'vision_analyzer.path_only',
-      message: `Could not analyze ${result.pathOnlyCount} media attachment(s): no capable analyzer model was available, so path notes were left instead.`,
-      details: {
-        kind:
-          result.pathOnlyKinds.length === 1 ? (result.pathOnlyKinds[0] as string) : 'mixed',
-        count: result.pathOnlyCount,
-      },
-    });
-  }
-  return result.parts;
-}
-
-export async function updateResponseLanguagePreference(
-  session: Session,
-  input: PromptPayload['input'],
-): Promise<void> {
-  const current = responseLanguagePreferenceFromUnknown(
-    session.metadata.custom['responseLanguage'],
-  );
-  const mainAgent = await session.ensureAgentResumed('main');
-  // A locked preference is the session's language contract. Re-running the
-  // detection LLM on every user message is pure waste — only pay for a
-  // re-detect when the new message plausibly demands a language switch
-  // (explicit markers or a script shift); otherwise reuse the locked
-  // preference deterministically.
-  const text = promptTextOf(input);
-  const reuseLocked =
-    current !== undefined && text !== undefined && !mayRequestLanguageSwitch(text, current.code);
-  const next = await resolveResponseLanguagePreference(current, input, {
-    env: process.env,
-    detectWithLlm:
-      reuseLocked || text === undefined
-        ? undefined
-        : async (detectText, currentPreference, hostLocale) => {
-            // Smart-auto (`auto`) has no concrete provider until turn-start routing
-            // pins one — config.provider throws model.not_configured in that window.
-            if (!mainAgent.config.hasProvider) return undefined;
-            const provider = mainAgent.config.provider;
-            return detectResponseLanguageWithLlm(
-              { generate: mainAgent.generate, provider },
-              {
-                text: detectText,
-                current: currentPreference,
-                hostLocale,
-                signal: AbortSignal.timeout(8_000),
-              },
-            );
-          },
-  });
-  if (next === current || responseLanguagePreferencesEqual(next, current)) return;
-
-  session.metadata = {
-    ...session.metadata,
-    updatedAt: new Date().toISOString(),
-    custom: {
-      ...session.metadata.custom,
-      responseLanguage: next,
-    },
-  };
-  await session.writeMetadata();
-}

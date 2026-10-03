@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { resolveLioraHome } from '#/config/path';
 import { writeFileAtomicSync } from '#/utils/fs';
+import { log } from '../../logging/logger';
 
 export const SUBAGENT_CHECKPOINT_VERSION = 1;
 
@@ -21,7 +22,6 @@ export interface SubagentCheckpoint {
   readonly lastTarget?: string;
   readonly tokens: number;
   readonly elapsedMs: number;
-  readonly todos?: readonly unknown[];
   readonly dirtyFiles?: readonly string[];
   readonly savedAt: string;
 }
@@ -54,8 +54,8 @@ export function writeSubagentCheckpoint(
       ...input,
     };
     writeFileAtomicSync(subagentCheckpointPath(subagentId, homeDir), JSON.stringify(checkpoint));
-  } catch {
-    // Best effort only.
+  } catch (error) {
+    log.warn('Worker checkpoint persistence failed', { agentId: subagentId, error });
   }
 }
 
@@ -76,7 +76,9 @@ export function readSubagentCheckpoint(
       return undefined;
     }
     return parsed;
-  } catch {
+  } catch (error) {
+    if (error !== null && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return undefined;
+    log.warn('Worker checkpoint read failed', { agentId: subagentId, error });
     return undefined;
   }
 }
@@ -84,20 +86,16 @@ export function readSubagentCheckpoint(
 export function clearSubagentCheckpoint(subagentId: string, homeDir?: string): void {
   try {
     unlinkSync(subagentCheckpointPath(subagentId, homeDir));
-  } catch {
-    // Already gone.
+  } catch (error) {
+    if (error !== null && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return;
+    log.warn('Worker checkpoint cleanup failed', { agentId: subagentId, error });
   }
-}
-
-interface TodoLike {
-  readonly title?: unknown;
-  readonly status?: unknown;
 }
 
 /** Render the reminder injected into a resumed subagent's context. */
 export function buildCheckpointRecoveryReminder(checkpoint: SubagentCheckpoint): string {
   const lines: string[] = [
-    'You are resuming after an interruption. A checkpoint from the previous run was recovered:',
+    'Recovered checkpoint from the previous worker run:',
     `- tool calls completed: ${String(checkpoint.toolCount)}`,
     `- tokens spent: ${String(checkpoint.tokens)}`,
     `- elapsed before interruption: ${Math.round(checkpoint.elapsedMs / 1000)}s`,
@@ -106,23 +104,9 @@ export function buildCheckpointRecoveryReminder(checkpoint: SubagentCheckpoint):
     const target = checkpoint.lastTarget !== undefined ? ` (${checkpoint.lastTarget})` : '';
     lines.push(`- last tool: ${checkpoint.lastTool}${target}`);
   }
-  const todos = (checkpoint.todos ?? []).filter(
-    (item): item is TodoLike => item !== null && typeof item === 'object',
-  );
-  if (todos.length > 0) {
-    lines.push('- todo list at interruption:');
-    for (const todo of todos.slice(0, 20)) {
-      const title = typeof todo.title === 'string' ? todo.title : '(untitled)';
-      const status = typeof todo.status === 'string' ? todo.status : 'pending';
-      lines.push(`  - [${status}] ${title}`);
-    }
-  }
   const dirty = checkpoint.dirtyFiles ?? [];
   if (dirty.length > 0) {
     lines.push(`- uncommitted file changes: ${dirty.slice(0, 20).join(', ')}`);
   }
-  lines.push(
-    'Do not repeat completed work. Verify the current state first, then continue from where the checkpoint stopped.',
-  );
   return lines.join('\n');
 }

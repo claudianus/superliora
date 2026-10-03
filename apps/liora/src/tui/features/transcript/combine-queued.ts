@@ -7,11 +7,12 @@ export const COMBINED_QUEUE_SEPARATOR = '\n\n';
 
 export interface CombineQueuedGate {
   readonly id?: string;
+  readonly agentId?: string;
   readonly isPlainPrompt: boolean;
   readonly hasImages: boolean;
   readonly isBash: boolean;
-  /** Client-expanded skill / brief payload — never combine. */
-  readonly isExpandedSkill?: boolean;
+  /** Display text differing from the actual prompt must remain a separate turn. */
+  readonly isExpandedPrompt?: boolean;
   readonly isSynthetic?: boolean;
   readonly text: string;
 }
@@ -20,7 +21,7 @@ export function canMergeQueuedFront(gate: CombineQueuedGate): boolean {
   return (
     gate.isPlainPrompt &&
     !gate.isBash &&
-    !gate.isExpandedSkill &&
+    !gate.isExpandedPrompt &&
     !gate.isSynthetic &&
     gate.text.length > 0
   );
@@ -37,7 +38,7 @@ export function combineQueuedPrefixLen(items: readonly CombineQueuedGate[]): num
   if (!canMergeQueuedFront(front)) return 1;
   let n = 1;
   for (let i = 1; i < items.length; i++) {
-    if (!canMergeQueuedFollower(items[i]!)) break;
+    if (!canMergeQueuedFollower(items[i]!) || items[i]!.agentId !== front.agentId) break;
     n += 1;
   }
   return n;

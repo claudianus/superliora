@@ -26,7 +26,6 @@ export const ErrorCodes = {
   SESSION_PERMISSION_MODE_INVALID: 'session.permission_mode_invalid',
   SESSION_THINKING_EMPTY: 'session.thinking_empty',
   SESSION_MODEL_EMPTY: 'session.model_empty',
-  SESSION_PLAN_MODE_INVALID: 'session.plan_mode_invalid',
   SESSION_APPROVAL_HANDLER_ERROR: 'session.approval_handler_error',
   SESSION_QUESTION_HANDLER_ERROR: 'session.question_handler_error',
   SESSION_CREDENTIAL_HANDLER_ERROR: 'session.credential_handler_error',
@@ -42,14 +41,6 @@ export const ErrorCodes = {
   AGENT_NOT_FOUND: 'agent.not_found',
   TURN_AGENT_BUSY: 'turn.agent_busy',
 
-  GOAL_ALREADY_EXISTS: 'goal.already_exists',
-  GOAL_NOT_FOUND: 'goal.not_found',
-  GOAL_OBJECTIVE_EMPTY: 'goal.objective_empty',
-  GOAL_OBJECTIVE_TOO_LONG: 'goal.objective_too_long',
-  GOAL_STATUS_INVALID: 'goal.status_invalid',
-  GOAL_METADATA_RESERVED: 'goal.metadata_reserved',
-  GOAL_NOT_RESUMABLE: 'goal.not_resumable',
-
   MODEL_NOT_CONFIGURED: 'model.not_configured',
   MODEL_CONFIG_INVALID: 'model.config_invalid',
   AUTH_LOGIN_REQUIRED: 'auth.login_required',
@@ -61,24 +52,12 @@ export const ErrorCodes = {
   PROVIDER_AUTH_ERROR: 'provider.auth_error',
   PROVIDER_CONNECTION_ERROR: 'provider.connection_error',
 
-  SKILL_NOT_FOUND: 'skill.not_found',
-  SKILL_TYPE_UNSUPPORTED: 'skill.type_unsupported',
-  SKILL_NAME_EMPTY: 'skill.name_empty',
-
   RECORDS_WRITE_FAILED: 'records.write_failed',
   STORAGE_DISK_FULL: 'storage.disk_full',
   COMPACTION_FAILED: 'compaction.failed',
   COMPACTION_UNABLE: 'compaction.unable',
 
   BACKGROUND_TASK_ID_EMPTY: 'background.task_id_empty',
-  MCP_SERVER_NOT_FOUND: 'mcp.server_not_found',
-  MCP_SERVER_DISABLED: 'mcp.server_disabled',
-  MCP_STARTUP_FAILED: 'mcp.startup_failed',
-  MCP_TOOL_NAME_COLLISION: 'mcp.tool_name_collision',
-
-  PLUGIN_NOT_FOUND: 'plugin.not_found',
-  PLUGIN_LOAD_FAILED: 'plugin.load_failed',
-
   REQUEST_INVALID: 'request.invalid',
   REQUEST_WORK_DIR_REQUIRED: 'request.work_dir_required',
   REQUEST_PROMPT_INPUT_EMPTY: 'request.prompt_input_empty',
@@ -237,12 +216,6 @@ export const KIMI_ERROR_INFO = {
     public: true,
     action: 'Provide a non-empty model identifier.',
   },
-  'session.plan_mode_invalid': {
-    title: 'Invalid plan mode',
-    retryable: false,
-    public: true,
-    action: 'Provide a boolean plan mode.',
-  },
   'session.approval_handler_error': {
     title: 'Approval handler threw',
     retryable: false,
@@ -279,49 +252,6 @@ export const KIMI_ERROR_INFO = {
     retryable: true,
     public: true,
     action: 'Wait for the current turn to finish or steer it.',
-  },
-
-  'goal.already_exists': {
-    title: 'A goal is already active',
-    retryable: false,
-    public: true,
-    action: 'Use `/goal replace <objective>` to replace the current goal.',
-  },
-  'goal.not_found': {
-    title: 'No goal found',
-    retryable: false,
-    public: true,
-    action: 'Start a goal with `/goal <objective>` first.',
-  },
-  'goal.objective_empty': {
-    title: 'Goal objective is empty',
-    retryable: false,
-    public: true,
-    action: 'Provide a non-empty objective.',
-  },
-  'goal.objective_too_long': {
-    title: 'Goal objective is too long',
-    retryable: false,
-    public: true,
-    action: 'Keep the objective under 4000 characters; reference long details by file path.',
-  },
-  'goal.status_invalid': {
-    title: 'Invalid goal status transition',
-    retryable: false,
-    public: true,
-    action: 'Use a status allowed for this actor (complete, blocked, or impossible).',
-  },
-  'goal.metadata_reserved': {
-    title: 'Goal metadata is reserved',
-    retryable: false,
-    public: true,
-    action: 'Do not write metadata.custom.goal directly; use the goal lifecycle methods.',
-  },
-  'goal.not_resumable': {
-    title: 'Goal is not resumable',
-    retryable: false,
-    public: true,
-    action: 'Only paused goals can be resumed.',
   },
 
   'model.not_configured': {
@@ -380,25 +310,6 @@ export const KIMI_ERROR_INFO = {
     action: 'Check network connectivity and retry.',
   },
 
-  'skill.not_found': {
-    title: 'Skill not found',
-    retryable: false,
-    public: true,
-    action: 'List available skills via the skill registry.',
-  },
-  'skill.type_unsupported': {
-    title: 'Skill type not supported',
-    retryable: false,
-    public: true,
-    action: 'Only inline skills can be activated by the user.',
-  },
-  'skill.name_empty': {
-    title: 'Skill name is empty',
-    retryable: false,
-    public: true,
-    action: 'Provide a non-empty skill name.',
-  },
-
   'records.write_failed': {
     title: 'Failed to write records',
     retryable: true,
@@ -430,44 +341,6 @@ export const KIMI_ERROR_INFO = {
     public: true,
     action: 'Provide a non-empty task id.',
   },
-  'mcp.server_not_found': {
-    title: 'MCP server not found',
-    retryable: false,
-    public: true,
-    action: 'List configured MCP servers and check the requested name.',
-  },
-  'mcp.server_disabled': {
-    title: 'MCP server is disabled',
-    retryable: false,
-    public: true,
-    action: 'Enable the MCP server entry in config before reconnecting.',
-  },
-  'mcp.startup_failed': {
-    title: 'MCP server startup failed',
-    retryable: true,
-    public: true,
-    action: 'Inspect the MCP server log or call reconnect once the server is healthy.',
-  },
-  'mcp.tool_name_collision': {
-    title: 'MCP tool name collision',
-    retryable: false,
-    public: true,
-    action: 'Rename one of the colliding MCP tools or servers so their qualified names are unique.',
-  },
-
-  'plugin.not_found': {
-    title: 'Plugin not found',
-    retryable: false,
-    public: true,
-    action: 'List installed plugins via /plugins and check the requested id.',
-  },
-  'plugin.load_failed': {
-    title: 'Plugin state failed to load',
-    retryable: true,
-    public: true,
-    action: 'Fix the installed.json file under $SUPERLIORA_HOME/plugins/ and run /plugins reload.',
-  },
-
   'request.invalid': {
     title: 'Invalid request',
     retryable: false,

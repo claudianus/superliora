@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { renderTruncated } from '#/tui/components/messages/tool-renderers/truncated';
 import {
-  getActiveNeatMode,
   setActiveNeatMode,
 } from '#/tui/features/transcript/transcript-density';
 import { darkColors } from '#/tui/theme/colors';
@@ -29,17 +28,10 @@ const expandedCtx = { expanded: true, colors: darkColors };
 
 const RAW = 'line one\nline two\nline three';
 
-const CHECK: ToolResultDisplay = {
-  kind: 'check_report',
-  tool: 'vitest',
+const COMMAND_OUTPUT: ToolResultDisplay = {
+  kind: 'command_output',
   exit_code: 1,
-  passed: 237,
-  failed: 2,
-  duration_ms: 1820,
-  findings: [
-    { file: 'test/a.test.ts', line: 12, message: 'rejects skip' },
-    { file: 'test/b.test.ts', message: 'wrong copy' },
-  ],
+  stdout: 'native-command-tail',
 };
 
 afterEach(() => {
@@ -47,31 +39,25 @@ afterEach(() => {
 });
 
 describe('neat mode dispatch', () => {
-  it('is on by default', () => {
-    expect(getActiveNeatMode()).toBe(true);
-  });
 
-  it('replaces the raw body with a check card', () => {
-    const out = render(renderTruncated(call, result(RAW, CHECK), ctx));
-    expect(out).toContain('vitest');
-    expect(out).toContain('2 failed');
-    expect(out).toContain('237 passed');
-    expect(out).toContain('1.8s');
-    expect(out).toContain('test/a.test.ts:12');
+  it('replaces the raw body with a native command card', () => {
+    const out = render(renderTruncated(call, result(RAW, COMMAND_OUTPUT), ctx));
+    expect(out).toContain('exit 1');
+    expect(out).toContain('native-command-tail');
     expect(out).not.toContain('line two');
   });
 
   it('keeps the raw body under the card when expanded', () => {
-    const out = render(renderTruncated(call, result(RAW, CHECK), expandedCtx));
-    expect(out).toContain('vitest');
+    const out = render(renderTruncated(call, result(RAW, COMMAND_OUTPUT), expandedCtx));
+    expect(out).toContain('exit 1');
     expect(out).toContain('line two');
   });
 
   it('falls back to the raw body when neat is off', () => {
     setActiveNeatMode(false);
-    const out = render(renderTruncated(call, result(RAW, CHECK), ctx));
+    const out = render(renderTruncated(call, result(RAW, COMMAND_OUTPUT), ctx));
     expect(out).toContain('line two');
-    expect(out).not.toContain('237 passed');
+    expect(out).not.toContain('native-command-tail');
   });
 
   it('falls back to the raw body when no display was attached', () => {
@@ -79,19 +65,6 @@ describe('neat mode dispatch', () => {
     expect(out).toContain('line two');
   });
 
-  it('caps findings and reports the remainder', () => {
-    const many: ToolResultDisplay = {
-      ...CHECK,
-      findings: Array.from({ length: 5 }, (_, i) => ({
-        file: `test/f${String(i)}.test.ts`,
-        message: 'boom',
-      })),
-    };
-    const out = render(renderTruncated(call, result(RAW, many), ctx));
-    expect(out).toContain('test/f2.test.ts');
-    expect(out).not.toContain('test/f3.test.ts');
-    expect(out).toContain('+2 more');
-  });
 });
 
 describe('neat card kinds', () => {

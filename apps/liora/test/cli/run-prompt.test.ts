@@ -65,7 +65,6 @@ const mocks = vi.hoisted(() => {
     harnessTrack: vi.fn(),
     // Proactive refresh only warms a provider the operator logged into.
     harnessGetCachedAccessToken: vi.fn(async () => 'cached-token'),
-    harnessBroadcastRuntimeDegraded: vi.fn(),
     harnessResolveOAuthTokenProvider: vi.fn(() => ({ getAccessToken: vi.fn(async () => 'token') })),
     initializeTelemetry: vi.fn(),
     setCrashPhase: vi.fn(),
@@ -98,7 +97,6 @@ vi.mock('@superliora/sdk', async (importOriginal) => {
           getCachedAccessToken: mocks.harnessGetCachedAccessToken,
           resolveOAuthTokenProvider: mocks.harnessResolveOAuthTokenProvider,
         },
-        broadcastRuntimeDegraded: mocks.harnessBroadcastRuntimeDegraded,
         ensureConfigFile: mocks.harnessEnsureConfigFile,
         getConfig: mocks.harnessGetConfig,
         getConfigDiagnostics: mocks.harnessGetConfigDiagnostics,
@@ -139,13 +137,9 @@ function opts(overrides: Partial<Parameters<typeof runPrompt>[0]> = {}) {
     continue: false,
     yolo: false,
     auto: false,
-    plan: false,
     model: undefined,
     outputFormat: undefined,
     prompt: 'say hello',
-    skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
     addDirs: [],
     ...overrides,
   };
@@ -215,17 +209,16 @@ describe('runPrompt', () => {
     const stdout = writer();
     const stderr = writer();
 
-    await runPrompt(opts({ skillsDirs: ['/skills'] }), '1.2.3-test', { stdout, stderr });
+    await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
 
     expect(mocks.kimiHarnessConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({ skillDirs: ['/skills'], uiMode: 'print' }),
+      expect.objectContaining({ uiMode: 'print' }),
     );
     expect(mocks.harnessCreateSession).toHaveBeenCalledWith({
       workDir: process.cwd(),
       model: 'k2',
       permission: 'auto',
       additionalDirs: undefined,
-      drainAgentTasksOnStop: true,
       metadata: {},
     });
     expect(mocks.session.setPermission).not.toHaveBeenCalled();
@@ -236,6 +229,18 @@ describe('runPrompt', () => {
     expect(stderr.text()).toBe('To resume this session: liora -r ses_prompt\n');
     expect(mocks.shutdownTelemetry).toHaveBeenCalled();
     expect(mocks.harnessClose).toHaveBeenCalled();
+  });
+
+  it('passes prompt text directly to the session without goal-command interception', async () => {
+    const stdout = writer();
+    const stderr = writer();
+    const prompt = '/goal implement the requested fix';
+
+    await runPrompt(opts({ prompt }), '1.2.3-test', { stdout, stderr });
+
+    expect(mocks.session.prompt).toHaveBeenCalledWith(prompt);
+    expect(stdout.text()).toBe('• hello world\n\n');
+    expect(stderr.text()).toBe('To resume this session: liora -r ses_prompt\n');
   });
 
   it('completes even if harness.close never resolves', async () => {
@@ -342,7 +347,6 @@ describe('runPrompt', () => {
       model: 'kimi-code/k2.5',
       permission: 'auto',
       additionalDirs: undefined,
-      drainAgentTasksOnStop: true,
       metadata: {},
     });
     expect(mocks.initializeTelemetry).toHaveBeenCalledWith(
@@ -361,7 +365,6 @@ describe('runPrompt', () => {
       model: 'k2',
       permission: 'auto',
       additionalDirs: ['../shared', '/tmp/extra'],
-      drainAgentTasksOnStop: true,
       metadata: {},
     });
   });
@@ -473,9 +476,9 @@ describe('runPrompt', () => {
           mocks.mainEvent({
             type: 'tool.call.started',
             turnId: 3,
-            toolCallId: 'tc_write',
-            name: 'Write',
-            args: { file_path: '/tmp/notes.md' },
+            toolCallId: 'tc_bash',
+            name: 'Bash',
+            args: { command: 'cat /tmp/notes.txt' },
           }),
         );
       }
@@ -532,33 +535,6 @@ describe('runPrompt', () => {
     expect(stderr.write).toHaveBeenNthCalledWith(1, '• The user wants an exact reply.');
     expect(stderr.write).toHaveBeenNthCalledWith(2, '\n  No tools are needed.');
     expect(stdout.write).toHaveBeenNthCalledWith(1, '• prompt-mode-ok');
-  });
-
-  it('formats hook results as their own transcript block', async () => {
-    mocks.session.prompt.mockImplementationOnce(async () => {
-      for (const handler of mocks.eventHandlers) {
-        handler(
-          mocks.mainEvent({ type: 'turn.started', turnId: 3, origin: { kind: 'user' } }),
-        );
-        handler(
-          mocks.mainEvent({
-            type: 'hook.result',
-            turnId: 3,
-            hookEvent: 'UserPromptSubmit',
-            content: '{}',
-          }),
-        );
-        handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 3, delta: 'answer' }));
-        handler(mocks.mainEvent({ type: 'turn.ended', turnId: 3, reason: 'completed' }));
-      }
-    });
-    const stdout = writer();
-    const stderr = writer();
-
-    await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
-
-    expect(stdout.text()).toBe('• UserPromptSubmit hook\n\n  {}\n\n• answer\n\n');
-    expect(stderr.text()).toBe('To resume this session: liora -r ses_prompt\n');
   });
 
   it('wraps transcript blocks with hanging indentation when terminal width is known', async () => {
@@ -739,7 +715,7 @@ describe('runPrompt', () => {
             type: 'tool.call.started',
             turnId: 8,
             toolCallId: 'tc_1',
-            name: 'Shell',
+            name: 'Bash',
             args: { command: 'ls' },
           }),
         );
@@ -762,7 +738,7 @@ describe('runPrompt', () => {
 
     expect(stdout.text()).toBe(
       [
-        '{"role":"assistant","content":"checking","tool_calls":[{"type":"function","id":"tc_1","function":{"name":"Shell","arguments":"{\\"command\\":\\"ls\\"}"}}]}',
+        '{"role":"assistant","content":"checking","tool_calls":[{"type":"function","id":"tc_1","function":{"name":"Bash","arguments":"{\\"command\\":\\"ls\\"}"}}]}',
         '{"role":"tool","tool_call_id":"tc_1","content":"file1.py\\nfile2.py"}',
         '{"role":"assistant","content":"done"}',
         '{"role":"meta","type":"session.resume_hint","session_id":"ses_prompt","command":"liora -r ses_prompt","content":"To resume this session: liora -r ses_prompt"}',
@@ -1041,7 +1017,7 @@ describe('runPrompt', () => {
     await run;
   });
 
-  it('broadcasts runtime.degraded when proactive oauth refresh fails in headless mode', async () => {
+  it('reports proactive OAuth refresh failures on stderr without runtime degradation events', async () => {
     vi.useFakeTimers();
     const refreshError = new Error('token refresh failed');
     mocks.harnessResolveOAuthTokenProvider.mockReturnValueOnce({
@@ -1073,13 +1049,7 @@ describe('runPrompt', () => {
       await flushMicrotasks();
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
 
-      expect(mocks.harnessBroadcastRuntimeDegraded).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'runtime.degraded',
-          scope: 'oauth',
-          reason: 'token refresh failed',
-        }),
-      );
+      expect(stderr.text()).toContain('OAuth refresh failed: token refresh failed');
 
       releasePrompt();
       await vi.advanceTimersByTimeAsync(PROMPT_CLEANUP_TIMEOUT_MS + 100);
@@ -1089,7 +1059,7 @@ describe('runPrompt', () => {
     }
   });
 
-  it('uses auto permission so headless mode can bypass plan approval and questions', async () => {
+  it('uses auto permission so headless coding runs without interactive approval', async () => {
     await runPrompt(opts(), '1.2.3-test', {
       stdout: { write: vi.fn(() => true) },
       stderr: { write: vi.fn(() => true) },

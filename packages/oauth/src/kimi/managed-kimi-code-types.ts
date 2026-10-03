@@ -50,7 +50,6 @@ export interface ManagedKimiCodeCleanupResult {
   readonly removedProvider: boolean;
   readonly removedModels: readonly string[];
   readonly defaultModelCleared: boolean;
-  readonly removedServices: readonly string[];
 }
 
 export interface ManagedKimiOAuthRef {
@@ -125,24 +124,12 @@ export interface ManagedKimiModelAlias {
   readonly [key: string]: unknown;
 }
 
-export interface ManagedKimiServiceConfig {
-  baseUrl?: string | undefined;
-  apiKey?: string | undefined;
-  oauth?: ManagedKimiOAuthRef | undefined;
-}
-
-export interface ManagedKimiServicesConfig {
-  moonshotSearch?: ManagedKimiServiceConfig | undefined;
-  moonshotFetch?: ManagedKimiServiceConfig | undefined;
-  readonly [key: string]: unknown;
-}
 
 export interface ManagedKimiConfigShape {
   providers: Record<string, ManagedKimiProviderConfig | Record<string, unknown>>;
   models?: Record<string, ManagedKimiModelAlias | Record<string, unknown>> | undefined;
   defaultModel?: string | undefined;
   defaultThinking?: boolean | undefined;
-  services?: ManagedKimiServicesConfig | undefined;
   [key: string]: unknown;
 }
 

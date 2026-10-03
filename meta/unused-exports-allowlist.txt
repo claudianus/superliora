@@ -565,8 +565,6 @@ packages/agent-core/src/logging/resolve-config.ts:DEFAULT_GLOBAL_MAX_BYTES
 packages/agent-core/src/logging/resolve-config.ts:DEFAULT_SESSION_FILES
 packages/agent-core/src/logging/resolve-config.ts:DEFAULT_SESSION_MAX_BYTES
 packages/agent-core/src/logging/resolve-config.ts:ResolveLoggingInput
-packages/agent-core/src/loop/retry.ts:ChatWithRetryInput
-packages/agent-core/src/loop/retry.ts:DEFAULT_MAX_RETRY_ATTEMPTS
 packages/agent-core/src/loop/tool-access.ts:ToolFileAccessOperation
 packages/agent-core/src/loop/tool-access.ts:ToolResourceAccessAll
 packages/agent-core/src/loop/tool-args-parse.ts:ParseToolArgsResult

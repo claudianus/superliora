@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { DOUBLE_ESC_WINDOW_MS } from '#/tui/constant/liora-tui';
 import {
   EditorKeyboardController,
-  nextShiftTabMode,
   type EditorKeyboardHost,
 } from '#/tui/controllers/shell/editor-keyboard';
 import { ImageAttachmentStore } from '#/tui/utils/image/image-attachment-store';
@@ -35,8 +34,6 @@ interface Harness {
   readonly editor: Record<string, unknown>;
   readonly openUndoSelector: ReturnType<typeof vi.fn>;
   readonly cancelRunningShellCommand: ReturnType<typeof vi.fn>;
-  readonly handlePlanToggle: ReturnType<typeof vi.fn>;
-  readonly setAskMode: ReturnType<typeof vi.fn>;
   readonly scrollTranscriptViewport: ReturnType<typeof vi.fn>;
   readonly toastShow: ReturnType<typeof vi.fn>;
   readonly showCommandHub: ReturnType<typeof vi.fn>;
@@ -47,8 +44,6 @@ function createHarness(
   options: {
     streamingPhase?: 'idle' | 'waiting' | 'thinking' | 'composing' | 'shell';
     isCompacting?: boolean;
-    planMode?: boolean;
-    askMode?: boolean;
     editorText?: string;
     imageStore?: ImageAttachmentStore;
   } = {},
@@ -67,8 +62,6 @@ function createHarness(
   };
   const openUndoSelector = vi.fn();
   const cancelRunningShellCommand = vi.fn();
-  const handlePlanToggle = vi.fn();
-  const setAskMode = vi.fn();
   const scrollTranscriptViewport = vi.fn(() => true);
   const session = { cancel: vi.fn(async () => {}) };
 
@@ -80,8 +73,6 @@ function createHarness(
         streamingPhase: options.streamingPhase ?? 'idle',
         isCompacting: options.isCompacting ?? false,
         isBackgroundCompacting: false,
-        planMode: options.planMode ?? false,
-        askMode: options.askMode ?? false,
         model: 'test-model',
       },
       footer: { setTransientHint: vi.fn() },
@@ -93,8 +84,6 @@ function createHarness(
     },
     session,
     track: vi.fn(),
-    handlePlanToggle,
-    setAskMode,
     scrollTranscriptViewport,
     btwPanelController: { closeOrCancel: vi.fn(() => false), scroll: vi.fn(() => false) },
     openUndoSelector,
@@ -114,7 +103,7 @@ function createHarness(
 
   const controller = new EditorKeyboardController(
     host,
-    options.imageStore ?? (undefined as unknown as ImageAttachmentStore),
+    options.imageStore ?? new ImageAttachmentStore(),
   );
   controller.install();
 
@@ -123,8 +112,6 @@ function createHarness(
     editor,
     openUndoSelector,
     cancelRunningShellCommand,
-    handlePlanToggle,
-    setAskMode,
     scrollTranscriptViewport,
     toastShow,
     showCommandHub,
@@ -150,11 +137,6 @@ function pressTranscriptPageUp(editor: Harness['editor']): void {
   (handler as () => void)();
 }
 
-function pressShiftTab(editor: Harness['editor']): void {
-  const handler = editor['onShiftTab'];
-  if (typeof handler !== 'function') throw new Error('onShiftTab handler not installed');
-  (handler as () => void)();
-}
 
 function pressUpArrowEmpty(editor: Harness['editor']): boolean {
   const handler = editor['onUpArrowEmpty'];
@@ -168,28 +150,6 @@ function editorText(editor: Harness['editor']): string {
   return (getText as () => string)();
 }
 
-describe('Shift-Tab Build/Ask cycle', () => {
-  it('cycles Build → Ask → Build', () => {
-    expect(nextShiftTabMode(false)).toBe('ask');
-    expect(nextShiftTabMode(true)).toBe('build');
-  });
-
-  it('turns ask mode on from build', () => {
-    const { editor, setAskMode } = createHarness();
-
-    pressShiftTab(editor);
-
-    expect(setAskMode).toHaveBeenCalledWith(true);
-  });
-
-  it('turns ask mode off again', () => {
-    const { editor, setAskMode } = createHarness({ askMode: true });
-
-    pressShiftTab(editor);
-
-    expect(setAskMode).toHaveBeenCalledWith(false);
-  });
-});
 
 describe('EditorKeyboardController transcript viewport shortcuts', () => {
   it('routes editor PageUp to the transcript viewport', () => {
@@ -300,6 +260,38 @@ describe('EditorKeyboardController gated shortcut toasts', () => {
     (handler as () => void)();
 
     expect(toastShow).toHaveBeenCalledWith(ttui('tui.editor.steerIdleHint'), 2200);
+  });
+
+  it('keeps the steering draft when no session is available', () => {
+    const { host, editor } = createHarness({ streamingPhase: 'thinking', editorText: 'keep this draft' });
+    host.session = undefined;
+    (editor['onCtrlS'] as () => void)();
+    expect(editorText(editor)).toBe('keep this draft');
+    expect(host.steerMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps media steering drafts when preparing an attachment fails', () => {
+    const imageStore = new ImageAttachmentStore();
+    const attachment = imageStore.addFile('application/pdf', '/missing-liora-attachment/document.pdf');
+    const draft = `review ${attachment.placeholder}`;
+    const { host, editor } = createHarness({ streamingPhase: 'thinking', editorText: draft, imageStore });
+    (editor['onCtrlS'] as () => void)();
+    expect(editorText(editor)).toBe(draft);
+    expect(host.steerMessage).not.toHaveBeenCalled();
+    expect(host.showError).toHaveBeenCalled();
+  });
+
+  it('passes image content through steering before consuming the draft', () => {
+    const imageStore = new ImageAttachmentStore();
+    const attachment = imageStore.addImage(new Uint8Array([1]), 'image/png', 1, 1);
+    const draft = `review ${attachment.placeholder}`;
+    const { host, editor } = createHarness({ streamingPhase: 'thinking', editorText: draft, imageStore });
+    (editor['onCtrlS'] as () => void)();
+    expect(host.steerMessage).toHaveBeenCalledWith(host.session, [draft], {
+      parts: [{ type: 'text', text: 'review ' }, { type: 'image_url', imageUrl: { url: 'data:image/png;base64,AQ==' } }],
+      imageAttachmentIds: [attachment.id],
+    });
+    expect(editorText(editor)).toBe('');
   });
 
   it('toasts when Ctrl-B is pressed while idle', () => {

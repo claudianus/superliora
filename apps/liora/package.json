@@ -51,7 +51,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "tsdown && node scripts/copy-expert-personas.mjs && node scripts/check-cli-bundle.mjs",
+    "build": "tsdown && node scripts/check-cli-bundle.mjs",
     "prebuild": "node scripts/sync-upstream-baseline.mjs",
     "catalog:update": "node scripts/update-catalog.mjs --out dist/built-in-catalog.json",
     "smoke": "node scripts/smoke.mjs",
@@ -68,8 +68,6 @@
     "dev:cli-only": "node scripts/dev-cli-only.mjs",
     "dev:server": "tsx --tsconfig ./tsconfig.dev.json --import ../../build/register-raw-text-loader.mjs ./src/main.ts server run --foreground",
     "dev:server:restart": "node scripts/dev-server-restart.mjs",
-    "dev:plugin-marketplace": "node scripts/dev-plugin-marketplace-server.mjs",
-    "build:plugin-marketplace": "node scripts/build-plugin-marketplace-cdn.mjs",
     "dev:prod": "node dist/main.mjs",
     "clean": "rm -rf dist",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -86,7 +84,6 @@
   },
   "dependencies": {
     "cloakbrowser": "0.5.5",
-    "oxc-parser": "^0.141.0",
     "playwright-core": "^1.61.1",
     "shiki": "^3.23.0",
     "slice-ansi": "^8.0.0"

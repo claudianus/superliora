@@ -5,7 +5,7 @@ import {
 } from '../tools/args-validator';
 
 import { parseToolCallArguments } from './tool-args-parse';
-import { validators } from './tool-call-guards';
+import { validators } from './tool-call-support';
 import type { ExecutableTool } from './types';
 import type {
   PreflightedToolCall,

@@ -23,15 +23,10 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/conversation-loops.ts',
   'session/export/manifest.ts',
   'session/index.ts',
-  'session/job/conductor-idle-pulse.ts',
-  'session/job/conductor-wake.ts',
   'session/job/job-offload.ts',
   'session/lifecycle/session-agent-lifecycle.ts',
   'session/lifecycle/session-close-lifecycle.ts',
-  'session/lifecycle/session-plugin-reminder.ts',
-  'session/lifecycle/session-resources.ts',
   'session/lifecycle/session-types.ts',
-  'session/lifecycle/session-workspace-dirs.ts',
   'session/response-language-llm.ts',
   'session/rpc.ts',
   'session/rpc-prompt-handlers.ts',
@@ -41,20 +36,15 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/subagent/subagent-completion-flow.ts',
   'session/subagent/subagent-errors.ts',
   'session/subagent/subagent-events.ts',
-  'session/subagent/subagent-friction.ts',
   'session/subagent/subagent-host.ts',
   'session/subagent/subagent-host-types.ts',
   'session/subagent/subagent-model-routing.ts',
   'session/subagent/subagent-progress-preview.ts',
-  'session/subagent/subagent-result-contract.ts',
   'session/subagent/subagent-run-lifecycle.ts',
   'session/subagent/subagent-side-channel.ts',
   'session/subagent/subagent-telemetry.ts',
-  'session/subagent/subagent-verification-gate.ts',
   'session/team-hooks.ts',
   'session/trace.ts',
-  'session/vision-analyzer/analyzer.ts',
-  'session/vision-analyzer/types.ts',
 ]);
 
 /**
@@ -78,7 +68,7 @@ function walk(dir) {
     const entryPath = join(dir, entry);
     const stats = statSync(entryPath);
     if (stats.isDirectory()) {
-      if (entry === 'skill' || entry === 'node_modules' || entry === 'dist') continue;
+      if (entry === 'node_modules' || entry === 'dist') continue;
       files.push(...walk(entryPath));
       continue;
     }

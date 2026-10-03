@@ -1,14 +1,5 @@
 import type { LayeredSystemPrompt, ModelCapability, ProviderConfig } from '@superliora/kosong';
 
-/** Loop-control role → model alias assignments; unset roles are auto-inferred. */
-export interface AgentRoleModels {
-  compaction?: string;
-  completion?: string;
-  exploration?: string;
-  coding?: string;
-  planning?: string;
-  debugging?: string;
-}
 
 export interface AgentConfigData {
   cwd: string;
@@ -20,8 +11,6 @@ export interface AgentConfigData {
   systemPrompt: string;
   /** Layered system prompt for cache-optimized providers (Anthropic). */
   layeredSystemPrompt?: LayeredSystemPrompt;
-  /** Present only when at least one loop-control role model is configured. */
-  roleModels?: AgentRoleModels;
 }
 
 export type AgentConfigUpdateData = Partial<{

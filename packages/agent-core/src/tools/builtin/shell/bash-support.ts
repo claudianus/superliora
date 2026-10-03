@@ -3,9 +3,7 @@ import { z } from 'zod';
 
 export const MS_PER_SECOND = 1000;
 export const DEFAULT_TIMEOUT_S = 60;
-export const MAX_TIMEOUT_S = 5 * 60;
 export const DEFAULT_BACKGROUND_TIMEOUT_S = 10 * 60;
-export const MAX_BACKGROUND_TIMEOUT_S = 24 * 60 * 60;
 export const USER_INTERRUPT_REASON = 'Interrupted by user';
 
 export const BashInputSchema = z
@@ -22,10 +20,8 @@ export const BashInputSchema = z
       .int()
       .positive()
       .default(DEFAULT_TIMEOUT_S)
-      // Defaults/caps live in the tool description (bash.md); repeating the
-      // numbers here doubled the same prose in every request's tool block.
       .describe(
-        'Optional timeout in seconds. Capped per foreground/background mode (validation enforces the limit). Ignored for background commands when disable_timeout=true.',
+        'Timeout in seconds. Defaults to 60 foreground or 600 background. Ignored for background commands when disable_timeout=true.',
       )
       .optional(),
     description: z
@@ -44,18 +40,6 @@ export const BashInputSchema = z
       .describe(
         'If true, do not apply a timeout to the command. Only applies when run_in_background is true.',
       ),
-  })
-  .superRefine((val, ctx) => {
-    if (val.timeout === undefined) return;
-    const isBackground = val.run_in_background === true;
-    if (!isValidTimeoutValue(val.timeout, isBackground)) {
-      const cap = isBackground ? MAX_BACKGROUND_TIMEOUT_S : MAX_TIMEOUT_S;
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['timeout'],
-        message: `timeout must be ≤ ${String(cap)}s (${isBackground ? 'background' : 'foreground'})`,
-      });
-    }
   });
 
 export const BashOutputSchema = z.object({
@@ -70,30 +54,13 @@ export type BashOutput = z.infer<typeof BashOutputSchema>;
 export const SHELL_TIMEOUT_VARS = {
   DEFAULT_TIMEOUT_S,
   DEFAULT_BACKGROUND_TIMEOUT_S,
-  MAX_TIMEOUT_S,
-  MAX_BACKGROUND_TIMEOUT_S,
 };
 
-export function timeoutCapS(isBackground: boolean): number {
-  return isBackground ? MAX_BACKGROUND_TIMEOUT_S : MAX_TIMEOUT_S;
-}
-
-export function isValidTimeoutValue(timeout: number, isBackground: boolean): boolean {
-  return timeout <= timeoutCapS(isBackground);
-}
 
 export function normalizeTimeoutMs(timeout: number | undefined, isBackground: boolean): number {
   const defaultSeconds = isBackground ? DEFAULT_BACKGROUND_TIMEOUT_S : DEFAULT_TIMEOUT_S;
   const value = timeout ?? defaultSeconds;
-  return Math.min(value, timeoutCapS(isBackground)) * MS_PER_SECOND;
-}
-
-export async function disposeProcess(proc: KaosProcess): Promise<void> {
-  try {
-    await proc.dispose();
-  } catch {
-    /* best-effort cleanup */
-  }
+  return value * MS_PER_SECOND;
 }
 
 export function closeProcessStdin(proc: KaosProcess): void {
@@ -101,16 +68,6 @@ export function closeProcessStdin(proc: KaosProcess): void {
     proc.stdin.end();
   } catch {
     /* process already gone */
-  }
-}
-
-export async function killSpawnedProcess(proc: KaosProcess): Promise<void> {
-  try {
-    await proc.kill('SIGTERM');
-  } catch {
-    /* process already gone */
-  } finally {
-    await disposeProcess(proc);
   }
 }
 

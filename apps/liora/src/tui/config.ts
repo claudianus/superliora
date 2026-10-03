@@ -81,28 +81,16 @@ export const FooterPreferencesSchema = z.object({
   cwd: FooterSlotSchema,
   git: FooterSlotSchema,
   context: FooterSlotSchema,
-  goal: FooterSlotSchema,
   menu: FooterSlotSchema,
   background: FooterSlotSchema,
   tips: FooterSlotSchema,
-  nextAction: FooterSlotSchema,
-  workingSet: FooterSlotSchema,
   quota: FooterSlotSchema,
-  mediaReady: FooterSlotSchema,
-  index: FooterSlotSchema,
-  mcp: FooterSlotSchema,
   cache: FooterSlotSchema,
-  pulseGoalProgress: z.boolean(),
   pulseFleetComplete: z.boolean(),
   pulsePermission: z.boolean(),
   pulseGitChurn: z.boolean(),
-  pulseOpsCombo: z.boolean(),
-  pulseExtensionsReload: z.boolean(),
-  pulseRuntimeDegraded: z.boolean(),
-  pulseSearchCascade: z.boolean(),
   pulseModelRoute: z.boolean(),
   showCompact: z.boolean(),
-  showPromptIntelligence: z.boolean(),
 });
 
 export const AppearancePreferencesSchema = z.object({
@@ -137,28 +125,16 @@ const FooterConfigFileFieldsSchema = z.object({
   cwd: FooterSlotSchema.optional(),
   git: FooterSlotSchema.optional(),
   context: FooterSlotSchema.optional(),
-  goal: FooterSlotSchema.optional(),
   menu: FooterSlotSchema.optional(),
   background: FooterSlotSchema.optional(),
   tips: FooterSlotSchema.optional(),
-  next_action: FooterSlotSchema.optional(),
-  working_set: FooterSlotSchema.optional(),
   quota: FooterSlotSchema.optional(),
-  media_ready: FooterSlotSchema.optional(),
-  index: FooterSlotSchema.optional(),
-  mcp: FooterSlotSchema.optional(),
   cache: FooterSlotSchema.optional(),
-  pulse_goal_progress: z.boolean().optional(),
   pulse_fleet_complete: z.boolean().optional(),
   pulse_permission: z.boolean().optional(),
   pulse_git_churn: z.boolean().optional(),
-  pulse_ops_combo: z.boolean().optional(),
-  pulse_extensions_reload: z.boolean().optional(),
-  pulse_runtime_degraded: z.boolean().optional(),
-  pulse_search_cascade: z.boolean().optional(),
   pulse_model_route: z.boolean().optional(),
   show_compact: z.boolean().optional(),
-  show_prompt_intelligence: z.boolean().optional(),
 });
 
 const FooterConfigFileSchema = FooterConfigFileFieldsSchema.optional();
@@ -202,31 +178,14 @@ const UpgradeConfigFileSchema = z
 const OnboardingConfigFileSchema = z
   .object({
     hub_intro_seen: z.boolean().optional(),
-    conductor_coach_seen: z.boolean().optional(),
-    conductor_howto_seen: z.boolean().optional(),
     job_deck_hint_seen: z.boolean().optional(),
   })
   .optional();
 
 const PermissionModeFileSchema = z.enum(['yolo', 'manual', 'auto']).optional();
 
-export const ConductorProjectModeSchema = z.enum([
-  'balanced',
-  'greenfield',
-  'hotfix',
-  'review',
-]);
 export const TranscriptRegionModeSchema = z.enum(['chat', 'timeline']);
 
-const ConductorConfigFileSchema = z
-  .object({
-    project_mode: ConductorProjectModeSchema.optional(),
-    transcript_region_mode: TranscriptRegionModeSchema.optional(),
-    timeline_defaulted: z.boolean().optional(),
-    /** When true (default), resume auto-relaunches safe interrupted jobs. */
-    auto_resume_fleet: z.boolean().optional(),
-  })
-  .optional();
 
 /** UI language: `auto` follows env (`SUPERLIORA_LOCALE` / `LANG`); `en`/`ko` pin. */
 export const LocalePreferenceSchema = z.enum(['auto', 'en', 'ko']);
@@ -253,30 +212,14 @@ export const TuiConfigFileSchema = z.object({
   appearance: AppearanceConfigFileFieldsSchema.optional(),
   footer: FooterConfigFileSchema,
   onboarding: OnboardingConfigFileSchema,
-  conductor: ConductorConfigFileSchema,
 });
 
 export const OnboardingPreferencesSchema = z.object({
   hubIntroSeen: z.boolean(),
-  /** Reserved for welcome coach dismiss (v1 always shows when flag ON). */
-  conductorCoachSeen: z.boolean(),
-  /** Hub "How Conductor works" — skip forever. */
-  conductorHowtoSeen: z.boolean(),
   /** First running Job Alt+J Deck hint — skip forever once shown/dismissed. */
   jobDeckHintSeen: z.boolean(),
 });
 
-export const ConductorPreferencesSchema = z.object({
-  projectMode: ConductorProjectModeSchema,
-  transcriptRegionMode: TranscriptRegionModeSchema,
-  /** One-shot: auto-switched to timeline when jobs appeared under conductor. */
-  timelineDefaulted: z.boolean(),
-  /**
-   * After crash/resume, auto-requeue safe interrupted jobs (implement/explore/…).
-   * Merge/push/needs_user/blocked stay held. Opt out with false.
-   */
-  autoResumeFleet: z.boolean(),
-});
 
 export const TuiConfigSchema = z.object({
   theme: TuiThemeSchema,
@@ -290,7 +233,6 @@ export const TuiConfigSchema = z.object({
   appearance: AppearancePreferencesSchema.optional(),
   footer: FooterPreferencesSchema.optional(),
   onboarding: OnboardingPreferencesSchema.optional(),
-  conductor: ConductorPreferencesSchema.optional(),
 });
 
 export type TuiConfigFileShape = z.infer<typeof TuiConfigFileSchema>;
@@ -302,8 +244,6 @@ export type FooterPreferences = z.infer<typeof FooterPreferencesSchema>;
 export type FooterSlot = z.infer<typeof FooterSlotSchema>;
 export type FooterLabels = z.infer<typeof FooterLabelsSchema>;
 export type OnboardingPreferences = z.infer<typeof OnboardingPreferencesSchema>;
-export type ConductorPreferences = z.infer<typeof ConductorPreferencesSchema>;
-export type ConductorProjectModePref = z.infer<typeof ConductorProjectModeSchema>;
 export type TranscriptRegionMode = z.infer<typeof TranscriptRegionModeSchema>;
 
 export const DEFAULT_NOTIFICATIONS_CONFIG: NotificationsConfig = {
@@ -313,28 +253,9 @@ export const DEFAULT_NOTIFICATIONS_CONFIG: NotificationsConfig = {
 
 export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
   hubIntroSeen: false,
-  conductorCoachSeen: false,
-  conductorHowtoSeen: false,
   jobDeckHintSeen: false,
 };
 
-export const DEFAULT_CONDUCTOR_PREFERENCES: ConductorPreferences = {
-  projectMode: 'balanced',
-  transcriptRegionMode: 'chat',
-  timelineDefaulted: false,
-  autoResumeFleet: true,
-};
-
-/** Env read by agent-core `recoverJobsAfterResume` / `isAutoResumeFleetEnabled`. */
-export const SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV =
-  'SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET';
-
-/** Mirror the TUI pref into process env before session resume. */
-export function applyAutoResumeFleetEnv(prefs: ConductorPreferences): void {
-  process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV] = prefs.autoResumeFleet
-    ? '1'
-    : '0';
-}
 
 export const DEFAULT_UPGRADE_PREFERENCES: UpgradePreferences = {
   // Background updates download and execute installer code unattended, so they
@@ -365,28 +286,16 @@ export const DEFAULT_FOOTER_PREFERENCES: FooterPreferences = {
   cwd: 'auto',
   git: 'auto',
   context: 'auto',
-  goal: 'auto',
   menu: 'auto',
   background: 'auto',
   tips: 'auto',
-  nextAction: 'auto',
-  workingSet: 'auto',
   quota: 'auto',
-  mediaReady: 'auto',
-  index: 'off',
-  mcp: 'auto',
   cache: 'auto',
-  pulseGoalProgress: true,
   pulseFleetComplete: true,
   pulsePermission: true,
   pulseGitChurn: true,
-  pulseOpsCombo: true,
-  pulseExtensionsReload: true,
-  pulseRuntimeDegraded: true,
-  pulseSearchCascade: true,
   pulseModelRoute: true,
   showCompact: false,
-  showPromptIntelligence: true,
 };
 
 export const DEFAULT_LOCALE_PREFERENCE: LocalePreference = 'auto';
@@ -406,7 +315,6 @@ export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
   appearance: DEFAULT_APPEARANCE_PREFERENCES,
   footer: DEFAULT_FOOTER_PREFERENCES,
   onboarding: DEFAULT_ONBOARDING_PREFERENCES,
-  conductor: DEFAULT_CONDUCTOR_PREFERENCES,
 });
 
 /**
@@ -497,7 +405,6 @@ function coerceTuiConfigFile(raw: Record<string, unknown>): TuiConfigFileShape {
     appearance: softParse(AppearanceConfigFileFieldsSchema.optional(), raw['appearance']),
     footer: softParse(FooterConfigFileSchema, raw['footer']),
     onboarding: softParse(OnboardingConfigFileSchema, raw['onboarding']),
-    conductor: softParse(ConductorConfigFileSchema, raw['conductor']),
   };
 }
 
@@ -579,28 +486,9 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
     onboarding: {
       hubIntroSeen:
         config.onboarding?.hub_intro_seen ?? DEFAULT_ONBOARDING_PREFERENCES.hubIntroSeen,
-      conductorCoachSeen:
-        config.onboarding?.conductor_coach_seen ??
-        DEFAULT_ONBOARDING_PREFERENCES.conductorCoachSeen,
-      conductorHowtoSeen:
-        config.onboarding?.conductor_howto_seen ??
-        DEFAULT_ONBOARDING_PREFERENCES.conductorHowtoSeen,
       jobDeckHintSeen:
         config.onboarding?.job_deck_hint_seen ??
         DEFAULT_ONBOARDING_PREFERENCES.jobDeckHintSeen,
-    },
-    conductor: {
-      projectMode:
-        config.conductor?.project_mode ?? DEFAULT_CONDUCTOR_PREFERENCES.projectMode,
-      transcriptRegionMode:
-        config.conductor?.transcript_region_mode ??
-        DEFAULT_CONDUCTOR_PREFERENCES.transcriptRegionMode,
-      timelineDefaulted:
-        config.conductor?.timeline_defaulted ??
-        DEFAULT_CONDUCTOR_PREFERENCES.timelineDefaulted,
-      autoResumeFleet:
-        config.conductor?.auto_resume_fleet ??
-        DEFAULT_CONDUCTOR_PREFERENCES.autoResumeFleet,
     },
   });
 }
@@ -617,28 +505,16 @@ function normalizeFooterPreferences(
     cwd: raw.cwd ?? d.cwd,
     git: raw.git ?? d.git,
     context: raw.context ?? d.context,
-    goal: raw.goal ?? d.goal,
     menu: raw.menu ?? d.menu,
     background: raw.background ?? d.background,
     tips: raw.tips ?? d.tips,
-    nextAction: raw.next_action ?? d.nextAction,
-    workingSet: raw.working_set ?? d.workingSet,
     quota: raw.quota ?? d.quota,
-    mediaReady: raw.media_ready ?? d.mediaReady,
-    index: raw.index ?? d.index,
-    mcp: raw.mcp ?? d.mcp,
     cache: raw.cache ?? d.cache,
-    pulseGoalProgress: raw.pulse_goal_progress ?? d.pulseGoalProgress,
     pulseFleetComplete: raw.pulse_fleet_complete ?? d.pulseFleetComplete,
     pulsePermission: raw.pulse_permission ?? d.pulsePermission,
     pulseGitChurn: raw.pulse_git_churn ?? d.pulseGitChurn,
-    pulseOpsCombo: raw.pulse_ops_combo ?? d.pulseOpsCombo,
-    pulseExtensionsReload: raw.pulse_extensions_reload ?? d.pulseExtensionsReload,
-    pulseRuntimeDegraded: raw.pulse_runtime_degraded ?? d.pulseRuntimeDegraded,
-    pulseSearchCascade: raw.pulse_search_cascade ?? d.pulseSearchCascade,
     pulseModelRoute: raw.pulse_model_route ?? d.pulseModelRoute,
     showCompact: raw.show_compact ?? d.showCompact,
-    showPromptIntelligence: raw.show_prompt_intelligence ?? d.showPromptIntelligence,
   };
 }
 
@@ -646,7 +522,6 @@ export function renderTuiConfig(config: TuiConfig): string {
   const appearance = config.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
   const footer = config.footer ?? DEFAULT_FOOTER_PREFERENCES;
   const onboarding = config.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
-  const conductor = config.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES;
   return `# ~/.superliora/tui.toml
 # Client preferences for SuperLiora.
 # Agent/runtime settings stay in ~/.superliora/config.toml.
@@ -689,40 +564,20 @@ model = "${footer.model}"
 cwd = "${footer.cwd}"
 git = "${footer.git}"
 context = "${footer.context}"
-goal = "${footer.goal}"
 menu = "${footer.menu}"
 background = "${footer.background}"
 tips = "${footer.tips}"
-next_action = "${footer.nextAction}"
-working_set = "${footer.workingSet}"
 quota = "${footer.quota}"
-media_ready = "${footer.mediaReady}"
-index = "${footer.index}"
-mcp = "${footer.mcp}"
 cache = "${footer.cache}"
-pulse_goal_progress = ${String(footer.pulseGoalProgress)}
 pulse_fleet_complete = ${String(footer.pulseFleetComplete)}
 pulse_permission = ${String(footer.pulsePermission)}
 pulse_git_churn = ${String(footer.pulseGitChurn)}
-pulse_ops_combo = ${String(footer.pulseOpsCombo)}
-pulse_extensions_reload = ${String(footer.pulseExtensionsReload)}
-pulse_runtime_degraded = ${String(footer.pulseRuntimeDegraded)}
-pulse_search_cascade = ${String(footer.pulseSearchCascade)}
 pulse_model_route = ${String(footer.pulseModelRoute)}
 show_compact = ${String(footer.showCompact)}
-show_prompt_intelligence = ${String(footer.showPromptIntelligence)}
 
 [onboarding]
 hub_intro_seen = ${String(onboarding.hubIntroSeen)} # true skips the first-run Command Hub intro
-conductor_coach_seen = ${String(onboarding.conductorCoachSeen)} # reserved (welcome coach)
-conductor_howto_seen = ${String(onboarding.conductorHowtoSeen)} # true skips How Conductor works forever
 job_deck_hint_seen = ${String(onboarding.jobDeckHintSeen)} # true skips first-running-Job Alt+J hint
-
-[conductor]
-project_mode = "${conductor.projectMode}" # "balanced" | "greenfield" | "hotfix" | "review"
-transcript_region_mode = "${conductor.transcriptRegionMode}" # "chat" | "timeline"
-timeline_defaulted = ${String(conductor.timelineDefaulted)} # true after one-shot timeline default
-auto_resume_fleet = ${String(conductor.autoResumeFleet)} # true auto-relaunches safe jobs after crash/resume
 `;
 }
 

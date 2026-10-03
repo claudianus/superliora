@@ -50,13 +50,6 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     category: 'menu',
   },
   {
-    id: 'ask-mode',
-    key: 'Shift-Tab',
-    descriptionKey: 'tui.help.shortcut.shiftTab',
-    surface: 'always',
-    category: 'agent',
-  },
-  {
     id: 'escape',
     key: 'Esc',
     descriptionKey: 'tui.help.shortcut.esc',
@@ -69,7 +62,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     descriptionKey: 'tui.help.shortcut.ctrlC',
     surface: 'always',
     category: 'agent',
-    relatedSlash: ['/plan', '/jobs dock'],
+    relatedSlash: ['/jobs dock'],
   },
   {
     id: 'newline',
@@ -157,27 +150,12 @@ export const KEYMAP_IDLE: readonly KeymapBinding[] = [
     relatedSlash: ['/job'],
   },
   {
-    id: 'intent-composer',
-    key: 'Alt+B',
-    descriptionKey: 'tui.help.shortcut.intentComposer',
-    surface: 'idle',
-    category: 'edit',
-  },
-  {
     id: 'quota',
     key: 'Q',
     descriptionKey: 'tui.help.shortcut.quota',
     surface: 'idle',
     category: 'menu',
     relatedSlash: ['/quota'],
-  },
-  {
-    id: 'plan-desk',
-    key: 'P',
-    descriptionKey: 'tui.help.shortcut.plan',
-    surface: 'idle',
-    category: 'session',
-    relatedSlash: ['/plan'],
   },
 ];
 
@@ -189,7 +167,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
     descriptionKey: 'tui.help.shortcut.ctrlS',
     surface: 'streaming',
     category: 'agent',
-    relatedSlash: ['/plan', '/jobs dock'],
+    relatedSlash: ['/jobs dock'],
   },
   {
     id: 'background',

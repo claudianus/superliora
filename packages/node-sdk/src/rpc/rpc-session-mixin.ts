@@ -17,17 +17,14 @@ import type {
 } from '#/session/types';
 
 import type {
-  ReloadSessionRpcInput,
   SessionIdRpcInput,
 } from './rpc-types';
-import { SDKRpcClientPluginsMixin } from './rpc-plugins-mixin';
+import { SDKRpcClientJobsMixin } from './rpc-jobs-mixin';
 
-export abstract class SDKRpcClientSessionMixin extends SDKRpcClientPluginsMixin {
+export abstract class SDKRpcClientSessionMixin extends SDKRpcClientJobsMixin {
   async createSession(input: CreateSessionOptions): Promise<SessionSummary> {
     const rpc = await this.getRpc();
-    const { planMode, ...coreInput } = input;
-    void planMode;
-    return rpc.createSession(coreInput);
+    return rpc.createSession(input);
   }
 
   /**
@@ -69,11 +66,10 @@ export abstract class SDKRpcClientSessionMixin extends SDKRpcClientPluginsMixin 
     return this.resumeSession(input);
   }
 
-  async reloadSession(input: ReloadSessionRpcInput): Promise<ResumedSessionSummary> {
+  async reloadSession(input: SessionIdRpcInput): Promise<ResumedSessionSummary> {
     const rpc = await this.getRpc();
     return rpc.reloadSession({
       sessionId: input.sessionId,
-      forcePluginSessionStartReminder: input.forcePluginSessionStartReminder,
     });
   }
 

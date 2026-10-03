@@ -161,9 +161,6 @@ describe('formatToolCallMd', () => {
 // ---------------------------------------------------------------------------
 
 describe('isInternalMessage', () => {
-  it('marks injection origin as internal', () => {
-    expect(isInternalMessage(userMsg('x', { kind: 'injection', variant: 'test' }))).toBe(true);
-  });
 
   it('marks system_trigger origin as internal', () => {
     expect(
@@ -175,32 +172,7 @@ describe('isInternalMessage', () => {
     expect(isInternalMessage(userMsg('x', { kind: 'compaction_summary' }))).toBe(true);
   });
 
-  it('marks hook_result origin as internal', () => {
-    expect(
-      isInternalMessage(userMsg('x', { kind: 'hook_result', event: 'test' })),
-    ).toBe(true);
-  });
 
-  it('marks cron_job origin as internal', () => {
-    expect(
-      isInternalMessage(
-        userMsg('x', {
-          kind: 'cron_job',
-          jobId: 'a1b2c3d4',
-          cron: '0 9 * * *',
-          recurring: true,
-          coalescedCount: 1,
-          stale: false,
-        }),
-      ),
-    ).toBe(true);
-  });
-
-  it('marks cron_missed origin as internal', () => {
-    expect(
-      isInternalMessage(userMsg('x', { kind: 'cron_missed', count: 2 })),
-    ).toBe(true);
-  });
 
   it('keeps real user messages', () => {
     expect(isInternalMessage(userMsg('hello', { kind: 'user' }))).toBe(false);
@@ -240,7 +212,7 @@ describe('groupIntoTurns', () => {
   it('skips internal messages', () => {
     const msgs: ContextMessage[] = [
       userMsg('q1', { kind: 'user' }),
-      userMsg('injected', { kind: 'injection', variant: 'test' }),
+      userMsg('internal status', { kind: 'system_trigger', name: 'runtime' }),
       assistantMsg('a1'),
     ];
     const turns = groupIntoTurns(msgs);
@@ -340,7 +312,7 @@ describe('buildExportMarkdown', () => {
   it('filters out internal messages', () => {
     const msgs: ContextMessage[] = [
       userMsg('hello', { kind: 'user' }),
-      userMsg('injected stuff', { kind: 'injection', variant: 'system-reminder' }),
+      userMsg('internal status', { kind: 'system_trigger', name: 'runtime' }),
       assistantMsg('response'),
     ];
     const md = buildExportMarkdown({
@@ -350,7 +322,7 @@ describe('buildExportMarkdown', () => {
       tokenCount: 0,
       now,
     });
-    expect(md).not.toContain('injected stuff');
+    expect(md).not.toContain('internal status');
     expect(md).toContain('hello');
     expect(md).toContain('response');
   });
@@ -397,7 +369,7 @@ describe('buildExportMarkdown', () => {
   });
 
   it('labels assistant-only continuations separately from user turns', () => {
-    const msgs: ContextMessage[] = [assistantMsg('goal continuation result')];
+    const msgs: ContextMessage[] = [assistantMsg('assistant response')];
     const md = buildExportMarkdown({
       sessionId: 'ses_test',
       workDir: '/tmp',
@@ -410,7 +382,7 @@ describe('buildExportMarkdown', () => {
     expect(md).not.toContain('## Turn 1');
   });
 
-  it('renders trace lifecycle, artifacts, and redaction counts', () => {
+  it('renders trace lifecycle and redaction counts', () => {
     const msgs: ContextMessage[] = [
       userMsg('build a game', { kind: 'user' }),
       assistantMsg('working'),
@@ -438,16 +410,8 @@ describe('buildExportMarkdown', () => {
           index: 0,
           type: 'subagent.spawned',
           title: 'Subagent spawned',
-          summary: 'visual reviewer',
-          data: { subagentId: 'agent_1', coverageLane: 'visual_qa' },
-        },
-      ],
-      verificationArtifacts: [
-        {
-          id: 'verify_1',
-          kind: 'goal.verification',
-          title: 'Goal verification',
-          status: 'pass',
+          summary: 'worker',
+          data: { subagentId: 'agent_1' },
         },
       ],
     };
@@ -464,7 +428,6 @@ describe('buildExportMarkdown', () => {
     expect(md).toContain('## Session Trace');
     expect(md).toContain('records | 1 events | 1 subagent lifecycle');
     expect(md).toContain('subagent.spawned');
-    expect(md).toContain('verify_1: Goal verification [pass]');
     expect(md).toContain('Redactions');
   });
 

@@ -110,47 +110,6 @@ max_steps_per_turn = "nope"
 });
 
 describe('LioraCore config field deletion', () => {
-  const ROUTING_MODELS_TOML = `${VALID_TOML}
-[loop_control]
-max_steps_per_turn = 7
-compaction_model = "compact"
-completion_model = "complete"
-exploration_model = "explore"
-coding_model = "code"
-planning_model = "plan"
-debugging_model = "debug"
-`;
-
-  it('deletes nested routing fields, persists them, and reloads the runtime config', async () => {
-    const home = await makeHome(ROUTING_MODELS_TOML);
-    const configPath = path.join(home, 'config.toml');
-    const core = makeCore(home);
-    const before = await core.getKimiConfig({});
-
-    const deleted = await core.deleteConfigFields({
-      paths: ['loopControl.compactionModel', 'loopControl.completionModel'],
-    });
-
-    expect(deleted).not.toBe(before);
-    expect(deleted.loopControl).toMatchObject({
-      maxStepsPerTurn: 7,
-      explorationModel: 'explore',
-      codingModel: 'code',
-      planningModel: 'plan',
-      debuggingModel: 'debug',
-    });
-    expect(deleted.loopControl).not.toHaveProperty('compactionModel');
-    expect(deleted.loopControl).not.toHaveProperty('completionModel');
-
-    const persisted = await readFile(configPath, 'utf-8');
-    expect(persisted).not.toContain('compaction_model');
-    expect(persisted).not.toContain('completion_model');
-
-    const reloaded = await core.getKimiConfig({ reload: true });
-    expect(reloaded.loopControl).not.toHaveProperty('compactionModel');
-    expect(reloaded.loopControl).not.toHaveProperty('completionModel');
-    expect(reloaded.loopControl?.explorationModel).toBe('explore');
-  });
 
   it('deletes model defaults and removes an empty thinking section', async () => {
     const modelSettingsToml = `
@@ -198,15 +157,15 @@ max_context_size = 128000
   });
 
   it('rejects invalid batches without changing config', async () => {
-    const home = await makeHome(ROUTING_MODELS_TOML);
+    const home = await makeHome(VALID_TOML);
     const configPath = path.join(home, 'config.toml');
     const core = makeCore(home);
     const before = await readFile(configPath, 'utf-8');
     const invalidPaths = [
-      ['loopControl.compactionModel', 'loopControl.__proto__'],
-      ['loopControl.constructor'],
-      ['loopControl..compactionModel'],
-      [['loopControl', 'compactionModel']],
+      ['defaultThinking', 'thinking.__proto__'],
+      ['thinking.constructor'],
+      ['thinking..mode'],
+      [['thinking', 'mode']],
       ['loopControl.maxStepsPerTurn'],
     ];
 
@@ -218,20 +177,20 @@ max_context_size = 128000
     }
 
     const unchanged = await core.getKimiConfig({});
-    expect(unchanged.loopControl?.compactionModel).toBe('compact');
+    expect(unchanged.providers['kimi']).toBeDefined();
   });
 
   it('returns a reloaded snapshot when an allowed field is already absent', async () => {
-    const home = await makeHome(ROUTING_MODELS_TOML.replace('completion_model = "complete"\n', ''));
+    const home = await makeHome(VALID_TOML);
     const configPath = path.join(home, 'config.toml');
     const core = makeCore(home);
     const before = await core.getKimiConfig({});
     const beforeText = await readFile(configPath, 'utf-8');
 
-    const result = await core.deleteConfigFields({ paths: ['loopControl.completionModel'] });
+    const result = await core.deleteConfigFields({ paths: ['defaultThinking'] });
 
     expect(result).not.toBe(before);
-    expect(result.loopControl?.compactionModel).toBe('compact');
+    expect(result.defaultModel).toBe('k2');
     await expect(readFile(configPath, 'utf-8')).resolves.toBe(beforeText);
   });
 

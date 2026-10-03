@@ -12,11 +12,6 @@ import {
 import { AgentGroupComponent } from '../../components/messages/agent-group';
 import { AssistantMessageComponent } from '../../components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from '../../components/messages/background-agent-status';
-import { CronMessageComponent } from '../../components/messages/cron-message';
-import { PluginCommandComponent } from '../../components/messages/plugin-command';
-import { ReadGroupComponent } from '../../components/messages/read-group';
-import { SearchGroupComponent } from '../../components/messages/search-group';
-import { SkillActivationComponent } from '../../components/messages/skill-activation';
 import { ThinkingComponent } from '../../components/messages/thinking';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import { UserMessageComponent } from '../../components/messages/user-message';
@@ -229,7 +224,6 @@ function undoAvailabilityFromContext(
   for (let i = history.length - 1; i >= 0; i--) {
     const message = history[i];
     if (message === undefined) continue;
-    if (message.origin?.kind === 'injection') continue;
     if (message.origin?.kind === 'compaction_summary') {
       stoppedAtCompaction = true;
       break;
@@ -244,12 +238,6 @@ function isContextUndoAnchor(message: ContextMessage): boolean {
   if (message.role !== 'user') return false;
   const origin = message.origin;
   if (origin === undefined || origin.kind === 'user') return true;
-  if (origin.kind === 'skill_activation') {
-    return origin.trigger === 'user-slash';
-  }
-  if (origin.kind === 'plugin_command') {
-    return origin.trigger === 'user-slash';
-  }
   return false;
 }
 
@@ -300,20 +288,6 @@ function activeUndoAnchorEntries(
 function formatUndoChoiceLabel(
   entry: TranscriptEntry,
 ): string {
-  if (entry.kind === 'skill_activation') {
-    const name = singleLine(
-      entry.skillName ?? entry.content.replace(/^Activated skill:\s*/, ''),
-    );
-    const args = singleLine(entry.skillArgs ?? '');
-    if (name.length === 0) return 'Skill: unknown';
-    return args.length > 0 ? `/${name} ${args}` : `/${name}`;
-  }
-  if (entry.kind === 'plugin_command') {
-    const label = pluginCommandLabel(entry);
-    if (label.length === 0) return 'Command: unknown';
-    const args = singleLine(entry.pluginCommandArgs ?? '');
-    return args.length > 0 ? `/${label} ${args}` : `/${label}`;
-  }
 
   const content = singleLine(entry.content);
   const imageCount = entry.imageAttachmentIds?.length ?? 0;
@@ -325,20 +299,6 @@ function formatUndoChoiceLabel(
 }
 
 function formatUndoChoiceInput(entry: TranscriptEntry): string {
-  if (entry.kind === 'skill_activation') {
-    const name = singleLine(
-      entry.skillName ?? entry.content.replace(/^Activated skill:\s*/, ''),
-    );
-    const args = singleLine(entry.skillArgs ?? '');
-    if (name.length === 0) return '';
-    return args.length > 0 ? `/${name} ${args}` : `/${name}`;
-  }
-  if (entry.kind === 'plugin_command') {
-    const label = pluginCommandLabel(entry);
-    const args = singleLine(entry.pluginCommandArgs ?? '');
-    if (label.length === 0) return '';
-    return args.length > 0 ? `/${label} ${args}` : `/${label}`;
-  }
   return entry.content;
 }
 
@@ -397,11 +357,7 @@ function undoLimitFromError(
 }
 
 function isUndoAnchorEntry(entry: TranscriptEntry): boolean {
-  return (
-    entry.kind === 'user' ||
-    (entry.kind === 'skill_activation' && entry.skillTrigger === 'user-slash') ||
-    (entry.kind === 'plugin_command' && entry.pluginCommandTrigger === 'user-slash')
-  );
+  return entry.kind === 'user';
 }
 
 function findUndoAnchorEntryIndex(
@@ -425,13 +381,8 @@ function isUndoContextEntry(entry: TranscriptEntry): boolean {
     case 'assistant':
     case 'tool_call':
     case 'thinking':
-    case 'skill_activation':
-    case 'plugin_command':
-    case 'cron':
-    case 'plan':
       return true;
     case 'status':
-    case 'goal':
       return entry.turnId !== undefined;
     case 'welcome':
       return false;
@@ -466,11 +417,7 @@ function removeUndoContextComponents(
 }
 
 function isUndoAnchorComponent(child: Component): boolean {
-  return (
-    child instanceof UserMessageComponent ||
-    (child instanceof SkillActivationComponent && child.trigger === 'user-slash') ||
-    (child instanceof PluginCommandComponent && child.trigger === 'user-slash')
-  );
+  return child instanceof UserMessageComponent;
 }
 
 function isUndoContextComponent(child: Component): boolean {
@@ -485,22 +432,10 @@ function isUndoContextComponent(child: Component): boolean {
     child instanceof ThinkingComponent ||
     child instanceof ToolCallComponent ||
     child instanceof AgentGroupComponent ||
-    child instanceof ReadGroupComponent ||
-    child instanceof SearchGroupComponent ||
-    child instanceof SkillActivationComponent ||
-    child instanceof PluginCommandComponent ||
-    child instanceof BackgroundAgentStatusComponent ||
-    child instanceof CronMessageComponent
+    child instanceof BackgroundAgentStatusComponent
   );
 }
 
-function pluginCommandLabel(entry: TranscriptEntry): string {
-  const pluginId = singleLine(entry.pluginId ?? '');
-  const commandName = singleLine(entry.pluginCommandName ?? '');
-  if (pluginId.length === 0) return commandName;
-  if (commandName.length === 0) return pluginId;
-  return `${pluginId}:${commandName}`;
-}
 
 
 function reassertPermissionModeNotice(host: SlashCommandHost): void {

@@ -1,59 +1,21 @@
-import coreYaml from './core.yaml?raw';
-import conductorYaml from './conductor.yaml?raw';
-import agentYaml from './agent.yaml?raw';
-import coderYaml from './coder.yaml?raw';
-import exploreYaml from './explore.yaml?raw';
-import fullYaml from './full.yaml?raw';
-import goalDeskYaml from './goal-desk.yaml?raw';
-import goalDriverYaml from './goal-driver.yaml?raw';
-import initMd from './init.md?raw';
-import planYaml from './plan.yaml?raw';
-import subagentBaseYaml from './subagent-base.yaml?raw';
-import systemMd from './system.md?raw';
-import ultraPlanYaml from './ultra-plan.yaml?raw';
-import verifyYaml from './verify.yaml?raw';
-import { loadAgentProfilesFromSources } from '../load';
+import type { LayeredSystemPrompt, ResolvedAgentProfile, SystemPromptContext } from '../types';
 
-// Keyed by the source path the profile loader expects: profile YAML files
-// plus any file referenced through `systemPromptPath`.
-const PROFILE_SOURCES: Record<string, string> = {
-  'profile/default/core.yaml': coreYaml,
-  'profile/default/conductor.yaml': conductorYaml,
-  'profile/default/agent.yaml': agentYaml,
-  'profile/default/coder.yaml': coderYaml,
-  'profile/default/explore.yaml': exploreYaml,
-  'profile/default/full.yaml': fullYaml,
-  'profile/default/goal-desk.yaml': goalDeskYaml,
-  'profile/default/goal-driver.yaml': goalDriverYaml,
-  'profile/default/plan.yaml': planYaml,
-  'profile/default/subagent-base.yaml': subagentBaseYaml,
-  'profile/default/ultra-plan.yaml': ultraPlanYaml,
-  'profile/default/verify.yaml': verifyYaml,
-  'profile/default/system.md': systemMd,
+function renderSystemPrompt(context: SystemPromptContext): LayeredSystemPrompt {
+  const layer1Static = 'You are SuperLiora, an autonomous assistant. Use Bash for shell commands, files, search, builds, and other workspace actions. SessionControl manages child sessions and background work and can compact this conversation.';
+  const layer2Session = `Environment: ${context.osEnv.osKind}\nShell: ${context.osEnv.shellName} (${context.osEnv.shellPath})\nWorking directory: ${context.cwd}`;
+  const layer3Dynamic = [
+    context.agentsMd ? `User and project instructions:\n${context.agentsMd}` : '',
+    context.additionalDirsInfo ? `Additional directories:\n${context.additionalDirsInfo}` : '',
+  ].filter(Boolean).join('\n\n');
+  return { layer1Static, layer2Session, layer3Dynamic, combined: [layer1Static, layer2Session, layer3Dynamic].filter(Boolean).join('\n\n') };
+}
+
+export const DEFAULT_AGENT_PROFILES: Readonly<Record<'agent', ResolvedAgentProfile>> = {
+  agent: {
+    name: 'agent',
+    description: 'Autonomous assistant',
+    tools: ['Bash', 'SessionControl'],
+    systemPrompt: (context) => renderSystemPrompt(context).combined,
+    layeredSystemPrompt: renderSystemPrompt,
+  },
 };
-
-export const DEFAULT_INIT_PROMPT = initMd;
-
-/**
- * Sovereign Core waist (Core≤12 SSOT) — recommended default.
- * Opt-in: `SUPERLIORA_PROFILE=core`, `agent.profile = "core"`, `SUPERLIORA_SOVEREIGN_CORE=1`, or `SUPERLIORA_SOVEREIGN=1`.
- */
-export const SOVEREIGN_CORE_WAIST_PROFILE = 'core';
-
-export const DEFAULT_AGENT_PROFILES = loadAgentProfilesFromSources(
-  [
-    'core.yaml',
-    'conductor.yaml',
-    'agent.yaml',
-    'subagent-base.yaml',
-    'coder.yaml',
-    'explore.yaml',
-    'verify.yaml',
-    'full.yaml',
-    'goal-desk.yaml',
-    'goal-driver.yaml',
-    'plan.yaml',
-    'ultra-plan.yaml',
-  ].map((file) => `profile/default/${file}`),
-  PROFILE_SOURCES,
-);

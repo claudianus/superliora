@@ -7,6 +7,8 @@ import { normalize } from 'pathe';
 
 import type { ToolStore } from '../../store';
 import { getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
+import { getJobWorkerHandle } from './job-handles';
+import { hasJobNativeResources } from './job-native-resources';
 
 const OWNERSHIP_DEFERRED_PREFIX = 'ownership_deferred:';
 
@@ -112,7 +114,7 @@ export function noteOwnershipDeferred(
 export function listRunningOwnershipHolders(store: ToolStore): JobRecord[] {
   return listJobs(store).filter(
     (j) =>
-      j.status === 'running' &&
+      (j.status === 'running' || getJobWorkerHandle(j.id) !== undefined || hasJobNativeResources(store, j.id)) &&
       j.ownershipPaths !== undefined &&
       j.ownershipPaths.length > 0,
   );

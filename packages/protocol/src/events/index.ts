@@ -1,6 +1,5 @@
 export * from './common';
 export * from './background';
-export * from './goal';
 export * from './job';
 export * from './origin';
 export * from './agent';

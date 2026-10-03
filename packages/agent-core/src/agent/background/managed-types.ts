@@ -75,8 +75,6 @@ export interface ManagedTask {
   readonly terminal: ControlledPromise;
   /** Human-readable reason for the terminal status, when available. */
   stopReason?: string | undefined;
-  /** Suppress automatic terminal notifications/reminders for this task. */
-  terminalNotificationSuppressed?: boolean | undefined;
   /** Cancellation signal owned by the manager and observed by the concrete task. */
   readonly abortController: AbortController;
   persistWriteQueue: Promise<void>;
@@ -100,9 +98,8 @@ export interface ManagedTask {
  * Maximum bytes of combined output kept in the in-memory ring buffer per
  * task. When exceeded, the oldest chunks are dropped.
  *
- * The ring buffer is a lightweight tail intended for the `/tasks` UI and
- * terminal notifications only — it deliberately discards old output to
- * cap memory. It is NOT the authoritative full output: the complete,
+ * The ring buffer is a lightweight tail for the `/tasks` UI; it discards old output
+ * to cap memory. It is NOT the authoritative full output: the complete,
  * never-truncated log lives on disk at `<sessionDir>/tasks/<id>/output.log`.
  * Callers that need task output should use `getOutputSnapshot()`, which
  * reads the persisted log when available.
@@ -134,11 +131,11 @@ export function abortRejecter(signal: AbortSignal): Promise<never> {
   if (signal.aborted) {
     return Promise.reject(signal.reason ?? new Error('Aborted'));
   }
-  return new Promise<never>((_, reject) => {
-    signal.addEventListener(
-      'abort',
-      () =>{  reject(signal.reason ?? new Error('Aborted')); },
-      { once: true },
-    );
-  });
+  const { promise, reject } = Promise.withResolvers<never>();
+  signal.addEventListener(
+    'abort',
+    () => reject(signal.reason ?? new Error('Aborted')),
+    { once: true },
+  );
+  return promise;
 }

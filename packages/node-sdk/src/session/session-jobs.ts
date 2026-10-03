@@ -2,7 +2,7 @@
  * Job RPC delegation for Session — Conductor UX v2 host control surface.
  */
 
-import { SessionGoalsMixin } from '#/session/session-goals';
+import { SessionBackgroundTasksMixin } from '#/session/session-background-tasks';
 import type {
   ConductorProjectMode,
   JobActionResult,
@@ -26,7 +26,7 @@ import type {
   SplitJobIntent,
 } from '#/session/types';
 
-export abstract class SessionJobsMixin extends SessionGoalsMixin {
+export abstract class SessionJobsMixin extends SessionBackgroundTasksMixin {
   async jobList(): Promise<readonly JobSnapshot[]> {
     this.ensureOpen();
     return this.rpc.jobList({ sessionId: this.id });
@@ -54,6 +54,11 @@ export abstract class SessionJobsMixin extends SessionGoalsMixin {
   async jobCancel(input: { jobId: string; reason?: string }): Promise<JobActionResult> {
     this.ensureOpen();
     return this.rpc.jobCancel({ sessionId: this.id, ...input });
+  }
+
+  async jobPause(input: { jobId: string }): Promise<JobActionResult> {
+    this.ensureOpen();
+    return this.rpc.jobPause({ sessionId: this.id, ...input });
   }
 
   async jobResume(input: { jobId?: string; answer?: string } = {}): Promise<JobResumeResult> {

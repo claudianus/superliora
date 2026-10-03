@@ -1,22 +1,16 @@
 import type {
   AgentStatusUpdatedEvent,
-  CronFiredEvent,
   ErrorEvent,
-  GoalChange,
-  HookResultEvent,
-  PluginCommandActivatedEvent,
   SessionMetaUpdatedEvent,
-  SkillActivatedEvent,
-  SkillCreatedEvent,
   WarningEvent,
 } from '@superliora/sdk';
 
 import {
   OAUTH_LOGIN_REQUIRED_CODE,
-   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
+  OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
 } from '../../constant/liora-tui';
 import { errorReportHintLine } from '../../constant/feedback';
-import type { AppState, LivePaneState, TranscriptEntry } from '../../types';
+import type { AppState, TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { ColorToken } from '#/tui/theme';
 import { computeSessionCostUsd } from '#/tui/utils/session/session-cost';
@@ -25,15 +19,9 @@ import {
   formatErrorPayload,
   stringValue,
 } from '../../utils/event-payload';
-import { formatHookResultMarkdown } from '../../utils/hook-result-format';
 import { ttui } from '../../utils/tui-i18n';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyError } from '../../utils/notification/desktop-notification';
-import { getInterventionNeverHaltTip } from '../../utils/never-halt/intervention-glance';
-import { staleRuntimeDegradedClearPatch } from '../../utils/never-halt/runtime-degraded';
-import { staleSearchCascadeClearPatch } from '../../utils/search/search-cascade';
-
-import { formatNamedSessionErrorNotice } from '../../utils/session/named-error-notice';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by session notice / transcript side-effect handlers. */
@@ -41,80 +29,15 @@ export interface NoticeEventHost {
   state: TUIState;
   readonly streamingUI: StreamingUIController;
   setAppState(patch: Partial<AppState>): void;
-  patchLivePane(patch: Partial<LivePaneState>): void;
   showError(msg: string): void;
   showStatus(msg: string, color?: ColorToken): void;
-  /** Optional — named recovery notices for terminal error codes (Loop28a). */
-  showNotice?(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   updateTerminalTitle(): void;
   setLastTurnFailed(failed: boolean): void;
 }
 
-/**
- * Turn-owned flags shared with hook.result handling.
- * Injected so notices stay coordinated without relocating turn-owned state.
- */
-export interface NoticeSharedFlags {
-  setCurrentTurnHasAssistantText(value: boolean): void;
-  setPendingModelBlockedFallback(value: GoalChange | undefined): void;
-}
-
 export class SessionEventNotices {
-  renderedSkillActivationIds: Set<string> = new Set();
-  renderedPluginCommandActivationIds: Set<string> = new Set();
-
-  constructor(
-    private readonly host: NoticeEventHost,
-    private readonly flags: NoticeSharedFlags,
-  ) {}
-
-  resetRuntimeState(): void {
-    this.renderedSkillActivationIds.clear();
-    this.renderedPluginCommandActivationIds.clear();
-  }
-
-  handleCronFired(event: CronFiredEvent): void {
-    this.host.streamingUI.flushNow();
-    this.host.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'cron',
-      turnId: this.host.streamingUI.getTurnContext().turnId,
-      renderMode: 'plain',
-      content: event.prompt,
-      cronData: {
-        jobId: event.origin.jobId,
-        cron: event.origin.cron,
-        recurring: event.origin.recurring,
-        coalescedCount: event.origin.coalescedCount,
-        stale: event.origin.stale,
-      },
-    });
-  }
-
-  handleHookResult(event: HookResultEvent): void {
-    this.host.streamingUI.flushNow();
-    if (this.host.streamingUI.hasThinkingDraft()) {
-      this.host.streamingUI.flushThinkingToTranscript('idle');
-    }
-    this.host.streamingUI.finalizeAssistantStream();
-    if (event.content.trim().length > 0) {
-      this.flags.setCurrentTurnHasAssistantText(true);
-      this.flags.setPendingModelBlockedFallback(undefined);
-    }
-    this.host.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'assistant',
-      turnId: String(event.turnId),
-      renderMode: 'markdown',
-      content: formatHookResultMarkdown(event),
-    });
-    this.host.patchLivePane({
-      mode: 'idle',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-  }
+  constructor(private readonly host: NoticeEventHost) {}
 
   handleStatusUpdate(event: AgentStatusUpdatedEvent): void {
     const patch: Partial<AppState> = {};
@@ -132,71 +55,11 @@ export class SessionEventNotices {
       event.usage?.cacheWarmStreak,
     );
     if (cacheMeter !== undefined) patch.cacheMeter = cacheMeter;
-    if (event.circuitBreakers !== undefined) {
-      patch.circuitBreakers = event.circuitBreakers;
-    } else if (
-      'circuitBreakers' in event ||
-      event.model !== undefined ||
-      event.contextTokens !== undefined ||
-      event.permission !== undefined
-    ) {
-      patch.circuitBreakers = null;
-    }
-    if ('contextOS' in event) patch.contextOS = event.contextOS ?? null;
-    if ('autoDream' in event) patch.autoDream = event.autoDream ?? null;
-    if (event.planMode !== undefined) {
-      patch.planMode = event.planMode;
-    }
-    if (event.askMode !== undefined) {
-      patch.askMode = event.askMode;
-    }
-    if (event.premiumQualityMode !== undefined) {
-      patch.premiumQualityMode = event.premiumQualityMode;
-    }
     if (event.permission !== undefined) {
       patch.permissionMode = event.permission;
     }
     if (event.model !== undefined) patch.model = event.model;
     if ('providerRoute' in event) patch.providerRouteStatus = event.providerRoute ?? null;
-    if (typeof event.pendingInterventions === 'number') {
-      const prev = this.host.state.appState.interventionCount ?? 0;
-      patch.interventionCount = event.pendingInterventions;
-      if (event.pendingInterventions > prev) {
-        this.host.showStatus(getInterventionNeverHaltTip(), 'textMuted');
-      }
-    } else if (
-      'pendingInterventions' in event ||
-      event.model !== undefined ||
-      event.contextTokens !== undefined ||
-      event.permission !== undefined
-    ) {
-      // Full snapshots omit pendingInterventions when the queue is empty.
-      patch.interventionCount = 0;
-    }
-    if (typeof event.staleInterventions === 'number') {
-      patch.staleInterventionCount = event.staleInterventions;
-    } else if (
-      'staleInterventions' in event ||
-      event.model !== undefined ||
-      event.contextTokens !== undefined ||
-      event.permission !== undefined
-    ) {
-      patch.staleInterventionCount = 0;
-    }
-    if (typeof event.oldestInterventionAgeMs === 'number') {
-      patch.oldestInterventionAgeMs = event.oldestInterventionAgeMs;
-    } else if (
-      'oldestInterventionAgeMs' in event ||
-      event.model !== undefined ||
-      event.contextTokens !== undefined ||
-      event.permission !== undefined
-    ) {
-      patch.oldestInterventionAgeMs = undefined;
-    }
-    const staleDegraded = staleRuntimeDegradedClearPatch(this.host.state.appState.runtimeDegraded);
-    if (staleDegraded !== null) Object.assign(patch, staleDegraded);
-    const staleCascade = staleSearchCascadeClearPatch(this.host.state.appState.searchCascade);
-    if (staleCascade !== null) Object.assign(patch, staleCascade);
     if (Object.keys(patch).length > 0) this.host.setAppState(patch);
   }
 
@@ -225,16 +88,7 @@ export class SessionEventNotices {
       this.host.showError(OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE());
       return;
     }
-    // Loop28a: named recovery for terminal context/compaction failures.
-    const named = formatNamedSessionErrorNotice(event.code, event.message);
-    if (named !== undefined && this.host.showNotice !== undefined) {
-      this.host.showNotice(named.title, named.detail, {
-        coalesceKey: named.coalesceKey,
-      });
-      this.host.showStatus(named.status, 'error');
-    } else {
-      this.host.showError(formatErrorPayload(event));
-    }
+    this.host.showError(formatErrorPayload(event));
     const sessionId = this.host.state.appState.sessionId;
     if (sessionId.length > 0) {
       this.host.showStatus(errorReportHintLine());
@@ -251,192 +105,7 @@ export class SessionEventNotices {
   }
 
   handleSessionWarning(event: WarningEvent): void {
-    if (event.code === 'vision_analyzer.analyzed') {
-      const details = event.details ?? {};
-      const analyzerModel = details['analyzerModel'];
-      const kind = details['kind'];
-      const model =
-        typeof analyzerModel === 'string' && analyzerModel.length > 0
-          ? analyzerModel
-          : undefined;
-      const nounKey =
-        kind === 'video'
-          ? 'tui.notices.mediaAnalyzed.video'
-          : kind === 'image'
-            ? 'tui.notices.mediaAnalyzed.image'
-            : kind === 'audio'
-              ? 'tui.notices.mediaAnalyzed.audio'
-              : kind === 'pdf'
-                ? 'tui.notices.mediaAnalyzed.pdf'
-                : 'tui.notices.mediaAnalyzed.generic';
-      this.host.showStatus(
-        model !== undefined
-          ? ttui('tui.notices.mediaAnalyzed.withModel', { noun: ttui(nounKey), model })
-          : ttui('tui.notices.mediaAnalyzed.fallback'),
-        'success',
-      );
-      return;
-    }
-    if (event.code === 'vision_analyzer.path_only') {
-      this.host.showStatus(ttui('tui.notices.mediaPathOnly'), 'warning');
-      return;
-    }
-    // Loop28b: step-budget soft tip is a named notice, not a generic "Warning:".
-    if (event.code === 'step-budget-sensor' || event.message.startsWith('STEP_BUDGET:')) {
-      if (this.host.showNotice !== undefined) {
-        this.host.showNotice(ttui('tui.notice.stepBudgetLow.title'), event.message, {
-          coalesceKey: 'step-budget-soft-warn',
-        });
-      }
-      this.host.showStatus(ttui('tui.notice.stepBudgetLow.status'), 'warning');
-      return;
-    }
-    // Loop31a: goal no-progress (named terminal: stalled) — injection alone is model-only.
-    if (
-      event.code === 'goal-no-progress-sensor' ||
-      event.message.startsWith('GOAL_NO_PROGRESS:')
-    ) {
-      if (this.host.showNotice !== undefined) {
-        this.host.showNotice(ttui('tui.notice.goalStalled.title'), event.message, {
-          coalesceKey: 'goal-no-progress',
-        });
-      }
-      this.host.showStatus(ttui('tui.notice.goalStalled.status'), 'warning');
-      return;
-    }
-    // Loop32a: mid-turn CacheFreezeGuard tool-list drift (prompt-cache prefix risk).
-    if (
-      event.code === 'cache-freeze-drift-sensor' ||
-      event.message.startsWith('CACHE_FREEZE_DRIFT:')
-    ) {
-      if (this.host.showNotice !== undefined) {
-        this.host.showNotice(ttui('tui.notice.cacheFreeze.title'), event.message, {
-          coalesceKey: 'cache-freeze-drift',
-        });
-      }
-      this.host.showStatus(ttui('tui.notice.cacheFreeze.status'), 'warning');
-      return;
-    }
-    // Loop34a: built-in Stop sensor forced one repair continuation (false-done guard).
-    if (event.code === 'stop-sensor' || event.message.startsWith('STOP_SENSOR:')) {
-      if (this.host.showNotice !== undefined) {
-        this.host.showNotice(ttui('tui.notice.stopSensor.title'), event.message, {
-          coalesceKey: 'stop-sensor',
-        });
-      }
-      this.host.showStatus(ttui('tui.notice.stopSensor.status'), 'warning');
-      return;
-    }
-    // Loop35a: unresolved tool exchanges closed at turn end (cancel/fail/max_steps).
-    if (
-      event.code === 'abandoned-tool-sensor' ||
-      event.message.startsWith('ABANDONED_TOOL:')
-    ) {
-      if (this.host.showNotice !== undefined) {
-        this.host.showNotice(ttui('tui.notice.unresolvedTools.title'), event.message, {
-          coalesceKey: 'abandoned-tool',
-        });
-      }
-      this.host.showStatus(ttui('tui.notice.unresolvedTools.status'), 'warning');
-      return;
-    }
-    // Loop40a: SUPERLIORA_AUTO_CHECK_SPAWN threw or RunProjectChecks missing.
-    if (
-      event.code === 'auto-check-spawn-error' ||
-      event.message.startsWith('AUTO_CHECK_SPAWN: ERROR:')
-    ) {
-      if (this.host.showNotice !== undefined) {
-        this.host.showNotice(ttui('tui.notice.autoCheckSpawn.title'), event.message, {
-          coalesceKey: 'auto-check-spawn-error',
-        });
-      }
-      this.host.showStatus(ttui('tui.notice.autoCheckSpawn.status'), 'warning');
-      return;
-    }
-    // Loop41a: UserPromptSubmit hook blocked the turn before the agent loop.
-    if (
-      event.code === 'user-prompt-submit-block' ||
-      event.message.startsWith('USER_PROMPT_SUBMIT_BLOCK:')
-    ) {
-      if (this.host.showNotice !== undefined) {
-        this.host.showNotice(ttui('tui.notice.promptBlocked.title'), event.message, {
-          coalesceKey: 'user-prompt-submit-block',
-        });
-      }
-      this.host.showStatus(ttui('tui.notice.promptBlocked.status'), 'warning');
-      return;
-    }
-    // Loop46a: oversized AGENTS.md soft/hard budget — was generic "Warning:" only.
-    if (
-      event.code === 'agents-md-oversized' ||
-      (event.message.includes('AGENTS.md') &&
-        (event.message.includes('exceeds the recommended') ||
-          event.message.includes('hard injection cap')))
-    ) {
-      if (this.host.showNotice !== undefined) {
-        this.host.showNotice(ttui('tui.notice.agentsMd.title'), event.message, {
-          coalesceKey: 'agents-md-oversized',
-        });
-      }
-      this.host.showStatus(
-        event.message.includes('hard injection cap')
-          ? ttui('tui.notice.agentsMd.hardCapStatus')
-          : ttui('tui.notice.agentsMd.overSizeStatus'),
-        'warning',
-      );
-      return;
-    }
     this.host.showStatus(ttui('tui.notice.warningPrefix', { message: event.message }), 'warning');
   }
 
-  handleSkillCreated(event: SkillCreatedEvent): void {
-    const title = event.updated
-      ? ttui('tui.skill.updatedTitle', { name: event.skillName })
-      : ttui('tui.skill.createdTitle', { name: event.skillName });
-    const status = event.updated
-      ? ttui('tui.skill.updatedStatus', { name: event.skillName })
-      : ttui('tui.skill.createdStatus', { name: event.skillName });
-    const detail =
-      event.description !== undefined && event.description.trim().length > 0
-        ? event.description.trim()
-        : event.skillPath;
-    this.host.showNotice?.(
-      title,
-      ttui('tui.skill.createdDetail', { detail, name: event.skillName }),
-    );
-    this.host.showStatus(status);
-  }
-
-  handleSkillActivated(event: SkillActivatedEvent): void {
-    if (this.renderedSkillActivationIds.has(event.activationId)) return;
-    this.renderedSkillActivationIds.add(event.activationId);
-    this.host.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'skill_activation',
-      turnId: undefined,
-      renderMode: 'plain',
-      content: `Activated skill: ${event.skillName}`,
-      skillActivationId: event.activationId,
-      skillName: event.skillName,
-      skillArgs: event.skillArgs,
-      skillTrigger: event.trigger,
-    });
-  }
-
-  handlePluginCommandActivated(event: PluginCommandActivatedEvent): void {
-    if (this.renderedPluginCommandActivationIds.has(event.activationId)) return;
-    this.renderedPluginCommandActivationIds.add(event.activationId);
-    this.host.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'plugin_command',
-      turnId: undefined,
-      renderMode: 'plain',
-      content: `Ran command: ${event.pluginId}:${event.commandName}`,
-      pluginCommandActivationId: event.activationId,
-      pluginId: event.pluginId,
-      pluginCommandName: event.commandName,
-      pluginCommandArgs: event.commandArgs,
-      pluginCommandTrigger: event.trigger,
-    });
-  }
 }

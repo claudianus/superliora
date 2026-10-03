@@ -57,7 +57,6 @@ export function registerMetaRoute(app: RouteHost, opts: MetaRouteOptions): void 
       websocket: true as const,
       file_upload: true as const,
       fs_query: true as const,
-      mcp: true as const,
       background_tasks: true as const,
       terminal: true as const,
     }),

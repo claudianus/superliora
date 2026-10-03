@@ -88,10 +88,9 @@ export function isPureInputFrame(
  * from the previous frame instead of re-rendering containers.
  *
  * - Pure keystroke frames always reuse when geometry/epoch match.
- * - Idle chrome with no live goal is static → animation ticks may reuse.
- * - Live goals keep wall-clock / status pulse dynamic → do not treat as static.
+ * - Idle chrome with no time-varying content is static → animation ticks may reuse.
  * - Explicit content/manual requests (`request` / `manual`) always rebuild so
- *   footer goal-timer ticks and setAppState patches are not trapped by cache.
+ *   content updates and setAppState patches are not trapped by cache.
  */
 export function shouldReuseTUIChromeCache(options: {
   readonly hasCache: boolean;
@@ -154,28 +153,12 @@ export function shouldStoreTranscriptLineCache(options: {
   return !options.fullscreenTakeover && options.lineCount > 0;
 }
 
-/** Activity + live-goal signature used to invalidate chrome cache. */
+/** Activity signature used to invalidate chrome cache. */
 export function tuiChromeEpoch(options: {
   readonly streamingPhase: string;
   readonly thinking: boolean;
-  readonly liveGoalId?: string;
-  readonly liveGoalStatus?: string;
 }): string {
-  const goalPart =
-    options.liveGoalId !== undefined && options.liveGoalStatus !== undefined
-      ? `${options.liveGoalId}|${options.liveGoalStatus}`
-      : '';
-  return `${options.streamingPhase}|${options.thinking ? 1 : 0}|${goalPart}`;
-}
-
-export function isLiveGoalChromeActive(
-  goal: { readonly status: string } | null | undefined,
-): boolean {
-  return (
-    goal !== null &&
-    goal !== undefined &&
-    (goal.status === 'active' || goal.status === 'paused' || goal.status === 'blocked')
-  );
+  return `${options.streamingPhase}|${options.thinking ? 1 : 0}`;
 }
 
 /**

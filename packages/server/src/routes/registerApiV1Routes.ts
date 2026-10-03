@@ -12,17 +12,14 @@ import { registerFsRoutes } from './fs/fs';
 import { registerMessagesRoutes } from './sessions/messages';
 import { registerMetaRoute } from './meta/meta';
 import { registerModelCatalogRoutes } from './meta/modelCatalog';
-import { registerMemoriesRoutes } from './agents/memories';
 import { registerOAuthRoutes } from './auth/oauth';
 import { registerPromptsRoutes } from './sessions/prompts';
 import { registerQuestionsRoutes } from './agents/questions';
 import { registerSessionsRoutes } from './sessions/sessions';
 import { registerShutdownRoutes } from './meta/shutdown';
-import { registerSkillsRoutes } from './agents/skills';
 import { registerSnapshotRoutes } from './sessions/snapshot';
 import { registerTasksRoutes } from './agents/tasks';
 import { registerTerminalsRoutes } from './terminals/terminals';
-import { registerToolsRoutes } from './agents/tools';
 import { registerWorkspaceFsRoutes } from './fs/workspaceFs';
 import { registerWorkspacesRoutes } from './fs/workspaces';
 
@@ -105,9 +102,6 @@ export async function registerApiV1Routes(
       apiV1 as unknown as Parameters<typeof registerQuestionsRoutes>[0],
       ix,
     );
-    registerToolsRoutes(apiV1 as unknown as Parameters<typeof registerToolsRoutes>[0], ix);
-    registerMemoriesRoutes(apiV1 as unknown as Parameters<typeof registerMemoriesRoutes>[0], ix);
-    registerSkillsRoutes(apiV1 as unknown as Parameters<typeof registerSkillsRoutes>[0], ix);
     registerTasksRoutes(apiV1 as unknown as Parameters<typeof registerTasksRoutes>[0], ix);
     if (opts.enableTerminals !== false) {
       registerTerminalsRoutes(

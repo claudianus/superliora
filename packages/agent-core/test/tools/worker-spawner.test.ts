@@ -4,50 +4,54 @@
  * isolation, and the spawn budget guard.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS } from '../../src/tools/builtin/job/job-runtime';
+import type { ToolStore } from '../../src/tools/store';
 import {
-  JOB_WORKER_SPAWN_BUDGET_MS,
-  JOB_WORKER_SPAWN_MAX_CONCURRENT,
   WorkerSpawner,
   type WorkerSpawnPhase,
 } from '../../src/session/job/worker-spawner';
 
-function defer(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
-}
+
+afterEach(() => vi.useRealTimers());
 
 describe('WorkerSpawner (V2-2 spawn isolation)', () => {
-  it('exposes the locked 30s spawn budget', () => {
-    expect(JOB_WORKER_SPAWN_BUDGET_MS).toBe(30_000);
-  });
 
-  it('classifies merge/push/goal-desk as non-LLM launches (off spawner pool)', async () => {
+  it('classifies merge/push as deterministic launches outside the spawner pool', async () => {
     const { isNonLlmJobLaunch } = await import('../../src/session/job/job-offload');
     expect(isNonLlmJobLaunch({ kind: 'merge' })).toBe(true);
     expect(isNonLlmJobLaunch({ kind: 'push' })).toBe(true);
-    expect(isNonLlmJobLaunch({ kind: 'goal-desk' })).toBe(true);
     expect(isNonLlmJobLaunch({ kind: 'implement' })).toBe(false);
     expect(isNonLlmJobLaunch({ kind: 'task' })).toBe(false);
     expect(isNonLlmJobLaunch({ kind: 'explore' })).toBe(false);
   });
 
-  it('never caps handshakes below the job concurrency', () => {
-    // A lower spawn cap promotes jobs to `running` faster than workers attach.
-    expect(JOB_WORKER_SPAWN_MAX_CONCURRENT).toBeGreaterThanOrEqual(
-      CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS,
-    );
+  it('cancels queued handshakes without starting them or affecting unrelated work', async () => {
+    const spawner = new WorkerSpawner({ maxConcurrent: 1 });
+    const run = vi.fn(async () => {});
+    const phases: WorkerSpawnPhase[] = [];
+    spawner.enqueue({ key: 'closed_session_job', run, onPhase: (phase) => phases.push(phase) });
+    expect(spawner.cancelQueued('closed_session_job')).toBe(true);
+    expect(spawner.cancelQueued('closed_session_job')).toBe(false);
+    const unrelated = vi.fn(async () => {});
+    spawner.enqueue({ key: 'other_session_job', run: unrelated });
+    await spawner.settle();
+    expect(run).not.toHaveBeenCalled();
+    expect(unrelated).toHaveBeenCalledTimes(1);
+    expect(phases).toEqual(['spawn_cancelled']);
   });
 
-  it('sizes the shared offload spawner from the resolved pool config', async () => {
+
+  it('sizes each store offload spawner from the resolved pool config', async () => {
     vi.resetModules();
     process.env['SUPERLIORA_CONDUCTOR_MAX_CONCURRENT'] = '5';
     try {
       const { getJobWorkerSpawner } = await import('../../src/session/job/job-offload');
-      const spawner = getJobWorkerSpawner();
+      const store = { get: () => undefined, set: () => {} } as ToolStore;
+      const spawner = getJobWorkerSpawner(store);
       let inFlight = 0;
       let maxInFlight = 0;
+      const started = Promise.withResolvers<void>();
       let release!: () => void;
       const gate = new Promise<void>((resolve) => {
         release = resolve;
@@ -58,12 +62,13 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
           run: async () => {
             inFlight += 1;
             maxInFlight = Math.max(maxInFlight, inFlight);
+            if (inFlight === 5) started.resolve();
             await gate;
             inFlight -= 1;
           },
         });
       }
-      await defer();
+      await started.promise;
       expect(maxInFlight).toBe(5);
       release();
       await spawner.settle();
@@ -80,6 +85,7 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
     let inFlight = 0;
     let maxInFlight = 0;
     const gates: Record<string, () => void> = {};
+    const started = Promise.withResolvers<void>();
 
     const makeRun = (key: string) => async () => {
       inFlight += 1;
@@ -87,6 +93,7 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
       running.push(key);
       await new Promise<void>((resolve) => {
         gates[key] = resolve;
+        if (running.length === 3) started.resolve();
       });
       inFlight -= 1;
       done.push(key);
@@ -95,7 +102,7 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
     expect(spawner.enqueue({ key: 'job_a', run: makeRun('job_a') }).queued).toBe(true);
     expect(spawner.enqueue({ key: 'job_b', run: makeRun('job_b') }).queued).toBe(true);
     expect(spawner.enqueue({ key: 'job_c', run: makeRun('job_c') }).queued).toBe(true);
-    await defer();
+    await started.promise;
 
     // All three handshakes run in parallel under the default cap — batches
     // no longer pay n×budget.
@@ -119,13 +126,19 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
     let inFlight = 0;
     let maxInFlight = 0;
     const gates: Record<string, () => void> = {};
+    const started = {
+      job_a: Promise.withResolvers<void>(),
+      job_b: Promise.withResolvers<void>(),
+      job_c: Promise.withResolvers<void>(),
+    };
 
-    const makeRun = (key: string) => async () => {
+    const makeRun = (key: keyof typeof started) => async () => {
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
       running.push(key);
       await new Promise<void>((resolve) => {
         gates[key] = resolve;
+        started[key].resolve();
       });
       inFlight -= 1;
       done.push(key);
@@ -134,7 +147,7 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
     expect(spawner.enqueue({ key: 'job_a', run: makeRun('job_a') }).queued).toBe(true);
     expect(spawner.enqueue({ key: 'job_b', run: makeRun('job_b') }).queued).toBe(true);
     expect(spawner.enqueue({ key: 'job_c', run: makeRun('job_c') }).queued).toBe(true);
-    await defer();
+    await started.job_a.promise;
 
     // Only the first spawn may be in flight — the queue serializes.
     expect(running).toEqual(['job_a']);
@@ -142,12 +155,12 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
     expect(spawner.isSpawning('job_a')).toBe(true);
 
     gates['job_a']!();
-    await defer();
+    await started.job_b.promise;
     expect(running).toEqual(['job_a', 'job_b']);
     expect(maxInFlight).toBe(1);
 
     gates['job_b']!();
-    await defer();
+    await started.job_c.promise;
     expect(running).toEqual(['job_a', 'job_b', 'job_c']);
     gates['job_c']!();
     await spawner.settle();
@@ -163,15 +176,16 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
+    const started = Promise.withResolvers<void>();
 
-    const first = spawner.enqueue({ key: 'job_dup', run: async () => gate });
+    const first = spawner.enqueue({ key: 'job_dup', run: async () => { started.resolve(); await gate; } });
     expect(first).toEqual({ queued: true, duplicate: false });
     // Still queued (drain starts on a microtask) — duplicate rejected.
     expect(spawner.enqueue({ key: 'job_dup', run: async () => {} })).toEqual({
       queued: false,
       duplicate: true,
     });
-    await defer();
+    await started.promise;
     // Now spawning — still rejected.
     expect(spawner.isSpawning('job_dup')).toBe(true);
     expect(spawner.enqueue({ key: 'job_dup', run: async () => {} }).duplicate).toBe(true);
@@ -218,19 +232,22 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
   it('enforces the spawn budget: abort, record, and move on without stalling', async () => {
     // Serialized so the hung handshake is proven to block nothing — the
     // queue moves on to the next spawn after the budget fires.
+    vi.useFakeTimers();
     const spawner = new WorkerSpawner({ budgetMs: 5, maxConcurrent: 1 });
     const phases: WorkerSpawnPhase[] = [];
     let timedOut = 0;
     let aborted: AbortSignal | undefined;
     let hungSettled = false;
+    const finishHung = Promise.withResolvers<void>();
+    const nextStarted = Promise.withResolvers<void>();
     const later: string[] = [];
 
     spawner.enqueue({
       key: 'job_hung',
-      // Ignores the budget signal long enough to prove the queue moves on.
+      // Remains physically pending after the budget requests cancellation.
       run: async ({ signal }) => {
         aborted = signal;
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await finishHung.promise;
         hungSettled = true;
       },
       onPhase: (phase) => phases.push(phase),
@@ -240,19 +257,27 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
     });
     spawner.enqueue({
       key: 'job_after',
-      run: async () => later.push('job_after'),
+      run: async () => { later.push('job_after'); nextStarted.resolve(); },
       onPhase: (phase) => phases.push(phase),
     });
 
-    await spawner.settle();
+    let joined = false;
+    const joining = spawner.settle().then(() => { joined = true; });
+    await vi.advanceTimersByTimeAsync(5);
+    await nextStarted.promise;
+    expect(aborted?.aborted).toBe(true);
+    expect(joined).toBe(false);
+    expect(hungSettled).toBe(false);
+    expect(spawner.isSpawning('job_hung')).toBe(true);
+    expect(spawner.enqueue({ key: 'job_hung', run: async () => {} })).toEqual({ queued: false, duplicate: true });
+    finishHung.resolve();
+    await joining;
     expect(phases).toEqual(['spawning', 'spawn_budget_exceeded', 'spawning', 'spawned']);
     expect(timedOut).toBe(1);
     expect(later).toEqual(['job_after']);
     expect(aborted?.aborted).toBe(true);
-    // The hung handshake was detached, not awaited.
-    expect(hungSettled).toBe(false);
-    await defer();
-    await defer();
+    // The preparation slot was freed, but settle joined the actual aborted run.
+    expect(hungSettled).toBe(true);
     expect(spawner.queuedCount).toBe(0);
   });
 

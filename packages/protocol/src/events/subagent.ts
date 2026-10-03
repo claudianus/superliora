@@ -11,21 +11,13 @@ export interface SubagentSpawnedEvent {
   readonly parentAgentId?: string;
   readonly description?: string;
   readonly runInBackground: boolean;
-  /** Effective model alias for this child (explore cheap route or parent). */
+  /** Actual model alias used by this worker. */
   readonly modelAlias?: string;
-  /** Smart-router reason when auto-assigned (e.g. `coding/max`). */
-  readonly routeReason?: string;
 }
 
 export interface SubagentStartedEvent {
   readonly type: 'subagent.started';
   readonly subagentId: string;
-}
-
-export interface SubagentSuspendedEvent {
-  readonly type: 'subagent.suspended';
-  readonly subagentId: string;
-  readonly reason: string;
 }
 
 export interface SubagentProgressEvent {
@@ -39,60 +31,20 @@ export interface SubagentProgressEvent {
   readonly tokens: number;
   readonly budgetMs?: number;
   readonly budgetRemainingMs?: number;
-  readonly finishing?: boolean;
 }
 
-export interface SubagentStalledEvent {
-  readonly type: 'subagent.stalled';
-  readonly subagentId: string;
-  readonly subagentName?: string;
-  readonly silentMs: number;
-  readonly toolCount: number;
-}
-
-/**
- * Structured per-tool detail for `subagent.tool_call` (Phase 1-B realtime
- * overhaul). Computed from the FULL child args at the emitter and attached
- * for the common file/shell tools only, so clients can render the same
- * numeric chips the main agent's tool stream shows without shipping full
- * args. Unknown tools omit detail entirely.
- */
-export type SubagentToolDetail =
-  | SubagentToolEditDetail
-  | SubagentToolWriteDetail
-  | SubagentToolReadDetail
-  | SubagentToolBashDetail
-  | SubagentToolSearchDetail;
-
-export interface SubagentToolEditDetail {
-  readonly kind: 'edit';
-  readonly path: string;
-  readonly addedLines: number;
-  readonly removedLines: number;
-}
-
-export interface SubagentToolWriteDetail {
-  readonly kind: 'write';
-  readonly path: string;
-  readonly lines: number;
-  readonly bytes: number;
-}
-
-export interface SubagentToolReadDetail {
-  readonly kind: 'read';
-  readonly path: string;
-}
+/** Native model-tool details projected from the worker's actual arguments. */
+export type SubagentToolDetail = SubagentToolBashDetail | SubagentToolSessionDetail;
 
 export interface SubagentToolBashDetail {
   readonly kind: 'bash';
-  /** Command flattened to a single line and truncated at the emitter (~120 chars). */
   readonly command: string;
 }
 
-export interface SubagentToolSearchDetail {
-  /** Grep / Glob share one variant; the event `name` tells them apart. */
-  readonly kind: 'search';
-  readonly pattern: string;
+export interface SubagentToolSessionDetail {
+  readonly kind: 'session';
+  readonly operation: string;
+  readonly description?: string;
 }
 
 /**
@@ -152,6 +104,8 @@ export interface SubagentToolProgressEvent {
   readonly kind: 'stdout' | 'stderr' | 'progress' | 'status';
   /** Chunk preview, truncated at the emitter (~500 chars). */
   readonly textPreview?: string;
+  /** Native terminal identity supplied by the executing terminal provider. */
+  readonly terminalId?: string;
 }
 
 export interface SubagentCompletedEvent {
@@ -160,34 +114,13 @@ export interface SubagentCompletedEvent {
   readonly resultSummary: string;
   readonly usage?: TokenUsage;
   readonly contextTokens?: number;
+  readonly filesChanged?: readonly string[];
 }
 
 export interface SubagentFailedEvent {
   readonly type: 'subagent.failed';
   readonly subagentId: string;
   readonly error: string;
-  /** 1-based model-fallback attempt count when the host is retrying on a fallback model. */
-  readonly retryAttempt?: number;
-  /** Maximum model-fallback hops configured for this spawn. */
-  readonly retryLimit?: number;
-  /**
-   * With `retryAttempt`: alias the host will try next.
-   * Without `retryAttempt` (terminal): last alias attempted after >=1 fallback hop.
-   */
-  readonly fellBackToModel?: string;
-}
-
-export interface TodoItemPayload {
-  readonly title: string;
-  readonly status: 'pending' | 'in_progress' | 'done';
-}
-
-export interface SubagentTodoUpdatedEvent {
-  readonly type: 'subagent.todo.updated';
-  readonly subagentId: string;
-  readonly subagentName: string;
-  readonly parentToolCallId: string;
-  readonly todos: readonly TodoItemPayload[];
 }
 
 export const subagentSpawnedEventSchema = z.object({
@@ -200,19 +133,12 @@ export const subagentSpawnedEventSchema = z.object({
   description: z.string().optional(),
   runInBackground: z.boolean(),
   modelAlias: z.string().optional(),
-  routeReason: z.string().optional(),
 }) satisfies z.ZodType<SubagentSpawnedEvent>;
 
 export const subagentStartedEventSchema = z.object({
   type: z.literal('subagent.started'),
   subagentId: z.string(),
 }) satisfies z.ZodType<SubagentStartedEvent>;
-
-export const subagentSuspendedEventSchema = z.object({
-  type: z.literal('subagent.suspended'),
-  subagentId: z.string(),
-  reason: z.string(),
-}) satisfies z.ZodType<SubagentSuspendedEvent>;
 
 export const subagentProgressEventSchema = z.object({
   type: z.literal('subagent.progress'),
@@ -225,33 +151,15 @@ export const subagentProgressEventSchema = z.object({
   tokens: z.number(),
   budgetMs: z.number().optional(),
   budgetRemainingMs: z.number().optional(),
-  finishing: z.boolean().optional(),
 }) satisfies z.ZodType<SubagentProgressEvent>;
 
-export const subagentStalledEventSchema = z.object({
-  type: z.literal('subagent.stalled'),
-  subagentId: z.string(),
-  subagentName: z.string().optional(),
-  silentMs: z.number(),
-  toolCount: z.number(),
-}) satisfies z.ZodType<SubagentStalledEvent>;
-
 export const subagentToolDetailSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('edit'),
-    path: z.string(),
-    addedLines: z.number(),
-    removedLines: z.number(),
-  }),
-  z.object({
-    kind: z.literal('write'),
-    path: z.string(),
-    lines: z.number(),
-    bytes: z.number(),
-  }),
-  z.object({ kind: z.literal('read'), path: z.string() }),
   z.object({ kind: z.literal('bash'), command: z.string() }),
-  z.object({ kind: z.literal('search'), pattern: z.string() }),
+  z.object({
+    kind: z.literal('session'),
+    operation: z.string(),
+    description: z.string().optional(),
+  }),
 ]) satisfies z.ZodType<SubagentToolDetail>;
 
 export const subagentToolCallEventSchema = z.object({
@@ -284,6 +192,7 @@ export const subagentToolProgressEventSchema = z.object({
   name: z.string().optional(),
   kind: z.enum(['stdout', 'stderr', 'progress', 'status']),
   textPreview: z.string().optional(),
+  terminalId: z.string().optional(),
 }) satisfies z.ZodType<SubagentToolProgressEvent>;
 
 export const subagentCompletedEventSchema = z.object({
@@ -292,26 +201,12 @@ export const subagentCompletedEventSchema = z.object({
   resultSummary: z.string(),
   usage: tokenUsageSchema.optional(),
   contextTokens: z.number().optional(),
+  filesChanged: z.array(z.string()).readonly().optional(),
 }) satisfies z.ZodType<SubagentCompletedEvent>;
 
 export const subagentFailedEventSchema = z.object({
   type: z.literal('subagent.failed'),
   subagentId: z.string(),
   error: z.string(),
-  retryAttempt: z.number().optional(),
-  retryLimit: z.number().optional(),
-  fellBackToModel: z.string().optional(),
 }) satisfies z.ZodType<SubagentFailedEvent>;
 
-const todoItemPayloadSchema = z.object({
-  title: z.string(),
-  status: z.enum(['pending', 'in_progress', 'done']),
-}) satisfies z.ZodType<TodoItemPayload>;
-
-export const subagentTodoUpdatedEventSchema = z.object({
-  type: z.literal('subagent.todo.updated'),
-  subagentId: z.string(),
-  subagentName: z.string(),
-  parentToolCallId: z.string(),
-  todos: z.array(todoItemPayloadSchema),
-}) satisfies z.ZodType<SubagentTodoUpdatedEvent>;

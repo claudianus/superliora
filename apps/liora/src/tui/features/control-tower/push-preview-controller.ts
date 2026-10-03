@@ -3,7 +3,6 @@
  */
 
 import { PushPreviewPanelComponent } from '../../components/dialogs/push-preview/push-preview-panel';
-import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
 import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import type { ConductorJobCard } from '../../utils/job/job-strip';
 import {
@@ -26,17 +25,13 @@ export function openPushPreview(
     readonly remoteRef?: string;
   },
 ): void {
-  if (!isConductorUxV2Enabled()) {
-    host.showStatus(ttui('tui.conductor.pushNeedsUx'), 'textMuted');
-    return;
-  }
   if (!canOpenPushPreview(card)) {
-    host.showStatus(ttui('tui.conductor.pushNeedsJob'), 'textMuted');
+    host.showStatus(ttui('tui.job.pushNeedsJob'), 'textMuted');
     return;
   }
   const session = host.session;
   if (session === undefined) {
-    host.showError(ttui('tui.conductor.pushNoSession'));
+    host.showError(ttui('tui.job.pushNoSession'));
     return;
   }
 
@@ -71,8 +66,8 @@ export function openPushPreview(
         .then((result) => {
           host.showStatus(
             result.ok
-              ? ttui('tui.conductor.pushApproved', { jobId: shortJobId(card.id) })
-              : ttui('tui.conductor.pushHeld', { reason: result.error ?? result.text }),
+              ? ttui('tui.job.pushApproved', { jobId: shortJobId(card.id) })
+              : ttui('tui.job.pushHeld', { reason: result.error ?? result.text }),
             result.ok ? 'success' : 'warning',
           );
         })
@@ -89,7 +84,7 @@ export function openPushPreview(
           summary: summary.length > 0 ? summary : 'rejected from Push Preview',
         })
         .then(() => {
-          host.showStatus(ttui('tui.conductor.pushRejected', { jobId: shortJobId(card.id) }), 'info');
+          host.showStatus(ttui('tui.job.pushRejected', { jobId: shortJobId(card.id) }), 'info');
         })
         .catch((error: unknown) => {
           host.showError(error instanceof Error ? error.message : String(error));

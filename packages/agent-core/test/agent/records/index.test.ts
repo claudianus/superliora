@@ -16,6 +16,7 @@ describe('AgentRecords persistence metadata', () => {
 
     records.logRecord({
       type: 'turn.prompt',
+      time: 123,
       input: [{ type: 'text', text: 'hello' }],
       origin: { kind: 'user' },
     });
@@ -25,10 +26,14 @@ describe('AgentRecords persistence metadata', () => {
     expect(persistence.records[0]).toMatchObject({
       type: 'metadata',
       protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
+      created_at: expect.any(Number),
     });
-    expect(persistence.records[0]).not.toHaveProperty('app_version');
-    expect(persistence.records[0]).not.toHaveProperty('resumed');
-    expect(persistence.records[1]?.type).toBe('turn.prompt');
+    expect(persistence.records[1]).toEqual({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: 'hello' }],
+      origin: { kind: 'user' },
+      time: 123,
+    });
   });
 
   it('does not write metadata when replaying an empty stream', async () => {
@@ -36,6 +41,7 @@ describe('AgentRecords persistence metadata', () => {
     const records = testAgent({ persistence }).agent.records;
 
     await records.replay();
+    expect(persistence.records).toEqual([]);
     records.logRecord({
       type: 'turn.prompt',
       input: [{ type: 'text', text: 'one' }],
@@ -115,50 +121,25 @@ describe('AgentRecords persistence metadata', () => {
     expect(persistence.rewrites).toEqual([]);
   });
 
-  it('rewrites migrated records to the current wire version after replay', async () => {
+  it('rewrites older metadata while preserving native records and timestamps', async () => {
+    const message: ContextMessage = {
+      role: 'assistant',
+      content: [],
+      toolCalls: [{ type: 'function', id: 'call_bash', name: 'Bash', arguments: '{"command":"pwd"}' }],
+    };
     const persistence = new RecordingInMemoryAgentRecordPersistence([
-      {
-        type: 'metadata',
-        protocol_version: '1.0',
-        created_at: 1,
-      },
-      {
-        type: 'context.append_message',
-        message: {
-          role: 'assistant',
-          content: [],
-          toolCalls: [
-            {
-              type: 'function',
-              id: 'call_legacy_bash',
-              function: {
-                name: 'Bash',
-                arguments: '{"command":"pwd"}',
-              },
-            },
-          ],
-        },
-      } as unknown as AgentRecord,
+      { type: 'metadata', protocol_version: '1.4', created_at: 1 },
+      { type: 'context.append_message', time: 2, message },
     ]);
     const records = testAgent({ persistence }).agent.records;
 
     await records.replay();
 
     expect(persistence.rewrites).toHaveLength(1);
-    expect(persistence.records[0]).toMatchObject({
-      type: 'metadata',
-      protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
-    });
-    const migrated = persistence.records[1] as unknown as {
-      readonly message: {
-        readonly toolCalls: readonly Record<string, unknown>[];
-      };
-    };
-    expect(migrated.message.toolCalls[0]).toMatchObject({
-      name: 'Bash',
-      arguments: '{"command":"pwd"}',
-    });
-    expect(migrated.message.toolCalls[0]?.['function']).toBeUndefined();
+    expect(persistence.records).toEqual([
+      { type: 'metadata', protocol_version: AGENT_WIRE_PROTOCOL_VERSION, created_at: 1 },
+      { type: 'context.append_message', time: 2, message },
+    ]);
   });
 
   it('warns but continues when replaying records from a newer wire version', async () => {
@@ -189,123 +170,6 @@ describe('AgentRecords persistence metadata', () => {
     await expect(records.replay()).rejects.toThrow('Missing wire migration for version 0.9');
   });
 
-  it('restores goal.* records during replay', async () => {
-    const persistence = new InMemoryAgentRecordPersistence([
-      { type: 'metadata', protocol_version: AGENT_WIRE_PROTOCOL_VERSION, created_at: 1 },
-      {
-        type: 'goal.create',
-        goalId: 'g1',
-        objective: 'do work',
-        completionCriterion: 'tests pass',
-      },
-      { type: 'goal.update', budgetLimits: { turnBudget: 20 } },
-      { type: 'goal.update', tokensUsed: 5, wallClockMs: 0 },
-      { type: 'goal.update', turnsUsed: 1 },
-      { type: 'goal.update', status: 'blocked', reason: 'needs credentials', actor: 'model' },
-    ]);
-    const { agent } = testAgent({ persistence });
-
-    await expect(agent.records.replay()).resolves.toEqual({ warning: undefined });
-    expect(agent.context.history).toHaveLength(0);
-    expect(agent.goal.getGoal().goal).toMatchObject({
-      goalId: 'g1',
-      objective: 'do work',
-      completionCriterion: 'tests pass',
-      status: 'blocked',
-      terminalReason: 'needs credentials',
-      tokensUsed: 5,
-      turnsUsed: 1,
-      budget: expect.objectContaining({ turnBudget: 20 }),
-    });
-    expect(agent.replayBuilder.buildResult()).toEqual([
-      expect.objectContaining({
-        type: 'goal_updated',
-        snapshot: expect.objectContaining({ goalId: 'g1', status: 'active' }),
-        change: { kind: 'created' },
-      }),
-      expect.objectContaining({
-        type: 'goal_updated',
-        snapshot: expect.objectContaining({
-          goalId: 'g1',
-          status: 'blocked',
-          terminalReason: 'needs credentials',
-        }),
-        change: {
-          kind: 'lifecycle',
-          status: 'blocked',
-          reason: 'needs credentials',
-          actor: 'model',
-        },
-      }),
-    ]);
-  });
-
-  it('restores forked records as fork boundaries that clear copied goals', async () => {
-    const persistence = new InMemoryAgentRecordPersistence([
-      { type: 'metadata', protocol_version: AGENT_WIRE_PROTOCOL_VERSION, created_at: 1 },
-      {
-        type: 'goal.create',
-        goalId: 'source-goal',
-        objective: 'source work',
-      },
-      { type: 'forked', time: 2 },
-    ]);
-    const { agent } = testAgent({ persistence });
-
-    await expect(agent.records.replay()).resolves.toEqual({ warning: undefined });
-
-    expect(agent.goal.getGoal().goal).toBeNull();
-    expect(persistence.records.map((record) => record.type)).toEqual([
-      'metadata',
-      'goal.create',
-      'forked',
-    ]);
-    const reminder = agent.context.history.at(-1);
-    expect(reminder?.origin).toEqual({ kind: 'system_trigger', name: 'goal_fork_cleared' });
-    expect(JSON.stringify(reminder?.content)).toContain('This fork does not have a current goal.');
-  });
-
-  it('keeps goals created after the forked boundary', async () => {
-    const persistence = new InMemoryAgentRecordPersistence([
-      { type: 'metadata', protocol_version: AGENT_WIRE_PROTOCOL_VERSION, created_at: 1 },
-      {
-        type: 'goal.create',
-        goalId: 'source-goal',
-        objective: 'source work',
-      },
-      { type: 'forked', time: 2 },
-      {
-        type: 'goal.create',
-        goalId: 'fork-goal',
-        objective: 'fork work',
-      },
-    ]);
-    const { agent } = testAgent({ persistence });
-
-    await expect(agent.records.replay()).resolves.toEqual({ warning: undefined });
-
-    expect(agent.goal.getGoal().goal).toMatchObject({
-      goalId: 'fork-goal',
-      objective: 'fork work',
-    });
-    expect(agent.context.history.at(-1)?.origin).toEqual({
-      kind: 'system_trigger',
-      name: 'goal_fork_cleared',
-    });
-  });
-
-  it('does not add a fork-cleared reminder when a forked record has no copied goal', async () => {
-    const persistence = new InMemoryAgentRecordPersistence([
-      { type: 'metadata', protocol_version: AGENT_WIRE_PROTOCOL_VERSION, created_at: 1 },
-      { type: 'forked', time: 2 },
-    ]);
-    const { agent } = testAgent({ persistence });
-
-    await expect(agent.records.replay()).resolves.toEqual({ warning: undefined });
-
-    expect(agent.goal.getGoal().goal).toBeNull();
-    expect(agent.context.history).toHaveLength(0);
-  });
 });
 
 describe('agent replay range build', () => {
@@ -405,34 +269,42 @@ describe('agent replay range build', () => {
     );
   });
 
-  it('continues reading after count so later wire records can patch captured replay records', async () => {
+  it('reads beyond the requested range to patch an explicit compaction result', async () => {
+    const message = userMessage('compact these facts');
     const persistence = new InMemoryAgentRecordPersistence([
       { type: 'metadata', protocol_version: AGENT_WIRE_PROTOCOL_VERSION, created_at: 1 },
+      { type: 'context.append_message', message },
       { type: 'full_compaction.begin', source: 'manual', instruction: 'keep facts' },
       {
         type: 'context.apply_compaction',
         summary: 'Compacted summary.',
-        compactedCount: 0,
+        contextSummary: 'Explicit retained facts.',
+        compactedCount: 1,
         tokensBefore: 10,
         tokensAfter: 3,
       },
       { type: 'permission.set_mode', mode: 'auto' },
     ]);
 
-    await expect(buildReplay(persistence, { start: 0, count: 1 })).resolves.toEqual([
+    const replay = await buildReplay(persistence, { start: 1, count: 1 });
+    expect(replay).toEqual([
       expect.objectContaining({
         type: 'compaction',
         instruction: 'keep facts',
         result: expect.objectContaining({
           summary: 'Compacted summary.',
-          contextSummary: 'Compacted summary.',
-          compactedCount: 0,
+          contextSummary: 'Explicit retained facts.',
+          compactedCount: 1,
           tokensBefore: 10,
-          tokensAfter: 3,
-          keptUserMessageCount: 0,
+          keptUserMessageCount: 1,
         }),
       }),
     ]);
+    const compaction = replay[0];
+    if (compaction?.type !== 'compaction' || typeof compaction.result !== 'object') {
+      throw new Error('Expected a completed compaction replay record');
+    }
+    expect(compaction.result.tokensAfter).toBeGreaterThan(0);
   });
 
   it('does not rewrite migrated wire records while projecting', async () => {

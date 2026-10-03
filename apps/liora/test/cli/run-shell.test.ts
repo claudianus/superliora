@@ -32,7 +32,6 @@ const mocks = vi.hoisted(() => {
     detectTerminalTheme: vi.fn(),
     kimiHarnessConstructor: vi.fn(),
     harnessEnsureConfigFile: vi.fn(),
-    harnessListPluginThemes: vi.fn(async () => []),
     harnessGetConfig: vi.fn(async () => ({
       providers: {},
       defaultModel: 'k2',
@@ -44,7 +43,7 @@ const mocks = vi.hoisted(() => {
     harnessTrack: vi.fn(),
     kimiTuiConstructor: vi.fn(),
     tuiStart: vi.fn(),
-    tuiGetStartupMcpMs: vi.fn(async () => 0),
+    tuiShowStatus: vi.fn(),
     tuiGetCurrentSessionId: vi.fn(() => ''),
     tuiHasSessionContent: vi.fn(() => false),
     createKimiDeviceId: vi.fn<CreateKimiDeviceId>(() => 'device-1'),
@@ -82,7 +81,6 @@ vi.mock('@superliora/sdk', async (importOriginal) => {
           getCachedAccessToken: mocks.harnessGetCachedAccessToken,
         },
         ensureConfigFile: mocks.harnessEnsureConfigFile,
-        listPluginThemes: mocks.harnessListPluginThemes,
         getConfig: mocks.harnessGetConfig,
         getConfigDiagnostics: mocks.harnessGetConfigDiagnostics,
         close: mocks.harnessClose,
@@ -130,10 +128,9 @@ vi.mock('../../src/tui/index', () => ({
     }
 
     start = mocks.tuiStart;
-    getStartupMcpMs = mocks.tuiGetStartupMcpMs;
     getCurrentSessionId = mocks.tuiGetCurrentSessionId;
     hasSessionContent = mocks.tuiHasSessionContent;
-    setAppState = vi.fn();
+    showStatus = mocks.tuiShowStatus;
   },
 }));
 
@@ -153,7 +150,6 @@ describe('runShell', () => {
       defaultModel: 'k2',
       telemetry: true,
     });
-    mocks.tuiGetStartupMcpMs.mockResolvedValue(0);
     mocks.tuiGetCurrentSessionId.mockReturnValue('');
     mocks.tuiHasSessionContent.mockReturnValue(false);
     mocks.createKimiDeviceId.mockImplementation(() => 'device-1');
@@ -170,7 +166,6 @@ describe('runShell', () => {
       notifications: { enabled: true, condition: 'unfocused' },
     });
     mocks.tuiStart.mockResolvedValue(undefined);
-    mocks.tuiGetStartupMcpMs.mockResolvedValue(47);
     mocks.tuiGetCurrentSessionId.mockReturnValue('ses-startup');
 
     const cliOptions = {
@@ -178,13 +173,9 @@ describe('runShell', () => {
       continue: false,
       yolo: true,
       auto: false,
-      plan: true,
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,
-      skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
       addDirs: ['../shared', '/tmp/extra'],
     };
 
@@ -196,7 +187,7 @@ describe('runShell', () => {
           userAgentProduct: 'liora-cli',
           version: '1.2.3-test',
         }),
-        sessionStartedProperties: { yolo: true, auto: false, plan: true, afk: false },
+        sessionStartedProperties: { yolo: true, auto: false, afk: false },
       }),
     );
     expect(mocks.harnessEnsureConfigFile).toHaveBeenCalledOnce();
@@ -245,7 +236,6 @@ describe('runShell', () => {
       duration_ms: expect.any(Number),
       config_ms: expect.any(Number),
       init_ms: expect.any(Number),
-      mcp_ms: 47,
     });
   });
 
@@ -268,13 +258,9 @@ describe('runShell', () => {
         continue: false,
         yolo: false,
         auto: false,
-        plan: false,
         model: undefined,
         outputFormat: undefined,
         prompt: undefined,
-        skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -310,13 +296,9 @@ describe('runShell', () => {
         continue: false,
         yolo: false,
         auto: false,
-        plan: false,
         model: undefined,
         outputFormat: undefined,
         prompt: undefined,
-        skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -335,47 +317,6 @@ describe('runShell', () => {
     expect(mocks.harnessTrack).toHaveBeenCalledWith('first_launch');
   });
 
-  it('binds startup_perf to the session captured before MCP metrics resolve', async () => {
-    mocks.loadTuiConfig.mockResolvedValue({
-      theme: 'dark',
-      editorCommand: null,
-      notifications: { enabled: true, condition: 'unfocused' },
-    });
-    mocks.tuiStart.mockResolvedValue(undefined);
-    let currentSessionId = 'ses-startup';
-    mocks.tuiGetCurrentSessionId.mockImplementation(() => currentSessionId);
-    mocks.tuiGetStartupMcpMs.mockImplementation(async () => {
-      currentSessionId = 'ses-later';
-      return 47;
-    });
-
-    await runShell(
-      {
-        session: undefined,
-        continue: false,
-        yolo: false,
-        auto: false,
-        plan: false,
-        model: undefined,
-        outputFormat: undefined,
-        prompt: undefined,
-        skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
-      },
-      '1.2.3-test',
-    );
-
-    expect(mocks.withTelemetryContext).toHaveBeenCalledWith({ sessionId: 'ses-startup' });
-    expect(mocks.withTelemetryContext).not.toHaveBeenCalledWith({ sessionId: 'ses-later' });
-    expect(mocks.lifecycleTrack).toHaveBeenCalledWith('startup_perf', {
-      duration_ms: expect.any(Number),
-      config_ms: expect.any(Number),
-      init_ms: expect.any(Number),
-      mcp_ms: 47,
-    });
-  });
-
   it('bridges OAuth refresh outcomes to telemetry', async () => {
     mocks.loadTuiConfig.mockResolvedValue({
       theme: 'dark',
@@ -390,13 +331,9 @@ describe('runShell', () => {
         continue: false,
         yolo: false,
         auto: false,
-        plan: false,
         model: undefined,
         outputFormat: undefined,
         prompt: undefined,
-        skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -414,6 +351,15 @@ describe('runShell', () => {
     harnessOptions.onOAuthRefresh({ success: true });
     harnessOptions.onOAuthRefresh({ success: false, reason: 'unauthorized' });
     harnessOptions.onOAuthRefresh({ success: false, reason: 'network_or_other' });
+
+    expect(mocks.tuiShowStatus).toHaveBeenCalledWith(
+      expect.stringContaining('unauthorized'),
+      'warning',
+    );
+    expect(mocks.tuiShowStatus).toHaveBeenCalledWith(
+      expect.stringContaining('OAuth refresh failed:'),
+      'warning',
+    );
 
     expect(mocks.telemetryTrack).toHaveBeenCalledWith('oauth_refresh', { success: true });
     expect(mocks.telemetryTrack).toHaveBeenCalledWith('oauth_refresh', {
@@ -443,13 +389,9 @@ describe('runShell', () => {
         continue: false,
         yolo: false,
         auto: false,
-        plan: false,
         model: undefined,
         outputFormat: undefined,
         prompt: undefined,
-        skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -483,13 +425,9 @@ describe('runShell', () => {
         continue: false,
         yolo: false,
         auto: false,
-        plan: false,
         model: undefined,
         outputFormat: undefined,
         prompt: undefined,
-        skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -515,13 +453,9 @@ describe('runShell', () => {
           continue: false,
           yolo: false,
           auto: false,
-          plan: false,
           model: undefined,
           outputFormat: undefined,
           prompt: undefined,
-          skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
         },
         '1.2.3-test',
       ),
@@ -554,13 +488,9 @@ describe('runShell', () => {
           continue: false,
           yolo: false,
           auto: false,
-          plan: false,
           model: undefined,
           outputFormat: undefined,
           prompt: undefined,
-          skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
         },
         '1.2.3-test',
       );
@@ -610,13 +540,9 @@ describe('runShell', () => {
           continue: false,
           yolo: false,
           auto: false,
-          plan: false,
           model: undefined,
           outputFormat: undefined,
           prompt: undefined,
-          skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
         },
         '1.2.3-test',
       );

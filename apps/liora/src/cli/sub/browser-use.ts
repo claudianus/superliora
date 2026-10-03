@@ -14,14 +14,6 @@ import {
   type SidecarInstallResult,
 } from '#/utils/browser-use/sidecar-install';
 import { probeBrowserUseSidecars } from '#/utils/browser-use/sidecar-status';
-import {
-  AsideCliMissingError,
-  disableAsideSidecar,
-  enableAsideSidecar,
-  formatAsideSidecarStatus,
-  loadAsideSidecarStatus,
-  type AsideSidecarContext,
-} from '#/utils/aside/aside-sidecar';
 
 interface WritableLike {
   write(chunk: string): boolean;
@@ -47,9 +39,6 @@ export interface BrowserUseCommandDeps {
    * "sidecars missing" without depending on the machine's node_modules layout.
    */
   readonly probeSidecars?: () => { readonly ready: boolean };
-  readonly cwd?: () => string;
-  /** Test seam for Aside CLI/mcp.json resolution. */
-  readonly asideContext?: () => AsideSidecarContext;
 }
 
 export function registerBrowserUseCommand(
@@ -88,36 +77,6 @@ export function registerBrowserUseCommand(
       await runBrowserUseCommand(deps, 'doctor');
     });
 
-  const aside = command
-    .command('aside')
-    .description(t('cli.sub.browserUse.cmd.aside.desc'));
-
-  aside
-    .command('status')
-    .description(t('cli.sub.browserUse.cmd.aside.status.desc'))
-    .action(async () => {
-      const resolved = resolveDeps(deps);
-      const code = await handleAsideCommand('status', resolved);
-      if (code !== 0) resolved.exit(code);
-    });
-
-  aside
-    .command('enable')
-    .description(t('cli.sub.browserUse.cmd.aside.enable.desc'))
-    .action(async () => {
-      const resolved = resolveDeps(deps);
-      const code = await handleAsideCommand('enable', resolved);
-      if (code !== 0) resolved.exit(code);
-    });
-
-  aside
-    .command('disable')
-    .description(t('cli.sub.browserUse.cmd.aside.disable.desc'))
-    .action(async () => {
-      const resolved = resolveDeps(deps);
-      const code = await handleAsideCommand('disable', resolved);
-      if (code !== 0) resolved.exit(code);
-    });
 }
 
 export async function handleBrowserUseCommand(
@@ -129,7 +88,7 @@ export async function handleBrowserUseCommand(
   // Packaged hosts have no source packageRoot, but the probes fall back to
   // npx and install/update can repair the node_modules sidecars — never gate
   // the command on source-tree presence (the old "restart in source mode"
-  // short-circuit left VerifySurface dead with no repair path).
+  // short-circuit left installed browser runtimes with no repair path).
   //
   // H1: the gate must not be "packageRoot is undefined". A stray package.json
   // anywhere on the walk-up path (e.g. $HOME/package.json or
@@ -162,10 +121,6 @@ export async function handleBrowserUseCommand(
   });
   writeResultOutput(resolved, result);
 
-  if (action === 'status' || action === 'doctor') {
-    await writeAsideSidecarBlock(resolved);
-  }
-
   if (result.ok) {
     if (action === 'doctor') {
       resolved.stdout.write(tln('cli.runtime.browserUse.doctorPassed'));
@@ -178,54 +133,6 @@ export async function handleBrowserUseCommand(
     tln('cli.runtime.browserUse.actionFailed', { action, command }),
   );
   return 1;
-}
-
-export async function handleAsideCommand(
-  action: 'status' | 'enable' | 'disable',
-  deps: Partial<BrowserUseCommandDeps> = {},
-): Promise<number> {
-  const resolved = resolveDeps(deps);
-  const ctx = resolveAsideContext(resolved);
-
-  if (action === 'status') {
-    const status = await loadAsideSidecarStatus(ctx);
-    resolved.stdout.write(formatAsideSidecarStatus(status));
-    return 0;
-  }
-
-  if (action === 'enable') {
-    try {
-      const { path, command } = await enableAsideSidecar(ctx);
-      resolved.stdout.write(
-        tln('cli.runtime.browserUse.aside.enabled', { command, path }),
-      );
-      return 0;
-    } catch (error: unknown) {
-      if (error instanceof AsideCliMissingError) {
-        resolved.stderr.write(`${error.message}\n`);
-        return 1;
-      }
-      throw error;
-    }
-  }
-
-  const { path, found } = await disableAsideSidecar(ctx);
-  if (!found) {
-    resolved.stdout.write(tln('cli.runtime.browserUse.aside.notRegistered', { path }));
-    return 0;
-  }
-  resolved.stdout.write(tln('cli.runtime.browserUse.aside.disabled', { path }));
-  return 0;
-}
-
-async function writeAsideSidecarBlock(deps: BrowserUseCommandDeps): Promise<void> {
-  const status = await loadAsideSidecarStatus(resolveAsideContext(deps));
-  deps.stdout.write(`\n${formatAsideSidecarStatus(status)}`);
-}
-
-function resolveAsideContext(deps: BrowserUseCommandDeps): AsideSidecarContext {
-  if (deps.asideContext) return deps.asideContext();
-  return { cwd: deps.cwd?.() ?? process.cwd() };
 }
 
 async function runBrowserUseCommand(
@@ -248,8 +155,6 @@ function resolveDeps(deps: Partial<BrowserUseCommandDeps> | undefined): BrowserU
     info: deps?.info ?? infoBrowserUseRuntimes,
     installSidecars: deps?.installSidecars,
     ...(deps?.probeSidecars === undefined ? {} : { probeSidecars: deps.probeSidecars }),
-    cwd: deps?.cwd ?? (() => process.cwd()),
-    asideContext: deps?.asideContext,
   };
 }
 

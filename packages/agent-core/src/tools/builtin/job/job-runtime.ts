@@ -1,10 +1,7 @@
-/**
- * Conductor Job runtime (P1) — concurrency cap, always-worktree isolation, schedule.
- * Full async worker loops land incrementally; this module owns ledger transitions
- * and worktree lifecycle hooks that later slices attach subagent handles to.
- */
+/** Native Job concurrency, dependency scheduling, and worktree ownership. */
 
 import type { Kaos } from '@superliora/kaos';
+import { hasUnsettledExecutionResources } from '../../../session/job/git';
 
 import type { Agent } from '../../../agent/index';
 import type { Logger } from '../../../logging/types';
@@ -12,6 +9,7 @@ import {
   attachSessionWorktree,
   createSessionWorktree,
   gcSessionWorktrees,
+  isSessionWorktreeOwned,
   removeSessionWorktree,
   sessionWorktreeDirExists,
   type CreateSessionWorktreeResult,
@@ -19,23 +17,22 @@ import {
 import { nextPortOffset, setupJobWorktree } from '../../../session/worktree-setup';
 import type { ToolStore } from '../../store';
 import { resolveRepoRootForNewJob } from './job-git-root';
-import { ensureGitRepoForWorktrees } from './job-git-bootstrap';
-import { isExecutionInFlight } from './job-lanes';
+import { ensureGitRepoForWorktrees } from '../../../session/git-bootstrap';
 import {
   getJob,
   listJobs,
   patchJob,
-  type JobKind,
   type JobRecord,
   type JobStatus,
 } from './job-ledger';
-import { isGeneralTaskTrack, isPendingTaskTrack, taskTrackCreateDefaults } from './job-task-track';
-import {
-  classifierDepsFromAgent,
-  resolveJobTaskTrackWithInfer,
-} from './job-task-track-infer';
-import { emitJobEvents, jobRecordToUpdatedEvent } from './job-emit';
 import { patchJobAndNotify } from './job-notify';
+import { getJobWorkerHandle, stopAndJoinJobWorkers } from './job-handles';
+import {
+  hasJobNativeResources,
+  jobResourceErrors,
+  runJobNativeOperation,
+  settleJobNativeResources,
+} from './job-native-resources';
 import {
   findOwnershipHolder,
   listRunningOwnershipHolders,
@@ -46,6 +43,52 @@ import {
   type ConductorProjectMode,
   resolveConductorProjectMode,
 } from './job-project-mode';
+
+const closedAdmissions = new WeakSet<ToolStore>();
+const closedJobAdmissions = new WeakMap<ToolStore, Set<string>>();
+const activeSchedules = new WeakMap<ToolStore, Set<Promise<ScheduleJobsResult>>>();
+const schedulingFailures = new WeakMap<ToolStore, unknown[]>();
+
+/** Close the session's execution boundary without changing durable queued work. */
+export function closeJobAdmissions(store: ToolStore): void {
+  closedAdmissions.add(store);
+}
+
+/** Reopen execution after session restoration; this does not request a schedule. */
+export function openJobAdmissions(store: ToolStore): void {
+  closedAdmissions.delete(store);
+}
+
+export function closeJobAdmission(store: ToolStore, jobId: string): void {
+  let jobs = closedJobAdmissions.get(store);
+  if (!jobs) { jobs = new Set(); closedJobAdmissions.set(store, jobs); }
+  jobs.add(jobId);
+}
+
+export function openJobAdmission(store: ToolStore, jobId: string): void {
+  closedJobAdmissions.get(store)?.delete(jobId);
+}
+
+export function areJobAdmissionsOpen(store: ToolStore, jobId?: string): boolean {
+  return !closedAdmissions.has(store) && (jobId === undefined || closedJobAdmissions.get(store)?.has(jobId) !== true);
+}
+
+/** Join worktree preparation admitted before the session execution boundary closed. */
+export async function waitForJobScheduling(store: ToolStore): Promise<void> {
+  for (;;) {
+    const schedules = activeSchedules.get(store);
+    if (schedules === undefined || schedules.size === 0) break;
+    await Promise.allSettled(schedules);
+  }
+  const errors = schedulingFailures.get(store) ?? [];
+  schedulingFailures.delete(store);
+  try { await settleJobNativeResources(store); } catch (error) { errors.push(error); }
+  if (errors.length > 0) {
+    try { await stopAndJoinJobWorkers(store, new Error('Job scheduling shutdown failed')); }
+    catch (error) { errors.push(error); }
+    throw jobResourceErrors(errors, 'Job scheduling failed during shutdown');
+  }
+}
 
 /** Locked product defaults (Conductor plan). */
 export const CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS = 6;
@@ -98,19 +141,11 @@ export function countJobsWithStatus(
   return listJobs(store).filter((j) => set.has(j.status)).length;
 }
 
-/**
- * Whether a running Job occupies a Conductor pool slot.
- * `goal-desk` is a ledger-only umbrella (no LLM worker) — counting it as
- * capacity would burn a slot for the whole goal while drivers wait.
- */
-export function jobOccupiesPoolSlot(job: Pick<JobRecord, 'kind'>): boolean {
-  return job.kind !== 'goal-desk';
-}
 
 /** Running jobs that consume maxConcurrent capacity. */
 export function countRunningPoolJobs(store: ToolStore): number {
   return listJobs(store).filter(
-    (j) => j.status === 'running' && jobOccupiesPoolSlot(j),
+    (j) => j.status === 'running' || getJobWorkerHandle(j.id) !== undefined || hasJobNativeResources(store, j.id),
   ).length;
 }
 
@@ -132,12 +167,16 @@ export function nextQueuedJobs(
   store: ToolStore,
   limit: number,
 ): JobRecord[] {
+  if (!areJobAdmissionsOpen(store)) return [];
   const jobs = listJobs(store);
   const byId = new Map(jobs.map((job) => [job.id, job]));
   const sorted = [...jobs]
-    .filter((j) => j.status === 'queued')
-    .filter((j) => parentAllowsSchedule(byId, j))
-    .filter((j) => blockersAllowSchedule(byId, j))
+    .filter((j) => j.status === 'queued' && areJobAdmissionsOpen(store, j.id) &&
+      getJobWorkerHandle(j.id) === undefined && !hasJobNativeResources(store, j.id))
+    .filter((j) => parentAllowsSchedule(byId, j) &&
+      (j.parentJobId === undefined || !hasJobNativeResources(store, j.parentJobId)))
+    .filter((j) => blockersAllowSchedule(byId, j) &&
+      !j.blockedByJobIds?.some((id) => hasJobNativeResources(store, id)))
     .toSorted((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt));
 
   const selected: JobRecord[] = [];
@@ -159,20 +198,7 @@ export function nextQueuedJobs(
   return selected;
 }
 
-/**
- * Chain rule: keep parent→child sequential. Greenfield / review children are
- * enqueued while the parent is still live; starting them early races file
- * leases and shared worktrees.
- *
- * Exceptions (deadlock escapes):
- * - Goal Desk umbrella stays `running` for the whole goal — drivers must run under it.
- * - Merge/trust holds park an implement as `blocked` after the work is done;
- *   Maker≠Checker verify must still schedule or land stays stuck on verdict=missing.
- * - Affinity `continue_from` reuse children (notes + parent link) of a blocked
- *   parent must schedule — otherwise JobCreate reuses the worktree into a
- *   permanent queued orphan while JobResume rejects queued.
- *   Random sibling implement/task children stay gated (Maker≠Checker / no race).
- */
+/** Parent-linked jobs wait until the parent worker is no longer running. */
 function parentAllowsSchedule(
   byId: ReadonlyMap<string, JobRecord>,
   job: JobRecord,
@@ -180,30 +206,9 @@ function parentAllowsSchedule(
   if (job.parentJobId === undefined) return true;
   const parent = byId.get(job.parentJobId);
   if (parent === undefined) return true;
-  if (parent.kind === 'goal-desk') return true;
-  if (parent.status === 'blocked') {
-    if (job.kind === 'verify') return true;
-    if (isAffinityReuseChildOf(job, parent)) return true;
-    return false;
-  }
-  return !isExecutionInFlight(parent.status);
+  return parent.status !== 'running' && parent.status !== 'queued' && getJobWorkerHandle(parent.id) === undefined;
 }
 
-/** Affinity reuse notes written by reuseInheritanceFromAnchor / JobCreate. */
-const AFFINITY_REUSE_NOTE_RE = /^affinity:\s*reuse\s+from\s+(\S+)/m;
-
-/**
- * True when `job` is the continue_from / affinity reuse child of `parent`
- * (parentJobId link + notes anchor id). Does not open the gate for every child.
- */
-function isAffinityReuseChildOf(job: JobRecord, parent: JobRecord): boolean {
-  if (job.parentJobId !== parent.id) return false;
-  const notes = job.notes ?? '';
-  const match = AFFINITY_REUSE_NOTE_RE.exec(notes);
-  if (match === null) return false;
-  const anchorId = match[1]?.replace(/[),.;]+$/, '') ?? '';
-  return anchorId === parent.id;
-}
 
 /** Tracer-bullet DAG: every listed blocker must be `done` before this Job starts. */
 export function blockersAllowSchedule(
@@ -215,19 +220,19 @@ export function blockersAllowSchedule(
   for (const id of blockers) {
     const blocker = byId.get(id);
     if (blocker === undefined) return false;
-    if (blocker.status !== 'done') return false;
+    if (blocker.status !== 'done' || getJobWorkerHandle(blocker.id) !== undefined) return false;
   }
   return true;
 }
 
 export type WorktreeFactory = (
   kaos: Kaos,
-  input: { readonly repoPath: string; readonly name: string },
+  input: { readonly repoPath: string; readonly name: string; readonly onWorktreePath?: (path: string) => void; readonly signal?: AbortSignal; readonly bootstrapRepo?: boolean },
 ) => Promise<CreateSessionWorktreeResult>;
 
 export type AttachWorktreeFactory = (
   kaos: Kaos,
-  input: { readonly repoPath: string; readonly path: string; readonly branch: string },
+  input: { readonly repoPath: string; readonly path: string; readonly branch: string; readonly onWorktreePath?: (path: string) => void; readonly signal?: AbortSignal },
 ) => Promise<CreateSessionWorktreeResult>;
 
 export interface AssignJobWorktreeInput {
@@ -239,6 +244,7 @@ export interface AssignJobWorktreeInput {
   readonly attachWorktree?: AttachWorktreeFactory;
   readonly worktreeDirExists?: (path: string) => Promise<boolean>;
   readonly log?: Logger;
+  readonly signal?: AbortSignal;
   /** Env for the auto-git-init opt-out (default process.env). */
   readonly env?: Readonly<Record<string, string | undefined>>;
   /**
@@ -255,16 +261,40 @@ export interface AssignJobWorktreeInput {
  * On failure: job stays queued/blocked with notes — never silent shared cwd.
  *
  * Non-git project roots are bootstrapped first (local `git init` + baseline
- * commit, opt-out via SUPERLIORA_CONDUCTOR_AUTO_GIT_INIT=0) so Jobs can
+ * commit, opt-out via SUPERLIORA_AUTO_GIT_INIT=0) so Jobs can
  * progress in fresh directories instead of blocking forever.
  */
-export async function assignJobWorktree(
+export function assignJobWorktree(
   input: AssignJobWorktreeInput,
+): Promise<{ readonly job?: JobRecord; readonly error?: string }> {
+  const job = getJob(input.store, input.jobId);
+  return runJobNativeOperation(input.store, input.jobId, {
+    paths: [job?.worktreePath],
+    repoRoots: [job?.repoRoot ?? input.repoPath],
+  }, (holdPath, signal) => performJobWorktreeAssignment({ ...input, signal }, holdPath))
+    .catch((error: unknown) => {
+      if (!areJobAdmissionsOpen(input.store, input.jobId) && !hasUnsettledExecutionResources(error)) {
+        return { job: getJob(input.store, input.jobId), error: 'Job preparation stopped.' };
+      }
+      closeJobAdmission(input.store, input.jobId);
+      patchJob(input.store, input.jobId, {
+        status: 'blocked',
+        resultSummary: error instanceof Error ? error.message : String(error),
+        notes: [getJob(input.store, input.jobId)?.notes, `preparation_failed: ${error instanceof Error ? error.message : String(error)}`].filter(Boolean).join('\n'),
+      });
+      throw error;
+    });
+}
+
+async function performJobWorktreeAssignment(
+  input: AssignJobWorktreeInput,
+  holdPath: (path: string) => void,
 ): Promise<{ readonly job?: JobRecord; readonly error?: string }> {
   const existing = getJob(input.store, input.jobId);
   if (existing === undefined) {
     return { error: `Job not found: ${input.jobId}` };
   }
+  if (!areJobAdmissionsOpen(input.store, existing.id)) return { job: existing, error: 'Job runtime is closed.' };
   if (existing.worktreePath) {
     return ensureAssignedWorktreePresent(input, existing);
   }
@@ -289,6 +319,7 @@ export async function assignJobWorktree(
   if (existing.parentJobId !== undefined) {
     const parent = getJob(input.store, existing.parentJobId);
     if (parent?.worktreePath !== undefined && parent.landReceipt === undefined) {
+      holdPath(parent.worktreePath);
       const job = patchJob(input.store, existing.id, {
         worktreePath: parent.worktreePath,
         worktreeBranch: parent.worktreeBranch,
@@ -309,7 +340,7 @@ export async function assignJobWorktree(
   const repo =
     input.ensureGitRepo === false
       ? ({ ok: true, root: repoPath, bootstrapped: false, baselineCommit: false } as const)
-      : await ensureGitRepoForWorktrees(input.kaos, repoPath, input.env);
+      : await ensureGitRepoForWorktrees(input.kaos, repoPath, input.env, input.signal);
   if (!repo.ok) {
     input.log?.warn('Conductor job worktree git bootstrap failed', {
       jobId: existing.id,
@@ -342,11 +373,16 @@ export async function assignJobWorktree(
 
   const create = input.createWorktree ?? createSessionWorktree;
   const slug = worktreeNameForJob(existing.id);
+  let preparedPath: string | undefined;
   try {
     const created = await create(input.kaos, {
       repoPath: repo.root,
       name: slug,
+      onWorktreePath: (path) => { preparedPath = path; holdPath(path); },
+      signal: input.signal,
+      bootstrapRepo: false,
     });
+    holdPath(created.workDir);
     const branch = created.meta?.branch;
     const portOffset = existing.portOffset ?? nextPortOffset(
       listJobs(input.store).map((j) => j.portOffset),
@@ -376,6 +412,17 @@ export async function assignJobWorktree(
     });
     return { job };
   } catch (error) {
+    if (!areJobAdmissionsOpen(input.store, existing.id) && !hasUnsettledExecutionResources(error)) {
+      return { job: getJob(input.store, existing.id), error: 'Job preparation stopped.' };
+    }
+    if (hasUnsettledExecutionResources(error)) {
+      patchJob(input.store, existing.id, {
+        ...(preparedPath ? { worktreePath: preparedPath, worktreeBranch: `liora/${slug}`, repoRoot: repo.root } : {}),
+        resultSummary: error instanceof Error ? error.message : String(error),
+        notes: [existing.notes, `worktree_native_cleanup_failed: ${error instanceof Error ? error.message : String(error)}`].filter(Boolean).join('\n'),
+      });
+      throw error;
+    }
     const detail = error instanceof Error ? error.message : String(error);
     input.log?.warn('Conductor job worktree create failed', {
       jobId: existing.id,
@@ -424,6 +471,7 @@ async function ensureAssignedWorktreePresent(
         repoPath: job.repoRoot ?? input.repoPath,
         path,
         branch,
+        signal: input.signal,
       });
       const remounted = patchJob(input.store, job.id, {
         notes: [
@@ -440,6 +488,8 @@ async function ensureAssignedWorktreePresent(
       });
       return { job: remounted ?? job };
     } catch (error) {
+      if (hasUnsettledExecutionResources(error)) throw error;
+      if (!areJobAdmissionsOpen(input.store, job.id)) return { job, error: 'Job preparation stopped.' };
       const detail = error instanceof Error ? error.message : String(error);
       input.log?.warn('Conductor job worktree remount failed', {
         jobId: job.id,
@@ -460,7 +510,7 @@ async function ensureAssignedWorktreePresent(
 
 function defaultAttachWorktree(
   kaos: Kaos,
-  input: { readonly repoPath: string; readonly path: string; readonly branch: string },
+  input: Parameters<AttachWorktreeFactory>[1],
 ): Promise<CreateSessionWorktreeResult> {
   return attachSessionWorktree(kaos, input);
 }
@@ -520,90 +570,41 @@ export interface ScheduleJobsResult {
   readonly message: string;
 }
 
-/**
- * The `explore` profile has no write tools, so a worktree buys isolation
- * nothing can use while costing a `git worktree add` plus registry I/O per
- * job. Running in the main checkout is also more accurate: the worker then
- * sees uncommitted work, which is usually what the question is about. Keyed on
- * the profile, not the kind, so `desk` digests come along for free and a new
- * read-only kind cannot forget to opt in.
- *
- * Pending taskTrack is settled here (before worktree), never on JobCreate ACK.
- * The model judges the done-contract; the harness does not scan prompt wording.
- */
-function applySettledTaskTrack(
-  store: ToolStore,
-  job: JobRecord,
-  resolution: { readonly source: Exclude<JobRecord['taskTrackSource'], 'pending' | undefined>; readonly track: NonNullable<JobRecord['taskTrack']> },
-  agent?: Agent,
-): JobRecord {
-  const codingKind = job.kind === 'task' || job.kind === 'implement';
-  const defaults = taskTrackCreateDefaults({
-    codingKind,
-    track: resolution.track,
-    pending: false,
-    tddMode: job.tddMode,
-    surfaceKind: job.surfaceKind,
-  });
-  const next =
-    patchJob(store, job.id, {
-      taskTrack: resolution.track,
-      taskTrackSource: resolution.source,
-      tddMode: defaults.tddMode,
-      surfaceKind: defaults.surfaceKind,
-      notes: [job.notes, `task_track: ${resolution.source} ${resolution.track}`]
-        .filter(Boolean)
-        .join('\n'),
-    }) ?? { ...job, taskTrack: resolution.track, taskTrackSource: resolution.source };
-  emitJobEvents(agent, [jobRecordToUpdatedEvent(next, { reason: 'effect' })]);
-  return next;
-}
 
-async function settlePendingJobTaskTrack(input: {
-  readonly store: ToolStore;
-  readonly job: JobRecord;
-  readonly agent?: Agent;
-}): Promise<JobRecord> {
-  const resolved = await resolveJobTaskTrackWithInfer(
-    {
-      title: input.job.title,
-      prompt: input.job.prompt,
-      successCriteria: input.job.successCriteria,
-      verificationCommands: input.job.verificationCommands,
-      surfaceKind: input.job.surfaceKind,
-      ownershipPaths: input.job.ownershipPaths,
-      contextPaths: input.job.contextPaths,
-      kind: input.job.kind,
-      deliveryMode: input.job.deliveryMode,
-      greenfieldChain: input.job.deliveryPhase !== undefined,
-    },
-    classifierDepsFromAgent(input.agent),
-  );
-  const track = resolved.source === 'pending' ? 'coding' : resolved.track;
-  const source = resolved.source === 'pending' ? 'default' : resolved.source;
-  return applySettledTaskTrack(input.store, input.job, { source, track }, input.agent);
-}
-
-export function needsWorktree(job: Pick<JobRecord, 'kind' | 'taskTrack'>): boolean {
-  // merge/push: bookkeeping only — land/push use the source job's worktree.
-  if (job.kind === 'merge' || job.kind === 'push') return false;
-  if (isGeneralTaskTrack(job)) return false;
-  const profile = profileForJobKind(job.kind);
-  // explore/research (+ desk via explore profile) + goal-desk: read-only /
-  // orchestration — no worktree. verify keeps a worktree (usually parent chain).
-  if (profile === 'explore' || profile === 'goal-desk') return false;
-  return true;
+export function needsWorktree(job: Pick<JobRecord, 'kind'>): boolean {
+  return job.kind !== 'merge' && job.kind !== 'push';
 }
 
 /**
  * Promote highest-priority queued Jobs to running under maxConcurrent.
  * Always-worktree when kaos+repoPath provided (product default).
  */
-export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<ScheduleJobsResult> {
+export function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<ScheduleJobsResult> {
+  let schedules = activeSchedules.get(input.store);
+  if (!schedules) {
+    schedules = new Set();
+    activeSchedules.set(input.store, schedules);
+  }
+  const operation = performJobSchedule(input);
+  schedules.add(operation);
+  void operation.then(() => schedules.delete(operation), (error: unknown) => {
+    schedules.delete(operation);
+    const failures = schedulingFailures.get(input.store) ?? [];
+    failures.push(error);
+    schedulingFailures.set(input.store, failures);
+  });
+  return operation;
+}
+
+async function performJobSchedule(input: ScheduleJobsInput): Promise<ScheduleJobsResult> {
+  if (!areJobAdmissionsOpen(input.store)) {
+    return {
+      started: [], blocked: [], deferred: countJobsWithStatus(input.store, ['queued']),
+      backpressure: false, message: 'Job runtime is closed; queued work is retained.',
+    };
+  }
   const max =
     input.maxConcurrent ?? resolveConductorPoolConfig().maxConcurrentJobs;
-  // goal-desk umbrellas stay `running` without an LLM worker — exclude them
-  // so a single /goal does not burn a concurrency slot for its whole life.
   const running = countRunningPoolJobs(input.store);
   const slots = Math.max(0, max - running);
   if (slots === 0) {
@@ -628,29 +629,10 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
   // JobCreate ACK pay their summed latency (A2 non-blocking contract).
   // Ledger patches stay synchronous read-modify-write, so interleaving is
   // safe, and result order follows candidate priority order.
-  const outcomes = await Promise.all(
+  const outcomes = await Promise.allSettled(
     candidates.map(
       async (candidate): Promise<{ started?: JobRecord; blocked?: JobRecord }> => {
-        const pendingDeps = isPendingTaskTrack(candidate)
-          ? classifierDepsFromAgent(input.agent)
-          : undefined;
-        let job = !isPendingTaskTrack(candidate)
-          ? candidate
-          : pendingDeps === undefined
-            ? applySettledTaskTrack(
-                input.store,
-                candidate,
-                {
-                  source: 'default',
-                  track: 'coding',
-                },
-                input.agent,
-              )
-            : await settlePendingJobTaskTrack({
-                store: input.store,
-                job: candidate,
-                agent: input.agent,
-              });
+        let job = candidate;
         if (requireWt && needsWorktree(job)) {
           const assignRepo = job.repoRoot ?? input.repoPath;
           if (input.kaos === undefined || assignRepo === undefined) {
@@ -687,6 +669,9 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
           }
           job = assigned.job;
         }
+        const latest = getJob(input.store, job.id);
+        if (!areJobAdmissionsOpen(input.store, job.id) || latest?.status !== 'queued') return {};
+        job = latest;
 
         const runningJob = patchJob(input.store, job.id, {
           status: 'running',
@@ -699,6 +684,7 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
           const after = getJob(input.store, runningJob.id) ?? runningJob;
           return { started: after };
         } catch (error) {
+          if (hasUnsettledExecutionResources(error)) throw error;
           const detail = error instanceof Error ? error.message : String(error);
           input.log?.warn('Conductor launchWorker failed', {
             jobId: runningJob.id,
@@ -721,9 +707,19 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
 
   const started: JobRecord[] = [];
   const blocked: JobRecord[] = [];
+  const errors: unknown[] = [];
   for (const outcome of outcomes) {
-    if (outcome.started) started.push(outcome.started);
-    if (outcome.blocked) blocked.push(outcome.blocked);
+    if (outcome.status === 'rejected') {
+      errors.push(outcome.reason);
+      continue;
+    }
+    if (outcome.value.started) started.push(outcome.value.started);
+    if (outcome.value.blocked) blocked.push(outcome.value.blocked);
+  }
+  if (errors.length > 0) {
+    try { await stopAndJoinJobWorkers(input.store, new Error('Job scheduling failed')); }
+    catch (error) { errors.push(error); }
+    throw jobResourceErrors(errors, 'Job scheduling failed');
   }
 
   const stillQueued = countJobsWithStatus(input.store, ['queued']);
@@ -759,7 +755,9 @@ export async function gcConductorJobWorktrees(
   const removedJobIds: string[] = [];
   const jobs = listJobs(input.store);
   for (const job of jobs) {
-    if (job.status !== 'done' || !job.worktreePath) continue;
+    if (job.status !== 'done' || !job.worktreePath || getJobWorkerHandle(job.id) !== undefined ||
+        hasJobNativeResources(input.store, job.id) ||
+        isSessionWorktreeOwned(job.worktreePath, job.repoRoot ?? '')) continue;
     if (
       job.landChoice === 'keep' ||
       job.landChoice === 'pending' ||
@@ -772,57 +770,30 @@ export async function gcConductorJobWorktrees(
       continue;
     }
     try {
-      await removeSessionWorktree(input.kaos, { nameOrPath: job.worktreePath });
+      await runJobNativeOperation(input.store, job.id, {}, (holdPath, signal) =>
+        removeSessionWorktree(input.kaos, { nameOrPath: job.worktreePath!, onWorktreePath: holdPath, signal }));
       patchJob(input.store, job.id, {
         worktreePath: undefined,
         notes: [job.notes, 'worktree: removed after success'].filter(Boolean).join('\n'),
       });
       removedJobIds.push(job.id);
-    } catch {
-      // leave path for next GC
+    } catch (error) {
+      if (hasUnsettledExecutionResources(error)) throw error;
+      // Leave the path discoverable after an ordinary filesystem failure.
     }
   }
 
   const ttl = input.failTtlDays ?? resolveConductorPoolConfig().failTtlDays;
-  const result = await gcSessionWorktrees(input.kaos, {
-    maxAgeDays: ttl,
-    dryRun: input.dryRun,
-  });
+  const result = await runJobNativeOperation(input.store, 'worktree-gc', {}, (holdPath, signal) =>
+    gcSessionWorktrees(input.kaos, {
+      maxAgeDays: ttl, dryRun: input.dryRun, onWorktreePath: holdPath, signal,
+    }));
   return {
     removedJobIds,
     gc: { removed: result.removed.length, kept: result.kept },
   };
 }
 
-export function profileForJobKind(kind: JobKind): string {
-  switch (kind) {
-    case 'explore':
-    case 'research':
-      // research reuses the explore waist (web/docs tools, no worktree).
-      return 'explore';
-    case 'verify':
-      return 'verify';
-    case 'mission':
-      return 'plan';
-    case 'desk':
-      // Contract §4.2: low-cost digest worker. `explore` keeps it on the
-      // cheap model slot; digest work is read-only summarization.
-      return 'explore';
-    case 'goal-desk':
-      // Goal Desk orchestrator — Job* + AskUserQuestion, no product writes.
-      return 'goal-desk';
-    case 'goal-driver':
-      // Spec 2026-08-04-goal-driver-jobs: coder waist plus goal lifecycle
-      // tools so the driver can report complete/blocked on its migrated goal.
-      return 'goal-driver';
-    case 'implement':
-    case 'task':
-    case 'merge':
-    case 'push':
-    default:
-      return 'coder';
-  }
-}
 
 /** Compact counts for TUI Job strip / footer badge. */
 export interface ConductorJobStripSnapshot {

@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { ITerminalService } from '@superliora/agent-core';
 
 import { pino } from 'pino';
 
@@ -55,7 +56,7 @@ const running: RunningServer[] = [];
 beforeEach(() => {
   tmpDir = mkdtempSync(join(tmpdir(), 'liora-server-start-test-'));
   lockPath = join(tmpDir, 'lock');
-  // Isolate LioraCore's `~/.kimi` lookup — bridge construction touches it via plugin discovery.
+  // Isolate native configuration, credentials and session records.
   bridgeHome = mkdtempSync(join(tmpdir(), 'liora-server-start-home-'));
 });
 
@@ -158,6 +159,67 @@ describe('startServer — lock + healthz smoke', () => {
     const r = await spawn();
     await r.close();
     await r.close(); // second call is a no-op (would throw on double-app.close otherwise)
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  it('holds the server lock until a native shell command has settled', async () => {
+    const r = await spawn();
+    const core = r.services.invokeFunction((a) => a.get(ICoreProcessService));
+    const events = r.services.invokeFunction((a) => a.get(IEventService));
+    const started = Promise.withResolvers<void>();
+    const subscription = events.onDidPublish((event) => {
+      if (event.type === 'shell.output' && event.commandId === 'server-shutdown-command') {
+        started.resolve();
+      }
+    });
+    try {
+      const session = await core.rpc.createSession({ workDir: bridgeHome });
+      let settled = false;
+      let lockHeldAtSettlement = false;
+      const command = core.rpc.runShellCommand({
+        sessionId: session.id,
+        agentId: 'main',
+        commandId: 'server-shutdown-command',
+        command: 'printf server-ready; exec sleep 30',
+      }).finally(() => {
+        settled = true;
+        lockHeldAtSettlement = existsSync(lockPath);
+      });
+      await started.promise;
+      expect(settled).toBe(false);
+      const closing = r.close();
+      expect(existsSync(lockPath)).toBe(true);
+      await closing;
+      await command;
+      expect(settled).toBe(true);
+      expect(lockHeldAtSettlement).toBe(true);
+      expect(existsSync(lockPath)).toBe(false);
+    } finally {
+      subscription.dispose();
+      await r.close();
+    }
+  });
+
+  it('holds the server lock through actual native terminal exit', async () => {
+    const r = await spawn();
+    const core = r.services.invokeFunction((a) => a.get(ICoreProcessService));
+    const terminals = r.services.invokeFunction((a) => a.get(ITerminalService));
+    const session = await core.rpc.createSession({ workDir: bridgeHome });
+    const terminal = await terminals.create(session.id, {});
+    let exited = false;
+    let lockHeldAtExit = false;
+    await terminals.attach(session.id, terminal.id, {
+      id: 'native-terminal-shutdown',
+      send(frame) {
+        if (frame.type === 'terminal_exit') {
+          exited = true;
+          lockHeldAtExit = existsSync(lockPath);
+        }
+      },
+    });
+    await r.close();
+    expect(exited).toBe(true);
+    expect(lockHeldAtExit).toBe(true);
     expect(existsSync(lockPath)).toBe(false);
   });
 

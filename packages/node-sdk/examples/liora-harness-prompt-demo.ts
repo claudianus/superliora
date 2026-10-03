@@ -85,11 +85,6 @@ function handleEvent(
         process.stdout.write(event.delta);
       }
       break;
-    case 'hook.result':
-      if (activeTurnId === undefined || event.turnId === activeTurnId) {
-        process.stdout.write(`${event.hookEvent} hook\n\n${event.content.trim() || '(empty)'}\n`);
-      }
-      break;
     case 'turn.ended':
       if (activeTurnId === undefined || event.turnId === activeTurnId) {
         process.stdout.write(`\n\nstatus: ${event.reason}\n`);
@@ -99,26 +94,18 @@ function handleEvent(
       process.stderr.write(`\nerror: ${event.code}: ${event.message}\n`);
       break;
     case 'agent.status.updated':
-    case 'cron.fired':
-    case 'goal.updated':
     case 'session.meta.updated':
-    case 'skill.activated':
-    case 'skill.created':
     case 'turn.step.started':
     case 'turn.step.completed':
-    case 'turn.step.retrying':
     case 'turn.step.interrupted':
     case 'tool.call.delta':
     case 'tool.call.started':
     case 'tool.progress':
     case 'tool.result':
-    case 'tool.list.updated':
-    case 'mcp.server.status':
     case 'subagent.spawned':
     case 'subagent.started':
     case 'subagent.completed':
     case 'subagent.failed':
-    case 'subagent.suspended':
     case 'compaction.started':
     case 'compaction.blocked':
     case 'compaction.cancelled':

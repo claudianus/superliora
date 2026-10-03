@@ -5,6 +5,8 @@ import {
   jobCreate,
   jobList,
   jobPreviewSplit,
+  jobPause,
+  jobResume,
   jobSetProjectMode,
 } from '../../src/tools/builtin/job/job-rpc-api';
 import {
@@ -21,7 +23,6 @@ import {
 import { resolveConductorPoolConfig } from '../../src/tools/builtin/job/job-runtime';
 import { jobRecordToSnapshot } from '../../src/tools/builtin/job/job-emit';
 import type { ToolStore } from '../../src/tools/store';
-import { FLAG_DEFINITIONS } from '../../src/flags/registry';
 
 function memoryStore(): ToolStore {
   const data: Record<string, unknown> = {};
@@ -46,8 +47,6 @@ describe('job-rpc-api', () => {
       mustNotTouch: ['apps/liora'],
     });
     expect(created.jobs).toHaveLength(1);
-    expect(created.text).toContain('brief.success_criteria');
-    expect(created.text).toContain('brief.must_not_touch');
 
     const listed = jobList(store);
     expect(listed).toHaveLength(1);
@@ -84,6 +83,17 @@ describe('job-rpc-api', () => {
     expect(getJob(store, jobId)?.status).toBe('cancelled');
   });
 
+  it('pauses a queued card and resumes the same job without inventing a new worker', async () => {
+    const store = memoryStore();
+    const created = await jobCreate(store, { title: 'Pause me', prompt: 'Original request' });
+    const jobId = created.jobs[0]!.id;
+    expect((await jobPause(store, { jobId })).job?.status).toBe('interrupted');
+    const resumed = await jobResume(store, { jobId });
+    expect(resumed.ok).toBe(true);
+    expect(getJob(store, jobId)).toMatchObject({ status: 'queued', prompt: 'Original request' });
+    expect(jobList(store)).toHaveLength(1);
+  });
+
   it('jobRecordToSnapshot includes v3 landReceipt when present', () => {
     const store = memoryStore();
     writeJobLedger(store, emptyJobLedger());
@@ -104,22 +114,6 @@ describe('job-rpc-api', () => {
     });
   });
 
-  it('jobRecordToSnapshot includes v4 effectPreview', () => {
-    const store = memoryStore();
-    writeJobLedger(store, emptyJobLedger());
-    const job = createJob(store, {
-      title: 'Host effect',
-      kind: 'task',
-      taskTrack: 'general',
-      taskTrackSource: 'inferred',
-    });
-    const snap = jobRecordToSnapshot(getJob(store, job.id)!);
-    expect(snap.effectPreview?.isolation).toBe('checkout');
-    expect(snap.effectPreview?.chip).toContain('checkout');
-    expect(snap.effectPreview?.summary).toContain('Conductor judged');
-    expect(snap.effectPreview?.taskTrack).toBe('general');
-    expect(snap.effectPreview?.taskTrackSource).toBe('inferred');
-  });
 });
 
 describe('conductor project mode pool', () => {
@@ -148,11 +142,3 @@ describe('conductor project mode pool', () => {
   });
 });
 
-describe('conductor_ux_v2 flag', () => {
-  it('is registered with default true', () => {
-    const flag = FLAG_DEFINITIONS.find((d) => d.id === 'conductor_ux_v2');
-    expect(flag).toBeDefined();
-    expect(flag?.default).toBe(true);
-    expect(flag?.env).toBe('SUPERLIORA_EXPERIMENTAL_CONDUCTOR_UX_V2');
-  });
-});

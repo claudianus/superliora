@@ -4,8 +4,8 @@
  * **Bootstrap strategy**: spawn the real server, register an active prompt
  * via `PromptService._injectActiveForTest` (avoids running a real
  * agent-core prompt), then exercise:
- *   1. WS `abort` control message → server publishes `prompt.aborted`
- *      synthetic event + sends ack with `aborted: true`.
+ *   1. WS abort acknowledges cancellation; real turn settlement publishes
+ *      `prompt.aborted` to subscribers.
  *   2. WS `abort` idempotency: second abort returns
  *      `code: 0, payload.aborted: false` (per WS.md §3.4 convention —
  *      NOT REST's 40903, intentional).
@@ -29,7 +29,7 @@ import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
-import { IPromptService, PromptService } from '@superliora/agent-core';
+import { IEventService, IPromptService, PromptService } from '@superliora/agent-core';
 
 import { IRestGateway, startServer, type RunningServer } from '../src';
 import { fixedTokenAuth } from './helpers/serverHarness';
@@ -183,7 +183,7 @@ async function waitFor(
 }
 
 describe('WS abort control message (W7.3 / Chain 4b)', () => {
-  it('on first abort: ack with aborted:true + broadcast prompt.aborted', async () => {
+  it('acknowledges abort before broadcasting terminal settlement', async () => {
     const r = await bootDaemon();
     const sid = await createSession(r);
     const promptId = `prompt_WS_ABORT_${sid}`;
@@ -198,7 +198,7 @@ describe('WS abort control message (W7.3 / Chain 4b)', () => {
       }),
     );
 
-    // Wait for both the ack AND the broadcast prompt.aborted.
+    // A cancellation acknowledgement must not synthesize terminal settlement.
     const ack = await waitFor(
       sub.received,
       (f) => f['type'] === 'ack' && f['id'] === 'a1',
@@ -206,6 +206,15 @@ describe('WS abort control message (W7.3 / Chain 4b)', () => {
     expect(ack['code']).toBe(0);
     const payload = ack['payload'] as { aborted: boolean };
     expect(payload.aborted).toBe(true);
+    expect(sub.received.some((frame) => frame['type'] === 'prompt.aborted')).toBe(false);
+    expect(r.services.invokeFunction((accessor) => accessor.get(IPromptService).getCurrentPromptId(sid))).toBe(promptId);
+    r.services.invokeFunction((accessor) => accessor.get(IEventService)).publish({
+      type: 'turn.ended',
+      sessionId: sid,
+      agentId: 'main',
+      turnId: 5,
+      reason: 'cancelled',
+    });
 
     const promptAborted = await waitFor(
       sub.received,

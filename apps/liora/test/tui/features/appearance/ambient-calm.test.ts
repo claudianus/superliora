@@ -16,7 +16,6 @@ function idleSignals(overrides: Partial<AmbientCalmSignals> = {}): AmbientCalmSi
   return {
     streamingPhase: 'idle',
     compacting: false,
-    liveGoal: false,
     fullscreenTakeover: false,
     streamRevealArmed: false,
     backgroundWork: false,
@@ -33,7 +32,6 @@ describe('isAmbientCalmIdle', () => {
     // is a model preference and must not block calm.
     expect(isAmbientCalmIdle(idleSignals({ streamingPhase: 'thinking' }))).toBe(false);
     expect(isAmbientCalmIdle(idleSignals({ compacting: true }))).toBe(false);
-    expect(isAmbientCalmIdle(idleSignals({ liveGoal: true }))).toBe(false);
     expect(isAmbientCalmIdle(idleSignals({ fullscreenTakeover: true }))).toBe(false);
     expect(isAmbientCalmIdle(idleSignals({ streamRevealArmed: true }))).toBe(false);
     // Background Conductor/Mission Control work reads the shared clock, so it

@@ -7,7 +7,7 @@ import { ProviderManager } from '../../agent-core/src/session/provider/provider-
 function managedConfig(): LioraConfig {
   return {
     providers: {
-      'managed:kimi-code': {
+      'managed:kimi-api': {
         type: 'kimi',
         baseUrl: 'https://api.kimi.com/coding/v1',
         apiKey: '',
@@ -16,7 +16,7 @@ function managedConfig(): LioraConfig {
     },
     models: {
       'kimi-code/kimi-for-coding': {
-        provider: 'managed:kimi-code',
+        provider: 'managed:kimi-api',
         model: 'kimi-for-coding',
         maxContextSize: 262144,
       },
@@ -124,7 +124,7 @@ describe('resolveRuntimeProviderWithOAuth', () => {
       },
     });
 
-    expect(resolved.providerName).toBe('managed:kimi-code');
+    expect(resolved.providerName).toBe('managed:kimi-api');
     expect(resolved.provider).toMatchObject({
       type: 'kimi',
       model: 'kimi-for-coding',
@@ -151,7 +151,7 @@ describe('resolveRuntimeProviderWithOAuth', () => {
     const conflicting: LioraConfig = {
       ...managedConfig(),
       providers: {
-        'managed:kimi-code': {
+        'managed:kimi-api': {
           type: 'kimi',
           baseUrl: 'https://api.kimi.com/coding/v1',
           apiKey: 'static-key',
@@ -198,7 +198,7 @@ describe('resolveRuntimeProviderWithOAuth', () => {
     expect(log.warn).toHaveBeenCalledWith(
       'oauth token fetch failed',
       expect.objectContaining({
-        providerName: 'managed:kimi-code',
+        providerName: 'managed:kimi-api',
         error: expect.any(Error),
       }),
     );

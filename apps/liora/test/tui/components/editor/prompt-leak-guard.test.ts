@@ -20,7 +20,7 @@ describe('looksLikePromptLeak', () => {
 
   it('keeps ordinary drafts', () => {
     expect(looksLikePromptLeak('please restore this draft')).toBe(false);
-    expect(looksLikePromptLeak('/goal ship the prompt guard')).toBe(false);
+    expect(looksLikePromptLeak('/jobs inspect job-1')).toBe(false);
     expect(looksLikePromptLeak('')).toBe(false);
   });
 });

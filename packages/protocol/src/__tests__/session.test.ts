@@ -79,6 +79,18 @@ describe('sessionSchema', () => {
     expect(sessionSchema.parse(fullSession)).toEqual(fullSession);
   });
 
+  it('round-trips a session summary without fabricating unavailable runtime enrichment', () => {
+    const {
+      agent_config: _config,
+      usage: _usage,
+      permission_rules: _rules,
+      message_count: _count,
+      last_seq: _cursor,
+      ...summary
+    } = fullSession;
+    expect(sessionSchema.parse(summary)).toEqual(summary);
+  });
+
   it('accepts arbitrary metadata extensions via catchall', () => {
     const withExtras = {
       ...fullSession,
@@ -196,18 +208,16 @@ describe('sessionUpdateSchema', () => {
     ).toEqual({ agent_config: { model: 'moonshot-v1-256k' } });
   });
 
-  it('parses a runtime-controls patch (thinking + permission_mode + plan_mode)', () => {
+  it('parses a runtime-controls patch (thinking + permission_mode)', () => {
     const parsed = sessionUpdateSchema.parse({
       agent_config: {
         thinking: 'high',
         permission_mode: 'yolo',
-        plan_mode: true,
       },
     });
     expect(parsed.agent_config).toEqual({
       thinking: 'high',
       permission_mode: 'yolo',
-      plan_mode: true,
     });
   });
 

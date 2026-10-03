@@ -4,7 +4,6 @@ import { currentTheme } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
 import {
   appearanceAnimationNow,
-  renderAnimatedGradientText,
   renderPulseText,
   renderShimmerPrefix,
   renderTypewriterLine,
@@ -14,30 +13,18 @@ import type { MotionBeatSnapshot } from '#/tui/utils/render/motion-beats';
 import type { GitStatus } from '#/utils/git/git-status';
 
 import {
-  formatExtensionsReloadFooterBadge,
-  formatIndexFooterBadge,
-  formatMediaFooterBadge,
-  formatMcpHealthFooterBadge,
-  formatRuntimeDegradedFooterBadge,
-  formatSearchCascadeFooterBadge,
   formatCacheHitFooterBadge,
   styleFooterBadge,
 } from '#/tui/components/chrome/footer/footer-badges';
-import { formatGoalXpPulseFooterBadge } from '#/tui/utils/goal/goal-xp-pulse';
 import { formatFleetFlourishFooterBadge } from '#/tui/utils/fleet/fleet-flourish';
 import { formatPermissionApproveFooterBadge } from '#/tui/utils/never-halt/permission-approve-flourish';
 import { formatGitChurnFooterBadge } from '#/tui/utils/git/git-churn-spark';
-import {
-  computeOpsComboPulse,
-  formatOpsComboFooterBadge,
-} from '#/tui/utils/ops/ops-combo-pulse';
 import {
   formatFooterGitBadge,
   formatTranscriptViewportBadge,
   shortenCwd,
   type FooterTranscriptViewportSnapshot,
 } from '#/tui/components/chrome/footer/footer-chrome';
-import { formatGoalBadge } from '#/tui/components/chrome/footer/footer-goal';
 import {
   effectiveRouteModelLabel,
   formatModelRouteBadge,
@@ -55,9 +42,6 @@ import {
   labelConductorJobs,
   labelMenu,
   labelModeAuto,
-  labelModeAsk,
-  labelModePlan,
-  labelModePremium,
   labelModeYolo,
 } from '#/tui/components/chrome/footer/footer-labels';
 import {
@@ -75,7 +59,6 @@ export interface RenderFooterLine1Input {
   readonly appearance: AppearancePreferences;
   readonly activeBeat: MotionBeatSnapshot | undefined;
   readonly getTranscriptViewport: (() => FooterTranscriptViewportSnapshot) | undefined;
-  readonly goalWallClockMs: number | undefined;
   readonly backgroundBashTaskCount: number;
   readonly backgroundAgentCount: number;
   readonly git: GitStatus | null;
@@ -89,7 +72,6 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
     appearance,
     activeBeat,
     getTranscriptViewport,
-    goalWallClockMs,
     backgroundBashTaskCount,
     backgroundAgentCount,
     git,
@@ -104,9 +86,7 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
   const modeBeatTitle =
     activeBeat?.name === 'mode_enter' || activeBeat?.name === 'mode_exit'
       ? activeBeat.title
-      : activeBeat?.name === 'plan_enter' || activeBeat?.name === 'plan_exit'
-        ? 'plan'
-        : undefined;
+      : undefined;
   const withModeBeat = (title: string, body: string): string =>
     modeBeatTitle === title ? renderShimmerPrefix(appearance) + body : body;
 
@@ -123,24 +103,6 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
             ? renderPulseText(yoloText, 'footer:yolo', 'warning', appearance)
             : currentTheme.boldFg('warning', yoloText),
         ),
-      );
-    }
-    if (state.askMode) {
-      modes.push(
-        withModeBeat('ask', renderPulseText(labelModeAsk(labels), 'ask', 'primary', appearance)),
-      );
-    }
-    if (state.planMode) {
-      modes.push(
-        withModeBeat(
-          'plan',
-          renderPulseText(labelModePlan(labels), 'plan', 'primary', appearance),
-        ),
-      );
-    }
-    if (state.premiumQualityMode) {
-      modes.push(
-        renderAnimatedGradientText(labelModePremium(labels), 'footer:premium', appearance),
       );
     }
     const jobs = state.conductorJobs;
@@ -160,7 +122,6 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
         .map((card) => card.sessionName?.trim() || card.title)
         .filter((name) => name.length > 0);
       const jobLabel = labelConductorJobs(labels, jobs, {
-        projectMode: state.conductorProjectMode,
         ...(tokenGlance === undefined ? {} : { tokenGlance }),
         ...(liveNames.length > 0 ? { liveNames } : {}),
       });
@@ -175,22 +136,7 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
           : 'footer:conductor-jobs';
         modes.push(renderPulseText(jobLabel, seed, tone, appearance, attention ? 'fast' : 'slow'));
       }
-    } else if (state.conductorProjectMode !== undefined) {
-      const pool = jobs?.maxConcurrent;
-      const modeBadge =
-        pool === undefined
-          ? `mode=${state.conductorProjectMode}`
-          : `mode=${state.conductorProjectMode} pool=${String(pool)}`;
-      modes.push(renderPulseText(modeBadge, 'footer:conductor-mode', 'accent', appearance));
     }
-  }
-  // Compaction already owns a full transcript card — do not paint status-bar compact.
-  // Prompt-intel phases (ghost complete / suggest) are already visible in the editor.
-  const mediaBadge = formatMediaFooterBadge(process.env, labels);
-  if (mediaBadge !== null && footerSlotVisible(prefs.mediaReady, true)) {
-    modes.push(
-      renderPulseText(mediaBadge.label, `footer:${mediaBadge.label}`, 'accent', appearance),
-    );
   }
   if (modes.length > 0) left.push(modes.join(' '));
 
@@ -200,17 +146,6 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
   );
   if (transcriptViewportBadge !== null) left.push(transcriptViewportBadge);
 
-  if (footerSlotVisible(prefs.goal, state.goal != null)) {
-    const goalBadge = formatGoalBadge(state.goal, goalWallClockMs, appearance);
-    if (goalBadge !== null) left.push(goalBadge);
-  }
-
-  if (prefs.pulseGoalProgress) {
-    const goalXpBadge = formatGoalXpPulseFooterBadge(state.goalXpPulse, Date.now(), labels);
-    if (goalXpBadge !== null) {
-      left.push(renderPulseText(goalXpBadge.text, 'footer:goal-xp', 'accent', appearance));
-    }
-  }
 
   if (prefs.pulseFleetComplete) {
     const fleetFlourishBadge = formatFleetFlourishFooterBadge(
@@ -245,69 +180,14 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
     }
   }
 
-  if (prefs.pulseOpsCombo) {
-    const opsCombo = computeOpsComboPulse(state);
-    const opsComboBadge = formatOpsComboFooterBadge(opsCombo, Date.now(), labels);
-    if (opsComboBadge !== null) {
-      left.push(renderPulseText(opsComboBadge.text, 'footer:ops-combo', 'accent', appearance));
-    }
-  }
-
-  if (footerSlotVisible(prefs.mcp, true)) {
-    const mcpBadge = formatMcpHealthFooterBadge(
-      state.mcpServersSummary,
-      labels,
-      prefs.mcp === 'always',
-    );
-    if (mcpBadge !== null) left.push(styleFooterBadge(mcpBadge, appearance));
-  }
-
-  if (prefs.pulseExtensionsReload) {
-    const extReloadBadge = formatExtensionsReloadFooterBadge(
-      state.extensionsReload,
-      Date.now(),
-      labels,
-    );
-    if (extReloadBadge !== null) left.push(styleFooterBadge(extReloadBadge, appearance));
-  }
 
   if (footerSlotVisible(prefs.cache, true)) {
     const cacheBadge = formatCacheHitFooterBadge(state.cacheMeter, labels);
     if (cacheBadge !== null) left.push(styleFooterBadge(cacheBadge, appearance));
   }
 
-  if (footerSlotVisible(prefs.index, true)) {
-    const indexBadge = formatIndexFooterBadge(state.workDir, process.env, labels);
-    // auto: only cold/warn; always: any
-    if (indexBadge !== null) {
-      const coldish =
-        indexBadge.severity === 'warning' || indexBadge.severity === 'danger';
-      if (prefs.index === 'always' || coldish || indexBadge.severity === 'muted') {
-        // When always, show all. When auto, skip warm "ready" noise.
-        if (prefs.index === 'always' || indexBadge.severity !== 'info') {
-          left.push(styleFooterBadge(indexBadge, appearance));
-        }
-      }
-    }
-  }
 
-  if (prefs.pulseRuntimeDegraded) {
-    const degradedBadge = formatRuntimeDegradedFooterBadge(
-      state.runtimeDegraded,
-      Date.now(),
-      labels,
-    );
-    if (degradedBadge !== null) left.push(styleFooterBadge(degradedBadge, appearance));
-  }
 
-  if (prefs.pulseSearchCascade) {
-    const cascadeBadge = formatSearchCascadeFooterBadge(
-      state.searchCascade,
-      Date.now(),
-      labels,
-    );
-    if (cascadeBadge !== null) left.push(styleFooterBadge(cascadeBadge, appearance));
-  }
 
   if (footerSlotVisible(prefs.model, state.model.trim().length > 0)) {
     const model = modelDisplayName(state);

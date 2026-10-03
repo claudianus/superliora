@@ -21,24 +21,15 @@ import {
   listJobs,
   patchJob,
   upsertJob,
-  type JobDeliveryMode,
   type JobKind,
   type JobRecord,
   type JobStatus,
 } from './job-ledger';
 import { dispatchMergeLand } from './job-land';
-import { jobMayLandToMain } from './job-task-track';
-import {
-  evaluateMergeTrust,
-  mergeRiskAssessmentFromClaim,
-  mergeTrustInputFromLedger,
-} from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
 import { dispatchPushRemote, evaluatePushTrust, resolvePushRemoteRef } from './job-push';
-import { synthesizeSuccessCriteria } from './job-brief';
 import {
   CONDUCTOR_PROJECT_MODE_MAX_CONCURRENT,
-  deliveryClassFromProjectMode,
   resolveConductorProjectMode,
   setConductorProjectModeMaxConcurrent,
   type ConductorProjectMode,
@@ -51,7 +42,8 @@ import {
 } from './job-runtime';
 import { splitUserMessageIntoJobIntents, type SplitJobIntent } from './job-split';
 import { ackCreatedJobs, renderJobInspect } from './job-tools';
-import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
+import { cancelJobWorker, pumpSchedulerAfterWorker, resumeJobs, steerJobWorker } from './job-worker';
+import { getJobWorkerHandle } from './job-handles';
 import {
   allocateUniqueSessionName,
   archiveWorkspaceSession,
@@ -88,15 +80,11 @@ export interface JobCreateInput {
   readonly successCriteria?: readonly string[];
   readonly mustNotTouch?: readonly string[];
   readonly verificationCommands?: readonly string[];
-  readonly testSeams?: readonly string[];
-  readonly tddMode?: JobRecord['tddMode'];
-  readonly reproCommand?: string;
   readonly blockedByJobIds?: readonly string[];
-  readonly deliveryMode?: JobDeliveryMode;
   readonly parentJobId?: string;
   readonly autoSplit?: boolean;
-  readonly surfaceKind?: JobRecord['surfaceKind'];
-  readonly deliveryClass?: JobRecord['deliveryClass'];
+  readonly modelAlias?: string;
+  readonly timeoutMs?: number;
 }
 
 export interface JobCreateResult {
@@ -122,22 +110,6 @@ export interface JobMergeInput {
   readonly jobId: string;
   readonly approve: boolean;
   readonly summary?: string;
-  readonly diffLines?: number;
-  readonly hasConflict?: boolean;
-  readonly checksGreen?: boolean;
-  readonly forceUserConfirm?: boolean;
-  readonly paths?: readonly string[];
-  /**
-   * LLM judgment of the change (H6-2): risky / sensitive paths / too wide.
-   * Absent → the trust verdict holds as 판정 불가, never a silent pass.
-   */
-  readonly riskJudgment?: {
-    readonly risky: boolean;
-    readonly sensitive_paths: readonly string[];
-    readonly wide_change: boolean;
-    readonly confidence: number;
-    readonly rationale: string;
-  };
 }
 
 export interface JobMergeResult {
@@ -296,6 +268,26 @@ export async function jobCancel(
   };
 }
 
+export async function jobPause(
+  store: ToolStore,
+  input: { readonly jobId: string; readonly reason?: string; readonly agent?: Agent },
+): Promise<JobActionResult> {
+  const existing = getJob(store, input.jobId);
+  if (existing === undefined) {
+    return { ok: false, text: '', error: `Job not found: ${input.jobId}` };
+  }
+  if (existing.status !== 'running' && existing.status !== 'queued' && existing.status !== 'needs_user' && getJobWorkerHandle(existing.id) === undefined) {
+    return { ok: false, job: snapshot(existing), text: '', error: `Job is ${existing.status}; nothing to pause.` };
+  }
+  const result = await cancelJobWorker({
+    store, jobId: existing.id, agent: input.agent,
+    reason: input.reason ?? 'operator pause', status: 'interrupted',
+  });
+  const job = result.job;
+  if (input.agent) pumpSchedulerAfterWorker(input.agent, store);
+  return { ok: result.ok, job: job ? snapshot(job) : undefined, text: `Paused ${existing.id}.`, error: result.error };
+}
+
 export async function jobResume(
   store: ToolStore,
   input: { readonly jobId?: string; readonly answer?: string; readonly agent?: Agent } = {},
@@ -332,17 +324,6 @@ export async function jobCreate(
       ? splitUserMessageIntoJobIntents(input.prompt?.trim() || input.title)
       : [{ title: input.title, prompt: input.prompt ?? input.title }];
 
-  const codingKind =
-    input.kind === undefined || input.kind === 'task' || input.kind === 'implement';
-  const successCriteria =
-    input.successCriteria !== undefined && input.successCriteria.length > 0
-      ? input.successCriteria
-      : codingKind
-        ? synthesizeSuccessCriteria({ title: input.title, prompt: input.prompt })
-        : input.successCriteria;
-  const deliveryClass =
-    input.deliveryClass ??
-    (codingKind ? deliveryClassFromProjectMode(resolveConductorProjectMode(store)) : undefined);
   const created = intents.map((intent, index) =>
     createJob(store, {
       title: intent.title || input.title,
@@ -351,17 +332,13 @@ export async function jobCreate(
       prompt: intent.prompt,
       ownershipPaths: input.ownershipPaths,
       contextPaths: input.contextPaths,
-      successCriteria,
+      successCriteria: input.successCriteria,
       mustNotTouch: input.mustNotTouch,
       verificationCommands: input.verificationCommands,
-      testSeams: input.testSeams,
-      tddMode: input.tddMode ?? (codingKind ? 'preferred' : undefined),
-      reproCommand: input.reproCommand,
       blockedByJobIds: input.blockedByJobIds,
-      deliveryMode: input.deliveryMode === 'standard' ? undefined : input.deliveryMode,
-      deliveryClass,
+      modelAlias: input.modelAlias,
+      timeoutMs: input.timeoutMs,
       parentJobId: input.parentJobId,
-      surfaceKind: input.surfaceKind,
       sessionRepoPath: agent?.config.cwd,
     }),
   );
@@ -402,8 +379,6 @@ export async function jobCreateBatch(
   const pool = resolveConductorPoolConfig(process.env, { store });
   const created: JobRecord[] = [];
   for (const input of inputs) {
-    const codingKind =
-      input.kind === undefined || input.kind === 'task' || input.kind === 'implement';
     created.push(
       createJob(store, {
         title: input.title,
@@ -412,26 +387,13 @@ export async function jobCreateBatch(
         prompt: input.prompt ?? input.title,
         ownershipPaths: input.ownershipPaths,
         contextPaths: input.contextPaths,
-        successCriteria:
-          input.successCriteria !== undefined && input.successCriteria.length > 0
-            ? input.successCriteria
-            : codingKind
-              ? synthesizeSuccessCriteria({ title: input.title, prompt: input.prompt })
-              : input.successCriteria,
+        successCriteria: input.successCriteria,
         mustNotTouch: input.mustNotTouch,
         verificationCommands: input.verificationCommands,
-        testSeams: input.testSeams,
-        tddMode: input.tddMode ?? (codingKind ? 'preferred' : undefined),
-        reproCommand: input.reproCommand,
         blockedByJobIds: input.blockedByJobIds,
-        deliveryMode: input.deliveryMode === 'standard' ? undefined : input.deliveryMode,
-        deliveryClass:
-          input.deliveryClass ??
-          (codingKind
-            ? deliveryClassFromProjectMode(resolveConductorProjectMode(store))
-            : undefined),
+        modelAlias: input.modelAlias,
+        timeoutMs: input.timeoutMs,
         parentJobId: input.parentJobId,
-        surfaceKind: input.surfaceKind,
         sessionRepoPath: agent?.config.cwd,
       }),
     );
@@ -480,57 +442,12 @@ export async function jobMerge(
     };
   }
 
-  const autoPermission = agent?.permission?.mode === 'auto';
-  // H6-2: the conductor's risk_judgment (LLM) decides risky/wide; this path
-  // only applies it mechanically. No LLM await — the merge verdict keeps its
-  // ACK deadline, and a missing judgment holds instead of passing.
-  const trust = evaluateMergeTrust({
-    ...mergeTrustInputFromLedger({
-      job: existing,
-      jobs: listJobs(store),
-      claim: {
-        approve: true,
-        diffLines: input.diffLines,
-        hasConflict: input.hasConflict,
-        checksGreen: input.checksGreen,
-        paths: input.paths,
-        summary: input.summary,
-        forceUserConfirm: !autoPermission && input.forceUserConfirm === true,
-      },
-    }),
-    riskAssessment: mergeRiskAssessmentFromClaim(input.riskJudgment),
-    ...(autoPermission ? { waiveUserConfirmHolds: true } : {}),
-  });
-
-  if (!trust.ok) {
-    const rejected = trust.mode === 'reject';
-    const holdNote = rejected
-      ? `merge: reject — ${trust.reason}`
-      : `merge: hold — ${trust.reason}`;
-    const job = patchJobAndNotify(
-      store,
-      input.jobId,
-      {
-        status: 'blocked',
-        notes: [existing.notes, holdNote].filter(Boolean).join('\n'),
-      },
-      { agent, summary: holdNote },
-    );
-    return {
-      ok: false,
-      job: job ? snapshot(job) : undefined,
-      text: rejected
-        ? `Merge rejected: ${trust.reason}`
-        : `Merge held: ${trust.reason}`,
-      error: trust.reason,
-    };
-  }
 
   const dispatch = dispatchMergeLand({
     store,
     sourceJob: existing,
-    trustMode: trust.mode,
-    trustReason: trust.reason,
+    trustMode: 'user_approved',
+    trustReason: 'operator approved landing',
     summary: input.summary,
     kaos: agent?.kaos,
     repoPath: existing.repoRoot ?? agent?.config.cwd,
@@ -538,11 +455,11 @@ export async function jobMerge(
   });
   const latest = getJob(store, input.jobId) ?? existing;
   return {
-    ok: true,
+    ok: dispatch.dispatched,
     job: snapshot(latest),
     mergeJob: dispatch.mergeJob ? snapshot(dispatch.mergeJob) : undefined,
     text: [
-      `Merge approved (${trust.mode}). ${trust.reason}`,
+      'Merge approved by operator.',
       dispatch.mergeJob
         ? `Execution offloaded to landing worker ${dispatch.mergeJob.id}`
         : 'Dispatch failed — merge held for manual resolve.',
@@ -843,10 +760,6 @@ export async function jobChooseLand(
     };
   }
   if (input.choice === 'apply') {
-    const gate = jobMayLandToMain(job);
-    if (!gate.ok) {
-      return { ok: false, text: '', error: gate.reason, job: snapshot(job) };
-    }
     const source = patchJob(store, job.id, {
       landChoice: 'apply',
       notes: [job.notes, 'land: apply to main (operator)'].filter(Boolean).join('\n'),

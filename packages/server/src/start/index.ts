@@ -222,7 +222,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
   try {
     await app.ready();
   } catch (error) {
-    await cleanupBootFailure(bootCleanup);
+    await cleanupBootFailure({ ...bootCleanup, ix, services, app, authFailureLimiter });
     throw error;
   }
 
@@ -235,14 +235,14 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
       authTokenService,
     ));
   } catch (error) {
-    await cleanupBootFailure({ ...bootCleanup, ix });
+    await cleanupBootFailure({ ...bootCleanup, ix, services, app, authFailureLimiter });
     throw error;
   }
 
   try {
     await coreProcess.ready();
   } catch (error) {
-    await cleanupBootFailure({ ...bootCleanup, ix });
+    await cleanupBootFailure({ ...bootCleanup, ix, services, app, authFailureLimiter });
     throw error;
   }
   pinoLogger.info('core process ready');
@@ -260,7 +260,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
       logger: pinoLogger,
     }));
   } catch (error) {
-    await cleanupBootFailure({ ...bootCleanup, ix });
+    await cleanupBootFailure({ ...bootCleanup, ix, services, app, authFailureLimiter });
     throw error;
   }
   // If we retried onto a different port, advertise the real one in the lock so

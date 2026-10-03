@@ -25,7 +25,7 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
 
   // Mirror live `agent.status.updated` into the per-session shadow. This
   // keeps the shadow honest when out-of-band callers (TUI / SDK / agent
-  // itself) mutate `model` / `permission` / `planMode` between prompts.
+  // itself) mutate `model` / `permission` between prompts.
   // Only fields present on the event update the shadow — `thinking` is
   // not carried here and stays whatever the last `setThinking` (or
   // bootstrap getConfig) put there.
@@ -34,7 +34,6 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
     if (shadow !== undefined) {
       if (event.model !== undefined) shadow.model = event.model;
       if (event.permission !== undefined) shadow.permissionMode = event.permission;
-      if (event.planMode !== undefined) shadow.planMode = event.planMode;
     }
     // status events are also published normally; fall through to allow
     // other event-type handlers below — but there's no overlap today.
@@ -44,7 +43,7 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
   const agentId = (event as { agentId?: string }).agentId ?? MAIN_AGENT_ID;
   const key = promptKey(sid, agentId);
   const state = deps.active.get(key);
-  if (state === undefined) return;
+  if (state === undefined || state.completed || state.aborted) return;
 
   if (isTurnStarted(event)) {
     // Capture the FIRST turn.started after submit as the "top-level" turn.
@@ -59,7 +58,7 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
   // waiting would wedge the prompt lane forever and queue every later
   // prompt behind it. Treat it as terminal and fail the prompt with the
   // error payload attached.
-  if ((event as { type?: string }).type === 'error' && state.turnId === undefined) {
+  if ((event as { type?: string }).type === 'error' && state.turnId === null) {
     const error = (event as { error?: LioraErrorPayload }).error;
     // TURN_AGENT_BUSY on submit is a transport-level rejection handled by
     // the submit path itself; it is not a turn failure.
@@ -74,7 +73,6 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
       reason: 'failed',
       ...(error !== undefined ? { error } : {}),
     };
-    deps.active.delete(key);
     deps.onDidCompleteFire(synth);
     deps.eventService.publish(synth as unknown as Event);
     deps.startNextQueued(sid, state.agentId);
@@ -86,19 +84,10 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
     // through without prompt-level synthesis.
     if (state.turnId === null || event.turnId !== state.turnId) return;
 
-    // If we already synthesized via abort RPC, don't double-emit. Mark
-    // completed to prevent stale lookups, but emit nothing.
-    if (state.aborted) {
-      deps.active.delete(key);
-      deps.startNextQueued(sid, state.agentId);
-      return;
-    }
 
     const reason = event.reason;
     if (reason === 'cancelled') {
-      // The model produced a cancellation that we didn't initiate via
-      // abort RPC (or it slipped past the optimistic flag). Synthesize
-      // prompt.aborted.
+      // Emit terminal cancellation only after the real turn settles.
       state.aborted = true;
       const synth: SyntheticPromptAbortedEvent = {
         type: 'prompt.aborted',
@@ -107,7 +96,6 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
         promptId: state.promptId,
         abortedAt: new Date().toISOString(),
       };
-      deps.active.delete(key);
       // Fire typed listeners BEFORE publishing the synth event.
       deps.onDidAbortFire(synth);
       deps.eventService.publish(synth as unknown as Event);
@@ -129,7 +117,6 @@ export function handlePromptBusEvent(deps: PromptLifecycleDeps, event: Event): v
       // re-auth/retry UX without also subscribing to raw turn.ended events.
       ...(failed && turnError !== undefined ? { error: turnError } : {}),
     };
-    deps.active.delete(key);
     // Fire typed listeners BEFORE publishing the synth event.
     deps.onDidCompleteFire(synth);
     deps.eventService.publish(synth as unknown as Event);

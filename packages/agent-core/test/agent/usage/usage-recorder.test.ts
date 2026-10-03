@@ -1,12 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { UsageRecorder } from '#/agent/usage/index';
-import type { Agent } from '#/agent';
-import {
-  recordLocalResearchCacheHit,
-  resetLocalResearchCacheTelemetry,
-} from '#/tools/providers/local-research-cache-telemetry';
-import { resetSearchNeverEmptyTelemetry } from '#/tools/providers/search-never-empty-telemetry';
 import type { TokenUsage } from '@superliora/kosong';
 
 const u = (over: Partial<TokenUsage> = {}): TokenUsage => ({
@@ -17,28 +11,8 @@ const u = (over: Partial<TokenUsage> = {}): TokenUsage => ({
   ...over,
 });
 
-const makeAgentMock = () => {
-  const records: Array<Record<string, unknown>> = [];
-  const emit = vi.fn();
-  const agent = {
-    records: {
-      logRecord: vi.fn((entry: Record<string, unknown>) => {
-        records.push(entry);
-      }),
-    },
-    emitStatusUpdated: emit,
-  } as unknown as Agent;
-  return { agent, records, emit };
-};
 
 describe('agent/usage — UsageRecorder', () => {
-  it('begins and ends a turn without holding a per-turn record', () => {
-    const rec = new UsageRecorder();
-    rec.beginTurn();
-    rec.endTurn();
-    const status = rec.status();
-    expect(status).toBeUndefined();
-  });
 
   it('aggregates session-scope usage by model and exposes totals', () => {
     const rec = new UsageRecorder();
@@ -73,30 +47,7 @@ describe('agent/usage — UsageRecorder', () => {
     expect(rec.data().currentTurn).toBeUndefined();
   });
 
-  it('returns undefined status when nothing has been recorded', () => {
-    const rec = new UsageRecorder();
-    expect(rec.status()).toBeUndefined();
-  });
 
-  it('logs to agent.records and emits a status update on every record call', () => {
-    const { agent, records, emit } = makeAgentMock();
-    const rec = new UsageRecorder(agent);
-    rec.record('gpt-4o', u({ inputOther: 1 }), 'turn');
-    expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({
-      type: 'usage.record',
-      model: 'gpt-4o',
-      usage: { inputOther: 1 },
-      usageScope: 'turn',
-    });
-    expect(emit).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not crash when no agent is supplied', () => {
-    const rec = new UsageRecorder();
-    expect(() =>{  rec.record('m', u({ inputOther: 1 })); }).not.toThrow();
-    expect(rec.status()?.total).toEqual(u({ inputOther: 1 }));
-  });
 
   it('returns a defensive copy for both byModel entries and currentTurn', () => {
     const rec = new UsageRecorder();
@@ -171,39 +122,23 @@ describe('agent/usage — UsageRecorder', () => {
     expect(rec.status()?.cacheWarmStreak).toBe(1);
   });
 
-  it('returns undefined status when no session-scope record has been made', () => {
-    const rec = new UsageRecorder();
-    // turn-scope records still aggregate into byModel; record nothing.
-    expect(rec.status()).toBeUndefined();
-  });
-
-  it('exposes localResearchCache from process telemetry when lookups occurred', () => {
-    resetLocalResearchCacheTelemetry();
-    resetSearchNeverEmptyTelemetry();
-    const rec = new UsageRecorder();
-    recordLocalResearchCacheHit(2);
-    expect(rec.status()).toEqual({
-      localResearchCache: { hits: 2, misses: 0, hitRate: 1 },
-      searchNeverEmpty: { hardFailCount: 0, softDegradeCount: 0 },
-    });
-  });
 
   it('accumulates cache miss-reason histogram on sub-target step cache hit rate', () => {
     const rec = new UsageRecorder();
-    const tools = [{ name: 'Read', description: 'read files' }];
+    const tools = [{ name: 'Bash', description: 'run a shell command' }];
     const coldStep = u({ inputOther: 50, inputCacheRead: 50 });
     const warmStep = u({ inputOther: 1, inputCacheRead: 199 });
 
     rec.record('gpt-4o', coldStep, 'turn');
-    rec.recordCacheDiagnostics(tools, 0, 10, coldStep, 'gpt-4o');
+    rec.recordCacheDiagnostics(tools, 10, coldStep, 'gpt-4o');
     expect(rec.status()?.cacheDiagnostics?.missReasons).toEqual({ schema_change: 1 });
 
     rec.record('gpt-4o', warmStep, 'turn');
-    rec.recordCacheDiagnostics(tools, 0, 11, warmStep, 'gpt-4o');
+    rec.recordCacheDiagnostics(tools, 11, warmStep, 'gpt-4o');
     expect(rec.status()?.cacheDiagnostics?.missReasons).toEqual({ schema_change: 1 });
 
     rec.record('gpt-4o', coldStep, 'turn');
-    rec.recordCacheDiagnostics(tools, 0, 12, coldStep, 'gpt-4o');
+    rec.recordCacheDiagnostics(tools, 12, coldStep, 'gpt-4o');
     expect(rec.status()?.cacheDiagnostics?.missReasons).toEqual({ schema_change: 2 });
   });
 
@@ -211,11 +146,10 @@ describe('agent/usage — UsageRecorder', () => {
     const rec = new UsageRecorder();
     const coldStep = u({ inputOther: 50, inputCacheRead: 50 });
     rec.record('gpt-4o', coldStep, 'turn');
-    rec.recordCacheDiagnostics([{ name: 'Read', description: 'read files' }], 0, 5, coldStep, 'gpt-4o');
+    rec.recordCacheDiagnostics([{ name: 'Bash', description: 'run a shell command' }], 5, coldStep, 'gpt-4o');
     rec.record('gpt-4o', coldStep, 'turn');
     rec.recordCacheDiagnostics(
-      [{ name: 'Write', description: 'write files' }],
-      0,
+      [{ name: 'SessionControl', description: 'operate a session' }],
       6,
       coldStep,
       'gpt-4o',
@@ -230,9 +164,9 @@ describe('agent/usage — UsageRecorder', () => {
     const rec = new UsageRecorder();
     const coldStep = u({ inputOther: 50, inputCacheRead: 50 });
     rec.record('gpt-4o', coldStep, 'turn');
-    rec.recordCacheDiagnostics([{ name: 'Read', description: 'read files' }], 0, 5, coldStep, 'gpt-4o');
+    rec.recordCacheDiagnostics([{ name: 'Bash', description: 'run a shell command' }], 5, coldStep, 'gpt-4o');
     rec.record('claude', coldStep, 'turn');
-    rec.recordCacheDiagnostics([{ name: 'Read', description: 'read files' }], 0, 6, coldStep, 'claude');
+    rec.recordCacheDiagnostics([{ name: 'Bash', description: 'run a shell command' }], 6, coldStep, 'claude');
     expect(rec.status()?.cacheDiagnostics?.missReasons).toEqual({
       schema_change: 1,
       model_switch: 1,
@@ -243,68 +177,8 @@ describe('agent/usage — UsageRecorder', () => {
     const rec = new UsageRecorder();
     const tinyStep = u({ inputOther: 5, inputCacheRead: 0 });
     rec.record('gpt-4o', tinyStep, 'turn');
-    rec.recordCacheDiagnostics([{ name: 'Read', description: 'read files' }], 0, 1, tinyStep, 'gpt-4o');
+    rec.recordCacheDiagnostics([{ name: 'Bash', description: 'run a shell command' }], 1, tinyStep, 'gpt-4o');
     expect(rec.status()?.cacheDiagnostics?.missReasons).toBeUndefined();
   });
 });
 
-describe('agent/usage — post-compaction cache recovery observation', () => {
-  const makeTrackedAgent = () => {
-    const track = vi.fn();
-    const agent = {
-      records: { logRecord: vi.fn() },
-      emitStatusUpdated: vi.fn(),
-      telemetry: { track },
-    } as unknown as Agent;
-    return { agent, track };
-  };
-
-  it('tracks the first record after noteCompactionApplied exactly once', () => {
-    const { agent, track } = makeTrackedAgent();
-    const rec = new UsageRecorder(agent);
-    rec.noteCompactionApplied('full', 1234);
-    rec.record('claude', u({ inputOther: 10, inputCacheRead: 90, inputCacheCreation: 100 }), 'turn');
-    expect(track).toHaveBeenCalledTimes(1);
-    expect(track).toHaveBeenCalledWith(
-      'compaction_cache_recovery',
-      expect.objectContaining({
-        kind: 'full',
-        scope: 'turn',
-        model: 'claude',
-        input_tokens: 200,
-        cache_read_tokens: 90,
-        cache_creation_tokens: 100,
-        input_other_tokens: 10,
-        cache_read_ratio: 0.45,
-        retained_tokens: 1234,
-      }),
-    );
-    // One-shot: later records do not re-fire the observation.
-    rec.record('claude', u({ inputOther: 1 }), 'turn');
-    expect(track).toHaveBeenCalledTimes(1);
-  });
-
-  it('omits retained_tokens for micro compaction and reports zero input safely', () => {
-    const { agent, track } = makeTrackedAgent();
-    const rec = new UsageRecorder(agent);
-    rec.noteCompactionApplied('micro');
-    rec.record('gpt-4o', u({ output: 5 }), 'session');
-    expect(track).toHaveBeenCalledTimes(1);
-    const [event, properties] = track.mock.calls[0] ?? [];
-    expect(event).toBe('compaction_cache_recovery');
-    expect(properties).toMatchObject({
-      kind: 'micro',
-      scope: 'session',
-      input_tokens: 0,
-      cache_read_ratio: 0,
-    });
-    expect(properties).not.toHaveProperty('retained_tokens');
-  });
-
-  it('never fires without an armed compaction', () => {
-    const { agent, track } = makeTrackedAgent();
-    const rec = new UsageRecorder(agent);
-    rec.record('claude', u({ inputCacheRead: 10 }), 'turn');
-    expect(track).not.toHaveBeenCalled();
-  });
-});

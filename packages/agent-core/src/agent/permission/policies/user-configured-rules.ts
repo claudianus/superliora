@@ -56,7 +56,6 @@ export class UserConfiguredDenyPermissionPolicy
       message: formatPermissionRuleDenyMessage(
         context.toolCall.name,
         match.rule.reason,
-        this.agent.type,
       ),
     };
   }
@@ -105,11 +104,7 @@ function userRuleReason(decision: PermissionRuleDecision, match: PermissionRuleM
 function formatPermissionRuleDenyMessage(
   tool: string,
   reason: string | undefined,
-  agentType?: Agent['type'],
 ): string {
   const suffix = reason !== undefined && reason.length > 0 ? ` Reason: ${reason}` : '';
-  if (agentType === 'sub') {
-    return `Tool "${tool}" was denied.${suffix} Try a different approach — don't retry the same call, don't attempt to bypass the restriction.`;
-  }
   return `Tool "${tool}" was denied by permission rule.${suffix}`;
 }

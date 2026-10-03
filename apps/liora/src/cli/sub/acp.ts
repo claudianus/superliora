@@ -26,13 +26,11 @@ import {
   ACP_BUILTIN_SLASH_COMMANDS,
   runAcpServer,
   type AvailableCommand,
-  type SlashCommandsSnapshot,
 } from '@superliora/acp-adapter';
-import { createLioraHarness, type Session, type SkillSummary } from '@superliora/sdk';
+import { createLioraHarness } from '@superliora/sdk';
 
 import { SUPERLIORA_HOME_ENV } from '#/constant/app';
 import { createLioraHostIdentity, getVersion } from '#/cli/version';
-import { buildSkillSlashCommands } from '#/tui/commands/skills';
 
 import { runLoginFlow } from './login-flow';
 
@@ -78,41 +76,10 @@ export function registerAcpCommand(parent: Command): void {
         description: cmd.description,
         input: cmd.input,
       }));
-      // Skills are session-scoped (per-cwd config), so we defer the
-      // listSkills() call until the adapter hands us the just-created
-      // Session — mirrors opencode's per-directory snapshot. A
-      // listSkills() failure degrades to builtins-only so a broken
-      // skill source never blanks the palette.
-      const resolveSlashCommands = async (
-        session: Session,
-      ): Promise<SlashCommandsSnapshot> => {
-        let skills: readonly SkillSummary[] = [];
-        try {
-          skills = await session.listSkills();
-        } catch {
-          skills = [];
-        }
-        // `buildSkillSlashCommands` already returns both views — the
-        // palette entries (advertised via `available_commands_update`)
-        // and the `commandName → skillName` map the adapter uses to
-        // intercept `/skill:<name>` inputs and route them to
-        // `Session.activateSkill`. Passing both through keeps the two
-        // surfaces in lockstep (palette ↔ interceptable set) without
-        // a second `listSkills()` round trip.
-        const built = buildSkillSlashCommands(skills);
-        const skillCommands = built.commands.map((cmd) => ({
-          name: cmd.name,
-          description: cmd.description,
-        }));
-        return {
-          commands: [...builtinCommands, ...skillCommands],
-          skillCommandMap: built.commandMap,
-        };
-      };
       try {
         await runAcpServer(harness, {
           agentInfo: { name: 'SuperLiora CLI', version: getVersion() },
-          slashCommands: resolveSlashCommands,
+          slashCommands: builtinCommands,
           ...(terminalAuthEnv ? { terminalAuthEnv } : {}),
           ...(legacyCommand !== undefined && legacyCommand.length > 0
             ? { terminalAuthLegacyCommand: legacyCommand }

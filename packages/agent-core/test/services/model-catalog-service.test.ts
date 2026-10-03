@@ -84,6 +84,7 @@ function makeCore(configRef: { current: LioraConfig }): {
       _serviceBrand: undefined,
       rpc: rpc as CoreRPC,
       ready: async () => undefined,
+      shutdown: async () => undefined,
       dispose: () => undefined,
     },
     getCalls,

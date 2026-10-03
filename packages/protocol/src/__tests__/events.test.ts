@@ -1,7 +1,3 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, it, expect } from 'vitest';
 
 import {
@@ -14,53 +10,8 @@ import {
   subagentToolResultEventSchema,
   toolCallStartedEventSchema,
 } from '../events';
-import type { Event } from '../events';
-import type { ToolInputDisplay } from '../display';
-import { workGraphNodeSchema, workGraphSchema } from '../work-graph';
 
-type _AssertEventNonNever = Event extends never ? never : true;
-const _assertEvent: _AssertEventNonNever = true;
-
-type _AssertToolInputDisplayNonNever = ToolInputDisplay extends never ? never : true;
-const _assertDisplay: _AssertToolInputDisplayNonNever = true;
-
-const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
-const sdkPackageName = ['@superliora', 'sdk'].join('/');
-
-function readPackageFiles(): string {
-  const files = ['package.json', ...sourceFiles(join(packageRoot, 'src'))];
-  return files
-    .map((file) => readFileSync(join(packageRoot, file), 'utf8'))
-    .join('\n');
-}
-
-function sourceFiles(dir: string): string[] {
-  const files: string[] = [];
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    const stat = statSync(full);
-    if (stat.isDirectory()) {
-      files.push(...sourceFiles(full));
-    } else if (entry.endsWith('.ts')) {
-      files.push(relative(packageRoot, full));
-    }
-  }
-  return files;
-}
-
-describe('events / display re-exports', () => {
-  it('does not depend on the node SDK package', () => {
-    expect(readPackageFiles()).not.toContain(sdkPackageName);
-  });
-
-  it('Event re-export is non-never (compile-time check passed)', () => {
-    expect(_assertEvent).toBe(true);
-  });
-
-  it('ToolInputDisplay re-export is non-never (12-arm union preserved)', () => {
-    expect(_assertDisplay).toBe(true);
-  });
-
+describe('native event payloads', () => {
   it('validates concrete agent event payloads with Zod schemas', () => {
     expect(
       assistantDeltaEventSchema.parse({
@@ -93,6 +44,21 @@ describe('events / display re-exports', () => {
         turnId: 1,
       }).success,
     ).toBe(false);
+  });
+
+  it('rejects the retired automatic retry event instead of publishing synthetic attempts', () => {
+    expect(agentEventSchema.safeParse({
+      type: 'turn.step.retrying',
+      turnId: 1,
+      step: 1,
+      stepId: 'step-1',
+      failedAttempt: 1,
+      nextAttempt: 2,
+      maxAttempts: 3,
+      delayMs: 300,
+      errorName: 'APIConnectionError',
+      errorMessage: 'connection lost',
+    }).success).toBe(false);
   });
 
   it('parses compaction progress phase events through the full agent event union', () => {
@@ -163,19 +129,17 @@ describe('events / display re-exports', () => {
     });
   });
 
-  it('accepts overflow as compaction.started trigger (reactive recovery)', () => {
-    const parsed = agentEventSchema.safeParse({
+  it('accepts explicit compaction and rejects automatic triggers', () => {
+    expect(agentEventSchema.safeParse({
       type: 'compaction.started',
-      trigger: 'overflow',
-      instruction: 'CONTEXT_OVERFLOW_RECOVERY: compact',
+      trigger: 'manual',
+      instruction: 'Summarize the conversation',
       mode: 'blocking',
-    });
-    expect(parsed.success).toBe(true);
-    if (!parsed.success) return;
-    expect(parsed.data).toMatchObject({
+    }).success).toBe(true);
+    expect(agentEventSchema.safeParse({
       type: 'compaction.started',
-      trigger: 'overflow',
-    });
+      trigger: 'auto',
+    }).success).toBe(false);
   });
 
   it('validates session-scoped daemon events with agentId and sessionId', () => {
@@ -234,55 +198,6 @@ describe('events / display re-exports', () => {
     expect((parsed as { promptId: string }).promptId).toBe('prompt_1');
   });
 
-  it('keeps minimal WorkGraph nodes valid while round-tripping harness metadata', () => {
-    expect(
-      workGraphNodeSchema.parse({
-        id: 'ac_1',
-        title: 'Implement the parser',
-        stage: 'swarm',
-        status: 'queued',
-      }),
-    ).toEqual({
-      id: 'ac_1',
-      title: 'Implement the parser',
-      stage: 'swarm',
-      status: 'queued',
-    });
-
-    const graph = workGraphSchema.parse({
-      id: 'wg_1',
-      runId: 'uw_1',
-      rootGoal: 'Ship the Ouroboros harness',
-      createdAt: '2026-07-01T00:00:00.000Z',
-      updatedAt: '2026-07-01T00:00:01.000Z',
-      nodes: [
-        {
-          id: 'ac_1',
-          title: 'Implement the parser',
-          kind: 'implementation',
-          stage: 'swarm',
-          parentId: 'root',
-          acceptanceCriterionId: 'AC-1',
-          laneId: 'implementation',
-          ownerExpertId: 'backend-engineer',
-          ownerAgentId: 'agent_1',
-          status: 'done',
-          dependsOn: ['research_1'],
-          evidenceIds: ['evidence_1'],
-          requiredEvidence: ['unit test'],
-          verificationStatus: 'passed',
-          verificationSummary: 'unit test passed',
-        },
-      ],
-    });
-
-    expect(graph.nodes[0]).toMatchObject({
-      kind: 'implementation',
-      acceptanceCriterionId: 'AC-1',
-      evidenceIds: ['evidence_1'],
-      verificationStatus: 'passed',
-    });
-  });
 
   it('preserves detached on background task events', () => {
     const parsed = eventSchema.parse({
@@ -410,62 +325,20 @@ describe('events / display re-exports', () => {
 });
 
 describe('agentStatusUpdatedEventSchema', () => {
-  it('accepts contextOS health and null clear', () => {
-    const withHealth = agentStatusUpdatedEventSchema.parse({
+  it('preserves native context and permission intervention counters', () => {
+    const status = {
       type: 'agent.status.updated',
       model: 'kimi-code',
       contextTokens: 100,
       maxContextTokens: 1000,
       contextUsage: 0.1,
-      planMode: false,
-      premiumQualityMode: false,
       permission: 'manual',
       providerRoute: null,
-      contextOS: {
-        pageCount: 1,
-        readyPageCount: 0,
-        needsRehydrationPageCount: 1,
-        atRiskPageCount: 0,
-        missingEvidencePageCount: 1,
-        evidenceIdRecallScore: 0.25,
-        latestContinuityStatus: 'needs_rehydration',
-      },
-    });
-    expect(withHealth.contextOS?.missingEvidencePageCount).toBe(1);
-
-    const withMicro = agentStatusUpdatedEventSchema.parse({
-      type: 'agent.status.updated',
-      microCompaction: {
-        total: 2,
-        lastTrigger: 'swarm_pressure',
-        lastContextUsageRatio: 0.7,
-        byTrigger: { swarm_pressure: 2 },
-      },
-    });
-    expect(withMicro.microCompaction?.total).toBe(2);
-
-    const cleared = agentStatusUpdatedEventSchema.parse({
-      type: 'agent.status.updated',
-      contextOS: null,
-      microCompaction: null,
-    });
-    expect(cleared.contextOS).toBeNull();
-    expect(cleared.microCompaction).toBeNull();
-
-    const withDream = agentStatusUpdatedEventSchema.parse({
-      type: 'agent.status.updated',
-      autoDream: {
-        enabled: true,
-        inFlight: false,
-        runs: 1,
-        lastDreamAt: 1_700_000_000_000,
-        lastExamined: 10,
-        lastMerged: 2,
-        minHours: 4,
-        minActiveRecords: 8,
-      },
-    });
-    expect(withDream.autoDream?.runs).toBe(1);
+      pendingInterventions: 2,
+      staleInterventions: 1,
+      oldestInterventionAgeMs: 120_001,
+    } as const;
+    expect(agentStatusUpdatedEventSchema.parse(status)).toEqual(status);
   });
 });
 
@@ -478,8 +351,8 @@ describe('subagent tool streaming event schemas', () => {
       parentToolCallId: 'tc-1',
       runId: 'run-1',
       toolCallId: 'call-1',
-      name: 'Edit',
-      argsPreview: '{"path":"src/a.ts"}',
+      name: 'Bash',
+      argsPreview: '{"command":"pwd"}',
     } as const;
     expect(subagentToolCallEventSchema.parse(event)).toEqual(event);
     expect(agentEventSchema.parse(event)).toEqual(event);
@@ -489,7 +362,7 @@ describe('subagent tool streaming event schemas', () => {
         type: 'subagent.tool_call',
         subagentId: 'agent-0',
         toolCallId: 'call-2',
-        name: 'Read',
+        name: 'SessionControl',
       }).success,
     ).toBe(true);
     expect(
@@ -504,7 +377,7 @@ describe('subagent tool streaming event schemas', () => {
       subagentId: 'agent-0',
       runId: 'run-1',
       toolCallId: 'call-1',
-      name: 'Edit',
+      name: 'Bash',
       isError: true,
       resultPreview: 'error: conflict',
     } as const;
@@ -591,14 +464,11 @@ describe('subagent tool streaming event schemas', () => {
       type: 'subagent.tool_call',
       subagentId: 'agent-0',
       toolCallId: 'call-1',
-      name: 'Edit',
+      name: 'SessionControl',
     } as const;
     const details = [
-      { kind: 'edit', path: 'src/a.ts', addedLines: 3, removedLines: 1 },
-      { kind: 'write', path: 'src/b.ts', lines: 12, bytes: 340 },
-      { kind: 'read', path: 'src/c.ts' },
       { kind: 'bash', command: 'pnpm test' },
-      { kind: 'search', pattern: 'foo.*' },
+      { kind: 'session', operation: 'spawn', description: 'Run the worker' },
     ] as const;
     for (const detail of details) {
       const event = { ...base, detail };
@@ -614,7 +484,7 @@ describe('subagent tool streaming event schemas', () => {
       type: 'subagent.tool_call',
       subagentId: 'agent-0',
       toolCallId: 'call-1',
-      name: 'Edit',
+      name: 'SessionControl',
     } as const;
     // Unknown discriminator.
     expect(
@@ -623,11 +493,105 @@ describe('subagent tool streaming event schemas', () => {
     ).toBe(false);
     // Known discriminator with missing fields.
     expect(
-      subagentToolCallEventSchema.safeParse({ ...base, detail: { kind: 'edit', path: 'src/a.ts' } })
+      subagentToolCallEventSchema.safeParse({ ...base, detail: { kind: 'session' } })
         .success,
     ).toBe(false);
     expect(
       subagentToolCallEventSchema.safeParse({ ...base, detail: { kind: 'bash' } }).success,
     ).toBe(false);
+  });
+});
+
+describe('native worker settlement', () => {
+  it('preserves worker result, changed files, context and actual provider usage', () => {
+    const completed = {
+      type: 'subagent.completed',
+      subagentId: 'worker-1',
+      resultSummary: 'Updated the parser',
+      filesChanged: ['src/parser.ts'],
+      contextTokens: 420,
+      usage: { inputOther: 100, output: 20, inputCacheRead: 300, inputCacheCreation: 0 },
+    } as const;
+    expect(agentEventSchema.parse(completed)).toEqual(completed);
+  });
+
+  it('preserves explicit worker deadline and observed progress', () => {
+    const progress = {
+      type: 'subagent.progress',
+      subagentId: 'worker-1',
+      elapsedMs: 1000,
+      tokens: 120,
+      toolCount: 2,
+      lastTool: 'Bash',
+      lastTarget: 'pwd',
+      budgetMs: 5000,
+      budgetRemainingMs: 4000,
+    } as const;
+    expect(agentEventSchema.parse(progress)).toEqual(progress);
+  });
+
+  it('preserves a settled background worker without rewriting the native status', () => {
+    const event = {
+      type: 'background.task.terminated',
+      info: {
+        kind: 'agent',
+        agentId: 'worker-1',
+        subagentType: 'worker',
+        taskId: 'agent-1',
+        description: 'Stopped by operator',
+        status: 'killed',
+        startedAt: 1,
+        endedAt: 2,
+        stopReason: 'Operator requested stop',
+      },
+    } as const;
+    expect(agentEventSchema.parse(event)).toEqual(event);
+  });
+});
+
+describe('explicit SessionControl compaction', () => {
+  it('preserves model-requested compaction as explicit agent activity', () => {
+    const event = {
+      type: 'compaction.started',
+      trigger: 'agent',
+      mode: 'blocking',
+      instruction: 'Keep the parser constraints',
+    } as const;
+    expect(agentEventSchema.parse(event)).toEqual(event);
+  });
+});
+
+describe('native terminal process metadata', () => {
+  it('preserves an ACP-backed process without inventing an OS pid', () => {
+    const event = {
+      type: 'background.task.started',
+      info: {
+        kind: 'process',
+        taskId: 'bash-acp',
+        description: 'Native terminal command',
+        command: 'pwd',
+        status: 'running',
+        startedAt: 1,
+        endedAt: null,
+        exitCode: null,
+      },
+    } as const;
+    expect(agentEventSchema.parse(event)).toEqual(event);
+  });
+});
+
+describe('native worker terminal output routing', () => {
+  it('preserves the factual terminal identity alongside streamed worker output', () => {
+    const event = {
+      type: 'subagent.tool_progress',
+      subagentId: 'worker-1',
+      toolCallId: 'call-1',
+      name: 'Bash',
+      kind: 'stdout',
+      textPreview: 'workspace\n',
+      terminalId: 'terminal-from-provider',
+    } as const;
+    expect(subagentToolProgressEventSchema.parse(event)).toEqual(event);
+    expect(agentEventSchema.parse(event)).toEqual(event);
   });
 });

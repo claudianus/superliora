@@ -1,8 +1,7 @@
 import { builtinModules } from 'node:module';
-import { existsSync, readFileSync, statSync } from 'node:fs';
-import { resolve as resolvePath } from 'node:path';
+import { readFileSync } from 'node:fs';
 
-import { appRoot, nativeJsBundlePath } from './paths.mjs';
+import { nativeJsBundlePath } from './paths.mjs';
 
 const bundlePath = nativeJsBundlePath();
 const text = readFileSync(bundlePath, 'utf-8');
@@ -101,20 +100,6 @@ for (const line of executableLines()) {
         errors.push(`external import remains: ${specifier}`);
       }
     }
-  }
-}
-
-// SEA embeds the JS snapshot only; persona JSON must still exist next to the
-// CLI dist (copied before SEA packaging) for hydrate at runtime / packaging.
-const personasPath = resolvePath(appRoot, 'dist', 'catalog-personas.json');
-if (!existsSync(personasPath)) {
-  errors.push(
-    `missing apps/liora/dist/catalog-personas.json (run scripts/copy-expert-personas.mjs before SEA packaging)`,
-  );
-} else {
-  const size = statSync(personasPath).size;
-  if (size < 1_000) {
-    errors.push(`apps/liora/dist/catalog-personas.json is too small (${size} bytes)`);
   }
 }
 

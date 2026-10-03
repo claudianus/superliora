@@ -7,15 +7,17 @@ import { existsSync } from 'node:fs';
 
 import type { Kaos } from '@superliora/kaos';
 
-import { runGit as kaosRunGit } from '#/autopilot/git';
+import { hasUnsettledExecutionResources, runGit as kaosRunGit } from '#/session/job/git';
 
 import type { Agent } from '../../../agent/index';
-import { removeSessionWorktree } from '../../../session/worktree';
+import { isSessionWorktreeOwned, removeSessionWorktree } from '../../../session/worktree';
 import type { ToolStore } from '../../store';
 import type { JobRecord, JobStatus } from './job-ledger';
 import { createJob, getJob, patchJob } from './job-ledger';
 import { patchJobAndNotify } from './job-notify';
-import { gcConductorJobWorktrees } from './job-runtime';
+import { clearJobWorkerHandle, getJobWorkerHandle, registerJobWorkerHandle } from './job-handles';
+import { areJobAdmissionsOpen, gcConductorJobWorktrees } from './job-runtime';
+import { getJobNativeFailure, retainJobNativeCleanup, runJobNativeOperation } from './job-native-resources';
 import {
   repoRootFromGitCommonDir,
   resolveGitRootFromOwnership,
@@ -23,9 +25,8 @@ import {
   sameRepoPath,
 } from './job-git-root';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
-import { jobMayLandToMain, LAND_REFUSED_NOTE } from './job-task-track';
 
-export { repoRootFromGitCommonDir, jobMayLandToMain, LAND_REFUSED_NOTE };
+export { repoRootFromGitCommonDir };
 
 export interface LandJobToMainInput {
   readonly store: ToolStore;
@@ -40,9 +41,8 @@ export interface LandJobToMainInput {
   readonly runGit?: (
     cwd: string,
     args: readonly string[],
-  ) => Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }>;
-  /** Injectable delay for index.lock retries (tests inject a no-op). */
-  readonly sleep?: (ms: number) => Promise<void>;
+  ) => Promise<{ readonly code: number | null; readonly stdout: string; readonly stderr: string }>;
+  readonly signal?: AbortSignal;
 }
 
 export interface LandJobToMainResult {
@@ -61,11 +61,6 @@ export interface LandJobToMainResult {
 export const LAND_LEDGER_ONLY_MESSAGE =
   'Nothing merged (no worktree on job); approval recorded on ledger only.';
 
-/** Initial attempt + retries when git reports `.git/index.lock` contention. */
-export const LAND_INDEX_LOCK_MAX_ATTEMPTS = 4;
-
-/** Backoff between index.lock retries (ms). Bounded — never wait forever. */
-export const LAND_INDEX_LOCK_BACKOFF_MS = [50, 100, 200] as const;
 
 const REPO_PATH_REQUIRED = 'repoPath required to land worktree';
 
@@ -73,14 +68,13 @@ async function defaultRunGit(
   kaos: Kaos | undefined,
   cwd: string,
   args: readonly string[],
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  if (kaos === undefined) {
-    return { code: 1, stdout: '', stderr: 'kaos unavailable for git land' };
-  }
+  signal?: AbortSignal,
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  if (kaos === undefined) throw new Error('kaos unavailable for git land');
   // Same kaos.exec path as worktree snapshot / git-bootstrap — Kaos has no shell.run.
-  const res = await kaosRunGit(kaos, cwd, args);
+  const res = await kaosRunGit(kaos, cwd, args, 60_000, signal);
   return {
-    code: res.ok ? 0 : (res.exitCode ?? 1),
+    code: res.exitCode,
     stdout: res.stdout,
     stderr: res.stderr,
   };
@@ -91,9 +85,6 @@ export interface ResolveJobWorktreeMergeRefResult {
   readonly error?: string;
 }
 
-function gitDetail(res: { readonly stdout: string; readonly stderr: string }): string {
-  return (res.stderr || res.stdout || '').trim().slice(0, 500);
-}
 
 /** True when git failed because another process holds `.git/index.lock`. */
 export function isGitIndexLockError(detail: string): boolean {
@@ -106,10 +97,7 @@ export function isGitIndexLockError(detail: string): boolean {
   );
 }
 
-/**
- * Hint appended after bounded index.lock retries fail. Operators must not
- * delete the lock while another land/merge is live.
- */
+/** Operators must not delete an index lock while another Git process is live. */
 export function indexLockStaleHint(repoPath: string): string {
   return (
     `stale lock?: if no other git process is running, remove ` +
@@ -117,32 +105,6 @@ export function indexLockStaleHint(repoPath: string): string {
   );
 }
 
-async function defaultSleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Run `git` with a short bounded backoff when `.git/index.lock` contention is
- * the only failure mode (parallel lands). Never spins forever.
- */
-export async function runGitWithIndexLockRetry(
-  cwd: string,
-  args: readonly string[],
-  runGit: NonNullable<LandJobToMainInput['runGit']>,
-  sleep: (ms: number) => Promise<void> = defaultSleep,
-): Promise<{ code: number; stdout: string; stderr: string; attempts: number }> {
-  let last = await runGit(cwd, args);
-  let attempts = 1;
-  while (last.code !== 0 && attempts < LAND_INDEX_LOCK_MAX_ATTEMPTS) {
-    const detail = gitDetail(last);
-    if (!isGitIndexLockError(detail)) break;
-    const backoff = LAND_INDEX_LOCK_BACKOFF_MS[attempts - 1] ?? 200;
-    await sleep(backoff);
-    last = await runGit(cwd, args);
-    attempts += 1;
-  }
-  return { ...last, attempts };
-}
 
 /** First `worktree <path>` entry from `git worktree list --porcelain` is main. */
 export function parseMainWorktreePathFromPorcelain(porcelain: string): string | undefined {
@@ -228,8 +190,9 @@ export async function resolveJobWorktreeMergeRef(
     if (tip && /^[0-9a-f]{7,40}$/i.test(tip)) return { ref: tip };
   }
 
-  const detail =
-    [gitDetail(abbrev), gitDetail(sha)].filter(Boolean).join(' | ') || 'unknown git error';
+  const detail = [abbrev, sha]
+    .map((result) => result.stderr.trim() || result.stdout.trim() || `Git exited with code ${String(result.code)}`)
+    .join(' | ');
   return { error: `Could not resolve branch in job worktree: ${detail}` };
 }
 
@@ -249,29 +212,22 @@ export async function resolveJobWorktreeBranch(
  * Land job branch into main workspace with `git merge --no-ff` (or fast-forward when clean).
  * On success and gcOnSuccess, remove the job worktree via removeSessionWorktree.
  */
-export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobToMainResult> {
-  const { store, job } = input;
-  const gate = jobMayLandToMain(job);
-  if (!gate.ok) {
-    const status: JobStatus = job.status === 'done' ? 'blocked' : job.status;
-    const next = patchJobAndNotify(
-      store,
-      job.id,
-      {
-        ...(status !== job.status ? { status } : {}),
-        notes: [job.notes, gate.reason].filter(Boolean).join('\n'),
-      },
-      { agent: input.agent, summary: gate.reason },
-    );
-    return {
-      ok: false,
-      job: next ?? job,
-      merged: false,
-      gcRemoved: false,
-      message: '',
-      error: gate.reason,
-    };
+export function landJobToMain(input: LandJobToMainInput): Promise<LandJobToMainResult> {
+  const failure = getJobNativeFailure(input.store, input.job.id);
+  if (hasUnsettledExecutionResources(failure)) return Promise.reject(failure);
+  if (!areJobAdmissionsOpen(input.store, input.job.id) ||
+      (input.job.worktreePath && isSessionWorktreeOwned(input.job.worktreePath, input.job.repoRoot ?? input.repoPath ?? ''))) {
+    return Promise.resolve({ ok: false, job: input.job, merged: false, gcRemoved: false, message: '', error: 'Job is closed or its worktree is still owned.' });
   }
+  return runJobNativeOperation(input.store, input.job.id, {
+    paths: [input.job.worktreePath], repoRoots: [input.job.repoRoot ?? input.repoPath],
+  }, (_holdPath, signal) => performLandJobToMain({
+    ...input, signal: input.signal ? AbortSignal.any([signal, input.signal]) : signal,
+  }));
+}
+
+async function performLandJobToMain(input: LandJobToMainInput): Promise<LandJobToMainResult> {
+  const { store, job } = input;
   const worktreePath = job.worktreePath;
 
   if (!worktreePath) {
@@ -299,8 +255,7 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
 
   const runGit =
     input.runGit ??
-    ((cwd: string, args: readonly string[]) => defaultRunGit(input.kaos, cwd, args));
-  const sleep = input.sleep ?? defaultSleep;
+    ((cwd: string, args: readonly string[]) => defaultRunGit(input.kaos, cwd, args, input.signal));
 
   // Job product root wins over the live session cwd. Cross-product land is
   // held — never merge a job into a foreign checkout.
@@ -467,50 +422,13 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     snapshotNote = "land: worktree dir already GC'd — merging ledger branch from main checkout";
   }
 
-  // Ensure main workspace is clean enough for merge (non-fatal warn path via stderr).
-  // Parallel lands can contend on .git/index.lock (job_msvbrs5og77dfy) — bounded retry.
-  const merge = await runGitWithIndexLockRetry(
-    repoPath,
-    ['merge', '--no-edit', branch],
-    runGit,
-    sleep,
-  );
+  const merge = await runGit(repoPath, ['merge', '--no-edit', branch]);
   if (merge.code !== 0) {
     const detail = (merge.stderr || merge.stdout || 'merge failed').slice(0, 500);
     const lockContention = isGitIndexLockError(detail);
     const err = lockContention
-      ? `git merge failed after ${String(merge.attempts)} attempts (index.lock): ${detail}. ${indexLockStaleHint(repoPath)}`
+      ? `git merge failed (index.lock): ${detail}. ${indexLockStaleHint(repoPath)}`
       : `git merge failed: ${detail}`;
-    const conflict =
-      !lockContention &&
-      (/\bCONFLICT\b/i.test(detail) ||
-        /\bmerge conflict\b/i.test(detail) ||
-        /\bAutomatic merge failed\b/i.test(detail));
-    let resolveNote: string | undefined;
-    if (conflict) {
-      const resolveJob = createJob(store, {
-        title: `Resolve merge conflicts: ${job.title}`.slice(0, 120),
-        kind: 'implement',
-        priority: (job.priority ?? 0) + 3,
-        prompt: [
-          'Merge into main hit conflicts. Resolve intent-traced hunks; never git merge --abort.',
-          'Skill("resolving-merge-conflicts") for the hunk-by-hunk playbook.',
-          `Source job: ${job.id}`,
-          `Branch: ${branch}`,
-          `Conflict detail:\n${detail}`,
-          'After resolving: stage, commit the merge, leave main green. Do not push.',
-        ].join('\n\n'),
-        ownershipPaths: job.ownershipPaths,
-        contextPaths: job.contextPaths,
-        parentJobId: job.id,
-        successCriteria: [
-          'Merge conflicts resolved with intent traced to each side',
-          'Working tree clean on main with merge committed locally',
-        ],
-        tddMode: 'off',
-      });
-      resolveNote = `land: conflict — enqueued resolve Job ${resolveJob.id}`;
-    }
     const next = patchJobAndNotify(
       store,
       job.id,
@@ -520,9 +438,8 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
           job.notes,
           snapshotNote,
           lockContention
-            ? `land: merge failed (index.lock after ${String(merge.attempts)} attempts) — ${detail}`
+            ? `land: merge failed (index.lock) — ${detail}`
             : `land: merge failed — ${detail}`,
-          resolveNote,
         ]
           .filter(Boolean)
           .join('\n'),
@@ -577,13 +494,15 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
   let gcRemoved = false;
   if (input.gcOnSuccess !== false && input.kaos) {
     try {
-      await removeSessionWorktree(input.kaos, { nameOrPath: worktreePath });
+      await removeSessionWorktree(input.kaos, { nameOrPath: worktreePath, signal: input.signal });
       gcRemoved = true;
-    } catch {
+    } catch (error) {
+      if (hasUnsettledExecutionResources(error)) throw error;
       gcRemoved = false;
     }
   }
 
+  const swept = await maybeSweepAfterLand(input);
   const retainHint =
     !gcRemoved && input.gcOnSuccess !== false
       ? ' (worktree retained — run /job gc)'
@@ -591,6 +510,7 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
         ? ' (worktree removed)'
         : '';
   let message = `Merged ${branch} into ${repoPath} at ${mergeSha.slice(0, 12)}${retainHint}.`;
+  if (swept > 0) message = `${message} Swept ${String(swept)} leftover worktree(s).`;
   const next = patchJobAndNotify(
     store,
     job.id,
@@ -608,6 +528,7 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
           : input.gcOnSuccess !== false
             ? 'land: worktree retained — run /job gc'
             : 'land: worktree retained',
+        swept > 0 ? `land: swept ${String(swept)} leftover worktree(s)` : undefined,
       ]
         .filter(Boolean)
         .join("\n"),
@@ -615,30 +536,6 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     { agent: input.agent, summary: message },
   );
 
-  // Sweep other done leftovers + TTL-expired registry entries (spec GC policy).
-  // Skip when tests opt out with gcOnSuccess: false.
-  const swept = await maybeSweepAfterLand(input);
-  if (swept > 0) {
-    message = `${message} Swept ${String(swept)} leftover worktree(s).`;
-    const landed = next ?? job;
-    const sweptJob = patchJobAndNotify(
-      store,
-      landed.id,
-      {
-        notes: [landed.notes, `land: swept ${String(swept)} leftover worktree(s)`]
-          .filter(Boolean)
-          .join('\n'),
-      },
-      { agent: input.agent, summary: message },
-    );
-    return {
-      ok: true,
-      job: sweptJob ?? landed,
-      merged: true,
-      gcRemoved,
-      message,
-    };
-  }
 
   return {
     ok: true,
@@ -658,7 +555,8 @@ async function maybeSweepAfterLand(input: LandJobToMainInput): Promise<number> {
       store: input.store,
     });
     return result.removedJobIds.length + result.gc.removed;
-  } catch {
+  } catch (error) {
+    if (hasUnsettledExecutionResources(error)) throw error;
     return 0;
   }
 }
@@ -698,18 +596,10 @@ export interface DispatchMergeLandResult {
  */
 export function dispatchMergeLand(input: DispatchMergeLandInput): DispatchMergeLandResult {
   const { store, sourceJob, trustMode, trustReason } = input;
-  const gate = jobMayLandToMain(sourceJob);
-  if (!gate.ok) {
-    patchJobAndNotify(
-      store,
-      sourceJob.id,
-      {
-        ...(sourceJob.status === 'done' ? { status: 'blocked' as const } : {}),
-        notes: [sourceJob.notes, gate.reason].filter(Boolean).join('\n'),
-      },
-      { agent: input.agent, summary: gate.reason },
-    );
-    return { dispatched: false, reason: gate.reason };
+  if (!areJobAdmissionsOpen(store)) return { dispatched: false, reason: 'Job runtime is closed.' };
+  if (sourceJob.status === 'running' || sourceJob.status === 'queued' || getJobWorkerHandle(sourceJob.id) !== undefined ||
+      (sourceJob.worktreePath && isSessionWorktreeOwned(sourceJob.worktreePath, sourceJob.repoRoot ?? input.repoPath ?? ''))) {
+    return { dispatched: false, reason: 'Stop the worker before landing its worktree.' };
   }
   // Job product root first; session cwd is last-resort for legacy jobs.
   const repoPath =
@@ -747,14 +637,14 @@ export function dispatchMergeLand(input: DispatchMergeLandInput): DispatchMergeL
   // Detached execution: the land starts after the caller returned.
   void Promise.resolve().then(async () => {
     await runMergeLandJob({
-      store,
-      mergeJob: running ?? mergeJob,
-      kaos: input.kaos ?? input.agent?.kaos,
-      repoPath,
-      runGit: input.runGit,
-      agent: input.agent,
-      // Source already carries the verdict note from the patch above.
-      sourceJob: source ?? sourceJob,
+      store, mergeJob: running ?? mergeJob,
+      kaos: input.kaos ?? input.agent?.kaos, repoPath,
+      runGit: input.runGit, agent: input.agent, sourceJob: source ?? sourceJob,
+    });
+  }).catch((error: unknown) => {
+    retainJobNativeCleanup(store, mergeJob.id, error);
+    input.agent?.log?.warn('Job land failed', {
+      jobId: mergeJob.id, error: error instanceof Error ? error.message : String(error),
     });
   });
 
@@ -782,6 +672,43 @@ export interface RunMergeLandJobInput {
  * Never spawns an LLM worker. Source + merge exceptional statuses both notify/wake.
  */
 export async function runMergeLandJob(input: RunMergeLandJobInput): Promise<LandJobToMainResult> {
+  const job = getJob(input.store, input.mergeJob.id) ?? input.mergeJob;
+  if (!areJobAdmissionsOpen(input.store, job.id)) {
+    return { ok: false, job, merged: false, gcRemoved: false, message: '', error: 'Job runtime is closed.' };
+  }
+  if (job.status === 'cancelled' || job.status === 'interrupted') {
+    return { ok: false, job, merged: false, gcRemoved: false, message: '', error: `Job is ${job.status}.` };
+  }
+  const source = input.sourceJob ?? (job.parentJobId ? getJob(input.store, job.parentJobId) : undefined);
+  const failure = getJobNativeFailure(input.store, job.id);
+  if (hasUnsettledExecutionResources(failure)) throw failure;
+  if (source?.worktreePath && isSessionWorktreeOwned(source.worktreePath, source.repoRoot ?? input.repoPath ?? '')) {
+    const detail = 'Stop the source worker before landing its worktree.';
+    const blocked = patchJobAndNotify(input.store, job.id, { status: 'blocked', resultSummary: detail }, { agent: input.agent });
+    return { ok: false, job: blocked ?? job, merged: false, gcRemoved: false, message: '', error: detail };
+  }
+  const controller = new AbortController();
+  const handle = registerJobWorkerHandle(input.store, job.id, controller, source?.worktreePath ? [source.worktreePath] : []);
+  try {
+    return await runJobNativeOperation(input.store, job.id, {
+      paths: [source?.worktreePath], repoRoots: [source?.repoRoot ?? input.repoPath],
+    }, (_holdPath, signal) => executeMergeLandJob({
+      ...input,
+      runGit: (cwd, args) => {
+        signal.throwIfAborted();
+        return input.runGit ? input.runGit(cwd, args) : defaultRunGit(input.kaos, cwd, args, signal);
+      },
+    }));
+  } catch (error) {
+    if (!controller.signal.aborted || hasUnsettledExecutionResources(error)) handle.failure = error;
+    retainJobNativeCleanup(input.store, job.id, error);
+    throw error;
+  } finally {
+    clearJobWorkerHandle(job.id);
+  }
+}
+
+async function executeMergeLandJob(input: RunMergeLandJobInput): Promise<LandJobToMainResult> {
   const { store, mergeJob } = input;
   const source =
     input.sourceJob ??
@@ -820,7 +747,7 @@ export async function runMergeLandJob(input: RunMergeLandJobInput): Promise<Land
 
   let land: LandJobToMainResult;
   try {
-    land = await landJobToMain({
+    land = await performLandJobToMain({
       store,
       job: source,
       kaos: input.kaos ?? input.agent?.kaos,
@@ -830,6 +757,7 @@ export async function runMergeLandJob(input: RunMergeLandJobInput): Promise<Land
       agent: input.agent,
     });
   } catch (error) {
+    if (hasUnsettledExecutionResources(error)) throw error;
     const detail = error instanceof Error ? error.message : String(error);
     const failed = patchJobAndNotify(
       store,

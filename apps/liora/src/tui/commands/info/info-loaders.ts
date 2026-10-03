@@ -7,9 +7,7 @@ import type {
 import type { ManagedUsageReport } from '../../components/messages/usage-panel/index';
 import { isManagedUsageProvider } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
-import { type LoopModelRoutingConfig } from '#/tui/utils/model/loop-model-routing';
 import type { SlashCommandHost } from '../hub/dispatch';
-import { filterToolsForPrimaryHelp } from '#/tui/utils/tool/tool-help-filter';
 
 export interface SessionUsageResult {
   readonly usage?: SessionUsage;
@@ -26,10 +24,6 @@ export interface ManagedUsageResult {
   readonly error?: string;
 }
 
-export interface LoopModelRoutingResult {
-  readonly config?: LoopModelRoutingConfig;
-  readonly error?: string;
-}
 
 export async function loadSessionUsageReport(host: SlashCommandHost): Promise<SessionUsageResult> {
   try {
@@ -51,16 +45,6 @@ export async function loadContextComposition(
   }
 }
 
-export async function loadActiveToolNames(host: SlashCommandHost): Promise<readonly string[] | undefined> {
-  const session = host.session;
-  if (session === undefined || typeof session.getTools !== 'function') return undefined;
-  try {
-    const tools = await session.getTools();
-    return filterToolsForPrimaryHelp(tools.filter((tool) => tool.active)).map((tool) => tool.name);
-  } catch {
-    return undefined;
-  }
-}
 
 export async function loadRuntimeStatusReport(host: SlashCommandHost): Promise<RuntimeStatusResult> {
   try {
@@ -70,15 +54,6 @@ export async function loadRuntimeStatusReport(host: SlashCommandHost): Promise<R
   }
 }
 
-export async function loadLoopModelRouting(host: SlashCommandHost): Promise<LoopModelRoutingResult> {
-  try {
-    return {
-      config: (await host.harness.getConfig({ reload: true })) as LoopModelRoutingConfig,
-    };
-  } catch (error) {
-    return { error: formatErrorMessage(error) };
-  }
-}
 
 export async function loadManagedUsageReport(host: SlashCommandHost): Promise<ManagedUsageResult | undefined> {
   const alias = host.state.appState.model;

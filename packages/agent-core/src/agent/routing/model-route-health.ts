@@ -1,9 +1,9 @@
 /**
- * Alias-scoped route health (model ID retired / probe fail / 404).
+ * Alias-scoped health from actual provider requests (retired model / 404).
  * Separate from CredentialHealthStore (provider/credential auth+quota).
  */
 
-export type ModelRouteHealthKind = 'model_unavailable' | 'probe_fail' | 'route_fail';
+export type ModelRouteHealthKind = 'model_unavailable' | 'route_fail';
 
 export type ModelRouteHealthRecord = {
   readonly alias: string;
@@ -14,8 +14,8 @@ export type ModelRouteHealthRecord = {
 };
 
 export const DEFAULT_MODEL_UNAVAILABLE_COOLDOWN_MS = 60 * 60_000;
-export const DEFAULT_PROBE_FAIL_COOLDOWN_MS = 10 * 60_000;
-/** Real LLM traffic within this window proves alias liveness without a probe. */
+const DEFAULT_ROUTE_FAIL_COOLDOWN_MS = 10 * 60_000;
+/** Recent successful requests are actual provider liveness evidence. */
 const TRAFFIC_SUCCESS_FRESH_MS = 5 * 60_000;
 
 const globalAliasHealth = new Map<string, ModelRouteHealthRecord>();
@@ -65,7 +65,7 @@ export class ModelRouteHealthStore {
       options?.cooldownMs ??
       (kind === 'model_unavailable'
         ? DEFAULT_MODEL_UNAVAILABLE_COOLDOWN_MS
-        : DEFAULT_PROBE_FAIL_COOLDOWN_MS);
+        : DEFAULT_ROUTE_FAIL_COOLDOWN_MS);
     const record: ModelRouteHealthRecord = {
       alias: key,
       kind,
@@ -84,9 +84,7 @@ export class ModelRouteHealthStore {
   }
 
   /**
-   * Record a successful real LLM call on this alias. Actual traffic is
-   * stronger liveness evidence than any probe, so it also clears stale
-   * cooldown marks.
+   * Record a successful provider call and clear stale cooldown marks.
    */
   markTrafficSuccess(alias: string, now: number = Date.now()): void {
     const key = normalizeAlias(alias);
@@ -126,7 +124,7 @@ export class ModelRouteHealthStore {
   }
 }
 
-/** Process-local store shared by smart-router, live-probe, and LLM failover. */
+/** Process-local store shared by native LLM failover. */
 export const sharedModelRouteHealthStore = new ModelRouteHealthStore();
 
 /** @internal */

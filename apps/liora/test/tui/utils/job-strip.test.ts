@@ -13,8 +13,6 @@ import {
   longestActiveJobElapsedMs,
   mergeConductorJobsSnapshot,
   parseIsoMs,
-  parseJobLedgerCards,
-  parseJobStripFromToolOutput,
   patchConductorJobProgressByWorker,
   patchConductorJobUsage,
   resolveConductorJobCard,
@@ -25,30 +23,6 @@ import { labelConductorJobs } from '#/tui/components/chrome/footer/footer-labels
 import { advanceAppearanceAnimationClock } from '#/tui/features/appearance/appearance-effects';
 
 describe('job-strip', () => {
-  it('parses formatJobStripLine style output', () => {
-    const snap = parseJobStripFromToolOutput('Jobs: 2▸ 1… inbox 3\nJob inbox empty.');
-    expect(snap).toMatchObject({
-      running: 2,
-      queued: 1,
-      unreadInbox: 3,
-    });
-  });
-
-  it('parses JobList ledger lines', () => {
-    const out = [
-      'Job ledger:',
-      '- job_abc [running] (task p1) one',
-      '- job_def [queued] (task p0) two',
-      '- job_ghi [interrupted] (implement p2) three',
-    ].join('\n');
-    const snap = parseJobStripFromToolOutput(out);
-    expect(snap).toMatchObject({
-      total: 3,
-      running: 1,
-      queued: 1,
-      interrupted: 1,
-    });
-  });
 
   it('counts needs-you from needs_user cards only', () => {
     const jobs = [
@@ -89,35 +63,6 @@ describe('job-strip', () => {
     expect(labelConductorJobs('compact', merged)).toMatch(/jobs:/);
   });
 
-  it('parses per-job cards from JobList ledger lines', () => {
-    const out = [
-      'Job ledger:',
-      '- job_a1 [running] (task p1) fix login flow paths=src/auth',
-      '- job_b2 [queued] (explore p3) research renderers',
-    ].join('\n');
-    const cards = parseJobLedgerCards(out);
-    expect(cards).toHaveLength(2);
-    expect(cards[0]).toMatchObject({
-      id: 'job_a1',
-      status: 'running',
-      kind: 'task',
-      priority: 1,
-      title: 'fix login flow',
-    });
-    expect(cards[1]).toMatchObject({
-      id: 'job_b2',
-      status: 'queued',
-      kind: 'explore',
-      priority: 3,
-    });
-  });
-
-  it('captures maxConcurrent from pool output', () => {
-    const snap = parseJobStripFromToolOutput(
-      'Jobs: 1▸ 2… inbox 0\npool: warm=2 maxConcurrent=4',
-    );
-    expect(snap?.maxConcurrent).toBe(4);
-  });
 
   it('upsert replaces a card by id and trims terminal cards first', () => {
     const card = (id: string, status: ConductorJobCard['status']): ConductorJobCard => ({

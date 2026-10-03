@@ -1,401 +1,136 @@
-/**
- * Conductor Job desk slash commands — `/jobs`, `/job`.
- * When `conductor_ux_v2` is on: Session Job RPC hotpath (no LLM injection).
- * When off: natural-language tool prompts via sendNormalUserInput.
- */
+/** Operator Job desk slash commands use Session APIs, never model tool prompts. */
 
-import {
-  applyConductorProjectMode,
-  setAutoResumeFleet,
-} from '../features/control-tower/conductor-ux';
-import {
-  DEFAULT_CONDUCTOR_PREFERENCES,
-} from '../config';
 import { openInbox } from '../features/control-tower/inbox-controller';
-import { jobCreateBatchWithSplitConfirm } from '../utils/job/job-create-batch';
-import {
-  CONDUCTOR_PROJECT_MODES,
-  type ConductorProjectMode,
-} from '../utils/job/intent-brief';
+import { openLandChoicePicker } from '../features/control-tower/land-choice-controller';
 import {
   hotpathJobCancel,
+  hotpathJobCreate,
   hotpathJobGc,
   hotpathJobInspect,
   hotpathJobLandChoice,
   hotpathJobList,
   hotpathJobRename,
   hotpathJobResume,
-  isConductorUxV2Enabled,
+  hotpathJobReviewOrVerify,
+  hotpathJobPush,
 } from './job-hotpath';
 import { handleAgentsCommand } from './agents';
 import type { SlashCommandHost } from './hub/dispatch';
 import { ttui } from '../utils/tui-i18n';
-import { isDrawerArgs, openJobsDrawer } from './jobs-drawer';
-import { openLandChoicePicker } from '../features/control-tower/land-choice-controller';
-
-function isDockArgs(args: string): boolean {
-  return args === 'dock' || args === 'workers' || args === 'band';
-}
-
-function isBackgroundTaskArgs(args: string): boolean {
-  return args === 'bg' || args === 'background' || args === 'tasks';
-}
-
-function isConductorProjectMode(value: string): value is ConductorProjectMode {
-  return (CONDUCTOR_PROJECT_MODES as readonly string[]).includes(value);
-}
-
-function isBoardArgs(args: string): boolean {
-  return args === 'board' || args === 'view' || args === 'open';
-}
-
-function isDeckArgs(args: string): boolean {
-  return args === 'deck' || args === 'monitor' || args === 'watch';
-}
+import { openJobsDrawer } from './jobs-drawer';
 
 export function handleJobsCommand(host: SlashCommandHost, rawArgs: string): void {
-  const args = rawArgs.trim();
-  if (isDockArgs(args) || args.startsWith('dock ')) {
-    void handleAgentsCommand(host, args.startsWith('dock ') ? args.slice(5).trim() : '');
+  if (rawArgs.trim().length === 0) {
+    void hotpathJobList(host);
     return;
   }
-  if (isBackgroundTaskArgs(args)) {
-    void host.tasksBrowserController.show();
-    return;
-  }
-  if (args === 'autoresume' || args.startsWith('autoresume ') || args.startsWith('auto-resume')) {
-    handleJobCommand(host, args);
-    return;
-  }
-  if (isBoardArgs(args)) {
-    // The in-stack Job Desk board was absorbed into Mission Control; the
-    // deck viewer is the board now.
-    host.jobBoardController.openDeck();
-    return;
-  }
-  if (isDeckArgs(args)) {
-    host.jobBoardController.openDeck();
-    return;
-  }
-  if (isDrawerArgs(args)) {
-    void openJobsDrawer(host);
-    return;
-  }
-  if (args.startsWith('deck ') || args.startsWith('monitor ') || args.startsWith('watch ')) {
-    // /jobs deck <id> — drill into one card directly.
-    host.jobBoardController.openDeck(args.replace(/^\S+\s+/u, '').trim() || undefined);
-    return;
-  }
-  if (args.length === 0) {
-    if (isConductorUxV2Enabled()) {
-      void hotpathJobList(host);
-      return;
-    }
-    host.sendNormalUserInput(
-      'Use JobList to show the Conductor job ledger as a compact table (id, status, kind, priority, title, worktree). Include JobInbox unread summary via JobInbox if any. Do not start new work.',
-      { displayText: '/jobs' },
-    );
-    return;
-  }
-  handleJobCommand(host, args);
+  handleJobCommand(host, rawArgs);
 }
 
 export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void {
-  const args = rawArgs.trim();
-  const tokens = args.length === 0 ? [] : args.split(/\s+/u);
+  const tokens = rawArgs.trim().split(/\s+/u).filter(Boolean);
   const sub = (tokens[0] ?? '').toLowerCase();
-  const uxV2 = isConductorUxV2Enabled();
-
+  const tail = tokens.slice(1).join(' ');
   switch (sub) {
     case '':
     case 'help':
     case '?':
-      host.showStatus(ttui('tui.jobs.usage'));
+      host.showStatus(ttui('tui.jobs.help'));
       return;
-
+    case 'create':
+      if (tail.length === 0) host.showStatus(ttui('tui.jobs.createUsage'));
+      else void hotpathJobCreate(host, tail);
+      return;
+    case 'review':
+    case 'verify': {
+      const jobId = tokens[1] ?? '';
+      if (jobId.length === 0) host.showStatus(ttui('tui.jobs.reviewOrVerifyUsage', { action: sub }));
+      else void hotpathJobReviewOrVerify(host, jobId, sub, tokens.slice(2).join(' '));
+      return;
+    }
+    case 'push':
+      if (tail.length === 0) host.showStatus(ttui('tui.jobs.pushUsage'));
+      else void hotpathJobPush(host, tail);
+      return;
     case 'dock':
     case 'workers':
     case 'band':
-      void handleAgentsCommand(host, tokens.slice(1).join(' ').trim());
+      void handleAgentsCommand(host, tail);
       return;
-
     case 'bg':
     case 'background':
     case 'tasks':
       void host.tasksBrowserController.show();
       return;
-
     case 'board':
     case 'view':
     case 'open':
       host.jobBoardController.openDeck();
       return;
-
     case 'drawer':
     case 'sessions':
     case 'shelf':
       void openJobsDrawer(host);
       return;
-
     case 'deck':
     case 'monitor':
-    case 'watch': {
-      const jobId = tokens.slice(1).join(' ').trim();
-      host.jobBoardController.openDeck(jobId.length > 0 ? jobId : undefined);
+    case 'watch':
+      host.jobBoardController.openDeck(tail || undefined);
       return;
-    }
-
     case 'list':
     case 'ls':
-      if (uxV2) {
-        void hotpathJobList(host);
-        return;
-      }
-      host.sendNormalUserInput(
-        'Use JobList to show the Conductor job ledger as a compact table (id, status, kind, priority, title). Include a one-line Job strip summary.',
-        { displayText: '/job list' },
-      );
+      void hotpathJobList(host);
       return;
-
     case 'inbox':
-      if (uxV2) {
-        openInbox(host);
-        return;
-      }
-      host.sendNormalUserInput(
-        'Use JobInbox to show unread Conductor job notices (completions, failures, needs_user). Mark them read after summarizing.',
-        { displayText: '/job inbox' },
-      );
+      openInbox(host);
       return;
-
-    case 'autoresume':
-    case 'auto-resume': {
-      const flag = (tokens[1] ?? '').toLowerCase();
-      if (flag === 'on' || flag === '1' || flag === 'true') {
-        setAutoResumeFleet(host, true);
-        return;
-      }
-      if (flag === 'off' || flag === '0' || flag === 'false') {
-        setAutoResumeFleet(host, false);
-        return;
-      }
-      const current =
-        host.state.appState.conductor?.autoResumeFleet ??
-        DEFAULT_CONDUCTOR_PREFERENCES.autoResumeFleet;
-      host.showStatus(
-        `Job auto-resume: ${current ? 'ON' : 'OFF'} — /jobs autoresume on|off`,
-        'info',
-      );
+    case 'resume':
+      void hotpathJobResume(host, tail.length === 0 ? {} : { jobId: tail });
       return;
-    }
-
-    case 'resume': {
-      const jobId = tokens.slice(1).join(' ').trim();
-      if (uxV2) {
-        void hotpathJobResume(host, jobId.length === 0 ? {} : { jobId });
-        return;
-      }
-      if (jobId.length === 0) {
-        host.sendNormalUserInput(
-          'Use JobResume with no job_id to re-queue all interrupted Conductor jobs, then report what resumed.',
-          { displayText: '/job resume' },
-        );
-        return;
-      }
-      host.sendNormalUserInput(
-        `Use JobResume with job_id=${jobId} to re-queue and schedule that job. Report ACK state.`,
-        { displayText: `/job resume ${jobId}` },
-      );
-      return;
-    }
-
     case 'answer':
     case 'reply': {
-      // /job answer <job_id> <text…> — answer a needs_user interview card.
       const jobId = tokens[1] ?? '';
-      const answer = tokens.slice(2).join(' ').trim();
+      const answer = tokens.slice(2).join(' ');
       if (jobId.length === 0 || answer.length === 0) {
-        host.showStatus(
-          ttui('tui.jobs.answerUsage'),
-        );
+        host.showStatus(ttui('tui.jobs.answerUsage'));
         return;
       }
-      if (uxV2) {
-        void hotpathJobResume(host, { jobId, answer });
-        return;
-      }
-      host.sendNormalUserInput(
-        `Use JobResume with job_id=${jobId} and answer=${JSON.stringify(answer)} to inject the user answer into the needs_user card and re-queue the job. Report the resumed state.`,
-        { displayText: `/job answer ${jobId} ${answer}` },
-      );
+      void hotpathJobResume(host, { jobId, answer });
       return;
     }
-
     case 'cancel':
-    case 'stop': {
-      const jobId = tokens.slice(1).join(' ').trim();
-      if (jobId.length === 0) {
-        host.showStatus(ttui('tui.jobs.cancelUsage'));
-        return;
-      }
-      if (uxV2) {
-        void hotpathJobCancel(host, jobId);
-        return;
-      }
-      host.sendNormalUserInput(
-        `Use JobCancel with job_id=${jobId} to cancel the job and abort its worker if live. Report final state.`,
-        { displayText: `/job cancel ${jobId}` },
-      );
+    case 'stop':
+      if (tail.length === 0) host.showStatus(ttui('tui.jobs.cancelUsage'));
+      else void hotpathJobCancel(host, tail);
       return;
-    }
-
     case 'inspect':
     case 'show':
-    case 'get': {
-      const jobId = tokens.slice(1).join(' ').trim();
-      if (jobId.length === 0) {
-        host.showStatus(ttui('tui.jobs.inspectUsage'));
-        return;
-      }
-      if (uxV2) {
-        void hotpathJobInspect(host, jobId);
-        return;
-      }
-      host.sendNormalUserInput(
-        `Use JobInspect with job_id=${jobId} and summarize status, paths, worktree, and result.`,
-        { displayText: `/job inspect ${jobId}` },
-      );
+    case 'get':
+      if (tail.length === 0) host.showStatus(ttui('tui.jobs.inspectUsage'));
+      else void hotpathJobInspect(host, tail);
       return;
-    }
-
     case 'rename': {
       const jobId = tokens[1] ?? '';
-      const name = tokens.slice(2).join(' ').trim();
-      if (jobId.length === 0 || name.length === 0) {
-        host.showStatus(ttui('tui.jobs.renameUsage'));
-        return;
-      }
-      if (uxV2) {
-        void hotpathJobRename(host, jobId, name);
-        return;
-      }
-      host.showStatus(ttui('tui.jobs.drawerNeedsUx'), 'warning');
+      const name = tokens.slice(2).join(' ');
+      if (jobId.length === 0 || name.length === 0) host.showStatus(ttui('tui.jobs.renameUsage'));
+      else void hotpathJobRename(host, jobId, name);
       return;
     }
-
-    case 'land': {
-      const jobId = tokens.slice(1).join(' ').trim();
-      if (jobId.length === 0) {
-        host.showStatus(ttui('tui.jobs.landUsage'));
-        return;
-      }
-      void openLandChoicePicker(host, jobId);
+    case 'land':
+      if (tail.length === 0) host.showStatus(ttui('tui.jobs.landUsage'));
+      else void openLandChoicePicker(host, tail);
       return;
-    }
-
     case 'keep':
     case 'apply':
-    case 'pr': {
-      const jobId = tokens.slice(1).join(' ').trim();
-      if (jobId.length === 0) {
-        host.showStatus(ttui('tui.jobs.landUsage'));
-        return;
-      }
-      if (uxV2) {
-        void hotpathJobLandChoice(host, jobId, sub);
-        return;
-      }
-      host.showStatus(ttui('tui.jobs.drawerNeedsUx'), 'warning');
+    case 'pr':
+      if (tail.length === 0) host.showStatus(ttui('tui.jobs.landUsage'));
+      else void hotpathJobLandChoice(host, tail, sub);
       return;
-    }
-
     case 'gc':
-      if (uxV2) {
-        void hotpathJobGc(host);
-        return;
-      }
-      host.sendNormalUserInput(
-        'Run JobList, then for done jobs with worktrees note GC policy (success remove; failed TTL 7d). If a JobSchedule/GC helper is available, pump GC; otherwise report which worktrees are eligible and use session worktree tools only if safe.',
-        { displayText: '/job gc' },
-      );
+      void hotpathJobGc(host);
       return;
-
-    case 'mode': {
-      if (!uxV2) {
-        host.showStatus(ttui('tui.jobs.modeNeedsUx'), 'textMuted');
-        return;
-      }
-      const modeArg = (tokens[1] ?? '').toLowerCase();
-      if (!isConductorProjectMode(modeArg)) {
-        host.showStatus(
-          ttui('tui.jobs.modeUsage'),
-          'textMuted',
-        );
-        return;
-      }
-      applyConductorProjectMode(
-        {
-          state: host.state,
-          session: host.session,
-          setAppState: (patch) => host.setAppState(patch),
-          showStatus: (msg, color) => host.showStatus(msg, color),
-        },
-        modeArg,
-      );
-      return;
-    }
-
-    case 'split-preview':
-    case 'split': {
-      const text = tokens.slice(1).join(' ').trim();
-      if (!uxV2) {
-        host.showStatus(ttui('tui.jobs.splitNeedsUx'), 'textMuted');
-        return;
-      }
-      if (text.length === 0) {
-        host.showStatus(
-          ttui('tui.jobs.splitUsage'),
-        );
-        return;
-      }
-      void jobCreateBatchWithSplitConfirm(
-        {
-          mountEditorReplacement: (panel) => host.mountEditorReplacement(panel),
-          restoreEditor: () => host.restoreEditor(),
-          requestRender: () => host.state.renderer.requestRender('manual'),
-          showStatus: (msg, color) => host.showStatus(msg, color),
-          requireSession: () => host.requireSession(),
-        },
-        text,
-      );
-      return;
-    }
-
-    case 'schedule':
-    case 'pump':
-      // No dedicated RPC schedule surface yet — keep agent routing.
-      host.sendNormalUserInput(
-        'Use JobSchedule (or JobCreate pump via listing queued + schedule) to promote queued Conductor jobs under maxConcurrent. Report started/blocked/backpressure.',
-        { displayText: '/job schedule' },
-      );
-      return;
-
-    default: {
-      // Bare job id: /job job_xxx
-      if (sub.startsWith('job_') || tokens.length === 1) {
-        const jobId = tokens[0] ?? sub;
-        if (uxV2) {
-          void hotpathJobInspect(host, jobId);
-          return;
-        }
-        host.sendNormalUserInput(
-          `Use JobInspect with job_id=${jobId} and summarize the Conductor job.`,
-          { displayText: `/job ${jobId}` },
-        );
-        return;
-      }
-      host.showStatus(ttui('tui.jobs.usage'));
-      return;
-    }
+    default:
+      if (tokens.length === 1) void hotpathJobInspect(host, tokens[0]!);
+      else host.showError(ttui('tui.jobs.unknownAction', { action: sub }));
   }
 }

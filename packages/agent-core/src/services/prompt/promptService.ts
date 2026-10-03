@@ -87,8 +87,8 @@ export class PromptService
   private _persistTail: Promise<void> = Promise.resolve();
 
   /**
-   * Per-session shadow of `model` / `thinking` / `permissionMode` /
-   * `planMode`. Absent until first `submit` bootstraps. See
+   * Per-session shadow of native model, thinking, and permission controls.
+   * Absent until first `submit` bootstraps. See
    * `_bootstrapAgentState` + `_applyAgentState`.
    */
   private readonly _agentState = new Map<string, AgentStateSnapshot>();
@@ -224,6 +224,7 @@ export class PromptService
     await this.auth.ensureReady();
     return this.core.rpc.startBtw({ sessionId: sid, agentId: MAIN_AGENT_ID });
   }
+
 
   async steer(sid: string, promptIds: readonly string[]): Promise<PromptSteerResult> {
     await this._requireSession(sid);
@@ -385,11 +386,10 @@ export class PromptService
     const key = promptKey(sid, MAIN_AGENT_ID);
     const state = this._active.get(key);
     if (state !== undefined && state.promptId === pid) {
-      if (state.completed || state.aborted) {
+      if (state.completed || state.aborted || state.cancelRequested) {
         throw new PromptAlreadyCompletedError(sid, pid);
       }
-      // Mark aborted optimistically — _handleBusEvent will not re-synthesize.
-      state.aborted = true;
+      state.cancelRequested = true;
       try {
         const cancelArgs: { sessionId: string; agentId: string; turnId?: number } = {
           sessionId: sid,
@@ -400,10 +400,9 @@ export class PromptService
       } catch (error) {
         // Roll back the optimistic flag so the route surfaces a real error;
         // the caller will see a 50001 (internal) via the global error handler.
-        state.aborted = false;
+        state.cancelRequested = false;
         throw error;
       }
-      this._publishAborted(sid, state.agentId, pid);
       return { aborted: true };
     }
 
@@ -424,11 +423,12 @@ export class PromptService
     await this._requireSession(sid);
     const state = this._active.get(promptKey(sid, MAIN_AGENT_ID));
     if (state !== undefined && !state.completed && !state.aborted) {
-      // Normal prompt path: let abort() handle turnId mapping and event synthesis.
+      if (state.cancelRequested) return { aborted: false };
+      // Map the request to the current turn; terminal events follow settlement.
       return this.abort(sid, state.promptId);
     }
     // No daemon-managed active prompt. Cancel whatever agent-core turn is
-    // running (e.g. a skill activation) without requiring a turnId.
+    // running without requiring a turnId.
     // TurnFlow.cancel(undefined) is a safe no-op when idle.
     await this.core.rpc.cancel({ sessionId: sid, agentId: MAIN_AGENT_ID });
     return { aborted: true };
@@ -525,7 +525,7 @@ export class PromptService
    */
   _activeForTest(sid: string): Readonly<PromptState> | undefined {
     const state = this._active.get(promptKey(sid, MAIN_AGENT_ID));
-    return state === undefined ? undefined : { ...state };
+    return state === undefined || state.completed || state.aborted ? undefined : { ...state };
   }
 
   /**

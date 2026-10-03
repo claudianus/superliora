@@ -66,26 +66,6 @@ describe('UsagePanelComponent', () => {
     expect(lines.join('\n')).toContain('resets tomorrow');
   });
 
-  it('renders a working-set gauge against the soft cap', () => {
-    const lines = buildUsageReportLines({
-      sessionUsage: undefined,
-      contextUsage: 0.2,
-      contextTokens: 200_000,
-      maxContextTokens: 1_000_000,
-      workingSet: {
-        maxWorkingSetTokens: 262_144,
-        asyncWorkingSetTokens: 220_000,
-        presetId: 'balanced',
-      },
-    }).map(stripAnsi);
-
-    const body = lines.join('\n');
-    expect(lines).toContain('Working set');
-    expect(body).toMatch(/cap .+ · async .+/);
-    expect(body).toContain('(balanced)');
-    expect(body).toContain('/context');
-    expect(body).toMatch(/soft\)/);
-  });
 
   it('renders provider remaining, source, and hides fake bars', () => {
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });

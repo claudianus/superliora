@@ -46,7 +46,7 @@ function makeInMemoryStreamPair(): {
 }
 
 interface CapturedCall {
-  options: { id?: string; workDir: string; mcpServers?: Record<string, unknown> };
+  options: { id?: string; workDir: string; permission?: string };
 }
 
 function makeHarness(sessionId: string, captured: CapturedCall[]): {
@@ -103,12 +103,29 @@ describe('AcpServer session/new', () => {
     expect(captured).toHaveLength(1);
     expect(captured[0]?.options.workDir).toBe('/tmp/work');
     expect(captured[0]?.options.id).toBe(response.sessionId);
-    expect(captured[0]?.options.mcpServers).toEqual({});
+    expect(captured[0]?.options.permission).toBe('manual');
+    expect(captured[0]?.options).not.toHaveProperty('mcpServers');
 
     // The wrapper is stashed in the map under the same id we returned to
     // the client (so Phase 3.3/3.4 can look it up by sessionId).
     expect(server?.getSession(response.sessionId)?.id).toBe(response.sessionId);
   });
+
+  it.each([
+    { name: 'stdio', command: 'mcp', args: [], env: [] },
+    { name: 'http', type: 'http' as const, url: 'https://example.test/mcp', headers: [] },
+    { name: 'sse', type: 'sse' as const, url: 'https://example.test/sse', headers: [] },
+  ])('rejects nonempty $name MCP lists before creating a session', async (mcpServer) => {
+    const captured: CapturedCall[] = [];
+    const { harness } = makeHarness('sess-no-mcp', captured);
+    const { agentStream, clientStream } = makeInMemoryStreamPair();
+    new AgentSideConnection((connection) => new AcpServer(harness, connection), agentStream);
+    const client = new ClientSideConnection(() => new StubClient(), clientStream);
+    await expect(client.newSession({ cwd: '/tmp/work', mcpServers: [mcpServer] }))
+      .rejects.toMatchObject({ code: -32602 });
+    expect(captured).toEqual([]);
+  });
+
 
   it('returns a distinct sessionId per call (one createSession per request)', async () => {
     const captured: CapturedCall[] = [];
@@ -179,15 +196,14 @@ describe('AcpServer session/new', () => {
     expect(thinkingOpt!.category).toBe('thought_level');
     expect(thinkingOpt!.currentValue).toBe('off');
 
-    // Mode picker — locked taxonomy (PLAN D9). Same order assertions
-    // the Phase 12 test made, just rephrased against the new shape.
+    // Native permission policies are the only session modes.
     if (modeOpt!.type !== 'select') {
       throw new Error('mode option must be a select');
     }
-    expect(modeOpt!.currentValue).toBe('default');
-    expect(modeOpt!.options).toHaveLength(4);
+    expect(modeOpt!.currentValue).toBe('manual');
+    expect(modeOpt!.options).toHaveLength(3);
     const modeIds = modeOpt!.options.map((o) => 'value' in o ? o.value : '');
-    expect(modeIds).toEqual(['default', 'plan', 'auto', 'yolo']);
+    expect(modeIds).toEqual(['manual', 'auto', 'yolo']);
     for (const entry of modeOpt!.options) {
       if ('value' in entry) {
         expect(typeof entry.name).toBe('string');

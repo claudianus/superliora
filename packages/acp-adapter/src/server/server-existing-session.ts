@@ -10,8 +10,8 @@ import type { LioraHarness, Session } from '@superliora/sdk';
 
 import { buildSessionConfigOptions } from '#/config-options';
 import { AcpKaos } from '#/kaos-acp';
-import { acpMcpServersToConfigs } from '#/mcp';
-import { DEFAULT_MODE_ID } from '#/modes';
+import { rejectUnsupportedMcpServers } from '#/mcp';
+import { DEFAULT_MODE_ID, isAcpModeId } from '#/modes';
 import { resolveCurrentModelId, resolveCurrentThinkingEnabled } from './server-config-resolve';
 import { harnessIsAuthed } from './server-slash';
 import { AcpSession, type TelemetryTrackFn } from '#/session/index';
@@ -41,7 +41,7 @@ export interface ExistingSessionSetupResult {
 
 /**
  * Shared setup for `session/load` and `session/resume`: gates auth,
- * checks the connection, resolves MCP servers, asks the harness to
+ * checks the connection, rejects unsupported MCP requests, asks the harness to
  * resume the on-disk session, computes the current model/thinking
  * projection (with a resume-state fallback), constructs the
  * {@link AcpSession}, registers it under `session.id`, and builds
@@ -58,7 +58,7 @@ export async function setupSessionFromExisting(
   if (!deps.conn) {
     throw RequestError.internalError(undefined, 'AcpServer is missing its AgentSideConnection');
   }
-  const mcpServers = acpMcpServersToConfigs(params.mcpServers);
+  rejectUnsupportedMcpServers(params.mcpServers);
   const acpKaos = await deps.maybeBuildAcpKaos(params.sessionId);
   const persistenceKaos = acpKaos === undefined ? undefined : await deps.ensureInnerKaos();
   let session: Session;
@@ -68,8 +68,6 @@ export async function setupSessionFromExisting(
       kaos: acpKaos,
       persistenceKaos,
       sessionStartedProperties: { mode: params.mode },
-      // @ts-expect-error — mcpServers is a kernel-only field that the SDK forwards via spread.
-      mcpServers,
     });
   } catch (error) {
     const code = (error as { code?: string } | undefined)?.code;
@@ -93,6 +91,8 @@ export async function setupSessionFromExisting(
       ? resumedThinkingLevel.trim().toLowerCase() !== 'off' &&
         resumedThinkingLevel.trim().length > 0
       : await resolveCurrentThinkingEnabled(deps.harness);
+  const resumedPermission = resumeState?.agents?.['main']?.permission?.mode;
+  const currentModeId = isAcpModeId(resumedPermission) ? resumedPermission : DEFAULT_MODE_ID;
   const acpSession = new AcpSession(
     deps.conn,
     session,
@@ -101,13 +101,14 @@ export async function setupSessionFromExisting(
     currentModelId,
     deps.harness,
     currentThinkingEnabled,
+    currentModeId,
   );
   deps.registerSession(session.id, acpSession);
   const configOptions = await buildSessionConfigOptions(
     deps.harness,
     currentModelId,
     currentThinkingEnabled,
-    DEFAULT_MODE_ID,
+    currentModeId,
   );
   return { session, acpSession, configOptions };
 }

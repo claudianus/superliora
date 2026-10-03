@@ -9,21 +9,11 @@ export function delegateContextMethod<
   TResult,
 >(
   fn: (context: TContext, ...args: TArgs) => TResult,
-): (this: TContext, ...args: TArgs) => TResult {
-  return function (this: TContext, ...args: TArgs): TResult {
-    return fn(this, ...args);
+): (this: TContext & { assertOpen?(): void; trackOperation?<T>(value: T): T }, ...args: TArgs) => TResult {
+  return function (this: TContext & { assertOpen?(): void; trackOperation?<T>(value: T): T }, ...args: TArgs): TResult {
+    this.assertOpen?.();
+    const result = fn(this, ...args);
+    return this.trackOperation === undefined ? result : this.trackOperation(result);
   };
 }
 
-export function delegateContextMethodWithOptions<
-  TContext,
-  TArgs extends readonly unknown[],
-  TOptions,
-  TResult,
->(
-  fn: (context: TContext, ...args: [...TArgs, TOptions?]) => TResult,
-): (this: TContext, ...args: [...TArgs, TOptions?]) => TResult {
-  return function (this: TContext, ...args: [...TArgs, TOptions?]): TResult {
-    return fn(this, ...args);
-  };
-}

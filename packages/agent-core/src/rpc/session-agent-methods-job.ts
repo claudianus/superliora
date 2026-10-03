@@ -72,6 +72,13 @@ export function jobCancel(
   return context.sessionApi(sessionId).jobCancel(payload);
 }
 
+export function jobPause(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<JobCancelPayload>,
+): Promise<JobActionResult> {
+  return context.sessionApi(sessionId).jobPause(payload);
+}
+
 export function jobResume(
   context: SessionAgentMethodsContext,
   { sessionId, ...payload }: SessionAgentPayload<JobResumePayload>,

@@ -1,11 +1,4 @@
-/**
- * Test stubs for `LioraHarness` interactions that used to live as
- * dedicated convenience methods on the SDK (`auth.hasUsableToken`,
- * `listAvailableModels`). The methods are gone; the adapter now calls
- * the underlying SDK API directly (`auth.status`, `getConfig().models`)
- * and the helpers below produce the matching stub shapes so each test
- * file doesn't have to hand-roll them.
- */
+/** Native harness auth and model-catalog fixtures shared by ACP tests. */
 
 import type { ModelAlias } from '@superliora/sdk';
 
@@ -44,14 +37,12 @@ export function makeModelsMap(
         ? ['thinking']
         : undefined;
     out[entry.id] = {
-      // The fields below are the minimum shape the adapter reads off
-      // each alias — `provider`/`max_context_size` are required by the
-      // schema but unused by the model catalog, so they're skipped
-      // here and the partial-record cast keeps the test stub honest.
+      provider: 'kimi',
+      maxContextSize: 200_000,
       model: entry.id,
       ...(entry.name !== undefined ? { displayName: entry.name } : {}),
       ...(capabilities !== undefined ? { capabilities } : {}),
-    } as ModelAlias;
+    };
   }
   return out;
 }

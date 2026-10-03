@@ -23,7 +23,6 @@ import {
 import { isTranscriptScrollSettleArmed } from '../../utils/render/scroll-settle-refresh';
 import { deferredTranscriptFormatQueueSize } from '../../utils/transcript/deferred-format-queue';
 import {
-  isLiveGoalChromeActive,
   isPureInputFrame,
   isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,
@@ -98,7 +97,6 @@ export function createTUIStateNativeRenderCallback(
     const calmSignals = {
       streamingPhase: state.appState.streamingPhase,
       compacting: state.appState.isCompacting,
-      liveGoal: isLiveGoalChromeActive(state.appState.goal),
       fullscreenTakeover: isNativeFullscreenTakeover(state),
       streamRevealArmed: isStreamRevealArmed(),
       backgroundWork,
@@ -198,34 +196,29 @@ export function createTUIStateNativeRenderCallback(
     // included.
     state.cachedStageBand = stageProbe.stage;
     // Chrome is static only when nothing time-varying paints there: no live
-    // agent work, no live goal badge, no background Conductor/Mission Control
-    // work, and no ambient motion (header particle divider / spectacular
-    // brand). When ambient is on, animation frames must rebuild chrome —
-    // reusing the cache freezes the particle rail while the idle aquarium
-    // keeps moving. Background work counts as live even when the main turn is
-    // idle: the mission dock reads the shared clock for worker elapsed labels
-    // and linger expiry, so reusing cached chrome would freeze them. chromeEpoch
-    // still invalidates on activity / live-goal transitions so stale chrome is
-    // never reused across modes.
+    // agent work, no background Conductor/Mission Control work, and no ambient
+    // motion (header particle divider / spectacular brand). When ambient is on,
+    // animation frames must rebuild chrome — reusing the cache freezes the
+    // particle rail while the idle aquarium keeps moving. Background work
+    // counts as live even when the main turn is idle: the mission dock reads
+    // the shared clock for worker elapsed labels and linger expiry, so reusing
+    // cached chrome would freeze them. chromeEpoch still invalidates on activity
+    // transitions so stale chrome is never reused across modes.
     //
     // `appState.thinking` is the thinking-level preference, not live activity
     // (see ambient-calm). Treating it as live made chromeStatic false forever
     // whenever thinking is on, so every ConPTY animation tick rebuilt chrome
     // and canvas-sealed the header brand. Live thinking is `streamingPhase`.
-    const liveGoal = isLiveGoalChromeActive(state.appState.goal);
     const appearance = getActiveAppearancePreferences();
     const ambientActive = ambientAnimationActive(appearance);
     const chromeStatic =
       state.appState.streamingPhase === 'idle' &&
       !state.appState.isCompacting &&
-      !liveGoal &&
       !backgroundWork &&
       !ambientActive;
     const chromeEpoch = tuiChromeEpoch({
       streamingPhase: state.appState.streamingPhase,
       thinking: state.appState.streamingPhase === 'thinking',
-      liveGoalId: liveGoal ? state.appState.goal!.goalId : undefined,
-      liveGoalStatus: liveGoal ? state.appState.goal!.status : undefined,
     });
     // Pure-scroll must re-project the visible transcript window (virtual
     // scroll is O(visible) via line-count LRU). Reusing prior-frame lines

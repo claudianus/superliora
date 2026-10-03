@@ -5,66 +5,39 @@ import {
   validateToolArgs,
 } from '../../src/tools/args-validator';
 
-// Mirrors the Read tool's `line_offset` parameter: a union of a positive
-// offset and a tail (negative) offset. `type` only appears inside the anyOf
-// branches, which is exactly the shape models tend to stringify.
-const readLikeSchema = {
-  $schema: 'http://json-schema.org/draft-07/schema#',
-  type: 'object',
-  properties: {
-    path: { type: 'string' },
-    line_offset: {
-      anyOf: [
-        { type: 'integer', minimum: 1 },
-        { type: 'integer', minimum: -1000, maximum: -1 },
-      ],
-    },
-    n_lines: { type: 'integer', minimum: 1 },
-  },
-  required: ['path'],
-  additionalProperties: false,
-} as Record<string, unknown>;
+import { BashInputSchema } from '../../src/tools/builtin/shell/bash';
+import { SessionControlInputSchema } from '../../src/tools/builtin/session-control';
+import { toInputJsonSchema } from '../../src/tools/support/input-schema';
 
-describe('validateToolArgs', () => {
-  it('accepts correctly typed integers', () => {
-    const validator = compileToolArgsValidator(readLikeSchema);
-    expect(
-      validateToolArgs(validator, { path: 'a.ts', line_offset: 96, n_lines: 16 }),
-    ).toBeNull();
-    expect(validateToolArgs(validator, { path: 'a.ts', line_offset: -5 })).toBeNull();
+describe('native tool argument validation', () => {
+  const bash = compileToolArgsValidator(toInputJsonSchema(BashInputSchema));
+  const session = compileToolArgsValidator(toInputJsonSchema(SessionControlInputSchema));
+
+  it('coerces model-emitted Bash scalars for the executable schema', () => {
+    const args: JsonType = { command: 'sleep 2', timeout: '120', run_in_background: 'true', description: 'Sleep' };
+    expect(validateToolArgs(bash, args)).toBeNull();
+    expect(args).toEqual({ command: 'sleep 2', timeout: 120, run_in_background: true, description: 'Sleep' });
   });
 
-  it('coerces stringified integers, including inside anyOf unions', () => {
-    const validator = compileToolArgsValidator(readLikeSchema);
-    const args: JsonType = { path: 'a.ts', line_offset: '96', n_lines: '16' };
-    expect(validateToolArgs(validator, args)).toBeNull();
-    expect(args).toEqual({ path: 'a.ts', line_offset: 96, n_lines: 16 });
+  it('rejects invalid Bash deadlines and missing commands', () => {
+    for (const timeout of ['abc', 0, -1, 1.5, { value: 1 }]) {
+      expect(validateToolArgs(bash, { command: 'sleep 2', timeout })).not.toBeNull();
+    }
+    expect(validateToolArgs(bash, {})).toContain("must have required property 'command'");
+    expect(validateToolArgs(bash, { command: '' })).not.toBeNull();
   });
 
-  it('coerces a stringified negative value toward the matching union branch', () => {
-    const validator = compileToolArgsValidator(readLikeSchema);
-    const args: JsonType = { path: 'a.ts', line_offset: '-5' };
-    expect(validateToolArgs(validator, args)).toBeNull();
-    expect(args).toEqual({ path: 'a.ts', line_offset: -5 });
+  it('allows polling and explicit unbounded child runs through SessionControl', () => {
+    const args: JsonType = { operation: 'wait', id: 'child', timeout: '0' };
+    expect(validateToolArgs(session, args)).toBeNull();
+    expect(args).toEqual({ operation: 'wait', id: 'child', timeout: 0 });
+    expect(validateToolArgs(session, { operation: 'spawn', prompt: 'Work', description: 'Work', timeout: 0 })).toBeNull();
+    expect(validateToolArgs(session, { operation: 'wait', id: 'child', timeout: -1 })).not.toBeNull();
   });
 
-  it('still rejects values that cannot coerce or violate bounds', () => {
-    const validator = compileToolArgsValidator(readLikeSchema);
-    expect(validateToolArgs(validator, { path: 'a.ts', line_offset: 'abc' })).not.toBeNull();
-    expect(validateToolArgs(validator, { path: 'a.ts', line_offset: { bogus: 1 } })).not.toBeNull();
-    expect(validateToolArgs(validator, { path: 'a.ts', line_offset: 0 })).not.toBeNull();
-    expect(validateToolArgs(validator, { path: 'a.ts', line_offset: -1001 })).not.toBeNull();
-  });
-
-  it('keeps the closed-object guard', () => {
-    const validator = compileToolArgsValidator(readLikeSchema);
-    expect(validateToolArgs(validator, { path: 'a.ts', bogus: true })).toContain(
-      "must NOT have additional property 'bogus'",
-    );
-  });
-
-  it('keeps required-property reporting', () => {
-    const validator = compileToolArgsValidator(readLikeSchema);
-    expect(validateToolArgs(validator, {})).toContain("must have required property 'path'");
+  it('rejects retired routing arguments and unknown operations', () => {
+    expect(validateToolArgs(session, { operation: 'spawn', prompt: 'Work', description: 'Work', role: 'reviewer' })).toContain("must NOT have additional property 'role'");
+    expect(validateToolArgs(session, { operation: 'review' })).not.toBeNull();
+    expect(validateToolArgs(session, {})).toContain("must have required property 'operation'");
   });
 });

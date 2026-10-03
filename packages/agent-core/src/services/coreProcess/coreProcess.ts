@@ -18,13 +18,10 @@
  * so daemon-side code stays one abstraction layer away.
  *
  * Lifecycle:
- *   - `ready()` resolves when both the `LioraCore` plugin/config load AND the
- *     SDK-side RPC binding have settled. Construction is eager (Singleton
- *     pattern); awaiting `ready()` is the safe gate before issuing RPC calls.
- *   - `dispose()` is idempotent. It flips an internal flag so future `rpc`
- *     method dispatch throws before reaching `LioraCore`, then walks the
- *     `Disposable` child stack. `LioraCore` itself has no `dispose()` today —
- *     when it gets one, we wire it here.
+ *   - `ready()` resolves after the native configuration is loaded and both
+ *     directions of the in-process RPC pair are bound.
+ *   - `dispose()` requests shutdown. `shutdown()` awaits actual native
+ *     session/process settlement before releasing adapter resources.
  *
  * Role: cross-process adapter — see `packages/services/AGENTS.md`.
  */
@@ -65,9 +62,12 @@ export interface ICoreProcessService {
   ready(): Promise<void>;
 
   /**
-   * Tear down the adapter. After dispose, `rpc.<method>(...)` rejects with a
-   * "core process disposed" error before reaching `LioraCore`. Idempotent.
+   * Reject new RPC calls and await native shutdown. Repeated calls return
+   * the same promise; a native shutdown failure remains observable.
    */
+  shutdown(): Promise<void>;
+
+  /** Request shutdown without waiting; owners must await `shutdown()`. */
   dispose(): void;
 }
 

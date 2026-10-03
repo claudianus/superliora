@@ -11,12 +11,6 @@ import type {
 
 export type TUIEditorInputMode = 'prompt' | 'bash';
 
-/**
- * Kind of inline ghost text shown after the editor cursor.
- * - `inline`: next-words continuation of the text being typed.
- * - `suggestion`: a recommended next task shown while the editor is empty.
- */
-export type TUIEditorGhostKind = 'inline' | 'suggestion';
 
 export interface TUIEditor
   extends Component,
@@ -70,13 +64,9 @@ export interface TUIEditor
   onOpenJobDeck?: () => void;
   /** Opens the Conductor Inbox drawer (Alt+I) when conductor_ux_v2 is on. */
   onOpenJobInbox?: () => void;
-  /** Focus Intent Composer brief slots (Alt+B) when conductor_ux_v2 is on. */
-  onOpenIntentComposer?: () => void;
   /** Opens the live Quota report (Q on an empty prompt). */
   onOpenQuota?: () => void;
-  /** Toggles Plan mode (P on an empty prompt). */
-  onOpenPlan?: () => void;
-  /** True when idle-only single-key shortcuts (Q / P) may fire. */
+  /** True when the idle-only quota shortcut may fire. */
   canActivateIdleShortcut?: () => boolean;
   /** Opens the transcript search overlay (Ctrl-F). */
   onTranscriptSearch?: () => void;
@@ -87,14 +77,6 @@ export interface TUIEditor
    * Wired via the native input router's `handlePreEditorInput`.
    */
   tryHandleAppShortcut?(data: string): boolean;
-  /**
-   * Ghost text (prompt intelligence) callbacks. `onAcceptGhost` fires when Tab
-   * confirms the visible ghost text. Empty-prompt ↑/↓ recall submitted history
-   * (bash-style) and do not rotate next-task suggestions.
-   */
-  onAcceptGhost?: () => void;
-  /** Optional non-arrow cycle hook; ↑/↓ never invoke this. */
-  onCycleGhost?: (direction: -1 | 1) => void;
 
   getLines(): string[];
   getExpandedText(): string;
@@ -105,14 +87,6 @@ export interface TUIEditor
   setArgumentHints(hints: ReadonlyMap<string, string>): void;
   setAutocompleteProvider(provider: AutocompleteProvider): void;
   isShowingAutocomplete(): boolean;
-  /**
-   * Set or clear the dimmed ghost text rendered after the cursor. Pass
-   * `undefined` to clear. `kind` distinguishes inline completion from an
-   * empty-editor next-task suggestion (Tab accepts; ↑/↓ recall history).
-   */
-  setGhostText(text: string | undefined, kind: TUIEditorGhostKind): void;
-  /** Currently visible ghost text, or `undefined` when none. */
-  getGhostText?(): string | undefined;
   getNativeLayoutRowCount?(width: number): number;
   getNativeRegionLines?(width: number): readonly RendererRegionLine[];
   getNativeOverlayLines?(

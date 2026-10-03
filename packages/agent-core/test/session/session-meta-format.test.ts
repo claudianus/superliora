@@ -15,7 +15,6 @@ import {
   prepareSessionMetaForWrite,
   prepareSessionStateRecord,
   resolveSessionMetaHomedirs,
-  truncateLastPrompt,
 } from '../../src/session/session-meta-format';
 import {
   readRequiredSessionState,
@@ -70,9 +69,6 @@ describe('session meta format', () => {
     });
   });
 
-  it('leaves short lastPrompt text unchanged', () => {
-    expect(truncateLastPrompt('hello')).toBe('hello');
-  });
 
   it('persists agent homedirs relative to the session directory', () => {
     const sessionDir = '/tmp/sessions/wd_x/ses_a';

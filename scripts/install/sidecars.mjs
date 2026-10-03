@@ -1,5 +1,5 @@
 /**
- * Soft-fail sidecars: browser-use, computer-use, retrieval bootstrap.
+ * Soft-fail sidecars: browser-use and computer-use.
  *
  * Each step has a wall-clock timeout and never reads stdin. Upgrade Studio
  * pipes the installer with stdin ignored; a prompt would sit on Sidecars
@@ -33,7 +33,6 @@ const SIDECAR_STDIO = ['ignore', 'inherit', 'inherit'];
  *   commandName?: string,
  *   noBrowserUse?: boolean,
  *   noComputerUse?: boolean,
- *   noRetrieval?: boolean,
  *   onDetail?: (msg: string) => void,
  *   onWarn?: (msg: string) => void,
  *   locale?: string,
@@ -64,12 +63,10 @@ export async function installSidecars(options = {}) {
   }
   const startedAt = sidecarNow(options);
 
-  const needsPnpm =
-    (!options.noBrowserUse && env.SUPERLIORA_SKIP_BROWSER_USE !== '1') ||
-    (!options.noRetrieval && env.SUPERLIORA_SKIP_RETRIEVAL !== '1');
+  const needsPnpm = !options.noBrowserUse && env.SUPERLIORA_SKIP_BROWSER_USE !== '1';
   if (needsPnpm) {
     if (!budgetLeft(options, startedAt)) {
-      warn('sidecar budget exhausted; skipped browser / computer / retrieval');
+      warn('sidecar budget exhausted; skipped browser / computer');
       return;
     }
     try {
@@ -83,7 +80,7 @@ export async function installSidecars(options = {}) {
 
   if (!options.noBrowserUse && env.SUPERLIORA_SKIP_BROWSER_USE !== '1') {
     if (!budgetLeft(options, startedAt)) {
-      warn('sidecar budget exhausted; skipped browser-use, computer-use, retrieval');
+      warn('sidecar budget exhausted; skipped browser-use, computer-use');
       return;
     }
     detail(t('install.sidecar.browserUse', undefined, locale));
@@ -92,26 +89,11 @@ export async function installSidecars(options = {}) {
 
   if (!options.noComputerUse && env.SUPERLIORA_SKIP_COMPUTER_USE !== '1') {
     if (!budgetLeft(options, startedAt)) {
-      warn('sidecar budget exhausted; skipped computer-use, retrieval');
+      warn('sidecar budget exhausted; skipped computer-use');
       return;
     }
     detail(t('install.sidecar.cua', undefined, locale));
     installCuaDriver(commandName, warn, options);
-  }
-
-  if (!options.noRetrieval && env.SUPERLIORA_SKIP_RETRIEVAL !== '1') {
-    if (!budgetLeft(options, startedAt)) {
-      warn('sidecar budget exhausted; skipped retrieval');
-      return;
-    }
-    detail(t('install.sidecar.retrieval', undefined, locale));
-    if (installDir && existsSync(join(installDir, 'packages/agent-core'))) {
-      bootstrapRetrieval(installDir, warn, options);
-    } else {
-      warn(
-        'retrieval bootstrap skipped (no source tree); run after source install or `liora` will hash-fallback',
-      );
-    }
   }
 }
 
@@ -259,25 +241,6 @@ function installCuaDriver(commandName, warn, options) {
       warn,
       error?.result,
       `cua-driver install failed; retry with '${commandName} computer-use install'`,
-    );
-  }
-}
-
-function bootstrapRetrieval(installDir, warn, options) {
-  const env = sidecarEnv({
-    ...(options.env ?? process.env),
-    SUPERLIORA_RETRIEVAL_EMBEDDER: 'transformers',
-  });
-  const r = runSidecarPnpm(
-    ['-C', 'packages/agent-core', 'run', 'retrieval:bootstrap'],
-    options,
-    { cwd: installDir, env },
-  );
-  if (r.status !== 0) {
-    warnStep(
-      warn,
-      r,
-      'retrieval bootstrap failed; SearchExpert falls back to hash until online — retry with pnpm -C packages/agent-core run retrieval:bootstrap',
     );
   }
 }

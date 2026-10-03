@@ -3,7 +3,7 @@
  *
  * Coverage:
  *   - reduceWireRecords: append + loop events; compaction keeps the prefix and
- *     inserts the summary at the fold point; undo (skip injections, stop at
+ *     inserts the summary at the fold point; undo (stop at
  *     compaction summaries and clear floors); clear resets the folded view but
  *     keeps the transcript; deferred messages during an open tool exchange;
  *     tool.result `<system>` status wrapping
@@ -68,16 +68,17 @@ function compaction(
   summary: string,
   compactedCount: number,
   time?: number,
-  keptUserMessageCount?: number,
+  keptUserMessageCount = 1,
 ): AgentRecord {
   return {
     type: 'context.apply_compaction',
     summary,
+    contextSummary: summary,
     compactedCount,
     tokensBefore: 1000,
     tokensAfter: 100,
     time,
-    ...(keptUserMessageCount === undefined ? {} : { keptUserMessageCount }),
+    keptUserMessageCount,
   } as AgentRecord;
 }
 
@@ -117,19 +118,19 @@ describe('reduceWireRecords', () => {
     ]);
     expect(entries[4]!.message.origin).toEqual({ kind: 'compaction_summary' });
     expect(entries[4]!.message.role).toBe('user');
-    // live folded view would be [u1, u2, SUM, u3]
-    expect(foldedLength).toBe(4);
+    expect(foldedLength).toBe(3);
   });
 
   it('keeps shell and local-command output in the transcript but not foldedLength', () => {
     const { entries, foldedLength } = reduceWireRecords([
       appendMessage(userMessage('u1')),
       appendMessage(userMessage('! pwd', { kind: 'shell_command', phase: 'input' })),
-      appendMessage(userMessage('local output', { kind: 'injection', variant: 'local-command-stdout' })),
+      appendMessage(userMessage('local output', { kind: 'system_trigger', name: 'local-command-stdout' })),
       ...assistantStep('s1', 'a1'),
       {
         type: 'context.apply_compaction',
         summary: 'SUM',
+        contextSummary: 'SUM',
         compactedCount: 4,
         tokensBefore: 100,
         tokensAfter: 20,
@@ -158,25 +159,6 @@ describe('reduceWireRecords', () => {
     expect(foldedLength).toBe(3);
   });
 
-  it('accounts for the elision marker when the compaction record kept a head segment', () => {
-    const { foldedLength } = reduceWireRecords([
-      appendMessage(userMessage('u1')),
-      appendMessage(userMessage('u2')),
-      ...assistantStep('s1', 'a1'),
-      {
-        type: 'context.apply_compaction',
-        summary: 'SUM',
-        compactedCount: 3,
-        tokensBefore: 100_000,
-        tokensAfter: 20_000,
-        keptUserMessageCount: 2,
-        keptHeadUserMessageCount: 1,
-      } as AgentRecord,
-    ]);
-
-    // Live context: head user message + elision marker + tail user message + summary.
-    expect(foldedLength).toBe(4);
-  });
 
   it('handles repeated compactions', () => {
     const { entries, foldedLength } = reduceWireRecords([
@@ -186,8 +168,7 @@ describe('reduceWireRecords', () => {
       compaction('S2', 3),
     ]);
     expect(entries.map((e) => textOf(e.message))).toEqual(['u1', 'S1', 'u2', 'S2']);
-    // live folded view would be [u1, u2, S2]
-    expect(foldedLength).toBe(3);
+    expect(foldedLength).toBe(2);
   });
 
   it('uses the recorded kept-user count for foldedLength when present', () => {
@@ -214,86 +195,40 @@ describe('reduceWireRecords', () => {
     expect(foldedLength).toBe(3);
   });
 
-  it('drops a late tool result after compaction closes an open exchange', () => {
+
+  it('places the compaction summary before the retained native tail', () => {
     const { entries, foldedLength } = reduceWireRecords([
-      appendMessage(userMessage('u1')),
-      loopEvent({ type: 'step.begin', uuid: 's1', turnId: 't', step: 0 }),
-      loopEvent({
-        type: 'tool.call',
-        uuid: 'c1',
-        turnId: 't',
-        step: 0,
-        stepUuid: 's1',
-        toolCallId: 'call_1',
-        name: 'Bash',
-        arguments: '{"command":"ls"}',
-      }),
-      compaction('SUM', 3),
-      loopEvent({
-        type: 'tool.result',
-        parentUuid: 'c1',
-        toolCallId: 'call_1',
-        result: { output: 'late result' },
-      }),
-      appendMessage(userMessage('u2')),
-    ]);
-
-    // Compaction closes the open exchange, so the late tool result is an
-    // orphan and dropped — matching ContextMemory — and the following user
-    // message is appended normally instead of being stranded in `deferred`.
-    expect(entries.map((e) => e.message.role)).toEqual(['user', 'assistant', 'user', 'user']);
-    expect(entries.map((e) => textOf(e.message))).toEqual(['u1', '', 'SUM', 'u2']);
-    // live folded view would be [u1, SUM, u2]
-    expect(foldedLength).toBe(3);
-  });
-
-  it('reproduces the legacy [summary, tail] fold length for records without keptUserMessageCount', () => {
-    // A pre-rework record (no keptUserMessageCount) kept history.slice(compactedCount)
-    // verbatim, and ContextMemory's legacy restore now reproduces [summary, ...tail].
-    // The reducer must track that same folded length — 1 + (preCompactionLength -
-    // compactedCount) — not the re-derived kept-user count, or MessageService's
-    // length comparison diverges from the live context for old sessions.
-    const { foldedLength } = reduceWireRecords([
       appendMessage(userMessage('u1')),
       ...assistantStep('s1', 'a1'),
       appendMessage(userMessage('u2')),
       ...assistantStep('s2', 'a2'),
-      compaction('SUM', 1),
+      compaction('SUM', 2),
     ]);
-    // Pre-compaction live history = [u1, a1, u2, a2] (4); legacy restore keeps
-    // [SUM, ...slice(1)] = [SUM, a1, u2, a2] = 4. (Re-deriving kept users gives 3.)
+    expect(entries.map((entry) => textOf(entry.message))).toEqual(['u1', 'a1', 'SUM', 'u2', 'a2']);
     expect(foldedLength).toBe(4);
   });
 
-  it('ignores pre-clear prompts when re-deriving a legacy fold length', () => {
-    // Legacy record (no keptUserMessageCount) compacting after a /clear with no
-    // tail re-derives the kept-user count, but only from post-clear messages —
-    // the live context dropped u1/u2 at the clear. Counting them would overstate
-    // foldedLength and make MessageService skip the unflushed live tail.
+  it('tracks post-clear compaction without recounting historical prompts', () => {
     const { foldedLength } = reduceWireRecords([
       appendMessage(userMessage('u1')),
-      appendMessage(userMessage('u2')),
       { type: 'context.clear' } as AgentRecord,
-      appendMessage(userMessage('u3')),
+      appendMessage(userMessage('u2')),
       compaction('SUM', 1),
     ]);
-    // Post-clear live history = [u3] (1); restore keeps [u3, SUM] = 2.
-    // (Re-deriving over the full transcript would wrongly give 4.)
     expect(foldedLength).toBe(2);
   });
 
-  it('undo removes through the last real user prompt and skips injections', () => {
+  it('undo removes through the last real user prompt', () => {
     const { entries, foldedLength } = reduceWireRecords([
       appendMessage(userMessage('u1')),
       ...assistantStep('s1', 'a1'),
       appendMessage(userMessage('u2')),
-      appendMessage(userMessage('note', { kind: 'injection', variant: 'x' })),
+      appendMessage(userMessage('note', { kind: 'system_trigger', name: 'operator-note' })),
       ...assistantStep('s2', 'a2'),
       { type: 'context.undo', count: 1 } as AgentRecord,
     ]);
-    // a2 removed, injection skipped (kept), u2 removed → stop.
-    expect(entries.map((e) => textOf(e.message))).toEqual(['u1', 'a1', 'note']);
-    expect(foldedLength).toBe(3);
+    expect(entries.map((e) => textOf(e.message))).toEqual(['u1', 'a1']);
+    expect(foldedLength).toBe(2);
   });
 
   it('undo stops at a compaction summary boundary', () => {
@@ -330,7 +265,7 @@ describe('reduceWireRecords', () => {
         name: 'Bash',
         args: { command: 'ls' },
       }),
-      appendMessage(userMessage('steer', { kind: 'injection', variant: 'steer' })),
+      appendMessage(userMessage('steer', { kind: 'user' })),
       loopEvent({
         type: 'tool.result',
         parentUuid: 's1',
@@ -467,30 +402,6 @@ describe('reduceWireRecords', () => {
     expect(foldedLength).toBe(2);
   });
 
-  it('rollback_attempt truncates the failed attempt tail back to the baseline', () => {
-    const { entries, foldedLength } = reduceWireRecords([
-      appendMessage(userMessage('older')),
-      appendMessage(userMessage('retry-me')),
-      appendMessage(
-        userMessage('<system-reminder>Tool workflow still ON</system-reminder>', {
-          kind: 'injection',
-          variant: 'system_reminder',
-        }),
-      ),
-      ...assistantStep('s1', 'partial'),
-      {
-        type: 'context.rollback_attempt',
-        turnId: 0,
-        historyLength: 1,
-      } as AgentRecord,
-      appendMessage(userMessage('retry-me')),
-    ]);
-    // The failed attempt (prompt copy + injection + partial assistant) is cut;
-    // the retried attempt's append is the only 'retry-me' in the live view.
-    expect(foldedLength).toBe(2);
-    expect(entries.map((e) => textOf(e.message))).toEqual(['older', 'retry-me']);
-    expect(entries.at(-1)?.message.role).toBe('user');
-  });
 
   it('wraps tool errors and empty outputs with <system> statuses like agent-core', () => {
     const { entries } = reduceWireRecords([
@@ -604,9 +515,7 @@ describe('MessageService over a compacted wire log', () => {
       ...assistantStep('s1', 'a1', SESSION_CREATED_AT + 2_000),
       appendMessage(userMessage('u2'), SESSION_CREATED_AT + 3_000),
       ...assistantStep('s2', 'a2', SESSION_CREATED_AT + 4_000),
-      // New-format record: the summary covered all 4 messages and 2 user
-      // prompts were kept verbatim, so the live fold is [u1, u2, SUM] below.
-      compaction('SUM', 4, SESSION_CREATED_AT + 5_000, 2),
+      compaction('SUM', 4, SESSION_CREATED_AT + 5_000, 1),
     ];
     await mkdir(path.join(dir, 'agents', 'main'), { recursive: true });
     await writeFile(
@@ -616,7 +525,6 @@ describe('MessageService over a compacted wire log', () => {
     );
     // What getContext would return after the fold: kept user messages + summary.
     liveHistory = [
-      userMessage('u1'),
       userMessage('u2'),
       {
         role: 'user',
@@ -635,6 +543,7 @@ describe('MessageService over a compacted wire log', () => {
     bridge = {
       rpc: rpc as CoreRPC,
       ready: vi.fn().mockResolvedValue(undefined),
+      shutdown: vi.fn().mockResolvedValue(undefined),
       dispose: vi.fn(),
       _serviceBrand: undefined,
     };
@@ -688,11 +597,7 @@ describe('MessageService over a compacted wire log', () => {
     await rm(path.join(dir, 'agents', 'main', 'wire.jsonl'));
     const page = await impl.list(SESSION_ID, { page_size: 100 });
     const asc = [...page.items].toReversed();
-    expect(asc.map((m) => (m.content[0] as { text?: string }).text)).toEqual([
-      'u1',
-      'u2',
-      'SUM',
-    ]);
+    expect(asc.map((m) => m.content)).toEqual(liveHistory.map((m) => m.content));
   });
 
   it('re-reads the wire file after it changes (cache invalidation)', async () => {
