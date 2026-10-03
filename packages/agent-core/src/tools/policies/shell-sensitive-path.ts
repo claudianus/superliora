@@ -20,7 +20,7 @@ export type ShellSensitivePathHit = {
  * (env / credential / SSH key). TUI matches this for a named notice; there is
  * no force-prefix escape hatch.
  */
-export const SHELL_SENSITIVE_PATH_CODE = 'SHELL_SENSITIVE_PATH' as const;
+const SHELL_SENSITIVE_PATH_CODE = 'SHELL_SENSITIVE_PATH' as const;
 
 /**
  * Returns a hit when the command clearly references a sensitive path.

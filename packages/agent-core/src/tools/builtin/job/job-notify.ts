@@ -7,7 +7,7 @@ import { inboxKindForStatus, pushJobInboxEvent } from './job-inbox';
 import { getJob, patchJob, type JobRecord, type JobStatus } from './job-ledger';
 
 /** Terminal and parked statuses visible on the operator inbox. */
-export function isJobExceptionalStatus(status: JobStatus): boolean {
+function isJobExceptionalStatus(status: JobStatus): boolean {
   return (
     status === 'done' ||
     status === 'failed' ||

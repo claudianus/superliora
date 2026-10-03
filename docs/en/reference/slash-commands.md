@@ -45,7 +45,7 @@ Commands that switch sessions or mutate conversation context require an idle ses
 | `/jobs [board\|deck [id]\|dock\|bg\|job_id]` | Native Jobs/Kanban and worker/background views |
 | `/job board\|deck\|dock\|bg\|list\|inbox\|resume\|cancel\|inspect` | Native job operations; use Hub for available manual review/land/push actions |
 
-Normal prompts run directly in the current workspace. A conversation fork or child session is not an isolated checkout; use an explicit native Job/worktree when isolation is needed. No harness policy forces verification or review before returning a result.
+Normal prompts run directly in the current workspace. A conversation fork or child session is not an isolated checkout; use an explicit native Job/worktree when isolation is needed. No runtime policy forces verification or review before returning a result.
 
 ## Operational views
 
@@ -53,6 +53,6 @@ Normal prompts run directly in the current workspace. A conversation fork or chi
 
 ## Removed surfaces
 
-Plan/Goal/Ask modes, `/plan`, `/goal`, `/ask`, `/memory`, skill commands, `/plugins`, `/mcp`, `/mcp-config`, persona/workflow/catalog commands, and experimental orchestration are retired. Do not replace these with aliases. Describe the task, any approval boundary, and required checks in an ordinary prompt. See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-harness-major-migration).
+Plan/Goal/Ask modes, `/plan`, `/goal`, `/ask`, `/memory`, skill commands, `/plugins`, `/mcp`, `/mcp-config`, persona/workflow/catalog commands, and experimental orchestration are retired. Do not replace these with aliases. Describe the task, any approval boundary, and required checks in an ordinary prompt. See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-runtime-major-migration).
 
 See [Keyboard shortcuts](./keyboard.md), [Interaction and input](../guides/interaction.md), and [Tools](./tools.md).

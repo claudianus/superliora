@@ -86,9 +86,9 @@ function capAppendTail(text: string, maxChars: number): string {
 }
 
 /** Cap for the parent job's result summary carried into a child worker prompt. */
-export const JOB_PRIOR_FINDINGS_MAX_CHARS = 2000;
+const JOB_PRIOR_FINDINGS_MAX_CHARS = 2000;
 
-export function jobPrompt(
+function jobPrompt(
   job: JobRecord,
   store?: ToolStore,
   recoveryWorktreeSnapshot?: string,

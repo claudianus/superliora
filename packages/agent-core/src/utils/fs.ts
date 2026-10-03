@@ -75,7 +75,7 @@ export function syncDirSync(dirPath: string): void {
  * a file that should always be there. So retry the rename first and only
  * pre-unlink after the retries are exhausted.
  */
-export async function renameReplacingTarget(tmpPath: string, filePath: string): Promise<void> {
+async function renameReplacingTarget(tmpPath: string, filePath: string): Promise<void> {
   if (process.platform !== 'win32') {
     await rename(tmpPath, filePath);
     return;

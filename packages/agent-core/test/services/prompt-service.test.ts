@@ -1551,6 +1551,23 @@ describe('PromptService durable queue', () => {
     }
   }
 
+  async function waitForPersistedPrompts(promptIds: string[]): Promise<void> {
+    await waitUntil(() => {
+      try {
+        const raw = JSON.parse(readFileSync(sidecarPath(), 'utf-8')) as {
+          prompts: Array<{ promptId: string }>;
+        };
+        return JSON.stringify(raw.prompts.map((entry) => entry.promptId))
+          === JSON.stringify(promptIds);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          return promptIds.length === 0;
+        }
+        throw error;
+      }
+    }, `durable queue: ${JSON.stringify(promptIds)}`);
+  }
+
   function turnEvents(startedTurnId: number): unknown[] {
     return [
       {
@@ -1656,6 +1673,7 @@ describe('PromptService durable queue', () => {
     const listed = await resumed.list(SID);
     expect(listed.active).not.toBeNull();
     expect(listed.queued.map((entry) => entry.prompt_id)).toEqual([fourth.prompt_id]);
+    await waitForPersistedPrompts([fourth.prompt_id]);
   });
 
   it('requeues a failed drain batch instead of dropping it and resumes on the next submit', async () => {
@@ -1690,6 +1708,7 @@ describe('PromptService durable queue', () => {
     expect(
       afterFailure.queued.map((entry) => (entry.content[0] as { text: string }).text),
     ).toEqual(['two', 'three']);
+    await waitForPersistedPrompts(afterFailure.queued.map((entry) => entry.prompt_id));
 
     // Next submit kicks the drain; the requeued batch still leads. Calls:
     // #1 'one', #2 failed merged attempt (recorded by the once-mock), #3 the
@@ -1703,6 +1722,7 @@ describe('PromptService durable queue', () => {
       agentId: 'main',
       input: [{ type: 'text', text: 'two\n\nthree\n\nfour' }],
     });
+    await waitForPersistedPrompts([]);
   });
 
   it('tolerates a corrupt sidecar on hydration', async () => {
@@ -1731,6 +1751,7 @@ describe('PromptService durable queue', () => {
       mkBodyMinimal({ agent_id: 'agent_btw', content: [{ type: 'text', text: 'queued' }] }),
     );
     expect(queued.status).toBe('queued');
+    await waitForPersistedPrompts([queued.prompt_id]);
 
     const result = await impl.steer(SID, [queued.prompt_id]);
 
@@ -1743,5 +1764,6 @@ describe('PromptService durable queue', () => {
       },
     ]);
     expect((await impl.list(SID)).queued).toHaveLength(0);
+    await waitForPersistedPrompts([]);
   });
 });

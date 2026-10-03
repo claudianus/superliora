@@ -69,7 +69,7 @@ The adapter supports the normal initialize → authenticate → new/load/resume 
 
 All methods not listed above return `methodNotFound`.
 
-## Minimal harness contract
+## Minimal runtime contract
 
 The adapter exposes Bash and SessionControl, just like the terminal session. Nonempty `mcpServers` lists on new/load/resume requests are rejected with `invalidParams`; pass an empty list. No transport is silently forwarded or dropped.
 

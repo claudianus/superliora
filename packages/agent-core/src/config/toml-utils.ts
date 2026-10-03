@@ -13,18 +13,6 @@ export function cloneUnknown<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export function cloneObjectValue(value: unknown): unknown {
-  return isPlainObject(value) ? cloneUnknown(value) : value;
-}
-
-export function setDefined(target: Record<string, unknown>, key: string, value: unknown): void {
-  if (value !== undefined) {
-    target[key] = value;
-  } else {
-    delete target[key];
-  }
-}
-
 export function isFileExistsError(error: unknown): boolean {
   return (
     typeof error === 'object' &&

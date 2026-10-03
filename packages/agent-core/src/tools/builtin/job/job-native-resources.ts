@@ -141,7 +141,7 @@ export function listJobNativeResourceIds(store: ToolStore): readonly string[] {
 }
 
 /** Join every admitted operation before reporting any execution failure. */
-export async function waitForJobNativeOperations(store: ToolStore, jobId?: string): Promise<void> {
+async function waitForJobNativeOperations(store: ToolStore, jobId?: string): Promise<void> {
   const errors: unknown[] = [];
   for (;;) {
     const jobs = stores.get(store);

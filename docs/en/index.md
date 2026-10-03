@@ -5,7 +5,7 @@
 > Pages under `docs/en/` are unpublished reference. They are not deployed.
 > Prefer the site for current product behavior.
 
-SuperLiora is an independent AI coding agent with a minimal autonomous harness.
+SuperLiora is an independent AI coding agent with a minimal autonomous runtime.
 The model uses Bash and SessionControl. Normal requests run directly in the
 workspace; native Jobs and explicit worktrees provide opt-in isolation.
 

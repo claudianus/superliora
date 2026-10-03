@@ -6,7 +6,7 @@ export const USER_PROMPT_ORIGIN: UserPromptOrigin = { kind: 'user' };
 export interface ShellCommandOrigin { readonly kind: 'shell_command'; readonly phase: 'input' | 'output'; readonly isError?: boolean }
 export interface CompactionSummaryOrigin { readonly kind: 'compaction_summary' }
 export interface SystemTriggerOrigin { readonly kind: 'system_trigger'; readonly name: string }
-export interface BackgroundTaskOrigin { readonly kind: 'background_task'; readonly taskId: string; readonly status: BackgroundTaskStatus; readonly notificationId: string }
+interface BackgroundTaskOrigin { readonly kind: 'background_task'; readonly taskId: string; readonly status: BackgroundTaskStatus; readonly notificationId: string }
 export interface RetryOrigin { readonly kind: 'retry'; readonly trigger?: string }
 export type PromptOrigin = UserPromptOrigin | ShellCommandOrigin | CompactionSummaryOrigin | SystemTriggerOrigin | BackgroundTaskOrigin | RetryOrigin;
 export type UserPromptDisposition = 'keep' | 'drop';

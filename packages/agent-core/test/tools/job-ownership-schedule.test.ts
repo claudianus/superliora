@@ -7,10 +7,7 @@ import {
   listJobs,
   patchJob,
 } from '../../src/tools/builtin/job/job-ledger';
-import {
-  jobIdFromLeaseRunId,
-  ownershipPathsOverlap,
-} from '../../src/tools/builtin/job/job-ownership';
+import { ownershipPathsOverlap } from '../../src/tools/builtin/job/job-ownership';
 import { nextQueuedJobs, scheduleQueuedJobs } from '../../src/tools/builtin/job/job-runtime';
 import { launchJobWorker } from '../../src/tools/builtin/job/job-worker';
 import type { ToolStore } from '../../src/tools/store';
@@ -36,7 +33,6 @@ describe('job ownership schedule gate', () => {
     expect(ownershipPathsOverlap(['a/Boss.js'], ['a/Boss.js'])).toBe('a/Boss.js');
     expect(ownershipPathsOverlap(['a/Boss.js'], ['a/Other.js'])).toBeUndefined();
     expect(ownershipPathsOverlap(undefined, ['a/Boss.js'])).toBeUndefined();
-    expect(jobIdFromLeaseRunId('job:job_abc:deadbeef')).toBe('job_abc');
   });
 
   it('defers a queued job while a running job holds the same ownership path', async () => {

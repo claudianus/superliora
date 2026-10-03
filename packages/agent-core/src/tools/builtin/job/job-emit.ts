@@ -35,7 +35,7 @@ function landReceiptFromJob(job: JobRecord): JobSnapshot['landReceipt'] {
   };
 }
 
-export function effectPreviewFromJob(job: JobRecord): JobEffectPreview {
+function effectPreviewFromJob(job: JobRecord): JobEffectPreview {
   const isolation = job.worktreePath === undefined ? 'none' : 'worktree';
   return {
     isolation,

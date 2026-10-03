@@ -268,11 +268,3 @@ export function formatSessionOutcomeLine(row: SessionOutcomeRow): string {
   const reason = row.reason !== undefined && row.reason.length > 0 ? ` — ${row.reason}` : '';
   return `[${row.statusLabel}] ${row.title}${child}${reason}`;
 }
-
-/**
- * Whether the session board is worth opening.
- * Empty sessions and single-job sessions stay quiet (no composer takeover).
- */
-export function shouldOpenSessionOutcomeBoard(jobCount: number): boolean {
-  return jobCount >= 2;
-}

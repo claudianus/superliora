@@ -3,7 +3,7 @@ import type { Readable } from 'node:stream';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const GIT_OUTPUT_CAP_CHARS = 10 * 1024 * 1024;
-export interface GitCommandResult {
+interface GitCommandResult {
   readonly ok: boolean;
   readonly stdout: string;
   readonly stderr: string;

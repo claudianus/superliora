@@ -23,7 +23,7 @@ export interface FanoutSpec {
   readonly onReady?: () => void;
 }
 
-export function runOptionsForTask(spec: FanoutSpec, task: FanoutTask): RunSubagentOptions {
+function runOptionsForTask(spec: FanoutSpec, task: FanoutTask): RunSubagentOptions {
   return {
     parentToolCallId: spec.parentToolCallId,
     parentToolCallUuid: spec.parentToolCallUuid,
@@ -42,7 +42,7 @@ export function runOptionsForTask(spec: FanoutSpec, task: FanoutTask): RunSubage
   };
 }
 
-export function spawnOptionsForTask(spec: FanoutSpec, task: FanoutTask): SpawnSubagentOptions {
+function spawnOptionsForTask(spec: FanoutSpec, task: FanoutTask): SpawnSubagentOptions {
   return { ...runOptionsForTask(spec, task), profileName: task.profileName };
 }
 

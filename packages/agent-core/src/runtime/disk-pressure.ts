@@ -55,7 +55,6 @@ export interface DiskPressureSnapshot {
   readonly home?: StorageBytesReport;
   readonly lastGc?: StorageGcReport;
   readonly pendingUserReclaim: boolean;
-  readonly recoveredPending: boolean;
   readonly atMs: number;
 }
 
@@ -77,7 +76,6 @@ let config: DiskPressureConfig = {};
 let snapshot: DiskPressureSnapshot = {
   level: 'ok',
   pendingUserReclaim: false,
-  recoveredPending: false,
   atMs: 0,
 };
 let lastEmergencyGcMs = 0;
@@ -237,18 +235,11 @@ export function isStorageWriteDegraded(): boolean {
   return snapshot.level === 'critical';
 }
 
-export function consumeRecoveredInjection(): boolean {
-  if (!snapshot.recoveredPending) return false;
-  snapshot = { ...snapshot, recoveredPending: false };
-  return true;
-}
-
 export function resetDiskPressureForTests(): void {
   config = {};
   snapshot = {
     level: 'ok',
     pendingUserReclaim: false,
-    recoveredPending: false,
     atMs: 0,
   };
   lastEmergencyGcMs = 0;
@@ -357,7 +348,6 @@ export async function reportDiskPressure(error?: unknown): Promise<DiskPressureS
     level = classifyPressureLevel(volume, writeFailed, 'critical');
   }
 
-  const recoveredPending = previous !== 'ok' && level === 'ok';
   const pendingUserReclaim = level === 'critical';
   snapshot = {
     level,
@@ -366,7 +356,6 @@ export async function reportDiskPressure(error?: unknown): Promise<DiskPressureS
     ...(home !== undefined ? { home } : {}),
     ...(lastGc !== undefined ? { lastGc } : {}),
     pendingUserReclaim,
-    recoveredPending: recoveredPending || (snapshot.recoveredPending && level === 'ok'),
     atMs: nowMs(),
   };
   notifyListeners();

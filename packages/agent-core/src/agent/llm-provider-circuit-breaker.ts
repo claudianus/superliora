@@ -1,11 +1,5 @@
-/**
- * LLM provider / route failover ↔ Agent.circuitBreakerRegistry wiring.
- *
- * Mirrors {@link attachResearchSearchCircuitBreakers}: record failures when
- * route failover or turn-level auto_retry fires; reset on success after recovery.
- */
+/** Record native provider / route outcomes in Agent.circuitBreakerRegistry. */
 
-import type { LioraErrorPayload } from '#/errors';
 import type { CircuitBreakerRegistry } from '#/runtime/circuit-breaker';
 
 import type { Agent } from './index';
@@ -16,16 +10,16 @@ import type {
 } from './turn/provider-route-types';
 
 /** Never-Halt scope for a configured provider id (e.g. `llm:primary`). */
-export function llmProviderScopeId(providerId: string): string {
+function llmProviderScopeId(providerId: string): string {
   return `llm:${providerId}`;
 }
 
 /** Never-Halt scope for a model route key (e.g. `llm:k2`). */
-export function llmRouteScopeId(routeKey: string): string {
+function llmRouteScopeId(routeKey: string): string {
   return `llm:${routeKey}`;
 }
 
-export function formatLlmProviderFailureReason(
+function formatLlmProviderFailureReason(
   error: unknown,
   failure?: ProviderRouteFailure,
 ): string {
@@ -35,18 +29,6 @@ export function formatLlmProviderFailureReason(
   }
   if (failure !== undefined) return failure.kind;
   return 'llm provider error';
-}
-
-export function formatLlmTurnFailureReason(error: LioraErrorPayload): string {
-  const message = error.message?.trim();
-  if (message !== undefined && message.length > 0) return message;
-  return error.code;
-}
-
-export function resolveAgentLlmProviderId(agent: Agent): string | undefined {
-  const alias = agent.config.modelAlias;
-  if (alias === undefined) return undefined;
-  return (agent.runtimeConfig ?? agent.kimiConfig)?.models?.[alias]?.provider;
 }
 
 export type LlmProviderCircuitObserver = {
@@ -97,35 +79,3 @@ export function attachLlmProviderCircuitBreakers(
   return createLlmProviderCircuitObserver(agent.circuitBreakerRegistry, onChanged);
 }
 
-export function recordLlmTurnProviderFailure(agent: Agent, error: LioraErrorPayload): void {
-  const providerId = resolveAgentLlmProviderId(agent);
-  if (providerId === undefined) return;
-  const reason = formatLlmTurnFailureReason(error);
-  const registry = agent.circuitBreakerRegistry;
-  const providerScope = llmProviderScopeId(providerId);
-  registry.get(providerScope).recordFailure(reason);
-  const routeKey = agent.config.modelAlias;
-  if (routeKey !== undefined) {
-    const routeScope = llmRouteScopeId(routeKey);
-    if (routeScope !== providerScope) {
-      registry.get(routeScope).recordFailure(reason);
-    }
-  }
-  agent.emitStatusUpdated();
-}
-
-export function recordLlmTurnProviderSuccess(agent: Agent): void {
-  const providerId = resolveAgentLlmProviderId(agent);
-  if (providerId === undefined) return;
-  const registry = agent.circuitBreakerRegistry;
-  const providerScope = llmProviderScopeId(providerId);
-  registry.get(providerScope).recordSuccess();
-  const routeKey = agent.config.modelAlias;
-  if (routeKey !== undefined) {
-    const routeScope = llmRouteScopeId(routeKey);
-    if (routeScope !== providerScope) {
-      registry.get(routeScope).recordSuccess();
-    }
-  }
-  agent.emitStatusUpdated();
-}

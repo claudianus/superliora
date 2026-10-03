@@ -86,7 +86,7 @@ To ask for an explanation before edits, use an ordinary prompt:
 liora -p "Read the code and explain the proposed implementation. Do not edit files."
 ```
 
-Plan/Goal modes, `--plan`, `--profile`, `--skills-dir`, `--plugin-dir`, `--channels`, `--resume-goal`, and `--autonomous-gate` are retired. See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-harness-major-migration).
+Plan/Goal modes, `--plan`, `--profile`, `--skills-dir`, `--plugin-dir`, `--channels`, `--resume-goal`, and `--autonomous-gate` are retired. See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-runtime-major-migration).
 
 ## Non-Interactive Execution
 

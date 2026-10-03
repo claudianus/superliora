@@ -1,8 +1,4 @@
-import {
-  globMatch,
-  pathGlobMatch,
-  type PermissionPathMatchOptions,
-} from './path-glob-match';
+import { globMatch } from './path-glob-match';
 
 const GLOB_LITERAL_SPECIAL = /[\\*?[\]{}()!+@|]/g;
 
@@ -16,16 +12,6 @@ export function escapeRuleSubjectLiteral(subject: string): string {
 
 export function matchesGlobRuleSubject(ruleArgs: string, subject: string): boolean {
   return matchRuleSubjects(ruleArgs, [subject], (pattern, value) => globMatch(value, pattern));
-}
-
-export function matchesPathRuleSubject(
-  ruleArgs: string,
-  subject: string,
-  options?: PermissionPathMatchOptions,
-): boolean {
-  return matchRuleSubjects(ruleArgs, [subject], (pattern, value) =>
-    pathGlobMatch(value, pattern, options),
-  );
 }
 
 function matchRuleSubjects(

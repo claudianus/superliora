@@ -24,27 +24,6 @@ function isLiveStreamingContent(state: TUIState): boolean {
   );
 }
 
-export function invalidateTUIFrame(state: TUIState, intent: FrameInvalidationIntent): void {
-  if (shouldSuppressTUIFrameRequests(state)) return;
-  // During active transcript scroll, content/layout invalidations fight pure-
-  // scroll paint (streaming tools, footer). Coalesce to settle refresh.
-  // Content only yields during a real wheel storm; layout keeps the heavy hold.
-  // Live streaming content stays exempt so type-on does not pause mid-wheel.
-  if (
-    intent === 'content' &&
-    shouldDeferTranscriptContentInvalidation() &&
-    !isLiveStreamingContent(state)
-  ) {
-    scheduleTranscriptScrollSettleRefresh(state);
-    return;
-  }
-  if (intent === 'layout' && shouldDeferTranscriptHeavyInvalidation()) {
-    scheduleTranscriptScrollSettleRefresh(state, { intent: 'layout' });
-    return;
-  }
-  state.renderer.invalidateFrame(intent);
-}
-
 export function requestTUIContentRender(state: TUIState): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
   // Content (stream deltas, reveal ticks) only yields during a real wheel storm.

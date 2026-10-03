@@ -68,10 +68,10 @@ Use the real returned ID in subsequent calls:
 
 Child sessions have independent conversation context, not automatic checkout isolation. `cwd` deliberately selects a directory or an existing isolated worktree; `ownership` is an optional claim, not an OS sandbox. A standalone Agent can execute Bash without a graph ID; child spawning requires a session host.
 
-Full compaction retains the latest real user request and replaces the superseded completed prefix. It is not automatic. Conversation/journal replay restores records without executing effects again. A failed worker or harness step is not automatically retried; native cleanup ownership remains held until physical settlement, which does not rerun effects.
+Full compaction retains the latest real user request and replaces the superseded completed prefix. It is not automatic. Conversation/journal replay restores records without executing effects again. A failed worker or execution step is not automatically retried; native cleanup ownership remains held until physical settlement, which does not rerun effects.
 
 ## Retired tools
 
 File/search/web/media, Memory, skills, plugins/MCP, plan/goals/todos, Agent/Task orchestration, and specialized job tools are not part of the model-visible API. Native Jobs/Kanban, manual review, land, and push remain operator workflows. There is no mandatory test or review pass.
 
-See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-harness-major-migration), [Sessions and context](../guides/sessions.md), and [Slash commands](./slash-commands.md).
+See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-runtime-major-migration), [Sessions and context](../guides/sessions.md), and [Slash commands](./slash-commands.md).

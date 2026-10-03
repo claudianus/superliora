@@ -4,14 +4,6 @@ import { defineConfig } from 'vitest/config';
 
 import { rawTextPlugin } from '../../build/raw-text-plugin.mjs';
 
-// `rawTextPlugin` is needed even for server-only tests because the server
-// wires CoreProcessService → LioraCore, which drags in agent-core's
-// `tools/builtin/*` tree that imports 20+ raw `.md` description files.
-// Without the plugin those imports fail with "Failed to resolve import".
-//
-// Workspace `resolve.alias` mirrors `packages/services/vitest.config.ts:11` so
-// tests run against src/index.ts (not built dist/) — keeps the feedback loop
-// tight when adjacent packages change.
 export default defineConfig({
   plugins: [rawTextPlugin()],
   resolve: {
@@ -61,7 +53,6 @@ export default defineConfig({
     name: 'server',
     testTimeout: 30_000,
     hookTimeout: 30_000,
-    setupFiles: [fileURLToPath(new URL('../agent-core/test/setup-windows-fs.ts', import.meta.url))],
     include: ['test/**/*.{test,e2e}.ts'],
     // The server e2e tests pull in the full agent-core tree, which makes module
     // import very slow on Windows runners and destabilizes the test-windows job

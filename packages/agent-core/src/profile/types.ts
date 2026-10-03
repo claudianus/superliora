@@ -9,7 +9,7 @@ export interface SystemPromptContext {
   readonly additionalDirsInfo?: string;
 }
 
-export type SystemPromptRenderer = (context: SystemPromptContext) => string;
+type SystemPromptRenderer = (context: SystemPromptContext) => string;
 
 export interface LayeredSystemPrompt {
   readonly layer1Static: string;
@@ -18,7 +18,7 @@ export interface LayeredSystemPrompt {
   readonly combined: string;
 }
 
-export type LayeredSystemPromptRenderer = (context: SystemPromptContext) => LayeredSystemPrompt;
+type LayeredSystemPromptRenderer = (context: SystemPromptContext) => LayeredSystemPrompt;
 
 export interface ResolvedAgentProfile {
   readonly name: string;

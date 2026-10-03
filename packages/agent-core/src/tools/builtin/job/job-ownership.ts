@@ -62,27 +62,7 @@ export function findOwnershipHolder(
   return undefined;
 }
 
-/** Parse `job:<jobId>:<uuid8>` run ids used by launchJobWorker. */
-export function jobIdFromLeaseRunId(runId: string): string | undefined {
-  const match = /^job:([^:]+):/.exec(runId.trim());
-  const id = match?.[1]?.trim();
-  return id !== undefined && id.length > 0 ? id : undefined;
-}
-
-/** Extract holder job id from claimChildOwnership error text when present. */
-export function holderJobIdFromOwnershipError(detail: string): string | undefined {
-  const runMatch = /run=(job:[^\s.]+)/.exec(detail);
-  if (runMatch?.[1] !== undefined) {
-    return jobIdFromLeaseRunId(runMatch[1]);
-  }
-  return undefined;
-}
-
-export function isOwnershipConflictError(detail: string): boolean {
-  return /Ownership conflict/i.test(detail);
-}
-
-export function ownershipDeferredNote(holderJobId: string, path: string): string {
+function ownershipDeferredNote(holderJobId: string, path: string): string {
   return `${OWNERSHIP_DEFERRED_PREFIX} held_by=${holderJobId} path=${path}`;
 }
 

@@ -34,7 +34,7 @@ export const AUTO_GIT_INIT_ENV = 'SUPERLIORA_AUTO_GIT_INIT';
 export const GIT_BOOTSTRAP_BASELINE_MESSAGE =
   'chore(superliora): baseline snapshot for worktree isolation';
 
-export type GitRepoBootstrapResult =
+type GitRepoBootstrapResult =
   | {
       readonly ok: true;
       /** Resolved repository root (may differ from the requested path). */
@@ -47,7 +47,7 @@ export type GitRepoBootstrapResult =
   | { readonly ok: false; readonly error: string };
 
 /** Manual-setup hint appended to opt-out / bootstrap failures. */
-export const GIT_BOOTSTRAP_SETUP_HINT =
+const GIT_BOOTSTRAP_SETUP_HINT =
   `Worktrees need a git repository with at least one commit. Run ` +
   `"git init && git add -A && git commit -m 'baseline'" in the project root ` +
   `(add "--allow-empty" when the folder has no files), then retry — or unset ` +

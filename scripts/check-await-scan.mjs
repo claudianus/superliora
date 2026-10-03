@@ -1,44 +1,15 @@
 #!/usr/bin/env node
 /**
- * V2-4 await scan — ratchet gate for hot-path await violations in the job family.
+ * Native Job await scan: interactive paths must not wait for worker scheduling
+ * or a git land operation before returning their acknowledgement.
  *
- * Scans every .ts file under two roots (recursive):
- *   - packages/agent-core/src/tools/builtin/job
- *   - packages/agent-core/src/session/job
+ * Scans the native tool and session Job directories recursively.
+ * Worker spawn/schedule awaits belong only in the background offload sink.
+ * Land awaits belong only in the merge sink, including the internal
+ * performLandJobToMain body called under the native resource guard.
  *
- * Two lanes:
- *   - worker lane: `await launchJobWorker | scheduleQueuedJobs` — the
- *     interactive lane must never wait on worker spawn/schedule results.
- *     Hard cap 0 (V2-1 + V2-2 wiring: offload pump + WorkerSpawner).
- *     The designated background sink `src/session/job/job-offload.ts` is
- *     exempt (it IS the offload lane the awaits moved into); the exemption
- *     is ratcheted: the file must keep at least one such await, otherwise
- *     the exemption is stale and the gate fails.
- *   - merge lane: `await landJobToMain` — the interactive lane must never
- *     run a git merge. V2-5 offloaded execution to a kind=merge landing job;
- *     the lane is ratcheted to 0. The designated merge sink
- *     `dispatchMergeLand` in `src/tools/builtin/job/job-land.ts` is exempt
- *     (it IS the offload lane the merge awaits moved into); the exemption is
- *     ratcheted: the file must keep at least one such await, otherwise the
- *     exemption is stale and the gate fails.
- *
- * Exit code: 1 when the worker lane exceeds 0, the merge lane exceeds its
- * baseline, or the combined total exceeds the legacy baseline. Lower the
- * baselines as violations are removed; never raise them without a gate
- * decision.
- *
- * BASELINE history:
- *   9 — measured on the pre-wiring tree (4x launchJobWorker, 4x
- *       scheduleQueuedJobs, 1x landJobToMain). The earlier "6" estimate
- *       (reports/2026-08-03-v2-gate-evidence.md) predated counting
- *       scheduleQueuedJobs awaits.
- *   post-wiring — worker lane 0 (launchJobWorker/scheduleQueuedJobs removed
- *       from every ACK/completion path); merge lane 1 (landJobToMain, V2-5
- *       residual). The combined legacy baseline stays 9 until V2-5 lands,
- *       keeping the await-scan gate test's tripwire intact.
- *   V2-5 — merge lane 0: MergeJob returns the trust verdict only; the land
- *       runs on a kind=merge landing job (dispatchMergeLand, job-land.ts).
- *       Combined baseline lowered to 0 — both lanes clean.
+ * Both interactive lanes have a hard cap of zero. Each designated sink must
+ * retain a real await so its exemption cannot become stale.
  *
  * Usage (from the repository root):
  *   node scripts/check-await-scan.mjs
@@ -56,7 +27,7 @@ const OFFLOAD_SINK = 'packages/agent-core/src/session/job/job-offload.ts';
 const MERGE_SINK = 'packages/agent-core/src/tools/builtin/job/job-land.ts';
 
 const WORKER_PATTERN = /(await\s+(launchJobWorker|scheduleQueuedJobs))\b/g;
-const MERGE_PATTERN = /(await\s+landJobToMain)\b/g;
+const MERGE_PATTERN = /(await\s+(?:landJobToMain|performLandJobToMain))\b/g;
 
 const repoRoot = process.cwd();
 const scanRoots = [

@@ -95,7 +95,7 @@ jobs:
       # was absent from this shard entirely. Keep this list in sync when
       # touching platform-conditional code.
       - name: Windows-sensitive agent-core suites
-        run: node scripts/test-local.mjs packages/agent-core/test/session/worktree.test.ts packages/agent-core/test/session/worktree-removal-safety.test.ts packages/agent-core/test/tools/rg-locator.test.ts packages/agent-core/test/tools/bash.test.ts packages/agent-core/test/utils/fs-atomic-write.test.ts packages/agent-core/test/services/fs-watcher-path-identity.test.ts --testTimeout=30000 --maxWorkers=2 --retry=1
+        run: node scripts/test-local.mjs packages/agent-core/test/session/worktree.test.ts packages/agent-core/test/session/worktree-removal-safety.test.ts packages/agent-core/test/tools/bash.test.ts packages/agent-core/test/utils/fs-atomic-write.test.ts packages/agent-core/test/services/fs-watcher-path-identity.test.ts --testTimeout=30000 --maxWorkers=2 --retry=1
       - run: node scripts/test-local.mjs apps/liora/test packages/tui-renderer/test packages/kaos/test packages/acp-adapter/test packages/server-e2e/test --shard=${{ matrix.shard }}/2 --testTimeout=30000 --maxWorkers=2 --retry=1
 
   test-windows-full:

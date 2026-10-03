@@ -1,6 +1,6 @@
 import type { RuntimeDegradedEvent, RuntimeDegradedScope } from '@superliora/protocol';
 
-export const CIRCUIT_BREAKER_DEGRADED_HINT =
+const CIRCUIT_BREAKER_DEGRADED_HINT =
   'Circuit breaker opened; /ops shows live provider status.';
 
 /** Classify the actual native breaker scope for clients. */

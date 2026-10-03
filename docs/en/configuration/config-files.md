@@ -65,7 +65,7 @@ Fields in the config file fall into two categories: **top-level scalars** that d
 | `background` | `table` | — | Background task runtime parameters → [`background`](#background) |
 | `permission` | `table` | — | Initial permission rules → [`permission`](#permission) |
 
-The native runtime schema retains `providers`, `models`, `thinking`, `permission`, `loop_control`, `background`, `cache`, and `model_catalog`, plus default model/provider, permission, thinking, sandbox, and telemetry fields. See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-harness-major-migration) before reusing an older config.
+The native runtime schema retains `providers`, `models`, `thinking`, `permission`, `loop_control`, `background`, `cache`, and `model_catalog`, plus default model/provider, permission, thinking, sandbox, and telemetry fields. See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-runtime-major-migration) before reusing an older config.
 
 ## `providers`
 
@@ -120,7 +120,7 @@ You can also switch models temporarily without touching the config file — by s
 
 ### Model fallback
 
-Model fallback is opt-in. Native configured routes may select a configured candidate before output is emitted; this is not a harness step retry or a restart of a failed worker.
+Model fallback is opt-in. Native configured routes may select a configured candidate before output is emitted; this is not an execution-step retry or a restart of a failed worker.
 
 On an existing configured model alias, tune its route:
 

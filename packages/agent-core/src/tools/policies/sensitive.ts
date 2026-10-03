@@ -79,7 +79,7 @@ const ENV_EXEMPTIONS = new Set<string>(['.env.example', '.env.sample', '.env.tem
 
 const SENSITIVE_BASENAME_PREFIXES = ['id_rsa', 'id_ed25519', 'id_ecdsa', 'credentials'];
 const PUBLIC_KEY_BASENAMES = new Set<string>(['id_rsa.pub', 'id_ed25519.pub', 'id_ecdsa.pub']);
-export const SENSITIVE_DOT_VARIANT_SUFFIXES = [
+const SENSITIVE_DOT_VARIANT_SUFFIXES = [
   '.bak',
   '.backup',
   '.copy',

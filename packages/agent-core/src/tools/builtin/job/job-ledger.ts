@@ -47,7 +47,7 @@ export function writeJobLedger(store: ToolStore, ledger: JobLedger): void {
  * (parent-chain scheduling + affinity reuse resolve parentJobId from the
  * ledger — evicting a referenced parent would strand its children).
  */
-export const JOB_LEDGER_MAX_JOBS = 500;
+const JOB_LEDGER_MAX_JOBS = 500;
 
 const PRUNABLE_STATUSES: ReadonlySet<JobStatus> = new Set([
   'done',
@@ -56,7 +56,7 @@ const PRUNABLE_STATUSES: ReadonlySet<JobStatus> = new Set([
   'interrupted',
 ]);
 
-export function pruneJobLedgerJobs(
+function pruneJobLedgerJobs(
   jobs: readonly JobRecord[],
 ): { readonly jobs: readonly JobRecord[]; readonly pruned: readonly JobRecord[] } {
   if (jobs.length <= JOB_LEDGER_MAX_JOBS) return { jobs, pruned: [] };
@@ -328,7 +328,7 @@ export function renderJobWaitLabel(job: Pick<JobRecord, 'status' | 'parentJobId'
  * Compact live-progress suffix for a running job, e.g.
  * ` — Bash: pnpm test · 12s ago`. Empty when the worker has not reported yet.
  */
-export function renderJobProgressSuffix(job: JobRecord, nowMs: number = Date.now()): string {
+function renderJobProgressSuffix(job: JobRecord, nowMs: number = Date.now()): string {
   const progress = job.progress;
   if (progress === undefined) return '';
   const parts: string[] = [];
@@ -342,11 +342,6 @@ export function renderJobProgressSuffix(job: JobRecord, nowMs: number = Date.now
     }
   }
   return parts.length === 0 ? '' : ` — ${parts.join(' · ')}`;
-}
-
-export function renderJobLedger(jobs: readonly JobRecord[]): string {
-  if (jobs.length === 0) return 'Job ledger is empty.';
-  return ['Job ledger:', ...jobs.map(renderJobLine)].join('\n');
 }
 
 export type {

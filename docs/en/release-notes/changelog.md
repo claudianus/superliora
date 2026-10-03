@@ -8,10 +8,10 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
-## Unreleased — native harness major cutover
+## Unreleased — native runtime major cutover
 
 - Expose exactly Bash and SessionControl to the model. Ordinary requests run directly in the workspace; native Jobs retain explicit worktree isolation and manual review, land, and push controls.
-- Remove cognitive instruction injection, plans, goals, skill/plugin/MCP catalogs, automatic memory and continuations, role routing, forced verification/review, and automatic harness step or worker retries. Explicit operator retry and configured native provider routes remain.
+- Remove cognitive instruction injection, plans, goals, skill/plugin/MCP catalogs, automatic memory and continuations, role routing, forced verification/review, and automatic execution-step or worker retries. Explicit operator retry and configured native provider routes remain.
 - Keep durable sessions, completed-history aside forks, explicit full compaction, approvals, native processes, cancellation, and live worker activity. Failed cleanup retains physical ownership; requesting cancellation does not imply completion.
 - Force native terminal exit on explicit close, including shells that ignore hangup. Signal-only termination has no numeric exit code, and live terminals protect their working directories from worktree cleanup.
 - Use unbiased background task IDs and linear native path/error parsing. Debug environment reports omit inherited values while preserving the actual child environment and login.

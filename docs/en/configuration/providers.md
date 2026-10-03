@@ -297,7 +297,7 @@ export QWEN_TOKEN_PLAN_BASE_URL=https://token-plan.ap-southeast-1.maas.aliyuncs.
 
 - **Text models** — `qwen3.8-max` (default), `qwen3.8-flash`, `qwen3.7-max`, `qwen3.7-plus`, `qwen3.6-flash`, `glm-5.2`, `deepseek-v4-pro`, `deepseek-v4-pro-0813`, `deepseek-v4-flash-0731`. The retired id `qwen3.8-max-preview` still works and is routed to production `qwen3.8-max`; prefer the production id in new configs.
 - **Visual understanding** — choose a chat model with the required image/video capabilities. Automatic cross-model media analyzers and dedicated model-visible generation tools are retired.
-- **Harness tools** — the upstream service may offer server-side APIs, but SuperLiora exposes only Bash and SessionControl to the model. Call external APIs with ordinary shell programs when appropriate.
+- **Server-side tools** — the upstream service may offer server-side APIs, but SuperLiora exposes only Bash and SessionControl to the model. Call external APIs with ordinary shell programs when appropriate.
 - **Quota and billing** — Personal Edition uses a 7-day fixed-window Credits limit (paused until the window resets when exhausted; unused quota does not carry over); Team Edition is monthly per seat. Calls on plan models draw down Credits; `429 Allocated quota exceeded` marks the pause, and the router skips the credential until the window resets. Half-price nights (22:00–08:00 UTC+8) apply to `qwen3.8-max`, `deepseek-v4-pro-0813`, and `deepseek-v4-flash-0731` on the Personal plan.
 
 Keep to the plan rules: Token Plan keys are for interactive use inside agent/coding tools only (no backend automation), the `sk-sp-` key is not interchangeable with regular `sk-`/`sk-ws-` keys, and mixing the plan key with the standard `dashscope-intl.aliyuncs.com` base URL silently re-routes your calls to pay-as-you-go billing.
@@ -327,7 +327,7 @@ Fallback model presets (used when the live models.dev catalog is unavailable): `
 
 ## Minimal tool surface
 
-Provider authentication, metadata, credential pools, and configured native routes remain available. They do not install additional model-visible tools. Automatic provider extras, MCP injection, agent capability catalogs, and task-role model selection are retired. Failed harness steps and workers are not automatically restarted.
+Provider authentication, metadata, credential pools, and configured native routes remain available. They do not install additional model-visible tools. Automatic provider extras, MCP injection, agent capability catalogs, and task-role model selection are retired. Failed execution steps and workers are not automatically restarted.
 
 ## Next steps
 

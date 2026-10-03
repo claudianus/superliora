@@ -60,7 +60,7 @@ export function resolveThinkingEffort(
   return clampEffortToModelSupport(parsed, model);
 }
 
-export function defaultThinkingEffortFor(
+function defaultThinkingEffortFor(
   model: ThinkingModelDefaults | undefined,
 ): ThinkingEffort {
   const modelDefault = parseEffort(model?.defaultEffort);
@@ -81,7 +81,7 @@ export function defaultThinkingEffortFor(
  * nearest supported rung (prefer lower, then higher). Without a declaration
  * the effort is returned unchanged.
  */
-export function clampEffortToModelSupport(
+function clampEffortToModelSupport(
   effort: ThinkingEffort,
   model: ThinkingModelDefaults | undefined,
 ): ThinkingEffort {

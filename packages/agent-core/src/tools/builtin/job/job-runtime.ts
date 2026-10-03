@@ -133,7 +133,7 @@ function readPositiveInt(raw: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-export function countJobsWithStatus(
+function countJobsWithStatus(
   store: ToolStore,
   statuses: readonly JobStatus[],
 ): number {
@@ -147,13 +147,6 @@ export function countRunningPoolJobs(store: ToolStore): number {
   return listJobs(store).filter(
     (j) => j.status === 'running' || getJobWorkerHandle(j.id) !== undefined || hasJobNativeResources(store, j.id),
   ).length;
-}
-
-export function canStartMoreJobs(
-  store: ToolStore,
-  maxConcurrent: number = resolveConductorPoolConfig().maxConcurrentJobs,
-): boolean {
-  return countRunningPoolJobs(store) < maxConcurrent;
 }
 
 /**
@@ -211,7 +204,7 @@ function parentAllowsSchedule(
 
 
 /** Tracer-bullet DAG: every listed blocker must be `done` before this Job starts. */
-export function blockersAllowSchedule(
+function blockersAllowSchedule(
   byId: ReadonlyMap<string, JobRecord>,
   job: JobRecord,
 ): boolean {
@@ -441,7 +434,7 @@ async function performJobWorktreeAssignment(
   }
 }
 
-export function worktreeNameForJob(jobId: string): string {
+function worktreeNameForJob(jobId: string): string {
   // git worktree slug: keep short/safe
   const compact = jobId.replace(/^job_/, 'j').replaceAll(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
   return `conductor-${compact || 'job'}`;
@@ -571,7 +564,7 @@ export interface ScheduleJobsResult {
 }
 
 
-export function needsWorktree(job: Pick<JobRecord, 'kind'>): boolean {
+function needsWorktree(job: Pick<JobRecord, 'kind'>): boolean {
   return job.kind !== 'merge' && job.kind !== 'push';
 }
 

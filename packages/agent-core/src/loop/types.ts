@@ -55,7 +55,7 @@ export interface TurnResult {
   durationMs?: number;
 }
 
-export type ExecutableToolOutput = string | ContentPart[];
+type ExecutableToolOutput = string | ContentPart[];
 
 export interface ExecutableToolSuccessResult {
   readonly output: ExecutableToolOutput;

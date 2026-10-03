@@ -12,7 +12,7 @@ export function summarizeTurnError(error: unknown, turnId: number): LioraErrorPa
   };
 }
 
-export const ABANDONED_TOOL_CODE = 'ABANDONED_TOOL' as const;
+const ABANDONED_TOOL_CODE = 'ABANDONED_TOOL' as const;
 export const ABANDONED_TOOL_WARNING_CODE = 'abandoned-tool-exchange' as const;
 
 export function abandonedToolResultOutput(ended: TurnEndedEvent): string {

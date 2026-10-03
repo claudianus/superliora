@@ -172,7 +172,7 @@ export function enqueueJobWorkerSpawn(input: {
 }
 
 /** A timed-out worker-host handshake is held for explicit resume. */
-export function holdJobForSpawnBudget(
+function holdJobForSpawnBudget(
   store: ToolStore,
   jobId: string,
   agent?: Agent,

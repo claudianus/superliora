@@ -138,9 +138,9 @@ export async function pruneToolResultSpills(dir: string): Promise<void> {
 }
 
 /**
- * Head + tail preview for long tool bodies. Exported for unit tests.
+ * Head + tail preview for long tool bodies.
  */
-export function buildToolResultPreview(
+function buildToolResultPreview(
   text: string,
   headChars = PREVIEW_HEAD_CHARS,
   tailChars = PREVIEW_TAIL_CHARS,
@@ -200,7 +200,7 @@ function renderInMemoryBudgetedResult(
 /**
  * Structured receipt for a persisted tool output.
  */
-export interface ToolOutputReceipt {
+interface ToolOutputReceipt {
   tool: string;
   path: string;
   sha256: string;
@@ -210,7 +210,7 @@ export interface ToolOutputReceipt {
   captured_at: string;
 }
 
-export function buildToolOutputReceipt(options: {
+function buildToolOutputReceipt(options: {
   tool: string;
   path: string;
   text: string;

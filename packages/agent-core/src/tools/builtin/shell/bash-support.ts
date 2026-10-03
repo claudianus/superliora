@@ -2,7 +2,7 @@ import type { KaosProcess } from '@superliora/kaos';
 import { z } from 'zod';
 
 export const MS_PER_SECOND = 1000;
-export const DEFAULT_TIMEOUT_S = 60;
+const DEFAULT_TIMEOUT_S = 60;
 export const DEFAULT_BACKGROUND_TIMEOUT_S = 10 * 60;
 export const USER_INTERRUPT_REASON = 'Interrupted by user';
 

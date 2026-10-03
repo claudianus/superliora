@@ -62,7 +62,7 @@ export const DEFAULT_WORKSPACE_ACCESS_POLICY: WorkspaceAccessPolicy = {
 };
 
 /** Map product sandbox profile → WorkspaceAccessPolicy guard mode. */
-export function sandboxProfileToGuardMode(profile: SandboxProfile): WorkspaceGuardMode {
+function sandboxProfileToGuardMode(profile: SandboxProfile): WorkspaceGuardMode {
   switch (profile) {
     case 'off':
       return 'absolute-outside-allowed';
@@ -84,7 +84,7 @@ export function policyForSandboxProfile(
 }
 
 /** Policy from `workspace.sandboxProfile`, or the legacy default when unset. */
-export function policyFromWorkspace(
+function policyFromWorkspace(
   workspace: WorkspaceConfig,
   checkSensitive = true,
 ): WorkspaceAccessPolicy {
@@ -234,13 +234,6 @@ export function isWithinWorkspace(
     if (isWithinDirectory(candidate, dir, pathClass)) return true;
   }
   return false;
-}
-
-export interface AssertPathOptions {
-  readonly mode: PathAccessOperation;
-  /** When true (default), also reject paths matching a sensitive-file pattern. */
-  readonly checkSensitive?: boolean | undefined;
-  readonly pathClass?: PathClass | undefined;
 }
 
 export interface ResolvePathAccessOptions {
@@ -400,40 +393,3 @@ export async function assertSandboxResolvedPath(
   );
 }
 
-export async function refineSandboxPathForExecute(
-  lexicalPath: string,
-  options: AssertSandboxResolvedPathOptions,
-): Promise<{ ok: true; path: string } | { ok: false; output: string }> {
-  try {
-    return { ok: true, path: await assertSandboxResolvedPath(lexicalPath, options) };
-  } catch (error) {
-    if (error instanceof PathSecurityError) {
-      return { ok: false, output: formatPathSecurityErrorOutput(error) };
-    }
-    throw error;
-  }
-}
-
-/**
- * Throw `PathSecurityError` if `path` escapes the workspace through a relative
- * path, matches a known sensitive file, or is empty. Returns the canonical
- * absolute path when the check passes.
- *
- * Lexical only. Use {@link assertSandboxResolvedPath} at execute time to
- * block symlink / junction escapes under workspace/read-only profiles.
- */
-export function assertPathAllowed(
-  path: string,
-  cwd: string,
-  config: WorkspaceConfig,
-  options: AssertPathOptions,
-): string {
-  return resolvePathAccess(path, cwd, config, {
-    operation: options.mode,
-    pathClass: options.pathClass,
-    policy: {
-      guardMode: 'absolute-outside-allowed',
-      checkSensitive: options.checkSensitive ?? DEFAULT_WORKSPACE_ACCESS_POLICY.checkSensitive,
-    },
-  }).path;
-}

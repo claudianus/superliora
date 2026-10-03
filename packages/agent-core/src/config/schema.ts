@@ -124,8 +124,6 @@ export const ModelAliasOverrideSchema = ModelAliasBaseSchema.omit({
   betaApi: true,
 }).partial();
 
-export type ModelAliasOverrides = z.infer<typeof ModelAliasOverrideSchema>;
-
 export const ModelAliasSchema = ModelAliasBaseSchema.extend({
   overrides: ModelAliasOverrideSchema.optional(),
 }).strict();
@@ -176,8 +174,6 @@ export const PermissionConfigSchema = z.object({
   rules: z.array(PermissionRuleSchema).optional(),
 }).strict();
 
-export type PermissionConfig = z.infer<typeof PermissionConfigSchema>;
-
 export const LoopControlSchema = z.object({
   maxStepsPerTurn: z.number().int().min(0).optional(),
 }).strict();
@@ -198,15 +194,11 @@ export const CacheConfigSchema = z.object({
   invalidateEpoch: z.number().int().min(0).optional(),
 }).strict();
 
-export type CacheConfig = z.infer<typeof CacheConfigSchema>;
-
 
 export const ModelCatalogConfigSchema = z.object({
   refreshIntervalMs: z.number().int().min(0).optional(),
   refreshOnStart: z.boolean().optional(),
 }).strict();
-
-export type ModelCatalogConfig = z.infer<typeof ModelCatalogConfigSchema>;
 
 
 export const LioraConfigSchema = z.object({

@@ -1,5 +1,4 @@
 import { promises as fsp } from 'node:fs';
-import os from 'node:os';
 import { dirname, join } from 'node:path';
 import { basename as posixBasename } from 'pathe';
 import type { Stats } from 'node:fs';
@@ -442,10 +441,6 @@ async function isSessionArchived(sessionDir: string): Promise<boolean> {
     // counts as a session (matches the session store's own loading behavior).
     return false;
   }
-}
-
-export function userHomeDir(): string {
-  return os.homedir();
 }
 
 export const pathDirname = dirname;

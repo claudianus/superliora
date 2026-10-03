@@ -576,10 +576,3 @@ function buildKosongCallbacks(
     },
   };
 }
-
-export function buildMessagesWithSystem(systemPrompt: string, history: Message[]): Message[] {
-  return [
-    { role: 'system', content: [{ type: 'text', text: systemPrompt }], toolCalls: [] },
-    ...history,
-  ];
-}

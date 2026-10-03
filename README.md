@@ -63,7 +63,7 @@ liora acp             # connect the agent to editors (Agent Client Protocol)
 
 ## Major migration
 
-The minimal harness exposes only **Bash** and **SessionControl** to the model. Plans, goals, memory, skills, plugins, MCP, cognitive catalogs, and role/persona routing are retired. Automatic worker and whole-turn retries, loop-step retries, strict resends, effect replay, and mandatory verification/review pipelines are removed. A completed request is not a claim that tests passed. Operator-configured native provider routes and pre-output fallback handling remain; they do not guarantee recovery after work has begun.
+The minimal runtime exposes only **Bash** and **SessionControl** to the model. Plans, goals, memory, skills, plugins, MCP, cognitive catalogs, and role/persona routing are retired. Automatic worker and whole-turn retries, loop-step retries, strict resends, effect replay, and mandatory verification/review pipelines are removed. A completed request is not a claim that tests passed. Operator-configured native provider routes and pre-output fallback handling remain; they do not guarantee recovery after work has begun.
 
 Native provider/authentication configuration, approvals, sessions, durable aside forks, process cancellation, Jobs, Kanban, and explicit worktrees remain. Failed native Jobs retain cleanup ownership until explicitly settled; settlement does not rerun their effects.
 

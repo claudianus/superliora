@@ -1,5 +1,5 @@
 /** Native model catalog metadata; no task roles, ranking, or selection policy. */
-export interface ModelsDevModelEntry {
+interface ModelsDevModelEntry {
   readonly inputCostPerM?: number;
   readonly outputCostPerM?: number;
   readonly contextWindow?: number;
@@ -13,7 +13,7 @@ export interface ModelsDevModelEntry {
   readonly knowledgeCutoff?: string;
 }
 
-export interface ModelsDevApiData {
+interface ModelsDevApiData {
   readonly models: ReadonlyMap<string, ModelsDevModelEntry>;
 }
 
@@ -74,7 +74,7 @@ export function getModelsDevData(): Promise<ModelsDevApiData> {
 export function peekModelsDevData(): ModelsDevApiData | undefined { return resolved; }
 export async function warmModelsDevData(): Promise<void> { await getModelsDevData(); }
 
-export function modelsDevLookupKeys(modelId: string): readonly string[] {
+function modelsDevLookupKeys(modelId: string): readonly string[] {
   const raw = modelId.trim().toLowerCase();
   if (raw.length === 0) return [];
   const keys = [raw];

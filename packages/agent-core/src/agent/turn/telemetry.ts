@@ -129,7 +129,7 @@ export function interruptedStep(event: LoopTurnInterruptedEvent): number {
 }
 
 
-export function toolOutputText(output: ExecutableToolResult['output']): string {
+function toolOutputText(output: ExecutableToolResult['output']): string {
   if (typeof output === 'string') return output;
   return output
     .filter((part): part is Extract<(typeof output)[number], { type: 'text' }> => {

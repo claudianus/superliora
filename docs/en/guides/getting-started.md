@@ -106,7 +106,7 @@ On first launch you need to connect a model. In the interactive UI, enter `/logi
 
 `/login` connects OAuth, a catalog provider, or a custom endpoint. Catalog rows include Groq, Mistral, Together, xAI API keys, Cerebras, Perplexity, and Vercel AI Gateway. To sign out, enter `/logout` to clear the current credentials.
 
-Provider failures are reported to the operator. There is no automatic harness worker/step retry, strict resend, role failover probing, or effect replay. Native configured provider routes may handle configured candidates before output is emitted.
+Provider failures are reported to the operator. There is no automatic worker/step retry, strict resend, role failover probing, or effect replay. Native configured provider routes may handle configured candidates before output is emitted.
 
 ::: tip Using other AI providers
 Use `/login` or the native provider CLI to connect an OAuth account or API endpoint. Provider credentials and model aliases remain configurable; models are selected explicitly rather than by task-role routing. See [Providers and models](../configuration/providers.md).
@@ -128,7 +128,7 @@ You can also describe a more concrete task directly:
 Add a function in src/utils that converts any string to kebab-case, and add a unit test for it.
 ```
 
-The agent can modify code and run the checks you request. Tests and review are not forced by the harness; ask for them explicitly and inspect the reported evidence. Normal requests execute directly in your workspace; use a native Job or `liora --worktree` when you want a separate checkout.
+The agent can modify code and run the checks you request. Tests and review are not forced by the runtime; ask for them explicitly and inspect the reported evidence. Normal requests execute directly in your workspace; use a native Job or `liora --worktree` when you want a separate checkout.
 
 ::: tip Not sure what to do? Type `/help`
 Type `/help` at any time to open the built-in command and keyboard shortcut panel. Use `↑`/`↓` to browse and `Esc` to close. To exit, type `/exit`, press `Ctrl-C` twice, or press `Ctrl-D` with the input box empty.

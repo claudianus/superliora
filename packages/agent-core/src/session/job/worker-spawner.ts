@@ -25,7 +25,7 @@ export const JOB_WORKER_SPAWN_BUDGET_MS = 30_000;
  * the job concurrency default: a spawn cap below it promotes jobs to `running`
  * faster than workers can attach.
  */
-export const JOB_WORKER_SPAWN_MAX_CONCURRENT = CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS;
+const JOB_WORKER_SPAWN_MAX_CONCURRENT = CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS;
 
 export type WorkerSpawnPhase =
   | 'spawning'

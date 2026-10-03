@@ -69,7 +69,7 @@ You can manage sessions without leaving the terminal. The following slash comman
 
 ## Context compression
 
-Context compaction is explicit: run `/compact` when you want to replace the superseded completed conversation prefix with a summary. The latest real user request is retained. The harness does not automatically compact at a configured threshold.
+Context compaction is explicit: run `/compact` when you want to replace the superseded completed conversation prefix with a summary. The latest real user request is retained. The runtime does not automatically compact at a configured threshold.
 
 ```
 /compact
