@@ -95,6 +95,7 @@ export class KosongLLM implements LLM {
   readonly modelName: string;
   readonly capability?: ModelCapability | undefined;
 
+  private readonly requestContext: KosongLLMConfig['requestContext'];
   private readonly provider: ChatProvider;
   private readonly generate: GenerateFn;
   private readonly completionBudgetConfig: CompletionBudgetConfig | undefined;
@@ -106,6 +107,7 @@ export class KosongLLM implements LLM {
   private readonly log: Logger | undefined;
 
   constructor(config: KosongLLMConfig) {
+    this.requestContext = config.requestContext;
     this.provider = config.provider;
     this.modelName = config.provider.modelName;
     this.systemPrompt = config.systemPrompt;
@@ -358,9 +360,23 @@ export class KosongLLM implements LLM {
       layeredSystemPrompt: this.layeredSystemPrompt,
     };
 
+    const hostContext = this.requestContext?.();
+    const systemPrompt = hostContext === undefined ? this.systemPrompt : `${hostContext.prefix}
+${this.systemPrompt}
+${hostContext.dynamic}`;
+    if (hostContext !== undefined && options.layeredSystemPrompt !== undefined) {
+      options.layeredSystemPrompt = {
+        ...options.layeredSystemPrompt,
+        layer1Static: `${hostContext.prefix}
+${options.layeredSystemPrompt.layer1Static}`,
+        layer3Dynamic: `${options.layeredSystemPrompt.layer3Dynamic}
+${hostContext.dynamic}`,
+      };
+    }
+
     const result = await this.generate(
       effectiveProvider,
-      this.systemPrompt,
+      systemPrompt,
       [...params.tools],
       params.messages,
       callbacks,

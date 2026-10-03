@@ -1,3 +1,4 @@
+import { CONDUCTOR_POLICY_PREFIX } from '../coordinator/conductor-policy';
 import type { ContentPart } from '@superliora/kosong';
 import { resolve } from 'pathe';
 import type { Agent } from '../../agent';
@@ -47,6 +48,19 @@ export class SessionSubagentHost {
 
   constructor(private readonly session: Session, private readonly ownerAgentId: string) {
     this.releaseWorktreeGuard = registerSessionWorktreeOwnershipGuard((path) => this.ownsWorktree(path));
+  }
+
+  get role(): 'worker' | 'interactive-conductor' { return this.session.options.role ?? 'worker'; }
+
+  get coordination(): import('../coordinator').SessionCoordinator | undefined {
+    return this.session.options.role === 'interactive-conductor' ? this.session.options.coordination : undefined;
+  }
+
+  contextProjection(): { prefix: string; dynamic: string } | undefined {
+    if (this.role !== 'interactive-conductor') return undefined;
+    const agent = this.session.getReadyAgent(this.ownerAgentId);
+    const tasks = (agent?.background.list(false) ?? []).slice(-16).map((task) => ({ taskId: task.taskId, kind: task.kind, status: task.status, description: task.description.slice(0, 128), resourcesSettled: task.resourcesSettled }));
+    return { prefix: CONDUCTOR_POLICY_PREFIX, dynamic: `<conductor-state>${JSON.stringify({ independent: this.coordination?.facts(16), tasks })}</conductor-state>` };
   }
 
   get parentAgentId(): string {

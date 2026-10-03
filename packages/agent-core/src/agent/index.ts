@@ -433,6 +433,7 @@ export class Agent {
     return new KosongLLM({
       provider: this.config.provider,
       systemPrompt: this.config.systemPrompt,
+      requestContext: () => this.sessionControl?.contextProjection?.(),
       layeredSystemPrompt: this.config.layeredSystemPrompt,
       capability: this.config.modelCapabilities,
       generate: this.generate,

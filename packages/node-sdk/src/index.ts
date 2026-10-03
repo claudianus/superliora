@@ -242,3 +242,8 @@ export type {
   BrowserStatus,
   RuntimeImage,
 } from '@superliora/gui-use';
+
+export * from '#/orchestration';
+
+export { sealVerificationArtifact, runArtifactVerification, verificationEnvironment } from '@superliora/agent-core';
+export type { VerificationArtifact, VerificationHostPolicy, VerificationStage, VerificationReceipt, VerificationStageReceipt } from '@superliora/agent-core';

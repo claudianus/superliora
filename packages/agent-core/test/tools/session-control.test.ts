@@ -286,3 +286,92 @@ describe('SessionControl', () => {
     }
   });
 });
+
+describe('SessionControl independent conductor lane', () => {
+  it('rejects independent dispatch without policy while retaining default worker spawning', async () => {
+    const { agent, manager } = createBackgroundManager();
+    const host = childHost(Promise.resolve(result));
+    const tool = new SessionControlTool(agent, manager, host);
+    const rejected = await executeTool(tool, context({ operation: 'spawn', lane: 'independent', prompt: 'Task', description: 'Task', cwd: '/isolated', idempotencyKey: 'dispatch' }));
+    expect(rejected).toMatchObject({ isError: true, output: expect.stringContaining('explicit conductor') });
+    expect(host.spawn).not.toHaveBeenCalled();
+    await executeTool(tool, context({ operation: 'spawn', prompt: 'Task', description: 'Task' }));
+    expect(host.spawn).toHaveBeenCalledTimes(1);
+    await manager.waitForActiveTasks(() => true, { timeoutMs: 1000 });
+  });
+
+  it('returns persisted independent acceptance without child admission or parent cancellation linkage', async () => {
+    const { SessionCoordinator } = await import('../../src/session/coordinator');
+    vi.useFakeTimers();
+    const { agent, manager } = createBackgroundManager();
+    const host = childHost(Promise.resolve(result));
+    const done = Promise.withResolvers<string>();
+    let independentSignal: AbortSignal | undefined;
+    const saved: unknown[] = [];
+    const coordinator = await SessionCoordinator.open({
+      store: { load: async () => undefined, save: async (projection) => { saved.push(structuredClone(projection)); }, close: async () => {} },
+      policy: { role: 'conductor', maxConcurrent: 1, authorizedRoots: ['/'] },
+      runtime: { admit: async (_id, _request, signal) => {
+        independentSignal = signal;
+        signal.addEventListener('abort', () => done.reject(signal.reason), { once: true });
+        return { sessionId: 'independent-session', completion: done.promise, message: async () => {} };
+      } },
+    });
+    try {
+      const tool = new SessionControlTool(agent, manager, { ...host, coordination: coordinator });
+      const caller = new AbortController();
+      const accepted = output((await executeTool(tool, context({ operation: 'spawn', lane: 'independent', prompt: 'Task', description: 'Task', cwd: '/isolated', idempotencyKey: 'dispatch' }, caller.signal))).output);
+      expect(accepted).toMatchObject({ status: 'accepted', revision: 1 });
+      expect(saved).toHaveLength(1);
+      expect(host.spawn).not.toHaveBeenCalled();
+      expect(independentSignal).toBeUndefined();
+      caller.abort();
+      await coordinator.tick();
+      for (let index = 0; index < 20; index++) await Promise.resolve();
+      expect(independentSignal?.aborted).toBe(false);
+      const listed = output((await executeTool(tool, context({ operation: 'list' }))).output);
+      expect(listed['independentSessions']).toMatchObject({ records: [expect.objectContaining({ id: accepted['id'], status: 'running' })] });
+      const stopped = output((await executeTool(tool, context({ operation: 'stop', id: accepted['id'] as string, expectedRevision: coordinator.get(accepted['id'] as string)!.revision }))).output);
+      expect(['cancel_requested', 'cancelled']).toContain(stopped['status']);
+    } finally {
+      await coordinator.close();
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('conductor legacy task control remains nonblocking', () => {
+  it('snapshots without waiting, bounds output/list, and acknowledges a never-settling stop', async () => {
+    const { agent, manager } = createBackgroundManager();
+    const host = { ...childHost(Promise.resolve(result)), role: 'interactive-conductor' as const };
+    const task = { taskId: 'bg_task', agentId: 'legacy-child', kind: 'agent' as const, subagentType: 'agent' as const, description: 'Long work', status: 'running' as const, startedAt: 1, endedAt: null };
+    vi.spyOn(manager, 'getTask').mockReturnValue(task);
+    vi.spyOn(manager, 'list').mockReturnValue(Array.from({ length: 100 }, (_, index) => ({ ...task, taskId: `bg_${index}` })));
+    const wait = vi.spyOn(manager, 'waitForActiveTasks').mockImplementation(() => new Promise(() => {}));
+    const snapshot = vi.spyOn(manager, 'getOutputSnapshot').mockResolvedValue({ outputSizeBytes: 0, previewBytes: 0, truncated: false, fullOutputAvailable: false, preview: '' });
+    const stop = vi.spyOn(manager, 'stop').mockImplementation(() => new Promise(() => {}));
+    const tool = new SessionControlTool(agent, manager, host);
+    expect(output((await executeTool(tool, context({ operation: 'wait', id: task.taskId }))).output)['status']).toBe('running');
+    expect(wait).not.toHaveBeenCalled();
+    expect(snapshot).toHaveBeenCalledWith(task.taskId, 4096);
+    expect((await executeTool(tool, context({ operation: 'wait', id: task.taskId, timeout: 1 }))).isError).toBe(true);
+    const listed = output((await executeTool(tool, context({ operation: 'list' }))).output);
+    expect(listed['taskCount']).toBe(100);
+    expect((listed['tasks'] as unknown[])).toHaveLength(32);
+    expect(output((await executeTool(tool, context({ operation: 'stop', id: task.taskId }))).output)).toMatchObject({ cancelRequested: true, resourcesSettled: false });
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('never awaits old child spawn/admission in conductor mode and acknowledges known live child stop', async () => {
+    const { agent, manager } = createBackgroundManager();
+    const host = { ...childHost(Promise.resolve(result)), role: 'interactive-conductor' as const };
+    vi.mocked(host.spawn).mockImplementation(() => new Promise(() => {}));
+    vi.mocked(host.listActive).mockReturnValue([{ agentId: 'live-child', runInBackground: true }]);
+    vi.mocked(host.stopAndJoin).mockImplementation(() => new Promise(() => {}));
+    const tool = new SessionControlTool(agent, manager, host);
+    const rejected = await executeTool(tool, context({ operation: 'spawn', prompt: 'Task', description: 'Task' }));
+    expect(rejected.isError).toBe(true);
+    expect(host.spawn).not.toHaveBeenCalled();
+    expect(output((await executeTool(tool, context({ operation: 'stop', id: 'live-child' }))).output)).toMatchObject({ cancelRequested: true, resourcesSettled: false });
+  });
+});

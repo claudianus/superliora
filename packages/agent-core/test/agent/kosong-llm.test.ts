@@ -2247,3 +2247,27 @@ function makeCapability(maxContextTokens: number): ModelCapability {
     max_context_tokens: maxContextTokens,
   };
 }
+
+describe('host conductor request projection', () => {
+  it('refreshes bounded dynamic state per request without appending messages or changing the cached prefix', async () => {
+    let revision = 1;
+    const systems: string[] = [];
+    const layers: unknown[] = [];
+    const histories: unknown[] = [];
+    const generate: GenerateFn = async (_provider, system, _tools, history, _callbacks, options) => {
+      systems.push(system);
+      layers.push(options?.layeredSystemPrompt);
+      histories.push(history);
+      return { id: 'reply', message: { role: 'assistant', content: [], toolCalls: [] }, usage: emptyUsage(), finishReason: 'completed', rawFinishReason: 'stop' };
+    };
+    const llm = new KosongLLM({ provider, systemPrompt: 'Base', layeredSystemPrompt: { layer1Static: 'Static', layer2Session: 'Session', layer3Dynamic: 'Existing dynamic' }, requestContext: () => ({ prefix: 'Stable conductor policy', dynamic: `revision=${revision}` }), generate });
+    const history = [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'Task' }] }];
+    await llm.chat({ messages: history, tools: [], signal: new AbortController().signal });
+    revision++;
+    await llm.chat({ messages: history, tools: [], signal: new AbortController().signal });
+    expect(systems).toEqual(['Stable conductor policy\nBase\nrevision=1', 'Stable conductor policy\nBase\nrevision=2']);
+    expect(layers).toEqual([{ layer1Static: 'Stable conductor policy\nStatic', layer2Session: 'Session', layer3Dynamic: 'Existing dynamic\nrevision=1' }, { layer1Static: 'Stable conductor policy\nStatic', layer2Session: 'Session', layer3Dynamic: 'Existing dynamic\nrevision=2' }]);
+    expect(histories).toEqual([history, history]);
+    expect(history).toHaveLength(1);
+  });
+});
