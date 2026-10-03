@@ -87,6 +87,7 @@ import {
   paintWorkerRowChrome,
   workerHoverPaintPending,
 } from '#/tui/features/worker-dock/worker-row-paint';
+import { projectWorkerTree, type WorkerDockTreeInput, type WorkerTreeProjection } from './worker-tree';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 export type DockWorkerScrollAction =
@@ -153,6 +154,8 @@ export interface WorkerDockView {
   readonly jobs: ConductorJobsSnapshot;
   /** Workspace cwd for path relativization (optional). */
   readonly workDir?: string;
+  /** Explicit host ancestry; no display-name inference. */
+  readonly tree?: WorkerDockTreeInput;
 }
 
 export function emptyWorkerDockView(): WorkerDockView {
@@ -210,6 +213,10 @@ type LayoutMode = 'full' | 'tight' | 'minimal';
 
 export class WorkerDockPanelComponent implements Component {
   private view: WorkerDockView = emptyWorkerDockView();
+  private readonly treeExpansion = new Map<string, boolean>();
+  private revealTreeSelection = false;
+  private readonly treeSettleAt = new Map<string, number>();
+  private readonly lastTreeCaretMap = new Map<number, { id: string; column: number; group: boolean }>();
   /** `pinned` mode keeps the panel mounted with an idle placeholder. */
   private pinned = false;
   /** Window start into the sorted worker roster (densemode / NOW). */
@@ -262,9 +269,22 @@ export class WorkerDockPanelComponent implements Component {
     if (
       view.snapshot.version === this.view.snapshot.version &&
       view.jobs === this.view.jobs &&
-      view.workDir === this.view.workDir
+      view.workDir === this.view.workDir &&
+      view.tree === this.view.tree
     ) {
       return;
+    }
+    if (view.tree !== undefined && this.view.tree !== undefined && view.tree.rootAgentId !== this.view.tree.rootAgentId) {
+      this.treeExpansion.clear();
+      this.treeSettleAt.clear();
+      this.selectedWorkerId = undefined;
+      this.focused = false;
+    }
+    if (view.tree !== undefined) {
+      const previous = new Map(this.view.tree?.nodes.map(node => [node.id, node.phase]));
+      for (const node of view.tree.nodes) {
+        if (previous.has(node.id) && previous.get(node.id) !== node.phase) this.treeSettleAt.set(node.id, appearanceAnimationNow());
+      }
     }
     this.view = view;
     this.pruneSelection();
@@ -282,10 +302,13 @@ export class WorkerDockPanelComponent implements Component {
     if (workerId === this.selectedWorkerId) return false;
     if (workerId !== undefined) {
       const now = appearanceAnimationNow();
-      const exists = this.visibleWorkers(now).some((worker) => worker.id === workerId);
+      const exists = this.view.tree !== undefined
+        ? workerId === this.view.tree.rootAgentId || this.view.tree.nodes.some(node => node.id === workerId) || this.treeProjection().rows.some(row => row.id === workerId)
+        : this.visibleWorkers(now).some((worker) => worker.id === workerId);
       if (!exists) return false;
     }
     this.selectedWorkerId = workerId;
+    this.revealTreeSelection = true;
     this.lastRender = undefined;
     return true;
   }
@@ -296,7 +319,7 @@ export class WorkerDockPanelComponent implements Component {
    * Returns true when selection or scroll window changed.
    */
   moveSelection(delta: number): boolean {
-    const workers = this.visibleWorkers(appearanceAnimationNow());
+    const workers = this.view.tree === undefined ? this.visibleWorkers(appearanceAnimationNow()) : this.treeProjection().rows;
     if (workers.length === 0) return false;
     const ids = workers.map((worker) => worker.id);
     let index = this.selectedWorkerId === undefined ? -1 : ids.indexOf(this.selectedWorkerId);
@@ -354,6 +377,13 @@ export class WorkerDockPanelComponent implements Component {
   }
 
   private pruneSelection(): void {
+    if (this.view.tree !== undefined) {
+      if (this.selectedWorkerId !== undefined && this.selectedWorkerId !== this.view.tree.rootAgentId &&
+        !this.view.tree.nodes.some(node => node.id === this.selectedWorkerId) && !this.treeProjection().rows.some(row => row.id === this.selectedWorkerId)) {
+        this.selectedWorkerId = undefined;
+      }
+      return;
+    }
     if (this.selectedWorkerId === undefined) return;
     const now = appearanceAnimationNow();
     const still = this.visibleWorkers(now).some((worker) => worker.id === this.selectedWorkerId);
@@ -369,7 +399,7 @@ export class WorkerDockPanelComponent implements Component {
    * ambient frame even when no further event arrives.
    */
   isEmpty(now: number = appearanceAnimationNow()): boolean {
-    return this.visibleWorkers(now).length === 0 && this.view.jobs.total === 0;
+    return (this.view.tree === undefined ? this.visibleWorkers(now).length === 0 : this.view.tree.nodes.every(node => node.id === this.view.tree!.rootAgentId) && this.visibleWorkers(now).every(worker => worker.id === this.view.tree!.rootAgentId)) && this.view.jobs.total === 0;
   }
 
   /** Workers minus terminal ones whose linger window has elapsed. */
@@ -397,7 +427,7 @@ export class WorkerDockPanelComponent implements Component {
    * so wheel / key handlers can fall through at the edges.
    */
   scrollWorkers(action: DockWorkerScrollAction): boolean {
-    const workers = this.visibleWorkers(appearanceAnimationNow());
+    const workers = this.view.tree === undefined ? this.visibleWorkers(appearanceAnimationNow()) : this.treeProjection().rows;
     const slots = Math.max(1, Math.min(this.lastWorkerSlots, workers.length));
     if (workers.length <= slots) {
       if (this.workerScrollOffset === 0) return false;
@@ -438,6 +468,8 @@ export class WorkerDockPanelComponent implements Component {
    * Enter is handled by the host (open transcript). Page/Home/End scroll.
    */
   handleInput(data: string): void {
+    if (matchesKey(data, Key.left)) { this.handleSelectionKey('left'); return; }
+    if (matchesKey(data, Key.right)) { this.handleSelectionKey('right'); return; }
     if (matchesKey(data, Key.up)) {
       this.moveSelection(-1);
       return;
@@ -476,9 +508,12 @@ export class WorkerDockPanelComponent implements Component {
    * Returns true when the panel consumed the key.
    */
   handleSelectionKey(
-    key: 'up' | 'down' | 'enter' | 'escape' | 'pageup' | 'pagedown' | 'home' | 'end',
+    key: 'left' | 'right' | 'up' | 'down' | 'enter' | 'escape' | 'pageup' | 'pagedown' | 'home' | 'end',
   ): { readonly handled: boolean; readonly openWorkerId?: string; readonly clearSelection?: boolean } {
     switch (key) {
+      case 'left':
+      case 'right':
+        return { handled: this.navigateTree(key) };
       case 'up':
         return { handled: this.moveSelection(-1) || this.visibleWorkers(appearanceAnimationNow()).length > 0 };
       case 'down':
@@ -498,7 +533,11 @@ export class WorkerDockPanelComponent implements Component {
           if (!this.moveSelection(1) && !this.moveSelection(-1)) {
             return { handled: false };
           }
-          return { handled: true, openWorkerId: this.selectedWorkerId };
+          return this.treeSelectionOpens() ? { handled: true, openWorkerId: this.selectedWorkerId } : { handled: true };
+        }
+        if (!this.treeSelectionOpens()) {
+          this.toggleTreeNode(id);
+          return { handled: true };
         }
         return { handled: true, openWorkerId: id };
       }
@@ -685,6 +724,8 @@ export class WorkerDockPanelComponent implements Component {
       minBoxWidth: 24,
       fillWidth: true as const,
     };
+    if (this.view.tree !== undefined) return this.buildTreeFrame(width, budget);
+    this.lastTreeCaretMap.clear();
     if (shouldUseDensemode(workers)) {
       const appearance = getActiveAppearancePreferences();
       const animated = shouldRenderAmbientEffects(appearance);
@@ -755,6 +796,131 @@ export class WorkerDockPanelComponent implements Component {
       content,
       borderToken: this.borderToken(now),
     });
+  }
+
+  private treeProjection(): WorkerTreeProjection {
+    return projectWorkerTree(this.view.tree!, this.view.snapshot.workers, this.treeExpansion, this.selectedWorkerId);
+  }
+
+  /** User action only: automatic updates never mutate expansion overrides. */
+  toggleTreeNode(id: string): boolean {
+    if (this.view.tree === undefined) return false;
+    const projection = this.treeProjection();
+    const row = projection.rows.find(item => item.id === id);
+    if (row === undefined || !row.expandable) return false;
+    this.treeExpansion.set(id, !row.expanded);
+    this.treeSettleAt.set(id, appearanceAnimationNow());
+    if (row.expanded && this.selectedWorkerId !== undefined) {
+      let selected: string | undefined = this.selectedWorkerId;
+      const visited = new Set<string>();
+      while (selected !== undefined && !visited.has(selected)) {
+        if (selected === id) { this.selectedWorkerId = id; this.revealTreeSelection = true; break; }
+        visited.add(selected); selected = projection.parents.get(selected);
+      }
+    }
+    this.lastRender = undefined;
+    return true;
+  }
+
+  private navigateTree(direction: 'left' | 'right'): boolean {
+    if (this.view.tree === undefined) return false;
+    if (this.selectedWorkerId === undefined) return this.moveSelection(1);
+    const projection = this.treeProjection();
+    const row = projection.rows.find(item => item.id === this.selectedWorkerId);
+    if (row === undefined) return true;
+    if (direction === 'left') {
+      if (row.expanded) return this.toggleTreeNode(row.id);
+      if (row.parentId !== undefined) return this.selectWorker(row.parentId);
+      return true;
+    }
+    if (row.expandable && !row.expanded) return this.toggleTreeNode(row.id);
+    const child = projection.rows.find(item => item.parentId === row.id);
+    if (child !== undefined) return this.selectWorker(child.id);
+    return true;
+  }
+
+  private treeSelectionOpens(): boolean {
+    if (this.view.tree === undefined) return true;
+    const row = this.treeProjection().rows.find(item => item.id === this.selectedWorkerId);
+    return row !== undefined && row.kind !== 'group' && row.role !== 'pipeline';
+  }
+
+  /** Caret clicks toggle without opening a transcript or touching the editor. */
+  handleTreePointer(localX: number, localY: number): boolean {
+    const hit = this.lastTreeCaretMap.get(localY - 1);
+    if (hit === undefined) return false;
+    if (Math.abs(localX - hit.column) <= 1) return this.toggleTreeNode(hit.id);
+    if (hit.group) { this.selectWorker(hit.id); return true; }
+    return false;
+  }
+
+  private buildTreeFrame(width: number, budget: number): string[] {
+    const projection = this.treeProjection();
+    const interior = chromeBandInteriorWidth(width);
+    const contentBudget = Math.max(1, budget - 2);
+    const counts = projection.counts;
+    const totals = this.view.tree!.coordinatorTotals;
+    const partial = totals?.truncated === true;
+    const scopeLabel = partial ? 'Visible · ' : '';
+    const content: string[] = [truncateToWidth(currentTheme.fg('textDim', `${scopeLabel}Run ${counts.running} · Queue ${counts.queued} · Reusable idle ${counts.idle} · Done ${counts.completed} · Error ${counts.error}`), interior)];
+    if (totals !== undefined && (partial || totals.counts.attention > 0) && contentBudget >= 4) {
+      content.push(truncateToWidth(currentTheme.fg('textDim', `Coordinator: ${totals.total} records · ${partial ? 'partial tree · ' : ''}${totals.counts.attention} attention`), interior));
+    }
+    if (contentBudget >= 6) {
+      const job = selectAttentionJobs(this.view.jobs, 1)[0];
+      const row = job === undefined ? undefined : formatAttentionJobRow(job, Math.max(1, interior - 6), appearanceAnimationNow());
+      if (row !== undefined) content.push(truncateToWidth(currentTheme.fg('textMuted', 'Job · ') + row, interior));
+    }
+    const detailRows = this.selectedWorkerId !== undefined && contentBudget >= 4 ? 1 : 0;
+    // Keep the Session / Main anchor visible while the descendant window scrolls.
+    const slots = Math.max(0, contentBudget - content.length - detailRows - 1);
+    this.lastWorkerSlots = Math.max(1, slots);
+    this.workerScrollOffset = clampWorkerScrollOffset(this.workerScrollOffset, projection.rows.length, Math.max(1, slots));
+    const selectedIndex = projection.rows.findIndex(row => row.id === this.selectedWorkerId);
+    if (this.revealTreeSelection && slots > 0 && selectedIndex > 0) {
+      if (selectedIndex < this.workerScrollOffset) this.workerScrollOffset = selectedIndex;
+      else if (selectedIndex >= this.workerScrollOffset + slots) this.workerScrollOffset = selectedIndex - slots + 1;
+    }
+    this.revealTreeSelection = false;
+    const rowMap = new Map<number, string>();
+    this.lastTreeCaretMap.clear();
+    const selectedPath = new Set<string>();
+    let pathId = this.selectedWorkerId;
+    for (let i = 0; pathId !== undefined && i < 52; i++) { selectedPath.add(pathId); pathId = projection.parents.get(pathId); }
+    const start = Math.max(1, this.workerScrollOffset);
+    const visibleRows = projection.rows.length === 0 ? [] : [projection.rows[0]!, ...projection.rows.slice(start, start + slots)];
+    for (const row of visibleRows) {
+      const appearance = getActiveAppearancePreferences();
+      const chrome = paintWorkerRowChrome({ workerId: row.id, selected: row.id === this.selectedWorkerId, appearance, animated: shouldRenderAmbientEffects(appearance) });
+      const gutter = chrome || '  ';
+      const caretPlain = row.expandable ? row.expanded ? '▾' : '▸' : '·';
+      const settleAt = this.treeSettleAt.get(row.id);
+      const caret = settleAt === undefined ? currentTheme.fg('primary', caretPlain) : renderToneSettleFlash(caretPlain, `mc:tree:${row.id}`, settleAt, 'primary');
+      const label = row.kind === 'root' ? row.label : row.label.replaceAll(/\s+/g, ' ').trim();
+      const name = selectedPath.has(row.id) ? currentTheme.boldFg('primary', label) : currentTheme.fg(row.phase === 'error' || row.attentionKind === 'error' ? 'error' : 'text', label);
+      const brief = row.liveActivity?.replaceAll(/\s+/g, ' ').trim();
+      const aggregate = !row.expanded && row.activeDescendants > 0 ? ` · ${row.activeDescendants} active below${row.queuedDescendants > 0 ? ` (${row.queuedDescendants} queued)` : ''}` : '';
+      const attention = row.attentionKind === 'question' ? ' · needs input' : row.attentionKind === 'error' ? ' · review' : !row.expanded && row.attention ? ' · attention below' : '';
+      const stateLabel = row.phase === 'queued' ? ' [queued]' : row.phase === 'idle' ? ' [reusable idle]' : row.phase === 'completed' ? ' [done]' : row.phase === 'error' ? ' [error]' : '';
+      const activity = stateLabel + attention + (brief ? ` · ${brief}` : '');
+      const index = content.length;
+      const prefix = gutter + currentTheme.fg('textMuted', row.connector) + caret + ' ';
+      const nameBudget = Math.max(8, Math.min(32, interior - visibleWidth(prefix) - visibleWidth(aggregate) - (activity ? 12 : 0)));
+      content.push(truncateToWidth(prefix + truncateToWidth(name, nameBudget) + currentTheme.fg('textDim', aggregate + activity), interior));
+      rowMap.set(index, row.id);
+      if (row.expandable || row.kind === 'group' || row.role === 'pipeline') this.lastTreeCaretMap.set(index, { id: row.id, column: CHROME_BAND_LEFT_MARGIN + CHROME_BAND_SIDE_PADDING + 1 + 2 + visibleWidth(row.connector), group: row.kind === 'group' || row.role === 'pipeline' });
+    }
+    if (detailRows > 0) {
+      const selected = projection.rows.find(row => row.id === this.selectedWorkerId);
+      const node = this.view.tree!.nodes.find(node => node.id === this.selectedWorkerId);
+      const target = node?.role === 'pipeline' && node.sessionId === undefined ? `record ${node.recordId ?? node.id}` : `${node?.sessionId ?? this.view.tree!.sessionId ?? ''}/${node?.agentId ?? (this.selectedWorkerId === this.view.tree!.rootAgentId ? this.view.tree!.rootAgentRawId ?? 'main' : this.selectedWorkerId)}`;
+      const detail = selected?.kind === 'group' ? selected.path.join(' › ') : `${node?.role ?? (this.selectedWorkerId === this.view.tree!.rootAgentId ? 'main' : 'worker')} · ${target}`;
+      content.push(truncateToWidth(currentTheme.fg('textDim', detail), interior));
+    }
+    this.lastWorkerRowMap = rowMap;
+    this.lastHeaderRow = 0;
+    return renderRoundedPanel({ width, leftMargin: CHROME_BAND_LEFT_MARGIN, sidePadding: CHROME_BAND_SIDE_PADDING, minBoxWidth: 24, fillWidth: true,
+      title: ` ${workerDockProductName()} · Session tree `, content: content.slice(0, contentBudget), borderToken: this.borderToken(appearanceAnimationNow()) });
   }
 
   private title(mode: LayoutMode | 'dense', now: number): string {

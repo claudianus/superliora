@@ -8,6 +8,8 @@
  */
 
 import type { Event } from '@superliora/sdk';
+import { WorkerTreeRegistry, type DockIndependentFact } from './tree-registry';
+import type { WorkerDockTreeInput, WorkerCoordinatorTotals } from '#/tui/components/panes/worker-dock/worker-tree';
 import { MAIN_AGENT_ID } from '../../constant/liora-tui';
 
 import { monotonicMotionNowMs } from '../../features/appearance/appearance-effects';
@@ -203,6 +205,7 @@ export class WorkerDockRegistry {
   private readonly workers = new Map<string, MutableWorker>();
   private readonly ops: DockOpsEntry[] = [];
   private version = 0;
+  private readonly treeRegistry = new WorkerTreeRegistry();
 
   /**
    * Roster timestamps share the motion time base (PREMIUM.md §7.1), because the
@@ -215,6 +218,7 @@ export class WorkerDockRegistry {
 
   reset(): void {
     this.workers.clear();
+    this.treeRegistry.reset();
     this.ops.length = 0;
     this.version += 1;
   }
@@ -326,7 +330,62 @@ export class WorkerDockRegistry {
   }
 
   /** Feed one session event; returns true when the roster projection changed. */
+  applyIndependentFacts(conductorSessionId: string, records: readonly DockIndependentFact[], totals?: WorkerCoordinatorTotals): boolean {
+    const changed = this.treeRegistry.applyFacts(conductorSessionId, records, totals);
+    this.migrateTreeAliases();
+    return changed ? this.bump() : false;
+  }
+
+  applyIndependentEvent(conductorSessionId: string, record: DockIndependentFact, event: Event): boolean {
+    const factChanged = this.treeRegistry.applyFact(conductorSessionId, record);
+    this.migrateTreeAliases();
+    const adapted = this.treeRegistry.applyEvent(event, record);
+    this.migrateTreeAliases();
+    const subject = this.treeRegistry.getNode(adapted.event.agentId);
+    if (subject !== undefined) this.ensureWorker(subject.id, { name: subject.label, description: subject.label, kind: 'background', runInBackground: true });
+    const telemetryChanged = this.applyTelemetry(adapted.event);
+    return telemetryChanged || ((factChanged || adapted.changed) ? this.bump() : false);
+  }
+
+  workerTranscriptTarget(workerId: string): { sessionId: string; agentId: string; recordId?: string } | undefined {
+    const node = this.treeRegistry.getNode(workerId);
+    if (node?.sessionId === undefined || node.agentId === undefined || node.role === 'pipeline') return undefined;
+    return { sessionId: node.sessionId, agentId: node.agentId, ...(node.recordId === undefined ? {} : { recordId: node.recordId }) };
+  }
+
+  setWorkerAttention(sessionId: string, agentId: string, attention: 'question' | 'error' | undefined): boolean {
+    return this.treeRegistry.setAttention(sessionId, agentId, attention) ? this.bump() : false;
+  }
+
+  private migrateTreeAliases(): void {
+    for (const [id, worker] of this.workers) {
+      const next = this.treeRegistry.resolveIdentity(id);
+      if (next === id) continue;
+      this.workers.delete(id);
+      const existing = this.workers.get(next);
+      if (existing === undefined || worker.lastActivityAtMs > existing.lastActivityAtMs) {
+        worker.id = next; this.workers.set(next, worker);
+      }
+    }
+    for (let i = 0; i < this.ops.length; i++) {
+      const entry = this.ops[i]!;
+      const workerId = this.treeRegistry.resolveIdentity(entry.workerId);
+      if (workerId !== entry.workerId) this.ops[i] = { ...entry, workerId };
+    }
+  }
+
+  treeSnapshot(conductorSessionId: string, rootAgentId = MAIN_AGENT_ID): WorkerDockTreeInput {
+    return this.treeRegistry.snapshot(conductorSessionId, rootAgentId);
+  }
+
   apply(event: Event): boolean {
+    const adapted = this.treeRegistry.applyEvent(event);
+    this.migrateTreeAliases();
+    const changed = this.applyTelemetry(adapted.event);
+    return changed || (adapted.changed ? this.bump() : false);
+  }
+
+  private applyTelemetry(event: Event): boolean {
     switch (event.type) {
       case 'subagent.spawned':
         return this.applySpawned(event);

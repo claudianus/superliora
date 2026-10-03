@@ -84,6 +84,11 @@ export function handleWorkerDockMouse(
   }
 
   if (mouse.action !== 'press' || mouse.button !== 'left') return false;
+  if (panel.handleTreePointer(mouse.x - rect.x, localY)) {
+    panel.focused = true;
+    requestTUIContentRender(host.state);
+    return true;
+  }
   if (hit?.kind !== 'worker') return false;
 
   // Select + open on click.
