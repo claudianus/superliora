@@ -21,8 +21,7 @@ import {
 } from '#/tui/constant/rendering';
 import { BACKGROUND_GLYPH, PENDING_GLYPH, SPINNER_GLYPH } from '#/tui/constant/symbols';
 
-/** Window cap for mounted multi-agent failure bodies (kiloline errors must not freeze the TUI). */
-const SUBAGENT_ERROR_WINDOW_LINES = 24;
+import { formatBashHeredocPreview } from '#/tui/components/media/bash-heredoc-preview';
 import { currentTheme } from '#/tui/theme';
 import type { TokenUsage } from '@superliora/sdk';
 import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
@@ -46,6 +45,9 @@ import {
 import { renderNeatCard } from '../tool-renderers/neat-card';
 import { isGenericToolResult } from '../tool-renderers/registry';
 import { TruncatedOutputComponent } from '../tool-renderers/truncated';
+
+/** Window cap for mounted multi-agent failure bodies (kiloline errors must not freeze the TUI). */
+const SUBAGENT_ERROR_WINDOW_LINES = 24;
 
 function renderSubagentPhaseSpinner(
   label: string,
@@ -324,6 +326,15 @@ export function buildSingleSubagentBlockComponents(state: SingleSubagentBlockSta
     items.push(
       new Text(formatSubToolActivityRow(`  ${mark} `, verb, activity), 0, 0),
     );
+    // Literal command INPUT only: never infer writes or an applied patch.
+    if (activity.phase === 'ongoing' && activity.name === 'Bash') {
+      const command = activity.args['command'];
+      if (typeof command === 'string') {
+        for (const line of formatBashHeredocPreview(command) ?? []) {
+          items.push(new Text(line, SUBAGENT_SUBTOOL_OUTPUT_INDENT, 0));
+        }
+      }
+    }
     items.push(...subToolOutputPreview(activity));
   }
 

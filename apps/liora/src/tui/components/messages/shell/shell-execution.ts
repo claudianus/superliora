@@ -9,7 +9,9 @@ import {
 import type { Component } from '#/tui/renderer';
 import { Container, Text, projectRendererLineWindow } from '#/tui/renderer';
 
+import { buildBashHeredocPreview } from '#/tui/components/media/bash-heredoc-preview';
 import { formatShellCommandPreview } from '#/tui/components/media/code-highlight';
+import { COMMAND_PREVIEW_LINES } from '#/tui/constant/rendering';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
 import type { ResultRenderer } from '../tool-renderers/types';
@@ -36,6 +38,7 @@ export class ShellExecutionComponent extends Container {
   private readonly entranceStartedAtMs = appearanceAnimationNow();
   /** Command-preview Text nodes, kept so streaming deltas can reuse them. */
   private readonly commandPreviewTexts: Text[] = [];
+  private readonly heredocPreviewTexts: Text[] = [];
   /** Result body, kept so live stdout can update without remounting. */
   private resultOutput: TruncatedOutputComponent | undefined;
   private resultPreviewLines = PREVIEW_LINES;
@@ -86,15 +89,38 @@ export class ShellExecutionComponent extends Container {
   private addCommandPreview(command: string, previewLines: number | undefined): void {
     if (command.length === 0) return;
     // Highlight binary / flags / strings / redirects; dim only the `$ ` prompt.
-    const highlighted = formatShellCommandPreview(command);
+    const heredoc = buildBashHeredocPreview(command);
+    const highlighted = command.length === 0 ? [] : formatShellCommandPreview(heredoc?.commandContext ?? command);
     const lines = projectRendererLineWindow({
       lines: highlighted,
-      maxLines: previewLines,
+      maxLines: heredoc === undefined ? previewLines : COMMAND_PREVIEW_LINES,
     }).lines;
     for (const line of lines) {
       const text = new Text(line, 2, 0);
       this.commandPreviewTexts.push(text);
       this.addChild(text);
+    }
+    this.updateHeredocPreview(heredoc?.sourceLines ?? []);
+  }
+
+  private updateHeredocPreview(lines: readonly string[]): void {
+    for (const [i, line] of lines.entries()) {
+      const existing = this.heredocPreviewTexts[i];
+      if (existing !== undefined) existing.setText(line);
+      else {
+        const text = new Text(line, 2, 0);
+        this.heredocPreviewTexts.push(text);
+        const resultIndex = this.resultOutput === undefined ? -1 : this.children.indexOf(this.resultOutput);
+        if (resultIndex < 0) this.addChild(text);
+        else this.children.splice(resultIndex, 0, text);
+      }
+    }
+    while (this.heredocPreviewTexts.length > lines.length) {
+      const surplus = this.heredocPreviewTexts.pop();
+      if (surplus !== undefined) {
+        const index = this.children.indexOf(surplus);
+        if (index >= 0) this.children.splice(index, 1);
+      }
     }
   }
 
@@ -105,11 +131,11 @@ export class ShellExecutionComponent extends Container {
    * visible flicker during Bash command streaming.
    */
   setCommand(command: string, previewLines: number | undefined): void {
-    if (command.length === 0) return;
-    const highlighted = formatShellCommandPreview(command);
+    const heredoc = buildBashHeredocPreview(command);
+    const highlighted = command.length === 0 ? [] : formatShellCommandPreview(heredoc?.commandContext ?? command);
     const lines = projectRendererLineWindow({
       lines: highlighted,
-      maxLines: previewLines,
+      maxLines: heredoc === undefined ? previewLines : COMMAND_PREVIEW_LINES,
     }).lines;
     for (const [i, line] of lines.entries()) {
       const existing = this.commandPreviewTexts[i];
@@ -118,7 +144,9 @@ export class ShellExecutionComponent extends Container {
       } else {
         const text = new Text(line, 2, 0);
         this.commandPreviewTexts.push(text);
-        this.addChild(text);
+        // This container has no header: command nodes start at index zero,
+        // before heredoc source nodes and execution output.
+        this.children.splice(i, 0, text);
       }
     }
     // Drop surplus nodes left over from a previously longer command.
@@ -128,6 +156,7 @@ export class ShellExecutionComponent extends Container {
       const idx = this.children.indexOf(surplus);
       if (idx >= 0) this.children.splice(idx, 1);
     }
+    this.updateHeredocPreview(heredoc?.sourceLines ?? []);
     this.invalidate();
   }
 

@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { COMMAND_PREVIEW_LINES } from '#/tui/constant/rendering';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -83,6 +84,33 @@ describe('ShellExecutionComponent', () => {
     const output = component.render(100).map(strip).join('\n');
     expect(output).toContain('$ step1');
     expect(output).toContain('step20');
+  });
+
+  it('renders recognized heredoc context once and only the capped source tail, even expanded', () => {
+    const source = Array.from({ length: 20 }, (_, i) => `const value${i} = ${i};`);
+    const component = new ShellExecutionComponent({
+      command: `echo setup\ncat > example.ts <<'EOF'\n${source.join('\n')}\nEOF`,
+      showCommand: true,
+      commandPreviewLines: undefined,
+    });
+    const output = component.render(120).map(strip).join('\n');
+    expect(output.match(/echo setup/g)).toHaveLength(1);
+    expect(output.match(/cat > example.ts/g)).toHaveLength(1);
+    expect(output.match(/const value\d+/g)).toHaveLength(COMMAND_PREVIEW_LINES);
+    expect(output).not.toContain('const value0');
+    expect(output.indexOf('cat > example.ts')).toBeLessThan(output.indexOf('INPUT · Bash heredoc'));
+    expect(output.indexOf('INPUT · Bash heredoc')).toBeLessThan(output.indexOf('const value19'));
+  });
+
+  it('keeps unrecognized heredocs on the original shell command preview path', () => {
+    const component = new ShellExecutionComponent({
+      command: 'sh <<SH\nprintf fallback\nSH',
+      showCommand: true,
+    });
+    const output = component.render(100).map(strip).join('\n');
+    expect(output).toContain('$ sh <<SH');
+    expect(output.match(/printf fallback/g)).toHaveLength(1);
+    expect(output).not.toContain('INPUT · Bash heredoc');
   });
 
   it('does not count trailing empty lines toward the preview cap', () => {

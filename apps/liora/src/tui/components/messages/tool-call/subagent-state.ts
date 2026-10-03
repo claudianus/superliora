@@ -16,7 +16,7 @@ import type { TokenUsage, ToolResultDisplay } from '@superliora/sdk';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
-import { parseArgsPreview, usageTotal } from './format';
+import { extractPartialStringField, parseArgsPreview, usageTotal } from './format';
 import {
   appendSubToolLiveOutputText,
   backgroundFailureMessage,
@@ -348,6 +348,12 @@ export class ToolCallSubagentState {
     const existing = this.ongoingSubCalls.get(delta.id);
     const nextArgsText = appendStreamingArgsPreview(existing?.streamingArguments, delta.argumentsPart);
     const parsed = parseArgsPreview(nextArgsText);
+    // Like the main card, decode a Bash command before its JSON string closes.
+    // nextArgsText is already bounded by appendStreamingArgsPreview.
+    if ((delta.name ?? existing?.name) === 'Bash') {
+      const command = extractPartialStringField(nextArgsText, 'command');
+      if (command !== undefined) parsed['command'] = command;
+    }
     this.ongoingSubCalls.set(delta.id, {
       name: delta.name ?? existing?.name ?? 'Tool',
       args: parsed,
