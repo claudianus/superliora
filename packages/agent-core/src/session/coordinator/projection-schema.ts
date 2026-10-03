@@ -1,5 +1,6 @@
 import { isAbsolute } from 'node:path';
 import { z } from 'zod';
+import { workerAncestrySchema } from '@superliora/protocol';
 
 const absolutePath = z.string().refine(isAbsolute, 'Expected absolute path');
 export const coordinatorProjectionSchema = z.object({
@@ -7,6 +8,9 @@ export const coordinatorProjectionSchema = z.object({
   records: z.array(z.object({
     id: z.string().startsWith('coord_'),
     idempotencyKey: z.string().min(1),
+    kind: z.enum(['session', 'pipeline']).optional(),
+    workerAncestry: workerAncestrySchema.optional(),
+    pipeline: z.object({ planId: z.string(), status: z.enum(['accepted', 'running', 'success', 'failed', 'blocked', 'cancelled', 'interrupted']), result: z.custom<import('../execution/pipeline').PipelineResult>().optional() }).optional(),
     request: z.object({
       prompt: z.string().min(1),
       description: z.string().min(1),
@@ -14,6 +18,7 @@ export const coordinatorProjectionSchema = z.object({
       model: z.string().optional(),
       purpose: z.string().optional(),
       sourceRevision: z.string().optional(),
+      workerAncestry: workerAncestrySchema.optional(),
       ownership: z.array(absolutePath).optional(),
       timeoutMs: z.number().nonnegative().optional(),
     }),

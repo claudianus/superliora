@@ -7,7 +7,7 @@ import type { Kaos } from '@superliora/kaos';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { log } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
-import { proxyWithExtraPayload } from '#/rpc/types';
+import { agentRpcWithAncestry, resolveWorkerAncestry } from './worker-ancestry';
 import type { SDKSessionRPC } from '#/rpc';
 
 import { Agent, type AgentOptions, type AgentType } from '../../agent';
@@ -87,7 +87,7 @@ export class SessionAgentLifecycle {
       kaos: (config.kaos ?? this.opts.getToolKaos()).withCwd(cwd),
       config: config.config ?? this.opts.options.config,
       homedir,
-      rpc: proxyWithExtraPayload(this.opts.rpc, { agentId: id }),
+      rpc: agentRpcWithAncestry(this.opts.rpc, id, (subject) => resolveWorkerAncestry(this.opts.options, this.opts.getMetadata().agents, subject, subject === id ? parentAgentId : undefined)),
       modelProvider: config.modelProvider ?? providerManagerForAgent(this.opts.options.providerManager, id),
       sessionControl: config.sessionControl ?? this.opts.session.getSubagentHost(id),
       permission: this.permissionOptions(parentAgentId, config.permission),

@@ -9,7 +9,7 @@ import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from 
 import type { SessionSubagentHost } from '../../session/subagent/subagent-host';
 import { toInputJsonSchema } from '../support/input-schema';
 
-export type SessionControlHost = Pick<SessionSubagentHost, 'spawn' | 'resume' | 'listActive' | 'steerChild' | 'stopAndJoin' | 'markActiveChildDetached'> & { readonly coordination?: SessionSubagentHost['coordination']; readonly role?: 'worker' | 'interactive-conductor'; readonly contextProjection?: () => { prefix: string; dynamic: string } | undefined };
+export type SessionControlHost = Pick<SessionSubagentHost, 'spawn' | 'resume' | 'listActive' | 'steerChild' | 'stopAndJoin' | 'markActiveChildDetached'> & { readonly workerAncestry?: import('@superliora/protocol').WorkerAncestry; readonly coordination?: SessionSubagentHost['coordination']; readonly role?: 'worker' | 'interactive-conductor'; readonly contextProjection?: () => { prefix: string; dynamic: string } | undefined };
 
 export const SessionControlInputSchema = z.object({
   planId: z.string().min(1).optional().describe('verify: trusted host-registered verification plan ID; never commands or paths.'),
@@ -18,7 +18,7 @@ export const SessionControlInputSchema = z.object({
   lane: z.enum(['worker', 'independent']).optional().describe('spawn: worker sessions default worker; conductors always dispatch independent sessions with absolute cwd.'),
   idempotencyKey: z.string().min(1).optional().describe('independent spawn/message: durable request identity; reuse only for identical input.'),
   expectedRevision: z.number().int().min(1).optional().describe('independent message/stop: reject stale projection revisions.'),
-  operation: z.enum(['spawn', 'list', 'message', 'wait', 'stop', 'compact', 'yield', 'finish', 'verify']),
+  operation: z.enum(['spawn', 'list', 'message', 'wait', 'stop', 'compact', 'yield', 'finish', 'verify', 'pipeline']),
   prompt: z.string().min(1).optional().describe('Required for spawn: full child task prompt.'),
   description: z.string().min(1).optional().describe('Required for spawn: short UI label.'),
   id: z.string().min(1).optional().describe('Required for message/wait/stop: session or task ID.'),
@@ -76,16 +76,21 @@ export class SessionControlTool implements BuiltinTool<SessionControlInput> {
     }
     const coordination = this.host?.coordination;
     const conductor = this.host?.role === 'interactive-conductor' || coordination !== undefined;
+    if (args.operation === 'pipeline') {
+      if (coordination === undefined || args.planId === undefined) return { isError: true, output: 'pipeline requires conductor coordination and trusted host planId.' };
+      const accepted = await coordination.startPipeline(args.planId, args.idempotencyKey ?? context.toolCallId, this.host?.workerAncestry);
+      return { output: JSON.stringify(coordination.fact(accepted.id)) };
+    }
     if (args.operation === 'spawn' && (args.lane === 'independent' || conductor)) {
       if (coordination === undefined) return { isError: true, output: 'Independent dispatch requires an explicit conductor session with a coordinator.' };
       if (args.cwd === undefined) return { isError: true, output: 'Independent dispatch requires absolute cwd.' };
       const accepted = await coordination.dispatch({
         prompt: args.prompt!, description: args.description!, cwd: args.cwd, model: args.model,
         ownership: args.ownership, purpose: args.purpose, sourceRevision: args.sourceRevision, timeoutMs: args.timeout === undefined ? undefined : args.timeout * 1000,
-      }, args.idempotencyKey ?? context.toolCallId);
+      }, args.idempotencyKey ?? context.toolCallId, this.host?.workerAncestry);
       return { output: JSON.stringify(coordination.fact(accepted.id)) };
     }
-    if (args.id?.startsWith('coord_') === true && ['message', 'wait', 'stop', 'yield', 'finish', 'verify'].includes(args.operation)) {
+    if (args.id?.startsWith('coord_') === true && ['message', 'wait', 'stop', 'yield', 'finish', 'verify', 'pipeline'].includes(args.operation)) {
       if (coordination === undefined) return { isError: true, output: 'Independent coordinator unavailable.' };
       if (args.operation === 'message') {
         await coordination.message(args.id, args.message!, args.idempotencyKey ?? context.toolCallId, args.expectedRevision);

@@ -1,3 +1,4 @@
+import { resolveWorkerAncestry } from '../lifecycle/worker-ancestry';
 import { CONDUCTOR_POLICY_PREFIX } from '../coordinator/conductor-policy';
 import type { ContentPart } from '@superliora/kosong';
 import { resolve } from 'pathe';
@@ -50,10 +51,14 @@ export class SessionSubagentHost {
     this.releaseWorktreeGuard = registerSessionWorktreeOwnershipGuard((path) => this.ownsWorktree(path));
   }
 
-  get role(): 'worker' | 'interactive-conductor' { return this.session.options.role ?? 'worker'; }
+  get workerAncestry(): import('@superliora/protocol').WorkerAncestry {
+    return resolveWorkerAncestry(this.session.options, this.session.metadata.agents, this.ownerAgentId);
+  }
+
+  get role(): 'worker' | 'interactive-conductor' { return this.ownerAgentId === 'main' ? this.session.options.role ?? 'worker' : 'worker'; }
 
   get coordination(): import('../coordinator').SessionCoordinator | undefined {
-    return this.session.options.role === 'interactive-conductor' ? this.session.options.coordination : undefined;
+    return this.role === 'interactive-conductor' ? this.session.options.coordination : undefined;
   }
 
   contextProjection(): { prefix: string; dynamic: string } | undefined {

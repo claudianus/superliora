@@ -10,3 +10,5 @@ export * from './subagent';
 export * from './compaction';
 export * from './runtime';
 export * from './wire';
+
+export * from './ancestry';

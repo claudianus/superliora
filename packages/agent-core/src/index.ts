@@ -277,3 +277,6 @@ export {
 export * from './session/coordinator';
 
 export * from './session/execution/verification';
+
+export * from './session/execution/pipeline';
+export type { WorkerAncestry } from '@superliora/protocol';

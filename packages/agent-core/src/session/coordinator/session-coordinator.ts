@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { boundedUtf8 } from './preview';
+import type { WorkerAncestry } from '@superliora/protocol';
+import { runTrustedPipeline, type TrustedPipelinePlan } from '../execution/pipeline';
 import { runArtifactVerification } from '../execution/verification';
 import type { TrustedVerificationPlan } from './verification-plan';
 import { canonicalPath, containsPath } from './authorized-path';
 import { coordinatorProjectionSchema } from './projection-schema';
 import { IndependentSessionUnsettledError } from './contracts';
 import type {
-  ConductorPolicy, CoordinationRecord, CoordinatorProjection, CoordinatorStore,
+  ConductorPolicy, CoordinationFact, CoordinationRecord, CoordinatorProjection, CoordinatorStore,
   IndependentSessionHandle, IndependentSessionRequest, IndependentSessionRuntime,
 } from './contracts';
 
@@ -22,6 +24,7 @@ export class SessionCoordinator {
   private projection: CoordinatorProjection = { version: 1, records: [] };
   private serial: Promise<unknown> = Promise.resolve();
   private readonly active = new Map<string, { controller: AbortController; handle?: IndependentSessionHandle; done: Promise<void> }>();
+  private readonly changeListeners = new Set<(facts: ReturnType<SessionCoordinator['facts']>) => void>();
   private readonly owner = randomUUID();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private closed = false;
@@ -37,6 +40,7 @@ export class SessionCoordinator {
     readonly policy: ConductorPolicy,
     private readonly now: () => number,
     private readonly verificationPlans: readonly TrustedVerificationPlan[],
+    private readonly trustedPipelinePlans: readonly TrustedPipelinePlan[],
   ) {
     if (policy.role !== 'conductor' || !Number.isInteger(policy.maxConcurrent) || policy.maxConcurrent < 1) {
       throw new Error('Independent sessions require an explicit conductor policy with positive maxConcurrent');
@@ -46,19 +50,21 @@ export class SessionCoordinator {
   }
 
   static async open(options: {
-    store: CoordinatorStore; runtime: IndependentSessionRuntime; policy: ConductorPolicy; now?: () => number; verificationPlans?: readonly TrustedVerificationPlan[];
+    store: CoordinatorStore; runtime: IndependentSessionRuntime; policy: ConductorPolicy; now?: () => number; verificationPlans?: readonly TrustedVerificationPlan[]; trustedPipelinePlans?: readonly TrustedPipelinePlan[];
   }): Promise<SessionCoordinator> {
     try {
-      const coordinator = new SessionCoordinator(options.store, options.runtime, options.policy, options.now ?? Date.now, options.verificationPlans ?? []);
+      const coordinator = new SessionCoordinator(options.store, options.runtime, options.policy, options.now ?? Date.now, options.verificationPlans ?? [], options.trustedPipelinePlans ?? []);
       const projection = await options.store.load();
       if (projection !== undefined) {
         if (projection.version !== 1 || !Array.isArray(projection.records)) throw new Error('Unsupported coordinator projection');
         coordinator.projection = coordinatorProjectionSchema.parse(projection);
         await coordinator.mutate((draft) => {
           for (const record of draft.records) {
+            if (record.pipeline?.status === 'running') record.pipeline.status = 'interrupted';
             if (record.verification?.status === 'accepted' || record.verification?.status === 'running') { record.verification.status = 'interrupted'; record.revision++; }
             if (record.status === 'admitting' || record.status === 'running' || record.lease !== undefined) {
               record.status = 'interrupted';
+              if (record.pipeline !== undefined) record.pipeline.status = 'interrupted';
               record.error = 'Execution interrupted; reconcile physical resources before releasing ownership. No automatic continuation.';
               record.revision++;
             }
@@ -82,27 +88,62 @@ export class SessionCoordinator {
     return record === undefined ? undefined : structuredClone(record);
   }
 
-  facts(limit = 32): { records: object[]; total: number } {
+  facts(limit = 32): { records: CoordinationFact[]; total: number } {
     const records = this.projection.records.slice(-Math.min(Math.max(1, limit), 100));
-    const cards: object[] = [];
+    const cards: CoordinationFact[] = [];
     for (const record of records) {
-      const { result: _result, error: _error, ...card } = this.fact(record.id) as Record<string, unknown>;
+      const { result: _result, error: _error, ...card } = this.fact(record.id)!;
       if (Buffer.byteLength(JSON.stringify([...cards, card])) > 12 * 1024) break;
       cards.push(card);
     }
     return { total: this.projection.records.length, records: cards };
   }
 
-  fact(id: string): object | undefined {
+  fact(id: string): CoordinationFact | undefined {
     const record = this.get(id);
     if (record === undefined) return undefined;
     return {
-      id: record.id, sessionId: record.sessionId, revision: record.revision, status: record.status,
+      id: record.id, kind: record.kind ?? 'session',
+      reusable: record.kind !== 'pipeline' && (record.status === 'idle' || record.status === 'yielded') && record.sessionId !== undefined && this.runtime.resume !== undefined && record.lease === undefined,
+      ownerStatus: record.status === 'idle' || record.status === 'yielded' ? record.status : record.status === 'cancel_requested' ? 'settling' : record.status === 'interrupted' ? 'interrupted' : ['accepted', 'admitting', 'running'].includes(record.status) ? 'active' : 'finished',
+      workerAncestry: record.workerAncestry, pipeline: record.pipeline === undefined ? undefined : { planId: record.pipeline.planId, status: record.pipeline.status }, sessionId: record.sessionId, revision: record.revision, status: record.status,
       purpose: boundedUtf8(record.request.purpose ?? record.request.description, 256), cwd: record.request.cwd,
       sourceRevision: record.request.sourceRevision, verification: record.verification === undefined ? undefined : { planId: record.verification.planId, revision: record.verification.revision, status: record.verification.status, evidencePath: record.verification.receipt?.evidencePath, artifactHash: record.verification.receipt?.artifactHash }, lease: record.lease,
       mailbox: { pending: record.mailbox.filter((entry) => entry.status === 'pending').length, uncertain: record.mailbox.filter((entry) => entry.status === 'sending').length },
       result: record.result === undefined ? undefined : boundedUtf8(record.result, 4096, true), error: record.error === undefined ? undefined : boundedUtf8(record.error, 1024),
     };
+  }
+
+  onChange(listener: (facts: ReturnType<SessionCoordinator['facts']>) => void): () => void {
+    this.changeListeners.add(listener);
+    return () => { this.changeListeners.delete(listener); };
+  }
+
+  async startPipeline(planId: string, idempotencyKey: string, origin?: WorkerAncestry): Promise<CoordinationRecord> {
+    this.assertOpen();
+    const plan = this.trustedPipelinePlans.find((entry) => entry.id === planId);
+    if (plan === undefined) throw new Error('Pipeline plan is not registered by the trusted host');
+    if (!idempotencyKey.trim() || Buffer.byteLength(idempotencyKey) > 256 || plan.stages.length === 0) throw new Error('Invalid pipeline identity or stages');
+    const ownership = [...new Set(await Promise.all(plan.stages.map((stage) => canonicalPath(stage.repoPath))))].toSorted();
+    const roots = await Promise.all(this.policy.authorizedRoots.map(canonicalPath));
+    if (!ownership.every((path) => roots.some((root) => containsPath(root, path)))) throw new Error('Pipeline workspace is outside authorized roots');
+    const accepted = await this.mutate((draft) => {
+      const previous = draft.records.find((entry) => entry.idempotencyKey === idempotencyKey);
+      if (previous !== undefined) {
+        if (previous.kind !== 'pipeline' || previous.pipeline?.planId !== planId) throw new Error('Pipeline idempotency key conflict');
+        return previous;
+      }
+      if (draft.records.length >= 128) throw new Error('Coordinator record quota reached; host retention is required');
+      const record: CoordinationRecord = {
+        id: `coord_${randomUUID()}`, kind: 'pipeline', idempotencyKey, revision: 1, status: 'accepted',
+        request: { prompt: 'Trusted host pipeline', description: planId, purpose: planId, cwd: ownership[0]!, ownership },
+        workerAncestry: origin, pipeline: { planId, status: 'accepted' }, mailbox: [],
+      };
+      draft.records.push(record);
+      return record;
+    });
+    this.schedule(true);
+    return accepted;
   }
 
   async verify(id: string, planId: string, expectedRevision: number): Promise<CoordinationRecord> {
@@ -156,7 +197,7 @@ export class SessionCoordinator {
     });
   }
 
-  async dispatch(request: IndependentSessionRequest, idempotencyKey: string): Promise<CoordinationRecord> {
+  async dispatch(request: IndependentSessionRequest, idempotencyKey: string, origin?: WorkerAncestry): Promise<CoordinationRecord> {
     this.assertOpen();
     if (!idempotencyKey.trim() || !request.prompt.trim() || !request.description.trim() || !isAbsolute(request.cwd)) {
       throw new Error('Dispatch requires idempotencyKey, prompt, description and absolute cwd');
@@ -177,13 +218,20 @@ export class SessionCoordinator {
     const record = await this.mutate((draft) => {
       const previous = draft.records.find((entry) => entry.idempotencyKey === idempotencyKey);
       if (previous !== undefined) {
-        if (JSON.stringify(previous.request) !== JSON.stringify(normalized)) throw new Error('Idempotency key conflicts with prior request');
+        if (previous.kind === 'pipeline' || JSON.stringify({ ...previous.request, workerAncestry: undefined }) !== JSON.stringify(normalized)) throw new Error('Idempotency key conflicts with prior request');
         return previous;
       }
       if (draft.records.length >= 128) throw new Error('Coordinator record quota reached; host retention is required');
       const accepted: CoordinationRecord = {
-        id: `coord_${randomUUID()}`, idempotencyKey, request: normalized, revision: 1, status: 'accepted', mailbox: [],
+        id: `coord_${randomUUID()}`, kind: 'session', idempotencyKey, request: normalized, revision: 1, status: 'accepted', mailbox: [],
       };
+      accepted.workerAncestry = {
+        agentId: 'main', sessionId: accepted.id, parentAgentId: origin?.agentId ?? null, parentSessionId: origin?.sessionId || null,
+        rootAgentId: origin === undefined ? 'main' : origin.rootAgentId, rootSessionId: origin === undefined ? accepted.id : origin.rootSessionId,
+        conductorAgentId: origin?.conductorAgentId, conductorSessionId: origin?.conductorSessionId, coordinationId: accepted.id,
+        status: origin === undefined ? 'root' : origin.status === 'orphan' || !origin.sessionId ? 'orphan' : 'linked',
+      };
+      accepted.request.workerAncestry = accepted.workerAncestry;
       draft.records.push(accepted);
       return accepted;
     });
@@ -197,6 +245,7 @@ export class SessionCoordinator {
     if (!text.trim() || !messageId.trim()) throw new Error('Message requires text and idempotency key');
     const record = await this.mutate((draft) => {
       const record = this.require(draft, id);
+      if (record.kind === 'pipeline') throw new Error('Pipeline inputs belong to the trusted host plan');
       const previous = record.mailbox.find((entry) => entry.id === messageId);
       if (previous !== undefined) {
         if (previous.text !== text) throw new Error('Message idempotency key conflict');
@@ -294,7 +343,7 @@ export class SessionCoordinator {
         if (this.get(record.id)?.status === 'cancelled') continue;
         throw error;
       }
-      void this.run(record.id, controller).then(settled.resolve, (error) => {
+      void (record.kind === 'pipeline' ? this.runPipelineExecution(record.id, controller) : this.run(record.id, controller)).then(settled.resolve, (error) => {
         this.failure = error;
         settled.resolve();
       }).finally(() => { this.active.delete(record.id); this.schedule(true); });
@@ -318,6 +367,31 @@ export class SessionCoordinator {
     await this.store.close();
   }
 
+  private async runPipelineExecution(id: string, controller: AbortController): Promise<void> {
+    try {
+      const planId = this.get(id)!.pipeline!.planId;
+      const plan = this.trustedPipelinePlans.find((entry) => entry.id === planId);
+      if (plan === undefined) throw new Error('Accepted pipeline plan is no longer registered');
+      await this.mutate((draft) => {
+        const record = this.require(draft, id);
+        if (record.status !== 'cancel_requested') record.status = 'running';
+        record.pipeline!.status = 'running';
+        record.revision++;
+      });
+      const result = await runTrustedPipeline(plan, { executionSignal: controller.signal });
+      await this.mutate((draft) => {
+        const record = this.require(draft, id);
+        record.pipeline = { planId, status: result.status, result };
+        record.status = result.status === 'success' ? 'finished' : result.status === 'cancelled' ? 'cancelled' : 'failed';
+        delete record.lease;
+        record.revision++;
+      });
+    } catch (error) {
+      await this.finish(id, controller.signal.aborted ? 'cancelled' : 'failed', undefined, String(error));
+      await this.mutate((draft) => { const record = this.require(draft, id); record.pipeline!.status = controller.signal.aborted ? 'cancelled' : 'failed'; });
+    }
+  }
+
   private async run(id: string, controller: AbortController): Promise<void> {
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -334,6 +408,10 @@ export class SessionCoordinator {
         await this.mutate((draft) => {
           const record = this.require(draft, id);
           record.sessionId = handle.sessionId;
+          if (record.workerAncestry !== undefined) {
+            record.workerAncestry = { ...record.workerAncestry, sessionId: handle.sessionId };
+            record.request.workerAncestry = record.workerAncestry;
+          }
           if (record.status !== 'cancel_requested' && record.status !== 'cancelled') record.status = 'running';
           delete record.resumePrompt;
           record.revision++;
@@ -400,8 +478,14 @@ export class SessionCoordinator {
     const transaction = this.serial.then(async () => {
       const draft = structuredClone(this.projection);
       const result = update(draft);
-      if (JSON.stringify(draft) !== JSON.stringify(this.projection)) await this.store.save(draft);
+      const changed = JSON.stringify(draft) !== JSON.stringify(this.projection);
+      if (changed) await this.store.save(draft);
       this.projection = draft;
+      if (changed) {
+        for (const listener of this.changeListeners) {
+          try { listener(this.facts()); } catch { /* Observers cannot change durable execution. */ }
+        }
+      }
       return structuredClone(result);
     });
     this.serial = transaction.catch(() => undefined);

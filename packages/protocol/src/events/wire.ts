@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { workerAncestrySchema, type WorkerAncestry } from './ancestry';
 
 import { agentStatusUpdatedEventSchema, type AgentStatusUpdatedEvent } from './agent';
 import {
@@ -99,7 +100,7 @@ import {
   type TurnStepStartedEvent,
 } from './turn';
 
-export type AgentEvent =
+type AgentEventPayload =
   | ErrorEvent
   | WarningEvent
   | AgentStatusUpdatedEvent
@@ -143,6 +144,8 @@ export type AgentEvent =
   | BackgroundTaskTerminatedEvent
   | PromptSubmittedEvent
   | RuntimeDegradedEvent;
+
+export type AgentEvent = AgentEventPayload & { readonly workerAncestry?: WorkerAncestry };
 
 export type Event = AgentEvent & { agentId: string; sessionId: string };
 
@@ -192,7 +195,7 @@ const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   runtimeDegradedEventSchema,
 ]);
 
-export const agentEventSchema = agentEventDiscriminatedSchema as z.ZodType<AgentEvent>;
+export const agentEventSchema = agentEventDiscriminatedSchema.and(z.object({ workerAncestry: workerAncestrySchema.optional() })) as z.ZodType<AgentEvent>;
 
 export const eventSchema = agentEventSchema.and(
   z.object({

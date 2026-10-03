@@ -8,6 +8,7 @@ import {
   type IndependentSessionRequest,
   type IndependentSessionRuntime,
   type TrustedVerificationPlan,
+  type TrustedPipelinePlan,
 } from '@superliora/agent-core';
 import type { LioraHarness } from '#/harness/liora-harness';
 import type { Session } from '#/session/session';
@@ -58,11 +59,13 @@ export function createIndependentSessionRuntime(
   return {
     async admit(id, request, signal) {
       signal.throwIfAborted();
-      return run(await harness.createSession({ id, workDir: request.cwd, model: request.model }), request, signal);
+      const options = { id, workDir: request.cwd, model: request.model, workerAncestry: request.workerAncestry };
+      return run(await harness.createSession(options), request, signal);
     },
     async resume(sessionId, request, signal) {
       signal.throwIfAborted();
-      return run(await harness.resumeSession({ id: sessionId }), request, signal);
+      const options = { id: sessionId, workerAncestry: request.workerAncestry };
+      return run(await harness.resumeSession(options), request, signal);
     },
   };
 }
@@ -72,12 +75,13 @@ export async function createSessionCoordinator(harness: Pick<LioraHarness, 'crea
   policy: ConductorPolicy;
   onActivity?: (sessionId: string, event: Event) => void;
   verificationPlans?: readonly TrustedVerificationPlan[];
+  trustedPipelinePlans?: readonly TrustedPipelinePlan[];
 }): Promise<SessionCoordinator> {
   const home = await canonicalPath(harness.homeDir);
   const path = await canonicalPath(options.path);
   if (!containsPath(home, path) || home === path) throw new Error('Coordinator projection must be scoped to the harness account home');
   const store = await FileCoordinatorStore.open(path);
-  return SessionCoordinator.open({ store, policy: options.policy, verificationPlans: options.verificationPlans, runtime: createIndependentSessionRuntime(harness, options.onActivity) });
+  return SessionCoordinator.open({ store, policy: options.policy, verificationPlans: options.verificationPlans, trustedPipelinePlans: options.trustedPipelinePlans, runtime: createIndependentSessionRuntime(harness, options.onActivity) });
 }
 
 export {
@@ -87,6 +91,7 @@ export {
 } from '@superliora/agent-core';
 export type {
   ConductorPolicy,
+  CoordinationFact,
   CoordinationRecord,
   CoordinationStatus,
   CoordinatorProjection,
@@ -95,4 +100,5 @@ export type {
   IndependentSessionRequest,
   IndependentSessionRuntime,
   TrustedVerificationPlan,
+  TrustedPipelinePlan,
 } from '@superliora/agent-core';

@@ -10,6 +10,7 @@ import type { ProviderManager } from '../provider/provider-manager';
 import type { TelemetryClient } from '../../telemetry';
 
 export interface SessionOptions {
+  readonly workerAncestry?: import('@superliora/protocol').WorkerAncestry;
   readonly role?: 'worker' | 'interactive-conductor';
   readonly coordination?: import('../coordinator').SessionCoordinator;
   readonly kaos: Kaos;

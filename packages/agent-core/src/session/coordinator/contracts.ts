@@ -7,6 +7,7 @@ export interface IndependentSessionRequest {
   timeoutMs?: number;
   purpose?: string;
   sourceRevision?: string;
+  workerAncestry?: import('@superliora/protocol').WorkerAncestry;
 }
 
 export type CoordinationStatus = 'accepted' | 'admitting' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted' | 'cancel_requested' | 'idle' | 'yielded' | 'finished';
@@ -14,6 +15,9 @@ export type CoordinationStatus = 'accepted' | 'admitting' | 'running' | 'complet
 export interface CoordinationRecord {
   id: string;
   idempotencyKey: string;
+  kind?: 'session' | 'pipeline';
+  workerAncestry?: import('@superliora/protocol').WorkerAncestry;
+  pipeline?: { planId: string; status: 'accepted' | 'running' | 'success' | 'failed' | 'blocked' | 'cancelled' | 'interrupted'; result?: import('../execution/pipeline').PipelineResult };
   request: IndependentSessionRequest;
   revision: number;
   status: CoordinationStatus;
@@ -62,4 +66,24 @@ export class IndependentSessionUnsettledError extends Error {
     super(message, options);
     this.name = 'IndependentSessionUnsettledError';
   }
+}
+
+export interface CoordinationFact {
+  id: string;
+  sessionId?: string;
+  revision: number;
+  status: CoordinationStatus;
+  kind: 'session' | 'pipeline';
+  reusable: boolean;
+  ownerStatus?: 'active' | 'idle' | 'yielded' | 'finished' | 'settling' | 'interrupted';
+  purpose: string;
+  cwd: string;
+  sourceRevision?: string;
+  workerAncestry?: import('@superliora/protocol').WorkerAncestry;
+  pipeline?: { planId: string; status: NonNullable<CoordinationRecord['pipeline']>['status'] };
+  verification?: { planId: string; revision: number; status: NonNullable<CoordinationRecord['verification']>['status']; evidencePath?: string; artifactHash?: string };
+  lease?: CoordinationRecord['lease'];
+  mailbox: { pending: number; uncertain: number };
+  result?: string;
+  error?: string;
 }

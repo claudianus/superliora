@@ -183,6 +183,7 @@ describe('conductor acceptance capability bounds', () => {
     completions.get(accepted.id)!.resolve('Observed turn result');
     await flush();
     expect(coordinator.get(accepted.id)?.status).toBe('idle');
+    expect(coordinator.fact(accepted.id)).toMatchObject({ reusable: true, ownerStatus: 'idle', kind: 'session' });
     await coordinator.park(accepted.id, 'yielded', coordinator.get(accepted.id)!.revision);
     await coordinator.message(accepted.id, 'Repair the failing assertion', 'repair-1', coordinator.get(accepted.id)!.revision);
     await coordinator.tick();
@@ -191,6 +192,7 @@ describe('conductor acceptance capability bounds', () => {
     completions.get(`session-${accepted.id}`)!.resolve('Repair turn ended');
     await flush();
     await coordinator.park(accepted.id, 'finished', coordinator.get(accepted.id)!.revision);
+    expect(coordinator.fact(accepted.id)).toMatchObject({ reusable: false, ownerStatus: 'finished' });
     await expect(coordinator.message(accepted.id, 'Implicit extra turn', 'extra', coordinator.get(accepted.id)!.revision)).rejects.toThrow('no implicit continuation');
   });
 
@@ -310,5 +312,37 @@ describe('bounded persistence work', () => {
     const accepted = await coordinator.dispatch(request, 'work');
     await expect(coordinator.message(accepted.id, '界'.repeat(1500), 'huge', accepted.revision)).rejects.toThrow('quota');
     expect(coordinator.get(accepted.id)?.mailbox).toEqual([]);
+  });
+});
+
+describe('durable tree snapshots', () => {
+  it('notifies only committed changes, isolates observers, and keeps stable correlation through actual admission IDs', async () => {
+    const { coordinator, store, runtime } = await setup();
+    const observed: ReturnType<SessionCoordinator['facts']>[] = [];
+    const unsubscribe = coordinator.onChange((facts) => { expect(store.projection?.records.length).toBe(facts.total); observed.push(facts); });
+    coordinator.onChange(() => { throw new Error('UI observer failed'); });
+    runtime.admit = vi.fn(async (id, _request, signal) => {
+      const completion = Promise.withResolvers<string>();
+      signal.addEventListener('abort', () => completion.reject(signal.reason), { once: true });
+      return { sessionId: 'actual-worker-session', completion: completion.promise, message: async () => {} };
+    });
+    const origin = { agentId: 'worker-parent', sessionId: 'conductor-session', parentAgentId: 'main', parentSessionId: 'conductor-session', rootAgentId: 'main', rootSessionId: 'conductor-session', conductorAgentId: 'main', conductorSessionId: 'conductor-session', status: 'linked' as const };
+    const accepted = await coordinator.dispatch(request, 'work', origin);
+    expect(observed[0]?.records[0]?.workerAncestry).toMatchObject({ coordinationId: accepted.id, sessionId: accepted.id, parentAgentId: 'worker-parent', parentSessionId: 'conductor-session' });
+    await coordinator.tick();
+    await flush();
+    expect(coordinator.fact(accepted.id)?.workerAncestry).toMatchObject({ coordinationId: accepted.id, sessionId: 'actual-worker-session', rootSessionId: 'conductor-session' });
+    expect(coordinator.get(accepted.id)?.request.workerAncestry).toEqual(coordinator.fact(accepted.id)?.workerAncestry);
+    const count = observed.length;
+    await coordinator.tick();
+    expect(observed).toHaveLength(count);
+    store.fail = true;
+    await expect(coordinator.message(accepted.id, 'Message', 'm', coordinator.get(accepted.id)!.revision)).rejects.toThrow('disk full');
+    expect(observed).toHaveLength(count);
+    store.fail = false;
+    unsubscribe();
+    await coordinator.stop(accepted.id, coordinator.get(accepted.id)!.revision);
+    await flush();
+    expect(observed).toHaveLength(count);
   });
 });
