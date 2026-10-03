@@ -1,0 +1,252 @@
+/**
+ * Trusted-host-only local verification. This executor intentionally runs outside
+ * Kaos and must never be exposed as arbitrary model-supplied commands/paths.
+ * The host authorizes its predetermined policy before any native operation.
+ */
+import { createHash } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
+import { isAbsolute, join, relative, resolve } from 'node:path';
+
+export interface VerificationHostPolicy {
+  /**
+   * Must enforce host-owned argv plans and repository/evidence workspace bounds.
+   * Throw to deny. Never implement this from a model-supplied approval boolean.
+   * No default allow policy is supplied by this module.
+   */
+  authorize(input: {
+    readonly operation: 'seal' | 'verify';
+    readonly repoPath: string;
+    readonly sourceRevision: string;
+    readonly requirementsHash: string;
+    readonly stages: readonly VerificationStage[];
+    readonly evidenceRoot?: string;
+  }): void | Promise<void>;
+}
+
+export interface VerificationStage {
+  readonly id: string;
+  /** Executable and argv, not a shell expression. */
+  readonly command: readonly string[];
+  readonly scope: string;
+  readonly timeoutMs: number;
+}
+export interface VerificationArtifact {
+  readonly version: 1;
+  readonly sourceRevision: string;
+  readonly sourceTree: string;
+  readonly requirementsHash: string;
+  readonly stages: readonly VerificationStage[];
+  readonly artifactHash: string;
+}
+export interface VerificationEnvironment {
+  readonly values: Readonly<Record<string, string>>;
+  readonly removedKeys: readonly string[];
+}
+export interface VerificationStageReceipt {
+  readonly stageId: string;
+  readonly command: readonly string[];
+  readonly scope: string;
+  readonly cwd: string;
+  readonly environment: VerificationEnvironment;
+  readonly exitCode: number | null;
+  readonly signal: string | null;
+  readonly timedOut: boolean;
+  readonly outputTruncated: boolean;
+  readonly startedAt: string;
+  readonly finishedAt: string;
+  readonly stdoutPath: string;
+  readonly stderrPath: string;
+  readonly stdoutHash: string;
+  readonly stderrHash: string;
+  readonly failure?: string;
+}
+export interface VerificationReceipt {
+  readonly version: 1;
+  readonly artifactHash: string;
+  readonly sourceRevision: string;
+  readonly sourceTree: string;
+  readonly requirementsHash: string;
+  readonly status: 'passed' | 'failed' | 'stale' | 'source_changed';
+  readonly stages: readonly VerificationStageReceipt[];
+  readonly evidencePath: string;
+  readonly failure?: string;
+}
+const hash = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+
+/** Allowlist, not a copy of the operator's credentials, proxies or terminal state. */
+export function verificationEnvironment(home: string, ambient: NodeJS.ProcessEnv = process.env): VerificationEnvironment {
+  const values: Record<string, string> = {};
+  for (const key of ['PATH', 'SystemRoot', 'WINDIR', 'PATHEXT', 'TMP', 'TEMP', 'TMPDIR']) {
+    if (ambient[key] !== undefined) values[key] = ambient[key];
+  }
+  Object.assign(values, {
+    HOME: home, USERPROFILE: home, CI: 'true', GITHUB_ACTIONS: 'true', TZ: 'UTC',
+    LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8',
+    GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null',
+    GIT_CONFIG_SYSTEM: process.platform === 'win32' ? 'NUL' : '/dev/null',
+    GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'init.defaultBranch', GIT_CONFIG_VALUE_0: 'master',
+  });
+  return { values, removedKeys: Object.keys(ambient).filter(key => !(key in values)).toSorted() };
+}
+
+function validateStages(stages: readonly VerificationStage[]): void {
+  if (stages.length === 0 || stages.length > 16) throw new Error('Verification requires 1–16 predetermined stages');
+  const ids = new Set<string>();
+  for (const stage of stages) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(stage.id) || ids.has(stage.id)) throw new Error('Invalid or duplicate stage id');
+    ids.add(stage.id);
+    if (stage.command.length === 0 || stage.command.some(arg => typeof arg !== 'string' || arg.includes('\0')) || !stage.command[0]) throw new Error('Invalid command');
+    if (isAbsolute(stage.scope) || stage.scope.split(/[\\/]/).includes('..')) throw new Error('Scope must stay inside the artifact');
+    if (!Number.isInteger(stage.timeoutMs) || stage.timeoutMs < 1 || stage.timeoutMs > 900_000) throw new Error('Stage timeout must be 1–900000ms');
+  }
+}
+
+interface CommandResult {
+  stdout: string; stderr: string; exitCode: number | null; signal: string | null;
+  timedOut: boolean; outputTruncated: boolean; failure?: string;
+}
+/** Bounded output and process-group timeout; no implicit retries. */
+function execute(command: readonly string[], cwd: string, env: Readonly<Record<string, string>>, timeoutMs: number): Promise<CommandResult> {
+  return new Promise(resolveResult => {
+    const result: CommandResult = { stdout: '', stderr: '', exitCode: null, signal: null, timedOut: false, outputTruncated: false };
+    const child = spawn(command[0]!, command.slice(1), { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    const collect = (key: 'stdout' | 'stderr', chunk: Buffer): void => {
+      const text = chunk.toString('utf8');
+      const remaining = Math.max(0, 1_048_576 - result[key].length);
+      result[key] += text.slice(0, remaining);
+      if (text.length > remaining) result.outputTruncated = true;
+    };
+    child.stdout.on('data', (chunk: Buffer) => { collect('stdout', chunk); });
+    child.stderr.on('data', (chunk: Buffer) => { collect('stderr', chunk); });
+    const timer = setTimeout(() => {
+      result.timedOut = true;
+      if (child.pid) {
+        if (process.platform === 'win32') {
+          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { env, stdio: 'ignore' }).on('error', () => child.kill('SIGKILL'));
+        } else {
+          try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
+        }
+      }
+    }, timeoutMs);
+    child.on('error', error => { result.failure = error.message; });
+    child.once('close', (code, signal) => {
+      timer[Symbol.dispose]();
+      result.exitCode = result.failure ? null : code;
+      result.signal = signal;
+      resolveResult(result);
+    });
+  });
+}
+async function git(repo: string, args: readonly string[]): Promise<string> {
+  const result = await execute(['git', '--no-pager', '-C', repo, ...args], repo, verificationEnvironment(repo).values, 60_000);
+  if (result.exitCode !== 0 || result.timedOut || result.outputTruncated) throw new Error(result.failure ?? (result.stderr || 'Git verification operation failed'));
+  return result.stdout.trim();
+}
+
+/** Seal only a full commit id, never HEAD/a branch or uncommitted files. */
+async function resolveArtifact(input: {
+  readonly repoPath: string; readonly sourceRevision: string;
+  readonly requirementsHash: string; readonly stages: readonly VerificationStage[];
+}): Promise<VerificationArtifact> {
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(input.sourceRevision)) throw new Error('A full committed revision is required');
+  if (!/^[a-f0-9]{64}$/.test(input.requirementsHash)) throw new Error('Requirements must be a SHA-256 digest');
+  validateStages(input.stages);
+  const sourceRevision = await git(input.repoPath, ['rev-parse', '--verify', `${input.sourceRevision}^{commit}`]);
+  const sourceTree = await git(input.repoPath, ['rev-parse', `${sourceRevision}^{tree}`]);
+  const body = { version: 1 as const, sourceRevision, sourceTree, requirementsHash: input.requirementsHash,
+    stages: input.stages.map(stage => ({ id: stage.id, command: [...stage.command], scope: stage.scope, timeoutMs: stage.timeoutMs })) };
+  return { ...body, artifactHash: hash(body) };
+}
+
+/** Seal the producer only when its HEAD and clean tracked/untracked tree match. */
+export async function sealVerificationArtifact(input: {
+  readonly hostPolicy: VerificationHostPolicy;
+  readonly repoPath: string; readonly sourceRevision: string;
+  readonly requirementsHash: string; readonly stages: readonly VerificationStage[];
+}): Promise<VerificationArtifact> {
+  const requested = { repoPath: input.repoPath, sourceRevision: input.sourceRevision,
+    requirementsHash: input.requirementsHash, stages: structuredClone(input.stages) };
+  await input.hostPolicy.authorize({ operation: 'seal', ...requested, stages: structuredClone(requested.stages) });
+  const artifact = await resolveArtifact(requested);
+  if (await git(requested.repoPath, ['rev-parse', 'HEAD']) !== artifact.sourceRevision ||
+      await git(requested.repoPath, ['status', '--porcelain', '--untracked-files=all'])) {
+    throw new Error('Seal requires a clean producer tree at the requested revision');
+  }
+  return artifact;
+}
+
+/**
+ * The coordinator supplies a live requirements digest, checked before each stage
+ * and publication. This function never verifies the producer's moving worktree.
+ * Evidence and the detached checkout are retained for audit; caller owns retention.
+ */
+export async function runArtifactVerification(input: {
+  readonly hostPolicy: VerificationHostPolicy;
+  readonly repoPath: string; readonly artifact: VerificationArtifact;
+  readonly evidenceRoot: string;
+  readonly currentRequirementsHash: () => string | Promise<string>;
+}): Promise<VerificationReceipt> {
+  // Snapshot caller data before the async policy hook; mutation cannot change the authorized plan.
+  const requested = structuredClone(input.artifact);
+  const repoPath = input.repoPath;
+  const evidenceRoot = input.evidenceRoot;
+  const currentRequirementsHash = input.currentRequirementsHash;
+  await input.hostPolicy.authorize({ operation: 'verify', repoPath,
+    sourceRevision: requested.sourceRevision, requirementsHash: requested.requirementsHash,
+    stages: structuredClone(requested.stages), evidenceRoot });
+  if (requested.version !== 1) throw new Error('Unsupported artifact version');
+  const artifact = await resolveArtifact({ ...requested, repoPath });
+  if (artifact.artifactHash !== requested.artifactHash || artifact.sourceTree !== requested.sourceTree) throw new Error('Artifact seal mismatch');
+  await mkdir(evidenceRoot, { recursive: true });
+  const evidenceDir = await mkdtemp(join(resolve(evidenceRoot), 'verification-'));
+  const evidencePath = join(evidenceDir, 'receipt.json');
+  const checkout = join(evidenceDir, 'source');
+  const home = join(evidenceDir, 'home');
+  await mkdir(home);
+  const environment = verificationEnvironment(home);
+  const stages: VerificationStageReceipt[] = [];
+  let status: VerificationReceipt['status'] = 'passed';
+  const fresh = async (): Promise<boolean> => await currentRequirementsHash() === artifact.requirementsHash;
+  let failure: string | undefined;
+  try {
+    if (!await fresh()) status = 'stale';
+    else {
+      await git(repoPath, ['worktree', 'add', '--detach', checkout, artifact.sourceRevision]);
+      const unchanged = async (): Promise<boolean> =>
+        await git(checkout, ['rev-parse', 'HEAD']) === artifact.sourceRevision &&
+        !(await git(checkout, ['status', '--porcelain', '--untracked-files=no']));
+      for (const stage of artifact.stages) {
+        if (!await fresh()) { status = 'stale'; break; }
+        if (!await unchanged()) { status = 'source_changed'; break; }
+        const cwd = await realpath(resolve(checkout, stage.scope));
+        const scopePath = relative(await realpath(checkout), cwd);
+        if (isAbsolute(scopePath) || scopePath.split(/[\\/]/).includes('..')) throw new Error('Scope resolves outside the artifact');
+        const startedAt = new Date().toISOString();
+        const result = await execute(stage.command, cwd, environment.values, stage.timeoutMs);
+        const stdoutPath = join(evidenceDir, `${stage.id}.stdout.log`);
+        const stderrPath = join(evidenceDir, `${stage.id}.stderr.log`);
+        await writeFile(stdoutPath, result.stdout, { flag: 'wx' });
+        await writeFile(stderrPath, result.stderr, { flag: 'wx' });
+        stages.push({ stageId: stage.id, command: stage.command, scope: stage.scope, cwd, environment,
+          exitCode: result.exitCode, signal: result.signal, timedOut: result.timedOut,
+          outputTruncated: result.outputTruncated, startedAt, finishedAt: new Date().toISOString(),
+          stdoutPath, stderrPath,
+          stdoutHash: createHash('sha256').update(result.stdout).digest('hex'),
+          stderrHash: createHash('sha256').update(result.stderr).digest('hex'), ...(result.failure ? { failure: result.failure } : {}) });
+        if (!await fresh()) { status = 'stale'; break; }
+        if (!await unchanged()) { status = 'source_changed'; break; }
+        if (result.exitCode !== 0 || result.timedOut || result.failure) { status = 'failed'; break; }
+      }
+    }
+  } catch (error) {
+    status = 'failed';
+    failure = error instanceof Error ? error.message : String(error);
+  }
+  const receipt: VerificationReceipt = { version: 1, artifactHash: artifact.artifactHash,
+    sourceRevision: artifact.sourceRevision, sourceTree: artifact.sourceTree,
+    requirementsHash: artifact.requirementsHash, status, stages, evidencePath,
+    ...(failure ? { failure } : {}) };
+  await writeFile(evidencePath, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+  return receipt;
+}
