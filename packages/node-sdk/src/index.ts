@@ -243,7 +243,7 @@ export type {
   RuntimeImage,
 } from '@superliora/gui-use';
 
-export * from '#/orchestration';
+export * from '#/orchestration/index';
 
 export { sealVerificationArtifact, runArtifactVerification, verificationEnvironment } from '@superliora/agent-core';
 export type { VerificationArtifact, VerificationHostPolicy, VerificationStage, VerificationReceipt, VerificationStageReceipt } from '@superliora/agent-core';
