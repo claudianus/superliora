@@ -44,12 +44,11 @@ User-facing features that operators need during an interactive session must be r
 
 - **Default:** new operator workflows land in `src/tui/commands/` + dialogs under `src/tui/components/dialogs/`, reusing pure helpers shared with CLI when both exist. **Do not add new public argv subcommands for day-to-day ops** (Conductor jobs, settings, swarm/fleet UX) — those stay TUI slash / Command Hub.
 - **Public argv keep-list** (add to this list when introducing a new CLI-only exception; snapshot-locked in `test/cli/public-commands.test.ts`):
-  - main: `liora` (+ `-p`, session/permission/profile/worktree/`--debug` flags)
+  - main: `liora` (+ `-p`, session/permission/sandbox/worktree/`--debug` flags)
   - auth / install: `login`, `upgrade` / `update`
   - scripting / CI: `provider …`, `doctor`, `export`, `completions` (prints a bash/zsh/fish completion script generated from the live command tree)
   - IDE / daemon / runtimes: `acp`, `server` (`run`/`ps`/`kill`/`rotate-token` only), `browser-use`, `computer-use`
   - hygiene: `worktree` (`list`/`rm`/`gc`/`hygiene`)
-  - internal hidden: `__plugin_run_node`
 - Shared config mutations (e.g. OAuth pool rewrite/promote/label/remove) live in pure modules (`@superliora/oauth` or `src/utils/`) — CLI and TUI both call them; do not fork private rewrite logic in either surface.
 
 ## Command Surface (One-search)

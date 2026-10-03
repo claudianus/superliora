@@ -5,18 +5,9 @@
 
 import type { ModelAlias, ProviderRouteStatus } from '@superliora/sdk';
 
-import { SEARCH_PREFER_XAI_TIP } from '../../commands/config/search/search-status';
 import { modelRouteDisplayName } from '../model/model-route-notice';
 import { formatOpsRouteLine } from '../model/route-glance';
-import { oauthAccountsResilienceTips } from '../never-halt/auth-glance';
 
-/** W11 soft — OSS absorb waves; license checklist only (no runtime wiring here). */
-export const OSS_ABSORB_LICENSE_TIP =
-  'W11 OSS absorb: ApplyPatch · ast-grep · ToolSearchIndex · Zoekt — license review + THIRD_PARTY_NOTICES per absorb PR.';
-
-/** Free research when paid search keys are absent (Never-Empty default). */
-export const PROVIDERS_FREE_SEARCH_TIP =
-  'Free search path: Settings → Search · free fallback ON · DDG/local when no Brave/Tavily/Exa keys.';
 
 /** /login — OAuth, catalog, custom endpoint, account pool. */
 export const PROVIDERS_LOGIN_TIP =
@@ -60,8 +51,6 @@ export interface ProvidersApiGlanceInput {
   readonly configuredLabels: readonly string[];
   readonly registryKeySet: boolean;
   readonly providerKeySet: boolean;
-  /** When false/undefined, PreferXai web-search tip is omitted (no WebSearch in session). */
-  readonly webSearchActive?: boolean;
   readonly session?: ProvidersApiSessionGlance;
 }
 
@@ -173,10 +162,6 @@ export function buildProvidersApiSettingsLines(input: ProvidersApiGlanceInput): 
     (spec) => `· ${spec.label}: ${spec.envs.join(' · ')}`,
   );
 
-  const researchTips: string[] = [`· ${PROVIDERS_FREE_SEARCH_TIP}`];
-  if (input.webSearchActive === true) {
-    researchTips.unshift(`· ${SEARCH_PREFER_XAI_TIP}`);
-  }
 
   const session = input.session;
   const sessionLines =
@@ -198,7 +183,7 @@ export function buildProvidersApiSettingsLines(input: ProvidersApiGlanceInput): 
 
   return [
     '── Providers & API (read-only) ───────────────',
-    'Credential posture — Sovereign Reform §9.2.',
+    'Credential posture.',
     '',
     ...sessionLines,
     '── Status ───────────────────────────────────',
@@ -211,16 +196,12 @@ export function buildProvidersApiSettingsLines(input: ProvidersApiGlanceInput): 
     '',
     '── Tips ─────────────────────────────────────',
     '· /login — connect OAuth or add a catalog/custom provider',
-    ...oauthAccountsResilienceTips(),
     '· liora provider … — CLI doctor, catalog, custom base URL, org',
     '· config.toml [providers.*] — api_key or env:VAR references',
     '· Never paste keys into the TUI — export env vars or use /login',
-    ...researchTips,
-    `· ${OSS_ABSORB_LICENSE_TIP}`,
     '',
     '── Related ──────────────────────────────────',
-    '· Settings → Model / Model routing — pick active models',
-    '· Settings → Search — research provider keys (Brave, Tavily, …)',
+    '· Settings → Model — pick the active model',
     '',
     'No key editor here — use /login, Accounts, or shell env.',
   ];

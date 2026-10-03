@@ -131,7 +131,32 @@ describe('WorkerDockPanelComponent', () => {
     expect(panel.render(80)).toEqual([]);
   });
 
-  it('renders intent-first worker rows with humanized action', () => {
+  it('shows recorded queued and interrupted Jobs without manufacturing workers', () => {
+    const panel = new WorkerDockPanelComponent();
+    panel.setView({
+      snapshot: { version: 1, workers: [], activeCount: 0, totalTokens: 0, ops: [] },
+      jobs: {
+        ...emptyConductorJobsSnapshot(),
+        total: 2,
+        queued: 1,
+        interrupted: 1,
+        jobs: [
+          jobCard({ id: 'job_queued0001', title: 'Not started task', status: 'queued' }),
+          jobCard({ id: 'job_paused0001', title: 'Paused operator task', status: 'interrupted' }),
+        ],
+      },
+    });
+
+    expect(panel.isEmpty()).toBe(false);
+    const text = plain(panel.renderFittedBand(120, 16)).join('\n');
+    expect(text).toContain('queued 1');
+    expect(text).toContain('interrupted 1');
+    expect(text).toContain('Paused operator task');
+    expect(text).not.toContain('waiting for a worker slot');
+    expect(panel.selectedWorker).toBeUndefined();
+  });
+
+  it('renders worker rows with observed shell action', () => {
     const registry = registryWith([
       {
         type: 'subagent.spawned',
@@ -140,27 +165,16 @@ describe('WorkerDockPanelComponent', () => {
         parentToolCallId: 'ptc',
         runInBackground: false,
         modelAlias: 'gpt-5',
-        description: 'Map the Mission Control dock',
       } as Event,
       {
         type: 'subagent.progress',
         subagentId: 'sa-1',
-        lastTool: 'Read',
-        lastTarget: 'src/tui/panel.ts',
+        lastTool: 'Bash',
+        lastTarget: 'cat src/tui/panel.ts',
         toolCount: 12,
         elapsedMs: 84_000,
         tokens: 8_100,
       } as Event,
-      {
-        type: 'subagent.todo.updated',
-        subagentId: 'sa-1',
-        subagentName: 'explore-2',
-        parentToolCallId: 'ptc',
-        todos: [
-          { title: 'a', status: 'done' },
-          { title: 'Ship human-first dock', status: 'in_progress' },
-        ],
-      } as unknown as Event,
     ]);
     const panel = new WorkerDockPanelComponent();
     panel.setView(viewFor(registry));
@@ -173,9 +187,8 @@ describe('WorkerDockPanelComponent', () => {
     expect(text).toMatch(/WKR/);
     expect(text).toContain('explore');
     expect(text).toContain('gpt-5');
-    // Focus todo lands in the LIVE cell when stream is cold (beats lastTool).
-    expect(text).toContain('Ship human-first dock');
-    expect(text).toMatch(/1\/2/);
+    // The LIVE cell reports the observed Bash action when no stream is hot.
+    expect(text).toContain('Bash');
     // Absolute-path spam must not dominate.
     expect(text).not.toContain('/Users/');
   });
@@ -205,7 +218,7 @@ describe('WorkerDockPanelComponent', () => {
             elapsedMs: 5_000,
             spawnedAtMs: clock,
             lastActivityAtMs: clock,
-            lastTool: 'Edit',
+            lastTool: 'Bash',
             lastTarget: 'src/a.ts',
           },
         ],
@@ -216,7 +229,7 @@ describe('WorkerDockPanelComponent', () => {
             toolCallId: 'tc-1',
             workerId: 'sa-1',
             workerName: 'builder-1',
-            name: 'Edit',
+            name: 'Bash',
             target: 'src/a.ts',
             chip: '+42 -10',
             status: 'error',
@@ -248,8 +261,7 @@ describe('WorkerDockPanelComponent', () => {
   });
 
   it('keeps lastTool on the worker LIVE cell without a TAPE section', () => {
-    const longCd =
-      'cd /Users/modumaru/.superliora/worktrees/16-4a12d7da/conductor-jmsiq/repo';
+    const command = 'cd /workspace/repo';
     const registry = registryWith([
       {
         type: 'subagent.spawned',
@@ -263,7 +275,7 @@ describe('WorkerDockPanelComponent', () => {
         subagentId: 'sa-1',
         toolCallId: 'tc-1',
         name: 'Bash',
-        detail: { kind: 'bash', command: longCd },
+        detail: { kind: 'bash', command },
       } as Event,
       {
         type: 'subagent.tool_result',
@@ -276,7 +288,7 @@ describe('WorkerDockPanelComponent', () => {
     const text = plain(panel.render(100)).join('\n');
     expect(text).not.toContain('TAPE');
     expect(text).toContain('Bash');
-    expect(text).not.toContain('/Users/modumaru/.superliora/worktrees');
+    expect(text).toContain(command);
   });
 
   it('missionDockBorderToken never goes error for failed-only workers', () => {
@@ -302,18 +314,9 @@ describe('WorkerDockPanelComponent', () => {
       terminalAtMs: undefined,
       error: undefined,
     };
-    const stalled: DockWorker = {
-      ...failed,
-      id: 'sa-stall',
-      name: 'stall',
-      status: 'stalled',
-      terminalAtMs: undefined,
-      error: undefined,
-    };
     const idleJobs = emptyConductorJobsSnapshot();
     expect(missionDockBorderToken([failed], idleJobs)).toBe('border');
     expect(missionDockBorderToken([failed, running], idleJobs)).toBe('primary');
-    expect(missionDockBorderToken([stalled], idleJobs)).toBe('warning');
     expect(
       missionDockBorderToken([running], { ...idleJobs, needsUser: 1 }),
     ).toBe('warning');
@@ -366,8 +369,8 @@ describe('WorkerDockPanelComponent', () => {
         type: 'subagent.tool_call',
         subagentId: `sa-${String(i)}`,
         toolCallId: `tc-${String(i)}`,
-        name: 'Read',
-        detail: { kind: 'read', path: `src/${String(i)}.ts` },
+        name: 'Bash',
+        detail: { kind: 'bash', command: `cat src/${String(i)}.ts` },
       } as Event);
     }
     const registry = registryWith(events);
@@ -413,28 +416,6 @@ describe('WorkerDockPanelComponent', () => {
     expect(panel.render(80).length).toBeLessThanOrEqual(MISSION_FALLBACK_MAX_ROWS);
   });
 
-  it('flags stalled workers with a warning row', () => {
-    const registry = registryWith([
-      {
-        type: 'subagent.spawned',
-        subagentId: 'sa-9',
-        subagentName: 'scout-9',
-        parentToolCallId: 'ptc',
-        runInBackground: false,
-      } as Event,
-      {
-        type: 'subagent.stalled',
-        subagentId: 'sa-9',
-        silentMs: 300_000,
-        toolCount: 4,
-      } as Event,
-    ]);
-    const panel = new WorkerDockPanelComponent();
-    panel.setView(viewFor(registry));
-    const text = plain(panel.render(100)).join('\n');
-    expect(text).toContain('scout-9');
-    expect(text).toContain('stall');
-  });
 
   it('prefers a hot live stream strip over static intent in LIVE', () => {
     const clock = appearanceAnimationNow();
@@ -514,7 +495,7 @@ describe('WorkerDockPanelComponent', () => {
             elapsedMs: 110_000,
             spawnedAtMs: clock + 1,
             lastActivityAtMs: clock,
-            lastTool: 'Read',
+            lastTool: 'Bash',
             lastTarget: 'panel.ts',
           },
         ],
@@ -601,7 +582,7 @@ describe('WorkerDockPanelComponent', () => {
     expect(text).not.toContain('\nNOW\n');
   });
 
-  it('humanizes JSON WebSearch targets on the worker LIVE cell', () => {
+  it('shows the observed Bash command directly on the worker LIVE cell', () => {
     const registry = registryWith([
       {
         type: 'subagent.spawned',
@@ -614,17 +595,16 @@ describe('WorkerDockPanelComponent', () => {
         type: 'subagent.tool_call',
         subagentId: 'sa-1',
         toolCallId: 'tc-1',
-        name: 'WebSearch',
-        argsPreview: '{"query":"premium HTML game engines","limit":5}',
+        name: 'Bash',
+        detail: { kind: 'bash', command: 'printf observed-shell' },
       } as Event,
     ]);
     const panel = new WorkerDockPanelComponent();
     panel.setView(viewFor(registry));
     const text = plain(panel.render(100)).join('\n');
     expect(text).not.toContain('TAPE');
-    expect(text).toContain('WebSearch');
-    expect(text).toContain('premium HTML');
-    expect(text).not.toContain('"query"');
+    expect(text).toContain('Bash');
+    expect(text).toContain('printf observed-shell');
   });
 
   it('windows densemode workers via scrollWorkers and j/k', () => {
@@ -771,6 +751,11 @@ describe('WorkerDockPanelComponent', () => {
     }
     expect(hits).toContain('sa-hit');
     expect(panel.selectWorker('sa-hit')).toBe(true);
+    expect(panel.selectedWorker).toBe('sa-hit');
+    expect(panel.focused).toBe(false);
+    panel.focused = true;
+    expect(panel.selectedWorker).toBe('sa-hit');
+    panel.focused = false;
     expect(panel.selectedWorker).toBe('sa-hit');
   });
 
@@ -967,80 +952,14 @@ describe('WorkerDockPanelComponent', () => {
     }
   });
 
-  it('gives goal-lane ledger ghosts honest notes', () => {
+  it('gives operator Job ledger ghosts honest queued and paused notes', () => {
     expect(
-      ledgerNote({ ledger: { kind: 'goal-desk', status: 'running' }, status: 'finishing' }),
-    ).toBe('goal desk live — mirrors the driver worker');
+      ledgerNote({ ledger: { kind: 'task', status: 'queued' }, status: 'running' }),
+    ).toBe('queued — not started');
     expect(
-      ledgerNote({ ledger: { kind: 'goal-desk', status: 'queued' }, status: 'suspended' }),
-    ).toBe('desk queued — driver starting');
-    expect(
-      ledgerNote({ ledger: { kind: 'goal-driver', status: 'queued' }, status: 'suspended' }),
-    ).toBe('queued — waiting for a worker slot');
-    expect(
-      ledgerNote({ ledger: { kind: 'goal-driver', status: 'interrupted' }, status: 'suspended' }),
-    ).toBe('paused — /goal resume to continue');
-    expect(ledgerNote({ ledger: undefined, status: 'suspended' })).toBeUndefined();
+      ledgerNote({ ledger: { kind: 'task', status: 'interrupted' }, status: 'running' }),
+    ).toBe('paused — /job resume to continue');
+    expect(ledgerNote({ ledger: undefined, status: 'running' })).toBeUndefined();
   });
 
-  it('tags goal-lane ledger ghosts with a provenance chip instead of a model alias', () => {
-    setActiveAppearancePreferences({
-      ...DEFAULT_APPEARANCE_PREFERENCES,
-      profile: 'off',
-      particles: 'off',
-    });
-    try {
-      const panel = new WorkerDockPanelComponent();
-      panel.setView({
-        snapshot: {
-          version: 1,
-          workers: [
-            {
-              id: 'job-ghost:job_desk',
-              name: 'Goal Desk: ship checkout',
-              kind: 'subagent',
-              status: 'finishing',
-              runInBackground: true,
-              toolCount: 0,
-              tokens: 0,
-              elapsedMs: 5_000,
-              spawnedAtMs: NOW,
-              lastActivityAtMs: NOW,
-              ledger: { kind: 'goal-desk', status: 'running' },
-              description: 'driver · implement checkout',
-            },
-            {
-              id: 'job-ghost:job_driver',
-              name: 'Goal: ship checkout',
-              kind: 'subagent',
-              status: 'suspended',
-              runInBackground: true,
-              toolCount: 0,
-              tokens: 0,
-              elapsedMs: 5_000,
-              spawnedAtMs: NOW,
-              lastActivityAtMs: NOW,
-              ledger: { kind: 'goal-driver', status: 'queued' },
-              description: 'implement checkout',
-            },
-          ],
-          activeCount: 2,
-          totalTokens: 0,
-          ops: [],
-        },
-        jobs: emptyConductorJobsSnapshot(),
-      });
-      const text = plain(panel.render(160)).join('\n');
-      // Provenance chips replace the blank MODEL column for ghost rows.
-      expect(text).toContain('desk');
-      expect(text).toContain('driver');
-      // The desk mirror line is visible in the LIVE cell; the honest queued
-      // copy comes from ledgerNote (unit-tested above) and the misleading
-      // pool-slot claim must never appear for goal lanes.
-      expect(text).toContain('driver · implement checkout');
-      expect(text).not.toContain('suspended — waiting for a pool slot');
-    } finally {
-      setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
-    }
-  });
 });

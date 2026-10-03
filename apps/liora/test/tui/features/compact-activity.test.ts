@@ -21,32 +21,30 @@ function strip(text: string): string {
 
 describe('compact activity language', () => {
   it('maps common tools to narrative verbs', () => {
-    expect(compactToolVerb('Read', true)).toBe('Reading');
-    expect(compactToolVerb('Read', false)).toBe('Read');
-    expect(compactToolVerb('Edit', false)).toBe('Edited');
+    expect(compactToolVerb('SessionControl', true)).toBe('Managing sessions');
+    expect(compactToolVerb('SessionControl', false)).toBe('Managed sessions');
     expect(compactToolVerb('Bash', true)).toBe('Running');
     expect(compactToolVerb('UnknownTool', false)).toBe('UnknownTool');
   });
 
-  it('skips narrative headers for plan / ask / goal / subagent cards', () => {
-    expect(usesCompactNarrativeHeader('Read', false)).toBe(true);
-    expect(usesCompactNarrativeHeader('ExitPlanMode', false)).toBe(false);
-    expect(usesCompactNarrativeHeader('AskUserQuestion', false)).toBe(false);
-    expect(usesCompactNarrativeHeader('CreateGoal', false)).toBe(false);
-    expect(usesCompactNarrativeHeader('Agent', true)).toBe(false);
+  it('uses narrative headers for runtime operations unless showing a child card', () => {
+    expect(usesCompactNarrativeHeader('Bash', false)).toBe(true);
+    expect(usesCompactNarrativeHeader('SessionControl', false)).toBe(true);
+    expect(usesCompactNarrativeHeader('SessionControl', true)).toBe(false);
+    expect(usesCompactNarrativeHeader('HistoricalTool', false)).toBe(false);
   });
 
   it('composes a two-line title + metrics header', () => {
     currentTheme.setPalette(darkColors);
     const header = composeCompactActivityHeader({
-      toolName: 'Edit',
-      entity: 'windows-job.ts',
+      toolName: 'Bash',
+      entity: 'patch script',
       live: false,
       metrics: ['+12 -3', '2s'],
     });
     const plain = strip(header);
-    expect(plain).toContain('Edited');
-    expect(plain).toContain('windows-job.ts');
+    expect(plain).toContain('Ran');
+    expect(plain).toContain('patch script');
     expect(plain).toContain('+12');
     expect(plain).toContain('-3');
     expect(plain).toContain('2s');
@@ -56,11 +54,11 @@ describe('compact activity language', () => {
   it('stays one line when there are no metrics', () => {
     currentTheme.setPalette(darkColors);
     const header = composeCompactActivityHeader({
-      toolName: 'Read',
-      entity: 'foo.ts',
+      toolName: 'Bash',
+      entity: 'cat foo.ts',
       live: true,
     });
-    expect(strip(header)).toContain('Reading');
+    expect(strip(header)).toContain('Running');
     expect(compactHeaderRowCount(header)).toBe(1);
   });
 

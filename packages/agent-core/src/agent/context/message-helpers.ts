@@ -32,11 +32,6 @@ export function splitImageCompressionCaptions(content: readonly ContentPart[]): 
   return { captions, parts };
 }
 
-export function isReclaimableEphemeralUserMessage(message: ContextMessage): boolean {
-  if (message.role !== 'user') return false;
-  const kind = message.origin?.kind;
-  return kind === 'injection' || kind === 'background_task';
-}
 
 export function isRealUserPrompt(message: ContextMessage): boolean {
   return message.role === 'user' && isRealUserPromptOrigin(message.origin);

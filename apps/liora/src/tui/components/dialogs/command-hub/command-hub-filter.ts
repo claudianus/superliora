@@ -51,8 +51,8 @@ export function filterHubItems(items: readonly CommandHubItem[], query: string):
     if (recent.length >= 3) break;
     const src = byId.get(id as CommandHubActionId);
     if (src === undefined) continue;
-    // Skip mode toggles in Recent — they already live in the status strip / Modes.
-    if (src.kind === 'toggle' || src.kind === 'cycle') continue;
+    // Cycles already live in the status strip / Modes.
+    if (src.kind === 'cycle') continue;
     recent.push({
       ...src,
       sectionKey: 'tui.hub.section.recent',

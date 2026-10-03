@@ -8,7 +8,7 @@ describe('buildSessionTrace', () => {
     const records: AgentRecord[] = [
       {
         type: 'metadata',
-        protocol_version: '1',
+        protocol_version: '1.5',
         created_at: 1,
       },
       {
@@ -17,7 +17,7 @@ describe('buildSessionTrace', () => {
         event: {
           type: 'subagent.spawned',
           subagentId: 'agent_1',
-          subagentName: 'visual reviewer',
+          subagentName: 'agent',
           token: 'sk-12345678901234567890',
         },
       },
@@ -48,7 +48,6 @@ describe('buildSessionTrace', () => {
     expect(trace.completeness.redactedCount).toBe(1);
     expect(trace.events.map((event) => event.type)).toEqual(['subagent.spawned']);
     expect(JSON.stringify(trace.events)).not.toContain('sk-12345678901234567890');
-    expect(trace.verificationArtifacts).toEqual([]);
   });
 
   it('falls back to context when durable records are unavailable', () => {

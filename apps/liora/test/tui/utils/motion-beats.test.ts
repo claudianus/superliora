@@ -50,9 +50,9 @@ describe('motion-beats', () => {
   it('keeps only one transition beat (replace)', () => {
     const c = createMotionBeatController();
     c.play({ name: 'mode_enter', seed: 'a', title: 'A', nowMs: 0 });
-    const second = c.play({ name: 'plan_enter', seed: 'b', title: 'plan', nowMs: 50 });
-    expect(second?.name).toBe('plan_enter');
-    expect(c.active(60)?.name).toBe('plan_enter');
+    const second = c.play({ name: 'session_resume', seed: 'b', title: 'resume', nowMs: 50 });
+    expect(second?.name).toBe('session_resume');
+    expect(c.active(60)?.name).toBe('session_resume');
   });
 
   it('ignores ghost beats without replacing the active slot', () => {
@@ -64,7 +64,6 @@ describe('motion-beats', () => {
       'status_open',
       'compaction_start',
       'compaction_done',
-      'goal_complete',
     ] as const) {
       expect(
         c.play({ name, seed: 'ghost', title: 'ghost', nowMs: 40, streamThrottle: true }),
@@ -116,13 +115,4 @@ describe('motion-beats', () => {
     expect(c.active(50)?.name).toBe('session_resume');
   });
 
-  it('treats plan_enter as enter and plan_exit as exit with the plan seed', () => {
-    const c = createMotionBeatController();
-    expect(
-      c.play({ name: 'plan_enter', seed: 'plan', title: 'plan', nowMs: 0 }),
-    ).toMatchObject({ name: 'plan_enter', seed: 'plan', kind: 'enter' });
-    expect(
-      c.play({ name: 'plan_exit', seed: 'plan', title: 'plan', nowMs: 50 }),
-    ).toMatchObject({ name: 'plan_exit', seed: 'plan', kind: 'exit' });
-  });
 });

@@ -38,7 +38,7 @@ export interface ToolCallBodyRebuildHost {
   addChild(child: Component): void;
   isSingleSubagentView(): boolean;
   getDerivedSubagentPhase(): SubagentPhase | undefined;
-  /** Call-preview accessors (ExitPlanMode plan body, markdown theme, …). */
+  /** Accessors for the live Bash command/output preview. */
   readonly callPreviewHost: ToolCallCallPreviewHost;
 }
 

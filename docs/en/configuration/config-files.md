@@ -23,49 +23,29 @@ TOML field names always use snake_case, for example `default_model` and `max_con
 The following example covers the most commonly used configuration fields. You can copy it and adjust as needed:
 
 ```toml
-default_model = "kimi-code/kimi-for-coding"
-default_thinking = true
+default_model = "openai/gpt-4.1"
 default_permission_mode = "manual"
-default_plan_mode = false
-merge_all_available_skills = true
 telemetry = true
 
-[providers."managed:kimi-code"]
-type = "kimi"
-base_url = "https://api.kimi.com/coding/v1"
-api_key = ""
+[providers.openai]
+type = "openai"
+base_url = "https://api.openai.com/v1"
+api_key = "{env:OPENAI_API_KEY}"
 
-[models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
-model = "kimi-for-coding"
-max_context_size = 262144
-
-[thinking]
-mode = "auto"
+[models."openai/gpt-4.1"]
+provider = "openai"
+model = "gpt-4.1"
+max_context_size = 1047576
 
 [loop_control]
-max_retries_per_step = 3
-reserved_context_size = 50000
+max_steps_per_turn = 0
 
 [background]
 max_running_tasks = 4
-keep_alive_on_exit = false
-
-[experimental]
-
-[[permission.rules]]
-decision = "allow"
-pattern = "Read"
 
 [[permission.rules]]
 decision = "deny"
 pattern = "Bash(rm -rf*)"
-
-[[hooks]]
-event = "PreToolUse"
-matcher = "Bash"
-command = "node ~/.superliora/hooks/check-bash.mjs"
-timeout = 5
 ```
 
 ## Top-level fields
@@ -77,21 +57,15 @@ Fields in the config file fall into two categories: **top-level scalars** that d
 | `default_model` | `string` | — | Default model alias; must be defined in `models` |
 | `default_thinking` | `boolean` | `false` | Whether new sessions enable Thinking (deep reasoning) mode by default; can be toggled from the model menu inside a session. Even when set to `true`, `[thinking].mode = "off"` will still force Thinking off |
 | `default_permission_mode` | `string` | `yolo` | Default permission mode for new sessions; one of `manual` (prompt each time), `auto` (auto-approve tools and structured questions), or `yolo` (auto-approve most tools; still asks for high-risk deletes/secrets) |
-| `default_plan_mode` | `boolean` | `false` | Whether new sessions start in Plan mode (produce a plan before executing) by default |
-| `merge_all_available_skills` | `boolean` | `true` | Whether to merge Agent Skills from all available directories |
-| `extra_skill_dirs` | `array<string>` | — | Extra skill search directories, layered on top of the default directories |
 | `telemetry` | `boolean` | `true` | Whether anonymous telemetry is enabled; disabled only when explicitly set to `false` |
 | `providers` | `table` | `{}` | API provider table → [`providers`](#providers) |
 | `models` | `table` | — | Model alias table → [`models`](#models) |
 | `thinking` | `table` | — | Default parameters for Thinking mode → [`thinking`](#thinking) |
 | `loop_control` | `table` | — | Agent loop control parameters → [`loop_control`](#loop_control) |
 | `background` | `table` | — | Background task runtime parameters → [`background`](#background) |
-| `experimental` | `table` | — | Experimental feature overrides → [`experimental`](#experimental) |
-| `services` | `table` | — | Built-in external service configuration → [`services`](#services) |
 | `permission` | `table` | — | Initial permission rules → [`permission`](#permission) |
-| `hooks` | `array<table>` | — | Lifecycle hooks; see [Hooks](../customization/hooks.md) |
 
-The following sections cover each of the nested tables in turn: `providers`, `models`, `thinking`, `loop_control`, `background`, `experimental`, `services`, and `permission`.
+The native runtime schema retains `providers`, `models`, `thinking`, `permission`, `loop_control`, `background`, `cache`, and `model_catalog`, plus default model/provider, permission, thinking, sandbox, and telemetry fields. See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-runtime-major-migration) before reusing an older config.
 
 ## `providers`
 
@@ -146,25 +120,17 @@ You can also switch models temporarily without touching the config file — by s
 
 ### Model fallback
 
-By default a model never silently falls back to another model: requests that fail are retried on the same model only. Fallback happens only when you opt in:
+Model fallback is opt-in. Native configured routes may select a configured candidate before output is emitted; this is not an execution-step retry or a restart of a failed worker.
+
+On an existing configured model alias, tune its route:
 
 ```toml
-[models."openai/gpt-4.1"]
-provider = "openai"
-model = "gpt-4.1"
-max_context_size = 272000
-# Explicit, ordered fallback list — always honored exactly as written.
-fallback_models = ["anthropic/claude-opus", "openai/gpt-4.1-mini"]
-
 [models."openai/gpt-4.1".routing]
-# Append every same-capability model from your other credentialed providers
-# as candidates (in config declaration order). Off by default.
-auto_fallback = true
-# Optional override for the cooldown applied to a candidate after a failed
-# request. Unset, each failure kind uses its own default (rate limit 60s,
-# timeout/connection/server 30s, auth 5min, quota 60min).
+auto_fallback = false
 cooldown_ms = 30000
 ```
+
+Set `fallback_models` to an ordered list of other **existing model aliases** in the parent `[models."openai/gpt-4.1"]` table. `auto_fallback = true` opts into other credentialed same-capability provider candidates.
 
 A failed candidate is put on cooldown and skipped for that window; when every candidate is cooling down, the turn reports how long until the route is retryable. The same fields can be managed with `liora provider route set ... --fallback ...`.
 
@@ -179,138 +145,33 @@ A failed candidate is put on cooldown and skipped for that window; when every ca
 
 ## `loop_control`
 
-`loop_control` governs the step count limit, per-step retry count, the threshold that triggers automatic context compaction, and per-role model overrides for workers and helpers.
-
-Unset role models use smart auto-routing (credential health + quality/value scoring, with a role fallback chain on auth/credit failures). An explicit override always wins for that role. Configure the same keys from Settings → Model routing. For the main session, pick model alias `auto` (Smart Auto) in `/model` to resolve a concrete model each turn from the prompt.
+`loop_control` accepts only the turn step limit:
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `max_steps_per_turn` | `integer` | — | Maximum steps per turn; unset or `0` means unlimited |
-| `max_retries_per_step` | `integer` | `3` | Maximum retries after a step failure |
-| `reserved_context_size` | `integer` | `50000` | Tokens kept free for model output; automatic compaction is triggered when the remaining context window falls below this value |
-| `compaction_trigger_ratio` | `number` | `0.8` | Fraction of the context window at which automatic compaction begins (range `0.5`–`0.99`) |
-| `compaction_block_ratio` | `number` | `0.92` | Fraction of the context window at which compaction becomes mandatory and the turn blocks until it finishes (range `0.5`–`0.99`) |
-| `compaction_trigger_tokens` | `integer` | `200000` | Absolute token threshold that triggers compaction, only honored on large windows (≥ 256K) |
-| `compaction_max_recent_messages` | `integer` | `4` | Maximum number of recent messages preserved verbatim after compaction |
-| `compaction_model` | `string` | — | Model alias for compaction summarization; unset auto-picks a value-first model |
-| `completion_model` | `string` | — | Model alias for prompt intelligence (inline autocomplete / next-task suggestions); unset auto-picks |
-| `exploration_model` | `string` | — | Model alias for explore / desk workers; unset auto-picks a fast value-first model |
-| `coding_model` | `string` | — | Model alias for coder / implement / goal-driver workers; unset auto-picks a high-quality model |
-| `planning_model` | `string` | — | Model alias for plan / mission workers; unset auto-picks a high-quality long-context model |
-| `debugging_model` | `string` | — | Model alias for debug workers; unset auto-picks like planning |
-| `smart_router_budget_usd` | `number` | — | Soft session spend ceiling (USD); when estimated spend reaches it, smart-auto intensity steps down one level (explicit role overrides unchanged) |
 
-Cross-session route outcome learning is process-local by default. Set `SUPERLIORA_SMART_ROUTER_OUTCOMES=1` (or a file path) to persist alias×role success EMA under `~/.superliora/smart-router-outcomes.json`.
-
-## `memory`
-
-`[memory]` controls the Liora Memory durable store. Long-term records live in one SQLite database; Context OS and compaction remain transient working context. Automatic candidates never enter recall until `/memory reflect` promotes them.
-
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | `true` | Enable the Memory tool and durable recall |
-| `store_path` | `string` | `$SUPERLIORA_HOME/memory/liora-memory.sqlite` | Override the canonical SQLite path |
-| `max_retrieved` | `integer` | — | Maximum records selected for automatic injection (0–20) |
-| `min_injection_score` | `number` | `0.35` | Minimum query-match score for automatic injection (0–1) |
-| `capture_mode` | `string` | `explicit` | `off` disables capture; `explicit` stores explicit remembers; `candidate` also captures eligible turn candidates |
-| `reflect_enabled` | `boolean` | `true` | Allow automatic reflection of candidate records |
-| `retention_days` | `integer` | — | Archive active records older than this many days during reflection |
-
-Example:
-
-```toml
-[memory]
-capture_mode = "candidate"
-min_injection_score = 0.4
-retention_days = 180
-```
+`max_retries_per_step`, automatic compaction thresholds, role model overrides, and smart-router budgets are retired and rejected. Compaction is explicit through `/compact` or SessionControl.
 
 ## `background`
 
-`background` controls the concurrency behavior of background tasks (launched via the `Bash` tool or the `Agent` tool's `run_in_background=true` parameter).
+`background` controls manager-owned processes and child-session tasks launched through Bash and SessionControl.
 
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `max_running_tasks` | `integer` | — | Maximum number of background tasks running concurrently |
-| `keep_alive_on_exit` | `boolean` | `false` | Whether to keep still-running background tasks when the session closes. By default, SuperLiora requests that all background tasks stop before the process exits; set this to `true` only when you want tasks to outlive the session |
+| Field | Type | Description |
+| --- | --- | --- |
+| `max_running_tasks` | `integer` | Positive maximum number of background tasks |
+| `kill_grace_period_ms` | `integer` | Nonnegative grace period before forced termination |
+| `print_wait_ceiling_s` | `integer` | Positive ceiling for waiting in print mode |
 
-`keep_alive_on_exit` can be overridden by the `SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT` environment variable, which takes higher priority than `config.toml`.
+`keep_alive_on_exit` and its old environment override are retired. Session shutdown retains native cancellation and cleanup ownership.
 
-## `media`
+## `cache`
 
-`media` controls what happens when the current chat model cannot read an attached media kind (image, video, audio, or PDF).
+`invalidate_epoch` is a nonnegative integer written by Settings → Cache invalidate and included in the session prompt-cache key.
 
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `non_vision_fallback` | `analyze \| path \| block` | `analyze` | What happens to media the active model cannot consume. `analyze` renders the attachment to text with a capable catalog model before the prompt is sent, `path` replaces it with a pointer note, and `block` refuses the send |
-| `analyzer_models.image` | `string` | — | Model alias preferred as the image analyzer |
-| `analyzer_models.video` | `string` | — | Model alias preferred as the video analyzer |
-| `analyzer_models.audio` | `string` | — | Model alias preferred as the audio analyzer |
-| `analyzer_models.pdf` | `string` | — | Model alias preferred as the PDF (document) analyzer |
-| `analyzer_fallbacks.image` | `string[]` | — | Ordered fallback aliases for image analysis, tried after `analyzer_models.image` |
-| `analyzer_fallbacks.video` | `string[]` | — | Ordered fallback aliases for video analysis, tried after `analyzer_models.video` |
-| `analyzer_fallbacks.audio` | `string[]` | — | Ordered fallback aliases for audio analysis, tried after `analyzer_models.audio` |
-| `analyzer_fallbacks.pdf` | `string[]` | — | Ordered fallback aliases for PDF analysis, tried after `analyzer_models.pdf` |
+## `model_catalog`
 
-Each `analyzer_models.*` value is a model alias such as `commandcode/z-ai/glm-5.3-flash`. A configured alias wins over automatic analyzer selection for that kind. If the alias cannot serve the kind — unknown alias, provider without credentials, unhealthy route, or missing input capability — SuperLiora silently falls back to automatic selection (current model first, then same provider, then the first capable model), so a stale entry never blocks a prompt. An empty string means auto.
-
-Each `analyzer_fallbacks.*` value is an ordered alias list. Candidates are tried in order: the primary `analyzer_models.*` alias, then each fallback, then automatic selection. An entry that cannot serve the kind is skipped, and if an analyzer call fails or returns nothing, the next candidate is tried. Only when every candidate fails does the attachment degrade to a path note.
-
-Example:
-
-```toml
-[media]
-non_vision_fallback = "analyze"
-
-[media.analyzer_models]
-pdf = "commandcode/z-ai/glm-5.3-flash"
-audio = "commandcode/gemini-3.8-flash"
-
-[media.analyzer_fallbacks]
-pdf = ["commandcode/gemini-3.8-flash", "moonshot/kimi-k2"]
-```
-
-The same settings are editable in the TUI under Settings → Media (`/settings`), and `/media` changes the fallback policy directly.
-
-## `experimental`
-
-`experimental` stores persistent overrides for experimental-feature flags. Keys are flag ids from the registry (for example `async_compaction`).
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-
-## `services`
-
-`services` configures two built-in services: web search (`moonshot_search`) and web fetch (`moonshot_fetch`). Only these two fixed keys are recognized; other keys are ignored. Both entries share the same fields:
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `base_url` | `string` | No | Service API URL |
-| `api_key` | `string` | No | API key |
-| `oauth` | `table` | No | OAuth credential reference, same structure as `providers.*.oauth` |
-| `custom_headers` | `table<string, string>` | No | Custom HTTP headers attached to each request |
-
-```toml
-[services.moonshot_search]
-base_url = "https://api.moonshot.cn/v1/search"
-api_key = "sk-xxx"
-
-[services.moonshot_fetch]
-base_url = "https://api.moonshot.cn/v1/fetch"
-api_key = "sk-xxx"
-```
-
-## `extras`
-
-`extras` holds provider-extras preferences. Detected services (Z.AI, Token Plan, xAI, Codex) are all on by default; `disabledProviders` is the per-service off switch written by **Settings → Provider extras**.
-
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `disabledProviders` | `string[]` | `[]` | Provider-extras ids (`zai`, `qwen-token-plan`, `xai-grok`, `openai-codex`) to opt out of — a disabled service contributes no search slot, media backend, or auto-injected MCP servers |
-
-```toml
-[extras]
-disabledProviders = ["xai-grok"]
-```
+Native provider metadata refresh remains configurable with `refresh_interval_ms` (nonnegative integer) and `refresh_on_start` (boolean). This is provider metadata, not an agent capability/skill catalog.
 
 ## `permission`
 
@@ -320,20 +181,12 @@ disabledProviders = ["xai-grok"]
 | --- | --- | --- | --- |
 | `decision` | `string` | Yes | Action on match: `allow` (permit immediately), `deny` (reject immediately), `ask` (prompt each time) |
 | `scope` | `string` | No | Rule scope: `turn-override`, `session-runtime`, `project`, `user`; defaults to `user` |
-| `pattern` | `string` | Yes | Match pattern in the form `ToolName` or `ToolName(arg-pattern)`, e.g. `Read` or `Bash(rm -rf*)` |
+| `pattern` | `string` | Yes | `ToolName` or `ToolName(arg-pattern)`, such as `SessionControl` or `Bash(rm -rf*)` |
 | `reason` | `string` | No | Rule description for debugging and auditing |
 
-Built-in tool names are listed in [Built-in tools](../reference/tools.md). Most built-in tools that accept rule arguments define their own matching subject, such as `Bash(command-pattern)` or `Read(path-pattern)`. MCP tools and custom tools can only be matched by tool name — argument patterns are not supported for them.
+The model-visible tool names are Bash and SessionControl. Bash rule arguments match the command; SessionControl uses its tool name.
 
 ```toml
-[[permission.rules]]
-decision = "allow"
-pattern = "Read"
-
-[[permission.rules]]
-decision = "allow"
-pattern = "Grep"
-
 [[permission.rules]]
 decision = "deny"
 pattern = "Bash(rm -rf*)"
@@ -343,9 +196,6 @@ decision = "ask"
 pattern = "Bash"
 ```
 
-::: tip
-MCP server declarations are configured in `~/.superliora/mcp.json` or the project-local `.superliora/mcp.json`, not in `config.toml`. The interactive configuration entry point is `/mcp-config`; see [Model Context Protocol](../customization/mcp.md).
-:::
 
 ## `tui.toml`
 
@@ -391,7 +241,7 @@ The `[workspace]` table groups project-level workspace settings:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `additional_dir` | `array<string>` | No | Additional workspace directories, stored as absolute paths. Written automatically when you confirm "remember this directory" in `/add-dir`; read back on startup so the directories are available in every session of this project |
-| `sandbox_profile` | `string` | No | Path sandbox for file tools: `off` (default), `workspace`, or `read-only`. Lexical guard only — not OS isolation. Bash, network, and computer-use are out of scope. Also settable as user `config.toml` `sandboxProfile`, CLI `--sandbox`, or env `SUPERLIORA_SANDBOX`. |
+| `sandbox_profile` | `string` | No | Path guard: `off` (default), `workspace`, or `read-only`. This is not an OS isolation guarantee. Use an explicit native worktree/job for a separate checkout. |
 
 ```toml
 [workspace]
@@ -404,7 +254,7 @@ Because directories are stored as absolute paths, which are specific to your mac
 
 ### User `config.toml` path sandbox
 
-Optional top-level `sandboxProfile = "off" | "workspace" | "read-only"` in `~/.superliora/config.toml` sets the default path sandbox for file tools. This is **not** an OS sandbox: it only bounds Read/Write/Edit/Grep/Glob/RepoQuery to workspace roots (plus `/add-dir`). Sensitive-file blocking stays on even when the profile is `off`. Priority: CLI `--sandbox` / `SUPERLIORA_SANDBOX` → `local.toml` `workspace.sandbox_profile` → user `sandboxProfile` → session metadata → `off`.
+Optional top-level `sandbox_profile = "off" | "workspace" | "read-only"` selects the native path policy. It is not an OS sandbox and does not turn normal requests into isolated jobs. The CLI also accepts `--sandbox` and `--sandbox-enforcement`; additional directories are configured with `/add-dir`.
 
 ## Next steps
 

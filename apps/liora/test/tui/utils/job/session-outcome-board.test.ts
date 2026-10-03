@@ -1,188 +1,54 @@
 import { describe, expect, it } from 'vitest';
-
-import type { ConductorJobCard } from '../../../../src/tui/utils/job/job-strip';
-import {
-  buildSessionOutcomeBoard,
-  flattenSessionOutcomes,
-  formatSessionOutcomeLine,
-  isAutoOutcomeChild,
-  shouldOpenSessionOutcomeBoard,
-  summarizeBlockedReason,
-} from '../../../../src/tui/utils/job/session-outcome-board';
-
-function card(partial: Partial<ConductorJobCard> & Pick<ConductorJobCard, 'id' | 'title' | 'status'>): ConductorJobCard {
-  return {
-    kind: 'implement',
-    priority: 0,
-    updatedAtMs: 1_000,
-    ...partial,
-  };
+import type { ConductorJobCard } from '#/tui/utils/job/job-strip';
+import { buildSessionOutcomeBoard, flattenSessionOutcomes, formatSessionOutcomeLine, isOutcomeChild, summarizeBlockedReason } from '#/tui/utils/job/session-outcome-board';
+function card(partial: Partial<ConductorJobCard> & Pick<ConductorJobCard, 'id' | 'status'>): ConductorJobCard {
+  return { title: partial.id, kind: 'task', priority: 0, updatedAtMs: 1000, ...partial };
 }
-
-describe('session-outcome-board', () => {
-  it('does not open for empty or single-job sessions', () => {
-    expect(shouldOpenSessionOutcomeBoard(0)).toBe(false);
-    expect(shouldOpenSessionOutcomeBoard(1)).toBe(false);
-    expect(shouldOpenSessionOutcomeBoard(2)).toBe(true);
-  });
-
-  it('collapses verify/debug children under the parent outcome', () => {
+describe('recorded session Job outcomes', () => {
+  it('groups only children with a recorded parent and keeps orphan Jobs visible', () => {
+    const child = card({ id: 'verify', status: 'running', kind: 'verify', parentJobId: 'parent' });
     const board = buildSessionOutcomeBoard([
-      card({
-        id: 'job_parent',
-        title: 'TUI 세션 결과 현황판',
-        status: 'done',
-        kind: 'implement',
-        priority: 2,
-      }),
-      card({
-        id: 'job_verify',
-        title: 'Verify: TUI 세션 결과 현황판',
-        status: 'running',
-        kind: 'verify',
-        parentJobId: 'job_parent',
-        priority: 1,
-        updatedAtMs: 2_000,
-      }),
-      card({
-        id: 'job_debug',
-        title: 'Debug: TUI 세션 결과 현황판',
-        status: 'queued',
-        kind: 'implement',
-        parentJobId: 'job_parent',
-        debugFixer: true,
-        priority: 1,
-      }),
+      card({ id: 'parent', title: 'Fix login', status: 'done' }), child,
+      card({ id: 'orphan', status: 'queued', parentJobId: 'absent' }),
     ]);
-
+    expect(isOutcomeChild(child)).toBe(true);
     expect(board.totalJobs).toBe(3);
-    expect(board.totalOutcomes).toBe(1);
-    expect(board.remaining).toHaveLength(1);
-    expect(board.remaining[0]!.title).toBe('TUI 세션 결과 현황판');
-    expect(board.remaining[0]!.status).toBe('verify_only');
-    expect(board.remaining[0]!.collapsedChildCount).toBe(2);
-    expect(isAutoOutcomeChild(card({
-      id: 'job_verify',
-      title: 'v',
-      status: 'running',
-      kind: 'verify',
-      parentJobId: 'job_parent',
-    }))).toBe(true);
+    expect(board.totalOutcomes).toBe(2);
+    expect(board.remaining.find((row) => row.id === 'parent')).toMatchObject({ title: 'Fix login', status: 'running', collapsedChildCount: 1 });
+    expect(board.remaining.some((row) => row.id === 'orphan')).toBe(true);
   });
-
-  it('orders blocked and remaining above done', () => {
+  it('orders failures and remaining work ahead of completed Jobs', () => {
     const board = buildSessionOutcomeBoard([
-      card({ id: 'job_done', title: 'harness shipped', status: 'done', kind: 'implement' }),
-      card({
-        id: 'job_blocked',
-        title: 'game not on main',
-        status: 'blocked',
-        kind: 'implement',
-        resultSummary: 'no origin remote configured',
-        priority: 3,
-      }),
-      card({
-        id: 'job_run',
-        title: 'still coding',
-        status: 'running',
-        kind: 'implement',
-        priority: 1,
-      }),
+      card({ id: 'done', status: 'done' }),
+      card({ id: 'running', status: 'running' }),
+      card({ id: 'failed', status: 'failed', resultSummary: 'Command failed' }),
     ]);
-
-    const flat = flattenSessionOutcomes(board);
-    expect(flat.map((r) => r.bucket)).toEqual(['blocked', 'remaining', 'done']);
-    expect(flat[0]!.statusLabel).toBe('막힘');
-    expect(flat[0]!.reason).toBe('원격(origin) 없음');
-    expect(flat[1]!.statusLabel).toBe('진행');
-    expect(flat[2]!.statusLabel).toBe('끝남');
+    expect(flattenSessionOutcomes(board).map((row) => row.bucket)).toEqual(['blocked', 'remaining', 'done']);
+    expect(board.blocked[0]?.reason).toBe('Command failed');
+    expect(formatSessionOutcomeLine(board.done[0]!)).toContain('done');
   });
-
-  it('folds identical EINVAL host failures into one blocked card', () => {
+  it('does not reinterpret a failure as verified even when a verify child completed', () => {
     const board = buildSessionOutcomeBoard([
-      card({
-        id: 'job_a',
-        title: 'host fix 1',
-        status: 'failed',
-        kind: 'implement',
-        resultSummary: 'spawn EINVAL host_browser=einval',
-      }),
-      card({
-        id: 'job_b',
-        title: 'host fix 2',
-        status: 'failed',
-        kind: 'implement',
-        resultSummary: 'BrowserStatus spawn EINVAL',
-      }),
+      card({ id: 'parent', status: 'failed', resultSummary: 'Commit failed' }),
+      card({ id: 'verify', status: 'done', kind: 'verify', parentJobId: 'parent' }),
     ]);
     expect(board.blocked).toHaveLength(1);
-    expect(board.blocked[0]!.reason).toMatch(/EINVAL/);
-    expect(board.blocked[0]!.jobIds.length).toBeGreaterThanOrEqual(2);
+    expect(board.done).toHaveLength(0);
   });
-
-  it('does not count explore discoveries as blocked failures', () => {
+  it('keeps cancellation distinct from successful completion', () => {
     const board = buildSessionOutcomeBoard([
-      card({
-        id: 'job_ex',
-        title: 'Find playable dest',
-        status: 'failed',
-        kind: 'explore',
-        resultSummary:
-          'Found package.json name=neon-lock, test=node --test tests/*.test.js, serve=python -m http.server 8765',
-      }),
+      card({ id: 'cancelled', status: 'cancelled' }),
+      card({ id: 'parent', status: 'done' }),
+      card({ id: 'child', status: 'cancelled', parentJobId: 'parent' }),
     ]);
-    expect(board.done).toHaveLength(1);
-    expect(board.blocked).toHaveLength(0);
-    expect(board.done[0]!.status).toBe('code_pass_ledger_fail');
+    expect(board.done).toHaveLength(2);
+    expect(board.done.every((row) => row.status === 'cancelled')).toBe(true);
+    expect(board.done.every((row) => row.statusLabel === '취소' && row.token === 'textDim')).toBe(true);
   });
-
-  it('labels ledger failed + verifyVerdict pass as code pass / ledger fail', () => {
-    const board = buildSessionOutcomeBoard([
-      card({
-        id: 'job_impl',
-        title: 'clipboard paste',
-        status: 'failed',
-        kind: 'implement',
-        resultSummary: 'ledger write failed after worker done',
-      }),
-      card({
-        id: 'job_v',
-        title: 'Verify: clipboard paste',
-        status: 'done',
-        kind: 'verify',
-        parentJobId: 'job_impl',
-        verifyVerdict: 'passed',
-      }),
-    ]);
-
-    expect(board.totalOutcomes).toBe(1);
-    expect(board.done).toHaveLength(1);
-    expect(board.done[0]!.status).toBe('code_pass_ledger_fail');
-    expect(board.done[0]!.statusLabel).toBe('코드 통과·장부 실패');
-    expect(board.done[0]!.reason).toBe('코드 통과, 장부 실패(환경)');
-    expect(formatSessionOutcomeLine(board.done[0]!)).toContain('코드 통과·장부 실패');
-  });
-
-  it('summarizes known block reasons', () => {
-    expect(
-      summarizeBlockedReason(
-        card({
-          id: 'a',
-          title: 'x',
-          status: 'blocked',
-          resultSummary: 'BrowserStatus EINVAL on host',
-        }),
-      ),
-    ).toBe('호스트 브라우저(EINVAL)');
-    expect(
-      summarizeBlockedReason(
-        card({
-          id: 'b',
-          title: 'x',
-          status: 'blocked',
-          resultSummary: 'wrong repo land — metalslug isolation',
-        }),
-      ),
-    ).toBe('잘못된 레포 착지');
+  it('shows recorded reasons without inventing host diagnoses or merging failures', () => {
+    const failure = card({ id: 'a', status: 'failed', resultSummary: 'spawn EINVAL' });
+    expect(summarizeBlockedReason(failure)).toBe('spawn EINVAL');
+    expect(summarizeBlockedReason(card({ id: 'empty', status: 'blocked' }))).toBeUndefined();
+    expect(buildSessionOutcomeBoard([failure, card({ ...failure, id: 'b' })]).blocked).toHaveLength(2);
   });
 });

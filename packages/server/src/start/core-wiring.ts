@@ -11,16 +11,13 @@ import {
   IFsWatcher,
   ILogService,
   IMessageService,
-  IMcpService,
   IModelCatalogService,
   IOAuthService,
   IPromptService,
   IQuestionService,
   ISessionService,
-  ISkillService,
   ITaskService,
   ITerminalService,
-  IToolService,
   IWorkspaceFsService,
   IWorkspaceRegistry,
   FsWatcherService,
@@ -130,10 +127,6 @@ export function wireCoreProcessServices(
         terminalService.resize(sessionId, terminalId, cols, rows),
       close: (sessionId, terminalId) => terminalService.close(sessionId, terminalId),
     });
-
-    a.get(IToolService);
-    a.get(IMcpService);
-    a.get(ISkillService);
 
     a.get(ITaskService);
 

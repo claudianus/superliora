@@ -33,10 +33,7 @@ function makePermissionManager(
     replayBuilder: { push: vi.fn() },
     emitStatusUpdated: vi.fn(),
     telemetry: { track: telemetryTrack },
-    hooks: { fireAndForgetTrigger: vi.fn(), triggerBlock: vi.fn(async () => undefined) },
     rpc: { requestApproval },
-    planMode: { isActive: false },
-    askMode: { isActive: false },
   } as unknown as Agent;
   manager = new PermissionManager(agent);
   Object.assign(agent, { permission: manager });

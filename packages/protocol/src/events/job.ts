@@ -3,19 +3,11 @@
  * Journal readers that do not understand these types should ignore-unknown.
  * schemaVersion is on the event payload for forward-compatible migration.
  *
- * v2 (meta-orchestrator contract §8 S4): adds worker progress fields
- * (phase/recent tools/heartbeat), the `desk` worker kind, and the inbox
- * `digest` escalation marker. All v2 fields are optional so v1 events keep
- * parsing (journal dual-read), and old readers ignore unknown fields.
- *
- * v3 (Conductor UX v2): optional deliveryPhase, briefPreview, gateChecklist,
- * landReceipt on snapshots; optional actionHints on inbox events.
- *
- * v4: optional effectPreview — isolation / track / surface provenance so the
- * TUI can show why a job is isolated or running on this checkout.
+ * Snapshots report actual worker execution and operator-controlled Git delivery.
  */
 
 import { z } from 'zod';
+import { tokenUsageSchema, type TokenUsage } from './common';
 
 export const JOB_EVENT_SCHEMA_VERSION = 4 as const;
 /** v1 payloads stay parseable for journal dual-read (contract §10). */
@@ -49,9 +41,7 @@ export type JobEventKind =
   | 'mission'
   | 'merge'
   | 'push'
-  | 'desk'
-  | 'goal-desk'
-  | 'goal-driver';
+  | 'desk';
 
 /**
  * Worker progress reported with `job.updated` (schemaVersion 2).
@@ -64,7 +54,7 @@ export interface JobProgressSnapshot {
   readonly recentTools?: readonly string[];
   /** ISO timestamp of the last worker heartbeat. */
   readonly lastHeartbeatAt?: string;
-  /** Completed steps when the worker reports a bounded plan. */
+  /** Completed steps when the worker reports a bounded operation. */
   readonly stepsCompleted?: number;
   /** Total steps when known. */
   readonly stepsTotal?: number;
@@ -76,66 +66,31 @@ export interface JobProgressSnapshot {
   readonly cacheRead?: number;
 }
 
-/** Gate checklist cell for TUI Merge Preview / Inbox (schemaVersion 3). */
-export type JobGateChecklistStatus = 'pass' | 'fail' | 'pending' | 'na';
-
 export interface JobBriefPreview {
   readonly successCriteria?: readonly string[];
   readonly mustNotTouch?: readonly string[];
   readonly verificationCommands?: readonly string[];
-  readonly testSeams?: readonly string[];
-  readonly tddMode?: 'required' | 'preferred' | 'off';
-  readonly reproCommand?: string;
-}
-
-export interface JobGateChecklist {
-  readonly visual: JobGateChecklistStatus;
-  readonly review: JobGateChecklistStatus;
-  readonly tests: JobGateChecklistStatus;
-  readonly typecheck: JobGateChecklistStatus;
-  /** Land pass cell for Job Deck / Merge Preview. Omitted on older snapshots. */
-  readonly land?: JobGateChecklistStatus;
 }
 
 export interface JobLandReceiptSnapshot {
   readonly mergeSha?: string;
   readonly branch?: string;
   readonly merged?: boolean;
-  readonly gcRemoved?: boolean;
 }
 
-export type JobTaskTrackSnapshot = 'coding' | 'general';
-export type JobTaskTrackSourceSnapshot =
-  | 'declared'
-  | 'inherited'
-  | 'structural'
-  | 'inferred'
-  | 'pending'
-  | 'default';
-export type JobSurfaceKindSnapshot = 'none' | 'web' | 'tui' | 'mixed';
 export type JobIsolationSnapshot = 'worktree' | 'checkout' | 'none';
-export type JobPremiumDensitySnapshot = 'visual' | 'code';
 
 /**
  * Operator-visible effect contract (schemaVersion 4).
  * Fields are facts; `chip` / `summary` are ready-to-render lines.
  */
 export interface JobEffectPreview {
-  readonly taskTrack?: JobTaskTrackSnapshot;
-  readonly taskTrackSource?: JobTaskTrackSourceSnapshot;
-  readonly surfaceKind?: JobSurfaceKindSnapshot;
   readonly isolation: JobIsolationSnapshot;
-  readonly premiumDensity?: JobPremiumDensitySnapshot;
-  readonly debugFixer?: boolean;
-  readonly explorePrototype?: boolean;
   /** Job Deck chip, e.g. `checkout` or `worktree · web`. */
   readonly chip: string;
   /** ACK / inspect line, e.g. `general · this checkout · Conductor judged`. */
   readonly summary: string;
 }
-
-/** Structured Maker≠Checker verify outcome on the wire (schemaVersion 4). */
-export type JobVerifyVerdictSnapshot = 'passed' | 'failed';
 
 /** Operator land disposition after a coding session finishes (schemaVersion 4, optional). */
 export type JobLandChoiceSnapshot = 'pending' | 'keep' | 'apply' | 'pr';
@@ -159,31 +114,21 @@ export interface JobSnapshot {
   readonly portOffset?: number;
   readonly workerAgentId?: string;
   readonly resultSummary?: string;
+  readonly filesChanged?: readonly string[];
+  readonly usage?: TokenUsage;
   /** Worker progress (schemaVersion 2; absent on v1 snapshots). */
   readonly progress?: JobProgressSnapshot;
   /** ISO timestamp when the job entered the ledger (queue). */
   readonly createdAt?: string;
   /** ISO timestamp of the last ledger mutation for this job. */
   readonly updatedAt?: string;
-  /** Greenfield chain phase (schemaVersion 3). */
-  readonly deliveryPhase?: 'skeleton' | 'fill' | 'delete_pass';
   /** Structured brief excerpt for Inbox / Intent Composer (schemaVersion 3). */
   readonly briefPreview?: JobBriefPreview;
-  /** Verification gate strip for Merge Preview (schemaVersion 3). */
-  readonly gateChecklist?: JobGateChecklist;
   /** Post-merge land receipt summary (schemaVersion 3). */
   readonly landReceipt?: JobLandReceiptSnapshot;
   /** Isolation / track / surface provenance (schemaVersion 4). */
   readonly effectPreview?: JobEffectPreview;
-  /**
-   * Immediate parent job in a verify/debug chain (schemaVersion 4).
-   * Lets the TUI collapse auto verify/debug children under one outcome.
-   */
   readonly parentJobId?: string;
-  /** Structured verify verdict when kind=verify is terminal (schemaVersion 4). */
-  readonly verifyVerdict?: JobVerifyVerdictSnapshot;
-  /** Debug-fixer implement child (schemaVersion 4). */
-  readonly debugFixer?: boolean;
 }
 
 export interface JobUpdatedEvent {
@@ -207,7 +152,6 @@ export interface JobInboxEvent {
     | 'job.blocked'
     | 'job.needs_user'
     | 'job.interrupted'
-    | 'recovery.auto_resumed'
     | 'recovery.held'
     | 'recovery.reattach_failed';
   readonly jobId: string;
@@ -241,8 +185,6 @@ export const jobEventKindSchema = z.enum([
   'merge',
   'push',
   'desk',
-  'goal-desk',
-  'goal-driver',
 ]) satisfies z.ZodType<JobEventKind>;
 
 export const jobProgressSnapshotSchema = z.object({
@@ -256,55 +198,22 @@ export const jobProgressSnapshotSchema = z.object({
   cacheRead: z.number().nonnegative().optional(),
 }) satisfies z.ZodType<JobProgressSnapshot>;
 
-export const jobGateChecklistStatusSchema = z.enum([
-  'pass',
-  'fail',
-  'pending',
-  'na',
-]) satisfies z.ZodType<JobGateChecklistStatus>;
-
 export const jobBriefPreviewSchema = z.object({
   successCriteria: z.array(z.string()).readonly().optional(),
   mustNotTouch: z.array(z.string()).readonly().optional(),
   verificationCommands: z.array(z.string()).readonly().optional(),
 }) satisfies z.ZodType<JobBriefPreview>;
 
-export const jobGateChecklistSchema = z.object({
-  visual: jobGateChecklistStatusSchema,
-  review: jobGateChecklistStatusSchema,
-  tests: jobGateChecklistStatusSchema,
-  typecheck: jobGateChecklistStatusSchema,
-  land: jobGateChecklistStatusSchema.optional(),
-}) satisfies z.ZodType<JobGateChecklist>;
-
 export const jobLandReceiptSnapshotSchema = z.object({
   mergeSha: z.string().optional(),
   branch: z.string().optional(),
   merged: z.boolean().optional(),
-  gcRemoved: z.boolean().optional(),
 }) satisfies z.ZodType<JobLandReceiptSnapshot>;
 
-export const jobTaskTrackSnapshotSchema = z.enum(['coding', 'general']);
-export const jobTaskTrackSourceSnapshotSchema = z.enum([
-  'declared',
-  'inherited',
-  'structural',
-  'inferred',
-  'pending',
-  'default',
-]);
-export const jobSurfaceKindSnapshotSchema = z.enum(['none', 'web', 'tui', 'mixed']);
 export const jobIsolationSnapshotSchema = z.enum(['worktree', 'checkout', 'none']);
-export const jobPremiumDensitySnapshotSchema = z.enum(['visual', 'code']);
 
 export const jobEffectPreviewSchema = z.object({
-  taskTrack: jobTaskTrackSnapshotSchema.optional(),
-  taskTrackSource: jobTaskTrackSourceSnapshotSchema.optional(),
-  surfaceKind: jobSurfaceKindSnapshotSchema.optional(),
   isolation: jobIsolationSnapshotSchema,
-  premiumDensity: jobPremiumDensitySnapshotSchema.optional(),
-  debugFixer: z.boolean().optional(),
-  explorePrototype: z.boolean().optional(),
   chip: z.string(),
   summary: z.string(),
 }) satisfies z.ZodType<JobEffectPreview>;
@@ -317,7 +226,6 @@ export const jobEventSchemaVersionSchema = z.union([
   z.literal(JOB_EVENT_SCHEMA_VERSION),
 ]) satisfies z.ZodType<JobEventSchemaVersion>;
 
-export const jobVerifyVerdictSnapshotSchema = z.enum(['passed', 'failed']);
 export const jobLandChoiceSnapshotSchema = z.enum(['pending', 'keep', 'apply', 'pr']);
 
 export const jobSnapshotSchema = z.object({
@@ -334,17 +242,15 @@ export const jobSnapshotSchema = z.object({
   portOffset: z.number().int().nonnegative().optional(),
   workerAgentId: z.string().optional(),
   resultSummary: z.string().optional(),
+  filesChanged: z.array(z.string()).readonly().optional(),
+  usage: tokenUsageSchema.optional(),
   progress: jobProgressSnapshotSchema.optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
-  deliveryPhase: z.enum(['skeleton', 'fill', 'delete_pass']).optional(),
   briefPreview: jobBriefPreviewSchema.optional(),
-  gateChecklist: jobGateChecklistSchema.optional(),
   landReceipt: jobLandReceiptSnapshotSchema.optional(),
   effectPreview: jobEffectPreviewSchema.optional(),
   parentJobId: z.string().optional(),
-  verifyVerdict: jobVerifyVerdictSnapshotSchema.optional(),
-  debugFixer: z.boolean().optional(),
 }) satisfies z.ZodType<JobSnapshot>;
 
 export const jobUpdatedEventSchema = z.object({
@@ -370,7 +276,6 @@ export const jobInboxEventSchema = z.object({
     'job.blocked',
     'job.needs_user',
     'job.interrupted',
-    'recovery.auto_resumed',
     'recovery.held',
     'recovery.reattach_failed',
   ]),

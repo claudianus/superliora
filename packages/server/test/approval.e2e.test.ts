@@ -197,9 +197,9 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
     const inProcReq: ApprovalRequest = {
       turnId: 11,
       toolCallId: 'tc_approval_happy',
-      toolName: 'shell.run',
+      toolName: 'Bash',
       action: 'Run `ls`',
-      display: { kind: 'command', command: 'ls', summary: 'ls' } as never,
+      display: { kind: 'command', command: 'ls' },
     };
 
     const pending = broker.request({
@@ -220,21 +220,19 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
       tool_call_id: string;
       tool_name: string;
       action: string;
-      tool_input_display: { kind: string; command: string; summary: string };
+      tool_input_display: { kind: string; command: string };
       created_at: string;
       expires_at: string;
     };
     expect(payload.approval_id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(payload.session_id).toBe(sid);
     expect(payload.tool_call_id).toBe('tc_approval_happy');
-    expect(payload.tool_name).toBe('shell.run');
+    expect(payload.tool_name).toBe('Bash');
     expect(payload.action).toBe('Run `ls`');
-    // 12-arm passthrough: snake_case `tool_input_display` preserves the
-    // entire SDK shape unchanged.
+    // The native command display passes through unchanged.
     expect(payload.tool_input_display).toEqual({
       kind: 'command',
       command: 'ls',
-      summary: 'ls',
     });
     expect(payload.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(payload.expires_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
@@ -247,7 +245,6 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
         decision: 'approved',
         scope: 'session',
         feedback: 'looks good',
-        selected_label: 'Run',
       },
     });
     const env = envelopeOf<{ resolved: boolean; resolved_at: string }>(res.json());
@@ -260,7 +257,6 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
     expect(inProcResp.decision).toBe('approved');
     expect(inProcResp.scope).toBe('session');
     expect(inProcResp.feedback).toBe('looks good');
-    expect(inProcResp.selectedLabel).toBe('Run');
 
     // Resolved broadcast also reaches the subscriber.
     const resolvedFrame = await waitFor(
@@ -271,11 +267,9 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
     const resolvedPayload = resolvedFrame['payload'] as {
       approval_id: string;
       decision: string;
-      selected_label?: string;
     };
     expect(resolvedPayload.approval_id).toBe(payload.approval_id);
     expect(resolvedPayload.decision).toBe('approved');
-    expect(resolvedPayload.selected_label).toBe('Run');
 
     ws.close();
   });
@@ -295,9 +289,9 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
       agentId: 'main',
       turnId: 21,
       toolCallId: 'tc_approval_abort',
-      toolName: 'shell.run',
+      toolName: 'Bash',
       action: 'Run `ls`',
-      display: { kind: 'command', command: 'ls', summary: 'ls' } as never,
+      display: { kind: 'command', command: 'ls' },
     });
 
     const requested = await waitFor(
@@ -354,9 +348,9 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
       agentId: 'main',
       turnId: 12,
       toolCallId: 'tc_approval_recovery',
-      toolName: 'shell.run',
+      toolName: 'Bash',
       action: 'Run `pwd`',
-      display: { kind: 'command', command: 'pwd', summary: 'pwd' } as never,
+      display: { kind: 'command', command: 'pwd' },
     });
 
     let approvalId: string | undefined;
@@ -387,12 +381,11 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
       expect(item?.session_id).toBe(sid);
       expect(item?.turn_id).toBe(12);
       expect(item?.tool_call_id).toBe('tc_approval_recovery');
-      expect(item?.tool_name).toBe('shell.run');
+      expect(item?.tool_name).toBe('Bash');
       expect(item?.action).toBe('Run `pwd`');
       expect(item?.tool_input_display).toEqual({
         kind: 'command',
         command: 'pwd',
-        summary: 'pwd',
       });
       expect(item?.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(item?.expires_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
@@ -456,9 +449,9 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
       sessionId: sid,
       agentId: 'main',
       toolCallId: 'tc_idem',
-      toolName: 'shell.run',
-      action: 'Run',
-      display: { kind: 'generic', summary: 'test' } as never,
+      toolName: 'SessionControl',
+      action: 'Inspect worker-one',
+      display: { kind: 'generic', summary: 'Inspect worker-one' },
     });
 
     // Capture the server-minted approval_id by inspecting the broker's
@@ -505,9 +498,9 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
       sessionId: sid,
       agentId: 'main',
       toolCallId: 'tc_bad_body',
-      toolName: 'shell.run',
-      action: 'Run',
-      display: { kind: 'generic', summary: 'test' } as never,
+      toolName: 'SessionControl',
+      action: 'Inspect worker-one',
+      display: { kind: 'generic', summary: 'Inspect worker-one' },
     });
     void _pending;
 

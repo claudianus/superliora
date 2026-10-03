@@ -1,7 +1,6 @@
 import type { Component, Focusable } from '#/tui/renderer';
 import type { LioraHarness, Session } from '@superliora/sdk';
 
-import { ExtensionsModalComponent } from '../../components/dialogs/session/extensions-modal';
 import type { SessionRow } from '../../components/dialogs/session/session-picker';
 import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
 import { PRODUCT_NAME } from '../../constant/liora-tui';
@@ -10,14 +9,8 @@ import type { ColorToken } from '../../theme';
 import type { AppState, LioraTUIOptions } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
-import {
-  resolveExtensionsTab,
-  type ExtensionsSnapshot,
-  type ExtensionsTabId,
-} from '../../utils/agent/extensions-rows';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { persistTuiSessionState } from '../../utils/tui-session-state';
-import { runClaudeImportInventoryForHost } from './session-browser-claude-import';
 import {
   handleSessionPickerSelectFlow,
   hideSessionPickerFlow,
@@ -37,7 +30,7 @@ import { folderResolveErrorMessage, showFolderPicker } from '../../commands/sess
 import type { EditorKeyboardController } from '../shell/editor-keyboard';
 import type { SessionEventHandler } from '../session-event/handler';
 
-/** Host surface for session picker and extensions browser. */
+/** Host surface for session picker and workspace browsing. */
 export interface SessionBrowserHost {
   state: TUIState;
   session: Session | undefined;
@@ -50,7 +43,6 @@ export interface SessionBrowserHost {
   requireSession(): Session;
   setAppState(patch: Partial<AppState>): void;
   updateTerminalTitle(): void;
-  refreshDynamicSlashCommands(session?: Session): Promise<void>;
   showError(message: string): void;
   showStatus(message: string, color?: ColorToken): void;
   showNotice?(
@@ -83,16 +75,14 @@ export interface SessionBrowserHost {
   mountCenterModal(panel: Component & Focusable, options?: CenterModalMountOptions): void;
   closeAllCenterModals(): void;
   restoreEditor(): void;
-  sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
   switchToSession(session: Session, statusMessage: string): Promise<void>;
   clearReverseRpcPanels(): void;
   cancelPendingReverseRpc(reason: string): void;
   stop(exitCode?: number): Promise<void>;
-  runPluginsCommand(): Promise<void>;
 }
 
 /**
- * Session picker, extensions modal, fetch/resume/reload, and
+ * Session picker, workspace browsing, fetch/resume/reload, and
  * startup-mode application for resumed sessions. LioraTUI keeps thin delegates.
  */
 export class SessionBrowserController implements SessionPickerControllerState {
@@ -120,23 +110,14 @@ export class SessionBrowserController implements SessionPickerControllerState {
       // resumed session matches the user's configured preference.
       await session.setPermission(this.host.state.appState.permissionMode);
     }
-    if (startup.plan) {
-      const status = await session.getStatus();
-      if (!status.planMode) {
-        await session.setPlanMode(true);
-      }
-    }
   }
 
-  applyStartupPermissionAndPlanToAppState(): void {
+  applyStartupPermissionToAppState(): void {
     const { startup } = this.host.options;
     if (startup.auto) {
       this.host.setAppState({ permissionMode: 'auto' });
     } else if (startup.yolo) {
       this.host.setAppState({ permissionMode: 'yolo' });
-    }
-    if (startup.plan) {
-      this.host.setAppState({ planMode: true });
     }
   }
 
@@ -198,72 +179,6 @@ export class SessionBrowserController implements SessionPickerControllerState {
       closeOnCancel: false,
       forwardEditorExit: false,
     });
-  }
-
-  async showExtensionsModal(args?: string): Promise<void> {
-    const raw = (args ?? '').trim().toLowerCase();
-    if (raw === 'claude' || raw === 'import-claude' || raw === 'import') {
-      await this.runClaudeImportInventory();
-      return;
-    }
-
-    const initialTab: ExtensionsTabId = resolveExtensionsTab(raw);
-
-    let snapshot: ExtensionsSnapshot = { plugins: [], skills: [], mcpServers: [] };
-    try {
-      const session = this.host.requireSession();
-      snapshot = await this.host.runWithBusyOverlay(
-        {
-          title: ttui('tui.sessionLoading.extensions'),
-          detail: ttui('tui.sessionLoading.extensions'),
-          phase: 'working',
-        },
-        async () => {
-          const [plugins, skills, mcpServers] = await Promise.all([
-            session.listPlugins().catch(() => []),
-            session.listSkills().catch(() => []),
-            session.listMcpServers().catch(() => []),
-          ]);
-          return { plugins, skills, mcpServers };
-        },
-      );
-    } catch (error) {
-      this.host.showError(
-        ttui('tui.extensions.loadFailed', { message: formatErrorMessage(error) }),
-      );
-      // Still open empty modal so operators can reach Claude import (i).
-    }
-
-    this.host.mountCenterModal(
-      new ExtensionsModalComponent({
-        snapshot,
-        initialTab,
-        onAction: (action) => {
-          void this.handleExtensionsAction(action).catch((error) => {
-            this.host.showError(
-              ttui('tui.extensions.actionFailed', { message: formatErrorMessage(error) }),
-            );
-          });
-        },
-        onCancel: () => {
-          this.hideExtensionsModal();
-        },
-      }),
-      { mode: 'replace' },
-    );
-    this.host.state.activeDialog = 'extensions';
-  }
-
-  hideExtensionsModal(): void {
-    if (this.host.state.activeDialog === 'extensions') {
-      this.host.state.activeDialog = null;
-    }
-    this.host.editorKeyboard.clearPendingExit();
-    if (this.host.state.centerModalStack.length > 0) {
-      this.host.closeAllCenterModals();
-      return;
-    }
-    this.host.restoreEditor();
   }
 
   hideSessionPicker(): void {
@@ -334,7 +249,6 @@ export class SessionBrowserController implements SessionPickerControllerState {
         workDir: nextDir,
         ...(model.length > 0 ? { model } : {}),
         permission: host.state.appState.permissionMode,
-        planMode: host.state.appState.planMode,
       });
       await host.switchToSession(session, ttui('tui.folder.opened', { path: display }));
     } catch (error) {
@@ -489,49 +403,12 @@ export class SessionBrowserController implements SessionPickerControllerState {
       (targetSessionId) => this.resumeSession(targetSessionId),
       (activeSession) => this.applyStartupModesToResumedSession(activeSession),
       () => {
-        this.applyStartupPermissionAndPlanToAppState();
+        this.applyStartupPermissionToAppState();
       },
       () => {
         this.hideSessionPicker();
       },
     );
-  }
-
-  private async handleExtensionsAction(
-    action:
-      | { readonly kind: 'open-plugins' }
-      | { readonly kind: 'open-mcp' }
-      | { readonly kind: 'import-claude' }
-      | { readonly kind: 'activate-skill'; readonly skillName: string }
-      | { readonly kind: 'noop' },
-  ): Promise<void> {
-    switch (action.kind) {
-      case 'open-plugins':
-        this.hideExtensionsModal();
-        await this.host.runPluginsCommand();
-        return;
-      case 'open-mcp':
-        this.hideExtensionsModal();
-        await this.host.runPluginsCommand();
-        return;
-      case 'import-claude':
-        this.hideExtensionsModal();
-        await this.runClaudeImportInventory();
-        return;
-      case 'activate-skill': {
-        this.hideExtensionsModal();
-        const name = action.skillName.trim();
-        if (name.length === 0) return;
-        this.host.sendNormalUserInput(`/${name}`, { displayText: `/${name}` });
-        return;
-      }
-      case 'noop':
-        return;
-    }
-  }
-
-  private async runClaudeImportInventory(): Promise<void> {
-    await runClaudeImportInventoryForHost(this.host);
   }
 
   private async renameSessionFromPicker(session: SessionRow, newTitle: string): Promise<void> {

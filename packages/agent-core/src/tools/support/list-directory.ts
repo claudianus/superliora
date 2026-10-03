@@ -15,8 +15,8 @@ import { basename, join } from 'pathe';
 
 import type { Kaos } from '@superliora/kaos';
 
-export const LIST_DIR_ROOT_WIDTH = 30;
-export const LIST_DIR_CHILD_WIDTH = 10;
+const LIST_DIR_ROOT_WIDTH = 30;
+const LIST_DIR_CHILD_WIDTH = 10;
 
 export interface ListDirectoryOptions {
   readonly collapseHiddenDirs?: boolean;

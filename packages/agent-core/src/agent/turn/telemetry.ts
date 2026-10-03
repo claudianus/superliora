@@ -6,7 +6,6 @@
  * API errors and tool outcomes.
  */
 
-import { createHash } from 'node:crypto';
 import {
   APIConnectionError,
   APIEmptyResponseError,
@@ -21,7 +20,6 @@ import type { Agent } from '..';
 import { ErrorCodes, type LioraErrorPayload } from '#/errors/index';
 import type { LoopEvent, LoopTurnInterruptedEvent, ExecutableToolResult } from '../../loop/index';
 import type { TelemetryPropertyValue } from '../../telemetry';
-import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 
 // ---------------------------------------------------------------------------
 // TurnTelemetry class
@@ -29,9 +27,6 @@ import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 
 export class TurnTelemetry {
   private readonly toolCallStartedAt = new Map<string, { name: string; startedAt: number }>();
-  private readonly toolCallDupType = new Map<string, 'normal' | 'cross_step'>();
-  private readonly stepToolCallKeys = new Map<number, Set<string>>();
-  private readonly telemetryModeByTurn = new Map<number, 'agent' | 'plan'>();
   private readonly currentStepByTurn = new Map<number, number>();
   private readonly interruptedTelemetryTurnIds = new Set<number>();
   private readonly stepFailureByTurn = new Map<number, LoopTurnInterruptedEvent>();
@@ -40,17 +35,14 @@ export class TurnTelemetry {
   constructor(private readonly agent: Agent) {}
 
   /** Resets per-turn transient state (called at the start of each turn). */
-  resetForTurn(turnId: number, mode: 'agent' | 'plan'): void {
+  resetForTurn(turnId: number): void {
     this.currentStep = 0;
-    this.stepToolCallKeys.clear();
-    this.toolCallDupType.clear();
-    this.telemetryModeByTurn.set(turnId, mode);
     this.currentStepByTurn.set(turnId, 0);
+    this.toolCallStartedAt.clear();
   }
 
   /** Cleans up per-turn maps after a turn completes. */
   cleanupTurn(turnId: number): void {
-    this.telemetryModeByTurn.delete(turnId);
     this.currentStepByTurn.delete(turnId);
     this.interruptedTelemetryTurnIds.delete(turnId);
     this.stepFailureByTurn.delete(turnId);
@@ -68,21 +60,18 @@ export class TurnTelemetry {
       this.trackTurnInterrupted(turnId, interruptedStep(event));
       return;
     }
-    this.trackToolLifecycle(event, turnId);
+    this.trackToolLifecycle(event);
   }
 
   trackTurnInterrupted(turnId: number, atStep: number): void {
     if (this.interruptedTelemetryTurnIds.has(turnId)) return;
     this.interruptedTelemetryTurnIds.add(turnId);
     this.agent.telemetry.track('turn_interrupted', {
-      mode: this.telemetryModeByTurn.get(turnId) ?? this.telemetryMode(),
+      mode: 'agent',
       at_step: atStep,
     });
   }
 
-  telemetryMode(): 'agent' | 'plan' {
-    return this.agent.planMode.isActive ? 'plan' : 'agent';
-  }
 
   shouldTrackApiError(turnId: number): boolean {
     const failure = this.stepFailureByTurn.get(turnId);
@@ -100,18 +89,10 @@ export class TurnTelemetry {
   private beginTrackedStep(turnId: number, step: number): void {
     this.currentStepByTurn.set(turnId, step);
     this.currentStep = step;
-    if (!this.stepToolCallKeys.has(step)) {
-      this.stepToolCallKeys.set(step, new Set());
-    }
   }
 
-  private trackToolLifecycle(event: LoopEvent, turnId: number): void {
+  private trackToolLifecycle(event: LoopEvent): void {
     if (event.type === 'tool.call') {
-      const dupType = this.trackDuplicateToolCall(turnId, event.step, event.name, event.args);
-      this.toolCallDupType.set(
-        event.toolCallId,
-        dupType === 'cross_step' ? 'cross_step' : 'normal',
-      );
       this.toolCallStartedAt.set(event.toolCallId, {
         name: event.name,
         startedAt: Date.now(),
@@ -122,14 +103,11 @@ export class TurnTelemetry {
       const started = this.toolCallStartedAt.get(event.toolCallId);
       if (started === undefined) return;
       this.toolCallStartedAt.delete(event.toolCallId);
-      const dupType = this.toolCallDupType.get(event.toolCallId) ?? 'normal';
-      this.toolCallDupType.delete(event.toolCallId);
       const outcome = telemetryToolOutcome(event.result);
       const properties: Record<string, TelemetryPropertyValue> = {
         tool_name: started.name,
         outcome,
         duration_ms: Date.now() - started.startedAt,
-        dup_type: dupType,
       };
       const errorType = outcome === 'error' ? telemetryToolErrorType(event.result) : undefined;
       if (errorType !== undefined) {
@@ -139,43 +117,6 @@ export class TurnTelemetry {
     }
   }
 
-  private trackDuplicateToolCall(
-    turnId: number,
-    step: number,
-    toolName: string,
-    args: unknown,
-  ): 'normal' | 'same_step' | 'cross_step' {
-    const argsText = canonicalTelemetryArgs(args);
-    const key = `${toolName}\u0000${argsText}`;
-    const stepKeys = this.stepToolCallKeys.get(step) ?? new Set<string>();
-    this.stepToolCallKeys.set(step, stepKeys);
-
-    let dupType: 'same_step' | 'cross_step' | undefined;
-    if (stepKeys.has(key)) {
-      dupType = 'same_step';
-    } else if (this.hasPriorStepToolCallKey(step, key)) {
-      dupType = 'cross_step';
-    }
-
-    stepKeys.add(key);
-    if (dupType === undefined) return 'normal';
-
-    this.agent.telemetry.track('tool_call_dedup_detected', {
-      turn_id: turnId,
-      step_no: step,
-      tool_name: toolName,
-      dup_type: dupType,
-      args_hash: createHash('sha256').update(argsText).digest('hex').slice(0, 8),
-    });
-    return dupType;
-  }
-
-  private hasPriorStepToolCallKey(step: number, key: string): boolean {
-    for (const [seenStep, keys] of this.stepToolCallKeys) {
-      if (seenStep !== step && keys.has(key)) return true;
-    }
-    return false;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -187,11 +128,8 @@ export function interruptedStep(event: LoopTurnInterruptedEvent): number {
   return Object.is(step, -0) ? 0 : step;
 }
 
-export function toolInputRecord(args: unknown): Record<string, unknown> {
-  return isPlainRecord(args) ? args : {};
-}
 
-export function toolOutputText(output: ExecutableToolResult['output']): string {
+function toolOutputText(output: ExecutableToolResult['output']): string {
   if (typeof output === 'string') return output;
   return output
     .filter((part): part is Extract<(typeof output)[number], { type: 'text' }> => {

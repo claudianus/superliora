@@ -58,7 +58,7 @@ const FAILURE_KIND_SEVERITY: readonly ProviderRouteFailureKind[] = [
   'auth',
 ];
 
-export function dominantProviderRouteFailureKind(
+function dominantProviderRouteFailureKind(
   kinds: readonly ProviderRouteFailureKind[],
 ): ProviderRouteFailureKind {
   let best: ProviderRouteFailureKind = 'rate_limit';

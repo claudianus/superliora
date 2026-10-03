@@ -1,16 +1,13 @@
 /**
- * Settings → Host — runtime glance + workspace dirs via /add-dir (Sovereign Reform §9.2 / W8).
- * No transport switch until config schema lands; status panel shows live TTFT when available.
+ * Settings → Host — runtime status and workspace directories.
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { PlainTextInputDialogComponent } from '../../../components/dialogs/shared/plain-text-input-dialog';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
-import { buildHostSessionLiveLines } from '../../../utils/host/sovereign-umbrella-glance';
 import {
   HOST_FUTURE_TIP,
-  HOST_SOVEREIGN_UMBRELLA_TIP,
   HOST_TTFT_TIP,
   loadHostGlance,
   buildHostSettingsLines,
@@ -21,7 +18,7 @@ import { handleAddDirCommand } from '../../session/add-dir';
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { ttui } from '../../../utils/tui-i18n';
 
-export { HOST_FUTURE_TIP, HOST_SOVEREIGN_UMBRELLA_TIP, HOST_TTFT_TIP };
+export { HOST_FUTURE_TIP, HOST_TTFT_TIP };
 
 export function showHostSettings(host: SlashCommandHost): void {
   mountPickerDialog(
@@ -175,10 +172,7 @@ async function showHostSettingsPanel(host: SlashCommandHost): Promise<void> {
     lastStepTtft: host.state.appState.lastStepTtft ?? null,
     lastStepTtftMsWindow: host.state.appState.lastStepTtftMsWindow ?? null,
   });
-  const lines = buildHostSettingsLines({
-    ...glance,
-    sessionLiveLines: buildHostSessionLiveLines({ env }),
-  });
+  const lines = buildHostSettingsLines(glance);
 
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],

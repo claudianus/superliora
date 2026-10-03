@@ -59,7 +59,7 @@ describe('resolveOAuthProviderModels', () => {
     const alias = result![0];
     expect(alias?.model).toBe('grok-4.5');
     expect(alias?.provider).toBe('xai-grok');
-    expect(alias?.maxContextSize).toBe(200000);
+    expect(alias?.maxContextSize).toBe(500000);
     expect(alias?.capabilities).toContain('thinking');
   });
 
@@ -71,6 +71,7 @@ describe('resolveOAuthProviderModels', () => {
     expect(result).toBeDefined();
     expect(result!.map((m) => m.model)).toEqual(['grok-4.5', 'grok-4.3', 'grok-build-0.1']);
     expect(result![0]?.provider).toBe('xai-grok');
+    expect(result!.map((model) => model.maxContextSize)).toEqual([500000, 1000000, 256000]);
   });
 
   it('falls back to the profile preset when the catalog fetch throws', async () => {

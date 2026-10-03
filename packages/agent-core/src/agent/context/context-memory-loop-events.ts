@@ -75,7 +75,8 @@ export function handleContextLoopEvent(host: ContextMemoryHost, event: LoopRecor
     case 'step.end': {
       const openStep = host.openSteps.get(event.uuid);
       host.openSteps.delete(event.uuid);
-      if (event.usage !== undefined) {
+      const compactedDuringStep = host.compactedOpenSteps.delete(event.uuid);
+      if (event.usage !== undefined && !compactedDuringStep) {
         const openStepIndex = openStep === undefined ? -1 : host.history.indexOf(openStep);
         const coveredCount =
           openStepIndex === -1 ? host.history.length : openStepIndex + 1;
@@ -143,8 +144,7 @@ export function handleContextLoopEvent(host: ContextMemoryHost, event: LoopRecor
       return;
     }
     case 'tool.result': {
-      const acceptsLateResult = host.lateAcceptedToolCallIds.has(event.toolCallId);
-      if (!host.pendingToolResultIds.has(event.toolCallId) && !acceptsLateResult) return;
+      if (!host.pendingToolResultIds.has(event.toolCallId)) return;
       host.toolCallNames.delete(event.toolCallId);
       const message = createToolMessage(event.toolCallId, toolResultOutputForModel(event.result));
       host.pushHistory({
@@ -153,7 +153,6 @@ export function handleContextLoopEvent(host: ContextMemoryHost, event: LoopRecor
         isError: event.result.isError,
       });
       host.pendingToolResultIds.delete(event.toolCallId);
-      host.lateAcceptedToolCallIds.delete(event.toolCallId);
       // A result also settles the intend window — clear it so the resume
       // path does not treat a result-bearing call as still ambiguous.
       host.intendedToolCalls.delete(event.toolCallId);

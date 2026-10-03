@@ -1,10 +1,5 @@
 import type { ContentBlock, ToolCallContent } from '@agentclientprotocol/sdk';
 import {
-  buildImageCompressionCaption,
-  compressBase64ForModel,
-  persistOriginalImage,
-} from '@superliora/agent-core';
-import {
   log,
   type PromptPart,
   type ToolInputDisplay,
@@ -77,71 +72,6 @@ export function acpBlocksToPromptParts(
 }
 
 /**
- * Shrink oversized inline images in a prompt-part list — the ACP ingestion
- * point's input-stage compression, mirroring the CLI's paste-time and the
- * server's upload-time step. Best effort: a part that cannot be compressed is
- * passed through unchanged.
- *
- * Compression is never silent: a re-encoded image gains a caption text part
- * immediately before it stating what the original was, and the original bytes
- * are persisted (into `originalsDir` — typically the session's
- * media-originals dir — or the shared temp-dir fallback) so the model can
- * read fine detail back via ReadMediaFile + region.
- */
-export async function compressPromptImageParts(
-  parts: readonly PromptPart[],
-  options: { readonly originalsDir?: string | undefined } = {},
-): Promise<PromptPart[]> {
-  const out: PromptPart[] = [];
-  for (const part of parts) {
-    if (part.type === 'image_url') {
-      const parsed = parseImageDataUrl(part.imageUrl.url);
-      if (parsed !== null) {
-        const result = await compressBase64ForModel(parsed.base64, parsed.mimeType);
-        if (result.changed) {
-          const originalPath = await persistOriginalImage(
-            Buffer.from(parsed.base64, 'base64'),
-            parsed.mimeType,
-            options.originalsDir === undefined ? {} : { dir: options.originalsDir },
-          );
-          out.push({
-            type: 'text',
-            text: buildImageCompressionCaption({
-              original: {
-                width: result.originalWidth,
-                height: result.originalHeight,
-                byteLength: result.originalByteLength,
-                mimeType: parsed.mimeType,
-              },
-              final: {
-                width: result.width,
-                height: result.height,
-                byteLength: result.finalByteLength,
-                mimeType: result.mimeType,
-              },
-              originalPath,
-            }),
-          });
-          out.push({
-            type: 'image_url',
-            imageUrl: { ...part.imageUrl, url: `data:${result.mimeType};base64,${result.base64}` },
-          });
-          continue;
-        }
-      }
-    }
-    out.push(part);
-  }
-  return out;
-}
-
-function parseImageDataUrl(url: string): { mimeType: string; base64: string } | null {
-  const match = /^data:([^;,]+);base64,(.*)$/s.exec(url);
-  if (match === null) return null;
-  return { mimeType: match[1]!, base64: match[2]! };
-}
-
-/**
  * Minimum-viable XML-attribute escaping for prompt-embedded resource
  * wrappers. The output is consumed by an LLM, not parsed by a canonical
  * XML parser, so we only escape the five characters that would change
@@ -150,11 +80,11 @@ function parseImageDataUrl(url: string): { mimeType: string; base64: string } | 
  */
 function escapeXmlAttr(s: string): string {
   return s
-    .replaceAll(/&/g, '&amp;')
-    .replaceAll(/</g, '&lt;')
-    .replaceAll(/>/g, '&gt;')
-    .replaceAll(/"/g, '&quot;')
-    .replaceAll(/'/g, '&apos;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('\'', '&apos;');
 }
 
 function fileLinkToTextRef(uri: string): string | null {
@@ -204,61 +134,16 @@ function parseLineRange(suffix: string): string | null {
 
 export function displayBlockToAcpContent(
   block: ToolInputDisplay,
-): ToolCallContent | null {
-  if (block.kind === 'diff') {
-    return {
-      type: 'diff',
-      path: block.path,
-      oldText: block.before,
-      newText: block.after,
-    };
-  }
-  if (
-    block.kind === 'file_io' &&
-    block.before !== undefined &&
-    block.after !== undefined
-  ) {
-    return {
-      type: 'diff',
-      path: block.path,
-      oldText: block.before,
-      newText: block.after,
-    };
-  }
-  if (block.kind === 'plan_review') {
-    const text = composePlanContent(block);
-    if (text === null) return null;
-    return { type: 'content', content: { type: 'text', text } };
-  }
-  return null;
+): ToolCallContent {
+  return {
+    type: 'content',
+    content: {
+      type: 'text',
+      text: block.kind === 'command' ? block.command : block.summary,
+    },
+  };
 }
 
-/**
- * Render the text body of a `plan_review` display block:
- *  - When `block.plan` (after trimming) is empty, return `null` — the
- *    caller drops the content entry rather than surfacing a blank
- *    headline. The policy at
- *    `packages/agent-core/src/tools/builtin/planning/exit-plan-mode.ts:110`
- *    already guarantees a non-empty plan; this guard exists so the
- *    adapter does not depend on that invariant.
- *  - When `block.path` is set, prefix the plan with `Plan saved to:
- *    <path>` so the ACP client can show the on-disk location alongside
- *    the markdown body. Otherwise emit the plan markdown alone.
- *
- * The output is consumed by the ACP client as plain text inside a
- * `tool_call_update` content entry; no markdown-specific escaping is
- * needed (markdown is the content type, not a wire-format escape
- * concern).
- */
-function composePlanContent(
-  block: Extract<ToolInputDisplay, { kind: 'plan_review' }>,
-): string | null {
-  if (block.plan.trim().length === 0) return null;
-  if (block.path !== undefined) {
-    return `Plan saved to: ${block.path}\n\n${block.plan}`;
-  }
-  return block.plan;
-}
 
 /**
  * Convert a {@link ToolResultEvent}'s `output` into ACP
@@ -271,9 +156,6 @@ function composePlanContent(
  * emits a `tool_call_update` so the client sees the status transition
  * to completed/failed.
  *
- * Diff content does NOT come from this function: `ToolResultEvent` has
- * no `display` field; diffs attach to `ToolCallStartedEvent.display`
- * and are emitted by `toolCallStartToSessionUpdate`.
  */
 export function toolResultToAcpContent(event: ToolResultEvent): ToolCallContent[] {
   const out = event.output;

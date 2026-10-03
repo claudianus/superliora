@@ -8,14 +8,13 @@
  *   emitEvent(event)        → IEventService.publish(event)
  *   requestApproval(req)    → IApprovalService.request(req)
  *   requestQuestion(req)    → IQuestionService.request(req)
- *   toolCall(req)           → unsupported (SDK custom tool calls not used here)
  *
  * The protocol↔in-process adapters (SCHEMAS.md §6.4 snake_case shapes, REST
  * request/response Zod validation) live at the daemon REST boundary —
  * NOT here. The peer-service interfaces stay SDK-shaped.
  */
 
-import type { ApprovalRequest, ApprovalResponse, CredentialRequest, CredentialResponse, Event, QuestionRequest, QuestionResult, SDKAPI, ToolCallRequest, ToolCallResponse } from '../../rpc';
+import type { ApprovalRequest, ApprovalResponse, CredentialRequest, CredentialResponse, Event, QuestionRequest, QuestionResult, SDKAPI } from '../../rpc';
 
 import type { IApprovalService } from '../approval/approval';
 import type { IEventService } from '../event/event';
@@ -62,17 +61,5 @@ export class BridgeClientAPI implements SDKAPI {
     _request: CredentialRequest & { sessionId: string; agentId: string },
   ): Promise<CredentialResponse | null> {
     return null;
-  }
-
-  async toolCall(
-    request: ToolCallRequest & { sessionId: string; agentId: string },
-  ): Promise<ToolCallResponse> {
-    // Mirrors `SDKRpcClientBase.toolCall` (packages/node-sdk/src/rpc.ts:577-582)
-    // — the daemon's in-process adapter does not expose SDK-side custom tool
-    // calls; the agent gets an error result it can surface upstream.
-    return {
-      output: `SDK custom tool calls are not supported in the daemon adapter: ${request.toolCallId}`,
-      isError: true,
-    };
   }
 }

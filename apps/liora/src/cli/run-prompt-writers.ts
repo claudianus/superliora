@@ -1,4 +1,4 @@
-import type { Event, HookResultEvent } from '@superliora/sdk';
+import type { Event } from '@superliora/sdk';
 
 import { tln } from '#/cli/i18n';
 import type { PromptOutputFormat } from './options';
@@ -15,7 +15,6 @@ export type PromptProviderRouteSelection = NonNullable<
 export interface PromptTurnWriter {
   startProgress(): void;
   writeAssistantDelta(delta: string): void;
-  writeHookResult(event: HookResultEvent): void;
   writeThinkingDelta(delta: string): void;
   writeToolCall(toolCallId: string, name: string, args: unknown): void;
   writeToolCallDelta(
@@ -26,7 +25,6 @@ export interface PromptTurnWriter {
   writeToolResult(toolCallId: string, output: unknown): void;
   writeProviderRouteSelection(selection: PromptProviderRouteSelection): void;
   flushAssistant(): void;
-  discardAssistant(): void;
   finish(): void;
 }
 
@@ -58,14 +56,6 @@ export class PromptTranscriptWriter implements PromptTurnWriter {
     this.assistantWriter.write(delta);
   }
 
-  writeHookResult(event: HookResultEvent): void {
-    this.clearPendingProgress();
-    this.thinkingWriter.finish();
-    this.assistantWriter.finish();
-    this.assistantWriter.write(formatHookResultPlain(event));
-    this.assistantWriter.finish();
-  }
-
   writeThinkingDelta(delta: string): void {
     if (!this.showThinking) return;
     this.thinkingWriter.write(delta);
@@ -82,8 +72,6 @@ export class PromptTranscriptWriter implements PromptTurnWriter {
   writeProviderRouteSelection(): void {}
 
   flushAssistant(): void {}
-
-  discardAssistant(): void {}
 
   finish(): void {
     this.clearPendingProgress();
@@ -171,14 +159,6 @@ export class PromptJsonWriter implements PromptTurnWriter {
     this.assistantText += delta;
   }
 
-  writeHookResult(event: HookResultEvent): void {
-    this.flushAssistant();
-    this.writeJsonLine({
-      role: 'assistant',
-      content: formatHookResultPlain(event),
-    });
-  }
-
   writeThinkingDelta(): void {}
 
   writeToolCall(toolCallId: string, name: string, args: unknown): void {
@@ -244,10 +224,6 @@ export class PromptJsonWriter implements PromptTurnWriter {
       tool_calls: this.toolCalls.length > 0 ? [...this.toolCalls] : undefined,
     };
     this.writeJsonLine(message);
-    this.discardAssistant();
-  }
-
-  discardAssistant(): void {
     this.assistantText = '';
     this.toolCalls.length = 0;
   }
@@ -343,19 +319,6 @@ class PromptBlockWriter {
 
 function visibleCharWidth(char: string): number {
   return char === '\t' ? 4 : 1;
-}
-
-function formatHookResultPlain(event: HookResultEvent): string {
-  return `${formatHookResultTitle(event)}\n\n${formatHookResultBody(event)}`;
-}
-
-function formatHookResultTitle(event: HookResultEvent): string {
-  return `${event.hookEvent} hook${event.blocked === true ? ' blocked' : ''}`;
-}
-
-function formatHookResultBody(event: HookResultEvent): string {
-  const content = event.content.trim();
-  return content.length === 0 ? '(empty)' : content;
 }
 
 function stringifyJsonValue(value: unknown): string {

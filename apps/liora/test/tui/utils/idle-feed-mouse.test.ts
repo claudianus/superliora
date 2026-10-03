@@ -17,21 +17,29 @@ function createTestAppState(): AppState {
     version: '1.2.3',
     workDir: '/tmp/project',
     sessionId: 'ses-1',
-    planMode: false,
-    askMode: false,
+    additionalDirs: [],
+    permissionMode: 'manual',
+    thinking: false,
+    contextUsage: 0,
+    contextTokens: 0,
+    maxContextTokens: 0,
+    isReplaying: false,
+    streamingStartTime: 0,
+    editorCommand: null,
+    notifications: { enabled: true, condition: 'unfocused' },
+    upgrade: { autoInstall: true },
+    sessionTitle: null,
     streamingPhase: 'idle',
     isCompacting: false,
-    isBackgroundCompacting: false,
     inputMode: 'prompt',
     availableModels: {},
     availableProviders: {},
-    mcpServersSummary: null,
-  } as AppState;
+  };
 }
 
 function createIdleFeedTuiState(options: Partial<LioraTUIOptions> = {}) {
   const state = createTUIState({
-    startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    startup: { continueLast: false, yolo: false, auto: false },
     initialAppState: createTestAppState(),
     ...options,
   });
@@ -44,7 +52,7 @@ function createIdleFeedTuiState(options: Partial<LioraTUIOptions> = {}) {
 
 function createWelcomeIdleTuiState() {
   const state = createTUIState({
-    startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    startup: { continueLast: false, yolo: false, auto: false },
     initialAppState: createTestAppState(),
   });
   const welcome = new WelcomeComponent(state.appState);
@@ -147,7 +155,7 @@ describe('idle feed mouse', () => {
 
   it('non-idle transcript keeps selection-only mouse path', () => {
     const state = createTUIState({
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
       initialAppState: createTestAppState(),
     });
     state.transcriptContainer.clear();

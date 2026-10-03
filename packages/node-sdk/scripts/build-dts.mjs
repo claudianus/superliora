@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
@@ -8,7 +8,6 @@ const require = createRequire(import.meta.url);
 const packageRoot = path.resolve(import.meta.dirname, '..');
 const tempDir = path.join(packageRoot, '.tmp-api-extractor');
 const dtsRoot = path.join(tempDir, 'dts');
-const providerClientShimPath = path.join(dtsRoot, 'provider-clients.d.ts');
 const tscBinPath = packageBinPath('typescript', 'bin/tsc');
 const apiExtractorBinPath = packageBinPath('@microsoft/api-extractor', 'bin/api-extractor');
 
@@ -24,7 +23,6 @@ const workspacePackages = new Map([
 try {
   await rm(tempDir, { recursive: true, force: true });
   await run('tsc', tscBinPath, ['-p', 'tsconfig.dts.json']);
-  await writeProviderClientShim();
   await rewriteWorkspaceSpecifiers();
   await run('api-extractor', apiExtractorBinPath, ['run', '--local']);
 } finally {
@@ -55,26 +53,6 @@ function run(command, binPath, args) {
   });
 }
 
-async function writeProviderClientShim() {
-  await mkdir(dtsRoot, { recursive: true });
-  await writeFile(
-    providerClientShimPath,
-    [
-      'export interface Anthropic {}',
-      'export interface GoogleGenAI {}',
-      'export interface OpenAI {}',
-      'export namespace OpenAI {',
-      '  export namespace Chat {',
-      '    export type ChatCompletion = unknown;',
-      '    export type ChatCompletionChunk = unknown;',
-      '    export type ChatCompletionCreateParamsNonStreaming = unknown;',
-      '  }',
-      '}',
-      '',
-    ].join('\n'),
-  );
-}
-
 async function rewriteWorkspaceSpecifiers() {
   const files = await findDtsFiles(dtsRoot);
   const emittedFiles = new Set(files.map((file) => path.resolve(file)));
@@ -87,25 +65,7 @@ async function rewriteWorkspaceSpecifiers() {
       }
 
       const text = await readFile(file, 'utf8');
-      const providerClientSpecifier = relativeSpecifier(file, providerClientShimPath);
-      const providerClientText = text
-        .replaceAll(
-          "import Anthropic from '@anthropic-ai/sdk';",
-          `import { Anthropic } from '${providerClientSpecifier}';`,
-        )
-        .replaceAll(
-          "import OpenAI from 'openai';",
-          `import { OpenAI } from '${providerClientSpecifier}';`,
-        )
-        .replaceAll(
-          "import type OpenAI from 'openai';",
-          `import type { OpenAI } from '${providerClientSpecifier}';`,
-        )
-        .replaceAll(
-          "import { GoogleGenAI as GenAIClient } from '@google/genai';",
-          `import { GoogleGenAI as GenAIClient } from '${providerClientSpecifier}';`,
-        );
-      const updated = providerClientText.replaceAll(
+      const updated = text.replaceAll(
         /(["'])(#\/[^"']+|@superliora\/(?:agent-core|gui-use|kaos|oauth|kosong)(?:\/[^"']+)?)\1/g,
         (_match, quote, specifier) => {
           const resolved = resolveSpecifier({

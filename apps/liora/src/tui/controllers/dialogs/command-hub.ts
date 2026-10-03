@@ -1,6 +1,5 @@
 import {
   buildDefaultCommandHubItems,
-  commandHubKeepsOpen,
   CommandHubComponent,
   commandHubNestsPicker,
   cyclePermissionMode,
@@ -10,16 +9,10 @@ import {
   type CommandHubSelectMode,
 } from '../../components/dialogs/command-hub/index';
 import {
-  applyConductorProjectMode,
-  cycleAndApplyProjectMode,
   setTranscriptRegionMode,
-} from '../../features/control-tower/conductor-ux';
-import { ConductorHowtoPanelComponent } from '../../components/dialogs/command-hub/conductor-howto-panel';
-import { resolveHubItem } from '../../components/dialogs/command-hub/resolve-hub-item';
+} from '../../features/control-tower/timeline';
 import {
-  showHubCronPicker,
   showHubJobOpsPicker,
-  showHubLoopsPicker,
   type HubNestedPickerHost,
 } from '../../components/dialogs/command-hub/hub-nested-pickers';
 import {
@@ -32,7 +25,6 @@ import {
   DEFAULT_ONBOARDING_PREFERENCES,
   saveTuiConfig,
 } from '../../config';
-import { showExtensionsSettings } from '../../commands/config/extensions/extensions-settings';
 import { tuiConfigFromHost } from '../../commands/config/appearance/tui-persist';
 import { openSettingsPane, showSettingsSelector } from '../../commands/config/settings';
 import {
@@ -105,19 +97,14 @@ function buildCommandHubItems(host: DialogsHost): CommandHubItem[] {
   const signedIn =
     host.state.appState.model.trim().length > 0 ||
     Object.keys(host.state.appState.availableProviders).length > 0;
-  const skillNames = new Set(host.skillCommands.map((command) => command.name));
   return [
     ...buildDefaultCommandHubItems({
-      planMode: host.state.appState.planMode,
-      askMode: host.state.appState.askMode,
-      premiumQualityMode: host.state.appState.premiumQualityMode,
       permissionMode: host.state.appState.permissionMode,
       model: host.state.appState.model,
       thinkingLevel: host.state.appState.thinkingLevel,
       streamingPhase: host.state.appState.streamingPhase,
       isCompacting: host.state.appState.isCompacting,
       signedIn,
-      conductorProjectMode: host.state.appState.conductorProjectMode,
       transcriptRegionMode: host.state.appState.transcriptRegionMode,
     }),
     ...buildSlashJumpHubItems(
@@ -129,7 +116,6 @@ function buildCommandHubItems(host: DialogsHost): CommandHubItem[] {
         ...host.getSlashCommands('advanced'),
         ...host.getSlashCommands('diagnostics'),
       ],
-      skillNames,
     ),
   ];
 }
@@ -154,17 +140,6 @@ async function markHubIntroSeen(host: DialogsHost): Promise<void> {
   }
 }
 
-async function markConductorHowtoSeen(host: DialogsHost): Promise<void> {
-  const previous = host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
-  if (previous.conductorHowtoSeen) return;
-  const onboarding = { ...previous, conductorHowtoSeen: true };
-  host.setAppState({ onboarding });
-  try {
-    await saveTuiConfig(tuiConfigFromHost(host, { onboarding }));
-  } catch (error) {
-    host.showStatus(ttui('tui.hub.conductorSaveFailed', { message: formatErrorMessage(error) }), 'error');
-  }
-}
 
 function handleCommandHubSelect(
   host: DialogsHost,
@@ -183,27 +158,12 @@ function handleCommandHubSelect(
 
   // Cycles: Space advances in place; Enter opens picker when one exists.
   if (isCommandHubCycleId(item.id)) {
-    if (item.id === 'modes.conductorProject') {
-      const next = cycleAndApplyProjectMode({
-        state: host.state,
-        session: host.session,
-        setAppState: (patch) => host.setAppState(patch),
-        showStatus: (msg, color) => host.showStatus(msg, color),
-      });
-      host.openCommandHub?.noteToggleFlash(item.id);
-      noteSuccessFeedback();
-      host.state.toast.show(ttui('tui.hub.cycledProjectMode', { next }), 1600);
-      if (mode === 'enter') closeCenterModal(host, delegate);
-      return;
-    }
     if (item.id === 'modes.transcriptRegion') {
       const next = cycleTranscriptRegionMode(host.state.appState.transcriptRegionMode);
       setTranscriptRegionMode(
         {
           state: host.state,
-          session: host.session,
           setAppState: (patch) => host.setAppState(patch),
-          showStatus: (msg, color) => host.showStatus(msg, color),
         },
         next,
       );
@@ -225,41 +185,6 @@ function handleCommandHubSelect(
     return;
   }
 
-  if (item.id === 'modes.reduceParallelism') {
-    applyConductorProjectMode(
-      {
-        state: host.state,
-        session: host.session,
-        setAppState: (patch) => host.setAppState(patch),
-        showStatus: (msg, color) => host.showStatus(msg, color),
-      },
-      'hotfix',
-    );
-    noteSuccessFeedback();
-    host.state.toast.show(ttui('tui.hub.parallelismHotfix'), 1600);
-    closeCenterModal(host, delegate);
-    return;
-  }
-
-  if (commandHubKeepsOpen(item.id)) {
-    const slash = commandHubActionToSlash(item.id);
-    if (slash !== undefined) {
-      host.dispatchSlash(slash);
-    }
-    // Curated rows carry labelKey, not label — resolve through the locale or
-    // the toggle toast renders as " → ON".
-    const label = resolveHubItem(item).label;
-    const nextOn = item.badge !== 'ON';
-    noteSuccessFeedback();
-    host.state.toast.show(ttui('tui.hub.toggledTo', { label, state: nextOn ? 'ON' : 'off' }), 1400);
-    // Space: stay in Hub and flip more. Enter: apply and return to chat.
-    if (mode === 'enter') {
-      closeCenterModal(host, delegate);
-    } else {
-      host.openCommandHub?.noteToggleFlash(item.id);
-    }
-    return;
-  }
 
   if (item.id === 'now.steer') {
     closeAllCenterModals(host);
@@ -311,31 +236,8 @@ function handleCommandHubAction(
     showSettingsSelector(slashHost);
     return;
   }
-  if (item.id === 'extend.extensions') {
-    showExtensionsSettings(slashHost);
-    return;
-  }
   if (isSettingsHubActionId(item.id)) {
     openSettingsPane(slashHost, settingsSelectionFromHubId(item.id));
-    return;
-  }
-  if (item.id === 'start.conductorHowto') {
-    const previous = host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
-    mountCenterModal(
-      host,
-      delegate,
-      new ConductorHowtoPanelComponent({
-        alreadySeen: previous.conductorHowtoSeen,
-        onClose: () => {
-          closeCenterModal(host, delegate);
-        },
-        onSkipForever: () => {
-          void markConductorHowtoSeen(host);
-          closeCenterModal(host, delegate);
-        },
-      }),
-      { mode: options.nest ? 'push' : 'replace', label: 'Conductor' },
-    );
     return;
   }
   if (item.id === 'help.shortcuts') {
@@ -373,17 +275,13 @@ function handleCommandHubAction(
     showHubJobOpsPicker(hubNestedPickerHost(host, slashHost));
     return;
   }
-  if (item.id === 'chat.loops') {
-    showHubLoopsPicker(hubNestedPickerHost(host, slashHost));
-    return;
-  }
-  if (item.id === 'workspace.cron') {
-    showHubCronPicker(hubNestedPickerHost(host, slashHost));
-    return;
-  }
   if (item.id === 'workspace.search') {
     restoreInputText(host, delegate, '/search ');
     host.state.toast.show(ttui('tui.hub.searchPatternHint'), 2200);
+    return;
+  }
+  if (item.id === 'workspace.jobCreate') {
+    restoreInputText(host, delegate, '/job create ');
     return;
   }
   if (item.id === 'chat.btw') {

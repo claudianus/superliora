@@ -2,7 +2,9 @@ import { onTestFailed, onTestFinished } from 'vitest';
 
 import { recordReportEvent, setActiveReportCase } from '../src/report.js';
 
-export function createCaseLogger(caseName: string): (label: string, value?: unknown) => void {
+export type CaseLogger = (label: string, value?: unknown) => void;
+
+export function createCaseLogger(caseName: string): CaseLogger {
   setActiveReportCase(caseName);
   let failed = false;
   onTestFailed((error) => {

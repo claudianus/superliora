@@ -16,7 +16,6 @@
  *   - Other errors → 50001 via the global `installErrorHandler`.
  *
  * **Action suffix**: `:cancel` uses the shared `parseActionSuffix` helper
- * (5th call site after prompts:abort, questions:resolve|dismiss, mcp:restart).
  *
  * **Anti-corruption**: route resolves `ITaskService` via the accessor; no
  * SDK imports.

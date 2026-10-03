@@ -1,69 +1,20 @@
 import { describe, expect, it } from 'vitest';
-
-import {
-  describeSubagentToolFeedBody,
-  lastNonEmptyLine,
-  subagentToolDetailParts,
-} from '#/tui/utils/tools/subagent-tool-detail';
-
-describe('subagentToolDetailParts', () => {
-  it('maps structured detail to target + chip parts', () => {
-    expect(
-      subagentToolDetailParts({ kind: 'edit', path: 'src/a.ts', addedLines: 3, removedLines: 1 }),
-    ).toEqual({ target: 'src/a.ts', chip: '+3 -1' });
-    expect(subagentToolDetailParts({ kind: 'read', path: 'src/c.ts' })).toEqual({
-      target: 'src/c.ts',
-      chip: undefined,
-    });
-    expect(subagentToolDetailParts(undefined)).toEqual({
-      target: undefined,
-      chip: undefined,
-    });
+import { lastNonEmptyLine, resolveSubagentToolTarget } from '#/tui/utils/tools/subagent-tool-detail';
+describe('observed worker runtime targets', () => {
+  it('prefers the emitted Bash command over the argument preview', () => {
+    expect(resolveSubagentToolTarget({ kind: 'bash', command: 'pnpm test' }, '{"command":"other"}')).toBe('pnpm test');
   });
-});
-
-describe('describeSubagentToolFeedBody', () => {
-  it('composes name, target, and chip into one compact line', () => {
-    expect(
-      describeSubagentToolFeedBody(
-        'Edit',
-        { kind: 'edit', path: 'src/a.ts', addedLines: 3, removedLines: 1 },
-        undefined,
-      ),
-    ).toBe('Edit src/a.ts +3 -1');
-    expect(
-      describeSubagentToolFeedBody('Write', { kind: 'write', path: 'src/b.ts', lines: 1, bytes: 2 }, undefined),
-    ).toBe('Write src/b.ts 1 line');
-    expect(
-      describeSubagentToolFeedBody('Read', { kind: 'read', path: 'src/c.ts' }, undefined),
-    ).toBe('Read src/c.ts');
-    expect(
-      describeSubagentToolFeedBody('Bash', { kind: 'bash', command: 'pnpm test' }, undefined),
-    ).toBe('Bash pnpm test');
-    expect(
-      describeSubagentToolFeedBody('Grep', { kind: 'search', pattern: 'foo.*' }, undefined),
-    ).toBe('Grep foo.*');
+  it('projects SessionControl description or operation without tool-specific fiction', () => {
+    expect(resolveSubagentToolTarget(undefined, '{"operation":"spawn","description":"Fix login"}')).toBe('Fix login');
+    expect(resolveSubagentToolTarget({ kind: 'session', operation: 'spawn', description: 'Child task' }, undefined)).toBe('Child task');
+    expect(resolveSubagentToolTarget({ kind: 'session', operation: 'wait' }, undefined)).toBe('wait');
+    expect(resolveSubagentToolTarget(undefined, '{"operation":"wait","id":"child"}')).toBe('wait');
+    expect(resolveSubagentToolTarget(undefined, '{"command":"printf hi"}')).toBe('printf hi');
+    expect(resolveSubagentToolTarget(undefined, undefined)).toBeUndefined();
+    expect(resolveSubagentToolTarget(undefined, '{"command":')).toBeUndefined();
   });
-
-  it('falls back to a humanized args preview and bare name', () => {
-    expect(describeSubagentToolFeedBody('FetchURL', undefined, '{"url":"x"}')).toBe(
-      'FetchURL x',
-    );
-    expect(
-      describeSubagentToolFeedBody(
-        'WebSearch',
-        undefined,
-        '{"query":"premium HTML","limit":5}',
-      ),
-    ).toBe('WebSearch premium HTML');
-    expect(describeSubagentToolFeedBody('Tool', undefined, undefined)).toBe('Tool');
-  });
-});
-
-describe('lastNonEmptyLine', () => {
-  it('returns the last non-empty line of a stdout chunk', () => {
-    expect(lastNonEmptyLine('ok\n12 passing\n')).toBe('12 passing');
-    expect(lastNonEmptyLine('warn: slow')).toBe('warn: slow');
-    expect(lastNonEmptyLine('\n\n')).toBe('');
+  it('preserves the most recent non-empty stream line for dock paint', () => {
+    expect(lastNonEmptyLine('first\r\nsecond\r\n\n')).toBe('second');
+    expect(lastNonEmptyLine('')).toBe('');
   });
 });

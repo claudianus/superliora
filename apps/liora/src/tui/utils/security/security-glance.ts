@@ -1,84 +1,63 @@
 /**
  * Security settings glance — inventory + path-sandbox copy for SSOT §9.2.
- * Path sandbox is a lexical file-tool guard, not OS isolation.
+ * Bash path-token guard, not OS isolation.
  */
 
 import type { PermissionMode } from '@superliora/sdk';
 import {
-  REDTEAM_SOFT_SUITE_TIP,
   redactSecretsStatusLine,
 } from '@superliora/sdk';
 
-import {
-  formatInterventionQueueOpsLine,
-} from '../never-halt/intervention-glance';
 import type { NetworkGlanceInput } from '../network/network-glance';
 
 export type SecuritySandboxProfile = 'off' | 'workspace' | 'read-only';
 export type SecuritySandboxEnforcement = 'lexical' | 'process';
 
-export interface McpAllowlistSummary {
-  readonly configured: number;
-  readonly withEnabledTools: number;
-  readonly withDisabledTools: number;
-}
 
-export interface PermissionInterventionGlance {
-  readonly pendingInterventions?: number;
-  readonly staleInterventions?: number;
-  readonly oldestInterventionAgeMs?: number;
-}
 
 export interface SecurityGlanceInput {
   readonly permissionMode: PermissionMode;
   readonly permissionFromSession?: PermissionMode | undefined;
-  readonly permissionInterventions?: PermissionInterventionGlance | undefined;
   readonly sandboxProfile?: SecuritySandboxProfile | undefined;
   readonly sandboxEnforcement?: SecuritySandboxEnforcement | undefined;
   readonly processSandboxWarning?: string | undefined;
   readonly workDir: string;
   readonly additionalDirs: readonly string[];
   readonly network?: NetworkGlanceInput | undefined;
-  readonly mcpLive?: ReadonlyArray<{ readonly status: string }> | undefined;
-  readonly mcpConfig?: McpAllowlistSummary | undefined;
 }
 
 const SANDBOX_PROFILE_TIPS: Readonly<Record<SecuritySandboxProfile, string>> = {
   workspace:
-    'File tools, Bash path tokens, and Script stay inside workspace roots (+ /add-dir); absolute paths outside are denied.',
-  'read-only': 'Writes blocked for file tools, Script, and Bash redirects; reads follow workspace root rules.',
+    'Bash execution stays inside workspace roots (+ /add-dir); absolute paths outside are denied.',
+  'read-only': 'Bash writes are blocked; reads follow workspace root rules.',
   off: 'Default — absolute paths outside roots are allowed (sensitive paths still blocked).',
 };
 
 const SANDBOX_ENFORCEMENT_TIPS: Readonly<Record<SecuritySandboxEnforcement, string>> = {
-  lexical: 'Path tokens and file tools only (default).',
+  lexical: 'Bash path tokens only (default).',
   process:
     'Docker filesystem jail when present; otherwise Windows Job Object tree (not an FS jail). Missing backend degrades to lexical.',
 };
 
 /**
  * Honest path-sandbox tip — Settings → Security picker + status panel.
- * Lexical path guard (file tools + Bash tokens + Script); not OS isolation.
+ * Lexical Bash token guard; not OS isolation.
  */
 export const SECURITY_SANDBOX_TIP =
-  'Path sandbox (not OS isolation): off | workspace | read-only. workspace denies file-tool, Bash path-token, and Script paths outside roots; read-only blocks writes; off allows absolute outside paths. Sensitive paths stay blocked. Network/computer-use stay out of scope. Optional process enforcement: Docker when present; Job Object is not an FS jail. Settings → Security · config.toml sandboxProfile / sandboxEnforcement · local.toml workspace.sandbox_profile / sandbox_enforcement · --sandbox · --sandbox-enforcement · SUPERLIORA_SANDBOX · SUPERLIORA_SANDBOX_ENFORCEMENT · --no-process-sandbox · /add-dir for extra roots.';
+  'Path sandbox (not OS isolation): off | workspace | read-only. workspace denies Bash path tokens outside roots; read-only blocks writes; off allows absolute outside paths. Optional process enforcement: Docker when present; Job Object is not an FS jail. Settings → Security · --sandbox · --sandbox-enforcement · /add-dir for extra roots.';
 
 /** Compact secrets/redaction tip — agent-core SSOT. */
 export const SECURITY_REDACTION_TIP =
-  `${redactSecretsStatusLine()} · ${REDTEAM_SOFT_SUITE_TIP} · Bash hard-blocks cat/source/base64 of secrets · Glob/Grep filter .env even with includeIgnored · never commit keys — use env vars or Settings → Accounts.`;
+  `${redactSecretsStatusLine()} · Never commit keys — use env vars or Settings → Accounts.`;
 
-/** Compact MCP tool-allowlist tip — mcp.json scopes. */
-export const SECURITY_MCP_ALLOWLIST_TIP =
-  'MCP tool allowlist: enabledTools / disabledTools per server in mcp.json — empty enabledTools = all tools; disabledTools wins on conflict · project + user scopes merge · Settings → MCP to install, toggle, reload.';
 
 /** One-line OS-isolation disclaimer for picker footer / glance. */
 export const SECURITY_NOT_OS_SANDBOX =
-  'Not an OS sandbox — lexical path guard for file tools, Bash path tokens, and Script. Network egress and desktop control stay out of scope.';
+  'Not an OS sandbox — lexical Bash path-token guard. Network egress stays out of scope.';
 
 export function formatPermissionModeLine(
   mode: PermissionMode,
   sessionMode?: PermissionMode | undefined,
-  interventions?: PermissionInterventionGlance | undefined,
 ): string {
   const lines: string[] = [];
   if (sessionMode !== undefined && sessionMode !== mode) {
@@ -89,14 +68,6 @@ export function formatPermissionModeLine(
     lines.push(`Current: ${mode} · footer badge · /permission to change`);
   }
 
-  const queueLine = formatInterventionQueueOpsLine(
-    interventions?.pendingInterventions ?? 0,
-    interventions?.oldestInterventionAgeMs,
-    interventions?.staleInterventions ?? 0,
-  );
-  if (queueLine !== null) {
-    lines.push(queueLine);
-  }
 
   return lines.join('\n');
 }
@@ -157,75 +128,26 @@ export function formatNetworkEgressLines(network: NetworkGlanceInput | undefined
     lines.push(`ALL_PROXY=${network.allProxy}`);
   }
   if (network.socksConfigured) {
-    lines.push('SOCKS detected — MCP stdio + local loopback stay direct.');
+    lines.push('SOCKS detected — local loopback stays direct.');
   }
   lines.push('Full env glance: Settings → Network / Proxy.');
   return lines;
 }
 
-export function formatMcpAllowlistLines(
-  live: ReadonlyArray<{ readonly status: string }> | undefined,
-  config: McpAllowlistSummary | undefined,
-): readonly string[] {
-  const lines: string[] = [];
-  if (live !== undefined) {
-    const connected = live.filter((s) => s.status === 'connected').length;
-    const disabled = live.filter((s) => s.status === 'disabled').length;
-    lines.push(
-      `Live session: ${String(live.length)} server(s) · ${String(connected)} connected${
-        disabled > 0 ? ` · ${String(disabled)} disabled` : ''
-      }`,
-    );
-  } else {
-    lines.push('Live session: (no active session — start one to inspect MCP status)');
-  }
-  if (config !== undefined && config.configured > 0) {
-    const parts = [`${String(config.configured)} in mcp.json`];
-    if (config.withEnabledTools > 0) {
-      parts.push(`${String(config.withEnabledTools)} with enabledTools allowlist`);
-    }
-    if (config.withDisabledTools > 0) {
-      parts.push(`${String(config.withDisabledTools)} with disabledTools`);
-    }
-    lines.push(`Config scopes: ${parts.join(' · ')}`);
-  } else {
-    lines.push('Config scopes: no mcp.json entries yet — add via Settings → MCP');
-  }
-  lines.push('Per-server tool allowlist: enabledTools / disabledTools in mcp.json');
-  lines.push('Empty enabledTools = all tools exposed; disabledTools wins when both set.');
-  lines.push('Scopes merge project → projectRoot → user — later files override name collisions.');
-  return lines;
-}
-
-/** PostToolUse verification sensors (W6 — read-only tips). */
-export function securitySensorLines(): readonly string[] {
-  return [
-    'PostToolUse (Edit/Write): RunProjectChecks or scoped lint/type after file changes.',
-    'Goal Stop gate: Mission/Ultrawork hard-blocks done without WorkGraph evidence.',
-    'Plain /goal: soft advisory on UpdateGoal(complete) when no evidence gate ran.',
-    'W6 soft sensor: recent test/command failures append a non-blocking done warning.',
-  ];
-}
 
 /** Redaction posture — agent-core SSOT; always active when wired. */
 export function securitySecretRedactionLines(): readonly string[] {
   return [
     redactSecretsStatusLine(),
-    `· ${REDTEAM_SOFT_SUITE_TIP}`,
-    'Sensitive paths blocked from Read/Write/Edit (.env, SSH, cloud creds, kubeconfig).',
     'Bash hard-blocks cat/source/base64 of secrets — no force escape.',
-    'Glob/Grep/RepoQuery filter .env even when includeIgnored is true.',
     'Tool/log diagnostics pass through redactSecretsInText before transcript render.',
     'Never commit API keys — env vars or Settings → Accounts.',
-    'Search/index skips credential stores by default.',
   ];
 }
 
 export function securityNavigationLines(): readonly string[] {
   return [
     'Settings → Permission — manual / auto / yolo approval matrix',
-    'Settings → Never-Halt — OAuth refresh, breaker, permission queue',
-    'Settings → MCP — install, toggle, reload servers + tool allowlists',
     'Settings → Network / Proxy — HTTPS_PROXY egress posture',
     'Settings → Telemetry — on/off posture, local-only tips',
   ];
@@ -240,7 +162,6 @@ export function buildSecuritySettingsLines(input: SecurityGlanceInput): readonly
     formatPermissionModeLine(
       input.permissionMode,
       input.permissionFromSession,
-      input.permissionInterventions,
     ),
     '',
     '── Path sandbox ────────────────────────────',
@@ -257,12 +178,6 @@ export function buildSecuritySettingsLines(input: SecurityGlanceInput): readonly
     '',
     '── Secrets & redaction ─────────────────────',
     ...securitySecretRedactionLines(),
-    '',
-    '── Verification sensors ────────────────────',
-    ...securitySensorLines(),
-    '',
-    '── MCP tool allowlist ──────────────────────',
-    ...formatMcpAllowlistLines(input.mcpLive, input.mcpConfig),
     '',
     '── Related settings ────────────────────────',
     ...securityNavigationLines(),

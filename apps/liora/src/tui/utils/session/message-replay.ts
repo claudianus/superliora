@@ -11,8 +11,6 @@ import type {
 import type {
   AppState,
   BackgroundAgentMetadata,
-  PluginCommandTrigger,
-  SkillActivationTrigger,
   ToolCallBlockData,
   TranscriptEntry,
 } from '#/tui/types';
@@ -48,24 +46,6 @@ export interface ReplayRenderContext {
   /** Tool calls skipped this turn because of {@link REPLAY_MAX_TOOL_MOUNTS_PER_TURN}. */
   suppressedToolCountThisTurn: number;
   completedToolCallIds: Set<string>;
-  skillActivationIds: Set<string>;
-  pluginCommandActivationIds: Set<string>;
-  suppressNextPlanModeOffNotice: boolean;
-}
-
-export interface SkillActivationProjection {
-  readonly activationId: string;
-  readonly skillName: string;
-  readonly skillArgs?: string;
-  readonly trigger: SkillActivationTrigger;
-}
-
-export interface PluginCommandProjection {
-  readonly activationId: string;
-  readonly pluginId: string;
-  readonly commandName: string;
-  readonly commandArgs?: string;
-  readonly trigger: PluginCommandTrigger;
 }
 
 export interface ReplayBackgroundProjection {
@@ -81,7 +61,6 @@ export function appStateFromResumeAgent(agent: ResumedAgentState): Partial<AppSt
     contextTokens,
     maxContextTokens,
     contextUsage,
-    planMode: agent.plan !== null,
     permissionMode: agent.permission.mode,
   };
 }
@@ -141,9 +120,6 @@ export function createReplayRenderContext(): ReplayRenderContext {
     mountedToolCountThisTurn: 0,
     suppressedToolCountThisTurn: 0,
     completedToolCallIds: new Set(),
-    skillActivationIds: new Set(),
-    pluginCommandActivationIds: new Set(),
-    suppressNextPlanModeOffNotice: false,
   };
 }
 
@@ -250,58 +226,7 @@ export function backgroundOrigin(
   return message.origin?.kind === 'background_task' ? message.origin : undefined;
 }
 
-export function skillActivationFromOrigin(
-  origin: PromptOrigin | undefined,
-): SkillActivationProjection | undefined {
-  if (origin?.kind !== 'skill_activation') return undefined;
-  return {
-    activationId: origin.activationId,
-    skillName: origin.skillName,
-    skillArgs: origin.skillArgs,
-    trigger: origin.trigger,
-  };
-}
 
-export function pluginCommandFromOrigin(
-  origin: PromptOrigin | undefined,
-): PluginCommandProjection | undefined {
-  if (origin?.kind !== 'plugin_command') return undefined;
-  return {
-    activationId: origin.activationId,
-    pluginId: origin.pluginId,
-    commandName: origin.commandName,
-    commandArgs: origin.commandArgs,
-    trigger: origin.trigger,
-  };
-}
-
-export function formatHookResultMessageForTranscript(
-  text: string,
-  fallbackEvent: string,
-  blocked: boolean,
-): string {
-  const results: Array<{ event: string; body: string }> = [];
-  let lastIndex = 0;
-
-  for (const match of text.matchAll(HOOK_RESULT_RE)) {
-    if (text.slice(lastIndex, match.index).trim().length > 0) {
-      return formatHookResultBlock(fallbackEvent, text, blocked);
-    }
-    const event = match[1];
-    const body = match[2];
-    if (event === undefined || body === undefined) {
-      return formatHookResultBlock(fallbackEvent, text, blocked);
-    }
-    results.push({ event, body });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (results.length === 0 || text.slice(lastIndex).trim().length > 0) {
-    return formatHookResultBlock(fallbackEvent, text, blocked);
-  }
-
-  return results.map(({ event, body }) => formatHookResultBlock(event, body, blocked)).join('\n\n');
-}
 
 function isReplayUserTurnRecord(record: AgentReplayRecord): boolean {
   if (record.type !== 'message') return false;
@@ -311,19 +236,11 @@ function isReplayUserTurnRecord(record: AgentReplayRecord): boolean {
     case undefined:
     case 'user':
       return true;
-    case 'skill_activation':
-      return message.origin.trigger === 'user-slash';
-    case 'plugin_command':
-      return message.origin.trigger === 'user-slash';
     case 'shell_command':
       // A `!` command's input is a user-turn anchor; its output is not.
       return message.origin.phase === 'input';
     case 'background_task':
     case 'compaction_summary':
-    case 'cron_job':
-    case 'cron_missed':
-    case 'hook_result':
-    case 'injection':
     case 'retry':
     case 'system_trigger':
       return false;
@@ -357,12 +274,6 @@ function contentPartToText(part: ContentPart): string {
   }
 }
 
-const HOOK_RESULT_RE =
-  /<hook_result\s+hook_event="([^"]+)">\n?([\s\S]*?)\n?<\/hook_result>/g;
-
-function formatHookResultBlock(event: string, body: string, blocked: boolean): string {
-  return `*${event} hook${blocked ? ' blocked' : ''}*\n\n${body.trim() || '(empty)'}`;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;

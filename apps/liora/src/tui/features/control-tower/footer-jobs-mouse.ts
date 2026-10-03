@@ -4,7 +4,6 @@
 
 import type { NativeInputEvent } from '#/tui/renderer';
 
-import { isExperimentalFlagEnabled } from '../../commands/experimental-flags';
 import { planTUINativeStage } from '../native-layout/native-stage-plan';
 import { activateConductorJobsStrip } from '../../utils/job/conductor-strip-activate';
 import type { TUIState } from '../../tui-state';
@@ -23,7 +22,6 @@ export function handleFooterJobsStripMouse(
   host: FooterJobsMouseHost,
   event: NativeInputEvent,
 ): boolean {
-  if (!isExperimentalFlagEnabled('conductor_ux_v2')) return false;
   if (event.type !== 'mouse' || event.action !== 'press') return false;
   if (event.button !== undefined && event.button !== 'left') return false;
 

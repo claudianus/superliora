@@ -3,7 +3,6 @@ import { formatBytes, LIORA_HOME_COMFORT_FREE_BYTES, probeVolumeSpace } from '@s
 import { detectedConnectEnvHints } from '#/utils/local-catalog-providers';
 import { getDataDir } from '#/utils/paths';
 
-import { setExperimentalFeatures } from '../../commands';
 import * as slashCommands from '../../commands/hub/dispatch';
 import { ttui } from '../../utils/tui-i18n';
 import { formatModelRefreshFailureNotice } from '../../utils/session/model-refresh-notice';
@@ -115,8 +114,6 @@ export async function refreshProviderModelsInBackground(
   } catch {
     // Best-effort: startup must not crash on background refresh failures.
   }
-  // Best-effort prune of stale free aliases that are no longer in live catalog.
-  void pruneStaleFreeModelsInBackground(host);
   // Best-effort capability refresh for catalog aliases written by older builds
   // (e.g. Command Code rows that predate models.dev enrichment).
   void refreshCatalogAliasCapabilitiesInBackground(host);
@@ -137,26 +134,4 @@ async function refreshCatalogAliasCapabilitiesInBackground(host: StartupLifecycl
   }
 }
 
-async function pruneStaleFreeModelsInBackground(host: StartupLifecycleHost): Promise<void> {
-  try {
-    const { loadCatalog } = await import('#/utils/catalog-cache');
-    const catalog = await loadCatalog().catch(() => undefined);
-    if (catalog === undefined) return;
-    const { getStaleFreeAliasDeletePaths } = await import('#/utils/migrate-stale-free-models');
-    const config = await host.harness.getConfig({ reload: true });
-    const pruned = getStaleFreeAliasDeletePaths(config, catalog);
-    if (pruned === undefined || pruned.deletePaths.length === 0) return;
-    await host.harness.deleteConfigFields([...pruned.deletePaths]);
-    if (pruned.clearDefaultModel) {
-      // Session model was already auto; ensure it stays auto.
-      try { await host.session?.setModel('auto'); } catch {}
-    }
-  } catch {
-    // best-effort
-  }
-}
 
-export async function prepareStartupExperimentalFeatures(host: StartupLifecycleHost): Promise<void> {
-  setExperimentalFeatures(await host.harness.getExperimentalFeatures(), true);
-  await host.authFlow.refreshAvailableModels();
-}

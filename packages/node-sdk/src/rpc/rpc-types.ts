@@ -22,9 +22,6 @@ export interface CancelSessionRpcInput extends SessionIdRpcInput {
   readonly source?: TurnCancelSource;
 }
 
-export interface ReloadSessionRpcInput extends SessionIdRpcInput {
-  readonly forcePluginSessionStartReminder?: boolean;
-}
 
 export interface SetSessionModelRpcInput extends SessionIdRpcInput {
   readonly model: string;
@@ -43,50 +40,6 @@ export interface SetSessionPermissionRpcInput extends SessionIdRpcInput {
   readonly mode: PermissionMode;
 }
 
-export interface SetSessionPremiumQualityRpcInput extends SessionIdRpcInput {
-  readonly enabled: boolean;
-}
-
-export interface SetSessionAskModeRpcInput extends SessionIdRpcInput {
-  readonly enabled: boolean;
-}
-
-export interface SetSessionPlanModeRpcInput extends SessionIdRpcInput {
-  readonly enabled: boolean;
-  readonly ultra?: boolean;
-  readonly initialContext?: string;
-}
-
-export interface ActivateSkillRpcInput extends SessionIdRpcInput {
-  readonly name: string;
-  readonly args?: string | undefined;
-}
-
-export interface ActivatePluginCommandRpcInput extends SessionIdRpcInput {
-  readonly pluginId: string;
-  readonly commandName: string;
-  readonly args?: string | undefined;
-}
-
-export interface SearchSkillsRpcInput extends SessionIdRpcInput {
-  readonly query: string;
-  readonly limit?: number | undefined;
-}
-
-export interface ReconnectMcpServerRpcInput extends SessionIdRpcInput {
-  readonly name: string;
-}
-
-export interface InlineCompleteRpcInput extends SessionIdRpcInput {
-  readonly text: string;
-  readonly cursorLine: number;
-  readonly cursorCol: number;
-  readonly signal?: AbortSignal;
-}
-
-export interface SuggestPromptsRpcInput extends SessionIdRpcInput {
-  readonly signal?: AbortSignal;
-}
 
 /** Shared shape for `startConversationLoop` / `stopConversationLoop` / `listConversationLoops`. */
 export interface ConversationLoopState {

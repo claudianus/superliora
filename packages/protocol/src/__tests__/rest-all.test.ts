@@ -40,11 +40,6 @@ import {
   setDefaultModelResponseSchema,
 } from '../rest/modelCatalog';
 import {
-  activateSkillRequestSchema,
-  activateSkillResultSchema,
-  searchSkillsRequestSchema,
-} from '../rest/skill';
-import {
   cancelTaskResultSchema,
   getTaskQuerySchema,
   listTasksResponseSchema,
@@ -74,12 +69,6 @@ import {
   providerConfigResponseSchema,
 } from '../rest/config';
 import {
-  createMemoryRequestSchema,
-  listMemoriesQuerySchema,
-  reflectMemoriesResponseSchema,
-  searchMemoriesRequestSchema,
-} from '../rest/memory';
-import {
   inFlightToolCallSchema,
   inFlightTurnSchema,
   sessionSnapshotResponseSchema,
@@ -107,11 +96,6 @@ import {
   updateWorkspaceRequestSchema,
   workspaceIdParamSchema,
 } from '../rest/workspace';
-import {
-  listToolsQuerySchema,
-  listToolsResponseSchema,
-  restartMcpServerResultSchema,
-} from '../rest/tool';
 import { emptySessionUsage } from '../session';
 
 describe('rest/approval — pending + resolve', () => {
@@ -247,7 +231,6 @@ describe('rest/meta — server capabilities', () => {
       websocket: true,
       file_upload: true,
       fs_query: true,
-      mcp: true,
       background_tasks: true,
       terminal: true,
     });
@@ -261,7 +244,6 @@ describe('rest/meta — server capabilities', () => {
         websocket: true,
         file_upload: true,
         fs_query: true,
-        mcp: true,
         background_tasks: true,
         terminal: true,
       },
@@ -302,20 +284,6 @@ describe('rest/modelCatalog — list providers + set default', () => {
   });
 });
 
-describe('rest/skill — list/search/activate', () => {
-  it('searchSkillsRequestSchema enforces limit 1..20', () => {
-    expect(() => searchSkillsRequestSchema.parse({ query: 'x', limit: 0 })).toThrow();
-    expect(() => searchSkillsRequestSchema.parse({ query: 'x', limit: 21 })).toThrow();
-  });
-
-  it('activateSkillRequestSchema accepts empty args', () => {
-    expect(activateSkillRequestSchema.parse({}).args).toBeUndefined();
-  });
-
-  it('activateSkillResultSchema requires literal true', () => {
-    expect(activateSkillResultSchema.parse({ activated: true, skill_name: 's' }).skill_name).toBe('s');
-  });
-});
 
 describe('rest/task — list + cancel', () => {
   it('listTasksResponseSchema accepts empty', () => {
@@ -472,33 +440,6 @@ describe('rest/config — config get/patch', () => {
   });
 });
 
-describe('rest/memory — memory CRUD/query', () => {
-  it('listMemoriesQuerySchema accepts empty', () => {
-    expect(listMemoriesQuerySchema.parse({}).limit).toBeUndefined();
-  });
-
-  it('createMemoryRequestSchema requires subject and content', () => {
-    expect(() => createMemoryRequestSchema.parse({ type: 'fact' })).toThrow();
-    expect(
-      createMemoryRequestSchema.parse({ type: 'fact', subject: 's', content: 'c' })
-        .subject,
-    ).toBe('s');
-  });
-
-  it('searchMemoriesRequestSchema accepts type/types together', () => {
-    const r = searchMemoriesRequestSchema.parse({
-      type: 'fact',
-      types: ['fact'],
-    });
-    expect(r.type).toBe('fact');
-  });
-
-  it('reflectMemoriesResponseSchema accepts zero counts', () => {
-    expect(
-      reflectMemoriesResponseSchema.parse({ examined: 0, merged: 0, promoted: 0, rejected: 0 }).merged,
-    ).toBe(0);
-  });
-});
 
 describe('rest/snapshot — session snapshot', () => {
   it('inFlightToolCallSchema requires tool_call_id and name', () => {
@@ -557,7 +498,6 @@ describe('rest/session — list/fork/status/compact', () => {
       status: 'idle',
       thinking_level: 'off',
       permission: 'manual',
-      plan_mode: false,
       context_tokens: 0,
       max_context_tokens: 100,
       context_usage: 0,
@@ -653,16 +593,3 @@ describe('rest/workspace — workspace CRUD', () => {
   });
 });
 
-describe('rest/tool — list + mcp restart', () => {
-  it('listToolsQuerySchema accepts session_id', () => {
-    expect(listToolsQuerySchema.parse({ session_id: 's-1' }).session_id).toBe('s-1');
-  });
-
-  it('listToolsResponseSchema accepts empty', () => {
-    expect(listToolsResponseSchema.parse({ tools: [] }).tools).toEqual([]);
-  });
-
-  it('restartMcpServerResultSchema is { restarting: true }', () => {
-    expect(restartMcpServerResultSchema.parse({ restarting: true }).restarting).toBe(true);
-  });
-});

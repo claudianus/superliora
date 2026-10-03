@@ -6,14 +6,14 @@
  * - `latestRecordedAgentWireMtime` finds root-homedir agent wires
  */
 
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { SessionStore } from '../../src/session/store/session-store';
-import { FileSystemAgentRecordPersistence } from '../../src/agent/records';
+import { FileSystemAgentRecordPersistence, type AgentRecord } from '../../src/agent/records';
 
 const tempDirs: string[] = [];
 
@@ -33,23 +33,19 @@ async function makeStore(): Promise<{ store: SessionStore; home: string }> {
 const WORK_DIR = process.platform === 'win32' ? 'C:\\work\\proj' : '/work/proj';
 
 describe('session listing resilience (UX sweep)', () => {
-  it('keeps listing sessions when one session directory is unreadable', async () => {
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('keeps listing sessions when one session directory is unreadable', async () => {
     const { store } = await makeStore();
     await store.create({ id: 'ses_ok', workDir: WORK_DIR });
     await store.create({ id: 'ses_bad', workDir: WORK_DIR });
 
-    // Simulate a transient unreadable dir (Windows EPERM / AV lock): strip
-    // all permissions from the session directory.
     const badDir = await store.assertDirectory('ses_bad');
-    await chmod(badDir, 0o000).catch(() => {
-      // Some filesystems (Windows root drives) ignore chmod; the test then
-      // degenerates to a plain two-session listing, which still passes below.
-    });
-
-    const sessions = await store.list({ workDir: WORK_DIR });
-    // The unreadable entry may or may not be skippable on this platform, but
-    // the healthy session must always survive the listing.
-    expect(sessions.map((s) => s.id)).toContain('ses_ok');
+    await chmod(badDir, 0o000);
+    try {
+      const sessions = await store.list({ workDir: WORK_DIR });
+      expect(sessions.map((s) => s.id)).toContain('ses_ok');
+    } finally {
+      await chmod(badDir, 0o700);
+    }
   });
 
   it('sorts by the persisted state.json updatedAt, not directory mtimes', async () => {
@@ -83,16 +79,18 @@ describe('wire corruption recovery (UX sweep)', () => {
     tempDirs.push(home);
     const wirePath = join(home, 'wire.jsonl');
 
-    const good1 = JSON.stringify({ type: 'metadata', protocol_version: 1, time: 1 });
-    const good2 = JSON.stringify({ type: 'message', role: 'user', content: 'hello', time: 2 });
+    const metadata: AgentRecord = { type: 'metadata', protocol_version: '1.5', created_at: 1 };
+    const prompt: AgentRecord = { type: 'turn.prompt', input: [{ type: 'text', text: 'hello' }], origin: { kind: 'user' }, time: 2 };
+    const good1 = JSON.stringify(metadata);
+    const good2 = JSON.stringify(prompt);
     const corrupt = '{ this is not json';
-    const good3 = JSON.stringify({ type: 'message', role: 'user', content: 'after seam', time: 3 });
+    const good3 = JSON.stringify({ ...prompt, input: [{ type: 'text', text: 'after seam' }], time: 3 });
 
     const persistence = new FileSystemAgentRecordPersistence(wirePath);
-    persistence.append(JSON.parse(good1) as never);
-    persistence.append(JSON.parse(good2) as never);
+    persistence.append(metadata);
+    persistence.append(prompt);
     await persistence.flush();
-    await persistence.close().catch(() => undefined);
+    await persistence.close();
 
     // Splice a corrupt line in the middle, followed by more records.
     await writeFile(wirePath, `${good1}\n${good2}\n${corrupt}\n${good3}\n`, 'utf-8');
@@ -112,5 +110,6 @@ describe('wire corruption recovery (UX sweep)', () => {
     // The damaged tail is dropped from disk so new appends start clean.
     const after = await import('node:fs/promises').then((fs) => fs.readFile(wirePath, 'utf-8'));
     expect(after).not.toContain('after seam');
+    await revived.close();
   });
 });

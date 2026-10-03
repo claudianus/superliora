@@ -9,9 +9,7 @@ export default defineConfig({
   deps: {
     neverBundle: [
       '@agentclientprotocol/sdk',
-      '@superliora/agent-core',
       '@superliora/sdk',
-      '@superliora/kosong',
       '@superliora/kaos',
     ],
   },

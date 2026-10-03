@@ -15,7 +15,6 @@ import type {
 } from '@superliora/protocol';
 import type { SubagentToolProgressEvent } from '@superliora/sdk';
 
-import { isExperimentalFlagEnabled } from '../../commands/experimental-flags';
 import { shortJobId } from '../../components/job-board/job-board-helpers';
 import {
   DEFAULT_ONBOARDING_PREFERENCES,
@@ -26,7 +25,7 @@ import { tuiConfigFromHost } from '../../commands/config/appearance/tui-persist'
 import type { ColorToken } from '../../theme';
 import type { AppState } from '../../types';
 import { notifyJobOutcome } from '../../utils/notification/desktop-notification';
-import { formatGateAckDetail } from '../../utils/job/gate-preview';
+import { formatJobAckDetail } from '../../utils/job/brief-preview';
 import {
   jobDeckHintNotice,
   shouldShowJobDeckHint,
@@ -37,7 +36,7 @@ import type {
   ConductorJobActivity,
   ConductorJobUsage,
 } from '../../utils/job/job-strip';
-import { InputAckLatencyTracker } from './input-ack-latency';
+import { resolveSubagentToolTarget } from '../../utils/tools/subagent-tool-detail';
 import { ttui } from '../../utils/tui-i18n';
 import type { TUIState } from '../../tui-state';
 import type { JobBoardStore } from './job-board-store';
@@ -57,10 +56,6 @@ export interface JobDeskEventsHost {
   setAppState(patch: Partial<AppState>): void;
   showStatus(msg: string, color?: ColorToken): void;
   showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
-  /** Optional: open Merge Preview Stage (review mode auto-open). */
-  openMergePreviewForJob?(jobId: string): void;
-  /** Optional: one-shot timeline default when jobs appear. */
-  maybeDefaultConductorTimeline?(): void;
 }
 
 export class ControlTowerJobDesk {
@@ -71,49 +66,31 @@ export class ControlTowerJobDesk {
   /** Terminal job:status pairs already pushed to bell / desktop notify. */
   private readonly notifiedTerminal = new Set<string>();
 
-  /** V3-1: input submission → first JobCreate ACK latency samples. */
-  readonly inputAckLatency = new InputAckLatencyTracker();
 
   constructor(
     private readonly host: JobDeskEventsHost,
     readonly store: JobBoardStore,
   ) {}
 
-  /**
-   * V3-1 window start: called from the TUI input path
-   * (`MessageDispatchController.sendMessageInternal`) each time a prompt is
-   * handed to the session. The first `job.*` event back closes the window.
-   */
-  markInputSubmitted(): void {
-    this.inputAckLatency.markInputSubmitted(Date.now());
-  }
 
   handleUpdated(event: JobUpdatedEvent): void {
     this.store.applyJobUpdated(event);
-    // V3-1: a protocol job event is the JobCreate ACK for a pending window.
-    this.inputAckLatency.markJobEventReceived(Date.now());
     this.publish();
     this.maybeShowFirstRunningHint(event);
     this.maybeShowInterruptedBanner();
-    this.maybeShowStallNotice(event);
-    this.maybeShowGateAck(event);
-    this.maybePulseGoalDriver(event);
+    this.maybeShowJobAck(event);
     this.maybeNotifyJobTerminal(event);
-    this.host.maybeDefaultConductorTimeline?.();
   }
 
   /**
-   * Bell + desktop notification when a job lands in a terminal state while
-   * the user is looking somewhere else. Goal lanes are excluded (their
-   * status flashes already surface in the transcript), and each
-   * job:status pair notifies at most once.
+   * Bell + desktop notification for observed terminal or attention states.
+   * Each job:status pair notifies at most once.
    */
   private maybeNotifyJobTerminal(event: JobUpdatedEvent): void {
     const status = event.job.status;
     if (status !== 'done' && status !== 'failed' && status !== 'needs_user' && status !== 'blocked') {
       return;
     }
-    if (event.job.kind === 'goal-driver' || event.job.kind === 'goal-desk') return;
     const key = `${event.job.id}:${status}`;
     if (this.notifiedTerminal.has(key)) return;
     this.notifiedTerminal.add(key);
@@ -131,16 +108,14 @@ export class ControlTowerJobDesk {
     this.store.applyJobInbox(event);
     this.publish();
     const card = this.store.snapshot().jobs.find((entry) => entry.id === event.jobId);
-    const land = isExperimentalFlagEnabled('conductor_ux_v2')
-      ? formatLandResultNotice({
-          kind: event.kind,
-          title: event.title,
-          summary: event.summary,
-          landReceipt: card?.landReceipt,
-          actionHints: event.actionHints,
-          jobKind: card?.kind,
-        })
-      : undefined;
+    const land = formatLandResultNotice({
+      kind: event.kind,
+      title: event.title,
+      summary: event.summary,
+      landReceipt: card?.landReceipt,
+      actionHints: event.actionHints,
+      jobKind: card?.kind,
+    });
     if (land !== undefined) {
       this.host.showNotice(land.title, land.detail, {
         coalesceKey: `job-land:${event.eventId}`,
@@ -150,8 +125,6 @@ export class ControlTowerJobDesk {
         this.host.showStatus(ttui('tui.land.complete'), 'success');
         void maybeApplyStaleWorktrees(this.host);
       }
-      this.maybeAutoOpenMergePreview(event, card);
-      this.host.maybeDefaultConductorTimeline?.();
       return;
     }
     const kindLabel = event.kind.replace(/^job\./, '');
@@ -160,20 +133,17 @@ export class ControlTowerJobDesk {
       coalesceKey: `job-inbox:${event.eventId}`,
     });
     // Keep notice stream; unread already bumped in the store publish above.
-    this.maybeAutoOpenMergePreview(event, card);
-    this.host.maybeDefaultConductorTimeline?.();
   }
 
   /** First running Job: Alt+J hint once (v2) or legacy Job Desk status. */
   private maybeShowFirstRunningHint(event: JobUpdatedEvent): void {
     if (this.boardHintShown || event.job.status !== 'running') return;
     this.boardHintShown = true;
-    if (isExperimentalFlagEnabled('conductor_ux_v2')) {
+    {
       const previous =
         this.host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
       if (
         !shouldShowJobDeckHint({
-          conductorUxV2: true,
           jobDeckHintSeen: previous.jobDeckHintSeen,
           runningJobs: 1,
         })
@@ -187,10 +157,6 @@ export class ControlTowerJobDesk {
       this.persistJobDeckHintSeen(previous);
       return;
     }
-    this.host.showStatus(
-      `Conductor job running: ${event.job.title} — Job Desk tracks it; click a card or /jobs deck for the worker transcript`,
-      'info',
-    );
   }
 
   private persistJobDeckHintSeen(previous: OnboardingPreferences): void {
@@ -205,25 +171,12 @@ export class ControlTowerJobDesk {
     ).catch(() => {});
   }
 
-  /** Review mode: auto-open Merge Preview on implement/task completion. */
-  private maybeAutoOpenMergePreview(
-    event: JobInboxEvent,
-    card: { readonly kind: string } | undefined,
-  ): void {
-    if (!isExperimentalFlagEnabled('conductor_ux_v2')) return;
-    if (this.host.state.appState.conductorProjectMode !== 'review') return;
-    if (event.kind !== 'job.completed') return;
-    if (card === undefined) return;
-    if (card.kind !== 'implement' && card.kind !== 'task') return;
-    this.host.openMergePreviewForJob?.(event.jobId);
-  }
 
   /**
    * F13: after resume/startup hydration, call once when the ledger already
    * has interrupted jobs (also re-checks on the first matching job.updated).
    */
   maybeShowInterruptedBanner(force = false): void {
-    if (!isExperimentalFlagEnabled('conductor_ux_v2')) return;
     if (this.interruptedBannerShown && !force) return;
     const interrupted = this.store.snapshot().interrupted;
     if (interrupted <= 0) return;
@@ -240,79 +193,19 @@ export class ControlTowerJobDesk {
     );
   }
 
-  private maybeShowStallNotice(event: JobUpdatedEvent): void {
-    if (!isExperimentalFlagEnabled('conductor_ux_v2')) return;
-    const reason = event.change?.reason ?? '';
-    const phase = event.job.progress?.phase ?? '';
-    const stalled =
-      reason.includes('stalled') ||
-      phase.includes('stalled') ||
-      phase.includes('no tool activity');
-    if (!stalled) return;
-    this.host.showNotice(
-      'Worker may be stuck — Steer or Cancel',
-      `${event.job.title} · ${shortJobId(event.job.id)}`,
-      { coalesceKey: `job-stall:${event.job.id}` },
-    );
-  }
 
-  /**
-   * Goal Desk: status flashes when the goal-driver starts / finishes / blocks,
-   * and mirror worker token/step progress onto appState.goal so the Goal Monitor
-   * bars move even though the Conductor lane stays idle.
-   */
-  private maybePulseGoalDriver(event: JobUpdatedEvent): void {
-    if (event.job.kind !== 'goal-driver') return;
-    const goal = this.host.state.appState.goal;
-    if (goal === null || goal === undefined || goal.execution !== 'goal-desk') return;
 
-    const progress = event.job.progress;
-    if (progress !== undefined) {
-      const tokensUsed = Math.max(
-        goal.tokensUsed,
-        (progress.tokensIn ?? 0) + (progress.tokensOut ?? 0),
-      );
-      const turnsUsed = Math.max(goal.turnsUsed, progress.stepsCompleted ?? 0);
-      if (tokensUsed !== goal.tokensUsed || turnsUsed !== goal.turnsUsed) {
-        this.host.setAppState({
-          goal: { ...goal, tokensUsed, turnsUsed },
-        });
-      }
-    }
-
-    const previous = event.change?.previousStatus;
-    const statusChanged = previous !== undefined && previous !== event.job.status;
-    const spawnAck = event.change?.reason === 'spawn' && event.job.status === 'running';
-    if (!statusChanged && !spawnAck) return;
-
-    if (event.job.status === 'running' && (previous === 'queued' || previous === undefined || spawnAck)) {
-      this.host.showStatus(
-        ttui('tui.goal.deskWorkerRunning', { title: event.job.title.slice(0, 60) }),
-        'info',
-      );
-      return;
-    }
-    if (event.job.status === 'done') {
-      this.host.showStatus(ttui('tui.goal.deskWorkerDone'), 'success');
-      return;
-    }
-    if (event.job.status === 'failed' || event.job.status === 'blocked' || event.job.status === 'needs_user') {
-      this.host.showStatus(ttui('tui.goal.deskWorkerBlocked'), 'warning');
-    }
-  }
-
-  /** Surface effect / gate / brief on JobCreate ACK and later effect settle. */
-  private maybeShowGateAck(event: JobUpdatedEvent): void {
+  /** Surface the recorded brief/effect on an operator Job acknowledgement. */
+  private maybeShowJobAck(event: JobUpdatedEvent): void {
     const reason = event.change?.reason;
-    if (reason === 'progress' || reason === 'stalled' || reason?.startsWith('goal-desk') === true) {
+    if (reason === 'progress') {
       return;
     }
     const effect = event.job.effectPreview;
-    const gate = event.job.gateChecklist;
     const brief = event.job.briefPreview;
     const hasEffect = effect !== undefined || reason === 'effect';
-    const hasGateBrief = gate !== undefined || brief !== undefined;
-    if (!hasEffect && (!isExperimentalFlagEnabled('conductor_ux_v2') || !hasGateBrief)) {
+    const hasBrief = brief !== undefined;
+    if (!hasEffect && !hasBrief) {
       return;
     }
     const previous = event.change?.previousStatus;
@@ -323,14 +216,13 @@ export class ControlTowerJobDesk {
       previous === 'queued' ||
       previous === undefined;
     if (!isAck) return;
-    const detail = formatGateAckDetail({
+    const detail = formatJobAckDetail({
       ...(effect === undefined ? {} : { effectPreview: effect }),
-      ...(gate === undefined ? {} : { gateChecklist: gate }),
       ...(brief === undefined ? {} : { briefPreview: brief }),
     });
     if (detail === undefined) return;
     this.host.showNotice(ttui('tui.job.ackTitle', { title: event.job.title }), detail, {
-      coalesceKey: `job-gate-ack:${event.job.id}`,
+      coalesceKey: `job-ack:${event.job.id}`,
     });
   }
 
@@ -344,7 +236,7 @@ export class ControlTowerJobDesk {
   }
 
   handleSubagentToolCall(event: SubagentToolCallEvent): void {
-    const target = subagentToolTarget(event);
+    const target = resolveSubagentToolTarget(event.detail, event.argsPreview);
     const activity: ConductorJobActivity = {
       toolCallId: event.toolCallId,
       name: event.name,
@@ -409,16 +301,6 @@ export class ControlTowerJobDesk {
     return true;
   }
 
-  /** Best-effort Job* tool-output backfill through the same store. */
-  applyToolOutput(output: string): boolean {
-    const changed = this.store.applyToolOutput(output);
-    if (changed) {
-      // V3-1: Job* tool output that changes the board also counts as an ACK.
-      this.inputAckLatency.markJobEventReceived(Date.now());
-      this.publish();
-    }
-    return changed;
-  }
 
   /** Bulk seed helper (resume JobList) — same publish path as live events. */
   publishFromStore(): void {
@@ -439,22 +321,4 @@ export class ControlTowerJobDesk {
   private publish(): void {
     this.host.setAppState({ conductorJobs: this.store.snapshot() });
   }
-}
-
-function subagentToolTarget(event: SubagentToolCallEvent): string | undefined {
-  const detail = event.detail;
-  if (detail !== undefined) {
-    switch (detail.kind) {
-      case 'edit':
-      case 'read':
-      case 'write':
-        return detail.path;
-      case 'bash':
-        return detail.command;
-      case 'search':
-        return detail.pattern;
-    }
-  }
-  const preview = event.argsPreview?.trim();
-  return preview === undefined || preview.length === 0 ? undefined : preview;
 }

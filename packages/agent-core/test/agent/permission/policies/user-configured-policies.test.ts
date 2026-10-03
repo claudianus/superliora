@@ -1,110 +1,51 @@
 import { describe, expect, it } from 'vitest';
 
+import type { Agent } from '#/agent';
 import {
   UserConfiguredAllowPermissionPolicy,
   UserConfiguredAskPermissionPolicy,
   UserConfiguredDenyPermissionPolicy,
 } from '#/agent/permission/policies/user-configured-rules';
-import type { Agent } from '#/agent';
 import type { PermissionPolicyContext, PermissionRule } from '#/agent/permission/types';
 
-const makeAgent = (rules: PermissionRule[], type: Agent['type'] = 'main'): Agent =>
-  ({
-    type,
-    permission: {
-      data: () => ({ rules } as never),
-    },
-  }) as unknown as Agent;
+const agent = (rules: PermissionRule[]): Agent => ({
+  permission: { data: () => ({ rules }) },
+}) as unknown as Agent;
 
-const makeContext = (name: string): PermissionPolicyContext =>
-  ({ toolCall: { id: 't1', name, arguments: {} } }) as PermissionPolicyContext;
+const context = (name = 'Bash'): PermissionPolicyContext => ({
+  toolCall: { id: 'native', name, arguments: '{}' },
+  execution: {},
+}) as PermissionPolicyContext;
 
-const rule = (over: Partial<PermissionRule> & Pick<PermissionRule, 'pattern'>): PermissionRule =>
-  ({
-    action: 'allow',
-    scope: 'project',
-    ...over,
-  }) as PermissionRule;
-
-describe('agent/permission/policies/user-configured-rules — deny', () => {
-  it('returns undefined when no deny rule matches the tool', () => {
-    const policy = new UserConfiguredDenyPermissionPolicy(
-      makeAgent([rule({ pattern: 'Read', decision: 'allow' })]),
-    );
-    expect(policy.evaluate(makeContext('Bash'))).toBeUndefined();
-  });
-
-  it('denies when a project-scope deny rule matches', () => {
-    const policy = new UserConfiguredDenyPermissionPolicy(
-      makeAgent([rule({ pattern: 'Bash', decision: 'deny', reason: 'no shell' })]),
-    );
-    const decision = policy.evaluate(makeContext('Bash'));
-    expect(decision).toMatchObject({ kind: 'deny' });
-    expect((decision as { message?: string }).message).toContain('"Bash"');
-    expect((decision as { message?: string }).message).toContain('no shell');
-  });
-
-  it('uses the sub-agent message variant when agent.type === "sub"', () => {
-    const policy = new UserConfiguredDenyPermissionPolicy(
-      makeAgent([rule({ pattern: 'Bash', decision: 'deny', reason: 'no shell' })], 'sub'),
-    );
-    const decision = policy.evaluate(makeContext('Bash'));
-    expect((decision as { message?: string }).message).toContain('Try a different approach');
-  });
-
-  it('ignores rules with non-allowable scopes (e.g. session, repo)', () => {
-    const policy = new UserConfiguredDenyPermissionPolicy(
-      makeAgent([rule({ pattern: 'Bash', decision: 'deny', scope: 'session' as never })]),
-    );
-    expect(policy.evaluate(makeContext('Bash'))).toBeUndefined();
-  });
-
-  it('uses the documented policy name', () => {
-    const policy = new UserConfiguredDenyPermissionPolicy(makeAgent([]));
-    expect(policy.name).toBe('user-configured-deny');
-  });
+const rule = (decision: PermissionRule['decision'], pattern = 'Bash', scope: PermissionRule['scope'] = 'project'): PermissionRule => ({
+  decision, pattern, scope, reason: 'Operator rule',
 });
 
-describe('agent/permission/policies/user-configured-rules — allow', () => {
-  it('approves when an allow rule matches the tool', () => {
-    const policy = new UserConfiguredAllowPermissionPolicy(
-      makeAgent([rule({ pattern: 'Read', decision: 'allow' })]),
-    );
-    const decision = policy.evaluate(makeContext('Read'));
-    expect(decision).toMatchObject({ kind: 'approve' });
+describe('Native configured rules', () => {
+  it.each(['turn-override', 'project', 'user'] as const)('honors deny and its operator reason in %s scope', (scope) => {
+    const policy = new UserConfiguredDenyPermissionPolicy(agent([rule('deny', 'Bash', scope)]));
+    expect(policy.evaluate(context())).toMatchObject({ kind: 'deny', message: expect.stringContaining('Operator rule') });
   });
 
-  it('returns undefined when no allow rule matches', () => {
-    const policy = new UserConfiguredAllowPermissionPolicy(
-      makeAgent([rule({ pattern: 'Bash', decision: 'allow' })]),
-    );
-    expect(policy.evaluate(makeContext('Read'))).toBeUndefined();
+  it('keeps session-runtime grants out of static configured policy decisions', () => {
+    const policy = new UserConfiguredDenyPermissionPolicy(agent([rule('deny', 'Bash', 'session-runtime')]));
+    expect(policy.evaluate(context())).toBeUndefined();
   });
 
-  it('uses the documented policy name', () => {
-    expect(new UserConfiguredAllowPermissionPolicy(makeAgent([])).name).toBe(
-      'user-configured-allow',
-    );
-  });
-});
-
-describe('agent/permission/policies/user-configured-rules — ask', () => {
-  it('asks when an ask rule matches the tool', () => {
-    const policy = new UserConfiguredAskPermissionPolicy(
-      makeAgent([rule({ pattern: 'Bash', decision: 'ask' })]),
-    );
-    const decision = policy.evaluate(makeContext('Bash'));
-    expect(decision).toMatchObject({ kind: 'ask' });
+  it('does not apply a rule for a different native tool', () => {
+    const policy = new UserConfiguredDenyPermissionPolicy(agent([rule('deny', 'SessionControl')]));
+    expect(policy.evaluate(context())).toBeUndefined();
   });
 
-  it('returns undefined when no ask rule matches', () => {
-    const policy = new UserConfiguredAskPermissionPolicy(
-      makeAgent([rule({ pattern: 'Read', decision: 'ask' })]),
-    );
-    expect(policy.evaluate(makeContext('Bash'))).toBeUndefined();
+  it('allows SessionControl only when a configured allow matches', () => {
+    const policy = new UserConfiguredAllowPermissionPolicy(agent([rule('allow', 'SessionControl')]));
+    expect(policy.evaluate(context('SessionControl'))).toMatchObject({ kind: 'approve' });
+    expect(policy.evaluate(context())).toBeUndefined();
   });
 
-  it('uses the documented policy name', () => {
-    expect(new UserConfiguredAskPermissionPolicy(makeAgent([])).name).toBe('user-configured-ask');
+  it('asks only when a configured ask matches', () => {
+    const policy = new UserConfiguredAskPermissionPolicy(agent([rule('ask')]));
+    expect(policy.evaluate(context())).toMatchObject({ kind: 'ask' });
+    expect(policy.evaluate(context('SessionControl'))).toBeUndefined();
   });
 });

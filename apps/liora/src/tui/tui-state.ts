@@ -11,7 +11,6 @@ import {
 import { FooterComponent } from './components/chrome/footer/footer';
 import { GutterContainer } from './components/chrome/gutter-container';
 import { HeaderComponent } from './components/chrome/header/header';
-import type { IntentComposerComponent } from './components/chrome/intent-composer';
 import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
 import { TodoPanelComponent } from './components/chrome/todo/todo-panel';
 import { ConductorTimelinePanelComponent } from './components/panes/conductor-timeline/timeline-panel';
@@ -75,8 +74,6 @@ export interface TUIState {
   headerContainer: Container;
   header: HeaderComponent;
   editor: TUIEditor;
-  /** Conductor UX v2 Intent Composer (above editor when flag ON). */
-  intentComposer?: IntentComposerComponent;
   /** Conductor Timeline pane swapped into the transcript region. */
   conductorTimelinePanel?: ConductorTimelinePanelComponent;
   nativeEditorTextInput: NativeEditorTextInputController;
@@ -212,9 +209,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     resolveFocusLink: () => {
       const worker = workerDockPanel.currentView.snapshot.workers.find(
         (entry) =>
-          entry.status === 'running' ||
-          entry.status === 'finishing' ||
-          entry.status === 'stalled',
+          entry.status === 'running',
       );
       if (worker === undefined) return undefined;
       return {

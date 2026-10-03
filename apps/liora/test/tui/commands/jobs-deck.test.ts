@@ -6,7 +6,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
-import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import { handleJobCommand, handleJobsCommand } from '#/tui/commands/jobs';
 import { formatJobDeckTraceLines, openJobDeckViewer } from '#/tui/commands/jobs-deck';
 import { emptyConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
@@ -66,7 +65,6 @@ describe('/jobs deck routing', () => {
 
 describe('openJobDeckViewer empty ledger', () => {
   it('does not force the deck into the composer when the ledger is empty', () => {
-    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
     const mountEditorReplacement = vi.fn();
     const showStatus = vi.fn();
     const host = {
@@ -85,28 +83,6 @@ describe('openJobDeckViewer empty ledger', () => {
     expect(showStatus).toHaveBeenCalled();
   });
 
-  it('keeps the mute status when conductor_ux_v2 is off', () => {
-    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: false }]);
-    const mountEditorReplacement = vi.fn();
-    const showStatus = vi.fn();
-    const host = {
-      session: {},
-      showStatus,
-      showError: vi.fn(),
-      mountEditorReplacement,
-      restoreEditor: vi.fn(),
-      state: {
-        appState: { conductorJobs: emptyConductorJobsSnapshot() },
-        renderer: { requestRender: vi.fn() },
-      },
-    } as unknown as SlashCommandHost;
-    openJobDeckViewer(host);
-    expect(mountEditorReplacement).not.toHaveBeenCalled();
-    expect(showStatus).toHaveBeenCalledWith(
-      expect.stringContaining('No Conductor jobs yet'),
-      'textMuted',
-    );
-  });
 });
 
 describe('formatJobDeckTraceLines', () => {
@@ -167,18 +143,17 @@ describe('formatJobDeckTraceLines', () => {
         content: [{ type: 'think', think: 'inspect before editing' }],
         toolCalls: [
           {
-            id: 'call_write',
-            name: 'Write',
+            id: 'call_bash',
+            name: 'Bash',
             arguments: JSON.stringify({
-              file_path: 'src/example.ts',
-              content: 'export const answer = 42;',
+              command: "printf 'export const answer = 42;'",
             }),
           },
         ],
       },
       {
         role: 'tool',
-        toolCallId: 'call_write',
+        toolCallId: 'call_bash',
         content: [
           {
             type: 'text',
@@ -189,10 +164,29 @@ describe('formatJobDeckTraceLines', () => {
     ]);
 
     expect(lines).toContain('◌ inspect before editing');
-    expect(lines).toContain('  │ path: src/example.ts');
+    expect(lines).toContain('  │ command:');
     expect(lines.some((line) => line.includes('export const answer = 42;'))).toBe(true);
-    expect(lines).toContain('✓ Write result · call_write');
+    expect(lines).toContain('✓ Bash result · call_bash');
     expect(lines.some((line) => line.includes('first output line'))).toBe(true);
     expect(lines.some((line) => line.includes('second output line'))).toBe(true);
+  });
+
+  it('projects SessionControl arguments and result without file-tool formatting', () => {
+    const lines = formatJobDeckTraceLines([
+      {
+        role: 'assistant',
+        toolCalls: [{ id: 'call_session', name: 'SessionControl', arguments: JSON.stringify({ action: 'spawn', prompt: 'Fix the failing suite' }) }],
+      },
+      {
+        role: 'tool',
+        toolCallId: 'call_session',
+        content: [{ type: 'text', text: 'Worker started' }],
+      },
+    ]);
+    expect(lines).toContain('⚙ SessionControl · call_session');
+    expect(lines.some((line) => line.includes('"action": "spawn"'))).toBe(true);
+    expect(lines.some((line) => line.includes('Fix the failing suite'))).toBe(true);
+    expect(lines).toContain('✓ SessionControl result · call_session');
+    expect(lines.some((line) => line.includes('Worker started'))).toBe(true);
   });
 });

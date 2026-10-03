@@ -18,18 +18,18 @@ Environment variables fall into three categories by function and cannot be colla
 
 ## Priority for ordinary runtime parameters
 
-For ordinary runtime parameters such as model alias, Plan mode, yolo mode, and Skills directories, priority from highest to lowest is:
+For ordinary runtime parameters such as model alias and permission mode, priority from highest to lowest is:
 
-1. **Command-line options** (`-m`, `--plan`, `--yolo`, etc.): apply only to the current startup
+1. **Command-line options** (`-m`, `--yolo`, `--auto`): apply only to the current startup
 2. **User config file** (`~/.superliora/config.toml`): stores long-term preferences
 
-A small number of environment variables explicitly override specific config file fields — for example, `SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT` has higher priority than `[background].keep_alive_on_exit`. These exceptions are noted in [Environment variables](./env-vars.md) and in the relevant field descriptions in [Configuration files](./config-files.md).
+Environment variables are not a general configuration overlay. See [Environment variables](./env-vars.md) for the supported endpoint, provider, shell, and diagnostic knobs.
 
 ::: warning
 **Ordinary runtime parameters do not fall back to shell environment variables.** Provider `api_key` / `base_url` are read only from `config.toml` (including the `[providers.<name>.env]` sub-table) and do not fall back to `export`-ed shell variables. The only exception is the explicit `KIMI_MODEL_*` channel — see [Define a model from environment variables](./env-vars.md#define-a-model-from-environment-variables-kimi-model).
 :::
 
-The CLI currently reads a single user-level config file and has no project-level config file mechanism. To isolate config between different projects, point `SUPERLIORA_HOME` at different data directories — see [Common scenarios](#common-scenarios) below.
+The runtime uses a user-level `config.toml`; project `.superliora/local.toml` holds workspace-specific additional-directory/path-policy preferences, not a second provider config. To separate runtime config and session data, point `SUPERLIORA_HOME` at a different data directory. This does not isolate the working checkout.
 
 ## Provider credentials
 
@@ -55,23 +55,19 @@ Options passed at startup have the highest priority and apply only to the curren
 | --- | --- |
 | `-S, --session [id]` | Resume a specific session; enters interactive selection when no id is given |
 | `-c, --continue` | Resume the last session for the current working directory |
-| `-y, --yolo` | Auto-approve all tool calls |
-| `--plan` | Start in Plan mode |
+| `-y, --yolo` | Auto-approve most calls, retaining high-risk approval policy |
+| `--auto` | Select automatic permission handling |
 | `-m, --model <model>` | Use a specific model alias for this session |
 | `-p, --prompt <prompt>` | Run in non-interactive mode: execute a single prompt and exit |
 | `--output-format <format>` | Output format for `-p` mode: `text` or `stream-json` |
-| `--skills-dir <dir>` | Replace auto-discovered Skills directories (repeatable; applies to this session only) |
 
 Mutual exclusion rules (startup fails if violated):
 
 - `--output-format` can only be used with `-p`
-- `--prompt` cannot be combined with `--yolo` or `--plan`
+- `--prompt` cannot be combined with `--yolo` or `--auto`
 - `--continue` and `--session` cannot be used together
-- In non-prompt mode, `--yolo` and `--plan` cannot be combined with `--continue` or `--session`
-
-::: tip
-`--skills-dir` is a one-shot replacement that only affects the current startup. To persistently add search directories, write `extra_skill_dirs` in `config.toml` (see [Agent Skills](../customization/skills.md)).
-:::
+- `--yolo` and `--auto` cannot be used together
+- `--worktree` cannot be combined with `--continue` or `--session`
 
 ## Common scenarios
 
@@ -88,17 +84,13 @@ SUPERLIORA_HOME="$PWD/.superliora-sandbox" liora
 KIMI_API_KEY = "sk-test"
 ```
 
-**Skip approval for batch tasks**:
+**Use fewer approval prompts in an interactive session**:
 
 ```sh
-liora --yolo -p "Batch rename the following files..."
+liora --yolo
 ```
 
-**Enter Plan mode temporarily** (to make it permanent, set `default_plan_mode = true` in the config file):
-
-```sh
-liora --plan
-```
+Non-interactive prompts (`-p`) always run with `auto` permission handling; `default_permission_mode` in `config.toml` does not override this. New prompt sessions are created in `auto` mode. When `-p` resumes a session with `--session` or `--continue`, its saved permission mode is temporarily overridden with `auto` and restored during cleanup. Headless approval requests are approved automatically; question and credential requests return no answer. `--yolo` and `--auto` cannot be combined with `-p`.
 
 ## Next steps
 

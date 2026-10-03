@@ -1,12 +1,12 @@
 # `src/tools/`
 
-Builtin tools, policies, and search/providers.
+The model-facing Bash and SessionControl tools, native Job operations, and shared policies.
 
 ## Ownership
 
-- Tool implementations under `builtin/` by domain (`file/`, `shell/`, `fleet/`, `goal/`, …). `collaboration/` holds compatibility shims re-exporting `fleet/`.
-- Policies under `policies/` — keep matchers data-driven; split large rule tables by category (see `shell-bypass-rules/` when present).
-- Providers under `providers/` — separate request/parse/format when a file exceeds ~800 LOC.
+- Model-facing tools are Bash (`builtin/shell/`) and SessionControl (`builtin/session-control.ts`).
+- Native Job helpers under `builtin/job/` support the operator Jobs/Kanban API, worktrees, ownership, and manual review/land/push.
+- Policies under `policies/` enforce permission, sandbox, environment, and sensitive-path boundaries. Bash does not redirect file operations to retired dedicated tools.
 
 ## Imports
 
@@ -15,4 +15,4 @@ Builtin tools, policies, and search/providers.
 
 ## Tests
 
-`test/tools/` mirrors domains. Policy changes need focused bypass/permission tests.
+`test/tools/` mirrors domains. Policy changes need focused permission, sandbox, and sensitive-path tests; native Job changes retain ownership and worktree coverage.

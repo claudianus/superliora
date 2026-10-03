@@ -12,7 +12,3 @@ export function escapeXmlAttr(input: string): string {
   return input.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
 }
 
-/** Escape tag delimiters only — prevents XML tag injection without corrupting Markdown (& " stay literal) */
-export function escapeXmlTags(input: string): string {
-  return input.replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-}

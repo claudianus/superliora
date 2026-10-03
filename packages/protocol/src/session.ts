@@ -61,15 +61,8 @@ export type PermissionRule = z.infer<typeof permissionRuleSchema>;
 
 export const sessionAgentConfigSchema = z.object({
   model: z.string(),
-  system_prompt: z.string().optional(),
-  tools: z.array(z.string()).optional(),
-  mcp_servers: z.array(z.string()).optional(),
   thinking: promptThinkingSchema.optional(),
   permission_mode: promptPermissionModeSchema.optional(),
-  plan_mode: z.boolean().optional(),
-  ask_mode: z.boolean().optional(),
-  goal_objective: z.string().optional(),
-  goal_control: z.enum(['pause', 'resume', 'cancel']).optional(),
 });
 
 export type SessionAgentConfig = z.infer<typeof sessionAgentConfigSchema>;
@@ -97,11 +90,13 @@ export const sessionSchema = z.object({
   /** Text of the most recent user prompt, for search/preview. Absent for empty sessions. */
   last_prompt: z.string().optional(),
   metadata: sessionMetadataSchema,
-  agent_config: sessionAgentConfigSchema,
-  usage: sessionUsageSchema,
-  permission_rules: z.array(permissionRuleSchema),
-  message_count: z.number().int().nonnegative(),
-  last_seq: z.number().int().nonnegative(),
+  /** Runtime enrichment is present only when the corresponding native data is available. */
+  agent_config: sessionAgentConfigSchema.optional(),
+  usage: sessionUsageSchema.optional(),
+  permission_rules: z.array(permissionRuleSchema).optional(),
+  /** Actual record count and journal cursor, when read by the serving endpoint. */
+  message_count: z.number().int().nonnegative().optional(),
+  last_seq: z.number().int().nonnegative().optional(),
 });
 
 export type Session = z.infer<typeof sessionSchema>;

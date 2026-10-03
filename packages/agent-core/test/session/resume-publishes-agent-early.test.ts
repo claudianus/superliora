@@ -1,65 +1,41 @@
-/**
- * Fleet autopilot runs inside Agent.resume and may spawn workers that call
- * session.ensureAgentResumed(parent). If agents.get(id) still holds the resume
- * Promise, spawn deadlocks until the 30s budget → jobs never leave queued.
- */
-
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'pathe';
 import { describe, expect, it, vi } from 'vitest';
 
-import { SessionAgentLifecycle } from '../../src/session/lifecycle/session-agent-lifecycle';
-import type { AgentEntry, ResumedAgent } from '../../src/session/lifecycle/session-types';
+import { Agent } from '../../src/agent';
+import type { SDKSessionRPC } from '../../src/rpc';
+import { Session } from '../../src/session';
+import { testKaos } from '../fixtures/test-kaos';
 
-describe('resumePersistedAgent early publish', () => {
-  it('puts Agent in the map before await agent.resume()', async () => {
-    const agents = new Map<string, AgentEntry>();
-    let sawReadyAgentDuringResume = false;
-
-    const fakeAgent = {
-      type: 'main',
-      resume: async () => {
-        const entry = agents.get('main');
-        sawReadyAgentDuringResume = entry === fakeAgent && !(entry instanceof Promise);
-        return {};
-      },
+describe('Session reentrant parent resume', () => {
+  it('publishes the actual Agent before replay so a worker can resolve its own parent', async () => {
+    const homedir = await mkdtemp(join(tmpdir(), 'liora-parent-resume-'));
+    const rpc: SDKSessionRPC = {
+      emitEvent: vi.fn(async () => {}),
+      requestApproval: vi.fn(async () => ({ decision: 'cancelled' as const })),
+      requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
     };
-
-    const lifecycle = new SessionAgentLifecycle({
-      session: {} as never,
-      options: { kimiHomeDir: '/tmp', config: {} } as never,
-      agents,
-      getMetadata: () =>
-        ({
-          agents: {
-            main: { homedir: '/tmp', type: 'main', parentAgentId: null },
-          },
-        }) as never,
-      skills: {} as never,
-      getSkillsReady: async () => undefined,
-      mcp: {} as never,
-      hookEngine: {} as never,
-      telemetry: {} as never,
-      experimentalFlags: {} as never,
-      fileSnapshots: {} as never,
-      fileProvenance: {} as never,
-      log: { createChild: () => ({}) } as never,
-      rpc: {} as never,
-      getToolKaos: () => ({ withCwd: () => ({ getcwd: () => '/tmp' }) }) as never,
-      getAdditionalDirs: () => [],
-      getAgentsMdWarning: () => undefined,
-      setAgentsMdWarning: () => undefined,
-      systemContextKaos: () => ({}) as never,
-      writeMetadata: () => undefined,
+    const session = new Session({ kaos: testKaos.withCwd(homedir), homedir, rpc });
+    session.metadata.agents['main'] = {
+      homedir: join(homedir, 'agents', 'main'), type: 'main', parentAgentId: null,
+    };
+    let observedParent: Agent | undefined;
+    const resume = vi.spyOn(Agent.prototype, 'resume').mockImplementation(async function (this: Agent) {
+      observedParent = await session.ensureAgentResumed('main');
+      expect(observedParent).toBe(this);
+      return {};
     });
-
-    vi.spyOn(lifecycle, 'instantiateAgent').mockReturnValue(fakeAgent as never);
-
-    // Same placeholder pattern as resumeAgent():
-    const promise: Promise<ResumedAgent> = lifecycle.resumePersistedAgent('main');
-    agents.set('main', promise);
-
-    const result = await promise;
-    expect(sawReadyAgentDuringResume).toBe(true);
-    expect(result.agent).toBe(fakeAgent);
-    expect(agents.get('main')).toBe(fakeAgent);
+    try {
+      const parent = await session.ensureAgentResumed('main');
+      expect(observedParent).toBe(parent);
+      expect(session.getReadyAgent('main')).toBe(parent);
+      expect(resume).toHaveBeenCalledOnce();
+    } finally {
+      resume.mockRestore();
+      await session.close();
+      await rm(homedir, { recursive: true, force: true });
+    }
   });
 });

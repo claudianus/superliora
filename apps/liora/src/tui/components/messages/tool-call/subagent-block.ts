@@ -159,7 +159,7 @@ export function buildMultiSubagentBlockComponents(state: MultiSubagentBlockState
 
   for (const sub of state.finishedSubCalls) {
     const mark = sub.isError ? currentTheme.fg('error', '✗') : currentTheme.fg('success', '•');
-    const keyArg = extractKeyArgument(sub.name, sub.args, state.workspaceDir);
+    const keyArg = extractKeyArgument(sub.name, sub.args);
     const nameCol = currentTheme.fg('primary', sub.name);
     const argCol = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
     items.push(
@@ -177,7 +177,7 @@ export function buildMultiSubagentBlockComponents(state: MultiSubagentBlockState
   }
 
   for (const [id, call] of state.ongoingSubCalls) {
-    const keyArg = extractKeyArgument(call.name, call.args, state.workspaceDir);
+    const keyArg = extractKeyArgument(call.name, call.args);
     const nameCol = currentTheme.fg('primary', call.name);
     const argCol = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
     const mark = renderPulseText('…', `tool:${state.toolCallId}:subcall:${id}`, 'primary');
@@ -260,9 +260,8 @@ function formatSubToolActivityRow(
   marker: string,
   verb: string,
   activity: SubToolActivity,
-  workspaceDir: string | undefined,
 ): string {
-  const keyArg = extractKeyArgument(activity.name, activity.args, workspaceDir);
+  const keyArg = extractKeyArgument(activity.name, activity.args);
   const nameCol = currentTheme.fg('primary', activity.name);
   const argCol = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
   return renderRendererToolActivityHeader({
@@ -278,7 +277,7 @@ function subToolOutputPreview(activity: SubToolActivity): Component[] {
   // structured card wins over the raw tail whenever the harness attached one.
   const card =
     getActiveNeatMode() && activity.display !== undefined
-      ? renderNeatCard(activity.display, { seed: activity.id })
+      ? renderNeatCard(activity.display)
       : undefined;
   // Mirror the main agent: only density `full` keeps the raw tail below the
   // card, and only for the tools that show a raw tail at all (Bash and tools
@@ -323,7 +322,7 @@ export function buildSingleSubagentBlockComponents(state: SingleSubagentBlockSta
         ? renderPulseText('Using', `tool:${state.toolCallId}:subtool-verb:${activity.orderSeq}`, 'text')
         : 'Used';
     items.push(
-      new Text(formatSubToolActivityRow(`  ${mark} `, verb, activity, state.workspaceDir), 0, 0),
+      new Text(formatSubToolActivityRow(`  ${mark} `, verb, activity), 0, 0),
     );
     items.push(...subToolOutputPreview(activity));
   }

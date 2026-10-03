@@ -138,7 +138,7 @@ export async function handleSessionPickerSelectFlow(
   ) => Promise<void>,
   resumeSession: (targetSessionId: string) => Promise<boolean>,
   applyStartupModesToResumedSession: (session: import('@superliora/sdk').Session) => Promise<void>,
-  applyStartupPermissionAndPlanToAppState: () => void,
+  applyStartupPermissionToAppState: () => void,
   hideSessionPicker: () => void,
 ): Promise<void> {
   hideSessionPicker();
@@ -146,7 +146,7 @@ export async function handleSessionPickerSelectFlow(
     await openWorkspace(session.work_dir, { resumeSessionId: session.id });
     if (applyStartupModes && host.session !== undefined) {
       await applyStartupModesToResumedSession(host.requireSession());
-      applyStartupPermissionAndPlanToAppState();
+      applyStartupPermissionToAppState();
     }
     return;
   }
@@ -155,7 +155,7 @@ export async function handleSessionPickerSelectFlow(
   if (!switched) return;
   if (applyStartupModes) {
     await applyStartupModesToResumedSession(host.requireSession());
-    applyStartupPermissionAndPlanToAppState();
+    applyStartupPermissionToAppState();
   }
 }
 

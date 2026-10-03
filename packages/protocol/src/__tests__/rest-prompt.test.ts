@@ -18,7 +18,6 @@ describe('promptSubmissionSchema', () => {
     expect(parsed.model).toBeUndefined();
     expect(parsed.thinking).toBeUndefined();
     expect(parsed.permission_mode).toBeUndefined();
-    expect(parsed.plan_mode).toBeUndefined();
   });
 
   it('accepts metadata', () => {
@@ -65,12 +64,10 @@ describe('promptSubmissionSchema', () => {
       model: 'kimi-code/k2',
       thinking: 'off',
       permission_mode: 'manual',
-      plan_mode: false,
     });
     expect(parsed.model).toBe('kimi-code/k2');
     expect(parsed.thinking).toBe('off');
     expect(parsed.permission_mode).toBe('manual');
-    expect(parsed.plan_mode).toBe(false);
   });
 
   it('rejects empty content array', () => {

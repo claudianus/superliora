@@ -27,12 +27,7 @@ import {
   WS_PROTOCOL_VERSION,
 } from '../ws-control';
 
-describe('protocol/ws-control — wire protocol constants and cursors', () => {
-  it('WS_PROTOCOL_VERSION is a positive integer', () => {
-    expect(typeof WS_PROTOCOL_VERSION).toBe('number');
-    expect(WS_PROTOCOL_VERSION).toBeGreaterThan(0);
-  });
-
+describe('protocol/ws-control — cursors', () => {
   it('sessionCursorSchema requires non-negative seq', () => {
     expect(() => sessionCursorSchema.parse({ seq: -1 })).toThrow();
     expect(sessionCursorSchema.parse({ seq: 0, epoch: 'e-1' }).epoch).toBe('e-1');

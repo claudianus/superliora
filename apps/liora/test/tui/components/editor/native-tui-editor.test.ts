@@ -174,6 +174,42 @@ describe('NativeTUIEditor', () => {
     expect(editor.getText()).toBe('');
   });
 
+  it.each(['\u001B[115;5u', '\u0013'])('routes queue/steer shortcuts without changing the draft (%j)', (key) => {
+    const editor = makeEditor();
+    const steer = vi.fn();
+    editor.onCtrlS = steer;
+    editor.setText('queued follow-up');
+
+    editor.handleInput(key);
+
+    expect(steer).toHaveBeenCalledOnce();
+    expect(editor.getText()).toBe('queued follow-up');
+  });
+
+  it.each(['\u001B[98;5u', '\u0002'])('routes background shortcuts without changing the draft (%j)', (key) => {
+    const editor = makeEditor();
+    const background = vi.fn(() => true);
+    editor.onCtrlB = background;
+    editor.setText('continue working');
+
+    editor.handleInput(key);
+
+    expect(background).toHaveBeenCalledOnce();
+    expect(editor.getText()).toBe('continue working');
+  });
+
+  it('keeps printable CSI-u prompt input distinct from modified shortcuts', () => {
+    const editor = makeEditor();
+    const steer = vi.fn();
+    editor.onCtrlS = steer;
+
+    editor.handleInput('\u001B[115u');
+    editor.handleInput('\u001B[112u');
+
+    expect(editor.getText()).toBe('sp');
+    expect(steer).not.toHaveBeenCalled();
+  });
+
   it('uses transcript navigation hooks while the prompt is empty', () => {
     const editor = makeEditor();
     const pageUp = vi.fn(() => true);
@@ -187,15 +223,15 @@ describe('NativeTUIEditor', () => {
 
   it('renders slash command argument hints through the native editor frame', () => {
     const editor = makeEditor();
-    editor.setArgumentHints(new Map([['goal', '[status]']]));
-    editor.setText('/goal');
+    editor.setArgumentHints(new Map([['jobs', '[status]']]));
+    editor.setText('/jobs');
 
-    expect(editor.render(24)).toContain('│ > /goal [status]     │');
+    expect(editor.render(24)).toContain('│ > /jobs [status]     │');
 
     const shellEditor = makeEditor();
-    shellEditor.setArgumentHints(new Map([['goal', '[status]']]));
+    shellEditor.setArgumentHints(new Map([['jobs', '[status]']]));
     shellEditor.handleInput('!');
-    shellEditor.setText('/goal');
+    shellEditor.setText('/jobs');
     expect(shellEditor.render(24).join('\n')).not.toContain('[status]');
   });
 
@@ -340,111 +376,7 @@ describe('NativeTUIEditor', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Ghost text (prompt intelligence)
-// ---------------------------------------------------------------------------
-
-describe('NativeTUIEditor ghost text', () => {
-  it('sets and gets ghost text', () => {
-    const editor = makeEditor();
-    expect(editor.getGhostText()).toBeUndefined();
-
-    editor.setGhostText('hello world', 'inline');
-    expect(editor.getGhostText()).toBe('hello world');
-
-    editor.setGhostText(undefined, 'inline');
-    expect(editor.getGhostText()).toBeUndefined();
-  });
-
-  it('renders ghost text in the editor frame', () => {
-    const editor = makeEditor();
-    editor.setText('hello');
-    editor.setCursorPosition({ line: 0, col: 5 });
-    editor.setGhostText(' world', 'inline');
-
-    const rendered = editor.render(30).map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''));
-    expect(rendered.join('\n')).toContain('hello world');
-  });
-
-  it('accepts inline ghost text with Tab (inserts at cursor)', () => {
-    const editor = makeEditor();
-    const acceptGhost = vi.fn();
-    editor.onAcceptGhost = acceptGhost;
-    editor.setText('hello');
-    editor.setCursorPosition({ line: 0, col: 5 });
-    editor.setGhostText(' world', 'inline');
-
-    editor.handleInput('\t');
-
-    expect(editor.getText()).toBe('hello world');
-    expect(editor.getGhostText()).toBeUndefined();
-    expect(acceptGhost).toHaveBeenCalledOnce();
-  });
-
-  it('accepts suggestion ghost text with Tab (fills editor)', () => {
-    const editor = makeEditor();
-    const acceptGhost = vi.fn();
-    editor.onAcceptGhost = acceptGhost;
-    editor.setGhostText('fix the bug', 'suggestion');
-
-    editor.handleInput('\t');
-
-    expect(editor.getText()).toBe('fix the bug');
-    expect(editor.getGhostText()).toBeUndefined();
-    expect(acceptGhost).toHaveBeenCalledOnce();
-  });
-
-  it('does not accept ghost when autocomplete menu is open', async () => {
-    vi.useFakeTimers();
-    const editor = new NativeTUIEditor({ autocompleteDebounceMs: 0 });
-    const provider = providerReturning([
-      { value: 'help', label: 'help', description: 'Show help' },
-    ]);
-    editor.setAutocompleteProvider(provider);
-    editor.setGhostText(' world', 'inline');
-
-    editor.handleInput('/');
-    await vi.runAllTimersAsync();
-    await flushAutocomplete();
-    expect(editor.isShowingAutocomplete()).toBe(true);
-
-    // Tab should be consumed by autocomplete, not ghost
-    editor.handleInput('\t');
-    expect(editor.getText()).toBe('/help ');
-  });
-
-  it('recalls prompt history with ↑/↓ when empty even if a suggestion ghost is showing', () => {
-    const editor = makeEditor();
-    const cycleGhost = vi.fn();
-    editor.onCycleGhost = cycleGhost;
-    editor.addToHistory('older prompt');
-    editor.addToHistory('newer prompt');
-    editor.setGhostText('next-task suggestion', 'suggestion');
-
-    editor.handleInput('\u001B[A'); // up — bash-style history, not ghost cycle
-    expect(cycleGhost).not.toHaveBeenCalled();
-    expect(editor.getText()).toBe('newer prompt');
-
-    editor.handleInput('\u001B[A');
-    expect(cycleGhost).not.toHaveBeenCalled();
-    expect(editor.getText()).toBe('older prompt');
-
-    editor.handleInput('\u001B[B'); // down — keep browsing, not cursor-only
-    expect(editor.getText()).toBe('newer prompt');
-    expect(cycleGhost).not.toHaveBeenCalled();
-  });
-
-  it('does not cycle suggestions when ghostKind is inline', () => {
-    const editor = makeEditor();
-    const cycleGhost = vi.fn();
-    editor.onCycleGhost = cycleGhost;
-    editor.setGhostText('inline completion', 'inline');
-
-    // ↑ with empty text + inline ghost should NOT cycle
-    editor.handleInput('\u001B[A');
-    expect(cycleGhost).not.toHaveBeenCalled();
-  });
-
+describe('NativeTUIEditor history and autocomplete', () => {
   it('keeps browsing history after the first restore (not a one-shot)', () => {
     const editor = makeEditor();
     editor.addToHistory('first');
@@ -495,144 +427,17 @@ describe('NativeTUIEditor ghost text', () => {
     expect(editor.getText()).toBe('beta');
   });
 
-  it('still opens Ctrl-R history search when a suggestion ghost is visible', () => {
+  it('opens Ctrl-R history search without mutating the prompt', () => {
     const editor = makeEditor();
     const search = vi.fn();
     editor.onHistorySearch = search;
-    editor.setGhostText('next-task suggestion', 'suggestion');
 
     expect(editor.tryHandleAppShortcut('\u0012')).toBe(true);
     expect(search).toHaveBeenCalledOnce();
     expect(editor.getText()).toBe('');
   });
 
-  it('closes ghost text with Esc', () => {
-    vi.useFakeTimers();
-    const editor = makeEditor();
-    editor.setGhostText('hello world', 'inline');
-    expect(editor.getGhostText()).toBe('hello world');
-
-    editor.handleInput('\u001B'); // escape — bare ESC resolves after decoder timer
-    vi.advanceTimersByTime(50);
-
-    expect(editor.getGhostText()).toBeUndefined();
-  });
-
-  it('clears ghost text when text changes', () => {
-    const editor = makeEditor();
-    editor.setText('hello');
-    editor.setGhostText(' world', 'inline');
-    expect(editor.getGhostText()).toBe(' world');
-
-    editor.handleInput('x');
-
-    expect(editor.getGhostText()).toBeUndefined();
-  });
-
-  it('clears ghost text when cursor moves via setCursorPosition', () => {
-    const editor = makeEditor();
-    editor.setText('hello');
-    editor.setCursorPosition({ line: 0, col: 5 });
-    editor.setGhostText(' world', 'inline');
-    expect(editor.getGhostText()).toBe(' world');
-
-    editor.setCursorPosition({ line: 0, col: 2 });
-
-    expect(editor.getGhostText()).toBeUndefined();
-  });
-
-  it('clears ghost text on submit', async () => {
-    vi.useFakeTimers();
-    const editor = makeEditor();
-    editor.onSubmit = vi.fn();
-    editor.setText('hello');
-    editor.setGhostText(' world', 'inline');
-
-    editor.handleInput('\r');
-    await vi.runAllTimersAsync();
-
-    expect(editor.getGhostText()).toBeUndefined();
-  });
-
-  it('does not grow layout row count when ghost is set (suffix overlay only)', () => {
-    const editor = makeEditor();
-    editor.setText('hi');
-    const rowsWithoutGhost = editor.getNativeLayoutRowCount(24);
-
-    editor.setGhostText(' this is a longer ghost text that might wrap', 'inline');
-    const rowsWithGhost = editor.getNativeLayoutRowCount(24);
-
-    // Ghost is a same-line suffix overlay — it must never add rows that clip
-    // the committed input out of the allocated editor frame.
-    expect(rowsWithGhost).toBe(rowsWithoutGhost);
-  });
-
-  it('clears ghost text via applyNativeTextInputSync when text changes', () => {
-    const editor = makeEditor();
-    editor.setText('hello');
-    editor.setGhostText(' world', 'inline');
-    expect(editor.getGhostText()).toBe(' world');
-
-    editor.applyNativeTextInputSync('hellx', { line: 0, col: 5 });
-
-    expect(editor.getText()).toBe('hellx');
-    expect(editor.getGhostText()).toBeUndefined();
-  });
-
-  it('clears ghost text when applyNativeTextInputSync only moves the cursor', () => {
-    const editor = makeEditor();
-    editor.setText('hello');
-    editor.setGhostText(' world', 'inline');
-
-    editor.applyNativeTextInputSync('hello', { line: 0, col: 3 });
-
-    expect(editor.getGhostText()).toBeUndefined();
-  });
-
-  it('clears ghost text when arrow keys only move the cursor', () => {
-    const editor = makeEditor();
-    editor.setText('hello');
-    editor.setCursorPosition({ line: 0, col: 5 });
-    editor.setGhostText(' world', 'inline');
-    expect(editor.getGhostText()).toBe(' world');
-
-    editor.handleInput('\u001B[D'); // left arrow
-
-    expect(editor.getCursor()).toEqual({ line: 0, col: 4 });
-    expect(editor.getText()).toBe('hello');
-    expect(editor.getGhostText()).toBeUndefined();
-  });
-
-  it('refuses inline ghost when caret is not at end of buffer (suffix-only)', () => {
-    const editor = makeEditor();
-    editor.setText('hello world');
-    editor.setCursorPosition({ line: 0, col: 5 });
-
-    editor.setGhostText('XXX', 'inline');
-
-    // Mid-buffer ghost would overwrite committed " world" on the display.
-    expect(editor.getGhostText()).toBeUndefined();
-    expect(editor.getText()).toBe('hello world');
-    const rendered = editor.render(30).map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''));
-    expect(rendered.join('\n')).toContain('hello world');
-    expect(rendered.join('\n')).not.toContain('helloXXX');
-  });
-
-  it('renders inline ghost only as a suffix after committed text', () => {
-    const editor = makeEditor();
-    editor.setText('hello');
-    editor.setCursorPosition({ line: 0, col: 5 });
-    editor.setGhostText(' world', 'inline');
-
-    expect(editor.getText()).toBe('hello');
-    expect(editor.getGhostText()).toBe(' world');
-    const rendered = editor.render(40).map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''));
-    expect(rendered.join('\n')).toContain('hello world');
-    // Committed buffer must stay intact even while ghost is visible.
-    expect(editor.getText()).toBe('hello');
-  });
-
-  it('opens autocomplete with Tab when a slash trigger is present and no ghost', async () => {
+  it('opens autocomplete with Tab when a slash trigger is present', async () => {
     const provider = providerReturning([
       { value: 'help', label: 'help', description: 'Show help' },
     ]);
@@ -744,11 +549,10 @@ describe('NativeTUIEditor image paste binding', () => {
     expect(clipboardHasImage).toHaveBeenCalled();
   });
 
-  it('keeps Hangul inserts at the buffer end with an inline ghost present', () => {
+  it('keeps Hangul inserts at the buffer end', () => {
     const editor = makeEditor();
     editor.setText('안');
     editor.setCursorPosition({ line: 0, col: '안'.length });
-    editor.setGhostText('녕하세요', 'inline');
     editor.handleInput('녕');
 
     expect(editor.getText()).toBe('안녕');

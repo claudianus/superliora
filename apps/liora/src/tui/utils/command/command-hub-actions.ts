@@ -19,20 +19,8 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/export-md';
     case 'start.fork':
       return '/fork';
-    case 'start.conductorHowto':
-      return undefined;
-    case 'modes.plan':
-      return '/plan';
-    case 'modes.ask':
-      return '/ask';
-    case 'modes.goals':
-      return '/goal next manage';
-    case 'modes.premium':
-      return '/premium';
     case 'modes.permission':
       return '/permission';
-    case 'modes.conductorProject':
-    case 'modes.reduceParallelism':
     case 'modes.transcriptRegion':
       return undefined;
     case 'chat.model':
@@ -49,9 +37,7 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'chat.compact':
     case 'now.compact':
       return '/compact';
-    case 'chat.loops':
     case 'workspace.jobOps':
-    case 'workspace.cron':
       return undefined;
     case 'workspace.files':
       return '/files';
@@ -67,6 +53,8 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/jobs dock';
     case 'workspace.jobDeck':
       return '/jobs deck';
+    case 'workspace.jobCreate':
+      return undefined;
     case 'workspace.jobDrawer':
       return '/jobs drawer';
     case 'workspace.jobInbox':
@@ -75,8 +63,6 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/status';
     case 'workspace.quota':
       return '/quota';
-    case 'extend.extensions':
-      return undefined;
     case 'appearance.theme':
       return '/theme';
     case 'appearance.appearance':

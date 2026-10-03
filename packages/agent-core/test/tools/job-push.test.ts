@@ -9,16 +9,12 @@ import {
   inferPublishRemoteRef,
   looksLikeAuthFailure,
   parseGithubOwnerRepo,
-  parsePublishTargetJudgment,
   pushJobToRemote,
-  remoteRefFromPublishJudgment,
   runMultiRepoPush,
   validatePushRefToken,
   validatePushTargetRepo,
   validatePushTargetSourceDir,
 } from '../../src/tools/builtin/job/job-push';
-import { PushJobTool } from '../../src/tools/builtin/job/job-tools';
-import { guardWorkerShellCommand } from '../../src/tools/builtin/job/job-worker-guards';
 import type { ToolStore } from '../../src/tools/store';
 
 function memoryStore(): ToolStore {
@@ -57,11 +53,6 @@ describe('job-push trust + refs', () => {
     ).toBe(true);
   });
 
-  it('keeps worker Bash push ban', () => {
-    expect(guardWorkerShellCommand('git push origin HEAD', { isWorker: true }).allowed).toBe(
-      false,
-    );
-  });
 
   it('reads a structured remote_ref field and never infers from wording or main', () => {
     expect(
@@ -81,21 +72,6 @@ describe('job-push trust + refs', () => {
     });
   });
 
-  it('maps a confident pages-publish judgment and refuses main', () => {
-    const pages = parsePublishTargetJudgment(
-      '{"pages_publish":true,"remote_ref":"gh-pages","confidence":0.9,"rationale":"static site host branch"}',
-    );
-    expect(pages).toBeDefined();
-    expect(remoteRefFromPublishJudgment(pages!)).toBe('gh-pages');
-    const main = parsePublishTargetJudgment(
-      '{"pages_publish":true,"remote_ref":"main","confidence":0.9,"rationale":"default branch"}',
-    );
-    expect(remoteRefFromPublishJudgment(main!)).toBeUndefined();
-    const skip = parsePublishTargetJudgment(
-      '{"pages_publish":false,"confidence":0.8,"rationale":"same as local ref"}',
-    );
-    expect(remoteRefFromPublishJudgment(skip!)).toBeUndefined();
-  });
 });
 
 describe('push auth diagnosis', () => {
@@ -289,75 +265,20 @@ describe('pushJobToRemote', () => {
     ).toBe(true);
   });
 
-  it('uses a publish-effect judgment when the classifier returns a Pages branch', async () => {
+
+  it('propagates an unavailable native auth probe without replaying the failed push', async () => {
     const store = memoryStore();
-    const job = createJob(store, {
-      title: 'Ship the static site',
-      kind: 'implement',
-      successCriteria: ['static site is live on the host branch'],
-    });
-    patchJob(store, job.id, {
-      status: 'done',
-      worktreePath: '/tmp/wt',
-      worktreeBranch: 'liora/conductor-jmsl8pcld1vb3s8',
-    });
-
-    const gitCalls: string[][] = [];
-    const ghCalls: string[][] = [];
-    const runGit = vi.fn(async (_cwd: string, args: readonly string[]) => {
-      gitCalls.push([...args]);
-      if (args[0] === 'rev-parse') {
-        return { code: 0, stdout: '6557a3dabcdef0123456789\n', stderr: '' };
-      }
-      if (args[0] === 'remote' && args[1] === 'get-url') {
-        return { code: 0, stdout: 'https://github.com/claudianus/metalslug1.git\n', stderr: '' };
-      }
-      if (args[0] === 'push') {
-        return { code: 0, stdout: 'ok\n', stderr: '' };
-      }
-      return { code: 0, stdout: '', stderr: '' };
-    });
-    const runGh = vi.fn(async (args: readonly string[]) => {
-      ghCalls.push([...args]);
-      return { code: 0, stdout: '{"status":"built"}\n', stderr: '' };
-    });
-    const agent = {
-      generate: async () => ({
-        message: {
-          content: [
-            {
-              type: 'text',
-              text: '{"pages_publish":true,"remote_ref":"gh-pages","confidence":0.9,"rationale":"static host branch"}',
-            },
-          ],
-        },
-      }),
-      config: { hasProvider: true, provider: {} },
-    };
-
-    const result = await pushJobToRemote({
-      store,
-      job: getJob(store, job.id)!,
-      remote: 'origin',
-      localRef: 'liora/conductor-jmsl8pcld1vb3s8',
-      runGit,
-      runGh,
-      agent: agent as never,
-    });
-
-    expect(result.ok).toBe(true);
-    expect(result.receipt?.remoteRef).toBe('gh-pages');
-    expect(result.receipt?.pagesEnabled).toBe(true);
-    expect(
-      gitCalls.some(
-        (c) =>
-          c[0] === 'push' &&
-          c[1] === 'origin' &&
-          c[2] === 'liora/conductor-jmsl8pcld1vb3s8:gh-pages',
-      ),
-    ).toBe(true);
-    expect(ghCalls.some((c) => c.includes('/repos/claudianus/metalslug1/pages'))).toBe(true);
-    expect(result.message).toMatch(/pages: enabled/i);
+    const job = createJob(store, { title: 'push failure' });
+    patchJob(store, job.id, { status: 'done', worktreePath: '/tmp/wt', worktreeBranch: 'topic' });
+    const runGit = vi.fn(async (_cwd: string, args: readonly string[]) => ({
+      code: args[0] === 'push' ? 1 : 0,
+      stdout: args[0] === 'rev-parse' ? 'abcdef0123456789\n' : '',
+      stderr: args[0] === 'push' ? 'Authentication failed' : '',
+    }));
+    await expect(pushJobToRemote({
+      store, job: getJob(store, job.id)!, remote: 'origin', localRef: 'topic', runGit,
+    })).rejects.toThrow();
+    expect(runGit.mock.calls.filter(([, args]) => args[0] === 'push')).toHaveLength(1);
   });
 
   it('records git stderr on push failure and masks credentials', async () => {
@@ -370,8 +291,8 @@ describe('pushJobToRemote', () => {
     });
 
     // Assemble at runtime so GH013 push protection does not treat fixtures as live secrets.
-    const fakePat = 'ghp' + '_' + 'abcdefghijklmnopqrstuvwxyz0123456789';
-    const fakeSlack = 'xoxb' + '-' + '123456789012-abcdefghijklmnop';
+    const fakePat = ['ghp', 'abcdefghijklmnopqrstuvwxyz0123456789'].join('_');
+    const fakeSlack = ['xoxb', '123456789012-abcdefghijklmnop'].join('-');
     const fakeJwtPrefix = 'eyJhbGciOiJIUzI1NiJ9';
 
     const runGit = vi.fn(async (_cwd: string, args: readonly string[]) => {
@@ -400,6 +321,7 @@ describe('pushJobToRemote', () => {
       localRef: 'gh-pages',
       remoteRef: 'gh-pages',
       runGit,
+      runGh: async () => ({ code: 1, stdout: '', stderr: 'gh auth login required' }),
       enablePages: false,
     });
 
@@ -419,52 +341,12 @@ describe('pushJobToRemote', () => {
   });
 });
 
-describe('PushJobTool + dispatch', () => {
-  it('holds without force_user_confirm', async () => {
-    const store = memoryStore();
-    const job = createJob(store, { title: 'ship', kind: 'implement' });
-    const tool = new PushJobTool(store);
-    const exec = tool.resolveExecution({
-      job_id: job.id,
-      approve: true,
-      force_user_confirm: false,
-    });
-    if (exec.isError) throw new Error('resolve failed');
-    const out = await exec.execute({
-      turnId: 't',
-      toolCallId: 'c',
-      signal: new AbortController().signal,
-    });
-    expect(out.isError).toBe(true);
-    expect(String(out.output)).toMatch(/Push held|force_user_confirm/i);
-  });
-
-  it('rejects an escaping source_dir target before dispatching any push', async () => {
-    const store = memoryStore();
-    const job = createJob(store, { title: 'ship', kind: 'implement' });
-    patchJob(store, job.id, { worktreePath: '/tmp/wt' });
-    const tool = new PushJobTool(store);
-    const exec = tool.resolveExecution({
-      job_id: job.id,
-      approve: true,
-      force_user_confirm: true,
-      targets: [{ repo: 'owner/x', source_dir: '../../etc' }],
-    });
-    if (exec.isError) throw new Error('resolve failed');
-    const out = await exec.execute({
-      turnId: 't',
-      toolCallId: 'c',
-      signal: new AbortController().signal,
-    });
-    expect(out.isError).toBe(true);
-    expect(String(out.output)).toMatch(/source_dir must stay inside the job worktree/);
-    // No kind=push job was created — the bad target aborted the dispatch.
-    expect(listJobs(store).some((j) => j.kind === 'push')).toBe(false);
-  });
+describe('push dispatch', () => {
 
   it('dispatches kind=push offload on user approve', async () => {
     const store = memoryStore();
     const source = createJob(store, { title: 'ship', kind: 'implement' });
+    patchJob(store, source.id, { status: 'done' });
     const runGit = vi.fn(async () => ({ code: 0, stdout: 'abcdef0\n', stderr: '' }));
     const dispatch = dispatchPushRemote({
       store,

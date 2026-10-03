@@ -85,7 +85,7 @@ export class SessionEventBackgroundTasks {
         });
       }
       if (!this.backgroundTaskTranscriptedTerminal.has(info.taskId)) {
-        if (info.kind === 'process' || info.kind === 'question') {
+        if (info.kind === 'process') {
           this.appendEntry(info);
         }
         this.backgroundTaskTranscriptedTerminal.add(info.taskId);

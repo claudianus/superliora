@@ -4,6 +4,7 @@
 
 import { Disposable, InstantiationType, registerSingleton } from '../../di';
 import type { BackgroundTask } from '@superliora/protocol';
+import type { BackgroundTaskInfo } from '../../agent/background';
 
 import { ICoreProcessService } from '../coreProcess/coreProcess';
 import { SessionNotFoundError } from '../session/session';
@@ -52,19 +53,13 @@ export class TaskService extends Disposable implements ITaskService {
     let output: { preview: string; bytes: number } | undefined;
     if (options?.withOutput) {
       const tailBytes = options.outputBytes ?? DEFAULT_TASK_OUTPUT_PREVIEW_BYTES;
-      try {
-        const preview = await this.core.rpc.getBackgroundOutput({
-          sessionId,
-          agentId: MAIN_AGENT_ID,
-          taskId,
-          tail: tailBytes,
-        });
-        if (preview.length > 0) {
-          output = { preview, bytes: Buffer.byteLength(preview, 'utf-8') };
-        }
-      } catch {
-        // Output may not be available yet; fall back to task metadata only.
-      }
+      const preview = await this.core.rpc.getBackgroundOutput({
+        sessionId,
+        agentId: MAIN_AGENT_ID,
+        taskId,
+        tail: tailBytes,
+      });
+      output = { preview, bytes: Buffer.byteLength(preview, 'utf-8') };
     }
 
     return toProtocolTask(sessionId, found, output);
@@ -99,20 +94,16 @@ export class TaskService extends Disposable implements ITaskService {
     if (!all.some((s) => s.id === sessionId)) {
       throw new SessionNotFoundError(sessionId);
     }
+    await this.core.rpc.resumeSession({ sessionId });
   }
 
   private async _getAllRaw(
     sessionId: string,
-  ): Promise<ReadonlyArray<Awaited<ReturnType<typeof this.core.rpc.getBackground>>[number]>> {
-    try {
-      return await this.core.rpc.getBackground({
-        sessionId,
-        agentId: MAIN_AGENT_ID,
-      });
-    } catch {
-      // Session not loaded; treat as empty.
-      return [];
-    }
+  ): Promise<readonly BackgroundTaskInfo[]> {
+    return this.core.rpc.getBackground({
+      sessionId,
+      agentId: MAIN_AGENT_ID,
+    });
   }
 }
 

@@ -47,7 +47,7 @@ import { AcpKaos } from '#/kaos-acp';
 import { AcpSession, type TelemetryTrackFn } from '#/session/index';
 import { buildSessionConfigOptions } from '#/config-options';
 import { availableCommandsUpdateNotification } from '#/convert/events-map';
-import { acpMcpServersToConfigs } from '#/mcp';
+import { rejectUnsupportedMcpServers } from '#/mcp';
 import { DEFAULT_MODE_ID } from '#/modes';
 import { resolveCurrentModelId, resolveCurrentThinkingEnabled } from './server-config-resolve';
 import { setupSessionFromExisting } from './server-existing-session';
@@ -179,10 +179,7 @@ export class AcpServer implements Agent {
         audio: false,
         embeddedContext: true,
       },
-      mcpCapabilities: {
-        http: true,
-        sse: true,
-      },
+      mcpCapabilities: { http: false, sse: false },
       sessionCapabilities: {
         list: {},
         resume: {},
@@ -208,7 +205,7 @@ export class AcpServer implements Agent {
     if (!(await harnessIsAuthed(this.harness))) {
       throw RequestError.authRequired();
     }
-    const mcpServers = acpMcpServersToConfigs(params.mcpServers);
+    rejectUnsupportedMcpServers(params.mcpServers);
     if (!this.conn) {
       throw RequestError.internalError(undefined, 'AcpServer is missing its AgentSideConnection');
     }
@@ -221,8 +218,7 @@ export class AcpServer implements Agent {
       kaos: acpKaos,
       persistenceKaos,
       sessionStartedProperties: { mode: 'new' },
-      // @ts-expect-error — `mcpServers` is a kernel-side extension the SDK forwards via spread.
-      mcpServers,
+      permission: DEFAULT_MODE_ID,
     });
     const currentModelId = await resolveCurrentModelId(this.harness);
     const currentThinkingEnabled = await resolveCurrentThinkingEnabled(this.harness);
@@ -363,6 +359,9 @@ export class AcpServer implements Agent {
         await acpSession.setMode(String(value));
         break;
       case 'thinking':
+        if (value !== 'on' && value !== 'off') {
+          throw RequestError.invalidParams({ value }, 'Thinking must be on or off.');
+        }
         await acpSession.setThinking(value === 'on');
         break;
       default:
@@ -418,14 +417,14 @@ export class AcpServer implements Agent {
 
   private async maybeBuildAcpKaos(sessionId: string): Promise<AcpKaos | undefined> {
     const fs = this.clientCapabilities?.fs;
-    if (!fs?.readTextFile && !fs?.writeTextFile) {
+    if (!fs?.readTextFile && !fs?.writeTextFile && !this.clientCapabilities?.terminal) {
       return undefined;
     }
     if (!this.conn) {
       return undefined;
     }
     const innerKaos = await this.ensureInnerKaos();
-    return new AcpKaos(this.conn, sessionId, innerKaos);
+    return new AcpKaos(this.conn, sessionId, innerKaos, this.clientCapabilities);
   }
 
   private async ensureInnerKaos(): Promise<Kaos> {
@@ -452,14 +451,8 @@ export class AcpServer implements Agent {
     const acpSession = this.sessions.get(sessionId);
     if (!acpSession) return;
     try {
-      const { commands, skillCommandMap } = await this.resolveSlashCommands(
-        acpSession.session,
-      );
-      if (typeof acpSession.setAvailableCommands === 'function') {
-        acpSession.setAvailableCommands(commands, skillCommandMap);
-      } else if (typeof acpSession.setSkillCommandMap === 'function') {
-        acpSession.setSkillCommandMap(skillCommandMap);
-      }
+      const { commands } = await this.resolveSlashCommands(acpSession.session);
+      acpSession.setAvailableCommands(commands);
       await this.conn.sessionUpdate(
         availableCommandsUpdateNotification(sessionId, commands),
       );

@@ -1,223 +1,62 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { ErrorCodes } from '@superliora/agent-core';
 
-import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '#/index';
-import { Session } from '#/index';
-import type { SDKRpcClientBase } from '#/rpc/rpc';
+import type { ApprovalRequest, Event } from '#/index';
+import { SdkEventBridge } from '#/rpc/rpc-event-bridge';
 
-describe('Session approval handler', () => {
-  it('registers an approval handler and returns approved responses', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_approval_handler',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-    const handler = vi.fn(async (request: ApprovalRequest) => {
-      expect(request).toMatchObject({
-        toolCallId: 'tool_1',
-        toolName: 'Bash',
-        action: 'Run command',
-      });
-      return { decision: 'approved' as const, selectedLabel: 'Approve once' };
-    });
-    session.setApprovalHandler(handler);
-
-    await expect(
-      rpc.requestApproval(
-        session.id,
-        'main',
-        approvalRequest({
-          toolCallId: 'tool_1',
-          toolName: 'Bash',
-          action: 'Run command',
-        }),
-      ),
-    ).resolves.toEqual({ decision: 'approved', selectedLabel: 'Approve once' });
-    expect(handler).toHaveBeenCalledTimes(1);
-  });
-
-  it('sends rejected responses with feedback', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_approval_rejected',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-    session.setApprovalHandler(() => ({ decision: 'rejected', feedback: 'No writes.' }));
-
-    await expect(
-      rpc.requestApproval(
-        session.id,
-        'main',
-        approvalRequest({
-          toolCallId: 'tool_2',
-          toolName: 'Write',
-          action: 'Write file',
-        }),
-      ),
-    ).resolves.toEqual({ decision: 'rejected', feedback: 'No writes.' });
-  });
-
-  it('sends session-scoped approved responses when requested', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_approval_scope',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-    session.setApprovalHandler(() => ({ decision: 'approved', scope: 'session' }));
-
-    await expect(
-      rpc.requestApproval(
-        session.id,
-        'main',
-        approvalRequest({
-          toolCallId: 'tool_scope',
-          toolName: 'Bash',
-          action: 'Run command',
-        }),
-      ),
-    ).resolves.toEqual({ decision: 'approved', scope: 'session' });
-  });
-
-  it('cancels approval requests when no handler is registered', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_approval_default',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-
-    await expect(
-      rpc.requestApproval(
-        session.id,
-        'main',
-        approvalRequest({
-          toolCallId: 'tool_3',
-          toolName: 'Bash',
-          action: 'Run command',
-        }),
-      ),
-    ).resolves.toEqual({
-      decision: 'cancelled',
-      feedback: 'No approval handler registered.',
-    });
-    await session.close();
-    expect(rpc.closeSession).toHaveBeenCalledWith({ sessionId: session.id });
-  });
-
-  it('cancels approval requests when the handler throws', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_approval_throw',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-    session.setApprovalHandler(() => {
-      throw new Error('boom');
-    });
-
-    await expect(
-      rpc.requestApproval(
-        session.id,
-        'main',
-        approvalRequest({
-          toolCallId: 'tool_4',
-          toolName: 'Bash',
-          action: 'Run command',
-        }),
-      ),
-    ).resolves.toEqual({
-      decision: 'cancelled',
-      feedback: 'Approval handler failed.',
-    });
-  });
-
-  it('responds to the original subagent id', async () => {
-    const rpc = new FakeSDKRpcClient();
-    const session = new Session({
-      id: 'ses_approval_subagent',
-      workDir: '/tmp',
-      rpc: rpc.asRpc(),
-    });
-    const handler = vi.fn(() => ({ decision: 'approved' as const }));
-    session.setApprovalHandler(handler);
-
-    await expect(
-      rpc.requestApproval(
-        session.id,
-        'agent-1',
-        approvalRequest({
-          toolCallId: 'tool_5',
-          toolName: 'Read',
-          action: 'Read file',
-        }),
-      ),
-    ).resolves.toEqual({ decision: 'approved' });
-
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sessionId: session.id,
-        agentId: 'agent-1',
-      }),
-    );
-  });
-});
-
-interface ApprovalRequestInput {
-  readonly toolCallId: string;
-  readonly toolName: string;
-  readonly action: string;
-}
-
-function approvalRequest(input: ApprovalRequestInput): ApprovalRequest {
+function approvalRequest(sessionId: string, agentId = 'main'): ApprovalRequest & { sessionId: string; agentId: string } {
   return {
-    toolCallId: input.toolCallId,
-    toolName: input.toolName,
-    action: input.action,
-    display: { kind: 'generic', summary: input.action },
+    sessionId,
+    agentId,
+    toolCallId: 'bash-command',
+    toolName: 'Bash',
+    action: 'Run command',
+    display: { kind: 'generic', summary: 'Run command' },
   };
 }
 
-class FakeSDKRpcClient {
-  private readonly approvalHandlers = new Map<string, ApprovalHandler>();
-  readonly closeSession = vi.fn(async (_input: { readonly sessionId: string }) => {});
+describe('SDK approval handling', () => {
+  it('fails closed for unregistered and cleared session handlers', async () => {
+    const bridge = new SdkEventBridge();
+    const request = approvalRequest('session-one');
+    await expect(bridge.requestApproval(request)).resolves.toEqual({
+      decision: 'cancelled',
+      feedback: 'No approval handler registered.',
+    });
+    bridge.setApprovalHandler(request.sessionId, () => ({ decision: 'approved', scope: 'session' }));
+    await expect(bridge.requestApproval(request)).resolves.toEqual({ decision: 'approved', scope: 'session' });
+    bridge.clearSessionHandlers(request.sessionId);
+    await expect(bridge.requestApproval(request)).resolves.toMatchObject({ decision: 'cancelled' });
+  });
 
-  asRpc(): SDKRpcClientBase {
-    return this as unknown as SDKRpcClientBase;
-  }
+  it('isolates session handlers and preserves the requesting child identity', async () => {
+    const bridge = new SdkEventBridge();
+    let requestingAgent: string | undefined;
+    bridge.setApprovalHandler('session-one', (request) => {
+      if ('agentId' in request && typeof request.agentId === 'string') requestingAgent = request.agentId;
+      return { decision: 'approved' };
+    });
+    bridge.setApprovalHandler('session-two', () => ({ decision: 'rejected', feedback: 'No shell access.' }));
+    await expect(bridge.requestApproval(approvalRequest('session-one', 'child-one'))).resolves.toEqual({ decision: 'approved' });
+    expect(requestingAgent).toBe('child-one');
+    await expect(bridge.requestApproval(approvalRequest('session-two'))).resolves.toEqual({
+      decision: 'rejected', feedback: 'No shell access.',
+    });
+  });
 
-  setApprovalHandler(sessionId: string, handler: ApprovalHandler | undefined): void {
-    if (handler === undefined) {
-      this.approvalHandlers.delete(sessionId);
-      return;
-    }
-    this.approvalHandlers.set(sessionId, handler);
-  }
-
-  async requestApproval(
-    sessionId: string,
-    agentId: string,
-    request: ApprovalRequest,
-  ): Promise<ApprovalResponse> {
-    const handler = this.approvalHandlers.get(sessionId);
-    if (handler === undefined) {
-      return {
-        decision: 'cancelled',
-        feedback: 'No approval handler registered.',
-      };
-    }
-    try {
-      return await handler({ ...request, sessionId, agentId } as ApprovalRequest);
-    } catch {
-      return {
-        decision: 'cancelled',
-        feedback: 'Approval handler failed.',
-      };
-    }
-  }
-
-  clearSessionHandlers(sessionId: string): void {
-    this.approvalHandlers.delete(sessionId);
-  }
-}
+  it('fails closed and emits a scoped error when a host approval handler rejects', async () => {
+    const bridge = new SdkEventBridge();
+    const events: Event[] = [];
+    bridge.onEvent((event) => events.push(event));
+    bridge.setApprovalHandler('session-one', async () => {
+      throw new Error('approval host unavailable');
+    });
+    await expect(bridge.requestApproval(approvalRequest('session-one', 'child-one'))).resolves.toEqual({
+      decision: 'cancelled', feedback: 'Approval handler failed.',
+    });
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'error', sessionId: 'session-one', agentId: 'child-one',
+      code: ErrorCodes.SESSION_APPROVAL_HANDLER_ERROR,
+    }));
+  });
+});

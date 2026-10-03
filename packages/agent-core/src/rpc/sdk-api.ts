@@ -1,4 +1,3 @@
-import type { ContentPart } from '@superliora/kosong';
 
 import type { RPCMethods } from './client';
 import type { AgentEvent, ToolInputDisplay } from './events';
@@ -11,7 +10,6 @@ export interface ApprovalResponse {
   readonly decision: ApprovalDecision;
   readonly scope?: ApprovalScope | undefined;
   readonly feedback?: string | undefined;
-  readonly selectedLabel?: string | undefined;
 }
 
 export interface ApprovalRequest {
@@ -64,23 +62,12 @@ export interface QuestionRequest {
   readonly questions: readonly QuestionItem[];
 }
 
-export interface ToolCallRequest {
-  readonly turnId?: number | undefined;
-  readonly toolCallId: string;
-  readonly args: unknown;
-}
-
-export interface ToolCallResponse {
-  readonly output: string | ContentPart[];
-  readonly isError?: boolean | undefined;
-}
 
 export interface SDKAgentAPI {
   emitEvent: (event: AgentEvent) => void;
   requestApproval: (request: ApprovalRequest) => Promise<ApprovalResponse>;
   requestQuestion: (request: QuestionRequest) => Promise<QuestionResult>;
   requestCredential: (request: CredentialRequest) => Promise<CredentialResponse | null>;
-  toolCall: (request: ToolCallRequest) => Promise<ToolCallResponse>;
 }
 export type SDKAgentRPC = RPCMethods<SDKAgentAPI>;
 

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { JobSnapshot, Session } from '@superliora/sdk';
 
-import { GOAL_EXIT_CODES } from '#/cli/goal-prompt';
 import {
   captureJobBaseline,
   collectJobsCreatedDuringRun,
@@ -75,14 +74,6 @@ describe('summarizeHeadlessJobs', () => {
     expect(
       summarizeHeadlessJobs([job({ status: 'failed' }), job({ id: 'job_2', status: 'running' })]).exit,
     ).toBe('failed');
-  });
-
-  it('keeps non-zero exit codes distinct from goal exit codes', () => {
-    const all = [
-      ...Object.values(HEADLESS_JOB_EXIT_CODES).filter((code) => code !== 0),
-      ...Object.values(GOAL_EXIT_CODES).filter((code) => code !== 0),
-    ];
-    expect(new Set(all).size).toBe(all.length);
   });
 
   it('caps stored summaries in the machine payload', () => {

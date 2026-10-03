@@ -3,7 +3,6 @@ import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
-import { STAGED_LINE_REVEAL_MS_PREMIUM } from '#/tui/constant/streaming';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme } from '#/tui/theme';
@@ -18,7 +17,6 @@ import {
 
 import { setActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
 
-import { captureProcessWrite } from '../../../helpers/process';
 
 const ESC = String.fromCodePoint(0x1b);
 const BEL = String.fromCodePoint(0x07);
@@ -40,20 +38,22 @@ describe('ToolCallComponent', () => {
   beforeEach(() => {
     currentTheme.setPalette(darkColors);
     setActiveTranscriptDetail('standard');
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
   });
 
   afterEach(() => {
     setActiveTranscriptDetail('standard');
     vi.useRealTimers();
     currentTheme.setPalette(neonNoirColors);
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
   });
 
   it('uses the shared non-emoji tool status bullet', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_read_marker',
-        name: 'Read',
-        args: { path: 'foo.ts' },
+        name: 'Bash',
+        args: { command: 'cat foo.ts' },
       },
       {
         tool_call_id: 'call_read_marker',
@@ -63,9 +63,9 @@ describe('ToolCallComponent', () => {
     );
 
     const out = strip(component.render(100).join('\n'));
-    expect(out).toContain(`${STATUS_BULLET}Used Read`);
-    expect(out).not.toContain(`\u23FA Used Read`);
-    expect(out).not.toContain(`${String.fromCodePoint(0x23fa, 0xfe0e)} Used Read`);
+    expect(out).toContain(`${STATUS_BULLET}Used Bash`);
+    expect(out).not.toContain(`\u23FA Used Bash`);
+    expect(out).not.toContain(`${String.fromCodePoint(0x23fa, 0xfe0e)} Used Bash`);
   });
   it('appends elapsed duration to finished tool header chips', () => {
     vi.useFakeTimers();
@@ -74,8 +74,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_read_duration',
-        name: 'Read',
-        args: { path: 'foo.ts' },
+        name: 'Bash',
+        args: { command: 'cat foo.ts' },
         streamingStartedAtMs: Date.now() - 3_500,
       },
       {
@@ -86,8 +86,8 @@ describe('ToolCallComponent', () => {
     );
 
     const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Used Read');
-    expect(out).toContain('2 lines');
+    expect(out).toContain('Used Bash');
+    expect(out).toContain('line2');
     expect(out).toContain('3s');
   });
 
@@ -115,8 +115,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_read_compact',
-        name: 'Read',
-        args: { path: 'foo.ts' },
+        name: 'Bash',
+        args: { command: 'cat foo.ts' },
       },
       {
         tool_call_id: 'call_read_compact',
@@ -127,11 +127,11 @@ describe('ToolCallComponent', () => {
     component.setDetail('compact');
 
     const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Read');
+    expect(out).toContain('Ran');
     expect(out).toContain('foo.ts');
-    expect(out).toContain('2 lines');
-    expect(out).not.toContain('Used Read');
-    expect(out).not.toContain('Using Read');
+    expect(out).not.toContain('line1');
+    expect(out).not.toContain('Used Bash');
+    expect(out).not.toContain('Using Bash');
   });
 
   it('keeps live compact activity headers at a stable row count across entrance ticks', () => {
@@ -152,8 +152,8 @@ describe('ToolCallComponent', () => {
       const component = new ToolCallComponent(
         {
           id: 'call_read_compact_live',
-          name: 'Read',
-          args: { path: 'packages/agent-core/src/tools/builtin/job/windows-job.ts' },
+          name: 'Bash',
+          args: { command: 'cat packages/agent-core/src/tools/builtin/job/windows-job.ts' },
           streamingStartedAtMs: Date.now() - 12_000,
         },
         undefined,
@@ -176,44 +176,19 @@ describe('ToolCallComponent', () => {
     }
   });
 
-  it('colors compact edit diffs on the metrics line', () => {
-    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
-    const component = new ToolCallComponent(
-      {
-        id: 'call_edit_compact',
-        name: 'Edit',
-        args: {
-          path: 'windows-job.ts',
-          old_string: 'a\nb\n',
-          new_string: 'a\nb\nc\n',
-        },
-      },
-      {
-        tool_call_id: 'call_edit_compact',
-        output: 'ok',
-        is_error: false,
-      },
-    );
-    component.setDetail('compact');
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Edited');
-    expect(out).toContain('windows-job.ts');
-    expect(out).toMatch(/\+\d+/);
-  });
 
   it('shows motion phase chips on generic tool headers', () => {
     const running = new ToolCallComponent(
       {
         id: 'call_generic_run',
-        name: 'mcp__server__do',
+        name: 'HistoricalTool',
         args: {},
       },
       undefined,
     );
     const runningOut = strip(running.render(100).join('\n'));
     expect(runningOut).toMatch(/[▸▹]/);
-    expect(runningOut).toContain('do');
+    expect(runningOut).toContain('HistoricalTool');
     expect(runningOut).not.toContain('❯');
 
     const done = new ToolCallComponent(
@@ -234,7 +209,7 @@ describe('ToolCallComponent', () => {
     expect(doneOut).not.toContain('❯');
   });
 
-  describe('detach hint for long-running foreground Bash/Agent', () => {
+  describe('detach hint for long-running foreground Bash', () => {
     it('shows the Ctrl+B hint after 6s for a running Bash call', () => {
       vi.useFakeTimers();
       const component = new ToolCallComponent(
@@ -255,26 +230,12 @@ describe('ToolCallComponent', () => {
       component.dispose();
     });
 
-    it('shows the hint immediately for a running Agent call', () => {
-      vi.useFakeTimers();
-      const component = new ToolCallComponent(
-        { id: 'call_agent_long', name: 'Agent', args: { description: 'explore' } },
-        undefined,
-        stubTui(30),
-      );
-
-      // No timer advancement — Agents advertise Ctrl+B immediately.
-      expect(strip(component.render(100).join('\n'))).toContain(
-        'Press Ctrl+B to background this task · /jobs bg to inspect',
-      );
-
-      component.dispose();
-    });
+    
 
     it('does not show the hint for non-detachable tools', () => {
       vi.useFakeTimers();
       const component = new ToolCallComponent(
-        { id: 'call_read_long', name: 'Read', args: { path: 'foo.ts' } },
+        { id: 'call_session_list', name: 'SessionControl', args: { operation: 'list' } },
         undefined,
         stubTui(30),
       );
@@ -311,8 +272,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_narrow_read',
-        name: 'Read',
-        args: { path: 'very/long/path/to/foo.ts' },
+        name: 'Bash',
+        args: { command: 'cat very/long/path/to/foo.ts' },
       },
       {
         tool_call_id: 'call_narrow_read',
@@ -445,53 +406,58 @@ describe('ToolCallComponent', () => {
     });
   });
 
-  it('hides tool output bodies that start with a <system tag', () => {
-    const reminderOutput =
-      '<system-reminder>\nThe task tools have not been used recently.\n</system-reminder>';
+  it('preserves Bash output bodies that start with a <system tag', () => {
+    const rawOutput = '<system-reminder>\nraw command output\n</system-reminder>';
     const component = new ToolCallComponent(
       {
-        id: 'call_hidden',
+        id: 'call_raw',
         name: 'Bash',
         args: { command: 'echo hi' },
       },
       {
-        tool_call_id: 'call_hidden',
-        output: reminderOutput,
+        tool_call_id: 'call_raw',
+        output: rawOutput,
         is_error: false,
       },
     );
 
     const collapsed = strip(component.render(100).join('\n'));
     expect(collapsed).toContain(`${STATUS_BULLET}Used Bash`);
-    expect(collapsed).not.toContain('system-reminder');
-    expect(collapsed).not.toContain('task tools');
+    expect(collapsed).toContain('<system-reminder>');
+    expect(collapsed).toContain('raw command output');
+    expect(collapsed).toContain('</system-reminder>');
 
     component.setExpanded(true);
     const expanded = strip(component.render(100).join('\n'));
-    expect(expanded).not.toContain('system-reminder');
-    expect(expanded).not.toContain('task tools');
+    expect(expanded).toContain('<system-reminder>');
+    expect(expanded).toContain('raw command output');
+    expect(expanded).toContain('</system-reminder>');
   });
 
-  it('hides <system-prefixed output even when the tool result is an error', () => {
+  it('preserves <system-prefixed Bash output even when the result is an error', () => {
     const component = new ToolCallComponent(
       {
-        id: 'call_hidden_err',
+        id: 'call_raw_err',
         name: 'Bash',
         args: { command: 'false' },
       },
       {
-        tool_call_id: 'call_hidden_err',
-        output: '<system-reminder>do not show</system-reminder>',
+        tool_call_id: 'call_raw_err',
+        output: '<system-reminder>raw error output</system-reminder>',
         is_error: true,
       },
     );
 
     const out = strip(component.render(100).join('\n'));
-    expect(out).not.toContain('system-reminder');
-    expect(out).not.toContain('do not show');
+    expect(out).toContain('<system-reminder>raw error output</system-reminder>');
+    expect(out).toContain('✗');
+    component.setExpanded(true);
+    expect(strip(component.render(100).join('\n'))).toContain(
+      '<system-reminder>raw error output</system-reminder>',
+    );
   });
 
-  it('still renders tool output when the body merely contains <system later on', () => {
+  it('preserves Bash output that contains <system later on', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_inline',
@@ -507,460 +473,18 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('first line');
+    expect(out).toContain('<system-reminder>nope</system-reminder>');
   });
 
-  it('renders ExitPlanMode plan from result output when args.plan is absent', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit',
-        name: 'ExitPlanMode',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_exit',
-        output:
-          'Exited plan mode. Plan mode deactivated. All tools are now available.\n' +
-          'Plan saved to: /tmp/plan.md\n\n' +
-          '## Approved Plan:\n# File Plan\n\n1. Do the focused fix.',
-        is_error: false,
-      },
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Current plan');
-    expect(out).toContain('File Plan');
-    expect(out).toContain('1. Do the focused fix.');
-    expect(out).not.toContain('Plan saved to: /tmp/plan.md');
-  });
-
-  it('setPlanInfo keeps plan for settle without mounting PlanBox while in-flight', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_async',
-        name: 'ExitPlanMode',
-        args: {},
-      },
-      undefined,
-      undefined,
-    );
-
-    // A fresh tool card only shows the 'Current plan' title; no plan box renders yet.
-    const before = strip(component.render(100).join('\n'));
-    expect(before).toContain('Current plan');
-    expect(before).not.toContain('Refactor session');
-
-    component.setPlanInfo({ plan: '# Refactor session\n\n- step', path: '/tmp/refactor.md' });
-
-    // In-flight: plan_review mirrors the book into the transcript; tool card stays lean.
-    const inflight = strip(component.render(100).join('\n'));
-    expect(inflight).toContain('Current plan');
-    expect(inflight).not.toContain('Refactor session');
-
-    component.setResult({
-      tool_call_id: 'call_exit_async',
-      output: 'Plan rejected by user. Plan mode remains active.',
-      is_error: true,
-    });
-    const after = strip(component.render(100).join('\n'));
-    expect(after).toContain('Refactor session');
-    expect(after).toContain('plan:');
-    expect(after).toContain('refactor.md');
-    // Directory portion of the path must not leak into the visible header.
-    expect(after).not.toContain('/tmp/refactor.md');
-  });
-
-  it('renders the full plan preview after ExitPlanMode settles', () => {
-    const longPlan = `# Refactor session\n\n${Array.from({ length: 40 }, (_, i) => `- step ${String(i + 1)}`).join('\n')}`;
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_long',
-        name: 'ExitPlanMode',
-        args: { plan: longPlan },
-      },
-      {
-        tool_call_id: 'call_exit_long',
-        output:
-          'Exited plan mode. Plan mode deactivated. All tools are now available.\n' +
-          `## Approved Plan:\n${longPlan}`,
-        is_error: false,
-      },
-      stubTui(24),
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('step 1');
-    expect(out).toContain('step 40');
-    expect(out).not.toContain('more lines');
-  });
-
-  it('plan preview controls are no-ops for non-ExitPlanMode tool calls', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_bash_plan',
-        name: 'Bash',
-        args: { command: 'echo hi' },
-      },
-      undefined,
-      undefined,
-    );
-
-    component.setPlanInfo({ plan: 'should be ignored', path: '/etc/hosts' });
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).not.toContain('should be ignored');
-    expect(out).not.toContain('plan:');
-  });
-
-  it('ctrl+o does not affect the full plan preview', () => {
-    const longPlan = `# P\n\n${Array.from({ length: 40 }, (_, i) => `- step ${String(i + 1)}`).join('\n')}`;
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_isolation',
-        name: 'ExitPlanMode',
-        args: { plan: longPlan },
-      },
-      {
-        tool_call_id: 'call_exit_isolation',
-        output: `## Approved Plan:\n${longPlan}`,
-        is_error: false,
-      },
-      stubTui(24),
-    );
-    component.setExpanded(true);
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('step 40');
-    expect(out).not.toContain('more lines');
-  });
-
-  it('header chips an Approved status when ExitPlanMode result indicates approval', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_approved',
-        name: 'ExitPlanMode',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_exit_approved',
-        output:
-          'Exited plan mode. Plan mode deactivated. All tools are now available.\n' +
-          'Plan saved to: /tmp/plan.md\n\n' +
-          '## Approved Plan:\n# Plan body',
-        is_error: false,
-      },
-    );
-
-    const header = strip(component.render(100).join('\n')).split('\n')[0] ?? '';
-    expect(header).toMatch(/Current plan · Approved/);
-  });
-
-  it('header chips approved option label when the user picked one', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_chosen',
-        name: 'ExitPlanMode',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_exit_chosen',
-        output:
-          'Exited plan mode. Selected approach: Pragmatic refactor\n' +
-          'Execute ONLY the selected approach. Do not execute any unselected alternatives.\n\n' +
-          'Plan mode deactivated. All tools are now available.\n' +
-          'Plan saved to: /tmp/plan.md\n\n' +
-          '## Approved Plan:\n# body',
-        is_error: false,
-      },
-    );
-
-    const header = strip(component.render(100).join('\n')).split('\n')[0] ?? '';
-    expect(header).toContain('Current plan · Approved: Pragmatic refactor');
-  });
-
-  it('renders Rejected in the plan box title and keeps revise feedback visible', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_reject_fb',
-        name: 'ExitPlanMode',
-        args: { plan: '# Rework Plan\n\n- step 1' },
-      },
-      {
-        tool_call_id: 'call_exit_reject_fb',
-        output: 'User rejected the plan. Feedback:\n\nplease rethink step 2',
-        is_error: false,
-      },
-      undefined,
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('plan · Rejected');
-    expect(out).toContain('↪ Suggestion');
-    expect(out).toContain('please rethink step 2');
-  });
-
-  it('renders is_error ExitPlanMode reject in the plan box title without raw error text', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_reject',
-        name: 'ExitPlanMode',
-        args: { plan: '# Rejected Plan\n\n- keep investigating' },
-      },
-      {
-        tool_call_id: 'call_exit_reject',
-        output: 'Plan rejected by user. Plan mode remains active.',
-        is_error: true,
-      },
-      undefined,
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('plan · Rejected');
-    expect(out).toContain('Rejected Plan');
-    expect(out).not.toContain('Plan rejected by user.');
-    expect(out).not.toContain('Plan mode remains active.');
-  });
-
-  it('suppresses EnterPlanMode success body so prompt scaffolding does not leak into the transcript', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_enter',
-        name: 'EnterPlanMode',
-        args: { reason: 'plan a refactor' },
-      },
-      {
-        tool_call_id: 'call_enter',
-        output:
-          'Plan mode is now active. Your workflow:\n\n' +
-          'Plan file: /tmp/plan.md\n\n' +
-          '1. Use read-only tools (Read, Grep, Glob) to investigate the codebase.\n' +
-          '2. Design a concrete, step-by-step plan.\n' +
-          '3. Write the plan to the plan file with Write or Edit.\n' +
-          '4. When the plan is ready, call ExitPlanMode for user approval.\n\n' +
-          'Do NOT edit files other than the plan file while plan mode is active.',
-        is_error: false,
-      },
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Used EnterPlanMode');
-    expect(out).not.toContain('Plan mode is now active');
-    expect(out).not.toContain('Plan file:');
-    expect(out).not.toContain('read-only tools');
-  });
-
-  it('still surfaces EnterPlanMode error output', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_enter_err',
-        name: 'EnterPlanMode',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_enter_err',
-        output: 'Plan mode is already active. Use ExitPlanMode when the plan is ready.',
-        is_error: true,
-      },
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Plan mode is already active');
-  });
-
-  it('renders AskUserQuestion with a friendly header instead of the raw tool name', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_question',
-        name: 'AskUserQuestion',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_question',
-        output: JSON.stringify({
-          answers: {
-            'Favorite editor?': 'Vim',
-          },
-        }),
-        is_error: false,
-      },
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Collected your answers');
-    expect(out).toContain('Favorite editor?');
-    expect(out).toContain('Vim');
-    expect(out).not.toContain('AskUserQuestion');
-  });
-
-  it('renders background AskUserQuestion as a started task', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_background_question',
-        name: 'AskUserQuestion',
-        args: { background: true },
-      },
-      {
-        tool_call_id: 'call_background_question',
-        output: [
-          'task_id: question-aaaaaaaa',
-          'description: Which database?',
-          'status: running',
-        ].join('\n'),
-        is_error: false,
-      },
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Started background question');
-    expect(out).toContain('question-aaaaaaaa');
-    expect(out).not.toContain('Collected your answers');
-  });
-
-  it('renders GetGoal as a goal check without raw JSON', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_get_goal',
-        name: 'GetGoal',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_get_goal',
-        output: JSON.stringify({
-          goal: {
-            goalId: 'g1',
-            objective: 'Ship feature X',
-            status: 'active',
-            createdAt: '2026-01-01T00:00:00.000Z',
-            updatedAt: '2026-01-01T00:00:00.000Z',
-            startedBy: 'model',
-            updatedBy: 'model',
-            turnsUsed: 1,
-            tokensUsed: 800,
-            wallClockMs: 5000,
-            budget: {
-              tokenBudget: null,
-              turnBudget: null,
-              wallClockBudgetMs: null,
-              remainingTokens: null,
-              remainingTurns: null,
-              remainingWallClockMs: null,
-              tokenBudgetReached: false,
-              turnBudgetReached: false,
-              wallClockBudgetReached: false,
-              overBudget: false,
-            },
-          },
-        }),
-        is_error: false,
-      },
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Checked goal');
-    expect(out).toContain('Goal active: Ship feature X');
-    expect(out).not.toContain('Used GetGoal');
-    expect(out).not.toContain('"objective"');
-  });
-
-  it('renders SetGoalBudget with a readable budget argument', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_goal_budget',
-        name: 'SetGoalBudget',
-        args: { value: 10, unit: 'turns' },
-      },
-      {
-        tool_call_id: 'call_goal_budget',
-        output: 'Goal budget set: 10 turns.',
-        is_error: false,
-      },
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Set goal budget (10 turns)');
-    expect(out).not.toContain('Set goal budget (10 turns) · 10 turns');
-    expect(out).not.toContain('Used SetGoalBudget (turns)');
-    expect(out).not.toContain('Goal budget set: 10 turns.');
-  });
-
-  it('renders successful SetGoalBudget headers with the primary goal marker', () => {
-    const previousLevel = chalk.level;
-    chalk.level = 3;
-    try {
-      const component = new ToolCallComponent(
-        {
-          id: 'call_goal_budget',
-          name: 'SetGoalBudget',
-          args: { value: 10, unit: 'turns' },
-        },
-        {
-          tool_call_id: 'call_goal_budget',
-          output: 'Goal budget set: 10 turns.',
-          is_error: false,
-        },
-      );
-
-      const out = component.render(100).join('\n');
-      expect(out).toContain(chalk.hex(darkColors.primary)(STATUS_BULLET));
-      expect(out).not.toContain(chalk.hex(darkColors.success)(STATUS_BULLET));
-    } finally {
-      chalk.level = previousLevel;
-    }
-  });
-
-  it('renders UpdateGoal as a model-reported status, not a user lifecycle marker', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_update_goal',
-        name: 'UpdateGoal',
-        args: { status: 'blocked' },
-      },
-      {
-        tool_call_id: 'call_update_goal',
-        output: 'Goal marked blocked.',
-        is_error: false,
-      },
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Reported goal blocked');
-    expect(out).not.toContain('Updated goal (blocked)');
-    expect(out).not.toContain('· blocked');
-    expect(out).not.toContain('Goal marked blocked.');
-    expect(out).not.toContain('● Goal blocked');
-  });
-
-  it('renders successful UpdateGoal report headers entirely in the primary goal color', () => {
-    const previousLevel = chalk.level;
-    chalk.level = 3;
-    try {
-      for (const status of ['complete', 'blocked']) {
-        const component = new ToolCallComponent(
-          {
-            id: `call_update_goal_${status}`,
-            name: 'UpdateGoal',
-            args: { status },
-          },
-          {
-            tool_call_id: `call_update_goal_${status}`,
-            output: `Goal marked ${status}.`,
-            is_error: false,
-          },
-        );
-
-        const out = component.render(100).join('\n');
-        expect(out).toContain(chalk.hex(darkColors.primary)(STATUS_BULLET));
-        expect(out).not.toContain(chalk.hex(darkColors.success)(STATUS_BULLET));
-      }
-    } finally {
-      chalk.level = previousLevel;
-    }
-  });
-
-  it('appends a chip to the header once a result arrives', () => {
+  it('appends an elapsed chip to the header once a result arrives', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(3_000);
     const component = new ToolCallComponent(
       {
         id: 'call_read',
-        name: 'Read',
-        args: { path: 'foo.ts' },
+        name: 'Bash',
+        args: { command: 'cat foo.ts' },
+        streamingStartedAtMs: 0,
       },
       {
         tool_call_id: 'call_read',
@@ -970,16 +494,16 @@ describe('ToolCallComponent', () => {
     );
 
     const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Used Read');
-    expect(out).toContain('· 3 lines');
+    expect(out).toContain('Used Bash');
+    expect(out).toContain('· 3s');
   });
 
   it('keeps failed completed tools in the completed header grammar', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_read_error',
-        name: 'Read',
-        args: { path: 'foo.ts' },
+        name: 'Bash',
+        args: { command: 'cat foo.ts' },
       },
       {
         tool_call_id: 'call_read_error',
@@ -989,81 +513,23 @@ describe('ToolCallComponent', () => {
     );
 
     const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Used Read');
-    expect(out).not.toContain('Using Read');
+    expect(out).toContain('Used Bash');
+    expect(out).not.toContain('Using Bash');
   });
 
-  it('truncates a long file path from the head so the filename stays visible', () => {
-    const longPath =
-      'apps/liora/src/tui/components/messages/tool-renderers/long-path/example/final-file.ts';
-    const component = new ToolCallComponent(
-      {
-        id: 'call_long_path',
-        name: 'Read',
-        args: { path: longPath },
-      },
-      undefined,
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('final-file.ts');
-    expect(out).toContain('…');
-    expect(out).not.toContain('apps/liora/src/tui/components/messages/tool-renderers/long-pa…');
-  });
-
-  it('shows Read paths relative to the active workspace', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_workspace_read',
-        name: 'Read',
-        args: { path: '/tmp/proj-a/apps/liora/src/main.ts' },
-      },
-      {
-        tool_call_id: 'call_workspace_read',
-        output: '1\tcontent',
-        is_error: false,
-      },
-      undefined,
-      '/tmp/proj-a',
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    const expectedReadPath =
-      process.platform === 'win32' ? 'apps\\liora\\src\\main.ts' : 'apps/liora/src/main.ts';
-    expect(out).toContain(`Used Read (${expectedReadPath})`);
-    expect(out).not.toContain('/tmp/proj-a/apps');
-    expect(component.getReadSnapshot().filePath).toBe(expectedReadPath);
-  });
-
-  it('keeps Read paths outside the active workspace absolute', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_external_read',
-        name: 'Read',
-        args: { path: '/tmp/proj-ab/src/main.ts' },
-      },
-      undefined,
-      undefined,
-      '/tmp/proj-a',
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Using Read (/tmp/proj-ab/src/main.ts)');
-    expect(component.getReadSnapshot().filePath).toBe('/tmp/proj-ab/src/main.ts');
-  });
 
   it('does not append a chip while a tool is still running', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_pending',
-        name: 'Read',
-        args: { path: 'foo.ts' },
+        name: 'Bash',
+        args: { command: 'cat foo.ts' },
       },
       undefined,
     );
 
     const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Using Read');
+    expect(out).toContain('Using Bash');
     expect(out).not.toContain('lines');
   });
 
@@ -1073,8 +539,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_agent',
-        name: 'Agent',
-        args: { description: 'explore project xxx' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'explore project xxx', prompt: 'explore project xxx' },
       },
       undefined,
     );
@@ -1095,13 +561,13 @@ describe('ToolCallComponent', () => {
     component.appendSubagentText('answer1\nanswer2\nanswer3', 'text');
     component.appendSubToolCall({
       id: 'sub_explore_123456:read',
-      name: 'Read',
-      args: { path: 'apps/liora/src/tui/utils/background-agent-status.ts' },
+      name: 'Bash',
+      args: { command: 'cat src/background-agent-status.ts' },
     });
 
     out = strip(component.render(120).join('\n'));
     expect(out).toContain('Explore Agent Running (explore project xxx) · 1 tool · 10s');
-    expect(out).toContain('Using Read (apps/liora/src/tui/utils/background-agent-status.ts)');
+    expect(out).toContain('Using Bash (cat src/background-agent-status.ts)');
     // Live subagent thinking uses THINKING_PREVIEW_LINES (4) tail glance.
     expect(out).toContain('think1');
     expect(out).toContain('think2');
@@ -1136,8 +602,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_agent_detach',
-        name: 'Agent',
-        args: { description: 'long task' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'long task', prompt: 'long task' },
       },
       undefined,
       stubTui(30),
@@ -1164,7 +630,7 @@ describe('ToolCallComponent', () => {
     // The spawn-success ToolResult landing must NOT flip the card to Completed.
     component.setResult({
       tool_call_id: 'call_agent_detach',
-      output: 'agent_id: sub_detach_1\nactual_subagent_type: explore\n',
+      output: JSON.stringify({ agentId: 'sub_detach_1', taskId: 'task_detach_1', status: 'running' }),
       is_error: false,
     });
     out = strip(component.render(120).join('\n'));
@@ -1180,8 +646,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_agent_tools',
-        name: 'Agent',
-        args: { description: 'inspect tools' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'inspect tools', prompt: 'inspect tools' },
       },
       undefined,
     );
@@ -1193,24 +659,24 @@ describe('ToolCallComponent', () => {
 
     for (let i = 1; i <= 4; i++) {
       const id = `sub_tools:read-${String(i)}`;
-      component.appendSubToolCall({ id, name: 'Read', args: { path: `file${String(i)}.ts` } });
+      component.appendSubToolCall({ id, name: 'Bash', args: { command: 'cat ' + `file${String(i)}.ts` } });
       component.finishSubToolCall({ tool_call_id: id, output: 'ok', is_error: false });
     }
     component.appendSubToolCall({
       id: 'sub_tools:grep',
-      name: 'Grep',
-      args: { pattern: 'auth' },
+      name: 'Bash',
+      args: { command: 'rg auth' },
     });
 
     const out = strip(component.render(120).join('\n'));
     expect(out).toContain('Explore Agent Running (inspect tools) · 5 tools · 0s');
     expect(out).not.toContain('file1.ts');
-    expect(out).toContain('Used Read (file2.ts)');
-    expect(out).toContain('Used Read (file3.ts)');
-    expect(out).toContain('Used Read (file4.ts)');
-    expect(out).not.toContain('… Using Grep (auth)');
-    expect(out).toContain('• Using Grep (auth)');
-    expect(out).toContain('Using Grep (auth)');
+    expect(out).toContain('Used Bash (cat file2.ts)');
+    expect(out).toContain('Used Bash (cat file3.ts)');
+    expect(out).toContain('Used Bash (cat file4.ts)');
+    expect(out).not.toContain('… Using Bash (rg auth)');
+    expect(out).toContain('• Using Bash (rg auth)');
+    expect(out).toContain('Using Bash (rg auth)');
   });
 
   it('keeps the single subagent tool window stable when older tools update', () => {
@@ -1219,8 +685,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_agent_stable_tools',
-        name: 'Agent',
-        args: { description: 'inspect tools' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'inspect tools', prompt: 'inspect tools' },
       },
       undefined,
     );
@@ -1233,14 +699,14 @@ describe('ToolCallComponent', () => {
     for (let i = 1; i <= 5; i++) {
       component.appendSubToolCall({
         id: `sub_tools:read-${String(i)}`,
-        name: 'Read',
-        args: { path: `file${String(i)}.ts` },
+        name: 'Bash',
+        args: { command: 'cat ' + `file${String(i)}.ts` },
       });
     }
     component.appendSubToolCallDelta({
       id: 'sub_tools:read-1',
-      name: 'Read',
-      argumentsPart: '{"path":"file1-updated.ts"}',
+      name: 'Bash',
+      argumentsPart: '{"command":"cat file1-updated.ts"}',
     });
     component.finishSubToolCall({
       tool_call_id: 'sub_tools:read-1',
@@ -1250,10 +716,10 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(120).join('\n'));
     expect(out).not.toContain('file1-updated.ts');
-    expect(out).toContain('Using Read (file2.ts)');
-    expect(out).toContain('Using Read (file3.ts)');
-    expect(out).toContain('Using Read (file4.ts)');
-    expect(out).toContain('Using Read (file5.ts)');
+    expect(out).toContain('Using Bash (cat file2.ts)');
+    expect(out).toContain('Using Bash (cat file3.ts)');
+    expect(out).toContain('Using Bash (cat file4.ts)');
+    expect(out).toContain('Using Bash (cat file5.ts)');
   });
 
   it('wraps single subagent thinking and output with hanging indentation', () => {
@@ -1262,8 +728,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_agent_wrapped_text',
-        name: 'Agent',
-        args: { description: 'inspect wrapping' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'inspect wrapping', prompt: 'inspect wrapping' },
       },
       undefined,
     );
@@ -1299,8 +765,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_agent_scroll',
-        name: 'Agent',
-        args: { description: 'long think' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'long think', prompt: 'long think' },
       },
       undefined,
     );
@@ -1328,8 +794,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_agent_bash_out',
-        name: 'Agent',
-        args: { description: 'run bash' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'run bash', prompt: 'run bash' },
       },
       undefined,
     );
@@ -1368,8 +834,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_agent_mixed',
-        name: 'Agent',
-        args: { description: 'mixed tools' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'mixed tools', prompt: 'mixed tools' },
       },
       undefined,
     );
@@ -1380,17 +846,17 @@ describe('ToolCallComponent', () => {
     });
     component.appendSubToolCall({
       id: 'sub_mixed:read',
-      name: 'Read',
-      args: { path: 'foo.ts' },
+      name: 'SessionControl',
+      args: { operation: 'list' },
     });
     component.finishSubToolCall({
       tool_call_id: 'sub_mixed:read',
-      output: 'recognized-read-body\nhidden-read-line',
+      output: 'recognized-session-body\nhidden-session-line',
       is_error: false,
     });
     component.appendSubToolCall({
       id: 'sub_mixed:mcp',
-      name: 'mcp__server__do',
+      name: 'HistoricalTool',
       args: {},
     });
     const mcpOut = Array.from({ length: 8 }, (_, i) => `mcp-line-${String(i)}`).join('\n');
@@ -1398,9 +864,9 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(120).join('\n'));
     // Recognized tool: activity row only, no output body.
-    expect(out).toContain('Used Read (foo.ts)');
-    expect(out).not.toContain('recognized-read-body');
-    // Unknown/MCP tool: truncated output body, no ctrl+o promise.
+    expect(out).toContain('Used SessionControl (list)');
+    expect(out).not.toContain('recognized-session-body');
+    // Unknown historical tools retain a truncated body, no ctrl+o promise.
     expect(out).toContain('mcp-line-0');
     expect(out).toContain('mcp-line-4');
     expect(out).not.toContain('mcp-line-5');
@@ -1414,8 +880,8 @@ describe('ToolCallComponent', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_agent_failed',
-        name: 'Agent',
-        args: { description: 'check failure' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'check failure', prompt: 'check failure' },
       },
       undefined,
     );
@@ -1436,21 +902,11 @@ describe('ToolCallComponent', () => {
   });
 
   describe('background agent terminal state vs spawn-success ToolResult', () => {
-    // The Agent tool returns a "task spawned" result the moment a
-    // run_in_background=true call lands. That result is not an error and its
-    // body says `status: running`, so for backgrounded agents `this.result`
-    // alone cannot distinguish a successful completion from a failure / lost
-    // task. The fix is `setBackgroundTaskTerminalStatus`, which overrides the
-    // result-based derivation with the actual BackgroundTaskInfo status.
+    // SessionControl acknowledges spawning before the child finishes.
+    // Actual child/background terminal events, not the ACK, determine completion.
     const spawnSuccessResult = {
       tool_call_id: 'call_bg_agent',
-      output: [
-        'task_id: agent-deadbeef',
-        'status: running',
-        'agent_id: agent-0',
-        'actual_subagent_type: coder',
-        'automatic_notification: true',
-      ].join('\n'),
+      output: JSON.stringify({ agentId: 'agent-0', taskId: 'agent-deadbeef', status: 'running' }),
       is_error: false,
     };
 
@@ -1458,11 +914,8 @@ describe('ToolCallComponent', () => {
       const component = new ToolCallComponent(
         {
           id: 'call_bg_agent',
-          name: 'Agent',
-          args: {
-            description: 'background agent 1',
-            run_in_background: true,
-          },
+          name: 'SessionControl',
+          args: { operation: 'spawn', description: 'background agent 1', prompt: 'background agent 1' },
         },
         spawnSuccessResult,
       );
@@ -1474,12 +927,9 @@ describe('ToolCallComponent', () => {
       return component;
     }
 
-    it('reads as "done" by default after spawn — the existing behavior the fix replaces', () => {
-      // This pins the legacy behavior. Without overrides the snapshot
-      // trusts the spawn-success result and reports phase='done'. The
-      // 'lost' / 'killed' / 'failed' overrides below must beat this.
+    it('keeps a spawned child active rather than treating its ACK as completion', () => {
       const component = makeBackgroundAgentComponent();
-      expect(component.getSubagentSnapshot().phase).toBe('done');
+      expect(component.getSubagentSnapshot().phase).toBe('backgrounded');
     });
 
     it('setBackgroundTaskTerminalStatus("lost") flips the snapshot phase to "failed"', () => {
@@ -1490,7 +940,7 @@ describe('ToolCallComponent', () => {
       // The agent-group renderer uses snap.errorText for the "Error:" line.
       // The spawn-success ToolResult must NOT leak as the failure message.
       expect(snap.errorText).toContain('lost');
-      expect(snap.errorText).not.toContain('task_id:');
+      expect(snap.errorText).not.toContain('taskId');
     });
 
     it('setBackgroundTaskTerminalStatus("killed") flips the snapshot phase to "failed"', () => {
@@ -1499,7 +949,7 @@ describe('ToolCallComponent', () => {
       const snap = component.getSubagentSnapshot();
       expect(snap.phase).toBe('failed');
       expect(snap.errorText).toContain('killed');
-      expect(snap.errorText).not.toContain('task_id:');
+      expect(snap.errorText).not.toContain('taskId');
     });
 
     it('setBackgroundTaskTerminalStatus("failed") flips the snapshot phase to "failed"', () => {
@@ -1508,7 +958,7 @@ describe('ToolCallComponent', () => {
       const snap = component.getSubagentSnapshot();
       expect(snap.phase).toBe('failed');
       expect(snap.errorText).toContain('failed');
-      expect(snap.errorText).not.toContain('task_id:');
+      expect(snap.errorText).not.toContain('taskId');
     });
 
     it('setBackgroundTaskTerminalStatus("completed") keeps the snapshot phase at "done"', () => {
@@ -1525,8 +975,8 @@ describe('ToolCallComponent', () => {
       const component = new ToolCallComponent(
         {
           id: 'call_bg_agent',
-          name: 'Agent',
-          args: { description: 'background agent A', run_in_background: true },
+          name: 'SessionControl',
+          args: { operation: 'spawn', description: 'background agent A', prompt: 'background agent A' },
         },
         undefined,
       );
@@ -1536,12 +986,7 @@ describe('ToolCallComponent', () => {
       expect(component.getSubagentSnapshot().phase).toBe('failed');
     });
 
-    // Standalone render path — when only ONE Agent tool call lands in a
-    // step, the card is never upgraded into an `AgentGroupComponent` and is
-    // mounted on its own. The standalone header derives its label from
-    // `getDerivedSubagentPhase()` (separate from `getSubagentSnapshot`).
-    // Without the override threading into that path AND a header rebuild,
-    // a lost bg agent keeps the green "✓ Completed" label.
+    // The standalone card must agree with the grouped/background terminal state.
     it('standalone render: lost bg agent must show Failed/Lost, not Completed', () => {
       const component = makeBackgroundAgentComponent();
       component.setBackgroundTaskTerminalStatus('lost');
@@ -1550,7 +995,7 @@ describe('ToolCallComponent', () => {
       expect(out).toMatch(/Failed|Lost/);
       // Friendly failure message must reach the rendered card.
       expect(out).toContain('lost');
-      expect(out).not.toContain('task_id:');
+      expect(out).not.toContain('taskId');
     });
 
     it('standalone render: completed bg agent still shows Completed', () => {
@@ -1559,30 +1004,42 @@ describe('ToolCallComponent', () => {
       const out = strip(component.render(120).join('\n'));
       expect(out).toContain('Completed');
       expect(out).not.toMatch(/Failed/);
-      expect(out).not.toContain('task_id:');
+      expect(out).not.toContain('taskId');
     });
 
-    // Stable id routing — `tc.subagentAgentId` is left undefined for
-    // backgrounded agents both live (`handleSubagentSpawned` early-returns
-    // for `runInBackground`, never calling tc.onSubagentSpawned) and on
-    // resume (the wire format does not carry a `subagent` block back into
-    // `applySubagentReplay`). The AgentTool's spawn-success ToolResult,
-    // however, always carries `agent_id: agent-N` — fall back to parsing
-    // that so callers asking `getSubagentAgentId` always get the right id,
-    // and `applyBackgroundTaskTerminalStatus` can route by id instead of
-    // by description (which collides between unrelated cards).
-    it('getSubagentAgentId parses agent_id from the spawn-success ToolResult', () => {
+    it('getSubagentAgentId parses agentId from the spawn acknowledgement', () => {
       const component = new ToolCallComponent(
         {
           id: 'call_bg_agent',
-          name: 'Agent',
-          args: { description: 'background agent 1', run_in_background: true },
+          name: 'SessionControl',
+          args: { operation: 'spawn', description: 'background agent 1', prompt: 'background agent 1' },
         },
         spawnSuccessResult,
       );
       // No spawn metadata was wired in — exactly the resume / backgrounded
       // case we are guarding against.
       expect(component.getSubagentAgentId()).toBe('agent-0');
+    });
+
+    it('routes child terminal updates only to spawn cards, not control acknowledgements', () => {
+      const operations = ['spawn', 'message', 'wait', 'stop'] as const;
+      const cards = operations.map((operation) => new ToolCallComponent(
+        {
+          id: `call_${operation}`,
+          name: 'SessionControl',
+          args: { operation, id: 'agent-0', prompt: 'inspect', description: 'inspect', message: 'continue' },
+        },
+        { ...spawnSuccessResult, tool_call_id: `call_${operation}` },
+      ));
+      const owners = cards.filter((card) => card.getSubagentAgentId() === 'agent-0');
+      expect(owners).toEqual([cards[0]]);
+      for (const owner of owners) owner.setBackgroundTaskTerminalStatus('lost');
+      expect(cards[0]!.getSubagentSnapshot().phase).toBe('failed');
+      for (const card of cards.slice(1)) {
+        expect(card.getSubagentAgentId()).toBeUndefined();
+        expect(strip(card.render(100).join('\n'))).not.toContain('Agent Failed');
+      }
+      for (const card of cards) card.dispose();
     });
 
     it('getSubagentAgentId still prefers in-memory subagent metadata when set', () => {
@@ -1592,8 +1049,8 @@ describe('ToolCallComponent', () => {
       const component = new ToolCallComponent(
         {
           id: 'call_bg_agent',
-          name: 'Agent',
-          args: { description: 'X', run_in_background: true },
+          name: 'SessionControl',
+          args: { operation: 'spawn', description: 'X', prompt: 'X' },
         },
         spawnSuccessResult,
       );
@@ -1601,16 +1058,16 @@ describe('ToolCallComponent', () => {
       expect(component.getSubagentAgentId()).toBe('agent-explicit');
     });
 
-    it('getSubagentAgentId returns undefined for non-Agent tool calls even when output looks similar', () => {
+    it('getSubagentAgentId returns undefined for Bash even when output looks similar', () => {
       const component = new ToolCallComponent(
         {
           id: 'call_bash',
           name: 'Bash',
-          args: { command: 'echo agent_id: agent-fake' },
+          args: { command: 'echo child acknowledgement' },
         },
         {
           tool_call_id: 'call_bash',
-          output: 'agent_id: agent-fake\nstatus: running',
+          output: JSON.stringify({ agentId: 'agent-fake', status: 'running' }),
           is_error: false,
         },
       );
@@ -1651,34 +1108,55 @@ describe('ToolCallComponent', () => {
     });
   });
 
-  it('scrolls the Write streaming preview to the last COMMAND_PREVIEW_LINES', () => {
-    const lines: string[] = [];
-    for (let i = 1; i <= 30; i++) lines.push(`line${String(i)}`);
-    const escaped = lines.join('\\n');
+  it('keeps child elapsed time and live output advancing after the spawn acknowledgement', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    advanceAppearanceAnimationClock(0);
     const component = new ToolCallComponent(
       {
-        id: 'call_write_stream',
-        name: 'Write',
-        args: { file_path: 'foo.ts', content: lines.join('\n') },
-        streamingArguments: `{"file_path":"foo.ts","content":"${escaped}`,
+        id: 'call_session_ack',
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'inspect output', prompt: 'inspect output' },
       },
       undefined,
     );
+    const child = { agentId: 'agent-ack', agentName: 'worker', runInBackground: false };
+    component.onSubagentSpawned(child);
+    component.onSubagentStarted(child);
+    component.setResult({
+      tool_call_id: 'call_session_ack',
+      output: JSON.stringify({ agentId: child.agentId, taskId: 'task-ack', status: 'running' }),
+      is_error: false,
+    });
 
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Using Write');
-    // Streaming preview caps at COMMAND_PREVIEW_LINES (4) and shows the tail.
-    expect(out).not.toContain('line1');
-    expect(out).not.toContain('line26');
-    expect(out).toContain('line27');
-    expect(out).toContain('line28');
-    expect(out).toContain('line29');
-    expect(out).toContain('line30');
-    // Line numbers should reflect actual file positions.
-    expect(out).toContain('  29');
-    expect(out).toContain('  30');
-    expect(out).not.toContain('ctrl+o to expand');
+    vi.setSystemTime(2_000);
+    advanceAppearanceAnimationClock(2_000);
+    component.appendSubToolCall({
+      id: 'sub_ack:bash',
+      name: 'Bash',
+      args: { command: 'printf progress' },
+    });
+    component.appendSubToolLiveOutput('sub_ack:bash', 'progress output\n');
+    const running = strip(component.render(100).join('\n'));
+    expect(running).toContain('Worker Agent Running');
+    expect(running).toContain('2s');
+    expect(running).toContain('Using Bash (printf progress)');
+    expect(running).toContain('progress output');
+    expect(running).not.toContain('Completed');
+    expect(component.getSubagentSnapshot().phase).toBe('running');
+
+    vi.setSystemTime(3_000);
+    component.onSubagentCompleted({ resultSummary: 'inspection finished' });
+    vi.setSystemTime(9_000);
+    advanceAppearanceAnimationClock(9_000);
+    const completed = strip(component.render(100).join('\n'));
+    expect(completed).toContain('Worker Agent Completed');
+    expect(completed).toContain('3s');
+    expect(completed).not.toContain('9s');
+    expect(component.getSubagentSnapshot().phase).toBe('done');
+    component.dispose();
   });
+
 
   it('switches a streaming tool call to Truncated when the step ended with max_tokens', () => {
     const lines: string[] = [];
@@ -1686,236 +1164,56 @@ describe('ToolCallComponent', () => {
     const escaped = lines.join('\\n');
     const component = new ToolCallComponent(
       {
-        id: 'call_write_truncated',
-        name: 'Write',
-        args: { file_path: 'foo.ts', content: lines.join('\n') },
-        streamingArguments: `{"file_path":"foo.ts","content":"${escaped}`,
+        id: 'call_bash_truncated',
+        name: 'Bash',
+        args: {},
+        streamingArguments: `{"command":"${escaped}`,
         truncated: true,
       },
       undefined,
     );
 
     const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Truncated Write');
-    expect(out).not.toContain('Preparing Write');
+    expect(out).toContain('Truncated Bash');
+    expect(out).not.toContain('Using Bash');
     expect(out).toContain('Tool call arguments truncated by max_tokens');
-    // The live argument preview must NOT render once the call is
-    // truncated — leaving the half-streamed Write content on screen
-    // was the original "preparing write" bug.
+    // A truncated call must not keep displaying its half-streamed command.
     expect(out).not.toContain('line1');
     expect(out).not.toContain('line10');
   });
 
-  it('renders Edit streaming progress with a live incomplete diff', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(4000);
-    const oldLines: string[] = [];
-    const newLines: string[] = [];
-    for (let i = 1; i <= 20; i++) {
-      oldLines.push(`old${String(i)}`);
-      newLines.push(`new${String(i)}`);
-    }
-    const oldEscaped = oldLines.join('\\n');
-    const newEscaped = newLines.join('\\n');
-    const streaming = `{"file_path":"foo.ts","old_string":"${oldEscaped}","new_string":"${newEscaped}`;
-    const component = new ToolCallComponent(
-      {
-        id: 'call_edit_stream',
-        name: 'Edit',
-        args: {
-          file_path: 'foo.ts',
-          old_string: oldLines.join('\n'),
-          new_string: newLines.join('\n'),
-        },
-        streamingArguments: streaming,
-        streamingStartedAtMs: 0,
-      },
-      undefined,
-    );
 
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Using Edit');
-    expect(out).toContain('foo.ts');
-    expect(out).toContain('Preparing changes for foo.ts...');
-    expect(out).toContain('4s elapsed');
-    expect(out).toMatch(/\d+(?:\.\d+)? (?:B|KB|MB)/);
-    // Live incomplete diff is now part of the streaming body (syntax-colored).
-    // Cap keeps the preview short; full hunks appear after finalize/expand.
-    // Streamed diff lines carry the ▌ strip marker.
-    expect(out).toMatch(/▌\s*\d+\s+[+-]\s/m);
-    expect(out).toMatch(/old\d+|new\d+/);
-
-    vi.useRealTimers();
-  });
-
-
-  it('caps the Write preview between finalized args and result to keep transcript height stable', () => {
-    // The wire sequence is: tool.call.delta → ... → tool.call (final
-    // args, no streamingArguments) → tool.result. Between tool.call and
-    // tool.result we briefly sit with finalized args and no result yet —
-    // even without an approval panel, at least one render tick can land
-    // in this state. The preview must stay capped so the transcript
-    // height does not balloon and then snap back when the result lands;
-    // a big shrink triggers pi-tui's full-redraw path which wipes the
-    // terminal scrollback (history before TUI start).
-    const lines: string[] = [];
-    for (let i = 1; i <= 30; i++) lines.push(`line${String(i)}`);
-    const component = new ToolCallComponent(
-      {
-        id: 'call_write_pending',
-        name: 'Write',
-        args: { file_path: 'foo.ts', content: lines.join('\n') },
-        // No streamingArguments → finalized args; no result yet.
-      },
-      undefined,
-    );
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('line1');
-    expect(out).toContain('line4');
-    expect(out).not.toContain('line5');
-    expect(out).not.toContain('line25');
-    expect(out).toContain('ctrl+o to expand');
-  });
-
-  it('snaps a long Write preview to the collapsed cap when the result arrives', () => {
-    const lines: string[] = [];
-    for (let i = 1; i <= 30; i++) lines.push(`line${String(i)}`);
-    const escaped = lines.join('\\n');
-    const component = new ToolCallComponent(
-      {
-        id: 'call_write_snap',
-        name: 'Write',
-        args: { file_path: 'big.txt', content: lines.join('\n') },
-        streamingArguments: `{"file_path":"big.txt","content":"${escaped}"}`,
-      },
-      undefined,
-    );
-    expect(strip(component.render(100).join('\n'))).toContain('line27');
-
-    component.setResult({
-      tool_call_id: 'call_write_snap',
-      output: 'Wrote big.txt',
-      is_error: false,
-    });
-
-    const after = strip(component.render(100).join('\n'));
-    expect(after).toContain('line1');
-    expect(after).not.toContain('line25');
-    expect(after).toContain('ctrl+o to expand');
-  });
-
-  it('refreshes the header when file_path arrives in a later streaming delta', () => {
-    // First delta: only an opening brace, no file_path yet.
-    const component = new ToolCallComponent(
-      {
-        id: 'call_write_path',
-        name: 'Write',
-        args: {},
-        streamingArguments: '{',
-      },
-      undefined,
-    );
-    const before = strip(component.render(100).join('\n'));
-    expect(before).toContain('Using Write');
-    expect(before).not.toContain('foo.ts');
-
-    // Later delta: file_path is now parseable from streamingArguments.
-    component.updateToolCall({
-      id: 'call_write_path',
-      name: 'Write',
-      args: { file_path: 'foo.ts' },
-      streamingArguments: '{"file_path":"foo.ts","content":"hello',
-    });
-    const after = strip(component.render(100).join('\n'));
-    expect(after).toContain('foo.ts');
-  });
-
-  it('builds the call preview when finalized args arrive after streaming', () => {
-    // Mimic the wire sequence: tool.call.delta → ... → tool.call (finalized).
-    const component = new ToolCallComponent(
-      {
-        id: 'call_write_seq',
-        name: 'Write',
-        args: { file_path: 'foo.ts', content: 'a\nb' },
-        streamingArguments: '{"file_path":"foo.ts","content":"a\\nb',
-      },
-      undefined,
-    );
-    // While streaming, body is rendered live from streamingArguments.
-    expect(strip(component.render(100).join('\n'))).toMatch(/▌\s*1\s+a\s*$/m);
-
-    // Finalized tool.call: streamingArguments is undefined; the body
-    // re-renders from finalized args, content unchanged.
-    component.updateToolCall({
-      id: 'call_write_seq',
-      name: 'Write',
-      args: { file_path: 'foo.ts', content: 'a\nb' },
-    });
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toMatch(/▌\s*1\s+a\s*$/m);
-    expect(out).toMatch(/▌\s*2\s+b\s*$/m);
-  });
-
-  it('builds the Edit diff when finalized args arrive after streaming', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_edit_seq',
-        name: 'Edit',
-        args: { file_path: 'foo.ts' },
-        streamingArguments: '{"file_path":"foo.ts","old_string":"a\\nb","new_string":"a\\nB',
-        streamingStartedAtMs: Date.now(),
-      },
-      undefined,
-    );
-    const streamingOut = strip(component.render(100).join('\n'));
-    expect(streamingOut).toContain('Preparing changes');
-    // Live incomplete diff is shown while args stream so operators can read
-    // the change early (syntax-colored +/- rows).
-    expect(streamingOut).toMatch(/▌\s*2\s+- b\s*$/m);
-    expect(streamingOut).toMatch(/▌\s*2\s+\+ B\s*$/m);
-
-    component.updateToolCall({
-      id: 'call_edit_seq',
-      name: 'Edit',
-      args: { file_path: 'foo.ts', old_string: 'a\nb', new_string: 'a\nB' },
-    });
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('foo.ts');
-    expect(out).toMatch(/▌\s*2\s+- b\s*$/m);
-    expect(out).toMatch(/▌\s*2\s+\+ B\s*$/m);
-  });
-
-  it('refreshes and stops the Edit streaming progress timer', () => {
+  it('refreshes and stops the Bash streaming progress clock', () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     advanceAppearanceAnimationClock(0);
     const ui = { requestRender: vi.fn() };
     const component = new ToolCallComponent(
       {
-        id: 'call_edit_timer',
-        name: 'Edit',
-        args: { file_path: 'foo.ts' },
-        streamingArguments: '{"file_path":"foo.ts","old_string":"a',
+        id: 'call_bash_timer',
+        name: 'Bash',
+        args: { command: 'cat foo.ts' },
+        streamingArguments: '{"command":"cat foo.ts',
         streamingStartedAtMs: 0,
       },
       undefined,
       ui as never,
     );
 
-    expect(strip(component.render(100).join('\n'))).toContain('0s elapsed');
+    expect(strip(component.render(100).join('\n'))).toContain('Using Bash');
     // The streaming-progress counter ticks off the shared appearance animation
     // clock (advanced once per frame by the native render loop) and rebuilds
     // during `render()`, so advance both clocks then render to drive the tick.
     ui.requestRender.mockClear();
     vi.advanceTimersByTime(1000);
     advanceAppearanceAnimationClock(1000);
-    expect(strip(component.render(100).join('\n'))).toContain('1s elapsed');
+    expect(strip(component.render(100).join('\n'))).toContain('1s');
     expect(ui.requestRender).toHaveBeenCalled();
 
     ui.requestRender.mockClear();
     component.setResult({
-      tool_call_id: 'call_edit_timer',
-      output: 'Replaced 1 occurrence in foo.ts',
+      tool_call_id: 'call_bash_timer',
+      output: 'file content',
       is_error: false,
     });
     vi.advanceTimersByTime(1000);
@@ -1925,10 +1223,10 @@ describe('ToolCallComponent', () => {
 
     const componentToDispose = new ToolCallComponent(
       {
-        id: 'call_edit_dispose',
-        name: 'Edit',
-        args: { file_path: 'bar.ts' },
-        streamingArguments: '{"file_path":"bar.ts","old_string":"a',
+        id: 'call_bash_dispose',
+        name: 'Bash',
+        args: { command: 'cat bar.ts' },
+        streamingArguments: '{"command":"cat bar.ts',
         streamingStartedAtMs: 0,
       },
       undefined,
@@ -1940,64 +1238,6 @@ describe('ToolCallComponent', () => {
     expect(ui.requestRender).not.toHaveBeenCalled();
   });
 
-  it('expands the Write call preview when ctrl+o expansion is set', () => {
-    const lines: string[] = [];
-    for (let i = 1; i <= 30; i++) lines.push(`line${String(i)}`);
-    const component = new ToolCallComponent(
-      {
-        id: 'call_write_done',
-        name: 'Write',
-        args: { file_path: 'big.txt', content: lines.join('\n') },
-      },
-      {
-        tool_call_id: 'call_write_done',
-        output: 'Wrote big.txt',
-        is_error: false,
-      },
-    );
-
-    const collapsed = strip(component.render(100).join('\n'));
-    expect(collapsed).toContain('line1');
-    expect(collapsed).toContain('line4');
-    expect(collapsed).not.toContain('line5');
-    expect(collapsed).not.toContain('line25');
-    expect(collapsed).toContain('ctrl+o to expand');
-
-    component.setExpanded(true);
-
-    const expanded = strip(component.render(100).join('\n'));
-    expect(expanded).toContain('line25');
-    expect(expanded).toContain('line30');
-    expect(expanded).not.toContain('ctrl+o to expand');
-  });
-
-  it('renders unknown Write file extensions as plain text without stderr noise', () => {
-    const stderr = captureProcessWrite('stderr');
-    try {
-      const component = new ToolCallComponent(
-        {
-          id: 'call_write_unknown_ext',
-          name: 'Write',
-          args: { file_path: 'demo.abcxyz', content: 'hello\nworld' },
-        },
-        {
-          tool_call_id: 'call_write_unknown_ext',
-          output: 'Wrote demo.abcxyz',
-          is_error: false,
-        },
-      );
-
-      const collapsed = strip(component.render(100).join('\n'));
-      expect(collapsed).toContain('hello');
-
-      component.setExpanded(true);
-      const expanded = strip(component.render(100).join('\n'));
-      expect(expanded).toContain('world');
-      expect(stderr.text()).not.toContain('Could not find the language');
-    } finally {
-      stderr.restore();
-    }
-  });
 });
 
 describe('ToolCallComponent motion cues', () => {
@@ -2045,7 +1285,7 @@ describe('ToolCallComponent motion cues', () => {
   function headerLine(component: ToolCallComponent): string {
     const lines = component.render(100);
     const index = lines.findIndex(
-      (line) => strip(line).includes('Using Read') || strip(line).includes('Used Read'),
+      (line) => strip(line).includes('Using Bash') || strip(line).includes('Used Bash'),
     );
     return index >= 0 ? (lines[index] ?? '') : lines.join('\n');
   }
@@ -2054,12 +1294,12 @@ describe('ToolCallComponent motion cues', () => {
     const start = Date.now();
     advanceAppearanceAnimationClock(start);
     const component = new ToolCallComponent(
-      { id: 'call_entrance_premium', name: 'Read', args: { path: 'foo.ts' } },
+      { id: 'call_entrance_premium', name: 'Bash', args: { command: 'cat foo.ts' } },
       undefined,
     );
 
     const t0 = headerLine(component);
-    expect(strip(t0)).toContain('Using Read');
+    expect(strip(t0)).toContain('Using Bash');
     // The entrance blends dim arg runs toward a bold truecolor highlight —
     // a dim+bold+truecolor SGR only occurs while the settle is animating.
     expect(t0).toContain('\u001B[0;1;2;38;2');
@@ -2068,7 +1308,7 @@ describe('ToolCallComponent motion cues', () => {
     vi.setSystemTime(new Date(start + 700));
     advanceAppearanceAnimationClock(Date.now());
     const settled = headerLine(component);
-    expect(strip(settled)).toContain('Using Read');
+    expect(strip(settled)).toContain('Using Bash');
     expect(settled).not.toContain('\u001B[0;1;2;38;2');
   });
 
@@ -2076,7 +1316,7 @@ describe('ToolCallComponent motion cues', () => {
     const start = Date.now();
     advanceAppearanceAnimationClock(start);
     const component = new ToolCallComponent(
-      { id: 'call_settle_success', name: 'Read', args: { path: 'foo.ts' } },
+      { id: 'call_settle_success', name: 'Bash', args: { command: 'cat foo.ts' } },
       undefined,
     );
     // Move past the entrance window so only the result flash animates.
@@ -2091,13 +1331,13 @@ describe('ToolCallComponent motion cues', () => {
 
     const staticBullet = currentTheme.fg('success', STATUS_BULLET);
     const flashing = headerLine(component);
-    expect(strip(flashing)).toContain('Used Read');
+    expect(strip(flashing)).toContain('Used Bash');
     expect(flashing).not.toContain(staticBullet);
 
     vi.setSystemTime(new Date(settleAt + SETTLE_FLASH_MS + 60));
     advanceAppearanceAnimationClock(Date.now());
     const settled = headerLine(component);
-    expect(strip(settled)).toContain('Used Read');
+    expect(strip(settled)).toContain('Used Bash');
     expect(settled).toContain(staticBullet);
   });
 
@@ -2105,7 +1345,7 @@ describe('ToolCallComponent motion cues', () => {
     const start = Date.now();
     advanceAppearanceAnimationClock(start);
     const component = new ToolCallComponent(
-      { id: 'call_settle_error', name: 'Read', args: { path: 'foo.ts' } },
+      { id: 'call_settle_error', name: 'Bash', args: { command: 'cat foo.ts' } },
       undefined,
     );
     const settleAt = start + 700;
@@ -2119,7 +1359,7 @@ describe('ToolCallComponent motion cues', () => {
 
     const staticBullet = currentTheme.fg('error', '✗ ');
     const flashing = headerLine(component);
-    expect(strip(flashing)).toContain('Used Read');
+    expect(strip(flashing)).toContain('Used Bash');
     expect(flashing).not.toContain(staticBullet);
 
     vi.setSystemTime(new Date(settleAt + SETTLE_FLASH_MS + 60));
@@ -2137,7 +1377,7 @@ describe('ToolCallComponent motion cues', () => {
     const start = Date.now();
     advanceAppearanceAnimationClock(start);
     const component = new ToolCallComponent(
-      { id: 'call_motion_off', name: 'Read', args: { path: 'foo.ts' } },
+      { id: 'call_motion_off', name: 'Bash', args: { command: 'cat foo.ts' } },
       undefined,
     );
 
@@ -2151,7 +1391,7 @@ describe('ToolCallComponent motion cues', () => {
     vi.setSystemTime(new Date(start + 1600));
     advanceAppearanceAnimationClock(Date.now());
     expect(component.render(100)).toEqual(flashed);
-    expect(strip(flashed.join('\n'))).toContain(`${STATUS_BULLET}Used Read`);
+    expect(strip(flashed.join('\n'))).toContain(`${STATUS_BULLET}Used Bash`);
   });
 
   function agentLine(component: ToolCallComponent, needle: string): string {
@@ -2166,8 +1406,8 @@ describe('ToolCallComponent motion cues', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_spawn_entrance_single',
-        name: 'Agent',
-        args: { description: 'explore spawn motion' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'explore spawn motion', prompt: 'explore spawn motion' },
       },
       undefined,
     );
@@ -2199,68 +1439,9 @@ describe('ToolCallComponent motion cues', () => {
     expect(agentLine(component, 'Explore Agent')).not.toContain('\u001B[0;1;2;38;2');
   });
 
-  it('subagent spawn entrance settles on the multi-agent chip row (backgrounded, premium)', () => {
-    const start = Date.now();
-    advanceAppearanceAnimationClock(start);
-    // Non-Agent tool name → multi-subagent view with the `↳` chip row.
-    const component = new ToolCallComponent(
-      { id: 'call_spawn_entrance_multi', name: 'AgentSwarm', args: {} },
-      undefined,
-    );
-    component.onSubagentSpawned({
-      agentId: 'sub_spawn_multi',
-      agentName: 'worker',
-      // 'backgrounded' has no phase tick of its own — the spawn-entrance
-      // gate must keep rebuilds coming until the highlight settles.
-      runInBackground: true,
-    });
+  
 
-    const chipLine = (clock: number): string => {
-      vi.setSystemTime(new Date(clock));
-      advanceAppearanceAnimationClock(clock);
-      return agentLine(component, '↳ subagent worker');
-    };
-
-    const t0 = chipLine(start);
-    expect(strip(t0)).toContain('↳ subagent worker');
-    expect(t0).toContain('\u001B[0;1;2;38;2');
-
-    // In-window render drives the tick-gated rebuild so the backgrounded
-    // chip row decays even though its phase never ticks on its own.
-    expect(strip(chipLine(start + 300))).toContain('↳ subagent worker');
-
-    // Past the entrance TTL and the transcript wash (560ms) the row is
-    // settled; later re-renders stay settled instead of replaying either.
-    expect(chipLine(start + 700)).not.toContain('\u001B[0;1;2;38;2');
-    expect(chipLine(start + 1200)).not.toContain('\u001B[0;1;2;38;2');
-  });
-
-  it('quality off keeps subagent spawn renders byte-stable (no entrance)', () => {
-    setActiveAppearancePreferences({
-      ...DEFAULT_APPEARANCE_PREFERENCES,
-      profile: 'off' as const,
-      particles: 'off' as const,
-    });
-    const start = Date.now();
-    advanceAppearanceAnimationClock(start);
-    // Multi-view card: the single-agent header carries a clock-driven
-    // braille marker that advances even with motion off (pre-existing), so
-    // byte stability is pinned on the chip-row surface this change touches.
-    const component = new ToolCallComponent(
-      { id: 'call_spawn_motion_off', name: 'AgentSwarm', args: {} },
-      undefined,
-    );
-    component.onSubagentSpawned({
-      agentId: 'sub_spawn_off',
-      agentName: 'worker',
-      runInBackground: true,
-    });
-
-    const t0 = component.render(100);
-    vi.setSystemTime(new Date(start + 400));
-    advanceAppearanceAnimationClock(start + 400);
-    expect(component.render(100)).toEqual(t0);
-  });
+  
 
   it('replayed subagent cards render without the spawn entrance (premium)', () => {
     const start = Date.now();
@@ -2268,11 +1449,11 @@ describe('ToolCallComponent motion cues', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_spawn_replay',
-        name: 'Agent',
-        args: { description: 'replayed agent' },
+        name: 'SessionControl',
+        args: { operation: 'spawn', description: 'replayed agent', prompt: 'replayed agent' },
         subagent: { id: 'sub_replay_1', name: 'explore', text: 'done work', toolCalls: [] },
       },
-      { tool_call_id: 'call_spawn_replay', output: 'agent_id: sub_replay_1', is_error: false },
+      { tool_call_id: 'call_spawn_replay', output: JSON.stringify({ agentId: 'sub_replay_1', taskId: 'task-replay', status: 'running' }), is_error: false },
     );
 
     // Past the transcript entrance wash so only a spawn entrance could add
@@ -2284,214 +1465,6 @@ describe('ToolCallComponent motion cues', () => {
     expect(out.join('\n')).not.toContain('\u001B[0;1;2;38;2');
   });
 
-  describe('staged Write/Edit preview reveal', () => {
-    // Collapsed previews cap at COMMAND_PREVIEW_LINES (4) + the "more lines"
-    // footer, so the settled Write preview below is 5 reveal items.
-    const revealLines = Array.from(
-      { length: 12 },
-      (_, i) => `const revealValue${String(i + 1)} = ${String(i + 1)};`,
-    );
-
-    function writePreviewArgs(): Record<string, unknown> {
-      return { file_path: 'reveal-demo.ts', content: revealLines.join('\n') };
-    }
-
-    it('shows a strict subset of lines at t0 and all lines after the cap (premium)', () => {
-      const start = Date.now();
-      advanceAppearanceAnimationClock(start);
-      const component = new ToolCallComponent(
-        { id: 'call_reveal_write', name: 'Write', args: writePreviewArgs() },
-        undefined,
-      );
-
-      const t0 = strip(component.render(100).join('\n'));
-      expect(t0).toContain('revealValue1');
-      expect(t0).not.toContain('revealValue3');
-      expect(t0).not.toContain('more lines');
-
-      // Mid-window under the premium staged-reveal budget (520ms, ease-in-out):
-      // first visible>=3 lands around ~242ms — still before the footer item.
-      vi.setSystemTime(new Date(start + 260));
-      advanceAppearanceAnimationClock(Date.now());
-      const mid = strip(component.render(100).join('\n'));
-      expect(mid).toContain('revealValue3');
-      // The cap engages as soon as reveal lands (footer shows right away);
-      // the strict subset still holds — later preview lines stay unstaged.
-      expect(mid).not.toContain('revealValue5');
-
-      // Past the premium cap: every preview line plus the collapsed footer.
-      vi.setSystemTime(new Date(start + STAGED_LINE_REVEAL_MS_PREMIUM + 20));
-      advanceAppearanceAnimationClock(Date.now());
-      const settled = strip(component.render(100).join('\n'));
-      expect(settled).toContain('revealValue4');
-      expect(settled).toContain('more lines');
-    });
-
-    it('reveals Edit diff rows in stages and settles to the full diff (premium)', () => {
-      const start = Date.now();
-      advanceAppearanceAnimationClock(start);
-      const oldLines = Array.from({ length: 6 }, (_, i) => `old-row-${String(i + 1)}`);
-      const newLines = Array.from({ length: 6 }, (_, i) => `new-row-${String(i + 1)}`);
-      const component = new ToolCallComponent(
-        {
-          id: 'call_reveal_edit',
-          name: 'Edit',
-          args: {
-            file_path: 'reveal-demo.ts',
-            old_string: oldLines.join('\n'),
-            new_string: newLines.join('\n'),
-          },
-        },
-        undefined,
-      );
-
-      // t0: only the diff meta header row (+6 -6 <path>) has staged in.
-      const t0 = strip(component.render(100).join('\n'));
-      expect(t0).toContain('+6 -6 reveal-demo.ts');
-      expect(t0).not.toContain('row-1');
-      expect(t0).not.toContain('row-6');
-
-      vi.setSystemTime(new Date(start + STAGED_LINE_REVEAL_MS_PREMIUM + 20));
-      advanceAppearanceAnimationClock(Date.now());
-      const settled = strip(component.render(100).join('\n'));
-      expect(settled).toContain('old-row-6');
-      expect(settled).toContain('new-row-6');
-    });
-
-    it('bytes after the reveal equal the no-animation bytes', () => {
-      const start = Date.now();
-      advanceAppearanceAnimationClock(start);
-      const animated = new ToolCallComponent(
-        { id: 'call_reveal_bytes', name: 'Write', args: writePreviewArgs() },
-        undefined,
-      );
-      animated.setResult({
-        tool_call_id: 'call_reveal_bytes',
-        output: 'Wrote reveal-demo.ts',
-        is_error: false,
-      });
-
-      // Past reveal, entrance wash, and settle flash.
-      vi.setSystemTime(new Date(start + 1500));
-      advanceAppearanceAnimationClock(Date.now());
-      const settledBytes = animated.render(100);
-
-      // Same card with ambient motion off renders the identical bytes.
-      setActiveAppearancePreferences({
-        ...DEFAULT_APPEARANCE_PREFERENCES,
-        profile: 'off' as const,
-        particles: 'off' as const,
-      });
-      expect(animated.render(100)).toEqual(settledBytes);
-
-      // A fresh history card rendered with motion off builds the same
-      // preview lines the animated card settled on.
-      const previewLines = (lines: readonly string[]): string[] =>
-        lines.filter((line) => {
-          const plain = strip(line);
-          return plain.includes('revealValue') || plain.includes('more lines');
-        });
-      const staticCard = new ToolCallComponent(
-        { id: 'call_reveal_bytes_static', name: 'Write', args: writePreviewArgs() },
-        {
-          tool_call_id: 'call_reveal_bytes_static',
-          output: 'Wrote reveal-demo.ts',
-          is_error: false,
-        },
-      );
-      expect(previewLines(settledBytes)).toEqual(previewLines(staticCard.render(100)));
-    });
-
-    it('quality off renders the full preview immediately', () => {
-      setActiveAppearancePreferences({
-        ...DEFAULT_APPEARANCE_PREFERENCES,
-        profile: 'off' as const,
-        particles: 'off' as const,
-      });
-      const start = Date.now();
-      advanceAppearanceAnimationClock(start);
-      const component = new ToolCallComponent(
-        { id: 'call_reveal_off', name: 'Write', args: writePreviewArgs() },
-        undefined,
-      );
-
-      const t0 = strip(component.render(100).join('\n'));
-      expect(t0).toContain('revealValue4');
-      expect(t0).toContain('more lines');
-    });
-
-    it('history/resume cards never reveal even under premium motion', () => {
-      const start = Date.now();
-      advanceAppearanceAnimationClock(start);
-      const component = new ToolCallComponent(
-        { id: 'call_reveal_history', name: 'Write', args: writePreviewArgs() },
-        {
-          tool_call_id: 'call_reveal_history',
-          output: 'Wrote reveal-demo.ts',
-          is_error: false,
-        },
-      );
-
-      const t0 = strip(component.render(100).join('\n'));
-      expect(t0).toContain('revealValue4');
-      expect(t0).toContain('more lines');
-    });
-
-    it('remounting the same tool call does not restart the reveal', () => {
-      const start = Date.now();
-      advanceAppearanceAnimationClock(start);
-      const first = new ToolCallComponent(
-        { id: 'call_reveal_remount', name: 'Write', args: writePreviewArgs() },
-        undefined,
-      );
-      const t0 = strip(first.render(100).join('\n'));
-      expect(t0).toContain('revealValue1');
-      expect(t0).not.toContain('revealValue3');
-
-      // A remount after the staged budget (e.g. a streaming-delta rebuild)
-      // inherits the first-seen clock instead of collapsing back to line 1.
-      vi.setSystemTime(new Date(start + STAGED_LINE_REVEAL_MS_PREMIUM + 20));
-      advanceAppearanceAnimationClock(Date.now());
-      const remounted = new ToolCallComponent(
-        { id: 'call_reveal_remount', name: 'Write', args: writePreviewArgs() },
-        undefined,
-      );
-      const mid = strip(remounted.render(100).join('\n'));
-      expect(mid).toContain('revealValue4');
-      expect(mid).toContain('more lines');
-    });
-
-    it('starts the reveal when streaming arguments settle, not per delta', () => {
-      const start = Date.now();
-      advanceAppearanceAnimationClock(start);
-      const component = new ToolCallComponent(
-        {
-          id: 'call_reveal_settle',
-          name: 'Write',
-          args: {},
-          streamingArguments: '{"file_path": "reveal-demo.ts", "content": "const partialLine = 1;',
-        },
-        undefined,
-      );
-      expect(strip(component.render(100).join('\n'))).toContain('partialLine');
-
-      // Args finalize: the settled preview mounts under a fresh reveal clock.
-      component.updateToolCall({
-        id: 'call_reveal_settle',
-        name: 'Write',
-        args: writePreviewArgs(),
-      });
-      const settledT0 = strip(component.render(100).join('\n'));
-      expect(settledT0).toContain('revealValue1');
-      expect(settledT0).not.toContain('revealValue3');
-
-      vi.setSystemTime(new Date(start + 450));
-      advanceAppearanceAnimationClock(Date.now());
-      const grown = strip(component.render(100).join('\n'));
-      expect(grown).toContain('revealValue4');
-      expect(grown).toContain('more lines');
-    });
-  });
 
   describe('transcript density (one-line compact/minimal mode)', () => {
     function bashComponent(result?: { output: string; is_error: boolean }): ToolCallComponent {

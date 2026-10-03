@@ -4,7 +4,10 @@ import {
   jobCancel,
   jobCreate,
   jobList,
-  jobPreviewSplit,
+  jobPause,
+  jobMerge,
+  jobPush,
+  jobResume,
   jobSetProjectMode,
 } from '../../src/tools/builtin/job/job-rpc-api';
 import {
@@ -18,10 +21,9 @@ import {
   CONDUCTOR_PROJECT_MODE_MAX_CONCURRENT,
   setConductorProjectModeMaxConcurrent,
 } from '../../src/tools/builtin/job/job-project-mode';
-import { resolveConductorPoolConfig } from '../../src/tools/builtin/job/job-runtime';
+import { closeJobAdmissions, resolveConductorPoolConfig } from '../../src/tools/builtin/job/job-runtime';
 import { jobRecordToSnapshot } from '../../src/tools/builtin/job/job-emit';
 import type { ToolStore } from '../../src/tools/store';
-import { FLAG_DEFINITIONS } from '../../src/flags/registry';
 
 function memoryStore(): ToolStore {
   const data: Record<string, unknown> = {};
@@ -46,8 +48,6 @@ describe('job-rpc-api', () => {
       mustNotTouch: ['apps/liora'],
     });
     expect(created.jobs).toHaveLength(1);
-    expect(created.text).toContain('brief.success_criteria');
-    expect(created.text).toContain('brief.must_not_touch');
 
     const listed = jobList(store);
     expect(listed).toHaveLength(1);
@@ -55,23 +55,6 @@ describe('job-rpc-api', () => {
     expect(listed[0]?.briefPreview?.successCriteria).toEqual(['tests green']);
   });
 
-  it('jobPreviewSplit returns multi-intent slices', () => {
-    const intents = jobPreviewSplit('1. Fix login\n2. Add tests');
-    expect(intents.length).toBeGreaterThanOrEqual(2);
-    expect(intents[0]?.title.length).toBeGreaterThan(0);
-  });
-
-  it('jobCreate autoSplit creates multiple jobs', async () => {
-    const store = memoryStore();
-    writeJobLedger(store, emptyJobLedger());
-    const created = await jobCreate(store, {
-      title: 'Batch',
-      prompt: '1. Fix login\n2. Add tests',
-      autoSplit: true,
-    });
-    expect(created.jobs.length).toBeGreaterThanOrEqual(2);
-    expect(jobList(store).length).toBe(created.jobs.length);
-  });
 
   it('jobCancel marks the job cancelled', async () => {
     const store = memoryStore();
@@ -82,6 +65,66 @@ describe('job-rpc-api', () => {
     expect(result.ok).toBe(true);
     expect(result.job?.status).toBe('cancelled');
     expect(getJob(store, jobId)?.status).toBe('cancelled');
+  });
+
+  it('pauses a queued card and resumes the same job without inventing a new worker', async () => {
+    const store = memoryStore();
+    const created = await jobCreate(store, { title: 'Pause me', prompt: 'Original request' });
+    const jobId = created.jobs[0]!.id;
+    expect((await jobPause(store, { jobId })).job?.status).toBe('interrupted');
+    const resumed = await jobResume(store, { jobId });
+    expect(resumed.ok).toBe(true);
+    expect(getJob(store, jobId)).toMatchObject({ status: 'queued', prompt: 'Original request' });
+    expect(jobList(store)).toHaveLength(1);
+  });
+
+  it.each(['queued', 'running', 'cancelled', 'interrupted'] as const)(
+    'rejects publication of a %s job without changing its state or dispatching work',
+    async (status) => {
+      const store = memoryStore();
+      const source = createJob(store, { title: 'Unsettled publication' });
+      patchJob(store, source.id, { status });
+
+      const result = await jobPush(store, {
+        jobId: source.id, approve: true, forceUserConfirm: true,
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain(`is ${status}`);
+      expect(result.pushJob).toBeUndefined();
+      expect(getJob(store, source.id)?.status).toBe(status);
+      expect(jobList(store).map((job) => job.id)).toEqual([source.id]);
+    },
+  );
+
+  it('does not acknowledge a held push when the native runtime is closed', async () => {
+    const store = memoryStore();
+    const source = createJob(store, { title: 'Closed publication' });
+    patchJob(store, source.id, { status: 'done' });
+    closeJobAdmissions(store);
+
+    const result = await jobPush(store, {
+      jobId: source.id, approve: true, forceUserConfirm: true,
+    });
+
+    expect(result).toMatchObject({ ok: false, error: 'Job runtime is closed.' });
+    expect(result.pushJob).toBeUndefined();
+    expect(getJob(store, source.id)?.status).toBe('done');
+    expect(jobList(store).map((job) => job.id)).toEqual([source.id]);
+  });
+
+  it('propagates a landing dispatch failure without changing the source job or creating work', async () => {
+    const store = memoryStore();
+    const source = createJob(store, { title: 'Closed landing' });
+    patchJob(store, source.id, { status: 'done' });
+    closeJobAdmissions(store);
+
+    const result = await jobMerge(store, { jobId: source.id, approve: true });
+
+    expect(result).toMatchObject({ ok: false, error: 'Job runtime is closed.' });
+    expect(result.mergeJob).toBeUndefined();
+    expect(getJob(store, source.id)?.status).toBe('done');
+    expect(jobList(store).map((job) => job.id)).toEqual([source.id]);
   });
 
   it('jobRecordToSnapshot includes v3 landReceipt when present', () => {
@@ -104,22 +147,6 @@ describe('job-rpc-api', () => {
     });
   });
 
-  it('jobRecordToSnapshot includes v4 effectPreview', () => {
-    const store = memoryStore();
-    writeJobLedger(store, emptyJobLedger());
-    const job = createJob(store, {
-      title: 'Host effect',
-      kind: 'task',
-      taskTrack: 'general',
-      taskTrackSource: 'inferred',
-    });
-    const snap = jobRecordToSnapshot(getJob(store, job.id)!);
-    expect(snap.effectPreview?.isolation).toBe('checkout');
-    expect(snap.effectPreview?.chip).toContain('checkout');
-    expect(snap.effectPreview?.summary).toContain('Conductor judged');
-    expect(snap.effectPreview?.taskTrack).toBe('general');
-    expect(snap.effectPreview?.taskTrackSource).toBe('inferred');
-  });
 });
 
 describe('conductor project mode pool', () => {
@@ -148,11 +175,3 @@ describe('conductor project mode pool', () => {
   });
 });
 
-describe('conductor_ux_v2 flag', () => {
-  it('is registered with default true', () => {
-    const flag = FLAG_DEFINITIONS.find((d) => d.id === 'conductor_ux_v2');
-    expect(flag).toBeDefined();
-    expect(flag?.default).toBe(true);
-    expect(flag?.env).toBe('SUPERLIORA_EXPERIMENTAL_CONDUCTOR_UX_V2');
-  });
-});

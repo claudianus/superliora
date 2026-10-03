@@ -172,15 +172,15 @@ describe('SSHProcess.kill()', () => {
     expect(proc.exitCode).toBe(42);
   });
 
-  test('wait() resolves with 1 (abnormal) when close arrives without exit', async () => {
+  test('wait() rejects an uncertain remote exit when close arrives without exit', async () => {
     const fake = createFakeChannel();
     const proc = new SSHProcess(fake.channel as never);
 
+    const waiting = expect(proc.wait()).rejects.toThrow('without confirmed remote process exit');
     fake.emitClose();
-
-    const code = await proc.wait();
-    expect(code).toBe(1);
-    expect(proc.exitCode).toBe(1);
+    await waiting;
+    expect(proc.exitCode).toBeNull();
+    expect(proc.resourcesSettled).not.toBe(true);
   });
 
   test.skipIf(process.platform === 'win32')('kill(SIGTERM) preserves cleanup output and the real exit status', async () => {

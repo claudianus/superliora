@@ -11,10 +11,7 @@ export type MotionBeatName =
   | 'session_resume'
   | 'status_open'
   | 'thinking_enter'
-  | 'goal_complete'
-  | 'tool_settle'
-  | 'plan_enter'
-  | 'plan_exit';
+  | 'tool_settle';
 
 export interface MotionBeatPlayOptions {
   readonly name: MotionBeatName;
@@ -33,19 +30,16 @@ export interface MotionBeatSnapshot {
 }
 
 /**
- * Only these names have a real `motionBeats.active()` consumer (footer mode /
- * plan shimmer + session_resume enter beat). Other play() names are ghosts —
- * local surfaces animate on their own clocks and must not steal this slot.
+ * Real slot consumers animate footer permission changes and session resume.
+ * Other surfaces own their appearance clocks.
  */
 const SLOT_CONSUMER_NAMES = new Set<MotionBeatName>([
   'mode_enter',
   'mode_exit',
-  'plan_enter',
-  'plan_exit',
   'session_resume',
 ]);
 
-const EXIT_NAMES = new Set<MotionBeatName>(['mode_exit', 'plan_exit']);
+const EXIT_NAMES = new Set<MotionBeatName>(['mode_exit']);
 
 const STREAM_THROTTLE_MS = 300;
 
@@ -65,8 +59,7 @@ export function createMotionBeatController(): MotionBeatController {
 
   return {
     play(options) {
-      // Ghost beats: keep call sites for telemetry/intent, but never replace the
-      // single transition slot consumed by footer mode/plan/resume.
+      // Only consumed surface transitions occupy the shared slot.
       if (!SLOT_CONSUMER_NAMES.has(options.name)) return undefined;
       if (options.streamThrottle) {
         if (options.nowMs - lastStreamPlayMs < STREAM_THROTTLE_MS) return undefined;

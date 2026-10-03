@@ -10,25 +10,13 @@ import type {
   PermissionMode,
   PermissionPolicy,
   PermissionPolicyContext,
-  PermissionPolicyResolution,
   PermissionPolicyResult,
   PermissionRule,
 } from './types';
 import {
-  PERMISSION_ALLOW_WITHOUT_APPROVAL_ENV,
   PERMISSION_AUTO_EXPIRE_ENV,
   STALE_INTERVENTION_AGE_MS,
 } from './types';
-
-/** Model-visible reason when an `ask` policy has nowhere to ask. */
-function formatMissingApprovalChannelMessage(toolName: string): string {
-  return (
-    `Tool "${toolName}" was not run: this host has no approval channel connected, so tools that ` +
-    `need confirmation cannot run here. Pick an approach that does not require approval, or tell the ` +
-    `user to run this from an interactive session — setting ` +
-    `${PERMISSION_ALLOW_WITHOUT_APPROVAL_ENV}=1 allows unattended approval when that is acceptable.`
-  );
-}
 
 export * from './types';
 export { NonBlockingPermissionQueue } from './non-blocking-queue';
@@ -151,6 +139,12 @@ export class PermissionManager {
     context: PermissionPolicyContext,
   ): Promise<PrepareToolExecutionResult | undefined> {
     const evaluation = await this.evaluatePolicies(context);
+    if (context.signal.aborted) {
+      return {
+        block: true,
+        reason: this.formatApprovalRejectionMessage(context.toolCall.name, { decision: 'cancelled' }),
+      };
+    }
     if (evaluation === undefined) return undefined;
 
     this.agent.telemetry.track('permission_policy_decision', {
@@ -160,7 +154,7 @@ export class PermissionManager {
       decision: evaluation.result.kind,
       ...evaluation.result.reason,
     });
-    return this.permissionPolicyResolutionToPrepare(
+    return this.permissionPolicyResultToPrepare(
       evaluation.result,
       context,
       evaluation.policyName,
@@ -169,7 +163,6 @@ export class PermissionManager {
 
   private async requestToolApproval(
     context: PermissionPolicyContext,
-    result: Extract<PermissionPolicyResult, { kind: 'ask' }>,
     policyName: string | undefined,
   ): Promise<PrepareToolExecutionResult | undefined> {
     const { signal } = context;
@@ -183,149 +176,53 @@ export class PermissionManager {
       };
     const action = context.execution.description ?? `Call ${name}`;
     const startedAt = Date.now();
-
-    let response: ApprovalResponse;
-    let requestedApproval = false;
-    let missingApprovalChannel = false;
     const queued = this.interventionQueue.enqueue({
       toolName: name,
-      rule: context.execution.approvalRule ?? `${name}(*)`,
+      rule: context.execution.approvalRule ?? name,
       risk: display.kind === 'command' ? 'high' : 'low',
     });
     this.inFlightInterventionIds.add(queued.id);
     this.agent.emitStatusUpdated();
-    if (this.agent.rpc?.requestApproval) {
-      requestedApproval = true;
-      void this.agent.hooks?.fireAndForgetTrigger?.('PermissionRequest', {
-        matcherValue: name,
-        inputData: {
-          turnId: Number(context.turnId),
-          toolCallId: id,
-          toolName: name,
-          action,
-          toolInput: context.args,
-          display,
-        },
-      });
-      try {
-        response = await this.agent.rpc.requestApproval(
-          {
+
+    const requestApproval = this.agent.rpc?.requestApproval;
+    let response: ApprovalResponse;
+    const missingApprovalChannel = requestApproval === undefined;
+    try {
+      response = requestApproval === undefined
+        ? { decision: 'rejected' }
+        : await requestApproval.call(this.agent.rpc, {
             turnId: Number(context.turnId),
             toolCallId: id,
             toolName: name,
             action,
             display,
-          },
-          { signal },
-        );
-        this.resolveIntervention(
-          queued.id,
-          response.decision === 'approved' ? 'approved' : 'denied',
-        );
-      } catch (error) {
-        this.resolveIntervention(queued.id, 'denied');
-        this.agent.telemetry.track('permission_approval_result', {
-          policy_name: policyName ?? null,
-          tool_name: name,
-          permission_mode: this.mode,
-          result: 'error',
-          approval_surface: display.kind,
-          duration_ms: Date.now() - startedAt,
-          session_cache_written: false,
-          has_feedback: false,
-        });
-        void this.agent.hooks?.fireAndForgetTrigger?.('PermissionResult', {
-          matcherValue: name,
-          inputData: {
-            turnId: Number(context.turnId),
-            toolCallId: id,
-            toolName: name,
-            action,
-            decision: 'error',
-            error: error instanceof Error ? error.message : String(error),
-          },
-        });
-        const resolved = result.resolveError?.(error);
-        return resolved === undefined
-          ? Promise.reject(error)
-          : this.permissionPolicyResolutionToPrepare(resolved, context, policyName);
-      }
-    } else if (allowApprovalWithoutRpc()) {
-      // Explicit opt-in for hosts that accept running gated tools unattended
-      // (scripted / CI runs that cannot render an approval prompt).
-      this.resolveIntervention(queued.id, 'approved');
-      this.agent.telemetry.track('permission_approval_result', {
-        policy_name: policyName ?? null,
-        tool_name: name,
-        permission_mode: this.mode,
-        result: 'auto_approved_no_rpc',
-        approval_surface: display.kind,
-        duration_ms: Date.now() - startedAt,
-        session_cache_written: false,
-        has_feedback: false,
-      });
-      this.agent.log?.warn(
-        'permission ask auto-approved: no approval RPC channel is connected',
-        { toolName: name, policyName: policyName ?? null, permissionMode: this.mode },
+          }, { signal });
+      // Cancellation is not approval. Keep ownership until the handler actually
+      // settles, then discard even a late approval on an aborted native call.
+      if (signal.aborted) response = { decision: 'cancelled' };
+      this.resolveIntervention(
+        queued.id,
+        response.decision === 'approved' ? 'approved' : 'denied',
       );
-      response = {
-        decision: 'approved',
-      };
-    } else {
-      // No RPC approval channel is wired. Fail closed: the policy asked for a
-      // human because the call is not safe to run unattended, and approving it
-      // anyway turns a misconfigured host into yolo mode for every gated tool.
-      // The model gets a normal rejection, so it re-plans instead of hanging.
-      missingApprovalChannel = true;
+    } catch (error) {
       this.resolveIntervention(queued.id, 'denied');
       this.agent.telemetry.track('permission_approval_result', {
         policy_name: policyName ?? null,
         tool_name: name,
         permission_mode: this.mode,
-        result: 'auto_denied_no_rpc',
+        result: 'error',
         approval_surface: display.kind,
         duration_ms: Date.now() - startedAt,
         session_cache_written: false,
         has_feedback: false,
       });
-      this.agent.log?.warn(
-        'permission ask auto-denied: no approval RPC channel is connected',
-        { toolName: name, policyName: policyName ?? null, permissionMode: this.mode },
-      );
-      response = {
-        decision: 'rejected',
-      };
+      throw error;
     }
 
     const sessionApprovalRule =
       response.decision === 'approved' && response.scope === 'session'
         ? context.execution.approvalRule
         : undefined;
-
-    if (requestedApproval) {
-      const permissionInput = {
-        turnId: Number(context.turnId),
-        toolCallId: id,
-        toolName: name,
-        action,
-        decision: response.decision,
-        scope: response.scope,
-        feedback: response.feedback,
-        selectedLabel: response.selectedLabel,
-      };
-      void this.agent.hooks?.fireAndForgetTrigger?.('PermissionResult', {
-        matcherValue: name,
-        inputData: permissionInput,
-      });
-      // Claude-canonical deny event (additive; PermissionResult still fires).
-      if (response.decision === 'rejected') {
-        void this.agent.hooks?.fireAndForgetTrigger?.('PermissionDenied', {
-          matcherValue: name,
-          inputData: permissionInput,
-        });
-      }
-    }
-
     this.recordApprovalResult({
       turnId: Number(context.turnId),
       toolCallId: id,
@@ -334,37 +231,25 @@ export class PermissionManager {
       sessionApprovalRule,
       result: response,
     });
-    // Skip the common telemetry when we already emitted the specific
-    // auto-approved-no-rpc event above, so it is not double-counted.
-    if (requestedApproval) {
-      this.agent.telemetry.track('permission_approval_result', {
-        policy_name: policyName ?? null,
-        tool_name: name,
-        permission_mode: this.mode,
-        result:
-          response.decision === 'approved' && response.scope === 'session'
-            ? 'approved_for_session'
-            : response.decision,
-        approval_surface: display.kind,
-        duration_ms: Date.now() - startedAt,
-        session_cache_written: sessionApprovalRule !== undefined,
-        has_feedback: response.feedback !== undefined && response.feedback.length > 0,
-      });
-    }
-
-    const resolved = result.resolveApproval?.(response);
-    if (resolved !== undefined) {
-      return this.permissionPolicyResolutionToPrepare(resolved, context, policyName);
-    }
-
-    if (response.decision === 'approved') {
-      return undefined;
-    }
-
+    this.agent.telemetry.track('permission_approval_result', {
+      policy_name: policyName ?? null,
+      tool_name: name,
+      permission_mode: this.mode,
+      result: missingApprovalChannel
+        ? 'auto_denied_no_rpc'
+        : response.decision === 'approved' && response.scope === 'session'
+          ? 'approved_for_session'
+          : response.decision,
+      approval_surface: display.kind,
+      duration_ms: Date.now() - startedAt,
+      session_cache_written: sessionApprovalRule !== undefined,
+      has_feedback: response.feedback !== undefined && response.feedback.length > 0,
+    });
+    if (response.decision === 'approved') return undefined;
     return {
       block: true,
       reason: missingApprovalChannel
-        ? formatMissingApprovalChannelMessage(name)
+        ? `Tool "${name}" was not run: this host has no approval channel connected, so calls that need user confirmation cannot run here.`
         : this.formatApprovalRejectionMessage(name, response),
     };
   }
@@ -395,38 +280,21 @@ export class PermissionManager {
     return [...this.rules, ...(this.parent?.effectiveRules ?? [])];
   }
 
-  private permissionPolicyResolutionToPrepare(
-    result: PermissionPolicyResolution,
+  private permissionPolicyResultToPrepare(
+    result: PermissionPolicyResult,
     context: PermissionPolicyContext,
     policyName?: string,
   ): Promise<PrepareToolExecutionResult | undefined> | PrepareToolExecutionResult | undefined {
     switch (result.kind) {
       case 'approve':
-        return result.executionMetadata === undefined
-          ? undefined
-          : { executionMetadata: result.executionMetadata };
-      case 'deny': {
-        const toolName = context.toolCall.name;
-        void this.agent.hooks?.fireAndForgetTrigger?.('PermissionDenied', {
-          matcherValue: toolName,
-          inputData: {
-            toolName,
-            decision: 'denied',
-            policyName: policyName ?? null,
-            reason: result.message,
-          },
-        });
+        return undefined;
+      case 'deny':
         return {
           block: true,
-          reason: result.message ?? this.formatPolicyDenyMessage(toolName),
+          reason: result.message ?? `Tool "${context.toolCall.name}" was denied by permission policy.`,
         };
-      }
       case 'ask':
-        return this.requestToolApproval(context, result, policyName);
-      case 'result': {
-        const { kind: _kind, ...prepareResult } = result;
-        return prepareResult;
-      }
+        return this.requestToolApproval(context, policyName);
     }
   }
 
@@ -442,27 +310,9 @@ export class PermissionManager {
       result.decision === 'cancelled'
         ? `Tool "${toolName}" was not run because the approval request was cancelled.`
         : `Tool "${toolName}" was not run because the user rejected the approval request.`;
-    if (this.agent.type === 'sub') {
-      return `${prefix}${suffix} Try a different approach — don't retry the same call, don't attempt to bypass the restriction.`;
-    }
-    if (result.decision === 'rejected') {
-      return `${prefix}${suffix} Do not re-attempt the exact same call — think about why it was rejected, then adjust your approach or ask the user what they would prefer.`;
-    }
     return `${prefix}${suffix}`;
   }
 
-  private formatPolicyDenyMessage(toolName: string): string {
-    const prefix = `Tool "${toolName}" was denied by permission policy.`;
-    if (this.agent.type === 'sub') {
-      return `${prefix} Try a different approach — don't retry the same call, don't attempt to bypass the restriction.`;
-    }
-    return prefix;
-  }
-}
-
-function allowApprovalWithoutRpc(): boolean {
-  const raw = process.env[PERMISSION_ALLOW_WITHOUT_APPROVAL_ENV]?.trim().toLowerCase();
-  return raw === '1' || raw === 'true';
 }
 
 function parsePermissionAutoExpireMs(): number | undefined {

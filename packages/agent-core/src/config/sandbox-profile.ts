@@ -13,7 +13,7 @@ import type { SandboxProfile } from '../tools/policies/path-access';
 
 export const SANDBOX_PROFILES = ['off', 'workspace', 'read-only'] as const satisfies readonly SandboxProfile[];
 
-export const DEFAULT_SANDBOX_PROFILE: SandboxProfile = 'off';
+const DEFAULT_SANDBOX_PROFILE: SandboxProfile = 'off';
 
 export const SUPERLIORA_SANDBOX_ENV = 'SUPERLIORA_SANDBOX';
 

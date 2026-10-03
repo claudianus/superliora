@@ -6,8 +6,6 @@
  *              model?: string,
  *              thinking?: 'off'|'low'|'medium'|'high'|'xhigh'|'max',
  *              permission_mode?: 'manual'|'yolo'|'auto',
- *              plan_mode?: boolean,
- *              ask_mode?: boolean,
  *            }
  *     Reply: PromptSubmitResult { prompt_id, user_message_id, status, content, created_at }
  *            status='running' when sent immediately, status='queued' when
@@ -52,10 +50,6 @@ export const promptSubmissionSchema = z.object({
   model: z.string().min(1).optional(),
   thinking: promptThinkingSchema.optional(),
   permission_mode: promptPermissionModeSchema.optional(),
-  plan_mode: z.boolean().optional(),
-  ask_mode: z.boolean().optional(),
-  goal_objective: z.string().optional(),
-  goal_control: z.enum(['pause', 'resume', 'cancel']).optional(),
 });
 export type PromptSubmission = z.infer<typeof promptSubmissionSchema>;
 
@@ -92,6 +86,7 @@ export const promptSteerResultSchema = z.object({
 export type PromptSteerResult = z.infer<typeof promptSteerResultSchema>;
 
 export const promptAbortResponseSchema = z.object({
+  /** Acknowledges the cancellation request; the session stays busy until settlement. */
   aborted: z.boolean(),
   at_seq: z.number().int().nonnegative().optional(),
 });

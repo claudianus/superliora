@@ -16,7 +16,7 @@ export const USAGE_QUOTA_TIP =
 export const USAGE_CONTEXT_TIP =
   'Footer badge mirrors contextUsage between refreshes. /usage — bars and composition · /status — model + route snapshot.';
 
-import { formatContextUsageLine } from '#/tui/utils/compaction/compaction-glance';
+import { formatTokenCount, safeUsageRatio } from '#/utils/usage/usage-format';
 import { formatOpsTokenGlance } from '#/tui/utils/usage/ops-token-glance';
 
 export interface UsageSettingsGlance {
@@ -48,11 +48,12 @@ export function loadUsageSettingsGlance(input: {
   const contextUsage = input.status?.contextUsage ?? input.contextUsage;
   const contextTokens = input.status?.contextTokens ?? input.contextTokens;
   const maxContextTokens = input.status?.maxContextTokens ?? input.maxContextTokens;
-  const contextLine = formatContextUsageLine({
-    contextUsage,
-    contextTokens,
-    maxContextTokens,
-  });
+  const contextLine = contextUsage === undefined || maxContextTokens === undefined || !(maxContextTokens > 0)
+    ? undefined
+    : `Context: ${(safeUsageRatio(contextUsage) * 100).toFixed(1)}%` +
+      (contextTokens !== undefined && maxContextTokens !== undefined
+        ? ` (${formatTokenCount(contextTokens)} / ${formatTokenCount(maxContextTokens)})`
+        : '');
 
   return {
     tokenLine,
@@ -72,7 +73,7 @@ export function buildUsageSettingsLines(glance: UsageSettingsGlance): readonly s
 
   return [
     '── Usage (read-only) ────────────────────────',
-    'Token spend and context window — Sovereign Reform §9.2.',
+    'Token spend and context window.',
     '',
     '── Session (live) ───────────────────────────',
     ...sessionLines,

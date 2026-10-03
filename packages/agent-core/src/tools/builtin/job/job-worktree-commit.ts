@@ -1,20 +1,11 @@
 /**
- * Commit backstop for Conductor job worktrees.
- *
- * The worker contract asks every worker to commit before finishing, but a
- * disobedient, crashed, or interrupted worker leaves a dirty tree — and
- * land-to-main merges the worktree *branch*, so uncommitted work is invisible
- * to the merge and destroyed when the worktree is GC'd. Running this at
- * worker completion (and again before land) makes that work loss structural
- * instead of prompt-dependent: whatever is dirty gets a snapshot commit.
- *
- * Never throws and never fails the job: git errors come back in the result
- * so callers record a ledger note and keep their own verdict flow.
+ * Snapshot dirty Job worktrees so operator land/push use the actual changes.
+ * Returns Git failures to the caller; it does not manufacture a completion verdict.
  */
 
 import type { Kaos } from '@superliora/kaos';
 
-import { runGit } from '#/autopilot/git';
+import { runGit } from '#/session/job/git';
 import {
   buildJobSnapshotCommitMessage,
   commitIdentityArgs,
@@ -31,8 +22,6 @@ export type WorktreeGitRunner = (
   args: readonly string[],
 ) => Promise<{ readonly ok: boolean; readonly stdout: string; readonly stderr: string }>;
 
-/** @deprecated Prefer {@link buildJobSnapshotCommitMessage}; kept for test greps. */
-export const JOB_WORKTREE_SNAPSHOT_MESSAGE_PREFIX = 'chore(job):';
 
 export interface CommitJobWorktreeInput {
   readonly worktreePath: string;
@@ -41,6 +30,7 @@ export interface CommitJobWorktreeInput {
   readonly kaos?: Kaos;
   /** Inject for tests / custom execution; wins over `kaos`. */
   readonly run?: WorktreeGitRunner;
+  readonly signal?: AbortSignal;
 }
 
 export interface CommitJobWorktreeResult {
@@ -48,15 +38,15 @@ export interface CommitJobWorktreeResult {
   readonly error?: string;
 }
 
-export function kaosWorktreeGitRunner(kaos: Kaos): WorktreeGitRunner {
-  return (cwd, args) => runGit(kaos, cwd, args);
+export function kaosWorktreeGitRunner(kaos: Kaos, signal?: AbortSignal): WorktreeGitRunner {
+  return (cwd, args) => runGit(kaos, cwd, args, 0, signal);
 }
 
 export async function commitJobWorktreeIfDirty(
   input: CommitJobWorktreeInput,
 ): Promise<CommitJobWorktreeResult> {
   const run =
-    input.run ?? (input.kaos !== undefined ? kaosWorktreeGitRunner(input.kaos) : undefined);
+    input.run ?? (input.kaos !== undefined ? kaosWorktreeGitRunner(input.kaos, input.signal) : undefined);
   if (run === undefined) return { committed: false, error: 'no git runner available' };
 
   const status = await run(input.worktreePath, ['status', '--porcelain']);

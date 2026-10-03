@@ -1,5 +1,5 @@
 /**
- * Conductor input path guarantees.
+ * Autonomous input path guarantees.
  *
  * V3-3 — loading never drops submitted input. The editor clears its buffer
  * before the (IME double-deferred) submit lands in
@@ -28,6 +28,7 @@ import {
   type MessageDispatchHost,
 } from '#/tui/controllers/transcript/message-dispatch';
 import { ttui } from '#/tui/utils/tui-i18n';
+import { ImageAttachmentStore } from '#/tui/utils/image/image-attachment-store';
 
 import { fakeDispatchHost, type FakeDispatchHost } from './control-tower-fakes';
 
@@ -103,6 +104,18 @@ describe('V3-3 — submitted input survives the session loading overlay', () => 
     expect(host.showError).toHaveBeenCalledTimes(1);
   });
 
+  it('restores the Enter draft when attachment preparation fails', () => {
+    const host = fakeDispatchHost();
+    const imageStore = new ImageAttachmentStore();
+    const file = imageStore.addFile('application/pdf', '/missing-liora-attachment/document.pdf');
+    host.imageStore = imageStore;
+    const text = `review ${file.placeholder}`;
+    controllerFor(host).sendNormalUserInput(text);
+    expect(host.editorText()).toBe(text);
+    expect(host.session.prompt).not.toHaveBeenCalled();
+    expect(host.showError).toHaveBeenCalled();
+  });
+
   it('does not hold blank submissions', () => {
     const host = fakeDispatchHost({ loading: true });
     const dispatch = controllerFor(host);
@@ -174,7 +187,7 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
     expect(dispatch.takeNextQueuedBatch()).toBeUndefined();
   });
 
-  it('does not combine an image follower or an expanded skill payload', () => {
+  it('keeps an expanded operator prompt as a separate turn', () => {
     const host = fakeDispatchHost({ streamingPhase: 'running' });
     const dispatch = controllerFor(host);
     host.state.queuedMessages = [
@@ -188,6 +201,49 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
     expect(first?.text).toBe('see this\n\nand that');
     expect(dispatch.takeNextQueuedBatch()?.displayText).toBe('/commit');
     expect(dispatch.takeNextQueuedBatch()?.text).toBe('later');
+  });
+
+  it('merges plain follow-ups into structured front input without losing media or text', () => {
+    const host = fakeDispatchHost();
+    const dispatch = controllerFor(host);
+    const image = { type: 'image_url' as const, imageUrl: { url: 'data:image/png;base64,AQ==' } };
+    host.state.queuedMessages = [
+      { text: 'inspect image', parts: [{ type: 'text', text: 'inspect ' }, image], imageAttachmentIds: [1] },
+      { text: 'then explain it' },
+    ];
+    const combined = dispatch.takeNextQueuedBatch()!;
+    dispatch.sendQueuedMessage(host.session as unknown as Session, combined);
+    expect(combined.displayText).toBe('inspect image\n\nthen explain it');
+    expect(host.session.prompt).toHaveBeenCalledWith([
+      { type: 'text', text: 'inspect ' },
+      image,
+      { type: 'text', text: '\n\n' },
+      { type: 'text', text: 'then explain it' },
+    ]);
+  });
+
+  it('does not merge a structured follower into an earlier prompt', () => {
+    const host = fakeDispatchHost();
+    const dispatch = controllerFor(host);
+    host.state.queuedMessages = [
+      { text: 'first' },
+      { text: 'document', parts: [{ type: 'file_url', fileUrl: { url: 'data:application/pdf;base64,AQ==' } }] },
+    ];
+    expect(dispatch.takeNextQueuedBatch()?.text).toBe('first');
+    expect(dispatch.takeNextQueuedBatch()?.parts).toEqual([
+      { type: 'file_url', fileUrl: { url: 'data:application/pdf;base64,AQ==' } },
+    ]);
+  });
+
+  it('retains structured input when steering fails', async () => {
+    const host = fakeDispatchHost({ streamingPhase: 'running' });
+    const dispatch = controllerFor(host);
+    const parts = [{ type: 'text' as const, text: 'retain this' }];
+    host.session.steer.mockRejectedValueOnce(new Error('offline'));
+    dispatch.steerMessage(host.session as unknown as Session, ['retain this'], { parts });
+    await Promise.resolve();
+    expect(host.session.steer).toHaveBeenCalledWith(parts);
+    expect(host.state.queuedMessages[0]).toMatchObject({ text: 'retain this', parts });
   });
 
   it('drains the queue FIFO via shift and pops the tail on recall', () => {

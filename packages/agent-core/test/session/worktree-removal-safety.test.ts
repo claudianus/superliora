@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,7 +28,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   };
 });
 
-const { createSessionWorktree, gcSessionWorktrees, listSessionWorktrees, removeSessionWorktree, worktreeRegistryPath } =
+const { attachSessionWorktree, createSessionWorktree, gcSessionWorktrees, listSessionWorktrees, registerSessionWorktreeOwnershipGuard, removeSessionWorktree, sessionWorktreeContainsPath, worktreeRegistryPath } =
   await import('#/session/worktree');
 
 const tempDirs: string[] = [];
@@ -58,7 +58,10 @@ async function initGitRepo(kaos: LocalKaos, root: string): Promise<void> {
   const run = async (...args: string[]): Promise<void> => {
     const proc = await kaos.exec(...args);
     proc.stdin.end();
+    proc.stdout.resume();
+    proc.stderr.resume();
     const code = await proc.wait();
+    await proc.dispose();
     if (code !== 0) throw new Error(`git command failed (${code}): ${args.join(' ')}`);
   };
   await run('git', '-C', root, 'init');
@@ -74,6 +77,44 @@ function eperm(): Error {
 }
 
 describe('worktree removal safety', () => {
+  it('protects a descendant cwd through a filesystem alias without claiming prefix-neighbor worktrees', async () => {
+    const homeDir = await makeTempDir('liora-wt-cwd-home-');
+    const repo = await makeTempDir('liora-wt-cwd-repo-');
+    const kaos = await LocalKaos.create();
+    await initGitRepo(kaos, repo);
+    const tree = await createSessionWorktree(kaos, { repoPath: repo, name: 'cwd-owner', homeDir });
+    await mkdir(join(tree.workDir, 'src'));
+    const alias = join(homeDir, 'cwd-alias');
+    await symlink(tree.workDir, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    const cwd = join(alias, 'src');
+    expect(sessionWorktreeContainsPath(tree.workDir, cwd)).toBe(true);
+    expect(sessionWorktreeContainsPath(tree.workDir, `${tree.workDir}-neighbor`)).toBe(false);
+    const release = registerSessionWorktreeOwnershipGuard((path) => sessionWorktreeContainsPath(path, cwd));
+    try {
+      expect((await gcSessionWorktrees(kaos, { homeDir, maxAgeDays: -1, dryRun: true })).removed).toHaveLength(0);
+      expect((await gcSessionWorktrees(kaos, { homeDir, maxAgeDays: -1 })).kept).toBe(1);
+      await expect(removeSessionWorktree(kaos, { homeDir, nameOrPath: tree.workDir })).rejects.toThrow('still owned');
+    } finally {
+      release();
+    }
+    expect((await gcSessionWorktrees(kaos, { homeDir, maxAgeDays: -1 })).removed.map((entry) => entry.path)).toEqual([tree.workDir]);
+  }, 60_000);
+
+  it('remount cleanup never removes an existing worktree or its uncommitted files', async () => {
+    const homeDir = await makeTempDir('liora-wt-remount-home-');
+    const repo = await makeTempDir('liora-wt-remount-repo-');
+    const kaos = await LocalKaos.create();
+    await initGitRepo(kaos, repo);
+    const tree = await createSessionWorktree(kaos, { repoPath: repo, name: 'existing-remount', homeDir });
+    const pendingFile = join(tree.workDir, 'pending.txt');
+    await writeFile(pendingFile, 'uncommitted work\n');
+    await expect(attachSessionWorktree(kaos, {
+      repoPath: repo, path: tree.workDir, branch: tree.record.branch, homeDir,
+    })).rejects.toThrow('already exists');
+    expect(await readFile(pendingFile, 'utf8')).toBe('uncommitted work\n');
+    expect((await listSessionWorktrees({ homeDir }))[0]?.path).toBe(tree.workDir);
+  }, 60_000);
+
   it('keeps the registry entry and reports the failure when the tree is locked', async () => {
     const homeDir = await makeTempDir('liora-wt-rmfail-home-');
     const repo = await makeTempDir('liora-wt-rmfail-repo-');

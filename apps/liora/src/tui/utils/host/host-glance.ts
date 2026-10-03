@@ -1,5 +1,5 @@
 /**
- * Host settings glance — in-process vs remote server runtime (Sovereign Reform §9 / W8).
+ * Host settings glance — in-process vs remote server runtime.
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -13,12 +13,6 @@ import { formatTtftDuration } from '#/utils/usage/debug-timing';
 export const SUPERLIORA_SERVER_URL_ENV = 'SUPERLIORA_SERVER_URL';
 export const KIMI_SERVER_URL_ENV = 'KIMI_SERVER_URL';
 
-/** Umbrella sovereign reform — mirrors agent-core profile/fleet/mission/repo-index gates. */
-export const SOVEREIGN_UMBRELLA_ENV = 'SUPERLIORA_SOVEREIGN';
-
-/** Host settings doc line — SSOT for all soft gates enabled by the umbrella env. */
-export const HOST_SOVEREIGN_UMBRELLA_TIP =
-  `${SOVEREIGN_UMBRELLA_ENV}=1 — umbrella sovereign reform: core profile default · codemap warm (also default ON — opt-out SUPERLIORA_REPO_INDEX_WARM=0). Legacy compat aliases hide by product default.`;
 
 export type HostRuntimeMode = 'in-process' | 'server';
 
@@ -49,10 +43,6 @@ export interface HostGlanceInput {
   readonly lastStepTtft?: HostTtftSample | null;
   /** Rolling total-ms samples for session p50 (newest last). */
   readonly lastStepTtftMsWindow?: readonly number[] | null;
-  /** True when {@link SOVEREIGN_UMBRELLA_ENV} is set (umbrella sovereign reform active). */
-  readonly sovereignUmbrellaActive?: boolean;
-  /** Session (live) block — sovereign umbrella gate checklist when umbrella env is on. */
-  readonly sessionLiveLines?: readonly string[];
 }
 
 export const HOST_FUTURE_TIP =
@@ -98,7 +88,7 @@ export function appendHostTtftMsSample(
 /** Median of TTFT totals (average of two middle values when even). */
 export function computeHostTtftP50Ms(samples: readonly number[]): number | undefined {
   if (samples.length === 0) return undefined;
-  const sorted = [...samples].sort((a, b) => a - b);
+  const sorted = [...samples].toSorted((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   if (sorted.length % 2 === 1) return sorted[mid];
   const lo = sorted[mid - 1];
@@ -160,19 +150,6 @@ function isTruthyEnvFlag(value: string | undefined): boolean {
   return flag === '1' || flag.toLowerCase() === 'true';
 }
 
-export function isSovereignUmbrellaEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return isTruthyEnvFlag(env[SOVEREIGN_UMBRELLA_ENV]);
-}
-
-/** Live status when umbrella env is on — lists enabled soft gates. */
-export const HOST_SOVEREIGN_UMBRELLA_ACTIVE_LINE =
-  `Sovereign umbrella: ON (${SOVEREIGN_UMBRELLA_ENV}=1) — core · hide-legacy · warm`;
-
-export function formatHostSovereignUmbrellaStatusLine(
-  env: NodeJS.ProcessEnv = process.env,
-): string | undefined {
-  return isSovereignUmbrellaEnabled(env) ? HOST_SOVEREIGN_UMBRELLA_ACTIVE_LINE : undefined;
-}
 
 function isProcessAlive(pid: number): boolean {
   try {
@@ -264,9 +241,8 @@ export function buildHostSettingsLines(input: HostGlanceInput): readonly string[
 
   return [
     '── Host (read-only) ──────────────────────────',
-    'Agent runtime placement — Sovereign Reform §9 / W8.',
+    'Agent runtime placement.',
     '',
-    ...(input.sessionLiveLines ?? []),
     '── Status ───────────────────────────────────',
     modeLine,
     input.transportLine,
@@ -282,10 +258,8 @@ export function buildHostSettingsLines(input: HostGlanceInput): readonly string[
     '── Today ────────────────────────────────────',
     '· Default TUI runs in-process — lowest latency, full tool waist',
     '· Remote server + WebSocket API: `liora server` + client env (future picker)',
-    '· Latency / cost trade-offs documented in Sovereign Reform §10',
     '',
     '── Enable (future) ──────────────────────────',
-    `· ${HOST_SOVEREIGN_UMBRELLA_TIP}`,
     `· ${HOST_FUTURE_TIP}`,
     ...(ttftLine === null && ttftP50Line === null ? [`· ${HOST_TTFT_TIP}`] : []),
     '',
@@ -340,6 +314,5 @@ export function loadHostGlance(input: LoadHostGlanceInput): HostGlanceInput {
     uiMode,
     lastStepTtft: input.lastStepTtft ?? null,
     lastStepTtftMsWindow: input.lastStepTtftMsWindow ?? null,
-    sovereignUmbrellaActive: isSovereignUmbrellaEnabled(env),
   };
 }

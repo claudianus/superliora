@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import {
-  footerNextAction,
-  shortenCwd,
-} from '#/tui/components/chrome/footer/footer-chrome';
-import { ttui } from '#/tui/utils/tui-i18n';
-import type { AppState } from '#/tui/types';
+import { shortenCwd } from '#/tui/components/chrome/footer/footer-chrome';
 
 const previousHome = process.env['HOME'];
 const previousProfile = process.env['USERPROFILE'];
@@ -36,21 +31,3 @@ describe('shortenCwd', () => {
   });
 });
 
-describe('footerNextAction', () => {
-  const base = {
-    model: 'kimi-k2',
-    isCompacting: false,
-    isBackgroundCompacting: false,
-    isReplaying: false,
-    streamingPhase: 'idle',
-    contextUsage: 0,
-    premiumQualityMode: false,
-  } as AppState;
-
-  it('uses replaying copy only when history is actually replaying', () => {
-    expect(footerNextAction({ ...base, isReplaying: true }, null)).toBe(
-      ttui('tui.footer.replaying'),
-    );
-    expect(footerNextAction(base, null)).not.toBe(ttui('tui.footer.replaying'));
-  });
-});

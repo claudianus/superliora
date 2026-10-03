@@ -3,14 +3,6 @@ import { Activity, ArrowRight, Command, Compass, Gauge, HeartPulse, Route } from
 import { useLocale } from "../i18n";
 import { Reveal, SectionHead } from "./shared";
 import { cn } from "../utils/cn";
-import { PROVIDER_CATALOG } from "../../data/provider-catalog.generated";
-
-/** Substitutes the {placeholders} the locale templates use for catalog numbers. */
-function fill(template: string, vars: Record<string, string>): string {
-  let out = template;
-  for (const [key, value] of Object.entries(vars)) out = out.split(`{${key}}`).join(value);
-  return out;
-}
 
 const icons: Record<string, ComponentType<{ className?: string }>> = {
   command: Command,
@@ -28,13 +20,8 @@ const stepTone: Record<string, string> = {
 };
 
 export default function Systems() {
-  const { t, locale } = useLocale();
-  const fmt = (value: number) => new Intl.NumberFormat(locale).format(value);
-  const rest = PROVIDER_CATALOG.providerCount - PROVIDER_CATALOG.providers.length;
-  const chips: readonly { name: string; count?: string; rest?: boolean }[] = [
-    ...PROVIDER_CATALOG.providers.map((row) => ({ name: row.name, count: String(row.models) })),
-    ...(rest > 0 ? [{ name: fill(t.systems.providersMore, { count: fmt(rest) }), rest: true }] : []),
-  ];
+  const { t } = useLocale();
+  const chips = t.systems.controls;
 
   return (
     <section id="systems" className="relative scroll-mt-20 border-t border-line py-28 sm:py-36">
@@ -68,20 +55,20 @@ export default function Systems() {
           })}
         </div>
 
-        {/* Never-Halt chain */}
+        {/* Explicit native Job workflow */}
         <Reveal i={1}>
           <div className="mt-5 overflow-hidden rounded-2xl border border-line bg-panel">
             <div className="flex items-center justify-between border-b border-line px-6 py-3.5">
               <p className="font-[family-name:var(--font-mono)] text-[10.5px] tracking-[0.2em] text-faint uppercase">
-                {t.systems.failover.label}
+                {t.systems.workflow.label}
               </p>
               <span className="flex items-center gap-2 font-[family-name:var(--font-mono)] text-[10px] text-primary">
                 <HeartPulse className="size-3.5" />
-                Never-Halt
+                {t.systems.workflow.badge}
               </span>
             </div>
             <div className="grid gap-px bg-line sm:grid-cols-4">
-              {t.systems.failover.steps.map((s, i) => (
+              {t.systems.workflow.steps.map((s, i) => (
                 <div key={s.tag} className="relative bg-panel px-5 py-5">
                   <div className={cn("inline-flex items-center gap-2 rounded border px-2 py-0.5 font-[family-name:var(--font-mono)] text-[10px]", stepTone[s.cls])}>
                     {s.tag}
@@ -89,7 +76,7 @@ export default function Systems() {
                   <p className="mt-3 font-[family-name:var(--font-mono)] text-[11.5px] leading-relaxed text-dim">
                     {s.text}
                   </p>
-                  {i < t.systems.failover.steps.length - 1 && (
+                  {i < t.systems.workflow.steps.length - 1 && (
                     <ArrowRight className="absolute top-1/2 -right-2.5 z-10 hidden size-4 -translate-y-1/2 rounded-full border border-line bg-panel p-0.5 text-primary sm:block" />
                   )}
                 </div>
@@ -98,32 +85,24 @@ export default function Systems() {
           </div>
         </Reveal>
 
-        {/* provider marquee — names and counts come from the models.dev snapshot, never from copy */}
+        {/* Runtime tools and retained operator controls */}
         <Reveal i={2}>
           <p className="mt-14 mb-2 text-center font-[family-name:var(--font-mono)] text-[10.5px] tracking-[0.2em] text-faint uppercase">
             {t.systems.providersLabel}
           </p>
           <p className="mb-5 text-center font-[family-name:var(--font-mono)] text-[11px] text-dim">
-            {fill(t.systems.providersNote, {
-              providers: fmt(PROVIDER_CATALOG.providerCount),
-              models: fmt(PROVIDER_CATALOG.modelCount),
-              date: PROVIDER_CATALOG.snapshotDate,
-            })}
+            {t.systems.providersNote}
           </p>
         </Reveal>
         <div className="relative -mx-5 overflow-hidden" style={{ maskImage: "linear-gradient(90deg,transparent,black 12%,black 88%,transparent)" }}>
           <div className="marq flex w-max gap-3 pr-3">
             {[...chips, ...chips].map((chip, i) => (
               <span
-                key={`${chip.name}-${i}`}
-                className={cn(
-                  "flex shrink-0 items-center gap-2.5 rounded-full border border-line bg-panel px-5 py-2.5 font-[family-name:var(--font-mono)] text-[12px] text-dim",
-                  chip.rest && "border-primary/40 text-primary",
-                )}
+                key={`${chip}-${i}`}
+                className="flex shrink-0 items-center gap-2.5 rounded-full border border-line bg-panel px-5 py-2.5 font-[family-name:var(--font-mono)] text-[12px] text-dim"
               >
-                {!chip.rest && <span className="size-1.5 rounded-full bg-mint/80" />}
-                {chip.name}
-                {chip.count !== undefined && <span className="text-faint">{chip.count}</span>}
+                <span className="size-1.5 rounded-full bg-mint/80" />
+                {chip}
               </span>
             ))}
           </div>

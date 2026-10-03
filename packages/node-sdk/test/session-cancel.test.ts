@@ -2,12 +2,28 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type * as KosongModule from '@superliora/kosong';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createLioraHarness, type LioraError, type Event } from '#/index';
 
 import { makeTempDir, removeTempDirs, waitForSDKEvent } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';
+
+const delayedStream = vi.hoisted(() => ({
+  enabled: false,
+  calls: 0,
+  entered: Promise.withResolvers<void>(),
+  cleaning: Promise.withResolvers<void>(),
+  release: Promise.withResolvers<void>(),
+}));
+
+beforeEach(() => {
+  delayedStream.enabled = false;
+  delayedStream.calls = 0;
+  delayedStream.entered = Promise.withResolvers<void>();
+  delayedStream.cleaning = Promise.withResolvers<void>();
+  delayedStream.release = Promise.withResolvers<void>();
+});
 
 vi.mock('@superliora/kosong', async (importOriginal) => {
   const actual = await importOriginal<typeof KosongModule>();
@@ -18,34 +34,30 @@ vi.mock('@superliora/kosong', async (importOriginal) => {
       modelName: 'fake-model',
       thinkingEffort: null,
       async generate(
-        systemPrompt: string,
+        _systemPrompt: string,
         _tools: unknown,
         _history: unknown,
         options?: { readonly signal?: AbortSignal },
       ) {
-        // Response-language detection runs a dedicated generate call before the
-        // main turn; let it complete immediately so the turn can start (and
-        // then block on the abort signal the test cancels).
-        if (systemPrompt.startsWith('You detect the response language')) {
+        delayedStream.calls += 1;
+        if (delayedStream.enabled) {
           return {
-            id: 'fake-detection',
-            usage: {
-              inputOther: 0,
-              output: 1,
-              inputCacheRead: 0,
-              inputCacheCreation: 0,
-            },
+            id: 'delayed-stream',
+            usage: { inputOther: 1, output: 0, inputCacheRead: 0, inputCacheCreation: 0 },
             finishReason: 'completed',
             rawFinishReason: 'stop',
-            async *[Symbol.asyncIterator]() {
-              yield {
-                type: 'text',
-                text: JSON.stringify({
-                  language_code: 'en',
-                  language_name: 'English',
-                  explicit_override: false,
-                  confidence: 0.9,
-                }),
+            [Symbol.asyncIterator]() {
+              return {
+                async next(): Promise<IteratorResult<never>> {
+                  delayedStream.entered.resolve();
+                  try {
+                    await waitForAbort(options?.signal);
+                    throwAbortError();
+                  } finally {
+                    delayedStream.cleaning.resolve();
+                    await delayedStream.release.promise;
+                  }
+                },
               };
             },
           };
@@ -102,6 +114,39 @@ describe('Session.cancel', () => {
       expect(events).toContainEqual(expect.objectContaining({ type: 'turn.started' }));
       expect(events).toContainEqual(expect.objectContaining({ type: 'turn.ended' }));
     } finally {
+      await harness.close();
+    }
+  });
+
+  it('joins delayed stream cleanup for concurrent closes without running buffered steer', async () => {
+    const homeDir = await makeTempDir(tempDirs, 'sdk-close-join-home-');
+    const workDir = await makeTempDir(tempDirs, 'sdk-close-join-work-');
+    await writeFakeModelConfig(homeDir);
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
+    delayedStream.enabled = true;
+    try {
+      const session = await harness.createSession({ id: 'ses_close_delayed_stream', workDir });
+      const events: Event[] = [];
+      session.onEvent((event) => events.push(event));
+      const prompt = session.prompt('keep the stream open');
+      await delayedStream.entered.promise;
+      await prompt;
+      await session.steer('buffered work must not launch during shutdown');
+      let finishedCloses = 0;
+      const firstClose = session.close().then(() => { finishedCloses += 1; });
+      const secondClose = session.close().then(() => { finishedCloses += 1; });
+      await delayedStream.cleaning.promise;
+      await Promise.resolve();
+      expect(finishedCloses).toBe(0);
+      expect(events.filter((event) => event.type === 'turn.ended')).toEqual([]);
+      delayedStream.release.resolve();
+      await Promise.all([firstClose, secondClose]);
+      expect(finishedCloses).toBe(2);
+      expect(delayedStream.calls).toBe(1);
+      expect(harness.getSession(session.id)).toBeUndefined();
+      await expect(session.prompt('after close')).rejects.toMatchObject({ code: 'session.closed' });
+    } finally {
+      delayedStream.release.resolve();
       await harness.close();
     }
   });

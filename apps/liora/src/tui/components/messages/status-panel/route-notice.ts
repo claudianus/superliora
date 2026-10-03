@@ -1,21 +1,13 @@
 import type { ModelAlias, ProviderRouteSelection } from '@superliora/sdk';
 
+import { modelRouteDisplayName } from '#/tui/utils/model/model-route-notice';
 import { ttui } from '#/tui/utils/tui-i18n';
-
-function displayAliasName(
-  alias: string,
-  models: Record<string, ModelAlias>,
-): string {
-  if (alias.trim().toLowerCase() === 'auto') return 'Smart Auto';
-  const entry = models[alias];
-  return entry?.displayName ?? entry?.model ?? alias;
-}
 
 export function formatLastRouteSelection(
   selection: ProviderRouteSelection,
   models: Record<string, ModelAlias>,
 ): string {
-  const name = displayAliasName(selection.modelAlias, models);
+  const name = modelRouteDisplayName(selection.modelAlias, models);
   const parts = [name];
   if (
     selection.providerModel.length > 0 &&
@@ -43,14 +35,7 @@ export function noticeKindLabel(kind: 'failover' | 'switch' | 'selection'): stri
 }
 
 function formatRouteReason(reason: string): string {
-  if (reason === 'completion:inline') return 'ghost complete';
-  if (reason === 'completion:suggest') return 'suggest';
-  if (reason === 'smart-auto' || reason === 'smart-auto pin') return 'smart auto';
-  if (reason.startsWith('completion:')) return `completion · ${reason.slice('completion:'.length)}`;
   if (reason.startsWith('compaction')) return reason.replace(/^compaction[:]?/, 'compact').trim() || 'compact';
-  // Prefer the trailing `role/intensity` token from smart-router reasons.
-  const intensity = reason.match(/\b(compaction|completion|exploration|coding|planning|debugging)\/(value|balanced|max)\b/);
-  if (intensity !== null) return intensity[0];
   return reason;
 }
 
@@ -67,10 +52,10 @@ export function formatLastRouteNotice(
   },
   models: Record<string, ModelAlias>,
 ): string {
-  const to = displayAliasName(notice.toAlias, models);
+  const to = modelRouteDisplayName(notice.toAlias, models);
   const parts: string[] = [];
   if (notice.fromAlias !== undefined && notice.fromAlias !== notice.toAlias) {
-    parts.push(`${displayAliasName(notice.fromAlias, models)} → ${to}`);
+    parts.push(`${modelRouteDisplayName(notice.fromAlias, models)} → ${to}`);
   } else {
     parts.push(to);
   }

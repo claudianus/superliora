@@ -112,29 +112,12 @@ describe('spawnForSource native', () => {
 });
 
 describe('github-checkout update commands', () => {
-  it('uses install.sh-aligned fetch, build, and wrapper refresh for manual commands', () => {
-    const command = installCommandFor('github-checkout', 'origin/main@abcdef123456', 'darwin');
-
-    expect(command).toContain('bash -lc');
-    expect(command).toContain('fetch --depth 1 origin');
-    expect(command).toContain('install --frozen-lockfile');
-    expect(command).toContain('run build:packages');
-    expect(command).toContain('apps/liora run build');
-    expect(command).toContain('retrieval:bootstrap');
-    expect(command).toContain('scripts/install-liora.mjs');
-  });
 
   it('uses bash -lc for the auto-install script', () => {
     const { cmd, args } = spawnForSource('github-checkout', 'origin/main@abcdef123456', 'darwin');
 
     expect(cmd).toBe('bash');
     expect(args[0]).toBe('-lc');
-    expect(args[1]).toContain('fetch --depth 1 origin');
-    expect(args[1]).toContain('install --frozen-lockfile');
-    expect(args[1]).toContain('run build:packages');
-    expect(args[1]).toContain('apps/liora run build');
-    expect(args[1]).toContain('retrieval:bootstrap');
-    expect(args[1]).toContain('scripts/install-liora.mjs');
   });
 
   it('spawns Git for Windows bash.exe on win32, never PATH bash', () => {

@@ -21,8 +21,7 @@
  *   'q123:foo'     → {kind:'invalid', reason:'unsupported action: q123:foo'}
  *   ':dismiss'     → {kind:'invalid', reason:'invalid <resource>_id in path'}
  *
- * **Why `lastIndexOf(':')`**: resource ids may CONTAIN a colon (e.g. mcp tool
- * qualified names like `mcp:lark:search` if ever used in path position). We
+ * **Why `lastIndexOf(':')`**: resource ids may contain internal colons. We
  * only treat the FINAL `:` as the action separator so internal colons survive.
  */
 

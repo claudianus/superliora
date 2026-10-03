@@ -1000,9 +1000,8 @@ describe('LocalProcess.kill safety', () => {
       return;
     }
 
-    // If pid is -1, kill must be a no-op and must NOT call
-    // process.kill(-1, ...) which would signal the entire process group.
-    if (proc.pid <= 0) {
+    // An absent pid must never become process.kill(-1), which signals a process group.
+    if (proc.pid === undefined || proc.pid <= 0) {
       await expect(proc.kill('SIGTERM')).resolves.toBeUndefined();
     }
 

@@ -11,7 +11,6 @@ import {
 
 import {
   approvalRequestToPermissionOptions,
-  attachSelectedLabel,
   buildPermissionToolCallUpdate,
   permissionResponseToApprovalResponse,
 } from '#/approval';
@@ -30,23 +29,18 @@ export async function handleSessionApproval(
   ctx: SessionReverseRpcContext,
   req: ApprovalRequest,
 ): Promise<ApprovalResponse> {
-  const toolCall = buildPermissionToolCallUpdate(ctx.getCurrentTurnId(), req);
-  const options = approvalRequestToPermissionOptions(req);
-  if (req.display.kind === 'plan_review') {
-    const count = req.display.options?.length ?? 0;
-    ctx.emitTelemetry('plan_review_options_count', { count });
+  if (req.toolName !== 'Bash' && req.toolName !== 'SessionControl') {
+    return { decision: 'rejected' };
   }
+  const toolCall = buildPermissionToolCallUpdate(req.turnId ?? ctx.getCurrentTurnId(), req);
+  const options = approvalRequestToPermissionOptions();
   try {
     const response = await ctx.conn.requestPermission({
       sessionId: ctx.sessionId,
       options: [...options],
       toolCall,
     });
-    return attachSelectedLabel(
-      response,
-      permissionResponseToApprovalResponse(req, response),
-      options,
-    );
+    return permissionResponseToApprovalResponse(response);
   } catch (error) {
     log.warn('acp: requestPermission failed; rejecting', {
       sessionId: ctx.sessionId,
@@ -84,8 +78,8 @@ export async function handleSessionQuestion(
     ctx.emitTelemetry('question_degraded', { reason: 'multi_select' });
   }
   const options = questionItemToPermissionOptions(q, 0);
-  const rawToolCallId = req.toolCallId ?? 'ask-user';
-  const currentTurnId = ctx.getCurrentTurnId();
+  const rawToolCallId = req.toolCallId ?? 'question';
+  const currentTurnId = req.turnId ?? ctx.getCurrentTurnId();
   const toolCallId =
     currentTurnId !== undefined ? acpToolCallId(currentTurnId, rawToolCallId) : rawToolCallId;
   try {
@@ -94,7 +88,7 @@ export async function handleSessionQuestion(
       options: [...options],
       toolCall: {
         toolCallId,
-        title: 'AskUserQuestion',
+        title: 'Question',
         content: [{ type: 'content', content: { type: 'text', text: q.question } }],
       },
     });

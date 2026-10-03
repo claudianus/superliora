@@ -13,12 +13,6 @@ function snap(id: string, status: JobSnapshot['status'] = 'running'): JobSnapsho
     kind: 'task',
     priority: 1,
     briefPreview: { successCriteria: ['ok'] },
-    gateChecklist: {
-      visual: 'na',
-      review: 'pass',
-      tests: 'pass',
-      typecheck: 'pass',
-    },
   };
 }
 
@@ -43,8 +37,8 @@ describe('job board resync (F18)', () => {
 
     store.applySnapshots([snap('job_a'), snap('job_b', 'blocked')]);
     const next = store.snapshot();
-    expect(next.jobs.map((j) => j.id).sort()).toEqual(['job_a', 'job_b']);
-    expect(next.jobs.find((j) => j.id === 'job_a')?.gateChecklist?.tests).toBe('pass');
+    expect(next.jobs.map((j) => j.id).toSorted()).toEqual(['job_a', 'job_b']);
+    expect(next.jobs.find((j) => j.id === 'job_a')?.briefPreview?.successCriteria).toEqual(['ok']);
     expect(next.unreadInbox).toBe(1);
     expect(next.blocked).toBe(1);
     expect(next.running).toBe(1);

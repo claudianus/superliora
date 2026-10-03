@@ -76,9 +76,8 @@ describe('t()', () => {
     expect(t('cli.description')).toBe('차세대 에이전트의 시작점');
   });
 
-  it('falls back to English for keys missing from the Korean catalog', () => {
+  it('returns the key when no locale defines a translation', () => {
     setCliLocale('ko');
-    expect(t('cli.option.plan')).toBe('Plan Desk 조향으로 시작합니다.');
     expect(t('cli.key.that.does.not.exist')).toBe('cli.key.that.does.not.exist');
   });
 
@@ -91,12 +90,23 @@ describe('t()', () => {
       "알 수 없는 명령 'bogus'. 'liora --help'를 참고하세요.",
     );
   });
+
+  it.each(['en', 'ko'] as const)('describes direct coding and optional operator Jobs in %s', (locale) => {
+    setCliLocale(locale);
+    const help = t('tui.help.intro.advanced');
+    expect(help).toContain('Bash');
+    expect(help).toContain('SessionControl');
+    expect(help).not.toMatch(/Conductor|\/goal|\/plan|\/ask/);
+    expect(t('tui.step.providerFiltered.detail')).not.toMatch(/Goal|goal/);
+    expect(t('tui.notice.contextOverflow.detail')).toContain('/compact');
+    expect(t('tui.notice.contextOverflow.detail')).not.toMatch(/auto-compaction|자동 압축/);
+  });
 });
 
 describe('createProgram localization', () => {
   it('renders Korean help text when the locale is Korean', () => {
     setCliLocale('ko');
-    const program = createProgram('0.0.0', () => {}, () => {}, () => {});
+    const program = createProgram('0.0.0', () => {}, () => {});
     let output = '';
     program.exitOverride();
     program.configureOutput({
@@ -109,13 +119,13 @@ describe('createProgram localization', () => {
     });
     expect(() => program.parse(['node', 'liora', '--help'])).toThrow();
     expect(output).toContain('차세대 에이전트의 시작점');
-    expect(output).toContain('Plan Desk 조향으로 시작합니다.');
+    expect(output).not.toContain('Plan Desk');
     // Subcommand summary in the help listing.
     expect(output).toContain('세션을 ZIP 아카이브로 내보냅니다.');
   });
 
   it('renders English help text by default', () => {
-    const program = createProgram('0.0.0', () => {}, () => {}, () => {});
+    const program = createProgram('0.0.0', () => {}, () => {});
     let output = '';
     program.exitOverride();
     program.configureOutput({
@@ -128,7 +138,7 @@ describe('createProgram localization', () => {
     });
     expect(() => program.parse(['node', 'liora', '--help'])).toThrow();
     expect(output).toContain('The Starting Point for Next-Gen Agents');
-    expect(output).toContain('Start with Plan Desk steering.');
+    expect(output).not.toContain('Plan Desk');
   });
 
   it('localizes runtime export messages when locale is Korean', () => {
@@ -138,7 +148,7 @@ describe('createProgram localization', () => {
 
   it('localizes subcommand descriptions', () => {
     setCliLocale('ko');
-    const program = createProgram('0.0.0', () => {}, () => {}, () => {});
+    const program = createProgram('0.0.0', () => {}, () => {});
     const exportCmd = program.commands.find((c) => c.name() === 'export');
     expect(exportCmd?.description()).toBe('세션을 ZIP 아카이브로 내보냅니다.');
     const loginCmd = program.commands.find((c) => c.name() === 'login');

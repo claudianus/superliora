@@ -1,5 +1,4 @@
 import type {
-  Event,
   ToolCallDeltaEvent,
   ToolCallStartedEvent,
   ToolProgressEvent,
@@ -15,94 +14,19 @@ import type {
 import type { TUIState } from '../../tui-state';
 import {
   argsRecord,
-  isTodoItemShape,
   serializeToolResultOutput,
 } from '../../utils/event-payload';
-import { ttui } from '#/tui/utils/tui-i18n';
-import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
-import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
-import { searchCascadePatchFromToolResult } from '../../utils/search/search-cascade';
-import { goalSoftAdvisoryPatchFromToolResult } from '../../utils/goal/goal-soft-advisory-glance';
-import {
-  formatCircuitBreakerOpenNotice,
-  formatCircuitBreakerRecoveredNotice,
-  isCircuitBreakerOpenOutput,
-  isCircuitBreakerRecoveredOutput,
-} from '../../utils/tools/circuit-breaker-notice';
-import {
-  formatDoomLoopHardStopNotice,
-  formatDoomLoopSoftWarnNotice,
-  isDoomLoopHardStopOutput,
-  isDoomLoopSoftWarnOutput,
-} from '../../utils/tools/doom-loop-notice';
-import {
-  formatIdempotencyReplayNotice,
-  isIdempotencyReplayOutput,
-} from '../../utils/tools/idempotency-notice';
-import {
-  formatSameStepDedupNotice,
-  isSameStepDedupOutput,
-} from '../../utils/tools/same-step-dedup-notice';
-import {
-  formatShellDedicatedBypassNotice,
-  isShellDedicatedBypassOutput,
-} from '../../utils/tools/shell-dedicated-bypass-notice';
-import {
-  formatShellSensitivePathNotice,
-  isShellSensitivePathOutput,
-} from '../../utils/tools/shell-sensitive-path-notice';
-import {
-  formatPathSecurityNotice,
-  isPathSecurityOutput,
-} from '../../utils/tools/path-security-notice';
-import {
-  formatAutoCheckSpawnNotice,
-  isAutoCheckSpawnOutput,
-} from '../../utils/tools/auto-check-spawn-notice';
-import {
-  formatGoalFalseCompleteNotice,
-  formatGoalSoftAdvisoryNotice,
-  isGoalFalseCompleteOutput,
-  isGoalSoftAdvisoryOutput,
-} from '../../utils/tools/goal-completion-notice';
-import {
-  extractMutationPackageDir,
-  formatMutationVerifyNotice,
-  isMutationVerifyNudgeOutput,
-} from '../../utils/tools/mutation-verify-notice';
-import {
-  formatSlowToolWarnNotice,
-  isSlowToolWarnOutput,
-} from '../../utils/tools/slow-tool-notice';
 import type { StreamingUIController } from '../streaming-ui/index';
-
-const CONDUCTOR_JOB_TOOLS = new Set([
-  'JobCreate',
-  'JobList',
-  'JobInspect',
-  'JobSteer',
-  'JobCancel',
-  'MergeJob',
-  'JobSchedule',
-  'JobResume',
-  'JobInbox',
-]);
 
 /** Host surface required by tool / shell event handling. */
 export interface ToolsEventHost {
   state: TUIState;
   readonly streamingUI: StreamingUIController;
-  readonly motionBeats?: MotionBeatController;
   setAppState(patch: Partial<AppState>): void;
   patchLivePane(patch: Partial<LivePaneState>): void;
   handleShellOutput(event: { commandId: string; update: { kind: string; text?: string } }): void;
   handleShellStarted(event: { commandId: string; taskId: string }): void;
-  /** Optional — doom-loop hard stop recovery notice (Loop24a). */
-  showNotice?(title: string, detail?: string, options?: { coalesceKey?: string }): void;
-  showStatus?(msg: string, color?: string): void;
-  /** Conductor job desk sink; Job* tool output backfills through the board store. */
-  readonly controlTowerDesk?: { applyToolOutput(output: string): boolean };
 }
 
 export class SessionEventTools {
@@ -131,10 +55,8 @@ export class SessionEventTools {
     };
     streamingUI.registerToolCall(toolCall);
     // Push to activity feed for transparency panel
-    if (event.name !== 'TodoList') {
-      state.todoPanel.bumpActivity();
-      requestTUILayoutRender(state);
-    }
+    state.todoPanel.bumpActivity();
+    requestTUILayoutRender(state);
     this.host.patchLivePane({
       mode: 'tool',
       pendingApproval: null,
@@ -181,189 +103,8 @@ export class SessionEventTools {
       synthetic: event.synthetic,
       display: event.display,
     };
-    const matchedCall = streamingUI.completeToolResult(event.toolCallId, resultData);
-    if (matchedCall !== undefined) {
-      const cascadePatch = searchCascadePatchFromToolResult(matchedCall.name, resultData.output);
-      if (cascadePatch !== null) {
-        this.host.setAppState(cascadePatch);
-        this.host.motionBeats?.play({
-          name: 'tool_settle',
-          seed: 'research-cascade',
-          title: ttui('tui.notice.researchCascade'),
-          nowMs: appearanceAnimationNow(),
-          streamThrottle: true,
-        });
-      }
-      const advisoryPatch = goalSoftAdvisoryPatchFromToolResult(
-        this.host.state.appState.sessionId,
-        matchedCall.name,
-        matchedCall.args,
-        event.isError === true,
-        resultData.output,
-      );
-      if (advisoryPatch.goalSoftAdvisory !== this.host.state.appState.goalSoftAdvisory) {
-        this.host.setAppState(advisoryPatch);
-      }
-    }
-    if (matchedCall !== undefined && matchedCall.name === 'TodoList' && !event.isError) {
-      const rawTodos = (matchedCall.args as { todos?: unknown }).todos;
-      if (Array.isArray(rawTodos)) {
-        const sanitized = rawTodos
-          .filter((todo): todo is { title: string; status: 'pending' | 'in_progress' | 'done' } =>
-            isTodoItemShape(todo),
-          )
-          .map((t) => ({ title: t.title, status: t.status }));
-        streamingUI.setTodoList(sanitized);
-      }
-    }
-    // Conductor Job desk — best-effort tool-text backfill converges on the
-    // board store (V5-3 single source).
-    if (
-      matchedCall !== undefined &&
-      CONDUCTOR_JOB_TOOLS.has(matchedCall.name) &&
-      event.isError !== true
-    ) {
-      const applied = this.host.controlTowerDesk?.applyToolOutput(resultData.output) ?? false;
-      if (applied) {
-        if (
-          matchedCall.name === 'JobCreate' ||
-          matchedCall.name === 'JobResume' ||
-          matchedCall.name === 'JobCancel'
-        ) {
-          this.host.motionBeats?.play({
-            name: 'tool_settle',
-            seed: 'conductor-job',
-            title: ttui('tui.notice.jobDesk'),
-            nowMs: appearanceAnimationNow(),
-            streamThrottle: true,
-          });
-        }
-      }
-    }
-    // Loop24a/b + Loop25a + Loop26b: named recovery notices for engine guard rails.
-    if (this.host.showNotice !== undefined) {
-      if (event.isError === true && isDoomLoopHardStopOutput(resultData.output)) {
-        const notice = formatDoomLoopHardStopNotice(matchedCall?.name);
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'warning');
-      } else if (event.isError === true && isShellDedicatedBypassOutput(resultData.output)) {
-        // Loop43a: Bash blocked in favor of Read/Write/Edit/Grep/Glob.
-        const notice = formatShellDedicatedBypassNotice(
-          matchedCall?.name,
-          resultData.output,
-        );
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'warning');
-      } else if (event.isError === true && isShellSensitivePathOutput(resultData.output)) {
-        // Loop44a: Bash hard-deny for env/credential/SSH paths (no force hatch).
-        const notice = formatShellSensitivePathNotice(
-          matchedCall?.name,
-          resultData.output,
-        );
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'warning');
-      } else if (event.isError === true && isPathSecurityOutput(resultData.output)) {
-        // Loop45a: Read/Write/Edit/Grep/Glob PathSecurityError (PATH_* codes).
-        const notice = formatPathSecurityNotice(matchedCall?.name, resultData.output);
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'warning');
-      } else if (event.isError === true && isCircuitBreakerOpenOutput(resultData.output)) {
-        const notice = formatCircuitBreakerOpenNotice(matchedCall?.name);
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'warning');
-      } else if (
-        event.isError !== true &&
-        isCircuitBreakerRecoveredOutput(resultData.output)
-      ) {
-        // Loop29a: half-open/open → closed after successful probe.
-        const notice = formatCircuitBreakerRecoveredNotice(matchedCall?.name);
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'info');
-      } else if (isDoomLoopSoftWarnOutput(resultData.output)) {
-        const notice = formatDoomLoopSoftWarnNotice(matchedCall?.name);
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'warning');
-      } else if (isIdempotencyReplayOutput(resultData.output)) {
-        const notice = formatIdempotencyReplayNotice(matchedCall?.name);
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'info');
-      } else if (isSameStepDedupOutput(resultData.output)) {
-        // Loop42a: same-step identical (tool,args) reused prior result.
-        const notice = formatSameStepDedupNotice(matchedCall?.name);
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'info');
-      } else if (isSlowToolWarnOutput(resultData.output)) {
-        const notice = formatSlowToolWarnNotice(matchedCall?.name);
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'warning');
-      } else if (isAutoCheckSpawnOutput(resultData.output)) {
-        // Loop33a: opt-in spawn result — prefer over bare mutation-verify when both present.
-        const notice = formatAutoCheckSpawnNotice(matchedCall?.name, resultData.output);
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, notice.failed ? 'warning' : 'success');
-      } else if (event.isError === true && isGoalFalseCompleteOutput(resultData.output)) {
-        // Loop36a: false-complete hard reject on UpdateGoal(complete).
-        const notice = formatGoalFalseCompleteNotice();
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'warning');
-      } else if (event.isError !== true && isGoalSoftAdvisoryOutput(resultData.output)) {
-        // Loop36a: plain Goal complete without evidence hard gate.
-        const notice = formatGoalSoftAdvisoryNotice();
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'info');
-      } else if (
-        event.isError !== true &&
-        isMutationVerifyNudgeOutput(resultData.output)
-      ) {
-        // Loop27b: PostToolUse mutation-verify tip — operator-visible, not model-only.
-        const notice = formatMutationVerifyNotice(
-          matchedCall?.name,
-          extractMutationPackageDir(resultData.output),
-        );
-        this.host.showNotice(notice.title, notice.detail, {
-          coalesceKey: notice.coalesceKey,
-        });
-        this.host.showStatus?.(notice.status, 'info');
-      }
-    }
+    streamingUI.completeToolResult(event.toolCallId, resultData);
     this.host.patchLivePane({ mode: 'waiting' });
   }
 
-  handleToolsUpdateStore(event: Extract<Event, { type: 'tools.update_store' }>): void {
-    if (event.key !== 'todo') return;
-    const rawTodos = event.value;
-    if (!Array.isArray(rawTodos)) return;
-    const sanitized = rawTodos
-      .filter((todo): todo is { title: string; status: 'pending' | 'in_progress' | 'done' } =>
-        isTodoItemShape(todo),
-      )
-      .map((todo) => ({ title: todo.title, status: todo.status }));
-    this.host.streamingUI.setTodoList(sanitized);
-  }
 }

@@ -34,18 +34,15 @@ function createTestAppState(): AppState {
   return {
     theme: 'dark',
     model: 'example-model',
-    planMode: false,
-    askMode: false,
     streamingPhase: 'idle',
     isCompacting: false,
-    isBackgroundCompacting: false,
     inputMode: 'prompt',
   } as AppState;
 }
 
 function createTestTuiState(options: Partial<LioraTUIOptions> = {}) {
   const state = createTUIState({
-    startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    startup: { continueLast: false, yolo: false, auto: false },
     initialAppState: createTestAppState(),
     ...options,
   });

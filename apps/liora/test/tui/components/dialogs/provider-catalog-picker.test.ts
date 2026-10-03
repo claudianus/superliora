@@ -1,10 +1,9 @@
 import type { Catalog } from '@superliora/sdk';
 import chalk from 'chalk';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { ProviderCatalogPickerComponent } from '#/tui/components/dialogs/picker/provider-catalog-picker';
 import { darkColors } from '#/tui/theme/colors';
-import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import {
   buildProviderCatalogOptions,
   resolveProviderSelection,
@@ -61,6 +60,49 @@ function makeCatalog(): Catalog {
 }
 
 describe('buildProviderCatalogOptions', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each([undefined, '0', 'false', 'no', ' OFF '])('hides Copilot login without opt-in (%s)', (value) => {
+    vi.stubEnv('SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT', value);
+    const values = buildProviderCatalogOptions(makeCatalog()).map((option) => option.value);
+    expect(values).not.toContain('oauth:github-copilot');
+    expect(values).not.toContain('catalog:github-copilot');
+  });
+
+  it.each(['1', 'true', 'yes', ' ON '])('makes Copilot token login selectable with opt-in (%s)', (value) => {
+    vi.stubEnv('SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT', value);
+    const options = buildProviderCatalogOptions(makeCatalog());
+    expect(options.find((option) => option.value === 'oauth:github-copilot')).toMatchObject({
+      authKind: 'oauth',
+    });
+    expect(resolveProviderSelection('oauth:github-copilot')).toEqual({
+      kind: 'oauth',
+      providerId: 'github-copilot',
+    });
+  });
+
+  it.each([
+    ['ANTHROPIC_OAUTH', 'anthropic-oauth'],
+    ['CURSOR_OAUTH', 'cursor-oauth'],
+    ['GLM_ZCODE_OAUTH', 'glm-zcode'],
+    ['GOOGLE_GEMINI_CLI_OAUTH', 'google-gemini-cli'],
+    ['KIRO_OAUTH', 'kiro'],
+  ])('keeps %s available unless explicitly disabled', (flag, providerId) => {
+    const variable = `SUPERLIORA_EXPERIMENTAL_${flag}`;
+    vi.stubEnv(variable, undefined);
+    expect(buildProviderCatalogOptions(makeCatalog()).some(
+      (option) => option.value === `oauth:${providerId}`,
+    )).toBe(true);
+    for (const value of ['0', 'false', 'no', ' OFF ']) {
+      vi.stubEnv(variable, value);
+      expect(buildProviderCatalogOptions(makeCatalog()).some(
+        (option) => option.value === `oauth:${providerId}`,
+      )).toBe(false);
+    }
+  });
+
   it('merges OAuth providers, catalog providers, and escape hatches', () => {
     const options = buildProviderCatalogOptions(makeCatalog());
     const values = options.map((o) => o.value);
@@ -95,27 +137,6 @@ describe('buildProviderCatalogOptions', () => {
     expect(order('preset:ollama')).toBeGreaterThan(order('catalog:openai'));
   });
 
-  it('hides the Anthropic OAuth option when the experimental flag is off', () => {
-    const options = buildProviderCatalogOptions(makeCatalog());
-    const values = options.map((o) => o.value);
-    // Anthropic OAuth is gated behind SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH.
-    expect(values).not.toContain('oauth:anthropic-oauth');
-    // But the catalog API-key option for Anthropic is still present.
-    expect(values).toContain('catalog:anthropic');
-  });
-
-  it('hides GitHub Copilot unless the experimental flag is on', () => {
-    setExperimentalFeatures([]);
-    const hidden = buildProviderCatalogOptions(makeCatalog()).map((o) => o.value);
-    expect(hidden).not.toContain('oauth:github-copilot');
-    expect(hidden).not.toContain('catalog:github-copilot');
-
-    setExperimentalFeatures([{ id: 'github_copilot', enabled: true }]);
-    const shown = buildProviderCatalogOptions(makeCatalog()).map((o) => o.value);
-    expect(shown).toContain('oauth:github-copilot');
-    expect(shown).not.toContain('catalog:github-copilot');
-    setExperimentalFeatures([]);
-  });
 
   it('filters out providers with an unsupported wire type', () => {
     const options = buildProviderCatalogOptions(makeCatalog());

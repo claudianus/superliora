@@ -1,21 +1,13 @@
-/**
- * Single choke point: exceptional Job status → inbox + wire emit + Conductor wake.
- *
- * `requestConductorWake` no-ops on an empty inbox, so every terminal/exception
- * path that should re-enter the Conductor must go through here (or call
- * `notifyJobTerminal` after its own patch). Raw `patchJob` stays for
- * non-exceptional ledger churn (queued/running/progress).
- */
+/** Persist operator inbox notices and stream Job state transitions to clients. */
 
 import type { Agent } from '../../../agent/index';
-import { requestConductorWake } from '../../../session/job/conductor-wake';
 import type { ToolStore } from '../../store';
 import { emitJobEvents, inboxToWireEventForJob, jobRecordToUpdatedEvent } from './job-emit';
 import { inboxKindForStatus, pushJobInboxEvent } from './job-inbox';
 import { getJob, patchJob, type JobRecord, type JobStatus } from './job-ledger';
 
-/** Statuses that must surface on the meta inbox and wake the Conductor. */
-export function isJobExceptionalStatus(status: JobStatus): boolean {
+/** Terminal and parked statuses visible on the operator inbox. */
+function isJobExceptionalStatus(status: JobStatus): boolean {
   return (
     status === 'done' ||
     status === 'failed' ||
@@ -34,10 +26,7 @@ export interface NotifyJobTerminalInput {
   readonly agent?: Agent;
 }
 
-/**
- * Push inbox + emit + wake for an already-patched exceptional status.
- * No-op when `status` is not exceptional.
- */
+/** Push inbox and streaming events for an already-patched exceptional status. */
 export function notifyJobTerminal(input: NotifyJobTerminalInput): void {
   const kind = inboxKindForStatus(input.status);
   if (kind === undefined) return;
@@ -52,32 +41,11 @@ export function notifyJobTerminal(input: NotifyJobTerminalInput): void {
     inboxToWireEventForJob(event, input.job),
     jobRecordToUpdatedEvent(input.job, { reason: kind }),
   ]);
-  if (input.agent !== undefined) {
-    requestConductorWake({ agent: input.agent, store: input.store });
-    // Goal Desk: fleet terminals can leave binding `active` with no live
-    // driver when the umbrella sync was skipped — heal + emit so the Goal
-    // Monitor stops claiming "spinning up". Dynamic import avoids a
-    // goal-session-binding ↔ job-notify init cycle.
-    void import('../goal/goal-session-binding').then(
-      ({ readGoalSessionBinding, healActiveGoalDeskBinding }) => {
-        const binding = readGoalSessionBinding(input.store);
-        if (binding?.status !== 'active') return;
-        const healed = healActiveGoalDeskBinding(input.store, binding, input.agent);
-        if (healed.status === 'active') return;
-        void import('../goal/goal-desk-facade').then(({ emitGoalDeskSnapshot }) => {
-          emitGoalDeskSnapshot(input.agent!, input.store);
-        });
-      },
-    );
-  }
 }
 
-export type JobNotifyPatch = Parameters<typeof patchJob>[2];
+export type JobNotifyPatch = Partial<Omit<JobRecord, 'id' | 'createdAt' | 'updatedAt'>>;
 
-/**
- * Patch the ledger; when `patch.status` is exceptional and the status
- * actually changed, notify inbox + wake. Same-status re-patches stay quiet.
- */
+/** Notify only when an exceptional status changes; progress patches stay quiet. */
 export function patchJobAndNotify(
   store: ToolStore,
   id: string,

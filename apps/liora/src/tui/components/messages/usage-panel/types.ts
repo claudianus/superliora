@@ -35,15 +35,6 @@ export interface UsageReportOptions {
   readonly contextUsage: number;
   readonly contextTokens: number;
   readonly maxContextTokens: number;
-  /**
-   * Soft working-set policy (Settings → Context). When set, a second gauge
-   * shows live history pressure against the agent cap, not only the model window.
-   */
-  readonly workingSet?: {
-    readonly maxWorkingSetTokens: number;
-    readonly asyncWorkingSetTokens: number;
-    readonly presetId?: string;
-  } | null;
   readonly managedUsage?: ManagedUsageReport;
   readonly managedUsageError?: string;
   /** 0..1 multiplier applied to plan usage bars during ambient fill animation. */

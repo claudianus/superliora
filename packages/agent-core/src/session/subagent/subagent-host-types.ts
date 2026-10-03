@@ -1,16 +1,4 @@
-/**
- * Public subagent-host types and batch re-exports.
- *
- * Extracted so callers (events, telemetry, batch, collaboration) can depend on
- * option shapes without importing the SessionSubagentHost class.
- */
-
 import type { TokenUsage } from '@superliora/kosong';
-
-import type { GoalBudgetLimits, GoalStatus } from '../../agent/goal/types';
-import type { ToolCallEvent } from '../../skill/auto-skillify';
-import type { SubagentFriction } from './subagent-friction';
-import type { SubagentResultContract } from './subagent-result-contract';
 
 export type {
   SubagentResult as QueuedSubagentRunResult,
@@ -18,31 +6,6 @@ export type {
   ResumeQueuedSubagentTask,
   SpawnQueuedSubagentTask,
 } from './subagent-batch';
-
-/**
- * Goal migrated onto the worker agent at spawn time
- * (spec 2026-08-04-goal-driver-jobs). The runtime creates the goal
- * mechanically before the task prompt turn; the turn engine then drives the
- * autonomous continuation loop on the worker lane.
- */
-export interface SubagentGoalBinding {
-  readonly objective: string;
-  readonly completionCriterion?: string;
-  /** Shell gate — markComplete rejects until this command exits 0 (Prime autonomous-gate). */
-  readonly gateCommand?: string;
-  readonly budgetLimits?: GoalBudgetLimits;
-}
-
-/**
- * Structured plan activated on the worker at spawn (Plan Desk / mission Jobs).
- * Mirrors goal migration: the runtime calls planMode.enter before the task turn.
- */
-export interface SubagentPlanBinding {
-  /** Structured pipeline (research→interview→…); default true for Plan Desk. */
-  readonly ultra?: boolean;
-  readonly initialContext?: string;
-  readonly planId?: string;
-}
 
 export interface RunSubagentOptions {
   readonly parentToolCallId: string;
@@ -53,99 +16,30 @@ export interface RunSubagentOptions {
   readonly swarmItem?: string;
   readonly runInBackground: boolean;
   readonly signal: AbortSignal;
-  /** Wall-clock budget for the run; drives finishing mode and telemetry (T4-5). */
+  /** Explicit wall-clock limit; zero leaves the run unlimited. */
   readonly timeoutMs?: number;
-  /** Shared contract file that must compile before the subagent is spawned (T4-3). */
-  readonly contractPath?: string;
-  /** File paths the subagent owns; claimed at spawn so overlaps fail fast (T4-2). */
   readonly ownership?: readonly string[];
-  /** Isolated git worktree cwd for fleet workers (SUPERLIORA_FLEET_WORKTREE=1 soft path). */
+  /** Deliberately selected isolated worker cwd. */
   readonly worktreeDir?: string;
-  /**
-   * Migrate a Goal onto the worker agent before its task prompt turn
-   * (goal-driver Jobs): the worker self-continues toward it in its own lane.
-   */
-  readonly goal?: SubagentGoalBinding;
-  /**
-   * Activate structured / free-form plan mode on the worker before its task
-   * prompt (Plan Desk mission Jobs).
-   */
-  readonly plan?: SubagentPlanBinding;
-  /**
-   * Force Premium Quality ON for this child (UI-classified Conductor Jobs),
-   * even when the parent toggle is OFF. Parent ON still inherits without this.
-   */
-  readonly forcePremiumQuality?: boolean;
-  /**
-   * Prefer a vision-capable catalog model when the role-selected alias cannot
-   * consume screenshots (UI-classified Conductor Jobs).
-   */
-  readonly preferVisionModel?: boolean;
-  /** Conductor-chosen worker model alias; skips profile/role auto when healthy. */
   readonly modelAlias?: string;
-  /**
-   * One-shot finishing grace: when the hard wall-clock deadline fires, re-arm
-   * once for this long instead of aborting. Job workers use it because the
-   * observed kill landed at 30m with the job in `last_phase: finishing` and
-   * its work uncommitted. Note this is a deadline extension, not a phase
-   * gate: whatever child is still running at the hard deadline gets the one
-   * window — a healthy worker was already steered into finishing mode at
-   * T-5m of the soft budget (subagent-telemetry), so the grace is its
-   * wrap-up time. A wedged child also gets it, and is still killed at
-   * deadline + grace: the wedge guarantee stays bounded, only longer.
-   */
-  readonly deadlineGraceOnceMs?: number;
-  /** Called once when the grace is granted (conductor-visible job notice). */
-  readonly notifyDeadlineGrace?: () => void;
-  /**
-   * Finite cap on the finishing phase (H8). Once the worker announces
-   * finishing mode (`subagent-telemetry`), the phase gets at most this long
-   * without tool progress; past it the run ends with a
-   * {@link SubagentFinishingCapError} that carries the interrupted reason and
-   * the progress snapshot, instead of silently burning wall-clock until the
-   * deadline and returning nothing. `0`/undefined leaves the phase bounded
-   * only by the wall-clock deadline.
-   */
-  readonly finishingCapMs?: number;
-  /**
-   * Permission mode for the spawned child. Job workers run yolo inside their
-   * isolated worktree so a forgotten approval cannot stall an autonomous job;
-   * tools with their own gates (PushJob force_user_confirm) stay gated.
-   */
   readonly permissionMode?: 'yolo' | 'auto' | 'manual';
   readonly onReady?: () => void;
-  readonly suppressRateLimitFailureEvent?: boolean;
 }
 
 export interface SpawnSubagentOptions extends RunSubagentOptions {
-  readonly profileName: string;
-  readonly profileBaseName?: string;
+  readonly profileName?: 'agent';
 }
 
+/** Observed turn completion, not a claim that the assigned task is verified. */
 export type SubagentCompletion = {
+  readonly status: 'completed';
   readonly result: string;
   readonly usage?: TokenUsage;
-  readonly contract?: SubagentResultContract;
-  /** Deterministic struggle stats for the parent's refine pipeline. */
-  readonly friction?: SubagentFriction;
-  /**
-   * Terminal state of a migrated goal (goal-driver Jobs). `complete` when the
-   * worker met the objective (the record is cleared on completion), otherwise
-   * the stopped status (`blocked`/`paused`) the caller maps onto its ledger.
-   */
-  readonly goalStatus?: GoalStatus;
-  readonly goalId?: string;
-  readonly goalTerminalReason?: string;
-  /**
-   * Terminal autonomous-gate verdict from a migrated goal — parent Conductor
-   * refine scores harness entries (child refine is null).
-   */
-  readonly gateOutcome?: 'passed' | 'exhausted';
-  /**
-   * Deterministic tool success/failure events from the worker trajectory for
-   * parent auto-skillify (child skillify is main-only).
-   */
-  readonly skillifyEvents?: readonly ToolCallEvent[];
+  readonly filesChanged: readonly string[];
+  readonly context: {
+    readonly agentId: string;
+    readonly contextTokens: number;
+  };
 };
 
 export type SubagentHandle = {
@@ -153,4 +47,6 @@ export type SubagentHandle = {
   readonly profileName: string;
   readonly resumed: boolean;
   readonly completion: Promise<SubagentCompletion>;
+  /** Live physical ownership state; undefined while execution is active. */
+  readonly resourcesSettled?: boolean;
 };

@@ -8,6 +8,17 @@ This page documents SuperLiora CLI releases. It is SuperLiora’s own release li
 
 The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/claudianus/superliora/blob/main/apps/liora/CHANGELOG.md). Dates below are published GitHub Release dates (UTC). There is no GitHub Release for 0.11.1; that version is kept because the product changelog already records it.
 
+## Unreleased — native runtime major cutover
+
+- Expose exactly Bash and SessionControl to the model. Ordinary requests run directly in the workspace; native Jobs retain explicit worktree isolation and manual review, land, and push controls.
+- Remove cognitive instruction injection, plans, goals, skill/plugin/MCP catalogs, automatic memory and continuations, role routing, forced verification/review, and automatic execution-step or worker retries. Explicit operator retry and configured native provider routes remain.
+- Keep durable sessions, completed-history aside forks, explicit full compaction, approvals, native processes, cancellation, and live worker activity. Failed cleanup retains physical ownership; requesting cancellation does not imply completion.
+- Force native terminal exit on explicit close, including shells that ignore hangup. Signal-only termination has no numeric exit code, and live terminals protect their working directories from worktree cleanup.
+- Keep Job approval separate from completed landing or publishing. Surface native dispatch failure reasons, reject unsettled/closed pushes without dispatching effects, and retain oversized queued display segments within the durable state limit.
+- Correct child-card ownership, Worker Dock press/release focus and focus-only repaint, editable Job creation, and unknown context display. Native Auto selection is not a failover; OAuth picker opt-in/off controls remain.
+- Use unbiased background task IDs and linear native path/error parsing. Debug environment reports omit inherited values while preserving the actual child environment and login.
+- Archive original journals before native record migration. Remove retired configuration manually, including `[research]` and `loop_control.max_retries_per_step`; no compatibility aliases are provided. See [breaking changes](./breaking-changes.md).
+
 ## 0.13.7 (2026-08-27)
 
 ### Bug Fixes

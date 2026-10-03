@@ -1,17 +1,15 @@
 import type { ContentPart, TokenUsage } from '@superliora/kosong';
 
-
 import type { LoopRecordedEvent } from '../../loop';
-import type { GoalActor, GoalBudgetLimits, GoalStatus } from '../goal';
-import type { HarnessState } from '../refine/state';
-import type { ToolStoreUpdate } from '../../tools/store';
 import type { CompactionBeginData, CompactionResult } from '../compaction';
 import type { AgentConfigUpdateData } from '../config';
 import type { ContextMessage, PromptOrigin } from '../context';
 import type { PermissionApprovalResultRecord, PermissionMode } from '../permission';
-import type { UserToolRegistration } from '../tool';
 import type { UsageRecordScope } from '../usage';
 import type { TurnCancelSource } from '../../rpc/core-api';
+import type { JobLedger } from '../../tools/builtin/job/job-store-key';
+import type { JobInbox } from '../../tools/builtin/job/job-inbox';
+import type { JobProjectModeState } from '../../tools/builtin/job/job-project-mode';
 
 export interface SerializableAgentEvent {
   readonly type: string;
@@ -49,30 +47,6 @@ export interface AgentRecordEvents {
 
   'full_compaction.begin': CompactionBeginData;
 
-  'plan_mode.enter': {
-    id: string;
-    ultra?: boolean;
-  };
-  'plan_mode.state': {
-    phase: 'research' | 'interview' | 'design' | 'review' | 'write' | 'exit';
-    interviewRoundCount: number;
-    ultraPlan: Record<string, unknown>;
-  };
-  'plan_mode.cancel': {
-    id?: string;
-  };
-  'plan_mode.exit': {
-    id?: string;
-  };
-
-  'tools.register_user_tool': UserToolRegistration;
-  'tools.unregister_user_tool': {
-    name: string;
-  };
-  'tools.set_active_tools': {
-    names: readonly string[];
-  };
-
   'usage.record': {
     model: string;
     usage: TokenUsage;
@@ -81,41 +55,17 @@ export interface AgentRecordEvents {
 
   'full_compaction.cancel': {};
   'full_compaction.complete': {};
-  'micro_compaction.apply': { cutoff: number };
   'context.append_message': { message: ContextMessage };
   'context.append_loop_event': { event: LoopRecordedEvent };
   'context.clear': {};
   'context.apply_compaction': CompactionResult;
   'context.undo': { count: number };
-  'context.rollback_attempt': { turnId: number; historyLength: number };
-
-  'tools.update_store': ToolStoreUpdate;
-
-  'goal.create': {
-    goalId: string;
-    objective: string;
-    completionCriterion?: string;
-    gateCommand?: string;
-  };
-  'harness.state': {
-    state: HarnessState;
-  };
-  'goal.update': {
-    status?: GoalStatus;
-    tokensUsed?: number;
-    turnsUsed?: number;
-    wallClockMs?: number;
-    budgetLimits?: GoalBudgetLimits;
-    reason?: string;
-    actor?: GoalActor;
-  };
-  'goal.clear': {};
+  'job.ledger': { ledger: JobLedger };
+  'job.inbox': { inbox: JobInbox };
+  'job.pool': { pool: JobProjectModeState };
 
   'subagent.lifecycle': {
     event: SerializableAgentEvent;
-  };
-  'premium-quality.mode': {
-    enabled: boolean;
   };
 }
 

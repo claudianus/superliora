@@ -13,10 +13,6 @@ import type { AcpModelEntry } from '../src/model-catalog';
 function makeHarnessWithModels(
   entries: ReadonlyArray<{ id: string; model?: string; displayName?: string; capabilities?: readonly string[] }>,
 ): { harness: LioraHarness; getConfig: ReturnType<typeof vi.fn> } {
-  // Mirror the `listAvailableModels` derivation: `id` is the config map
-  // key, `model` defaults to id, `displayName` to model. The test fixtures
-  // below pick names that exercise the three thinkingSupported triggers
-  // (name regex, capabilities array, toggleable allow-list).
   const models: Record<string, { model: string; displayName?: string; capabilities?: readonly string[] }> = {};
   for (const entry of entries) {
     models[entry.id] = {
@@ -30,7 +26,7 @@ function makeHarnessWithModels(
 }
 
 describe('buildModelOption', () => {
-  it('emits exactly one option per catalog row (Phase 15: no inlined `,thinking` variant rows)', () => {
+  it('emits exactly one option per native catalog row', () => {
     const models: readonly AcpModelEntry[] = [
       { id: 'alpha', name: 'Alpha', thinkingSupported: true },
       { id: 'beta', name: 'Beta', thinkingSupported: false },
@@ -55,17 +51,17 @@ describe('buildModelOption', () => {
     ]);
   });
 
-  it('treats `currentValue` as the bare base model id — Phase 15 keeps the snapshot suffix-free', () => {
+  it('preserves configured model ids intact, including commas', () => {
     const models: readonly AcpModelEntry[] = [
-      { id: 'kimi-v2', name: 'Kimi v2', thinkingSupported: true },
+      { id: 'kimi-v2,thinking', name: 'Kimi v2', thinkingSupported: true },
     ];
 
-    const option = buildModelOption(models, 'kimi-v2');
+    const option = buildModelOption(models, 'kimi-v2,thinking');
     if (option.type !== 'select') {
       throw new Error('expected a SessionConfigSelect option');
     }
-    expect(option.currentValue).toBe('kimi-v2');
-    expect(option.options.map((o) => ('value' in o ? o.value : ''))).toEqual(['kimi-v2']);
+    expect(option.currentValue).toBe('kimi-v2,thinking');
+    expect(option.options.map((o) => ('value' in o ? o.value : ''))).toEqual(['kimi-v2,thinking']);
   });
 
   it('handles an empty catalog without emitting any options', () => {
@@ -105,8 +101,8 @@ describe('buildThinkingOption', () => {
 });
 
 describe('buildModeOption', () => {
-  it('returns the locked 4-mode taxonomy in order (default → plan → auto → yolo) with description carried through', () => {
-    const option = buildModeOption('plan');
+  it('returns native manual, auto, and yolo modes with descriptions', () => {
+    const option = buildModeOption('manual');
 
     expect(option.id).toBe('mode');
     expect(option.category).toBe('mode');
@@ -114,10 +110,10 @@ describe('buildModeOption', () => {
     if (option.type !== 'select') {
       throw new Error('expected a SessionConfigSelect option');
     }
-    expect(option.currentValue).toBe('plan');
-    expect(option.options).toHaveLength(4);
+    expect(option.currentValue).toBe('manual');
+    expect(option.options).toHaveLength(3);
     const ids = option.options.map((o) => ('value' in o ? o.value : ''));
-    expect(ids).toEqual(['default', 'plan', 'auto', 'yolo']);
+    expect(ids).toEqual(['manual', 'auto', 'yolo']);
     for (const entry of option.options) {
       if ('value' in entry) {
         expect(typeof entry.name).toBe('string');
@@ -131,13 +127,11 @@ describe('buildModeOption', () => {
 
 describe('buildSessionConfigOptions', () => {
   it('composes [model, thinking, mode] when current model supports thinking and calls getConfig exactly once', async () => {
-    // `kimi-for-coding` is on the toggleable allow-list so its derived
-    // thinkingSupported is true even without explicit capabilities.
     const { harness, getConfig } = makeHarnessWithModels([
-      { id: 'kimi-coder', model: 'kimi-for-coding', displayName: 'Kimi Coder' },
+      { id: 'kimi-coder', model: 'kimi-for-coding', displayName: 'Kimi Coder', capabilities: ['thinking'] },
     ]);
 
-    const result = await buildSessionConfigOptions(harness, 'kimi-coder', false, 'default');
+    const result = await buildSessionConfigOptions(harness, 'kimi-coder', false, 'manual');
 
     expect(getConfig).toHaveBeenCalledTimes(1);
     expect(result).toHaveLength(3);
@@ -153,7 +147,7 @@ describe('buildSessionConfigOptions', () => {
       throw new Error('expected thinking select at index 1');
     }
     if (result[2]!.type === 'select') {
-      expect(result[2]!.currentValue).toBe('default');
+      expect(result[2]!.currentValue).toBe('manual');
     }
   });
 
@@ -163,17 +157,17 @@ describe('buildSessionConfigOptions', () => {
       { id: 'kimi-plain', model: 'qwen-2.5-coder', displayName: 'Kimi Plain' },
     ]);
 
-    const result = await buildSessionConfigOptions(harness, 'kimi-plain', false, 'default');
+    const result = await buildSessionConfigOptions(harness, 'kimi-plain', false, 'manual');
 
     expect(result.map((o) => o.id)).toEqual(['model', 'mode']);
   });
 
   it('reflects the thinking toggle currentValue from the explicit argument', async () => {
     const { harness } = makeHarnessWithModels([
-      { id: 'kimi-coder', model: 'kimi-for-coding', displayName: 'Kimi Coder' },
+      { id: 'kimi-coder', model: 'kimi-for-coding', displayName: 'Kimi Coder', capabilities: ['thinking'] },
     ]);
 
-    const result = await buildSessionConfigOptions(harness, 'kimi-coder', true, 'default');
+    const result = await buildSessionConfigOptions(harness, 'kimi-coder', true, 'manual');
     const toggle = result.find((o) => o.id === 'thinking');
     if (!toggle || toggle.type !== 'select') throw new Error('expected thinking select toggle');
     expect(toggle.currentValue).toBe('on');
@@ -189,7 +183,7 @@ describe('buildSessionConfigOptions', () => {
       },
     ]);
 
-    const result = await buildSessionConfigOptions(harness, 'kimi-deep', false, 'default');
+    const result = await buildSessionConfigOptions(harness, 'kimi-deep', false, 'manual');
 
     const toggle = result.find((o) => o.id === 'thinking');
     if (!toggle || toggle.type !== 'select') throw new Error('expected thinking select toggle');
@@ -202,14 +196,14 @@ describe('buildSessionConfigOptions', () => {
       { id: 'kimi-coder', model: 'kimi-for-coding', displayName: 'Kimi Coder' },
     ]);
 
-    const result = await buildSessionConfigOptions(harness, 'unknown-model', true, 'default');
+    const result = await buildSessionConfigOptions(harness, 'unknown-model', true, 'manual');
     expect(result.map((o) => o.id)).toEqual(['model', 'mode']);
   });
 
   it('handles missing getConfig (partial-stub harness) by suppressing the toggle and shipping an empty model picker', async () => {
     const harness = {} as unknown as LioraHarness;
 
-    const result = await buildSessionConfigOptions(harness, '', false, 'default');
+    const result = await buildSessionConfigOptions(harness, '', false, 'manual');
 
     expect(result.map((o) => o.id)).toEqual(['model', 'mode']);
     const modelOpt = result.find((o) => o.id === 'model');

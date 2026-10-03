@@ -1,5 +1,5 @@
 /**
- * V2-2 spawn isolation (contract §3, checklist V2-2).
+ * Bounded, cancellable worker spawn handshakes.
  *
  * Worker spawns run behind a bounded-concurrency queue so the interactive
  * lane never awaits spawn preparation:
@@ -8,33 +8,16 @@
  *   at a time, in FIFO order (batched schedules no longer pay n×budget);
  * - spawning state: a key (job id) is either queued or spawning; duplicate
  *   enqueues are rejected so resume/schedule races cannot double-spawn;
- * - failure isolation: a throwing or hanging spawn never rejects into the
- *   caller stack and never stalls the queue — budget-exceeding spawns are
- *   aborted, recorded via `onTimeout`, and detached;
- * - budget: a spawn handshake that exceeds the budget aborts and the queue
- *   moves on (the 120s spawn-chain incident cannot repeat).
+ * - budget expiry requests cancellation and frees a preparation slot, but the
+ *   actual handshake remains owned/deduplicated until its native run settles;
+ * - settle joins those aborted runs too. An abort is not physical release.
  */
 
 import { CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS } from '../../tools/builtin/job/job-runtime';
 
-/** Locked spawn budget (checklist V2-2): blocked + reason after 30s. */
+/** Timeout for preparing a worker host, not for its model execution. */
 export const JOB_WORKER_SPAWN_BUDGET_MS = 30_000;
 
-/**
- * Post-spawn progress stall (independent of handshake budget): after the
- * worker agent attaches, if no meaningful progress (first tool / needs_user)
- * lands within this window the job is marked blocked + inbox so Conductor can
- * retry/cancel. Must stay off the spawner queue — lengthening the handshake
- * budget would serialize the fleet.
- *
- * Must stay clearly above the LLM stream idle timeout (120s): a worker waiting
- * on a slow model's first token has made no "progress" yet, and a stall window at
- * or below the idle timeout falsely flags those live workers. The Conductor then
- * resumes them (replacing the still-healthy worker), which discards the in-flight
- * model call and seeds a blocked → resume → replace loop (observed: 39 "replaced
- * by newer worker launch" events in one session).
- */
-export const JOB_WORKER_PROGRESS_STALL_MS = 5 * 60 * 1000;
 
 /**
  * Parallel spawn handshakes. Keys are deduped per job and each handshake owns
@@ -42,12 +25,13 @@ export const JOB_WORKER_PROGRESS_STALL_MS = 5 * 60 * 1000;
  * the job concurrency default: a spawn cap below it promotes jobs to `running`
  * faster than workers can attach.
  */
-export const JOB_WORKER_SPAWN_MAX_CONCURRENT = CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS;
+const JOB_WORKER_SPAWN_MAX_CONCURRENT = CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS;
 
 export type WorkerSpawnPhase =
   | 'spawning'
   | 'spawned'
   | 'spawn_failed'
+  | 'spawn_cancelled'
   | 'spawn_budget_exceeded';
 
 export interface WorkerSpawnTask {
@@ -59,6 +43,7 @@ export interface WorkerSpawnTask {
   readonly onPhase?: (phase: WorkerSpawnPhase) => void;
   /** Called once when the spawn budget expires (record blocked + reason). */
   readonly onTimeout?: () => void;
+  readonly onCancel?: () => void;
 }
 
 export interface WorkerSpawnerOptions {
@@ -74,6 +59,7 @@ export class WorkerSpawner {
   private readonly budgetMs: number;
   private maxConcurrent: number;
   private readonly spawningKeys = new Set<string>();
+  private readonly pendingRuns = new Map<string, Promise<boolean>>();
   private drainScheduled = false;
   private drainInFlight: Promise<void> | undefined;
 
@@ -83,11 +69,9 @@ export class WorkerSpawner {
   }
 
   /**
-   * Live concurrency update. The shared spawner is a module singleton, but the
-   * pool cap is store-sensitive (`projectMode` per session): a spawner built
-   * under session A's cap must not serialize session B's handshakes. The drain
-   * loop reads `maxConcurrent` every iteration, so in-flight batches pick up
-   * the new cap without a queue reset.
+   * Live cap update for this store's queue. The drain reads `maxConcurrent`
+   * each iteration so queued handshakes pick up explicit pool changes without
+   * interrupting already admitted native runs.
    */
   setMaxConcurrent(maxConcurrent: number): void {
     if (Number.isFinite(maxConcurrent)) {
@@ -107,6 +91,17 @@ export class WorkerSpawner {
     this.queuedKeys.add(task.key);
     this.startDrain();
     return { queued: true, duplicate: false };
+  }
+
+  /** Remove a not-yet-started handshake without claiming a worker was spawned. */
+  cancelQueued(key: string): boolean {
+    const index = this.queue.findIndex((task) => task.key === key);
+    if (index < 0) return false;
+    const [task] = this.queue.splice(index, 1);
+    this.queuedKeys.delete(key);
+    try { task?.onCancel?.(); } catch { /* Observer failures do not break cancellation. */ }
+    if (task) this.emitPhase(task, 'spawn_cancelled');
+    return true;
   }
 
   /** A key currently mid-spawn, when any (first in start order). */
@@ -133,8 +128,9 @@ export class WorkerSpawner {
       // microtask ran; then join whatever is in flight.
       if (this.queue.length > 0) this.beginDrain();
       const inFlight = this.drainInFlight;
-      if (inFlight === undefined) return;
-      await inFlight;
+      if (inFlight !== undefined) await inFlight;
+      if (this.pendingRuns.size > 0) await Promise.allSettled(this.pendingRuns.values());
+      if (this.queue.length === 0 && this.drainInFlight === undefined && this.pendingRuns.size === 0) return;
     }
   }
 
@@ -199,17 +195,21 @@ export class WorkerSpawner {
           () => true as const,
           () => false as const,
         );
+      this.pendingRuns.set(task.key, runSettled);
+      void runSettled.then(() => {
+        this.pendingRuns.delete(task.key);
+        this.spawningKeys.delete(task.key);
+      });
       const winner = await Promise.race([runSettled, budget.then(() => undefined)]);
       if (timedOut || winner === undefined) {
-        // Budget expired: record, detach the (aborted) handshake, move on —
-        // a hung spawn must not stall the rest of the queue.
+        // Free a preparation slot, not the native ownership/deduplication key.
         this.emitPhase(task, 'spawn_budget_exceeded');
         try {
           task.onTimeout?.();
         } catch {
           // isolation: observer errors never break the queue
         }
-        void runSettled.catch(() => {});
+        // settle() still joins runSettled; it is not detached from ownership.
         return;
       }
       this.emitPhase(task, winner ? 'spawned' : 'spawn_failed');
@@ -218,7 +218,7 @@ export class WorkerSpawner {
       this.emitPhase(task, 'spawn_failed');
     } finally {
       if (timer !== undefined) clearTimeout(timer);
-      this.spawningKeys.delete(task.key);
+      if (!this.pendingRuns.has(task.key)) this.spawningKeys.delete(task.key);
     }
   }
 

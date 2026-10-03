@@ -112,7 +112,11 @@ describe('workspace session catalog', () => {
       kind: 'implement',
       worktreePath: '/tmp/wt-login',
     });
-    patchJob(store, job.id, { status: 'interrupted' });
+    patchJob(store, job.id, {
+      status: 'interrupted',
+      resultSummary: 'Partial implementation; checks not run.',
+      filesChanged: ['src/login.ts'],
+    });
     upsertWorkspaceCatalogJobs({
       workDir: '/repo',
       homeDir,
@@ -124,6 +128,9 @@ describe('workspace session catalog', () => {
     expect(listed[0]!.jobId).toBe(job.id);
     expect(listed[0]!.shelf).toBe('active');
     expect(listed[0]!.sourceAgentDir).toBe('/sessions/old');
+    const adopted = workspaceEntryToJobRecord(listed[0]!);
+    expect(adopted.resultSummary).toBe('Partial implementation; checks not run.');
+    expect(adopted.filesChanged).toEqual(['src/login.ts']);
     expect(workspaceSessionCatalogPath('/repo', homeDir)).toContain('workspace-sessions');
   });
 

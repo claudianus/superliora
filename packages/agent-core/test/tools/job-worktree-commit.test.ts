@@ -17,10 +17,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { __resetJobWorkerHandlesForTests } from '../../src/tools/builtin/job/job-handles';
 import { landJobToMain } from '../../src/tools/builtin/job/job-land';
 import { createJob, getJob, patchJob } from '../../src/tools/builtin/job/job-ledger';
-import { jobPrompt } from '../../src/tools/builtin/job/job-worker';
 import {
   commitJobWorktreeIfDirty,
-  JOB_WORKTREE_SNAPSHOT_MESSAGE_PREFIX,
   type WorktreeGitRunner,
 } from '../../src/tools/builtin/job/job-worktree-commit';
 import type { ToolStore } from '../../src/tools/store';
@@ -112,7 +110,6 @@ describe('commitJobWorktreeIfDirty', () => {
 
     const commit = calls.find((c) => c.args.includes('commit'))!;
     const message = commit.args[commit.args.indexOf('-m') + 1]!;
-    expect(message).toContain(JOB_WORKTREE_SNAPSHOT_MESSAGE_PREFIX);
     expect(message).toContain('Job-Id: job_dirty');
     expect(message).toContain('fix the thing');
     expect(message).toMatch(/^chore\(job\):/u);
@@ -246,19 +243,3 @@ describe('landJobToMain commit backstop', () => {
   });
 });
 
-describe('worker contract commit discipline', () => {
-  it('worktree jobs explicitly authorize local commits; others stay silent', () => {
-    const store = memoryStore();
-    const withWorktree = patchJob(store, createJob(store, { title: 'wt', kind: 'implement' }).id, {
-      worktreePath: '/tmp/wt/job',
-    })!;
-
-    const prompt = jobPrompt(withWorktree, store);
-    expect(prompt).toContain('Commit your work in the job worktree before finishing');
-    expect(prompt).toContain('explicitly authorizes those commits');
-    expect(prompt).toContain('never push');
-
-    const noWorktree = createJob(store, { title: 'plain', kind: 'implement' });
-    expect(jobPrompt(noWorktree, store)).not.toContain('Commit your work in the job worktree');
-  });
-});

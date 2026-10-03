@@ -1,6 +1,5 @@
 /**
- * Settings → Security — path sandbox picker + redaction / MCP glance (SSOT §9.2).
- * Path sandbox is a lexical file-tool guard — not OS isolation.
+ * Settings → Security — sandbox, permissions, and redaction.
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -9,24 +8,19 @@ import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { loadNetworkGlance } from '../../../utils/network/network-glance';
 import {
   buildSecuritySettingsLines,
-  SECURITY_MCP_ALLOWLIST_TIP,
   SECURITY_NOT_OS_SANDBOX,
   SECURITY_REDACTION_TIP,
   SECURITY_SANDBOX_TIP,
-  type McpAllowlistSummary,
-  type PermissionInterventionGlance,
   type SecurityGlanceInput,
   type SecuritySandboxEnforcement,
   type SecuritySandboxProfile,
 } from '../../../utils/security/security-glance';
-import { readMcpJsonFile, resolveMcpJsonPaths, type McpServerFileConfig } from '#/utils/mcp/mcp-config-file';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { ttui } from '../../../utils/tui-i18n';
 
 export {
-  SECURITY_MCP_ALLOWLIST_TIP,
   SECURITY_NOT_OS_SANDBOX,
   SECURITY_REDACTION_TIP,
   SECURITY_SANDBOX_TIP,
@@ -62,7 +56,7 @@ const ENFORCEMENT_OPTIONS: ReadonlyArray<{
   {
     value: 'enforcement-lexical',
     label: '강도: lexical',
-    description: '기본값 · 파일 도구 + Bash 경로 토큰 + Script (OS 격리 아님)',
+    description: '기본값 · Bash 경로 토큰 검사 (OS 격리 아님)',
   },
   {
     value: 'enforcement-process',
@@ -71,32 +65,6 @@ const ENFORCEMENT_OPTIONS: ReadonlyArray<{
   },
 ];
 
-async function loadMcpAllowlistSummary(cwd: string): Promise<McpAllowlistSummary | undefined> {
-  try {
-    const paths = await resolveMcpJsonPaths(cwd);
-    const merged = new Map<string, McpServerFileConfig>();
-    for (const filePath of [paths.project, paths.projectRoot, paths.user]) {
-      const servers = await readMcpJsonFile(filePath);
-      for (const [name, config] of Object.entries(servers)) {
-        merged.set(name, config);
-      }
-    }
-    if (merged.size === 0) return { configured: 0, withEnabledTools: 0, withDisabledTools: 0 };
-    let withEnabledTools = 0;
-    let withDisabledTools = 0;
-    for (const config of merged.values()) {
-      if ((config.enabledTools?.length ?? 0) > 0) withEnabledTools += 1;
-      if ((config.disabledTools?.length ?? 0) > 0) withDisabledTools += 1;
-    }
-    return {
-      configured: merged.size,
-      withEnabledTools,
-      withDisabledTools,
-    };
-  } catch {
-    return undefined;
-  }
-}
 
 function resolveSandboxProfile(session: {
   getResumeState?: () =>
@@ -147,24 +115,6 @@ function resolveSandboxEnforcement(session: {
   return undefined;
 }
 
-function permissionInterventionsFromStatus(status: {
-  readonly pendingInterventions?: number;
-  readonly staleInterventions?: number;
-  readonly oldestInterventionAgeMs?: number;
-}): PermissionInterventionGlance | undefined {
-  if (
-    status.pendingInterventions === undefined &&
-    status.staleInterventions === undefined &&
-    status.oldestInterventionAgeMs === undefined
-  ) {
-    return undefined;
-  }
-  return {
-    pendingInterventions: status.pendingInterventions,
-    staleInterventions: status.staleInterventions,
-    oldestInterventionAgeMs: status.oldestInterventionAgeMs,
-  };
-}
 
 async function loadSecurityGlance(host: SlashCommandHost): Promise<SecurityGlanceInput> {
   const permissionMode = host.state.appState.permissionMode ?? 'manual';
@@ -175,22 +125,16 @@ async function loadSecurityGlance(host: SlashCommandHost): Promise<SecurityGlanc
     workDir,
     additionalDirs,
     network: loadNetworkGlance(process.env),
-    mcpConfig: await loadMcpAllowlistSummary(workDir),
   };
 
   try {
     const session = host.requireSession();
-    const [status, mcpLive] = await Promise.all([
-      session.getStatus(),
-      session.listMcpServers().catch(() => undefined),
-    ]);
+    const status = await session.getStatus();
     return {
       ...base,
       permissionFromSession: status.permission,
-      permissionInterventions: permissionInterventionsFromStatus(status),
       sandboxProfile: resolveSandboxProfile(session),
       sandboxEnforcement: resolveSandboxEnforcement(session),
-      mcpLive,
     };
   } catch {
     return base;
@@ -219,7 +163,7 @@ export function showSecuritySettings(host: SlashCommandHost): void {
             value: 'status',
             label: 'Security status',
             description:
-              'Permission mode · path sandbox · network egress · redaction · MCP allowlist inventory.',
+              'Permission mode · path sandbox · network egress · redaction.',
           },
           ...SANDBOX_OPTIONS.map((opt) => ({
             value: opt.value,
@@ -287,7 +231,7 @@ async function applySandboxProfile(
   const label =
     profile === 'off' ? '끔 (off)' : profile === 'workspace' ? '워크스페이스' : '읽기 전용';
   host.showStatus(
-    `Path sandbox → ${label}. Not OS isolation. Applies to file tools, Bash path tokens, and Script from the next turn.`,
+    `Path sandbox → ${label}. Not OS isolation. Applies to Bash path tokens from the next turn.`,
     profile === 'off' ? 'warning' : 'success',
   );
 }

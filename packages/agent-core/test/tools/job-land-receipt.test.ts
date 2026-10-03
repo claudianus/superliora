@@ -266,7 +266,7 @@ describe('landJobToMain repoPath inference + GC\'d worktree + index.lock', () =>
     expect(getJob(store, job.id)?.notes).toMatch(/GC'd|already GC/);
   });
 
-  it('retries merge on index.lock then fails with a stale-lock hint', async () => {
+  it('holds the first index.lock failure with an operator hint without retrying merge', async () => {
     const store = memoryStore();
     const job = createJob(store, { title: 'index lock land', kind: 'implement' });
     patchJob(store, job.id, {
@@ -275,7 +275,6 @@ describe('landJobToMain repoPath inference + GC\'d worktree + index.lock', () =>
       worktreeBranch: 'liora/lock-contended',
     });
     let mergeAttempts = 0;
-    const sleeps: number[] = [];
     const runGit = async (_cwd: string, args: readonly string[]): Promise<GitResult> => {
       if (args[0] === 'merge') {
         mergeAttempts += 1;
@@ -295,22 +294,18 @@ describe('landJobToMain repoPath inference + GC\'d worktree + index.lock', () =>
       job: getJob(store, job.id)!,
       repoPath: '/repo/main',
       runGit,
-      sleep: async (ms) => {
-        sleeps.push(ms);
-      },
       gcOnSuccess: false,
     });
 
     expect(result.ok).toBe(false);
-    expect(mergeAttempts).toBe(4);
-    expect(sleeps).toEqual([50, 100, 200]);
+    expect(mergeAttempts).toBe(1);
     expect(result.error).toMatch(/index\.lock/i);
     expect(result.error).toMatch(/stale lock/i);
     expect(result.error).toContain('.git/index.lock');
     expect(getJob(store, job.id)?.status).toBe('blocked');
   });
 
-  it('succeeds after a transient index.lock on merge', async () => {
+  it('does not replay a failed merge even when a second command would have succeeded', async () => {
     const store = memoryStore();
     const job = createJob(store, { title: 'index lock recover', kind: 'implement' });
     patchJob(store, job.id, {
@@ -344,12 +339,11 @@ describe('landJobToMain repoPath inference + GC\'d worktree + index.lock', () =>
       job: getJob(store, job.id)!,
       repoPath: '/repo/main',
       runGit,
-      sleep: async () => {},
       gcOnSuccess: false,
     });
 
-    expect(result.ok).toBe(true);
-    expect(mergeAttempts).toBe(2);
-    expect(getJob(store, job.id)?.landReceipt?.branch).toBe('liora/lock-recover');
+    expect(result.ok).toBe(false);
+    expect(mergeAttempts).toBe(1);
+    expect(getJob(store, job.id)?.landReceipt).toBeUndefined();
   });
 });

@@ -4,17 +4,11 @@
  * All methods throw by default. Individual tests can override specific
  * methods with vi.fn() to provide scripted responses for the tool
  * under test.
- *
- * Also provides `PERMISSIVE_WORKSPACE` (`/` as workspaceDir) — most tool
- * tests care about behaviour, not path safety, so they default to a
- * workspace that accepts any absolute path. Attack-vector tests create
- * their own `WorkspaceConfig` with narrower bounds.
  */
 
 import type { Environment, Kaos } from '@superliora/kaos';
 import type { ExecutableToolResult } from '#/loop';
 
-import type { WorkspaceConfig } from '../../../src/tools/support/workspace';
 
 function notImplemented(method: string): never {
   throw new Error(`FakeKaos.${method} not implemented — override in test`);
@@ -99,10 +93,6 @@ function mergeEnvLayers(
   return merged;
 }
 
-export const PERMISSIVE_WORKSPACE: WorkspaceConfig = {
-  workspaceDir: '/',
-  additionalDirs: [],
-};
 
 /**
  * Assert that a `ToolResult`'s `content` is a string and return it.
@@ -117,17 +107,3 @@ export function toolContentString(result: ExecutableToolResult): string {
   return c;
 }
 
-/**
- * Returns the model-visible content of a tool result with the trailing
- * `<tool_meta>` block stripped. Use this when a test asserts on the content
- * body (matches, summaries) and does not care about the structured meta block
- * appended by `appendTextToolMeta`.
- */
-export function toolContentBody(result: ExecutableToolResult): string {
-  const c = result.output;
-  if (typeof c !== 'string') {
-    throw new TypeError(`expected string content, got ${typeof c}`);
-  }
-  const metaStart = c.indexOf('\n<tool_meta');
-  return metaStart === -1 ? c : c.slice(0, metaStart);
-}

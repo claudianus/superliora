@@ -13,7 +13,6 @@ import {
 } from '#/cli/update/install-state';
 import { spawnOptionsForSource } from '#/cli/update/install-spawn';
 import {
-  installCommandFor,
   parseUpgradeStageLine,
   runUpdatePreflight,
   spawnForSource,
@@ -1426,34 +1425,6 @@ describe('spawnForSource native', () => {
   );
 });
 
-describe('github-checkout update commands', () => {
-  it('uses install.sh-aligned fetch, build, and wrapper refresh for manual commands', () => {
-    const command = installCommandFor('github-checkout', 'origin/main@abcdef123456', 'darwin');
-
-    expect(command).toContain('bash -lc');
-    expect(command).toContain('fetch --depth 1 origin');
-    expect(command).toContain('install --frozen-lockfile');
-    expect(command).toContain('run build:packages');
-    expect(command).toContain('apps/liora run build');
-    expect(command).toContain('scripts/install-liora.mjs');
-  });
-
-  it('uses bash -lc for the auto-install script', () => {
-    const { cmd, args } = spawnForSource('github-checkout', 'origin/main@abcdef123456', 'darwin');
-
-    expect(cmd).toBe('bash');
-    expect(args[0]).toBe('-lc');
-    // install.sh-aligned: force-checkout without a dirty pre-check trap
-    expect(args[1]).not.toContain('diff --quiet');
-    expect(args[1]).toContain('checkout --force -B "$ref" FETCH_HEAD');
-    expect(args[1]).toContain('retrieval:bootstrap');
-    expect(args[1]).toContain('fetch --depth 1 origin');
-    expect(args[1]).toContain('install --frozen-lockfile');
-    expect(args[1]).toContain('run build:packages');
-    expect(args[1]).toContain('apps/liora run build');
-    expect(args[1]).toContain('scripts/install-liora.mjs');
-  });
-});
 
 describe('upgrade install stages', () => {
   function createPipedChild(): EventEmitter & {

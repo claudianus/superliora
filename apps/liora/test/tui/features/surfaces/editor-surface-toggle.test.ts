@@ -9,7 +9,6 @@ import {
   type EditorSurfaceHost,
 } from '#/tui/features/surfaces/editor-surface-toggle';
 import { QuotaOverlayComponent } from '#/tui/components/messages/usage-panel/quota-overlay';
-import { PlanBrowserOverlayComponent } from '#/tui/features/surfaces/plan-browser';
 
 function fakePanel(): Component {
   return { render: () => [''], invalidate: () => {} } as Component;
@@ -97,13 +96,3 @@ describe('QuotaOverlayComponent close keys', () => {
   });
 });
 
-describe('PlanBrowserOverlayComponent close/scroll keys', () => {
-  it('closes on Esc / p and scrolls on PageDown without closing', () => {
-    const onClose = vi.fn();
-    const browser = new PlanBrowserOverlayComponent({ content: '# Plan', onClose });
-    browser.handleInput('\u001B');
-    expect(onClose).toHaveBeenCalledTimes(1);
-    browser.handleInput('p');
-    expect(onClose).toHaveBeenCalledTimes(2);
-  });
-});

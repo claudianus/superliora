@@ -12,7 +12,6 @@ import {
   Text,
 } from '#/tui/renderer';
 import type { Component, RendererRootUI } from '#/tui/renderer';
-import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData, TranscriptDetailLevel } from '#/tui/types';
 import type { ToolOutputViewportState } from '#/tui/utils/tool/tool-output-viewport';
 import {
@@ -39,25 +38,11 @@ import {
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
 
-import {
-  rebuildToolCallBody,
-  rebuildToolCallContent,
-  rebuildToolCallSubagentBlock,
-  type ToolCallBodyRebuildHost,
-} from './body-rebuild';
 import { ToolCallCallPreview, type ToolCallCallPreviewHost } from './call-preview';
 import { ToolCallDetachHint } from './detach-hint';
 import { toolHeaderEntranceStartedAt } from './entrance';
 import { str } from './format';
 import { ToolCallOutputViewportMount } from './output-viewport';
-import {
-  buildToolCallReadSnapshot,
-  type ToolCallReadSnapshot,
-} from './read-snapshot';
-import {
-  buildToolCallSearchSnapshot,
-  type ToolCallSearchSnapshot,
-} from './search-snapshot';
 import { hasToolCallLiveAnimation, tickToolCallRenderClock } from './render-tick';
 import { paintToolOutputRows } from '../tool-output-viewport';
 import {
@@ -87,7 +72,6 @@ import {
 import { ToolCallSubagentState } from './subagent-state';
 import {
   buildToolCallHeaderText,
-  isToolCallStreamingEditPreview,
   rebuildToolCallCallPreviewBlock,
   rebuildToolCallComponentBody,
   rebuildToolCallComponentContent,
@@ -96,8 +80,6 @@ import {
 } from './tool-call-internals';
 
 
-export type { ToolCallReadSnapshot } from './read-snapshot';
-export type { ToolCallSearchSnapshot } from './search-snapshot';
 export type { ToolCallSubagentSnapshot } from './subagent';
 
 export class ToolCallComponent extends Container implements ToolCallCallPreviewHost {
@@ -105,11 +87,8 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
   private detail: TranscriptDetailLevel = 'standard';
   private detailOverrideExpanded = false;
   private toolCall: ToolCallBlockData;
-  private readonly markdownTheme = createMarkdownTheme();
   private result: ToolResultBlockData | undefined;
   private ui: RendererRootUI | undefined;
-  private planPath: string | undefined;
-  private currentPlan: string | undefined;
   private headerText: Text;
   readonly previewRevealEligible: boolean;
 
@@ -335,7 +314,6 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       resultSettledAtMs: this.resultSettledAtMs,
       isSingleSubagentView: this.isSingleSubagentView(),
       derivedSubagentPhase: this.getDerivedSubagentPhase(),
-      isStreamingEditPreview: isToolCallStreamingEditPreview(this.internalsHost()),
       subagentSpawnEntranceAtMs: this.subagent.spawnEntranceAtMs,
       subagentStartedAtMs: this.subagent.startedAtMs,
       subagentPhase: this.subagent.phase ?? 'queued',
@@ -515,21 +493,6 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     this.outputViewport.dispose();
   }
 
-  setPlanInfo(info: { plan?: string; path?: string }): void {
-    if (this.toolCall.name !== 'ExitPlanMode') return;
-    let changed = false;
-    if (info.plan !== undefined && info.plan.length > 0 && this.currentPlan !== info.plan) {
-      this.currentPlan = info.plan;
-      changed = true;
-    }
-    if (info.path !== undefined && info.path.length > 0 && this.planPath !== info.path) {
-      this.planPath = info.path;
-      changed = true;
-    }
-    if (!changed) return;
-    rebuildToolCallComponentBody(this.internalsHost());
-    this.ui?.requestRender();
-  }
 
   setSubagentMeta(agentId: string, agentName?: string): void {
     setToolCallSubagentMeta(this.subagentEventHost(), agentId, agentName);
@@ -545,29 +508,10 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       toolCallId: this.toolCall.id,
       toolName: this.toolCall.name,
       toolCallDescription: str(this.toolCall.args['description']) || str(this.toolCall.description),
-      workspaceDir: this.workspaceDir,
       result: this.result,
     });
   }
 
-  getReadSnapshot(): ToolCallReadSnapshot {
-    return buildToolCallReadSnapshot({
-      toolCallId: this.toolCall.id,
-      args: this.toolCall.args,
-      result: this.result,
-      workspaceDir: this.workspaceDir,
-    });
-  }
-
-  getSearchSnapshot(): ToolCallSearchSnapshot {
-    return buildToolCallSearchSnapshot({
-      toolCallId: this.toolCall.id,
-      name: this.toolCall.name,
-      args: this.toolCall.args,
-      result: this.result,
-      workspaceDir: this.workspaceDir,
-    });
-  }
 
   get toolCallView(): Readonly<ToolCallBlockData> {
     return this.toolCall;
@@ -669,17 +613,6 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     return this.expanded;
   }
 
-  getCurrentPlan(): string | undefined {
-    return this.currentPlan;
-  }
-
-  getPlanPath(): string | undefined {
-    return this.planPath;
-  }
-
-  getMarkdownTheme() {
-    return this.markdownTheme;
-  }
 
   clearRenderCache(): void {
     this.renderCache.clear();
@@ -731,7 +664,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
   }
 
   private isSingleSubagentView(): boolean {
-    return this.toolCall.name === 'Agent' && this.subagent.hasState();
+    return this.toolCall.name === 'SessionControl' && this.subagent.hasState();
   }
 
   private getDerivedSubagentPhase(): SubagentPhase | undefined {

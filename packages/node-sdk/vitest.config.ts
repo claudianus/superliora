@@ -5,23 +5,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: [
-      // More-specific subpaths first — bare `@superliora/agent-core` → index.ts
-      // would otherwise swallow `@superliora/agent-core/mission` as index.ts/mission.
-      {
-        find: /^@superliora\/agent-core\/mission$/,
-        replacement: fileURLToPath(
-          new URL('../agent-core/src/mission/index.ts', import.meta.url),
-        ),
-      },
       {
         find: /^@superliora\/agent-core\/fleet$/,
         replacement: fileURLToPath(new URL('../agent-core/src/fleet/index.ts', import.meta.url)),
-      },
-      {
-        find: /^@superliora\/agent-core\/ultrawork$/,
-        replacement: fileURLToPath(
-          new URL('../agent-core/src/mission/index.ts', import.meta.url),
-        ),
       },
       {
         find: /^@superliora\/agent-core\/session\/store$/,
@@ -47,7 +33,6 @@ export default defineConfig({
     name: 'kimi-sdk',
     testTimeout: 30_000,
     hookTimeout: 30_000,
-    setupFiles: [fileURLToPath(new URL('../agent-core/test/setup-windows-fs.ts', import.meta.url))],
     env: {
       KIMI_LOG_LEVEL: 'off',
     },

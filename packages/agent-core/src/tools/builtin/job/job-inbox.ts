@@ -16,7 +16,6 @@ export type JobInboxEventKind =
   | 'job.blocked'
   | 'job.needs_user'
   | 'job.interrupted'
-  | 'recovery.auto_resumed'
   | 'recovery.held'
   | 'recovery.reattach_failed';
 

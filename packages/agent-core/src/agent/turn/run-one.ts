@@ -6,34 +6,20 @@ import type { LoopTurnStopReason } from '../../loop/index';
 import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc/events';
 import type { TelemetryPropertyValue } from '../../telemetry';
 import { isUserCancellation } from '../../utils/abort';
-import type { StreamingThinkScrubber } from '../../utils/think-scrubber';
 import { buildTurnToolBlockMaterial } from '../cache';
 import type { PromptOrigin } from '../context';
-import { applySessionSmartAutoForTurn } from '../routing';
-import {
-  TurnTelemetry,
-  classifyApiError,
-  currentTurnInputTokens,
-} from './telemetry';
+import { TurnTelemetry, classifyApiError, currentTurnInputTokens } from './telemetry';
 import { summarizeTurnError } from './error-recovery';
-import { applyUserPromptHook } from './prompt-hook';
 import { closeAbandonedToolExchangeAtTurnEnd, createTurnLoopDispatch } from './loop-dispatch';
 import { runTurnStepLoop } from './step-loop';
 import type { ActiveTurn, TurnEndResult } from './types';
-import { recordTurnMemory } from './goal-loop';
-import { scheduleTurnEndLearning } from './turn-end-learning';
 
 export interface TurnRunOneDeps {
   readonly agent: Agent;
   readonly turnTelemetry: TurnTelemetry;
-  readonly assistantThinkScrubber: StreamingThinkScrubber;
   readonly flushSteerBuffer: () => boolean;
   getActiveTurn(): 'resuming' | ActiveTurn | null;
-  /**
-   * Release the active-turn slot before `turn.ended` is emitted so a prompt
-   * that races the end event starts the next turn instead of being rejected
-   * with `turn.agent_busy`.
-   */
+  /** Release ownership before publishing the terminal event. */
   readonly releaseActiveTurn: (ended: TurnEndedEvent) => void;
 }
 
@@ -44,92 +30,53 @@ export async function runOneTurnFlow(
   origin: PromptOrigin,
   signal: AbortSignal,
 ): Promise<TurnEndResult> {
-  const { agent, turnTelemetry, assistantThinkScrubber } = deps;
-  assistantThinkScrubber.reset();
-  const telemetryMode = turnTelemetry.telemetryMode();
-  turnTelemetry.resetForTurn(turnId, telemetryMode);
-  agent.telemetry.track('turn_started', { mode: telemetryMode });
-  agent.fullCompaction.resetForTurn();
-  agent.cacheFreezeGuard.freeze(buildTurnToolBlockMaterial(agent.tools.loopTools));
-  agent.usage.beginTurn();
-  await applySessionSmartAutoForTurn(agent, input);
-  agent.emitEvent({ type: 'turn.started', turnId, origin });
-  agent.context.appendUserMessage(input, origin);
-
+  const { agent, turnTelemetry } = deps;
   const startedAt = Date.now();
   let ended: TurnEndedEvent;
-  let blockedByUserPromptHook = false;
   let completedStopReason: LoopTurnStopReason | undefined;
   let errorEvent: AgentEvent | undefined;
+  turnTelemetry.resetForTurn(turnId);
+  agent.telemetry.track('turn_started', { mode: 'agent' });
+  agent.usage.beginTurn();
+  agent.emitEvent({ type: 'turn.started', turnId, origin });
+
   try {
-    await agent.fullCompaction.prepareForTurn(signal);
-    const promptHookEnded = await applyUserPromptHook(
+    agent.context.appendUserMessage(input, origin);
+    agent.cacheFreezeGuard.freeze(buildTurnToolBlockMaterial(agent.tools.loopTools));
+    const stopReason = await runTurnStepLoop({
       agent,
+      flushSteerBuffer: deps.flushSteerBuffer,
+      buildDispatchEvent: () => createTurnLoopDispatch({
+        agent,
+        turnTelemetry,
+        getActiveTurn: () => deps.getActiveTurn(),
+      }, turnId),
+    }, turnId, signal);
+    completedStopReason = stopReason;
+    const reason: TurnEndReason = stopReason === 'aborted'
+      ? 'cancelled'
+      : stopReason === 'filtered' ? 'filtered' : 'completed';
+    ended = {
+      type: 'turn.ended',
       turnId,
-      input,
-      origin,
-      signal,
-      startedAt,
-    );
-    if (promptHookEnded !== undefined) {
-      ended = promptHookEnded.event;
-      blockedByUserPromptHook = promptHookEnded.blocked;
-    } else {
-      const stopReason = await runTurnStepLoop(
-        {
-          agent: deps.agent,
-          turnTelemetry: deps.turnTelemetry,
-          flushSteerBuffer: deps.flushSteerBuffer,
-          buildDispatchEvent: () =>
-            createTurnLoopDispatch(
-              {
-                agent: deps.agent,
-                turnTelemetry: deps.turnTelemetry,
-                assistantThinkScrubber: deps.assistantThinkScrubber,
-                getActiveTurn: (...args) => deps.getActiveTurn(...args),
-              },
-              turnId,
-            ),
-        },
-        turnId,
-        signal,
-      );
-      completedStopReason = stopReason;
-      const reason: TurnEndReason =
-        stopReason === 'aborted' ? 'cancelled' : stopReason === 'filtered' ? 'filtered' : 'completed';
-      ended = {
-        type: 'turn.ended',
-        turnId,
-        reason,
-        durationMs: Date.now() - startedAt,
-        ...(reason === 'cancelled'
-          ? { cancelledByUser: isUserCancellation(signal.reason) }
-          : {}),
-        // Fold the terminal step stop reason onto the wire event: without it
-        // a provider max_tokens cut ends as reason 'completed' and every
-        // client renders truncation as success.
-        ...(stopReason === 'max_tokens' ? { stopReason } : {}),
-      };
-    }
+      reason,
+      durationMs: Date.now() - startedAt,
+      ...(reason === 'cancelled' ? { cancelledByUser: isUserCancellation(signal.reason) } : {}),
+      ...(stopReason === 'max_tokens' ? { stopReason } : {}),
+    };
   } catch (error) {
-    // Session-close / ESC abort must stay `cancelled` even when the thrown
-    // value is a platform kill error (Windows EPERM after taskkill) rather
-    // than a named AbortError.
     if (isAbortError(error) || signal.aborted) {
       ended = {
-        type: 'turn.ended',
-        turnId,
-        reason: 'cancelled',
+        type: 'turn.ended', turnId, reason: 'cancelled',
         durationMs: Date.now() - startedAt,
         cancelledByUser: isUserCancellation(signal.reason),
       };
     } else {
       const summary = summarizeTurnError(error, turnId);
-      void agent.hooks?.fireAndForgetTrigger('StopFailure', {
-        matcherValue: summary.name,
-        inputData: { errorType: summary.name, errorMessage: summary.message },
-      });
-      ended = { type: 'turn.ended', turnId, reason: 'failed', error: summary, durationMs: Date.now() - startedAt };
+      ended = {
+        type: 'turn.ended', turnId, reason: 'failed', error: summary,
+        durationMs: Date.now() - startedAt,
+      };
       errorEvent = { type: 'error', ...summary };
       if (turnTelemetry.shouldTrackApiError(turnId)) {
         const classification = classifyApiError(error, summary);
@@ -139,42 +86,34 @@ export async function runOneTurnFlow(
           retryable: summary.retryable,
           duration_ms: Date.now() - startedAt,
         };
-        if (classification.statusCode !== undefined) {
-          properties['status_code'] = classification.statusCode;
-        }
+        if (classification.statusCode !== undefined) properties['status_code'] = classification.statusCode;
         const inputTokens = currentTurnInputTokens(agent.usage.data().currentTurn);
-        if (inputTokens !== undefined) {
-          properties['input_tokens'] = inputTokens;
-        }
+        if (inputTokens !== undefined) properties['input_tokens'] = inputTokens;
         agent.telemetry.track('api_error', properties);
       }
     }
   }
-  closeAbandonedToolExchangeAtTurnEnd(agent, ended);
-  if (agent.turn.currentId === turnId) {
-    agent.usage.endTurn();
+
+  try {
+    closeAbandonedToolExchangeAtTurnEnd(agent, ended);
+    agent.fileSnapshots?.commitTurn(String(turnId));
+  } catch (error) {
+    const summary = summarizeTurnError(error, turnId);
+    ended = {
+      type: 'turn.ended', turnId, reason: 'failed', error: summary,
+      durationMs: Date.now() - startedAt,
+    };
+    errorEvent = { type: 'error', ...summary };
   }
-  agent.fileSnapshots?.commitTurn(String(turnId));
-  if (ended.reason === 'cancelled' && isUserCancellation(signal.reason)) {
-    void agent.hooks?.fireAndForgetTrigger('Interrupt', {
-      inputData: { turnId, reason: 'cancelled' },
-    });
-  }
-  // Invariant: the session must be idle the moment turn.ended fires. Release
-  // the slot synchronously before emitting — awaiting anything (e.g. turn
-  // memory capture) in between lets a racing prompt hit `turn.agent_busy`.
-  deps.releaseActiveTurn(ended);
-  agent.emitEvent(ended);
-  if (errorEvent !== undefined) {
-    agent.emitEvent(errorEvent);
-  }
-  await recordTurnMemory(agent, turnId, input, ended.reason, origin.kind);
-  scheduleTurnEndLearning(agent);
+  agent.usage.endTurn();
   if (ended.reason !== 'completed') {
     turnTelemetry.trackTurnInterrupted(turnId, turnTelemetry.currentStepForTurn(turnId));
   }
   turnTelemetry.cleanupTurn(turnId);
   agent.cacheFreezeGuard.clear();
   agent.toolParallelStatus.clearTurn();
-  return { event: ended, stopReason: completedStopReason, blockedByUserPromptHook };
+  deps.releaseActiveTurn(ended);
+  agent.emitEvent(ended);
+  if (errorEvent !== undefined) agent.emitEvent(errorEvent);
+  return { event: ended, stopReason: completedStopReason };
 }

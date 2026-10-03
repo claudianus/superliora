@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { Readable, type Writable } from 'node:stream';
+import { PassThrough, Readable } from 'node:stream';
 
 import { createControlledPromise } from '@antfu/utils';
 import { type Environment, type Kaos, type KaosProcess } from '@superliora/kaos';
@@ -12,20 +12,16 @@ import {
   type AgentRecord,
 } from '../../../src/agent';
 import type { AgentRecordPersistence } from '../../../src/agent/records';
-import type { CompactionStrategy } from '../../../src/agent/compaction';
-import type { GoalMode } from '../../../src/agent/goal';
 import type { ApprovalResponse } from '../../../src/agent/permission';
 import {
   AGENT_WIRE_PROTOCOL_VERSION,
   InMemoryAgentRecordPersistence,
 } from '../../../src/agent/records';
 import type { LioraConfig } from '../../../src/config';
-import type { ExecutableToolResult } from '../../../src/loop';
 import type { Logger } from '../../../src/logging';
 import { ProviderManager } from '../../../src/session/provider/provider-manager';
-import type { QuestionResult, RPCCallOptions, SDKAgentRPC } from '../../../src/rpc';
+import type { RPCCallOptions, SDKAgentRPC } from '../../../src/rpc';
 import type { AgentAPI } from '../../../src/rpc/core-api';
-import type { ToolServices } from '../../../src/tools/support/services';
 import type { TelemetryClient } from '../../../src/telemetry';
 import type { PromisifyMethods } from '../../../src/utils/types';
 import { createFakeKaos } from '../../tools/fixtures/fake-kaos';
@@ -35,7 +31,6 @@ import { createScriptedGenerate } from './scripted-generate';
 import {
   DEFAULT_TEST_SYSTEM_PROMPT,
   eventSnapshot,
-  isCurrentTimeReminder,
   type EventSnapshotEntry,
   type RpcSnapshotEntry,
   type WireSnapshotEntry,
@@ -69,9 +64,6 @@ type RpcLogEntry = RpcSnapshotEntry & {
 type PromiseAgentAPI = PromisifyMethods<AgentAPI>;
 type GenerateFn = NonNullable<AgentOptions['generate']>;
 
-type TestToolResult = ExecutableToolResult & {
-  readonly content?: unknown;
-};
 
 interface ResumeStateSnapshot {
   readonly background: ReturnType<Agent['background']['list']>;
@@ -83,38 +75,28 @@ interface ResumeStateSnapshot {
     readonly systemPrompt: string;
   };
   readonly context: ReturnType<Agent['context']['data']>;
-  readonly contextOS: ReturnType<Agent['contextOS']['data']>;
   readonly permission: ReturnType<Agent['permission']['data']>;
-  readonly tools: ReturnType<Agent['tools']['data']>;
-  readonly toolStore: ReturnType<Agent['tools']['storeData']>;
   readonly usage: ReturnType<Agent['usage']['data']>;
 }
 
 export interface TestAgentOptions {
   readonly kaos?: Kaos | undefined;
-  readonly runtime?: ToolServices | undefined;
-  readonly compactionStrategy?: CompactionStrategy | undefined;
-  readonly microCompaction?: AgentOptions['microCompaction'];
   readonly generate?: GenerateFn | undefined;
-  readonly hookEngine?: AgentOptions['hookEngine'];
   readonly type?: AgentOptions['type'];
   readonly permission?: AgentOptions['permission'];
-  readonly goal?: GoalMode;
   readonly providerManager?: ProviderManager;
   readonly initialConfig?: LioraConfig;
   readonly providerManagerOverrides?: Omit<ConstructorParameters<typeof ProviderManager>[0], 'config'>;
   readonly sessionId?: string;
-  readonly subagentHost?: AgentOptions['subagentHost'];
+  readonly sessionControl?: AgentOptions['sessionControl'];
   readonly onEvent?: ((event: AgentRecord) => AgentRecord | undefined) | undefined;
   readonly persistence?: AgentRecordPersistence | undefined;
   readonly homedir?: AgentOptions['homedir'];
   readonly telemetry?: TelemetryClient | undefined;
   readonly log?: Logger;
-  readonly experimentalFlags?: AgentOptions['experimentalFlags'];
 }
 
 interface ConfigureOptions {
-  readonly tools?: readonly string[] | undefined;
   readonly provider?: ProviderConfig | undefined;
   readonly modelCapabilities?: ModelCapability | undefined;
 }
@@ -124,7 +106,7 @@ export type TestAgentContext = AgentTestContext;
 export function createCommandKaos(stdout: string): Kaos {
   function createProcess(): KaosProcess {
     return {
-      stdin: { write: vi.fn(), end: vi.fn() } as unknown as Writable,
+      stdin: new PassThrough(),
       stdout: Readable.from([stdout]),
       stderr: Readable.from(['']),
       pid: 42,
@@ -177,47 +159,38 @@ export class AgentTestContext {
     });
 
     const kaos = options.kaos ?? testKaos;
-    const toolServices = options.runtime;
     const persistence = this.wrapPersistence(
       options.persistence ?? new InMemoryAgentRecordPersistence(),
     );
     this.agent = new Agent({
       kaos,
-      toolServices,
       config: this.kimiConfig,
       rpc: this.createRpcProxy(),
       homedir: options.homedir,
       persistence,
       generate: options.generate ?? this.scriptedGenerate.generate,
-      compactionStrategy: options.compactionStrategy,
-      microCompaction: options.microCompaction,
       modelProvider: providerManager,
-      subagentHost: options.subagentHost,
+      sessionControl: options.sessionControl,
       type: options.type,
       permission: options.permission,
-      hookEngine: options.hookEngine,
       telemetry: options.telemetry,
       log: options.log,
-      experimentalFlags: options.experimentalFlags,
     });
-    if (options.goal !== undefined) {
-      (this.agent as unknown as { goal: GoalMode }).goal = options.goal;
-    }
     this.rpc = this.createPromiseAgentApi(this.agent);
-    // The Agent constructor now eagerly binds a SIGUSR1 listener via
-    // CronManager.start(). Without per-test cleanup, every Agent built
-    // by this harness leaks one listener — Node prints a
-    // MaxListenersExceededWarning once the suite crosses 10 agents.
-    // onTestFinished is a vitest API callable from non-hook scopes, so
-    // we register cleanup transparently without forcing every test to
-    // remember an afterEach.
     onTestFinished(async () => {
-      await this.agent.cron?.stop();
+      const turn = this.agent.turn.hasActiveTurn ? this.agent.turn.waitForCurrentTurn() : undefined;
+      if (turn !== undefined) this.agent.turn.cancel();
+      this.agent.fullCompaction.cancel();
+      await Promise.all([
+        turn,
+        this.agent.fullCompaction.waitUntilSettled(),
+        this.agent.background.stopAll('test teardown'),
+      ]);
+      await persistence.close();
     });
   }
 
   configure({
-    tools = [],
     provider = MOCK_PROVIDER,
     modelCapabilities,
   }: ConfigureOptions = {}): void {
@@ -229,9 +202,6 @@ export class AgentTestContext {
       thinkingLevel: 'off',
     });
 
-    if (tools.length > 0) {
-      void this.rpc.setActiveTools({ names: [...tools] });
-    }
 
     this.lastEventCount = this.allEvents.length;
   }
@@ -246,15 +216,6 @@ export class AgentTestContext {
     this.agent.config.update({ modelAlias: provider.model });
   }
 
-  /**
-   * Override the `loopControl` block of the runtime config. Used to exercise
-   * compaction knobs such as `compactionModel` without spinning up a full
-   * config.toml. Mutates `kimiConfig` in place so the ProviderManager (which
-   * reads through `() => this.kimiConfig`) picks the change up live.
-   */
-  configureLoopControl(loopControl: LioraConfig['loopControl']): void {
-    this.kimiConfig = { ...this.kimiConfig, loopControl };
-  }
 
   newEvents(): ReturnType<typeof eventSnapshot> {
     const events = this.allEvents.slice(this.lastEventCount);
@@ -287,26 +248,10 @@ export class AgentTestContext {
     const { event, events } = await this.takeUntilRpc('requestApproval');
     this.resolveRpcRequest(event, {
       decision: approved ? 'approved' : 'rejected',
-      selectedLabel: approved ? 'approve' : 'reject',
     } satisfies ApprovalResponse);
     return events;
   }
 
-  untilQuestionRequest(): Promise<ReturnType<typeof eventSnapshot>> {
-    return this.takeUntilRpc('requestQuestion').then(({ events }) => events);
-  }
-
-  async untilQuestion(result: QuestionResult): Promise<ReturnType<typeof eventSnapshot>> {
-    const { event, events } = await this.takeUntilRpc('requestQuestion');
-    this.resolveRpcRequest(event, result);
-    return events;
-  }
-
-  async untilToolCall(result: TestToolResult): Promise<ReturnType<typeof eventSnapshot>> {
-    const { event, events } = await this.takeUntilRpc('toolCall');
-    this.resolveRpcRequest(event, result);
-    return events;
-  }
 
   dispatch(event: AgentRecord): void {
     this.suppressWireSnapshot = true;
@@ -428,34 +373,6 @@ export class AgentTestContext {
     });
   }
 
-  appendAssistantTurn(step: number, text: string): void {
-    const stepUuid = `plan-injection-step-${String(step)}`;
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: { type: 'step.begin', uuid: stepUuid, turnId: '', step },
-    });
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'content.part',
-        uuid: `plan-injection-part-${String(step)}`,
-        turnId: '',
-        step,
-        stepUuid,
-        part: { type: 'text', text },
-      },
-    });
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'step.end',
-        uuid: stepUuid,
-        turnId: '',
-        step,
-        finishReason: 'end_turn',
-      },
-    });
-  }
 
   appendToolExchange(): void {
     const stepUuid = 'context-tool-step';
@@ -474,7 +391,7 @@ export class AgentTestContext {
         stepUuid,
         part: {
           type: 'text',
-          text: 'I will call Lookup.',
+          text: 'I will run Bash.',
         },
       },
     });
@@ -487,9 +404,9 @@ export class AgentTestContext {
         step: 2,
         stepUuid,
         toolCallId: 'call_lookup',
-        name: 'Lookup',
+        name: 'Bash',
         args: {
-          query: 'moon',
+          command: 'printf lookup-result',
         },
       },
     });
@@ -514,139 +431,7 @@ export class AgentTestContext {
     });
   }
 
-  appendUnresolvedToolExchange(resolvedToolResults: 0 | 1): void {
-    const stepUuid = `unresolved-tool-step-${String(resolvedToolResults)}`;
-    this.agent.context.appendUserMessage([{ type: 'text', text: 'run unresolved tools' }]);
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: { type: 'step.begin', uuid: stepUuid, turnId: '', step: 2 },
-    });
-    for (const [toolCallId, name] of [
-      ['call_unresolved_one', 'LookupOne'],
-      ['call_unresolved_two', 'LookupTwo'],
-    ] as const) {
-      this.dispatch({
-        type: 'context.append_loop_event',
-        event: {
-          type: 'tool.call',
-          uuid: toolCallId,
-          turnId: '',
-          step: 2,
-          stepUuid,
-          toolCallId,
-          name,
-          args: {},
-        },
-      });
-    }
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'step.end',
-        uuid: stepUuid,
-        turnId: '',
-        step: 2,
-        finishReason: 'tool_use',
-      },
-    });
-    if (resolvedToolResults === 1) {
-      this.dispatch({
-        type: 'context.append_loop_event',
-        event: {
-          type: 'tool.result',
-          parentUuid: 'call_unresolved_one',
-          toolCallId: 'call_unresolved_one',
-          result: { output: 'one result' },
-        },
-      });
-    }
-  }
 
-  appendRichToolExchange(): void {
-    const stepUuid = 'rich-step';
-    this.agent.context.appendUserMessage([
-      { type: 'text', text: 'inspect this image' },
-      { type: 'image_url', imageUrl: { url: 'ms://image-1', id: 'image-1' } },
-    ]);
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: { type: 'step.begin', uuid: stepUuid, turnId: '', step: 1 },
-    });
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'content.part',
-        uuid: 'rich-think',
-        turnId: '',
-        step: 1,
-        stepUuid,
-        part: {
-          type: 'think',
-          think: 'checking metadata',
-        },
-      },
-    });
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'content.part',
-        uuid: 'rich-text',
-        turnId: '',
-        step: 1,
-        stepUuid,
-        part: {
-          type: 'text',
-          text: 'I will call Lookup.',
-        },
-      },
-    });
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'tool.call',
-        uuid: 'rich-tool-call',
-        turnId: '',
-        step: 1,
-        stepUuid,
-        toolCallId: 'call_lookup',
-        name: 'Lookup',
-        args: {
-          query: 'moon',
-          limit: 2,
-        },
-      },
-    });
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'step.end',
-        uuid: stepUuid,
-        turnId: '',
-        step: 1,
-        usage: {
-          inputOther: 50,
-          output: 10,
-          inputCacheRead: 0,
-          inputCacheCreation: 0,
-        },
-        finishReason: 'tool_use',
-      },
-    });
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'tool.result',
-        parentUuid: 'rich-tool-call',
-        toolCallId: 'call_lookup',
-        result: {
-          output: [
-            { type: 'text', text: 'lookup result' },
-            { type: 'video_url', videoUrl: { url: 'ms://video-1', id: 'video-1' } },
-          ],
-        },
-      },
-    });
-  }
 
   appendContextPartiallyResolvedParallelToolExchange(): void {
     const stepUuid = 'context-partial-tool-step';
@@ -656,8 +441,8 @@ export class AgentTestContext {
       event: { type: 'step.begin', uuid: stepUuid, turnId: '', step: 2 },
     });
     for (const [toolCallId, name] of [
-      ['call_open_one', 'LookupOne'],
-      ['call_open_two', 'LookupTwo'],
+      ['call_open_one', 'Bash'],
+      ['call_open_two', 'SessionControl'],
     ] as const) {
       this.dispatch({
         type: 'context.append_loop_event',
@@ -669,7 +454,7 @@ export class AgentTestContext {
           stepUuid,
           toolCallId,
           name,
-          args: {},
+          args: name === 'Bash' ? { command: 'printf one' } : { operation: 'list' },
         },
       });
     }
@@ -694,76 +479,22 @@ export class AgentTestContext {
     });
   }
 
-  appendPartiallyResolvedParallelToolExchange(): void {
-    const stepUuid = 'partial-tool-step';
-    this.agent.context.appendUserMessage([{ type: 'text', text: 'run both tools' }]);
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: { type: 'step.begin', uuid: stepUuid, turnId: '', step: 2 },
-    });
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'tool.call',
-        uuid: 'call_open_one',
-        turnId: '',
-        step: 2,
-        stepUuid,
-        toolCallId: 'call_open_one',
-        name: 'LookupOne',
-        args: { query: 'one' },
-      },
-    });
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'tool.call',
-        uuid: 'call_open_two',
-        turnId: '',
-        step: 2,
-        stepUuid,
-        toolCallId: 'call_open_two',
-        name: 'LookupTwo',
-        args: { query: 'two' },
-      },
-    });
-    this.dispatch({
-      type: 'context.append_loop_event',
-      event: {
-        type: 'tool.result',
-        parentUuid: 'call_open_one',
-        toolCallId: 'call_open_one',
-        result: {
-          output: 'one result',
-        },
-      },
-    });
-  }
 
   compactHistory(): Array<{ readonly role: string; readonly text: string }> {
     return this.agent.context.history.map((message) => ({
       role: message.role,
-      text: normalizeHistoryText(
-        message.content.map((part) => (part.type === 'text' ? part.text : '')).join(''),
-      ),
+      text: message.content.map((part) => (part.type === 'text' ? part.text : '')).join(''),
     }));
   }
 
   async expectResumeMatches(): Promise<void> {
     const resumed = testAgent({
       kaos: createResumeNoSideEffectKaos(this.agent.config.cwd, this.agent.kaos.pathClass()),
-      runtime: {
-        urlFetcher: this.agent.toolServices?.urlFetcher,
-        webSearcher: this.agent.toolServices?.webSearcher,
-      },
       providerManager: this.options.providerManager,
       initialConfig: this.kimiConfig,
       providerManagerOverrides: this.options.providerManagerOverrides,
       generate: failOnResumeGenerate,
-      compactionStrategy: this.options.compactionStrategy,
-      microCompaction: this.options.microCompaction,
-      subagentHost: this.options.subagentHost,
-      experimentalFlags: this.options.experimentalFlags,
+      sessionControl: this.options.sessionControl,
       persistence: new InMemoryAgentRecordPersistence(
         withMetadata(this.recordHistory.map(cloneRecord)),
       ),
@@ -797,12 +528,7 @@ export class AgentTestContext {
     if (timeoutMs !== undefined) {
       timer = setTimeout(() => {
         this.emitter.off('event', onEvent);
-        // No matching event: return the drained snapshot so a bounded wait
-        // resolves to "nothing arrived" instead of hanging the suite.
-        promise.resolve({
-          event: { method, args: {} } as unknown as RpcLogEntry,
-          events: this.newEvents(),
-        });
+        promise.reject(new Error(`Timed out waiting for RPC ${method}`));
       }, timeoutMs);
     }
 
@@ -926,14 +652,7 @@ export class AgentTestContext {
   }
 
   private appendRecord(event: AgentRecord): void {
-    const records = (
-      this.agent as unknown as {
-        records: {
-          logRecord(record: AgentRecord): void;
-          restore(record: AgentRecord): void;
-        };
-      }
-    ).records;
+    const records = this.agent.records;
     records.logRecord(event);
     records.restore(event);
   }
@@ -1047,56 +766,12 @@ function resumeStateSnapshot(agent: Agent): ResumeStateSnapshot {
   return {
     background: agent.background.list(false),
     config: configStateSnapshot(agent),
-    context: resumeContextSnapshot(agent),
-    contextOS: agent.contextOS.data(),
+    context: agent.context.data(),
     permission: agent.permission.data(),
-    tools: agent.tools.data(),
-    toolStore: agent.tools.storeData(),
     usage: agent.usage.data(),
   };
 }
 
-function resumeContextSnapshot(agent: Agent) {
-  const context = agent.context.data();
-  // microCompaction trigger dashboard is ephemeral; only the apply cutoff is
-  // durable (restored via micro_compaction.apply records).
-  const { microCompaction: _micro, ...durableContext } = context;
-  return {
-    ...durableContext,
-    history: durableContext.history.filter((message) => !isSystemReminderMessage(message)),
-  };
-}
-
-function isSystemReminderMessage(
-  message: ReturnType<Agent['context']['data']>['history'][number],
-): boolean {
-  if (message.role !== 'user') return false;
-  const text = message.content
-    .map((part) => (part.type === 'text' ? part.text : ''))
-    .join('')
-    .trimStart();
-  return text.startsWith('<system-reminder>');
-}
-
-/**
- * Replace volatile reminder text (current-time, permission-mode, plan-mode)
- * with stable placeholders so history snapshots stay deterministic across
- * runs. Mirrors the normalization in snapshots.ts formatText().
- */
-function normalizeHistoryText(text: string): string {
-  if (isCurrentTimeReminder(text)) return '<current-time-reminder>';
-  if (text.includes('Auto permission mode is active.')) return '<auto-mode-enter-reminder>';
-  if (text.includes('Auto permission mode is no longer active.')) {
-    return '<auto-mode-exit-reminder>';
-  }
-  if (
-    text.includes('Plan mode is active. MUST NOT edit') &&
-    text.includes('Plan file:')
-  ) {
-    return '<plan-mode-reminder>';
-  }
-  return text;
-}
 
 function configStateSnapshot(agent: Agent): ResumeStateSnapshot['config'] {
   let provider: ProviderConfig | undefined;
@@ -1163,10 +838,6 @@ function capabilityNames(capabilities: ModelCapability | undefined): string[] {
   ].filter((capability): capability is string => capability !== undefined);
 }
 
-function buildSkillPrompt(content: string, args: string | undefined): string {
-  if (args === undefined) return content;
-  return `${content}\n\nUser request:\n${args}`;
-}
 
 function cloneRecord(event: AgentRecord): AgentRecord {
   return structuredClone(event);

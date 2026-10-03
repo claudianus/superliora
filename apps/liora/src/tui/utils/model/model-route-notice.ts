@@ -73,10 +73,19 @@ export function isSameEffectiveModel(
   return true;
 }
 
+/** Native provider-default selection, not a configured alias named "auto". */
+function isVirtualAutoModel(
+  alias: string,
+  availableModels: Readonly<Record<string, ModelAlias>>,
+): boolean {
+  return alias.trim().toLowerCase() === 'auto' && availableModels[alias] === undefined;
+}
+
 export function modelRouteDisplayName(
   alias: string,
   availableModels: Readonly<Record<string, ModelAlias>>,
 ): string {
+  if (isVirtualAutoModel(alias, availableModels)) return 'Auto';
   const entry = availableModels[alias];
   return entry?.displayName ?? entry?.model ?? alias;
 }
@@ -103,6 +112,7 @@ export interface ModelRouteSurfaceDecision {
  * - Failover only when the *previous step route* (or, on first selection, a truly
  *   different session model) moves to a different effective model.
  * - Credential-only changes surface as selection, not failover.
+ * - A virtual Auto provider default's first concrete route is a selection.
  */
 export function decideModelRouteSurface(input: {
   readonly selection: ProviderRouteSelectionLike;
@@ -150,14 +160,8 @@ export function decideModelRouteSurface(input: {
     return { kind: 'none', toAlias, credentialChanged: false };
   }
 
-  // Virtual smart-auto pin resolving to a concrete alias is a selection, not failover.
-  if (sessionModel.trim().toLowerCase() === 'auto') {
-    return {
-      kind: 'selection',
-      fromAlias: sessionModel,
-      toAlias,
-      credentialChanged: false,
-    };
+  if (isVirtualAutoModel(sessionModel, availableModels)) {
+    return { kind: 'selection', fromAlias: sessionModel, toAlias, credentialChanged: false };
   }
 
   const sessionIdentity = resolveModelRouteIdentity(sessionModel, availableModels);

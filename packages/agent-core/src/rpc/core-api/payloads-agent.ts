@@ -10,16 +10,6 @@ export type PromptPart = Extract<
 
 export type PromptInput = readonly PromptPart[];
 
-export interface DiagnoseContextOSPayload {
-  readonly query?: string;
-  readonly limit?: number;
-}
-
-export interface EnterPlanPayload {
-  readonly ultra?: boolean;
-  readonly initialContext?: string;
-}
-
 export interface PromptPayload {
   readonly input: readonly ContentPart[];
 }
@@ -40,7 +30,7 @@ export interface ShellCommandResult {
   readonly isError?: boolean;
   /** True when the command was detached to the background (ctrl+b) instead of
    *  completing in the foreground. The TUI uses this to skip the normal final
-   *  render (the backgrounding path owns the UI + model notification). */
+   *  render; the background task stream owns subsequent output. */
   readonly backgrounded?: boolean;
 }
 export interface CancelShellCommandPayload {
@@ -52,7 +42,6 @@ export interface SteerPayload {
 export type TurnCancelSource =
   | 'esc'
   | 'ctrl-c'
-  | 'goal-command'
   | 'btw-panel'
   | 'session-close'
   | 'rpc'
@@ -61,12 +50,6 @@ export type TurnCancelSource =
 export interface CancelPayload {
   readonly turnId?: number;
   readonly source?: TurnCancelSource;
-}
-export interface SetPremiumQualityPayload {
-  readonly enabled: boolean;
-}
-export interface SetAskModePayload {
-  readonly enabled: boolean;
 }
 export interface SetThinkingPayload {
   readonly level: string;
@@ -81,45 +64,13 @@ export interface SetModelResult {
   readonly model: string;
   readonly providerName?: string | undefined;
 }
-export interface CancelPlanPayload {
-  readonly id?: string;
-}
 export interface BeginCompactionPayload {
   readonly instruction?: string;
 }
-export interface RefineHarnessPayload {
-  readonly scope?: 'local' | 'global';
-  readonly instructions?: string;
-}
-export interface RollbackHarnessRefinementPayload {
-  readonly refinementId: string;
-}
-
-// Refine value types re-exported for SDK/TUI consumers (same pattern as
-// payloads-goal re-exporting goal types).
-export type {
-  HarnessEntry,
-  HarnessRefinementEvent,
-  HarnessScope,
-  HarnessStatusSnapshot,
-  HarnessStatusView,
-  RefineRunResult,
-} from '#/agent/refine';
 export interface UndoHistoryPayload {
   readonly count: number;
 }
 
-export interface RegisterToolPayload {
-  readonly name: string;
-  readonly description: string;
-  readonly parameters: Record<string, unknown>;
-}
-export interface UnregisterToolPayload {
-  readonly name: string;
-}
-export interface SetActiveToolsPayload {
-  readonly names: readonly string[];
-}
 export interface StopBackgroundPayload {
   readonly taskId: string;
   /** Free-form human-readable reason persisted with the task record. */
@@ -132,32 +83,6 @@ export interface GetBackgroundOutputPayload {
   readonly taskId: string;
   readonly tail?: number;
 }
-export interface InlineCompletePayload {
-  /** Full text currently in the prompt editor. */
-  readonly text: string;
-  readonly cursorLine: number;
-  readonly cursorCol: number;
-}
-export interface InlineCompleteResult {
-  /** Predicted continuation to render as ghost text after the cursor (may be empty). */
-  readonly completion: string;
-  /** Effective model alias used for this prediction (completion/cheap/main). */
-  readonly modelAlias?: string;
-}
-export interface SuggestPromptsResult {
-  /** Contextually relevant next-task prompts (may be empty). */
-  readonly suggestions: readonly string[];
-  /** Effective model alias used for this suggestion call. */
-  readonly modelAlias?: string;
-}
-/**
- * Optional out-of-band call options for prompt-intelligence RPCs. The abort
- * {@link signal} is threaded through the in-process RPC boundary so a stale
- * in-flight completion can be cancelled server-side when the user keeps typing.
- */
-export interface PromptIntelligenceCallOptions {
-  readonly signal?: AbortSignal;
-}
 export interface GetBackgroundPayload {
   /**
    * When omitted, returns all tasks (including terminal/lost). Pass
@@ -169,9 +94,3 @@ export interface GetBackgroundPayload {
   readonly limit?: number;
 }
 
-export interface CreateGoalPayload {
-  readonly objective: string;
-  readonly replace?: boolean;
-  /** Shell command that must pass before the goal may complete. */
-  readonly gateCommand?: string;
-}

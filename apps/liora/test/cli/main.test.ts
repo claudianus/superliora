@@ -153,13 +153,9 @@ function defaultOpts(): CLIOptions {
     continue: false,
     yolo: false,
     auto: false,
-    plan: false,
     model: undefined,
     outputFormat: undefined,
     prompt: undefined,
-    skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
   };
 }
 

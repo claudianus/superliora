@@ -13,13 +13,12 @@
  * is not surfaced to the model.
  */
 
-import type { Readable } from 'node:stream';
 
-import type { Kaos, KaosProcess } from '@superliora/kaos';
+import type { Kaos } from '@superliora/kaos';
+import { runGit as runNativeGit } from './job/git';
 
 import { log } from '../logging/logger';
 
-const GIT_TIMEOUT_MS = 5_000;
 const MAX_DIRTY_FILES = 20;
 const MAX_COMMIT_LINE_LENGTH = 200;
 
@@ -34,13 +33,6 @@ const ALLOWED_HOSTS = [
   'git.sr.ht',
 ] as const;
 
-async function disposeProcess(proc: KaosProcess): Promise<void> {
-  try {
-    await proc.dispose();
-  } catch {
-    /* best-effort cleanup */
-  }
-}
 
 /**
  * Collect git context for the explore agent.
@@ -81,9 +73,12 @@ export async function collectGitContext(kaos: Kaos, cwd: string): Promise<string
     ['status', '--porcelain'],
     ['log', '-3', '--format=%h %s'],
   ] as const;
-  const [remote, branch, status, gitLog] = (await Promise.all(
-    commandArgs.map(async (args) => ({ args, result: await runGit(kaos, cwd, args) })),
-  )) as unknown as [TaggedGitResult, TaggedGitResult, TaggedGitResult, TaggedGitResult];
+  const outcomes = await Promise.allSettled(commandArgs.map(async (args) => ({ args, result: await runGit(kaos, cwd, args) })));
+  const errors = outcomes.filter((outcome) => outcome.status === 'rejected').map((outcome) => outcome.reason);
+  if (errors.length > 0) throw new AggregateError(errors, 'Git context collection failed.');
+  const results = outcomes.flatMap((outcome) => outcome.status === 'fulfilled' ? [outcome.value] : []);
+  const [remote, branch, status, gitLog] = results;
+  if (remote === undefined || branch === undefined || status === undefined || gitLog === undefined) throw new Error('Git context probes did not settle.');
 
   for (const { args, result } of [remote, branch, status, gitLog]) {
     if (!result.ok) logGitFailure(cwd, args, result);
@@ -192,13 +187,11 @@ function tryUrlPath(remoteUrl: string): string | null {
  * Outcome of a single `git` invocation.
  *
  * - `ok: true` — exited 0; `stdout` is trimmed.
- * - `timeout` — exceeded `GIT_TIMEOUT_MS`; process was SIGKILLed.
  * - `spawn-error` — `kaos.exec` itself rejected (git missing / backend error).
  * - `command-failed` — git ran but exited non-zero, or its streams errored.
  *   `exitCode`/`stderr` are populated for the non-zero-exit case.
  */
 type GitFailure =
-  | { readonly kind: 'timeout' }
   | { readonly kind: 'spawn-error' }
   | { readonly kind: 'command-failed'; readonly exitCode?: number; readonly stderr?: string };
 
@@ -206,7 +199,6 @@ export type GitResult =
   | { readonly ok: true; readonly stdout: string }
   | ({ readonly ok: false } & GitFailure);
 
-type TaggedGitResult = { readonly args: readonly string[]; readonly result: GitResult };
 
 function stdoutOf(result: GitResult): string {
   return result.ok ? result.stdout : '';
@@ -218,9 +210,7 @@ function isNotARepo(stderr: string | undefined): boolean {
 
 function logGitFailure(cwd: string, args: readonly string[], failure: GitFailure): void {
   const command = `git ${args.join(' ')}`;
-  if (failure.kind === 'timeout') {
-    log.debug('git context command timed out', { cwd, command });
-  } else if (failure.kind === 'spawn-error') {
+  if (failure.kind === 'spawn-error') {
     log.warn('git context command failed to spawn', { cwd, command });
   } else {
     log.debug('git context command failed', {
@@ -238,60 +228,10 @@ function logGitFailure(cwd: string, args: readonly string[], failure: GitFailure
  * backend. Both stdout and stderr are captured so callers can tell "not a
  * git repository" (exit 128 + telltale stderr) apart from other failures.
  */
-export async function runGit(kaos: Kaos, cwd: string, args: readonly string[]): Promise<GitResult> {
-  let proc: KaosProcess | undefined;
-  try {
-    proc = await kaos.exec('git', '-C', cwd, ...args);
-  } catch {
-    return { ok: false, kind: 'spawn-error' };
-  }
-
-  try {
-    proc.stdin.end();
-  } catch {
-    /* stdin already closed */
-  }
-
-  const work = Promise.all([collectStream(proc.stdout), collectStream(proc.stderr), proc.wait()]);
-  // Attach a rejection handler up front: if `work` rejects during the
-  // timeout-handling window (before the catch block re-awaits it), Node must
-  // not flag it as an unhandled rejection.
-  work.catch(() => {});
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let timedOut = false;
-  try {
-    const timeout = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => {
-        timedOut = true;
-        reject(new Error(`git ${args.join(' ')} timed out`));
-      }, GIT_TIMEOUT_MS);
-    });
-    const [stdout, stderr, exitCode] = await Promise.race([work, timeout]);
-    if (exitCode !== 0) {
-      return { ok: false, kind: 'command-failed', exitCode, stderr: stderr.trim() };
-    }
-    return { ok: true, stdout: stdout.trim() };
-  } catch {
-    try {
-      await proc.kill('SIGKILL');
-    } catch {
-      /* process already gone */
-    }
-    // Let the streams drain so process resources are released, even though
-    // the timed-out/errored output is discarded.
-    await work.catch(() => {});
-    if (timedOut) return { ok: false, kind: 'timeout' };
-    return { ok: false, kind: 'command-failed' };
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-    if (proc !== undefined) await disposeProcess(proc);
-  }
-}
-
-async function collectStream(stream: Readable): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
-  }
-  return Buffer.concat(chunks).toString('utf-8');
+export async function runGit(kaos: Kaos, cwd: string, args: readonly string[], signal?: AbortSignal): Promise<GitResult> {
+  const result = await runNativeGit(kaos, cwd, args, 0, signal);
+  if (result.outputTruncated) throw new Error('Git query output was truncated.');
+  if (result.ok) return { ok: true, stdout: result.stdout.trim() };
+  if (result.spawnFailed) return { ok: false, kind: 'spawn-error' };
+  return { ok: false, kind: 'command-failed', ...(result.exitCode === null ? {} : { exitCode: result.exitCode }), stderr: result.stderr.trim() };
 }

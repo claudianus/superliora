@@ -1,46 +1,22 @@
-/**
- * Background task id format.
- */
+import { join } from 'pathe';
 
-import { Readable } from 'node:stream';
-import type { Writable } from 'node:stream';
-
-import type { KaosProcess } from '@superliora/kaos';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { BackgroundTaskPersistence } from '../../../src/agent/background';
-import { agentTask, createBackgroundManager, registerProcess } from './helpers';
+import { generateTaskId } from '../../../src/agent/background/managed-types';
 
-function pendingProcess(): KaosProcess {
-  return {
-    stdin: { write: vi.fn(), end: vi.fn() } as unknown as Writable,
-    stdout: Readable.from([]),
-    stderr: Readable.from([]),
-    pid: 54321,
-    exitCode: null,
-    wait: () => new Promise<number>(() => {}),
-    kill: vi.fn().mockResolvedValue(undefined) as KaosProcess['kill'],
-    dispose: vi.fn().mockResolvedValue(undefined) as KaosProcess['dispose'],
-  };
-}
-
-describe('background task id format', () => {
-  it('assigns bash-prefixed ids to process tasks', () => {
-    const { manager } = createBackgroundManager();
-    const id = registerProcess(manager, pendingProcess(), 'sleep 60', 'process task');
-
-    expect(id).toMatch(/^bash-[0-9a-z]{8}$/);
-    expect(manager.getTask(id)).toMatchObject({ taskId: id, kind: 'process' });
-  });
-
-  it('assigns agent-prefixed ids to agent tasks', () => {
-    const { manager } = createBackgroundManager();
-    const id = manager.registerTask(
-      agentTask(new Promise(() => {}), 'agent task'),
-    );
-
-    expect(id).toMatch(/^agent-[0-9a-z]{8}$/);
-    expect(manager.getTask(id)).toMatchObject({ taskId: id, kind: 'agent' });
+describe('background persistence task id validation', () => {
+  it('generates prefixed base36 ids accepted by the persistence boundary', () => {
+    const sessionDir = '/tmp/kimi-bg-id-test';
+    const persistence = new BackgroundTaskPersistence(sessionDir);
+    for (const prefix of ['bash', 'native-process']) {
+      for (let i = 0; i < 32; i++) {
+        const id = generateTaskId(prefix);
+        expect(id.startsWith(`${prefix}-`)).toBe(true);
+        expect(id.slice(prefix.length + 1)).toMatch(/^[0-9a-z]{8}$/);
+        expect(persistence.taskOutputFile(id)).toBe(join(sessionDir, 'tasks', id, 'output.log'));
+      }
+    }
   });
 
   it('rejects malformed ids at the persistence path boundary', () => {

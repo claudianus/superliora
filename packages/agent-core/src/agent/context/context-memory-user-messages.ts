@@ -11,18 +11,13 @@ export function appendUserMessageToContext(
   appendSystemReminder: (content: string, origin: PromptOrigin) => void,
 ): void {
   if (content.length === 0) return;
-  // Prompt ingestion (server upload/base64 route, TUI paste, ACP) annotates
-  // a compressed image with an inline `<system>` caption next to the image.
-  // Left inside the user message, that raw markup is user-visible in every
-  // history projection (TUI replay, vis, export). Reroute each caption
-  // through the built-in system-reminder injection — hidden by its
-  // `injection` origin — and keep only the real user content here.
+  // Image preprocessing contributes factual metadata, not a user prompt.
   const { captions, parts } =
     origin.kind === 'user'
       ? splitImageCompressionCaptions(content)
       : { captions: [], parts: [...content] };
   for (const caption of captions) {
-    appendSystemReminder(caption, { kind: 'injection', variant: 'image_compression' });
+    appendSystemReminder(caption, { kind: 'system_trigger', name: 'image_compression' });
   }
   if (parts.length === 0) return;
   appendMessage({
@@ -56,14 +51,11 @@ export function appendLocalCommandStdoutToContext(
     role: 'user',
     content: [{ type: 'text', text }],
     toolCalls: [],
-    origin: { kind: 'injection', variant: 'local-command-stdout' },
+    origin: { kind: 'system_trigger', name: 'local-command-stdout' },
   });
 }
 
-// User-initiated `!` shell command. Unlike `injection` (which is skipped on
-// replay), `shell_command` origin is replayed and rendered, so resumed
-// sessions still show the command and its output. The XML tags carry the
-// semantics to the model; the origin drives UI/replay routing.
+// Explicit operator shell input and output stay visible on replay.
 export function appendBashInputToContext(
   command: string,
   appendMessage: (message: ContextMessage) => void,

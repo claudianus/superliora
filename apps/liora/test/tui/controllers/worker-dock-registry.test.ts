@@ -53,8 +53,8 @@ describe('WorkerDockRegistry', () => {
     registry.apply({
       type: 'subagent.progress',
       subagentId: 'sa-1',
-      lastTool: 'Read',
-      lastTarget: 'src/tui/panel.ts',
+      lastTool: 'Bash',
+      lastTarget: 'cat src/tui/panel.ts',
       toolCount: 12,
       elapsedMs: 5_000,
       tokens: 8_100,
@@ -64,8 +64,8 @@ describe('WorkerDockRegistry', () => {
     snap = registry.snapshot(now());
     const worker = snap.workers[0]!;
     expect(worker).toMatchObject({
-      lastTool: 'Read',
-      lastTarget: 'src/tui/panel.ts',
+      lastTool: 'Bash',
+      lastTarget: 'cat src/tui/panel.ts',
       toolCount: 12,
       tokens: 8_100,
       budgetRemainingMs: 22_000,
@@ -128,42 +128,136 @@ describe('WorkerDockRegistry', () => {
     );
   });
 
-  it('marks finishing from the heartbeat and stalled from the stall signal', () => {
-    const { registry, advance, now } = createHarness();
+  it('converges raw child tool events and summary copies without duplicate moves', () => {
+    const { registry, now } = createHarness();
+    registry.apply(spawned('sa-1'));
+    const started = {
+      type: 'tool.call.started',
+      agentId: 'sa-1',
+      toolCallId: 'tc-raw',
+      name: 'Bash',
+      description: 'printf hello',
+    } as Event;
+    registry.apply(started);
+    registry.apply({
+      type: 'tool.progress',
+      agentId: 'sa-1',
+      toolCallId: 'tc-raw',
+      update: { kind: 'stdout', text: 'hello\n' },
+    } as Event);
+    registry.apply({
+      type: 'subagent.tool_call',
+      subagentId: 'sa-1',
+      toolCallId: 'tc-raw',
+      name: 'Bash',
+      detail: { kind: 'bash', command: 'printf hello' },
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]!.liveText).toBe('hello');
+    expect(registry.apply({
+      type: 'subagent.tool_progress',
+      subagentId: 'sa-1',
+      toolCallId: 'tc-raw',
+      kind: 'stdout',
+      textPreview: 'hello',
+    } as Event)).toBe(false);
+    registry.apply({
+      type: 'tool.result',
+      agentId: 'sa-1',
+      toolCallId: 'tc-raw',
+      output: 'hello',
+      isError: false,
+    } as Event);
+    registry.apply({
+      type: 'subagent.tool_result',
+      subagentId: 'sa-1',
+      toolCallId: 'tc-raw',
+      isError: false,
+      resultPreview: 'hello',
+    } as Event);
+    registry.apply(started);
+    const snapshot = registry.snapshot(now());
+    expect(snapshot.ops).toHaveLength(1);
+    expect(snapshot.ops[0]).toMatchObject({ toolCallId: 'tc-raw', status: 'ok' });
+    expect(snapshot.workers[0]!.toolCount).toBe(1);
+    expect(snapshot.workers[0]!.liveText).toBeUndefined();
+  });
+
+  it('keeps raw child errors honest and ignores main or unknown agent tool events', () => {
+    const { registry, now } = createHarness();
+    for (const agentId of ['main', 'unknown']) {
+      expect(registry.apply({
+        type: 'tool.call.started', agentId, toolCallId: 'tc-ignored', name: 'Bash',
+      } as Event)).toBe(false);
+      expect(registry.apply({
+        type: 'tool.progress', agentId, toolCallId: 'tc-ignored',
+        update: { kind: 'stdout', text: 'ignored' },
+      } as Event)).toBe(false);
+      expect(registry.apply({
+        type: 'tool.result', agentId, toolCallId: 'tc-ignored', isError: true, output: 'ignored',
+      } as Event)).toBe(false);
+    }
+    expect(registry.snapshot(now()).workers).toHaveLength(0);
     registry.apply(spawned('sa-1'));
     registry.apply({
-      type: 'subagent.progress',
-      subagentId: 'sa-1',
-      toolCount: 3,
-      elapsedMs: 1_000,
-      tokens: 100,
-      finishing: true,
+      type: 'tool.call.started', agentId: 'sa-1', toolCallId: 'tc-fail', name: 'Bash',
     } as Event);
-    expect(registry.snapshot(now()).workers[0]!.status).toBe('finishing');
-
     registry.apply({
-      type: 'subagent.stalled',
-      subagentId: 'sa-1',
-      silentMs: 300_000,
-      toolCount: 3,
+      type: 'tool.result', agentId: 'sa-1', toolCallId: 'tc-fail',
+      output: 'command failed', isError: true,
     } as Event);
-    expect(registry.snapshot(now()).workers[0]!).toMatchObject({
-      status: 'stalled',
-      stalledSilentMs: 300_000,
+    expect(registry.snapshot(now()).ops[0]).toMatchObject({ status: 'error', chip: 'command failed' });
+  });
+
+  it('feeds actual child shell output into the live strip without synthetic operations', () => {
+    const { registry, now } = createHarness();
+    registry.apply(spawned('sa-1'));
+    registry.apply({
+      type: 'shell.output', agentId: 'sa-1', commandId: 'cmd-1',
+      update: { kind: 'stdout', text: 'actual output\n' },
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]).toMatchObject({
+      liveKind: 'stdout', liveText: 'actual output',
     });
+    expect(registry.snapshot(now()).ops).toHaveLength(0);
+    expect(registry.apply({
+      type: 'shell.output', agentId: 'main', commandId: 'cmd-2',
+      update: { kind: 'stdout', text: 'main output' },
+    } as Event)).toBe(false);
+    expect(registry.snapshot(now()).workers[0]!.liveText).toBe('actual output');
+  });
 
-    // A fresh heartbeat clears the stall.
-    advance(1_000);
-    registry.apply({
-      type: 'subagent.progress',
-      subagentId: 'sa-1',
-      toolCount: 4,
-      elapsedMs: 2_000,
-      tokens: 200,
-    } as Event);
-    const worker = registry.snapshot(now()).workers[0]!;
-    expect(worker.status).toBe('running');
-    expect(worker.stalledSilentMs).toBeUndefined();
+  it('repaints only explicit caller deadline changes and clears omitted deadline telemetry', () => {
+    const { registry, now } = createHarness();
+    registry.apply(spawned('sa-1'));
+    const progress = {
+      type: 'subagent.progress' as const, subagentId: 'sa-1',
+      toolCount: 0, elapsedMs: 1_000, tokens: 0,
+    };
+    registry.apply({ ...progress, budgetMs: 60_000, budgetRemainingMs: 59_000 } as Event);
+    expect(registry.snapshot(now()).workers[0]!.budgetRemainingMs).toBe(59_000);
+    expect(registry.apply({ ...progress, budgetMs: 60_000, budgetRemainingMs: 58_000 } as Event)).toBe(true);
+    expect(registry.apply(progress as Event)).toBe(true);
+    expect(registry.snapshot(now()).workers[0]!.budgetMs).toBeUndefined();
+    expect(registry.snapshot(now()).workers[0]!.budgetRemainingMs).toBeUndefined();
+  });
+
+  it('preserves raw chunk boundaries and repeated text instead of appending summary copies', () => {
+    const { registry, now } = createHarness();
+    registry.apply(spawned('sa-1'));
+    for (const text of ['foo', 'bar', 'bar', '\n', 'last']) {
+      registry.apply({
+        type: 'tool.progress', agentId: 'sa-1', toolCallId: 'tc-stream',
+        update: { kind: 'stdout', text },
+      } as Event);
+      registry.apply({
+        type: 'subagent.tool_progress', subagentId: 'sa-1', toolCallId: 'tc-stream',
+        kind: 'stdout', textPreview: text,
+      } as Event);
+      if (text === 'bar') {
+        expect(registry.snapshot(now()).workers[0]!.liveText).toMatch(/^foobar(?:bar)?$/);
+      }
+    }
+    expect(registry.snapshot(now()).workers[0]!.liveText).toBe('last');
   });
 
   it('settles ops-feed entries in place when the tool result lands', () => {
@@ -173,18 +267,17 @@ describe('WorkerDockRegistry', () => {
       type: 'subagent.tool_call',
       subagentId: 'sa-1',
       toolCallId: 'tc-1',
-      name: 'Edit',
-      detail: { kind: 'edit', path: 'src/a.ts', addedLines: 42, removedLines: 10 },
+      name: 'Bash',
+      detail: { kind: 'bash', command: 'printf checkout' },
     } as Event);
     let snap = registry.snapshot(now());
     expect(snap.ops).toHaveLength(1);
     expect(snap.ops[0]).toMatchObject({
       workerName: 'builder-1',
-      name: 'Edit',
-      target: 'src/a.ts',
+      name: 'Bash',
+      target: 'printf checkout',
       status: 'running',
     });
-    expect(snap.ops[0]!.chip).toContain('+42');
 
     registry.apply({
       type: 'subagent.tool_result',
@@ -196,45 +289,6 @@ describe('WorkerDockRegistry', () => {
     expect(snap.ops).toHaveLength(1);
     expect(snap.ops[0]!.status).toBe('error');
     expect(snap.ops[0]!.settledAtMs).toBeDefined();
-  });
-
-  it('mirrors child todo ratios onto the worker row', () => {
-    const { registry, now } = createHarness();
-    registry.apply(spawned('sa-1'));
-    registry.apply({
-      type: 'subagent.todo.updated',
-      subagentId: 'sa-1',
-      subagentName: 'sa-1',
-      parentToolCallId: 'ptc-1',
-      todos: [
-        { title: 'a', status: 'done' },
-        { title: 'b', status: 'done' },
-        { title: 'c', status: 'in_progress' },
-        { title: 'd', status: 'pending' },
-      ],
-    } as unknown as Event);
-    expect(registry.snapshot(now()).workers[0]!).toMatchObject({
-      todoDone: 2,
-      todoTotal: 4,
-      focusTodo: 'c',
-    });
-  });
-
-  it('falls back focusTodo to the first pending item', () => {
-    const { registry, now } = createHarness();
-    registry.apply(spawned('sa-1'));
-    registry.apply({
-      type: 'subagent.todo.updated',
-      subagentId: 'sa-1',
-      subagentName: 'sa-1',
-      parentToolCallId: 'ptc-1',
-      todos: [
-        { title: 'done-one', status: 'done' },
-        { title: 'next-up', status: 'pending' },
-        { title: 'later', status: 'pending' },
-      ],
-    } as unknown as Event);
-    expect(registry.snapshot(now()).workers[0]!.focusTodo).toBe('next-up');
   });
 
   it('lingers completed and failed workers briefly, then prunes both', () => {
@@ -366,6 +420,7 @@ describe('WorkerDockRegistry', () => {
         taskId: 'task-9',
         description: 'dev server',
         command: 'pnpm dev',
+        cwd: '/tmp/project',
         pid: 1234,
         exitCode: null,
         status: 'running',
@@ -388,6 +443,7 @@ describe('WorkerDockRegistry', () => {
         taskId: 'task-9',
         description: 'dev server',
         command: 'pnpm dev',
+        cwd: '/tmp/project',
         pid: 1234,
         exitCode: 1,
         status: 'failed',
@@ -400,24 +456,6 @@ describe('WorkerDockRegistry', () => {
     expect(snap.workers[0]).toMatchObject({ status: 'failed', error: 'exit 1' });
   });
 
-  it('ignores question tasks and unrelated events', () => {
-    const { registry, now } = createHarness();
-    const changed = registry.apply({
-      type: 'background.task.started',
-      info: {
-        kind: 'question',
-        taskId: 'q-1',
-        description: 'approve?',
-        questionCount: 1,
-        status: 'running',
-        startedAt: now(),
-        endedAt: null,
-      },
-    } as Event);
-    expect(changed).toBe(false);
-    expect(registry.snapshot(now()).workers).toHaveLength(0);
-    expect(registry.apply({ type: 'tool.list.updated' } as unknown as Event)).toBe(false);
-  });
 
   it('bumps the snapshot version on every mutation for render caching', () => {
     const { registry, now } = createHarness();
@@ -439,7 +477,7 @@ describe('WorkerDockRegistry', () => {
       toolCount: 2,
       elapsedMs: 1_000,
       tokens: 100,
-      lastTool: 'Read',
+      lastTool: 'Bash',
     };
     expect(registry.apply(progress as Event)).toBe(true);
     const version = registry.snapshot(now()).version;
@@ -505,7 +543,7 @@ describe('WorkerDockRegistry', () => {
     ).toBe(false);
   });
 
-  it('clears the live stream when a tool call starts and humanizes JSON args', () => {
+  it('clears the live stream when a SessionControl call starts and shows its observed description', () => {
     const { registry, now } = createHarness();
     registry.apply(spawned('sa-1', { subagentName: 'scout' }));
     registry.apply({
@@ -519,20 +557,20 @@ describe('WorkerDockRegistry', () => {
     registry.apply({
       type: 'subagent.tool_call',
       subagentId: 'sa-1',
-      toolCallId: 'tc-web',
-      name: 'WebSearch',
-      argsPreview: '{"query":"Phaser 3 platformer","limit":5}',
+      toolCallId: 'tc-session',
+      name: 'SessionControl',
+      argsPreview: '{"description":"Inspect checkout"}',
     } as Event);
     const snap = registry.snapshot(now());
     expect(snap.workers[0]!.liveText).toBeUndefined();
     expect(snap.workers[0]!.liveKind).toBeUndefined();
     expect(snap.workers[0]).toMatchObject({
-      lastTool: 'WebSearch',
-      lastTarget: 'Phaser 3 platformer',
+      lastTool: 'SessionControl',
+      lastTarget: 'Inspect checkout',
     });
     expect(snap.ops[0]).toMatchObject({
-      name: 'WebSearch',
-      target: 'Phaser 3 platformer',
+      name: 'SessionControl',
+      target: 'Inspect checkout',
       status: 'running',
     });
   });
@@ -634,18 +672,18 @@ describe('WorkerDockRegistry', () => {
       type: 'subagent.tool_call',
       subagentId: 'sa-1',
       toolCallId: 'tc-1',
-      name: 'WebSearch',
-      argsPreview: '{"query":"metal slug"}',
+      name: 'Bash',
+      argsPreview: '{"command":"find . -type f"}',
     } as Event);
     registry.apply({
       type: 'subagent.tool_result',
       subagentId: 'sa-1',
       toolCallId: 'tc-1',
-      resultPreview: '5 results about Metal Slug wiki pages',
+      resultPreview: '5 files listed',
     } as Event);
     expect(registry.snapshot(now()).ops[0]).toMatchObject({
       status: 'ok',
-      chip: '5 results about Metal Slug…',
+      chip: '5 files listed',
     });
   });
 

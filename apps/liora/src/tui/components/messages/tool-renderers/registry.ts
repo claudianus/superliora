@@ -10,57 +10,6 @@
  * choose, so adding a new tool means appending one case.
  */
 
-import { readMediaSummary } from './media';
-import { goalSummary } from './goal';
-import {
-  agentSummary,
-  askUserQuestionSummary,
-  browserActSummary,
-  browserConsoleSummary,
-  browserObserveSummary,
-  browserScreenshotSummary,
-  browserStatusSummary,
-  computerActSummary,
-  computerCaptureSummary,
-  computerStatusSummary,
-  context7DocsSummary,
-  context7ResolveSummary,
-  cronCreateSummary,
-  cronDeleteSummary,
-  cronListSummary,
-  editSummary,
-  enterPlanModeSummary,
-  exitPlanModeSummary,
-  fetchSummary,
-  generateMediaSummary,
-  getCurrentTimeSummary,
-  globSummary,
-  grepSummary,
-  lioraCallgraphSummary,
-  lioraExpandSummary,
-  lioraReadSummary,
-  lioraReviewSummary,
-  lioraSymbolSummary,
-  lioraTreeSummary,
-  memorySummary,
-  nextPhaseSummary,
-  readSummary,
-  recordInterviewFindingSummary,
-  runProjectChecksSummary,
-  searchExpertSummary,
-  searchSkillSummary,
-  skillSummary,
-  taskListSummary,
-  taskOutputSummary,
-  taskStopSummary,
-  thinkSummary,
-  todoListSummary,
-  taskGraphSummary,
-  verifySurfaceSummary,
-  visualDiffSummary,
-  webSearchSummary,
-  writeSummary,
-} from './summary';
 import { formatShellCommandPreview } from '#/tui/components/media/code-highlight';
 import { Text } from '#/tui/renderer';
 
@@ -70,12 +19,11 @@ import { strArg } from './types';
 
 /**
  * True when a tool has no dedicated renderer and falls back to the generic
- * truncated output (every MCP tool and any tool not listed below). `Bash`
- * deliberately shares the raw fallback renderer but remains a known tool so
- * its header and subagent treatment stay specialized.
+ * truncated output for unknown historical calls. Bash and SessionControl
+ * are the known runtime surface.
  */
 export function isGenericToolResult(toolName: string): boolean {
-  return toolName !== 'Bash' && pickResultRenderer(toolName) === renderTruncated;
+  return toolName !== 'Bash' && toolName !== 'SessionControl';
 }
 
 /**
@@ -98,115 +46,7 @@ const bashResultSummary: ResultRenderer = (toolCall, result, ctx) => {
 };
 
 export function pickResultRenderer(toolName: string): ResultRenderer {
-  switch (toolName) {
-    case 'Read':
-      return readSummary;
-    case 'LioraRead':
-      return lioraReadSummary;
-    case 'LioraSymbol':
-      return lioraSymbolSummary;
-    case 'LioraTree':
-      return lioraTreeSummary;
-    case 'Expand':
-      return lioraExpandSummary;
-    case 'LioraCallgraph':
-      return lioraCallgraphSummary;
-    case 'ReadMediaFile':
-      return readMediaSummary;
-    case 'Grep':
-      return grepSummary;
-    case 'Glob':
-      return globSummary;
-    case 'FetchURL':
-      return fetchSummary;
-    case 'WebSearch':
-      return webSearchSummary;
-    case 'Context7Resolve':
-      return context7ResolveSummary;
-    case 'Context7Docs':
-      return context7DocsSummary;
-    case 'SearchSkill':
-      return searchSkillSummary;
-    case 'SearchExpert':
-      return searchExpertSummary;
-    case 'Skill':
-      return skillSummary;
-    case 'Memory':
-      return memorySummary;
-    case 'NextPhase':
-      return nextPhaseSummary;
-    case 'RecordInterviewFinding':
-      return recordInterviewFindingSummary;
-    case 'GetCurrentTime':
-      return getCurrentTimeSummary;
-    case 'EnterPlanMode':
-      return enterPlanModeSummary;
-    case 'ExitPlanMode':
-      return exitPlanModeSummary;
-    case 'AskUserQuestion':
-      return askUserQuestionSummary;
-    case 'LioraReview':
-    case 'Review':
-      return lioraReviewSummary;
-    case 'TaskList':
-      return taskListSummary;
-    case 'TaskOutput':
-      return taskOutputSummary;
-    case 'TaskStop':
-      return taskStopSummary;
-    case 'CronList':
-      return cronListSummary;
-    case 'CronCreate':
-      return cronCreateSummary;
-    case 'CronDelete':
-      return cronDeleteSummary;
-    case 'TaskGraph':
-      return taskGraphSummary;
-    case 'Agent':
-      return agentSummary;
-    case 'BrowserStatus':
-      return browserStatusSummary;
-    case 'RunProjectChecks':
-      return runProjectChecksSummary;
-    case 'VerifySurface':
-      return verifySurfaceSummary;
-    case 'VisualDiff':
-      return visualDiffSummary;
-    case 'BrowserObserve':
-      return browserObserveSummary;
-    case 'BrowserScreenshot':
-      return browserScreenshotSummary;
-    case 'BrowserAct':
-      return browserActSummary;
-    case 'BrowserConsole':
-      return browserConsoleSummary;
-    case 'ComputerCapture':
-      return computerCaptureSummary;
-    case 'ComputerAct':
-      return computerActSummary;
-    case 'ComputerStatus':
-      return computerStatusSummary;
-    case 'TodoList':
-      return todoListSummary;
-    case 'Bash':
-      return bashResultSummary;
-    case 'Think':
-      return thinkSummary;
-    case 'Edit':
-      return editSummary;
-    case 'Write':
-      return writeSummary;
-    case 'GenerateImage':
-    case 'GenerateVideo':
-      return generateMediaSummary;
-    case 'CreateGoal':
-    case 'GetGoal':
-    case 'SetGoalBudget':
-    case 'UpdateGoal':
-      return goalSummary;
-    default:
-      return renderTruncated;
-  }
+  return toolName === 'Bash' ? bashResultSummary : renderTruncated;
 }
 
 export type { ResultRenderer } from './types';

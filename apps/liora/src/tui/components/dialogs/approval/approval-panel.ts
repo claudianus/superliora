@@ -8,7 +8,6 @@ import {
   Container,
   matchesKey,
   Key,
-  truncateToWidth,
   type Focusable,
   renderRendererPanelChromeRows,
   visibleWidth,
@@ -16,16 +15,12 @@ import {
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { Input } from '../shared/input';
-import { highlightLines, highlightShellCommandLine, langFromPath } from '#/tui/components/media/code-highlight';
-import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
+import { highlightShellCommandLine } from '#/tui/components/media/code-highlight';
 import type {
   ApprovalPanelChoice,
-  DiffDisplayBlock,
   DisplayBlock,
-  FileContentDisplayBlock,
   PendingApproval,
 } from '#/tui/reverse-rpc/types';
-import { decodeMcpToolName } from '#/tui/utils/mcp/mcp-tool-name';
 import { printableChar } from '#/tui/utils/printable-key';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
@@ -45,20 +40,11 @@ export interface ApprovalPanelResponse {
   readonly selected_label?: string | undefined;
 }
 
-function truncateOneLine(text: string, max: number): string {
-  const firstLine = text.split('\n')[0] ?? '';
-  // Width-aware so CJK / wide descriptions truncate at the correct column.
-  return truncateToWidth(firstLine, max, '…');
-}
-
-const DIFF_SUMMARY_MAX_LINES = 10;
-const CONTENT_SUMMARY_MAX_LINES = 10;
 
 interface BlockStyles {
   strong: (s: string) => string;
   dim: (s: string) => string;
   accent: (s: string) => string;
-  gutter: (s: string) => string;
   errorBold: (s: string) => string;
 }
 
@@ -67,7 +53,6 @@ function makeBlockStyles(): BlockStyles {
     strong: (s) => currentTheme.fg('textStrong', s),
     dim: (s) => currentTheme.fg('textDim', s),
     accent: (s) => currentTheme.fg('accent', s),
-    gutter: (s) => currentTheme.fg('diffGutter', s),
     errorBold: (s) => currentTheme.boldFg('error', s),
   };
 }
@@ -126,72 +111,12 @@ function renderDisplayBlock(
   contentWidth: number,
 ): string[] {
   switch (block.type) {
-    case 'diff':
-      return renderDiffLinesClustered(block.old_text, block.new_text, block.path, {
-        contextLines: 3,
-        expandKeyHint: 'Ctrl+E preview',
-        maxLines: DIFF_SUMMARY_MAX_LINES,
-        fullRowBackground: true,
-        width: contentWidth,
-      });
-    case 'file_content': {
-      const lang = block.language ?? langFromPath(block.path);
-      const allLines = highlightLines(block.content, lang);
-      const shown = allLines.slice(0, CONTENT_SUMMARY_MAX_LINES);
-      const lines = [s.strong(block.path)];
-      for (const [i, line] of shown.entries()) {
-        lines.push(s.gutter(String(i + 1).padStart(4) + '  ') + line);
-      }
-      const remaining = allLines.length - shown.length;
-      if (remaining > 0) {
-        lines.push(
-          s.dim(
-            `     … ${String(remaining)} more line${remaining > 1 ? 's' : ''} hidden (Ctrl+E preview)`,
-          ),
-        );
-      }
-      return lines;
-    }
     case 'shell':
       return renderShellDisplayBlock(block, s, contentWidth);
-    case 'file_op': {
-      const op = s.accent(block.operation.padEnd(5));
-      const lines = [`${op} ${s.strong(block.path)}`];
-      if (block.detail !== undefined && block.detail.length > 0) {
-        lines.push(s.dim(block.detail));
-      }
-      return lines;
-    }
-    case 'url_fetch': {
-      const method = s.accent((block.method ?? 'GET').toUpperCase().padEnd(5));
-      return [`${method} ${s.strong(block.url)}`];
-    }
-    case 'search': {
-      const lines = [`${s.accent('search')} ${s.strong(block.query)}`];
-      if (block.scope !== undefined && block.scope.length > 0) {
-        lines.push(s.dim(`scope: ${block.scope}`));
-      }
-      return lines;
-    }
-    case 'invocation': {
-      const lines = [`${s.accent(block.kind.padEnd(5))} ${s.strong(block.name)}`];
-      if (block.description !== undefined && block.description.length > 0) {
-        lines.push(s.dim(truncateOneLine(block.description, 200)));
-      }
-      return lines;
-    }
     case 'brief':
       return block.text
         ? block.text.split('\n').map((line) => (line.length > 0 ? s.strong(line) : ''))
         : [];
-    case 'background_task':
-      return [
-        s.strong(`${block.status} ${block.kind} task ${block.task_id}: ${block.description}`),
-      ];
-    case 'todo':
-      return block.items.map((item) => s.strong(`- [${item.status}] ${item.title}`));
-    default:
-      return [];
   }
 }
 
@@ -211,22 +136,9 @@ function isDuplicateBriefBlock(block: DisplayBlock, description: string): boolea
 }
 
 function headerFor(toolName: string): string {
-  const mcp = decodeMcpToolName(toolName);
-  if (mcp !== null) {
-    return `Approve MCP tool ${mcp.toolName}?`;
-  }
-
   switch (toolName) {
     case 'Bash':
       return 'Run this command?';
-    case 'Write':
-      return 'Write this file?';
-    case 'Edit':
-      return 'Apply these edits?';
-    case 'TaskStop':
-      return 'Stop this task?';
-    case 'ExitPlanMode':
-      return 'Ready to build with this plan?';
     default:
       return `Approve ${toolName}?`;
   }
@@ -240,9 +152,6 @@ export class ApprovalPanelComponent extends Container implements Focusable {
   private onResponse: (response: ApprovalPanelResponse) => void;
   private request: PendingApproval;
   private readonly onToggleToolOutput: (() => void) | undefined;
-  private readonly onOpenPreview:
-    | ((block: DiffDisplayBlock | FileContentDisplayBlock) => void)
-    | undefined;
   /** Mount clock for optional enter-beat / motion seeds. */
   private readonly openedAtMs = appearanceAnimationNow();
   private settleStartedAtMs: number | undefined;
@@ -252,13 +161,11 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     request: PendingApproval,
     onResponse: (response: ApprovalPanelResponse) => void,
     onToggleToolOutput?: () => void,
-    onOpenPreview?: (block: DiffDisplayBlock | FileContentDisplayBlock) => void,
   ) {
     super();
     this.request = request;
     this.onResponse = onResponse;
     this.onToggleToolOutput = onToggleToolOutput;
-    this.onOpenPreview = onOpenPreview;
     this.feedbackInput.onSubmit = (value) => {
       this.submit(this.selectedIndex, value);
     };
@@ -344,13 +251,6 @@ export class ApprovalPanelComponent extends Container implements Focusable {
       return;
     }
 
-    if (matchesKey(data, Key.ctrl('e'))) {
-      const previewable = this.findPreviewableBlock();
-      if (previewable !== undefined && this.onOpenPreview !== undefined) {
-        this.onOpenPreview(previewable);
-      }
-      return;
-    }
 
     if (matchesKey(data, Key.ctrl('o'))) {
       this.onToggleToolOutput?.();
@@ -411,9 +311,6 @@ export class ApprovalPanelComponent extends Container implements Focusable {
       (block) => !isDuplicateBriefBlock(block, data.description),
     );
     const visibleBlocks = dedupedBlocks.slice(0, 5);
-    const hasPreviewable = visibleBlocks.some(
-      (block) => block.type === 'diff' || block.type === 'file_content',
-    );
 
     if (visibleBlocks.length > 0) {
       for (const block of visibleBlocks) {
@@ -465,11 +362,10 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     if (this.feedbackMode) {
       body.push(indent(dim('Type feedback · Enter submit.')));
     } else {
-      const expandHint = hasPreviewable ? ' · Ctrl+E preview' : '';
       body.push(
         indent(
           dim(
-            `↑↓ select · ${buildNumericHint(data.choices.length)} choose · Enter confirm${expandHint}`,
+            `↑↓ select · ${buildNumericHint(data.choices.length)} choose · Enter confirm`,
           ),
         ),
       );
@@ -485,12 +381,6 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     });
   }
 
-  private findPreviewableBlock(): DiffDisplayBlock | FileContentDisplayBlock | undefined {
-    for (const block of this.request.data.display) {
-      if (block.type === 'diff' || block.type === 'file_content') return block;
-    }
-    return undefined;
-  }
 
   private choiceAt(index: number): ApprovalPanelChoice | undefined {
     return this.request.data.choices[index];

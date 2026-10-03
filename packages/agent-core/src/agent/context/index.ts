@@ -14,11 +14,7 @@ import {
   COMPACTION_PROJECTION_OPTIONS,
   reportContextProjectionRepairs,
 } from './context-memory-projection';
-import {
-  reclaimEphemeralUserMessagesFromContext,
-  undoContextMessages,
-} from './context-memory-undo';
-import { rollbackAttemptContextMessages } from './context-memory-rollback';
+import { undoContextMessages } from './context-memory-undo';
 import {
   appendBashInputToContext,
   appendBashOutputToContext,
@@ -26,10 +22,6 @@ import {
   appendSystemReminderToContext,
   appendUserMessageToContext,
 } from './context-memory-user-messages';
-import {
-  CONTEXT_ARCHIVE_MAX_ENTRIES,
-  contextArchiveEntryCount,
-} from '../../tools/builtin/context/context-archive';
 import type { CompactionInput, CompactionResult } from '../compaction';
 import {
   project,
@@ -58,23 +50,10 @@ export class ContextMemory {
   private _historyRevision = 0;
   tokenCountCoveredMessageCount = 0;
   openSteps: Map<string, ContextMessage> = new Map();
+  compactedOpenSteps = new Set<string>();
   pendingToolResultIds = new Set<string>();
   toolCallNames = new Map<string, string>();
-  /**
-   * Tool-call ids whose results may still arrive after a compaction raced
-   * ahead of them. Maps each id to the `_history.length` at the time it was
-   * registered so {@link applyCompaction} can expire entries that belong to a
-   * prefix that has since been summarized away and can never produce a
-   * meaningful late result.
-   */
-  lateAcceptedToolCallIds = new Map<string, number>();
-  /**
-   * Side-effecting tool calls that logged a `tool.intend` but have not yet been
-   * acknowledged (`tool.ack`). On resume, an intend without an ack means
-   * execution may or may not have completed — the close-pending path reconciles
-   * it (e.g. idempotently verifying a file write landed) instead of treating it
-   * as never-started.
-   */
+  /** Unacknowledged executions stay factual on resume; they are never replayed. */
   intendedToolCalls = new Map<string, LoopToolIntendEvent>();
   deferredMessages: ContextMessage[] = [];
   lastProjectionRepairSignature: string | null = null;
@@ -127,20 +106,6 @@ export class ContextMemory {
     appendSystemReminderToContext(content, origin, (message) =>{  this.appendMessage(message); });
   }
 
-  /**
-   * Inject a user-invisible message and immediately send it to the model by
-   * launching/steering a turn. The content is used as-is (no wrapper tag), so
-   * callers can pass raw tool-result-style text or wrap it themselves. The
-   * message is skipped on replay / transcript (so the user never sees it) but
-   * is included in the context sent to the model. Use this for events the
-   * model must react to right away without surfacing a user-visible message.
-   */
-  injectAndNotify(content: string, origin?: PromptOrigin): void {
-    this.agent.turn.steer(
-      [{ type: 'text', text: content }],
-      origin ?? { kind: 'injection', variant: 'system_reminder' },
-    );
-  }
 
   appendLocalCommandStdout(content: string): void {
     appendLocalCommandStdoutToContext(content, (message) =>{  this.appendMessage(message); });
@@ -177,11 +142,10 @@ export class ContextMemory {
     this.openSteps.clear();
     this.pendingToolResultIds.clear();
     this.toolCallNames.clear();
+    this.compactedOpenSteps.clear();
+    this.intendedToolCalls.clear();
     this.deferredMessages = [];
     this.lastAssistantAt = null;
-    this.agent.microCompaction.reset();
-    this.agent.contextOS.clear();
-    this.agent.injection.onContextClear();
     this.agent.emitStatusUpdated();
   }
 
@@ -189,61 +153,13 @@ export class ContextMemory {
     undoContextMessages(this.host, count);
   }
 
-  /**
-   * Drop messages appended after `historyLength` (a failed turn attempt) so a
-   * recovery retry does not re-append the same prompt on top of the stale copy.
-   * No-op when the history is already at or below the baseline (e.g. a
-   * mid-attempt compaction shrank it).
-   */
-  rollbackAttempt(turnId: number, historyLength: number): boolean {
-    return rollbackAttemptContextMessages(this.host, turnId, historyLength);
-  }
-
-  reclaimEphemeralUserMessages(): number {
-    return reclaimEphemeralUserMessagesFromContext(this.host);
-  }
 
   applyCompaction(input: CompactionInput): CompactionResult {
     return applyContextCompaction(this.host, input);
   }
 
   data(): AgentContextData {
-    const health = this.agent.contextOS.health();
-    const micro = this.agent.microCompaction.triggers.snapshot();
-    const archiveEntryCount = contextArchiveEntryCount(this.agent.tools.getStore());
-    return {
-      history: this.history,
-      tokenCount: this.tokenCount,
-      contextArchive:
-        archiveEntryCount === 0
-          ? undefined
-          : {
-              entryCount: archiveEntryCount,
-              maxEntries: CONTEXT_ARCHIVE_MAX_ENTRIES,
-            },
-      contextOS:
-        health.pageCount === 0
-          ? undefined
-          : {
-              pageCount: health.pageCount,
-              readyPageCount: health.readyPageCount,
-              needsRehydrationPageCount: health.needsRehydrationPageCount,
-              atRiskPageCount: health.atRiskPageCount,
-              missingEvidencePageCount: health.missingEvidencePageCount,
-              evidenceIdRecallScore: health.evidenceIdRecallScore,
-              latestContinuityStatus: health.latestContinuityStatus,
-            },
-      microCompaction:
-        micro.total === 0
-          ? undefined
-          : {
-              total: micro.total,
-              lastTrigger: micro.lastTrigger,
-              lastContextUsageRatio: micro.lastContextUsageRatio,
-              byTrigger: micro.byTrigger,
-            },
-      autoDream: this.agent.dream === null ? undefined : this.agent.dream.snapshot(),
-    };
+    return { history: this.history, tokenCount: this.tokenCount };
   }
 
   /** Compute a full context-window composition breakdown. */
@@ -256,12 +172,26 @@ export class ContextMemory {
     return this._tokenCount + estimateTokensForMessages(pendingMessages);
   }
 
+  completedHistorySnapshot(): readonly ContextMessage[] {
+    const pending = new Set<string>();
+    let count = 0;
+    let available = this._history.length;
+    for (const open of this.openSteps.values()) {
+      const index = this._history.indexOf(open);
+      if (index >= 0 && index < available) available = index;
+    }
+    for (let index = 0; index < available; index++) {
+      const message = this._history[index]!;
+      if (message.role === 'assistant') for (const call of message.toolCalls) pending.add(call.id);
+      if (message.role === 'tool' && message.toolCallId !== undefined) pending.delete(message.toolCallId);
+      if (pending.size === 0) count = index + 1;
+    }
+    return this._history.slice(0, count);
+  }
+
   project(messages: readonly ContextMessage[], options?: ProjectOptions): Message[] {
     const anomalies: ProjectionAnomaly[] = [];
-    // Projection-time micro clear: history stays append-only on disk/wire;
-    // model-visible tool dumps older than the cutoff become receipts (Claude
-    // Code L1 / OpenCode prune — zero LLM cost).
-    const result = project(this.agent.microCompaction.compact(messages), {
+    const result = project(messages, {
       ...options,
       onAnomaly: (anomaly) => {
         anomalies.push(anomaly);
@@ -273,11 +203,7 @@ export class ContextMemory {
   }
 
   get messages(): Message[] {
-    const source =
-      this.deferredMessages.length > 0
-        ? [...this._history, ...this.deferredMessages]
-        : this._history;
-    return this.project(source);
+    return this.project(this._history);
   }
 
   get strictMessages(): Message[] {
@@ -308,14 +234,6 @@ export class ContextMemory {
     return closePendingToolResults(this.host, output).length;
   }
 
-  prepareManualCompactionWithOpenToolExchange(): boolean {
-    if (this.pendingToolResultIds.size === 0) return false;
-    const historyLength = this._history.length;
-    for (const toolCallId of this.pendingToolResultIds) {
-      this.lateAcceptedToolCallIds.set(toolCallId, historyLength);
-    }
-    return closePendingToolResults(this.host).length > 0;
-  }
 
   appendLoopEvent(event: LoopRecordedEvent): void {
     handleContextLoopEvent(this.host, event);
@@ -358,21 +276,11 @@ export class ContextMemory {
 
   pushHistory(...messages: ContextMessage[]): void {
     if (messages.length === 0) return;
-    const postCompactionInjections =
-      this.tokenCountCoveredMessageCount >= this._history.length &&
-      messages.every((message) => message.origin?.kind === 'injection');
-    if (postCompactionInjections) {
-      this._tokenCount += estimateTokensForMessages(messages);
-      this.tokenCountCoveredMessageCount = this._history.length + messages.length;
-    }
     this._history.push(...messages);
     this.markContextChanged();
     for (const message of messages) {
       if (message.role === 'assistant') {
         this.lastAssistantAt = this.agent.records.restoring?.time ?? Date.now();
-      }
-      if (message.origin?.kind === 'background_task') {
-        this.agent.background.markDeliveredNotification(message.origin);
       }
       this.agent.replayBuilder.push({
         type: 'message',

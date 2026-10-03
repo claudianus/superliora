@@ -19,7 +19,6 @@ import {
 export interface ThemeCatalogCounts {
   readonly bundled: number;
   readonly custom: number;
-  readonly plugin: number;
   readonly bundledExternal: number;
   readonly totalListed: number;
 }
@@ -41,7 +40,6 @@ function countThemesBySource(entries: readonly ThemeListEntry[]): ThemeCatalogCo
   const counts: Record<ThemeSource, number> = {
     bundled: 0,
     custom: 0,
-    plugin: 0,
     'bundled-external': 0,
   };
   for (const entry of entries) {
@@ -50,7 +48,6 @@ function countThemesBySource(entries: readonly ThemeListEntry[]): ThemeCatalogCo
   return {
     bundled: counts.bundled,
     custom: counts.custom,
-    plugin: counts.plugin,
     bundledExternal: counts['bundled-external'],
     totalListed: entries.length,
   };
@@ -73,7 +70,6 @@ export function formatThemeCatalogLine(catalog: ThemeCatalogCounts): string {
     `${String(catalog.totalListed)} listed`,
     `${String(catalog.bundled)} bundled`,
     `${String(catalog.custom)} custom`,
-    `${String(catalog.plugin)} plugin`,
     `${String(catalog.bundledExternal)} external`,
   ].join(' · ');
 }

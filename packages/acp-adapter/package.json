@@ -41,7 +41,6 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.23.0",
-    "@superliora/agent-core": "workspace:^",
     "@superliora/kaos": "workspace:^",
     "@superliora/sdk": "workspace:^"
   },

@@ -1,11 +1,10 @@
 import type { RuntimeDegradedEvent, RuntimeDegradedScope } from '@superliora/protocol';
 
-export const CIRCUIT_BREAKER_DEGRADED_HINT =
-  'Circuit breaker opened; check /settings never-halt or /ops for live status.';
+const CIRCUIT_BREAKER_DEGRADED_HINT =
+  'Circuit breaker opened; /ops shows live provider status.';
 
-/** Map Never-Halt breaker scope id to runtime.degraded scope. */
+/** Classify the actual native breaker scope for clients. */
 export function circuitBreakerScopeToDegradedScope(scopeId: string): RuntimeDegradedScope {
-  if (scopeId.startsWith('search:')) return 'search';
   if (scopeId.startsWith('llm:')) return 'llm';
   return 'other';
 }

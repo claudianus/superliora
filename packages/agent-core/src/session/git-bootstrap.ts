@@ -17,28 +17,24 @@
  * The same path repairs an existing repo that never received a commit
  * (unborn HEAD): it adds only the missing baseline commit, never `init`.
  *
- * Opt out with `SUPERLIORA_AUTO_GIT_INIT=0` (legacy
- * `SUPERLIORA_CONDUCTOR_AUTO_GIT_INIT` is honored too); the failure then
- * carries actionable guidance. The bootstrap is local-only (no remote, no
- * push) and memoized per path.
+ * Opt out with `SUPERLIORA_AUTO_GIT_INIT=0`. Bootstrap is local-only (no
+ * remote or push); signalled operations retain independent cancellation.
  */
 
 import type { Kaos } from '@superliora/kaos';
 
-import { runGit } from '#/autopilot/git';
+import { runGit } from '#/session/job/git';
 import { isSensitiveFile } from '#/tools/policies/sensitive';
 
 /** Env switch: set to `0`/`false`/`no`/`off` to forbid automatic bootstrap. */
 export const AUTO_GIT_INIT_ENV = 'SUPERLIORA_AUTO_GIT_INIT';
 
-/** Legacy Conductor-only switch, still honored as an opt-out. */
-export const LEGACY_CONDUCTOR_AUTO_GIT_INIT_ENV = 'SUPERLIORA_CONDUCTOR_AUTO_GIT_INIT';
 
 /** Baseline commit subject used when the repository has no commits yet. */
 export const GIT_BOOTSTRAP_BASELINE_MESSAGE =
   'chore(superliora): baseline snapshot for worktree isolation';
 
-export type GitRepoBootstrapResult =
+type GitRepoBootstrapResult =
   | {
       readonly ok: true;
       /** Resolved repository root (may differ from the requested path). */
@@ -51,7 +47,7 @@ export type GitRepoBootstrapResult =
   | { readonly ok: false; readonly error: string };
 
 /** Manual-setup hint appended to opt-out / bootstrap failures. */
-export const GIT_BOOTSTRAP_SETUP_HINT =
+const GIT_BOOTSTRAP_SETUP_HINT =
   `Worktrees need a git repository with at least one commit. Run ` +
   `"git init && git add -A && git commit -m 'baseline'" in the project root ` +
   `(add "--allow-empty" when the folder has no files), then retry — or unset ` +
@@ -65,11 +61,8 @@ interface BootstrapCacheEntry {
 const bootstrapCache = new Map<string, BootstrapCacheEntry>();
 
 function isOptOut(env: Readonly<Record<string, string | undefined>>): boolean {
-  for (const key of [AUTO_GIT_INIT_ENV, LEGACY_CONDUCTOR_AUTO_GIT_INIT_ENV]) {
-    const raw = env[key]?.trim().toLowerCase();
-    if (raw === '0' || raw === 'false' || raw === 'no' || raw === 'off') return true;
-  }
-  return false;
+  const raw = env[AUTO_GIT_INIT_ENV]?.trim().toLowerCase();
+  return raw === '0' || raw === 'false' || raw === 'no' || raw === 'off';
 }
 
 /** Test hook — clears the per-path memo (unit tests only). */
@@ -86,7 +79,10 @@ export function ensureGitRepoForWorktrees(
   kaos: Kaos,
   repoPath: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
+  signal?: AbortSignal,
 ): Promise<GitRepoBootstrapResult> {
+  signal?.throwIfAborted();
+  if (signal !== undefined) return runBootstrap(kaos, repoPath, env, signal);
   const cached = bootstrapCache.get(repoPath);
   if (cached !== undefined) return cached.promise;
   const promise = runBootstrap(kaos, repoPath, env).then((result) => {
@@ -103,8 +99,9 @@ async function runBootstrap(
   kaos: Kaos,
   repoPath: string,
   env: Readonly<Record<string, string | undefined>>,
+  signal?: AbortSignal,
 ): Promise<GitRepoBootstrapResult> {
-  const probe = await runGit(kaos, repoPath, ['rev-parse', '--show-toplevel']);
+  const probe = await runGit(kaos, repoPath, ['rev-parse', '--show-toplevel'], 0, signal);
 
   // `git` missing entirely: exec failure surfaces through stderr.
   const probeText = `${probe.stderr} ${probe.stdout}`.toLowerCase();
@@ -120,17 +117,17 @@ async function runBootstrap(
   const root = probe.ok ? probe.stdout.trim() : '';
   if (root.length > 0) {
     // Repo exists — it still needs a commit before `worktree add` works.
-    const head = await runGit(kaos, root, ['rev-parse', '--verify', '--quiet', 'HEAD']);
+    const head = await runGit(kaos, root, ['rev-parse', '--verify', '--quiet', 'HEAD'], 0, signal);
     if (head.ok) {
       return { ok: true, root, bootstrapped: false, baselineCommit: false };
     }
     if (isOptOut(env)) {
       return {
         ok: false,
-        error: `Git repository at ${root} has no commits yet and automatic baseline creation is disabled (${AUTO_GIT_INIT_ENV} / ${LEGACY_CONDUCTOR_AUTO_GIT_INIT_ENV}). ${GIT_BOOTSTRAP_SETUP_HINT}`,
+        error: `Git repository at ${root} has no commits yet and automatic baseline creation is disabled (${AUTO_GIT_INIT_ENV}). ${GIT_BOOTSTRAP_SETUP_HINT}`,
       };
     }
-    const baseline = await ensureBaselineCommit(kaos, root);
+    const baseline = await ensureBaselineCommit(kaos, root, signal);
     if (!baseline.ok) return baseline;
     return { ok: true, root, bootstrapped: false, baselineCommit: true };
   }
@@ -138,14 +135,14 @@ async function runBootstrap(
   if (isOptOut(env)) {
     return {
       ok: false,
-      error: `Not a git repository: ${repoPath}. Automatic git init is disabled (${AUTO_GIT_INIT_ENV} / ${LEGACY_CONDUCTOR_AUTO_GIT_INIT_ENV}). ${GIT_BOOTSTRAP_SETUP_HINT}`,
+      error: `Not a git repository: ${repoPath}. Automatic git init is disabled (${AUTO_GIT_INIT_ENV}). ${GIT_BOOTSTRAP_SETUP_HINT}`,
     };
   }
 
   // 1) init — prefer an explicit default branch; old git lacks `-b`.
-  let init = await runGit(kaos, repoPath, ['init', '-b', 'main']);
+  let init = await runGit(kaos, repoPath, ['init', '-b', 'main'], 0, signal);
   if (!init.ok) {
-    init = await runGit(kaos, repoPath, ['init']);
+    init = await runGit(kaos, repoPath, ['init'], 0, signal);
   }
   if (!init.ok) {
     return {
@@ -155,7 +152,7 @@ async function runBootstrap(
   }
 
   // 2) baseline commit — worktree branches need at least one commit.
-  const baseline = await ensureBaselineCommit(kaos, repoPath);
+  const baseline = await ensureBaselineCommit(kaos, repoPath, signal);
   if (!baseline.ok) return baseline;
   return { ok: true, root: repoPath, bootstrapped: true, baselineCommit: true };
 }
@@ -173,13 +170,14 @@ async function runBootstrap(
 async function ensureBaselineCommit(
   kaos: Kaos,
   repoPath: string,
+  signal?: AbortSignal,
 ): Promise<GitRepoBootstrapResult> {
-  const head = await runGit(kaos, repoPath, ['rev-parse', '--verify', '--quiet', 'HEAD']);
+  const head = await runGit(kaos, repoPath, ['rev-parse', '--verify', '--quiet', 'HEAD'], 0, signal);
   if (head.ok) {
     return { ok: true, root: repoPath, bootstrapped: false, baselineCommit: false };
   }
 
-  const add = await runGit(kaos, repoPath, ['add', '-A']);
+  const add = await runGit(kaos, repoPath, ['add', '-A'], 0, signal);
   if (!add.ok) {
     return {
       ok: false,
@@ -187,12 +185,12 @@ async function ensureBaselineCommit(
     };
   }
 
-  const staged = await stageBaseline(kaos, repoPath);
+  const staged = await stageBaseline(kaos, repoPath, signal);
   if (staged.error !== undefined) {
     return { ok: false, error: `${staged.error} ${GIT_BOOTSTRAP_SETUP_HINT}` };
   }
 
-  const identity = await commitIdentityArgs(kaos, repoPath);
+  const identity = await commitIdentityArgs(kaos, repoPath, signal);
   // An empty folder — or one holding nothing but credential files — has
   // nothing to commit, and `git commit` refuses without `--allow-empty`. Decide
   // from the index rather than from git's wording, which differs between
@@ -205,9 +203,9 @@ async function ensureBaselineCommit(
     '--no-gpg-sign',
     '-m',
     GIT_BOOTSTRAP_BASELINE_MESSAGE,
-  ]);
+  ], 0, signal);
 
-  const recheck = await runGit(kaos, repoPath, ['rev-parse', '--verify', '--quiet', 'HEAD']);
+  const recheck = await runGit(kaos, repoPath, ['rev-parse', '--verify', '--quiet', 'HEAD'], 0, signal);
   if (!commit.ok || !recheck.ok) {
     return {
       ok: false,
@@ -230,9 +228,9 @@ interface BaselineStageResult {
  * is left to commit. An unstage failure is fatal: committing anyway would put
  * the secret in history, which is the thing this guard exists to prevent.
  */
-async function stageBaseline(kaos: Kaos, repoPath: string): Promise<BaselineStageResult> {
+async function stageBaseline(kaos: Kaos, repoPath: string, signal?: AbortSignal): Promise<BaselineStageResult> {
   const listStaged = async (): Promise<readonly string[] | undefined> => {
-    const staged = await runGit(kaos, repoPath, ['diff', '--cached', '--name-only', '-z']);
+    const staged = await runGit(kaos, repoPath, ['diff', '--cached', '--name-only', '-z'], 0, signal);
     if (!staged.ok) return undefined;
     return staged.stdout.split('\0').filter((path) => path.length > 0);
   };
@@ -252,7 +250,7 @@ async function stageBaseline(kaos: Kaos, repoPath: string): Promise<BaselineStag
   }
 
   // `--` keeps a path that looks like a flag from being parsed as one.
-  const reset = await runGit(kaos, repoPath, ['reset', '--quiet', '--', ...sensitive]);
+  const reset = await runGit(kaos, repoPath, ['reset', '--quiet', '--', ...sensitive], 0, signal);
   if (!reset.ok) {
     return {
       hasStagedChanges: false,
@@ -271,13 +269,13 @@ async function stageBaseline(kaos: Kaos, repoPath: string): Promise<BaselineStag
  * no identity configured, so the baseline commit never fails with
  * "please tell me who you are" and never overrides the user's config.
  */
-async function commitIdentityArgs(kaos: Kaos, repoPath: string): Promise<string[]> {
+async function commitIdentityArgs(kaos: Kaos, repoPath: string, signal?: AbortSignal): Promise<string[]> {
   const args: string[] = [];
-  const name = await runGit(kaos, repoPath, ['config', 'user.name']);
+  const name = await runGit(kaos, repoPath, ['config', 'user.name'], 0, signal);
   if (!name.ok || name.stdout.trim().length === 0) {
     args.push('-c', 'user.name=SuperLiora');
   }
-  const email = await runGit(kaos, repoPath, ['config', 'user.email']);
+  const email = await runGit(kaos, repoPath, ['config', 'user.email'], 0, signal);
   if (!email.ok || email.stdout.trim().length === 0) {
     args.push('-c', 'user.email=superliora@localhost');
   }

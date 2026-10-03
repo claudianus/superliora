@@ -85,13 +85,6 @@ export function notifyToolCallSnapshotChange(host: ToolCallInternalsHost): void 
   host.onSnapshotChange?.();
 }
 
-export function isToolCallStreamingEditPreview(host: ToolCallInternalsHost): boolean {
-  return (
-    host.toolCall.name === 'Edit' &&
-    host.result === undefined &&
-    host.toolCall.streamingArguments !== undefined
-  );
-}
 
 export function refreshToolCallSubagentPresentation(host: ToolCallInternalsHost, requestRender = true): void {
   host.headerText.setText(buildToolCallHeaderText(host));

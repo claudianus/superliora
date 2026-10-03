@@ -1,9 +1,5 @@
-import type { ContentPart } from '@superliora/kosong';
-
 import { sniffImageDimensions } from './file-type';
-import {
-  buildImageCompressionCaption,
-} from './image-compress-caption';
+
 import {
   FALLBACK_EDGE_PX,
   IMAGE_BYTE_BUDGET,
@@ -188,66 +184,6 @@ export async function compressBase64ForModel(
   };
 }
 
-export interface CompressAnnotateOptions {
-  readonly persistOriginal?: (bytes: Uint8Array, mimeType: string) => Promise<string | null>;
-}
-
-export async function compressImageContentParts(
-  parts: readonly ContentPart[],
-  options: CompressImageOptions & { readonly annotate?: CompressAnnotateOptions } = {},
-): Promise<ContentPart[]> {
-  const { annotate, ...compressOptions } = options;
-  const out: ContentPart[] = [];
-  for (const part of parts) {
-    if (part.type === 'image_url') {
-      const parsed = parseImageDataUrl(part.imageUrl.url);
-      if (parsed !== null) {
-        const result = await compressBase64ForModel(parsed.base64, parsed.mimeType, compressOptions);
-        if (result.changed) {
-          if (annotate !== undefined) {
-            let originalPath: string | null = null;
-            if (annotate.persistOriginal !== undefined) {
-              try {
-                originalPath = await annotate.persistOriginal(
-                  Buffer.from(parsed.base64, 'base64'),
-                  parsed.mimeType,
-                );
-              } catch {
-                originalPath = null;
-              }
-            }
-            out.push({
-              type: 'text',
-              text: buildImageCompressionCaption({
-                original: {
-                  width: result.originalWidth,
-                  height: result.originalHeight,
-                  byteLength: result.originalByteLength,
-                  mimeType: parsed.mimeType,
-                },
-                final: {
-                  width: result.width,
-                  height: result.height,
-                  byteLength: result.finalByteLength,
-                  mimeType: result.mimeType,
-                },
-                originalPath,
-              }),
-            });
-          }
-          out.push({
-            type: 'image_url',
-            imageUrl: { ...part.imageUrl, url: `data:${result.mimeType};base64,${result.base64}` },
-          });
-          continue;
-        }
-      }
-    }
-    out.push(part);
-  }
-  return out;
-}
-
 export type {
   CropImageFailure,
   CropImageOptions,
@@ -267,9 +203,3 @@ export {
   extractImageCompressionCaptions,
   formatByteSize,
 } from './image-compress-caption';
-
-function parseImageDataUrl(url: string): { mimeType: string; base64: string } | null {
-  const match = /^data:([^;,]+);base64,(.*)$/s.exec(url);
-  if (match === null) return null;
-  return { mimeType: match[1]!, base64: match[2]! };
-}

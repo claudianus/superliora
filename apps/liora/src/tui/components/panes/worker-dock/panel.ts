@@ -23,7 +23,7 @@ import {
   type Component,
 } from '#/tui/renderer';
 
-import { PULSE_ACTIVE_FRAMES, PULSE_BLOCKED_FRAMES } from '#/tui/constant/symbols';
+import { PULSE_ACTIVE_FRAMES } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import {
@@ -54,7 +54,6 @@ import {
   renderRoundedPanel,
 } from '#/tui/utils/ui/panel-frame';
 import {
-  renderLiveRatioBar,
   renderLiveSectionHeader,
 } from '#/tui/components/chrome/chrome-band-motion';
 import {
@@ -63,7 +62,6 @@ import {
   type ConductorJobsSnapshot,
 } from '#/tui/utils/job/job-strip';
 import { applyStreamTailGlow } from '#/tui/features/transcript/transcript-entrance';
-import { formatMissionTarget } from '#/tui/utils/tools/mission-target';
 import {
   createStreamingTextRevealState,
   isRevealCaughtUp,
@@ -81,7 +79,6 @@ import {
   formatAttentionJobRow,
   formatMissionJobCounts,
   formatRateSparkline,
-  resolveDenseOps,
   selectAttentionJobs,
   shouldUseDensemode,
 } from './densemode';
@@ -173,7 +170,7 @@ export function emptyWorkerDockView(): WorkerDockView {
 
 /**
  * Dock chrome border. Failed workers never paint the whole band as error —
- * only needs_user / blocked / stalled escalate to warning; active work stays
+ * only needs_user / blocked escalate to warning; active work stays
  * primary; idle/terminal-only stays the default border.
  */
 export function missionDockBorderToken(
@@ -181,29 +178,19 @@ export function missionDockBorderToken(
   jobs: Pick<ConductorJobsSnapshot, 'needsUser' | 'blocked'>,
 ): ColorToken {
   if (
-    workers.some((worker) => worker.status === 'stalled') ||
     jobs.needsUser > 0 ||
     jobs.blocked > 0
   ) {
     return 'warning';
   }
-  if (
-    workers.some(
-      (worker) =>
-        worker.status === 'running' ||
-        worker.status === 'suspended' ||
-        worker.status === 'finishing',
-    )
-  ) {
+  if (workers.some((worker) => worker.status === 'running')) {
     return 'primary';
   }
   return 'border';
 }
 
 /**
- * Honest status note for ledger ghost rows. The generic worker copy lies for
- * goal lanes: the desk umbrella never occupies a pool slot, and "suspended"
- * reads wrong for a driver that never started.
+ * Recorded status notes for Jobs hydrated into dock ghost rows.
  */
 export function ledgerNote(
   worker: Pick<DockWorker, 'ledger' | 'status'>,
@@ -211,15 +198,10 @@ export function ledgerNote(
   const ledger = worker.ledger;
   if (ledger === undefined) return undefined;
   if (ledger.status === 'interrupted') {
-    return 'paused — /goal resume to continue';
+    return 'paused — /job resume to continue';
   }
   if (ledger.status === 'queued') {
-    return ledger.kind === 'goal-desk'
-      ? 'desk queued — driver starting'
-      : 'queued — waiting for a worker slot';
-  }
-  if (ledger.kind === 'goal-desk') {
-    return 'goal desk live — mirrors the driver worker';
+    return 'queued — not started';
   }
   return undefined;
 }
@@ -236,6 +218,8 @@ export class WorkerDockPanelComponent implements Component {
   private lastWorkerSlots = DENSE_WORKER_CAP;
   /** Keyboard / click selection into the visible roster (worker id). */
   private selectedWorkerId: string | undefined;
+  /** Keyboard focus is independent of the retained selected worker. */
+  focused = false;
   /**
    * Last paint: content-local row index → worker id (densemode worker rows).
    * Index 0 is the first interior content line (below the top border).
@@ -373,7 +357,10 @@ export class WorkerDockPanelComponent implements Component {
     if (this.selectedWorkerId === undefined) return;
     const now = appearanceAnimationNow();
     const still = this.visibleWorkers(now).some((worker) => worker.id === this.selectedWorkerId);
-    if (!still) this.selectedWorkerId = undefined;
+    if (!still) {
+      this.selectedWorkerId = undefined;
+      this.focused = false;
+    }
   }
 
   /**
@@ -518,6 +505,7 @@ export class WorkerDockPanelComponent implements Component {
       case 'escape': {
         if (this.selectedWorkerId === undefined) return { handled: false };
         this.selectWorker(undefined);
+        this.focused = false;
         return { handled: true, clearSelection: true };
       }
       default:
@@ -771,13 +759,7 @@ export class WorkerDockPanelComponent implements Component {
 
   private title(mode: LayoutMode | 'dense', now: number): string {
     const workers = this.visibleWorkers(now);
-    const active = workers.filter(
-      (worker) =>
-        worker.status === 'running' ||
-        worker.status === 'stalled' ||
-        worker.status === 'suspended' ||
-        worker.status === 'finishing',
-    );
+    const active = workers.filter((worker) => worker.status === 'running');
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance) && active.length > 0;
     if (mode === 'dense') {
@@ -850,9 +832,7 @@ export class WorkerDockPanelComponent implements Component {
       animated &&
       this.visibleWorkers(now).some(
         (worker) =>
-          worker.status === 'running' ||
-          worker.status === 'finishing' ||
-          worker.status === 'stalled',
+          worker.status === 'running',
       );
 
     const workerLines = this.buildWorkerLines(mode, width, budget, animated, now);
@@ -883,8 +863,6 @@ export class WorkerDockPanelComponent implements Component {
   }
 
   private workerIntent(worker: DockWorker): string | undefined {
-    const focus = worker.focusTodo?.trim();
-    if (focus !== undefined && focus.length > 0) return focus;
     const description = worker.description?.trim();
     if (description !== undefined && description.length > 0) return description;
     return undefined;
@@ -897,7 +875,7 @@ export class WorkerDockPanelComponent implements Component {
   ): { kind: MissionLiveKind; text: string } | undefined {
     if (worker.liveText === undefined || worker.liveText.length === 0) return undefined;
     if (worker.liveKind === undefined || worker.liveAtMs === undefined) return undefined;
-    if (worker.status !== 'running' && worker.status !== 'finishing') return undefined;
+    if (worker.status !== 'running') return undefined;
     if (
       !isToolProgressLiveKind(worker.liveKind) &&
       now - worker.liveAtMs >= MISSION_LIVE_HOT_MS
@@ -909,12 +887,9 @@ export class WorkerDockPanelComponent implements Component {
 
   private humanAction(worker: DockWorker, targetBudget: number = TARGET_MAX): string | undefined {
     if (worker.lastTool === undefined) return undefined;
-    const target = formatMissionTarget(
-      worker.lastTool,
-      worker.lastTarget,
-      this.view.workDir,
-      targetBudget,
-    );
+    const target = worker.lastTarget === undefined
+      ? undefined
+      : truncateToWidth(worker.lastTarget, targetBudget, '…');
     return target === undefined ? worker.lastTool : `${worker.lastTool} ${target}`;
   }
 
@@ -985,9 +960,7 @@ export class WorkerDockPanelComponent implements Component {
     if (workers.length === 0) return [];
     const live = workers.some(
       (worker) =>
-        worker.status === 'running' ||
-        worker.status === 'finishing' ||
-        worker.status === 'stalled',
+        worker.status === 'running',
     );
     const lines: string[] = [this.sectionHeader('NOW', animated && live)];
     const perWorker = mode === 'full' ? 3 : 1;
@@ -1044,45 +1017,16 @@ export class WorkerDockPanelComponent implements Component {
       );
       return rows;
     }
-    if (worker.status === 'stalled') {
-      const silent =
-        worker.stalledSilentMs === undefined ? '' : ` ${formatJobDuration(worker.stalledSilentMs)}`;
-      const last = worker.lastTool === undefined ? '' : ` — last: ${worker.lastTool}`;
-      rows.push(
-        truncateToWidth(
-          `  ${currentTheme.fg('warning', `stalled${silent}${last}`)}`,
-          width,
-          '…',
-        ),
-      );
-      return rows;
-    }
-    // Ledger ghosts keep the generic telemetry flow below — but the note row
-    // replaces the generic "suspended — waiting for a pool slot" claim, which
-    // is false for a goal-desk umbrella (no worker, no pool slot) and reads
-    // "suspended" for a driver that never started.
+    // Ledger ghosts describe recorded state without assuming a worker exists.
     if (worker.ledger !== undefined) {
       const note = ledgerNote(worker);
       if (note !== undefined) {
         rows.push(truncateToWidth(`  ${currentTheme.fg('textDim', note)}`, width, '…'));
       }
-    } else if (worker.status === 'suspended') {
-      rows.push(
-        truncateToWidth(
-          `  ${currentTheme.fg('textDim', 'suspended — waiting for a pool slot')}`,
-          width,
-          '…',
-        ),
-      );
-      return rows;
     }
 
     const live = this.hotLiveStream(worker, now);
     const intent = live === undefined ? this.workerIntent(worker) : undefined;
-    const showedFocus =
-      intent !== undefined &&
-      worker.focusTodo !== undefined &&
-      intent === worker.focusTodo.trim();
     if (live !== undefined) {
       rows.push(this.renderLiveStreamRow(worker, live, animated, width));
     } else if (intent !== undefined) {
@@ -1093,7 +1037,7 @@ export class WorkerDockPanelComponent implements Component {
     if (action !== undefined) {
       const hot =
         animated &&
-        (worker.status === 'running' || worker.status === 'finishing') &&
+        (worker.status === 'running') &&
         now - worker.lastActivityAtMs < ACTION_HOT_MS;
       // Arrow is the hot signal; tool+target body stays readable textDim.
       const arrow = hot
@@ -1102,7 +1046,7 @@ export class WorkerDockPanelComponent implements Component {
       const body = currentTheme.fg('textDim', action);
       rows.push(truncateToWidth(`  ${arrow} ${body}`, width, '…'));
     }
-    const progress = this.renderProgressLine(worker, showedFocus, animated, now);
+    const progress = this.renderProgressLine(worker, animated);
     if (progress !== undefined) {
       rows.push(truncateToWidth(progress, width, '…'));
     }
@@ -1122,12 +1066,8 @@ export class WorkerDockPanelComponent implements Component {
 
   private renderProgressLine(
     worker: DockWorker,
-    focusAlreadyShown: boolean,
     animated: boolean,
-    now: number,
   ): string | undefined {
-    if (worker.todoTotal === undefined || worker.todoTotal <= 0) {
-      // Telemetry only when there is no todo progress to show.
       const stats: string[] = [];
       if (worker.toolCount > 0) {
         stats.push(currentTheme.fg('textMuted', `${String(worker.toolCount)} tools`));
@@ -1135,7 +1075,7 @@ export class WorkerDockPanelComponent implements Component {
       const rate = formatMissionTokenRate(worker.tokenRatePerSec ?? 0);
       if (rate.length > 0) {
         stats.push(
-          animated && (worker.status === 'running' || worker.status === 'finishing')
+          animated && (worker.status === 'running')
             ? renderPulseText(rate, `mc-rate:${worker.id}`, 'accent')
             : currentTheme.fg('textMuted', rate),
         );
@@ -1146,36 +1086,11 @@ export class WorkerDockPanelComponent implements Component {
       if (spark !== '···') {
         stats.push(currentTheme.fg('textMuted', spark));
       }
-      if (worker.budgetMs !== undefined && worker.budgetMs > 0) {
-        const remaining = Math.max(0, worker.budgetRemainingMs ?? worker.budgetMs);
-        const used = Math.round((1 - remaining / worker.budgetMs) * 100);
-        stats.push(currentTheme.fg('textMuted', `budget ${String(used)}%`));
+      if (worker.budgetRemainingMs !== undefined) {
+        stats.push(currentTheme.fg('textMuted', `timeout ${formatJobDuration(Math.max(0, worker.budgetRemainingMs))}`));
       }
       if (stats.length === 0) return undefined;
       return `  ${stats.join(currentTheme.fg('textMuted', ' · '))}`;
-    }
-    const done = worker.todoDone ?? 0;
-    const ratio = worker.todoTotal === 0 ? 0 : done / worker.todoTotal;
-    const bar = renderLiveRatioBar(ratio, 6, {
-      now,
-      seed: `mc-bar:${worker.id}`,
-      animated: animated && (worker.status === 'running' || worker.status === 'finishing'),
-    });
-    const focus = worker.focusTodo?.trim();
-    const label =
-      !focusAlreadyShown && focus !== undefined && focus.length > 0
-        ? `next: ${focus}`
-        : `${String(done)}/${String(worker.todoTotal)}`;
-    const rate = formatMissionTokenRate(worker.tokenRatePerSec ?? 0);
-    const rateChip =
-      rate.length > 0
-        ? ` ${
-            animated
-              ? renderPulseText(rate, `mc-rate:${worker.id}`, 'accent')
-              : currentTheme.fg('textMuted', rate)
-          }`
-        : '';
-    return `  ${bar} ${currentTheme.fg('textMuted', label)}${rateChip}`;
   }
 
   private renderWorkerNameRow(worker: DockWorker, animated: boolean, now: number): string {
@@ -1266,16 +1181,6 @@ export class WorkerDockPanelComponent implements Component {
         return animated
           ? renderPulseGlyph(PULSE_ACTIVE_FRAMES, `mc:${worker.id}`, '●', 'primary')
           : currentTheme.fg('primary', '●');
-      case 'finishing':
-        return animated
-          ? renderPulseGlyph(PULSE_ACTIVE_FRAMES, `mc-fin:${worker.id}`, '◐', 'info')
-          : currentTheme.fg('info', '◐');
-      case 'stalled':
-        return animated
-          ? renderPulseGlyph(PULSE_BLOCKED_FRAMES, `mc-stall:${worker.id}`, '⚠', 'warning')
-          : currentTheme.fg('warning', '⚠');
-      case 'suspended':
-        return currentTheme.fg('textDim', '○');
       case 'completed':
         return currentTheme.fg('success', '✓');
       case 'failed':
@@ -1292,7 +1197,7 @@ export class WorkerDockPanelComponent implements Component {
     animated: boolean,
     now: number,
   ): string[] {
-    const feed = resolveDenseOps(this.view.snapshot.ops, this.visibleWorkers(now));
+    const feed = this.view.snapshot.ops;
     if (feed.length === 0) return [];
     const multiWorker = new Set(feed.map((entry) => entry.workerId)).size > 1;
     return feed
@@ -1330,12 +1235,9 @@ export class WorkerDockPanelComponent implements Component {
         ? ` ${renderToneSettleFlash('✓', `mc-ops-ok:${entry.toolCallId}`, settledAt, 'success')} `
         : currentTheme.fg('success', ' ✓ ');
     }
-    const human = formatMissionTarget(
-      entry.name,
-      entry.target,
-      this.view.workDir,
-      this.targetBudget(width),
-    );
+    const human = entry.target === undefined
+      ? undefined
+      : truncateToWidth(entry.target, this.targetBudget(width), '…');
     // Column grammar: tool (text) · target (dim) · chip (muted) — never pulse the row body.
     const toolPaint = currentTheme.fg(
       entry.status === 'error' ? 'error' : entry.status === 'running' ? 'text' : 'textDim',

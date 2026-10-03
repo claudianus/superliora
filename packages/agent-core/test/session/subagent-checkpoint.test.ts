@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  buildCheckpointRecoveryReminder,
   clearSubagentCheckpoint,
   readSubagentCheckpoint,
   subagentCheckpointPath,
@@ -32,7 +31,6 @@ describe('subagent checkpoint store', () => {
         lastTarget: 'pnpm test',
         tokens: 5_000,
         elapsedMs: 900_000,
-        todos: [{ title: 'fix bug', status: 'done' }],
         dirtyFiles: ['src/a.ts'],
       },
       home,
@@ -81,27 +79,4 @@ describe('subagent checkpoint store', () => {
     expect(() =>{  clearSubagentCheckpoint('never-written', home); }).not.toThrow();
   });
 
-  it('renders a recovery reminder with progress, todos, and dirty files', () => {
-    const reminder = buildCheckpointRecoveryReminder({
-      version: 1,
-      subagentId: 'agent-0',
-      toolCount: 12,
-      lastTool: 'Edit',
-      lastTarget: 'src/session/subagent/subagent-host.ts',
-      tokens: 5_000,
-      elapsedMs: 900_000,
-      todos: [
-        { title: 'fix bug', status: 'done' },
-        { title: 'add test', status: 'pending' },
-      ],
-      dirtyFiles: ['src/a.ts', 'test/a.test.ts'],
-      savedAt: '2026-07-27T00:00:00.000Z',
-    });
-    expect(reminder).toContain('tool calls completed: 12');
-    expect(reminder).toContain('last tool: Edit (src/session/subagent/subagent-host.ts)');
-    expect(reminder).toContain('[done] fix bug');
-    expect(reminder).toContain('[pending] add test');
-    expect(reminder).toContain('src/a.ts, test/a.test.ts');
-    expect(reminder).toContain('Do not repeat completed work');
-  });
 });

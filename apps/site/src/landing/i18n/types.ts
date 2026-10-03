@@ -13,7 +13,6 @@ export interface JobSeed {
   model: string;
   owns: string;
   progress: number;
-  verify?: string;
   sha?: string;
 }
 
@@ -66,7 +65,7 @@ export interface Dict {
       states: Record<string, string>;
       owns: string;
       ledger: string;
-      verifyOk: string;
+      completion: string;
       empty: string;
     };
     inbox: {
@@ -89,11 +88,11 @@ export interface Dict {
       note: string;
       rows: { provider: string; detail: string; pct: number }[];
     };
-    plan: {
+    sessions: {
       title: string;
-      unspecified: string;
+      heading: string;
       items: string[];
-      handoff: string;
+      note: string;
     };
     transcriptNote: string;
   };
@@ -103,10 +102,9 @@ export interface Dict {
     lede: string;
     cards: { no: string; title: string; body: string; foot: string; icon: string }[];
     providersLabel: string;
-    /** Templates filled with the live catalog counts: {providers} {models} {date} {count}. */
     providersNote: string;
-    providersMore: string;
-    failover: { label: string; steps: { tag: string; text: string; cls: string }[] };
+    controls: string[];
+    workflow: { label: string; badge: string; steps: { tag: string; text: string; cls: string }[] };
   };
   surfaces: {
     eyebrow: string;

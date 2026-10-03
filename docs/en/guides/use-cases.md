@@ -4,9 +4,10 @@ This page collects typical SuperLiora CLI scenarios along with ready-to-use prom
 
 ## Understanding an unfamiliar project
 
-When taking over an unfamiliar repository, a good first step is `liora --plan` for a read-only research plan. In the TUI, press `Shift-Tab` for Ask mode (answers only, no new jobs), or `/plan` to write a plan before edits.
+Start with an ordinary prompt that explicitly asks for investigation without edits. Planning is conversation, not a separate CLI mode:
 
 ```
+Investigate only; do not create, edit, or delete any files.
 Give me an overview of this repository's architecture. Specifically:
 1. Where is the entry point and what happens at startup?
 2. How do the main modules depend on each other?
@@ -24,11 +25,11 @@ How does the event loop in src/runtime work? Where do events originate, and what
 How is "permission approval" implemented in this project? Which files are involved, and what are the key types?
 ```
 
-For large-scale investigations, you can have the main agent dispatch **sub-agents** to handle sub-tasks in parallel. See [Agents and sub-agents](../customization/agents.md).
+For independent investigations, ask the main agent to spawn child sessions through [SessionControl](../reference/tools.md#sessioncontrol). Supply each child's task and boundaries explicitly; child sessions are not automatically isolated checkouts.
 
 ## Implementing a new feature
 
-Describe the requirement and acceptance criteria clearly. For complex changes, use Plan mode to confirm the approach before execution:
+Describe the requirement and acceptance criteria clearly. If you want to confirm the approach before execution, ask the agent to explain it and wait for your response:
 
 ```
 Add a retry utility under src/utils:
@@ -81,7 +82,7 @@ src/parser/markdown.ts currently has almost no tests. Please add a unit test sui
 Extract the repeated "read body → validate → log → respond" pattern in src/handlers into a middleware. Run the tests afterwards to make sure existing behavior is unchanged.
 ```
 
-For multi-file refactors, use Plan mode first to confirm the approach. You can also use `/fork` to create an experimental branch — if you don't like the result, just switch back to the original session.
+For multi-file refactors, ask for an explanation before edits when needed. `/fork` creates an independent conversation, not a git branch. Use `liora --worktree` or a native Job when you need an isolated checkout.
 
 ## One-off scripts and automation
 
@@ -101,30 +102,6 @@ Research the main dependency injection options for TypeScript (tsyringe, inversi
 
 For batch tasks you know are safe, use `--yolo` or `/yolo` to skip approval prompts, or add pre-approved allowlist rules for specific tools in [Configuration files](../configuration/config-files.md#permission).
 
-## Scheduled tasks and reminders
-
-Inside an interactive session, you can ask the agent to set one-time reminders or recurring tasks. The agent generates a cron expression in your local timezone and re-injects the prompt into the same session when it fires:
-
-```
-Remind me at 2:30 PM to check the deployment.
-```
-
-```
-Every weekday at 9 AM, summarize recent CI failures for me.
-```
-
-```
-Check the production health endpoint every hour and let me know if anything looks wrong.
-```
-
-```
-Come back in about 10 minutes and check whether the build has finished.
-```
-
-Scheduled tasks are bound to their session — closing the terminal is fine, and they are reloaded and continue firing when you run `liora --continue` on the same session. They are not carried into brand-new sessions. Recurring tasks expire after 7 days — the agent receives a `stale` signal on the final trigger and decides whether to stop or renew based on your original instructions.
-
-To see what tasks are currently pending, just ask the agent (it calls the read-only `CronList` tool). To cancel a task, tell the agent to remove it or reference its 8-character ID. For the full tool reference, see [Scheduled tasks](../reference/tools.md#scheduled-tasks). The global kill switch is `KIMI_DISABLE_CRON=1`.
-
 ## Generating and maintaining documentation
 
 ```
@@ -143,6 +120,5 @@ When you need a record or a retrospective, use `liora export <sessionId>` to pac
 
 ## Next steps
 
-- [Agents and sub-agents](../customization/agents.md) — how to have the agent dispatch sub-tasks for parallel execution
-- [Hooks](../customization/hooks.md) — trigger local scripts at task-completion and other lifecycle points
-- [Built-in tools](../reference/tools.md) — full reference of all tools the agent can call
+- [Sessions and context](./sessions.md) — durable conversations, aside forks, and compaction
+- [Built-in tools](../reference/tools.md) — Bash and SessionControl

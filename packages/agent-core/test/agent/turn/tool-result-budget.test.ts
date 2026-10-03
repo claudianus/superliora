@@ -4,7 +4,6 @@ import { join } from 'pathe';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  buildToolResultPreview,
   budgetToolResultForModel,
   MAX_TOOL_RESULT_SPILL_FILES,
   pruneToolResultSpills,
@@ -17,25 +16,6 @@ const text = (s: string): ExecutableToolResult => ({
   output: s,
 });
 
-describe('turn/tool-result-budget — buildToolResultPreview', () => {
-  it('returns the input verbatim when shorter than the head+tail+20 threshold', () => {
-    const body = 'short text';
-    expect(buildToolResultPreview(body)).toBe(body);
-  });
-
-  it('returns the input verbatim when at exactly the head+tail+20 threshold', () => {
-    const body = 'x'.repeat(2400 + 800 + 20);
-    expect(buildToolResultPreview(body)).toBe(body);
-  });
-
-  it('keeps head + "..." + tail when longer than the threshold', () => {
-    const body = 'A'.repeat(2400) + 'B'.repeat(300) + 'C'.repeat(800);
-    const preview = buildToolResultPreview(body);
-    expect(preview.startsWith('A'.repeat(2400))).toBe(true);
-    expect(preview).toContain('...');
-    expect(preview.endsWith('C'.repeat(800))).toBe(true);
-  });
-});
 
 describe('turn/tool-result-budget — budgetToolResultForModel', () => {
   let homedir: string;
@@ -51,7 +31,7 @@ describe('turn/tool-result-budget — budgetToolResultForModel', () => {
   it('returns the original result when the text fits the default budget', async () => {
     const result = text('hello world');
     const out = await budgetToolResultForModel({
-      toolName: 'read',
+      toolName: 'Bash',
       toolCallId: 't1',
       result,
     });
@@ -62,7 +42,7 @@ describe('turn/tool-result-budget — budgetToolResultForModel', () => {
     const big = 'x'.repeat(TOOL_RESULT_MAX_CHARS + 1);
     const result = text(big);
     const out = await budgetToolResultForModel({
-      toolName: 'read',
+      toolName: 'Bash',
       toolCallId: 't1',
       result,
     });
@@ -79,7 +59,7 @@ describe('turn/tool-result-budget — budgetToolResultForModel', () => {
     const big = 'x'.repeat(TOOL_RESULT_MAX_CHARS + 1);
     const result: ExecutableToolResult = { isError: false, output: big, truncated: true };
     const out = await budgetToolResultForModel({
-      toolName: 'read',
+      toolName: 'Bash',
       toolCallId: 't1',
       result,
       homedir,
@@ -92,10 +72,10 @@ describe('turn/tool-result-budget — budgetToolResultForModel', () => {
   it('returns the original result when the output is a non-text content-part array', async () => {
     const result: ExecutableToolResult = {
       isError: false,
-      output: [{ type: 'image', image: 'binary-data' } as never],
+      output: [{ type: 'image_url', imageUrl: { url: 'data:image/png;base64,cGl4ZWw=' } }],
     };
     const out = await budgetToolResultForModel({
-      toolName: 'read',
+      toolName: 'SessionControl',
       toolCallId: 't1',
       result,
       homedir,
@@ -107,7 +87,7 @@ describe('turn/tool-result-budget — budgetToolResultForModel', () => {
     const big = 'x'.repeat(20_000);
     const result = text(big);
     const out = await budgetToolResultForModel({
-      toolName: 'read',
+      toolName: 'Bash',
       toolCallId: 't1',
       result,
       homedir,
@@ -136,6 +116,16 @@ describe('turn/tool-result-budget — budgetToolResultForModel', () => {
     const path = /^output_path: (.+)$/m.exec(body)?.[1];
     expect(path).toBeDefined();
     expect(await readFile(path as string, 'utf8')).toBe(big);
+  });
+
+  it('reports archive write failure rather than silently discarding the full result', async () => {
+    await writeFile(join(homedir, 'tool-results'), 'blocks the archive directory');
+    await expect(budgetToolResultForModel({
+      toolName: 'Bash',
+      toolCallId: 'failed-spill',
+      result: text('x'.repeat(TOOL_RESULT_MAX_CHARS + 1)),
+      homedir,
+    })).rejects.toThrow();
   });
 });
 

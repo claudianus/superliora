@@ -11,7 +11,7 @@ import type { ConductorJobCard } from '#/tui/utils/job/job-strip';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 
 const ENTER = '\r';
-const ESC = '\x1B';
+const ESC = '\u001B';
 
 const BRANCH_DIFF: GitDiffReport = {
   branch: 'liora/feature',
@@ -43,12 +43,6 @@ function sampleJob(overrides: Partial<ConductorJobCard> = {}): ConductorJobCard 
     priority: 0,
     updatedAtMs: Date.now(),
     resultSummary: 'Fixed the race',
-    gateChecklist: {
-      visual: 'na',
-      review: 'pass',
-      tests: 'pass',
-      typecheck: 'pass',
-    },
     ...overrides,
   };
 }
@@ -58,7 +52,7 @@ describe('MergePreviewPanelComponent', () => {
     setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
   });
 
-  it('renders gates, land≠push note, and approves with Y', () => {
+  it('renders the result and land≠push note, and approves with Y', () => {
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
     const onApprove = vi.fn();
     const onReject = vi.fn();
@@ -71,7 +65,7 @@ describe('MergePreviewPanelComponent', () => {
     });
     const lines = panel.render(80).join('\n');
     expect(lines).toContain('Ship hotfix');
-    expect(lines).toContain('tests=pass');
+    expect(lines).toContain('Fixed the race');
     expect(lines).toContain('Land ≠ push');
     expect(lines).toMatch(/Push Preview/i);
     expect(lines).toContain('Checks are not green yet');

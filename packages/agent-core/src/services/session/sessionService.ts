@@ -192,13 +192,12 @@ export class SessionService extends Disposable implements ISessionService {
       workDir: input.metadata.cwd,
       metadata: metadataForCore,
       model: input.agent_config?.model,
+      thinking: input.agent_config?.thinking,
+      permission: input.agent_config?.permission_mode,
       client: options?.client,
     });
     if (input.title !== undefined) {
-      try {
-        await this.core.rpc.renameSession({ sessionId: summary.id, title: input.title });
-      } catch {
-      }
+      await this.core.rpc.renameSession({ sessionId: summary.id, title: input.title });
     }
     const meta = await this.tryGetMeta(summary.id);
     const session = this._patchSessionStatus(toProtocolSession(summary, meta));
@@ -279,19 +278,13 @@ export class SessionService extends Disposable implements ISessionService {
     const ac = input.agent_config;
     if (ac !== undefined) {
       const patch: AgentStatePatch = {};
-      if (ac.model !== undefined && ac.model !== '') patch.model = ac.model;
+      if (ac.model !== undefined) patch.model = ac.model;
       if (ac.thinking !== undefined) patch.thinking = ac.thinking;
       if (ac.permission_mode !== undefined) patch.permission_mode = ac.permission_mode;
-      if (ac.plan_mode !== undefined) patch.plan_mode = ac.plan_mode;
-      if (ac.goal_objective !== undefined) patch.goal_objective = ac.goal_objective;
-      if (ac.goal_control !== undefined) patch.goal_control = ac.goal_control;
       if (
         patch.model !== undefined ||
         patch.thinking !== undefined ||
-        patch.permission_mode !== undefined ||
-        patch.plan_mode !== undefined ||
-        patch.goal_objective !== undefined ||
-        patch.goal_control !== undefined
+        patch.permission_mode !== undefined
       ) {
         await this.promptService.applyAgentState(id, patch, 'meta');
       }
@@ -393,14 +386,9 @@ export class SessionService extends Disposable implements ISessionService {
   }
 
   async getStatus(id: string): Promise<SessionStatusResponse> {
-    const all = await this.core.rpc.listSessions({});
-    if (!all.some((s) => s.id === id)) {
-      throw new SessionNotFoundError(id);
-    }
     return buildSessionStatusResponse(
       id,
       this.core,
-      this.promptService,
       (sessionId) => this._computeStatus(sessionId),
     );
   }
@@ -410,16 +398,8 @@ export class SessionService extends Disposable implements ISessionService {
     if (!all.some((s) => s.id === id)) {
       throw new SessionNotFoundError(id);
     }
-    try {
-      await this.core.rpc.resumeSession({ sessionId: id });
-    } catch {
-      // best-effort: the session may already be loaded in core memory.
-    }
-    try {
-      return await this.core.rpc.getSessionWarnings({ sessionId: id });
-    } catch {
-      return [];
-    }
+    await this.core.rpc.resumeSession({ sessionId: id });
+    return this.core.rpc.getSessionWarnings({ sessionId: id });
   }
 
   async compact(id: string, input: CompactSessionRequest): Promise<CompactSessionResponse> {

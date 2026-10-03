@@ -27,7 +27,7 @@ export async function runBackgroundTaskLifecycle(
     return true;
   };
 
-  void Promise.resolve()
+  const execution = Promise.resolve()
     .then(() => entry.task.start({
       signal: entry.abortController.signal,
       appendOutput: (chunk) => {
@@ -37,8 +37,8 @@ export async function runBackgroundTaskLifecycle(
     }))
     .catch((error: unknown) => {
       settleWorker({
-        status: entry.abortController.signal.aborted ? 'killed' : 'failed',
-        stopReason: entry.abortController.signal.aborted ? undefined : errorMessage(error),
+        status: entry.task.resourcesSettled === false ? 'failed' : entry.abortController.signal.aborted ? 'killed' : 'failed',
+        stopReason: entry.task.resourcesSettled === false || !entry.abortController.signal.aborted ? errorMessage(error) : undefined,
       });
     });
 
@@ -54,26 +54,25 @@ export async function runBackgroundTaskLifecycle(
     entry.timeoutHandle = undefined;
   });
   const settlement = await settlementForOutcome(host, entry, outcome, worker);
+  await execution;
   await finalizeBackgroundTask(host, entry, settlement);
 }
 
 function signalOutcome(host: BackgroundManagerHost, entry: ManagedTask): Promise<TerminalOutcome> {
   const signal = entry.options.signal;
-  if (signal === undefined) return new Promise<never>(() => {});
+  if (signal === undefined) return Promise.withResolvers<never>().promise;
   const outcome = (): TerminalOutcome => ({
     kind: 'stop',
     request: { reason: USER_INTERRUPT_REASON, abortReason: signal.reason },
   });
   if (signal.aborted) return Promise.resolve(outcome());
-  return new Promise((resolve) => {
-    signal.addEventListener(
-      'abort',
-      () => {
-        if (!host.isDetached(entry)) resolve(outcome());
-      },
-      { once: true },
-    );
-  });
+  const { promise, resolve } = Promise.withResolvers<TerminalOutcome>();
+  signal.addEventListener(
+    'abort',
+    () => { if (!host.isDetached(entry)) resolve(outcome()); },
+    { once: true },
+  );
+  return promise;
 }
 
 async function settlementForOutcome(
@@ -96,7 +95,7 @@ async function settlementForOutcome(
   entry.abortController.abort(abortReason);
 
   const graceTimeout = timeoutOutcome(SIGTERM_GRACE_MS, undefined);
-  const workerAfterAbort = await Promise.race([
+  let workerAfterAbort = await Promise.race([
     worker,
     graceTimeout,
   ]).finally(() =>{  graceTimeout.clear(); });
@@ -113,9 +112,11 @@ async function settlementForOutcome(
   if (workerAfterAbort === undefined) {
     try {
       await entry.task.forceStop?.();
-    } catch {
-      /* ignore */
+    } catch (error) {
+      host.agent.log.warn('background force stop failed; waiting for actual execution', { taskId: entry.taskId, error });
     }
+    workerAfterAbort = await worker;
+    if (outcome.kind === 'stop' && workerAfterAbort.status !== 'killed' && workerAfterAbort.status !== 'timed_out') return workerAfterAbort;
   }
 
   return {

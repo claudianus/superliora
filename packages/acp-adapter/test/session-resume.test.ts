@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   AgentSideConnection,
@@ -70,6 +70,7 @@ function makeInMemoryStreamPair(): {
 function makeSessionWithMainConfig(
   sessionId: string,
   mainConfig?: { modelAlias?: string; thinkingLevel?: string },
+  permission: 'manual' | 'auto' | 'yolo' = 'manual',
 ): Session {
   return {
     id: sessionId,
@@ -83,6 +84,7 @@ function makeSessionWithMainConfig(
             agents: {
               main: {
                 config: mainConfig,
+                permission: { mode: permission },
                 context: { history: [], tokenCount: 0 },
               },
             },
@@ -91,6 +93,7 @@ function makeSessionWithMainConfig(
             agents: {
               main: {
                 context: { history: [], tokenCount: 0 },
+                permission: { mode: permission },
               },
             },
           },
@@ -139,20 +142,31 @@ describe('AcpServer.resumeSession', () => {
     ).rejects.toMatchObject({ code: -32000 });
   });
 
-  it('returns configOptions matching the resumed session model + mode + thinking', async () => {
+  it.each([
+    { name: 'stdio', command: 'mcp', args: [], env: [] },
+    { name: 'http', type: 'http' as const, url: 'https://example.test/mcp', headers: [] },
+    { name: 'sse', type: 'sse' as const, url: 'https://example.test/sse', headers: [] },
+  ])('rejects nonempty $name MCP lists without resuming a session', async (mcpServer) => {
+    const resumeSession = vi.fn();
+    const harness = {
+      auth: { status: async () => AUTHED_STATUS }, resumeSession,
+    } as unknown as LioraHarness;
+    const { agentStream, clientStream } = makeInMemoryStreamPair();
+    new AgentSideConnection((connection) => new AcpServer(harness, connection), agentStream);
+    const client = new ClientSideConnection(() => new CapturingClient(), clientStream);
+    await expect(client.resumeSession({ sessionId: 'sess-mcp', cwd: '/tmp/x', mcpServers: [mcpServer] }))
+      .rejects.toMatchObject({ code: -32602 });
+    expect(resumeSession).not.toHaveBeenCalled();
+  });
+
+
+  it.each(['manual', 'auto', 'yolo'] as const)('restores model, thinking, and persisted %s permission', async (permission) => {
     const sessionId = 'sess-resume-model';
-    // Resume state reports kimi-plain (thinking unsupported) so we can
-    // assert the projection picks the alias from main-agent config and
-    // that thinking flips to `on` because `thinkingLevel='high'` is
-    // non-`off` per the server's boolean projection. The mode currentValue
-    // is always `default` because mode is session-scoped (PLAN D9).
-    //
-    // We use kimi-coder so the thinking option is rendered (kimi-plain
-    // would suppress it via `thinkingSupported: false`).
+    // Persisted model, thinking, and native permission policy are restored independently.
     const session = makeSessionWithMainConfig(sessionId, {
       modelAlias: 'kimi-coder',
       thinkingLevel: 'high',
-    });
+    }, permission);
     const harness = makeHarness({ hasUsableToken: true, session });
 
     const { agentStream, clientStream } = makeInMemoryStreamPair();
@@ -183,9 +197,7 @@ describe('AcpServer.resumeSession', () => {
     expect(thinkingOpt!.currentValue).toBe('on');
 
     if (modeOpt!.type !== 'select') throw new Error('mode option must be a select');
-    // Mode is session-scoped and not persisted → resumed sessions
-    // start at `default`.
-    expect(modeOpt!.currentValue).toBe('default');
+    expect(modeOpt!.currentValue).toBe(permission);
   });
 
   it('does NOT emit replay session/update notifications (only the available_commands_update)', async () => {

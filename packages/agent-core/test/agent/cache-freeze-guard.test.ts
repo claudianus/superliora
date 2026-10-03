@@ -1,109 +1,48 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  CACHE_FREEZE_DRIFT_SENSOR_ORIGIN,
-  CacheFreezeGuard,
-  buildTurnPrefixMaterial,
-  buildTurnToolBlockMaterial,
-  formatCacheFreezeDriftTip,
-  hashPrefixMaterial,
-} from '../../src/agent/cache/cache-freeze-guard';
+import { CacheFreezeGuard, buildTurnToolBlockMaterial } from '../../src/agent/cache/cache-freeze-guard';
 
-describe('CacheFreezeGuard', () => {
-  it('starts unfrozen', () => {
+const bash = {
+  name: 'Bash',
+  description: 'Run a shell command',
+  parameters: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
+};
+
+describe('turn prefix stability', () => {
+  it('rejects schema and description drift until the owning turn clears its freeze', () => {
     const guard = new CacheFreezeGuard();
-    expect(guard.isFrozen()).toBe(false);
-  });
-
-  it('freeze + assertUnchanged passes for identical material', () => {
-    const guard = new CacheFreezeGuard();
-    guard.freeze('alpha\nbeta');
-    expect(guard.isFrozen()).toBe(true);
-    expect(() =>{  guard.assertUnchanged('alpha\nbeta'); }).not.toThrow();
-  });
-
-  it('assertUnchanged throws when material changes mid-turn', () => {
-    const guard = new CacheFreezeGuard();
-    guard.freeze('tools:v1');
-    expect(() =>{  guard.assertUnchanged('tools:v2', 'tool list'); }).toThrow(
-      /CacheFreezeGuard: tool list changed mid-turn/,
-    );
-  });
-
-  it('clear resets frozen state', () => {
-    const guard = new CacheFreezeGuard();
-    guard.freeze('x');
-    guard.clear();
-    expect(guard.isFrozen()).toBe(false);
-    expect(() =>{  guard.assertUnchanged('y'); }).not.toThrow();
-  });
-
-  it('buildTurnPrefixMaterial sorts tool names', () => {
-    expect(buildTurnPrefixMaterial(['Edit', 'Read', 'Grep'])).toBe('Edit\nGrep\nRead');
-  });
-
-  it('buildTurnToolBlockMaterial fingerprints description and schema bytes', () => {
-    const tool = {
-      name: 'Read',
-      description: 'Reads a file.',
-      parameters: { type: 'object', properties: { path: { type: 'string' } } },
-    };
-    const material = buildTurnToolBlockMaterial([tool]);
-    // Same content, rebuilt object (new identity) → same fingerprint.
-    const rebuilt = {
-      name: 'Read',
-      description: 'Reads a file.',
-      parameters: { properties: { path: { type: 'string' } }, type: 'object' },
-    };
-    expect(buildTurnToolBlockMaterial([rebuilt])).toBe(material);
-    // Description rewrite (same length) → different fingerprint.
-    const reworded = { ...tool, description: 'Reads a file!' };
-    expect(buildTurnToolBlockMaterial([reworded])).not.toBe(material);
-    // Schema change → different fingerprint.
-    const newSchema = { ...tool, parameters: { type: 'object' } };
-    expect(buildTurnToolBlockMaterial([newSchema])).not.toBe(material);
-    // Name set change → different fingerprint.
-    const added = [
-      tool,
-      { name: 'Grep', description: 'Searches.', parameters: { type: 'object' } },
-    ];
-    expect(buildTurnToolBlockMaterial(added)).not.toBe(material);
-  });
-
-  it('hashPrefixMaterial is stable and truncated', () => {
-    const a = hashPrefixMaterial('same');
-    const b = hashPrefixMaterial('same');
-    expect(a).toBe(b);
-    expect(a).toHaveLength(16);
-  });
-
-  // Loop20a: multi-step soft re-check pattern (mirrors step-loop beforeStep).
-  it('checkUnchanged re-checks after freeze without throw; counts violations', () => {
-    const guard = new CacheFreezeGuard();
-    const material = buildTurnPrefixMaterial(['Read', 'Write', 'Bash']);
-    guard.freeze(material);
-    for (let step = 0; step < 3; step += 1) {
-      expect(guard.checkUnchanged(material, 'tool list')).toBe(true);
-    }
-    expect(guard.getViolationCount()).toBe(0);
-    const drifted = buildTurnPrefixMaterial(['Read', 'Write', 'Bash', 'DeepResearch']);
-    expect(guard.checkUnchanged(drifted, 'tool list')).toBe(false);
-    expect(guard.getViolationCount()).toBe(1);
-    expect(guard.getLastViolationLabel()).toBe('tool list');
-    // Soft path must not throw; hard path still does.
-    expect(() => {
-      guard.assertUnchanged(drifted, 'tool list');
-    }).toThrow(/tool list changed mid-turn/);
+    const original = buildTurnToolBlockMaterial([bash]);
+    guard.freeze(original);
+    expect(() => guard.assertUnchanged(original)).not.toThrow();
+    const changed = buildTurnToolBlockMaterial([{ ...bash, description: 'A changed command contract' }]);
+    expect(() => guard.assertUnchanged(changed, 'tool block')).toThrow('changed mid-turn');
+    const schemaChanged = buildTurnToolBlockMaterial([{ ...bash, parameters: { type: 'object', properties: { command: { type: 'number' } } } }]);
+    expect(() => guard.assertUnchanged(schemaChanged, 'tool block')).toThrow('changed mid-turn');
     expect(guard.getViolationCount()).toBe(2);
+    guard.clear();
+    expect(() => guard.assertUnchanged(changed)).not.toThrow();
+    guard.freeze(changed);
+    expect(() => guard.assertUnchanged(original)).toThrow('changed mid-turn');
   });
 
-  // Loop32a: live wire tip helpers for mid-turn drift notices.
-  it('formatCacheFreezeDriftTip names violations and stable code', () => {
-    const tip = formatCacheFreezeDriftTip(3, 'tool list');
-    expect(tip.startsWith('CACHE_FREEZE_DRIFT:')).toBe(true);
-    expect(tip).toContain('drift×3');
-    expect(tip).toContain('tool list');
-    expect(tip).toContain('code=CACHE_FREEZE_DRIFT');
-    expect(CACHE_FREEZE_DRIFT_SENSOR_ORIGIN).toBe('cache-freeze-drift-sensor');
+  it('does not treat schema key insertion order as prefix drift', () => {
+    const reordered = {
+      ...bash,
+      parameters: { required: ['command'], properties: { command: { type: 'string' } }, type: 'object' },
+    };
+    const guard = new CacheFreezeGuard();
+    guard.freeze(buildTurnToolBlockMaterial([bash]));
+    expect(() => guard.assertUnchanged(buildTurnToolBlockMaterial([reordered]))).not.toThrow();
+  });
+
+  it('reports drift without replacing the original prefix fingerprint', () => {
+    const guard = new CacheFreezeGuard();
+    guard.freeze('original');
+    expect(guard.checkUnchanged('drift', 'tool block')).toBe(false);
+    expect(guard.checkUnchanged('original')).toBe(true);
+    expect(guard.getViolationCount()).toBe(1);
+    expect(guard.getLastViolationLabel()).toBe('tool block');
+    guard.clear();
+    expect(guard.getViolationCount()).toBe(1);
   });
 });

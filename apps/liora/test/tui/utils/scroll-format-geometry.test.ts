@@ -24,13 +24,10 @@ function fakeInitialAppState(): AppState {
     additionalDirs: [],
     sessionId: 'sess-1',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     inputMode: 'prompt',
     thinking: false,
     streamingPhase: 'idle',
     appearance: undefined,
-    goal: null,
   } as unknown as AppState;
 }
 
@@ -53,7 +50,6 @@ describe('scroll + deferred format geometry isolation', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
 

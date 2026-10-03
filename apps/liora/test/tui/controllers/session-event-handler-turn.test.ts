@@ -13,8 +13,6 @@ function makeHost() {
         streamingPhase: 'waiting',
         model: 'kimi-model',
         permissionMode: 'auto',
-        planMode: false,
-        askMode: false,
         // Notification gate: disabled so turn-complete bell/toast paths never
         // touch stdout from inside tests.
         notifications: { enabled: false, condition: 'always' as const },
@@ -27,10 +25,7 @@ function makeHost() {
       ui: { requestRender: vi.fn() },
       renderer: { invalidateFrame: vi.fn() },
     },
-    session: {
-      setPlanMode: vi.fn(async () => undefined),
-      setPremiumQuality: vi.fn(async () => undefined),
-    },
+    session: undefined,
     aborted: false,
     sessionEventUnsubscribe: undefined,
     streamingUI: {
@@ -83,76 +78,6 @@ function makeHost() {
   return host as any;
 }
 
-function retryingEvent(overrides: Partial<Extract<Event, { type: 'turn.step.retrying' }>> = {}) {
-  return {
-    type: 'turn.step.retrying',
-    agentId: 'main',
-    sessionId: 's1',
-    turnId: 1,
-    step: 1,
-    failedAttempt: 1,
-    nextAttempt: 2,
-    maxAttempts: 3,
-    delayMs: 1500,
-    errorName: 'OverloadedError',
-    errorMessage: 'server is overloaded',
-    statusCode: 529,
-    ...overrides,
-  } satisfies Event;
-}
-
-describe('SessionEventHandler step retry feedback', () => {
-  it('surfaces step retries as a transient warning status line', () => {
-    const host = makeHost();
-    const handler = new SessionEventHandler(host);
-
-    handler.handleEvent(retryingEvent(), vi.fn());
-
-    expect(host.showStatus).toHaveBeenCalledTimes(1);
-    const [message, color] = host.showStatus.mock.calls[0] as [string, string];
-    expect(color).toBe('warning');
-    expect(message).toContain('Retrying step 1');
-    expect(message).toContain('attempt 2/3');
-    expect(message).toContain('OverloadedError');
-    expect(message).toContain('server is overloaded');
-    expect(message).toContain('next attempt in 1.5s');
-  });
-
-  it('keeps the status readable when the error message is empty', () => {
-    const host = makeHost();
-    const handler = new SessionEventHandler(host);
-
-    handler.handleEvent(retryingEvent({ errorMessage: '' }), vi.fn());
-
-    const [message] = host.showStatus.mock.calls[0] as [string];
-    expect(message).toContain('after OverloadedError');
-    expect(message).not.toContain('undefined');
-    expect(message).not.toContain(': ');
-  });
-
-  it('omits the backoff hint when there is no delay', () => {
-    const host = makeHost();
-    const handler = new SessionEventHandler(host);
-
-    handler.handleEvent(retryingEvent({ delayMs: 0 }), vi.fn());
-
-    const [message] = host.showStatus.mock.calls[0] as [string];
-    expect(message).not.toContain('next attempt in');
-  });
-
-  it('truncates long error messages so the status stays one glance', () => {
-    const host = makeHost();
-    const handler = new SessionEventHandler(host);
-    const longMessage = `x`.repeat(200);
-
-    handler.handleEvent(retryingEvent({ errorMessage: longMessage }), vi.fn());
-
-    const [message] = host.showStatus.mock.calls[0] as [string];
-    expect(message).toContain('…');
-    expect(message.length).toBeLessThan(200);
-  });
-});
-
 function stepInterruptedEvent(
   overrides: Partial<Extract<Event, { type: 'turn.step.interrupted' }>> = {},
 ) {
@@ -168,28 +93,14 @@ function stepInterruptedEvent(
 }
 
 describe('SessionEventHandler max_steps exhausted UX', () => {
-  it('surfaces max_steps as a budget notice, not a generic error', () => {
+  it('reports a real max_steps interrupt without heuristic recovery advice', () => {
     const host = makeHost();
     const handler = new SessionEventHandler(host);
 
     handler.handleEvent(stepInterruptedEvent(), vi.fn());
 
-    expect(host.showError).not.toHaveBeenCalled();
-    expect(host.showNotice).toHaveBeenCalledTimes(1);
-    const [title, detail, options] = host.showNotice.mock.calls[0] as [
-      string,
-      string,
-      { coalesceKey?: string },
-    ];
-    expect(title).toBe('Step budget exhausted');
-    expect(detail).toMatch(/max_steps/);
-    expect(detail).toMatch(/maxStepsPerTurn|loop_control|STEP_BUDGET/);
-    expect(options?.coalesceKey).toBe('step-budget-exhausted');
-
-    expect(host.showStatus).toHaveBeenCalledTimes(1);
-    const [status, color] = host.showStatus.mock.calls[0] as [string, string];
-    expect(color).toBe('warning');
-    expect(status).toMatch(/step budget exhausted/);
+    expect(host.showNotice).not.toHaveBeenCalled();
+    expect(host.showError).toHaveBeenCalledWith('step interrupted (max_steps)');
   });
 
   it('keeps non-max_steps interrupts as showError', () => {
@@ -203,8 +114,40 @@ describe('SessionEventHandler max_steps exhausted UX', () => {
   });
 });
 
+describe('SessionEventHandler native Auto route', () => {
+  it('records a concrete default selection without warning about failover or Smart Auto', () => {
+    const host = makeHost();
+    host.state.appState.model = 'auto';
+    host.state.appState.availableModels = {
+      'kimi-model': { provider: 'kimi', model: 'kimi-model', maxContextSize: 200_000 },
+    };
+    const handler = new SessionEventHandler(host);
+    handler.handleEvent({
+      type: 'turn.step.completed',
+      agentId: 'main',
+      sessionId: 's1',
+      turnId: 1,
+      step: 1,
+      providerRouteSelection: {
+        modelAlias: 'kimi-model',
+        providerName: 'kimi',
+        providerModel: 'kimi-model',
+      },
+    } satisfies Event, vi.fn());
+    expect(host.showNotice).not.toHaveBeenCalled();
+    expect(host.setAppState).toHaveBeenCalledWith(expect.objectContaining({
+      lastModelRouteNotice: expect.objectContaining({
+        kind: 'selection',
+        fromAlias: 'auto',
+        toAlias: 'kimi-model',
+        reason: 'provider-route',
+      }),
+    }));
+  });
+});
+
 describe('SessionEventHandler provider filtered turn end (Loop37a)', () => {
-  it('surfaces reason=filtered as a named notice (goal pause)', () => {
+  it('surfaces provider filtering as a named notice', () => {
     const host = makeHost();
     const handler = new SessionEventHandler(host);
 
@@ -221,11 +164,11 @@ describe('SessionEventHandler provider filtered turn end (Loop37a)', () => {
 
     expect(host.showNotice).toHaveBeenCalledWith(
       'Provider safety filter',
-      expect.stringMatching(/filtered|paused/i),
+      expect.stringMatching(/filtered/i),
       { coalesceKey: 'provider-filtered' },
     );
     expect(host.showStatus).toHaveBeenCalledWith(
-      expect.stringMatching(/provider safety policy|goal paused/i),
+      expect.stringMatching(/provider safety policy/i),
       'error',
     );
   });

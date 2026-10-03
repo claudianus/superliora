@@ -15,7 +15,6 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { ttui } from '../utils/tui-i18n';
 import {
   closeWorkspaceDock,
-  isWorkspaceDockEnabled,
   toggleWorkspaceDock,
 } from '../features/workspace/workspace-dock';
 
@@ -44,9 +43,7 @@ export function openWorkerTranscript(host: SlashCommandHost, workerId: string): 
     return;
   }
 
-  // Workspace side dock (flag): the live transcript sits beside the main
-  // transcript instead of taking over the editor. Same-row re-click closes.
-  if (isWorkspaceDockEnabled()) {
+  // The live transcript sits beside the main transcript; re-click closes it.
     toggleWorkspaceDock({
       state: host.state,
       workerId,
@@ -64,24 +61,6 @@ export function openWorkerTranscript(host: SlashCommandHost, workerId: string): 
           },
         }),
     });
-    return;
-  }
-
-  const viewer = new WorkerTranscriptViewerComponent({
-    workerId,
-    getWorker: () => {
-      const snap = host.workerDock.registry.snapshot();
-      return snap.workers.find((entry) => entry.id === workerId);
-    },
-    loadTranscript: (id) => loadWorkerTranscript(host, id),
-    onCancel: () => {
-      host.restoreEditor();
-    },
-    requestRender: () => {
-      host.state.renderer.requestRender('manual');
-    },
-  });
-  host.mountEditorReplacement(viewer);
 }
 
 async function loadWorkerTranscript(
@@ -123,10 +102,7 @@ function buildFallbackLines(
   if (worker === undefined) return lines;
 
   if (worker.description !== undefined && worker.description.length > 0) {
-    lines.push(`goal  ${worker.description}`);
-  }
-  if (worker.focusTodo !== undefined && worker.focusTodo.length > 0) {
-    lines.push(`focus ${worker.focusTodo}`);
+    lines.push(`task  ${worker.description}`);
   }
   if (worker.liveText !== undefined && worker.liveText.length > 0) {
     const kind = worker.liveKind === 'answer' ? 'answer' : 'think';

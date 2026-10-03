@@ -1,17 +1,15 @@
 /**
  * Command Hub — One-search Command Surface (center modal).
  *
- * Status strip + contextual Now + fuzzy One-search (settings, slash, skills).
+ * Status strip + contextual Now + searchable settings and slash commands.
  * Space/Enter toggles modes in place; nested pickers stack with Esc back.
  */
 
 export {
-  commandHubKeepsOpen,
   commandHubNestsPicker,
   cyclePermissionMode,
   cycleTranscriptRegionMode,
   isCommandHubCycleId,
-  isCommandHubToggleId,
 } from './command-hub-behavior';
 export { CommandHubComponent } from './command-hub-component';
 export { buildDefaultCommandHubItems } from './command-hub-items';

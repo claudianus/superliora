@@ -86,7 +86,7 @@ export function estimateTokensForMessage(message: Message): number {
   return total;
 }
 
-export function estimateTokensForContentParts(parts: readonly ContentPart[]): number {
+function estimateTokensForContentParts(parts: readonly ContentPart[]): number {
   let total = 0;
   for (const part of parts) {
     total += estimateTokensForContentPart(part);

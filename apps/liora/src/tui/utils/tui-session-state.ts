@@ -44,6 +44,7 @@ const fileSchema = z.object({
   userStageSize: stageSizeSchema.optional(),
   toolOutputViewports: z.record(z.string().max(MAX_TOOL_CALL_ID_LENGTH), viewportSchema).optional(),
   sessionsScope: z.enum(['cwd', 'all']).optional(),
+  transcriptRegionMode: z.enum(['chat', 'timeline']).optional(),
 });
 
 export type TuiSessionStateSnapshot = z.infer<typeof fileSchema>;
@@ -63,8 +64,10 @@ export interface TuiSessionStateHost {
     userStageSize?: { width: number; height: number };
     terminal: { readonly columns: number; readonly rows: number };
     transcriptEntries: readonly TranscriptEntry[];
+    appState?: { transcriptRegionMode?: 'chat' | 'timeline' };
   };
   setTranscriptDetail?(level: TranscriptDetailLevel): void;
+  setAppState?(patch: { transcriptRegionMode: 'chat' | 'timeline' }): void;
 }
 
 const writeLocks = new Map<string, Promise<void>>();
@@ -137,6 +140,10 @@ export async function restoreTuiSessionState(host: TuiSessionStateHost): Promise
   if (snapshot.sessionsScope !== undefined) {
     host.state.sessionsScope = snapshot.sessionsScope;
   }
+  if (snapshot.transcriptRegionMode !== undefined) {
+    if (host.setAppState !== undefined) host.setAppState({ transcriptRegionMode: snapshot.transcriptRegionMode });
+    else if (host.state.appState !== undefined) host.state.appState.transcriptRegionMode = snapshot.transcriptRegionMode;
+  }
 }
 
 export async function writeTuiSessionState(host: TuiSessionStateHost): Promise<void> {
@@ -184,6 +191,7 @@ export function captureTuiSessionState(host: TuiSessionStateHost): TuiSessionSta
       : {}),
     ...(Object.keys(viewports).length > 0 ? { toolOutputViewports: viewports } : {}),
     sessionsScope: host.state.sessionsScope,
+    transcriptRegionMode: host.state.appState?.transcriptRegionMode,
   };
 }
 

@@ -97,7 +97,6 @@ export function isLioraHomePopulated(homeDir: string): boolean {
   if (existsSync(join(homeDir, 'config.toml'))) return true;
   if (existsSync(join(homeDir, 'tui.toml'))) return true;
   if (existsSync(join(homeDir, 'credentials'))) return true;
-  if (existsSync(join(homeDir, 'memory', 'liora-memory.sqlite'))) return true;
   const sessions = join(homeDir, 'sessions');
   if (!existsSync(sessions)) return false;
   try {

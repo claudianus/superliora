@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { YoloHighRiskAskPermissionPolicy, classifyYoloHighRiskBash } from '#/agent/permission/policies/yolo-high-risk-ask';
-import type { Agent } from '#/agent';
-
-describe('agent/permission/policies/yolo-high-risk-ask — name', () => {
-  it('uses the documented policy name', () => {
-    const policy = new YoloHighRiskAskPermissionPolicy({} as Agent);
-    expect(policy.name).toBe('yolo-high-risk-ask');
-  });
-});
+import { classifyYoloHighRiskBash } from '#/agent/permission/policies/yolo-high-risk-ask';
 
 describe('classifyYoloHighRiskBash — non-risky', () => {
   it('returns undefined on empty input', () => {
@@ -31,6 +23,19 @@ describe('classifyYoloHighRiskBash — destructive', () => {
 
   it('flags rm -f', () => {
     expect(classifyYoloHighRiskBash('rm -f some-file.txt')).toBe('force delete');
+  });
+
+  it('flags native Windows forced and recursive deletion', () => {
+    expect(classifyYoloHighRiskBash('Remove-Item C:\\\\output -Recurse -Force')).toBe('recursive or forced remove');
+    expect(classifyYoloHighRiskBash('Remove-Item C:\\output -Recurse')).toBe('recursive or forced remove');
+    expect(classifyYoloHighRiskBash('Remove-Item -Force C:\\output')).toBe('recursive or forced remove');
+    expect(classifyYoloHighRiskBash('rmdir /s /q C:\\\\output')).toBe('Windows recursive or quiet delete');
+  });
+
+  it('flags disk partition and destructive database commands', () => {
+    expect(classifyYoloHighRiskBash('diskutil eraseDisk APFS data disk3')).toBe('disk erase or partition command');
+    expect(classifyYoloHighRiskBash('psql -c "DROP DATABASE app"')).toBe('destructive database command');
+    expect(classifyYoloHighRiskBash('psql -c "TRUNCATE TABLE events"')).toBe('destructive database command');
   });
 
   it('flags mkfs', () => {

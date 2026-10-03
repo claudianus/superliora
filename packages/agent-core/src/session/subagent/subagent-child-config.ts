@@ -1,27 +1,8 @@
-/**
- * Subagent child setup: profile resolution, spawn-time guards, and ownership
- * claims.
- *
- * Extracted from subagent-host so spawn/resume paths stay readable without
- * growing the SessionSubagentHost class body.
- */
-
 import type { Agent } from '../../agent';
-import { resolveExpertCatalogEntry } from '../../expert-agents/catalog-extensions';
-import {
-  DEFAULT_AGENT_PROFILES,
-  prepareSystemPromptContext,
-  type ResolvedAgentProfile,
-} from '../../profile';
-import { warmModelsDevData } from '../../utils/model-presets';
-import { checkContractFile } from '../contract-check';
-import { getDefaultSwarmFileLeaseRegistry } from '#/fleet';
+import { DEFAULT_AGENT_PROFILES, prepareSystemPromptContext } from '../../profile';
+import { getDefaultSwarmFileLeaseRegistry, normalizeLeasePath } from '#/fleet/swarm-file-lease';
 import type { Session } from '../index';
-import {
-  createExpertSubagentProfile,
-} from './subagent-run-lifecycle';
 import { resolveSubagentModelSelection } from './subagent-model-routing';
-import { attachSubagentTodoBridge } from './subagent-telemetry';
 import type { RunSubagentOptions } from './subagent-host-types';
 import type { ActiveChildEntry } from './subagent-run-lifecycle';
 
@@ -33,143 +14,48 @@ export async function ensureIdleSubagent(
 ): Promise<{ readonly parent: Agent; readonly child: Agent; readonly profileName: string }> {
   const parent = await session.ensureAgentResumed(ownerAgentId);
   const metadata = session.metadata.agents[agentId];
-  if (metadata?.type !== 'sub') {
-    throw new Error(`Agent instance "${agentId}" is not a subagent`);
-  }
-  if (metadata.parentAgentId !== ownerAgentId) {
+  if (metadata?.type !== 'sub' || metadata.parentAgentId !== ownerAgentId) {
     throw new Error(`Agent instance "${agentId}" does not belong to this parent agent`);
   }
   const child = await session.ensureAgentResumed(agentId);
   if (activeChildren.has(agentId) || child.turn.hasActiveTurn) {
     throw new Error(`Agent instance "${agentId}" is already running and cannot run concurrently`);
   }
-
-  const profileName = child.config.profileName ?? 'subagent';
-  return { parent, child, profileName };
+  return { parent, child, profileName: 'agent' };
 }
 
-export function resolveSubagentProfile(
-  parent: Agent,
-  profileName: string,
-  profileBaseName?: string,
-): ResolvedAgentProfile {
-  const profile =
-    DEFAULT_AGENT_PROFILES[parent.config.profileName ?? 'agent']?.subagents?.[profileName] ??
-    DEFAULT_AGENT_PROFILES['agent']?.subagents?.[profileName];
-  if (profile !== undefined) return profile;
-
-  const pluginAgent = parent.pluginAgents.find((agent) => agent.profileName === profileName);
-  if (pluginAgent !== undefined) return pluginAgent.profile;
-
-  const expert = resolveExpertCatalogEntry(profileName);
-  if (expert === undefined) {
-    throw new Error(`Subagent profile "${profileName}" was not found`);
-  }
-
-  const baseName = profileBaseName ?? 'coder';
-  const baseProfile =
-    DEFAULT_AGENT_PROFILES[parent.config.profileName ?? 'agent']?.subagents?.[baseName] ??
-    DEFAULT_AGENT_PROFILES['agent']?.subagents?.[baseName];
-  if (baseProfile === undefined) {
-    throw new Error(`Subagent profile "${baseName}" was not found`);
-  }
-
-  return createExpertSubagentProfile(expert, baseProfile);
-}
-
-/**
- * All-mode file lease (harness reform T4-2): every spawned child gets a
- * lease identity so its edits conflict-check against other owners, and any
- * declared ownership is pre-claimed so overlaps fail at fan-out instead of
- * mid-run.
- */
-export function claimChildOwnership(
-  child: Agent,
-  childId: string,
-  options: RunSubagentOptions,
-): void {
+/** Explicit claims fail before a child turn starts, without touching siblings. */
+export function claimChildOwnership(child: Agent, childId: string, options: RunSubagentOptions): void {
   const runId = options.parentToolCallId;
-  child.swarmFileLease = { ownerId: childId, runId };
-  const declared = options.ownership ?? [];
-  if (declared.length === 0) return;
   const registry = getDefaultSwarmFileLeaseRegistry();
-  for (const rawPath of declared) {
-    const result = registry.claim(rawPath, childId, runId);
+  for (const rawPath of options.ownership ?? []) {
+    const path = normalizeLeasePath(rawPath, options.worktreeDir ?? child.config.cwd);
+    const result = registry.claim(path, childId, runId);
     if (result.ok) continue;
-    registry.releaseAll(runId);
+    registry.releaseOwner(childId, runId);
     const holder = result.conflict.holder;
-    throw new Error(
-      `Ownership conflict on ${result.conflict.path}: already claimed by owner=${holder.ownerId} run=${holder.runId}. Resolve the overlap before fan-out.`,
-    );
+    throw new Error(`Ownership conflict on ${result.conflict.path}: already claimed by owner=${holder.ownerId} run=${holder.runId}.`);
   }
-}
-
-/**
- * Contract-first guard (harness reform T4-3): refuse fan-out while the
- * shared contract file no longer compiles, so conflicting type changes are
- * caught by the compiler before agents diverge.
- */
-export async function assertContractCompiles(
-  parent: Agent,
-  options: RunSubagentOptions,
-): Promise<void> {
-  const contractPath = options.contractPath?.trim();
-  if (contractPath === undefined || contractPath.length === 0) return;
-  const check = await checkContractFile(parent.kaos, parent.config.cwd, contractPath);
-  if (check.ok) return;
-  const detail =
-    check.output !== undefined && check.output.length > 0 ? `\n${check.output}` : '';
-  throw new Error(
-    `Contract file did not compile (${check.kind}) — fix it before fan-out: ${contractPath}${detail}`,
-  );
 }
 
 export async function configureSubagentChild(
   session: Session,
   parent: Agent,
   child: Agent,
-  profile: ResolvedAgentProfile,
-  childId: string,
   options: RunSubagentOptions,
-  profileBaseName?: string,
 ): Promise<void> {
-  const cwd = options.worktreeDir ?? parent.config.cwd;
-  // Warm models.dev so sync role ranking sees benches/cutoff on first spawn.
-  await warmModelsDevData().catch(() => {});
-  const modelSelection = resolveSubagentModelSelection(parent, profile.name, profileBaseName, {
-    preferVision: options.preferVisionModel === true,
-    forcedAlias: options.modelAlias,
-    signals: {
-      prompt: options.prompt,
-      profileName: profile.name,
-      profileBaseName,
-    },
-  });
-  child.config.update({
-    cwd,
-    modelAlias: modelSelection.alias,
-    thinkingLevel: modelSelection.thinkingLevel,
-  });
-  if (options.permissionMode !== undefined) {
-    // Job workers run yolo inside their isolated worktree so an unattended
-    // approval request cannot stall the job; tools with their own gates
-    // (PushJob force_user_confirm) stay gated regardless of mode.
-    child.permission.setMode(options.permissionMode);
-  }
-  if (options.worktreeDir !== undefined) {
-    child.setKaos(parent.kaos.withCwd(cwd));
-  }
-
+  const cwd = options.worktreeDir ?? parent.kaos.getcwd();
+  const selection = resolveSubagentModelSelection(parent, options.modelAlias);
+  child.config.update({ cwd, modelAlias: selection.alias, thinkingLevel: selection.thinkingLevel });
+  child.permission.setMode(options.permissionMode ?? parent.permission.mode);
+  const kaos = cwd === parent.kaos.getcwd() ? parent.kaos : parent.kaos.withCwd(cwd);
+  if (child.kaos !== kaos) child.setKaos(kaos);
   const context = await prepareSystemPromptContext(
     session.systemContextKaos(child.kaos.getcwd()),
     session.options.kimiHomeDir,
     { additionalDirs: child.getAdditionalDirs() },
   );
+  const profile = DEFAULT_AGENT_PROFILES['agent'];
+  if (profile === undefined) throw new Error('Default agent profile is unavailable');
   child.useProfile(profile, context);
-  child.tools.inheritUserTools(parent.tools);
-  // Premium Quality must reach workers: inherit parent ON, or force for UI Jobs.
-  if (parent.premiumQuality.isEnabled() || options.forcePremiumQuality === true) {
-    child.premiumQuality.setEnabled(true);
-  }
-  attachSubagentTodoBridge(parent, child, childId, profile.name, options);
 }

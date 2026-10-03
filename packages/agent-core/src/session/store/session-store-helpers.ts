@@ -86,7 +86,7 @@ export function customMetadataWithoutGoal(value: unknown): Record<string, unknow
   return custom;
 }
 
-export async function latestAgentWireMtime(sessionDir: string): Promise<number | undefined> {
+async function latestAgentWireMtime(sessionDir: string): Promise<number | undefined> {
   const agentsDir = join(sessionDir, 'agents');
   let entries;
   try {

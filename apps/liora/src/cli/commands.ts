@@ -16,7 +16,6 @@ import { registerServerCommand } from './sub/server';
 import { registerWorktreeCommand } from './sub/worktree';
 
 export type MainCommandHandler = (opts: CLIOptions) => void;
-export type PluginNodeRunnerHandler = (entry: string, args: readonly string[]) => void;
 export interface UpgradeCommandOptions {
   readonly fromMain?: boolean;
 }
@@ -28,7 +27,6 @@ export type UpgradeCommandHandler = (
 export function createProgram(
   version: string,
   onMain: MainCommandHandler,
-  onPluginNodeRunner: PluginNodeRunnerHandler = () => {},
   onUpgrade: UpgradeCommandHandler = () => {},
 ): Command {
   const program = new Command(CLI_COMMAND_NAME)
@@ -77,30 +75,6 @@ export function createProgram(
     .option('--show-thinking', t('cli.option.showThinking'), false)
     .addOption(
       new Option(
-        '--skills-dir <dir>',
-        t('cli.option.skillsDir'),
-      )
-        .argParser((value: string, previous: string[] | undefined) => [...(previous ?? []), value])
-        .default([]),
-    )
-    .addOption(
-      new Option(
-        '--plugin-dir <dir>',
-        t('cli.option.pluginDir'),
-      )
-        .argParser((value: string, previous: string[] | undefined) => [...(previous ?? []), value])
-        .default([]),
-    )
-    .addOption(
-      new Option(
-        '--channels <server>',
-        'Opt-in Claude channel MCP server for inbound message inject (repeatable)',
-      )
-        .argParser((value: string, previous: string[] | undefined) => [...(previous ?? []), value])
-        .default([]),
-    )
-    .addOption(
-      new Option(
         '--add-dir <dir>',
         t('cli.option.addDir'),
       )
@@ -123,16 +97,7 @@ export function createProgram(
     .addOption(new Option('--no-process-sandbox', t('cli.option.noProcessSandbox')))
     .addOption(new Option('--yes').hideHelp().default(false))
     .addOption(new Option('--auto-approve').hideHelp().default(false))
-    .option('--plan', t('cli.option.plan'), false)
-    .addOption(
-      new Option(
-        '--profile <name>',
-        'Main agent tool profile (core, agent, superliora-full; default: core)',
-      ),
-    )
     .option('--debug', t('cli.option.debug'), false)
-    .option('--resume-goal', t('cli.option.resumeGoal'), false)
-    .option('--autonomous-gate <command>', t('cli.option.autonomousGate'))
     .addOption(
       new Option('--worktree [name]', t('cli.option.worktree')).argParser(
         (val: string | boolean) => (val === true ? true : (val as string)),
@@ -166,15 +131,6 @@ export function createProgram(
     .option('--main', t('cli.sub.upgrade.option.main'), false)
     .action(runUpgrade);
 
-  program
-    .command('__plugin_run_node', { hidden: true })
-    .argument('<entry>')
-    .argument('[args...]')
-    .allowUnknownOption(true)
-    .action((entry: string, args: string[]) => {
-      onPluginNodeRunner(entry, args);
-    });
-
   program.argument('[args...]').action((args: string[]) => {
     if (args.length > 0) {
       const suggestion = suggestSimilarCommand(args[0]!, program.commands);
@@ -197,22 +153,15 @@ export function createProgram(
       continue: raw['continue'] === true || raw['C'] === true,
       yolo: yoloValue,
       auto: autoValue,
-      plan: raw['plan'] as boolean,
       model: raw['model'] as string | undefined,
       outputFormat: raw['outputFormat'] as CLIOptions['outputFormat'],
       showThinking: raw['showThinking'] as boolean,
       prompt: raw['prompt'] as string | undefined,
-      skillsDirs: raw['skillsDir'] as string[],
-      pluginDirs: (raw['pluginDir'] as string[] | undefined) ?? [],
-      channelServers: (raw['channels'] as string[] | undefined) ?? [],
       addDirs: raw['addDir'] as string[],
       sandbox: raw['sandbox'] as string | undefined,
       sandboxEnforcement: raw['sandboxEnforcement'] as string | undefined,
       noProcessSandbox: raw['noProcessSandbox'] === true || raw['processSandbox'] === false,
-      resumeGoal: raw['resumeGoal'] as boolean,
-      autonomousGate: raw['autonomousGate'] as string | undefined,
       worktree: raw['worktree'] as boolean | string | undefined,
-      profile: raw['profile'] as string | undefined,
       debug: raw['debug'] === true,
     };
 

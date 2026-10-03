@@ -68,6 +68,21 @@ describe('browser-use CLI commands', () => {
     expect(stderr.join('')).toContain('not ready');
     expect(stderr.join('')).toContain('liora browser-use install');
   });
+
+  it('reports browser runtime status without probing or registering MCP sidecars', async () => {
+    const { stdout, stderr, writable } = captureOutput();
+    const info = vi.fn().mockResolvedValue(setupResult({ stdout: 'browser ready\n' }));
+
+    await expect(handleBrowserUseCommand('status', {
+      ...writable,
+      packageRoot: () => '/repo',
+      info,
+    })).resolves.toBe(0);
+
+    expect(info).toHaveBeenCalledWith({ packageRoot: '/repo', quiet: true });
+    expect(stdout.join('')).toBe('browser ready\n');
+    expect(stderr.join('')).toBe('');
+  });
 });
 
 describe('computer-use CLI commands', () => {

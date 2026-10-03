@@ -230,7 +230,7 @@ export class AgentGroupComponent extends Container {
       return;
     }
     if (snap.phase === 'done' || snap.phase === 'backgrounded') {
-      // Terminal states omit the second line.
+      // Completed agents and detached rows omit the second line.
       return;
     }
     // Running or not-yet-started agents show latest activity, with a fallback.
@@ -314,7 +314,7 @@ function countPhases(snapshots: readonly ToolCallSubagentSnapshot[]): PhaseCount
     running,
     waiting,
     starting,
-    terminal: done + failed + backgrounded,
+    terminal: done + failed,
   };
 }
 

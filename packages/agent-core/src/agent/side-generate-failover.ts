@@ -109,7 +109,7 @@ export async function runSideGenerateWithSharedFailover<T>(
     : new Error('side generate failed for all provider-route candidates');
 }
 
-export function sideCandidateKey(candidate: KosongLLMRouteCandidate): string {
+function sideCandidateKey(candidate: KosongLLMRouteCandidate): string {
   // Mirror KosongLLM's candidateKey fields (no oauthRef on the route candidate type).
   const baseUrl = (candidate.provider as { readonly baseUrl?: unknown }).baseUrl;
   return [

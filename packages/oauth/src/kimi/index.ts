@@ -21,8 +21,6 @@ export type {
   ManagedKimiOAuthRefInput,
   ManagedKimiProviderConfig,
   ManagedKimiRuntimeAuth,
-  ManagedKimiServiceConfig,
-  ManagedKimiServicesConfig,
   ProvisionManagedKimiCodeConfigOptions,
   SupportsThinkingType,
 } from './managed-kimi-code-types';

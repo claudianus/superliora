@@ -6,82 +6,24 @@
 import {
   JOB_EVENT_SCHEMA_VERSION,
   type JobEffectPreview,
-  type JobGateChecklist,
-  type JobGateChecklistStatus,
   type JobInboxEvent as WireJobInboxEvent,
   type JobSnapshot,
   type JobUpdatedEvent,
 } from '@superliora/protocol';
 
 import type { Agent } from '../../../agent/index';
-import type { VerificationVerdict, VisualVerificationVerdict } from '../../../session/subagent/subagent-result-contract';
 import type { JobInboxEvent, JobInboxEventKind } from './job-inbox';
 import type { JobRecord } from './job-ledger';
-import { isDebugFixerJob } from './job-store-key';
-import { jobIsolationKind, landGateStatusFromJob } from './job-task-track';
-
-function mapGateVerdict(
-  verdict: VerificationVerdict | VisualVerificationVerdict | undefined,
-): JobGateChecklistStatus {
-  switch (verdict) {
-    case 'passed':
-      return 'pass';
-    case 'failed':
-      return 'fail';
-    case 'not_applicable':
-    case 'skipped_host':
-      return 'na';
-    case 'not_run':
-    case undefined:
-      return 'pending';
-  }
-}
 
 function briefPreviewFromJob(job: JobRecord): JobSnapshot['briefPreview'] {
-  if (
-    job.successCriteria === undefined &&
-    job.mustNotTouch === undefined &&
-    job.verificationCommands === undefined &&
-    job.testSeams === undefined &&
-    job.tddMode === undefined &&
-    (job.reproCommand === undefined || job.reproCommand.trim().length === 0)
-  ) {
-    return undefined;
-  }
+  if (!job.successCriteria && !job.mustNotTouch && !job.verificationCommands) return undefined;
   return {
     successCriteria: job.successCriteria,
     mustNotTouch: job.mustNotTouch,
     verificationCommands: job.verificationCommands,
-    testSeams: job.testSeams,
-    tddMode: job.tddMode,
-    reproCommand: job.reproCommand,
   };
 }
 
-function reviewGateFromJob(job: JobRecord): JobGateChecklistStatus {
-  if (job.verifyVerdict === 'passed') return 'pass';
-  if (job.verifyVerdict === 'failed') return 'fail';
-  const notes = job.notes ?? '';
-  if (/\bverify_chain:\s*enqueued\b/i.test(notes)) return 'pending';
-  if (job.kind === 'verify') return 'na';
-  if (isDebugFixerJob(job)) return 'na';
-  if (job.kind === 'task' || job.kind === 'implement') return 'pending';
-  return 'na';
-}
-
-function gateChecklistFromJob(job: JobRecord): JobGateChecklist | undefined {
-  const v = job.resultContract?.verification;
-  const review = reviewGateFromJob(job);
-  const land = landGateStatusFromJob(job);
-  if (v === undefined && review === 'na' && land === 'na') return undefined;
-  return {
-    visual: mapGateVerdict(v?.visual),
-    review,
-    tests: mapGateVerdict(v?.tests),
-    typecheck: mapGateVerdict(v?.typecheck),
-    land,
-  };
-}
 
 function landReceiptFromJob(job: JobRecord): JobSnapshot['landReceipt'] {
   const receipt = job.landReceipt;
@@ -93,69 +35,12 @@ function landReceiptFromJob(job: JobRecord): JobSnapshot['landReceipt'] {
   };
 }
 
-const TRACK_SOURCE_LABEL: Record<
-  NonNullable<JobRecord['taskTrackSource']>,
-  string
-> = {
-  declared: 'you set',
-  inherited: 'from the parent job',
-  structural: 'from the contract',
-  inferred: 'Conductor judged',
-  pending: 'Conductor is judging',
-  default: 'coding default',
-};
-
-export function effectPreviewFromJob(job: JobRecord): JobEffectPreview {
-  const isolation = jobIsolationKind(job);
-  const pending = job.taskTrackSource === 'pending';
-  const track = pending ? undefined : job.taskTrack;
-  const surface =
-    job.surfaceKind === 'web' || job.surfaceKind === 'tui' || job.surfaceKind === 'mixed'
-      ? job.surfaceKind
-      : undefined;
-  const chipParts: string[] = [];
-  if (pending) {
-    chipParts.push('judging');
-  } else if (isolation === 'checkout') {
-    chipParts.push('checkout');
-  } else if (isolation === 'worktree') {
-    chipParts.push('worktree');
-  }
-  if (surface !== undefined) chipParts.push(surface);
-  if (job.premiumDensity === 'visual') chipParts.push('visual');
-  if (job.debugFixer === true) chipParts.push('debug');
-  if (job.explorePrototype === true) chipParts.push('prototype');
-  const chip = chipParts.length > 0 ? chipParts.join(' · ') : job.kind;
-
-  const summaryParts: string[] = [];
-  if (pending) {
-    summaryParts.push('track pending');
-  } else if (track === 'general') {
-    summaryParts.push('general');
-  } else if (track === 'coding' || isolation === 'worktree') {
-    summaryParts.push('coding');
-  }
-  if (isolation === 'checkout') summaryParts.push('this checkout');
-  if (isolation === 'worktree') summaryParts.push('isolated worktree');
-  if (isolation === 'none') summaryParts.push('no isolated worktree');
-  if (surface !== undefined) summaryParts.push(`${surface} surface`);
-  if (job.premiumDensity === 'visual') summaryParts.push('visual quality');
-  if (job.premiumDensity === 'code') summaryParts.push('code quality');
-  if (job.debugFixer === true) summaryParts.push('debug fixer');
-  if (job.explorePrototype === true) summaryParts.push('prototype');
-  if (job.taskTrackSource !== undefined) {
-    summaryParts.push(TRACK_SOURCE_LABEL[job.taskTrackSource]);
-  }
+function effectPreviewFromJob(job: JobRecord): JobEffectPreview {
+  const isolation = job.worktreePath === undefined ? 'none' : 'worktree';
   return {
     isolation,
-    chip,
-    summary: summaryParts.join(' · '),
-    ...(track === undefined ? {} : { taskTrack: track }),
-    ...(job.taskTrackSource === undefined ? {} : { taskTrackSource: job.taskTrackSource }),
-    ...(job.surfaceKind === undefined ? {} : { surfaceKind: job.surfaceKind }),
-    ...(job.premiumDensity === undefined ? {} : { premiumDensity: job.premiumDensity }),
-    ...(job.debugFixer === true ? { debugFixer: true } : {}),
-    ...(job.explorePrototype === true ? { explorePrototype: true } : {}),
+    chip: isolation === 'worktree' ? 'worktree' : job.kind,
+    summary: isolation === 'worktree' ? 'Isolated worktree' : 'No isolated worktree',
   };
 }
 
@@ -175,17 +60,15 @@ export function jobRecordToSnapshot(job: JobRecord): JobSnapshot {
     portOffset: job.portOffset,
     workerAgentId: job.workerAgentId,
     resultSummary: job.resultSummary,
+    filesChanged: job.filesChanged,
+    usage: job.usage,
     progress: job.progress,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
-    deliveryPhase: job.deliveryPhase,
     briefPreview: briefPreviewFromJob(job),
-    gateChecklist: gateChecklistFromJob(job),
     landReceipt: landReceiptFromJob(job),
     effectPreview: effectPreviewFromJob(job),
     parentJobId: job.parentJobId,
-    verifyVerdict: job.verifyVerdict,
-    debugFixer: job.debugFixer,
   };
 }
 
@@ -206,15 +89,10 @@ export function actionHintsForInboxKind(
       return ['jobInspect'];
     case 'job.completed':
       if (job?.landReceipt !== undefined) return ['jobInspect'];
-      if (job !== undefined && landGateStatusFromJob(job) === 'fail') {
-        return ['jobInspect', 'jobResume'];
-      }
       if (job?.landChoice === 'pending' && job.worktreePath !== undefined) {
         return ['jobKeep', 'jobApply', 'jobPush', 'jobInspect'];
       }
       return ['jobMerge', 'jobPush', 'jobInspect'];
-    case 'recovery.auto_resumed':
-      return ['jobInspect'];
     case 'recovery.held':
       return ['jobInspect', 'jobResume', 'jobCancel'];
     case 'recovery.reattach_failed':

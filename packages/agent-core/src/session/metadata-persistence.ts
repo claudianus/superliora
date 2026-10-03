@@ -82,30 +82,16 @@ export class SessionMetadataPersistence {
       const text = await kaos.readText(dest);
       return parse(text);
     } catch (error) {
-      const isMissing = isNotFoundError(error);
-      if (isMissing || !isNotFoundError(error)) {
-        try {
-          const backupText = await kaos.readText(backup);
-          const metadata = parse(backupText);
-          if (!isMissing) {
-            log.warn('state.json was corrupt; recovered session metadata from state.json.bak', {
-              error: error instanceof Error ? error.message : String(error),
-            });
-          } else {
-            log.warn('state.json missing; recovered session metadata from state.json.bak');
-          }
-          return metadata;
-        } catch {
-          // Backup also missing/unreadable — fall through to default below.
-        }
+      try {
+        const metadata = parse(await kaos.readText(backup));
+        log.warn('Recovered session metadata from state.json.bak', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return metadata;
+      } catch (backupError) {
+        if (isNotFoundError(error) && isNotFoundError(backupError)) return defaultMetadata;
+        throw new AggregateError([error, backupError], 'Session metadata and its backup could not be read.', { cause: backupError });
       }
-      if (!isMissing) {
-        log.warn(
-          'state.json and state.json.bak are both unreadable; starting with default session metadata',
-          { error: error instanceof Error ? error.message : String(error) },
-        );
-      }
-      return defaultMetadata;
     }
   }
 

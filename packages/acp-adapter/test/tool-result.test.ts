@@ -19,6 +19,10 @@ import type { Event, LioraHarness, Session } from '@superliora/sdk';
 import { AcpServer } from '../src/server';
 import { AUTHED_STATUS } from './_helpers/harness-stubs';
 import { toolResultToAcpContent } from '../src/convert';
+import {
+  toolCallStartToSessionUpdate,
+  toolCallStartedUpgradeToSessionUpdate,
+} from '../src/convert/events-map';
 
 class CollectingClient implements Client {
   readonly updates: SessionNotification[] = [];
@@ -133,7 +137,7 @@ describe('AcpServer tool.result → tool_call_update', () => {
         turnId,
         toolCallId,
         name: 'Bash',
-        args: { cmd: 'echo hi' },
+        args: { command: 'echo hi' },
       } as Event,
       {
         type: 'tool.result',
@@ -184,7 +188,7 @@ describe('AcpServer tool.result → tool_call_update', () => {
         turnId,
         toolCallId,
         name: 'Bash',
-        args: { cmd: 'false' },
+        args: { command: 'false' },
       } as Event,
       {
         type: 'tool.result',
@@ -231,7 +235,7 @@ describe('AcpServer tool.result → tool_call_update', () => {
         turnId,
         toolCallId,
         name: 'Bash',
-        args: { cmd: 'true' },
+        args: { command: 'true' },
       } as Event,
       {
         type: 'tool.result',
@@ -272,139 +276,41 @@ describe('AcpServer tool.result → tool_call_update', () => {
   });
 });
 
-describe('AcpServer tool.call.started with diff display', () => {
-  it('prepends a diff ToolCallContent entry when display.kind === "diff"', async () => {
-    const sessionId = 'sess-diff-1';
-    const turnId = 1;
-    const toolCallId = 'tc-diff';
-    const session = makeScriptedSession(sessionId, [
-      {
-        type: 'tool.call.started',
-        sessionId,
-        agentId: 'main',
-        turnId,
-        toolCallId,
-        name: 'Edit',
-        args: { path: 'a.txt', oldText: 'foo', newText: 'bar' },
-        display: { kind: 'diff', path: 'a.txt', before: 'foo', after: 'bar' },
-      } as Event,
-      { type: 'turn.ended', sessionId, agentId: 'main', turnId, reason: 'completed' } as Event,
-    ]);
-    const harness = {
-      auth: { status: async () => AUTHED_STATUS },
-      createSession: async () => session,
-    } as unknown as LioraHarness;
-
-    const { agentStream, clientStream } = makeInMemoryStreamPair();
-    new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);
-    const collecting = new CollectingClient();
-    const client = new ClientSideConnection(() => collecting, clientStream);
-    await client.newSession({ cwd: '/tmp/x', mcpServers: [] });
-    await client.prompt({ sessionId, prompt: [textBlock('go')] });
-    await flushNdjson();
-
-    expect(collecting.promptUpdates).toHaveLength(1);
-    const update = collecting.promptUpdates[0]?.update as {
-      sessionUpdate: string;
-      kind: string;
-      content: Array<{ type: string; path?: string; oldText?: string; newText?: string }>;
+describe('native tool display propagation', () => {
+  it.each([
+    {
+      name: 'Bash',
+      args: { command: 'printf bar > a.txt' },
+      display: { kind: 'command', command: 'printf bar > a.txt' },
+      text: 'printf bar > a.txt',
+    },
+    {
+      name: 'SessionControl',
+      args: { operation: 'inspect', sessionId: 'worker-one' },
+      display: { kind: 'generic', summary: 'Inspect worker-one' },
+      text: 'Inspect worker-one',
+    },
+  ] as const)('preserves $name display in both create and streamed upgrade', ({ name, args, display, text }) => {
+    const event = {
+      type: 'tool.call.started' as const,
+      turnId: 7,
+      toolCallId: 'native-call',
+      name,
+      args,
+      display,
     };
-    expect(update.sessionUpdate).toBe('tool_call');
-    expect(update.kind).toBe('edit');
-    // Diff entry should be first, args text second.
-    expect(update.content[0]).toEqual({
-      type: 'diff',
-      path: 'a.txt',
-      oldText: 'foo',
-      newText: 'bar',
-    });
-    expect(update.content[1]).toMatchObject({
-      type: 'content',
-      content: { type: 'text' },
-    });
-  });
-
-  it('prepends a diff entry for file_io display with before+after (Edit/Write payload)', async () => {
-    const sessionId = 'sess-diff-2';
-    const turnId = 1;
-    const toolCallId = 'tc-fio';
-    const session = makeScriptedSession(sessionId, [
-      {
-        type: 'tool.call.started',
-        sessionId,
-        agentId: 'main',
-        turnId,
-        toolCallId,
-        name: 'Edit',
-        args: { path: 'b.txt' },
-        display: {
-          kind: 'file_io',
-          operation: 'edit',
-          path: 'b.txt',
-          before: 'alpha',
-          after: 'beta',
-        },
-      } as Event,
-      { type: 'turn.ended', sessionId, agentId: 'main', turnId, reason: 'completed' } as Event,
-    ]);
-    const harness = {
-      auth: { status: async () => AUTHED_STATUS },
-      createSession: async () => session,
-    } as unknown as LioraHarness;
-
-    const { agentStream, clientStream } = makeInMemoryStreamPair();
-    new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);
-    const collecting = new CollectingClient();
-    const client = new ClientSideConnection(() => collecting, clientStream);
-    await client.newSession({ cwd: '/tmp/x', mcpServers: [] });
-    await client.prompt({ sessionId, prompt: [textBlock('go')] });
-    await flushNdjson();
-
-    const update = collecting.promptUpdates[0]?.update as {
-      content: Array<{ type: string; path?: string; oldText?: string; newText?: string }>;
-    };
-    expect(update.content[0]).toEqual({
-      type: 'diff',
-      path: 'b.txt',
-      oldText: 'alpha',
-      newText: 'beta',
-    });
-  });
-
-  it('does NOT prepend a diff entry for non-diff display kinds (e.g. command)', async () => {
-    const sessionId = 'sess-diff-skip';
-    const turnId = 1;
-    const toolCallId = 'tc-cmd';
-    const session = makeScriptedSession(sessionId, [
-      {
-        type: 'tool.call.started',
-        sessionId,
-        agentId: 'main',
-        turnId,
-        toolCallId,
-        name: 'Bash',
-        args: { cmd: 'ls' },
-        display: { kind: 'command', command: 'ls' },
-      } as Event,
-      { type: 'turn.ended', sessionId, agentId: 'main', turnId, reason: 'completed' } as Event,
-    ]);
-    const harness = {
-      auth: { status: async () => AUTHED_STATUS },
-      createSession: async () => session,
-    } as unknown as LioraHarness;
-
-    const { agentStream, clientStream } = makeInMemoryStreamPair();
-    new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);
-    const collecting = new CollectingClient();
-    const client = new ClientSideConnection(() => collecting, clientStream);
-    await client.newSession({ cwd: '/tmp/x', mcpServers: [] });
-    await client.prompt({ sessionId, prompt: [textBlock('go')] });
-    await flushNdjson();
-
-    const update = collecting.promptUpdates[0]?.update as {
-      content: Array<{ type: string }>;
-    };
-    expect(update.content).toHaveLength(1);
-    expect(update.content[0]?.type).toBe('content');
+    for (const map of [toolCallStartToSessionUpdate, toolCallStartedUpgradeToSessionUpdate]) {
+      const update = map('session-one', event).update;
+      expect(update).toMatchObject({
+        toolCallId: '7:native-call',
+        title: name,
+        status: 'in_progress',
+        rawInput: args,
+        content: [
+          { type: 'content', content: { type: 'text', text } },
+          { type: 'content', content: { type: 'text', text: JSON.stringify(args) } },
+        ],
+      });
+    }
   });
 });

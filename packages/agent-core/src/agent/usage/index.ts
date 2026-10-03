@@ -4,8 +4,6 @@ import type {
   CacheMissReasonHistogram,
   UsageStatus,
 } from '#/rpc';
-import { getLocalResearchCacheTelemetry } from '#/tools/providers/local-research-cache-telemetry';
-import { getSearchNeverEmptyTelemetry } from '#/tools/providers/search-never-empty-telemetry';
 import {
   addUsage,
   cacheHitRate as computeCacheHitRate,
@@ -132,7 +130,6 @@ export class UsageRecorder {
   /** Update cache-prefix stability diagnostics (called per step). */
   recordCacheDiagnostics(
     tools: readonly { name: string; description: string }[],
-    injectionCount: number,
     messageCount: number,
     stepUsage?: TokenUsage,
     model?: string,
@@ -148,7 +145,6 @@ export class UsageRecorder {
     this.lastCacheDiagnostics = {
       toolBlockHash,
       toolBlockChanged,
-      injectionCount,
       messageCount,
       ...(missReasons !== undefined ? { missReasons } : {}),
     };
@@ -165,11 +161,7 @@ export class UsageRecorder {
     };
   }
 
-  /**
-   * Consecutive recent turns whose cache hit rate met the warm target. Read
-   * by cache-affinity routing to decide whether the provider prefix is still
-   * live; deliberately absent from the status()/data() telemetry shapes.
-   */
+  /** Consecutive recorded warm turns; telemetry only. */
   get warmStreak(): number {
     return this.warmHitStreak;
   }
@@ -181,19 +173,8 @@ export class UsageRecorder {
 
   status(): UsageStatus | undefined {
     const status = this.data();
-    const neverEmpty = getSearchNeverEmptyTelemetry();
-    const localResearchCache = getLocalResearchCacheTelemetry();
-    const hasUsage =
-      status.byModel !== undefined ||
-      status.total !== undefined ||
-      status.currentTurn !== undefined;
-    const hasNeverEmpty =
-      neverEmpty.hardFailCount > 0 || neverEmpty.softDegradeCount > 0;
-    const hasLocalResearchCache =
-      localResearchCache.hits > 0 || localResearchCache.misses > 0;
-    if (!hasUsage && !hasNeverEmpty && !hasLocalResearchCache) {
-      return undefined;
-    }
+    const hasUsage = status.byModel !== undefined || status.total !== undefined || status.currentTurn !== undefined;
+    if (!hasUsage) return undefined;
     return {
       ...status,
       ...(hasUsage
@@ -204,8 +185,6 @@ export class UsageRecorder {
             cacheDiagnostics: this.lastCacheDiagnostics,
           }
         : {}),
-      searchNeverEmpty: neverEmpty,
-      ...(hasLocalResearchCache ? { localResearchCache } : {}),
     };
   }
 

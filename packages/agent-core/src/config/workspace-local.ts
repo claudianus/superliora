@@ -20,8 +20,9 @@ const WorkspaceLocalTomlSchema = z.object({
       sandbox_enforcement: z.enum(['lexical', 'process']),
     })
     .partial()
+    .strict()
     .optional(),
-});
+}).strict();
 
 type WorkspaceLocalToml = z.infer<typeof WorkspaceLocalTomlSchema>;
 

@@ -6,8 +6,12 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as WorktreeModule from '../../src/session/worktree';
 
-vi.mock('../../src/session/worktree', () => ({
+vi.mock('../../src/session/worktree', async (importOriginal) => {
+  const actual = await importOriginal<typeof WorktreeModule>();
+  return {
+    ...actual,
   removeSessionWorktree: vi.fn(async () => ({
     name: 'conductor-jtest',
     path: 'Z:/home/worktrees/repo/conductor-jtest',
@@ -17,12 +21,11 @@ vi.mock('../../src/session/worktree', () => ({
     createdAt: '2026-08-30T00:00:00.000Z',
     lastAccessedAt: '2026-08-30T00:00:00.000Z',
   })),
-}));
+  };
+});
 vi.mock('../../src/session/job/job-offload', () => ({
   requestJobSchedulePump: vi.fn(),
-}));
-vi.mock('../../src/session/job/conductor-wake', () => ({
-  requestConductorWake: vi.fn(),
+  cancelQueuedJobWorkerSpawn: vi.fn(() => false),
 }));
 
 import { removeSessionWorktree } from '../../src/session/worktree';
@@ -63,7 +66,7 @@ describe('cancelJobWorker pristine worktree cleanup', () => {
   it('removes the worktree immediately when no worker ever ran', async () => {
     const store = memoryStore();
     writeJobLedger(store, emptyJobLedger());
-    const job = createJob(store, { title: 'plan portfolio', kind: 'mission' });
+    const job = createJob(store, { title: 'Build portfolio', kind: 'task' });
     const { patchJob } = await import('../../src/tools/builtin/job/job-ledger');
     patchJob(store, job.id, {
       status: 'blocked',
@@ -113,7 +116,7 @@ describe('cancelJobWorker pristine worktree cleanup', () => {
   it('keeps the worktree for a never-ran job whose session name the operator pinned', async () => {
     const store = memoryStore();
     writeJobLedger(store, emptyJobLedger());
-    const job = createJob(store, { title: 'pinned plan', kind: 'mission' });
+    const job = createJob(store, { title: 'Pinned task', kind: 'task' });
     const { patchJob } = await import('../../src/tools/builtin/job/job-ledger');
     patchJob(store, job.id, {
       status: 'blocked',

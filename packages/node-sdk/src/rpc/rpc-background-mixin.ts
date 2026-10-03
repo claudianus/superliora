@@ -1,17 +1,9 @@
 /**
- * Background task and MCP RPC delegation for `SDKRpcClientBase` — extracted from rpc.ts.
+ * Background task RPC delegation.
  */
 
-import type {
-  BackgroundTaskInfo,
-  McpServerInfo,
-  McpStartupMetrics,
-} from '#/session/types';
-
-import type {
-  ReconnectMcpServerRpcInput,
-  SessionIdRpcInput,
-} from './rpc-types';
+import type { BackgroundTaskInfo } from '#/session/types';
+import type { SessionIdRpcInput } from './rpc-types';
 import { SDKRpcClientSessionMixin } from './rpc-session-mixin';
 
 export abstract class SDKRpcClientBackgroundMixin extends SDKRpcClientSessionMixin {
@@ -62,18 +54,4 @@ export abstract class SDKRpcClientBackgroundMixin extends SDKRpcClientSessionMix
     });
   }
 
-  async listMcpServers(input: SessionIdRpcInput): Promise<readonly McpServerInfo[]> {
-    const rpc = await this.getRpc();
-    return rpc.listMcpServers({ sessionId: input.sessionId });
-  }
-
-  async getMcpStartupMetrics(input: SessionIdRpcInput): Promise<McpStartupMetrics> {
-    const rpc = await this.getRpc();
-    return rpc.getMcpStartupMetrics({ sessionId: input.sessionId });
-  }
-
-  async reconnectMcpServer(input: ReconnectMcpServerRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.reconnectMcpServer({ sessionId: input.sessionId, name: input.name });
-  }
 }

@@ -6,85 +6,56 @@
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'pathe';
 
-/** Budget of automatic retries for crashed / failed-to-spawn workers. */
-export const JOB_AUTO_RETRY_LIMIT = 2;
-/** Backoff before each automatic retry attempt (indexed by attempt-1). */
-export const JOB_AUTO_RETRY_BACKOFF_MS: readonly number[] = [2_000, 8_000];
 
 import type { Kaos } from '@superliora/kaos';
 
 import type { Agent } from '../../../agent/index';
-import { runGit } from '../../../autopilot/git';
+import { hasUnsettledExecutionResources, runGit } from '../../../session/job/git';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
-import { pushJobInboxEvent } from './job-inbox';
-import { emitJobEvents, inboxToWireEvent, jobRecordToUpdatedEvent } from './job-emit';
-import {
-  resolveObjectiveProfileWithInfer,
-  uiSpawnQualityFlags,
-} from '../../../premium-quality';
-import { classifierDepsFromAgent } from '../../../utils/llm-classifier-utils';
-import { isDebugFixerJob, isExplorePrototypeJob } from './job-store-key';
-import { requestJobSchedulePump } from '../../../session/job/job-offload';
+import { areJobAdmissionsOpen, closeJobAdmission, openJobAdmission } from './job-runtime';
+import { cancelQueuedJobWorkerSpawn, requestJobSchedulePump } from '../../../session/job/job-offload';
 import { removeSessionWorktree } from '../../../session/worktree';
 import {
-  DEFAULT_SUBAGENT_TIMEOUT_MS,
   isSubagentDeadlineError,
-  JOB_WORKER_DEADLINE_GRACE_MS,
-  JOB_WORKER_FINISHING_CAP_MS,
-  resetActiveChildDeadline,
-  resolveJobWorkerLaunchTimeoutMs,
 } from '../../../session/subagent/subagent-host';
-import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
-import { renderFrictionSection } from '../../../session/subagent/subagent-friction';
-import {
-  renderVerificationSlots,
-  UNVERIFIED_SUMMARY_PREFIX,
-  verificationIsUnverified,
-} from '../../../session/subagent/subagent-result-contract';
-import { applySurfaceKindToContract, surfaceRequiresVisualProof } from './job-surface';
-import { inferPlayableFromChangeSet, playableStampForContract } from './job-playable';
-import { onJobTerminalForVerifyChain, parseVerifyVerdict } from './job-verify-chain';
 import { userCancellationReason } from '../../../utils/abort';
 import type { ToolStore } from '../../store';
 import {
+  bindJobWorkerHost,
+  getJobWorkerHost,
+  type JobWorkerHost,
   clearJobWorkerHandle,
   getJobWorkerHandle,
   registerJobWorkerHandle,
+  joinJobWorkerHandle,
   setJobWorkerAgentId,
   abortJobWorker as abortRegisteredJobWorker,
 } from './job-handles';
 import {
-  armJobWorkerProgressStall,
+  abortJobNativeOperations,
+  getJobNativeFailure,
+  hasJobNativeResources,
+  listJobNativeResourceIds,
+  jobResourceErrors,
+  retainJobNativeCleanup,
+  runJobNativeOperation,
+  settleJobNativeResources,
+} from './job-native-resources';
+import {
   bindJobWorkerLedger,
   buildDeadlineFailureSummary,
-  unbindJobWorkerLedger,
 } from './job-worker-ledger-bridge';
-import { syncGoalDeskParentFromDriver } from '../goal/goal-session-binding';
-import { EXPERT_CATALOG_BY_ID } from '../../../expert-agents/catalog';
-import { buildExpertAssignmentPrompt } from '../../../expert-agents/expert-persona';
-import { globalExpertSearchEngine } from '../../../expert-agents/search';
-import {
-  renderDeliveryPhaseContract,
-  renderGreenfieldSessionContract,
-  renderStructuredBriefSections,
-} from './job-brief';
 import { runMergeLandJob, type LandJobToMainInput } from './job-land';
 import { getJob, listJobs, patchJob, type JobRecord, type JobStatus } from './job-ledger';
 import { notifyJobTerminal, patchJobAndNotify } from './job-notify';
-import {
-  holderJobIdFromOwnershipError,
-  isOwnershipConflictError,
-  ownershipDeferredNote,
-} from './job-ownership';
 import { runPushRemoteJob } from './job-push';
-import { preflightJobWorkerModel } from './job-model-live';
-import { profileForJobKind } from './job-runtime';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
 import { jobDevServerPort } from '../../../session/worktree-setup';
 
 export interface LaunchJobWorkerInput {
   readonly store: ToolStore;
   readonly agent: Agent;
+  readonly workerHost?: JobWorkerHost;
   /** Injectable git runner for kind=merge land / kind=push (tests). */
   readonly runGit?: LandJobToMainInput['runGit'];
   readonly job: JobRecord;
@@ -100,9 +71,7 @@ export interface LaunchJobWorkerResult {
 }
 
 /**
- * Cap for accumulated JobSteer `notes` / `prompt` text. Stall-detection loops
- * steer the same worker repeatedly; without a cap the append chain grows the
- * job_ledger store snapshot unboundedly (observed 2.6MB single wire records).
+ * Cap accumulated operator steering text so the durable ledger remains bounded.
  */
 const JOB_STEER_NOTES_MAX_CHARS = 8_000;
 const JOB_STEER_PROMPT_MAX_CHARS = 32_000;
@@ -117,158 +86,29 @@ function capAppendTail(text: string, maxChars: number): string {
 }
 
 /** Cap for the parent job's result summary carried into a child worker prompt. */
-export const JOB_PRIOR_FINDINGS_MAX_CHARS = 2000;
+const JOB_PRIOR_FINDINGS_MAX_CHARS = 2000;
 
-function visualDodLines(job: JobRecord): readonly string[] {
-  if (job.kind === 'verify' || job.kind === 'explore' || job.kind === 'research') return [];
-  const kind = job.surfaceKind;
-  if (kind === 'web' || kind === 'mixed') {
-    return [
-      `- Visual DoD (${kind} surface): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface once on the real surface before done (≤4 min fail-fast, includes cold install). VerifySurface requires load+interaction+craft axes (interaction may report not_applicable on canvas/visual surfaces); BrowserScreenshot alone does not set visual=passed. If spawn EINVAL / host_browser=einval, stamp visual=skipped_host and stop — do not BrowserAct-explore or reinstall loops. MergeJob requires visual=passed only when host_browser=ok; tests + playable_path may land with skipped_host.`,
-      ...(kind === 'mixed'
-        ? [
-            '- Also land TUI visual smoke (`pnpm -C apps/liora run smoke:visual` or equivalent) before done — mixed surfaces need both web and TUI proof.',
-          ]
-        : []),
-    ];
-  }
-  if (kind === 'tui') {
-    return [
-      '- Visual DoD (tui surface): prove the real ANSI surface — run `pnpm -C apps/liora run smoke:visual` (or the brief verification_commands smoke) and cite the artifact under `.superliora/visual-smoke/`. VerifySurface is N/A for TUI. MergeJob hard-fails without visual=passed from smoke.',
-    ];
-  }
-  // surfaceKind none/undefined: no Visual DoD. PQ soft hints may still apply via spawn flags.
-  return [];
-}
-
-/** Media asset loop for implement/task/goal-driver — tools are key-gated on the worker. */
-function mediaDodLines(job: JobRecord): readonly string[] {
-  if (job.kind !== 'task' && job.kind !== 'implement' && job.kind !== 'goal-driver') return [];
-  return [
-    '- Media DoD (when the brief asks for assets): GenerateImage/GenerateVideo with provider=auto (or only a ready id from media_readiness) → ReadMediaFile → place real paths under the workspace; keep one style seed across related assets. Do not force qwen/openai/google without that backend. If those tools are absent from your tool list, stop blocked with key evidence — do not fake assets as done.',
-  ];
-}
-
-export function jobPrompt(
+function jobPrompt(
   job: JobRecord,
   store?: ToolStore,
-  recoveryWorktreeSnapshot?: string | undefined,
+  recoveryWorktreeSnapshot?: string,
 ): string {
-  const parentFindings = priorFindingsForJob(job, store);
-  const expertBlock = renderJobExpertBlock(job);
-  const parts = [
-    `You are a Conductor worker for job ${job.id}.`,
-    expertBlock,
-    `Title: ${job.title}`,
-    job.goalObjective
-      ? [
-          'This job owns an autonomous goal. The runtime created it on your agent —',
-          'do not create or replace it; pursue it across turns until done.',
-          `Objective: ${job.goalObjective}`,
-          job.goalCompletionCriterion
-            ? `Completion criterion: ${job.goalCompletionCriterion}`
-            : undefined,
-          job.goalGateCommand
-            ? `Gate command (must exit 0 before complete): \`${job.goalGateCommand}\``
-            : undefined,
-          'Report the outcome through UpdateGoal: complete when the criterion is met',
-          '(with verification evidence), blocked when an external blocker stops you.',
-        ]
-          .filter(Boolean)
-          .join('\n')
+  return [
+    job.prompt ?? job.title,
+    job.worktreePath ? `Working directory: ${job.worktreePath}` : undefined,
+    jobDevServerPort(job.portOffset) !== undefined
+      ? `Assigned development server port: ${String(jobDevServerPort(job.portOffset))}`
       : undefined,
-    job.kind === 'mission'
-      ? job.planStructured === false
-        ? [
-            'Plan Desk (regular): plan mode is active — write a concrete plan file, then ExitPlanMode.',
-            'Do not call EnterPlanMode or NextPhase. Do not implement product code.',
-          ].join('\n')
-        : [
-            'Plan Desk (ultra): structured plan mode is already active.',
-            'Do not call EnterPlanMode again. Use NextPhase / AskUserQuestion / RecordInterviewFinding.',
-            'When UltraGoal is verifiable, prefer NextPhase({ phase: \'write\' }) over design/review.',
-            'Write only to the plan file, then ExitPlanMode. Do not implement product code.',
-          ].join('\n')
+    job.contextPaths?.length ? `Context paths: ${job.contextPaths.join(', ')}` : undefined,
+    job.ownershipPaths?.length ? `Scope paths: ${job.ownershipPaths.join(', ')}` : undefined,
+    job.successCriteria?.length ? `Requested outcomes:\n${job.successCriteria.join('\n')}` : undefined,
+    job.mustNotTouch?.length ? `Excluded scope: ${job.mustNotTouch.join(', ')}` : undefined,
+    job.verificationCommands?.length
+      ? `Operator-requested checks:\n${job.verificationCommands.join('\n')}`
       : undefined,
-    isExplorePrototypeJob(job)
-      ? [
-          'Prototype explore: build throwaway code that answers ONE design question.',
-          'Mark it clearly as prototype; keep it trivial to run; no persistence by default; skip polish/tests.',
-          'Capture the verdict + question settled in the summary; leave a context pointer (branch/path). Do not merge prototype code to main as product.',
-          'Skill("prototype") for LOGIC vs UI branch details.',
-        ].join('\n')
-      : undefined,
-    job.deliveryMode === 'greenfield' && job.deliveryPhase === undefined
-      ? renderGreenfieldSessionContract()
-      : renderDeliveryPhaseContract(job.deliveryPhase),
-    renderStructuredBriefSections(job),
-    job.prompt?.trim() ? `Brief:\n${job.prompt.trim()}` : undefined,
-    job.contextPaths?.length
-      ? `Read these first: ${job.contextPaths.join(', ')}`
-      : undefined,
-    'Domain glossary: if CONTEXT.md exists at the repo root (or under a touched package), read it before naming things — use its terms; do not invent synonyms.',
-    parentFindings,
-    job.ownershipPaths?.length
-      ? `Preferred paths: ${job.ownershipPaths.join(', ')}`
-      : undefined,
-    job.sessionName
-      ? `Session name: ${job.sessionName}. The operator resumes this handle, not a role pipeline.`
-      : undefined,
-    job.worktreePath
-      ? `You are running in an isolated worktree: ${job.worktreePath}. Do not push to remotes — finish with a publishable summary (branch/sha/remote_ref) so Conductor can call PushJob / open Push Preview.${
-          jobDevServerPort(job.portOffset) !== undefined
-            ? ` Dev servers must bind PORT=${String(jobDevServerPort(job.portOffset))} (assigned for this session; do not steal 3000 from siblings).`
-            : ''
-        }`
-      : undefined,
+    priorFindingsForJob(job, store),
     renderRecoveryBriefAppendix(job, recoveryWorktreeSnapshot),
-    job.taskTrack === 'general' && (job.kind === 'task' || job.kind === 'implement')
-      ? [
-          'Worker contract (general track):',
-          '- Execute the host/operator request. Do not create a worktree, run git commit, open a release PR, or run pnpm run gate.',
-          '- Keep secrets blocked: never Read/Write/Edit .env, SSH keys, or credential files (PATH_SENSITIVE still applies).',
-          '- Destructive OS changes and package installs still need user approval evidence before claiming pass.',
-          '- Final summary MUST include JSON: {"generalVerdict":"passed"|"failed","proof":"<command exit or observation>"}.',
-          '- If blocked (env, missing info, contradiction), stop with a concrete blocker and what you tried — do not invent.',
-        ].join('\n')
-      : [
-          'Worker contract:',
-          ...(job.kind === 'verify'
-            ? [
-                job.surfaceKind === 'tui'
-                  ? '- Verify DoD: do not implement product features. Inspect the parent diff/summary against success criteria and test seams; run verification_commands when set; for TUI confirm visual smoke evidence (VerifySurface is N/A). Final summary MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.'
-                  : '- Verify DoD: do not implement product features. Inspect the parent diff/summary against success criteria and test seams; run verification_commands when set; for web surfaces call VerifySurface when a URL/HTML path exists. Final summary MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
-              ]
-            : job.kind === 'research'
-              ? [
-                  '- Research DoD: prefer DeepResearch / WebSearch / FetchURL / Context7 over multi-file code marathons. Cite sources. Do not edit the product tree.',
-                ]
-              : job.kind === 'explore'
-                ? [
-                    '- Explore DoD: read-only codebase discovery. Prefer RepoQuery/Grep/Read; report findings structured. Do not edit the product tree.',
-                  ]
-                : [
-                    '- Trace the brief against the codebase before editing (callers / fail path / success criteria).',
-                    '- Prefer the smallest diff that meets success criteria; stay inside ownership/context paths when set.',
-                    '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
-                  ]),
-          ...tddContractLines(job),
-          ...(isDebugFixerJob(job) ? debugContractLines(job) : []),
-          ...visualDodLines(job),
-          ...mediaDodLines(job),
-          ...(job.worktreePath !== undefined &&
-          job.kind !== 'verify' &&
-          job.kind !== 'explore' &&
-          job.kind !== 'research'
-            ? [
-                '- Commit your work in the job worktree before finishing (`git add -A && git commit`; local commits only, never push). This brief explicitly authorizes those commits — no confirmation loop needed. Land-to-main / PushJob use the branch tip, so uncommitted changes are invisible and lost at worktree GC.',
-              ]
-            : []),
-          '- If blocked (env, missing info, contradiction), stop with a concrete blocker and what you tried — do not invent.',
-          '- Final summary: what changed, how verified, what remains. If remote publish is needed, include branch name and suggested remote_ref (e.g. gh-pages) for PushJob.',
-        ].join('\n'),
-  ];
-  return parts.filter(Boolean).join('\n\n');
+  ].filter(Boolean).join('\n\n');
 }
 
 /**
@@ -302,7 +142,6 @@ export function renderRecoveryBriefAppendix(
 
   const parts = [
     '## Crash / resume continuity',
-    'Continue from the worktree as-is. Do not rewrite changes already present; finish the brief.',
     interruptLine !== undefined ? `Last interrupt/resume note: ${interruptLine.trim()}` : undefined,
     progressBits.length > 0 ? `Last progress: ${progressBits.join(' · ')}` : undefined,
     job.workerResumeAgentId !== undefined
@@ -320,16 +159,17 @@ export function renderRecoveryBriefAppendix(
 async function snapshotWorktreeForRecovery(
   kaos: Kaos | undefined,
   worktreePath: string | undefined,
+  signal?: AbortSignal,
 ): Promise<string | undefined> {
   if (worktreePath === undefined || worktreePath.trim().length === 0) return undefined;
   if (kaos === undefined) {
     return `Worktree path retained: ${worktreePath} (git status unavailable).`;
   }
-  const head = await runGit(kaos, worktreePath, ['rev-parse', '--short', 'HEAD']);
+  const head = await runGit(kaos, worktreePath, ['rev-parse', '--short', 'HEAD'], 0, signal);
   if (!head.ok) {
     return `Worktree path retained: ${worktreePath} (git status unavailable).`;
   }
-  const status = await runGit(kaos, worktreePath, ['status', '--porcelain']);
+  const status = await runGit(kaos, worktreePath, ['status', '--porcelain'], 0, signal);
   const dirty = status.stdout
     .split('\n')
     .map((l) => l.trim())
@@ -341,64 +181,6 @@ async function snapshotWorktreeForRecovery(
   ].join('\n');
 }
 
-function tddContractLines(job: JobRecord): readonly string[] {
-  if (job.kind === 'verify' || job.kind === 'research' || job.kind === 'explore') return [];
-  if (isDebugFixerJob(job)) return [];
-  if (job.kind !== 'task' && job.kind !== 'implement') return [];
-  const mode = job.tddMode ?? 'preferred';
-  if (mode === 'off') return [];
-  const seams =
-    job.testSeams !== undefined && job.testSeams.length > 0
-      ? job.testSeams.join('; ')
-      : undefined;
-  const lines = [
-    mode === 'required'
-      ? '- TDD DoD (required): write a failing test at a pre-agreed seam before implementation; no green without red. Skill("tdd") for seam/anti-pattern reference only.'
-      : '- TDD DoD (preferred): prefer red→green at public seams; avoid tautological or implementation-coupled tests. Skill("tdd") for seam/anti-pattern reference only.',
-  ];
-  if (seams !== undefined) {
-    lines.push(`- Test only at these seams: ${seams}. Do not invent unconfirmed seams.`);
-  }
-  return lines;
-}
-
-function debugContractLines(job: JobRecord): readonly string[] {
-  const repro = job.reproCommand?.trim();
-  return [
-    '- Debug DoD (diagnosing Phase 1 first): build a tight red-capable feedback loop for the user symptom before hypothesising. Skill("diagnosing-bugs") for the full loop only.',
-    repro !== undefined && repro.length > 0
-      ? `- Known repro command: \`${repro}\` — run it, show redacted output, then minimise before fixing.`
-      : '- No repro_command yet — invent/run one agent-runnable command that goes red on this bug; record repro_command + repro_output in the summary before any fix.',
-    '- After a red loop exists: minimise → falsifiable hypotheses → smallest fix → re-verify. Do not expand scope or ship unrelated features.',
-  ];
-}
-
-function renderJobExpertBlock(job: JobRecord): string | undefined {
-  const expertId = job.expertId?.trim();
-  if (expertId === undefined || expertId.length === 0) return undefined;
-  const expert =
-    globalExpertSearchEngine.getExpertById(expertId) ?? EXPERT_CATALOG_BY_ID[expertId];
-  if (expert === undefined) {
-    return [
-      `Staffed expert id: ${expertId}`,
-      `Job kind: ${job.kind}`,
-      job.expertScore !== undefined ? `Staff score: ${String(job.expertScore)}` : undefined,
-    ]
-      .filter(Boolean)
-      .join('\n');
-  }
-  return [
-    buildExpertAssignmentPrompt(expert, {
-      taskDescription: job.prompt ?? job.title,
-      selectionReason: job.staffQuery,
-      phase: job.kind,
-    }),
-    `Job kind: ${job.kind}`,
-    job.expertScore !== undefined ? `Staff score: ${String(job.expertScore)}` : undefined,
-  ]
-    .filter(Boolean)
-    .join('\n');
-}
 
 /**
  * Carry the parent job's result summary into a child worker prompt so
@@ -409,40 +191,10 @@ function priorFindingsForJob(job: JobRecord, store?: ToolStore): string | undefi
   const parent = getJob(store, job.parentJobId);
   if (parent === undefined) return undefined;
   const summary = parent.resultSummary?.trim();
-  const factLines = contractFactLines(parent.resultContract);
-  if ((summary === undefined || summary.length === 0) && factLines.length === 0) {
-    return undefined;
-  }
-  const cappedSummary =
-    summary === undefined || summary.length === 0
-      ? undefined
-      : summary.length > JOB_PRIOR_FINDINGS_MAX_CHARS
-        ? `${summary.slice(0, JOB_PRIOR_FINDINGS_MAX_CHARS)}\n[truncated]`
-        : summary;
-  const body = [cappedSummary, ...factLines].filter(Boolean).join('\n');
-  return `Prior findings from parent job ${parent.id}:\n${body}`;
+  if (!summary) return undefined;
+  return `Prior result from job ${parent.id}:\n${summary.slice(0, JOB_PRIOR_FINDINGS_MAX_CHARS)}`;
 }
 
-/** Structured handoff facts from the worker contract (files changed, verification). */
-function contractFactLines(
-  contract: JobRecord['resultContract'],
-): readonly string[] {
-  if (contract === undefined) return [];
-  const lines: string[] = [];
-  if (contract.files_changed.length > 0) {
-    const shown = contract.files_changed.slice(0, 10).join(', ');
-    const more =
-      contract.files_changed.length > 10
-        ? ` (+${contract.files_changed.length - 10} more)`
-        : '';
-    lines.push(`Files changed: ${shown}${more}`);
-  }
-  const v = contract.verification;
-  lines.push(
-    `Verification: tests=${v.tests}, typecheck=${v.typecheck}, lint=${v.lint}, visual=${v.visual ?? 'not_run'}`,
-  );
-  return lines;
-}
 
 function isTerminalOrCancelled(status: JobStatus): boolean {
   return (
@@ -462,164 +214,27 @@ function isTerminalOrCancelled(status: JobStatus): boolean {
 async function snapshotWorkerWorktree(
   agent: Agent,
   job: JobRecord,
+  store: ToolStore,
 ): Promise<string | undefined> {
   if (job.worktreePath === undefined || agent.kaos === undefined) return undefined;
   try {
-    const result = await commitJobWorktreeIfDirty({
+    const result = await runJobNativeOperation(store, job.id, {
+      paths: [job.worktreePath],
+    }, (_holdPath, signal) => commitJobWorktreeIfDirty({
       kaos: agent.kaos,
-      worktreePath: job.worktreePath,
+      signal,
+      worktreePath: job.worktreePath!,
       jobId: job.id,
       jobTitle: job.title,
-    });
+    }));
     if (result.committed) return 'commit: snapshotted dirty worktree (worker had not committed)';
     return result.error !== undefined ? `commit_failed: ${result.error}` : undefined;
   } catch (error) {
+    if (hasUnsettledExecutionResources(error)) throw error;
     return `commit_failed: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 
-interface AdmitJobWorkerLaunchInput {
-  readonly store: ToolStore;
-  readonly agent: Agent;
-  readonly job: JobRecord;
-  /** Override for the whole admission step; defaults to the module budget. */
-  readonly admissionBudgetMs?: number;
-}
-
-type AdmitJobWorkerLaunchResult =
-  | { readonly ok: true; readonly job: JobRecord }
-  | { readonly ok: false; readonly error: string };
-
-/**
- * Ceiling on the whole admission step (objective-profile judgment + model
- * probes). The probes walk the alias chain serially with a 12s timeout each,
- * so a degraded provider needs a total bound of its own now that the spawn
- * handshake budget no longer covers this work.
- */
-const JOB_WORKER_MODEL_ADMISSION_BUDGET_MS = 30_000;
-
-/**
- * Resolve the objective profile and probe the worker model *before* the job
- * takes a spawn slot.
- *
- * The probe is a live request per alias, walked serially with a 12s timeout
- * each. Run inside the spawn handshake it consumed the 30s handshake budget and
- * held a slot, so one degraded provider stalled the whole fleet (all six slots
- * parked in probe loops) and the job was recorded as `spawn_budget_exceeded` —
- * a timeout, when the true cause was `no live worker model`.
- *
- * Runs on the offload lane ahead of `enqueueJobWorkerSpawn`, so it consumes
- * neither a slot nor the handshake budget, and the real reason reaches the
- * ledger, the inbox, and Goal Desk.
- *
- * Never throws: the pump turns a throw from the launch step into
- * `failed/launch_failed`, which would misclassify a quota or auth block.
- */
-export async function admitJobWorkerLaunch(
-  input: AdmitJobWorkerLaunchInput,
-): Promise<AdmitJobWorkerLaunchResult> {
-  let job = input.job;
-  const admissionBudgetMs = Math.max(
-    1,
-    input.admissionBudgetMs ?? JOB_WORKER_MODEL_ADMISSION_BUDGET_MS,
-  );
-  const admissionSignal = AbortSignal.timeout(admissionBudgetMs);
-  try {
-    const objectiveBlob = [job.title, job.prompt, job.goalObjective].filter(Boolean).join('\n');
-    const objectiveProfile = await resolveObjectiveProfileWithInfer(
-      {
-        objective: objectiveBlob,
-        title: job.title,
-        prompt: job.prompt,
-        successCriteria: job.successCriteria,
-        verificationCommands: job.verificationCommands,
-        surfaceKind: job.surfaceKind,
-        ownershipPaths: job.ownershipPaths,
-        contextPaths: job.contextPaths,
-      },
-      classifierDepsFromAgent(input.agent),
-      {},
-    );
-    if (objectiveBlob.trim().length > 0 && input.agent.objectiveProfile !== undefined) {
-      input.agent.objectiveProfile.set(objectiveBlob, objectiveProfile);
-    }
-    job =
-      patchJob(input.store, job.id, {
-        premiumDensity: objectiveProfile.premiumDensity,
-        notes: [job.notes, `premium_density: ${objectiveProfile.premiumDensity}`]
-          .filter(Boolean)
-          .join('\n'),
-      }) ?? job;
-    emitJobEvents(input.agent, [jobRecordToUpdatedEvent(job, { reason: 'effect' })]);
-    const uiFlags = uiSpawnQualityFlags({
-      surfaceKind: job.surfaceKind,
-      profile: objectiveProfile,
-    });
-
-    // Live probe before spawn — do not attach a worker to a quota/auth-dead alias.
-    const modelPreflight = await preflightJobWorkerModel(input.agent, job, {
-      signal: admissionSignal,
-      preferVision: uiFlags?.preferVisionModel === true,
-    });
-    if (!modelPreflight.ok) {
-      return { ok: false, ...blockJobForModelPreflight(input, job, modelPreflight) };
-    }
-    if (modelPreflight.modelAlias !== undefined && modelPreflight.modelAlias !== job.modelAlias) {
-      patchJob(input.store, job.id, { modelAlias: modelPreflight.modelAlias });
-      job = { ...job, modelAlias: modelPreflight.modelAlias };
-    }
-    return { ok: true, job };
-  } catch (error) {
-    // A probe that ignores the deadline rejects rather than returning ok:false;
-    // report the budget honestly instead of an opaque AbortError.
-    if (admissionSignal.aborted) {
-      return {
-        ok: false,
-        ...blockJobForModelPreflight(input, job, {
-          note: 'preflight_timeout',
-          error: `no worker model was confirmed within ${String(admissionBudgetMs)}ms`,
-        }),
-      };
-    }
-    const detail = error instanceof Error ? error.message : String(error);
-    return { ok: false, ...blockJobForModelPreflight(input, job, { note: '', error: detail }) };
-  }
-}
-
-/**
- * Model/quota blockers are resumable — `blocked` (not `failed`) so /goal resume
- * and JobResume re-queue after /model or provider recovery. Heal treats
- * `blocked` as live, so mirror Goal Desk immediately. A job that left `running`
- * while the probe ran (user cancel) is left alone.
- */
-function blockJobForModelPreflight(
-  input: AdmitJobWorkerLaunchInput,
-  job: JobRecord,
-  failure: { readonly note: string; readonly error: string },
-): { readonly error: string } {
-  const live = getJob(input.store, job.id);
-  if (live !== undefined && (live.status === 'blocked' || isTerminalOrCancelled(live.status))) {
-    return { error: failure.error };
-  }
-  const updated = patchJob(input.store, job.id, {
-    status: 'blocked',
-    resultSummary: failure.error.slice(0, 2000),
-    notes: [job.notes, failure.note, `spawn_blocked: ${failure.error}`]
-      .filter(Boolean)
-      .join('\n'),
-  });
-  if (updated) {
-    syncGoalDeskParentFromDriver(input.store, updated, input.agent);
-    notifyJobTerminal({
-      store: input.store,
-      job: updated,
-      status: 'blocked',
-      summary: failure.error,
-      agent: input.agent,
-    });
-  }
-  return { error: failure.error };
-}
 
 /**
  * Launch a background subagent for a job that is already `running` with worktree assigned.
@@ -630,22 +245,12 @@ function blockJobForModelPreflight(
  */
 export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<LaunchJobWorkerResult> {
   let job = getJob(input.store, input.job.id) ?? input.job;
+  if (!areJobAdmissionsOpen(input.store, job.id)) return { ok: false, error: 'Job runtime is closed.' };
+  if (input.workerHost) bindJobWorkerHost(input.store, input.workerHost);
   if (job.status !== 'running') {
     return { ok: false, error: `job not running: ${job.status}` };
   }
 
-  // Goal Desk v1: ledger umbrella only — child goal-driver owns the LLM loop.
-  // No subagentHost required (desk never spawns an LLM worker). Pump so the
-  // driver (parent=desk) is not left queued forever under a running umbrella.
-  if (job.kind === 'goal-desk') {
-    patchJob(input.store, job.id, {
-      notes: [job.notes, 'goal-desk: umbrella (no worker; drivers execute)']
-        .filter(Boolean)
-        .join('\n'),
-    });
-    pumpSchedulerAfterWorker(input.agent, input.store);
-    return { ok: true };
-  }
 
   // Merge landing: deterministic git land on the source worktree — never an LLM.
   if (job.kind === 'merge') {
@@ -684,13 +289,17 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     return { ok: true };
   }
 
-  const host = input.agent.subagentHost;
+  const host = input.workerHost ?? getJobWorkerHost(input.store);
   if (host === undefined) {
-    return { ok: false, error: 'subagentHost unavailable' };
+    patchJobAndNotify(input.store, job.id, {
+      status: 'failed',
+      resultSummary: 'Worker session host unavailable.',
+    }, { agent: input.agent });
+    return { ok: false, error: 'Worker session host unavailable.' };
   }
 
   const controller = new AbortController();
-  registerJobWorkerHandle(job.id, controller);
+  const registered = registerJobWorkerHandle(input.store, job.id, controller, job.worktreePath ? [job.worktreePath] : []);
 
   if (input.signal) {
     if (input.signal.aborted) {
@@ -707,172 +316,45 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     return { ok: false, error: 'aborted before spawn' };
   }
 
-  const profileName = profileForJobKind(job.kind);
-  // The objective-profile judgment and the model preflight ran in admission, on
-  // the offload lane before this job took a spawn slot. Read the persisted
-  // density back so the spawn flags stay identical.
-  const uiFlags = uiSpawnQualityFlags({
-    surfaceKind: job.surfaceKind,
-    profile: {
-      premiumDensity: job.premiumDensity ?? 'code',
-      visualSurface: job.premiumDensity === 'visual',
-    },
-  });
-
-  // Re-check before spawn: the user may have cancelled while admission ran.
-  // Attaching a worker to a non-live ledger state double-runs the worktree on
-  // the next JobResume.
-  if (controller.signal.aborted) {
-    clearJobWorkerHandle(job.id);
-    return { ok: false, error: 'aborted before spawn' };
-  }
-  const liveJob = getJob(input.store, job.id);
-  if (
-    liveJob !== undefined &&
-    (liveJob.status === 'blocked' || isTerminalOrCancelled(liveJob.status))
-  ) {
-    clearJobWorkerHandle(job.id);
-    return { ok: false, error: `job no longer live before spawn (${liveJob.status})` };
-  }
-
-  const baseTaskFields = {
-    // Async git snapshot precomputed off the event loop (execFileSync used to
-    // block the shared WorkerSpawner handshake window here).
-    prompt: jobPrompt(
-      job,
-      input.store,
-      await snapshotWorktreeForRecovery(input.agent.kaos, job.worktreePath),
-    ),
-    description: job.title.slice(0, 80),
-    profileName,
-    // verify / explore / research never take exclusive write leases (belt +
-    // suspenders for manually created Jobs that still set ownershipPaths).
-    ownership:
-      job.kind === 'verify' || job.kind === 'explore' || job.kind === 'research'
-        ? undefined
-        : job.ownershipPaths
-          ? [...job.ownershipPaths]
-          : undefined,
-    worktreeDir: job.worktreePath,
-    // Visual surface Jobs force Premium Quality ON even when the Conductor toggle is OFF.
-    forcePremiumQuality: uiFlags?.forcePremiumQuality,
-    // Text-only coding models cannot audit screenshots; prefer a vision alias.
-    preferVisionModel: uiFlags?.preferVisionModel,
-    // Conductor-picked / live-probed worker model; the admission step pinned the
-    // probed alias on the ledger, so read it back (omit → role smart route).
-    modelAlias: job.modelAlias,
-    // Goal-driver (spec 2026-08-04-goal-driver-jobs): the goal migrates onto
-    // the worker, whose turn engine then runs the autonomous loop. The brief
-    // doubles as the objective; JobCreate validated its length.
-    goal:
-      job.kind === 'goal-driver'
-        ? {
-            objective: job.goalObjective ?? job.prompt?.trim() ?? job.title,
-            completionCriterion: job.goalCompletionCriterion,
-            ...(job.goalGateCommand !== undefined
-              ? { gateCommand: job.goalGateCommand }
-              : {}),
-            budgetLimits: job.goalBudgetLimits,
-          }
-        : undefined,
-    // One-shot finishing grace: the 30m wall-clock re-arms once so a healthy
-    // finish is not guillotined at the line (snapshot-on-abort stays as the
-    // backstop).
-    deadlineGraceOnceMs: JOB_WORKER_DEADLINE_GRACE_MS,
-    // H8: finite cap on the finishing phase. Observed failure: the worker
-    // entered `finishing`, tool activity stopped for 3-7 minutes, and the run
-    // was killed at the 30m wall-clock with `reason: deadline`, no report, and
-    // uncommitted work. The cap ends such a silent finishing phase early with
-    // a diagnostic result (interrupted reason + progress + resume handoff);
-    // the worktree snapshot below stays as the dirty-tree backstop.
-    finishingCapMs: JOB_WORKER_FINISHING_CAP_MS,
-    notifyDeadlineGrace: () => {
-      try {
-        const current = getJob(input.store, job.id) ?? job;
-        const next = patchJob(input.store, job.id, {
-          notes: [
-            current.notes,
-            `deadline_grace: wall-clock limit hit — one-shot ${Math.round(JOB_WORKER_DEADLINE_GRACE_MS / 60_000)}m finishing window granted (commit and summarize now)`,
-          ]
-            .filter(Boolean)
-            .join('\n'),
-        });
-        if (next !== undefined) {
-          emitJobEvents(input.agent, [jobRecordToUpdatedEvent(next)]);
-        }
-      } catch {
-        // Notice is best-effort; the grace is armed in the spawn spec.
-      }
-    },
-    // Isolated worktree + brief-scoped work: run yolo so an unattended
-    // approval request cannot stall the job (observed 582s waits). PushJob
-    // and other self-gated tools keep their own confirmation gates.
-    permissionMode: 'yolo',
-    // Plan Desk: plan mode on the plan-profile worker (not Conductor).
-    plan:
-      job.kind === 'mission'
-        ? {
-            ultra: job.planStructured !== false,
-            initialContext: job.prompt?.trim() || job.title,
-            planId: `job-${job.id}`,
-          }
-        : undefined,
-  } as const;
-  const resumeAgentId = job.workerResumeAgentId?.trim() || undefined;
-  const task: FanoutTask = {
-    ...baseTaskFields,
-    ...(resumeAgentId !== undefined ? { resumeAgentId } : {}),
-  };
-  const parentToolCallId = `job:${job.id}:${randomUUID().slice(0, 8)}`;
-  // Mission (Plan Desk) uses the longer plan-desk budget; implement/verify stay 30m.
-  // Resume inherits spent wall-clock from workerDeadlineStartedAt (never full reset);
-  // a fully spent resume re-grants the fresh kind budget instead of the 1ms
-  // sentinel (which aborts before the first turn) — and never 0, the env kill-switch.
-  const workerTimeoutMs = resolveJobWorkerLaunchTimeoutMs(
-    job.kind,
-    job.workerDeadlineStartedAt,
-  );
-  const spec: FanoutSpec = {
-    mode: 'manual',
-    parentToolCallId,
-    runInBackground: true,
-    signal: controller.signal,
-    timeoutMs: workerTimeoutMs,
-    tasks: [task],
-  };
-
   const spawn = input.spawnOne ?? spawnOneAgent;
-
   try {
-    let handle;
-    let reattached = false;
-    try {
-      handle = await spawn(host, spec, task);
-      reattached = resumeAgentId !== undefined && handle.resumed === true;
-    } catch (resumeError: unknown) {
-      if (resumeAgentId === undefined) throw resumeError;
-      // Checkpoint reattach failed — cold spawn with soft-continuity brief.
-      const failSummary =
-        resumeError instanceof Error ? resumeError.message : String(resumeError);
-      const inboxEvent = pushJobInboxEvent(input.store, {
-        kind: 'recovery.reattach_failed',
-        jobId: job.id,
-        status: job.status,
-        title: job.title,
-        summary: `reattach ${resumeAgentId} failed: ${failSummary.slice(0, 240)}; cold spawn`,
-      });
-      emitJobEvents(input.agent, [inboxToWireEvent(inboxEvent)]);
-      const coldTask: FanoutTask = { ...baseTaskFields };
-      handle = await spawn(host, { ...spec, tasks: [coldTask] }, coldTask);
-      reattached = false;
+    const recovery = await runJobNativeOperation(input.store, job.id, {
+      paths: [job.worktreePath],
+    }, () => snapshotWorktreeForRecovery(input.agent.kaos, job.worktreePath, controller.signal));
+    const current = getJob(input.store, job.id);
+    if (!areJobAdmissionsOpen(input.store, job.id) || controller.signal.aborted || current?.status !== 'running') {
+      clearJobWorkerHandle(job.id);
+      return { ok: false, error: 'worker stopped during preparation' };
     }
+    job = current;
+    const baseTaskFields = {
+      prompt: jobPrompt(job, input.store, recovery),
+      description: job.title.slice(0, 80),
+      profileName: 'agent',
+      ownership: job.ownershipPaths ? [...job.ownershipPaths] : undefined,
+      worktreeDir: job.worktreePath,
+      modelAlias: job.modelAlias,
+    } as const;
+    const resumeAgentId = job.workerResumeAgentId?.trim() || undefined;
+    const task: FanoutTask = {
+      ...baseTaskFields,
+      ...(resumeAgentId !== undefined ? { resumeAgentId } : {}),
+    };
+    const parentToolCallId = `job:${job.id}:${randomUUID().slice(0, 8)}`;
+    const spec: FanoutSpec = {
+      parentToolCallId,
+      runInBackground: true,
+      signal: controller.signal,
+      timeoutMs: job.timeoutMs,
+      tasks: [task],
+    };
+    const handle = await spawn(host, spec, task);
+    const reattached = resumeAgentId !== undefined && handle.resumed === true;
+    registered.resourcesSettled = () => handle.resourcesSettled;
+    registered.stopAndJoin = () => host.stopAndJoin(handle.agentId, userCancellationReason());
     setJobWorkerAgentId(job.id, handle.agentId);
     bindJobWorkerLedger(handle.agentId, input.store, job.id, input.agent);
-    // Post-spawn progress stall (120s): independent of the 30s handshake budget.
-    const disposeProgressStall = armJobWorkerProgressStall(handle.agentId);
     const nowIso = new Date().toISOString();
-    // First bind pins the wall-clock deadline start; reattach never resets it.
-    const deadlineStartedAt = job.workerDeadlineStartedAt ?? nowIso;
     const workerHomedir =
       input.agent.homedir !== undefined && input.agent.homedir.length > 0
         ? join(dirname(input.agent.homedir), handle.agentId)
@@ -881,13 +363,12 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
       workerAgentId: handle.agentId,
       workerResumeAgentId: handle.agentId,
       workerCheckpointAt: nowIso,
-      workerDeadlineStartedAt: deadlineStartedAt,
       ...(workerHomedir !== undefined ? { workerHomedir } : {}),
       notes: [
         job.notes,
         reattached
-          ? `worker-reattach: ${handle.agentId} (${profileName})`
-          : `worker: ${handle.agentId} (${profileName})`,
+          ? `worker-reattach: ${handle.agentId}`
+          : `worker: ${handle.agentId}`,
       ]
         .filter(Boolean)
         .join('\n'),
@@ -896,175 +377,42 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     // Fire-and-forget: interactive lane must not await worker completion.
     void handle.completion
       .then(async (completion) => {
-        disposeProgressStall();
+        if (handle.resourcesSettled !== true) {
+          const error = new Error(`Worker completed without releasing native resources: ${job.id}`);
+          Object.defineProperty(error, 'resourcesSettled', { get: () => handle.resourcesSettled === true });
+          throw error;
+        }
         const current = getJob(input.store, job.id);
-        // Terminal ledger states — including a verification-guard pre-abort
-        // `failed` and an already-recorded `done` — keep their verdict. The
-        // worker may still have been running when the guard fired; its
-        // completion must never overwrite the earlier decision.
-        if (current !== undefined && isTerminalOrCancelled(current.status)) {
+        // Late completion cannot overwrite an operator cancel or interrupt.
+        if (controller.signal.aborted || getJobWorkerHandle(job.id)?.controller !== controller ||
+            (current !== undefined && isTerminalOrCancelled(current.status))) {
           return;
         }
-        // Commit backstop: a dirty worktree here means the worker skipped the
-        // contract — snapshot so land/merge and GC cannot lose the work.
-        const commitNote = await snapshotWorkerWorktree(input.agent, current ?? job);
         const ledgerJob = current ?? job;
-        const contract =
-          completion.contract !== undefined
-            ? applySurfaceKindToContract(completion.contract, ledgerJob.surfaceKind, {
-                ledgerVisual: undefined,
-              })
-            : undefined;
-        const rawSummary =
-          typeof completion.result === 'string'
-            ? completion.result
-            : String(completion.result ?? '');
-        const contractSummary = contract?.summary.trim() ?? '';
-        // Prefer the contract summary for storage: the free-form result may
-        // embed the JSON envelope, which eats the stored-summary budget.
-        const summary =
-          (contractSummary || rawSummary.trim()).slice(0, 4000) || 'worker completed';
-        const discoveryKind =
-          ledgerJob.kind === 'explore' || ledgerJob.kind === 'research';
-        const verificationFailed =
-          discoveryKind ? false : contract?.verification_failed === true;
-        const hostBrowserEinval =
-          contract?.verification?.host_browser === 'einval' ||
-          contract?.verification?.visual === 'skipped_host';
-        // The gate skips more often than it runs (explore jobs, multi-package
-        // changes, paths outside the workspace layout, gate timeouts). Such a
-        // job is still `done`, but saying so plainly keeps the conductor from
-        // reading "no failure" as "verified" when it decides to merge.
-        const unverified =
-          !discoveryKind &&
-          !verificationFailed &&
-          verificationIsUnverified(contract?.verification, {
-            requireVisual: surfaceRequiresVisualProof(ledgerJob.surfaceKind),
-          });
-        const playableStamp = playableStampForContract(contract, ledgerJob);
-        const playable =
-          contract?.verification.playable ??
-          inferPlayableFromChangeSet(contract?.files_changed ?? [], summary);
-        const stampedContract =
-          contract === undefined
-            ? undefined
-            : {
-                ...contract,
-                verification: {
-                  ...contract.verification,
-                  playable,
-                },
-              };
-        // Goal-driver terminal mapping (spec 2026-08-04-goal-driver-jobs §3.5):
-        // a stopped goal (blocked/paused — budget circuit breaker, stagnation,
-        // or a worker-reported blocker) escalates as a resumable `blocked` Job;
-        // the verification gate still outranks it (invariant 4).
-        // host_browser=einval: visual may stay failed, but mechanical-green
-        // implement is not product-incomplete (fill/chain must not hard-stop).
-        const goalStopped =
-          completion.goalStatus === 'blocked' || completion.goalStatus === 'paused';
-        const finalStatus: JobStatus = verificationFailed
+        const commitNote = await snapshotWorkerWorktree(input.agent, ledgerJob, input.store);
+        if (controller.signal.aborted || getJobWorkerHandle(job.id)?.controller !== controller) return;
+        const summary = String(completion.result ?? '').trim().slice(0, 4500);
+        const effectiveStatus: JobStatus = commitNote?.startsWith('commit_failed:')
           ? 'failed'
-          : goalStopped
-            ? 'blocked'
-            : 'done';
-        // Parse BEFORE the 4k storage slice — dual-axis JSON is usually at the
-        // end of a long report and gets cut mid-`findings` otherwise.
-        const verifyVerdictField =
-          ledgerJob.kind === 'verify'
-            ? (() => {
-                const parsed =
-                  parseVerifyVerdict(rawSummary.trim()) ??
-                  parseVerifyVerdict(contractSummary) ??
-                  parseVerifyVerdict(summary);
-                if (parsed === 'passed' || parsed === 'failed') return parsed;
-                return undefined;
-              })()
-            : undefined;
-        // Done without dual-axis JSON is a format failure — fail so Conductor does not MergeJob.
-        const verifyMissingStructured =
-          ledgerJob.kind === 'verify' &&
-          finalStatus === 'done' &&
-          verifyVerdictField === undefined;
-        const effectiveStatus: JobStatus = verifyMissingStructured ? 'failed' : finalStatus;
-        const goalReason = completion.goalTerminalReason
-          ? ` (${completion.goalTerminalReason})`
-          : '';
-        // Keep a compact, parseable verdict line ahead of the truncated prose
-        // so resume heal / JobInspect still see dual-axis JSON after the 4k cut.
-        const verifyStampLine =
-          verifyVerdictField === 'passed' || verifyVerdictField === 'failed'
-            ? `{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","standards":{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","findings":[]},"spec":{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","findings":[]}}\n\n`
-            : '';
-        const baseSummary = verificationFailed
-          ? `verification failed — ${renderVerificationSlots(contract?.verification)} — ${summary}`
-          : verifyMissingStructured
-            ? `structured verifyVerdict missing — ${summary}`
-            : goalStopped
-              ? `goal ${completion.goalStatus}${goalReason} — ${summary}`
-              : unverified
-                ? `${UNVERIFIED_SUMMARY_PREFIX}${renderVerificationSlots(contract?.verification)} — ${summary}`
-                : `${verifyStampLine}${summary}`;
-        // Feed worker struggle stats into Conductor inbox so auto-refine sees them.
-        const frictionBlock =
-          completion.friction !== undefined
-            ? renderFrictionSection(completion.friction)
-            : undefined;
-        const playableLine =
-          playableStamp.playablePath !== undefined
-            ? `playable_path=${playableStamp.playablePath}`
-            : undefined;
-        const resultSummary = [
-          frictionBlock !== undefined ? `${baseSummary}\n\n${frictionBlock}` : baseSummary,
-          playableLine,
-        ]
-          .filter(Boolean)
-          .join('\n')
-          .slice(0, 4500);
+          : 'done';
         const pendingLand =
           effectiveStatus === 'done' &&
-          (ledgerJob.kind === 'task' || ledgerJob.kind === 'implement') &&
           ledgerJob.worktreePath !== undefined &&
           ledgerJob.landReceipt === undefined &&
-          ledgerJob.landChoice !== 'apply' &&
-          ledgerJob.landChoice !== 'keep' &&
-          ledgerJob.landChoice !== 'pr';
+          ledgerJob.landChoice === undefined;
         const updated = patchJob(input.store, job.id, {
-          // A done with a failed verification gate misled the conductor:
-          // surface explicit verification failures as failed so the playbook
-          // routes them to inspection instead of merge/land.
           status: effectiveStatus,
-          // A completed run closes the automatic-retry episode: leaving the
-          // count at the limit meant a long-lived (steered/resumed) job never
-          // regained its retry budget for the next transient crash.
-          autoRetryCount: 0,
-          resultSummary,
+          resultSummary: effectiveStatus === 'failed'
+            ? `${commitNote}\n${summary}`.slice(0, 4500)
+            : summary || 'Worker completed without a text result.',
+          filesChanged: completion.filesChanged,
+          usage: completion.usage,
           ...(pendingLand ? { landChoice: 'pending' as const } : {}),
-          ...(stampedContract !== undefined ? { resultContract: stampedContract } : {}),
-          ...(completion.goalId !== undefined ? { goalId: completion.goalId } : {}),
-          ...(verifyVerdictField !== undefined ? { verifyVerdict: verifyVerdictField } : {}),
           notes: [
             getJob(input.store, job.id)?.notes,
             commitNote,
-            hostBrowserEinval ? 'host_browser=einval' : undefined,
-            playableLine,
-            // H3: always record which slots passed and which did not, so no
-            // summary word ("failed" / "unverified") hides a green check run.
-            contract !== undefined ? renderVerificationSlots(contract.verification) : undefined,
-            verificationFailed
-              ? 'worker: completed but verification failed'
-              : verifyMissingStructured
-                ? 'worker: verify finished without structured verifyVerdict'
-                : goalStopped
-                  ? `worker: goal ${completion.goalStatus}${goalReason}`
-                  : hostBrowserEinval
-                    ? 'worker: completed mechanical-green (host_browser=einval; visual=skipped_host)'
-                    : unverified
-                      ? 'worker: completed unverified (checks did not run)'
-                      : 'worker: completed',
-          ]
-            .filter(Boolean)
-            .join('\n'),
+            `worker: ${effectiveStatus === 'done' ? 'completed' : 'snapshot failed'}`,
+          ].filter(Boolean).join('\n'),
         });
         if (updated) {
           notifyJobTerminal({
@@ -1074,43 +422,27 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             summary: updated.resultSummary,
             agent: input.agent,
           });
-          syncGoalDeskParentFromDriver(input.store, updated, input.agent);
-          feedParentHarnessFromJobCompletion(input.agent, completion);
-          try {
-            await onJobTerminalForVerifyChain(input.store, updated, input.agent);
-          } catch (error) {
-            input.agent.log.warn('verify chain enqueue failed', error);
-          }
         }
       })
       .catch(async (error: unknown) => {
-        disposeProgressStall();
+        if (!controller.signal.aborted || handle.resourcesSettled !== true || hasUnsettledExecutionResources(error)) {
+          registered.failure ??= error;
+        }
+        retainJobNativeCleanup(input.store, job.id, error);
+        if (handle.resourcesSettled !== true || hasUnsettledExecutionResources(error)) return;
         const current = getJob(input.store, job.id);
         // Terminal states (cancel/interrupt/failure already recorded) are not
         // retried or overwritten by a late worker crash.
-        if (current !== undefined && isTerminalOrCancelled(current.status)) {
+        if (controller.signal.aborted || getJobWorkerHandle(job.id)?.controller !== controller ||
+            (current !== undefined && isTerminalOrCancelled(current.status))) {
           return;
         }
-        // A crashed worker can leave partial work in the tree — snapshot it
-        // so the failure path does not silently discard recoverable changes.
-        const commitNote = await snapshotWorkerWorktree(input.agent, current ?? job);
+        if (controller.signal.aborted || getJobWorkerHandle(job.id)?.controller !== controller) return;
         const detail = error instanceof Error ? error.message : String(error);
         // Wall-clock abort: always persist a resume handoff (last phase/files/
         // command) so continue_from does not restart a repo-wide scan empty.
         const isDeadline = isSubagentDeadlineError(error);
         const ledgerJob = current ?? job;
-        if (!isDeadline) {
-          // Transient crash: spend the automatic retry budget before
-          // surfacing a terminal failure. Deadline aborts are deliberate.
-          const attempt = maybeAutoRetryFailedWorker({
-            store: input.store,
-            job: ledgerJob,
-            detail,
-            agent: input.agent,
-            extraNote: commitNote,
-          });
-          if (attempt !== undefined) return;
-        }
         const resultSummary = isDeadline
           ? buildDeadlineFailureSummary(
               ledgerJob,
@@ -1123,7 +455,6 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           resultSummary,
           notes: [
             getJob(input.store, job.id)?.notes,
-            commitNote,
             isDeadline
               ? `worker_deadline: ${detail}`
               : `worker_failed: ${detail}`,
@@ -1139,80 +470,49 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             summary: updated.resultSummary,
             agent: input.agent,
           });
-          syncGoalDeskParentFromDriver(input.store, updated, input.agent);
         }
       })
       .finally(() => {
-        unbindJobWorkerLedger(handle.agentId);
-        // Clear only our own registration: after an interrupt-with-resume
-        // burst a successor worker may already own this job's handle. Deleting
-        // it unconditionally would leave the live worker without an abort path
-        // (cancel/interrupt degrade to ledger-only).
-        const liveHandle = getJobWorkerHandle(job.id);
-        if (liveHandle === undefined || liveHandle.controller === controller) {
-          clearJobWorkerHandle(job.id);
+        clearJobWorkerHandle(job.id);
+        if (getJobWorkerHandle(job.id) === undefined) {
+          if (!controller.signal.aborted) pumpSchedulerAfterWorker(input.agent, input.store);
         }
-        pumpSchedulerAfterWorker(input.agent, input.store);
+      })
+      .catch((error: unknown) => {
+        registered.failure ??= error;
+        retainJobNativeCleanup(input.store, job.id, error);
+        input.agent.log?.warn('Job worker completion failed', {
+          jobId: job.id, error: error instanceof Error ? error.message : String(error),
+        });
       });
 
-    // Goal Desk: spawn success must clear a stuck blocked binding even when
-    // the operator resumed via JobResume (not /goal resume).
-    if (job.kind === 'goal-driver') {
-      const live = getJob(input.store, job.id);
-      if (live !== undefined) {
-        syncGoalDeskParentFromDriver(input.store, live, input.agent);
-      }
-    }
 
     return { ok: true, workerAgentId: handle.agentId };
   } catch (error) {
+    if (!controller.signal.aborted || hasUnsettledExecutionResources(error)) registered.failure ??= error;
+    retainJobNativeCleanup(input.store, job.id, error);
     const detail = error instanceof Error ? error.message : String(error);
-    clearJobWorkerHandle(job.id);
+    if (registered.resourcesSettled && registered.resourcesSettled() !== true) {
+      controller.abort(error);
+      try { await registered.stopAndJoin?.(); }
+      catch (cleanupError) { retainJobNativeCleanup(input.store, job.id, cleanupError); }
+    }
+    if (getJobWorkerHandle(job.id)?.controller === controller) clearJobWorkerHandle(job.id);
+    if (hasUnsettledExecutionResources(error) || hasJobNativeResources(input.store, job.id) ||
+        (registered.resourcesSettled && registered.resourcesSettled() !== true)) {
+      patchJob(input.store, job.id, {
+        resultSummary: detail.slice(0, 2000),
+        notes: [getJob(input.store, job.id)?.notes, `native_cleanup_failed: ${detail}`].filter(Boolean).join('\n'),
+      });
+      throw error;
+    }
     const current = getJob(input.store, job.id);
     // A budget-exceeded hold (`blocked`, recorded by the offload lane) and
     // user-driven terminal states (cancel/interrupt) must not be clobbered
     // by a late spawn failure; only a live `running` job flips to failed.
     const keepState =
       current !== undefined &&
-      (current.status === 'blocked' || isTerminalOrCancelled(current.status));
-
-    // Ownership race residual: re-queue instead of failing so the scheduler
-    // can start the job after the holder releases (Job path only).
-    if (!keepState && current !== undefined && isOwnershipConflictError(detail)) {
-      const holderId = holderJobIdFromOwnershipError(detail) ?? 'unknown';
-      const pathMatch = /Ownership conflict on ([^:]+):/.exec(detail);
-      const path = pathMatch?.[1]?.trim() || 'unknown';
-      const deferred = ownershipDeferredNote(holderId, path);
-      const prior = (current.notes ?? job.notes ?? '')
-        .split('\n')
-        .filter(
-          (row) =>
-            !row.startsWith('ownership_deferred:') &&
-            !row.startsWith('spawn_failed:'),
-        )
-        .join('\n');
-      patchJob(input.store, job.id, {
-        status: 'queued',
-        resultSummary: undefined,
-        notes: [prior, deferred].filter(Boolean).join('\n'),
-      });
-      void requestJobSchedulePump({ store: input.store, agent: input.agent });
-      return { ok: false, error: detail };
-    }
-
-    // Transient spawn failure: spend the automatic retry budget (bounded)
-    // before recording a terminal failure.
-    if (!keepState && current !== undefined) {
-      const attempt = maybeAutoRetryFailedWorker({
-        store: input.store,
-        job: current,
-        detail,
-        agent: input.agent,
-      });
-      if (attempt !== undefined) {
-        return { ok: false, error: detail };
-      }
-    }
+      (controller.signal.aborted || current.status === 'blocked' || isTerminalOrCancelled(current.status));
 
     const updated = patchJob(input.store, job.id, {
       ...(keepState ? {} : { status: 'failed' as const, resultSummary: detail.slice(0, 2000) }),
@@ -1231,51 +531,6 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   }
 }
 
-/**
- * Requeue a crashed / failed-to-spawn worker under a small automatic retry
- * budget. This heals transient flakes (provider outage past Never-Halt, a
- * crashed worker process) without operator attention; deliberate failures —
- * deadline exhaustion, verification verdicts, user cancels — are never
- * retried by the caller. The backoff pump reuses the normal scheduler, so
- * concurrency limits and ownership conflicts still apply.
- *
- * Returns the attempt number when the job was requeued, `undefined` when the
- * budget is exhausted (caller falls through to the terminal failure path).
- */
-export function maybeAutoRetryFailedWorker(input: {
-  readonly store: ToolStore;
-  readonly job: JobRecord;
-  readonly detail: string;
-  readonly agent?: Agent;
-  readonly extraNote?: string;
-}): number | undefined {
-  const prior = input.job.autoRetryCount ?? 0;
-  if (prior >= JOB_AUTO_RETRY_LIMIT) return undefined;
-  const attempt = prior + 1;
-  const backoffMs =
-    JOB_AUTO_RETRY_BACKOFF_MS[Math.min(attempt - 1, JOB_AUTO_RETRY_BACKOFF_MS.length - 1)] ??
-    JOB_AUTO_RETRY_BACKOFF_MS[0] ??
-    2_000;
-  const trimmedDetail = input.detail.slice(0, 400);
-  patchJob(input.store, input.job.id, {
-    status: 'queued',
-    resultSummary: `auto-retry ${attempt}/${JOB_AUTO_RETRY_LIMIT} scheduled — ${trimmedDetail}`,
-    autoRetryCount: attempt,
-    notes: [
-      input.job.notes,
-      input.extraNote,
-      `auto_retry ${attempt}/${JOB_AUTO_RETRY_LIMIT}: ${trimmedDetail}`,
-    ]
-      .filter(Boolean)
-      .join('\n'),
-  });
-  const retryTimer = setTimeout(() => {
-    void requestJobSchedulePump({ store: input.store, agent: input.agent });
-  }, backoffMs);
-  // The backoff pump alone must not keep the process alive after session close.
-  (retryTimer as { unref?: () => void }).unref?.();
-  return attempt;
-}
 
 /**
  * Cancel a job worker: abort live handle, mark ledger cancelled, inbox notify, reschedule.
@@ -1285,6 +540,7 @@ export async function cancelJobWorker(input: {
   readonly agent?: Agent;
   readonly jobId: string;
   readonly reason?: string;
+  readonly status?: 'cancelled' | 'interrupted';
 }): Promise<{
   readonly ok: boolean;
   readonly job?: JobRecord;
@@ -1295,22 +551,45 @@ export async function cancelJobWorker(input: {
   if (existing === undefined) {
     return { ok: false, aborted: false, error: `Job not found: ${input.jobId}` };
   }
-  if (existing.status === 'done' || existing.status === 'cancelled') {
+  if ((existing.status === 'done' || existing.status === 'failed' || existing.status === 'cancelled') &&
+      getJobWorkerHandle(input.jobId) === undefined && !hasJobNativeResources(input.store, input.jobId)) {
     return { ok: true, job: existing, aborted: false };
   }
 
-  const aborted = abortRegisteredJobWorker(input.jobId, userCancellationReason());
-  clearJobWorkerHandle(input.jobId);
+  closeJobAdmission(input.store, input.jobId);
+  cancelQueuedJobWorkerSpawn(input.store, input.jobId);
+  const nativeFailure = getJobNativeFailure(input.store, input.jobId);
+  const stopReason = userCancellationReason();
+  abortJobNativeOperations(input.store, input.jobId, stopReason);
+  let handle = getJobWorkerHandle(input.jobId);
+  let lastHandle = handle;
+  let aborted = false;
+  while (handle) {
+    handle.stoppingStatus = input.status ?? 'cancelled';
+    aborted = abortRegisteredJobWorker(input.jobId, stopReason) || aborted;
+    await joinJobWorkerHandle(input.jobId);
+    lastHandle = handle;
+    handle = getJobWorkerHandle(input.jobId);
+  }
+  await settleJobNativeResources(input.store, input.jobId);
+  const latest = getJob(input.store, input.jobId) ?? existing;
+  const executionFailure = lastHandle?.failure ?? nativeFailure;
+  const stoppingStatus = executionFailure !== undefined ? 'failed' : lastHandle?.stoppingStatus ?? input.status ?? 'cancelled';
 
+  if (stoppingStatus === 'cancelled') await maybeRemoveNeverRanWorktree(input, latest);
+  const afterCleanup = getJob(input.store, input.jobId) ?? latest;
   const job = patchJobAndNotify(
     input.store,
     input.jobId,
     {
-      status: 'cancelled',
+      status: stoppingStatus,
+      ...(executionFailure !== undefined ? {
+        resultSummary: executionFailure instanceof Error ? executionFailure.message : String(executionFailure),
+      } : {}),
       notes: [
-        existing.notes,
-        input.reason ? `cancel: ${input.reason}` : 'cancel',
-        aborted ? 'worker: aborted' : 'worker: no live handle',
+        afterCleanup.notes,
+        `${stoppingStatus === 'interrupted' ? 'interrupt' : 'cancel'}: ${input.reason ?? 'operator request'}`,
+        aborted ? 'worker: teardown settled' : 'worker: no live handle',
       ]
         .filter(Boolean)
         .join('\n'),
@@ -1318,9 +597,8 @@ export async function cancelJobWorker(input: {
     { agent: input.agent, summary: input.reason },
   );
 
-  maybeRemoveNeverRanWorktree(input, existing);
 
-  if (input.agent) {
+  if (input.agent && stoppingStatus !== 'interrupted') {
     pumpSchedulerAfterWorker(input.agent, input.store);
   }
 
@@ -1333,18 +611,19 @@ export async function cancelJobWorker(input: {
  * drop it immediately instead of holding it for the failed-worktree TTL.
  * Jobs that ran a worker keep the 7-day forensics retention.
  */
-function maybeRemoveNeverRanWorktree(
+async function maybeRemoveNeverRanWorktree(
   input: { readonly store: ToolStore; readonly agent?: Agent },
   job: JobRecord,
-): void {
+): Promise<void> {
   if (input.agent === undefined) return;
   if (job.workerAgentId !== undefined || job.workerResumeAgentId !== undefined) return;
   if (job.worktreePath === undefined) return;
-  if (job.landReceipt !== undefined || job.resultSummary !== undefined || job.resultContract !== undefined) return;
+  if (job.landReceipt !== undefined || job.resultSummary !== undefined) return;
   if (job.sessionNamePinned === true) return;
   const worktreePath = job.worktreePath;
   const worktreeBranch = job.worktreeBranch;
-  void removeSessionWorktree(input.agent.kaos, { nameOrPath: worktreePath })
+  await runJobNativeOperation(input.store, job.id, {}, (holdPath, signal) =>
+    removeSessionWorktree(input.agent!.kaos, { nameOrPath: worktreePath, onWorktreePath: holdPath, signal }))
     .then(() => {
       patchJobAndNotify(
         input.store,
@@ -1358,6 +637,7 @@ function maybeRemoveNeverRanWorktree(
       );
     })
     .catch((error: unknown) => {
+      if (hasUnsettledExecutionResources(error)) throw error;
       input.agent?.log?.warn('cancel cleanup: pristine worktree removal failed', {
         jobId: job.id,
         worktreePath,
@@ -1376,7 +656,6 @@ export function steerJobWorker(input: {
   readonly jobId: string;
   readonly message: string;
   readonly status?: JobStatus;
-  readonly surfaceKind?: JobRecord['surfaceKind'];
 }): {
   readonly ok: boolean;
   readonly job?: JobRecord;
@@ -1435,18 +714,16 @@ export function steerJobWorker(input: {
 
   let steered = false;
   const workerId = existing.workerAgentId ?? getJobWorkerHandle(input.jobId)?.workerAgentId;
-  const host = input.agent?.subagentHost as
-    | { steerChild?: (id: string, parts: readonly { type: string; text: string }[]) => boolean }
-    | undefined;
-  if (workerId && host && typeof host.steerChild === 'function') {
+  const host = getJobWorkerHost(input.store);
+  if (workerId && host) {
     try {
       steered = host.steerChild(workerId, [{ type: 'text', text: input.message }]);
-    } catch {
-      steered = false;
+    } catch (error) {
+      return { ok: false, steered: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
   const live =
-    existing.status === 'running' || existing.status === 'needs_user';
+    existing.status === 'running' || existing.status === 'needs_user' || getJobWorkerHandle(existing.id) !== undefined;
   const reattachTerminal =
     !live &&
     existing.landReceipt === undefined &&
@@ -1454,15 +731,11 @@ export function steerJobWorker(input: {
     (existing.status === 'done' ||
       existing.status === 'failed' ||
       existing.status === 'interrupted');
-  // Ledger patches (esp. surface_kind on blocked/done jobs with no worker) count as
-  // steered so JobSteer is not a no-op when the worker is inactive.
-  if (!steered && (input.surfaceKind !== undefined || reattachTerminal)) {
+  // A completed worker can be reattached by explicit operator steering.
+  if (!steered && reattachTerminal) {
     steered = true;
   }
 
-  if (live && workerId !== undefined) {
-    resetActiveChildDeadline(workerId, DEFAULT_SUBAGENT_TIMEOUT_MS);
-  }
 
   const nextStatus = reattachTerminal
     ? 'queued'
@@ -1470,12 +743,6 @@ export function steerJobWorker(input: {
   const note = [
     existing.notes,
     `steer: ${input.message}`,
-    input.surfaceKind !== undefined ? `steer: surface_kind=${input.surfaceKind}` : undefined,
-    live
-      ? 'steer: session budget reset'
-      : reattachTerminal
-        ? 'steer: reattach same session (budget reset)'
-        : undefined,
     steered
       ? workerId && host
         ? 'steer: delivered to worker'
@@ -1488,17 +755,13 @@ export function steerJobWorker(input: {
     input.store,
     input.jobId,
     {
-      // Cap steer notes / prompt tail: stall-detection loops steer repeatedly
-      // and the unbounded append chain is what grew job_ledger wire records
-      // to megabytes. The trimmed head marker keeps the truncation visible.
+      // Keep bounded steering history and disclose any truncation.
       notes: capAppendTail(note, JOB_STEER_NOTES_MAX_CHARS),
       status: nextStatus,
       prompt: capAppendTail(
         existing.prompt ? `${existing.prompt}\n\n[steer] ${input.message}` : input.message,
         JOB_STEER_PROMPT_MAX_CHARS,
       ),
-      workerDeadlineStartedAt: new Date().toISOString(),
-      ...(input.surfaceKind !== undefined ? { surfaceKind: input.surfaceKind } : {}),
     },
     { agent: input.agent, summary: input.message },
   );
@@ -1547,10 +810,13 @@ export async function resumeJobs(input: {
   readonly error?: string;
 }> {
   const { store, agent, jobId, answer } = input;
+  if (!areJobAdmissionsOpen(store)) {
+    return { ok: false, resumed: [], message: '', error: 'Job runtime is closed.' };
+  }
   const candidates = listJobs(store).filter((j) => {
     if (jobId !== undefined) return j.id === jobId;
     if (answer !== undefined) return j.status === 'needs_user' || isLiveInterviewJob(j);
-    return j.status === 'interrupted';
+    return j.status === 'interrupted' || j.status === 'queued';
   });
 
   if (jobId !== undefined && candidates.length === 0) {
@@ -1567,6 +833,7 @@ export async function resumeJobs(input: {
       job.status !== 'failed' &&
       job.status !== 'cancelled' &&
       job.status !== 'needs_user' &&
+      job.status !== 'queued' &&
       !liveInterviewAnswer
     ) {
       if (jobId !== undefined) {
@@ -1585,11 +852,14 @@ export async function resumeJobs(input: {
 
     const isAnswerCard =
       answer !== undefined && (job.status === 'needs_user' || liveInterviewAnswer);
-    if (liveInterviewAnswer) {
-      // Release the hung requestQuestion waiter / worker so re-queue is clean.
-      abortRegisteredJobWorker(job.id, new Error('user-answer: late interview answer'));
-      clearJobWorkerHandle(job.id);
+    closeJobAdmission(store, job.id);
+    const handle = getJobWorkerHandle(job.id);
+    if (handle) {
+      abortRegisteredJobWorker(job.id, new Error('operator resume'));
+      await joinJobWorkerHandle(job.id);
     }
+    await settleJobNativeResources(store, job.id);
+    openJobAdmission(store, job.id);
     const notes = isAnswerCard
       ? [job.notes, `user-answer: ${answer}`].filter(Boolean).join('\n')
       : [job.notes, 'resume: re-queued'].filter(Boolean).join('\n');
@@ -1605,11 +875,6 @@ export async function resumeJobs(input: {
     });
     if (next) {
       resumed.push(next);
-      // Clear Goal Monitor blocked state as soon as the driver is re-queued;
-      // do not wait for /goal resume or the first progress heartbeat.
-      if (next.kind === 'goal-driver') {
-        syncGoalDeskParentFromDriver(store, next, agent);
-      }
     }
   }
 
@@ -1655,77 +920,48 @@ function isLiveInterviewJob(job: JobRecord): boolean {
 /**
  * Interrupt all running jobs (session pause): abort workers + ledger interrupted + inbox.
  */
-export function interruptRunningJobs(input: {
+export async function interruptRunningJobs(input: {
   readonly store: ToolStore;
   readonly agent?: Agent;
   readonly reason?: string;
-}): readonly JobRecord[] {
+}): Promise<readonly JobRecord[]> {
   const reason = input.reason ?? 'session interrupted';
   const out: JobRecord[] = [];
-  for (const job of listJobs(input.store)) {
-    if (job.status !== 'running') continue;
-    abortRegisteredJobWorker(job.id, new Error(reason));
-    clearJobWorkerHandle(job.id);
-    const next = patchJobAndNotify(
-      input.store,
-      job.id,
-      {
-        status: 'interrupted',
-        notes: [job.notes, `interrupt: ${reason}`].filter(Boolean).join('\n'),
-      },
-      { agent: input.agent, summary: reason },
-    );
-    if (next) out.push(next);
+  const owned = new Set(listJobNativeResourceIds(input.store));
+  const running = listJobs(input.store).filter((job) =>
+    job.status === 'running' || getJobWorkerHandle(job.id) !== undefined || owned.has(job.id));
+  const results = await Promise.allSettled(running.map((job) => cancelJobWorker({
+    ...input, jobId: job.id, status: 'interrupted', reason,
+  })));
+  const errors: unknown[] = [];
+  for (const result of results) {
+    if (result.status === 'rejected') errors.push(result.reason);
+    else if (result.value.job) out.push(result.value.job);
   }
+  if (errors.length > 0) throw jobResourceErrors(errors, 'Job worker shutdown failed');
   return out;
 }
 
 /**
- * After hard process death, the ledger can still say `running` with no live
- * worker. Same transition as {@link interruptRunningJobs}; abort is a no-op
- * when nothing is registered. Call on Agent.resume so `/job resume` can restore.
+ * After hard process death, mark running records interrupted only when this
+ * process has no live handle. Explicit `/job resume` can then restore work.
  */
 export function reconcileStaleRunningJobs(input: {
   readonly store: ToolStore;
   readonly agent?: Agent;
   readonly reason?: string;
 }): readonly JobRecord[] {
-  return interruptRunningJobs({
-    store: input.store,
-    agent: input.agent,
-    reason: input.reason ?? 'process restarted',
-  });
+  const out: JobRecord[] = [];
+  for (const job of listJobs(input.store)) {
+    if (job.status !== 'running' || getJobWorkerHandle(job.id) !== undefined) continue;
+    const next = patchJobAndNotify(input.store, job.id, {
+      status: 'interrupted',
+      notes: [job.notes, `interrupt: ${input.reason ?? 'process restarted'}`].filter(Boolean).join('\n'),
+    }, { agent: input.agent });
+    if (next) out.push(next);
+  }
+  return out;
 }
 
 export { abortRegisteredJobWorker as abortJobWorker };
 
-/**
- * Wire Job worker evidence into the Conductor harness loop: gate scores
- * (measured refine rollback), auto-refine nudge, and worker tool events for
- * auto-skillify. Child agents have no refine/skillify services.
- */
-function feedParentHarnessFromJobCompletion(
-  parent: Agent,
-  completion: SubagentCompletion,
-): void {
-  const refine = parent.refine;
-  if (refine !== null && refine !== undefined) {
-    if (completion.gateOutcome !== undefined) {
-      void refine.recordGateOutcome(completion.gateOutcome).catch((error: unknown) => {
-        parent.log.warn('parent refine gate-outcome scoring failed', error);
-      });
-    }
-    const hasFriction = (completion.friction?.toolErrors ?? 0) > 0;
-    if (hasFriction || completion.gateOutcome !== undefined) {
-      refine.maybeAutoRefine('job');
-    }
-  }
-  if (
-    completion.skillifyEvents !== undefined &&
-    completion.skillifyEvents.length > 0 &&
-    parent.skillify !== null &&
-    parent.skillify !== undefined
-  ) {
-    parent.skillify.ingestWorkerEvents(completion.skillifyEvents);
-  }
-}

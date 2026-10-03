@@ -1,284 +1,166 @@
-/**
- * Abort behaviour at each safe point.
- *
- * The loop's contract is that an externally-aborted turn never throws to the
- * caller and never loses already-recorded usage. The matrix here covers
- * abort triggered at every observable boundary: before the loop, during
- * the LLM call, during tool execution, between steps, and during a hook.
- */
-
-import { inputTotal } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
-import type { LLMChatResponse, LoopHooks } from '../../src/loop/index';
+import { runTurn } from '../../src/loop/run-turn';
+import { ToolAccesses } from '../../src/loop/tool-access';
+import type { ExecutableToolContext } from '../../src/loop/types';
 import { userCancellationReason } from '../../src/utils/abort';
-import { makeEndTurnResponse, makeToolCall, makeToolUseResponse } from './fixtures/fake-llm';
-import { runTurn } from './fixtures/helpers';
-import { EchoTool, GatedTool, markReadFileAccesses, SlowTool } from './fixtures/tools';
+import { boundary, call, executionTool, nextTask, provider, response } from './fixtures/native-boundaries';
 
-function waitOneMacrotask(): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
-}
-
-describe('runTurn — abort handling', () => {
-  it('returns aborted without throwing when signal is already aborted on entry', async () => {
+describe('native loop cancellation ownership', () => {
+  it('does not contact the provider after a pre-entry user cancellation', async () => {
     const controller = new AbortController();
-    controller.abort();
-
-    const { result, llm, sink, context } = await runTurn({
-      responses: [makeEndTurnResponse('never executed')],
-      signal: controller.signal,
-    });
-
-    expect(result.stopReason).toBe('aborted');
-    expect(result.steps).toBe(0);
-    // LLM was never called and no transcript envelope opened
-    expect(llm.callCount).toBe(0);
-    expect(context.stepBegins().length).toBe(0);
-    // turn.interrupted{aborted} is emitted
-    const interrupted = sink.byType('turn.interrupted');
-    expect(interrupted.length).toBe(1);
-    expect(interrupted[0]?.reason).toBe('aborted');
-    expect(interrupted[0]?.attemptedSteps).toBe(0);
-    expect(interrupted[0]?.activeStep).toBeUndefined();
-    // No step.begin / step.end ever fired
-    expect(sink.count('step.begin')).toBe(0);
-    expect(sink.count('step.end')).toBe(0);
-  });
-
-  it('returns aborted when the LLM call itself observes the signal', async () => {
-    const controller = new AbortController();
-    const { result, sink, llm } = await runTurn({
-      responses: [makeEndTurnResponse('not returned')],
-      signal: controller.signal,
-      llmAbortOnIndex: { index: 0, controller },
-    });
-
-    expect(result.stopReason).toBe('aborted');
-    expect(llm.callCount).toBe(1);
-    expect(sink.byType('turn.interrupted')[0]?.reason).toBe('aborted');
-  });
-
-  it('preserves usage already recorded by an earlier step when later steps abort', async () => {
-    const slow = new SlowTool();
-    const controller = new AbortController();
-
-    // Scenario: step 1 records usage for an end-of-step we never reach (the
-    // LLM returns first), step 2 hangs in the slow tool until we abort.
-    const responses: LLMChatResponse[] = [
-      makeToolUseResponse([makeToolCall('echo', { text: 'first' }, 'tc-1')], {
-        inputOther: 100,
-        output: 50,
-      }),
-      makeToolUseResponse([makeToolCall('slow', {}, 'tc-2')], {
-        inputOther: 7,
-        output: 11,
-      }),
-      // Never reached
-      makeEndTurnResponse('unreachable'),
-    ];
-
-    const echo = new EchoTool();
-    const turnPromise = runTurn({
-      tools: [echo, slow],
-      responses,
-      signal: controller.signal,
-    });
-
-    // Wait for the slow tool to start, then abort.
-    await slow.started.promise;
-    controller.abort();
-
-    const { result, sink } = await turnPromise;
-    expect(result.stopReason).toBe('aborted');
-    // Step 1 fully recorded its usage; step 2 also recorded its LLM
-    // usage immediately after the chat call, before the tool aborted.
-    expect(inputTotal(result.usage)).toBe(100 + 7);
-    expect(result.usage.output).toBe(50 + 11);
-    expect(sink.byType('turn.interrupted').map((e) => e.reason)).toContain('aborted');
-  });
-
-  it('aborts cleanly when triggered inside a beforeStep hook', async () => {
-    const controller = new AbortController();
-    const hooks: LoopHooks = {
-      beforeStep: async () => {
-        controller.abort();
-        const err = new Error('aborted from hook');
-        err.name = 'AbortError';
-        throw err;
-      },
-    };
-
-    const { result, sink, llm, context } = await runTurn({
-      hooks,
-      responses: [makeEndTurnResponse('never')],
-      signal: controller.signal,
-    });
-
-    expect(result.stopReason).toBe('aborted');
-    expect(llm.callCount).toBe(0);
-    expect(context.stepBegins().length).toBe(0);
-    expect(sink.byType('turn.interrupted')[0]?.reason).toBe('aborted');
-  });
-
-  it('aborts cleanly when triggered inside a prepareToolExecution hook', async () => {
-    const controller = new AbortController();
-    const echo = new EchoTool();
-    const hooks: LoopHooks = {
-      prepareToolExecution: async () => {
-        controller.abort();
-        const err = new Error('aborted from prepareToolExecution');
-        err.name = 'AbortError';
-        throw err;
-      },
-    };
-
-    const { result, sink } = await runTurn({
-      hooks,
-      tools: [echo],
-      responses: [
-        makeToolUseResponse([makeToolCall('echo', { text: 'hi' }, 'tc-1')]),
-        makeEndTurnResponse('never'),
-      ],
-      signal: controller.signal,
-    });
-
-    expect(result.stopReason).toBe('aborted');
-    // tool.execute must not have been invoked
-    expect(echo.calls.length).toBe(0);
-    expect(sink.byType('turn.interrupted')[0]?.reason).toBe('aborted');
-  });
-
-  it('does NOT crash when an aborted turn still has work to drain', async () => {
-    // A SlowTool waits forever; we abort while it's running. The loop must
-    // settle gracefully and emit a single turn.interrupted.
-    const slow = new SlowTool();
-    const controller = new AbortController();
-
-    const turnPromise = runTurn({
-      tools: [slow],
-      responses: [
-        makeToolUseResponse([makeToolCall('slow', {}, 'tc-1')]),
-        makeEndTurnResponse('unreachable'),
-      ],
-      signal: controller.signal,
-    });
-
-    await slow.started.promise;
-    controller.abort();
-    const { result, sink } = await turnPromise;
-
-    expect(result.stopReason).toBe('aborted');
-    // Exactly one turn.interrupted record
-    expect(sink.byType('turn.interrupted').length).toBe(1);
-  });
-
-  it('does not start a queued conflicting tool after abort', async () => {
-    const gated = new GatedTool('gated');
-    const echo = new EchoTool();
-    const controller = new AbortController();
-
-    const turnPromise = runTurn({
-      tools: [gated, echo],
-      responses: [
-        makeToolUseResponse([
-          makeToolCall('gated', {}, 'tc-gated'),
-          makeToolCall('echo', { text: 'late mutation' }, 'tc-echo'),
-        ]),
-        makeEndTurnResponse('unreachable'),
-      ],
-      signal: controller.signal,
-    });
-
-    await gated.started;
-    await waitOneMacrotask();
-    expect(echo.calls.length).toBe(0);
-
-    controller.abort();
-    gated.release();
-    const { result, sink } = await turnPromise;
-
-    expect(result.stopReason).toBe('aborted');
-    expect(echo.calls.length).toBe(0);
-    expect(sink.byType('tool.call').map((e) => e.toolCallId)).toEqual(['tc-gated', 'tc-echo']);
-    const results = sink.byType('tool.result');
-    expect(results.map((e) => e.toolCallId)).toEqual(['tc-gated', 'tc-echo']);
-    const echoResult = results.find((event) => event.toolCallId === 'tc-echo');
-    expect(echoResult?.result).toEqual({
-      output: 'Tool "echo" was aborted',
-      isError: true,
-    });
-  });
-
-  it('tells the model a running tool was interrupted by the user, not by a system fault', async () => {
-    // When the user presses stop, the tool_result fed back to the model must
-    // convey "the user deliberately interrupted this" — not the neutral
-    // `Tool "X" was aborted`, which the model mistakes for a system problem
-    // (e.g. "too many parallel agents") and then theorises about / retries.
-    const slow = new SlowTool();
-    const controller = new AbortController();
-
-    const turnPromise = runTurn({
-      tools: [slow],
-      responses: [
-        makeToolUseResponse([makeToolCall('slow', {}, 'tc-1')]),
-        makeEndTurnResponse('unreachable'),
-      ],
-      signal: controller.signal,
-    });
-
-    await slow.started.promise;
     controller.abort(userCancellationReason());
-    const { result, sink } = await turnPromise;
+    const llm = provider(async () => { throw new Error('provider must not start'); });
+    const { input, records, live } = boundary(llm, { signal: controller.signal });
 
-    expect(result.stopReason).toBe('aborted');
-    const toolResult = sink.byType('tool.result').find((e) => e.toolCallId === 'tc-1');
-    const output = toolResult?.result.output;
-    expect(typeof output).toBe('string');
-    expect(output).not.toBe('Tool "slow" was aborted');
-    expect(output).toContain('not a system error');
-    expect(output).toContain("wait for the user");
+    expect(await runTurn(input)).toMatchObject({ stopReason: 'aborted', steps: 0 });
+    expect(llm.requests).toHaveLength(0);
+    expect(records).toEqual([]);
+    expect(live).toEqual([expect.objectContaining({
+      type: 'turn.interrupted', reason: 'aborted', cancelledByUser: true,
+    })]);
   });
 
-  it('every tool.call still has a matching tool.result when aborted mid-batch', async () => {
-    // Transcript-balance contract: even when the turn is aborted while
-    // multiple tool tasks are running, every dispatched tool.call must be
-    // followed by a tool.result for the same toolCallId. Without this,
-    // the next turn's messages would carry orphan tool.calls and the
-    // provider API would reject the conversation.
-    const slow = markReadFileAccesses(new SlowTool());
+  it('waits for an abort-ignoring provider to settle without inventing completion', async () => {
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
     const controller = new AbortController();
-
-    const turnPromise = runTurn({
-      tools: [slow],
-      responses: [
-        makeToolUseResponse([
-          makeToolCall('slow', {}, 'tc-1'),
-          makeToolCall('slow', {}, 'tc-2'),
-          makeToolCall('slow', {}, 'tc-3'),
-        ]),
-        makeEndTurnResponse('unreachable'),
-      ],
-      signal: controller.signal,
+    const llm = provider(async () => {
+      entered.resolve();
+      await release.promise;
+      return response([], { inputOther: 11, output: 7 });
     });
+    const { input, records, live } = boundary(llm, { signal: controller.signal });
+    let settled = false;
+    const turn = runTurn(input).finally(() => { settled = true; });
+    await entered.promise;
+    controller.abort(userCancellationReason());
+    await nextTask();
+    expect(settled).toBe(false);
+    expect(live.some((event) => event.type === 'turn.interrupted')).toBe(false);
+    release.resolve();
 
-    await slow.started.promise;
-    controller.abort();
-    const { result, sink } = await turnPromise;
+    expect(await turn).toMatchObject({
+      stopReason: 'aborted', usage: { inputOther: 11, output: 7 },
+    });
+    expect(records.some((event) => event.type === 'step.end')).toBe(false);
+    expect(llm.requests).toHaveLength(1);
+  });
 
-    expect(result.stopReason).toBe('aborted');
+  it('keeps conflicting resource ownership until actual tool settlement and drains queued results', async () => {
+    const entered = Promise.withResolvers<ExecutableToolContext>();
+    const release = Promise.withResolvers<void>();
+    const controller = new AbortController();
+    const started: string[] = [];
+    const bash = executionTool('Bash', async (ctx) => {
+      started.push(ctx.toolCallId);
+      entered.resolve(ctx);
+      await release.promise;
+      return { output: 'process exited' };
+    });
+    const llm = provider(async () => response([
+      call('Bash', 'running'), call('Bash', 'queued'),
+    ], { inputOther: 13, output: 5 }));
+    const { input, records, live } = boundary(llm, { tools: [bash], signal: controller.signal });
+    let settled = false;
+    const turn = runTurn(input).finally(() => { settled = true; });
+    const ctx = await entered.promise;
+    await nextTask();
+    controller.abort(userCancellationReason());
+    ctx.onUpdate?.({ kind: 'stdout', text: 'late output' });
+    await nextTask();
+    expect(settled).toBe(false);
+    expect(started).toEqual(['running']);
+    expect(records.some((event) => event.type === 'tool.ack')).toBe(false);
+    expect(live.some((event) => event.type === 'tool.progress')).toBe(false);
+    release.resolve();
 
-    const callIds = sink
-      .byType('tool.call')
-      .map((e) => e.toolCallId)
-      .toSorted();
-    const resultIds = sink
-      .byType('tool.result')
-      .map((e) => e.toolCallId)
-      .toSorted();
-    expect(callIds).toEqual(['tc-1', 'tc-2', 'tc-3']);
-    expect(resultIds).toEqual(callIds);
+    expect(await turn).toMatchObject({ stopReason: 'aborted', usage: { output: 5 } });
+    expect(started).toEqual(['running']);
+    const results = records.filter((event) => event.type === 'tool.result');
+    expect(results.map((event) => event.toolCallId)).toEqual(['running', 'queued']);
+    expect(results[0]?.result).toEqual({ output: 'process exited' });
+    expect(results[1]?.result).toMatchObject({ isError: true });
+    expect(records.filter((event) => event.type === 'tool.ack').map((event) => event.toolCallId))
+      .toEqual(['running', 'queued']);
+    expect(records.some((event) => event.type === 'step.end')).toBe(false);
+    expect(live.filter((event) => event.type === 'turn.interrupted')).toHaveLength(1);
+    expect(llm.requests).toHaveLength(1);
+  });
+
+  it('awaits pending approval settlement after cancellation without executing the approved call', async () => {
+    const entered = Promise.withResolvers<void>();
+    const approval = Promise.withResolvers<void>();
+    const controller = new AbortController();
+    let executed = false;
+    const bash = executionTool('Bash', async () => {
+      executed = true;
+      return { output: 'must not run' };
+    });
+    const llm = provider(async () => response([call('Bash', 'approval')]));
+    const { input, records } = boundary(llm, {
+      tools: [bash], signal: controller.signal,
+      hooks: { authorizeToolExecution: async () => {
+        entered.resolve();
+        await approval.promise;
+        return undefined;
+      } },
+    });
+    let settled = false;
+    const turn = runTurn(input).finally(() => { settled = true; });
+    await entered.promise;
+    controller.abort(userCancellationReason());
+    await nextTask();
+    expect(settled).toBe(false);
+    approval.resolve();
+
+    expect(await turn).toMatchObject({ stopReason: 'aborted' });
+    expect(executed).toBe(false);
+    expect(records.filter((event) => event.type === 'tool.result')).toEqual([
+      expect.objectContaining({ toolCallId: 'approval', result: expect.objectContaining({ isError: true }) }),
+    ]);
+    expect(records.some((event) => event.type === 'tool.intend')).toBe(false);
+  });
+
+  it('force-stops one worker while its independent sibling and provider continuation stay owned', async () => {
+    const workerEntered = Promise.withResolvers<void>();
+    const siblingEntered = Promise.withResolvers<void>();
+    const siblingRelease = Promise.withResolvers<void>();
+    const worker = new AbortController();
+    const bash = executionTool('Bash', async (ctx) => {
+      const stopped = Promise.withResolvers<never>();
+      ctx.signal.addEventListener('abort', () => stopped.reject(ctx.signal.reason), { once: true });
+      workerEntered.resolve();
+      return stopped.promise;
+    }, ToolAccesses.none());
+    const session = executionTool('SessionControl', async () => {
+      siblingEntered.resolve();
+      await siblingRelease.promise;
+      return { output: 'worker settled' };
+    }, ToolAccesses.none());
+    let request = 0;
+    const llm = provider(async () => request++ === 0
+      ? response([call('Bash', 'stopped'), call('SessionControl', 'sibling')])
+      : response());
+    const { input, records } = boundary(llm, {
+      tools: [bash, session],
+      hooks: { authorizeToolExecution: async (ctx) => ctx.toolCall.id === 'stopped'
+        ? { executionSignal: worker.signal } : undefined },
+    });
+    let settled = false;
+    const turn = runTurn(input).finally(() => { settled = true; });
+    await Promise.all([workerEntered.promise, siblingEntered.promise]);
+    worker.abort();
+    await nextTask();
+    expect(settled).toBe(false);
+    expect(llm.requests).toHaveLength(1);
+    siblingRelease.resolve();
+
+    expect(await turn).toMatchObject({ stopReason: 'end_turn', steps: 2 });
+    expect(records.filter((event) => event.type === 'tool.result')).toEqual([
+      expect.objectContaining({ toolCallId: 'stopped', result: expect.objectContaining({ isError: true }) }),
+      expect.objectContaining({ toolCallId: 'sibling', result: { output: 'worker settled' } }),
+    ]);
+    expect(llm.requests).toHaveLength(2);
   });
 });

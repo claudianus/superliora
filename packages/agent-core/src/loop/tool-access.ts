@@ -1,6 +1,6 @@
 export type ToolFileAccessOperation = 'read' | 'write' | 'readwrite' | 'search';
 
-export interface ToolFileAccess {
+interface ToolFileAccess {
   readonly kind: 'file';
   readonly operation: ToolFileAccessOperation;
   readonly path: string;

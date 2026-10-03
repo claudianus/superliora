@@ -1,12 +1,7 @@
-import type { BackgroundTaskInfo, ModelAlias } from '@superliora/sdk';
+import type { BackgroundTaskInfo } from '@superliora/sdk';
 
 import type { BackgroundAgentMetadata, ToolCallBlockData, TranscriptEntry } from '../../types';
 import { formatBackgroundAgentTranscript } from '../../utils/background/background-agent-status';
-import {
-  isSameEffectiveModel,
-  modelRouteDisplayName,
-  resolveModelRouteIdentity,
-} from '../../utils/model/model-route-notice';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import type { SubagentLifecycleEventOf } from './helpers';
 
@@ -68,69 +63,4 @@ export function buildBackgroundAgentTranscriptEntry(
   };
 }
 
-/** When a child (esp. explore) lands on a different model, say so once. */
-export function shouldSurfaceSubagentModelNotice(input: {
-  readonly modelAlias: string | undefined;
-  readonly subagentName: string;
-  readonly sessionModel: string;
-  readonly availableModels: Readonly<Record<string, ModelAlias>>;
-}): boolean {
-  const { modelAlias, subagentName, sessionModel, availableModels } = input;
-  if (modelAlias === undefined || modelAlias.length === 0) return false;
-  if (sessionModel.length === 0 || sessionModel === modelAlias) return false;
-  // Same underlying model under a different alias — keep quiet.
-  if (
-    isSameEffectiveModel(
-      resolveModelRouteIdentity(sessionModel, availableModels),
-      resolveModelRouteIdentity(modelAlias, availableModels),
-    )
-  ) {
-    return false;
-  }
-  // Only surface explore/cheap diversions — avoid noise for same-as-parent clones.
-  const profile = subagentName.toLowerCase();
-  const isExplore =
-    profile.includes('explore') ||
-    profile.includes('search') ||
-    profile.includes('research');
-  return isExplore;
-}
 
-export function subagentModelRouteNoticeText(
-  subagentName: string,
-  sessionModel: string,
-  modelAlias: string,
-  availableModels: Readonly<Record<string, ModelAlias>>,
-): string {
-  return `${subagentName}: ${modelRouteDisplayName(sessionModel, availableModels)} → ${modelRouteDisplayName(modelAlias, availableModels)}`;
-}
-
-/** Non-terminal `subagent.failed` hop while the host retries on a fallback model. */
-export function isSubagentModelFallbackRetry(event: {
-  readonly retryAttempt?: number;
-}): boolean {
-  return event.retryAttempt !== undefined;
-}
-
-/** Concise transcript detail for a worker/subagent model failover hop. */
-export function subagentModelFailoverNoticeDetail(input: {
-  readonly subagentName: string | undefined;
-  readonly fromAlias: string | undefined;
-  readonly toAlias: string;
-  readonly availableModels: Readonly<Record<string, ModelAlias>>;
-}): string {
-  const name =
-    input.subagentName !== undefined && input.subagentName.length > 0
-      ? input.subagentName
-      : 'worker';
-  const toLabel = modelRouteDisplayName(input.toAlias, input.availableModels);
-  if (input.fromAlias === undefined || input.fromAlias.length === 0) {
-    return `${name}: ${toLabel}`;
-  }
-  return subagentModelRouteNoticeText(
-    name,
-    input.fromAlias,
-    input.toAlias,
-    input.availableModels,
-  );
-}

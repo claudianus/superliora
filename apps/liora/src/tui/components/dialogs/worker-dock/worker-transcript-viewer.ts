@@ -182,13 +182,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     const name = worker?.name ?? this.workerId;
     const status = worker?.status ?? 'running';
     const statusToken =
-      status === 'failed'
-        ? 'error'
-        : status === 'stalled' || status === 'suspended'
-          ? 'warning'
-          : status === 'completed'
-            ? 'textDim'
-            : 'primary';
+      status === 'failed' ? 'error' : status === 'completed' ? 'textDim' : 'primary';
     const elapsed =
       worker === undefined ? '' : ` · ${formatJobDuration(worker.elapsedMs)}`;
     const tools =
@@ -209,7 +203,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
         ` ${ttui('tui.workerDock.transcriptHint')}`,
       ),
       this.renderMetaStrip(worker, width),
-      ...(status === 'running' || status === 'finishing'
+      ...(status === 'running'
         ? [
             ` ${renderParticleRail(
               Math.max(8, width - 4),
@@ -279,9 +273,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     if (worker.modelAlias !== undefined) {
       parts.push(theme.fg('textDim', worker.modelAlias));
     }
-    if (worker.focusTodo !== undefined && worker.focusTodo.length > 0) {
-      parts.push(theme.fg('text', truncateToWidth(worker.focusTodo, 40, '…')));
-    } else if (worker.description !== undefined && worker.description.length > 0) {
+    if (worker.description !== undefined && worker.description.length > 0) {
       parts.push(theme.fg('textDim', truncateToWidth(worker.description, 40, '…')));
     }
     if (this.state.fetching && !this.state.loading) {
@@ -293,7 +285,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
   private maybeRefresh(): void {
     const worker = this.getWorker();
     if (worker === undefined) return;
-    if (worker.status !== 'running' && worker.status !== 'finishing') return;
+    if (worker.status !== 'running') return;
     if (this.state.fetching || this.state.error !== undefined) return;
     // Event-driven: dock liveText / tool activity already advances; refetch
     // transcript when those signals move rather than on a fixed 2s poll.

@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -63,44 +63,71 @@ function cloneCheckout(remoteUrl: string): string {
   return repoRoot;
 }
 
-describe('gitCheckoutUpdateScript', () => {
-  it('matches install.sh fetch, build, and wrapper refresh steps', () => {
-    const script = gitCheckoutUpdateScript('/tmp/superliora');
+function runCheckoutInstall(failAt?: string): { status: number | null; steps: string[]; output: string } {
+  const { remoteUrl } = initBareRemote();
+  const repoRoot = initCheckout(remoteUrl);
+  const scriptsDir = join(repoRoot, 'scripts');
+  mkdirSync(join(scriptsDir, 'install'), { recursive: true });
+  const record = `import { appendFileSync } from 'node:fs';\nconst record = (step) => appendFileSync(process.env.PIPELINE_LOG, step + '\\n');\n`;
+  writeFileSync(join(scriptsDir, 'install', 'ensure-pnpm.mjs'), `${record}record('bootstrap');\n`);
+  writeFileSync(join(scriptsDir, 'install-liora.mjs'), `${record}record('wrapper');\n`);
+  runGit(repoRoot, ['add', 'scripts']);
+  runGit(repoRoot, ['commit', '-m', 'installer fixture']);
+  runGit(repoRoot, ['push']);
 
-    expect(script).toContain("repo='/tmp/superliora'");
-    expect(script).toContain('COREPACK_ENABLE_DOWNLOAD_PROMPT=0');
-    expect(script).toContain("__LIORA_UPGRADE_STAGE__=fetching");
-    expect(script).toContain('rev-parse --verify origin/main');
-    expect(script).toContain("upstream='origin/master'");
-    expect(script).toContain('fetch --depth 1 origin "$ref"');
-    expect(script).toContain('-c core.longpaths=true fetch --depth 1 origin "$ref"');
-    // Align with install.sh: force-checkout, no dirty pre-check that traps upgrades.
-    expect(script).not.toContain('diff --quiet');
-    expect(script).toContain('checkout --force -B "$ref" FETCH_HEAD');
-    expect(script).toContain('reset --hard FETCH_HEAD');
-    expect(script).not.toContain('checkout --force FETCH_HEAD\n');
-    expect(script).toContain("__LIORA_UPGRADE_STAGE__=building");
-    expect(script).toContain('scripts/install/ensure-pnpm.mjs');
-    expect(script).toContain('$SUPERLIORA_HOME/runtime/pnpm');
-    expect(script).toContain('runtime/pnpm/pnpm');
-    expect(script).toContain('runtime/pnpm/pnpm.exe');
-    expect(script).not.toContain('${HOME}/.superliora/runtime/pnpm');
-    expect(script).not.toContain('${USERPROFILE}/.superliora/runtime/pnpm');
-    expect(script).toContain('pnpm_invoke');
-    expect(script).toContain('install --frozen-lockfile');
-    expect(script).toContain('build:skill-catalog');
-    expect(script).toContain('SUPERLIORA_SKIP_SKILL_CATALOG');
-    expect(script).toContain('run build:packages');
-    expect(script).toContain('apps/liora run build');
-    expect(script).toContain('retrieval:bootstrap');
-    expect(script).toContain('SUPERLIORA_OBSERVED_UPGRADE');
-    expect(script).toContain("__LIORA_UPGRADE_STAGE__=installing");
-    expect(script).toContain('command -v liora.cmd');
-    expect(script).toContain('${command_name%.cmd}');
-    expect(script).not.toContain('bin_dir="${HOME}/.local/bin"');
-    expect(script).toContain('scripts/install-liora.mjs --bin-dir "$bin_dir" --name "$command_name" --no-shell-rc --force');
-    expect(script).toContain("__LIORA_UPGRADE_STAGE__=done");
+  const dataHome = mkdtempSync(join(tmpdir(), 'liora-install-runtime-'));
+  tempDirs.push(dataHome);
+  const pnpmDir = join(dataHome, 'runtime', 'pnpm');
+  mkdirSync(pnpmDir, { recursive: true });
+  const logPath = join(dataHome, 'pipeline.log');
+  writeFileSync(join(pnpmDir, 'pnpm'), `#!/usr/bin/env node
+const { appendFileSync } = require('node:fs');
+const args = process.argv.slice(2);
+const step = args[2] === 'install' ? 'dependencies'
+  : args[3] === 'build:packages' ? 'packages'
+  : args[2] === 'run' && args[3] === 'build' ? 'app'
+  : 'unexpected:' + args.slice(2).join(' ');
+appendFileSync(process.env.PIPELINE_LOG, step + '\\n');
+if (process.env.PIPELINE_FAIL_AT === step) {
+  console.error('native ' + step + ' failed');
+  process.exit(41);
+}
+`, { mode: 0o755 });
+  const result = spawnSync('bash', ['-c', gitCheckoutUpdateScript(repoRoot, { dataHome })], {
+    encoding: 'utf-8',
+    env: { ...process.env, SUPERLIORA_HOME: dataHome, PIPELINE_LOG: logPath, PIPELINE_FAIL_AT: failAt ?? '' },
+    timeout: 20_000,
   });
+  if (result.error !== undefined) throw result.error;
+  return {
+    status: result.status,
+    steps: readFileSync(logPath, 'utf-8').trim().split('\n'),
+    output: result.stdout + result.stderr,
+  };
+}
+
+describe('native checkout installation', () => {
+  it.skipIf(process.platform === 'win32')('builds native packages/app before refreshing the wrapper', () => {
+    const result = runCheckoutInstall();
+    expect(result.status).toBe(0);
+    expect(result.steps).toEqual(['bootstrap', 'dependencies', 'packages', 'app', 'wrapper']);
+    expect(result.output).toContain('__LIORA_UPGRADE_STAGE__=done');
+  });
+
+  it.skipIf(process.platform === 'win32').each([
+    ['dependencies', ['bootstrap', 'dependencies']],
+    ['packages', ['bootstrap', 'dependencies', 'packages']],
+    ['app', ['bootstrap', 'dependencies', 'packages', 'app']],
+  ] as const)('propagates %s failures without refreshing the installed wrapper', (stage, steps) => {
+    const result = runCheckoutInstall(stage);
+    expect(result.status).toBe(41);
+    expect(result.steps).toEqual(steps);
+    expect(result.output).toContain(`native ${stage} failed`);
+    expect(result.output).not.toContain('__LIORA_UPGRADE_STAGE__=done');
+  });
+});
+
+describe('gitCheckoutUpdateScript', () => {
 
   it('bakes relocated SUPERLIORA_HOME and Windows SuperLiora bin fallback', () => {
     const script = gitCheckoutUpdateScript('/tmp/superliora', {

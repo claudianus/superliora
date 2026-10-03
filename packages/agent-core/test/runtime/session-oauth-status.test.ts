@@ -30,6 +30,24 @@ describe('buildSessionOAuthStatus', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('does not inspect an unused OAuth token when static API auth takes precedence', async () => {
+    const config: LioraConfig = {
+      providers: {
+        native: {
+          type: 'kimi',
+          apiKey: 'test-key',
+          oauth: { storage: 'file', key: 'oauth/unused' },
+        },
+      },
+      models: {
+        native: { provider: 'native', model: 'native', maxContextSize: 128_000 },
+      },
+    };
+    await expect(
+      buildSessionOAuthStatus({ config, homeDir: '/tmp/superliora', modelAlias: 'native' }),
+    ).resolves.toBeUndefined();
+  });
+
   it('derives pool size and proactive refresh schedule from provider oauth refs', async () => {
     const nowMs = 1_700_000_000_000;
     const config: LioraConfig = {

@@ -40,9 +40,7 @@ const KEEP_WHEN_STRIPPING = new Set([
   'SUPERLIORA_NO_AUTO_UPDATE',
   'SUPERLIORA_LOG_LEVEL',
   'SUPERLIORA_DEV_CWD',
-  'SUPERLIORA_DEV_MARKETPLACE_URL',
   'SUPERLIORA_DEV_VERBOSE',
-  'SUPERLIORA_PLUGIN_MARKETPLACE_URL',
   'SUPERLIORA_TUI_SCROLL_TRACE',
   'SUPERLIORA_TUI_STARTUP_TRACE',
   'SUPERLIORA_TUI_OUTPUT_TAP',
@@ -108,7 +106,7 @@ function resolveDebugHome(parentEnv, options) {
   return join(options.repoRoot, DEBUG_HOME_DIR_NAME);
 }
 
-/** Lines for `--env` / self-check, same shape as test-local. */
+/** Report fixed debug settings and presence only; inherited values may contain secrets. */
 export function formatDebugEnvReport(built) {
   const lines = [];
   for (const key of UNSET_ENV) {
@@ -117,10 +115,10 @@ export function formatDebugEnvReport(built) {
   for (const [key, value] of Object.entries(SET_ENV)) {
     lines.push(`${key}=${value}`);
   }
-  lines.push(`TERM=${built.env.TERM}`);
-  lines.push(`SUPERLIORA_HOME=${built.home}`);
-  lines.push(`SUPERLIORA_DEBUG_LOG=${built.debugLog}`);
-  lines.push(`SUPERLIORA_TUI_STARTUP_TRACE=${built.env.SUPERLIORA_TUI_STARTUP_TRACE}`);
+  lines.push(built.termUpgraded ? `TERM=${FALLBACK_TERM} (upgraded)` : 'TERM (inherited; value omitted)');
+  lines.push('SUPERLIORA_HOME (configured; value omitted)');
+  lines.push('SUPERLIORA_DEBUG_LOG (configured; value omitted)');
+  lines.push('SUPERLIORA_TUI_STARTUP_TRACE (configured; value omitted)');
   return lines;
 }
 

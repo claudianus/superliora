@@ -322,13 +322,6 @@ describe('Local logging — harness integration', () => {
     }
   });
 
-  it('multiple LioraHarness constructions in the same process do not throw', async () => {
-    const homeDir = await makeTempDir('kimi-log-home-');
-    expect(() => createLioraHarness({ identity: TEST_IDENTITY, homeDir })).not.toThrow();
-    expect(() => createLioraHarness({ identity: TEST_IDENTITY, homeDir })).not.toThrow();
-    expect(() => createLioraHarness({ identity: TEST_IDENTITY, homeDir })).not.toThrow();
-  });
-
   it('uses the latest harness homeDir for global diagnostic logging', async () => {
     const firstHome = await makeTempDir('kimi-log-home-a-');
     const secondHome = await makeTempDir('kimi-log-home-b-');
@@ -345,21 +338,6 @@ describe('Local logging — harness integration', () => {
 
     await first.close();
     await second.close();
-  });
-
-  it('SDK does not expose RootLogger / getRootLogger / LoggingConfig', async () => {
-    // Type-level check — if these names show up on the SDK index they must
-    // be re-exports we forgot to filter. Use string keys so the assertion is
-    // structural and survives renames.
-    const sdk = await import('#/index');
-    const exposed = Object.keys(sdk);
-    expect(exposed).toContain('log');
-    expect(exposed).toContain('redact');
-    expect(exposed).toContain('flushDiagnosticLogs');
-    expect(exposed).not.toContain('getLogger');
-    expect(exposed).not.toContain('getRootLogger');
-    expect(exposed).not.toContain('resolveLoggingConfig');
-    expect(exposed).not.toContain('installProcessCrashHandlers');
   });
 
   it('checks that an empty session log directory does not get a log file', async () => {

@@ -14,55 +14,11 @@ import type { SessionWarning } from '@superliora/protocol';
 import { buildSessionOAuthStatus } from '../runtime/session-oauth-status';
 
 import type {
-  ActivateSkillPayload,
-  ActivatePluginCommandPayload,
-  AddAdditionalDirPayload,
-  AddAdditionalDirResult,
-  BeginCompactionPayload,
-  CancelPayload,
-  CancelPlanPayload,
-  CancelShellCommandPayload,
-  CreateGoalPayload,
-  ConversationLoopStateData,
-  DetachBackgroundPayload,
-  DiagnoseContextOSPayload,
-  EmptyPayload,
-  EnterPlanPayload,
-  GetBackgroundOutputPayload,
-  GetBackgroundPayload,
-  GoalSnapshot,
-  GoalToolResult,
-  InlineCompletePayload,
-  PromptIntelligenceCallOptions,
-  McpServerInfo,
-  McpStartupMetrics,
-  PluginCommandDef,
-  PromptPayload,
-  ReconnectMcpServerPayload,
-  RefineHarnessPayload,
-  RegisterToolPayload,
-  RollbackHarnessRefinementPayload,
-  RewindFilesPayload,
-  RewindFilesResult,
-  RunShellCommandPayload,
-  SearchSkillsPayload,
-  SetActiveToolsPayload,
-  SetModelPayload,
-  SetModelResult,
-  SetPermissionPayload,
-  SetAskModePayload,
-  SetPremiumQualityPayload,
-  SetThinkingPayload,
-  SkillSearchResult,
-  SkillSummary,
-  StartConversationLoopPayload,
-  SteerPayload,
-  StopBackgroundPayload,
-  StopConversationLoopPayload,
-  UndoHistoryPayload,
-  UnregisterToolPayload,
-  RenameSessionPayload,
-  UpdateSessionMetadataPayload,
+  BeginCompactionPayload, CancelPayload, CancelShellCommandPayload,
+  DetachBackgroundPayload, EmptyPayload, GetBackgroundOutputPayload, GetBackgroundPayload,
+  PromptPayload, RunShellCommandPayload, SetModelPayload, SetModelResult,
+  SetPermissionPayload, SetThinkingPayload, SteerPayload, StopBackgroundPayload,
+  UndoHistoryPayload, UpdateSessionMetadataPayload,
 } from './core-api';
 
 type AgentScopedPayload<T> = T & { readonly agentId: string };
@@ -141,47 +97,6 @@ export function getModel(
   return context.sessionApi(sessionId).getModel(payload);
 }
 
-export function enterPlan(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EnterPlanPayload>) {
-  return context.sessionApi(sessionId).enterPlan(payload);
-}
-
-export function cancelPlan(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<CancelPlanPayload>) {
-  return context.sessionApi(sessionId).cancelPlan(payload);
-}
-
-export function clearPlan(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-  return context.sessionApi(sessionId).clearPlan(payload);
-}
-
-export function setAskMode(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<SetAskModePayload>) {
-  return context.sessionApi(sessionId).setAskMode(payload);
-}
-
-export function getAskMode(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-  return context.sessionApi(sessionId).getAskMode(payload);
-}
-
-export function setPremiumQuality(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<SetPremiumQualityPayload>) {
-  return context.sessionApi(sessionId).setPremiumQuality(payload);
-}
-
-export function getPremiumQuality(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-  return context.sessionApi(sessionId).getPremiumQuality(payload);
-}
 
 export function beginCompaction(
   context: SessionAgentMethodsContext,
@@ -195,41 +110,6 @@ export function cancelCompaction(
   return context.sessionApi(sessionId).cancelCompaction(payload);
 }
 
-export function refineHarness(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<RefineHarnessPayload>) {
-  return context.sessionApi(sessionId).refineHarness(payload);
-}
-
-export function rollbackHarnessRefinement(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<RollbackHarnessRefinementPayload>) {
-  return context.sessionApi(sessionId).rollbackHarnessRefinement(payload);
-}
-
-export function getHarnessStatus(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-  return context.sessionApi(sessionId).getHarnessStatus(payload);
-}
-
-export function registerTool(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<RegisterToolPayload>) {
-  return context.sessionApi(sessionId).registerTool(payload);
-}
-
-export function unregisterTool(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<UnregisterToolPayload>) {
-  return context.sessionApi(sessionId).unregisterTool(payload);
-}
-
-export function setActiveTools(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<SetActiveToolsPayload>) {
-  return context.sessionApi(sessionId).setActiveTools(payload);
-}
 
 export function stopBackground(
   context: SessionAgentMethodsContext,
@@ -249,23 +129,6 @@ export function clearContext(
   return context.sessionApi(sessionId).clearContext(payload);
 }
 
-export function activateSkill(
-  context: SessionAgentMethodsContext,
-  {
-  sessionId,
-  ...payload
-}: SessionAgentPayload<ActivateSkillPayload>): Promise<void> {
-  return context.sessionApi(sessionId).activateSkill(payload);
-}
-
-export function activatePluginCommand(
-  context: SessionAgentMethodsContext,
-  {
-  sessionId,
-  ...payload
-}: SessionAgentPayload<ActivatePluginCommandPayload>): Promise<void> {
-  return context.sessionApi(sessionId).activatePluginCommand(payload);
-}
 
 export function getBackgroundOutput(
   context: SessionAgentMethodsContext,
@@ -285,14 +148,6 @@ export function getContextComposition(
   return context.sessionApi(sessionId).getContextComposition(payload);
 }
 
-export function diagnoseContextOS(
-  context: SessionAgentMethodsContext,
-  {
-  sessionId,
-  ...payload
-}: SessionAgentPayload<DiagnoseContextOSPayload>) {
-  return context.sessionApi(sessionId).diagnoseContextOS(payload);
-}
 
 export function getSessionTrace(
   context: SessionAgentMethodsContext,
@@ -355,12 +210,6 @@ export async function getOAuthStatus(
   });
 }
 
-export function getPlan(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,
-) {
-  return context.sessionApi(sessionId).getPlan(payload);
-}
 
 export function getUsage(
   context: SessionAgentMethodsContext,
@@ -374,11 +223,6 @@ export function getProviderRouteStatus(
   return context.sessionApi(sessionId).getProviderRouteStatus(payload);
 }
 
-export function getProviderExtrasStatus(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-  return context.sessionApi(sessionId).getProviderExtrasStatus(payload);
-}
 
 export function resetProviderRouteStatus(
   context: SessionAgentMethodsContext,
@@ -386,11 +230,6 @@ export function resetProviderRouteStatus(
   return context.sessionApi(sessionId).resetProviderRouteStatus(payload);
 }
 
-export function getTools(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-  return context.sessionApi(sessionId).getTools(payload);
-}
 
 export function getBackground(
   context: SessionAgentMethodsContext,
@@ -398,23 +237,6 @@ export function getBackground(
   return context.sessionApi(sessionId).getBackground(payload);
 }
 
-export function inlineComplete(
-  context: SessionAgentMethodsContext,
-  
-  { sessionId, ...payload }: SessionAgentPayload<InlineCompletePayload>,
-  options?: PromptIntelligenceCallOptions,
-) {
-  return context.sessionApi(sessionId).inlineComplete(payload, options);
-}
-
-export function suggestPrompts(
-  context: SessionAgentMethodsContext,
-  
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,
-  options?: PromptIntelligenceCallOptions,
-) {
-  return context.sessionApi(sessionId).suggestPrompts(payload, options);
-}
 
 export function updateSessionMetadata(
   context: SessionAgentMethodsContext,
@@ -429,36 +251,18 @@ export function getSessionMetadata(
 }
 
 
+export { getSessionWarnings } from './session-agent-methods-discovery';
 export {
-  listSkills,
-  getHookRegistry,
-  listPluginCommands,
-  searchSkills,
-  listMcpServers,
-  getMcpStartupMetrics,
-  reconnectMcpServer,
-  generateAgentsMd,
-  getSessionWarnings,
-} from './session-agent-methods-discovery';
-export {
-  addAdditionalDir,
-  rewindFiles,
-  startConversationLoop,
-  stopConversationLoop,
-  listConversationLoops,
-  startBtw,
-  createGoal,
-  getGoal,
-  pauseGoal,
-  resumeGoal,
-  cancelGoal,
-} from './session-agent-methods-goal';
+  addAdditionalDir, rewindFiles, startConversationLoop, stopConversationLoop,
+  listConversationLoops, startBtw,
+} from './session-agent-methods-session';
 export {
   jobList,
   jobInspect,
   jobInbox,
   jobSteer,
   jobCancel,
+  jobPause,
   jobResume,
   jobCreate,
   jobCreateBatch,

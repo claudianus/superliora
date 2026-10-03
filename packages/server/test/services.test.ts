@@ -557,10 +557,10 @@ describe('ApprovalService (broadcasts + resolve-by-approval_id)', () => {
       sessionId: 'sess_1',
       agentId: 'agent_1',
       toolCallId: 'tc_approval_1',
-      toolName: 'shell.run',
+      toolName: 'Bash',
       action: 'Run',
-      display: { kind: 'generic', summary: 'test' },
-    } as Parameters<typeof broker.request>[0]);
+      display: { kind: 'command', command: 'pwd', description: 'Working directory' },
+    });
     await broadcast._drainForTest('sess_1');
 
     const approvalId = extractApprovalId(conn.sent);

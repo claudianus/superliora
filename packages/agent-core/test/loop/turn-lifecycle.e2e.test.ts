@@ -1,342 +1,111 @@
-/**
- * Turn-level lifecycle invariants of `runTurn`.
- *
- * These tests treat the loop as a black box: they drive `runTurn` only
- * through its public input contract and assert against the public output
- * (`TurnResult`, `LoopEvent`s, transcript writes, `Tool.execute`
- * calls). Internal modules / classes / file layout are intentionally not
- * referenced.
- */
-
-import { inputTotal } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
-import { ErrorCodes, LioraError } from '../../src/errors';
-import type { Logger, LogPayload } from '../../src/logging';
-import {
-  makeEndTurnResponse,
-  makeMaxTokensResponse,
-  makeResponse,
-  makeTextParts,
-  makeToolCall,
-  makeToolUseResponse,
-} from './fixtures/fake-llm';
-import { runTurn, runTurnExpectingThrow } from './fixtures/helpers';
-import { DEFAULT_MAX_STEPS_PER_TURN } from '../../src/agent/turn/step-loop';
-import { EchoTool } from './fixtures/tools';
+import { ErrorCodes } from '../../src/errors';
+import { runTurn } from '../../src/loop/run-turn';
+import { boundary, call, executionTool, provider, response } from './fixtures/native-boundaries';
 
-interface CapturedLogEntry {
-  readonly level: 'error' | 'warn' | 'info' | 'debug';
-  readonly message: string;
-  readonly payload?: LogPayload;
-}
+describe('native turn transitions', () => {
+  it.each([
+    ['filtered', 'filtered'], ['truncated', 'max_tokens'], ['paused', 'paused'], ['other', 'unknown'],
+  ] as const)('does not execute side effects alongside provider diagnostic %s', async (providerFinishReason, stopReason) => {
+    let executed = false;
+    const bash = executionTool('Bash', async () => { executed = true; return { output: 'process exited' }; });
+    const llm = provider(async () => ({ ...response([call('Bash', 'unsafe')]), providerFinishReason, rawFinishReason: 'provider diagnostic' }));
+    const { input, records } = boundary(llm, { tools: [bash] });
 
-describe('runTurn — turn lifecycle', () => {
-  it('returns end_turn after a single non-tool step', async () => {
-    const { result, llm, sink } = await runTurn({
-      responses: [makeEndTurnResponse('hello', { inputOther: 5, output: 7 })],
-    });
-
-    expect(result.stopReason).toBe('end_turn');
-    expect(result.steps).toBe(1);
-    expect(inputTotal(result.usage)).toBe(5);
-    expect(result.usage.output).toBe(7);
-    expect(llm.callCount).toBe(1);
-    // step.begin and step.end at minimum, in that order
-    expect(sink.count('step.begin')).toBe(1);
-    expect(sink.count('step.end')).toBe(1);
-    const types = sink.typesIn();
-    expect(types.indexOf('step.begin')).toBeLessThan(types.indexOf('step.end'));
+    expect(await runTurn(input)).toMatchObject({ stopReason, steps: 1 });
+    expect(executed).toBe(false);
+    expect(records.filter((event) => event.type === 'step.end')).toEqual([
+      expect.objectContaining({ finishReason: stopReason, providerFinishReason, rawFinishReason: 'provider diagnostic' }),
+    ]);
+    expect(records.some((event) => event.type === 'tool.call')).toBe(false);
+    expect(llm.requests).toHaveLength(1);
   });
 
-  it('emits selected provider route metadata on step completion', async () => {
-    const { sink } = await runTurn({
-      responses: [
-        {
-          ...makeEndTurnResponse('hello', { inputOther: 5, output: 7 }),
-          providerRouteSelection: {
-            modelAlias: 'backup',
-            providerName: 'anthropic',
-            credentialLabel: 'api_key:2',
-            providerModel: 'claude-backup',
-            baseUrl: 'https://anthropic.example/v1',
-          },
-        },
-      ],
+  it('records spent usage before a host limit blocks side-effecting tool calls', async () => {
+    let executed = false;
+    const bash = executionTool('Bash', async () => { executed = true; return { output: 'process exited' }; });
+    const llm = provider(async () => response([call('Bash', 'limited')], { inputOther: 29, output: 11 }));
+    const usageRecords: unknown[] = [];
+    const { input, records } = boundary(llm, {
+      tools: [bash], recordStepUsage: async (usage) => { usageRecords.push(usage); return { stopTurn: true }; },
     });
 
-    expect(sink.byType('step.end')[0]?.providerRouteSelection).toEqual({
-      modelAlias: 'backup',
-      providerName: 'anthropic',
-      credentialLabel: 'api_key:2',
-      providerModel: 'claude-backup',
-      baseUrl: 'https://anthropic.example/v1',
-    });
+    expect(await runTurn(input)).toMatchObject({ stopReason: 'end_turn', usage: { inputOther: 29, output: 11 } });
+    expect(usageRecords).toEqual([expect.objectContaining({ inputOther: 29, output: 11 })]);
+    expect(executed).toBe(false);
+    expect(records.some((event) => event.type === 'tool.call')).toBe(false);
+    expect(llm.requests).toHaveLength(1);
   });
 
-  it('continues across tool_use steps until end_turn', async () => {
-    const echo = new EchoTool();
-    const { result, llm, sink, context } = await runTurn({
-      tools: [echo],
-      responses: [
-        makeToolUseResponse([makeToolCall('echo', { text: 'hi' }, 'tc-1')], {
-          inputOther: 1,
-          output: 2,
-        }),
-        makeToolUseResponse([makeToolCall('echo', { text: 'again' }, 'tc-2')], {
-          inputOther: 3,
-          output: 4,
-        }),
-        makeEndTurnResponse('done', { inputOther: 5, output: 6 }),
-      ],
-    });
+  it('enforces explicit max steps after settled tool effects without replaying them', async () => {
+    let executed = 0;
+    const session = executionTool('SessionControl', async () => { executed += 1; return { output: 'worker settled' }; });
+    const llm = provider(async () => response([call('SessionControl', 'worker')]));
+    const { input, records, live } = boundary(llm, { tools: [session], maxSteps: 1 });
 
-    expect(result.stopReason).toBe('end_turn');
-    expect(result.steps).toBe(3);
-    expect(inputTotal(result.usage)).toBe(1 + 3 + 5);
-    expect(result.usage.output).toBe(2 + 4 + 6);
-    expect(llm.callCount).toBe(3);
-    expect(echo.calls.map((c) => c.id)).toEqual(['tc-1', 'tc-2']);
-    // Three step envelopes were recorded
-    expect(context.stepBegins().map((s) => s.step)).toEqual([1, 2, 3]);
-    expect(context.stepEnds().map((s) => s.step)).toEqual([1, 2, 3]);
-    // tool_use never escapes as the final stopReason
-    expect(sink.byType('step.end').length).toBe(3);
-  });
-
-  it('returns max_tokens when the LLM signals it', async () => {
-    const { result, sink } = await runTurn({
-      responses: [makeMaxTokensResponse('partial...', { inputOther: 10, output: 20 })],
-    });
-
-    expect(result.stopReason).toBe('max_tokens');
-    expect(result.steps).toBe(1);
-    expect(result.usage).toEqual({
-      inputOther: 10,
-      output: 20,
-      inputCacheRead: 0,
-      inputCacheCreation: 0,
-    });
-    expect(sink.count('turn.interrupted')).toBe(0);
-  });
-
-  it('logs structured provider timing when stream stats are available', async () => {
-    const { logger, entries } = captureLogs();
-
-    await runTurn({
-      turnId: 'turn-timing',
-      log: logger,
-      responses: [
-        {
-          ...makeEndTurnResponse('hello', { inputOther: 3, output: 11 }),
-          streamTiming: {
-            firstTokenLatencyMs: 50,
-            requestBuildMs: 7,
-            serverFirstTokenMs: 43,
-            streamDurationMs: 120,
-            serverDecodeMs: 80,
-            clientConsumeMs: 40,
-          },
-        },
-      ],
-    });
-
-    expect(entries).toEqual([
-      {
-        level: 'info',
-        message: 'llm response',
-        payload: {
-          // bf970d0c9 switched turnStep to "turn.step" for grep-friendly
-          // pairing with `llm request` and added the lifecycle `phase`.
-          turnStep: 'turn-timing.1',
-          phase: 'complete',
-          ttftMs: 50,
-          requestBuildMs: 7,
-          serverFirstTokenMs: 43,
-          streamDurationMs: 120,
-          serverDecodeMs: 80,
-          clientConsumeMs: 40,
-          outputTokens: 11,
-        },
-      },
+    await expect(runTurn(input)).rejects.toMatchObject({ code: ErrorCodes.LOOP_MAX_STEPS_EXCEEDED });
+    expect(executed).toBe(1);
+    expect(llm.requests).toHaveLength(1);
+    expect(records.filter((event) => event.type === 'tool.result')).toHaveLength(1);
+    expect(records.filter((event) => event.type === 'step.end')).toHaveLength(1);
+    expect(live.filter((event) => event.type === 'turn.interrupted')).toEqual([
+      expect.objectContaining({ reason: 'max_steps', attemptedSteps: 1 }),
     ]);
   });
 
-  it('preserves provider terminal diagnostics when no tool calls are present', async () => {
-    const { result, sink } = await runTurn({
-      responses: [
-        {
-          ...makeResponse(makeTextParts('blocked'), [], 'filtered'),
-          rawFinishReason: 'content_filter',
-        },
-      ],
+  it('consumes real pending input at terminal boundaries without replaying previous steps', async () => {
+    let pending = true;
+    let consumed = 0;
+    const llm = provider(async () => response([], { inputOther: 3, output: 2, inputCacheRead: 5, inputCacheCreation: 7 }));
+    const { input, records } = boundary(llm, {
+      hooks: { consumePendingInput: () => {
+        if (!pending) return false;
+        pending = false;
+        consumed += 1;
+        return true;
+      } },
     });
 
-    const stepEnd = sink.byType('step.end')[0];
-    expect(result.stopReason).toBe('filtered');
-    expect(stepEnd?.finishReason).toBe('filtered');
-    expect(stepEnd?.providerFinishReason).toBe('filtered');
-    expect(stepEnd?.rawFinishReason).toBe('content_filter');
+    expect(await runTurn(input)).toMatchObject({
+      stopReason: 'end_turn', steps: 2,
+      usage: { inputOther: 6, output: 4, inputCacheRead: 10, inputCacheCreation: 14 },
+    });
+    expect(consumed).toBe(1);
+    expect(llm.requests).toHaveLength(2);
+    expect(records.filter((event) => event.type === 'step.end').map((event) => event.step)).toEqual([1, 2]);
   });
 
-  it('treats provider tool_calls without tool call structure as unknown', async () => {
-    const { result } = await runTurn({
-      responses: [makeResponse(makeTextParts('done'), [], 'tool_use')],
-    });
+  it('fails a post-step observer rather than treating its exception as provider success', async () => {
+    const failure = new Error('usage observer failed');
+    const llm = provider(async () => response());
+    const { input, records, live } = boundary(llm, { hooks: { afterStep: async () => { throw failure; } } });
 
-    expect(result.stopReason).toBe('unknown');
-  });
-
-  it('derives tool_use from tool call structure when provider reports completed', async () => {
-    const echo = new EchoTool();
-    const { result, llm } = await runTurn({
-      tools: [echo],
-      responses: [
-        makeResponse([], [makeToolCall('echo', { text: 'hi' }, 'tc-completed')], 'end_turn'),
-        makeEndTurnResponse('done'),
-      ],
-    });
-
-    expect(result.stopReason).toBe('end_turn');
-    expect(llm.callCount).toBe(2);
-    expect(echo.calls.map((c) => c.id)).toEqual(['tc-completed']);
-  });
-
-  it('does not execute tool calls when provider reports a terminal diagnostic', async () => {
-    const echo = new EchoTool();
-    const { result, sink } = await runTurn({
-      tools: [echo],
-      responses: [
-        makeResponse(
-          makeTextParts('blocked'),
-          [makeToolCall('echo', { text: 'should-not-run' }, 'tc-filtered')],
-          'filtered',
-        ),
-      ],
-    });
-
-    expect(result.stopReason).toBe('filtered');
-    expect(echo.calls).toEqual([]);
-    expect(sink.count('tool.call')).toBe(0);
-    expect(sink.count('tool.result')).toBe(0);
-  });
-
-  it('throws LioraError(loop.max_steps_exceeded) when steps reach maxSteps', async () => {
-    const echo = new EchoTool();
-    const { error, sink } = await runTurnExpectingThrow({
-      maxSteps: 2,
-      tools: [echo],
-      responses: [
-        makeToolUseResponse([makeToolCall('echo', { text: '1' }, 'a')]),
-        makeToolUseResponse([makeToolCall('echo', { text: '2' }, 'b')]),
-        // The loop throws before requesting a third step.
-      ],
-    });
-
-    expect(error).toBeInstanceOf(LioraError);
-    expect((error as LioraError).code).toBe(ErrorCodes.LOOP_MAX_STEPS_EXCEEDED);
-    expect((error as LioraError).details).toEqual({ maxSteps: 2 });
-    // turn.interrupted{reason:'max_steps'} is emitted before the throw
-    const interruptedTypes = sink.byType('turn.interrupted').map((e) => e.reason);
-    expect(interruptedTypes).toContain('max_steps');
-  });
-
-  it('does not enforce a max step limit when maxSteps is 0', async () => {
-    const echo = new EchoTool();
-    const { result } = await runTurn({
-      maxSteps: 0,
-      tools: [echo],
-      responses: [
-        makeToolUseResponse([makeToolCall('echo', { text: '1' }, 'a')]),
-        makeToolUseResponse([makeToolCall('echo', { text: '2' }, 'b')]),
-        makeEndTurnResponse('done'),
-      ],
-    });
-
-    expect(result.stopReason).toBe('end_turn');
-    expect(result.steps).toBe(3);
-    expect(echo.calls).toEqual([
-      { id: 'a', turnId: 'turn-1', args: { text: '1' } },
-      { id: 'b', turnId: 'turn-1', args: { text: '2' } },
+    await expect(runTurn(input)).rejects.toBe(failure);
+    expect(records.filter((event) => event.type === 'step.end')).toHaveLength(1);
+    expect(live.filter((event) => event.type === 'turn.interrupted')).toEqual([
+      expect.objectContaining({ reason: 'error', activeStep: 1 }),
     ]);
+    expect(llm.requests).toHaveLength(1);
   });
 
-  it('does not enforce a max step limit when maxSteps is omitted', async () => {
-    const echo = new EchoTool();
-    const { result } = await runTurn({
-      tools: [echo],
-      responses: [
-        makeToolUseResponse([makeToolCall('echo', { text: '1' }, 'a')]),
-        makeToolUseResponse([makeToolCall('echo', { text: '2' }, 'b')]),
-        makeToolUseResponse([makeToolCall('echo', { text: '3' }, 'c')]),
-        makeToolUseResponse([makeToolCall('echo', { text: '4' }, 'd')]),
-        makeEndTurnResponse('done'),
-      ],
+  it('reports the settled provider route and usage model without substituting the requested alias', async () => {
+    const route = { modelAlias: 'operator-model', providerName: 'route-b', providerModel: 'concrete-model' };
+    const llm = provider(async () => ({
+      ...response([], { inputOther: 7, output: 13 }),
+      usageModel: 'billed-model',
+      providerRouteSelection: route,
+    }));
+    const billed: unknown[] = [];
+    const { input, records } = boundary(llm, {
+      recordStepUsage: async (usage, info) => { billed.push({ usage, info }); },
     });
 
-    expect(result.stopReason).toBe('end_turn');
-    expect(result.steps).toBe(5);
-    expect(echo.calls).toEqual([
-      { id: 'a', turnId: 'turn-1', args: { text: '1' } },
-      { id: 'b', turnId: 'turn-1', args: { text: '2' } },
-      { id: expect.any(String), turnId: 'turn-1', args: { text: '3' } },
-      { id: expect.any(String), turnId: 'turn-1', args: { text: '4' } },
-    ]);
-  });
-
-  it('aggregates usage across steps including cache fields', async () => {
-    const echo = new EchoTool();
-    const { result } = await runTurn({
-      tools: [echo],
-      responses: [
-        makeToolUseResponse([makeToolCall('echo', { text: 'a' })], {
-          inputOther: 70,
-          output: 50,
-          inputCacheRead: 10,
-          inputCacheCreation: 20,
-        }),
-        makeEndTurnResponse('done', {
-          inputOther: 4,
-          output: 3,
-          inputCacheRead: 1,
-          inputCacheCreation: 2,
-        }),
-      ],
-    });
-
-    expect(inputTotal(result.usage)).toBe(107);
-    expect(result.usage.output).toBe(53);
-    expect(result.usage.inputCacheRead).toBe(11);
-    expect(result.usage.inputCacheCreation).toBe(22);
-  });
-});
-
-function captureLogs(): { readonly logger: Logger; readonly entries: CapturedLogEntry[] } {
-  const entries: CapturedLogEntry[] = [];
-  const logger: Logger = {
-    error: (message, payload) => {
-      entries.push({ level: 'error', message, payload });
-    },
-    warn: (message, payload) => {
-      entries.push({ level: 'warn', message, payload });
-    },
-    info: (message, payload) => {
-      entries.push({ level: 'info', message, payload });
-    },
-    debug: (message, payload) => {
-      entries.push({ level: 'debug', message, payload });
-    },
-    createChild: () => logger,
-  };
-  return { logger, entries };
-}
-
-describe('runTurn — default step cap', () => {
-  it('falls back to the generous default cap when maxSteps is unset', async () => {
-    // The step-loop passes DEFAULT_MAX_STEPS_PER_TURN when the config omits
-    // max_steps_per_turn; assert the constant stays generous so legitimate
-    // long work never hits it while retry-loop spins still terminate.
-    expect(DEFAULT_MAX_STEPS_PER_TURN).toBe(200);
-    expect(DEFAULT_MAX_STEPS_PER_TURN).toBeGreaterThan(100);
+    await runTurn(input);
+    expect(billed).toEqual([{
+      usage: expect.objectContaining({ inputOther: 7, output: 13 }),
+      info: { model: 'billed-model' },
+    }]);
+    expect(records.find((event) => event.type === 'step.end')).toMatchObject({ providerRouteSelection: route });
   });
 });

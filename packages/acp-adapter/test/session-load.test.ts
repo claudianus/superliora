@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   AgentSideConnection,
@@ -126,6 +126,24 @@ describe('AcpServer session/load auth gate', () => {
       clientConn.loadSession({ sessionId: 'sess-x', cwd: '/tmp/x', mcpServers: [] }),
     ).rejects.toMatchObject({ code: -32000 });
   });
+
+  it.each([
+    { name: 'stdio', command: 'mcp', args: [], env: [] },
+    { name: 'http', type: 'http' as const, url: 'https://example.test/mcp', headers: [] },
+    { name: 'sse', type: 'sse' as const, url: 'https://example.test/sse', headers: [] },
+  ])('rejects nonempty $name MCP lists without resuming a session', async (mcpServer) => {
+    const resumeSession = vi.fn();
+    const harness = {
+      auth: { status: async () => AUTHED_STATUS }, resumeSession,
+    } as unknown as LioraHarness;
+    const { agentStream, clientStream } = makeInMemoryStreamPair();
+    new AgentSideConnection((connection) => new AcpServer(harness, connection), agentStream);
+    const client = new ClientSideConnection(() => new CapturingClient(), clientStream);
+    await expect(client.loadSession({ sessionId: 'sess-mcp', cwd: '/tmp/x', mcpServers: [mcpServer] }))
+      .rejects.toMatchObject({ code: -32602 });
+    expect(resumeSession).not.toHaveBeenCalled();
+  });
+
 });
 
 describe('AcpServer session/load replay', () => {
@@ -273,10 +291,7 @@ describe('AcpServer session/load replay', () => {
       mcpServers: [],
     });
 
-    // Phase 14 (PLAN D11): the dedicated `modes:` field is gone; the
-    // four-mode taxonomy now lives under `configOptions[id='mode']`.
-    // Mode is still session-scoped and not persisted, so a resumed
-    // session re-starts in `default`.
+    // Native permission policy defaults to manual when no persisted policy exists.
     expect(response.modes).toBeUndefined();
 
     expect(response.configOptions).toBeDefined();
@@ -297,10 +312,10 @@ describe('AcpServer session/load replay', () => {
     if (modeOpt!.type !== 'select') {
       throw new Error('mode option must be a select');
     }
-    expect(modeOpt!.currentValue).toBe('default');
-    expect(modeOpt!.options).toHaveLength(4);
+    expect(modeOpt!.currentValue).toBe('manual');
+    expect(modeOpt!.options).toHaveLength(3);
     const modeIds = modeOpt!.options.map((o) => 'value' in o ? o.value : '');
-    expect(modeIds).toEqual(['default', 'plan', 'auto', 'yolo']);
+    expect(modeIds).toEqual(['manual', 'auto', 'yolo']);
     for (const entry of modeOpt!.options) {
       if ('value' in entry) {
         expect(typeof entry.name).toBe('string');

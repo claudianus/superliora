@@ -8,7 +8,6 @@
 
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { getRootLogger, log } from '#/logging/logger';
-import type { PluginHost, PluginManager } from '#/plugin/index';
 import type { Kaos } from '@superliora/kaos';
 
 import type { LioraConfig } from '../config';
@@ -17,30 +16,18 @@ import {
   readWorkspaceAdditionalDirs,
   resolveWorkspaceAdditionalDirs,
 } from '../config';
-import type { FlagResolver } from '../flags';
-import { resolveSessionMcpConfig, mergeCallerMcpServers, type SessionMcpConfig } from '../mcp';
-import type { LioraMemoryStore } from '../memory';
-import { Session, type SessionSkillConfig } from '../session';
-import {
-  responseLanguagePreferenceFromHostLocale,
-  responseLanguagePreferenceFromUnknown,
-} from '../session/response-language';
+import { Session } from '../session';
 import { exportSessionDirectory } from '../session/export';
 import { buildWorktreeMetadata, createSessionWorktree } from '../session/worktree';
 import type { ProviderManager } from '../session/provider/provider-manager';
 import { SessionAPIImpl } from '../session/rpc';
 import type { SessionStore } from '../session/store/index';
-import {
-  resolveSessionSmartRoute,
-  scheduleSmartAutoLiveProbe,
-} from '../agent/routing';
-import { warmModelsDevData } from '../utils/model-presets';
+import { resolveConfiguredSessionRoute } from '../agent/routing';
 import {
   withTelemetryContext,
   withTelemetryProperties,
   type TelemetryClient,
 } from '../telemetry';
-import type { ToolServices } from '../tools/support/services';
 import { resolveThinkingLevel } from '../agent/config/thinking';
 
 import type {
@@ -53,7 +40,6 @@ import type {
   ForkSessionPayload,
   JsonObject,
   ListSessionsPayload,
-  ReloadPluginsResult,
   ReloadSessionPayload,
   RenameSessionPayload,
   ResumeSessionPayload,
@@ -71,19 +57,11 @@ import {
   warnIfLogFlushFails,
   withAdditionalDirs,
 } from './session-helpers';
-import * as pluginWiring from './core-plugin-wiring';
 
 export interface SessionLifecycleContext {
   readonly homeDir: string;
-  readonly projectDir: string;
-  readonly channelServers: readonly string[];
   readonly sessions: Map<string, Session>;
   readonly sessionStore: SessionStore;
-  readonly plugins: PluginManager;
-  readonly pluginHost: PluginHost;
-  readonly pluginsReady: Promise<void>;
-  readonly memory: LioraMemoryStore;
-  readonly experimentalFlags: FlagResolver;
   readonly telemetry: TelemetryClient;
   readonly appVersion: string | undefined;
   readonly sdk: Promise<SDKRPC>;
@@ -91,12 +69,7 @@ export interface SessionLifecycleContext {
 
   reloadProviderManager(): LioraConfig;
   getKaos(): Promise<Kaos>;
-  mergePluginMcpConfig(base: SessionMcpConfig | undefined): SessionMcpConfig | undefined;
-  buildSessionToolServices(config: LioraConfig, sessionId: string): Promise<ToolServices>;
   resolveProviderManager(sessionId: string): ProviderManager;
-  resolveSessionSkillConfig(config: LioraConfig): SessionSkillConfig;
-  clearRuntimeCache(): void;
-  reloadPlugins(payload: EmptyPayload): Promise<ReloadPluginsResult>;
   refreshSessionRuntimeConfig(session: Session, config: LioraConfig): Promise<void>;
 }
 
@@ -118,18 +91,14 @@ export async function createSessionWithOverrides(
   const workDir = requiredWorkDir('createSession', options.workDir);
   const config = context.reloadProviderManager();
   const id = options.id ?? createSessionId();
-  const modelAlias = options.model ?? config.defaultModel;
+  const requestedModel = options.model ?? config.defaultModel;
+  const modelAlias = requestedModel === undefined ? undefined
+    : resolveConfiguredSessionRoute({ config, alias: requestedModel }).alias;
   const thinkingLevel = resolveThinkingLevel(options.thinking, {
     ...config,
     model: modelAlias === undefined ? undefined : config.models?.[modelAlias],
   });
   const permissionMode = options.permission ?? config.defaultPermissionMode;
-  const baseMcpConfig = await resolveSessionMcpConfig({
-    cwd: workDir,
-    homeDir: context.homeDir,
-    config,
-  });
-  const withCallerMcp = mergeCallerMcpServers(baseMcpConfig, options.mcpServers);
   const parentKaos = overrides.kaos ?? (await context.getKaos());
   const persistenceKaos = overrides.persistenceKaos ?? parentKaos;
   const localWorkspaceDirs = await readWorkspaceAdditionalDirs(persistenceKaos, workDir);
@@ -157,54 +126,21 @@ export async function createSessionWithOverrides(
       ? sessionTelemetryBase
       : withTelemetryProperties(sessionTelemetryBase, clientTelemetry);
 
-  await context.pluginsReady;
-  const wiringContext = {
-    homeDir: context.homeDir,
-    projectDir: context.projectDir,
-    channelServers: context.channelServers,
-    config,
-    plugins: context.plugins,
-    pluginHost: context.pluginHost,
-  };
-  const pluginSession = await pluginWiring.resolvePluginSessionConfig(wiringContext, config);
-  const sessionConfig = pluginSession.config;
-  const pluginSessionStarts = context.plugins.enabledSessionStarts();
-  const pluginCommands = await context.pluginHost.commands();
-  const pluginAgents = await context.pluginHost.agents();
-  const pluginBinDirs = context.pluginHost.binDirs();
-  const mcpConfig = context.mergePluginMcpConfig(withCallerMcp);
-
-  const runtime = await context.buildSessionToolServices(sessionConfig, summary.id);
-  let sessionKaos = parentKaos.withCwd(workDir);
-  if (Object.keys(pluginSession.env).length > 0) {
-    sessionKaos = sessionKaos.withEnv(pluginSession.env);
-  }
+  const sessionKaos = parentKaos.withCwd(workDir);
   const session = new Session({
     kaos: sessionKaos,
     persistenceKaos,
-    toolServices: runtime,
-    config: sessionConfig,
+    config,
     id,
     homedir: summary.sessionDir,
     kimiHomeDir: context.homeDir,
     rpc: proxyWithExtraPayload(await context.sdk, { sessionId: summary.id }),
     providerManager: context.resolveProviderManager(summary.id),
-    background: sessionConfig.background,
-    hooks: [...(sessionConfig.hooks ?? []), ...context.pluginHost.hooks()],
-    permissionRules: sessionConfig.permission?.rules,
-    skills: context.resolveSessionSkillConfig(sessionConfig),
-    mcpConfig,
-    experimentalFlags: context.experimentalFlags,
+    background: config.background,
+    permissionRules: config.permission?.rules,
     telemetry: sessionTelemetry,
-    pluginSessionStarts,
     appVersion: context.appVersion,
     additionalDirs,
-    memory: context.memory.runtimeForSession({ sessionId: summary.id, workDir }),
-    dreamStore: context.memory,
-    pluginCommands,
-    pluginAgents,
-    pluginBinDirs,
-    drainAgentTasksOnStop: options.drainAgentTasksOnStop,
   });
   try {
     const seededCustom: Record<string, unknown> =
@@ -242,49 +178,15 @@ export async function createSessionWithOverrides(
         : {}),
       custom: seededCustom,
     };
-    if (responseLanguagePreferenceFromUnknown(session.metadata.custom['responseLanguage']) === undefined) {
-      const seeded = responseLanguagePreferenceFromHostLocale();
-      if (seeded !== undefined) {
-        session.metadata = {
-          ...session.metadata,
-          custom: {
-            ...session.metadata.custom,
-            responseLanguage: seeded,
-          },
-        };
-      }
-    }
     const mainAgent = await session.createMain();
-    const sessionModelAlias = options.model ?? config.defaultModel;
+    const sessionModelAlias = modelAlias;
     mainAgent.config.update({
       modelAlias: sessionModelAlias,
       thinkingLevel,
     });
-    if (sessionModelAlias?.trim().toLowerCase() === 'auto') {
-      // A failed warm-up leaves the model catalog empty with no other signal,
-      // so the user sees "no models" and cannot tell it apart from a network
-      // problem. Log it; the session still starts.
-      void warmModelsDevData().catch((error: unknown) => {
-        log.warn('models.dev warm-up failed; model catalog may be empty', {
-          message: error instanceof Error ? error.message : String(error),
-        });
-      });
-      const route = resolveSessionSmartRoute({ config });
-      if (route !== undefined) {
-        mainAgent.config.setSmartRouteAlias(route.alias);
-        scheduleSmartAutoLiveProbe(mainAgent);
-      }
-    }
     if (permissionMode !== undefined) {
       mainAgent.permission.setMode(permissionMode);
     }
-    // Bootstrap activates plan mode directly even on a Conductor lane: there is
-    // no task context yet, and a plan-desk job needs one to brief a worker. The
-    // desk handoff belongs to `EnterPlanMode`, once the model has a request.
-    if (config.defaultPlanMode === true) {
-      await mainAgent.planMode.enter();
-    }
-    await pluginWiring.wirePluginSessionHosts(wiringContext, session, mainAgent);
     await session.writeMetadata();
     await session.flushMetadata();
   } catch (error) {
@@ -338,7 +240,6 @@ export async function resumeSessionWithOverrides(
   overrides: {
     kaos?: Kaos;
     persistenceKaos?: Kaos;
-    forcePluginSessionStartReminder?: boolean;
   },
 ): Promise<ResumeSessionResult> {
   const summary = await context.sessionStore.get(input.sessionId);
@@ -352,11 +253,12 @@ export async function resumeSessionWithOverrides(
     summary.workDir,
     input.additionalDirs ?? [],
   );
+  const active = context.sessions.get(summary.id);
   const additionalDirs = normalizeAdditionalDirs([
     ...localWorkspaceDirs.additionalDirs,
+    ...(active?.getAdditionalDirs() ?? []),
     ...callerAdditionalDirs,
   ]);
-  const active = context.sessions.get(summary.id);
   if (active !== undefined) {
     if (overrides.kaos !== undefined) {
       active.setToolKaos(overrides.kaos.withCwd(summary.workDir));
@@ -366,83 +268,30 @@ export async function resumeSessionWithOverrides(
   }
 
   const config = context.reloadProviderManager();
-  const baseMcpConfig = await resolveSessionMcpConfig({
-    cwd: summary.workDir,
-    homeDir: context.homeDir,
-    config,
-  });
-  const withCallerMcp = mergeCallerMcpServers(baseMcpConfig, input.mcpServers);
-  await context.pluginsReady;
-  const wiringContext = {
-    homeDir: context.homeDir,
-    projectDir: context.projectDir,
-    channelServers: context.channelServers,
-    config,
-    plugins: context.plugins,
-    pluginHost: context.pluginHost,
-  };
-  const pluginSession = await pluginWiring.resolvePluginSessionConfig(wiringContext, config);
-  const sessionConfig = pluginSession.config;
-  const pluginSessionStarts = context.plugins.enabledSessionStarts();
-  const pluginCommands = await context.pluginHost.commands();
-  const pluginAgents = await context.pluginHost.agents();
-  const pluginBinDirs = context.pluginHost.binDirs();
-  const mcpConfig = context.mergePluginMcpConfig(withCallerMcp);
-  const runtime = await context.buildSessionToolServices(sessionConfig, summary.id);
   const parentKaos = parentKaosForRead;
   const persistenceKaos = overrides.persistenceKaos ?? parentKaos;
-  let sessionKaos = parentKaos.withCwd(summary.workDir);
-  if (Object.keys(pluginSession.env).length > 0) {
-    sessionKaos = sessionKaos.withEnv(pluginSession.env);
-  }
+  const sessionKaos = parentKaos.withCwd(summary.workDir);
   const session = new Session({
     kaos: sessionKaos,
     persistenceKaos,
-    toolServices: runtime,
-    config: sessionConfig,
+    config,
     id: summary.id,
     homedir: summary.sessionDir,
     kimiHomeDir: context.homeDir,
     rpc: proxyWithExtraPayload(await context.sdk, { sessionId: summary.id }),
     providerManager: context.resolveProviderManager(summary.id),
-    background: sessionConfig.background,
-    hooks: [...(sessionConfig.hooks ?? []), ...context.pluginHost.hooks()],
-    permissionRules: sessionConfig.permission?.rules,
-    skills: context.resolveSessionSkillConfig(sessionConfig),
-    mcpConfig,
-    experimentalFlags: context.experimentalFlags,
+    background: config.background,
+    permissionRules: config.permission?.rules,
     telemetry: withTelemetryContext(context.telemetry, { sessionId: summary.id }),
     initializeMainAgent: false,
-    pluginSessionStarts,
     appVersion: context.appVersion,
     additionalDirs,
-    memory: context.memory.runtimeForSession({ sessionId: summary.id, workDir: summary.workDir }),
-    dreamStore: context.memory,
-    pluginCommands,
-    pluginAgents,
-    pluginBinDirs,
   });
   let warning: string | undefined;
   try {
     const resumeResult = await session.resume();
     warning = resumeResult.warning;
-    await context.refreshSessionRuntimeConfig(session, sessionConfig);
-    const mainAgent = session.getReadyAgent('main');
-    if (mainAgent !== undefined) {
-      await pluginWiring.wirePluginSessionHosts(wiringContext, session, mainAgent);
-      if (mainAgent.config.modelAlias?.trim().toLowerCase() === 'auto') {
-        void warmModelsDevData().catch((error: unknown) => {
-          log.warn('models.dev warm-up failed on resume; model catalog may be empty', {
-            message: error instanceof Error ? error.message : String(error),
-          });
-        });
-        const route = resolveSessionSmartRoute({ config });
-        if (route !== undefined) {
-          mainAgent.config.setSmartRouteAlias(route.alias);
-          scheduleSmartAutoLiveProbe(mainAgent);
-        }
-      }
-    }
+    await context.refreshSessionRuntimeConfig(session, config);
   } catch (error) {
     await session.close().catch((closeError: unknown) => {
       log.warn('session close failed while unwinding a failed resume', {
@@ -456,9 +305,6 @@ export async function resumeSessionWithOverrides(
     throw error;
   }
   context.sessions.set(summary.id, session);
-  if (overrides.forcePluginSessionStartReminder === true) {
-    await session.appendPluginSessionStartReminder();
-  }
   return resumeSessionResult(summary, session, warning);
 }
 
@@ -477,17 +323,15 @@ export async function reloadSession(
   }
 
   context.reloadProviderManager();
-  context.clearRuntimeCache();
-  await context.reloadPlugins({});
 
   if (active !== undefined) {
-    await active.closeForReload();
+    await active.close();
     context.sessions.delete(summary.id);
   }
   return resumeSessionWithOverrides(
     context,
-    { sessionId: summary.id },
-    { forcePluginSessionStartReminder: input.forcePluginSessionStartReminder },
+    { sessionId: summary.id, ...(active === undefined ? {} : { additionalDirs: active.getAdditionalDirs() }) },
+    {},
   );
 }
 

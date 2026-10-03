@@ -8,14 +8,14 @@ import type { PermissionRule } from './types';
  *
  * Grammar:
  *   pattern    := toolName ( "(" argPattern ")" )?
- *   toolName   := identifier characters (e.g. `Bash`, `mcp__github__*`)
+ *   toolName   := native tool name (`Bash`, `SessionControl`) or a glob
  *   argPattern := any string interpreted only by a tool-provided matcher
  *
  * Examples:
- *   "Write"            -> { toolName: "Write" }
- *   "Read(/etc/**)"    -> { toolName: "Read", argPattern: "/etc/**" }
- *   "Bash(!rm *)"      -> { toolName: "Bash", argPattern: "!rm *" }
- *   "mcp__github__*"   -> { toolName: "mcp__github__*" }
+ *   "SessionControl"  -> { toolName: "SessionControl" }
+ *   "Bash(git *)"     -> { toolName: "Bash", argPattern: "git *" }
+ *   "Bash(!rm *)"     -> { toolName: "Bash", argPattern: "!rm *" }
+ *   "*"               -> { toolName: "*" }
  */
 export interface ParsedPattern {
   readonly toolName: string;
@@ -64,8 +64,7 @@ export function parsePattern(pattern: string): ParsedPattern {
   if (toolName.length === 0) {
     throw new Error(`permission pattern: empty tool name in "${pattern}"`);
   }
-  // `Tool()` parses to no arg pattern so it stays tool-name-only — tools without
-  // a `matchesRule` matcher (user/MCP/custom) would otherwise stop matching it.
+  // An empty argument pattern is a tool-name-only rule.
   if (argPattern.length === 0) {
     return { toolName };
   }

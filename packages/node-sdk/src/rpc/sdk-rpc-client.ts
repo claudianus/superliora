@@ -14,8 +14,6 @@ import {
   type RPCMethods,
   type RuntimeDegradedEvent,
   type SDKAPI,
-  type SmartLoopProbeProgress,
-  type SmartLoopRoleRoutingPlan,
   type TelemetryClient,
 } from '@superliora/agent-core';
 import type { Kaos } from '@superliora/kaos';
@@ -23,7 +21,7 @@ import { assertKimiHostIdentity, createKimiDefaultHeaders } from '@superliora/oa
 
 import { LioraAuthFacade } from '#/auth';
 import { LioraHarness } from '#/harness/liora-harness';
-import { ClientAPI, SDKRpcClientBase, type ReloadSessionRpcInput } from '#/rpc/rpc';
+import { ClientAPI, SDKRpcClientBase, type SessionIdRpcInput } from '#/rpc/rpc';
 import type {
   CreateSessionOptions,
   LioraHarnessOptions,
@@ -39,13 +37,6 @@ export interface SDKRpcClientOptions {
   readonly configPath?: string;
   readonly identity?: KimiHostIdentity;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver;
-  readonly skillDirs?: readonly string[];
-  readonly projectDir?: string;
-  readonly pluginDirs?: readonly string[];
-  readonly channelServers?: readonly string[];
-  readonly resolveMarketplaceSource?: (
-    pluginId: string,
-  ) => Promise<string | undefined> | string | undefined;
   readonly telemetry?: TelemetryClient;
   readonly onOAuthRefresh?: (outcome: OAuthRefreshOutcome) => void;
 }
@@ -98,11 +89,6 @@ export class SDKRpcClient extends SDKRpcClientBase {
       kimiRequestHeaders: this.createKimiRequestHeaders(),
       resolveOAuthTokenProvider:
         options.resolveOAuthTokenProvider ?? this.auth.resolveOAuthTokenProvider,
-      skillDirs: options.skillDirs,
-      projectDir: options.projectDir,
-      pluginDirs: options.pluginDirs,
-      channelServers: options.channelServers,
-      resolveMarketplaceSource: options.resolveMarketplaceSource,
       telemetry: this.telemetry,
       appVersion: this.identity?.version,
     });
@@ -115,7 +101,7 @@ export class SDKRpcClient extends SDKRpcClientBase {
   }
 
   async close(): Promise<void> {
-    this.core.close();
+    await this.core.close();
     try {
       await getRootLogger().flush();
     } catch {
@@ -132,9 +118,7 @@ export class SDKRpcClient extends SDKRpcClientBase {
     kaos: Kaos,
     persistenceKaos?: Kaos,
   ): Promise<SessionSummary> {
-    const { planMode, ...coreInput } = input;
-    void planMode;
-    return this.core.createSessionWithOverrides(coreInput, { kaos, persistenceKaos });
+    return this.core.createSessionWithOverrides(input, { kaos, persistenceKaos });
   }
 
   /**
@@ -157,10 +141,9 @@ export class SDKRpcClient extends SDKRpcClientBase {
   }
 
   /** Same bypass as {@link resumeSession} — reload returns a full resume payload. */
-  override async reloadSession(input: ReloadSessionRpcInput): Promise<ResumedSessionSummary> {
+  override async reloadSession(input: SessionIdRpcInput): Promise<ResumedSessionSummary> {
     return this.core.reloadSession({
       sessionId: input.sessionId,
-      forcePluginSessionStartReminder: input.forcePluginSessionStartReminder,
     });
   }
 
@@ -172,14 +155,6 @@ export class SDKRpcClient extends SDKRpcClientBase {
     this.core.broadcastRuntimeDegraded(event);
   }
 
-  /**
-   * Bypass RPC serialize so Settings can stream live probe progress into the TUI.
-   */
-  override async planSmartLoopRoleRouting(options?: {
-    readonly onProgress?: (progress: SmartLoopProbeProgress) => void;
-  }): Promise<SmartLoopRoleRoutingPlan> {
-    return this.core.planSmartLoopRoleRoutingWithOptions({}, options);
-  }
 
   private createKimiRequestHeaders(): Record<string, string> | undefined {
     if (this.identity === undefined) return undefined;

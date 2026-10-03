@@ -19,9 +19,6 @@ describe('PermissionManager intervention status emit', () => {
       telemetry: { track: vi.fn() },
       emitStatusUpdated,
       rpc: { requestApproval },
-      hooks: { fireAndForgetTrigger: vi.fn(), triggerBlock: vi.fn(async () => undefined) },
-      planMode: { isActive: false },
-      askMode: { isActive: false },
     } as unknown as Agent;
     const manager = new PermissionManager(agent);
     Object.assign(agent, { permission: manager });
@@ -35,17 +32,17 @@ describe('PermissionManager intervention status emit', () => {
         llm: {} as never,
         toolCall: {
           type: 'function',
-          id: 'call_write',
-          name: 'Write',
-          arguments: JSON.stringify({ path: '/tmp/outside.md', content: 'x' }),
+          id: 'call_bash',
+          name: 'Bash',
+          arguments: JSON.stringify({ command: 'printf hello' }),
         },
         toolCalls: [],
-        args: { path: '/tmp/outside.md', content: 'x' },
+        args: { command: 'printf hello' },
         execution: {
-          description: 'write file',
-          display: { kind: 'file_io', operation: 'write', path: '/tmp/outside.md' },
+          description: 'run shell command',
+          display: { kind: 'command', command: 'printf hello', cwd: '/workspace', language: 'bash' },
           accesses: ToolAccesses.none(),
-          approvalRule: 'Write(/tmp/outside.md)',
+          approvalRule: 'Bash(printf hello)',
           execute: async () => ({ output: '' }),
         },
       }),

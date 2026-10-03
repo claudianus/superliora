@@ -3,11 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Kaos } from '@superliora/kaos';
-import { createLioraHarness, LioraHarness } from '#/index';
+import { createLioraHarness } from '#/index';
 import type { LioraError } from '#/index';
-import type { ResumeSessionInput, ResumedSessionSummary } from '#/session/types';
-import { SDKRpcClientBase, type SetSessionPlanModeRpcInput } from '#/rpc/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { sessionIndexPath } from '../../agent-core/src/session/store';
@@ -50,65 +47,6 @@ max_context_size = 1000
 `,
     'utf-8',
   );
-}
-
-class StubRpc extends SDKRpcClientBase {
-  resumeCalls: Array<{ input: ResumeSessionInput; kaos: Kaos; persistenceKaos?: Kaos }> = [];
-  planMode = false;
-  setPlanModeCalls = 0;
-
-  protected async getRpc(): Promise<never> {
-    throw new Error('not used');
-  }
-
-  override async createSession(input: { id?: string; workDir: string }) {
-    return {
-      id: input.id ?? 'ses_stub',
-      workDir: input.workDir,
-      sessionDir: '/tmp/session',
-      createdAt: 1,
-      updatedAt: 1,
-    };
-  }
-
-  override async getStatus() {
-    return {
-      model: 'k2',
-      thinkingLevel: 'off',
-      permission: 'manual' as const,
-      planMode: this.planMode,
-      askMode: false,
-      contextTokens: 0,
-      maxContextTokens: 100,
-      contextUsage: 0,
-    };
-  }
-
-  override async setPlanMode(input: SetSessionPlanModeRpcInput) {
-    this.setPlanModeCalls += 1;
-    if (input.enabled && this.planMode) throw new Error('Already in plan mode');
-    this.planMode = input.enabled;
-  }
-
-  override async resumeSessionWithKaos(input: ResumeSessionInput, kaos: Kaos, persistenceKaos?: Kaos): Promise<ResumedSessionSummary> {
-    this.resumeCalls.push({ input, kaos, persistenceKaos });
-    return {
-      id: input.id,
-      workDir: '/tmp/work',
-      sessionDir: '/tmp/session',
-      createdAt: 1,
-      updatedAt: 1,
-      sessionMetadata: {
-        createdAt: '',
-        updatedAt: '',
-        title: '',
-        isCustomTitle: false,
-        agents: {},
-        custom: {},
-      },
-      agents: {},
-    };
-  }
 }
 
 describe('LioraHarness.createSession transport link', () => {
@@ -213,7 +151,7 @@ describe('LioraHarness.createSession transport link', () => {
       identity: TEST_IDENTITY,
       homeDir,
       telemetry: recordingTelemetry(records),
-      sessionStartedProperties: { yolo: true, plan: false },
+      sessionStartedProperties: { yolo: true, source: 'operator' },
     });
 
     try {
@@ -232,7 +170,7 @@ describe('LioraHarness.createSession transport link', () => {
           ui_mode: 'shell',
           resumed: false,
           yolo: true,
-          plan: false,
+          source: 'operator',
         },
       });
     } finally {
@@ -510,7 +448,7 @@ effort = "medium"
     }
   });
 
-  it('does not require provider config or API keys before prompt is implemented', async () => {
+  it('allows session creation before selecting a provider and model', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
     const harness = createLioraHarness({
@@ -550,31 +488,6 @@ effort = "medium"
     }
   });
 
-  it('does not persist a session record when MCP config validation fails', async () => {
-    const homeDir = await makeTempDir();
-    const workDir = await makeTempDir();
-    // Project-local mcp.json is intentionally ignored, so plant the malformed
-    // file under the user home dir where the loader actually reads from.
-    await writeFile(join(homeDir, 'mcp.json'), '{not json}', 'utf-8');
-    const harness = createLioraHarness({
-      identity: TEST_IDENTITY,
-      homeDir,
-    });
-
-    try {
-      await expect(
-        harness.createSession({ id: 'ses_bad_mcp_config', workDir }),
-      ).rejects.toMatchObject({
-        name: 'LioraError',
-        code: 'config.invalid',
-      });
-      expect(await harness.listSessions({ workDir })).toEqual([]);
-      expect(existsSync(sessionIndexPath(homeDir))).toBe(false);
-    } finally {
-      await harness.close();
-    }
-  });
-
   it('closes active runtime handles through closeSession, session.close, and close', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
@@ -594,19 +507,16 @@ effort = "medium"
       workDir,
       model: 'kimi-test-model',
     });
-    expect(coreSessionIds(harness)).toEqual([first.id, second.id]);
+    expect(harness.sessions.size).toBe(2);
 
     await harness.closeSession(first.id);
     expect(harness.getSession(first.id)).toBeUndefined();
-    expect(coreSessionIds(harness)).toEqual([second.id]);
 
     await second.close();
     expect(harness.getSession(second.id)).toBeUndefined();
-    expect(coreSessionIds(harness)).toEqual([]);
 
     await harness.close();
     expect(harness.sessions.size).toBe(0);
-    expect(coreSessionIds(harness)).toEqual([]);
   });
 
   it('applies initial thinking and permission runtime options', async () => {
@@ -691,85 +601,5 @@ effort = "medium"
     }
   });
 
-  it('rebinds an active session when resumeSession receives a new Kaos', async () => {
-    const records: TelemetryRecord[] = [];
-    const rpc = new StubRpc();
-    const harness = new LioraHarness(rpc, {
-      homeDir: '/tmp/home',
-      configPath: '/tmp/config.toml',
-      auth: { status: async () => ({ providers: [] }) } as never,
-      telemetry: recordingTelemetry(records),
-      ensureConfigFile: async () => undefined,
-      onClose: () => undefined,
-    });
-
-    const session = await harness.createSession({ id: 'ses_active', workDir: '/tmp/work' });
-    const kaos = {} as Kaos;
-
-    const resumed = await harness.resumeSession({ id: session.id, kaos });
-
-    expect(resumed).toBe(session);
-    expect(rpc.resumeCalls).toHaveLength(1);
-    expect(rpc.resumeCalls[0]).toMatchObject({
-      input: { id: 'ses_active' },
-      kaos,
-      persistenceKaos: undefined,
-    });
-  });
-
-  it('does not re-enter plan mode when a created session is already in plan mode', async () => {
-    const records: TelemetryRecord[] = [];
-    const rpc = new StubRpc();
-    rpc.planMode = true;
-    const harness = new LioraHarness(rpc, {
-      homeDir: '/tmp/home',
-      configPath: '/tmp/config.toml',
-      auth: { status: async () => ({ providers: [] }) } as never,
-      telemetry: recordingTelemetry(records),
-      ensureConfigFile: async () => undefined,
-      onClose: () => undefined,
-    });
-
-    const session = await harness.createSession({
-      id: 'ses_plan_already_enabled',
-      workDir: '/tmp/work',
-      planMode: true,
-    });
-
-    expect(session.id).toBe('ses_plan_already_enabled');
-    expect(rpc.setPlanModeCalls).toBe(0);
-  });
-
-  it('turns off config-created plan mode when createSession receives planMode false', async () => {
-    const records: TelemetryRecord[] = [];
-    const rpc = new StubRpc();
-    rpc.planMode = true;
-    const harness = new LioraHarness(rpc, {
-      homeDir: '/tmp/home',
-      configPath: '/tmp/config.toml',
-      auth: { status: async () => ({ providers: [] }) } as never,
-      telemetry: recordingTelemetry(records),
-      ensureConfigFile: async () => undefined,
-      onClose: () => undefined,
-    });
-
-    const session = await harness.createSession({
-      id: 'ses_plan_disabled',
-      workDir: '/tmp/work',
-      planMode: false,
-    });
-
-    expect(session.id).toBe('ses_plan_disabled');
-    expect(rpc.setPlanModeCalls).toBe(1);
-    expect(rpc.planMode).toBe(false);
-  });
 });
 
-function coreSessionIds(harness: LioraHarness): readonly string[] {
-  const core = (
-    harness as unknown as {
-      readonly rpc: { readonly core: { readonly sessions: ReadonlyMap<string, unknown> } };
-    }
-  ).rpc.core;
-  return Array.from(core.sessions.keys()).toSorted();
-}

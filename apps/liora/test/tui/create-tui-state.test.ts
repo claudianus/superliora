@@ -78,15 +78,12 @@ function fakeInitialAppState(): AppState {
     additionalDirs: [],
     sessionId: 'sess-1',
     permissionMode: 'manual',
-    planMode: false,
-    askMode: false,
     inputMode: 'prompt',
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
     isCompacting: false,
-    isBackgroundCompacting: false,
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
@@ -98,7 +95,6 @@ function fakeInitialAppState(): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
-    mcpServersSummary: null,
   };
 }
 
@@ -168,7 +164,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     };
     const state = createTUIState(opts);
@@ -223,7 +218,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
 
@@ -240,7 +234,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
@@ -278,38 +271,13 @@ describe('createTUIState', () => {
     expect(plainLines.at(-1)).toBe('╰──────────────────────╯');
   });
 
-  it('paints prompt-intelligence ghost text in the native editor region', () => {
-    const state = createTUIState({
-      initialAppState: fakeInitialAppState(),
-      startup: {
-        continueLast: false,
-        yolo: false,
-        auto: false,
-        plan: false,
-      },
-    });
-    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 8 });
-    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 40 });
-    state.editorContainer.addChild(state.editor);
-    state.editor.setText('please fix the');
-    state.editor.setCursorPosition({ line: 0, col: 'please fix the'.length });
-    // setCursorPosition clears ghost — set after cursor is final.
-    state.editor.setGhostText(' login flow', 'inline');
-
-    const frame = renderTUIStateNativeFrame(state);
-    const editorRegion = frame.regions.find((region) => region.id === 'editor');
-    const plainLines = (editorRegion?.lines ?? []).map((line) =>
-      typeof line === 'string' ? line : line.map((cell) => cell.char).join(''),
-    );
-    expect(plainLines.some((line) => line.includes('please fix the login flow'))).toBe(true);
-  });
 
   it('keeps incremental native frames free of stale ghost cells while typing with autocomplete open', async () => {
     const width = 30;
     const height = 12;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -340,7 +308,7 @@ describe('createTUIState', () => {
     const height = 16;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -369,7 +337,7 @@ describe('createTUIState', () => {
     const width = 80;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     state.editorContainer.addChild(state.editor);
 
@@ -381,8 +349,8 @@ describe('createTUIState', () => {
 
     state.transcriptContainer.addChild(
       new NoticeMessageComponent(
-        'Mission mode: ON',
-        'Shift-Tab routes the next task through Plan before any Goal or Fleet work.',
+        'Permission mode: AUTO',
+        'Session permission settings have changed.',
       ),
     );
     const second = detectTUIStateNativeLayoutShift(state, width, first.next);
@@ -397,7 +365,7 @@ describe('createTUIState', () => {
     const height = 24;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -427,7 +395,7 @@ describe('createTUIState', () => {
     const height = 30;
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
-      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+      startup: { continueLast: false, yolo: false, auto: false },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
     Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -439,9 +407,9 @@ describe('createTUIState', () => {
     for (let i = 0; i < 12; i++) {
       state.transcriptContainer.addChild(
         new NoticeMessageComponent(
-          i % 2 === 0 ? 'Mission mode: ON' : 'Mission mode: OFF',
+          i % 2 === 0 ? 'Permission mode: AUTO' : 'Permission mode: MANUAL',
           i % 2 === 0
-            ? 'Shift-Tab routes the next task through Plan before any Goal or Fleet work.'
+            ? 'Session permission settings have changed.'
             : undefined,
         ),
       );
@@ -461,7 +429,7 @@ describe('createTUIState', () => {
         const height = 24;
         const state = createTUIState({
           initialAppState: fakeInitialAppState(),
-          startup: { continueLast: false, yolo: false, auto: false, plan: false },
+          startup: { continueLast: false, yolo: false, auto: false },
         });
         Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
         Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
@@ -506,7 +474,7 @@ describe('createTUIState', () => {
         expect(countVisibleTranscriptCellsWithForeground(animated.renderer.frame)).toBeGreaterThan(0);
 
         state.transcriptContainer.addChild(
-          new NoticeMessageComponent('Mission mode: ON', 'Shift-Tab routes the next task.'),
+          new NoticeMessageComponent('Permission mode: AUTO', 'Session permission settings have changed.'),
         );
         const grown = renderTUIStateNativeFrame(state, {
           renderer: animated.renderer,
@@ -551,7 +519,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
 
@@ -572,7 +539,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     };
     const state = createTUIState(opts);
@@ -608,7 +574,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 3 });
@@ -630,7 +595,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
@@ -655,7 +619,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 8 });
@@ -689,7 +652,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
@@ -712,7 +674,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     state.ui.clear();
@@ -739,7 +700,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
 
@@ -768,7 +728,6 @@ describe('createTUIState', () => {
           continueLast: false,
           yolo: false,
           auto: false,
-          plan: false,
         },
       });
       state.editor.borderHighlighted = true;
@@ -800,7 +759,6 @@ describe('createTUIState', () => {
           continueLast: false,
           yolo: false,
           auto: false,
-          plan: false,
         },
       });
       state.editor.borderHighlighted = true;
@@ -827,7 +785,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
@@ -855,7 +812,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 10 });
@@ -876,7 +832,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
 
@@ -896,7 +851,6 @@ describe('createTUIState', () => {
           continueLast: false,
           yolo: false,
           auto: false,
-          plan: false,
         },
       });
       Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
@@ -919,7 +873,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     state.transcriptContainer.addChild(fixedLines(['t1', 't2', 't3']));
@@ -981,7 +934,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     state.transcriptContainer.addChild(fixedLines(['t1', 't2']));
@@ -1056,7 +1008,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     state.terminal = terminal as unknown as RendererTerminalHost;
@@ -1090,7 +1041,6 @@ describe('createTUIState', () => {
           continueLast: false,
           yolo: false,
           auto: false,
-          plan: false,
         },
       });
       state.editorContainer.addChild(state.editor);
@@ -1130,7 +1080,6 @@ describe('createTUIState', () => {
           continueLast: false,
           yolo: false,
           auto: false,
-          plan: false,
         },
       });
       state.editorContainer.addChild(state.editor);
@@ -1166,7 +1115,6 @@ describe('createTUIState', () => {
           continueLast: false,
           yolo: false,
           auto: false,
-          plan: false,
         },
       });
       state.editorContainer.addChild(state.editor);
@@ -1227,7 +1175,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     state.editorContainer.addChild(state.editor);
@@ -1255,7 +1202,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     state.transcriptContainer.addChild(fixedLines(['underlay']));
@@ -1306,7 +1252,6 @@ describe('createTUIState', () => {
           continueLast: false,
           yolo: false,
           auto: false,
-          plan: false,
         },
       });
       const stats = new NativeFrameStats({ windowSize: 4 });
@@ -1360,7 +1305,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     state.transcriptContainer.addChild(fixedLines(['body']));
@@ -1402,7 +1346,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const scheduler = new FakeRenderLoopScheduler();
@@ -1457,7 +1400,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const requestRender = vi.fn();
@@ -1497,7 +1439,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const text = 'run [paste #7 +2 lines]\nnow';
@@ -1533,7 +1474,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
@@ -1579,7 +1519,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     state.editor.setText('a\nb\nc\nd\ne');
@@ -1611,7 +1550,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
@@ -1658,7 +1596,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
@@ -1701,7 +1638,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     state.editor.setText('hello\nworld');
@@ -1741,7 +1677,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const event: NativeInputEvent = {
@@ -1769,7 +1704,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     shortState.editor.setText('short');
@@ -1788,7 +1722,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
@@ -1839,7 +1772,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     state.editorContainer.addChild(state.editor);
@@ -1899,7 +1831,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const inputModes: string[] = [];
@@ -1939,7 +1870,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const inputModes: string[] = [];
@@ -1978,7 +1908,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const requestRender = vi.fn();
@@ -2015,7 +1944,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const requestRender = vi.fn();
@@ -2076,7 +2004,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const legacyInputs: string[] = [];
@@ -2123,7 +2050,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const scrollActions: string[] = [];
@@ -2164,7 +2090,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const scrollActions: string[] = [];
@@ -2209,7 +2134,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
@@ -2307,7 +2231,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
@@ -2380,7 +2303,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
@@ -2434,7 +2356,6 @@ describe('createTUIState', () => {
           continueLast: false,
           yolo: false,
           auto: false,
-          plan: false,
         },
       });
       const output = new FakeNativeOutput(24, 10);
@@ -2459,7 +2380,6 @@ describe('createTUIState', () => {
         continueLast: false,
         yolo: false,
         auto: false,
-        plan: false,
       },
     });
     const contentRows = 100;

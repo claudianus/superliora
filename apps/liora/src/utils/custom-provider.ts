@@ -1,4 +1,3 @@
-import { applyXaiPricingSafeContextTokens } from '@superliora/oauth';
 import { catalogThinkingMetadata, type Catalog, type LioraConfig } from '@superliora/sdk';
 
 type ProviderType = LioraConfig['providers'][string]['type'];
@@ -111,10 +110,7 @@ export function applyCustomEndpointProvider(
   if (!Number.isInteger(advertisedContext) || advertisedContext <= 0) {
     throw new Error('Context window must be a positive integer.');
   }
-  const maxContextSize = applyXaiPricingSafeContextTokens(advertisedContext, {
-    provider: providerId,
-    model: modelId,
-  });
+  const maxContextSize = advertisedContext;
   const maxOutputSize = input.maxOutputSize;
   if (maxOutputSize !== undefined && (!Number.isInteger(maxOutputSize) || maxOutputSize <= 0)) {
     throw new Error('Max output tokens must be a positive integer.');

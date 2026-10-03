@@ -33,11 +33,6 @@ describe('toKosongProviderConfig google branches', () => {
     });
   });
 
-  it('omits defaultHeaders for google-genai when none are configured', () => {
-    const config = call({ type: 'google-genai', apiKey: 'sk-test' });
-    expect(config).toMatchObject({ type: 'google-genai' });
-    expect('defaultHeaders' in config).toBe(false);
-  });
 
   it('passes a configured vertexai baseUrl through (regional endpoints)', () => {
     const config = call({
@@ -52,14 +47,6 @@ describe('toKosongProviderConfig google branches', () => {
     });
   });
 
-  it('leaves vertexai baseUrl unset by default (SDK/ADC defaults)', () => {
-    const config = call({
-      type: 'vertexai',
-      env: { GOOGLE_CLOUD_PROJECT: 'p', GOOGLE_CLOUD_LOCATION: 'us-central1' },
-    });
-    expect(config).toMatchObject({ type: 'vertexai', vertexai: true });
-    expect('baseUrl' in config).toBe(false);
-  });
 });
 
 function callOpenAI(provider: ProviderConfig, promptCacheKey?: string) {

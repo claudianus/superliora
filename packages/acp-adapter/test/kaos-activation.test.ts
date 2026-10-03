@@ -2,7 +2,7 @@
  * Tests that {@link AcpServer.newSession} / `setupSessionFromExisting`
  * passes an {@link AcpKaos} to {@link LioraHarness.createSession} /
  * `resumeSession` when, and only when, the client advertises
- * `fs.readTextFile` or `fs.writeTextFile`.
+ * `fs.readTextFile`, `fs.writeTextFile`, or `terminal`.
  *
  * Boundary-injection model: the kaos is captured by the kernel
  * `SessionImpl` ctor at session-creation time so every tool downstream
@@ -81,6 +81,17 @@ function makeHarness(captured: CapturedCreate[]): LioraHarness {
 }
 
 describe('AcpServer FS-capability activation (boundary injection)', () => {
+  it('activates editor execution even without file capabilities', async () => {
+    const captured: CapturedCreate[] = [];
+    const harness = makeHarness(captured);
+    const { agentStream, clientStream } = makeInMemoryStreamPair();
+    new AgentSideConnection((c) => new AcpServer(harness, c), agentStream);
+    const client = new ClientSideConnection(() => new StubClient(), clientStream);
+    await client.initialize({ protocolVersion: 1, clientCapabilities: { terminal: true } });
+    await client.newSession({ cwd: '/tmp/work', mcpServers: [] });
+    expect(captured[0]?.options.kaos).toBeInstanceOf(AcpKaos);
+    expect(captured[0]?.options.persistenceKaos).not.toBe(captured[0]?.options.kaos);
+  });
   it('passes an AcpKaos to createSession when the client advertises fs.readTextFile', async () => {
     const captured: CapturedCreate[] = [];
     const harness = makeHarness(captured);

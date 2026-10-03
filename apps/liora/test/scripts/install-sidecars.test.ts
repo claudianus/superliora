@@ -67,13 +67,12 @@ describe('scripts/install/sidecars', () => {
     expect(spawnCalls.every((call) => Array.isArray(call.stdio) && call.stdio[0] === 'ignore')).toBe(true);
     expect(pnpmCalls.some((call) => call.args.includes('cloakbrowser'))).toBe(true);
     expect(pnpmCalls.some((call) => call.args.includes('camoufox'))).toBe(true);
-    expect(pnpmCalls.some((call) => call.args.includes('retrieval:bootstrap'))).toBe(true);
   });
 
   it('soft-fails a timed-out step and continues later sidecars', async () => {
     const installDir = await makeSourceTree();
     const warnings: string[] = [];
-    const pnpmArgs: string[][] = [];
+    let spawnCalls = 0;
 
     await installSidecars({
       installDir,
@@ -85,18 +84,20 @@ describe('scripts/install/sidecars', () => {
         throw new Error('should not download Lightpanda on Windows');
       },
       runPnpm: (args: readonly string[]) => {
-        pnpmArgs.push([...args]);
         if (args.includes('camoufox')) return timedOutResult();
         return { status: 0 };
       },
-      spawnInstall: () => ({ status: 0 }),
+      spawnInstall: () => {
+        spawnCalls += 1;
+        return { status: 0 };
+      },
       onWarn: (message: string) => {
         warnings.push(message);
       },
     });
 
     expect(warnings.some((line) => line.includes('timed out') && line.includes('Camoufox'))).toBe(true);
-    expect(pnpmArgs.some((args) => args.includes('retrieval:bootstrap'))).toBe(true);
+    expect(spawnCalls).toBeGreaterThanOrEqual(1);
   });
 
   it('does not download sidecars when Upgrade Studio closed stdin', async () => {

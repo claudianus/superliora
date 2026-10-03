@@ -1,5 +1,4 @@
 import { log } from '#/logging/logger';
-import { PluginHost, PluginManager } from '#/plugin/index';
 import type { OAuthRefreshOutcome } from '@superliora/oauth';
 import type { RuntimeDegradedEvent } from '@superliora/protocol';
 
@@ -13,12 +12,6 @@ import {
   resolveLioraHome,
   type LioraConfig,
 } from '../config';
-import {
-  FLAG_DEFINITIONS,
-  FlagResolver,
-  type ExperimentalFeatureState,
-} from '../flags';
-import { LioraMemoryStore } from '../memory';
 import { Session } from '../session';
 import type { OAuthTokenProviderResolver } from '../session/provider/provider-manager';
 import { SessionStore } from '../session/store/index';
@@ -30,20 +23,13 @@ import type { CoreRPCClient } from './client';
 import type {
   CoreAPI,
   CoreInfo,
-  EmptyPayload,
-  PlanSmartLoopRoleRoutingResult,
 } from './core-api';
 import type { SDKRPC } from './sdk-api';
 import type { Kaos } from '@superliora/kaos';
-import type { SessionMcpConfig } from '../mcp';
-import type { ToolServices } from '../tools/support/services';
 import * as configMethods from './core-config-methods';
-import { delegateContextMethod, delegateContextMethodWithOptions } from './core-delegate';
+import { delegateContextMethod } from './core-delegate';
 import type { LioraCoreOptions } from './core-impl-types';
-import * as memoryMethods from './core-memory-methods';
 import * as runtimeSupport from './core-runtime-support';
-import * as pluginMethods from './plugin-methods';
-import * as pluginWiring from './core-plugin-wiring';
 import * as sessionLifecycle from './session-lifecycle';
 import * as sessionAgentMethods from './session-agent-methods';
 import { buildOAuthRefreshDegradedEventFromOutcome } from '../runtime/oauth-refresh-degraded';
@@ -55,52 +41,33 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   readonly homeDir: string;
   readonly configPath: string;
   readonly sessions = new Map<string, Session>();
+  readonly sessionStore: SessionStore;
   readonly telemetry: TelemetryClient;
 
   kaos: Promise<Kaos> | undefined;
-  runtime: ToolServices | undefined;
   config: LioraConfig;
   configWarnings: readonly string[] = [];
-  private readonly runtimeOverride: ToolServices | undefined;
-  readonly userHomeDir: string;
-  private readonly kimiRequestHeaders: Record<string, string> | undefined;
-  private readonly resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined;
-  readonly skillDirs: readonly string[];
-  readonly sessionStore: SessionStore;
-  readonly plugins: PluginManager;
-  readonly pluginHost: PluginHost;
-  pluginsReady: Promise<void>;
-  pluginsLoadError: Error | undefined;
-  private readonly pluginDirs: readonly string[];
-  readonly channelServers: readonly string[];
-  readonly projectDir: string;
+  readonly kimiRequestHeaders: Record<string, string> | undefined;
+  readonly resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined;
   readonly appVersion: string | undefined;
-  readonly experimentalFlags: FlagResolver;
-  readonly memory: LioraMemoryStore;
   private readonly uncaughtListener:
     | ((error: Error, origin: NodeJS.UncaughtExceptionOrigin) => void)
     | undefined;
+  private readonly inFlight = new Set<Promise<unknown>>();
+  private closePromise: Promise<void> | undefined;
+  isClosing = false;
 
   constructor(
     protected readonly rpcClient: CoreRPCClient,
     options: LioraCoreOptions = {},
   ) {
-    const runtimeDefaults = runtimeSupport.createCoreRuntimeSupportDefaults();
     this.homeDir = resolveLioraHome(options.homeDir);
-    this.userHomeDir = runtimeDefaults.userHomeDir;
     this.configPath = resolveConfigPath({
       homeDir: this.homeDir,
       configPath: options.configPath,
     });
-    this.runtimeOverride = options.runtime;
-    this.runtime = options.runtime;
-    this.kaos = runtimeDefaults.kaos;
     this.kimiRequestHeaders = options.kimiRequestHeaders;
     this.resolveOAuthTokenProvider = options.resolveOAuthTokenProvider;
-    this.skillDirs = options.skillDirs ?? [];
-    this.pluginDirs = options.pluginDirs ?? [];
-    this.channelServers = options.channelServers ?? [];
-    this.projectDir = options.projectDir ?? process.cwd();
     this.telemetry = options.telemetry ?? noopTelemetryClient;
     this.appVersion = options.appVersion;
     ensureLioraHome(this.homeDir);
@@ -117,31 +84,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     if (this.configWarnings.length > 0) {
       log.warn('config load degraded', { warnings: this.configWarnings });
     }
-    this.experimentalFlags = new FlagResolver(
-      process.env,
-      FLAG_DEFINITIONS,
-      this.config.experimental,
-    );
     this.sessionStore = new SessionStore(this.homeDir);
-    this.memory = new LioraMemoryStore({
-      homeDir: this.homeDir,
-      config: () => this.config.memory,
-    });
-    this.plugins = new PluginManager({
-      kimiHomeDir: this.homeDir,
-      projectDir: this.projectDir,
-      sessionPluginDirs: this.pluginDirs,
-      resolveMarketplaceSource: options.resolveMarketplaceSource,
-    });
-    this.pluginHost = new PluginHost(this.plugins);
-    // Capture the error rather than swallow it: mutators and explicit /plugins
-    // reads rethrow so the user sees what's wrong; createSession/resumeSession
-    // degrade silently (no plugin skills, no sessionStart injections) so the harness still
-    // starts. Reload clears the error on success.
-    this.pluginsReady = this.plugins.load().catch((error: unknown) => {
-      this.pluginsLoadError = error instanceof Error ? error : new Error(String(error));
-    });
-    log.info('experimental flags enabled', { flags: this.experimentalFlags.enabledIds() });
 
     this.sdk = rpcClient(this);
 
@@ -173,32 +116,42 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   renameSession = delegateContextMethod(sessionLifecycle.renameSession);
   exportSession = delegateContextMethod(sessionLifecycle.exportSession);
 
-  close(): void {
-    if (this.uncaughtListener !== undefined) {
-      process.removeListener('uncaughtExceptionMonitor', this.uncaughtListener);
+  assertOpen(): void {
+    if (this.isClosing) throw new Error('Core is closing.');
+  }
+
+  trackOperation<T>(result: T): T {
+    if (result instanceof Promise) {
+      this.inFlight.add(result);
+      void result.then(() => this.inFlight.delete(result), () => this.inFlight.delete(result));
     }
-    this.memory.close();
+    return result;
+  }
+
+  close(): Promise<void> {
+    if (this.closePromise !== undefined) return this.closePromise;
+    const completion = Promise.withResolvers<void>();
+    this.closePromise = completion.promise;
+    this.isClosing = true;
+    const stopping = new Set(Array.from(this.sessions.values(), (session) => session.close()));
+    void this.settleClose(stopping).then(completion.resolve, completion.reject);
+    return this.closePromise;
+  }
+
+  private async settleClose(stopping: Set<Promise<void>>): Promise<void> {
+    await Promise.allSettled(this.inFlight);
+    for (const session of this.sessions.values()) stopping.add(session.close());
+    const results = await Promise.allSettled(stopping);
+    const errors = results.filter((result) => result.status === 'rejected').map((result) => result.reason);
+    if (errors.length > 0) throw new AggregateError(errors, 'Core shutdown failed.');
+    this.sessions.clear();
+    if (this.uncaughtListener !== undefined) process.removeListener('uncaughtExceptionMonitor', this.uncaughtListener);
   }
 
   getCoreInfo(): CoreInfo {
     return { version: getCoreVersion() };
   }
 
-  getExperimentalFeatures(): readonly ExperimentalFeatureState[] {
-    return this.experimentalFlags.explainAll();
-  }
-
-  memoryRecall = delegateContextMethod(memoryMethods.memoryRecall);
-  memoryList = delegateContextMethod(memoryMethods.memoryList);
-  memoryGet = delegateContextMethod(memoryMethods.memoryGet);
-  memoryRemember = delegateContextMethod(memoryMethods.memoryRemember);
-  memoryUpdate = delegateContextMethod(memoryMethods.memoryUpdate);
-  memoryForget = delegateContextMethod(memoryMethods.memoryForget);
-  memoryStats = delegateContextMethod(memoryMethods.memoryStats);
-  memoryExport = delegateContextMethod(memoryMethods.memoryExport);
-  memoryImport = delegateContextMethod(memoryMethods.memoryImport);
-  memoryReflect = delegateContextMethod(memoryMethods.memoryReflect);
-  memoryInspect = delegateContextMethod(memoryMethods.memoryInspect);
 
   emergencyFlushSync(): void {
     for (const session of this.sessions.values()) {
@@ -210,7 +163,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     }
   }
 
-  /** Broadcast volatile runtime.degraded to ready main agents (Never-Halt hosts). */
+  /** Broadcast observed credential/provider failures to attached clients. */
   broadcastRuntimeDegraded(event: RuntimeDegradedEvent): void {
     for (const session of this.sessions.values()) {
       const main = session.getReadyAgent('main');
@@ -231,33 +184,6 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   deleteConfigFields = delegateContextMethod(configMethods.deleteConfigFields);
   removeKimiProvider = delegateContextMethod(configMethods.removeKimiProvider);
 
-  /** Settings Smart auto — needs private OAuth resolver; do not delegateContextMethod. */
-  planSmartLoopRoleRouting = (
-    input?: EmptyPayload,
-  ): Promise<PlanSmartLoopRoleRoutingResult> =>
-    this.planSmartLoopRoleRoutingWithOptions(input);
-
-  /**
-   * In-process Smart auto with live progress (callback is not RPC-safe).
-   * Prefer this from the local SDK harness; remote RPC uses {@link planSmartLoopRoleRouting}.
-   */
-  planSmartLoopRoleRoutingWithOptions(
-    input?: EmptyPayload,
-    options?: configMethods.PlanSmartLoopRoleRoutingOptions,
-  ): Promise<PlanSmartLoopRoleRoutingResult> {
-    return configMethods.planSmartLoopRoleRouting(
-      {
-        configPath: this.configPath,
-        config: this.config,
-        configWarnings: this.configWarnings,
-        experimentalFlags: this.experimentalFlags,
-        kimiRequestHeaders: this.kimiRequestHeaders,
-        resolveOAuthTokenProvider: this.resolveOAuthTokenProvider,
-      },
-      input,
-      options,
-    );
-  }
 
   prompt = delegateContextMethod(sessionAgentMethods.prompt);
   runShellCommand = delegateContextMethod(sessionAgentMethods.runShellCommand);
@@ -269,30 +195,14 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   setThinking = delegateContextMethod(sessionAgentMethods.setThinking);
   setPermission = delegateContextMethod(sessionAgentMethods.setPermission);
   getModel = delegateContextMethod(sessionAgentMethods.getModel);
-  enterPlan = delegateContextMethod(sessionAgentMethods.enterPlan);
-  cancelPlan = delegateContextMethod(sessionAgentMethods.cancelPlan);
-  clearPlan = delegateContextMethod(sessionAgentMethods.clearPlan);
-  setAskMode = delegateContextMethod(sessionAgentMethods.setAskMode);
-  getAskMode = delegateContextMethod(sessionAgentMethods.getAskMode);
-  setPremiumQuality = delegateContextMethod(sessionAgentMethods.setPremiumQuality);
-  getPremiumQuality = delegateContextMethod(sessionAgentMethods.getPremiumQuality);
   beginCompaction = delegateContextMethod(sessionAgentMethods.beginCompaction);
   cancelCompaction = delegateContextMethod(sessionAgentMethods.cancelCompaction);
-  refineHarness = delegateContextMethod(sessionAgentMethods.refineHarness);
-  rollbackHarnessRefinement = delegateContextMethod(sessionAgentMethods.rollbackHarnessRefinement);
-  getHarnessStatus = delegateContextMethod(sessionAgentMethods.getHarnessStatus);
-  registerTool = delegateContextMethod(sessionAgentMethods.registerTool);
-  unregisterTool = delegateContextMethod(sessionAgentMethods.unregisterTool);
-  setActiveTools = delegateContextMethod(sessionAgentMethods.setActiveTools);
   stopBackground = delegateContextMethod(sessionAgentMethods.stopBackground);
   detachBackground = delegateContextMethod(sessionAgentMethods.detachBackground);
   clearContext = delegateContextMethod(sessionAgentMethods.clearContext);
-  activateSkill = delegateContextMethod(sessionAgentMethods.activateSkill);
-  activatePluginCommand = delegateContextMethod(sessionAgentMethods.activatePluginCommand);
   getBackgroundOutput = delegateContextMethod(sessionAgentMethods.getBackgroundOutput);
   getContext = delegateContextMethod(sessionAgentMethods.getContext);
   getContextComposition = delegateContextMethod(sessionAgentMethods.getContextComposition);
-  diagnoseContextOS = delegateContextMethod(sessionAgentMethods.diagnoseContextOS);
   getSessionTrace = delegateContextMethod(sessionAgentMethods.getSessionTrace);
   getConfig = delegateContextMethod(sessionAgentMethods.getConfig);
   getPermission = delegateContextMethod(sessionAgentMethods.getPermission);
@@ -301,25 +211,12 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   getCacheFreezeViolations = delegateContextMethod(sessionAgentMethods.getCacheFreezeViolations);
   getParallelToolsStatus = delegateContextMethod(sessionAgentMethods.getParallelToolsStatus);
   getOAuthStatus = delegateContextMethod(sessionAgentMethods.getOAuthStatus);
-  getPlan = delegateContextMethod(sessionAgentMethods.getPlan);
   getUsage = delegateContextMethod(sessionAgentMethods.getUsage);
   getProviderRouteStatus = delegateContextMethod(sessionAgentMethods.getProviderRouteStatus);
-  getProviderExtrasStatus = delegateContextMethod(sessionAgentMethods.getProviderExtrasStatus);
   resetProviderRouteStatus = delegateContextMethod(sessionAgentMethods.resetProviderRouteStatus);
-  getTools = delegateContextMethod(sessionAgentMethods.getTools);
   getBackground = delegateContextMethod(sessionAgentMethods.getBackground);
-  inlineComplete = delegateContextMethodWithOptions(sessionAgentMethods.inlineComplete);
-  suggestPrompts = delegateContextMethodWithOptions(sessionAgentMethods.suggestPrompts);
   updateSessionMetadata = delegateContextMethod(sessionAgentMethods.updateSessionMetadata);
   getSessionMetadata = delegateContextMethod(sessionAgentMethods.getSessionMetadata);
-  listSkills = delegateContextMethod(sessionAgentMethods.listSkills);
-  getHookRegistry = delegateContextMethod(sessionAgentMethods.getHookRegistry);
-  listPluginCommands = delegateContextMethod(sessionAgentMethods.listPluginCommands);
-  searchSkills = delegateContextMethod(sessionAgentMethods.searchSkills);
-  listMcpServers = delegateContextMethod(sessionAgentMethods.listMcpServers);
-  getMcpStartupMetrics = delegateContextMethod(sessionAgentMethods.getMcpStartupMetrics);
-  reconnectMcpServer = delegateContextMethod(sessionAgentMethods.reconnectMcpServer);
-  generateAgentsMd = delegateContextMethod(sessionAgentMethods.generateAgentsMd);
   getSessionWarnings = delegateContextMethod(sessionAgentMethods.getSessionWarnings);
   addAdditionalDir = delegateContextMethod(sessionAgentMethods.addAdditionalDir);
   rewindFiles = delegateContextMethod(sessionAgentMethods.rewindFiles);
@@ -327,16 +224,12 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   stopConversationLoop = delegateContextMethod(sessionAgentMethods.stopConversationLoop);
   listConversationLoops = delegateContextMethod(sessionAgentMethods.listConversationLoops);
   startBtw = delegateContextMethod(sessionAgentMethods.startBtw);
-  createGoal = delegateContextMethod(sessionAgentMethods.createGoal);
-  getGoal = delegateContextMethod(sessionAgentMethods.getGoal);
-  pauseGoal = delegateContextMethod(sessionAgentMethods.pauseGoal);
-  resumeGoal = delegateContextMethod(sessionAgentMethods.resumeGoal);
-  cancelGoal = delegateContextMethod(sessionAgentMethods.cancelGoal);
   jobList = delegateContextMethod(sessionAgentMethods.jobList);
   jobInspect = delegateContextMethod(sessionAgentMethods.jobInspect);
   jobInbox = delegateContextMethod(sessionAgentMethods.jobInbox);
   jobSteer = delegateContextMethod(sessionAgentMethods.jobSteer);
   jobCancel = delegateContextMethod(sessionAgentMethods.jobCancel);
+  jobPause = delegateContextMethod(sessionAgentMethods.jobPause);
   jobResume = delegateContextMethod(sessionAgentMethods.jobResume);
   jobCreate = delegateContextMethod(sessionAgentMethods.jobCreate);
   jobCreateBatch = delegateContextMethod(sessionAgentMethods.jobCreateBatch);
@@ -351,39 +244,14 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   jobRenameWorkspace = delegateContextMethod(sessionAgentMethods.jobRenameWorkspace);
   jobLandChoice = delegateContextMethod(sessionAgentMethods.jobLandChoice);
 
-  installPlugin = delegateContextMethod(pluginMethods.installPlugin);
-  listPlugins = delegateContextMethod(pluginMethods.listPlugins);
-  setPluginEnabled = delegateContextMethod(pluginMethods.setPluginEnabled);
-  setPluginMcpServerEnabled = delegateContextMethod(pluginMethods.setPluginMcpServerEnabled);
-  removePlugin = delegateContextMethod(pluginMethods.removePlugin);
-  reloadPlugins = delegateContextMethod(pluginMethods.reloadPlugins);
-  getPluginInfo = delegateContextMethod(pluginMethods.getPluginInfo);
-  listPluginThemes = delegateContextMethod(pluginMethods.listPluginThemes);
-
-  buildSessionToolServices = delegateContextMethod(runtimeSupport.buildSessionToolServices);
   getKaos = delegateContextMethod(runtimeSupport.getKaos);
-  resolveSessionSkillConfig = delegateContextMethod(runtimeSupport.resolveSessionSkillConfig);
   resolveProviderManager = delegateContextMethod(runtimeSupport.resolveProviderManager);
-  mergePluginMcpConfig(base: SessionMcpConfig | undefined): SessionMcpConfig | undefined {
-    return pluginWiring.mergePluginMcpConfigWithHost(this.pluginWiringContext(), base);
-  }
   requireSession = delegateContextMethod(runtimeSupport.requireSession);
   sessionApi = delegateContextMethod(runtimeSupport.sessionApi);
-  clearRuntimeCache = delegateContextMethod(runtimeSupport.clearRuntimeCache);
   refreshSessionRuntimeConfig = delegateContextMethod(runtimeSupport.refreshSessionRuntimeConfig);
 
   reloadProviderManager(): LioraConfig {
     return configMethods.reloadRuntimeConfig(this);
   }
 
-  private pluginWiringContext(): pluginWiring.CorePluginWiringContext {
-    return {
-      homeDir: this.homeDir,
-      projectDir: this.projectDir,
-      channelServers: this.channelServers,
-      config: this.config,
-      plugins: this.plugins,
-      pluginHost: this.pluginHost,
-    };
-  }
 }

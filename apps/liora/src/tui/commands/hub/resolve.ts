@@ -4,14 +4,9 @@ import {
   type BuiltinSlashCommand,
   type BuiltinSlashCommandName,
 } from './registry';
-import { isExperimentalFlagEnabled } from '../experimental-flags';
 import { ttui } from '../../utils/tui-i18n';
 import { parseSlashInput } from './parse';
-import type {
-  LioraSlashCommand,
-  SlashCommandBusyReason,
-  SlashCommandInvalidReason,
-} from '../types';
+import type { SlashCommandBusyReason } from '../types';
 
 export type SlashCommandIntent =
   | { readonly kind: 'not-command' }
@@ -21,34 +16,15 @@ export type SlashCommandIntent =
       readonly name: BuiltinSlashCommandName;
       readonly args: string;
     }
-  | {
-      readonly kind: 'skill';
-      readonly commandName: string;
-      readonly skillName: string;
-      readonly args: string;
-    }
-  | {
-      readonly kind: 'plugin-command';
-      readonly commandName: string;
-      readonly pluginId: string;
-      readonly args: string;
-    }
   | { readonly kind: 'message'; readonly input: string }
   | {
       readonly kind: 'blocked';
       readonly commandName: string;
       readonly reason: SlashCommandBusyReason;
-    }
-  | {
-      readonly kind: 'invalid';
-      readonly commandName: string;
-      readonly reason: SlashCommandInvalidReason;
     };
 
 export interface ResolveSlashCommandInput {
   readonly input: string;
-  readonly skillCommandMap: ReadonlyMap<string, string>;
-  readonly pluginCommandMap: ReadonlyMap<string, string>;
   readonly isStreaming: boolean;
   readonly isCompacting: boolean;
 }
@@ -59,14 +35,6 @@ export function resolveSlashCommandInput(options: ResolveSlashCommandInput): Sla
 
   const command = findBuiltInSlashCommand(parsed.name);
   if (command !== undefined) {
-    // `command` is a literal union where only some members carry `experimentalFlag`; widen to read it.
-    if (!isExperimentalFlagEnabled((command as LioraSlashCommand).experimentalFlag)) {
-      return {
-        kind: 'invalid',
-        commandName: parsed.name,
-        reason: 'unknown',
-      };
-    }
     const busyReason = slashCommandBusyReason(options);
     if (
       busyReason !== undefined &&
@@ -86,43 +54,6 @@ export function resolveSlashCommandInput(options: ResolveSlashCommandInput): Sla
     };
   }
 
-  const skillName = resolveSkillCommand(options.skillCommandMap, parsed.name);
-  if (skillName !== undefined) {
-    const busyReason = slashCommandBusyReason(options);
-    if (busyReason !== undefined) {
-      return {
-        kind: 'blocked',
-        commandName: parsed.name,
-        reason: busyReason,
-      };
-    }
-    return {
-      kind: 'skill',
-      commandName: parsed.name,
-      skillName,
-      args: parsed.args.trim(),
-    };
-  }
-
-  if (options.pluginCommandMap.has(parsed.name)) {
-    const busyReason = slashCommandBusyReason(options);
-    if (busyReason !== undefined) {
-      return {
-        kind: 'blocked',
-        commandName: parsed.name,
-        reason: busyReason,
-      };
-    }
-    const separator = parsed.name.indexOf(':');
-    const pluginId = separator === -1 ? parsed.name : parsed.name.slice(0, separator);
-    const commandName = separator === -1 ? '' : parsed.name.slice(separator + 1);
-    return {
-      kind: 'plugin-command',
-      commandName,
-      pluginId,
-      args: parsed.args.trim(),
-    };
-  }
 
   return {
     kind: 'message',
@@ -130,26 +61,6 @@ export function resolveSlashCommandInput(options: ResolveSlashCommandInput): Sla
   };
 }
 
-/** Short aliases for builtin skills that users invoke frequently. */
-const SKILL_ALIASES: Readonly<Record<string, string>> = {
-  improve: 'recursive-improve',
-  slop: 'avoid-ai-writing',
-  goal: 'write-goal',
-};
-
-export function resolveSkillCommand(
-  skillCommandMap: ReadonlyMap<string, string>,
-  commandName: string,
-): string | undefined {
-  const mapped =
-    skillCommandMap.get(commandName) ??
-    skillCommandMap.get(`skill:${commandName}`) ??
-    SKILL_ALIASES[commandName];
-  if (mapped !== undefined) return mapped;
-  if (!commandName.startsWith('skill:')) return undefined;
-  const skillName = commandName.slice('skill:'.length).trim();
-  return skillName.length > 0 ? skillName : undefined;
-}
 
 export function slashCommandBusyReason(
   options: Pick<ResolveSlashCommandInput, 'isStreaming' | 'isCompacting'>,

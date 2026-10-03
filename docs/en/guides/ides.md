@@ -38,7 +38,7 @@ Configuration fields:
 - `args`: startup arguments. The `acp` subcommand switches the CLI into ACP mode.
 - `env`: additional environment variables; usually leave this empty. Zed injects a default environment automatically.
 
-After saving, open a new conversation in Zed's Agent panel and it will launch a `SuperLiora CLI` ACP subprocess using the configuration above. MCP servers declared in Zed's `agent_servers` section are also forwarded to SuperLiora via the ACP protocol.
+After saving, open a new conversation in Zed's Agent panel to launch the configured ACP subprocess. Do not supply MCP servers: nonempty lists are rejected. The model-visible tools remain Bash and SessionControl.
 
 ## Using SuperLiora CLI in JetBrains IDEs
 
@@ -52,7 +52,7 @@ In the AI chat panel menu, click **Configure ACP agents** and add the following 
 {
   "agent_servers": {
     "SuperLiora CLI": {
-      "command": "~/.local/bin/liora",
+      "command": "/Users/you/.local/bin/liora",
       "args": ["acp"],
       "env": {}
     }
@@ -88,7 +88,7 @@ Paseo's generic ACP adapter does not drive the login flow, so complete the termi
 
 - **Session disconnects immediately / IDE shows "agent exited"**: usually a wrong `command` path or a missing login. Run `liora acp` in a terminal first to verify — if it blocks waiting for stdin, the CLI itself is fine and the problem is in the IDE configuration; if it exits immediately with an error, follow the error message (most commonly you need to run `/login`).
 - **IDE shows "auth required"**: the CLI has no usable authentication token. Exit the IDE, run `liora` in a terminal to complete login, then restart the IDE.
-- **MCP tools not visible**: check the [`liora acp` reference](../reference/liora-acp.md) capability table to confirm that the MCP transport type configured in your IDE is supported. The SuperLiora CLI ACP adapter currently supports `http`, `stdio`, and `sse` transports; `acp` transport MCP servers are silently dropped and a warning is written to the log.
+- **MCP setup rejected**: MCP is retired; pass an empty `mcpServers` list. Nonempty lists are rejected with `invalidParams`. External services can be accessed through ordinary shell programs, not additional ACP model tools.
 
 ## Next steps
 

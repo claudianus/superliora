@@ -26,6 +26,7 @@ import {
   handleProviderKeyRemove,
   handleProviderKeyUnlabel,
   handleProviderList,
+  handleProviderModelAdd,
   handleProviderOAuthAdd,
   handleProviderOAuthClear,
   handleProviderOAuthLabel,
@@ -651,6 +652,55 @@ describe('liora provider list', () => {
     ]);
     expect(Object.keys(parsed.models)).toContain('kohub/a');
     expect(parsed.defaultModel).toBe('kohub/a');
+  });
+});
+
+describe('liora provider model add', () => {
+  it('preserves an explicit xAI context window without a pricing clamp', async () => {
+    mockRegistryFetch({});
+    const { harness, current } = makeHarness({
+      providers: { xai: { type: 'openai', baseUrl: 'https://api.x.ai/v1', apiKey: 'sk-test' } },
+    } as LioraConfig);
+    const { deps, stderr, exitCodes } = makeDeps(harness);
+
+    await tryRun(() =>
+      handleProviderModelAdd(deps, 'xai', 'grok-4.20', { context: '2000000' }),
+    );
+
+    expect(exitCodes).toEqual([]);
+    expect(stderr.join('')).toBe('');
+    expect(current().models?.['xai/grok-4.20']?.maxContextSize).toBe(2_000_000);
+  });
+
+  it('preserves the actual context window advertised by the xAI model catalog', async () => {
+    mockRegistryFetch({
+      xai: {
+        id: 'xai',
+        name: 'xAI',
+        npm: '@ai-sdk/openai',
+        api: 'https://api.x.ai/v1',
+        env: ['XAI_API_KEY'],
+        models: {
+          'grok-4.20': {
+            id: 'grok-4.20',
+            name: 'Grok 4.20',
+            limit: { context: 2_000_000, output: 65_536 },
+            tool_call: true,
+            reasoning: true,
+          },
+        },
+      },
+    });
+    const { harness, current } = makeHarness({
+      providers: { xai: { type: 'openai', baseUrl: 'https://api.x.ai/v1', apiKey: 'sk-test' } },
+    } as LioraConfig);
+    const { deps, stderr, exitCodes } = makeDeps(harness);
+
+    await tryRun(() => handleProviderModelAdd(deps, 'xai', 'grok-4.20', {}));
+
+    expect(exitCodes).toEqual([]);
+    expect(stderr.join('')).toBe('');
+    expect(current().models?.['xai/grok-4.20']?.maxContextSize).toBe(2_000_000);
   });
 });
 

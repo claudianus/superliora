@@ -36,16 +36,10 @@ import {
   ToolResultBuilder,
 } from '../../support/result-builder';
 import { appendTextToolMeta } from '../../support/text-result-meta';
-import { classifyCommandOutput } from '../../display';
-import type { ToolStore } from '../../store';
 import {
   buildShellChildEnv,
   type ShellEnvFilterPolicy,
 } from '../../policies/shell-env';
-import {
-  detectShellDedicatedBypass,
-  formatShellDedicatedBypassError,
-} from '../../policies/shell-dedicated-bypass';
 import {
   detectSandboxCwd,
   detectShellSandboxPath,
@@ -56,21 +50,15 @@ import {
   formatShellSensitivePathError,
 } from '../../policies/shell-sensitive-path';
 import type { WorkspaceConfig } from '../../support/workspace';
-import { getJob } from '../job/job-ledger';
-import { findJobWorkerLedger } from '../job/job-worker-ledger-bridge';
-import { guardWorkerShellCommand } from '../job/job-worker-guards';
 import bashDescriptionTemplate from './bash.md?raw';
 import {
   backgroundResultMessage,
   BashInputSchema,
   closeProcessStdin,
   DEFAULT_BACKGROUND_TIMEOUT_S,
-  DEFAULT_TIMEOUT_S,
   foregroundDescription,
   formatTimeoutLabel,
-  killSpawnedProcess,
   MS_PER_SECOND,
-  MAX_TIMEOUT_S,
   normalizeTimeoutMs,
   rewriteWindowsNullRedirect,
   shellQuote,
@@ -91,29 +79,6 @@ function renderBashDescription(shellName: string): string {
   return renderPrompt(bashDescriptionTemplate, { ...SHELL_TIMEOUT_VARS, SHELL_NAME: shellName });
 }
 
-function withoutBackgroundDescription(description: string): string {
-  return description
-    .replace(
-      /\r?\n\r?\n\*\*Background:\*\*[\s\S]*?Users inspect tasks via `\/tasks`\./,
-      '\n\nBackground execution is disabled for this agent. Do not set `run_in_background=true`.',
-    )
-    .replace(
-      /\r?\n\r?\nIf `run_in_background=true`,[\s\S]*?Users inspect tasks via `\/tasks`\./,
-      '\n\nBackground execution is disabled for this agent. Do not set `run_in_background=true`.',
-    )
-    .replace(
-      /\r?\n\r?\nIf `run_in_background=true`,[\s\S]*?point them to the `\/tasks` command, which opens an interactive panel; it has no subcommands\./,
-      '\n\nBackground execution is disabled for this agent. Do not set `run_in_background=true`.',
-    )
-    .replace(
-      ` For possibly long-running foreground commands, set the \`timeout\` argument in seconds. Foreground commands default to ${String(DEFAULT_TIMEOUT_S)}s and allow up to ${String(MAX_TIMEOUT_S)}s.`,
-      ` For possibly long-running commands, set the \`timeout\` argument in seconds. The default is ${String(DEFAULT_TIMEOUT_S)}s; foreground commands allow up to ${String(MAX_TIMEOUT_S)}s.`,
-    )
-    .replace(
-      /\r?\n- Prefer `run_in_background=true`[\s\S]*?conversation to continue before the command finishes\./,
-      '\n- Do not set `run_in_background=true`; background task management tools are not available.',
-    );
-}
 
 export class BashTool implements BuiltinTool<BashInput> {
   readonly name = 'Bash' as const;
@@ -122,54 +87,34 @@ export class BashTool implements BuiltinTool<BashInput> {
 
   private readonly isWindowsBash: boolean;
 
-  private readonly allowBackground: boolean;
-
-  private readonly store: ToolStore | undefined;
-
   private readonly shellEnvPolicy: ShellEnvFilterPolicy;
 
   private readonly pathPrefix: readonly string[];
 
-  /** Conductor execution lane (worker/subagent): git push remote mutation hard-deny. */
-  private readonly isWorker: boolean;
-
-  /**
-   * Live worker agent id (session agent id / basename of homedir). Used to resolve
-   * the bound Job's brief.verification_commands for the suite-waste guard.
-   */
-  private readonly workerAgentId: (() => string | undefined) | undefined;
-
   private readonly workspace: WorkspaceConfig | undefined;
+  private readonly ensureSandboxReady: (() => Promise<void>) | undefined;
 
   constructor(
     private readonly kaos: Kaos,
     private readonly cwd: string,
     private readonly backgroundManager: BackgroundManager,
     options?: {
-      allowBackground?: boolean | undefined;
-      store?: ToolStore | undefined;
       /** Shell env secret filter; default strips KEY/SECRET/TOKEN name patterns. */
       shellEnvPolicy?: ShellEnvFilterPolicy | undefined;
       /** Directories prepended to PATH (e.g. enabled plugin `bin/`). */
       pathPrefix?: readonly string[] | undefined;
-      /** True when this BashTool belongs to a Conductor worker lane (not `main`). */
-      isWorker?: boolean | undefined;
-      /** Resolve the worker agent id so suite_guard can read the bound Job brief. */
-      workerAgentId?: (() => string | undefined) | undefined;
+      /** Await the host's requested process sandbox before executing. */
+      ensureSandboxReady?: () => Promise<void>;
       /** Path-sandbox ceiling for cwd and command path tokens. */
       workspace?: WorkspaceConfig | undefined;
     },
   ) {
     this.isWindowsBash = this.kaos.osEnv.osKind === 'Windows';
-    this.allowBackground = options?.allowBackground ?? true;
-    this.store = options?.store;
     this.shellEnvPolicy = options?.shellEnvPolicy ?? {};
     this.pathPrefix = options?.pathPrefix ?? [];
-    this.isWorker = options?.isWorker ?? false;
-    this.workerAgentId = options?.workerAgentId;
     this.workspace = options?.workspace;
-    const rendered = renderBashDescription(this.kaos.osEnv.shellName);
-    this.description = this.allowBackground ? rendered : withoutBackgroundDescription(rendered);
+    this.ensureSandboxReady = options?.ensureSandboxReady;
+    this.description = renderBashDescription(this.kaos.osEnv.shellName);
   }
 
   resolveExecution(args: BashInput): ToolExecution {
@@ -193,10 +138,10 @@ export class BashTool implements BuiltinTool<BashInput> {
     };
   }
 
-  private spawn(effectiveCwd: string, command: string): Promise<KaosProcess> {
-    const shellCwd = this.isWindowsBash ? windowsPathToPosixPath(effectiveCwd) : effectiveCwd;
+  private spawn(kaos: Kaos, command: string): Promise<KaosProcess> {
+    const shellCwd = this.isWindowsBash ? windowsPathToPosixPath(kaos.getcwd()) : kaos.getcwd();
     const shellArgs = [
-      this.kaos.osEnv.shellPath,
+      kaos.osEnv.shellPath,
       '-c',
       `cd ${shellQuote(shellCwd)} && ${command}`,
     ];
@@ -208,7 +153,7 @@ export class BashTool implements BuiltinTool<BashInput> {
       // to be inherited; honour an explicit ambient value when the user has
       // set one. Re-applied after secret filtering so it always wins.
       GIT_TERMINAL_PROMPT: process.env['GIT_TERMINAL_PROMPT'] ?? '0',
-      SHELL: this.kaos.osEnv.shellPath,
+      SHELL: kaos.osEnv.shellPath,
     };
 
     // Ambient env is secret-filtered before noninteractive knobs so child
@@ -231,7 +176,7 @@ export class BashTool implements BuiltinTool<BashInput> {
         mergedEnv['PATH'] = merged;
       }
     }
-    return this.kaos.execWithEnv(shellArgs, mergedEnv);
+    return kaos.execWithEnv(shellArgs, mergedEnv);
   }
 
   private async execution(
@@ -242,14 +187,16 @@ export class BashTool implements BuiltinTool<BashInput> {
   ): Promise<ExecutableToolResult> {
     const startsInBackground = args.run_in_background === true;
     const foregroundTimeoutMs = normalizeTimeoutMs(args.timeout, false);
-    // Full request validation (suite_guard + background policy) before spawn,
-    // sharing the guard pass that execution needs anyway: both used the same
-    // command, signal, and cwd, and the guard is a dozen whole-command regex
-    // scans plus per-token path resolution (and a worker-brief read).
-    const guarded = this.applyWorkerShellGuards(args.command, signal);
-    const validationError = this.validateRunRequest(args, guarded);
-    if (validationError !== undefined) return validationError;
-    const rawCommand = guarded.command;
+    signal.throwIfAborted();
+    await this.ensureSandboxReady?.();
+    signal.throwIfAborted();
+    if (args.command.length === 0) return { isError: true, output: 'Command cannot be empty.' };
+    const sensitivePath = detectShellSensitivePath(args.command);
+    if (sensitivePath !== undefined) return { isError: true, output: formatShellSensitivePathError(sensitivePath) };
+    if (startsInBackground && !args.description?.trim()) {
+      return { isError: true, output: 'description is required when run_in_background is true.' };
+    }
+    const rawCommand = args.command;
     const command = this.isWindowsBash ? rewriteWindowsNullRedirect(rawCommand) : rawCommand;
     const effectiveCwd = args.cwd ?? this.cwd;
     if (this.workspace !== undefined) {
@@ -274,10 +221,11 @@ export class BashTool implements BuiltinTool<BashInput> {
       : foregroundTimeoutMs;
 
     const builder = new ToolResultBuilder();
-    const startedAtMs = Date.now();
+    const executionKaos = this.kaos.withCwd(effectiveCwd);
+    const processCwd = executionKaos.getcwd();
     let proc: KaosProcess;
     try {
-      proc = await this.spawn(effectiveCwd, command);
+      proc = await this.spawn(executionKaos, command);
     } catch (error) {
       return {
         isError: true,
@@ -301,10 +249,11 @@ export class BashTool implements BuiltinTool<BashInput> {
           }
         };
 
+    const task = new ProcessBackgroundTask(proc, command, description, processCwd, onProcessOutput);
     let taskId: string;
     try {
       taskId = this.backgroundManager.registerTask(
-        new ProcessBackgroundTask(proc, command, description, onProcessOutput),
+        task,
         {
           detached: startsInBackground,
           timeoutMs,
@@ -318,12 +267,21 @@ export class BashTool implements BuiltinTool<BashInput> {
       foregroundTaskId = startsInBackground ? undefined : taskId;
     } catch (error) {
       collectForegroundOutput = false;
-      await killSpawnedProcess(proc);
+      try {
+        await task.settleAbandonedProcess(error);
+      } catch (cleanupError) {
+        const ownedTaskId = this.backgroundManager.retainUnsettledTask(task);
+        return {
+          isError: true,
+          output: `${error instanceof Error ? error.message : String(error)}\nNative cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}\nOwned task: ${ownedTaskId}`,
+        };
+      }
       return {
         isError: true,
         output: error instanceof Error ? error.message : String(error),
       };
     }
+    if (proc.terminalId !== undefined) onUpdate?.({ kind: 'custom', customData: { terminalId: proc.terminalId } });
 
     // Foreground `!` shell commands surface their task id so the TUI can detach
     // (ctrl+b) this exact task. Background runs are already detached.
@@ -349,7 +307,6 @@ export class BashTool implements BuiltinTool<BashInput> {
             brief: `Backgrounded ${taskId}`,
           },
           builder,
-          'foreground_detached',
         );
       }
 
@@ -358,132 +315,18 @@ export class BashTool implements BuiltinTool<BashInput> {
         proc,
         builder,
         foregroundTimeoutMs,
-        args,
-        startedAtMs,
       );
     } finally {
       collectForegroundOutput = false;
     }
   }
 
-  /**
-   * Resolve brief.verification_commands for the Job bound to this worker agent.
-   * No-op for main / unbound subagents.
-   */
-  private resolveWorkerVerificationCommands(): readonly string[] | undefined {
-    if (this.isWorker !== true) return undefined;
-    const agentId = this.workerAgentId?.()?.trim();
-    if (agentId === undefined || agentId.length === 0) return undefined;
-    const binding = findJobWorkerLedger(agentId);
-    if (binding === undefined) return undefined;
-    const job = getJob(binding.store, binding.jobId);
-    return job?.verificationCommands;
-  }
-
-  /**
-   * Worker shell policy + suite-waste guard. Returns the (possibly rewritten)
-   * command to execute, or an error tool result.
-   */
-  private applyWorkerShellGuards(
-    command: string,
-    signal: AbortSignal,
-  ): { readonly command: string; readonly error?: ExecutableToolResult } {
-    if (signal.aborted) {
-      return {
-        command,
-        error: { isError: true, output: 'Aborted before command started' },
-      };
-    }
-    if (command.length === 0) {
-      return { command, error: { isError: true, output: 'Command cannot be empty.' } };
-    }
-    const isWorker = this.isWorker === true;
-    const workerGuard = guardWorkerShellCommand(command, {
-      isWorker,
-      verificationCommands: this.resolveWorkerVerificationCommands(),
-    });
-    if (!workerGuard.allowed) {
-      return {
-        command,
-        error: {
-          isError: true,
-          output: workerGuard.reason ?? 'Worker shell command denied by Conductor policy.',
-        },
-      };
-    }
-    const effective =
-      workerGuard.rewrittenCommand !== undefined && workerGuard.rewrittenCommand.length > 0
-        ? workerGuard.rewrittenCommand
-        : command;
-    // Sensitive paths hard-deny before dedicated-tool redirects (no force hatch).
-    const sensitivePath = detectShellSensitivePath(effective);
-    if (sensitivePath !== undefined) {
-      return {
-        command: effective,
-        error: {
-          isError: true,
-          output: formatShellSensitivePathError(sensitivePath),
-        },
-      };
-    }
-    const dedicatedBypass = detectShellDedicatedBypass(effective);
-    if (dedicatedBypass !== undefined) {
-      return {
-        command: effective,
-        error: {
-          isError: true,
-          output: formatShellDedicatedBypassError(dedicatedBypass),
-        },
-      };
-    }
-    if (this.workspace !== undefined) {
-      const sandboxPath = detectShellSandboxPath(effective, {
-        cwd: this.cwd,
-        workspace: this.workspace,
-        kaos: this.kaos,
-      });
-      if (sandboxPath !== undefined) {
-        return {
-          command: effective,
-          error: {
-            isError: true,
-            output: formatShellSandboxPathError(sandboxPath),
-          },
-        };
-      }
-    }
-    return { command: effective };
-  }
-
-  private validateRunRequest(
-    args: BashInput,
-    guarded: { readonly command: string; readonly error?: ExecutableToolResult },
-  ): ExecutableToolResult | undefined {
-    if (guarded.error !== undefined) return guarded.error;
-    if (args.run_in_background !== true) return undefined;
-    if (!this.allowBackground) {
-      return {
-        isError: true,
-        output:
-          'Background execution is not available for this agent because TaskOutput and TaskStop are not enabled.',
-      };
-    }
-    if (!args.description?.trim()) {
-      return {
-        isError: true,
-        output: 'description is required when run_in_background is true.',
-      };
-    }
-    return undefined;
-  }
 
   private async foregroundCompletionResult(
     taskId: string,
     proc: KaosProcess,
     builder: ToolResultBuilder,
     foregroundTimeoutMs: number,
-    args: BashInput,
-    startedAtMs: number,
   ): Promise<ExecutableToolResult> {
     const current = this.backgroundManager.getTask(taskId);
     const exitCode = current?.kind === 'process' ? current.exitCode : proc.exitCode;
@@ -510,12 +353,7 @@ export class BashTool implements BuiltinTool<BashInput> {
     }
     const withDisplay: ExecutableToolResultBuilderResult = {
       ...result,
-      resultDisplay: classifyCommandOutput({
-        command: args.command,
-        exitCode: exitCode ?? undefined,
-        output: result.output,
-        durationMs: Date.now() - startedAtMs,
-      }),
+      resultDisplay: { kind: 'command_output', exit_code: exitCode, stdout: result.output },
     };
     return this.addForegroundOutputReference(taskId, withDisplay);
   }
@@ -529,15 +367,12 @@ export class BashTool implements BuiltinTool<BashInput> {
     const output = await this.backgroundManager.getOutputSnapshot(taskId, 0);
     if (!output.fullOutputAvailable || output.outputPath === undefined) return result;
 
-    const taskOutputHint = this.allowBackground
-      ? `, or TaskOutput(task_id="${taskId}", block=false)`
-      : '';
     const reference =
       `\n\n[Full output saved]\n` +
       `task_id: ${taskId}\n` +
       `output_path: ${output.outputPath}\n` +
       `output_size_bytes: ${String(output.outputSizeBytes)}\n` +
-      `next_step: Use Read with output_path to page through the full log${taskOutputHint}.`;
+      'next_step: Use Bash to read output_path, or SessionControl(operation="wait", id="' + taskId + '", timeout=0).';
     return {
       ...result,
       output: appendTextToolMeta(`${result.output}${reference}`, {
@@ -546,7 +381,7 @@ export class BashTool implements BuiltinTool<BashInput> {
         truncated: result.truncated,
         partial: result.truncated,
         summary: result.message,
-        nextStep: 'Use Read with output_path or TaskOutput to inspect saved output.',
+        nextStep: 'Use Bash or SessionControl to inspect saved output.',
       }),
     };
   }
@@ -557,7 +392,6 @@ export class BashTool implements BuiltinTool<BashInput> {
     description: string,
     labels: { title: string; brief: string },
     builder = new ToolResultBuilder(),
-    scenario: 'background_started' | 'foreground_detached' = 'background_started',
   ): ExecutableToolResult {
     const status = this.backgroundManager.getTask(taskId)?.status ?? 'running';
     const metadata =
@@ -566,8 +400,7 @@ export class BashTool implements BuiltinTool<BashInput> {
       `description: ${description}\n` +
       `status: ${status}\n` +
       `automatic_notification: true\n` +
-      this.nextStepLines(scenario) +
-      'human_shell_hint: Tell the human to run /tasks to open the interactive background-task panel.';
+      'control: SessionControl can wait for output or stop this task.';
 
     const foregroundResult = builder.ok('');
     const foregroundOutput = foregroundResult.output.length > 0 ? foregroundResult.output : '';
@@ -594,34 +427,9 @@ export class BashTool implements BuiltinTool<BashInput> {
         truncated: foregroundResult.truncated,
         partial: foregroundOutput.length > 0,
         summary: message,
-        nextStep: 'Do not wait on the task; continue working until the completion notification arrives.',
+        nextStep: 'SessionControl can wait for output or stop this task.',
       }),
     };
   }
 
-  private nextStepLines(
-    scenario: 'background_started' | 'foreground_detached',
-  ): string {
-    if (scenario === 'foreground_detached') {
-      // The user explicitly moved a foreground call to the background to avoid
-      // blocking the current turn. Steer the model away from waiting on it.
-      // Only mention TaskOutput when the tool is actually available.
-      const avoid = this.allowBackground ? 'do NOT wait, poll, or call TaskOutput on it' : 'do NOT wait or poll';
-      return (
-        'next_step: The task now runs in the background. You will be automatically notified ' +
-        `when it completes — ${avoid}; continue with your current work.\n`
-      );
-    }
-    // background_started: the model chose to launch in the background. Same anti-wait
-    // stance — immediately waiting on a background task is just a blocked turn, so do
-    // not invite a TaskOutput peek here.
-    if (!this.allowBackground) {
-      return 'next_step: You will be automatically notified when it completes.\n';
-    }
-    return (
-      'next_step: The completion arrives automatically in a later turn — do NOT wait, poll, ' +
-      'or call TaskOutput on it; continue with your current work.\n' +
-      'next_step: Use TaskStop only if the task must be cancelled.\n'
-    );
-  }
 }

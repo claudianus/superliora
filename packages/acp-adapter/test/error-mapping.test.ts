@@ -23,7 +23,7 @@ import {
   type Session,
 } from '@superliora/sdk';
 
-import { turnEndReasonToStopReason } from '../src/events-map';
+import { turnEndReasonToStopReason } from '../src/convert/events-map';
 import { AcpServer } from '../src/server';
 import { AUTHED_STATUS } from './_helpers/harness-stubs';
 
@@ -163,10 +163,7 @@ describe('AcpServer error mapping', () => {
     ).rejects.toMatchObject({ code: -32000 });
   });
 
-  it('resolves with end_turn when turn.ended fails with a non-auth code (log-only path)', async () => {
-    // Non-auth failures stay on the existing log-and-resolve path so
-    // the client is unblocked. The error appears in the agent log;
-    // `stopReason` does not signal it (ACP spec discourages errors-via-stopReason).
+  it('rejects a non-auth failed turn with internalError (-32603)', async () => {
     const sessionId = 'sess-context-overflow';
     const errorPayload: LioraErrorPayload = {
       code: ErrorCodes.CONTEXT_OVERFLOW,
@@ -191,8 +188,9 @@ describe('AcpServer error mapping', () => {
     const client = new ClientSideConnection(() => new StubClient(), clientStream);
 
     await client.newSession({ cwd: '/tmp/x', mcpServers: [] });
-    const response = await client.prompt({ sessionId, prompt: [textBlock('hi')] });
-    expect(response.stopReason).toBe('end_turn');
+    await expect(
+      client.prompt({ sessionId, prompt: [textBlock('hi')] }),
+    ).rejects.toMatchObject({ code: -32603 });
     expect(unsubscribeCount()).toBe(1);
   });
 
@@ -284,4 +282,28 @@ describe('AcpServer error mapping', () => {
     expect(response.stopReason).toBe('refusal');
     expect(unsubscribeCount()).toBe(1);
   });
+});
+
+it('rejects a failed native turn without an error payload instead of faking end_turn', async () => {
+  const sessionId = 'sess-failed-without-payload';
+  const { session, unsubscribeCount } = makeScriptedSession(sessionId, {
+    script: [
+      {
+        type: 'turn.ended',
+        sessionId,
+        agentId: 'main',
+        turnId: 1,
+        reason: 'failed',
+      } as Event,
+    ],
+  });
+  const { agentStream, clientStream } = makeInMemoryStreamPair();
+  new AgentSideConnection((conn) => new AcpServer(makeHarnessWithSession(session), conn), agentStream);
+  const client = new ClientSideConnection(() => new StubClient(), clientStream);
+
+  await client.newSession({ cwd: '/tmp/x', mcpServers: [] });
+  await expect(
+    client.prompt({ sessionId, prompt: [textBlock('hi')] }),
+  ).rejects.toMatchObject({ code: -32603 });
+  expect(unsubscribeCount()).toBe(1);
 });

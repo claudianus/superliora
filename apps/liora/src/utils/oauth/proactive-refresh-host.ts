@@ -8,7 +8,6 @@
  * Uses harness.auth.resolveOAuthTokenProvider → OAuthManager.ensureFresh under the hood.
  */
 
-import type { RuntimeDegradedEvent } from '@superliora/protocol';
 import {
   OAUTH_PROACTIVE_REFRESH_INTERVAL_MS,
   startProactiveRefreshTimer,
@@ -23,48 +22,43 @@ import { OAUTH_LOGIN_REQUIRED_CODE } from '#/constant/app';
 /** Keep tokens warm during multi-minute agent runs (~default refresh threshold). */
 export { OAUTH_PROACTIVE_REFRESH_INTERVAL_MS };
 
-export const OAUTH_REFRESH_DEGRADED_HINT =
+export const OAUTH_REFRESH_FAILURE_HINT =
   'Run /login or Settings → Accounts; pool may failover · other work continues.';
 
-export interface HarnessOAuthProactiveRefreshOptions {
-  /** Host hook: surface volatile runtime.degraded (TUI footer / Ops). */
-  readonly onDegraded?: ((event: RuntimeDegradedEvent) => void) | undefined;
+export interface OAuthRefreshFailure {
+  readonly reason: string;
+  readonly hint: string;
 }
 
-/**
- * Build oauth-scoped runtime.degraded from a proactive ensureFresh failure.
- * `atMs` anchors the footer/oauth↓ TTL window (see runtime-degraded.ts).
- */
-export function buildOAuthRefreshDegradedEvent(
-  error: unknown,
-  atMs: number = Date.now(),
-): RuntimeDegradedEvent {
+export interface HarnessOAuthProactiveRefreshOptions {
+  /** Host hook: surface an observed credential refresh failure. */
+  readonly onRefreshFailure?: ((failure: OAuthRefreshFailure) => void) | undefined;
+}
+
+/** Normalize a credential refresh error for the host's warning surface. */
+export function buildOAuthRefreshFailure(error: unknown): OAuthRefreshFailure {
   const reason =
     error instanceof Error
       ? error.message.replaceAll(/\s+/g, ' ').trim()
       : String(error).replaceAll(/\s+/g, ' ').trim();
   return {
-    type: 'runtime.degraded',
-    scope: 'oauth',
     reason: reason.length > 0 ? reason : 'oauth_refresh_failed',
-    hint: OAUTH_REFRESH_DEGRADED_HINT,
-    atMs,
+    hint: OAUTH_REFRESH_FAILURE_HINT,
   };
 }
 
-/** Build oauth-scoped runtime.degraded from OAuthManager onRefresh failure. */
-export function buildOAuthRefreshDegradedEventFromOutcome(
+/** Map OAuthManager's actual refresh failure outcome to a warning. */
+export function buildOAuthRefreshFailureFromOutcome(
   outcome: Extract<OAuthRefreshOutcome, { success: false }>,
-  atMs: number = Date.now(),
-): RuntimeDegradedEvent {
+): OAuthRefreshFailure {
   const reason =
     outcome.reason === 'unauthorized'
       ? 'OAuth refresh unauthorized; re-login required'
       : 'oauth_refresh_failed';
-  return buildOAuthRefreshDegradedEvent(reason, atMs);
+  return buildOAuthRefreshFailure(reason);
 }
 
-/** Idle / never-logged-in managed OAuth is not a degraded runtime — skip the Ops notice. */
+/** Unused managed OAuth is not a refresh failure — skip the host warning. */
 function isIdleLoginRequiredError(error: unknown): boolean {
   if ((error as { readonly code?: unknown } | null)?.code === OAUTH_LOGIN_REQUIRED_CODE) {
     return true;
@@ -78,7 +72,7 @@ function isIdleLoginRequiredError(error: unknown): boolean {
  * Returns undefined when the host auth surface does not expose getAccessToken (no OAuth).
  *
  * Skips ticks when no managed token is cached so unused Kimi OAuth does not spam
- * runtime.degraded for Cursor/other-provider sessions.
+ * credential warnings for Cursor/other-provider sessions.
  */
 export function startHarnessOAuthProactiveRefresh(
   harness: LioraHarness,
@@ -111,9 +105,7 @@ export function startHarnessOAuthProactiveRefresh(
         if (isIdleLoginRequiredError(error)) {
           return;
         }
-        const event = buildOAuthRefreshDegradedEvent(error);
-        options.onDegraded?.(event);
-        harness.broadcastRuntimeDegraded(event);
+        options.onRefreshFailure?.(buildOAuthRefreshFailure(error));
       },
     },
   );

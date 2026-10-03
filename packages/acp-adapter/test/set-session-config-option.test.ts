@@ -53,14 +53,12 @@ function makeInMemoryStreamPair(): {
 
 interface FakeSessionHandle {
   session: Session;
-  planModeCalls: boolean[];
   setPermissionCalls: PermissionMode[];
   setModelCalls: string[];
   setThinkingCalls: string[];
 }
 
 function makeFakeSession(sessionId: string): FakeSessionHandle {
-  const planModeCalls: boolean[] = [];
   const setPermissionCalls: PermissionMode[] = [];
   const setModelCalls: string[] = [];
   const setThinkingCalls: string[] = [];
@@ -70,9 +68,6 @@ function makeFakeSession(sessionId: string): FakeSessionHandle {
     cancel: async () => undefined,
     onEvent: (_fn: (event: Event) => void) => () => undefined,
     setApprovalHandler: (_handler: ApprovalHandler | undefined) => undefined,
-    setPlanMode: async (enabled: boolean) => {
-      planModeCalls.push(enabled);
-    },
     setPermission: async (mode: PermissionMode) => {
       setPermissionCalls.push(mode);
     },
@@ -83,7 +78,7 @@ function makeFakeSession(sessionId: string): FakeSessionHandle {
       setThinkingCalls.push(level);
     },
   } as unknown as Session;
-  return { session, planModeCalls, setPermissionCalls, setModelCalls, setThinkingCalls };
+  return { session, setPermissionCalls, setModelCalls, setThinkingCalls };
 }
 
 function makeHarness(handle: FakeSessionHandle): LioraHarness {
@@ -152,7 +147,7 @@ describe('AcpServer session/set_config_option', () => {
     }
   });
 
-  it('configId="model" + `${id},thinking` → SDK gets stripped id + setThinking("high") + snapshot shows base id with thinking toggle on', async () => {
+  it('passes a comma-containing model id intact without changing thinking', async () => {
     const handle = makeFakeSession('sess-model-thinking');
     const harness = makeHarness(handle);
     const { client, capturing, sessionId } = await openSession(harness);
@@ -164,20 +159,38 @@ describe('AcpServer session/set_config_option', () => {
       value: 'kimi-coder,thinking',
     });
 
-    expect(handle.setModelCalls).toEqual(['kimi-coder']);
-    expect(handle.setThinkingCalls).toEqual(['high']);
+    expect(handle.setModelCalls).toEqual(['kimi-coder,thinking']);
+    expect(handle.setThinkingCalls).toEqual([]);
     const respModel = response.configOptions.find((o) => o.id === 'model');
-    if (respModel && respModel.type === 'select') {
-      // Snapshot now carries the bare model id; thinking lives on a separate axis.
-      expect(respModel.currentValue).toBe('kimi-coder');
-    }
-    const respThinking = response.configOptions.find((o) => o.id === 'thinking');
-    if (!respThinking || respThinking.type !== 'select') {
-      throw new Error('expected thinking toggle in snapshot');
-    }
-    expect(respThinking.currentValue).toBe('on');
-    expect(respThinking.category).toBe('thought_level');
+    if (!respModel || respModel.type !== 'select') throw new Error('expected model picker');
+    expect(respModel.currentValue).toBe('kimi-coder,thinking');
+    expect(response.configOptions.some((o) => o.id === 'thinking')).toBe(false);
   });
+
+  it('keeps thinking independent when selecting a comma-containing configured alias', async () => {
+    const handle = makeFakeSession('sess-independent-axes');
+    const harness = {
+      auth: { status: async () => AUTHED_STATUS },
+      createSession: async () => handle.session,
+      getConfig: async () => ({
+        providers: {}, defaultModel: 'kimi-coder',
+        models: makeModelsMap([
+          { id: 'kimi-coder', thinkingSupported: true },
+          { id: 'custom,thinking', thinkingSupported: true },
+        ]),
+      }),
+    } as unknown as LioraHarness;
+    const { client, sessionId } = await openSession(harness);
+    await client.setSessionConfigOption({ sessionId, configId: 'thinking', value: 'on' });
+    const response = await client.setSessionConfigOption({
+      sessionId, configId: 'model', value: 'custom,thinking',
+    });
+    expect(handle.setModelCalls).toEqual(['custom,thinking']);
+    expect(handle.setThinkingCalls).toEqual(['high']);
+    expect(response.configOptions.find((option) => option.id === 'model')?.currentValue).toBe('custom,thinking');
+    expect(response.configOptions.find((option) => option.id === 'thinking')?.currentValue).toBe('on');
+  });
+
 
   it('configId="thinking" + "on" → setThinking("high") + 1 config_option_update with currentValue="on"', async () => {
     const handle = makeFakeSession('sess-thinking-on');
@@ -264,18 +277,16 @@ describe('AcpServer session/set_config_option', () => {
   });
 
   const MODE_CASES: ReadonlyArray<{
-    modeId: 'default' | 'plan' | 'auto' | 'yolo';
-    expectedPlan: boolean;
+    modeId: 'manual' | 'auto' | 'yolo';
     expectedPermission: PermissionMode;
   }> = [
-    { modeId: 'default', expectedPlan: false, expectedPermission: 'yolo' },
-    { modeId: 'plan', expectedPlan: true, expectedPermission: 'manual' },
-    { modeId: 'auto', expectedPlan: false, expectedPermission: 'auto' },
-    { modeId: 'yolo', expectedPlan: false, expectedPermission: 'yolo' },
+    { modeId: 'manual', expectedPermission: 'manual' },
+    { modeId: 'auto', expectedPermission: 'auto' },
+    { modeId: 'yolo', expectedPermission: 'yolo' },
   ];
 
-  for (const { modeId, expectedPlan, expectedPermission } of MODE_CASES) {
-    it(`configId="mode" + "${modeId}" → setPlanMode(${expectedPlan}) + setPermission(${expectedPermission}) + 1 config_option_update`, async () => {
+  for (const { modeId, expectedPermission } of MODE_CASES) {
+    it(`configId="mode" + "${modeId}" → setPermission(${expectedPermission}) + 1 config_option_update`, async () => {
       const handle = makeFakeSession(`sess-mode-${modeId}`);
       const harness = makeHarness(handle);
       const { client, capturing, sessionId } = await openSession(harness);
@@ -283,7 +294,6 @@ describe('AcpServer session/set_config_option', () => {
 
       await client.setSessionConfigOption({ sessionId, configId: 'mode', value: modeId });
 
-      expect(handle.planModeCalls).toEqual([expectedPlan]);
       expect(handle.setPermissionCalls).toEqual([expectedPermission]);
       const updates = capturing.notifications.filter(
         (n) => n.sessionId === sessionId && n.update.sessionUpdate === 'config_option_update',
@@ -298,6 +308,28 @@ describe('AcpServer session/set_config_option', () => {
     });
   }
 
+  it.each(['default', 'plan', 'turbo'])('rejects unsupported mode %s without SDK calls or updates', async (value) => {
+    const handle = makeFakeSession('sess-invalid-mode');
+    const { client, capturing, sessionId } = await openSession(makeHarness(handle));
+    capturing.notifications.length = 0;
+    await expect(client.setSessionConfigOption({ sessionId, configId: 'mode', value }))
+      .rejects.toMatchObject({ code: -32602 });
+    expect(handle.setPermissionCalls).toEqual([]);
+    expect(capturing.notifications.filter((n) => n.update.sessionUpdate === 'config_option_update')).toEqual([]);
+  });
+
+  it('rejects invalid thinking values without changing model or effort', async () => {
+    const handle = makeFakeSession('sess-invalid-thinking');
+    const { client, capturing, sessionId } = await openSession(makeHarness(handle));
+    capturing.notifications.length = 0;
+    await expect(client.setSessionConfigOption({ sessionId, configId: 'thinking', value: 'high' }))
+      .rejects.toMatchObject({ code: -32602 });
+    expect(handle.setThinkingCalls).toEqual([]);
+    expect(handle.setModelCalls).toEqual([]);
+    expect(capturing.notifications.filter((n) => n.update.sessionUpdate === 'config_option_update')).toEqual([]);
+  });
+
+
   it('unknown configId throws invalid_params (-32602) BEFORE any SDK call and emits zero notifications', async () => {
     const handle = makeFakeSession('sess-bad-configId');
     const harness = makeHarness(handle);
@@ -308,7 +340,6 @@ describe('AcpServer session/set_config_option', () => {
       client.setSessionConfigOption({ sessionId, configId: 'theme', value: 'dark' }),
     ).rejects.toMatchObject({ code: -32602 });
 
-    expect(handle.planModeCalls).toEqual([]);
     expect(handle.setPermissionCalls).toEqual([]);
     expect(handle.setModelCalls).toEqual([]);
     const updates = capturing.notifications.filter(
@@ -326,7 +357,7 @@ describe('AcpServer session/set_config_option', () => {
       client.setSessionConfigOption({
         sessionId: 'sess-unknown',
         configId: 'mode',
-        value: 'plan',
+        value: 'manual',
       }),
     ).rejects.toMatchObject({ code: -32602 });
   });

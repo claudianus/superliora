@@ -51,7 +51,6 @@ import {
   longestActiveJobElapsedMs,
   resolveConductorJobCard,
 } from '#/tui/utils/job/job-strip';
-import { formatGateChecklistLine } from '#/tui/utils/job/gate-preview';
 import {
   buildSessionOutcomeBoard,
   flattenSessionOutcomes,
@@ -516,9 +515,6 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     if (recent !== undefined && recent.length > 0) {
       rightParts.push(recent.slice(-2).join('→'));
     }
-    if (card.gateChecklist !== undefined) {
-      rightParts.push(formatGateChecklistLine(card.gateChecklist));
-    }
     if (card.usage !== undefined) {
       rightParts.push(
         `${formatTokenCount(card.usage.input + card.usage.output)}tok`,
@@ -843,9 +839,6 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     }
     if (state.card.effectPreview?.chip !== undefined && state.card.effectPreview.chip.length > 0) {
       parts.push(theme.fg('info', state.card.effectPreview.chip));
-    }
-    if (state.card.gateChecklist !== undefined) {
-      parts.push(theme.fg('info', formatGateChecklistLine(state.card.gateChecklist)));
     }
     if (state.card.progress?.phase !== undefined && state.card.progress.phase.length > 0) {
       parts.push(theme.fg('textMuted', `phase ${state.card.progress.phase}`));

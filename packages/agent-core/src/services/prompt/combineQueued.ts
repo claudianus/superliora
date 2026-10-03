@@ -10,7 +10,6 @@ interface CombinePromptGate {
   readonly isPlainPrompt: boolean;
   readonly isBash: boolean;
   readonly hasImages: boolean;
-  readonly isExpandedSkill: boolean;
   readonly isSynthetic: boolean;
   readonly text: string;
 }
@@ -31,17 +30,14 @@ export function promptStateToCombineGate(state: PromptState): CombinePromptGate 
   const text = texts.join('\n').trim();
   if (text.startsWith('!')) isBash = true;
   const agentId = state.body.agent_id ?? state.agentId;
-  const isExpandedSkill = metadataFlag(state, 'expanded_skill');
   const isSynthetic = metadataFlag(state, 'synthetic');
   return {
     isPlainPrompt:
       text.length > 0 &&
       (agentId === undefined || agentId === 'main') &&
-      !isExpandedSkill &&
       !isSynthetic,
     isBash,
     hasImages,
-    isExpandedSkill,
     isSynthetic,
     text,
   };
@@ -51,7 +47,6 @@ function canMergePromptFront(gate: CombinePromptGate): boolean {
   return (
     gate.isPlainPrompt &&
     !gate.isBash &&
-    !gate.isExpandedSkill &&
     !gate.isSynthetic &&
     gate.text.length > 0
   );

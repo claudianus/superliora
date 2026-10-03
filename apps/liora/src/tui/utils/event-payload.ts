@@ -108,15 +108,6 @@ export function serializeToolResultOutput(output: unknown): string {
   return JSON.stringify(output, null, 2);
 }
 
-export function isTodoItemShape(
-  value: unknown,
-): value is { title: string; status: 'pending' | 'in_progress' | 'done' } {
-  if (typeof value !== 'object' || value === null) return false;
-  const rec = value as { title?: unknown; status?: unknown };
-  if (typeof rec.title !== 'string' || rec.title.length === 0) return false;
-  return rec.status === 'pending' || rec.status === 'in_progress' || rec.status === 'done';
-}
-
 export function formatErrorMessage(error: unknown): string {
   if (isKimiError(error)) {
     return formatErrorPayload({

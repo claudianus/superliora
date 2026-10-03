@@ -4,7 +4,6 @@ import type {
   AgentReplayRecord,
   BackgroundTaskInfo,
   ContentPart,
-  GoalSnapshot,
   PromptOrigin,
   ResumedAgentState,
   Role,
@@ -19,8 +18,6 @@ import type { SessionEventHandler } from '#/tui/controllers/session-event/handle
 import type { StreamingUIController } from '#/tui/controllers/streaming-ui/index';
 import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
-import { ReadGroupComponent } from '#/tui/components/messages/read-group';
-import { SearchGroupComponent } from '#/tui/components/messages/search-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import {
   REPLAY_MAX_TOOL_MOUNTS_PER_TURN,
@@ -30,8 +27,6 @@ import {
 } from '#/tui/utils/session/message-replay';
 
 vi.mock('#/utils/open-url', () => ({ openUrl: vi.fn() }));
-
-type GoalReplayRecord = Extract<AgentReplayRecord, { type: 'goal_updated' }>;
 
 const REPLAY_TIME = 1_700_000_000_000;
 
@@ -62,13 +57,9 @@ function makeStartupInput(): LioraTUIStartupInput {
       continue: false,
       yolo: false,
       auto: false,
-      plan: false,
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,
-      skillsDirs: [],
-    pluginDirs: [],
-    channelServers: [],
     },
     tuiConfig: {
       theme: 'dark',
@@ -118,44 +109,6 @@ function toolCall(id: string, name: string, args: Record<string, unknown>): Tool
   };
 }
 
-function goalSnapshot(overrides: Partial<GoalSnapshot> = {}): GoalSnapshot {
-  const status = overrides.status ?? 'active';
-  return {
-    goalId: 'g1',
-    objective: 'Ship feature X',
-    completionCriterion: 'tests pass',
-    status,
-    turnsUsed: 0,
-    tokensUsed: 0,
-    wallClockMs: 0,
-    budget: {
-      tokenBudget: null,
-      turnBudget: null,
-      wallClockBudgetMs: null,
-      remainingTokens: null,
-      remainingTurns: null,
-      remainingWallClockMs: null,
-      tokenBudgetReached: false,
-      turnBudgetReached: false,
-      wallClockBudgetReached: false,
-      overBudget: false,
-    },
-    ...overrides,
-  };
-}
-
-function goalReplay(
-  snapshot: GoalSnapshot,
-  change: GoalReplayRecord['change'],
-): GoalReplayRecord {
-  return {
-    time: REPLAY_TIME,
-    type: 'goal_updated',
-    snapshot,
-    change,
-  };
-}
-
 function baseAgentState(
   replay: readonly AgentReplayRecord[],
   overrides: Partial<ResumedAgentState> = {},
@@ -181,10 +134,7 @@ function baseAgentState(
     context: { history: [], tokenCount: 0 },
     replay,
     permission: { mode: 'manual', rules: [] },
-    plan: null,
     usage: {},
-    tools: [],
-    toolStore: {},
     background: [],
     ...overrides,
   };
@@ -203,25 +153,17 @@ function makeSession(
       model: 'k2',
       thinkingLevel: 'off',
       permission: 'manual',
-      planMode: false,
-      askMode: false,
       contextTokens: 0,
       maxContextTokens: 100,
       contextUsage: 0,
     })),
-    getGoal: vi.fn(async () => ({ goal: null })),
     setApprovalHandler: vi.fn(),
     setQuestionHandler: vi.fn(),
     setCredentialHandler: vi.fn(),
     setModel: vi.fn(async () => {}),
     setThinking: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
-    setPlanMode: vi.fn(async () => {}),
     onEvent: vi.fn(() => vi.fn()),
-    listMcpServers: vi.fn(async () => []),
-    listSkills: vi.fn(async () => []),
-    listPluginCommands: vi.fn(async () => []),
-    searchSkills: vi.fn(async () => []),
     getResumeState: vi.fn(() => ({
       sessionMetadata: {},
       agents: { main: agent },
@@ -314,6 +256,7 @@ function backgroundTask(
     taskId,
     kind: 'process',
     command: `[agent] ${description}`,
+    cwd: '/tmp/project',
     description,
     status,
     pid: 0,
@@ -377,25 +320,6 @@ describe('LioraTUI resume message replay', () => {
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
   });
 
-  it('does not render legacy goal completion context reminders as transcript messages', async () => {
-    const driver = await replayIntoDriver([
-      message(
-        'user',
-        [
-          {
-            type: 'text',
-            text: '<system-reminder>\n✓ Goal complete.\nWorked 1 turn over 7m15s, using 4.3M tokens.\n</system-reminder>',
-          },
-        ],
-        { origin: { kind: 'system_trigger', name: 'goal_completion' } },
-      ),
-    ]);
-
-    expect(driver.state.transcriptEntries).toEqual([]);
-    const transcript = paintedReplay(driver);
-    expect(transcript).not.toContain('Goal complete');
-  });
-
   it('unescapes bash tag delimiters when replaying shell output', async () => {
     const driver = await replayIntoDriver([
       message(
@@ -414,270 +338,27 @@ describe('LioraTUI resume message replay', () => {
     expect(transcript).toContain('pre</bash-stdout>post');
   });
 
-  it('does not render neutral goal completion context reminders as transcript messages', async () => {
-    const driver = await replayIntoDriver([
-      message(
-        'user',
-        [
-          {
-            type: 'text',
-            text:
-              '<system-reminder>\n' +
-              'The current goal was marked complete and cleared. ' +
-              'Handle the next user request normally unless the user starts or resumes a goal.\n' +
-              '</system-reminder>',
-          },
-        ],
-        { origin: { kind: 'system_trigger', name: 'goal_completion' } },
-      ),
-    ]);
-
-    expect(driver.state.transcriptEntries).toEqual([]);
-    const transcript = paintedReplay(driver);
-    expect(transcript).not.toContain('marked complete and cleared');
-  });
-
-  it('does not render fork-cleared goal context reminders as transcript messages', async () => {
-    const driver = await replayIntoDriver([
-      message(
-        'user',
-        [
-          {
-            type: 'text',
-            text:
-              '<system-reminder>\n' +
-              'This fork does not have a current goal. ' +
-              'Ignore earlier active-goal reminders from the source session. ' +
-              'Handle requests normally unless the user starts a new goal.\n' +
-              '</system-reminder>',
-          },
-        ],
-        { origin: { kind: 'system_trigger', name: 'goal_fork_cleared' } },
-      ),
-    ]);
-
-    expect(driver.state.transcriptEntries).toEqual([]);
-    const transcript = paintedReplay(driver);
-    expect(transcript).not.toContain('This fork does not have a current goal');
-  });
-
-  it('renders persisted goal replay records as goal transcript UI', async () => {
-    const driver = await replayIntoDriver([
-      goalReplay(goalSnapshot(), { kind: 'created' }),
-      goalReplay(
-        goalSnapshot({ status: 'paused', terminalReason: 'taking a break' }),
-        { kind: 'lifecycle', status: 'paused', reason: 'taking a break' },
-      ),
-      goalReplay(goalSnapshot({ status: 'active' }), { kind: 'lifecycle', status: 'active' }),
-      goalReplay(
-        goalSnapshot({ status: 'blocked', terminalReason: 'needs credentials' }),
-        { kind: 'lifecycle', status: 'blocked', reason: 'needs credentials' },
-      ),
-      goalReplay(
-        goalSnapshot({
-          status: 'complete',
-          terminalReason: 'done',
-          turnsUsed: 1,
-          tokensUsed: 4300,
-          wallClockMs: 435000,
-        }),
-        {
-          kind: 'completion',
-          status: 'complete',
-          reason: 'done',
-          stats: { turnsUsed: 1, tokensUsed: 4300, wallClockMs: 435000 },
-        },
-      ),
-    ]);
-
-    expect(
-      driver.state.transcriptEntries
-        .filter((entry) => entry.kind === 'goal')
-        .map((entry) => entry.content),
-    ).toEqual(['Goal set', 'Goal paused', 'Goal resumed', 'Goal blocked']);
-    // Entry list, not the viewport — hydrate can leave the window mid-stack.
-    const listed = driver.state.transcriptEntries.map((entry) => entry.content).join('\n');
-    expect(listed).toContain('Goal complete — done');
-    expect(listed).toContain('Worked 1 turn over 7m15s, using 4.3k tokens.');
-  });
-
-  it('filters resume-normalization goal pause markers in TUI replay', async () => {
-    const driver = await replayIntoDriver([
-      goalReplay(goalSnapshot(), { kind: 'created' }),
-      goalReplay(
-        goalSnapshot({ status: 'paused', terminalReason: 'Paused after agent resume' }),
-        { kind: 'lifecycle', status: 'paused', reason: 'Paused after agent resume' },
-      ),
-    ]);
-
-    expect(
-      driver.state.transcriptEntries
-        .filter((entry) => entry.kind === 'goal')
-        .map((entry) => entry.content),
-    ).toEqual(['Goal set']);
-    const transcript = paintedReplay(driver);
-    expect(transcript).toContain('Goal set');
-    expect(transcript).not.toContain('Goal paused');
-    expect(transcript).not.toContain('Paused after agent resume');
-  });
-
-  it('renders replayed goal completion records as assistant completion messages', async () => {
-    const driver = await replayIntoDriver([
-      goalReplay(
-        goalSnapshot({
-          status: 'complete',
-          turnsUsed: 1,
-          tokensUsed: 4_300_000,
-          wallClockMs: 435_000,
-        }),
-        {
-          kind: 'completion',
-          status: 'complete',
-          stats: { turnsUsed: 1, tokensUsed: 4_300_000, wallClockMs: 435_000 },
-        },
-      ),
-    ]);
-
-    const entry = driver.state.transcriptEntries.find((item) =>
-      item.content.includes('Goal complete'),
-    );
-    expect(entry).toMatchObject({
-      kind: 'assistant',
-      renderMode: 'markdown',
-      content: '✓ Goal complete.\nWorked 1 turn over 7m15s, using 4.3M tokens.',
-    });
-  });
-
-  it('does not replay model-facing goal completion prompts as transcript messages', async () => {
-    const driver = await replayIntoDriver([
-      message(
-        'user',
-        [
-          {
-            type: 'text',
-            text: '<system-reminder>\nGoal completed successfully.\nWorked 1 turn over 7m15s, using 4.3M tokens.\n\nWrite a concise final message for the user.\n</system-reminder>',
-          },
-        ],
-        { origin: { kind: 'system_trigger', name: 'goal_completion' } },
-      ),
-    ]);
-
-    const content = driver.state.transcriptEntries.map((item) => item.content).join('\n');
-    expect(content).not.toContain('Goal completed successfully');
-    expect(content).not.toContain('Write a concise final message for the user');
-  });
-
-  it('does not replay model-facing goal blocked prompts as transcript messages', async () => {
-    const driver = await replayIntoDriver([
-      message(
-        'user',
-        [
-          {
-            type: 'text',
-            text: '<system-reminder>\nGoal blocked.\nWorked 1 turn over 7m15s, using 4.3M tokens.\n\nWrite a concise final message for the user.\n</system-reminder>',
-          },
-        ],
-        { origin: { kind: 'system_trigger', name: 'goal_blocked' } },
-      ),
-    ]);
-
-    const content = driver.state.transcriptEntries.map((item) => item.content).join('\n');
-    expect(content).not.toContain('Goal blocked.');
-    expect(content).not.toContain('Write a concise final message for the user');
-  });
-
-  it('does not replay the model-blocked lifecycle marker when the follow-up is replayed', async () => {
-    const driver = await replayIntoDriver([
-      goalReplay(
-        goalSnapshot({ status: 'blocked' }),
-        { kind: 'lifecycle', status: 'blocked', actor: 'model' },
-      ),
-      message(
-        'user',
-        [
-          {
-            type: 'text',
-            text: '<system-reminder>\nGoal blocked.\nWorked 1 turn over 7m15s, using 4.3M tokens.\n\nWrite a concise final message for the user.\n</system-reminder>',
-          },
-        ],
-        { origin: { kind: 'system_trigger', name: 'goal_blocked' } },
-      ),
-      message(
-        'assistant',
-        [{ type: 'text', text: 'I am blocked because I need credentials.' }],
-      ),
-    ]);
-
-    expect(driver.state.transcriptEntries.filter((entry) => entry.kind === 'goal')).toEqual([]);
-    const content = driver.state.transcriptEntries.map((item) => item.content).join('\n');
-    expect(content).not.toContain('Goal blocked');
-    expect(content).toContain('I am blocked because I need credentials.');
-  });
-
-  it('does not replay model-blocked lifecycle markers without a follow-up', async () => {
-    const driver = await replayIntoDriver([
-      goalReplay(
-        goalSnapshot({ status: 'blocked' }),
-        { kind: 'lifecycle', status: 'blocked', actor: 'model' },
-      ),
-    ]);
-
-    expect(
-      driver.state.transcriptEntries
-        .filter((entry) => entry.kind === 'goal')
-        .map((entry) => entry.content),
-    ).toEqual([]);
-  });
-
-  it('keeps replayed blocked lifecycle markers when actor is unavailable', async () => {
-    const driver = await replayIntoDriver([
-      goalReplay(
-        goalSnapshot({ status: 'blocked' }),
-        { kind: 'lifecycle', status: 'blocked' },
-      ),
-    ]);
-
-    expect(
-      driver.state.transcriptEntries
-        .filter((entry) => entry.kind === 'goal')
-        .map((entry) => entry.content),
-    ).toEqual(['Goal blocked']);
-  });
-
-  it('keeps replayed runtime-blocked lifecycle markers', async () => {
-    const driver = await replayIntoDriver([
-      goalReplay(
-        goalSnapshot({ status: 'blocked' }),
-        { kind: 'lifecycle', status: 'blocked', actor: 'runtime' },
-      ),
-    ]);
-
-    expect(
-      driver.state.transcriptEntries
-        .filter((entry) => entry.kind === 'goal')
-        .map((entry) => entry.content),
-    ).toEqual(['Goal blocked']);
-  });
-
-  it('groups replayed Agent calls from one assistant message using live grouping', async () => {
+  it('groups replayed SessionControl spawns without treating successful ACKs as completed children', async () => {
     const replay: AgentReplayRecord[] = [
       message('user', [{ type: 'text', text: 'run two agents' }]),
       message('assistant', [], {
         toolCalls: [
-          toolCall('call_agent_1', 'Agent', {
+          toolCall('call_agent_1', 'SessionControl', {
+            operation: 'spawn',
             description: 'Review API',
-            subagent_type: 'reviewer',
+            profile: 'agent',
           }),
-          toolCall('call_agent_2', 'Agent', {
+          toolCall('call_agent_2', 'SessionControl', {
+            operation: 'spawn',
             description: 'Review tests',
-            subagent_type: 'reviewer',
+            profile: 'agent',
           }),
         ],
       }),
-      message('tool', [{ type: 'text', text: 'agent one done' }], {
+      message('tool', [{ type: 'text', text: '{"agentId":"agent-one"}' }], {
         toolCallId: 'call_agent_1',
       }),
-      message('tool', [{ type: 'text', text: 'agent two done' }], {
+      message('tool', [{ type: 'text', text: '{"agentId":"agent-two"}' }], {
         toolCallId: 'call_agent_2',
       }),
     ];
@@ -690,94 +371,46 @@ describe('LioraTUI resume message replay', () => {
     expect(group).toBeInstanceOf(AgentGroupComponent);
     expect((group as AgentGroupComponent).size()).toBe(2);
     const output = stripAnsi((group as AgentGroupComponent).render(120).join('\n'));
-    expect(output).toContain('2 agents finished');
-    expect(output).not.toContain('Still working…');
-    expect(output).not.toContain('Waiting to start…');
+    expect(output).not.toContain('agents finished');
+    expect((group as AgentGroupComponent).getToolComponents().map(
+      (component) => component.getSubagentSnapshot().phase,
+    )).toEqual(['backgrounded', 'backgrounded']);
     expect(driver.streamingUI.hasPendingAgentGroup()).toBe(false);
     expect(driver.streamingUI.getToolComponent('call_agent_1')).toBeUndefined();
     expect(driver.streamingUI.getToolComponent('call_agent_2')).toBeUndefined();
   });
 
-  it('groups replayed Read calls from one assistant message using live grouping', async () => {
-    const replay: AgentReplayRecord[] = [
-      message('user', [{ type: 'text', text: 'read files' }]),
+  it('does not group SessionControl list and message operations as child workers', async () => {
+    const driver = await replayIntoDriver([
+      message('user', [{ type: 'text', text: 'inspect and contact a child' }]),
       message('assistant', [], {
         toolCalls: [
-          toolCall('call_read_1', 'Read', { file_path: '/tmp/proj-a/src/a.ts' }),
-          toolCall('call_read_2', 'Read', { file_path: '/tmp/proj-a/src/b.ts' }),
+          toolCall('call_list', 'SessionControl', { operation: 'list' }),
+          toolCall('call_message', 'SessionControl', {
+            operation: 'message', agentId: 'agent-one', message: 'Report current work',
+          }),
         ],
       }),
-      message('tool', [{ type: 'text', text: 'line a\nline b\n' }], {
-        toolCallId: 'call_read_1',
+      message('tool', [{ type: 'text', text: '[]' }], { toolCallId: 'call_list' }),
+      message('tool', [{ type: 'text', text: '{"delivered":true}' }], {
+        toolCallId: 'call_message',
       }),
-      message('tool', [{ type: 'text', text: 'line c\n' }], {
-        toolCallId: 'call_read_2',
-      }),
-    ];
-
-    const driver = await replayIntoDriver(replay);
-    const group = driver.state.transcriptContainer.children.find(
-      (child) => child instanceof ReadGroupComponent,
-    );
-
-    expect(group).toBeInstanceOf(ReadGroupComponent);
-    expect((group as ReadGroupComponent).size()).toBe(2);
-    expect(driver.streamingUI.hasPendingReadGroup()).toBe(false);
-    expect(driver.streamingUI.getToolComponent('call_read_1')).toBeUndefined();
-    expect(driver.streamingUI.getToolComponent('call_read_2')).toBeUndefined();
+    ]);
+    expect(driver.state.transcriptContainer.children.some(
+      (child) => child instanceof AgentGroupComponent,
+    )).toBe(false);
+    expect(driver.streamingUI.hasPendingAgentGroup()).toBe(false);
   });
 
-  it('groups replayed Grep and LS calls from one assistant message', async () => {
-    const replay: AgentReplayRecord[] = [
-      message('user', [{ type: 'text', text: 'search files' }]),
-      message('assistant', [], {
-        toolCalls: [
-          toolCall('call_grep_1', 'Grep', { pattern: 'TODO' }),
-          toolCall('call_ls_1', 'LS', { path: '/tmp/proj-a/src' }),
-        ],
-      }),
-      message('tool', [{ type: 'text', text: 'a.ts:1:TODO\n' }], {
-        toolCallId: 'call_grep_1',
-      }),
-      message('tool', [{ type: 'text', text: 'a.ts\nb.ts\n' }], {
-        toolCallId: 'call_ls_1',
-      }),
-    ];
 
-    const driver = await replayIntoDriver(replay);
-    const group = driver.state.transcriptContainer.children.find(
-      (child) => child instanceof SearchGroupComponent,
-    );
-
-    expect(group).toBeInstanceOf(SearchGroupComponent);
-    expect((group as SearchGroupComponent).size()).toBe(2);
-    const output = stripAnsi((group as SearchGroupComponent).render(120).join('\n'));
-    expect(output).toContain('Searched 1 pattern · Listed 1 dir');
-    expect(output).toContain('TODO');
-    expect(driver.streamingUI.hasPendingSearchGroup()).toBe(false);
-    expect(driver.streamingUI.getToolComponent('call_grep_1')).toBeUndefined();
-    expect(driver.streamingUI.getToolComponent('call_ls_1')).toBeUndefined();
-  });
-
-  it('hydrates todo and background snapshot state from resumed main agent', async () => {
+  it('hydrates background snapshot state from the resumed main agent', async () => {
     const driver = await replayIntoDriver([], {
-      toolStore: {
-        todo: [
-          { title: 'Review resume snapshot', status: 'done' },
-          { title: 'Render replay transcript', status: 'in_progress' },
-          { title: '', status: 'pending' },
-        ],
-      },
       background: [
         backgroundTask('agent-bg1', 'Review long-running work', 'running'),
         backgroundTask('bash-bg1', 'Build package', 'completed'),
       ],
     });
 
-    expect(driver.state.todoPanel.getTodos()).toEqual([
-      { title: 'Review resume snapshot', status: 'done' },
-      { title: 'Render replay transcript', status: 'in_progress' },
-    ]);
     expect(driver.sessionEventHandler.backgroundTasks.has('agent-bg1')).toBe(true);
     expect(driver.sessionEventHandler.backgroundTasks.has('bash-bg1')).toBe(true);
     expect(driver.sessionEventHandler.backgroundTaskTranscriptedTerminal.has('bash-bg1')).toBe(true);
@@ -948,135 +581,6 @@ describe('LioraTUI resume message replay', () => {
     ]);
   });
 
-  it('renders cron_job origin records during replay without exposing raw XML', async () => {
-    const cronFire =
-      '<cron-fire jobId="job-1" cron="*/5 * * * *" recurring="true" coalescedCount="1" stale="false">\n<prompt>\nrun nightly\n</prompt>\n</cron-fire>';
-    const driver = await replayIntoDriver([
-      message('user', [{ type: 'text', text: 'real prompt' }]),
-      message('assistant', [{ type: 'text', text: 'real answer' }]),
-      message('user', [{ type: 'text', text: cronFire }], {
-        origin: {
-          kind: 'cron_job',
-          jobId: 'job-1',
-          cron: '*/5 * * * *',
-          recurring: true,
-          coalescedCount: 1,
-          stale: false,
-        },
-      }),
-    ]);
-
-    // Prefer structured entries over painted ANSI (entrance/motion can interleave SGR).
-    expect(
-      driver.state.transcriptEntries
-        .filter((entry) => entry.kind === 'user')
-        .map((entry) => entry.content),
-    ).toEqual(['real prompt']);
-    expect(
-      driver.state.transcriptEntries
-        .filter((entry) => entry.kind === 'cron')
-        .map((entry) => entry.content),
-    ).toEqual(['run nightly']);
-    const transcript = paintedReplay(driver, 120);
-    expect(transcript).not.toContain('<cron-fire');
-    expect(transcript).toContain('Scheduled reminder fired');
-    expect(transcript).toContain('run nightly');
-  });
-
-  it('renders cron_missed origin records during replay without exposing raw XML', async () => {
-    const cronMissed =
-      '<cron-fire jobId="job-2" missed="true" count="3">\n3 one-shot tasks missed while offline\n</cron-fire>';
-    const driver = await replayIntoDriver([
-      message('user', [{ type: 'text', text: 'real prompt' }]),
-      message('assistant', [{ type: 'text', text: 'real answer' }]),
-      message('user', [{ type: 'text', text: cronMissed }], {
-        origin: { kind: 'cron_missed', count: 3 },
-      }),
-    ]);
-
-    const transcript = paintedReplay(driver, 120);
-    expect(transcript).not.toContain('<cron-fire');
-    expect(transcript).toContain('Missed scheduled reminders');
-    expect(transcript).toContain('3 one-shot tasks missed while offline');
-    expect(
-      driver.state.transcriptEntries
-        .filter((entry) => entry.kind === 'user')
-        .map((entry) => entry.content),
-    ).toEqual(['real prompt']);
-    expect(
-      driver.state.transcriptEntries
-        .filter((entry) => entry.kind === 'cron')
-        .map((entry) => entry.content),
-    ).toEqual(['3 one-shot tasks missed while offline']);
-  });
-
-  it('renders user-slash skill activation once without exposing injected prompt text', async () => {
-    const activation = message(
-      'user',
-      [{ type: 'text', text: 'Review the requested file.\n\nUser request:\nsrc/app.ts' }],
-      {
-        origin: {
-          kind: 'skill_activation',
-          activationId: 'act-review',
-          skillName: 'review',
-          skillArgs: 'src/app.ts',
-          trigger: 'user-slash',
-        },
-      },
-    );
-
-    const driver = await replayIntoDriver([activation, activation]);
-    const transcript = paintedReplay(driver, 120);
-
-    expect(transcript).toContain('review');
-    expect(transcript).toContain('src/app.ts');
-    expect(transcript).not.toContain('Review the requested file');
-    expect(driver.sessionEventHandler.renderedSkillActivationIds.has('act-review')).toBe(true);
-  });
-
-  it('renders user-slash plugin commands once without exposing expanded command text', async () => {
-    const activation = message(
-      'user',
-      [{ type: 'text', text: 'Deploy production with internal runbook details' }],
-      {
-        origin: {
-          kind: 'plugin_command',
-          activationId: 'cmd-deploy',
-          pluginId: 'demo-plugin',
-          commandName: 'deploy',
-          commandArgs: 'prod',
-          trigger: 'user-slash',
-        },
-      },
-    );
-
-    const driver = await replayIntoDriver([activation, activation]);
-    const transcript = paintedReplay(driver, 120);
-
-    expect(transcript).toContain('/demo-plugin:deploy');
-    expect(transcript).toContain('prod');
-    expect(transcript).not.toContain('Deploy production with internal runbook details');
-    expect(driver.sessionEventHandler.renderedPluginCommandActivationIds.has('cmd-deploy')).toBe(true);
-  });
-
-  it('renders replayed hook results as assistant transcript entries', async () => {
-    const hookResult =
-      '<hook_result hook_event="UserPromptSubmit">\nhook response 1\n</hook_result>\n' +
-      '<hook_result hook_event="UserPromptSubmit">\nhook response 2\n</hook_result>';
-    const driver = await replayIntoDriver([
-      message('user', [{ type: 'text', text: 'prompt' }]),
-      message('user', [{ type: 'text', text: hookResult }], {
-        origin: { kind: 'hook_result', event: 'UserPromptSubmit' },
-      }),
-    ]);
-
-    const transcript = paintedReplay(driver, 120);
-
-    expect(transcript).toContain('UserPromptSubmit hook');
-    expect(transcript).toContain('hook response 1');
-    expect(transcript).toContain('hook response 2');
-  });
-
   it('renders replayed compaction records as completed compaction blocks', async () => {
     const driver = await replayIntoDriver([
       message('user', [{ type: 'text', text: 'prompt before compaction' }]),
@@ -1086,6 +590,7 @@ describe('LioraTUI resume message replay', () => {
         result: {
           summary: 'Compacted transcript summary.',
           compactedCount: 4,
+          keptUserMessageCount: 1,
           tokensBefore: 120,
           tokensAfter: 24,
         },
@@ -1134,9 +639,8 @@ describe('LioraTUI resume message replay', () => {
     expect(transcript).not.toContain('Compaction complete');
   });
 
-  it('renders plan permission and approval replay notices', async () => {
+  it('renders permission and approval replay notices', async () => {
     const driver = await replayIntoDriver([
-      { time: REPLAY_TIME, type: 'plan_updated', enabled: true },
       { time: REPLAY_TIME, type: 'permission_updated', mode: 'auto' },
       { time: REPLAY_TIME, type: 'permission_updated', mode: 'yolo' },
       { time: REPLAY_TIME, type: 'permission_updated', mode: 'manual' },
@@ -1151,79 +655,17 @@ describe('LioraTUI resume message replay', () => {
           result: {
             decision: 'approved',
             scope: 'session',
-            selectedLabel: 'Approve for this session',
           },
         },
       },
-      { time: REPLAY_TIME, type: 'plan_updated', enabled: false },
     ]);
 
     const transcript = paintedReplay(driver, 120);
 
-    expect(transcript).toContain('Plan mode: ON');
     expect(transcript).toContain('Permission mode: auto');
     expect(transcript).toContain('YOLO mode: ON');
     expect(transcript).toContain('YOLO mode: OFF');
     expect(transcript).toContain('Approved for session: run command');
-    expect(transcript).toContain('Plan mode: OFF');
-  });
-
-  it('keeps only the final approved plan card after rejected plan reviews', async () => {
-    const driver = await replayIntoDriver([
-      message('assistant', [], {
-        toolCalls: [toolCall('call_exit_reject', 'ExitPlanMode', {})],
-      }),
-      {
-        time: REPLAY_TIME,
-        type: 'approval_result',
-        record: {
-          turnId: 0,
-          toolCallId: 'call_exit_reject',
-          action: 'Review plan',
-          toolName: 'ExitPlanMode',
-          result: { decision: 'rejected', selectedLabel: 'Reject' },
-        },
-      },
-      message('tool', [{ type: 'text', text: 'Plan rejected by user. Plan mode remains active.' }], {
-        toolCallId: 'call_exit_reject',
-        isError: true,
-      }),
-      message('assistant', [], {
-        toolCalls: [toolCall('call_exit_final', 'ExitPlanMode', {})],
-      }),
-      {
-        time: REPLAY_TIME,
-        type: 'approval_result',
-        record: {
-          turnId: 1,
-          toolCallId: 'call_exit_final',
-          action: 'Review plan',
-          toolName: 'ExitPlanMode',
-          result: { decision: 'approved', selectedLabel: 'Approve' },
-        },
-      },
-      message(
-        'tool',
-        [
-          {
-            type: 'text',
-            text:
-              'Exited plan mode. Plan mode deactivated. All tools are now available.\n' +
-              'Plan saved to: /tmp/plans/final-plan.md\n\n' +
-              '## Approved Plan:\n# Final Plan\n\n- replay final approved plan',
-          },
-        ],
-        { toolCallId: 'call_exit_final' },
-      ),
-      { time: REPLAY_TIME, type: 'plan_updated', enabled: false },
-    ]);
-
-    const transcript = paintedReplay(driver, 120);
-
-    expect(transcript).toContain('Plan review rejected');
-    expect(transcript).toContain('Current plan · Approved');
-    expect(transcript).not.toContain('Plan rejected by user.');
-    expect(transcript).not.toContain('Plan mode: OFF');
   });
 
   it('caps tool mounts within a single long-running replayed turn', async () => {

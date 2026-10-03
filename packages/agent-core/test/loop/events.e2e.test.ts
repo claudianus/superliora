@@ -1,176 +1,92 @@
-/**
- * LoopEventDispatcher live event contract — fire-and-forget listener errors must
- * never reach the loop.
- */
-
 import { describe, expect, it } from 'vitest';
 
-import type { LoopEvent, LoopLiveEventEmitter } from '../../src/loop/index';
-import { CollectingSink } from './fixtures/collecting-sink';
-import { makeEndTurnResponse, makeToolCall, makeToolUseResponse } from './fixtures/fake-llm';
-import { runTurn } from './fixtures/helpers';
-import { EchoTool, markReadFileAccesses, ProgressTool } from './fixtures/tools';
+import { createLoopEventDispatcher } from '../../src/loop/events';
+import type { LoopEvent, LoopRecordedEvent } from '../../src/loop/events';
+import { runTurn } from '../../src/loop/run-turn';
+import { boundary, call, executionTool, nextTask, provider, response } from './fixtures/native-boundaries';
 
-describe('runTurn — LoopEventDispatcher live event containment', () => {
-  it('contains synchronous emit() throws', async () => {
-    const sink = new CollectingSink({ errorMode: { kind: 'sync-throw' } });
-    const { result } = await runTurn({
-      emitLiveEvent: sink.emit,
-      responses: [makeEndTurnResponse('ok')],
+describe('native stream and durable event boundaries', () => {
+  it('awaits durable append before publishing completed content, preserving signed reasoning and step ownership', async () => {
+    const appendEntered = Promise.withResolvers<void>();
+    const appendRelease = Promise.withResolvers<void>();
+    const records: LoopRecordedEvent[] = [];
+    const live: LoopEvent[] = [];
+    const llm = provider(async (params) => {
+      params.onThinkDelta?.('reason');
+      await params.onThinkPart?.({ type: 'think', think: 'reason', encrypted: 'signature' });
+      params.onTextDelta?.('answer');
+      await params.onTextPart?.({ type: 'text', text: 'answer' });
+      return response();
     });
-    // The loop still completes the turn.
-    expect(result.stopReason).toBe('end_turn');
-  });
-
-  it('contains async-rejected emit() returns', async () => {
-    const sink = new CollectingSink({ errorMode: { kind: 'async-reject' } });
-    const { result } = await runTurn({
-      emitLiveEvent: sink.emit,
-      responses: [makeEndTurnResponse('ok')],
-    });
-    expect(result.stopReason).toBe('end_turn');
-    // Each emit is recorded even though the listener returned a rejected
-    // promise; LoopEventDispatcher attaches a terminal catch.
-    expect(sink.events.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it('survives a sink that throws on EVERY emit across a full multi-step turn', async () => {
-    const sink = new CollectingSink({ errorMode: { kind: 'every-call-throws' } });
-    const echo = new EchoTool();
-    const progress = new ProgressTool();
-    const { result, context } = await runTurn({
-      emitLiveEvent: sink.emit,
-      tools: [echo, progress],
-      responses: [
-        makeToolUseResponse([
-          makeToolCall('echo', { text: '1' }, 'a'),
-          makeToolCall('progress', {}, 'b'),
-        ]),
-        makeEndTurnResponse('done'),
-      ],
-    });
-    // Despite every emit throwing, the turn still converges and writes
-    // its transcript records.
-    expect(result.stopReason).toBe('end_turn');
-    expect(context.stepBegins().length).toBe(2);
-    expect(context.stepEnds().length).toBe(2);
-    // The tool was still executed
-    expect(echo.calls.length).toBe(1);
-    expect(progress.calls.length).toBe(1);
-  });
-
-  it('allows host-owned fan-out through a single emitter function', async () => {
-    const a = new CollectingSink({ id: 'a' });
-    const b = new CollectingSink({ id: 'b' });
-    const { result } = await runTurn({
-      emitLiveEvent: (event) => {
-        a.emit(event);
-        b.emit(event);
-      },
-      responses: [makeEndTurnResponse('ok')],
-    });
-    expect(result.stopReason).toBe('end_turn');
-    expect(a.typesIn()).toEqual(b.typesIn());
-    expect(a.events.length).toBeGreaterThan(0);
-  });
-
-  it('a misbehaving sink does not starve the others', async () => {
-    const broken = new CollectingSink({
-      id: 'broken',
-      errorMode: { kind: 'every-call-throws' },
-    });
-    const good = new CollectingSink({ id: 'good' });
-    const { result } = await runTurn({
-      emitLiveEvent: (event) => {
-        try {
-          broken.emit(event);
-        } catch {
-          // host-owned fan-out contains individual listener failure
+    const { input } = boundary(llm, { dispatchEvent: createLoopEventDispatcher({
+      appendTranscriptRecord: async (event) => {
+        if (event.type === 'content.part' && event.part.type === 'think') {
+          appendEntered.resolve();
+          await appendRelease.promise;
         }
-        good.emit(event);
+        records.push(event);
       },
-      responses: [makeEndTurnResponse('ok')],
-    });
-    expect(result.stopReason).toBe('end_turn');
-    // Good sink received the events; ordering matches the documented set.
-    expect(good.count('step.begin')).toBe(1);
-    expect(good.count('step.end')).toBe(1);
+      emitLiveEvent: (event) => { live.push(event); },
+    }) });
+    const turn = runTurn(input);
+    await appendEntered.promise;
+    expect(live.map((event) => event.type)).toEqual(['step.begin', 'thinking.delta']);
+    expect(records.map((event) => event.type)).toEqual(['step.begin']);
+    appendRelease.resolve();
+    await turn;
+
+    expect(records.map((event) => event.type)).toEqual(['step.begin', 'content.part', 'content.part', 'step.end']);
+    const begin = records.find((event) => event.type === 'step.begin');
+    const parts = records.filter((event) => event.type === 'content.part');
+    expect(parts.map((event) => event.stepUuid)).toEqual([begin?.uuid, begin?.uuid]);
+    expect(parts[0]?.part).toEqual({ type: 'think', think: 'reason', encrypted: 'signature' });
+    expect(live.map((event) => event.type)).toEqual([
+      'step.begin', 'thinking.delta', 'content.part', 'text.delta', 'content.part', 'step.end',
+    ]);
+    expect(records.some((event) => (event.type as string).endsWith('.delta'))).toBe(false);
   });
 
-  it('emits a documented full event sequence for one tool-bearing turn', async () => {
-    const echo = markReadFileAccesses(new EchoTool());
-    const progress = markReadFileAccesses(
-      new ProgressTool([{ kind: 'progress', percent: 50 }]),
-    );
-    const { sink } = await runTurn({
-      tools: [echo, progress],
-      responses: [
-        makeToolUseResponse([
-          makeToolCall('echo', { text: 'hi' }, 'tc-1'),
-          makeToolCall('progress', {}, 'tc-2'),
-        ]),
-        makeEndTurnResponse('done', { inputOther: 1, output: 1 }),
-      ],
+  it.each(['throw', 'reject'] as const)('contains live listener %s failures without losing durable tool results', async (mode) => {
+    const records: LoopRecordedEvent[] = [];
+    let request = 0;
+    const llm = provider(async (params) => {
+      params.onTextDelta?.('status');
+      return request++ === 0 ? response([call('Bash', 'process')]) : response();
     });
+    const bash = executionTool('Bash', async (ctx) => {
+      ctx.onUpdate?.({ kind: 'stdout', text: 'process output' });
+      return { output: 'process exited' };
+    });
+    const { input } = boundary(llm, { tools: [bash], dispatchEvent: createLoopEventDispatcher({
+      appendTranscriptRecord: async (event) => { records.push(event); },
+      emitLiveEvent: () => {
+        if (mode === 'throw') throw new Error('renderer failed');
+        return Promise.reject(new Error('renderer failed'));
+      },
+    }) });
 
-    const types = sink.typesIn();
-    // Required milestones in order
-    const order: LoopEvent['type'][] = [
-      'step.begin',
-      'tool.call',
-      'tool.call',
-      'tool.result',
-      'tool.result',
-      'step.end',
-      'step.begin',
-      'step.end',
-    ];
-    // Every required type appears in the right relative order
-    let fromIdx = 0;
-    for (const expected of order) {
-      const found = types.indexOf(expected, fromIdx);
-      expect(
-        found,
-        `missing ${expected} starting at ${String(fromIdx)} of [${types.join(',')}]`,
-      ).toBeGreaterThanOrEqual(fromIdx);
-      fromIdx = found + 1;
-    }
-    // tool.progress fired between tool.call and tool.result
-    expect(sink.byType('tool.progress').length).toBe(1);
+    expect(await runTurn(input)).toMatchObject({ stopReason: 'end_turn', steps: 2 });
+    await nextTask();
+    expect(records.filter((event) => event.type === 'tool.result')).toEqual([
+      expect.objectContaining({ toolCallId: 'process', result: { output: 'process exited' } }),
+    ]);
+    expect(records.filter((event) => event.type === 'step.end')).toHaveLength(2);
   });
 
-  it('LoopEvent payload carries the documented fields', async () => {
-    const echo = new EchoTool();
-    const { sink } = await runTurn({
-      tools: [echo],
-      responses: [
-        makeToolUseResponse([makeToolCall('echo', { text: 'hi' }, 'tc-99')]),
-        makeEndTurnResponse('done'),
-      ],
+  it('propagates durable content failure rather than publishing or sealing an unrecorded block', async () => {
+    const failure = new Error('record storage unavailable');
+    const live: LoopEvent[] = [];
+    const llm = provider(async (params) => {
+      await params.onTextPart?.({ type: 'text', text: 'unrecorded' });
+      return response();
     });
-    const tc = sink.byType('tool.call')[0];
-    expect(tc).toBeDefined();
-    expect(tc?.toolCallId).toBe('tc-99');
-    expect(tc?.name).toBe('echo');
-    expect(tc?.args).toEqual({ text: 'hi' });
-    const tr = sink.byType('tool.result')[0];
-    expect(tr?.toolCallId).toBe('tc-99');
-    expect(typeof tr?.result.output).toBe('string');
-  });
+    const { input } = boundary(llm, { dispatchEvent: createLoopEventDispatcher({
+      appendTranscriptRecord: async (event) => { if (event.type === 'content.part') throw failure; },
+      emitLiveEvent: (event) => { live.push(event); },
+    }) });
 
-  it('accepts a custom emitter function', async () => {
-    class StrictCollector {
-      readonly events: LoopEvent[] = [];
-      readonly emit: LoopLiveEventEmitter = (event) => {
-        this.events.push(event);
-      };
-    }
-    const custom = new StrictCollector();
-    const { result } = await runTurn({
-      emitLiveEvent: custom.emit,
-      responses: [makeEndTurnResponse('ok')],
-    });
-    expect(result.stopReason).toBe('end_turn');
-    expect(custom.events.length).toBeGreaterThan(0);
+    await expect(runTurn(input)).rejects.toBe(failure);
+    expect(live.map((event) => event.type)).toEqual(['step.begin', 'turn.interrupted']);
+    expect(llm.requests).toHaveLength(1);
   });
 });

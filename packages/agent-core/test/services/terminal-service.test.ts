@@ -18,6 +18,7 @@ import {
   type TerminalProcess,
   type TerminalSpawnOptions,
 } from '../../src/services';
+import { isSessionWorktreeOwned } from '../../src/session/worktree';
 
 let tmpDir: string;
 
@@ -33,6 +34,9 @@ class FakeTerminalProcess implements TerminalProcess {
   readonly writes: string[] = [];
   readonly resizes: Array<{ cols: number; rows: number }> = [];
   killed = false;
+  autoExit = true;
+  killCount = 0;
+  readonly killRequested = Promise.withResolvers<void>();
 
   private readonly dataEmitter = new Emitter<string>();
   private readonly exitEmitter = new Emitter<{ exitCode: number | null }>();
@@ -50,7 +54,9 @@ class FakeTerminalProcess implements TerminalProcess {
 
   kill(): void {
     this.killed = true;
-    this.exitEmitter.fire({ exitCode: null });
+    this.killCount += 1;
+    this.killRequested.resolve();
+    if (this.autoExit) this.exitEmitter.fire({ exitCode: null });
   }
 
   emitData(data: string): void {
@@ -274,6 +280,143 @@ describe('TerminalService streams', () => {
     expect(closeResult).toEqual({ closed: true });
     expect(process.killed).toBe(true);
     expect((await svc.get('sess_f', terminal.id)).status).toBe('exited');
+  });
+
+  it('does not publish exit or finish close until the backend actually exits', async () => {
+    const backend = new FakeTerminalBackend();
+    const svc = new TerminalService({ backend }, makeSessionService(new Map([
+      ['sess_delayed', session('sess_delayed', tmpDir)],
+    ])));
+    const terminal = await svc.create('sess_delayed', {});
+    const process = backend.processes[0]!;
+    process.autoExit = false;
+    const sink = new Sink('delayed-close');
+    await svc.attach('sess_delayed', terminal.id, sink);
+    let closed = false;
+    const closing = svc.close('sess_delayed', terminal.id).then((result) => {
+      closed = true;
+      return result;
+    });
+    await process.killRequested.promise;
+    expect(closed).toBe(false);
+    expect((await svc.get('sess_delayed', terminal.id)).status).toBe('running');
+    expect(sink.frames).toEqual([]);
+    process.emitData('last output');
+    expect(sink.frames.at(-1)?.type).toBe('terminal_output');
+    process.emitExit(7);
+    await expect(closing).resolves.toEqual({ closed: true });
+    expect((await svc.get('sess_delayed', terminal.id)).exit_code).toBe(7);
+    expect(sink.frames.at(-1)).toMatchObject({
+      type: 'terminal_exit',
+      payload: { exit_code: 7 },
+    });
+    await svc.shutdown();
+  });
+
+  it('shutdown holds listeners and awaits every independent terminal exit', async () => {
+    const backend = new FakeTerminalBackend();
+    const svc = new TerminalService({ backend }, makeSessionService(new Map([
+      ['sess_shutdown', session('sess_shutdown', tmpDir)],
+    ])));
+    const first = await svc.create('sess_shutdown', {});
+    const second = await svc.create('sess_shutdown', {});
+    for (const process of backend.processes) process.autoExit = false;
+    const sink = new Sink('shutdown');
+    await svc.attach('sess_shutdown', second.id, sink);
+    let settled = false;
+    svc.dispose();
+    const shutdown = svc.shutdown();
+    expect(svc.shutdown()).toBe(shutdown);
+    const completion = shutdown.then(() => { settled = true; });
+    await Promise.all(backend.processes.map((process) => process.killRequested.promise));
+    await expect(svc.create('sess_shutdown', {})).rejects.toThrow(/disposed/);
+    expect(settled).toBe(false);
+    backend.processes[0]!.emitExit(0);
+    expect((await svc.get('sess_shutdown', first.id)).status).toBe('exited');
+    expect(settled).toBe(false);
+    backend.processes[1]!.emitData('final bytes');
+    backend.processes[1]!.emitExit(0);
+    await completion;
+    expect(sink.frames.map((frame) => frame.type)).toEqual(['terminal_output', 'terminal_exit']);
+    expect(backend.processes.map((process) => process.killCount)).toEqual([1, 1]);
+  });
+
+  it('shutdown owns a terminal whose native spawn is still pending', async () => {
+    const spawnRequested = Promise.withResolvers<void>();
+    const spawned = Promise.withResolvers<TerminalProcess>();
+    const process = new FakeTerminalProcess();
+    process.autoExit = false;
+    const backend: TerminalBackend = {
+      spawn: () => {
+        spawnRequested.resolve();
+        return spawned.promise;
+      },
+    };
+    const svc = new TerminalService({ backend }, makeSessionService(new Map([
+      ['sess_spawn', session('sess_spawn', tmpDir)],
+    ])));
+    const creation = svc.create('sess_spawn', {});
+    await spawnRequested.promise;
+    let settled = false;
+    const shutdown = svc.shutdown().then(() => { settled = true; });
+    spawned.resolve(process);
+    await process.killRequested.promise;
+    expect(settled).toBe(false);
+    process.emitExit(0);
+    expect((await creation).status).toBe('exited');
+    await shutdown;
+    expect(settled).toBe(true);
+  });
+
+  it('settles a real native PTY before publishing completed shutdown', async () => {
+    const svc = new TerminalService({}, makeSessionService(new Map([
+      ['sess_native', session('sess_native', tmpDir)],
+    ])));
+    const ready = Promise.withResolvers<void>();
+    const sink = new Sink('native');
+    let output = '';
+    try {
+      const terminal = await svc.create('sess_native', { shell: process.execPath });
+      await svc.attach('sess_native', terminal.id, {
+        id: sink.id,
+        send(frame) {
+          sink.send(frame);
+          if (frame.type === 'terminal_output') {
+            output += frame.payload.data;
+            if (output.includes('native-terminal-ready\r\n')) ready.resolve();
+          }
+        },
+      });
+      await svc.write('sess_native', terminal.id, "process.on('SIGHUP', () => {}); process.stdout.write('native-terminal-' + 'ready\\n')\r");
+      await ready.promise;
+      expect(isSessionWorktreeOwned(tmpDir, tmpDir)).toBe(true);
+      await svc.shutdown();
+      expect(sink.frames.at(-1)?.type).toBe('terminal_exit');
+      expect(isSessionWorktreeOwned(tmpDir, tmpDir)).toBe(false);
+    } finally {
+      await svc.shutdown();
+    }
+  });
+
+  it('surfaces a native stop failure without reporting the terminal exited', async () => {
+    const backend = new FakeTerminalBackend();
+    const svc = new TerminalService({ backend }, makeSessionService(new Map([
+      ['sess_stop_failure', session('sess_stop_failure', tmpDir)],
+    ])));
+    const terminal = await svc.create('sess_stop_failure', {});
+    const process = backend.processes[0]!;
+    const failure = new Error('native kill failed');
+    process.kill = () => { throw failure; };
+    const sink = new Sink('stop-failure');
+    await svc.attach('sess_stop_failure', terminal.id, sink);
+    await expect(svc.close('sess_stop_failure', terminal.id)).rejects.toBe(failure);
+    expect((await svc.get('sess_stop_failure', terminal.id)).status).toBe('running');
+    expect(sink.frames).toEqual([]);
+    const shutdown = svc.shutdown();
+    await expect(shutdown).rejects.toBeInstanceOf(AggregateError);
+    expect(svc.shutdown()).toBe(shutdown);
+    process.emitExit(0);
+    expect(sink.frames.at(-1)?.type).toBe('terminal_exit');
   });
 
   it('throws TerminalNotFoundError when terminal_id is not owned by that session', async () => {

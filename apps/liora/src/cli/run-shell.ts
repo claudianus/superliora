@@ -22,21 +22,22 @@ import type { TuiConfig } from '#/tui/config';
 import { loadTuiConfig, TuiConfigParseError } from '#/tui/config';
 import { CHROME_GUTTER } from '#/tui/constant/rendering';
 import { LioraTUI } from '#/tui/index';
-import { currentTheme, getColorPalette, refreshPluginThemeCatalog } from '#/tui/theme';
+import { currentTheme, getColorPalette } from '#/tui/theme';
 import { initImageProtocolProbe } from '#/tui/utils/image/image-protocol-detect';
 import { combineStartupNotice } from '#/tui/utils/startup';
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
-
-import { createMarketplaceSourceResolver } from '#/utils/plugin-marketplace-resolver';
 
 import type { CLIOptions } from './options';
 import { applyNoProcessSandboxFlag, sandboxSessionMetadata } from './options';
 import { resolveSessionWorkDir } from './resolve-worktree';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
 import type { UpdateLifecycleNotice, UpdateNoticeInfo } from './update/types';
-import type { RuntimeDegradedEvent } from '@superliora/protocol';
 
-import { startHarnessOAuthProactiveRefresh, buildOAuthRefreshDegradedEventFromOutcome } from '#/utils/oauth/proactive-refresh-host';
+import {
+  startHarnessOAuthProactiveRefresh,
+  buildOAuthRefreshFailureFromOutcome,
+  type OAuthRefreshFailure,
+} from '#/utils/oauth/proactive-refresh-host';
 
 import { createLioraHostIdentity } from './version';
 import { writeDebugLog } from '#/utils/debug-session';
@@ -66,8 +67,7 @@ export async function runShell(
 
   // Probe runtime kitty graphics support in the same pre-raw-mode window —
   // once the TUI owns stdin the probe reply would be eaten by the input loop.
-  // Theme palette waits until plugin themes are catalogued so a persisted
-  // plugin theme id does not silently fall back to dark.
+  // Resolve the selected built-in or local custom theme before entering raw mode.
   startupTrace('runShell:before-image-probe');
   await initImageProtocolProbe();
   startupTrace('runShell:after-image-probe');
@@ -83,11 +83,6 @@ export async function runShell(
   const harness = createLioraHarness({
     homeDir: telemetryBootstrap.homeDir,
     identity: createLioraHostIdentity(version),
-    projectDir: workDir,
-    pluginDirs: opts.pluginDirs,
-    channelServers: opts.channelServers,
-    skillDirs: opts.skillsDirs,
-    resolveMarketplaceSource: createMarketplaceSourceResolver(workDir),
     telemetry: telemetryClient,
     onOAuthRefresh: (outcome) => {
       if (outcome.success) {
@@ -95,13 +90,13 @@ export async function runShell(
         return;
       }
       track('oauth_refresh', { success: false, reason: outcome.reason });
-      surfaceOAuthDegraded?.(buildOAuthRefreshDegradedEventFromOutcome(outcome));
+      surfaceOAuthRefreshFailure?.(buildOAuthRefreshFailureFromOutcome(outcome));
     },
-    sessionStartedProperties: { yolo: opts.yolo, auto: opts.auto, plan: opts.plan, afk: false },
+    sessionStartedProperties: { yolo: opts.yolo, auto: opts.auto, afk: false },
   });
-  let surfaceOAuthDegraded: ((event: RuntimeDegradedEvent) => void) | undefined;
+  let surfaceOAuthRefreshFailure: ((failure: OAuthRefreshFailure) => void) | undefined;
   const oauthProactiveRefresh = startHarnessOAuthProactiveRefresh(harness, {
-    onDegraded: (event) => surfaceOAuthDegraded?.(event),
+    onRefreshFailure: (failure) => surfaceOAuthRefreshFailure?.(failure),
   });
   log.info('liora starting', {
     version,
@@ -115,8 +110,6 @@ export async function runShell(
   startupTrace('runShell:harness-created');
   await harness.ensureConfigFile();
   startupTrace('runShell:config-file');
-  await refreshPluginThemeCatalog(() => harness.listPluginThemes());
-  startupTrace('runShell:plugin-themes');
   // Initialise the global Theme singleton before pi-tui grabs stdin.
   const palette = await getColorPalette(tuiConfig.theme);
   currentTheme.setPalette(palette);
@@ -146,15 +139,11 @@ export async function runShell(
       ...sandboxSessionMetadata(opts),
     } as import('@superliora/sdk').JsonObject,
   });
-  surfaceOAuthDegraded = (event) => {
-    tui.setAppState({
-      runtimeDegraded: {
-        scope: event.scope,
-        reason: event.reason,
-        hint: event.hint,
-        atMs: event.atMs ?? Date.now(),
-      },
-    });
+  surfaceOAuthRefreshFailure = (failure) => {
+    tui.showStatus(
+      `OAuth refresh failed: ${failure.reason} — ${failure.hint}`,
+      'warning',
+    );
   };
 
   initializeCliTelemetry({
@@ -218,12 +207,10 @@ export async function runShell(
     startupTrace('runShell:after-tui-start');
     const initMs = Date.now() - initStartedAt;
     const startupSessionId = tui.getCurrentSessionId();
-    const mcpMs = await tui.getStartupMcpMs();
     trackLifecycleForSession(startupSessionId, 'startup_perf', {
       duration_ms: Date.now() - startedAt,
       config_ms: configMs,
       init_ms: initMs,
-      mcp_ms: mcpMs,
     });
   } catch (error) {
     writeDebugLog({

@@ -1,14 +1,4 @@
-// Slash-command detection for ACP `session/prompt`.
-//
-// Copied from the TUI's `apps/liora/src/tui/commands/parse.ts` and the
-// skill-resolution slice of `apps/liora/src/tui/commands/resolve.ts`
-// (`resolveSkillCommand`). ACP only intercepts commands the adapter can execute
-// directly: skills plus the small ACP-owned built-in command set. Other slash
-// inputs are reported as unknown commands instead of being silently sent to the
-// model as prompt text.
-//
-// Sync target: if the TUI parser's accepted grammar changes (e.g. the
-// "no `/` inside name" rule), update the duplicate here too.
+// ACP intercepts its native built-in commands and reports unknown commands locally.
 
 import {
   ACP_BUILTIN_SLASH_COMMAND_NAMES,
@@ -21,7 +11,6 @@ export interface ParsedSlashInput {
 }
 
 export type SlashIntent =
-  | { readonly kind: 'skill'; readonly skillName: string; readonly args: string }
   | { readonly kind: 'builtin'; readonly name: AcpBuiltinSlashCommandName; readonly args: string }
   | { readonly kind: 'unknown'; readonly name: string; readonly args: string }
   | { readonly kind: 'passthrough' };
@@ -37,24 +26,12 @@ export function parseSlashInput(input: string): ParsedSlashInput | null {
   return { name, args };
 }
 
-export function resolveSkillCommand(
-  skillCommandMap: ReadonlyMap<string, string>,
-  commandName: string,
-): string | undefined {
-  return skillCommandMap.get(commandName) ?? skillCommandMap.get(`skill:${commandName}`);
-}
-
 export function detectSlashIntent(
   text: string,
-  skillCommandMap: ReadonlyMap<string, string>,
   builtinCommandNames: ReadonlySet<string> = ACP_BUILTIN_SLASH_COMMAND_NAMES,
 ): SlashIntent {
   const parsed = parseSlashInput(text);
   if (parsed === null) return { kind: 'passthrough' };
-  const skillName = resolveSkillCommand(skillCommandMap, parsed.name);
-  if (skillName !== undefined) {
-    return { kind: 'skill', skillName, args: parsed.args };
-  }
   if (builtinCommandNames.has(parsed.name)) {
     return { kind: 'builtin', name: parsed.name as AcpBuiltinSlashCommandName, args: parsed.args };
   }

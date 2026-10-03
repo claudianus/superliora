@@ -73,6 +73,48 @@ describe('decideModelRouteSurface', () => {
     });
     expect(decision.kind).toBe('none');
   });
+  it('treats a configured auto alias as its actual underlying model', () => {
+    const decision = decideModelRouteSurface({
+      selection: {
+        modelAlias: 'grok-4.5',
+        providerName: 'xai',
+        providerModel: 'grok-4.5',
+      },
+      previous: null,
+      sessionModel: 'auto',
+      availableModels: { ...models, auto: models['grok-4.5']! },
+    });
+    expect(decision.kind).toBe('none');
+  });
+
+  it('classifies the first native Auto default route as selection and later route changes as failover', () => {
+    const selection = {
+      modelAlias: 'grok-4.5',
+      providerName: 'xai',
+      providerModel: 'grok-4.5',
+    };
+    expect(decideModelRouteSurface({
+      selection,
+      previous: null,
+      sessionModel: 'auto',
+      availableModels: models,
+    })).toMatchObject({ kind: 'selection', fromAlias: 'auto', toAlias: 'grok-4.5' });
+    expect(decideModelRouteSurface({
+      selection: { modelAlias: 'turbo', providerName: 'managed:kimi-api', providerModel: 'kimi-turbo' },
+      previous: selection,
+      sessionModel: 'auto',
+      availableModels: models,
+    })).toMatchObject({ kind: 'failover', fromAlias: 'grok-4.5', toAlias: 'turbo' });
+  });
+
+  it('still reports fallback away from an explicitly configured auto alias', () => {
+    expect(decideModelRouteSurface({
+      selection: { modelAlias: 'turbo', providerName: 'managed:kimi-api', providerModel: 'kimi-turbo' },
+      previous: null,
+      sessionModel: 'auto',
+      availableModels: { ...models, auto: models['grok-4.5']! },
+    })).toMatchObject({ kind: 'failover', fromAlias: 'auto', toAlias: 'turbo' });
+  });
 
   it('suppresses repeated same-route steps (main spam path)', () => {
     const selection = {

@@ -104,7 +104,6 @@ $opt = @{
   NoBuild = $false
   NoBrowserUse = $false
   NoComputerUse = $false
-  NoRetrieval = $false
   NoGit = $false
   NoTerminal = $false
   NoHostSetup = $false
@@ -157,7 +156,6 @@ function Show-Usage {
   Write-Host '  -NoBuild / --no-build'
   Write-Host '  -NoBrowserUse / --no-browser-use'
   Write-Host '  -NoComputerUse / --no-computer-use'
-  Write-Host '  -NoRetrieval / --no-retrieval'
   Write-Host '  -NoGit / --no-git'
   Write-Host '  -NoTerminal / --no-terminal'
   Write-Host '  -NoHostSetup / --no-host-setup'
@@ -214,7 +212,6 @@ function Apply-Flags {
       'nobuild' { $Options.NoBuild = $true }
       'nobrowseruse' { $Options.NoBrowserUse = $true }
       'nocomputeruse' { $Options.NoComputerUse = $true }
-      'noretrieval' { $Options.NoRetrieval = $true }
       'nogit' { $Options.NoGit = $true }
       'noterminal' { $Options.NoTerminal = $true }
       'nohostsetup' { $Options.NoHostSetup = $true }
@@ -609,7 +606,6 @@ $opt.Home = $dataHome
 
 $skipBrowser = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_BROWSER_USE', 'Process')
 $skipComputer = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_COMPUTER_USE', 'Process')
-$skipRetrieval = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_RETRIEVAL', 'Process')
 $preferSourceEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_PREFER_SOURCE', 'Process')
 $forcePrebuiltEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_FORCE_PREBUILT', 'Process')
 $skipGit = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_GIT', 'Process')
@@ -622,7 +618,6 @@ $allowExecEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_ALLOW_EXECUTIO
 $noExecEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_NO_EXECUTION_POLICY', 'Process')
 if ($skipBrowser -eq '1') { $opt.NoBrowserUse = $true }
 if ($skipComputer -eq '1') { $opt.NoComputerUse = $true }
-if ($skipRetrieval -eq '1') { $opt.NoRetrieval = $true }
 if ($preferSourceEnv -eq '1') { $opt.PreferSource = $true }
 if ($forcePrebuiltEnv -eq '1') { $opt.ForcePrebuilt = $true }
 if ($skipGit -eq '1') { $opt.NoGit = $true }
@@ -756,7 +751,6 @@ if ($opt.NoBuild) { $orchArgs += '--no-build' }
 if ($opt.NoPath -or $opt.NoShellRc) { $orchArgs += '--no-shell-rc' }
 if ($opt.NoBrowserUse) { $orchArgs += '--no-browser-use' }
 if ($opt.NoComputerUse) { $orchArgs += '--no-computer-use' }
-if ($opt.NoRetrieval) { $orchArgs += '--no-retrieval' }
 if ($opt.NoGit) { $orchArgs += '--no-git' }
 if ($opt.NoTerminal) { $orchArgs += '--no-terminal' }
 if ($opt.NoHostSetup) { $orchArgs += '--no-host-setup' }

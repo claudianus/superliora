@@ -5,8 +5,7 @@ import { pathToFileURL } from 'node:url';
 import type { Session, SessionTrace } from '@superliora/sdk';
 
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
-import {  LLM_NOT_SET_MESSAGE,  NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
-import { isAbortError } from '../../utils/errors';
+import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { buildExportMarkdown } from '../../utils/export-markdown';
 import { ttui } from '../../utils/tui-i18n';
@@ -195,30 +194,3 @@ export async function handleExportMdCommand(host: SlashCommandHost, args: string
   }
 }
 
-export async function handleInitCommand(host: SlashCommandHost): Promise<void> {
-  const session = host.session;
-  if (host.state.appState.model.trim().length === 0 || session === undefined) {
-    host.showError(LLM_NOT_SET_MESSAGE());
-    return;
-  }
-
-  host.deferUserMessages = true;
-  host.beginSessionRequest();
-  try {
-    await session.init();
-    host.track('init_complete');
-    host.streamingUI.finalizeTurn((item) => {
-      host.sendQueuedMessage(session, item);
-    });
-  } catch (error) {
-    if (isAbortError(error)) {
-      host.setAppState({ streamingPhase: 'idle' });
-      host.resetLivePane();
-      return;
-    }
-    const msg = error instanceof Error ? error.message : String(error);
-    host.failSessionRequest(`Init failed: ${msg}`);
-  } finally {
-    host.deferUserMessages = false;
-  }
-}

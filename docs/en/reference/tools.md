@@ -1,153 +1,77 @@
-# Built-in Tools
+# Built-in tools
 
-Built-in tools are the tool set provided by SuperLiora CLI alongside its core engine — no MCP server installation required. The Agent automatically selects and calls these tools based on the task at hand during each conversation; users can inspect the details of each tool call through the approval interface.
+The model-visible tool set is exactly **Bash** and **SessionControl**. Native provider/auth/config, approval, Jobs, worktrees, and UI operations remain host capabilities; they are not extra model tools. Tool calls follow the configured permission policy.
 
-Compared to MCP tools, built-in tools are managed directly by the runtime, their lifecycle is bound to the session, and no external process is required. Both follow the same unified approval mechanism: **read-only tools** (such as `Read`, `Grep`, `Glob`) are automatically allowed by default, while **write and execution tools** (such as `Write`, `Edit`, `Bash`) require user approval by default. In YOLO mode, approval for regular tool calls is skipped; Plan mode exit approval is not affected.
+## Bash
 
-## File Tools
+Bash executes shell commands in the session workspace unless `cwd` is supplied. Use ordinary shell programs to read/search/edit files, run checks, or call external services. Windows uses Git Bash.
 
-File tools handle reading, writing, and searching the local filesystem — the foundation for code analysis and modification tasks.
+| Parameter | Contract |
+| --- | --- |
+| `command` | Required nonempty shell command |
+| `cwd` | Optional working directory |
+| `timeout` | Positive integer **seconds**; default 60 foreground, 600 background |
+| `run_in_background` | Return a background task ID rather than wait |
+| `description` | Required short label for background execution |
+| `disable_timeout` | Disable timeout for background execution only |
 
-| Tool | Default Approval | Description |
-| --- | --- | --- |
-| `Read` | Auto-allow | Read a text file's contents |
-| `Write` | Requires approval | Create or overwrite a file |
-| `Edit` | Requires approval | Precise string replacement |
-| `Grep` | Auto-allow | Full-text search powered by ripgrep |
-| `Glob` | Auto-allow | Find files by glob pattern |
-| `ReadMediaFile` | Auto-allow | Read an image or video file |
+Example tool arguments:
 
-**`Read`** accepts a file path (`path`) plus optional `line_offset` (starting line number; negative values count from the end) and `n_lines` (maximum number of lines to read). Returns at most 1000 lines or 100 KB per call; content beyond that limit is accompanied by a truncation notice. If the file is an image or video, the tool suggests using `ReadMediaFile` instead.
+```json
+{"command":"git status --short","timeout":60}
+```
 
-**`Write`** accepts `path`, `content`, and an optional `mode` (`overwrite` or `append`; defaults to overwrite). Missing parent directories are created automatically; `append` mode appends content to the end of the file without automatically adding a newline.
+```json
+{"command":"npm run build","run_in_background":true,"description":"Build project","timeout":600}
+```
 
-**`Edit`** accepts `path`, `old_string` (the exact text to replace), and `new_string` (the replacement text). By default it replaces only one unique match; if the same content appears multiple times in the file, the tool returns an error and suggests using `replace_all: true`. `old_string` and `new_string` must not be identical.
+Foreground stdout/stderr stream into the tool card. stdin is closed, so interactive programs receive EOF. Native process ownership and cancellation remain active; timeout or cancellation terminates the manager-owned process tree. Use the task ID with SessionControl to inspect or stop background work.
 
-**`Grep`** invokes ripgrep to search file contents, supporting regular expressions (`pattern`), a search path (`path`), file type filtering (`type`, e.g., `ts`, `py`), glob filtering (`glob`), and output mode (`output_mode`: `files_with_matches` / `content` / `count_matches`; defaults to `files_with_matches`). `content` mode supports context lines (`-A`, `-B`, `-C`), case-insensitive matching (`-i`), line numbers (`-n`, default true), and multiline matching (`multiline`). All modes support `offset` + `head_limit` pagination; `head_limit` defaults to 250 and `0` means unlimited. Sensitive files such as `.env` files and private keys are automatically filtered out; set `include_ignored=true` to search files ignored by `.gitignore`, though sensitive files remain filtered.
+## SessionControl
 
-**`Glob`** matches files in a specified directory (`path`; defaults to the working directory) by glob pattern (`pattern`). Results are sorted by modification time in descending order, with a maximum of 1000 entries. Pure wildcard patterns (e.g., `**`) and patterns containing brace expansion (`{a,b,c}`) are rejected.
+`operation` is one of `spawn`, `list`, `message`, `wait`, `stop`, or `compact`. No `get` or `cancel` aliases exist.
 
-**`ReadMediaFile`** sends an image or video to the model as multimodal content. Accepts only `path`; the file size limit is 100 MB. Availability depends on the current model's vision capabilities (`image_in` / `video_in`).
+| Operation | Arguments and behavior |
+| --- | --- |
+| `spawn` | Required `prompt` and `description`; returns `agentId` and `taskId` immediately. Optional `model`, `timeout`, `cwd`, `ownership` |
+| `list` | List child sessions and background tasks |
+| `message` | Required `id` and `message`; steer a running child or resume an idle child |
+| `wait` | Required `id`; optional `timeout` in seconds (default 30; 0 reads current output). Returns status and bounded output |
+| `stop` | Required `id`; optional `reason`; stop a task or child and settle native resources |
+| `compact` | Optional `instruction` or self-authored `summary`; explicitly compact this conversation |
 
-## Shell
+```json
+{"operation":"spawn","prompt":"Inspect src/auth for the reported login bug. Do not edit files. Return the relevant source locations.","description":"Inspect login bug"}
+```
 
-| Tool | Default Approval | Description |
-| --- | --- | --- |
-| `Bash` | Requires approval | Execute a shell command |
+```json
+{"operation":"list"}
+```
 
-**`Bash`** is the most permission-demanding tool and also the most general-purpose. Parameters:
+Use the real returned ID in subsequent calls:
 
-- `command` (required): the shell command to execute
-- `cwd`: working directory
-- `timeout`: timeout in milliseconds; foreground default is 60 seconds, maximum is 5 minutes
-- `run_in_background`: whether to run as a background task; background tasks default to a 10-minute timeout
-- `description`: background task description; required when `run_in_background=true`
-- `disable_timeout`: whether to remove the timeout limit for background tasks
+```json
+{"operation":"wait","id":"RETURNED_TASK_ID","timeout":30}
+```
 
-Foreground mode blocks the current turn until the command completes or times out, and the TUI streams stdout and stderr into the running `Bash` tool card while the command is still active. Background mode returns a task ID immediately and automatically notifies the Agent when the task finishes. stdin is always closed — interactive commands receive EOF immediately. A two-phase termination strategy (SIGTERM → 5-second grace period → SIGKILL) ensures reliable process cleanup after a timeout. On Windows, Git Bash is used by default.
+```json
+{"operation":"message","id":"RETURNED_AGENT_ID","message":"Also inspect the logout path; keep the investigation read-only."}
+```
 
-## Web Tools
+```json
+{"operation":"stop","id":"RETURNED_TASK_ID","reason":"Operator cancelled the investigation"}
+```
 
-| Tool | Default Approval | Description |
-| --- | --- | --- |
-| `WebSearch` | Auto-allow | Web search |
-| `FetchURL` | Auto-allow | Fetch the content of a specified URL |
+```json
+{"operation":"compact","instruction":"Preserve the current request and the confirmed login findings."}
+```
 
-**`WebSearch`** accepts `query` (search terms) and optional `limit` (number of results to return, 1–20; defaults to 5) and `include_content` (whether to return the page body; defaults to false). Requires the host to provide a search implementation; when not injected, the tool does not appear in the tool list.
+Child sessions have independent conversation context, not automatic checkout isolation. `cwd` deliberately selects a directory or an existing isolated worktree; `ownership` is an optional claim, not an OS sandbox. A standalone Agent can execute Bash without a graph ID; child spawning requires a session host.
 
-**`FetchURL`** accepts a single `url` parameter and returns the page content. For HTML pages, the host extracts the body text rather than returning the full HTML; plain text or Markdown pages are passed through directly. Also requires a host-provided implementation.
+Full compaction retains the latest real user request and replaces the superseded completed prefix. It is not automatic. Conversation/journal replay restores records without executing effects again. A failed worker or execution step is not automatically retried; native cleanup ownership remains held until physical settlement, which does not rerun effects.
 
-## Liora Memory
+## Retired tools
 
-| Tool | Default Approval | Description |
-| --- | --- | --- |
-| `Memory` | Requires approval for writes | Manage durable Liora Memory records |
+File/search/web/media, Memory, skills, plugins/MCP, plan/goals/todos, Agent/Task orchestration, and specialized job tools are not part of the model-visible API. Native Jobs/Kanban, manual review, land, and push remain operator workflows. There is no mandatory test or review pass.
 
-`Memory` accepts one operation at a time:
-
-- `remember`: save a fact, event, procedure, task, or rule. Explicit records are active; automatic captures are isolated as `candidate`.
-- `recall`: retrieve records with optional type, time, token-budget, score, and bounded link-expansion filters. Candidate records are never injected by default.
-- `reflect`: promote candidates after deterministic duplicate and temporal-conflict checks.
-- `forget`: create a tombstone; explicit purge is separate from the normal tool path.
-- `inspect`: report the canonical store path, counts, integrity, audit events, or one record.
-
-When `RepoQuery` returns `derived_links`, copy those edges into `remember.links` to keep file, symbol, and indexed-line provenance with the durable record.
-
-Retrieved content is marked as untrusted context and escaped before prompt injection. It must not override system or developer instructions, permissions, tool schemas, or the user request.
-
-## Plan Mode
-
-| Tool | Default Approval | Description |
-| --- | --- | --- |
-| `EnterPlanMode` | Auto-allow | Enter Plan mode |
-| `ExitPlanMode` | Auto-allow (requires user to confirm the plan) | Exit Plan mode and submit the plan |
-
-Plan mode is a constrained working state: once entered, `Write` and `Edit` are restricted to writing the current plan file only, and `TaskStop` is blocked entirely. All other tools (including `Bash`) are still governed by the current permission rules.
-
-**`EnterPlanMode`** accepts no parameters; upon success it returns workflow guidance and the plan file path.
-
-**`ExitPlanMode`** reads the current plan file, presents the plan to the user for approval, then exits Plan mode. The optional `options` parameter lets the Agent offer 1–3 alternative approaches (each with a `label` and `description`; `label` max 80 characters) for the user to choose from during approval. Labels must be unique and cannot use reserved words such as `Approve`, `Reject`, `Reject and Exit`, or `Revise`.
-
-## State Management
-
-| Tool | Default Approval | Description |
-| --- | --- | --- |
-| `TodoList` | Auto-allow | Manage a task to-do list |
-
-**`TodoList`** maintains a visible subtask list across multi-step operations; state is stored within the Agent session. The `todos` parameter accepts an array where each item has a `title` and `status` (`pending` / `in_progress` / `done`). Omitting `todos` queries the current list; passing an empty array clears it.
-
-## Collaboration Tools
-
-Collaboration tools handle inter-Agent coordination, user interaction, and Skill invocation.
-
-| Tool | Default Approval | Description |
-| --- | --- | --- |
-| `Agent` | Auto-allow | Spawn a sub-Agent to execute a subtask |
-| `AskUserQuestion` | Auto-allow | Ask the user a question to gather structured input |
-| `Skill` | Auto-allow | Invoke a registered inline Skill |
-
-**`Agent`** delegates a subtask to a sub-Agent. Required parameters: `prompt` (complete task description) and `description` (a 3–5 word short summary). Optional parameters: `subagent_type` (defaults to `coder`), `resume` (ID of an existing Agent to resume; mutually exclusive with `subagent_type`), and `run_in_background` (defaults to false). Agent tasks have a fixed 30-minute timeout. In foreground mode the parent Agent waits for the sub-Agent to complete before continuing; in background mode a task ID is returned immediately and the result is automatically delivered back to the main Agent via a synthetic User message when done. When several foreground `Agent` calls run in the same step, the TUI groups them and shows each subagent's running, waiting, completed, or failed status with elapsed time. See [Agent & Sub-Agents](../customization/agents.md) for details.
-
-**`AskUserQuestion`** asks the user a structured multiple-choice question — useful for disambiguation or option selection. The `questions` parameter accepts 1–4 questions; each question requires `question` (ending with `?`), `options` (2–4 choices, each with a `label` and `description`), and optional `header` (max 12 characters) and `multi_select` (defaults to false). An "Other" option is appended automatically. Setting `background` to true starts a background question task and returns a task ID immediately. When the host does not support interactive questioning, a failure message is returned and the Agent should ask the user directly in a text reply instead.
-
-**`Skill`** allows the Agent to actively invoke a registered inline-type Skill. Accepts `skill` (the Skill name) and optional `args` (additional argument text). Only `type = "inline"` Skills can be called via this tool; Skills with `disableModelInvocation: true` are rejected. Maximum nesting depth is 3 levels. See [Agent Skills](../customization/skills.md) for details.
-
-## Background Tasks
-
-Background task tools manage tasks started via `Bash`, `Agent`, or `AskUserQuestion`. When a task reaches a terminal state, its status and saved output path are automatically delivered back to the Agent; use `TaskOutput` to check progress early.
-
-| Tool | Default Approval | Description |
-| --- | --- | --- |
-| `TaskList` | Auto-allow | List background tasks |
-| `TaskOutput` | Auto-allow | View the output of a background task |
-| `TaskStop` | Requires approval | Stop a running background task |
-
-**`TaskList`** returns the list of background tasks. Optional parameters: `active_only` (defaults to true; lists only running tasks) and `limit` (defaults to 20; range 1–100).
-
-**`TaskOutput`** returns the status and output of a task given its `task_id`. The inline preview includes at most the most recent 32 KB of content; the full log is saved to disk, and the tool also returns an `output_path` with a suggestion to use `Read` for paginated access. Optional `block` (defaults to false) and `timeout` (seconds to wait; defaults to 30; range 0–3600) parameters allow waiting for the task to complete before returning.
-
-**`TaskStop`** accepts a `task_id` and optional `reason` (defaults to `Stopped by TaskStop`). Safe to call on tasks that are already in a terminal state.
-
-## Scheduled Tasks
-
-Scheduled task tools allow the Agent to re-inject a prompt into the current session at a future time — either as a one-time reminder or as a recurring cron-triggered task (periodic checks, daily reports, deployment monitoring, etc.). Schedules are bound to the session and remain active after `liora --continue`, but are not carried into a brand-new session. A single session can hold at most 50 active scheduled tasks. Set `KIMI_DISABLE_CRON=1` to disable them entirely; see [Environment Variables](../configuration/env-vars.md#runtime-switches).
-
-| Tool | Default Approval | Description |
-| --- | --- | --- |
-| `CronCreate` | Requires approval | Schedule a prompt to fire at a future time |
-| `CronList` | Auto-allow | List scheduled tasks |
-| `CronDelete` | Requires approval | Cancel a scheduled task |
-
-**`CronCreate`** accepts `cron` (a standard 5-field cron expression in the user's local timezone: `minute hour day-of-month month day-of-week`), `prompt` (the text to inject when triggered; UTF-8 limit 8 KB), and optional `recurring` (defaults to `true`; pass `false` for a one-time reminder that auto-deletes after firing). On success, returns an 8-hex-digit `id`, a human-readable `humanSchedule` (e.g., `every 5 minutes`), and `nextFireAt` (the ISO timestamp of the next fire time).
-
-To prevent all users from firing at the same time on the hour, the scheduler applies deterministic jitter: recurring tasks are shifted forward by `min(10% of the period, 15 minutes)`; one-time tasks that fall exactly on `:00` or `:30` are moved forward by up to 90 seconds. If the scheduler misses several fire times (e.g., because the laptop was sleeping), it fires only once on wake-up — the prompt is wrapped in a `<cron-fire>` envelope with a `coalescedCount`. Recurring tasks that have been alive for more than 7 days fire one final time with `stale="true"` and are then automatically deleted; call `CronCreate` again to keep them.
-
-**`CronList`** is a read-only tool that accepts no parameters. It returns one record per active task with fields: `id`, `cron`, `humanSchedule`, `nextFireAt`, `recurring`, `ageDays`, and `stale`. Records are separated by `---` and sorted by schedule time.
-
-**`CronDelete`** accepts a single `id`. For recurring tasks, all future fires stop immediately; for one-time tasks, the pending fire is cancelled. One-time tasks that have already fired are auto-deleted, so calling `CronDelete` on an already-fired one-time task returns `No cron job with id ...`. Deletion is irreversible — use `CronCreate` again to restore. `CronDelete` is also blocked in Plan mode.
-
-## Next steps
-
-- [Agent & Sub-Agents](../customization/agents.md) — Scheduling mechanics and context isolation for the `Agent` tool
-- [Hooks](../customization/hooks.md) — Trigger local scripts before and after tool calls
-- [Slash Commands](./slash-commands.md) — Quick reference for TUI built-in control commands
+See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-runtime-major-migration), [Sessions and context](../guides/sessions.md), and [Slash commands](./slash-commands.md).

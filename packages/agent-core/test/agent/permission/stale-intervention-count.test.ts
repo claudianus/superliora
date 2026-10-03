@@ -31,15 +31,15 @@ describe('PermissionManager.staleInterventionCount', () => {
   it('counts queue entries at or beyond maxAgeMs', () => {
     const manager = makeManager();
     const fresh = manager.interventionQueue.enqueue({
-      toolName: 'Read',
-      rule: 'read(*)',
+      toolName: 'SessionControl',
+      rule: 'SessionControl',
       risk: 'low',
     });
 
     vi.advanceTimersByTime(60_000);
     manager.interventionQueue.enqueue({
-      toolName: 'Write',
-      rule: 'write(*)',
+      toolName: 'Bash',
+      rule: 'Bash(*)',
       risk: 'low',
     });
 
@@ -52,7 +52,7 @@ describe('PermissionManager.staleInterventionCount', () => {
     const manager = makeManager();
     manager.interventionQueue.enqueue({
       toolName: 'Bash',
-      rule: 'bash(*)',
+      rule: 'Bash(*)',
       risk: 'high',
     });
 
@@ -69,8 +69,8 @@ describe('PermissionManager.staleInterventionCount', () => {
   it('omits staleInterventions when the queue is fresh', () => {
     const manager = makeManager();
     manager.interventionQueue.enqueue({
-      toolName: 'Read',
-      rule: 'read(*)',
+      toolName: 'SessionControl',
+      rule: 'SessionControl',
       risk: 'low',
     });
 
@@ -87,7 +87,7 @@ describe('PermissionManager.staleInterventionCount', () => {
     const manager = makeManager();
     manager.interventionQueue.enqueue({
       toolName: 'Bash',
-      rule: 'bash(*)',
+      rule: 'Bash(*)',
       risk: 'high',
     });
 
@@ -104,7 +104,7 @@ describe('PermissionManager.staleInterventionCount', () => {
     const manager = makeManager();
     const queued = manager.interventionQueue.enqueue({
       toolName: 'Bash',
-      rule: 'bash(*)',
+      rule: 'Bash(*)',
       risk: 'high',
     });
     (manager as unknown as { inFlightInterventionIds: Set<string> }).inFlightInterventionIds.add(
@@ -125,8 +125,8 @@ describe('PermissionManager.staleInterventionCount', () => {
     process.env[PERMISSION_AUTO_EXPIRE_ENV] = '0';
     const manager = makeManager();
     manager.interventionQueue.enqueue({
-      toolName: 'Read',
-      rule: 'read(*)',
+      toolName: 'SessionControl',
+      rule: 'SessionControl',
       risk: 'low',
     });
 

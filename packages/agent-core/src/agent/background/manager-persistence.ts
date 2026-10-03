@@ -1,6 +1,5 @@
 import type { BackgroundManagerHost } from './manager-host';
 import { toManagedTaskInfo } from './manager-query';
-import { restoreBackgroundTaskNotifications } from './manager-notify-delivery';
 import { emitTaskTerminated } from './manager-events';
 import { TERMINAL_STATUSES, type BackgroundTaskInfo } from './task';
 import type { ManagedTask } from './managed-types';
@@ -42,7 +41,6 @@ export async function reconcileBackgroundTasks(host: BackgroundManagerHost): Pro
   for (const info of lostInfo) {
     emitTaskTerminated(host, info);
   }
-  await restoreBackgroundTaskNotifications(host);
 }
 
 export function persistLiveBackgroundTask(host: BackgroundManagerHost, entry: ManagedTask): Promise<void> {

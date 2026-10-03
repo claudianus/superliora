@@ -103,8 +103,8 @@ describe('AcpServer tool-call streaming', () => {
         agentId: 'main',
         turnId,
         toolCallId,
-        name: 'Read',
-        args: { path: 'a' },
+        name: 'Bash',
+        args: { command: 'cat a' },
       } as Event,
       {
         type: 'tool.call.delta',
@@ -145,20 +145,20 @@ describe('AcpServer tool-call streaming', () => {
     expect(collecting.promptUpdates[0]?.update).toMatchObject({
       sessionUpdate: 'tool_call',
       toolCallId: `${turnId}:${toolCallId}`,
-      title: 'Read',
-      kind: 'read',
+      title: 'Bash',
+      kind: 'execute',
       status: 'in_progress',
-      rawInput: { path: 'a' },
+      rawInput: { command: 'cat a' },
       content: [
         {
           type: 'content',
-          content: { type: 'text', text: JSON.stringify({ path: 'a' }) },
+          content: { type: 'text', text: JSON.stringify({ command: 'cat a' }) },
         },
       ],
     });
 
     // 2) first delta — cumulative args = initial + first part.
-    const firstCumulative = `${JSON.stringify({ path: 'a' })}, "lim`;
+    const firstCumulative = `${JSON.stringify({ command: 'cat a' })}, "lim`;
     expect(collecting.promptUpdates[1]?.update).toMatchObject({
       sessionUpdate: 'tool_call_update',
       toolCallId: `${turnId}:${toolCallId}`,
@@ -193,7 +193,7 @@ describe('AcpServer tool-call streaming', () => {
         turnId: 1,
         toolCallId: 'X',
         name: 'Bash',
-        args: { cmd: 'ls' },
+        args: { command: 'ls' },
       } as Event,
       {
         type: 'tool.call.started',
@@ -202,7 +202,7 @@ describe('AcpServer tool-call streaming', () => {
         turnId: 2,
         toolCallId: 'X',
         name: 'Bash',
-        args: { cmd: 'pwd' },
+        args: { command: 'pwd' },
       } as Event,
       { type: 'turn.ended', sessionId, agentId: 'main', turnId: 2, reason: 'completed' } as Event,
     ]);
@@ -268,7 +268,7 @@ describe('AcpServer tool-call streaming', () => {
         turnId,
         toolCallId,
         name: 'Bash',
-        args: { cmd: 'pnpm test' },
+        args: { command: 'pnpm test' },
       } as Event,
       {
         type: 'tool.progress',
@@ -419,8 +419,8 @@ describe('AcpServer tool-call streaming', () => {
         agentId: 'main',
         turnId,
         toolCallId,
-        name: 'Read',
-        argumentsPart: '{"path":',
+        name: 'Bash',
+        argumentsPart: '{"command":',
       } as Event,
       {
         type: 'tool.call.delta',
@@ -428,7 +428,7 @@ describe('AcpServer tool-call streaming', () => {
         agentId: 'main',
         turnId,
         toolCallId,
-        argumentsPart: '"a"}',
+        argumentsPart: '"cat a"}',
       } as Event,
       {
         type: 'tool.call.started',
@@ -436,9 +436,9 @@ describe('AcpServer tool-call streaming', () => {
         agentId: 'main',
         turnId,
         toolCallId,
-        name: 'Read',
-        args: { path: 'a' },
-        description: 'Reading a',
+        name: 'Bash',
+        args: { command: 'cat a' },
+        description: 'Reading a with Bash',
       } as Event,
       {
         type: 'tool.result',
@@ -474,11 +474,11 @@ describe('AcpServer tool-call streaming', () => {
     expect(collecting.promptUpdates[0]?.update).toMatchObject({
       sessionUpdate: 'tool_call',
       toolCallId: `${turnId}:${toolCallId}`,
-      title: 'Read',
-      kind: 'read',
+      title: 'Bash',
+      kind: 'execute',
       status: 'pending',
       content: [
-        { type: 'content', content: { type: 'text', text: '{"path":' } },
+        { type: 'content', content: { type: 'text', text: '{"command":' } },
       ],
     });
 
@@ -488,7 +488,7 @@ describe('AcpServer tool-call streaming', () => {
       toolCallId: `${turnId}:${toolCallId}`,
       status: 'in_progress',
       content: [
-        { type: 'content', content: { type: 'text', text: '{"path":"a"}' } },
+        { type: 'content', content: { type: 'text', text: '{"command":"cat a"}' } },
       ],
     });
 
@@ -498,14 +498,14 @@ describe('AcpServer tool-call streaming', () => {
     expect(collecting.promptUpdates[2]?.update).toMatchObject({
       sessionUpdate: 'tool_call_update',
       toolCallId: `${turnId}:${toolCallId}`,
-      title: 'Reading a',
-      kind: 'read',
+      title: 'Reading a with Bash',
+      kind: 'execute',
       status: 'in_progress',
-      rawInput: { path: 'a' },
+      rawInput: { command: 'cat a' },
       content: [
         {
           type: 'content',
-          content: { type: 'text', text: JSON.stringify({ path: 'a' }) },
+          content: { type: 'text', text: JSON.stringify({ command: 'cat a' }) },
         },
       ],
     });
@@ -533,8 +533,8 @@ describe('AcpServer tool-call streaming', () => {
         agentId: 'main',
         turnId,
         toolCallId,
-        name: 'Read',
-        args: { path: 'a' },
+        name: 'SessionControl',
+        args: { operation: 'list' },
       } as Event,
       { type: 'turn.ended', sessionId, agentId: 'main', turnId, reason: 'completed' } as Event,
     ]);
@@ -556,9 +556,123 @@ describe('AcpServer tool-call streaming', () => {
     expect(collecting.promptUpdates[0]?.update).toMatchObject({
       sessionUpdate: 'tool_call',
       toolCallId: `${turnId}:${toolCallId}`,
-      title: 'Read',
+      title: 'SessionControl',
       status: 'in_progress',
-      rawInput: { path: 'a' },
+      rawInput: { operation: 'list' },
+    });
+  });
+
+  it('filters unsupported live tools and orphan updates for main and worker agents', async () => {
+    const sessionId = 'sess-native-filter';
+    const common = { sessionId, agentId: 'main', turnId: 1 };
+    const script = [
+      {
+        ...common,
+        type: 'tool.call.delta',
+        toolCallId: 'unsupported',
+        name: 'ExternalTool',
+        argumentsPart: '{"value":',
+      },
+      {
+        ...common,
+        type: 'tool.call.started',
+        toolCallId: 'unsupported',
+        name: 'ExternalTool',
+        args: { value: 1 },
+      },
+      {
+        ...common,
+        type: 'tool.call.delta',
+        toolCallId: 'unsupported',
+        argumentsPart: '1}',
+      },
+      {
+        ...common,
+        type: 'tool.progress',
+        toolCallId: 'unsupported',
+        update: { kind: 'stdout', text: 'must not render' },
+      },
+      {
+        ...common,
+        type: 'tool.result',
+        toolCallId: 'unsupported',
+        output: 'must not render',
+        isError: false,
+      },
+      {
+        ...common,
+        type: 'tool.result',
+        toolCallId: 'orphan',
+        output: 'must not create a card',
+        isError: false,
+      },
+      {
+        ...common,
+        type: 'subagent.tool_call',
+        subagentId: 'worker',
+        toolCallId: 'unsupported',
+        name: 'ExternalTool',
+        argsPreview: '{}',
+      },
+      {
+        ...common,
+        type: 'subagent.tool_progress',
+        subagentId: 'worker',
+        toolCallId: 'unsupported',
+        name: 'ExternalTool',
+        kind: 'stdout',
+        textPreview: 'must not render',
+      },
+      {
+        ...common,
+        type: 'subagent.tool_result',
+        subagentId: 'worker',
+        toolCallId: 'unsupported',
+        name: 'ExternalTool',
+        resultPreview: 'must not render',
+      },
+      {
+        ...common,
+        type: 'tool.call.started',
+        toolCallId: 'native',
+        name: 'SessionControl',
+        args: { operation: 'list' },
+      },
+      {
+        ...common,
+        type: 'tool.result',
+        toolCallId: 'native',
+        output: 'active sessions',
+        isError: false,
+      },
+      { ...common, type: 'turn.ended', reason: 'completed' },
+    ] as Event[];
+    const session = makeScriptedSession(sessionId, script);
+    const harness = {
+      auth: { status: async () => AUTHED_STATUS },
+      createSession: async () => session,
+    } as unknown as LioraHarness;
+    const { agentStream, clientStream } = makeInMemoryStreamPair();
+    new AgentSideConnection((conn) => new AcpServer(harness, conn), agentStream);
+    const collecting = new CollectingClient();
+    const client = new ClientSideConnection(() => collecting, clientStream);
+
+    await client.newSession({ cwd: '/tmp/x', mcpServers: [] });
+    await client.prompt({ sessionId, prompt: [textBlock('go')] });
+    await flushNdjson();
+
+    expect(collecting.promptUpdates).toHaveLength(2);
+    expect(collecting.promptUpdates[0]?.update).toMatchObject({
+      sessionUpdate: 'tool_call',
+      toolCallId: '1:native',
+      title: 'SessionControl',
+      status: 'in_progress',
+    });
+    expect(collecting.promptUpdates[1]?.update).toMatchObject({
+      sessionUpdate: 'tool_call_update',
+      toolCallId: '1:native',
+      status: 'completed',
+      rawOutput: 'active sessions',
     });
   });
 });

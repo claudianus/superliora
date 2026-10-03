@@ -15,11 +15,15 @@ function parse(argv: string[]): CLIOptions {
     () => {},
   );
 
-  program.exitOverride();
-  program.configureOutput({
-    writeOut: () => {},
-    writeErr: () => {},
-  });
+  const configureCommand = (command: typeof program): void => {
+    command.exitOverride();
+    command.configureOutput({
+      writeOut: () => {},
+      writeErr: () => {},
+    });
+    for (const child of command.commands) configureCommand(child);
+  };
+  configureCommand(program);
 
   program.parse(['node', 'kimi', ...argv]);
 
@@ -34,14 +38,12 @@ describe('CLI options parsing', () => {
     it('returns defaults when no arguments are given', () => {
       const opts = parse([]);
       expect(opts.yolo).toBe(false);
-      expect(opts.plan).toBe(false);
       expect(opts.continue).toBe(false);
       expect(opts.session).toBeUndefined();
       expect(opts.model).toBeUndefined();
       expect(opts.outputFormat).toBeUndefined();
       expect(opts.showThinking).toBe(false);
       expect(opts.prompt).toBeUndefined();
-      expect(opts.skillsDirs).toEqual([]);
       expect(opts.addDirs).toEqual([]);
       expect(opts.debug).toBe(false);
     });
@@ -86,7 +88,7 @@ describe('CLI options parsing', () => {
   });
 
   describe('--help', () => {
-    it('describes --plan as Plan Desk steering instead of plan mode', () => {
+    it('advertises direct prompting without cognitive harness modes', () => {
       let output = '';
       const program = createProgram(
         '1.2.3',
@@ -101,41 +103,12 @@ describe('CLI options parsing', () => {
       });
 
       expect(() => program.parse(['node', 'kimi', '--help'])).toThrow();
-      expect(output).toContain('--plan');
-      expect(output).toContain('Start with Plan Desk steering.');
-      expect(output).not.toContain('Start in plan mode.');
-    });
-  });
-
-  describe('hidden plugin node runner', () => {
-    it('routes __plugin_run_node without calling the main action', () => {
-      const pluginRunnerCalls: Array<{ entry: string; args: readonly string[] }> = [];
-      const program = createProgram(
-        '0.0.0',
-        () => {
-          throw new Error('main action should not run');
-        },
-        (entry, args) => {
-          pluginRunnerCalls.push({ entry, args });
-        },
-      );
-      program.exitOverride();
-      program.configureOutput({
-        writeOut: () => {},
-        writeErr: () => {},
-      });
-
-      program.parse([
-        'node',
-        'kimi',
-        '__plugin_run_node',
-        '/plugin/tool.mjs',
-        '--',
-        'query',
-        '--flag',
-      ]);
-
-      expect(pluginRunnerCalls).toEqual([{ entry: '/plugin/tool.mjs', args: ['query', '--flag'] }]);
+      expect(output).toContain('--prompt');
+      expect(output).toContain('--session');
+      expect(output).not.toContain('--plan');
+      expect(output).not.toContain('--profile');
+      expect(output).not.toContain('--resume-goal');
+      expect(output).not.toContain('--skills-dir');
     });
   });
 
@@ -205,13 +178,7 @@ describe('CLI options parsing', () => {
     });
   });
 
-  describe('--plan', () => {
-    it('sets plan mode flag', () => {
-      expect(parse(['--plan']).plan).toBe(true);
-    });
-  });
-
-  describe('--auto / --yolo / --plan with --session / --continue', () => {
+  describe('--auto / --yolo with --session / --continue', () => {
     it('allows --auto with --continue', () => {
       const opts = parse(['--auto', '--continue']);
       expect(opts.auto).toBe(true);
@@ -236,20 +203,6 @@ describe('CLI options parsing', () => {
     it('allows --yolo with an explicit session id', () => {
       const opts = parse(['--yolo', '--session', 'ses_123']);
       expect(opts.yolo).toBe(true);
-      expect(opts.session).toBe('ses_123');
-      expect(validateOptions(opts).uiMode).toBe('shell');
-    });
-
-    it('allows --plan with --continue', () => {
-      const opts = parse(['--plan', '--continue']);
-      expect(opts.plan).toBe(true);
-      expect(opts.continue).toBe(true);
-      expect(validateOptions(opts).uiMode).toBe('shell');
-    });
-
-    it('allows --plan with an explicit session id', () => {
-      const opts = parse(['--plan', '--session', 'ses_123']);
-      expect(opts.plan).toBe(true);
       expect(opts.session).toBe('ses_123');
       expect(validateOptions(opts).uiMode).toBe('shell');
     });
@@ -316,12 +269,6 @@ describe('CLI options parsing', () => {
       expect(() => validateOptions(opts)).toThrow('Cannot combine --prompt with --yolo.');
     });
 
-    it('rejects prompt mode with --plan', () => {
-      const opts = parse(['-p', 'run this', '--plan']);
-      expect(() => validateOptions(opts)).toThrow(OptionConflictError);
-      expect(() => validateOptions(opts)).toThrow('Cannot combine --prompt with --plan.');
-    });
-
     it('parses --output-format=stream-json in prompt mode', () => {
       const opts = parse(['-p', 'run this', '--output-format=stream-json']);
       expect(opts.outputFormat).toBe('stream-json');
@@ -356,12 +303,29 @@ describe('CLI options parsing', () => {
     });
   });
 
-  describe('--skills-dir', () => {
-    it('collects repeated skill directories', () => {
-      expect(parse(['--skills-dir', '/one', '--skills-dir=/two']).skillsDirs).toEqual([
-        '/one',
-        '/two',
-      ]);
+  describe('retired cognitive harness flags', () => {
+    it.each([
+      ['--plan'],
+      ['--profile', 'agent'],
+      ['--resume-goal'],
+      ['--autonomous-gate', 'npm test'],
+      ['--skills-dir', '/skills'],
+      ['--plugin-dir', '/plugin'],
+      ['--channels', 'messages'],
+    ])('rejects %s instead of accepting an inert option', (...argv) => {
+      expect(() => parse(argv)).toThrow(/unknown option/);
+    });
+
+    it.each(['conductor-pool', 'worker-inherit'])('rejects retired role routing: %s', (command) => {
+      expect(() => parse(['provider', 'route', command])).toThrowError(
+        expect.objectContaining({ exitCode: 1 }),
+      );
+    });
+
+    it('rejects retired browser MCP sidecar registration', () => {
+      expect(() => parse(['browser-use', 'aside', 'enable'])).toThrowError(
+        expect.objectContaining({ code: 'commander.unknownCommand', exitCode: 1 }),
+      );
     });
   });
 
@@ -383,7 +347,6 @@ describe('CLI options parsing', () => {
         () => {
           throw new Error('main action should not run');
         },
-        () => {},
         () => {
           upgradeCalls += 1;
         },
@@ -406,7 +369,6 @@ describe('CLI options parsing', () => {
         () => {
           throw new Error('main action should not run');
         },
-        () => {},
         () => {
           upgradeCalls += 1;
         },

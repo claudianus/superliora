@@ -2,99 +2,27 @@
  * Runtime, Kaos, and session wiring helpers — extracted from core-impl.ts.
  */
 
-import { homedir } from 'node:os';
 
 import { ErrorCodes, LioraError } from '#/errors/index';
-import {
-  createContext7Provider,
-  isContext7Enabled,
-  readContext7ApiKeyFromConfig,
-} from '#/tools/providers/context7-session';
 import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@superliora/kaos';
 
 import type { LioraConfig } from '../config';
 import { resolvePromptCacheKey } from '../config/prompt-cache-key';
-import type { PluginManager } from '../plugin';
-import type { SessionMcpConfig } from '../mcp';
-import { Session, type SessionSkillConfig } from '../session';
+import { Session } from '../session';
 import {
   ProviderManager,
   type OAuthTokenProviderResolver,
 } from '../session/provider/provider-manager';
 import { SessionAPIImpl } from '../session/rpc';
-import type { ToolServices } from '../tools/support/services';
-import {
-  combinePluginMcpConfig,
-  managedKimiCodeEnvForPlugins,
-  withManagedKimiPluginEnv,
-} from './plugin-mcp-env';
-import { disposeResearchBridgeSidecar } from '#/tools/providers/research-bridge-sidecar';
-import { createRuntimeConfig, hasStatefulGuiRuntime } from './runtime-factory';
-import type { SDKRPC } from './sdk-api';
 
 export interface CoreRuntimeSupportContext {
-  readonly homeDir: string;
-  readonly userHomeDir: string;
-  readonly skillDirs: readonly string[];
-  readonly plugins: PluginManager;
   readonly kimiRequestHeaders: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined;
-  readonly runtimeOverride: ToolServices | undefined;
-  readonly sdk: Promise<SDKRPC>;
   config: LioraConfig;
   readonly sessions: Map<string, Session>;
   kaos: Promise<Kaos> | undefined;
-  runtime: ToolServices | undefined;
-
-  setKimiConfig(input: { research: { context7: { apiKey: string } } }): Promise<LioraConfig>;
 }
 
-export async function resolveRuntime(context: CoreRuntimeSupportContext): Promise<ToolServices> {
-  if (context.runtimeOverride !== undefined) return context.runtimeOverride;
-  const statefulGui = hasStatefulGuiRuntime(context.config);
-  if (!statefulGui && context.runtime !== undefined) return context.runtime;
-  const runtime = await createRuntimeConfig({
-    config: context.config,
-    homeDir: context.homeDir,
-    kimiRequestHeaders: context.kimiRequestHeaders,
-    resolveOAuthTokenProvider: context.resolveOAuthTokenProvider,
-  });
-  if (!statefulGui) context.runtime = runtime;
-  return runtime;
-}
-
-export async function buildSessionToolServices(
-  context: CoreRuntimeSupportContext,
-  config: LioraConfig,
-  sessionId: string,
-): Promise<ToolServices> {
-  const runtime = await resolveRuntime(context);
-  const context7 = createContext7Provider({
-    isEnabled: () => isContext7Enabled(config),
-    readApiKey: () => readContext7ApiKeyFromConfig(context.config),
-    requestApiKey: async ({ toolCallId }) => {
-      const sdk = await context.sdk;
-      const response = await sdk.requestCredential({
-        sessionId,
-        agentId: 'main',
-        id: 'context7',
-        title: 'Context7',
-        subtitleLines: [
-          'Free API keys: https://context7.com/dashboard',
-          'Saved to ~/.superliora/config.toml',
-        ],
-        toolCallId,
-      });
-      const value = response?.value;
-      return value !== undefined && value.length > 0 ? value : undefined;
-    },
-    persistApiKey: async (apiKey) => {
-      await context.setKimiConfig({ research: { context7: { apiKey } } });
-    },
-  });
-  if (context7 === undefined) return runtime;
-  return { ...runtime, context7 };
-}
 
 export function getKaos(context: CoreRuntimeSupportContext): Promise<Kaos> {
   context.kaos ??= LocalKaos.create().catch((error: unknown) => {
@@ -106,20 +34,6 @@ export function getKaos(context: CoreRuntimeSupportContext): Promise<Kaos> {
   return context.kaos;
 }
 
-export function resolveSessionSkillConfig(
-  context: CoreRuntimeSupportContext,
-  config: LioraConfig,
-): SessionSkillConfig {
-  const explicitDirs = context.skillDirs.length > 0 ? context.skillDirs : undefined;
-  return {
-    userHomeDir: context.userHomeDir,
-    brandHomeDir: context.homeDir,
-    explicitDirs,
-    extraDirs: config.extraSkillDirs,
-    pluginSkillRoots: context.plugins.pluginSkillRoots(),
-    mergeAllAvailableSkills: config.mergeAllAvailableSkills,
-  };
-}
 
 export function resolveProviderManager(
   context: CoreRuntimeSupportContext,
@@ -133,14 +47,6 @@ export function resolveProviderManager(
   });
 }
 
-export function mergePluginMcpConfig(
-  context: CoreRuntimeSupportContext,
-  base: SessionMcpConfig | undefined,
-): SessionMcpConfig | undefined {
-  const managedEnv = managedKimiCodeEnvForPlugins(context.config);
-  const pluginServers = withManagedKimiPluginEnv(context.plugins.enabledMcpServers(), managedEnv);
-  return combinePluginMcpConfig(base, pluginServers);
-}
 
 export function requireSession(context: CoreRuntimeSupportContext, sessionId: string): Session {
   const session = context.sessions.get(sessionId);
@@ -156,11 +62,6 @@ export function sessionApi(context: CoreRuntimeSupportContext, sessionId: string
   return new SessionAPIImpl(requireSession(context, sessionId));
 }
 
-export function clearRuntimeCache(context: CoreRuntimeSupportContext): void {
-  if (context.runtimeOverride !== undefined) return;
-  disposeResearchBridgeSidecar();
-  context.runtime = undefined;
-}
 
 export async function refreshSessionRuntimeConfig(
   context: CoreRuntimeSupportContext,
@@ -199,14 +100,3 @@ export async function refreshSessionRuntimeConfig(
   }
 }
 
-export function createCoreRuntimeSupportDefaults(): {
-  userHomeDir: string;
-  kaos: undefined;
-  runtime: undefined;
-} {
-  return {
-    userHomeDir: homedir(),
-    kaos: undefined,
-    runtime: undefined,
-  };
-}

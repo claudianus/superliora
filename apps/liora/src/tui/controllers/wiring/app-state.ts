@@ -1,11 +1,9 @@
-import { collectFooterStaleAppStatePatches } from '../../components/chrome/footer/footer-badges';
 import type { CommandHubComponent } from '../../components/dialogs/command-hub/index';
 import type { AppState, LivePaneState } from '../../types';
 import { EMPTY_TURN_ACTIVITY, INITIAL_LIVE_PANE } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
-import { invalidateTranscriptHitTestCache } from '../../features/transcript/transcript-hit-test';
-import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
+import { requestTUIContentRender } from '../../utils/render/frame-render';
 import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { hasPatchChanges } from '../../utils/object-patch';
 import type { AppearanceController } from '../appearance/index';
@@ -13,31 +11,24 @@ import { DEFAULT_APPEARANCE_PREFERENCES, DEFAULT_PERFORMANCE_MODE } from '../../
 import { resolveEffectiveAppearance } from '../../features/appearance/performance-mode';
 import type { TranscriptDetailLevel } from '../../types';
 import type { DialogsController } from '../dialogs/index';
-import type { PromptIntelligenceController } from '../prompt/prompt-intelligence';
-import type { SessionEventHandler } from '../session-event/handler';
+import { syncTranscriptRegion } from '../../features/control-tower/timeline';
 
 function sameStringArrays(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-/** Footer mode badge toggles → plan_enter/exit + mode_enter/exit (yolo, ask). */
+/** Permission badge transitions share the existing mode motion cues. */
 function collectFooterModeBeats(
   prev: AppState,
   patch: Partial<AppState>,
 ): Array<{
-  readonly name: 'mode_enter' | 'mode_exit' | 'plan_enter' | 'plan_exit';
+  readonly name: 'mode_enter' | 'mode_exit';
   readonly title: string;
 }> {
   const beats: Array<{
-    readonly name: 'mode_enter' | 'mode_exit' | 'plan_enter' | 'plan_exit';
+    readonly name: 'mode_enter' | 'mode_exit';
     readonly title: string;
   }> = [];
-  if ('planMode' in patch && patch.planMode !== undefined && patch.planMode !== prev.planMode) {
-    beats.push({ name: patch.planMode ? 'plan_enter' : 'plan_exit', title: 'plan' });
-  }
-  if ('askMode' in patch && patch.askMode !== undefined && patch.askMode !== prev.askMode) {
-    beats.push({ name: patch.askMode ? 'mode_enter' : 'mode_exit', title: 'ask' });
-  }
   if (
     'permissionMode' in patch &&
     patch.permissionMode !== undefined &&
@@ -59,9 +50,9 @@ export interface AppStateHost {
   readonly motionBeats: MotionBeatController;
   readonly appearanceController: AppearanceController;
   readonly dialogs: DialogsController;
-  readonly sessionEventHandler: SessionEventHandler;
-  readonly promptIntelligence: PromptIntelligenceController;
   readonly workerDock: { pushView(): void; syncPreferences(): void };
+  readonly jobBoardController?: { openDeck(jobId?: string): void };
+  setAppState(patch: Partial<AppState>): void;
 
   updateEditorBorderHighlight(text?: string): void;
   updateActivityPane(): void;
@@ -87,40 +78,28 @@ export class AppStateController {
 
   setAppState(patch: Partial<AppState>): void {
     const { host } = this;
-    const footerStale = collectFooterStaleAppStatePatches(host.state.appState);
-    const mergedPatch =
-      Object.keys(footerStale).length > 0 ? { ...footerStale, ...patch } : patch;
-    if (!hasPatchChanges(host.state.appState, mergedPatch)) return;
+    if (!hasPatchChanges(host.state.appState, patch)) return;
     const additionalDirsChanged =
       'additionalDirs' in patch &&
       !sameStringArrays(host.state.appState.additionalDirs, patch.additionalDirs ?? []);
     const busyChanged = 'streamingPhase' in patch || 'isCompacting' in patch;
-    const becameIdle =
-      'streamingPhase' in patch &&
-      host.state.appState.streamingPhase !== 'idle' &&
-      patch.streamingPhase === 'idle';
-    const goalChanged = 'goal' in patch;
     const conductorJobsChanged = 'conductorJobs' in patch;
     // Pure job-board telemetry (progress / liveActivity) should not rebuild
     // header, activity pane, autocomplete, or mode beats on every heartbeat.
     const onlyConductorJobs =
       conductorJobsChanged &&
-      Object.keys(mergedPatch).every((key) => key === 'conductorJobs');
+      Object.keys(patch).every((key) => key === 'conductorJobs');
     const modeBeats = onlyConductorJobs
       ? []
       : collectFooterModeBeats(host.state.appState, patch);
-    Object.assign(host.state.appState, mergedPatch);
+    Object.assign(host.state.appState, patch);
     if (onlyConductorJobs) {
       host.workerDock.pushView();
       host.state.footer.setState(host.state.appState);
       host.appearanceController.refreshAmbientSchedule();
-      if (host.state.appState.goal?.execution === 'goal-desk') {
-        this.syncGoalMonitorPanel();
-      }
       requestTUIContentRender(host.state);
       return;
     }
-    if ('planMode' in patch) host.updateEditorBorderHighlight();
     if ('appearance' in patch || 'performanceMode' in patch) {
       host.appearanceController.apply();
       // `mission_control` rides the appearance prefs; keep the panel's
@@ -139,14 +118,16 @@ export class AppStateController {
         host.setNeatMode(effective.neat);
       }
     }
+    if ('transcriptRegionMode' in patch) {
+      syncTranscriptRegion(host);
+      host.state.persistSessionUiState?.();
+    }
     // Resync ambient schedule when busy state flips so live clocks keep ticking
     // (and stop) without waiting for an appearance change.
     if (busyChanged) host.appearanceController.apply();
     if (
       host.openCommandHub !== undefined &&
-      ('planMode' in patch ||
-        'premiumQualityMode' in patch ||
-        'permissionMode' in patch ||
+      ('permissionMode' in patch ||
         'model' in patch ||
         'thinkingLevel' in patch ||
         'streamingPhase' in patch ||
@@ -155,55 +136,28 @@ export class AppStateController {
       host.dialogs.refreshOpenCommandHub();
     }
     for (const beat of modeBeats) {
-      const planBeat = beat.name === 'plan_enter' || beat.name === 'plan_exit';
       host.motionBeats.play({
         name: beat.name,
-        seed: planBeat ? 'plan' : `mode:${beat.title}`,
+        seed: `mode:${beat.title}`,
         title: beat.title,
         nowMs: appearanceAnimationNow(),
       });
     }
     host.state.footer.setState(host.state.appState);
     host.state.header.setState(host.state.appState);
-    if (goalChanged) {
-      this.syncGoalMonitorPanel();
-      // Active Goal Desk / Ralph goals need the ambient clock for live elapsed.
-      host.appearanceController.refreshAmbientSchedule();
-    }
     if (conductorJobsChanged) {
       // Job lanes live in Mission Control now — push the new ledger snapshot.
       host.workerDock.pushView();
       host.appearanceController.refreshAmbientSchedule();
-      // Goal Desk monitor reads driver liveActivity from conductorJobs.
-      if (host.state.appState.goal?.execution === 'goal-desk') {
-        this.syncGoalMonitorPanel();
-      }
     }
     host.updateActivityPane();
     if (busyChanged) {
       host.updateQueueDisplay();
-      host.sessionEventHandler.retryQueuedGoalPromotion();
     }
     if (additionalDirsChanged) host.setupAutocomplete();
-    if (becameIdle) host.promptIntelligence.notifyIdle();
     requestTUIContentRender(host.state);
   }
 
-  syncGoalMonitorPanel(): void {
-    const { host } = this;
-    const goal = host.state.appState.goal;
-    const deskJobs =
-      goal?.execution === 'goal-desk'
-        ? (host.state.appState.conductorJobs?.jobs ?? [])
-        : undefined;
-    host.state.todoPanel.setGoal(goal, deskJobs);
-    host.state.todoPanelContainer.clear();
-    if (!host.state.todoPanel.isEmpty()) {
-      host.state.todoPanelContainer.addChild(host.state.todoPanel);
-    }
-    invalidateTranscriptHitTestCache(host.state);
-    requestTUILayoutRender(host.state);
-  }
 
   patchLivePane(patch: Partial<LivePaneState>): void {
     const { host } = this;

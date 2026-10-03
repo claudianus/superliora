@@ -9,10 +9,6 @@ import { basename, dirname, join, relative, resolve } from 'pathe';
 import type { AutocompleteItem } from '#/tui/renderer';
 
 import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
-import { PERSONA_PRESET_DESCRIPTIONS, PERSONA_PRESET_NAMES } from '../persona';
-import { pluginsArgumentCompletions } from '../plugins/plugins';
-import { transcriptArgumentCompletions } from '../session/transcript';
-import type { SlashCommandAvailability } from '../types';
 import { modelUsesEmbeddedThinkingEffort } from '#/tui/utils/model/thinking-effort';
 import { ttui } from '#/tui/utils/tui-i18n';
 
@@ -36,19 +32,6 @@ function completeI18n(
   return completeLeadingArg(resolveArgCompletions(specs), argumentPrefix);
 }
 
-/** Subcommands offered when autocompleting `/goal <…>`. */
-const GOAL_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('status', 'tui.slash.arg.goal.status'),
-  arg('pause', 'tui.slash.arg.goal.pause'),
-  arg('resume', 'tui.slash.arg.goal.resume'),
-  arg('cancel', 'tui.slash.arg.goal.cancel'),
-  arg('replace', 'tui.slash.arg.goal.replace'),
-  arg('next', 'tui.slash.arg.goal.next'),
-];
-
-const GOAL_NEXT_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('manage', 'tui.slash.arg.goal.next.manage'),
-];
 
 const THINKING_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('off', 'tui.slash.arg.thinking.off'),
@@ -67,48 +50,16 @@ export interface ThinkingCompletionModel {
   readonly supportEfforts?: readonly string[];
 }
 
-const PLAN_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('on', 'tui.slash.arg.plan.on'),
-  arg('off', 'tui.slash.arg.plan.off'),
-  arg('clear', 'tui.slash.arg.plan.clear'),
-];
-
-const ASK_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('on', 'tui.slash.arg.ask.on'),
-  arg('off', 'tui.slash.arg.ask.off'),
-];
-
-const PREMIUM_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('on', 'tui.slash.arg.premium.on'),
-  arg('off', 'tui.slash.arg.premium.off'),
-  arg('status', 'tui.slash.arg.premium.status'),
-];
 
 const HOST_SETUP_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('status', 'tui.slash.arg.host-setup.status'),
   arg('apply', 'tui.slash.arg.host-setup.apply'),
 ];
 
-const CONTEXT_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('economy', 'tui.slash.arg.context.economy'),
-  arg('balanced', 'tui.slash.arg.context.balanced'),
-  arg('deep', 'tui.slash.arg.context.deep'),
-  arg('full', 'tui.slash.arg.context.full'),
-  arg('status', 'tui.slash.arg.context.status'),
-];
 
-const LOOP_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('list', 'tui.slash.arg.loop.list'),
-  arg('stop', 'tui.slash.arg.loop.stop'),
-];
-
-const CRON_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('list', 'tui.slash.arg.cron.list'),
-  arg('delete', 'tui.slash.arg.cron.delete'),
-  arg('help', 'tui.slash.arg.cron.help'),
-];
 
 const JOB_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
+  arg('create', 'tui.slash.arg.job.create'),
   arg('list', 'tui.slash.arg.job.list'),
   arg('board', 'tui.slash.arg.job.board'),
   arg('deck', 'tui.slash.arg.job.deck'),
@@ -120,22 +71,14 @@ const JOB_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('resume', 'tui.slash.arg.job.resume'),
   arg('cancel', 'tui.slash.arg.job.cancel'),
   arg('inspect', 'tui.slash.arg.job.inspect'),
-  arg('schedule', 'tui.slash.arg.job.schedule'),
+  arg('review', 'tui.slash.arg.job.review'),
+  arg('verify', 'tui.slash.arg.job.verify'),
+  arg('land', 'tui.slash.arg.job.land'),
+  arg('push', 'tui.slash.arg.job.push'),
   arg('gc', 'tui.slash.arg.job.gc'),
-  arg('mode', 'tui.slash.arg.job.mode'),
-  arg('split-preview', 'tui.slash.arg.job.split-preview'),
   arg('help', 'tui.slash.arg.job.help'),
 ];
 
-const EXTENSIONS_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('plugins', 'tui.slash.arg.extensions.plugins'),
-  arg('hooks', 'tui.slash.arg.extensions.hooks'),
-  arg('skills', 'tui.slash.arg.extensions.skills'),
-  arg('mcp', 'tui.slash.arg.extensions.mcp'),
-  arg('claude', 'tui.slash.arg.extensions.claude'),
-  arg('import-claude', 'tui.slash.arg.extensions.import-claude'),
-  arg('import', 'tui.slash.arg.extensions.import'),
-];
 
 const TOGGLE_ON_OFF_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('on', 'tui.slash.arg.toggle.on'),
@@ -223,50 +166,6 @@ const ADD_DIR_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('list', 'tui.slash.arg.add-dir.list'),
 ];
 
-const PERSONA_SET_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = PERSONA_PRESET_NAMES.map(
-  (name) => ({
-    value: name,
-    description: PERSONA_PRESET_DESCRIPTIONS[name] ?? name,
-  }),
-);
-
-/** Subcommands first, then bare preset shortcuts accepted by the handler. */
-const PERSONA_ARG_SUBCOMMAND_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('list', 'tui.slash.arg.persona.list'),
-  arg('set', 'tui.slash.arg.persona.set'),
-  arg('name', 'tui.slash.arg.persona.name'),
-  arg('tone', 'tui.slash.arg.persona.tone'),
-  arg('personality', 'tui.slash.arg.persona.personality'),
-  arg('instructions', 'tui.slash.arg.persona.instructions'),
-  arg('clear', 'tui.slash.arg.persona.clear'),
-  arg('help', 'tui.slash.arg.persona.help'),
-];
-
-function personaPrimaryCompletions(): ArgCompletionSpec[] {
-  return [...resolveArgCompletions(PERSONA_ARG_SUBCOMMAND_COMPLETIONS), ...PERSONA_SET_ARG_COMPLETIONS];
-}
-
-const MEMORY_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('inspect', 'tui.slash.arg.memory.inspect'),
-  arg('recall', 'tui.slash.arg.memory.recall'),
-  arg('remember', 'tui.slash.arg.memory.remember'),
-  arg('forget', 'tui.slash.arg.memory.forget'),
-  arg('reflect', 'tui.slash.arg.memory.reflect'),
-];
-
-/** Argument autocompletion for the `/goal` command (subcommands). */
-export function goalArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  const nextMatch = argumentPrefix.match(/^next\s+(\S*)$/i);
-  if (nextMatch !== null) {
-    return (
-      completeI18n(GOAL_NEXT_ARG_COMPLETIONS, nextMatch[1] ?? '')?.map((item) => ({
-        ...item,
-        value: `next ${item.value}`,
-      })) ?? null
-    );
-  }
-  return completeI18n(GOAL_ARG_COMPLETIONS, argumentPrefix);
-}
 
 export function thinkingArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeI18n(THINKING_ARG_COMPLETIONS, argumentPrefix);
@@ -306,17 +205,6 @@ export function thinkingCompletionSpecsForModel(
   });
 }
 
-export function askArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeI18n(ASK_ARG_COMPLETIONS, argumentPrefix);
-}
-
-export function planArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeI18n(PLAN_ARG_COMPLETIONS, argumentPrefix);
-}
-
-export function premiumArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeI18n(PREMIUM_ARG_COMPLETIONS, argumentPrefix);
-}
 
 export function hostSetupArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeI18n(HOST_SETUP_ARG_COMPLETIONS, argumentPrefix);
@@ -325,27 +213,7 @@ export function hostSetupArgumentCompletions(argumentPrefix: string): Autocomple
 /** @deprecated Prefer {@link hostSetupArgumentCompletions}. */
 export const windowsSetupArgumentCompletions = hostSetupArgumentCompletions;
 
-/** Argument autocompletion for the `/context` working-set command. */
-export function contextArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeI18n(CONTEXT_ARG_COMPLETIONS, argumentPrefix);
-}
 
-/** Argument autocompletion for the `/loop` list/stop subcommands. */
-export function loopArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeI18n(LOOP_ARG_COMPLETIONS, argumentPrefix);
-}
-
-/** Argument autocompletion for the `/cron` list/delete/help subcommands. */
-export function cronArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeI18n(CRON_ARG_COMPLETIONS, argumentPrefix);
-}
-
-const JOB_MODE_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('balanced', 'tui.slash.arg.job.mode.balanced'),
-  arg('greenfield', 'tui.slash.arg.job.mode.greenfield'),
-  arg('hotfix', 'tui.slash.arg.job.mode.hotfix'),
-  arg('review', 'tui.slash.arg.job.mode.review'),
-];
 
 /**
  * When prefix is `answer <partial>`, optionally complete recent needs_user ids.
@@ -360,10 +228,6 @@ export function jobArgumentCompletions(
   }
   const sub = argumentPrefix.slice(0, space).toLowerCase();
   const rest = argumentPrefix.slice(space + 1);
-  if (sub === 'mode') {
-    if (rest.includes(' ')) return null;
-    return completeI18n(JOB_MODE_ARG_COMPLETIONS, rest);
-  }
   if (sub !== 'answer' || rest.includes(' ') || needsUserJobIds.length === 0) {
     return null;
   }
@@ -400,12 +264,6 @@ export function jobsArgumentCompletions(argumentPrefix: string): AutocompleteIte
   return completeI18n(JOBS_ARG_COMPLETIONS, argumentPrefix);
 }
 
-/** Argument autocompletion for `/extensions` tabs and Claude import shortcuts. */
-export function extensionsArgumentCompletions(
-  argumentPrefix: string,
-): AutocompleteItem[] | null {
-  return completeI18n(EXTENSIONS_ARG_COMPLETIONS, argumentPrefix);
-}
 
 /** Leading-arg completions for toggle commands that accept `on` / `off`. */
 export function toggleOnOffArgumentCompletions(
@@ -492,29 +350,6 @@ export function addDirArgumentCompletions(argumentPrefix: string): AutocompleteI
   return completeI18n(ADD_DIR_ARG_COMPLETIONS, argumentPrefix);
 }
 
-/**
- * Completions for `/persona`.
- * First token: subcommands. Second token for `set`/`preset`: fixed preset names
- * so free-form name/tone/instructions text is never clobbered.
- */
-export function personaArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  const setMatch = argumentPrefix.match(/^(set|preset)\s+(\S*)$/i);
-  if (setMatch !== null) {
-    const verb = (setMatch[1] ?? 'set').toLowerCase();
-    const valuePrefix = setMatch[2] ?? '';
-    return (
-      completeLeadingArg(PERSONA_SET_ARG_COMPLETIONS, valuePrefix)?.map((item) => ({
-        ...item,
-        value: `${verb} ${item.value}`,
-      })) ?? null
-    );
-  }
-  return completeLeadingArg(personaPrimaryCompletions(), argumentPrefix);
-}
-
-export function memoryArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeI18n(MEMORY_PRIMARY_ARG_COMPLETIONS, argumentPrefix);
-}
 
 function isPathLikeAddDirArgument(argumentPrefix: string): boolean {
   return (
@@ -607,4 +442,3 @@ function formatDirectoryCompletionValue(argumentPrefix: string, parentInput: str
   return `${join(parentInput, entryName)}/`;
 }
 
-export { profileArgumentCompletions } from '../config/harness/agent-profile';

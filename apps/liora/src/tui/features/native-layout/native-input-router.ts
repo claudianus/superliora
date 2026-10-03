@@ -89,6 +89,9 @@ export class TUIStateNativeInputRouter {
         },
         handleNativeInput: (event) => {
           if (options.handlePreEditorInput?.(event) === true) return true;
+          if (event.type === 'paste' || (event.type === 'key' && event.eventType !== 'release')) {
+            this.blurWorkerDock();
+          }
           const handler =
             options.handleNativeEditorInput ??
             ((e) => handleTUIStateNativeEditorInput(state, e));
@@ -207,10 +210,18 @@ export class TUIStateNativeInputRouter {
   }
 
   dispatch(event: NativeInputEvent): NativeInputRouteResult {
+    if (event.type === 'mouse' && event.action === 'press') {
+      const rect = getTUIStateNativeEditorRect(this.state);
+      if (rect !== undefined && event.x >= rect.x && event.x < rect.x + rect.width &&
+          event.y >= rect.y && event.y < rect.y + rect.height) {
+        this.blurWorkerDock();
+      }
+    }
     return this.router.dispatch(event);
   }
 
   focusEditor(): boolean {
+    this.blurWorkerDock();
     return this.router.focus(TUI_NATIVE_EDITOR_INPUT_TARGET_ID);
   }
 
@@ -268,6 +279,12 @@ export class TUIStateNativeInputRouter {
     } else {
       target.handleInput(data);
     }
+    this.requestRenderAfterInput();
+  }
+
+  private blurWorkerDock(): void {
+    if (!this.state.workerDockPanel.focused) return;
+    this.state.workerDockPanel.focused = false;
     this.requestRenderAfterInput();
   }
 

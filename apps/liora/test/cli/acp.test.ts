@@ -1,27 +1,15 @@
-/**
- * `liora acp`
- *
- * Verifies that the ACP sub-command is registered on the program and
- * that the action wires the harness into `@superliora/acp-adapter`'s
- * `runAcpServer` (the real server is stubbed so the test doesn't
- * actually take over stdio).
- */
-
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@superliora/acp-adapter', () => ({
-  ACP_BUILTIN_SLASH_COMMANDS: [],
+  ACP_BUILTIN_SLASH_COMMANDS: [
+    { name: 'compact', description: 'Compact the session context' },
+  ],
   runAcpServer: vi.fn(async () => undefined),
 }));
 
 import { runAcpServer } from '@superliora/acp-adapter';
 
-import { registerAcpCommand } from '#/cli/sub/acp';
 
 class ExitCalled extends Error {
   constructor(public code: number | string | null | undefined) {
@@ -46,110 +34,6 @@ describe('liora acp', () => {
     stderrSpy.mockRestore();
   });
 
-  it('registers an `acp` subcommand on the program', () => {
-    const program = new Command('kimi');
-    registerAcpCommand(program);
-
-    const acp = program.commands.find((c) => c.name() === 'acp');
-    expect(acp).toBeDefined();
-    expect(acp?.description()).toMatch(/Agent Client Protocol/);
-  });
-
-  it('invokes runAcpServer with a constructed harness and exits 0 on success', async () => {
-    const program = new Command('kimi').exitOverride();
-    registerAcpCommand(program);
-
-    await expect(program.parseAsync(['node', 'kimi', 'acp'])).rejects.toThrow(ExitCalled);
-
-    expect(runAcpServer).toHaveBeenCalledTimes(1);
-    const harnessArg = vi.mocked(runAcpServer).mock.calls[0]?.[0];
-    expect(harnessArg).toBeDefined();
-    const optsArg = vi.mocked(runAcpServer).mock.calls[0]?.[1];
-    expect(optsArg).toEqual(
-      expect.objectContaining({
-        agentInfo: { name: 'SuperLiora CLI', version: expect.any(String) },
-      }),
-    );
-    expect(exitSpy).toHaveBeenCalledWith(0);
-  });
-
-  it('forwards SUPERLIORA_HOME to terminalAuthEnv when set', async () => {
-    const previous = process.env['SUPERLIORA_HOME'];
-    process.env['SUPERLIORA_HOME'] = '/tmp/kimi-debug';
-    try {
-      const program = new Command('kimi').exitOverride();
-      registerAcpCommand(program);
-
-      await expect(program.parseAsync(['node', 'kimi', 'acp'])).rejects.toThrow(ExitCalled);
-
-      const optsArg = vi.mocked(runAcpServer).mock.calls[0]?.[1];
-      expect(optsArg).toEqual(
-        expect.objectContaining({
-          terminalAuthEnv: { SUPERLIORA_HOME: '/tmp/kimi-debug' },
-        }),
-      );
-    } finally {
-      if (previous === undefined) {
-        delete process.env['SUPERLIORA_HOME'];
-      } else {
-        process.env['SUPERLIORA_HOME'] = previous;
-      }
-    }
-  });
-
-  it('omits terminalAuthEnv when SUPERLIORA_HOME is unset', async () => {
-    const previous = process.env['SUPERLIORA_HOME'];
-    const previousProfile = process.env['USERPROFILE'];
-    const previousHome = process.env['HOME'];
-    const isolatedHome = mkdtempSync(join(tmpdir(), 'liora-acp-home-'));
-    delete process.env['SUPERLIORA_HOME'];
-    process.env['USERPROFILE'] = isolatedHome;
-    process.env['HOME'] = isolatedHome;
-    try {
-      const program = new Command('kimi').exitOverride();
-      registerAcpCommand(program);
-
-      await expect(program.parseAsync(['node', 'kimi', 'acp'])).rejects.toThrow(ExitCalled);
-
-      const optsArg = vi.mocked(runAcpServer).mock.calls[0]?.[1] as {
-        terminalAuthEnv?: unknown;
-      };
-      expect(optsArg.terminalAuthEnv).toBeUndefined();
-    } finally {
-      if (previous === undefined) {
-        delete process.env['SUPERLIORA_HOME'];
-      } else {
-        process.env['SUPERLIORA_HOME'] = previous;
-      }
-      if (previousProfile === undefined) {
-        delete process.env['USERPROFILE'];
-      } else {
-        process.env['USERPROFILE'] = previousProfile;
-      }
-      if (previousHome === undefined) {
-        delete process.env['HOME'];
-      } else {
-        process.env['HOME'] = previousHome;
-      }
-      rmSync(isolatedHome, { recursive: true, force: true });
-    }
-  });
-
-  it('forwards process.argv[1] as terminalAuthLegacyCommand', async () => {
-    const program = new Command('kimi').exitOverride();
-    registerAcpCommand(program);
-
-    await expect(program.parseAsync(['node', 'kimi', 'acp'])).rejects.toThrow(ExitCalled);
-
-    const optsArg = vi.mocked(runAcpServer).mock.calls[0]?.[1] as {
-      terminalAuthLegacyCommand?: string;
-    };
-    // process.argv[1] points at the test runner entry — non-empty
-    // absolute-ish path, exactly what we want forwarded.
-    expect(typeof optsArg.terminalAuthLegacyCommand).toBe('string');
-    expect((optsArg.terminalAuthLegacyCommand ?? '').length).toBeGreaterThan(0);
-    expect(optsArg.terminalAuthLegacyCommand).toBe(process.argv[1]);
-  });
 
   it('exits without starting the ACP server when --login is passed', async () => {
     // Stub the harness module so runLoginFlow doesn't hit a real OAuth

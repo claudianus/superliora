@@ -228,6 +228,8 @@ describe('SnapshotService.read', () => {
       {
         type: 'context.apply_compaction',
         summary: 'compacted prefix',
+        contextSummary: 'compacted prefix',
+        keptUserMessageCount: 1,
         compactedCount: 2,
         tokensBefore: 100,
         tokensAfter: 50,
@@ -241,7 +243,7 @@ describe('SnapshotService.read', () => {
     expect(snap.messages.items).toHaveLength(4);
     const summaryMsg = snap.messages.items[2]!;
     expect(summaryMsg.role).toBe('user');
-    expect((summaryMsg.content[0] as { text: string }).text).toBe('compacted prefix');
+    expect(summaryMsg.content[0]).toEqual({ type: 'text', text: 'compacted prefix' });
     expect(snap.messages.items[3]!.role).toBe('user');
   });
 

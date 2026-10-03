@@ -20,6 +20,7 @@
  * Both tests gate on `daemonReachable()` so CI without a server stays green.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import type { Session } from '@superliora/protocol';
 
 import { DaemonClient, resolveServerUrl } from '../src/index.js';
 import { fetchWithReport } from '../src/report.js';
@@ -194,14 +195,9 @@ function frameForLog(frame: { type: string; seq?: number; session_id?: string; p
   };
 }
 
-function sessionSummaryForLog(session: {
-  id: string;
-  title: string;
-  status: string;
-  message_count: number;
-  last_seq: number;
-  metadata: Record<string, unknown>;
-}): Record<string, unknown> {
+function sessionSummaryForLog(
+  session: Session,
+): Record<string, unknown> {
   return {
     id: session.id,
     title: session.title,

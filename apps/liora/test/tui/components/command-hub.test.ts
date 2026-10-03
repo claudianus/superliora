@@ -5,7 +5,7 @@ import {
   CommandHubComponent,
   commandHubNestsPicker,
   cyclePermissionMode,
-  isCommandHubToggleId,
+  isCommandHubCycleId,
 } from '#/tui/components/dialogs/command-hub/index';
 import { resolveHubItem } from '#/tui/components/dialogs/command-hub/resolve-hub-item';
 import { commandHubActionToSlash } from '#/tui/utils/command/command-hub-actions';
@@ -30,19 +30,17 @@ describe('buildDefaultCommandHubItems', () => {
   it('includes beginner sections and mode badges', () => {
     const items = resolveItems(
       buildDefaultCommandHubItems({
-      planMode: true,
-      askMode: false,
       permissionMode: 'auto',
       model: 'demo-model',
     }),
     );
-    expect(items.some((item) => item.id === 'modes.plan' && item.badge === 'ON')).toBe(true);
+    expect(items.some((item) => item.id === 'modes.permission' && item.badge === 'auto')).toBe(true);
     expect(items.some((item) => item.id === 'chat.model' && item.badge === 'demo-model')).toBe(
       true,
     );
     expect(items.some((item) => item.section === 'Start')).toBe(true);
     expect(items.some((item) => item.id === 'help.shortcuts')).toBe(true);
-    expect(isCommandHubToggleId('modes.plan')).toBe(true);
+    expect(isCommandHubCycleId('modes.permission')).toBe(true);
   });
 
   it('includes Phase 1 operator Hub rows', () => {
@@ -51,15 +49,13 @@ describe('buildDefaultCommandHubItems', () => {
     for (const id of [
       'workspace.errors',
       'workspace.jobOps',
+      'workspace.jobCreate',
       'workspace.jobInbox',
-      'workspace.cron',
       'workspace.quota',
       'chat.rewind',
-      'chat.loops',
       'start.folder',
       'start.fork',
       'account.logout',
-      'modes.goals',
     ] as const) {
       expect(ids.has(id)).toBe(true);
     }
@@ -70,10 +66,7 @@ describe('buildDefaultCommandHubItems', () => {
       'slash command',
     );
     expect(commandHubNestsPicker('workspace.jobOps')).toBe(true);
-    expect(commandHubNestsPicker('chat.loops')).toBe(true);
-    expect(commandHubNestsPicker('workspace.cron')).toBe(true);
     expect(commandHubActionToSlash('chat.rewind')).toBe('/rewind');
-    expect(commandHubActionToSlash('modes.goals')).toBe('/goal next manage');
   });
 
   it('adds a Now section while streaming and hides Chat undo/compact dupes', () => {
@@ -98,22 +91,11 @@ describe('commandHubActionToSlash', () => {
   it('maps hub actions to slash commands', () => {
     expect(commandHubActionToSlash('start.folder')).toBe('/folder');
     expect(commandHubActionToSlash('chat.model')).toBe('/model');
-    expect(commandHubActionToSlash('extend.extensions')).toBeUndefined();
     expect(commandHubActionToSlash('help.shortcuts')).toBeUndefined();
     expect(commandHubActionToSlash('now.compact')).toBe('/compact');
   });
 });
 
-describe('Extend Extensions Hub row', () => {
-  it('nests into Settings Extensions instead of /extensions slash', () => {
-    const item = resolveItems(buildDefaultCommandHubItems({})).find(
-      (candidate) => candidate.id === 'extend.extensions',
-    );
-    expect(item?.label).toBe('Extensions');
-    expect(commandHubNestsPicker('extend.extensions')).toBe(true);
-    expect(commandHubActionToSlash('extend.extensions')).toBeUndefined();
-  });
-});
 
 describe('cyclePermissionMode', () => {
   it('cycles manual → auto → yolo → manual', () => {
@@ -166,9 +148,9 @@ describe('CommandHubComponent', () => {
       onSelect,
       onCancel: vi.fn(),
     });
-    // Idle list starts on Plan mode after clearing recents.
+    // Idle list starts on permission mode after clearing recents.
     hub.handleInput(SPACE);
-    expect(onSelect.mock.calls[0]?.[0]?.id).toBe('modes.plan');
+    expect(onSelect.mock.calls[0]?.[0]?.id).toBe('modes.permission');
     expect(onSelect.mock.calls[0]?.[1]).toBe('space');
   });
 
@@ -216,14 +198,12 @@ describe('CommandHubComponent', () => {
 
   it('renders the slim status strip with mode LEDs', () => {
     const hub = new CommandHubComponent({
-      items: buildDefaultCommandHubItems({ planMode: true, permissionMode: 'yolo' }),
+      items: buildDefaultCommandHubItems({ permissionMode: 'yolo' }),
       onSelect: vi.fn(),
       onCancel: vi.fn(),
     });
     const text = stripAnsi(hub.render(72).join('\n'));
     expect(text).toContain('Command Hub');
-    expect(text).toContain('Plan ● on');
-    expect(text).toContain('Visual ○ off');
     expect(text).toContain('Perm YOLO');
   });
 

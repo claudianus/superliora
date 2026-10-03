@@ -75,14 +75,8 @@ export function runPromptTurn(
         case 'turn.step.interrupted':
           outputWriter.flushAssistant();
           return;
-        case 'turn.step.retrying':
-          outputWriter.discardAssistant();
-          return;
         case 'assistant.delta':
           outputWriter.writeAssistantDelta(event.delta);
-          return;
-        case 'hook.result':
-          outputWriter.writeHookResult(event);
           return;
         case 'thinking.delta':
           outputWriter.writeThinkingDelta(event.delta);
@@ -123,13 +117,7 @@ export function runPromptTurn(
         case 'compaction.completed':
         case 'compaction.progress':
         case 'compaction.started':
-        case 'cron.fired':
-        case 'goal.updated':
-        case 'mcp.server.status':
         case 'session.meta.updated':
-        case 'skill.activated':
-        case 'skill.created':
-        case 'tool.list.updated':
         case 'turn.started':
         case 'warning':
           return;

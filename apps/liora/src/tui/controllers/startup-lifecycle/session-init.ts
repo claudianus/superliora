@@ -19,7 +19,6 @@ export async function initStartupSession(host: StartupLifecycleHost): Promise<bo
       : startup.yolo
         ? 'yolo'
         : host.state.appState.permissionMode,
-    planMode: startup.plan,
   };
   if (host.options.sessionMetadata !== undefined) {
     createSessionOptions.metadata = host.options.sessionMetadata;
@@ -109,8 +108,7 @@ export async function initStartupSession(host: StartupLifecycleHost): Promise<bo
   }
   await host.setSession(session);
   await host.syncRuntimeState(session);
-  await host.refreshDynamicSlashCommands(session);
-  host.sessionBrowser.applyStartupPermissionAndPlanToAppState();
+  host.sessionBrowser.applyStartupPermissionToAppState();
   host.state.startupState = 'ready';
   return shouldReplayHistory;
 }

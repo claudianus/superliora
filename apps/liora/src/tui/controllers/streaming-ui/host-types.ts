@@ -1,5 +1,3 @@
-import type { Session } from '@superliora/sdk';
-
 import type { MotionBeatController } from '../../utils/render/motion-beats';
 import type {
   AppState,
@@ -11,14 +9,12 @@ import type { TUIState } from '../../tui-state';
 
 export interface StreamingUIHost {
   state: TUIState;
-  session: Session | undefined;
   readonly motionBeats: MotionBeatController;
   setAppState(patch: Partial<AppState>): void;
   patchLivePane(patch: Partial<LivePaneState>): void;
   resetLivePane(): void;
   updateActivityPane(): void;
   updateQueueDisplay(): void;
-  requireSession(): Session;
   deferUserMessages: boolean;
   shiftQueuedMessage(): QueuedMessage | undefined;
   takeNextQueuedBatch?(): QueuedMessage | undefined;

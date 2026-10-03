@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, readdir, rmdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { gzipSync } from 'node:zlib';
 import { join } from 'pathe';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -292,22 +293,22 @@ describe('FileSystemAgentRecordPersistence', () => {
     });
     await persistence.close();
 
-    const lines = await readLines(wirePath);
-    expect(lines).toHaveLength(1);
-    const record = JSON.parse(lines[0]!) as unknown as Record<string, unknown>;
-    const url = ((record['input'] as unknown[])[0] as { imageUrl: { url: string } }).imageUrl.url;
-    expect(url.startsWith('blobref:')).toBe(true);
+    const reader = new FileSystemAgentRecordPersistence(wirePath);
+    const records: AgentRecord[] = [];
+    for await (const record of reader.read()) records.push(record);
+    expect(records).toHaveLength(1);
+    const record = records[0];
+    if (record?.type !== 'turn.prompt' || record.input[0]?.type !== 'image_url') {
+      throw new Error('Expected a persisted image prompt');
+    }
+    expect(record.input[0].imageUrl.url.startsWith('blobref:')).toBe(true);
 
     const blobFiles = await readdir(blobsDir);
     expect(blobFiles).toHaveLength(1);
     expect((await readFile(join(blobsDir, blobFiles[0]!))).toString('base64')).toBe(payload);
   });
 
-  it('rewrites thousands of records without joining one giant string', async () => {
-    // Regression for RangeError: Invalid string length — drain used to
-    // `JSON.stringify` every pending record and `.join('')` them into one
-    // write payload. Large post-compaction rewrites could exceed V8's max
-    // string length and crash the process. Chunked write must land all rows.
+  it('preserves every record and durable offset across a large rewrite', async () => {
     const wirePath = await makeWirePath();
     const persistence = new FileSystemAgentRecordPersistence(wirePath);
 
@@ -386,13 +387,13 @@ describe('FileSystemAgentRecordPersistence', () => {
     expect(linesAfterNoop).toHaveLength(2);
   });
 
-  it('reads wire via buffer chunks without utf8 string concat', async () => {
+  it('preserves UTF-8 content and record order while reading the journal', async () => {
     const wirePath = await makeWirePath();
     const persistence = new FileSystemAgentRecordPersistence(wirePath);
     for (let i = 0; i < 20; i += 1) {
       persistence.append({
         type: 'turn.prompt',
-        input: [{ type: 'text', text: `buf-${i}` }],
+        input: [{ type: 'text', text: `buf-${i}-${'é한글'.repeat(8_000)}` }],
         origin: { kind: 'user' },
       });
     }
@@ -402,8 +403,12 @@ describe('FileSystemAgentRecordPersistence', () => {
     const records: AgentRecord[] = [];
     for await (const record of reader.read()) records.push(record);
     expect(records).toHaveLength(20);
-    expect(JSON.stringify(records[0])).toContain('buf-0');
-    expect(JSON.stringify(records[19])).toContain('buf-19');
+    expect(records.map((record, index) => {
+      if (record.type !== 'turn.prompt' || record.input[0]?.type !== 'text') {
+        throw new Error('Expected a persisted UTF-8 prompt');
+      }
+      return record.input[0].text === `buf-${index}-${'é한글'.repeat(8_000)}`;
+    })).toEqual(Array.from({ length: 20 }, () => true));
   });
 
   it('rejects a single JSONL line over the soft byte ceiling', async () => {
@@ -499,12 +504,68 @@ describe('FileSystemAgentRecordPersistence', () => {
     // The three durable records survive; the partial line is dropped, not
     // fatal. recordCount is seeded from the recovered (well-formed) records.
     expect(recovered).toHaveLength(3);
-    expect(recovered.map((r) => (r as unknown as { input: { text: string }[] }).input[0]!.text)).toEqual([
-      'durable-0',
-      'durable-1',
-      'durable-2',
-    ]);
+    expect(recovered.map((record) => {
+      if (record.type !== 'turn.prompt' || record.input[0]?.type !== 'text') {
+        throw new Error('Expected a recovered text prompt');
+      }
+      return record.input[0].text;
+    })).toEqual(['durable-0', 'durable-1', 'durable-2']);
     expect(afterCrash.recordCount()).toBe(3);
+  });
+
+  it('aborts a streamed rewrite without replacing the durable journal', async () => {
+    const wirePath = await makeWirePath();
+    const persistence = new FileSystemAgentRecordPersistence(wirePath);
+    const original: AgentRecord = {
+      type: 'turn.prompt', input: [{ type: 'text', text: 'durable' }], origin: { kind: 'user' },
+    };
+    persistence.append(original);
+    await persistence.flush();
+    const rewrite = await persistence.beginStreamingRewrite();
+    await rewrite.write({
+      type: 'turn.prompt', input: [{ type: 'text', text: 'discarded' }], origin: { kind: 'user' },
+    });
+    await rewrite.abort();
+    const records: AgentRecord[] = [];
+    for await (const record of persistence.read()) records.push(record);
+    expect(records).toEqual([original]);
+    expect(persistence.recordCount()).toBe(1);
+    expect(await readdir(join(wirePath, '..'))).toEqual(['wire.jsonl']);
+  });
+
+  it.each(['plain', 'gzip'])('discards a corrupt %s journal suffix and appends only after its durable prefix', async (format) => {
+    const wirePath = await makeWirePath();
+    const first: AgentRecord = {
+      type: 'turn.prompt', input: [{ type: 'text', text: 'first' }], origin: { kind: 'user' },
+    };
+    const lost: AgentRecord = {
+      type: 'turn.prompt', input: [{ type: 'text', text: 'past corruption' }], origin: { kind: 'user' },
+    };
+    const original = `${JSON.stringify(first)}\ninvalid-json\n${JSON.stringify(lost)}\n`;
+    const source = format === 'gzip' ? `${wirePath}.gz` : wirePath;
+    await writeFile(source, format === 'gzip' ? gzipSync(original) : original);
+    const persistence = new FileSystemAgentRecordPersistence(wirePath);
+    const recovered: AgentRecord[] = [];
+    for await (const record of persistence.read()) recovered.push(record);
+    expect(recovered).toEqual([first]);
+    expect(persistence.readCorruption?.lineNumber).toBe(2);
+    expect(persistence.recordCount()).toBe(1);
+    const next: AgentRecord = {
+      type: 'turn.prompt', input: [{ type: 'text', text: 'next' }], origin: { kind: 'user' },
+    };
+    persistence.append(next);
+    await persistence.close();
+    const reopened = new FileSystemAgentRecordPersistence(wirePath);
+    const records: AgentRecord[] = [];
+    for await (const record of reopened.read()) records.push(record);
+    expect(records).toEqual([first, next]);
+    expect(reopened.readCorruption).toBeUndefined();
+    expect(reopened.recordCount()).toBe(2);
+    if (format === 'gzip') {
+      const archives = (await readdir(join(wirePath, '..'))).filter((path) => path.startsWith('wire.jsonl.pre-native.'));
+      expect(archives).toHaveLength(1);
+      expect(await readFile(join(wirePath, '..', archives[0]!))).toEqual(gzipSync(original));
+    }
   });
 });
 

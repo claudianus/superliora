@@ -1,17 +1,13 @@
 import type { RendererViewportSnapshot } from '#/tui/renderer';
 import { projectRendererViewportHistoryStatus } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme/theme';
-import type { AppState } from '#/tui/types';
 import {
   formatGitBadgeBase,
   formatPullRequestBadge,
   type GitStatus,
 } from '#/utils/git/git-status';
-import { ttui } from '#/tui/utils/tui-i18n';
 import type { FooterLabels } from '#/tui/config';
 
-import { mediaProviderKeyReady } from '#/tui/components/chrome/footer/footer-badges';
-import { safeContextUsage } from '#/tui/components/chrome/footer/footer-context';
 import { labelHistoryViewport } from '#/tui/components/chrome/footer/footer-labels';
 import { foldPathForIdentity, pathsIdentical } from '@superliora/sdk';
 
@@ -88,30 +84,6 @@ export function formatTranscriptViewportBadge(
   return currentTheme.boldFg('warning', `[${text}]`);
 }
 
-export function footerNextAction(state: AppState, git: GitStatus | null): string | null {
-  if (state.isCompacting) return ttui('tui.footer.compacting');
-  if (state.isBackgroundCompacting) return ttui('tui.footer.compacting.background');
-  if (state.isReplaying) return ttui('tui.footer.replaying');
-  if (state.model.trim().length === 0) return ttui('tui.footer.next.login');
-  if (safeContextUsage(state.contextUsage) >= 0.70) return ttui('tui.footer.next.compact');
-  if (
-    state.contextOS !== undefined &&
-    state.contextOS !== null &&
-    state.contextOS.missingEvidencePageCount > 0
-  ) {
-    return ttui('tui.footer.next.compactEvidence');
-  }
-  if (state.premiumQualityMode) {
-    return ttui('tui.footer.premium');
-  }
-  if (state.streamingPhase !== 'idle') return null;
-  if (git?.dirty === true) return ttui('tui.footer.next.review');
-  // Beginner path: surface media readiness when keys are missing (image/video are zero-config otherwise).
-  if (!mediaProviderKeyReady()) {
-    return ttui('tui.footer.next.media');
-  }
-  return ttui('tui.footer.next.default');
-}
 
 export function formatFooterGitBadge(status: GitStatus): string {
   const base = currentTheme.fg('textDim', formatGitBadgeBase(status));

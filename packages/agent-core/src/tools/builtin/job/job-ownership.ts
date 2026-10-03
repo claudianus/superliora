@@ -7,6 +7,8 @@ import { normalize } from 'pathe';
 
 import type { ToolStore } from '../../store';
 import { getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
+import { getJobWorkerHandle } from './job-handles';
+import { hasJobNativeResources } from './job-native-resources';
 
 const OWNERSHIP_DEFERRED_PREFIX = 'ownership_deferred:';
 
@@ -60,27 +62,7 @@ export function findOwnershipHolder(
   return undefined;
 }
 
-/** Parse `job:<jobId>:<uuid8>` run ids used by launchJobWorker. */
-export function jobIdFromLeaseRunId(runId: string): string | undefined {
-  const match = /^job:([^:]+):/.exec(runId.trim());
-  const id = match?.[1]?.trim();
-  return id !== undefined && id.length > 0 ? id : undefined;
-}
-
-/** Extract holder job id from claimChildOwnership error text when present. */
-export function holderJobIdFromOwnershipError(detail: string): string | undefined {
-  const runMatch = /run=(job:[^\s.]+)/.exec(detail);
-  if (runMatch?.[1] !== undefined) {
-    return jobIdFromLeaseRunId(runMatch[1]);
-  }
-  return undefined;
-}
-
-export function isOwnershipConflictError(detail: string): boolean {
-  return /Ownership conflict/i.test(detail);
-}
-
-export function ownershipDeferredNote(holderJobId: string, path: string): string {
+function ownershipDeferredNote(holderJobId: string, path: string): string {
   return `${OWNERSHIP_DEFERRED_PREFIX} held_by=${holderJobId} path=${path}`;
 }
 
@@ -112,7 +94,7 @@ export function noteOwnershipDeferred(
 export function listRunningOwnershipHolders(store: ToolStore): JobRecord[] {
   return listJobs(store).filter(
     (j) =>
-      j.status === 'running' &&
+      (j.status === 'running' || getJobWorkerHandle(j.id) !== undefined || hasJobNativeResources(store, j.id)) &&
       j.ownershipPaths !== undefined &&
       j.ownershipPaths.length > 0,
   );

@@ -24,7 +24,6 @@ import {
   RECOVERED_FREE_BYTES,
   type VolumeSpace,
 } from '../../src/runtime/disk-pressure';
-import { isDatabaseCorruptionError } from '../../src/memory/store-persistence-sqlite';
 
 afterEach(() => {
   resetDiskPressureForTests();
@@ -51,13 +50,11 @@ describe('classifyDiskFull', () => {
     const corrupt = new Error('SQLITE_CORRUPT: database disk image is malformed');
     expect(isDiskFullError(corrupt)).toBe(false);
     expect(isDatabaseFullError(corrupt)).toBe(false);
-    expect(isDatabaseCorruptionError(corrupt)).toBe(true);
   });
 
-  it('does not treat SQLITE_FULL as corruption', () => {
+  it('recognizes SQLITE_FULL as a database-full error', () => {
     const full = new Error('SQLITE_FULL: database or disk is full');
     expect(isDatabaseFullError(full)).toBe(true);
-    expect(isDatabaseCorruptionError(full)).toBe(false);
   });
 });
 

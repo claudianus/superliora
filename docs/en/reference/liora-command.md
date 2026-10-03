@@ -1,6 +1,6 @@
 # `liora` Command
 
-`liora` is the main command for SuperLiora CLI, used to start an interactive session in the terminal. Running it without any arguments opens a new session in the current working directory; combined with different flags, you can resume a previous session, skip approvals, start in Plan mode, or load Skills from a custom directory.
+`liora` starts an interactive terminal session. Without arguments it opens a new conversation in the current workspace. Native flags select a model, approval policy, resume target, or explicit worktree; the model-visible tools remain Bash and SessionControl.
 
 ```sh
 liora [options]
@@ -21,22 +21,19 @@ All flags are optional — run `liora` directly to enter an interactive session:
 | `--prompt <prompt>` | `-p` | Run a single prompt non-interactively and stream the Assistant output to stdout. This mode does not open the TUI |
 | `--output-format <format>` | | Set the non-interactive output format; supports `text` and `stream-json`. Can only be used with `--prompt`; defaults to `text` |
 | `--yolo` | `-y` | Auto-approve regular tool calls, skipping approval requests |
-| `--auto` | | Start with auto permission mode; tool approvals are handled automatically and the Agent will not ask the user questions |
-| `--plan` | | Start a new session in Plan mode — the AI will prioritize read-only tools for exploration and planning |
-| `--profile <name>` | | Main agent tool profile for this launch (`core`, `agent`, `superliora-full`, …) |
-| `--skills-dir <dir>` | | Load Skills from the specified directory, replacing the automatically discovered user and project directories. Can be repeated |
-| `--plugin-dir <dir>` | | Load Claude plugins from a directory for this session only (not persisted). Can be repeated |
-| `--channels <server>` | | Opt-in Claude channel MCP server for inbound message inject. Can be repeated |
+| `--auto` | | Start with native automatic permission policy |
+| `--sandbox <profile>` | | Native path policy: `off`, `workspace`, or `read-only`; not checkout isolation |
+| `--sandbox-enforcement <mode>` | | Select `lexical` or `process` enforcement |
+| `--no-process-sandbox` | | Skip process wrapping |
+| `--debug` | | Enable developer diagnostics |
 | `--add-dir <dir>` | | Add an extra workspace directory for this session. Relative paths resolve against the current working directory. Can be repeated |
 | `--worktree [name]` | | Create a git worktree for this session (optional name) so file edits stay off the main checkout |
 | `--show-thinking` | | In `-p` text mode, also write model thinking to stderr |
-| `--resume-goal` | | On startup, automatically resume the first goal in the queue |
-| `--autonomous-gate <command>` | | Shell command that must pass before a headless goal may complete; failure output returns to the agent and the loop continues |
 
 `-r` / `--resume` is a hidden alias for `--session`; `--yes` and `--auto-approve` are hidden aliases for `--yolo` and are not shown in help output.
 
 ::: warning
-`--yolo` skips human approval for regular tool calls, including file writes and shell command execution. Use it only in trusted working directories. Plan mode exit approval is not bypassed by `--yolo`; `Bash` inside Plan mode is handled under the regular allow rules.
+`--yolo` skips approval for regular tool calls, including shell commands. High-risk approval policy remains. Use it only in trusted working directories; approval policy is not filesystem isolation.
 :::
 
 ### Flag Conflict Rules
@@ -45,10 +42,10 @@ The following combinations are rejected at startup:
 
 - `--continue` and `--session` are mutually exclusive — both mean "resume a previous session"
 - `--yolo` and `--auto` are mutually exclusive — the two permission modes cannot be combined
-- `--prompt` cannot be used with `--yolo`, `--auto`, or `--plan` — non-interactive mode uses `auto` permission by default
+- `--prompt` cannot be used with `--yolo` or `--auto`
 - `--output-format` can only be used together with `--prompt`
 
-When resuming a session, you can override its saved permission or plan mode by adding `--auto`, `--yolo`, or `--plan`. For example, `liora --continue --auto` resumes the latest session and switches it to auto permission mode.
+When resuming, `--auto` or `--yolo` can override saved permission mode. `--worktree` cannot be combined with `--continue` or `--session`; it creates a new isolated checkout deliberately.
 
 ## Common Usage
 
@@ -83,23 +80,13 @@ Let the Agent handle everything autonomously, without asking the user questions:
 liora --auto
 ```
 
-Read the code and produce an implementation plan before making any file changes:
+To ask for an explanation before edits, use an ordinary prompt:
 
 ```sh
-liora --plan
+liora -p "Read the code and explain the proposed implementation. Do not edit files."
 ```
 
-### Custom Skills Directories
-
-There are two ways to specify Skills directories, with different semantics:
-
-- **`--skills-dir <dir>`** (CLI flag): **Replaces** the automatically discovered user and project directories for this launch only. Can be repeated to stack multiple directories:
-
-  ```sh
-  liora --skills-dir /path/to/team-skills --skills-dir ./local-skills
-  ```
-
-- **`extra_skill_dirs`** (`config.toml`): **Adds** directories on top of the automatically discovered ones, taking effect permanently. Suitable for configuring team-shared Skills. See [Agent Skills](../customization/skills.md).
+Plan/Goal modes, `--plan`, `--profile`, `--skills-dir`, `--plugin-dir`, `--channels`, `--resume-goal`, and `--autonomous-gate` are retired. See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-runtime-major-migration).
 
 ## Non-Interactive Execution
 
@@ -276,7 +263,7 @@ liora worktree hygiene --dry-run
 
 ### `liora browser-use` / `liora computer-use`
 
-Install and diagnose local GUI-use runtimes used by the agent (browser-use: CloakBrowser / Camoufox / Lightpanda; computer-use: cua-driver). Typical subcommands: `install`, `update`, `status`, `doctor` (plus `browser-use aside …` and `computer-use permissions`).
+Native shell commands can install and diagnose local GUI-use runtimes: browser-use supports `install`, `update`, `status`, and `doctor`; computer-use also supports `permissions`. These management commands do not add model-visible browser/computer tools; the agent tool surface remains Bash and SessionControl.
 
 ```sh
 liora browser-use status
@@ -448,10 +435,9 @@ liora provider route reset <sessionId>
 ```
 
 Supported strategies are `auto`, `fallback`, `fill_first`, `round_robin`, `weighted_round_robin`, `least_used`, `lowest_latency`, `rate_limit_aware`, and `random`. Use `route preview` before running a long session, and `route status` after a session starts to inspect live cooldowns, rate-limit buckets, latency, pinned candidates, and preferred credential labels.
-```
 
 ## Next steps
 
 - [Slash Commands](./slash-commands.md) — Quick reference for control commands in the interactive TUI
 - [Configuration Files](../configuration/config-files.md) — Persistent configuration for `default_model`, permission mode, and other startup parameters
-- [Agent Skills](../customization/skills.md) — Skill file format for directories loaded via `--skills-dir`
+- [Tools](./tools.md) — Bash and SessionControl contracts

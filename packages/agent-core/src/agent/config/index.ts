@@ -8,6 +8,7 @@ import {
 } from '@superliora/kosong';
 
 import { applyKimiEnvSamplingParams, applyKimiEnvThinkingKeep } from '#/config/kimi-env-params';
+import { resolveConfiguredSessionRoute } from '../routing';
 
 import type { Agent } from '..';
 import { ErrorCodes, LioraError } from '../../errors';
@@ -29,11 +30,6 @@ export { resolveThinkingEffort, type ThinkingEffort } from './thinking';
 export class ConfigState {
   private _cwd: string;
   private _modelAlias: string | undefined;
-  /**
-   * When `_modelAlias` is the virtual `auto` pin, this holds the concrete
-   * alias resolved for the current turn / last resolve.
-   */
-  private _smartRouteAlias: string | undefined;
   private _profileName: string | undefined;
   private _thinkingLevel: ThinkingEffort = 'off';
   private _systemPrompt: string = '';
@@ -63,7 +59,6 @@ export class ConfigState {
     }
     if (changed.modelAlias) {
       this._modelAlias = changed.modelAlias;
-      this._smartRouteAlias = undefined;
       this.providerCache = null;
     }
     if (changed.profileName) {
@@ -82,7 +77,7 @@ export class ConfigState {
     if (changed.layeredSystemPrompt !== undefined) {
       this._layeredSystemPrompt = changed.layeredSystemPrompt;
     }
-    if (this.hasProvider && (changed.cwd !== undefined || changed.modelAlias)) {
+    if (changed.cwd !== undefined || changed.modelAlias) {
       this.agent.tools.initializeBuiltinTools();
     }
     this.agent.emitStatusUpdated();
@@ -90,7 +85,6 @@ export class ConfigState {
 
   data(): AgentConfigData {
     const resolved = this.tryResolvedProviderConfig();
-    const loopControl = this.agent.runtimeConfig?.loopControl;
     return {
       cwd: this.cwd,
       provider: resolved?.provider,
@@ -100,54 +94,12 @@ export class ConfigState {
       thinkingLevel: this.thinkingLevel,
       systemPrompt: this.systemPrompt,
       layeredSystemPrompt: this._layeredSystemPrompt,
-      roleModels: {
-        compaction: loopControl?.compactionModel,
-        completion: loopControl?.completionModel,
-        exploration: loopControl?.explorationModel,
-        coding: loopControl?.codingModel,
-        planning: loopControl?.planningModel,
-        debugging: loopControl?.debuggingModel,
-      },
     };
   }
 
-  /**
-   * Pin `config.cwd` and the agent Kaos instance to `cwd`.
-   *
-   * Restore must stay in-memory (no `stat`/`chdir`): a deleted Conductor
-   * worktree would otherwise reject the fire-and-forget `chdir` and crash
-   * session resume. Live updates still `chdir` so relative I/O stays honest,
-   * but a missing directory falls back to the last valid cwd instead of
-   * becoming an unhandled rejection.
-   */
   private applyCwd(cwd: string): void {
     this._cwd = cwd;
-    if (this.agent.records.restoring !== null) {
-      this.agent.setKaos(this.agent.kaos.withCwd(cwd));
-      return;
-    }
-    void this.syncLiveCwd(cwd);
-  }
-
-  private async syncLiveCwd(cwd: string): Promise<void> {
-    const previous = this.agent.kaos.getcwd();
-    try {
-      await this.agent.kaos.chdir(cwd);
-    } catch (error) {
-      this._cwd = previous;
-      const detail = error instanceof Error ? error.message : String(error);
-      this.agent.log.warn('config cwd missing; stayed in last valid directory', {
-        cwd,
-        fallback: previous,
-        error: detail,
-      });
-      this.agent.emitEvent({
-        type: 'warning',
-        message: `Working directory is gone (${cwd}); staying in ${previous}.`,
-        code: 'cwd-missing',
-        details: { cwd, fallback: previous },
-      });
-    }
+    this.agent.setKaos(this.agent.kaos.withCwd(cwd));
   }
 
   get cwd(): string {
@@ -190,7 +142,9 @@ export class ConfigState {
 
   get providerRoute(): ResolvedRuntimeProviderRoute | undefined {
     const alias = this.effectiveModelAlias;
-    if (alias === undefined || alias.trim().toLowerCase() === 'auto') return undefined;
+    if (alias === undefined) return undefined;
+    const runtime = this.agent.runtimeConfig;
+    if (runtime !== undefined && runtime.models?.[alias] === undefined) return undefined;
     return this.agent.modelProvider?.resolveProviderRoute?.(alias);
   }
 
@@ -214,22 +168,13 @@ export class ConfigState {
     return this._modelAlias;
   }
 
-  /**
-   * Concrete alias used for provider resolution. Equals `modelAlias` unless
-   * the session is pinned to virtual smart-auto `auto`.
-   */
   get effectiveModelAlias(): string | undefined {
-    if (this._modelAlias?.trim().toLowerCase() === 'auto') {
-      return this._smartRouteAlias ?? this._modelAlias;
+    const alias = this._modelAlias;
+    const runtime = this.agent.runtimeConfig ?? this.agent.kimiConfig;
+    if (alias?.trim().toLowerCase() === 'auto' && runtime !== undefined && runtime.models?.[alias] === undefined) {
+      return resolveConfiguredSessionRoute({ config: runtime, alias }).alias;
     }
-    return this._modelAlias;
-  }
-
-  /** Pin the concrete alias for a smart-auto session turn. */
-  setSmartRouteAlias(alias: string | undefined): void {
-    if (this._smartRouteAlias === alias) return;
-    this._smartRouteAlias = alias;
-    this.providerCache = null;
+    return alias;
   }
 
   get thinkingLevel(): ThinkingEffort {
@@ -253,7 +198,7 @@ export class ConfigState {
 
   private get currentThinkingDefaults(): ThinkingModelDefaults | undefined {
     const alias = this.effectiveModelAlias;
-    if (alias === undefined || alias.trim().toLowerCase() === 'auto') return undefined;
+    if (alias === undefined) return undefined;
     const configured = this.agent.runtimeConfig?.models?.[alias];
     if (configured !== undefined) return configured;
     const resolved = this.tryResolvedProviderConfig();
@@ -294,7 +239,7 @@ export class ConfigState {
 
   private get resolvedProviderConfig(): ResolvedRuntimeProvider | undefined {
     const alias = this.effectiveModelAlias;
-    if (alias === undefined || alias.trim().toLowerCase() === 'auto') return undefined;
+    if (alias === undefined) return undefined;
     return this.agent.modelProvider?.resolveProviderConfig(alias);
   }
 

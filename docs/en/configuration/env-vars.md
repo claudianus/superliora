@@ -93,6 +93,29 @@ This group of variables redirects OAuth authentication and managed service endpo
 `SUPERLIORA_BASE_URL` (OAuth-managed service, targeting `kimi.com`) and `KIMI_BASE_URL` (direct API key connection, targeting `moonshot.ai`) are two distinct variables. Use each one in its appropriate context.
 :::
 
+### Native provider login controls
+
+These six environment variables control which optional account-login rows appear in the TUI provider picker. They remain native authentication controls despite their historical `EXPERIMENTAL` prefix; they do not enable cognitive features or add model-visible tools.
+
+| Variable | Login row | When unset |
+| --- | --- | --- |
+| `SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH` | Anthropic Claude account | Shown |
+| `SUPERLIORA_EXPERIMENTAL_CURSOR_OAUTH` | Cursor account | Shown |
+| `SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT` | GitHub Copilot token | Hidden; explicit opt-in required |
+| `SUPERLIORA_EXPERIMENTAL_GLM_ZCODE_OAUTH` | GLM ZCode account | Shown |
+| `SUPERLIORA_EXPERIMENTAL_GOOGLE_GEMINI_CLI_OAUTH` | Google Gemini Code Assist account | Shown |
+| `SUPERLIORA_EXPERIMENTAL_KIRO_OAUTH` | Kiro / Amazon Q account | Shown |
+
+Set `1`, `true`, `yes`, or `on` to show a row, or `0`, `false`, `no`, or `off` to hide it. Values are trimmed and case-insensitive; other values use the unset default. These picker controls do not revoke stored credentials, remove configured providers, or disable an existing route. Upstream account policy and availability still apply; showing a login row does not guarantee that a third-party client is authorized.
+
+The Anthropic switch additionally controls the optional `/api/oauth/usage` request. Its separate probe parser skips that request for trimmed, case-insensitive `0`, `false`, or `off`, then uses the `count_tokens`/header fallback. `no` hides the picker row but does not skip the usage probe.
+
+The general experimental framework and `[experimental]` config section are retired. `SUPERLIORA_EXPERIMENTAL_FLAG` no longer overrides native login controls, but its standalone native update-rollout bypass remains: trimmed, case-insensitive `1`, `true`, `yes`, or `on` makes the newest update visible without staged rollout delays. `SUPERLIORA_EXPERIMENTAL_GITLAB_DUO_OAUTH` is not a supported picker control: GitLab Duo remains an always-available account-login profile.
+
+### Retired Conductor UI switch
+
+`SUPERLIORA_EXPERIMENTAL_CONDUCTOR_UX_V2` no longer controls native Jobs UI or the nested-repository startup banner. When the working directory is below its Git root, the native banner appears regardless of that old variable. No legacy Conductor flag policy is loaded.
+
 ## Define a model from environment variables (`KIMI_MODEL_*`)
 
 Want to switch models for testing without touching `config.toml`? When `KIMI_MODEL_NAME` is set, the CLI synthesizes a temporary provider and model alias from the `KIMI_MODEL_*` variables in memory — nothing is written back to the config file. These variables take priority over `default_model` in `config.toml`, but the `-m <alias>` option at startup still has the highest priority.
@@ -128,22 +151,17 @@ If `KIMI_MODEL_NAME` is set but a required variable is missing, startup fails im
 
 ## Runtime switches
 
-Switches that control the behavior of subsystems such as telemetry, background tasks, and the plugin marketplace:
+Switches for telemetry, shell execution, provider requests, and updates:
 
 | Variable | Purpose | Valid values |
 | --- | --- | --- |
 | `KIMI_DISABLE_TELEMETRY` | Disable anonymous telemetry reporting | `1`, `true`, `yes`, `y` (case-insensitive) |
-| `SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT` | Whether to keep background tasks when the session closes; takes higher priority than `config.toml`. The default is to stop them on exit | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
-| `SUPERLIORA_PLUGIN_MARKETPLACE_URL` | Override the plugin marketplace JSON loaded by `/plugins`; useful for dev loopback servers, staging CDN files, or alternate marketplace directories | `https://raw.githubusercontent.com/claudianus/superliora/main/plugins/marketplace.json`; also accepts `http://`, `file://` URLs, and local paths |
-| `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY` | Cap how many subagents run concurrently during the initial ramp; leave unset for the default cap | Positive integer; invalid values fail fast |
-| `SUPERLIORA_EXPERIMENTAL_FLAG` | Enable all registered experimental features for this process | Truthy: `1`/`true`/`yes`/`on` |
 | `LIORA_SHELL_PATH` | Override the Git Bash path on Windows when auto-detection fails. Legacy alias: `KIMI_SHELL_PATH` | Absolute path to `bash.exe` |
 | `KIMI_MODEL_MAX_COMPLETION_TOKENS` | Hard cap on `max_completion_tokens` per LLM step; applies to the `kimi` provider only | Positive integer; `0` or negative disables clamping |
 | `KIMI_MODEL_TEMPERATURE` | Sampling temperature for every request; applies to the `kimi` provider only (global — independent of `KIMI_MODEL_NAME`) | Number, e.g. `0.3` |
 | `KIMI_MODEL_TOP_P` | Nucleus-sampling `top_p` for every request; applies to the `kimi` provider only (global) | Number, e.g. `0.95` |
 | `KIMI_MODEL_THINKING_KEEP` | Moonshot preserved-thinking passthrough (`thinking.keep`); applies to the `kimi` provider only, and only while Thinking is on | A value the API accepts, e.g. `all` |
 | `SUPERLIORA_NO_AUTO_UPDATE` | Fully disable the update preflight — no check, background install, or prompt. Legacy alias `KIMI_CLI_NO_AUTO_UPDATE` is also honored | Truthy: `1`/`true`/`yes`/`on` |
-| `KIMI_DISABLE_CRON` | Disable the scheduled-task tool (`CronCreate` rejects new schedules; existing tasks do not fire) | `1` to disable |
 
 ## Diagnostic logs
 
@@ -173,7 +191,7 @@ The CLI also reads several standard system variables to detect the runtime envir
 
 ## HTTP proxy
 
-SuperLiora honors the standard proxy environment variables for all outbound traffic — model API calls, MCP servers, web tools, telemetry, sign-in, and update checks:
+SuperLiora honors standard proxy environment variables for model API calls, telemetry, sign-in, and update checks:
 
 - `HTTP_PROXY` / `http_proxy`: proxy for `http://` requests
 - `HTTPS_PROXY` / `https_proxy`: proxy for `https://` requests
@@ -182,9 +200,7 @@ SuperLiora honors the standard proxy environment variables for all outbound traf
 
 Both HTTP(S) and SOCKS proxies are supported. A SOCKS proxy is recognized by its scheme — `socks5://`, `socks5h://`, `socks4://`, or `socks://` (an alias for `socks5://`) — and is typically set via `ALL_PROXY` (the form used by tools like Clash and V2RayN). An HTTP(S) proxy takes precedence over `ALL_PROXY` for HTTP/HTTPS traffic.
 
-The proxy is applied only when one of these variables is set; otherwise connections are made directly. Loopback hosts (`localhost`, `127.0.0.1`, `::1`) always bypass the proxy, so a local server such as a localhost MCP server keeps working when a proxy is configured — add your own internal hosts to `NO_PROXY` to exempt them too.
-
-Stdio MCP servers that run as Node child processes honor `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` automatically when the child's Node version supports `NODE_USE_ENV_PROXY` (Node ≥ 22.21 or ≥ 24.5); SOCKS proxying applies to SuperLiora's own traffic only.
+The proxy is applied only when one of these variables is set; otherwise connections are direct. Loopback hosts (`localhost`, `127.0.0.1`, `::1`) always bypass the proxy. Add internal hosts to `NO_PROXY` to exempt them too.
 
 ## Next steps
 

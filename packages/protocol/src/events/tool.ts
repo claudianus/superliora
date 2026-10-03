@@ -70,33 +70,6 @@ export interface ToolResultEvent {
   readonly display?: ToolResultDisplay;
 }
 
-export interface ToolsUpdateStoreEvent {
-  readonly type: 'tools.update_store';
-  readonly key: string;
-  readonly value: unknown;
-}
-
-export type ToolListUpdatedReason = 'mcp.connected' | 'mcp.disconnected' | 'mcp.failed';
-
-export interface ToolListUpdatedEvent {
-  readonly type: 'tool.list.updated';
-  readonly reason: ToolListUpdatedReason;
-  readonly serverName: string;
-}
-
-export interface McpServerStatusPayload {
-  readonly name: string;
-  readonly transport: 'stdio' | 'http' | 'sse';
-  readonly status: 'pending' | 'connected' | 'failed' | 'disabled' | 'needs-auth';
-  readonly toolCount: number;
-  readonly error?: string;
-}
-
-export interface McpServerStatusEvent {
-  readonly type: 'mcp.server.status';
-  readonly server: McpServerStatusPayload;
-}
-
 export const toolCallDeltaEventSchema = z.object({
   type: z.literal('tool.call.delta'),
   turnId: z.number(),
@@ -144,33 +117,3 @@ export const toolResultEventSchema = z.object({
   display: ToolResultDisplaySchema.optional(),
 }) satisfies z.ZodType<ToolResultEvent>;
 
-export const toolsUpdateStoreEventSchema = z.object({
-  type: z.literal('tools.update_store'),
-  key: z.string(),
-  value: z.unknown(),
-}) satisfies z.ZodType<ToolsUpdateStoreEvent>;
-
-export const toolListUpdatedReasonSchema = z.enum([
-  'mcp.connected',
-  'mcp.disconnected',
-  'mcp.failed',
-]) satisfies z.ZodType<ToolListUpdatedReason>;
-
-export const toolListUpdatedEventSchema = z.object({
-  type: z.literal('tool.list.updated'),
-  reason: toolListUpdatedReasonSchema,
-  serverName: z.string(),
-}) satisfies z.ZodType<ToolListUpdatedEvent>;
-
-export const mcpServerStatusPayloadSchema = z.object({
-  name: z.string(),
-  transport: z.enum(['stdio', 'http']),
-  status: z.enum(['pending', 'connected', 'failed', 'disabled', 'needs-auth']),
-  toolCount: z.number(),
-  error: z.string().optional(),
-}) satisfies z.ZodType<McpServerStatusPayload>;
-
-export const mcpServerStatusEventSchema = z.object({
-  type: z.literal('mcp.server.status'),
-  server: mcpServerStatusPayloadSchema,
-}) satisfies z.ZodType<McpServerStatusEvent>;

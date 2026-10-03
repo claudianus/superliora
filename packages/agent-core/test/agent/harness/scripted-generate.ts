@@ -84,8 +84,8 @@ export function createScriptedGenerate() {
       id: `mock-${String(calls.length)}`,
       message,
       usage: {
-        inputOther: estimateTokensForMessages(normalizeMessagesForTokenEstimates(history)),
-        output: estimateTokensForMessages(normalizeMessagesForTokenEstimates([message])),
+        inputOther: estimateTokensForMessages(history),
+        output: estimateTokensForMessages([message]),
         inputCacheRead: 0,
         inputCacheCreation: 0,
       },
@@ -128,26 +128,6 @@ export function createScriptedGenerate() {
   };
 }
 
-function normalizeMessagesForTokenEstimates(messages: Message[]): Message[] {
-  return messages.map((message) => ({
-    ...message,
-    content: message.content.map((part) => {
-      if (part.type !== 'text') return part;
-      let text = part.text.replaceAll(/^Plan file: .+$/gm, 'Plan file: <plan-file>');
-      // Stabilize host clock fields so token estimates do not drift with TZ/locale.
-      if (text.includes('<current_time>') && text.includes('Authoritative host clock')) {
-        text = text
-          .replaceAll(/^- Today: .+$/gm, '- Today: <today>')
-          .replaceAll(/^- Local: .+$/gm, '- Local: <local>')
-          .replaceAll(/^- ISO: .+$/gm, '- ISO: <iso>');
-      }
-      return {
-        ...part,
-        text,
-      };
-    }),
-  }));
-}
 
 function defaultRawFinishReason(finishReason: FinishReason | null): string | null {
   if (finishReason === null) return null;

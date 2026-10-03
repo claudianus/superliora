@@ -77,7 +77,7 @@ describe('SessionStore.list', () => {
     expect(indexRaw).toContain(`"workDir":"${normalizeWorkDir(workDir)}"`);
   });
 
-  it('forks a session directory, rewrites metadata, and drops reserved goal state', async () => {
+  it('forks a session directory and rewrites metadata without changing the source', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
     const store = new SessionStore(homeDir);
@@ -89,10 +89,6 @@ describe('SessionStore.list', () => {
     await mkdir(sourceSubagentDir, { recursive: true });
     await writeFile(join(sourceAgentDir, 'wire.jsonl'), '{"type":"context.clear"}\n', 'utf-8');
     await writeFile(join(sourceSubagentDir, 'wire.jsonl'), '{"type":"context.clear"}\n', 'utf-8');
-    const queuedGoals = `${JSON.stringify({ version: 1, goals: [{ id: 'queued-1', objective: 'source queued goal' }] })}\n`;
-    await mkdir(join(source.sessionDir, 'ui'), { recursive: true });
-    await writeFile(join(source.sessionDir, 'upcoming-goals.json'), queuedGoals, 'utf-8');
-    await writeFile(join(source.sessionDir, 'ui', 'goals.json'), queuedGoals, 'utf-8');
     await writeSessionState(source.sessionDir, {
       createdAt: '2030-01-01T00:00:00.000Z',
       updatedAt: '2030-01-01T00:00:00.000Z',
@@ -111,14 +107,6 @@ describe('SessionStore.list', () => {
       },
       custom: {
         source: true,
-        goal: {
-          goalId: 'source-goal',
-          objective: 'source objective',
-          status: 'active',
-          turnsUsed: 0,
-          tokensUsed: 0,
-          budgetLimits: {},
-        },
       },
     });
 
@@ -128,14 +116,6 @@ describe('SessionStore.list', () => {
       title: 'Fork title',
       metadata: {
         child: true,
-        goal: {
-          goalId: 'metadata-goal',
-          objective: 'metadata objective',
-          status: 'active',
-          turnsUsed: 0,
-          tokensUsed: 0,
-          budgetLimits: {},
-        },
       },
     });
 
@@ -151,11 +131,6 @@ describe('SessionStore.list', () => {
     expect(forkState.forkedFrom).toBe(source.id);
     expect(forkState.agents?.main?.homedir).toBe('agents/main');
     expect(forkState.custom).toMatchObject({ source: true, child: true });
-    expect(forkState.custom).not.toHaveProperty('goal');
-    expect(existsSync(join(fork.sessionDir, 'upcoming-goals.json'))).toBe(false);
-    expect(existsSync(join(fork.sessionDir, 'ui', 'goals.json'))).toBe(false);
-    expect(existsSync(join(source.sessionDir, 'upcoming-goals.json'))).toBe(true);
-    expect(existsSync(join(source.sessionDir, 'ui', 'goals.json'))).toBe(true);
     const forkWire = await readFile(join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'), 'utf-8');
     expect(forkWire
       .trim()

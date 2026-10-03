@@ -1,14 +1,6 @@
-import { HOOK_EVENT_TYPES } from '../session/hooks/types';
 import { parsePattern } from '#/agent/permission/matches-rule';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { z } from 'zod';
-import {
-  ResearchConfigSchema,
-  ResearchContext7ConfigSchema,
-  ResearchLocalDirectSourcesSchema,
-  ResearchLocalSearchConfigSchema,
-  ResearchSearchConfigSchema,
-} from './schema-research';
 
 export const ProviderTypeSchema = z.enum([
   'anthropic',
@@ -31,7 +23,7 @@ export const OAuthRefSchema = z.object({
   key: z.string().min(1),
   oauthHost: z.string().min(1).optional(),
   label: z.string().min(1).optional(),
-});
+}).strict();
 
 export type OAuthRef = z.infer<typeof OAuthRefSchema>;
 
@@ -43,7 +35,7 @@ export const ProviderCredentialConfigSchema = z.object({
   label: z.string().min(1).optional(),
   rpm: z.number().int().min(1).optional(),
   tpm: z.number().int().min(1).optional(),
-});
+}).strict();
 
 export type ProviderCredentialConfig = z.infer<typeof ProviderCredentialConfigSchema>;
 
@@ -61,7 +53,7 @@ export const ProviderConfigSchema = z.object({
   env: StringRecordSchema.optional(),
   customHeaders: StringRecordSchema.optional(),
   source: z.record(z.string(), z.unknown()).optional(),
-});
+}).strict();
 
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 
@@ -92,7 +84,7 @@ export const ModelRoutingConfigSchema = z.object({
    * user did not choose (unexpected cost/quality changes).
    */
   autoFallback: z.boolean().optional(),
-});
+}).strict();
 
 export type ModelRoutingConfig = z.infer<typeof ModelRoutingConfigSchema>;
 
@@ -121,8 +113,9 @@ const ModelAliasBaseSchema = z.object({
       cache_read: z.number().optional(),
       cache_write: z.number().optional(),
     })
+    .strict()
     .optional(),
-});
+}).strict();
 
 export const ModelAliasOverrideSchema = ModelAliasBaseSchema.omit({
   provider: true,
@@ -131,18 +124,16 @@ export const ModelAliasOverrideSchema = ModelAliasBaseSchema.omit({
   betaApi: true,
 }).partial();
 
-export type ModelAliasOverrides = z.infer<typeof ModelAliasOverrideSchema>;
-
 export const ModelAliasSchema = ModelAliasBaseSchema.extend({
   overrides: ModelAliasOverrideSchema.optional(),
-});
+}).strict();
 
 export type ModelAlias = z.infer<typeof ModelAliasSchema>;
 
 export const ThinkingConfigSchema = z.object({
   mode: z.enum(['auto', 'on', 'off']).optional(),
   effort: z.string().optional(),
-});
+}).strict();
 
 export type ThinkingConfig = z.infer<typeof ThinkingConfigSchema>;
 
@@ -175,398 +166,50 @@ export const PermissionRuleSchema = z.object({
     message: 'Invalid permission rule pattern',
   }),
   reason: z.string().optional(),
-});
+}).strict();
 
 export type PermissionRule = z.infer<typeof PermissionRuleSchema>;
 
 export const PermissionConfigSchema = z.object({
   rules: z.array(PermissionRuleSchema).optional(),
-});
-
-export type PermissionConfig = z.infer<typeof PermissionConfigSchema>;
+}).strict();
 
 export const LoopControlSchema = z.object({
   maxStepsPerTurn: z.number().int().min(0).optional(),
-  maxRetriesPerStep: z.number().int().min(0).optional(),
-  maxRalphIterations: z.number().int().min(-1).optional(),
-  reservedContextSize: z.number().int().min(0).optional(),
-  compactionTriggerRatio: z.number().min(0.5).max(0.99).optional(),
-  compactionAsyncTriggerRatio: z.number().min(0.05).max(0.99).optional(),
-  compactionBlockRatio: z.number().min(0.5).max(0.99).optional(),
-  compactionTriggerTokens: z.number().int().min(1000).optional(),
-  /**
-   * Soft working-set ceiling for full compaction (tokens). `0` disables the
-   * cap so ratio-only thresholds apply. On 1M-class windows the default agent
-   * path keeps live history near ~256k unless overridden.
-   */
-  maxWorkingSetTokens: z.number().int().min(0).optional(),
-  /**
-   * Soft working-set ceiling for async (pre-rot) compaction. `0` disables.
-   * Should stay below `maxWorkingSetTokens` when both are set.
-   */
-  asyncWorkingSetTokens: z.number().int().min(0).optional(),
-  compactionMaxRecentMessages: z.number().int().min(1).optional(),
-  compactionModel: z.string().min(1).optional(),
-  completionModel: z.string().min(1).optional(),
-  explorationModel: z.string().min(1).optional(),
-  codingModel: z.string().min(1).optional(),
-  planningModel: z.string().min(1).optional(),
-  debuggingModel: z.string().min(1).optional(),
-  /**
-   * Soft session spend ceiling (USD) for smart auto intensity. When estimated
-   * session spend reaches this value, intensity steps down one level
-   * (max→balanced→value). Explicit role overrides are unchanged.
-   */
-  workerInheritParent: z.boolean().optional(),
-  workerInheritParentRoles: z.array(z.enum(['compaction','completion','exploration','coding','planning','debugging'])).optional(),
-  conductorModelPool: z.array(z.string().min(1)).optional(),
-  conductorPoolMode: z.enum(['allowlist','blocklist']).optional(),
-  smartRouterBudgetUsd: z.number().positive().optional(),
-});
+}).strict();
 
 export type LoopControl = z.infer<typeof LoopControlSchema>;
 
 export const BackgroundConfigSchema = z.object({
   maxRunningTasks: z.number().int().min(1).optional(),
-  keepAliveOnExit: z.boolean().optional(),
   killGracePeriodMs: z.number().int().min(0).optional(),
   printWaitCeilingS: z.number().int().min(1).optional(),
-});
+}).strict();
 
 export type BackgroundConfig = z.infer<typeof BackgroundConfigSchema>;
 
-export const NonVisionFallbackPolicySchema = z.enum(['analyze', 'path', 'block']);
-
-export type NonVisionFallbackPolicyConfig = z.infer<typeof NonVisionFallbackPolicySchema>;
-
-/**
- * Per-media-kind analyzer model overrides (`media.analyzer_models`). The
- * value is a model alias (e.g. `commandcode/z-ai/glm-5.3-flash`); an empty
- * string or an omitted kind means "auto-select".
- */
-const MediaAnalyzerModelsSchema = z.object({
-  image: z.string().optional(),
-  video: z.string().optional(),
-  audio: z.string().optional(),
-  pdf: z.string().optional(),
-});
-
-export type MediaAnalyzerModelsConfig = z.infer<typeof MediaAnalyzerModelsSchema>;
-
-/**
- * Ordered per-kind fallback analyzer aliases (`media.analyzer_fallbacks`).
- * Tried in order after the primary `analyzerModels` entry for the kind and
- * before automatic selection; entries that cannot serve the kind are
- * silently skipped, and a call-time failure moves to the next candidate.
- */
-const MediaAnalyzerFallbacksSchema = z.object({
-  image: z.array(z.string().min(1)).optional(),
-  video: z.array(z.string().min(1)).optional(),
-  audio: z.array(z.string().min(1)).optional(),
-  pdf: z.array(z.string().min(1)).optional(),
-});
-
-export type MediaAnalyzerFallbacksConfig = z.infer<typeof MediaAnalyzerFallbacksSchema>;
-
-export const MediaConfigSchema = z.object({
-  /**
-   * What happens when the current chat model cannot consume attached
-   * images/videos: 'analyze' renders them to text with a vision-capable
-   * catalog model (default), 'path' leaves a pointer note, 'block' refuses
-   * the send like before.
-   */
-  nonVisionFallback: NonVisionFallbackPolicySchema.optional(),
-  /**
-   * Explicit analyzer model per media kind. When the active model cannot
-   * consume a kind, the configured alias is preferred over automatic
-   * catalog selection; if the alias cannot serve the kind (unknown,
-   * missing credential, unhealthy, wrong capability) selection silently
-   * falls back to the automatic path.
-   */
-  analyzerModels: MediaAnalyzerModelsSchema.optional(),
-  /**
-   * Ordered fallback analyzer model per media kind. Tried in order after
-   * the primary `analyzerModels` alias (and before automatic selection);
-   * each entry must be capable of the kind, otherwise it is skipped, and a
-   * call-time failure moves to the next candidate.
-   */
-  analyzerFallbacks: MediaAnalyzerFallbacksSchema.optional(),
-  /**
-   * Opt in to catalog-wide automatic model selection for multimodal work.
-   * Off by default: media analysis and vision-preferred workers only ever use
-   * models the user configured (explicit `analyzer_models` / role overrides /
-   * the current session model), so the harness can never silently bill a
-   * model the user did not choose. `true` lets the harness scan every
-   * credentialed catalog model for a capable analyzer / vision worker.
-   */
-  analyzerAutoScan: z.boolean().optional(),
-});
-
-export type MediaConfig = z.infer<typeof MediaConfigSchema>;
-
-export const MemoryConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  storePath: z.string().min(1).optional(),
-  maxRetrieved: z.number().int().min(0).max(20).optional(),
-  minInjectionScore: z.number().min(0).max(1).optional(),
-  captureMode: z.enum(['off', 'explicit', 'candidate']).optional(),
-  reflectEnabled: z.boolean().optional(),
-  retentionDays: z.number().int().min(1).optional(),
-});
-
-export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
 
 export const CacheConfigSchema = z.object({
   /** Bumped by Settings → Cache invalidate; folded into prompt_cache_key as sessionId:vN. */
   invalidateEpoch: z.number().int().min(0).optional(),
-});
+}).strict();
 
-export type CacheConfig = z.infer<typeof CacheConfigSchema>;
-
-export {
-  ResearchConfigSchema,
-  ResearchContext7ConfigSchema,
-  ResearchIntensitySchema,
-  ResearchLocalDirectSourcesSchema,
-  ResearchLocalSearchConfigSchema,
-  ResearchSearchConfigSchema,
-  ResearchSearchProviderConfigSchema,
-  ResearchSearchProviderKindSchema,
-  ResearchSearchRoutingStrategySchema,
-  type ResearchConfig,
-  type ResearchContext7Config,
-  type ResearchIntensity,
-  type ResearchLocalDirectSources,
-  type ResearchLocalSearchConfig,
-  type ResearchSearchConfig,
-  type ResearchSearchProviderConfig,
-  type ResearchSearchProviderKind,
-  type ResearchSearchRoutingStrategy,
-} from './schema-research';
 
 export const ModelCatalogConfigSchema = z.object({
   refreshIntervalMs: z.number().int().min(0).optional(),
   refreshOnStart: z.boolean().optional(),
-});
+}).strict();
 
-export type ModelCatalogConfig = z.infer<typeof ModelCatalogConfigSchema>;
-
-export const ExperimentalConfigSchema = z.record(z.string(), z.boolean());
-
-export type ExperimentalConfig = z.infer<typeof ExperimentalConfigSchema>;
-
-export const HookDefSchema = z
-  .object({
-    event: z.enum(HOOK_EVENT_TYPES),
-    matcher: z.string().optional(),
-    command: z.string().min(1),
-    timeout: z.number().int().min(1).max(600).optional(),
-  })
-  .strict();
-
-export type HookDefConfig = z.infer<typeof HookDefSchema>;
-
-export const MoonshotServiceConfigSchema = z.object({
-  baseUrl: z.string().optional(),
-  apiKey: z.string().optional(),
-  oauth: OAuthRefSchema.optional(),
-  customHeaders: StringRecordSchema.optional(),
-});
-
-export type MoonshotServiceConfig = z.infer<typeof MoonshotServiceConfigSchema>;
-
-export const ServicesConfigSchema = z.object({
-  moonshotSearch: MoonshotServiceConfigSchema.optional(),
-  moonshotFetch: MoonshotServiceConfigSchema.optional(),
-});
-
-export type ServicesConfig = z.infer<typeof ServicesConfigSchema>;
-
-export const BrowserUseConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  provider: z.enum(['lightpanda', 'cloakbrowser', 'camoufox']).optional(),
-  fallbackProvider: z.enum(['lightpanda', 'cloakbrowser', 'camoufox']).optional(),
-  fallbackEnabled: z.boolean().optional(),
-  autoInstall: z.boolean().optional(),
-  autoUpdate: z.boolean().optional(),
-  cacheDir: z.string().min(1).optional(),
-  binaryPath: z.string().min(1).optional(),
-  version: z.string().min(1).optional(),
-  licenseKeyEnv: z.string().min(1).optional(),
-  host: z.string().min(1).optional(),
-  port: z.number().int().positive().optional(),
-  obeyRobots: z.boolean().optional(),
-  disableHostVerification: z.boolean().optional(),
-});
-
-export type BrowserUseConfig = z.infer<typeof BrowserUseConfigSchema>;
-
-/** Built-in + legacy (`concise`) persona preset ids accepted in config.toml. */
-export const PersonaPresetSchema = z.enum([
-  'none',
-  'liora',
-  'efficient',
-  'professional',
-  'friendly',
-  'candid',
-  'mentor',
-  'reviewer',
-  'pair',
-  'creative',
-  'nerdy',
-  'playful',
-  'skeptical',
-  'caveman',
-  'adhd',
-  /** @deprecated Prefer `efficient`. Normalized at prompt compile time. */
-  'concise',
-]);
-
-export const PersonaConfigSchema = z.object({
-  /** Display name for the persona (e.g. "Liora", "Mentor"). Empty string clears. */
-  name: z.string().optional(),
-  /** Built-in preset identifier. 'none' explicitly disables presets. */
-  preset: PersonaPresetSchema.optional(),
-  /** Personality traits description injected into the system prompt. */
-  personality: z.string().optional(),
-  /** Response tone/style guidance (e.g. "warm and casual", "formal and precise"). */
-  tone: z.string().optional(),
-  /** Free-form custom instructions appended to the system prompt persona block. */
-  instructions: z.string().optional(),
-});
-
-export type PersonaConfig = z.infer<typeof PersonaConfigSchema>;
-export type PersonaPresetSchemaId = z.infer<typeof PersonaPresetSchema>;
-
-export const ComputerUseConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  provider: z.enum(['cua-driver']).optional(),
-  autoInstall: z.boolean().optional(),
-  driverCmd: z.string().min(1).optional(),
-  requireApproval: z.boolean().optional(),
-});
-
-export type ComputerUseConfig = z.infer<typeof ComputerUseConfigSchema>;
-
-const McpServerCommonFields = {
-  enabled: z.boolean().optional(),
-  startupTimeoutMs: z.number().int().min(1).optional(),
-  toolTimeoutMs: z.number().int().min(1).optional(),
-  enabledTools: z.array(z.string()).optional(),
-  disabledTools: z.array(z.string()).optional(),
-} as const;
-
-export const McpServerStdioConfigSchema = z.object({
-  transport: z.literal('stdio'),
-  command: z.string().min(1),
-  args: z.array(z.string()).optional(),
-  env: StringRecordSchema.optional(),
-  cwd: z.string().optional(),
-  // Reserved for future kaos-backed stdio launchers. `undefined` and `'local'`
-  // both mean direct child_process spawn for now.
-  executor: z.enum(['local', 'kaos']).optional(),
-  ...McpServerCommonFields,
-});
-
-export type McpServerStdioConfig = z.infer<typeof McpServerStdioConfigSchema>;
-
-export const McpServerHttpConfigSchema = z.object({
-  transport: z.literal('http'),
-  url: z.string().url(),
-  headers: StringRecordSchema.optional(),
-  // Indirect secret reference: the bearer token is looked up from
-  // `process.env[bearerTokenEnvVar]` at connection time, never committed.
-  bearerTokenEnvVar: z.string().min(1).optional(),
-  ...McpServerCommonFields,
-});
-
-export type McpServerHttpConfig = z.infer<typeof McpServerHttpConfigSchema>;
-
-export const McpServerSseConfigSchema = z.object({
-  transport: z.literal('sse'),
-  url: z.string().url(),
-  headers: StringRecordSchema.optional(),
-  // Indirect secret reference: the bearer token is looked up from
-  // `process.env[bearerTokenEnvVar]` at connection time, never committed.
-  bearerTokenEnvVar: z.string().min(1).optional(),
-  ...McpServerCommonFields,
-});
-
-export type McpServerSseConfig = z.infer<typeof McpServerSseConfigSchema>;
-
-export type McpRemoteServerConfig = McpServerHttpConfig | McpServerSseConfig;
-
-const McpServerConfigDiscriminatedSchema = z.discriminatedUnion('transport', [
-  McpServerStdioConfigSchema,
-  McpServerHttpConfigSchema,
-  McpServerSseConfigSchema,
-]);
-
-export const McpServerConfigSchema = z.preprocess((raw) => {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return raw;
-  const obj = raw as Record<string, unknown>;
-  if ('transport' in obj) return obj;
-  if (typeof obj['command'] === 'string') return { ...obj, transport: 'stdio' };
-  if (typeof obj['url'] === 'string') return { ...obj, transport: 'http' };
-  return obj;
-}, McpServerConfigDiscriminatedSchema);
-
-export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
-
-export const McpConfigSchema = z.object({
-  /**
-   * Auto-inject provider-bundled MCP servers (e.g. Z.AI web search / reader /
-   * zread / vision) when the matching API key is detected. Default true.
-   * User-declared servers with the same name always win over auto-injected
-   * ones. `SUPERLIORA_NO_PROVIDER_MCP=1` disables injection process-wide.
-   */
-  autoProviderServers: z.boolean().optional(),
-});
-
-export type McpConfig = z.infer<typeof McpConfigSchema>;
-
-export const ExtrasConfigSchema = z.object({
-  /**
-   * Provider-extras ids ('zai', 'qwen-token-plan', 'xai-grok', 'openai-codex')
-   * the user opted out of. A disabled service contributes no search slot,
-   * media backend, or auto-injected MCP servers even when its key/OAuth is
-   * detected. Everything stays auto-detected by default — this is the only
-   * off switch, per the zero-config rule.
-   */
-  disabledProviders: z.array(z.string()).optional(),
-});
-
-export type ExtrasConfig = z.infer<typeof ExtrasConfigSchema>;
-
-export const AgentConfigSchema = z.object({
-  /**
-   * Bundled main agent profile (`core`, `agent`, `superliora-full`, …).
-   * Overridden by SUPERLIORA_PROFILE. Recommended sovereign default: `core` (Core≤12).
-   * Process-wide soft default: SUPERLIORA_SOVEREIGN_CORE=1 or SUPERLIORA_SOVEREIGN=1 when profile env/config unset.
-   */
-  profile: z.string().optional(),
-});
-
-export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
 export const LioraConfigSchema = z.object({
   providers: z.record(z.string(), ProviderConfigSchema).default({}),
   defaultProvider: z.string().optional(),
   defaultModel: z.string().optional(),
   models: z.record(z.string(), ModelAliasSchema).optional(),
-  /**
-   * FREE mode: when true, all model routing (main session via `auto` and
-   * per-role smart auto) resolves only to free-tier models (cost.input === 0
-   * or id/alias contains `free`). Smart scoring still picks the best free
-   * candidate per role by benchmarks / quality / value.
-   */
-  freeMode: z.boolean().optional(),
   thinking: ThinkingConfigSchema.optional(),
-  planMode: z.boolean().optional(),
   yolo: z.boolean().optional(),
   defaultThinking: z.boolean().optional(),
   defaultPermissionMode: PermissionModeSchema.optional(),
-  defaultPlanMode: z.boolean().optional(),
   /**
    * Path sandbox for file tools: off | workspace | read-only.
    * Default when omitted is off (see resolveSandboxProfileFromSources).
@@ -579,31 +222,13 @@ export const LioraConfigSchema = z.object({
    */
   sandboxEnforcement: SandboxEnforcementSchema.optional(),
   permission: PermissionConfigSchema.optional(),
-  hooks: z.array(HookDefSchema).optional(),
-  services: ServicesConfigSchema.optional(),
-  mergeAllAvailableSkills: z.boolean().optional(),
-  extraSkillDirs: z.array(z.string()).optional(),
-  skillSearchLimit: z.number().int().min(1).max(20).optional(),
-  skillSearchMaxLimit: z.number().int().min(1).max(20).optional(),
-  // 'legacy-list' is deprecated and renders as 'search'; kept so old configs parse.
-  skillPromptMode: z.enum(['search', 'legacy-list']).optional(),
   loopControl: LoopControlSchema.optional(),
   background: BackgroundConfigSchema.optional(),
-  media: MediaConfigSchema.optional(),
-  memory: MemoryConfigSchema.optional(),
   cache: CacheConfigSchema.optional(),
-  research: ResearchConfigSchema.optional(),
   modelCatalog: ModelCatalogConfigSchema.optional(),
-  browserUse: BrowserUseConfigSchema.optional(),
-  computerUse: ComputerUseConfigSchema.optional(),
-  mcp: McpConfigSchema.optional(),
-  extras: ExtrasConfigSchema.optional(),
-  persona: PersonaConfigSchema.optional(),
-  agent: AgentConfigSchema.optional(),
-  experimental: ExperimentalConfigSchema.optional(),
   telemetry: z.boolean().optional(),
   raw: z.record(z.string(), z.unknown()).optional(),
-});
+}).strict();
 
 export type LioraConfig = z.infer<typeof LioraConfigSchema>;
 
@@ -613,31 +238,8 @@ const ThinkingConfigPatchSchema = ThinkingConfigSchema.partial();
 const PermissionConfigPatchSchema = PermissionConfigSchema.partial();
 const LoopControlPatchSchema = LoopControlSchema.partial();
 const BackgroundConfigPatchSchema = BackgroundConfigSchema.partial();
-const MediaConfigPatchSchema = MediaConfigSchema.partial();
-const MemoryConfigPatchSchema = MemoryConfigSchema.partial();
 const CacheConfigPatchSchema = CacheConfigSchema.partial();
-const ResearchLocalDirectSourcesPatchSchema = ResearchLocalDirectSourcesSchema.partial();
-const ResearchLocalSearchConfigPatchSchema = ResearchLocalSearchConfigSchema.extend({
-  directSources: ResearchLocalDirectSourcesPatchSchema.optional(),
-}).partial();
-const ResearchContext7ConfigPatchSchema = ResearchContext7ConfigSchema.partial();
-const ResearchConfigPatchSchema = ResearchConfigSchema.extend({
-  localSearch: ResearchLocalSearchConfigPatchSchema.optional(),
-  search: ResearchSearchConfigSchema.partial().optional(),
-  context7: ResearchContext7ConfigPatchSchema.optional(),
-}).partial();
 const ModelCatalogConfigPatchSchema = ModelCatalogConfigSchema.partial();
-const BrowserUseConfigPatchSchema = BrowserUseConfigSchema.partial();
-const ComputerUseConfigPatchSchema = ComputerUseConfigSchema.partial();
-const McpConfigPatchSchema = McpConfigSchema.partial();
-const ExtrasConfigPatchSchema = ExtrasConfigSchema.partial();
-const ExperimentalConfigPatchSchema = ExperimentalConfigSchema;
-const AgentConfigPatchSchema = AgentConfigSchema.partial();
-const MoonshotServiceConfigPatchSchema = MoonshotServiceConfigSchema.partial();
-const ServicesConfigPatchSchema = z.object({
-  moonshotSearch: MoonshotServiceConfigPatchSchema.optional(),
-  moonshotFetch: MoonshotServiceConfigPatchSchema.optional(),
-});
 
 export const LioraConfigPatchSchema = z
   .object({
@@ -645,39 +247,18 @@ export const LioraConfigPatchSchema = z
     defaultProvider: z.string().optional(),
     defaultModel: z.string().optional(),
     models: z.record(z.string(), ModelAliasPatchSchema).optional(),
-    freeMode: z.boolean().optional(),
     thinking: ThinkingConfigPatchSchema.optional(),
-    planMode: z.boolean().optional(),
     yolo: z.boolean().optional(),
     defaultThinking: z.boolean().optional(),
     defaultPermissionMode: PermissionModeSchema.optional(),
-    defaultPlanMode: z.boolean().optional(),
     sandboxProfile: SandboxProfileSchema.optional(),
     sandboxEnforcement: SandboxEnforcementSchema.optional(),
     permission: PermissionConfigPatchSchema.optional(),
-    hooks: z.array(HookDefSchema).optional(),
-    services: ServicesConfigPatchSchema.optional(),
-    mergeAllAvailableSkills: z.boolean().optional(),
-    extraSkillDirs: z.array(z.string()).optional(),
-    skillSearchLimit: z.number().int().min(1).max(20).optional(),
-    skillSearchMaxLimit: z.number().int().min(1).max(20).optional(),
-    // 'legacy-list' is deprecated and renders as 'search'; kept so old configs parse.
-    skillPromptMode: z.enum(['search', 'legacy-list']).optional(),
     loopControl: LoopControlPatchSchema.optional(),
     background: BackgroundConfigPatchSchema.optional(),
-    media: MediaConfigPatchSchema.optional(),
-    memory: MemoryConfigPatchSchema.optional(),
     cache: CacheConfigPatchSchema.optional(),
-    research: ResearchConfigPatchSchema.optional(),
     modelCatalog: ModelCatalogConfigPatchSchema.optional(),
-    browserUse: BrowserUseConfigPatchSchema.optional(),
-    computerUse: ComputerUseConfigPatchSchema.optional(),
-    mcp: McpConfigPatchSchema.optional(),
-    persona: PersonaConfigSchema.partial().optional(),
-    agent: AgentConfigPatchSchema.optional(),
-    experimental: ExperimentalConfigPatchSchema.optional(),
     telemetry: z.boolean().optional(),
-    extras: ExtrasConfigPatchSchema.optional(),
   })
   .strict();
 

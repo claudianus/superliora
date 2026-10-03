@@ -1,5 +1,5 @@
 /**
- * Shared fakes for Conductor input-path tests (V3-1 / V3-2 / V3-3).
+ * Shared fakes for autonomous input-path tests.
  *
  * `fakeDispatchHost` satisfies `MessageDispatchHost` with spy surfaces —
  * no renderer, no disk (sessionDir undefined keeps prompt-input persistence
@@ -56,7 +56,6 @@ export function fakeDispatchHost(options: FakeDispatchOptions = {}) {
     prompt: vi.fn(async () => {}),
     steer: vi.fn(async () => {}),
     cancel: vi.fn(async () => {}),
-    activateSkill: vi.fn(async () => {}),
   };
   let loadingActive = options.loading ?? false;
   const host = {
@@ -88,13 +87,11 @@ export function fakeDispatchHost(options: FakeDispatchOptions = {}) {
     runShellCommandFromInput: spy(),
     updateQueueDisplay: spy(),
     dispatchSlashInput: spy(),
-    appStateController: { supportsCurrentModelCapability: () => true },
     beginSessionRequest: spy(),
     failSessionRequest: spy(),
     appendTranscriptEntry: spy(),
     track: spy(),
     updateEditorBorderHighlight: spy(),
-    controlTowerDesk: { markInputSubmitted: spy() },
     // Test handles.
     editorText: () => editorText,
     setLoading: (value: boolean) => {

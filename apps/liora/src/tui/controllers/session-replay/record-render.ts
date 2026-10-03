@@ -11,20 +11,12 @@ import {
   replayEntry,
   type ReplayRenderContext,
 } from '../../utils/session/message-replay';
-import { buildGoalCompletionMessage } from '../../utils/goal-completion';
 import { ttui } from '#/tui/utils/tui-i18n';
-import {
-  goalLifecycleReplayContent,
-  isModelBlockedGoalLifecycle,
-  isResumeNormalizationGoalPause,
-  yieldToEventLoop,
-} from './helpers';
+import { yieldToEventLoop } from './helpers';
 import type { SessionReplayMessageRenderer } from './message-render';
 import type {
   ApprovalReplayRecord,
   CompactionReplayRecord,
-  GoalReplayLifecycleChange,
-  GoalReplayRecord,
   SessionLoadingProgress,
   SessionReplayHost,
 } from './types';
@@ -73,20 +65,6 @@ export class SessionReplayRecordRenderer {
       case 'compaction':
         this.renderCompaction(context, record);
         return;
-      case 'goal_updated':
-        this.renderGoalReplayRecord(context, record);
-        return;
-      case 'plan_updated':
-        this.tools.flushAssistant(context);
-        if (!record.enabled && context.suppressNextPlanModeOffNotice) {
-          context.suppressNextPlanModeOffNotice = false;
-          return;
-        }
-        context.suppressNextPlanModeOffNotice = false;
-        this.host.appendTranscriptEntry(
-          replayEntry(context, 'status', `Plan mode: ${record.enabled ? 'ON' : 'OFF'}`, 'notice'),
-        );
-        return;
       case 'permission_updated':
         this.tools.flushAssistant(context);
         this.renderPermissionUpdate(context, record.mode);
@@ -125,43 +103,6 @@ export class SessionReplayRecordRenderer {
     });
   }
 
-  private renderGoalReplayRecord(context: ReplayRenderContext, record: GoalReplayRecord): void {
-    this.tools.flushAssistant(context);
-    const { change } = record;
-    switch (change.kind) {
-      case 'created':
-        this.host.appendTranscriptEntry({
-          ...replayEntry(context, 'goal', 'Goal set', 'plain'),
-          goalData: { kind: 'created' },
-        });
-        return;
-      case 'completion':
-        this.host.appendTranscriptEntry(
-          replayEntry(context, 'assistant', buildGoalCompletionMessage(record.snapshot), 'markdown'),
-        );
-        return;
-      case 'lifecycle': {
-        const lifecycleChange: GoalReplayLifecycleChange = { ...change, kind: 'lifecycle' };
-        if (isResumeNormalizationGoalPause(lifecycleChange)) return;
-        if (isModelBlockedGoalLifecycle(lifecycleChange)) {
-          return;
-        }
-        this.appendGoalLifecycleReplayEntry(context, lifecycleChange);
-        return;
-      }
-    }
-  }
-
-  private appendGoalLifecycleReplayEntry(
-    context: ReplayRenderContext,
-    change: GoalReplayLifecycleChange,
-  ): void {
-    this.host.appendTranscriptEntry({
-      ...replayEntry(context, 'goal', goalLifecycleReplayContent(change), 'plain'),
-      goalData: { kind: 'lifecycle', change },
-    });
-  }
-
   private renderPermissionUpdate(context: ReplayRenderContext, mode: PermissionMode): void {
     if (mode === 'yolo') {
       this.host.appendTranscriptEntry(
@@ -182,11 +123,6 @@ export class SessionReplayRecordRenderer {
   }
 
   private renderApprovalResult(context: ReplayRenderContext, record: ApprovalReplayRecord): void {
-    if (record.toolName === 'ExitPlanMode') {
-      this.renderPlanReviewResult(context, record);
-      return;
-    }
-
     const { result } = record;
     const parts: string[] = [];
     switch (result.decision) {
@@ -207,28 +143,4 @@ export class SessionReplayRecordRenderer {
     this.host.appendTranscriptEntry(replayEntry(context, 'status', parts.join(''), 'notice'));
   }
 
-  private renderPlanReviewResult(context: ReplayRenderContext, record: ApprovalReplayRecord): void {
-    const { result } = record;
-    if (result.decision === 'approved') {
-      context.suppressNextPlanModeOffNotice = true;
-      return;
-    }
-    this.tools.removeToolCall(record.toolCallId);
-
-    let content: string;
-    switch (result.decision) {
-      case 'rejected':
-        content =
-          result.selectedLabel === 'Revise' ? 'Plan sent back for revision' : 'Plan review rejected';
-        break;
-      case 'cancelled':
-        content = 'Plan review cancelled';
-        break;
-    }
-    const detail =
-      result.feedback !== undefined && result.feedback.length > 0
-        ? `Feedback: ${result.feedback}`
-        : undefined;
-    this.host.appendTranscriptEntry(replayEntry(context, 'status', content, 'notice', { detail }));
-  }
 }

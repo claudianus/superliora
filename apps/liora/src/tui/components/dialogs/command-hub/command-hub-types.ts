@@ -8,14 +8,7 @@ export type CommandHubActionId =
   | 'start.sessions'
   | 'start.export'
   | 'start.fork'
-  | 'start.conductorHowto'
-  | 'modes.plan'
-  | 'modes.ask'
-  | 'modes.goals'
-  | 'modes.premium'
   | 'modes.permission'
-  | 'modes.conductorProject'
-  | 'modes.reduceParallelism'
   | 'modes.transcriptRegion'
   | 'chat.model'
   | 'chat.thinking'
@@ -24,7 +17,6 @@ export type CommandHubActionId =
   | 'chat.rewind'
   | 'chat.compact'
   | 'chat.btw'
-  | 'chat.loops'
   | 'workspace.files'
   | 'workspace.search'
   | 'workspace.diff'
@@ -33,13 +25,12 @@ export type CommandHubActionId =
   | 'workspace.tasks'
   | 'workspace.workerDock'
   | 'workspace.jobDeck'
+  | 'workspace.jobCreate'
   | 'workspace.jobDrawer'
   | 'workspace.jobInbox'
   | 'workspace.jobOps'
-  | 'workspace.cron'
   | 'workspace.status'
   | 'workspace.quota'
-  | 'extend.extensions'
   | 'appearance.theme'
   | 'appearance.appearance'
   | 'account.login'
@@ -52,11 +43,11 @@ export type CommandHubActionId =
 
   | 'settings.open'
   | `settings.${string}`
-  /** Slash / skill One-search rows (`searchOnly`). */
+  /** Slash-command One-search rows (`searchOnly`). */
   | `slash.${string}`;
 
 /** How activation behaves in the Hub. */
-export type CommandHubItemKind = 'toggle' | 'cycle' | 'open';
+export type CommandHubItemKind = 'cycle' | 'open';
 
 export interface CommandHubItem {
   readonly id: CommandHubActionId;

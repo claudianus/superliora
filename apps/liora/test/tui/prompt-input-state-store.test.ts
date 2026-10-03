@@ -13,6 +13,7 @@ import {
   stashEntriesFromSnapshot,
   writePromptInputState,
 } from '#/tui/prompt-input-state-store';
+import type { PromptPart } from '@superliora/sdk';
 import { LEGACY_PROMPT_INPUT_STATE_FILE } from '#/tui/utils/session/session-ui-paths';
 import { PromptStash } from '#/tui/utils/prompt-stash';
 import {
@@ -79,6 +80,53 @@ describe('prompt-input-state-store', () => {
     expect(snapshot.draft).toEqual({ text: 'typing…', mode: 'prompt' });
     expect(snapshot.lastUserInput).toBe('previous send');
   });
+
+  it('preserves queued media payloads and merged display segments across resume', async () => {
+    const dir = await tempDir();
+    const parts: PromptPart[] = [
+      { type: 'text', text: 'inspect ' },
+      { type: 'image_url', imageUrl: { url: 'data:image/png;base64,AQ==' } },
+      { type: 'file_url', fileUrl: { url: 'data:application/pdf;base64,Ag==', filename: 'spec.pdf' } },
+      { type: 'audio_url', audioUrl: { url: 'data:audio/mpeg;base64,Aw==' } },
+      { type: 'video_url', videoUrl: { url: 'https://example.test/clip.mp4' } },
+      { type: 'text', text: '\n\nthen explain' },
+    ];
+    await writePromptInputState(session(dir), {
+      messages: [{ text: 'inspect media\n\nthen explain', parts, imageAttachmentIds: [1], combinedDisplayTexts: ['inspect media', 'then explain'] }],
+      stash: [],
+      draft: null,
+    });
+    const snapshot = await readPromptInputState(session(dir));
+    expect(queuedMessagesFromSnapshot(snapshot)).toEqual([{
+      text: 'inspect media\n\nthen explain',
+      parts,
+      combinedDisplayTexts: ['inspect media', 'then explain'],
+    }]);
+  });
+
+  it.each([199_999, 200_000, 200_001])(
+    'recovers a queued request when a merged display segment has %i characters',
+    async (length) => {
+      const dir = await tempDir();
+      const segment = 'x'.repeat(length);
+      await writePromptInputState(session(dir), {
+        messages: [{
+          text: 'pending request',
+          mode: 'prompt',
+          combinedDisplayTexts: ['first', segment, 'last'],
+        }],
+        stash: [],
+        draft: null,
+      });
+
+      const snapshot = await readPromptInputState(session(dir));
+      expect(queuedMessagesFromSnapshot(snapshot)).toEqual([{
+        text: 'pending request',
+        mode: 'prompt',
+        combinedDisplayTexts: ['first', segment.slice(0, 200_000), 'last'],
+      }]);
+    },
+  );
 
   it('treats corrupt files as empty instead of throwing', async () => {
     const dir = await tempDir();

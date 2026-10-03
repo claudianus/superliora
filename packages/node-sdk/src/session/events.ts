@@ -10,16 +10,10 @@ import type {
 // Event union plus shared fields/payloads used across event families.
 export type { LioraErrorPayload, Event } from '@superliora/agent-core';
 
-export { MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE } from '@superliora/agent-core';
-
 // Session lifecycle/status events and their status payload.
 export type {
   AgentStatusUpdatedEvent,
   SessionMetaUpdatedEvent,
-  GoalUpdatedEvent,
-  SkillActivatedEvent,
-  SkillCreatedEvent,
-  PluginCommandActivatedEvent,
   ProviderRouteCandidateStatus,
   ProviderRouteFailureKind,
   ProviderRouteSelection,
@@ -35,15 +29,13 @@ export type {
   TurnEndedEvent,
   TurnStepStartedEvent,
   TurnStepCompletedEvent,
-  TurnStepRetryingEvent,
   TurnStepInterruptedEvent,
   TurnEndReason,
 } from '@superliora/agent-core';
 
-// Streaming content and hook-result events.
+// Streaming content events.
 export type {
   AssistantDeltaEvent,
-  HookResultEvent,
   ThinkingDeltaEvent,
 } from '@superliora/agent-core';
 
@@ -53,18 +45,7 @@ export type {
   ToolCallDeltaEvent,
   ToolProgressEvent,
   ToolResultEvent,
-  ToolCallRequest,
-  ToolCallResponse,
   ToolUpdate,
-  McpOAuthAuthorizationUrlUpdateData,
-} from '@superliora/agent-core';
-
-// MCP tool-list and server status events.
-export type {
-  ToolListUpdatedEvent,
-  ToolListUpdatedReason,
-  McpServerStatusEvent,
-  McpServerStatusPayload,
 } from '@superliora/agent-core';
 
 // Approval reverse-RPC request and response/display payloads.
@@ -77,7 +58,7 @@ export type {
   ToolResultDisplay,
 } from '@superliora/agent-core';
 
-// Question reverse-RPC request and answer payloads.
+// Operator question reverse-RPC request and answer payloads.
 export type {
   QuestionRequest,
   QuestionItem,
@@ -92,14 +73,11 @@ export type {
 export type {
   SubagentSpawnedEvent,
   SubagentStartedEvent,
-  SubagentSuspendedEvent,
   SubagentCompletedEvent,
   SubagentFailedEvent,
-  SubagentTodoUpdatedEvent,
   SubagentToolCallEvent,
   SubagentToolResultEvent,
   SubagentToolProgressEvent,
-  ToolsUpdateStoreEvent,
 } from '@superliora/agent-core';
 
 // Compaction lifecycle events and compaction result payload.
@@ -120,8 +98,6 @@ export type {
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
 } from '@superliora/agent-core';
-
-export type { CronFiredEvent } from '@superliora/agent-core';
 
 export type { RuntimeDegradedEvent, RuntimeDegradedScope } from '@superliora/agent-core';
 

@@ -1,3 +1,38 @@
+
+/**
+ * Push a finished Job worktree (or main checkout) ref to a remote.
+ * Deterministic offload lane — never runs on worker Bash / Conductor Bash.
+ * Force-push is always denied; interactive approve + force_user_confirm required.
+ *
+ * Publish targeting: explicit remote_ref or a structured remote_ref: field.
+ * Never inferred from title keywords or auto-inferred as main/master.
+ */
+
+import type { Kaos } from '@superliora/kaos';
+
+import { join } from 'node:path';
+
+import {
+  checkGhCliAuth,
+  hasUnsettledExecutionResources,
+  runGh as kaosRunGh,
+  runGit as kaosRunGit,
+  type GhCliAuthStatus,
+} from '#/session/job/git';
+import { redactSecretsInText } from '#/security/redaction';
+
+
+import type { Agent } from '../../../agent/index';
+import type { ToolStore } from '../../store';
+import type { JobRecord, JobStatus } from './job-ledger';
+import { createJob, getJob, patchJob } from './job-ledger';
+import { resolveMergePushCwd } from './job-git-root';
+import { resolveJobWorktreeMergeRef } from './job-land';
+import { patchJobAndNotify } from './job-notify';
+import { clearJobWorkerHandle, getJobWorkerHandle, registerJobWorkerHandle } from './job-handles';
+import { areJobAdmissionsOpen } from './job-runtime';
+import { isSessionWorktreeOwned } from '../../../session/worktree';
+import { getJobNativeFailure, retainJobNativeCleanup, runJobNativeOperation } from './job-native-resources';
 /** True when git/gh failure text points at missing or rejected credentials. */
 export function looksLikeAuthFailure(text: string): boolean {
   const blob = text.toLowerCase();
@@ -69,47 +104,6 @@ export function enrichDetailWithGhStatus(
   }
 }
 
-/**
- * Push a finished Job worktree (or main checkout) ref to a remote.
- * Deterministic offload lane — never runs on worker Bash / Conductor Bash.
- * Force-push is always denied; interactive approve + force_user_confirm required.
- *
- * Publish targeting: explicit remote_ref, a structured remote_ref: field,
- * or an LLM publish-effect judgment. Never inferred from title keywords.
- * Never auto-infers main/master.
- */
-
-import type { Kaos } from '@superliora/kaos';
-
-import { join } from 'node:path';
-
-import {
-  checkGhCliAuth,
-  runGh as kaosRunGh,
-  runGit as kaosRunGit,
-  type GhCliAuthStatus,
-} from '#/autopilot/git';
-import { redactSecretsInText } from '#/security/redaction';
-
-import { createUserMessage } from '@superliora/kosong';
-
-import type { Agent } from '../../../agent/index';
-import {
-  clampConfidence,
-  clipClassifierText,
-  createClassifierTimeoutSignal,
-  extractTextFromGenerateResponse,
-  parseJsonResponse,
-  classifierDepsFromAgent,
-  type LlmClassifierDeps,
-} from '../../../utils/llm-classifier-utils';
-import type { ToolStore } from '../../store';
-import type { JobRecord, JobStatus } from './job-ledger';
-import { createJob, getJob, patchJob } from './job-ledger';
-import { resolveMergePushCwd } from './job-git-root';
-import { resolveJobWorktreeMergeRef } from './job-land';
-import { patchJobAndNotify } from './job-notify';
-
 export interface JobPushReceipt {
   readonly remote: string;
   readonly localRef: string;
@@ -124,11 +118,11 @@ export interface JobPushReceipt {
 export type RunGitFn = (
   cwd: string,
   args: readonly string[],
-) => Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }>;
+) => Promise<{ readonly code: number | null; readonly stdout: string; readonly stderr: string }>;
 
 export type RunGhFn = (
   args: readonly string[],
-) => Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }>;
+) => Promise<{ readonly code: number | null; readonly stdout: string; readonly stderr: string }>;
 
 export interface PushJobToRemoteInput {
   readonly store: ToolStore;
@@ -140,6 +134,7 @@ export interface PushJobToRemoteInput {
   readonly repoPath?: string;
   readonly agent?: Agent;
   readonly runGit?: RunGitFn;
+  readonly signal?: AbortSignal;
   readonly runGh?: RunGhFn;
   /** Override Pages enable (default: true when remoteRef resolves to gh-pages). */
   readonly enablePages?: boolean;
@@ -158,13 +153,12 @@ async function defaultRunGit(
   kaos: Kaos | undefined,
   cwd: string,
   args: readonly string[],
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  if (kaos === undefined) {
-    return { code: 1, stdout: '', stderr: 'kaos unavailable for git push' };
-  }
-  const res = await kaosRunGit(kaos, cwd, args);
+  signal?: AbortSignal,
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  if (kaos === undefined) throw new Error('kaos unavailable for git push');
+  const res = await kaosRunGit(kaos, cwd, args, 60_000, signal);
   return {
-    code: res.ok ? 0 : (res.exitCode ?? 1),
+    code: res.exitCode,
     stdout: res.stdout,
     stderr: res.stderr,
   };
@@ -173,13 +167,12 @@ async function defaultRunGit(
 async function defaultRunGh(
   kaos: Kaos | undefined,
   args: readonly string[],
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  if (kaos === undefined) {
-    return { code: 1, stdout: '', stderr: 'kaos unavailable for gh' };
-  }
-  const res = await kaosRunGh(kaos, args);
+  signal?: AbortSignal,
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  if (kaos === undefined) throw new Error('kaos unavailable for gh');
+  const res = await kaosRunGh(kaos, args, 60_000, signal);
   return {
-    code: res.ok ? 0 : (res.exitCode ?? 1),
+    code: res.exitCode,
     stdout: res.stdout,
     stderr: res.stderr,
   };
@@ -231,106 +224,11 @@ export function inferPublishRemoteRef(text: string): string | undefined {
   return undefined;
 }
 
-const PUSH_REMOTE_CONFIDENCE_FLOOR = 0.55;
-
-const PUBLISH_TARGET_SYSTEM = [
-  'You judge the intended git publish target of a finished job. Return ONLY compact JSON:',
-  '{"pages_publish":true,"remote_ref":"gh-pages","confidence":0.9,"rationale":"one sentence about the publish effect"}',
-  '',
-  'Decide the remote branch the work should land on — not what words appear in the title.',
-  '',
-  'Definitions:',
-  '- pages_publish: the finish line is publishing a static site to a GitHub Pages (or equivalent host) branch.',
-  '- remote_ref: the remote branch name when pages_publish is true. Never main or master.',
-  '',
-  'Rules:',
-  '- Reason from the done-contract and publish effect first. Title and brief are context only.',
-  '- Do not classify by matching words or phrases in any language.',
-  '- Ordinary product-branch publish (same as the local ref) → pages_publish=false and omit remote_ref.',
-  '- Ambiguous or low confidence → pages_publish=false and omit remote_ref.',
-  '- rationale names the publish effect, never quoted trigger words.',
-].join('\n');
-
-export interface PublishTargetJudgment {
-  readonly pagesPublish: boolean;
-  readonly remoteRef?: string;
-  readonly confidence: number;
-  readonly rationale: string;
-}
-
-export function parsePublishTargetJudgment(text: string): PublishTargetJudgment | undefined {
-  const record = parseJsonResponse(text);
-  if (record === undefined) return undefined;
-  const pagesPublish = record['pages_publish'];
-  if (typeof pagesPublish !== 'boolean') return undefined;
-  const confidence = clampConfidence(record['confidence']);
-  if (confidence === undefined) return undefined;
-  const rationaleRaw = record['rationale'];
-  const rationale =
-    typeof rationaleRaw === 'string' && rationaleRaw.trim().length > 0
-      ? rationaleRaw.trim()
-      : 'publish judgment';
-  const remoteRaw = record['remote_ref'];
-  const remoteRef =
-    typeof remoteRaw === 'string' && remoteRaw.trim().length > 0 ? remoteRaw.trim() : undefined;
-  return { pagesPublish, remoteRef, confidence, rationale };
-}
-
-export function remoteRefFromPublishJudgment(
-  judgment: PublishTargetJudgment,
-): string | undefined {
-  if (judgment.confidence < PUSH_REMOTE_CONFIDENCE_FLOOR) return undefined;
-  if (!judgment.pagesPublish) return undefined;
-  const token = judgment.remoteRef;
-  if (token === undefined || isForbiddenAutoRemoteRef(token)) return undefined;
-  if (validatePushRefToken(token, 'remoteRef') !== undefined) return undefined;
-  return token;
-}
 
 function isForbiddenAutoRemoteRef(token: string): boolean {
   return /^(main|master)$/i.test(token.trim());
 }
 
-async function inferPublishRemoteRefFromEffect(
-  deps: LlmClassifierDeps,
-  job: JobRecord,
-  options?: { readonly signal?: AbortSignal },
-): Promise<string | undefined> {
-  const user = [
-    'Judge the intended remote publish target. Title/brief are context, not a keyword checklist.',
-    '',
-    `title: ${clipClassifierText(job.title)}`,
-    job.prompt !== undefined ? `brief: ${clipClassifierText(job.prompt)}` : undefined,
-    job.resultSummary !== undefined
-      ? `result_summary: ${clipClassifierText(job.resultSummary)}`
-      : undefined,
-    (job.successCriteria ?? []).length > 0
-      ? `success_criteria:\n${job.successCriteria!.map((line) => `- ${clipClassifierText(line, 400)}`).join('\n')}`
-      : undefined,
-    (job.verificationCommands ?? []).length > 0
-      ? `verification_commands:\n${job.verificationCommands!.map((line) => `- ${clipClassifierText(line, 400)}`).join('\n')}`
-      : undefined,
-    job.notes !== undefined ? `notes: ${clipClassifierText(job.notes)}` : undefined,
-  ]
-    .filter(Boolean)
-    .join('\n');
-  if (user.trim().length === 0) return undefined;
-  try {
-    const response = await deps.generate(
-      deps.provider,
-      PUBLISH_TARGET_SYSTEM,
-      [],
-      [createUserMessage(user)],
-      undefined,
-      { signal: createClassifierTimeoutSignal(10_000, options?.signal) },
-    );
-    const parsed = parsePublishTargetJudgment(extractTextFromGenerateResponse(response));
-    if (parsed === undefined) return undefined;
-    return remoteRefFromPublishJudgment(parsed);
-  } catch {
-    return undefined;
-  }
-}
 
 /** Join job fields that commonly carry publish intent. */
 export function collectJobPublishHints(job: JobRecord): string {
@@ -339,10 +237,7 @@ export function collectJobPublishHints(job: JobRecord): string {
     .join('\n');
 }
 
-/**
- * Resolve remoteRef: explicit arg wins, else a structured remote_ref: field.
- * Keyword matching is forbidden — use {@link resolvePushRemoteRefWithInfer}.
- */
+/** Resolve the explicit argument or an operator-supplied structured ref field. */
 export function resolvePushRemoteRef(input: {
   readonly explicit?: string;
   readonly job: JobRecord;
@@ -352,18 +247,6 @@ export function resolvePushRemoteRef(input: {
   return inferPublishRemoteRef(collectJobPublishHints(input.job));
 }
 
-/** Explicit / structured field, then LLM publish-effect judgment. Never infers main. */
-export async function resolvePushRemoteRefWithInfer(input: {
-  readonly explicit?: string;
-  readonly job: JobRecord;
-  readonly deps?: LlmClassifierDeps;
-  readonly signal?: AbortSignal;
-}): Promise<string | undefined> {
-  const structured = resolvePushRemoteRef(input);
-  if (structured !== undefined) return structured;
-  if (input.deps === undefined) return undefined;
-  return inferPublishRemoteRefFromEffect(input.deps, input.job, { signal: input.signal });
-}
 
 /** `owner/repo` from a github.com remote URL (https or ssh). */
 export function parseGithubOwnerRepo(remoteUrl: string): { owner: string; repo: string } | undefined {
@@ -493,7 +376,21 @@ export function evaluatePushTrust(input: {
 /**
  * Push source job HEAD (worktree preferred, else main repoPath) to remote.
  */
-export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<PushJobToRemoteResult> {
+export function pushJobToRemote(input: PushJobToRemoteInput): Promise<PushJobToRemoteResult> {
+  const failure = getJobNativeFailure(input.store, input.job.id);
+  if (hasUnsettledExecutionResources(failure)) return Promise.reject(failure);
+  if (!areJobAdmissionsOpen(input.store, input.job.id) ||
+      (input.job.worktreePath && isSessionWorktreeOwned(input.job.worktreePath, input.job.repoRoot ?? input.repoPath ?? ''))) {
+    return Promise.resolve({ ok: false, job: input.job, pushed: false, message: '', error: 'Job is closed or its worktree is still owned.' });
+  }
+  return runJobNativeOperation(input.store, input.job.id, {
+    paths: [input.job.worktreePath], repoRoots: [input.job.repoRoot ?? input.repoPath],
+  }, (_holdPath, signal) => performPushJobToRemote({
+    ...input, signal: input.signal ? AbortSignal.any([signal, input.signal]) : signal,
+  }));
+}
+
+async function performPushJobToRemote(input: PushJobToRemoteInput): Promise<PushJobToRemoteResult> {
   const { store, job } = input;
   const remote = input.remote.trim() || 'origin';
   const remoteErr = validatePushRefToken(remote, 'remote');
@@ -545,7 +442,7 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
 
   const runGit =
     input.runGit ??
-    ((dir: string, args: readonly string[]) => defaultRunGit(input.kaos, dir, args));
+    ((dir: string, args: readonly string[]) => defaultRunGit(input.kaos, dir, args, input.signal));
 
   // Resolve local ref from the job worktree when present; git push runs at ownership root.
   const refProbeCwd = job.worktreePath ?? cwd;
@@ -580,10 +477,9 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
     }
   }
 
-  const inferredRemote = await resolvePushRemoteRefWithInfer({
+  const inferredRemote = resolvePushRemoteRef({
     explicit: input.remoteRef,
     job,
-    deps: classifierDepsFromAgent(input.agent),
   });
   const remoteRef = (inferredRemote ?? localRef).trim();
   const remoteRefErr = validatePushRefToken(remoteRef, 'remoteRef');
@@ -621,7 +517,7 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
     const detail = await diagnoseAuthFailure({
       detail: rawDetail,
       kaos: input.kaos,
-      runGh: input.runGh,
+      runGh: input.runGh ?? ((args: readonly string[]) => defaultRunGh(input.kaos, args, input.signal)),
     });
     const err = `git push failed: ${detail}`;
     const next = patchJobAndNotify(
@@ -649,7 +545,7 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
     (input.enablePages !== false && remoteRef === 'gh-pages');
   if (wantPages) {
     const runGh =
-      input.runGh ?? ((args: readonly string[]) => defaultRunGh(input.kaos, args));
+      input.runGh ?? ((args: readonly string[]) => defaultRunGh(input.kaos, args, input.signal));
     const pages = await enableGitHubPages({
       cwd,
       remote,
@@ -732,6 +628,11 @@ export interface DispatchPushRemoteResult {
  */
 export function dispatchPushRemote(input: DispatchPushRemoteInput): DispatchPushRemoteResult {
   const { store, sourceJob, trustReason } = input;
+  if (!areJobAdmissionsOpen(store)) return { dispatched: false, reason: 'Job runtime is closed.' };
+  if (sourceJob.status === 'running' || sourceJob.status === 'queued' || getJobWorkerHandle(sourceJob.id) !== undefined ||
+      (sourceJob.worktreePath && isSessionWorktreeOwned(sourceJob.worktreePath, sourceJob.repoRoot ?? input.repoPath ?? ''))) {
+    return { dispatched: false, reason: 'Stop the worker before publishing its worktree.' };
+  }
   const remote = input.remote.trim() || 'origin';
   const remoteRef = resolvePushRemoteRef({
     explicit: input.remoteRef,
@@ -807,6 +708,11 @@ export function dispatchPushRemote(input: DispatchPushRemoteInput): DispatchPush
       remoteRef,
       enablePages: input.enablePages,
       targets: input.targets,
+    });
+  }).catch((error: unknown) => {
+    retainJobNativeCleanup(store, pushJob.id, error);
+    input.agent?.log?.warn('Job push failed', {
+      jobId: pushJob.id, error: error instanceof Error ? error.message : String(error),
     });
   });
 
@@ -1115,6 +1021,48 @@ export async function runMultiRepoPush(input: {
 
 /** Deterministic push executor for kind=push jobs — never spawns an LLM worker. */
 export async function runPushRemoteJob(input: RunPushRemoteJobInput): Promise<PushJobToRemoteResult> {
+  const job = getJob(input.store, input.pushJob.id) ?? input.pushJob;
+  if (!areJobAdmissionsOpen(input.store, job.id)) {
+    return { ok: false, job, pushed: false, message: '', error: 'Job runtime is closed.' };
+  }
+  if (job.status === 'cancelled' || job.status === 'interrupted') {
+    return { ok: false, job, pushed: false, message: '', error: `Job is ${job.status}.` };
+  }
+  const source = input.sourceJob ?? (job.parentJobId ? getJob(input.store, job.parentJobId) : undefined);
+  const failure = getJobNativeFailure(input.store, job.id);
+  if (hasUnsettledExecutionResources(failure)) throw failure;
+  if (source?.worktreePath && isSessionWorktreeOwned(source.worktreePath, source.repoRoot ?? input.repoPath ?? '')) {
+    const detail = 'Stop the source worker before publishing its worktree.';
+    const blocked = patchJobAndNotify(input.store, job.id, { status: 'blocked', resultSummary: detail }, { agent: input.agent });
+    return { ok: false, job: blocked ?? job, pushed: false, message: '', error: detail };
+  }
+  const controller = new AbortController();
+  const handle = registerJobWorkerHandle(input.store, job.id, controller, source?.worktreePath ? [source.worktreePath] : []);
+  try {
+    return await runJobNativeOperation(input.store, job.id, {
+      paths: [source?.worktreePath], repoRoots: [source?.repoRoot ?? input.repoPath],
+    }, (holdPath, signal) => executePushRemoteJob({
+      ...input,
+      runGit: (cwd, args) => {
+        holdPath(cwd);
+        signal.throwIfAborted();
+        return input.runGit ? input.runGit(cwd, args) : defaultRunGit(input.kaos, cwd, args, signal);
+      },
+      runGh: (args) => {
+        signal.throwIfAborted();
+        return input.runGh ? input.runGh(args) : defaultRunGh(input.kaos, args, signal);
+      },
+    }));
+  } catch (error) {
+    if (!controller.signal.aborted || hasUnsettledExecutionResources(error)) handle.failure = error;
+    retainJobNativeCleanup(input.store, job.id, error);
+    throw error;
+  } finally {
+    clearJobWorkerHandle(job.id);
+  }
+}
+
+async function executePushRemoteJob(input: RunPushRemoteJobInput): Promise<PushJobToRemoteResult> {
   const { store, pushJob } = input;
   const source =
     input.sourceJob ??
@@ -1190,7 +1138,7 @@ export async function runPushRemoteJob(input: RunPushRemoteJobInput): Promise<Pu
 
   let result: PushJobToRemoteResult;
   try {
-    result = await pushJobToRemote({
+    result = await performPushJobToRemote({
       store,
       job: source,
       remote: input.remote,
@@ -1204,6 +1152,7 @@ export async function runPushRemoteJob(input: RunPushRemoteJobInput): Promise<Pu
       agent: input.agent,
     });
   } catch (error) {
+    if (hasUnsettledExecutionResources(error)) throw error;
     const detail = formatPushFailureDetail(error instanceof Error ? error.message : String(error));
     const failed = patchJobAndNotify(
       store,

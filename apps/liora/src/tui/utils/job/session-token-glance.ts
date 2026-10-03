@@ -2,7 +2,7 @@
  * Optional footer token glance from Conductor job card usage (F12).
  */
 
-import { formatTokenCount } from '#/tui/utils/agent/context-working-set';
+import { formatTokenCount } from '#/utils/usage/usage-format';
 import type { ConductorJobCard } from './job-strip';
 
 /** Sum input+output tokens across running jobs that already have usage. */

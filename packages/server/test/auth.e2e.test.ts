@@ -242,7 +242,6 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
         model: 'x',
         thinking: 'off',
         permission_mode: 'manual',
-        plan_mode: false,
       },
     });
     const env = envelopeOf(res.json());
@@ -277,7 +276,6 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
         model: 'x',
         thinking: 'off',
         permission_mode: 'manual',
-        plan_mode: false,
       },
     });
     const env = envelopeOf(res.json());
@@ -327,7 +325,6 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
         model: 'x',
         thinking: 'off',
         permission_mode: 'manual',
-        plan_mode: false,
       },
     });
     const env = envelopeOf(res.json());
@@ -360,7 +357,6 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
         model: 'x',
         thinking: 'off',
         permission_mode: 'manual',
-        plan_mode: false,
       },
     });
     const env = envelopeOf(res.json());
@@ -396,7 +392,6 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
         model: 'x',
         thinking: 'off',
         permission_mode: 'manual',
-        plan_mode: false,
       },
     });
     const env = envelopeOf(res.json());

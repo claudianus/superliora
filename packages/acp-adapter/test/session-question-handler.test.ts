@@ -1,7 +1,6 @@
 /**
- * Tests for {@link AcpSession.handleQuestion} — the Phase 13.1 bridge
- * from the SDK's AskUserQuestion reverse-RPC to the ACP
- * `session/request_permission` surface.
+ * Tests for the native SDK question reverse-RPC bridge to ACP
+ * `session/request_permission`.
  *
  * Uses a captured-handler pattern (mirrors `approval.test.ts`): the stub
  * `Session` records the `QuestionHandler` registered by the AcpSession
@@ -157,7 +156,7 @@ describe('AcpSession.handleQuestion', () => {
       'allow_once',
       'reject_once',
     ]);
-    expect(req.toolCall.title).toBe('AskUserQuestion');
+    expect(req.toolCall.title).toBe('Question');
     // currentTurnId is undefined in this test path, so raw toolCallId is used.
     expect(req.toolCall.toolCallId).toBe('tc-ask-1');
     expect(req.toolCall.content).toEqual([

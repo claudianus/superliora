@@ -5,9 +5,9 @@
 > Pages under `docs/en/` are unpublished reference. They are not deployed.
 > Prefer the site for current product behavior.
 
-SuperLiora is an independent AI coding agent for sustained software work.
-Shift-Tab switches Ask and Build. Ask mode answers without starting new jobs.
-Plan with `/plan`, goals with `/goal`, and delegated work on the job strip.
+SuperLiora is an independent AI coding agent with a minimal autonomous runtime.
+The model uses Bash and SessionControl. Normal requests run directly in the
+workspace; native Jobs and explicit worktrees provide opt-in isolation.
 
 The files in this directory remain as reference material for older guide pages.
 Update `apps/site/` for the public website.

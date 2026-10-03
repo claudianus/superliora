@@ -1,16 +1,10 @@
-/**
- * Conductor UX v2 Job RPC hotpath — Session.job* instead of LLM tool injection.
- */
+/** Operator Job actions call the Session API directly. */
 
 import { formatErrorMessage } from '../utils/event-payload';
 import { shortJobId } from '../components/job-board/job-board-helpers';
-import { isExperimentalFlagEnabled } from './experimental-flags';
 import type { SlashCommandHost } from './hub/dispatch';
 import { ttui } from '../utils/tui-i18n';
 
-export function isConductorUxV2Enabled(): boolean {
-  return isExperimentalFlagEnabled('conductor_ux_v2');
-}
 
 function ackStatus(host: SlashCommandHost, display: string, text: string): void {
   const line = text.trim().length > 0 ? text.trim() : 'ok';
@@ -137,10 +131,10 @@ export async function hotpathJobList(host: SlashCommandHost): Promise<void> {
       return `${id}  ${job.status.padEnd(12)}  ${job.kind.padEnd(10)}  p${String(job.priority)}  ${job.title}`;
     });
     const more = jobs.length > lines.length ? `\n… +${String(jobs.length - lines.length)} more` : '';
-    host.showNotice(ttui('tui.job.conductorList', { count: String(jobs.length) }), `${lines.join('\n')}${more}`, {
+    host.showNotice(ttui('tui.job.listTitle', { count: String(jobs.length) }), `${lines.join('\n')}${more}`, {
       coalesceKey: 'job-list',
     });
-    host.showStatus(ttui('tui.job.conductorHint', { count: String(jobs.length) }), 'info');
+    host.showStatus(ttui('tui.job.countHint', { count: String(jobs.length) }), 'info');
   } catch (error) {
     failStatus(host, '/job list', error);
   }
@@ -172,5 +166,69 @@ export async function hotpathJobGc(host: SlashCommandHost): Promise<void> {
     );
   } catch (error) {
     failStatus(host, '/job gc', error);
+  }
+}
+
+export async function hotpathJobCreate(host: SlashCommandHost, prompt: string): Promise<void> {
+  try {
+    const result = await host.requireSession().jobCreate({ title: prompt, prompt, kind: 'task' });
+    ackStatus(host, '/job create', result.text);
+  } catch (error) {
+    failStatus(host, '/job create', error);
+  }
+}
+
+export async function hotpathJobReviewOrVerify(
+  host: SlashCommandHost,
+  jobId: string,
+  action: 'review' | 'verify',
+  request: string,
+): Promise<void> {
+  const display = `/job ${action} ${shortJobId(jobId)}`;
+  try {
+    const session = host.requireSession();
+    const source = await session.jobInspect(jobId);
+    if (source === undefined) {
+      host.showError(ttui('tui.job.noMatch', { jobId }));
+      return;
+    }
+    const objective = request || (action === 'review'
+      ? 'Review the changes and report actionable findings.'
+      : 'Verify the changes and report the observed results.');
+    const context = source.job.resultSummary?.trim();
+    const prompt = `${objective}\n\nSource Job: ${source.job.id} — ${source.job.title}${context ? `\nWorker summary (context, not verification):\n${context}` : ''}`;
+    const result = await session.jobCreate({
+      title: `${action === 'review' ? 'Review' : 'Verify'}: ${source.job.title}`,
+      kind: 'verify',
+      parentJobId: source.job.id,
+      prompt,
+    });
+    ackStatus(host, display, result.text);
+  } catch (error) {
+    failStatus(host, display, error);
+  }
+}
+
+export async function hotpathJobPush(host: SlashCommandHost, jobId: string): Promise<void> {
+  const display = `/job push ${shortJobId(jobId)}`;
+  try {
+    const session = host.requireSession();
+    const source = await session.jobInspect(jobId);
+    if (source === undefined) {
+      host.showError(ttui('tui.job.noMatch', { jobId }));
+      return;
+    }
+    if (source.job.status !== 'done' && source.job.status !== 'blocked') {
+      host.showError(ttui('tui.job.pushRequiresSettled', { jobId: source.job.id, status: source.job.status }));
+      return;
+    }
+    const result = await session.jobPush({ jobId, approve: true, forceUserConfirm: true });
+    if (!result.ok || result.pushJob === undefined) {
+      host.showError(result.error ?? result.text);
+      return;
+    }
+    ackStatus(host, display, result.text);
+  } catch (error) {
+    failStatus(host, display, error);
   }
 }

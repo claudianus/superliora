@@ -9,8 +9,6 @@ export interface BackgroundManagerHost {
   readonly persistence?: BackgroundTaskPersistence;
   readonly tasks: Map<string, ManagedTask>;
   readonly ghosts: Map<string, BackgroundTaskInfo>;
-  readonly scheduledNotificationKeys: Set<string>;
-  readonly deliveredNotificationKeys: Set<string>;
 
   toInfo(entry: ManagedTask): BackgroundTaskInfo;
   getTask(taskId: string): BackgroundTaskInfo | undefined;

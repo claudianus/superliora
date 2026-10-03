@@ -197,7 +197,6 @@ try {
       commandName,
       noBrowserUse: args.noBrowserUse,
       noComputerUse: args.noComputerUse,
-      noRetrieval: args.noRetrieval,
       onDetail: (msg) => theatre.setDetail(msg),
       onWarn: (msg) => theatre.note(msg),
       locale: installLocale,
@@ -363,7 +362,6 @@ function parseArgs(argv) {
     noShellRc: process.env.SUPERLIORA_NO_SHELL_RC === '1',
     noBrowserUse: process.env.SUPERLIORA_SKIP_BROWSER_USE === '1',
     noComputerUse: process.env.SUPERLIORA_SKIP_COMPUTER_USE === '1',
-    noRetrieval: process.env.SUPERLIORA_SKIP_RETRIEVAL === '1',
     noGit: process.env.SUPERLIORA_SKIP_GIT === '1',
     noTerminal:
       process.env.SUPERLIORA_NO_TERMINAL === '1' || process.env.SUPERLIORA_SKIP_TERMINAL === '1',
@@ -423,9 +421,6 @@ function parseArgs(argv) {
         break;
       case '--no-computer-use':
         out.noComputerUse = true;
-        break;
-      case '--no-retrieval':
-        out.noRetrieval = true;
         break;
       case '--no-git':
         out.noGit = true;
@@ -496,7 +491,6 @@ Options:
   --no-build            Skip pnpm install/build (source mode)
   --no-browser-use      Skip browser-use sidecars
   --no-computer-use     Skip cua-driver
-  --no-retrieval        Skip Granite embedder bootstrap
   --no-git              Skip Git / Git Bash bootstrap
   --no-terminal         Skip Windows Terminal only (font / prompt / shell still run)
   --no-host-setup       Skip host setup (or SUPERLIORA_NO_HOST_SETUP=1)

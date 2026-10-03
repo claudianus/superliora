@@ -24,7 +24,7 @@ import { applyLoginShellPathFromNode } from './login-shell-path';
 import { KaosFileExistsError } from './errors';
 import { BufferedReadable, decodeTextWithErrors, globPatternToRegex } from './internal';
 import type { Kaos } from './kaos';
-import type { KaosProcess } from './process';
+import { disposeProcessStreams, type KaosProcess } from './process';
 import { resolveRuntimeSpawn, runtimePathPrepend } from './runtime-bins';
 import { realpathLongestExistingPrefix } from './realpath';
 import type { ProcessSandboxConfig } from './process-sandbox';
@@ -81,12 +81,14 @@ class LocalProcess implements KaosProcess {
   readonly stdin: Writable;
   readonly stdout: Readable;
   readonly stderr: Readable;
-  readonly pid: number;
+  readonly pid: number | undefined;
 
   private readonly _child: ChildProcess;
   private _exitCode: number | null = null;
-  private readonly _exitPromise: Promise<number>;
-  private _disposed = false;
+  private readonly _exitPromise: Promise<number | null>;
+  private _exitObserved = false;
+  private _spawnFailed = false;
+  private _disposePromise: Promise<void> | undefined;
 
   constructor(child: ChildProcess) {
     if (child.stdin === null || child.stdout === null || child.stderr === null) {
@@ -97,16 +99,17 @@ class LocalProcess implements KaosProcess {
     this.stdin = child.stdin;
     this.stdout = new BufferedReadable(child.stdout);
     this.stderr = new BufferedReadable(child.stderr);
-    this.pid = child.pid ?? -1;
-
-    this._exitPromise = new Promise<number>((resolve, reject) => {
-      child.on('exit', (code: number | null) => {
-        this._exitCode = code ?? -1;
-        resolve(this._exitCode);
-      });
-      child.on('error', (error: Error) => {
-        reject(error);
-      });
+    this.pid = child.pid;
+    const completion = Promise.withResolvers<number | null>();
+    this._exitPromise = completion.promise;
+    child.once('exit', (code: number | null) => {
+      this._exitCode = code;
+      this._exitObserved = true;
+      completion.resolve(code);
+    });
+    child.on('error', (error: Error) => {
+      if (child.pid === undefined) this._spawnFailed = true;
+      completion.reject(error);
     });
   }
 
@@ -114,7 +117,7 @@ class LocalProcess implements KaosProcess {
     return this._exitCode;
   }
 
-  async wait(): Promise<number> {
+  async wait(): Promise<number | null> {
     return this._exitPromise;
   }
 
@@ -124,7 +127,7 @@ class LocalProcess implements KaosProcess {
     // when spawn() fails to find/execute the command. Calling
     // process.kill(-1, ...) on POSIX would signal the entire process
     // group, potentially killing unrelated processes.
-    if (this.pid <= 0) {
+    if (this.pid === undefined) {
       return Promise.resolve();
     }
 
@@ -177,12 +180,13 @@ class LocalProcess implements KaosProcess {
     return Promise.resolve();
   }
 
-  dispose(): void {
-    if (this._disposed) return;
-    this._disposed = true;
-    this.stdin.destroy();
-    this.stdout.destroy();
-    this.stderr.destroy();
+  get resourcesSettled(): boolean | undefined {
+    if ((this._exitObserved || this._spawnFailed) && this.stdin.closed && this.stdout.closed && this.stderr.closed) return true;
+    return this._disposePromise === undefined ? undefined : false;
+  }
+
+  dispose(): Promise<void> {
+    return this._disposePromise ??= disposeProcessStreams([this.stdin, this.stdout, this.stderr]);
   }
 }
 

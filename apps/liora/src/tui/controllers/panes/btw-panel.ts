@@ -10,7 +10,6 @@ import {  NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { BtwPanelComponent } from '../../components/panes/btw-panel';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { ttui } from '../../utils/tui-i18n';
-import { formatHookResultPlain } from '../../utils/hook-result-format';
 import { createMarkdownTheme } from '../../theme/pi-tui-theme';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
@@ -112,10 +111,6 @@ export class BtwPanelController {
         return true;
       case 'thinking.delta':
         panel.appendThinking(event.delta);
-        requestTUILayoutRender(this.host.state);
-        return true;
-      case 'hook.result':
-        panel.appendAnswer(formatHookResultPlain(event));
         requestTUILayoutRender(this.host.state);
         return true;
       case 'turn.ended':

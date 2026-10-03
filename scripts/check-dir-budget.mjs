@@ -4,7 +4,7 @@
  *
  * Counts .ts/.tsx siblings at one directory depth (not recursive).
  *
- * Thresholds (generated/catalog excluded):
+ * Thresholds (generated code excluded):
  *   >40  fail (unless allowlisted) when --fail
  *   >25  warn
  *
@@ -45,7 +45,6 @@ const ROOTS = [
 const IGNORED_DIR_NAMES = new Set([
   'dist',
   'node_modules',
-  'catalog',
   'generated',
   'coverage',
   '.tmp-api-extractor',
@@ -136,7 +135,7 @@ warns.sort((a, b) => b.count - a.count);
 allowlisted.sort((a, b) => b.count - a.count);
 dualEntries.sort();
 
-console.log(`Dir budget (warn>${WARN_AT} flat .ts, fail>${FAIL_AT}; catalog/generated excluded)`);
+console.log(`Dir budget (warn>${WARN_AT} flat .ts, fail>${FAIL_AT}; generated code excluded)`);
 
 if (
   fails.length === 0 &&

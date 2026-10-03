@@ -11,7 +11,6 @@ import {
   appendJobInboxEntry,
   emptyConductorJobsSnapshot,
   mergeConductorJobsSnapshot,
-  parseJobStripFromToolOutput,
   patchConductorJobActivityByWorker,
   patchConductorJobProgressByWorker,
   patchConductorJobUsage,
@@ -104,31 +103,6 @@ export class JobBoardStore {
     );
   }
 
-  /**
-   * Best-effort JobList / Job* tool output parse (strip line or ledger).
-   * Events stay authoritative; this only backfills between events.
-   * Returns true when the snapshot changed.
-   */
-  applyToolOutput(output: string): boolean {
-    const parsed = parseJobStripFromToolOutput(output);
-    if (parsed === null) return false;
-    const prev = this.current;
-    const hasCards = parsed.jobs !== undefined && parsed.jobs.length > 0;
-    const scalarsChanged =
-      (parsed.total !== undefined && parsed.total !== prev.total) ||
-      (parsed.running !== undefined && parsed.running !== prev.running) ||
-      (parsed.queued !== undefined && parsed.queued !== prev.queued) ||
-      (parsed.blocked !== undefined && parsed.blocked !== prev.blocked) ||
-      (parsed.needsUser !== undefined && parsed.needsUser !== prev.needsUser) ||
-      (parsed.interrupted !== undefined && parsed.interrupted !== prev.interrupted) ||
-      (parsed.failed !== undefined && parsed.failed !== prev.failed) ||
-      (parsed.unreadInbox !== undefined && parsed.unreadInbox !== prev.unreadInbox) ||
-      (parsed.maxConcurrent !== undefined && parsed.maxConcurrent !== prev.maxConcurrent);
-    if (!hasCards && !scalarsChanged) return false;
-    const next = mergeConductorJobsSnapshot(prev, parsed);
-    this.publish(hasCards ? this.deriveFromCards(next.jobs, next.unreadInbox, next.inbox, next.maxConcurrent) : next);
-    return true;
-  }
 
   reset(): void {
     this.publish(emptyConductorJobsSnapshot());

@@ -80,15 +80,13 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
 
   if (error instanceof APIStatusError) {
     const message = sanitizeStatusErrorMessage(error.message);
-    const permanentQuota = isPermanentQuotaOrBillingMessage(message);
+    const permanentQuota = error.statusCode === 402 || isPermanentQuotaOrBillingMessage(message);
     const looksLikeRateLimit =
       !permanentQuota &&
       (error.statusCode === 429 || isQuotaOrRateLimitMessage(message));
 
     let resolvedCode: LioraErrorCode;
-    if (error.statusCode === 401 || error.statusCode === 402) {
-      // 402 payment required (insufficient balance) is as permanent as a
-      // bad key until the account is topped up — surface auth, never auto-retry.
+    if (error.statusCode === 401 || error.statusCode === 403) {
       resolvedCode = ErrorCodes.PROVIDER_AUTH_ERROR;
     } else if (permanentQuota) {
       // Exhausted plan/credits/payment — surface as API error, never auto-retry.
@@ -121,10 +119,7 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
         statusCode: error.statusCode,
         requestId: error.requestId,
         ...(permanentQuota ? { permanentQuota: true } : {}),
-        // Plumb the provider's Retry-After hint into the payload so
-        // resolveProviderRetryDelayMs honors it; without this the turn-level
-        // recovery always uses the fixed 15s→120s ladder and burns the retry
-        // budget while the provider is still telling us to wait.
+        // Preserve native Retry-After hints for caller-selected transport retries.
         ...extractRetryAfterDetails(error),
       },
       retryable,
@@ -242,8 +237,18 @@ export function isQuotaOrRateLimitMessage(message: string): boolean {
  * terminal renderers do not show the status line as blank.
  */
 function sanitizeStatusErrorMessage(message: string): string {
-  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(message);
-  const title = titleMatch?.[1]?.trim();
+  // Scan each delimiter once; repeated incomplete title tags must not backtrack.
+  const titleStart = message.search(/<title/i);
+  const contentStart = titleStart < 0 ? -1 : message.indexOf('>', titleStart + 6);
+  let title: string | undefined;
+  if (contentStart >= 0) {
+    const closingTag = /<\/title>/gi;
+    closingTag.lastIndex = contentStart + 1;
+    const titleEnd = closingTag.exec(message)?.index;
+    if (titleEnd !== undefined) {
+      title = message.slice(contentStart + 1, titleEnd).trim();
+    }
+  }
   const normalized = title !== undefined && title.length > 0 ? title : message;
   return normalized.replaceAll('\r', '');
 }

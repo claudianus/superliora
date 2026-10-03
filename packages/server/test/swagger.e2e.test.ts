@@ -143,7 +143,7 @@ describe('Swagger / OpenAPI', () => {
     expect(paths['/api/v1/meta']).toBeDefined();
     expect(paths['/api/v1/sessions']).toBeDefined();
     expect(paths['/api/v1/sessions/{tail}']).toBeUndefined();
-    expect(paths['/api/v1/tools']).toBeDefined();
+    expect(paths['/api/v1/tools']).toBeUndefined();
     expect(paths['/api/v1/files']).toBeDefined();
 
     const createSessionRequest = requestJsonSchema(doc, '/api/v1/sessions', 'post');

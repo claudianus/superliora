@@ -12,6 +12,7 @@ function task(overrides: Partial<BackgroundTaskInfo> = {}): BackgroundTaskInfo {
     taskId: 'bash-aaaaaaaa',
     kind: 'process',
     command: 'sleep 10',
+    cwd: '/tmp/project',
     description: 'Bash: sleep 10',
     status: 'running',
     detached: false,
@@ -37,13 +38,6 @@ describe('pickForegroundTask', () => {
     expect(pickForegroundTask([task({ status: 'killed' })])).toBeUndefined();
   });
 
-  it('excludes question tasks', () => {
-    const question = task({
-      kind: 'question',
-      questionCount: 1,
-    } as Partial<BackgroundTaskInfo>);
-    expect(pickForegroundTask([question])).toBeUndefined();
-  });
 
   it('returns the most recently started foreground running task', () => {
     const older = task({ taskId: 'bash-old', startedAt: 1000 });
@@ -80,12 +74,11 @@ describe('pickForegroundTasks', () => {
     ]);
   });
 
-  it('excludes detached, terminal, and question tasks', () => {
+  it('excludes detached and terminal tasks', () => {
     const fg = task({ taskId: 'bash-fg' });
     const detached = task({ taskId: 'bash-bg', detached: true });
     const done = task({ taskId: 'bash-done', status: 'completed' });
-    const question = task({ taskId: 'q', kind: 'question' } as Partial<BackgroundTaskInfo>);
-    expect(pickForegroundTasks([fg, detached, done, question]).map((t) => t.taskId)).toEqual([
+    expect(pickForegroundTasks([fg, detached, done]).map((t) => t.taskId)).toEqual([
       'bash-fg',
     ]);
   });

@@ -23,6 +23,34 @@ describe('toKimiErrorPayload APIStatusError message sanitization', () => {
     expect(payload.message).toBe('line1\nline2');
   });
 
+  it.each([
+    [
+      'İ<html><TiTlE class="status"> \r\nGateway unavailable\n </TITLE><title>later</title>',
+      'Gateway unavailable',
+    ],
+    ['<title>outer<title>inner</title></title>', 'outer<title>inner'],
+    ['<title malformed<title> recovered </title>', 'recovered'],
+    ['<title> \r\n </title><title>later</title>', '<title> \n </title><title>later</title>'],
+    ['<title>missing close\r', '<title>missing close'],
+    ['<title missing bracket\r', '<title missing bracket'],
+  ])('preserves title extraction and fallback for %s', (message, expected) => {
+    expect(toKimiErrorPayload(new APIStatusError(500, message)).message).toBe(expected);
+  });
+
+  it('handles repeated incomplete title tags without losing the original message', () => {
+    for (const fragment of ['<title', '<title>a']) {
+      const message = fragment.repeat(20_000);
+      expect(toKimiErrorPayload(new APIStatusError(500, message)).message).toBe(message);
+    }
+  });
+
+  it('extracts the first title after a long incomplete opening tag', () => {
+    const message = `${'<title'.repeat(20_000)}> Gateway unavailable </title>`;
+    expect(toKimiErrorPayload(new APIStatusError(500, message)).message).toBe(
+      'Gateway unavailable',
+    );
+  });
+
   it('keeps status-specific error codes while sanitizing the message', () => {
     const html = '<html><head><title>429 Too Many Requests</title></head></html>';
 

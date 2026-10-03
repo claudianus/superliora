@@ -3,7 +3,7 @@
  * Closed → Open (after failureThreshold) → HalfOpen (after cooldown) → Closed.
  */
 
-export type CircuitState = 'closed' | 'open' | 'half_open';
+type CircuitState = 'closed' | 'open' | 'half_open';
 
 export interface CircuitBreakerSnapshot {
   readonly state: CircuitState;

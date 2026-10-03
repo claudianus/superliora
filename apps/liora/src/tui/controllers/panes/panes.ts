@@ -589,10 +589,10 @@ export class PanesController {
     const { host } = this;
     const trimmed = (text ?? host.state.editor.getText()).trimStart();
     const isBash = host.state.appState.inputMode === 'bash';
-    const highlighted = host.state.appState.planMode || isBash || trimmed.startsWith('/');
+    const highlighted = isBash || trimmed.startsWith('/');
     const prevHighlighted = host.state.editor.borderHighlighted;
     host.state.editor.borderHighlighted = highlighted;
-    // Shell mode: fixed hue. Plan/slash: primary.
+    // Shell commands and slash commands retain their distinct border cues.
     if (isBash) {
       host.state.editor.borderColor = (s: string) => currentTheme.fg('shellMode', s);
     } else if (highlighted) {
@@ -600,7 +600,7 @@ export class PanesController {
     } else {
       host.state.editor.borderColor = (s: string) => currentTheme.fg('border', s);
     }
-    // Only repaint when the highlight *state* flips (plan/slash/bash).
+    // Only repaint when the highlight state flips.
     if (prevHighlighted === highlighted) return;
     requestTUIContentRender(host.state);
   }

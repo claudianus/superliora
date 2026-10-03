@@ -1,147 +1,109 @@
-import type { ChatProvider, ModelCapability } from '@superliora/kosong';
+import type { GenerateResult } from '@superliora/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Agent } from '../../../src/agent';
-import {
-  COMPACTION_MIN_OUTPUT_TOKENS,
-  createCompactionProvider,
-  type FullCompactionProviderHost,
-} from '../../../src/agent/compaction/full-provider';
+import type { AgentOptions } from '../../../src/agent';
+import { ErrorCodes } from '../../../src/errors';
+import { testAgent } from '../harness/agent';
 
-const CAPABILITY: ModelCapability = {
-  image_in: false,
-  video_in: false,
-  audio_in: false,
-  pdf_in: false,
-  thinking: true,
-  tool_use: true,
-  max_context_tokens: 256_000,
-};
+type GenerateFn = NonNullable<AgentOptions['generate']>;
 
-function makeProvider(): ChatProvider {
-  const thinkingOff = {
-    name: 'mock-off',
-    modelName: 'mock-model',
-    thinkingEffort: null,
-    generate: vi.fn(),
-    withThinking: vi.fn(),
-    withMaxCompletionTokens: vi.fn((n: number) => ({
-      name: 'mock-capped',
-      modelName: 'mock-model',
-      thinkingEffort: null,
-      generate: vi.fn(),
-      withThinking: vi.fn(),
-      withMaxCompletionTokens: vi.fn(),
-      _cap: n,
-    })),
-  } as unknown as ChatProvider;
+function textResult(): GenerateResult {
   return {
-    name: 'mock',
-    modelName: 'mock-model',
-    thinkingEffort: 'high',
-    generate: vi.fn(),
-    withThinking: vi.fn(() => thinkingOff),
-    withMaxCompletionTokens: vi.fn(),
-  } as unknown as ChatProvider;
+    id: 'summary',
+    message: {
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'Current state. ' },
+        { type: 'think', think: 'Not summary content.' },
+        { type: 'text', text: 'Next action.' },
+      ],
+      toolCalls: [],
+    },
+    usage: { inputOther: 17, output: 5, inputCacheRead: 3, inputCacheCreation: 2 },
+    finishReason: 'completed',
+    rawFinishReason: 'stop',
+  };
 }
 
-function makeHost(overrides: {
-  readonly compactionModel?: string;
-  readonly models?: Record<string, { provider: string; model: string }>;
-  readonly providers?: Record<string, { type: 'kimi'; apiKey?: string }>;
-  readonly resolveProviderConfig?: (alias: string) => unknown;
-} = {}): FullCompactionProviderHost {
-  const provider = makeProvider();
-  const models = overrides.models ?? {
-    'main-model': { provider: 'p', model: 'kimi-k2' },
-    'cheap-model': { provider: 'p', model: 'claude-3-5-haiku' },
-  };
-  const providers = overrides.providers ?? {
-    p: { type: 'kimi' as const, apiKey: 'test-key' },
-  };
-  const host: FullCompactionProviderHost = {
-    compactionModelAlias: undefined,
-    agent: {
-      config: {
-        modelAlias: 'main-model',
-        modelCapabilities: CAPABILITY,
-        provider,
-        maxOutputSize: undefined,
-      },
-      kimiConfig: {
-        loopControl: overrides.compactionModel === undefined
-          ? undefined
-          : { compactionModel: overrides.compactionModel },
-        models,
-        providers,
-      },
-      modelProvider: overrides.resolveProviderConfig === undefined
-        ? undefined
-        : { resolveProviderConfig: overrides.resolveProviderConfig },
-      log: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
-    } as unknown as Agent,
-  };
-  return host;
-}
-
-describe('full-provider.ts — compaction summarizer provider', () => {
-  it('exports a minimum output token floor for compaction', () => {
-    expect(COMPACTION_MIN_OUTPUT_TOKENS).toBe(8_192);
-  });
-
-  it('disables thinking on the compaction provider', () => {
-    const host = makeHost();
-    const base = host.agent.config.provider as ChatProvider & {
-      withThinking: ReturnType<typeof vi.fn>;
-    };
-    createCompactionProvider(host, 4_000);
-    expect(base.withThinking).toHaveBeenCalledWith('off');
-  });
-
-  it('sets compactionModelAlias to the main model when no cheap alias is configured', () => {
-    const host = makeHost({
-      models: {
-        'main-model': { provider: 'p', model: 'kimi-k2' },
+describe('compaction current provider', () => {
+  it('uses the selected session provider, not a cheaper catalog model, including after a model change', async () => {
+    const generate = vi.fn<GenerateFn>().mockImplementation(async (_provider, _system, _tools, _history, callbacks) => {
+      await callbacks?.onMessagePart?.({ type: 'text', text: 'Current state. ' });
+      return textResult();
+    });
+    const ctx = testAgent({
+      generate,
+      initialConfig: {
+        providers: { catalog: { type: 'kimi', apiKey: 'test-key' } },
+        models: { 'cheap-alias': { provider: 'catalog', model: 'claude-3-5-haiku' } },
       },
     });
-    createCompactionProvider(host, 0);
-    expect(host.compactionModelAlias).toBe('main-model');
-  });
+    ctx.configure({ provider: { type: 'kimi', apiKey: 'test-key', model: 'kimi-code' } });
+    ctx.agent.config.update({ thinkingLevel: 'high' });
+    ctx.appendExchange(1, 'Continue the same task.', 'Earlier state.', 40);
+    const firstProvider = ctx.agent.config.provider;
 
-  it('uses an explicit loopControl.compactionModel alias when configured', () => {
-    const host = makeHost({
-      compactionModel: 'cheap-model',
-      models: {
-        'main-model': { provider: 'p', model: 'kimi-k2' },
-        'cheap-model': { provider: 'p', model: 'claude-3-5-haiku' },
-      },
-      resolveProviderConfig: () => ({
-        provider: { type: 'kimi', apiKey: 'test-key', model: 'cheap-model' },
-        modelCapabilities: CAPABILITY,
+    ctx.agent.fullCompaction.begin({ source: 'manual', instruction: 'Preserve the deployment constraints and summarize only the conversation.' });
+    await ctx.agent.fullCompaction.waitUntilSettled();
+
+    expect(generate.mock.calls[0]?.[0]).toBe(firstProvider);
+    expect(generate.mock.calls[0]?.[1]).toBe('Preserve the deployment constraints and summarize only the conversation.');
+    expect(generate.mock.calls[0]?.[2]).toEqual([]);
+    expect(generate.mock.calls[0]?.[3].map((message) => message.role)).toEqual(['user', 'assistant']);
+    expect(generate.mock.calls[0]?.[5]?.signal).toBeInstanceOf(AbortSignal);
+    expect(ctx.agent.context.history[1]?.content).toEqual([{ type: 'text', text: 'Conversation summary:\nCurrent state. Next action.' }]);
+    expect(ctx.allEvents).toContainEqual(expect.objectContaining({
+      event: 'compaction.progress', args: expect.objectContaining({ phase: 'summarizing', delta: 'Current state. ' }),
+    }));
+    expect(ctx.allEvents).toContainEqual(expect.objectContaining({
+      event: 'usage.record', args: expect.objectContaining({
+        model: 'kimi-code', usage: textResult().usage,
       }),
-    });
-    createCompactionProvider(host, 1_000);
-    expect(host.compactionModelAlias).toBe('cheap-model');
+    }));
+
+    ctx.configureRuntimeModel({ type: 'kimi', apiKey: 'test-key', model: 'kimi-k2' });
+    const secondProvider = ctx.agent.config.provider;
+    ctx.agent.fullCompaction.begin({ source: 'manual' });
+    await ctx.agent.fullCompaction.waitUntilSettled();
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[1]?.[0]).toBe(secondProvider);
+    expect(secondProvider.modelName).toBe('kimi-k2');
+    expect(ctx.allEvents).toContainEqual(expect.objectContaining({
+      event: 'usage.record', args: expect.objectContaining({ model: 'kimi-k2' }),
+    }));
   });
 
-  it('inherits the session model for compaction on a pinned session (no catalog roam, no warn)', () => {
-    const host = makeHost({
-      models: {
-        'main-model': { provider: 'p', model: 'kimi-k2' },
-        'cheap-fast': { provider: 'p', model: 'claude-3-5-haiku' },
-      },
-      resolveProviderConfig: (alias) => {
-        if (alias === 'cheap-fast') throw new Error('missing credentials');
-        return {
-          provider: { type: 'kimi', apiKey: 'test-key', model: alias },
-          modelCapabilities: CAPABILITY,
-        };
-      },
-    });
-    // Pinned session: inherit the session model directly instead of roaming
-    // the catalog (which would warn on the unresolvable cheap alias).
-    createCompactionProvider(host, 2_000);
-    expect(host.compactionModelAlias).toBe('main-model');
-    expect(host.agent.log.warn).not.toHaveBeenCalled();
+  it('uses conversation-only summary instructions rather than the agent tool-operating system prompt', async () => {
+    const generate = vi.fn<GenerateFn>().mockResolvedValue(textResult());
+    const ctx = testAgent({ generate });
+    ctx.configure();
+    ctx.agent.config.update({ systemPrompt: 'Private tool-operating instructions for the active agent.' });
+    ctx.appendExchange(1, 'Keep the exact user request.', 'Current work.', 40);
+    const original = structuredClone(ctx.agent.context.history);
+
+    ctx.agent.fullCompaction.begin({ source: 'manual' });
+    await ctx.agent.fullCompaction.waitUntilSettled();
+
+    const request = generate.mock.calls[0]!;
+    expect(request[1]).not.toContain('Private tool-operating instructions');
+    expect(request[2]).toEqual([]);
+    expect(request[3].map(({ role, content, toolCalls }) => ({ role, content, toolCalls })))
+      .toEqual(original.map(({ role, content, toolCalls }) => ({ role, content, toolCalls })));
+    expect(ctx.agent.config.systemPrompt).toBe('Private tool-operating instructions for the active agent.');
+  });
+
+  it('surfaces missing current-provider configuration without issuing a summarizer request', async () => {
+    const generate = vi.fn<GenerateFn>();
+    const ctx = testAgent({ generate });
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'An existing request without a configured provider.' }]);
+    const history = structuredClone(ctx.agent.context.history);
+
+    ctx.agent.fullCompaction.begin({ source: 'manual' });
+    await expect(ctx.agent.fullCompaction.waitUntilSettled()).rejects.toMatchObject({ code: ErrorCodes.MODEL_NOT_CONFIGURED });
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(ctx.agent.context.history).toEqual(history);
+    expect(ctx.agent.fullCompaction.isCompacting).toBe(false);
   });
 });

@@ -178,7 +178,6 @@ describe('functional progress motion', () => {
     const idle: AmbientCalmSignals = {
       streamingPhase: 'idle',
       compacting: false,
-      liveGoal: false,
       fullscreenTakeover: false,
       streamRevealArmed: false,
       backgroundWork: false,

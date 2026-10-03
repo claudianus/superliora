@@ -180,7 +180,6 @@ export class ApprovalService extends Disposable implements IApprovalService {
       decision: response.decision,
       scope: response.scope,
       feedback: response.feedback,
-      selected_label: response.selectedLabel,
       resolved_at: resolvedAt,
     } as unknown as Event;
     this.eventService.publish(resolvedEvent);

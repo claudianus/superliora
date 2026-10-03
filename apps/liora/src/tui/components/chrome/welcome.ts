@@ -9,7 +9,6 @@ import type { Component } from '#/tui/renderer';
 import { truncateToWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
-import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import type { AppState } from '#/tui/types';
@@ -92,24 +91,10 @@ export class WelcomeComponent implements Component {
       labelStyle(ttui('tui.welcome.label.version')) + this.state.version,
     ];
 
-    if (this.state.mcpServersSummary) {
-      infoLines.push(labelStyle(ttui('tui.welcome.label.mcp')) + this.state.mcpServersSummary);
-    }
-
-    const coachLines =
-      !isLoggedOut && isExperimentalFlagEnabled('conductor_ux_v2')
-        ? [
-            dim(ttui('tui.welcome.conductorCoach.line1')),
-            dim(ttui('tui.welcome.conductorCoach.line2')),
-            dim(ttui('tui.welcome.conductorCoach.line3')),
-          ]
-        : [];
-
     const contentLines: string[] = [
       ...bannerLines,
       '',
       promptLine,
-      ...(coachLines.length > 0 ? ['', ...coachLines] : []),
       '',
       ...infoLines,
     ];
