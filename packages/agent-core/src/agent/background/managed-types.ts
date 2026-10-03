@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 
 import type { ControlledPromise } from '@antfu/utils';
 
@@ -111,18 +111,11 @@ export const USER_INTERRUPT_REASON = 'Interrupted by user';
 
 const _ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
 
-/**
- * Generate `{prefix}-{8 base36 chars}`.
- *
- * `randomBytes(8) % 36` has a modest modulo bias (256 % 36 = 4) but
- * over an 8-char suffix yields ~36^8 ≈ 2.8e12 distinct ids which is
- * more than enough uniqueness for per-session task ids.
- */
+/** Generate `{prefix}-{8 uniformly random base36 chars}`. */
 export function generateTaskId(kind: string): string {
-  const bytes = randomBytes(8);
   let suffix = '';
   for (let i = 0; i < 8; i++) {
-    suffix += _ALPHABET[bytes[i]! % 36];
+    suffix += _ALPHABET[randomInt(_ALPHABET.length)];
   }
   return `${kind}-${suffix}`;
 }

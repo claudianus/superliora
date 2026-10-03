@@ -31,6 +31,25 @@ describe('process sandbox helpers', () => {
     expect(args.at(-1)).toBe('echo hi');
   });
 
+  it.each([
+    ["cd '/ws with spaces' && printf hi", 'printf hi'],
+    ['cd "/ws with spaces" && printf hi', 'printf hi'],
+    ['  cd\t/ws\t&&\tprintf hi  ', 'printf hi'],
+    ["cd 'joined'path && printf hi", 'printf hi'],
+    ['cd /ws &&', 'cd /ws &&'],
+    ['cd /ws ; printf hi', 'cd /ws ; printf hi'],
+    ['printf hi', 'printf hi'],
+    [`cd\t!\t&&\t${'\t'.repeat(20_000)}`, `cd\t!\t&&\t${'\t'.repeat(20_000)}`],
+    [`cd /ws ${'\t'.repeat(20_000)} not-an-operator`, `cd /ws ${'\t'.repeat(20_000)} not-an-operator`],
+  ])('preserves sandbox command semantics for case %#', (script, expected) => {
+    const args = buildDockerSandboxArgs({
+      workspaceDir: '/ws',
+      cwd: '/ws',
+      command: ['bash', '-c', script],
+    });
+    expect(args.at(-1)).toBe(expected);
+  });
+
   it('resolves docker when probe succeeds and degrades without it on linux', async () => {
     await expect(
       resolveProcessSandboxBackend({ probeDocker: async () => true }),

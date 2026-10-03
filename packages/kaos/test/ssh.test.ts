@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 
 import { KaosFileExistsError, KaosValueError } from '#/errors';
@@ -676,6 +680,33 @@ describe('SSHKaos._buildExecCommand', () => {
       _buildExecCommand: (args: string[], cwd: string, env?: Record<string, string>) => string;
     }
   )._buildExecCommand;
+
+  it.skipIf(process.platform === 'win32')('keeps structural data literal while executing the requested program', () => {
+    const cwd = mkdtempSync(join(tmpdir(), "kaos-$`id`'; echo injected #\n"));
+    const value = "it's $HOME `id`; echo injected\n";
+    try {
+      const command = build(
+        [
+          process.execPath,
+          '-e',
+          'process.stdout.write(JSON.stringify({ cwd: process.cwd(), value: process.env.KAOS_VALUE, args: process.argv.slice(1) }))',
+          value,
+          '',
+        ],
+        cwd,
+        { KAOS_VALUE: value },
+      );
+      const result = JSON.parse(execFileSync('/bin/sh', ['-c', command], { encoding: 'utf8' }));
+      expect(result).toEqual({ cwd: realpathSync(cwd), value, args: [value, ''] });
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')('preserves deliberate arbitrary shell scripts', () => {
+    const command = build(['sh', '-c', 'printf first; printf second'], '');
+    expect(execFileSync('/bin/sh', ['-c', command], { encoding: 'utf8' })).toBe('firstsecond');
+  });
 
   it('cd prefix + bare command when no env is supplied', () => {
     expect(build(['ls', '-la'], '/home/user')).toBe('cd /home/user && ls -la');

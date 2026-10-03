@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -382,6 +383,17 @@ describe('BashTool', () => {
     const manager = createBackgroundManager().manager;
     try {
       const kaos = await LocalKaos.create();
+      // Let the selected native shell render cwd/SHELL: Git Bash exposes MSYS
+      // aliases (/c/... and /bin/bash.exe), not the host's Windows path strings.
+      const expectedOutput = execFileSync(
+        kaos.osEnv.shellPath,
+        ['-c', 'printf "%s\\n" "$(pwd -P)" 1 dumb "$SHELL"'],
+        {
+          cwd: directory,
+          env: { ...process.env, SHELL: kaos.osEnv.shellPath },
+          encoding: 'utf8',
+        },
+      );
       const tool = bashTool(kaos, kaos.getcwd(), manager);
       const result = await executeTool(tool, context({
         command: 'printf "%s\\n" "$(pwd -P)" "$NO_COLOR" "$TERM" "$SHELL"; if read -r input; then exit 42; fi; printf "stdin-eof\\n"',
@@ -391,7 +403,7 @@ describe('BashTool', () => {
 
       expect(result).toMatchObject({
         isError: false,
-        output: `${await kaos.realpath(directory)}\n1\ndumb\n${kaos.osEnv.shellPath}\nstdin-eof\n`,
+        output: `${expectedOutput}stdin-eof\n`,
       });
       expect(isSessionWorktreeOwned(directory, directory)).toBe(false);
     } finally {

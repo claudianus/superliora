@@ -14,6 +14,7 @@ The release source of truth is [`apps/liora/CHANGELOG.md`](https://github.com/cl
 - Remove cognitive instruction injection, plans, goals, skill/plugin/MCP catalogs, automatic memory and continuations, role routing, forced verification/review, and automatic harness step or worker retries. Explicit operator retry and configured native provider routes remain.
 - Keep durable sessions, completed-history aside forks, explicit full compaction, approvals, native processes, cancellation, and live worker activity. Failed cleanup retains physical ownership; requesting cancellation does not imply completion.
 - Force native terminal exit on explicit close, including shells that ignore hangup. Signal-only termination has no numeric exit code, and live terminals protect their working directories from worktree cleanup.
+- Use unbiased background task IDs and linear native path/error parsing. Debug environment reports omit inherited values while preserving the actual child environment and login.
 - Archive original journals before native record migration. Remove retired configuration manually, including `[research]` and `loop_control.max_retries_per_step`; no compatibility aliases are provided. See [breaking changes](./breaking-changes.md).
 
 ## 0.13.7 (2026-08-27)

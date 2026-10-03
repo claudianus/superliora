@@ -1,6 +1,5 @@
 import type { Kaos } from '@superliora/kaos';
 
-import type { Agent } from '../../agent';
 import { runGit, type GitResult } from '../git-context';
 import { hasUnsettledExecutionResources } from '../job/git';
 
@@ -23,7 +22,7 @@ export function computeFilesChanged(options: {
   return [...merged].toSorted();
 }
 
-export function snapshotChildWork(child: Agent, signal?: AbortSignal): Promise<GitWorkSnapshot> {
+export function snapshotChildWork(child: { readonly kaos: Kaos; readonly config: { readonly cwd: string } }, signal?: AbortSignal): Promise<GitWorkSnapshot> {
   return snapshotGitWork(child.kaos, child.config.cwd, signal);
 }
 

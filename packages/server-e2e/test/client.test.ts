@@ -330,6 +330,19 @@ describeLive('DaemonClient (live server required)', () => {
 });
 
 describe('DaemonClient session action helpers', () => {
+  it('removes only terminal slashes before constructing HTTP request URLs', async () => {
+    const log = createCaseLogger('client helper: trailing slash normalization');
+    const calls: FetchCall[] = [];
+    const session = testSession({ id: 'sess_normalized' });
+    const client = new DaemonClient({
+      baseUrl: `http://server.example.test/proxy//root${'/'.repeat(20_000)}`,
+      fetchImpl: recordingFetch(okEnvelope(session), calls),
+    });
+    expect(await client.getSession(session.id)).toEqual(session);
+    log('fetch calls', calls);
+    expect(calls[0]?.url).toBe('http://server.example.test/proxy//root/api/v1/sessions/sess_normalized');
+  });
+
   it('forkSession posts the action-suffix route and unwraps the returned session', async () => {
     const log = createCaseLogger('client helper: forkSession');
     const calls: FetchCall[] = [];

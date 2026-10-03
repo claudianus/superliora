@@ -4,7 +4,7 @@
 // Usage:
 //   node scripts/debug-local.mjs                 # interactive source TUI
 //   node scripts/debug-local.mjs -- -p "…"       # headless harness prompt
-//   node scripts/debug-local.mjs --env           # print the debug env and exit
+//   node scripts/debug-local.mjs --env           # report settings; omit inherited values
 //   node scripts/debug-local.mjs --self-check    # assert env decisions
 //   node scripts/debug-local.mjs --ephemeral     # tmpdir SUPERLIORA_HOME
 //   node scripts/debug-local.mjs --home real     # operator ~/.superliora (dangerous)
@@ -31,7 +31,7 @@ Usage:
   node scripts/debug-local.mjs [options] [-- <cli args>]
 
 Options:
-  --env           print the debug env and exit
+  --env           report debug settings without inherited environment values
   --self-check    assert env decisions
   --ephemeral     tmpdir SUPERLIORA_HOME (deleted with the OS temp dir)
   --home real     use the operator SUPERLIORA_HOME / ~/.superliora (writes real state)
@@ -120,12 +120,12 @@ function printBanner(built, forwarded) {
     (built.env.SSH_CONNECTION ?? '').length > 0 ||
     (built.env.SSH_CLIENT ?? '').length > 0;
   console.error('debug-local: source TUI/harness (tsx) — not installed liora.exe');
-  console.error(`  SUPERLIORA_HOME=${built.home} (${built.homeMode})`);
-  console.error(`  SUPERLIORA_DEBUG_LOG=${built.debugLog}`);
+  console.error(`  home: ${built.homeMode} (path omitted)`);
+  console.error('  debug log: configured (path omitted)');
   console.error(
     ssh
       ? '  motion: off (SSH_* present — same as a remote user session)'
-      : `  motion: on (CI/NO_COLOR unset; TERM=${built.env.TERM}${built.termUpgraded ? ', upgraded from dumb/empty' : ''})`,
+      : `  motion: on (CI/NO_COLOR unset; TERM ${built.termUpgraded ? 'upgraded to xterm-256color' : 'inherited; value omitted'})`,
   );
   console.error(
     '  analysis: SUPERLIORA_DEBUG=1 · renderer trace · scroll probe · stdio persist · log=debug',

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import type { Agent } from '../../agent';
+import type { FullCompaction } from '../../agent/compaction';
+import type { ContextMemory } from '../../agent/context';
 import { AgentBackgroundTask, type BackgroundManager, type BackgroundTaskInfo } from '../../agent/background';
 import type { BuiltinTool } from '../../agent/tool';
 import { ToolAccesses } from '../../loop/tool-access';
@@ -33,7 +34,10 @@ export class SessionControlTool implements BuiltinTool<SessionControlInput> {
   readonly parameters = toInputJsonSchema(SessionControlInputSchema);
 
   constructor(
-    private readonly agent: Agent,
+    private readonly agent: {
+      readonly context: Pick<ContextMemory, 'tokenCountWithPending'>;
+      readonly fullCompaction: Pick<FullCompaction, 'begin' | 'cancel' | 'waitUntilSettled' | 'getEffectiveMaxContextTokens'>;
+    },
     private readonly manager: BackgroundManager,
     private readonly host?: SessionControlHost,
   ) {}

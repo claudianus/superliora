@@ -237,8 +237,18 @@ export function isQuotaOrRateLimitMessage(message: string): boolean {
  * terminal renderers do not show the status line as blank.
  */
 function sanitizeStatusErrorMessage(message: string): string {
-  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(message);
-  const title = titleMatch?.[1]?.trim();
+  // Scan each delimiter once; repeated incomplete title tags must not backtrack.
+  const titleStart = message.search(/<title/i);
+  const contentStart = titleStart < 0 ? -1 : message.indexOf('>', titleStart + 6);
+  let title: string | undefined;
+  if (contentStart >= 0) {
+    const closingTag = /<\/title>/gi;
+    closingTag.lastIndex = contentStart + 1;
+    const titleEnd = closingTag.exec(message)?.index;
+    if (titleEnd !== undefined) {
+      title = message.slice(contentStart + 1, titleEnd).trim();
+    }
+  }
   const normalized = title !== undefined && title.length > 0 ? title : message;
   return normalized.replaceAll('\r', '');
 }

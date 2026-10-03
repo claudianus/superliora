@@ -80,9 +80,34 @@ function isBashLike(file: string): boolean {
   return base === 'bash' || base === 'bash.exe' || base === 'sh' || base === 'sh.exe';
 }
 
+function commandAfterCdPath(script: string, pathEnd: number): string | undefined {
+  let pos = pathEnd;
+  while (pos < script.length && /\s/.test(script[pos]!)) pos++;
+  if (pos === pathEnd || !script.startsWith('&&', pos)) return undefined;
+  pos += 2;
+  const commandStart = pos;
+  while (pos < script.length && /\s/.test(script[pos]!)) pos++;
+  if (pos === commandStart || pos === script.length) return undefined;
+  return script.slice(pos);
+}
+
 function stripCdPrefix(script: string): string {
-  const match = /^(?:cd\s+(?:'[^']+'|"[^"]+"|\S+)\s+&&\s+)([\s\S]+)$/.exec(script.trim());
-  return match?.[1] ?? script;
+  const trimmed = script.trim();
+  if (!trimmed.startsWith('cd') || !/\s/.test(trimmed[2] ?? '')) return script;
+  let pathStart = 2;
+  while (pathStart < trimmed.length && /\s/.test(trimmed[pathStart]!)) pathStart++;
+  const quote = trimmed[pathStart];
+  if (quote === "'" || quote === '"') {
+    const quoteEnd = trimmed.indexOf(quote, pathStart + 1);
+    if (quoteEnd > pathStart + 1) {
+      const command = commandAfterCdPath(trimmed, quoteEnd + 1);
+      if (command !== undefined) return command;
+    }
+  }
+  let pathEnd = pathStart;
+  while (pathEnd < trimmed.length && !/\s/.test(trimmed[pathEnd]!)) pathEnd++;
+  if (pathEnd === pathStart) return script;
+  return commandAfterCdPath(trimmed, pathEnd) ?? script;
 }
 
 export function buildDockerSandboxArgs(opts: {

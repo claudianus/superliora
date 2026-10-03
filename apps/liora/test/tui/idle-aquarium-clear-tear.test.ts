@@ -3,7 +3,7 @@
  * the interior to terminal-default black, and rim bands stay outside transcript.
  */
 import chalk from 'chalk';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
@@ -68,13 +68,23 @@ describe('idle aquarium clear tear', () => {
     CI: process.env['CI'],
     NO_COLOR: process.env['NO_COLOR'],
     FORCE_COLOR: process.env['FORCE_COLOR'],
+    SSH_TTY: process.env['SSH_TTY'],
+    SSH_CONNECTION: process.env['SSH_CONNECTION'],
+    SSH_CLIENT: process.env['SSH_CLIENT'],
   };
 
   beforeEach(() => {
+    // Pin the geometry-budget clock as well as the animation clock. A cold
+    // Welcome measurement can exhaust the 4ms transcript budget on CI, leaving
+    // Idle with a provisional one-row height for this single-frame fixture.
+    vi.spyOn(performance, 'now').mockReturnValue(10_000);
     process.env['TERM'] = 'xterm-256color';
     process.env['FORCE_COLOR'] = '3';
     delete process.env['CI'];
     delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
     chalk.level = 3;
     currentTheme.setPalette(darkColors);
     currentTheme.setCanvasBackgroundEnabled(true);
@@ -91,6 +101,7 @@ describe('idle aquarium clear tear', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     for (const [k, v] of Object.entries(prev)) {
       if (v === undefined) delete process.env[k];
       else process.env[k] = v;
@@ -175,12 +186,17 @@ describe('idle aquarium clear tear', () => {
       }));
 
     renderNativeLayoutFrame(renderer, mapped(false), { clear: false, fill });
-    renderNativeLayoutFrame(renderer, mapped(true), { clear: false, fill });
-
     const midY = transcript.rect.y + Math.floor(transcript.rect.height * 0.65);
     const midX = transcript.rect.x + Math.floor(transcript.rect.width / 2);
+    const waterBg = renderer.frame.getCell(midX, midY).style?.bg;
+    expect(waterBg).toBeDefined();
+    expect(waterBg?.toLowerCase()).not.toBe('#0b0f14');
+
+    renderNativeLayoutFrame(renderer, mapped(true), { clear: false, fill });
+
     const cell = renderer.frame.getCell(midX, midY);
     expect(cell.style?.bg).toBeDefined();
+    expect(cell.style?.bg).toBe(waterBg);
     expect(cell.style?.bg?.toLowerCase()).not.toBe('#0b0f14');
   });
 

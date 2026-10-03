@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   bindJobLedgerCrashMirror,
   flushJobLedgerCrashMirrorNow,
+  jobLedgerCrashMirrorPath,
   mergeCrashMirrorIntoStore,
   readCrashMirrorFile,
   unbindJobLedgerCrashMirror,
@@ -33,11 +34,23 @@ describe('job ledger crash mirror', () => {
     }
   });
 
+  it.each([
+    ['', ''],
+    ['/', ''],
+    ['////', ''],
+    ['agent/home', 'agent/home'],
+    ['agent/home///', 'agent/home'],
+    ['agent\\home\\', 'agent\\home\\'],
+    [`agent/home${'/'.repeat(100_000)}`, 'agent/home'],
+  ])('strips only trailing forward slashes from the mirror path', (input, directory) => {
+    expect(jobLedgerCrashMirrorPath(input)).toBe(join(directory, 'job-ledger.crash.json'));
+  });
+
   it('writes a durable mirror and merges fresher jobs on resume', () => {
     const dir = mkdtempSync(join(tmpdir(), 'job-crash-mirror-'));
     dirs.push(dir);
     const store = memoryStore();
-    bindJobLedgerCrashMirror(store, dir);
+    bindJobLedgerCrashMirror(store, ` \n${dir}${'/'.repeat(20_000)} \t`);
 
     const job = createJob(store, { title: 'implement auth', kind: 'implement' });
     patchJob(store, job.id, { status: 'running' });

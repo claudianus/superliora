@@ -181,7 +181,10 @@ export class DaemonClient {
   private readonly _disposers: Array<() => void> = [];
 
   constructor(opts: DaemonClientOptions = {}) {
-    this.baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
+    const baseUrl = opts.baseUrl ?? DEFAULT_BASE_URL;
+    let end = baseUrl.length;
+    while (end > 0 && baseUrl[end - 1] === '/') end--;
+    this.baseUrl = baseUrl.slice(0, end);
     this.apiPrefix = opts.apiPrefix ?? DEFAULT_API_PREFIX;
     this.clientId = opts.clientId ?? `server-e2e-${ulid()}`;
     this._wsImpl = opts.wsImpl ?? WsWebSocket;
