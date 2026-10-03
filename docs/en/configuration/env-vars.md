@@ -93,6 +93,27 @@ This group of variables redirects OAuth authentication and managed service endpo
 `SUPERLIORA_BASE_URL` (OAuth-managed service, targeting `kimi.com`) and `KIMI_BASE_URL` (direct API key connection, targeting `moonshot.ai`) are two distinct variables. Use each one in its appropriate context.
 :::
 
+### Native provider login controls
+
+These six environment variables control which optional account-login rows appear in the TUI provider picker. They remain native authentication controls despite their historical `EXPERIMENTAL` prefix; they do not enable cognitive features or add model-visible tools.
+
+| Variable | Login row | When unset |
+| --- | --- | --- |
+| `SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH` | Anthropic Claude account | Shown |
+| `SUPERLIORA_EXPERIMENTAL_CURSOR_OAUTH` | Cursor account | Shown |
+| `SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT` | GitHub Copilot token | Hidden; explicit opt-in required |
+| `SUPERLIORA_EXPERIMENTAL_GLM_ZCODE_OAUTH` | GLM ZCode account | Shown |
+| `SUPERLIORA_EXPERIMENTAL_GOOGLE_GEMINI_CLI_OAUTH` | Google Gemini Code Assist account | Shown |
+| `SUPERLIORA_EXPERIMENTAL_KIRO_OAUTH` | Kiro / Amazon Q account | Shown |
+
+Set `1`, `true`, `yes`, or `on` to show a row, or `0`, `false`, `no`, or `off` to hide it. Values are trimmed and case-insensitive; other values use the unset default. These picker controls do not revoke stored credentials, remove configured providers, or disable an existing route. Upstream account policy and availability still apply; showing a login row does not guarantee that a third-party client is authorized.
+
+The general experimental framework, `[experimental]` config section, and `SUPERLIORA_EXPERIMENTAL_FLAG` master switch are retired. They no longer override these native login controls. `SUPERLIORA_EXPERIMENTAL_GITLAB_DUO_OAUTH` is not a supported picker control: GitLab Duo remains an always-available account-login profile.
+
+### Retired Conductor UI switch
+
+`SUPERLIORA_EXPERIMENTAL_CONDUCTOR_UX_V2` no longer controls native Jobs UI or the nested-repository startup banner. When the working directory is below its Git root, the native banner appears regardless of that old variable. No legacy Conductor flag policy is loaded.
+
 ## Define a model from environment variables (`KIMI_MODEL_*`)
 
 Want to switch models for testing without touching `config.toml`? When `KIMI_MODEL_NAME` is set, the CLI synthesizes a temporary provider and model alias from the `KIMI_MODEL_*` variables in memory — nothing is written back to the config file. These variables take priority over `default_model` in `config.toml`, but the `-m <alias>` option at startup still has the highest priority.

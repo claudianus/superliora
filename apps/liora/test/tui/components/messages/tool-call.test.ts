@@ -1021,6 +1021,27 @@ describe('ToolCallComponent', () => {
       expect(component.getSubagentAgentId()).toBe('agent-0');
     });
 
+    it('routes child terminal updates only to spawn cards, not control acknowledgements', () => {
+      const operations = ['spawn', 'message', 'wait', 'stop'] as const;
+      const cards = operations.map((operation) => new ToolCallComponent(
+        {
+          id: `call_${operation}`,
+          name: 'SessionControl',
+          args: { operation, id: 'agent-0', prompt: 'inspect', description: 'inspect', message: 'continue' },
+        },
+        { ...spawnSuccessResult, tool_call_id: `call_${operation}` },
+      ));
+      const owners = cards.filter((card) => card.getSubagentAgentId() === 'agent-0');
+      expect(owners).toEqual([cards[0]]);
+      for (const owner of owners) owner.setBackgroundTaskTerminalStatus('lost');
+      expect(cards[0]!.getSubagentSnapshot().phase).toBe('failed');
+      for (const card of cards.slice(1)) {
+        expect(card.getSubagentAgentId()).toBeUndefined();
+        expect(strip(card.render(100).join('\n'))).not.toContain('Agent Failed');
+      }
+      for (const card of cards) card.dispose();
+    });
+
     it('getSubagentAgentId still prefers in-memory subagent metadata when set', () => {
       // If `setSubagentMeta` / `onSubagentSpawned` did wire an id, that one
       // is authoritative — it survived the in-flight phase before any

@@ -306,29 +306,13 @@ export class ToolCallSubagentState {
   }
 
   /**
-   * Subagent id for the backing AgentTool call, used by routing to find a
-   * tool call's backing subagent when reconciling background task lifecycle
-   * events.
-   *
-   * Two writers, in priority order:
-   *   1. In-memory `agentId` — wired by `setMeta` / `onSpawned` for
-   *      foreground agents. For backgrounded agents this stays undefined:
-   *      `handleSubagentSpawned` early-returns before calling
-   *      `tc.onSubagentSpawned`, and `applyReplay` early-returns when the
-   *      wire payload omits the `subagent` block — which it does for every
-   *      replayed Agent call.
-   *   2. The spawn-success ToolResult body — AgentTool unconditionally
-   *      emits `agent_id: agent-N` for every Agent call (foreground and
-   *      background). Parsing it gives the stable identifier even when the
-   *      in-memory field is empty, which is the only way the resume path
-   *      can reliably route a `background.task.terminated` to the right
-   *      card and the only way the live path avoids matching by description
-   *      and accidentally updating an unrelated Agent card that happens to
-   *      share the same `args.description`.
+   * Child lifecycle metadata is authoritative for live activity. Without it,
+   * only a spawn acknowledgement owns a child card: message/wait/stop results
+   * may name the same child without creating another owner.
    */
-  getAgentId(toolCallName: string, result: ToolResultBlockData | undefined): string | undefined {
+  getAgentId(toolCall: ToolCallBlockData, result: ToolResultBlockData | undefined): string | undefined {
     if (this.agentId !== undefined) return this.agentId;
-    if (toolCallName !== 'SessionControl' || result === undefined) return undefined;
+    if (toolCall.name !== 'SessionControl' || toolCall.args['operation'] !== 'spawn' || result === undefined) return undefined;
     return parseAgentIdFromToolResultOutput(result.output);
   }
 

@@ -50,7 +50,6 @@ export interface StatusReportOptions {
   readonly upstreamBaseline?: string;
   /** Product telemetry enabled (false ≈ ZDR-friendlier local posture). */
   readonly privacyTelemetryEnabled?: boolean;
-  /** Active runtime tools. */
   /** Optional field-value crossfade tracker across rebuilds. */
   readonly fieldMotion?: StatusFieldMotionState;
 }

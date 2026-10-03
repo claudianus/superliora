@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   buildDebugEnv,
+  FALLBACK_TERM,
   formatDebugEnvReport,
   selfCheckDebugEnv,
 } from './debug-local-env.mjs';
@@ -125,7 +126,7 @@ function printBanner(built, forwarded) {
   console.error(
     ssh
       ? '  motion: off (SSH_* present — same as a remote user session)'
-      : `  motion: on (CI/NO_COLOR unset; TERM ${built.termUpgraded ? 'upgraded to xterm-256color' : 'inherited; value omitted'})`,
+      : `  motion: on (CI/NO_COLOR unset; TERM ${built.termUpgraded ? `upgraded to ${FALLBACK_TERM}` : 'inherited; value omitted'})`,
   );
   console.error(
     '  analysis: SUPERLIORA_DEBUG=1 · renderer trace · scroll probe · stdio persist · log=debug',

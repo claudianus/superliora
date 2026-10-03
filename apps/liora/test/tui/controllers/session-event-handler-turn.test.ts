@@ -114,6 +114,38 @@ describe('SessionEventHandler max_steps exhausted UX', () => {
   });
 });
 
+describe('SessionEventHandler native Auto route', () => {
+  it('records a concrete default selection without warning about failover or Smart Auto', () => {
+    const host = makeHost();
+    host.state.appState.model = 'auto';
+    host.state.appState.availableModels = {
+      'kimi-model': { provider: 'kimi', model: 'kimi-model', maxContextSize: 200_000 },
+    };
+    const handler = new SessionEventHandler(host);
+    handler.handleEvent({
+      type: 'turn.step.completed',
+      agentId: 'main',
+      sessionId: 's1',
+      turnId: 1,
+      step: 1,
+      providerRouteSelection: {
+        modelAlias: 'kimi-model',
+        providerName: 'kimi',
+        providerModel: 'kimi-model',
+      },
+    } satisfies Event, vi.fn());
+    expect(host.showNotice).not.toHaveBeenCalled();
+    expect(host.setAppState).toHaveBeenCalledWith(expect.objectContaining({
+      lastModelRouteNotice: expect.objectContaining({
+        kind: 'selection',
+        fromAlias: 'auto',
+        toAlias: 'kimi-model',
+        reason: 'provider-route',
+      }),
+    }));
+  });
+});
+
 describe('SessionEventHandler provider filtered turn end (Loop37a)', () => {
   it('surfaces provider filtering as a named notice', () => {
     const host = makeHost();

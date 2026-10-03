@@ -99,19 +99,15 @@ export function renderFooterLine2(input: RenderFooterLine2Input): string {
     return beatLine + ' '.repeat(pad) + contextText;
   }
 
-  const leftHint = transientHint;
-  if (leftHint !== null) {
+  if (transientHint !== null) {
     const maxHintWidth = Math.max(0, width - contextWidth - 1);
     const shownHint =
-      visibleWidth(leftHint) <= maxHintWidth
-        ? leftHint
-        : truncateToWidth(leftHint, maxHintWidth, '…');
+      visibleWidth(transientHint) <= maxHintWidth
+        ? transientHint
+        : truncateToWidth(transientHint, maxHintWidth, '…');
     const hintWidth = visibleWidth(shownHint);
     const pad = Math.max(0, width - hintWidth - contextWidth);
-    const hintStyle = transientHint !== null
-      ? (text: string) => currentTheme.boldFg('warning', text)
-      : (text: string) => currentTheme.fg('textDim', text);
-    return hintStyle(shownHint) + ' '.repeat(pad) + contextText;
+    return currentTheme.boldFg('warning', shownHint) + ' '.repeat(pad) + contextText;
   }
 
   const leftPad = Math.max(0, width - contextWidth);

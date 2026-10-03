@@ -143,7 +143,7 @@ export function finishToolCallSubToolCall(
 }
 
 export function getToolCallSubagentAgentId(host: ToolCallSubagentEventHost): string | undefined {
-  return host.subagent.getAgentId(host.toolCall.name, host.result);
+  return host.subagent.getAgentId(host.toolCall, host.result);
 }
 
 export function getToolCallAgentToolDescription(host: ToolCallSubagentEventHost): string | undefined {

@@ -477,6 +477,11 @@ export async function jobPush(
     return { ok: false, text: `Job not found: ${input.jobId}`, error: `Job not found: ${input.jobId}` };
   }
 
+  if (existing.status !== 'done' && existing.status !== 'blocked') {
+    const error = `Job ${existing.id} is ${existing.status}; push requires done or blocked.`;
+    return { ok: false, job: snapshot(existing), text: error, error };
+  }
+
   if (!input.approve) {
     const job = patchJobAndNotify(
       store,
@@ -537,6 +542,14 @@ export async function jobPush(
     agent,
   });
   const latest = getJob(store, input.jobId) ?? existing;
+  if (!dispatch.dispatched || dispatch.pushJob === undefined) {
+    return {
+      ok: false,
+      job: snapshot(latest),
+      text: `Push held: ${dispatch.reason}`,
+      error: dispatch.reason,
+    };
+  }
   const remoteHint =
     resolvePushRemoteRef({ explicit: input.remoteRef, job: existing }) === 'gh-pages'
       ? ' Target remoteRef=gh-pages (Pages); Pages enable runs after push when possible.'
@@ -544,12 +557,10 @@ export async function jobPush(
   return {
     ok: true,
     job: snapshot(latest),
-    pushJob: dispatch.pushJob ? snapshot(dispatch.pushJob) : undefined,
+    pushJob: snapshot(dispatch.pushJob),
     text: [
       `Push approved. ${trust.reason}${remoteHint}`,
-      dispatch.pushJob
-        ? `Execution offloaded to push worker ${dispatch.pushJob.id}`
-        : 'Dispatch failed — push held for manual resolve.',
+      `Execution offloaded to push worker ${dispatch.pushJob.id}`,
     ].join('\n'),
   };
 }

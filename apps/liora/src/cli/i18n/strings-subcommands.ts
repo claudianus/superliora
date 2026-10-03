@@ -204,7 +204,7 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.provider.cmd.routePreview.option.json':
     'Emit expanded route candidates as JSON.',
   'cli.sub.provider.cmd.routeAuto.desc':
-    'Enable automatic credential failover when a model has a credential pool or fallbacks.',
+    'Enable automatic routing across credential pools and configured fallback model aliases.',
   'cli.sub.provider.cmd.routeAuto.option.fallback':
     'Comma-separated fallback model aliases. Empty string clears.',
   'cli.sub.provider.cmd.routeAuto.option.cooldownMs':
@@ -478,7 +478,7 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.provider.cmd.routePreview.option.json':
     '확장된 라우트 후보를 JSON으로 출력합니다.',
   'cli.sub.provider.cmd.routeAuto.desc':
-    '모델에 자격 증명 풀이나 폴백이 있으면 자동 자격 증명 failover를 켭니다.',
+    '자격 증명 풀과 구성된 폴백 모델 별칭 간 자동 라우팅을 켭니다.',
   'cli.sub.provider.cmd.routeAuto.option.fallback':
     '쉼표 구분 폴백 모델 별칭. 빈 문자열이면 해제.',
   'cli.sub.provider.cmd.routeAuto.option.cooldownMs':

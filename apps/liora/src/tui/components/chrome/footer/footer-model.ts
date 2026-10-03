@@ -9,8 +9,7 @@ import {
 import { labelModelRoute } from '#/tui/components/chrome/footer/footer-labels';
 
 export function modelDisplayName(state: AppState): string {
-  const model = state.availableModels[state.model];
-  return model?.displayName ?? model?.model ?? state.model;
+  return modelRouteDisplayName(state.model, state.availableModels);
 }
 
 /** Effective step model when the provider route differs from the session model. */

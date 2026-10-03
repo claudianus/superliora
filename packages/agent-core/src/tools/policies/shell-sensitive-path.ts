@@ -15,11 +15,7 @@ export type ShellSensitivePathHit = {
   readonly message: string;
 };
 
-/**
- * Loop44a — stable marker when Bash is hard-denied for a sensitive path
- * (env / credential / SSH key). TUI matches this for a named notice; there is
- * no force-prefix escape hatch.
- */
+/** Internal error-message marker for Bash denials involving sensitive paths. */
 const SHELL_SENSITIVE_PATH_CODE = 'SHELL_SENSITIVE_PATH' as const;
 
 /**

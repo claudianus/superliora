@@ -54,10 +54,10 @@ export function openMergePreview(host: SlashCommandHost, card: ConductorJobCard)
         })
         .then((result) => {
           host.showStatus(
-            result.ok
-              ? `Merged ${shortJobId(card.id)}`
-              : `Merge held: ${result.error ?? result.text}`,
-            result.ok ? 'success' : 'warning',
+            result.ok && result.mergeJob !== undefined
+              ? ttui('tui.job.landingStarted', { jobId: shortJobId(card.id) })
+              : ttui('tui.job.mergeHeld', { reason: result.error ?? result.text }),
+            result.ok && result.mergeJob !== undefined ? 'info' : 'warning',
           );
         })
         .catch((error: unknown) => {

@@ -62,7 +62,7 @@ export interface TUIEditor
   onCommandHub?: () => void;
   /** Opens the Conductor Job Deck monitor (Alt+J). */
   onOpenJobDeck?: () => void;
-  /** Opens the Conductor Inbox drawer (Alt+I) when conductor_ux_v2 is on. */
+  /** Opens the native Job Inbox drawer (Alt+I). */
   onOpenJobInbox?: () => void;
   /** Opens the live Quota report (Q on an empty prompt). */
   onOpenQuota?: () => void;

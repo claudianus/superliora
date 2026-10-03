@@ -18,6 +18,54 @@ function strip(text: string): string {
 }
 
 describe('status panel report lines', () => {
+  it('labels native Auto and its first concrete route as selection, preserving configured alias labels', () => {
+    const options = {
+      version: '1.2.3',
+      model: 'auto',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual' as const,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+      availableModels: {
+        k2: {
+          provider: 'managed:kimi-api',
+          model: 'kimi-k2',
+          maxContextSize: 200_000,
+          displayName: 'Kimi K2',
+        },
+      },
+      lastProviderRouteSelection: {
+        modelAlias: 'k2',
+        providerName: 'managed:kimi-api',
+        providerModel: 'kimi-k2',
+      },
+      lastModelRouteNotice: {
+        kind: 'selection' as const,
+        fromAlias: 'auto',
+        toAlias: 'k2',
+        reason: 'provider-route',
+        atMs: Date.now(),
+      },
+    };
+    const output = buildStatusReportLines(options).map(strip).join('\n');
+    expect(output).toMatch(/Model\s+Auto \(thinking off\)/);
+    expect(output).toMatch(/Selection\s+Auto → Kimi K2/);
+    expect(output).not.toMatch(/Smart|Failover|failover/);
+
+    const configured = buildStatusReportLines({
+      ...options,
+      availableModels: {
+        ...options.availableModels,
+        auto: { ...options.availableModels.k2, displayName: 'My configured default' },
+      },
+    }).map(strip).join('\n');
+    expect(configured).toMatch(/Model\s+My configured default \(thinking off\)/);
+  });
+
   it('formats runtime status, context, and managed usage without account or AGENTS.md rows', () => {
     const lines = buildStatusReportLines({
       version: '1.2.3',

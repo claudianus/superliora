@@ -263,7 +263,7 @@ function serializeQueuedMessage(item: QueuedMessage): z.infer<typeof queuedMessa
     ...(item.agentId !== undefined ? { agentId: item.agentId.slice(0, 200) } : {}),
     ...(item.mode !== undefined ? { mode: item.mode } : {}),
     ...(item.parts !== undefined ? { parts: [...item.parts] } : {}),
-    ...(item.combinedDisplayTexts !== undefined ? { combinedDisplayTexts: [...item.combinedDisplayTexts] } : {}),
+    ...(item.combinedDisplayTexts !== undefined ? { combinedDisplayTexts: item.combinedDisplayTexts.map(truncate) } : {}),
     ...(hadAttachments ? { hadAttachments: true } : {}),
   };
 }

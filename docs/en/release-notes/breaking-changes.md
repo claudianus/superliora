@@ -22,6 +22,14 @@ Remove `plan_mode`, `default_plan_mode`, `free_mode`, `merge_all_available_skill
 
 `LioraConfigSchema` and its nested strict schemas in `packages/agent-core/src/config/schema.ts` are the SDK/runtime contract. Native providers/models/auth, thinking, approval rules, background limits, cache, provider metadata refresh, telemetry, and sandbox settings remain. See [Configuration files](../configuration/config-files.md) for executable examples.
 
+**Native flags and provider selection**
+
+- Six provider-picker environment controls survive as native authentication switches: `SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH`, `SUPERLIORA_EXPERIMENTAL_CURSOR_OAUTH`, `SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT`, `SUPERLIORA_EXPERIMENTAL_GLM_ZCODE_OAUTH`, `SUPERLIORA_EXPERIMENTAL_GOOGLE_GEMINI_CLI_OAUTH`, and `SUPERLIORA_EXPERIMENTAL_KIRO_OAUTH`. Copilot remains off unless explicitly enabled; the other five remain on unless explicitly disabled. Exact value rules and picker-only scope are listed in [Environment variables](../configuration/env-vars.md#native-provider-login-controls).
+- `[experimental]`, the general flag catalog, and the `SUPERLIORA_EXPERIMENTAL_FLAG` master switch are removed. Remove config overrides manually and use the native provider environment switches where needed. `SUPERLIORA_EXPERIMENTAL_GITLAB_DUO_OAUTH` is not a native picker control; GitLab Duo remains available.
+- `SUPERLIORA_EXPERIMENTAL_CONDUCTOR_UX_V2` no longer gates native Jobs UI or the nested-Git-root startup banner. Setting it to `false` does not hide that banner.
+- **Auto** means native configured provider-default selection, not retired Smart Auto task-role routing. The first concrete default selection is not a failover; an explicit configured alias named `auto` keeps ordinary alias semantics.
+- Startup does not automatically prune stale OpenCode free-model aliases or rewrite the selected default. Review provider/model entries yourself and manually remove obsolete aliases or choose a supported configured model.
+
 **Command and API migration**
 
 - Remove retired CLI flags such as `--plan`, `--skills-dir`, and plugin/MCP/channel setup flags from launch scripts. Use an ordinary prompt for a task or an explanation; there is no replacement Goal mode.

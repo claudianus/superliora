@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   workerDockBandActive,
@@ -10,6 +10,10 @@ import { createTUIState, type TUIState } from '#/tui/tui-state';
 import type { WorkerDockView } from '#/tui/components/panes/worker-dock/panel';
 import { emptyConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
 import type { AppState } from '#/tui/types';
+import { handleWorkerDockMouse } from '#/tui/features/worker-dock/worker-dock-mouse';
+import { getTUIStateNativeWorkerDockRect } from '#/tui/features/transcript/transcript-hit-test';
+import { createTUIStateNativeInputRouter } from '#/tui/features/native-layout/native-input-router';
+import type { NativeInputEvent } from '#/tui/renderer';
 
 function fakeInitialAppState(): AppState {
   return {
@@ -186,5 +190,74 @@ describe('mission control bottom band', () => {
     const band = state.workerDockContainer.render(100);
     expect(band.length).toBeGreaterThan(0);
     expect(band.join('\n')).toContain('Worker Dock');
+  });
+});
+
+describe('worker dock focus routing', () => {
+  it.each([false, true])('repaints outside presses only when focus changes (visible=%s)', (visible) => {
+    const state = createState(120, 40);
+    if (visible) state.workerDockPanel.setView(busyView());
+    expect(getTUIStateNativeWorkerDockRect(state) !== undefined).toBe(visible);
+    const invalidateFrame = vi.spyOn(state.renderer, 'invalidateFrame');
+    const press: NativeInputEvent = {
+      type: 'mouse', action: 'press', button: 'left', x: -1, y: -1, raw: '',
+      ctrl: false, alt: false, shift: false,
+    };
+    state.workerDockPanel.focused = true;
+    expect(handleWorkerDockMouse({ state }, press)).toBe(false);
+    expect(state.workerDockPanel.focused).toBe(false);
+    expect(invalidateFrame).toHaveBeenCalledExactlyOnceWith('content');
+    handleWorkerDockMouse({ state }, press);
+    handleWorkerDockMouse({ state }, { ...press, action: 'release' });
+    expect(invalidateFrame).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains dock focus across handled navigation presses and their releases', () => {
+    const state = createState(120, 40);
+    const view = busyView();
+    state.workerDockPanel.setView({
+      ...view,
+      snapshot: {
+        ...view.snapshot,
+        workers: [
+          view.snapshot.workers[0]!,
+          { ...view.snapshot.workers[0]!, id: 'sa-2', name: 'explore-2' },
+        ],
+      },
+    });
+    const router = createTUIStateNativeInputRouter(state, {
+      requestRender: false,
+      handlePreEditorInput: (event) => {
+        if (event.type !== 'key' || event.eventType === 'release' ||
+            event.key !== 'down' || !state.workerDockPanel.focused) return false;
+        return state.workerDockPanel.handleSelectionKey('down').handled;
+      },
+    });
+    state.workerDockPanel.selectWorker('sa-1');
+    state.workerDockPanel.focused = true;
+    const press: NativeInputEvent = {
+      type: 'key', key: 'down', eventType: 'press', raw: '\u001B[B',
+      ctrl: false, alt: false, shift: false,
+    };
+    expect(router.dispatch(press).handled).toBe(true);
+    expect(state.workerDockPanel.selectedWorker).toBe('sa-2');
+    router.dispatch({ ...press, eventType: 'release' });
+    expect(state.workerDockPanel.focused).toBe(true);
+    expect(router.dispatch(press).handled).toBe(true);
+    expect(state.editor.getText()).toBe('');
+    router.dispose();
+  });
+
+  it('requests a focus-only editor repaint once, not on unchanged focus', () => {
+    const state = createState(120, 40);
+    const router = createTUIStateNativeInputRouter(state);
+    const requestRender = vi.spyOn(state.renderer, 'requestRender');
+    state.workerDockPanel.focused = true;
+    router.focusEditor();
+    expect(state.workerDockPanel.focused).toBe(false);
+    expect(requestRender).toHaveBeenCalledExactlyOnceWith('input');
+    router.focusEditor();
+    expect(requestRender).toHaveBeenCalledTimes(1);
+    router.dispose();
   });
 });

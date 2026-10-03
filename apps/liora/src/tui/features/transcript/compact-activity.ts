@@ -16,7 +16,6 @@ const COMPACT_VERBS: Record<string, { readonly live: string; readonly done: stri
   SessionControl: { live: 'Managing sessions', done: 'Managed sessions' },
 };
 
-
 const DIFF_TOKEN_RE = /(\+\d+|−\d+|-\d+)/g;
 
 /** Quiet chrome: no ▌ gutter, no work-block tint band. */

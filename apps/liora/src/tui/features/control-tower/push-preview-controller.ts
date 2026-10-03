@@ -65,10 +65,10 @@ export function openPushPreview(
         })
         .then((result) => {
           host.showStatus(
-            result.ok
+            result.ok && result.pushJob !== undefined
               ? ttui('tui.job.pushApproved', { jobId: shortJobId(card.id) })
               : ttui('tui.job.pushHeld', { reason: result.error ?? result.text }),
-            result.ok ? 'success' : 'warning',
+            result.ok && result.pushJob !== undefined ? 'info' : 'warning',
           );
         })
         .catch((error: unknown) => {

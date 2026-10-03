@@ -104,6 +104,30 @@ describe('prompt-input-state-store', () => {
     }]);
   });
 
+  it.each([199_999, 200_000, 200_001])(
+    'recovers a queued request when a merged display segment has %i characters',
+    async (length) => {
+      const dir = await tempDir();
+      const segment = 'x'.repeat(length);
+      await writePromptInputState(session(dir), {
+        messages: [{
+          text: 'pending request',
+          mode: 'prompt',
+          combinedDisplayTexts: ['first', segment, 'last'],
+        }],
+        stash: [],
+        draft: null,
+      });
+
+      const snapshot = await readPromptInputState(session(dir));
+      expect(queuedMessagesFromSnapshot(snapshot)).toEqual([{
+        text: 'pending request',
+        mode: 'prompt',
+        combinedDisplayTexts: ['first', segment.slice(0, 200_000), 'last'],
+      }]);
+    },
+  );
+
   it('treats corrupt files as empty instead of throwing', async () => {
     const dir = await tempDir();
     await mkdir(join(dir, 'ui'), { recursive: true });

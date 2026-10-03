@@ -280,6 +280,10 @@ function handleCommandHubAction(
     host.state.toast.show(ttui('tui.hub.searchPatternHint'), 2200);
     return;
   }
+  if (item.id === 'workspace.jobCreate') {
+    restoreInputText(host, delegate, '/job create ');
+    return;
+  }
   if (item.id === 'chat.btw') {
     restoreInputText(host, delegate, '/btw ');
     host.state.toast.show(ttui('tui.hub.btwHint'), 2200);

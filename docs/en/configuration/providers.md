@@ -325,6 +325,14 @@ export SUPERLIORA_XAI_GROK_CLIENT_VERSION=1.0.0
 
 Fallback model presets (used when the live models.dev catalog is unavailable): `grok-4.5`, `grok-4.3`, `grok-build-0.1`.
 
+## Optional account-login rows
+
+Native provider authentication remains available after the minimal-runtime cutover. Anthropic, Cursor, GLM ZCode, Google Gemini Code Assist, and Kiro account-login rows are shown by default and retain their individual environment off switches. GitHub Copilot token login remains opt-in with `SUPERLIORA_EXPERIMENTAL_GITHUB_COPILOT=1`; unset, `0`, or `false` keeps its picker row hidden. See [Native provider login controls](./env-vars.md#native-provider-login-controls) for all six switches and their exact value rules.
+
+These switches affect picker visibility only, not existing credentials or configured routes. GitLab Duo remains an always-available login profile; its former general-framework flag is not supported. The retired `[experimental]` config section and master switch do not control authentication.
+
+Native **Auto** resolves the configured provider's advertised default model when no explicit `auto` model alias exists. Its first concrete selection is not a failover. An explicitly configured alias named `auto` behaves like any other model alias; configured fallbacks remain native provider routing, not task-role model selection.
+
 ## Minimal tool surface
 
 Provider authentication, metadata, credential pools, and configured native routes remain available. They do not install additional model-visible tools. Automatic provider extras, MCP injection, agent capability catalogs, and task-role model selection are retired. Failed execution steps and workers are not automatically restarted.

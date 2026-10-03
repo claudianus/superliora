@@ -48,7 +48,7 @@ export function loadUsageSettingsGlance(input: {
   const contextUsage = input.status?.contextUsage ?? input.contextUsage;
   const contextTokens = input.status?.contextTokens ?? input.contextTokens;
   const maxContextTokens = input.status?.maxContextTokens ?? input.maxContextTokens;
-  const contextLine = contextUsage === undefined
+  const contextLine = contextUsage === undefined || maxContextTokens === undefined || !(maxContextTokens > 0)
     ? undefined
     : `Context: ${(safeUsageRatio(contextUsage) * 100).toFixed(1)}%` +
       (contextTokens !== undefined && maxContextTokens !== undefined

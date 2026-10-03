@@ -212,8 +212,18 @@ export async function hotpathJobReviewOrVerify(
 export async function hotpathJobPush(host: SlashCommandHost, jobId: string): Promise<void> {
   const display = `/job push ${shortJobId(jobId)}`;
   try {
-    const result = await host.requireSession().jobPush({ jobId, approve: true, forceUserConfirm: true });
-    if (!result.ok) {
+    const session = host.requireSession();
+    const source = await session.jobInspect(jobId);
+    if (source === undefined) {
+      host.showError(ttui('tui.job.noMatch', { jobId }));
+      return;
+    }
+    if (source.job.status !== 'done' && source.job.status !== 'blocked') {
+      host.showError(ttui('tui.job.pushRequiresSettled', { jobId: source.job.id, status: source.job.status }));
+      return;
+    }
+    const result = await session.jobPush({ jobId, approve: true, forceUserConfirm: true });
+    if (!result.ok || result.pushJob === undefined) {
       host.showError(result.error ?? result.text);
       return;
     }

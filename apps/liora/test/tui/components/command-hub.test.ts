@@ -62,7 +62,6 @@ describe('buildDefaultCommandHubItems', () => {
     expect(commandHubActionToSlash('workspace.jobInbox')).toBe('/job inbox');
     expect(commandHubActionToSlash('workspace.quota')).toBe('/quota');
     expect([...ids].some((id) => id.includes('dashboard'))).toBe(false);
-    expect(commandHubActionToSlash('workspace.jobCreate')).toBe('/job create');
     expect(items.find((item) => item.id === 'help.commands')?.description).toContain(
       'slash command',
     );

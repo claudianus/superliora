@@ -7,6 +7,7 @@ This page collects typical SuperLiora CLI scenarios along with ready-to-use prom
 Start with an ordinary prompt that explicitly asks for investigation without edits. Planning is conversation, not a separate CLI mode:
 
 ```
+Investigate only; do not create, edit, or delete any files.
 Give me an overview of this repository's architecture. Specifically:
 1. Where is the entry point and what happens at startup?
 2. How do the main modules depend on each other?

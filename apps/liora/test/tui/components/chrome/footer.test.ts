@@ -94,6 +94,38 @@ describe('FooterComponent', () => {
     expect(rendered).toContain('kimi-k2');
   });
 
+  it('shows native Auto and its concrete route without a failover badge', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      model: 'auto',
+      availableModels: {
+        'kimi-k2': {
+          provider: 'managed:kimi-api',
+          model: 'kimi-k2',
+          maxContextSize: 200_000,
+          displayName: 'Kimi K2',
+        } as AppState['availableModels'][string],
+      },
+      lastProviderRouteSelection: {
+        modelAlias: 'kimi-k2',
+        providerName: 'managed:kimi-api',
+        providerModel: 'kimi-k2',
+      },
+      lastModelRouteNotice: {
+        kind: 'selection',
+        fromAlias: 'auto',
+        toAlias: 'kimi-k2',
+        reason: 'provider-route',
+        atMs: Date.now(),
+      },
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
+    });
+    const rendered = footer.render(160).join('\n');
+    expect(rendered).toContain('Auto');
+    expect(rendered).toContain('Kimi K2');
+    expect(rendered).not.toMatch(/Smart|Failover|failover/);
+  });
+
   it('expires an old provider failover badge without changing the session model', () => {
     const footer = new FooterComponent({
       ...appState,

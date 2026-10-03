@@ -1,20 +1,14 @@
-import type { ModelAlias } from '@superliora/sdk';
-
 import {
   formatCacheMissReasonGlance,
   type UsageCacheMissLike,
 } from '#/tui/utils/cache/cache-diagnostics';
 import { resolveThinkingDisplay } from '#/tui/utils/model/thinking-effort';
+import { modelRouteDisplayName } from '#/tui/utils/model/model-route-notice';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { formatGitBadgeBase, type GitStatus } from '#/utils/git/git-status';
 
 import type { StatusFieldRow } from './provider-route';
 import type { StatusReportOptions } from './types';
-
-function displayModelName(alias: string, models: Record<string, ModelAlias>): string {
-  const model = models[alias];
-  return model?.displayName ?? model?.model ?? alias;
-}
 
 export function formatModelStatus(options: StatusReportOptions): string {
   const model = options.status?.model ?? options.model;
@@ -32,7 +26,7 @@ export function formatModelStatus(options: StatusReportOptions): string {
       : display.requested === display.effective
         ? display.requested
         : `${display.requested}→${display.effective}`;
-  return `${displayModelName(model, options.availableModels)} (thinking ${thinkingLabel})`;
+  return `${modelRouteDisplayName(model, options.availableModels)} (thinking ${thinkingLabel})`;
 }
 
 export function formatWorktreeStatus(status: GitStatus): string {

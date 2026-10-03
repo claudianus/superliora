@@ -20,7 +20,7 @@ describe('process sandbox helpers', () => {
       additionalDirs: ['/extra'],
       cwd: '/ws/src',
       readOnly: true,
-      command: ['bash', '-c', "cd '/ws' && echo hi"],
+      command: ['bash', '-c', "cd '/ws/src' && echo hi"],
     });
     expect(args[0]).toBe('docker');
     expect(args).toContain('-v');
@@ -32,19 +32,19 @@ describe('process sandbox helpers', () => {
   });
 
   it.each([
-    ["cd '/ws with spaces' && printf hi", 'printf hi'],
-    ['cd "/ws with spaces" && printf hi', 'printf hi'],
-    ['  cd\t/ws\t&&\tprintf hi  ', 'printf hi'],
-    ["cd 'joined'path && printf hi", 'printf hi'],
+    ["cd '/ws with spaces' && printf hi", 'printf hi', '/ws with spaces'],
+    ['cd "/ws with spaces" && printf hi', 'printf hi', '/ws with spaces'],
+    ['  cd\t/ws\t&&\tprintf hi  ', 'printf hi', '/ws'],
+    ["cd '/ws/joined'path && printf hi", 'printf hi', '/ws/joinedpath'],
     ['cd /ws &&', 'cd /ws &&'],
     ['cd /ws ; printf hi', 'cd /ws ; printf hi'],
     ['printf hi', 'printf hi'],
     [`cd\t!\t&&\t${'\t'.repeat(20_000)}`, `cd\t!\t&&\t${'\t'.repeat(20_000)}`],
     [`cd /ws ${'\t'.repeat(20_000)} not-an-operator`, `cd /ws ${'\t'.repeat(20_000)} not-an-operator`],
-  ])('preserves sandbox command semantics for case %#', (script, expected) => {
+  ])('strips the generated cwd prefix and preserves incomplete shell commands for case %#', (script, expected, cwd = '/ws') => {
     const args = buildDockerSandboxArgs({
-      workspaceDir: '/ws',
-      cwd: '/ws',
+      workspaceDir: cwd,
+      cwd,
       command: ['bash', '-c', script],
     });
     expect(args.at(-1)).toBe(expected);

@@ -105,6 +105,14 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
   }
 
   for (const entry of EXPERIMENTAL_PROVIDER_PROFILES) {
+    // Keep native auth switches without the retired experimental policy catalog.
+    const raw = process.env[`SUPERLIORA_EXPERIMENTAL_${entry.flag.toUpperCase()}`]?.trim().toLowerCase();
+    const enabled = raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on'
+      ? true
+      : raw === '0' || raw === 'false' || raw === 'no' || raw === 'off'
+        ? false
+        : entry.flag !== 'github_copilot';
+    if (!enabled) continue;
     options.push({
       value: `oauth:${entry.profile.id}`,
       label: entry.profile.displayName,

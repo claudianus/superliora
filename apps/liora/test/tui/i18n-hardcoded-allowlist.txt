@@ -1,2 +1,0 @@
-# Hardcoded showStatus/showError/showNotice literals still pending ttui() migration.
-# Format: relative/path.ts:line:exact literal

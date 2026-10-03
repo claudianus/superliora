@@ -4,7 +4,7 @@
 
 import type { JobBriefPreview } from '@superliora/protocol';
 
-
+const LINE_BREAKS = /[\r\n\u2028\u2029]+/g;
 /** Brief preview lines for ACK / Deck (capped). */
 export function formatBriefPreviewLines(
   brief: JobBriefPreview,
@@ -13,15 +13,15 @@ export function formatBriefPreviewLines(
   const lines: string[] = [];
   const criteria = brief.successCriteria ?? [];
   if (criteria.length > 0) {
-    lines.push(`ok: ${criteria.slice(0, 2).join('; ')}`);
+    lines.push(`ok: ${criteria.slice(0, 2).join('; ')}`.replaceAll(LINE_BREAKS, ' '));
   }
   const mustNot = brief.mustNotTouch ?? [];
   if (mustNot.length > 0) {
-    lines.push(`don't touch: ${mustNot.slice(0, 2).join(', ')}`);
+    lines.push(`don't touch: ${mustNot.slice(0, 2).join(', ')}`.replaceAll(LINE_BREAKS, ' '));
   }
   const verify = brief.verificationCommands ?? [];
   if (verify.length > 0) {
-    lines.push(`verify: ${verify.slice(0, 2).join('; ')}`);
+    lines.push(`verify: ${verify.slice(0, 2).join('; ')}`.replaceAll(LINE_BREAKS, ' '));
   }
   return lines.slice(0, maxLines);
 }

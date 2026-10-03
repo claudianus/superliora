@@ -90,7 +90,7 @@ KIMI_API_KEY = "sk-test"
 liora --yolo
 ```
 
-For non-interactive prompts, set the desired permission policy in `config.toml` instead of combining `--yolo` with `-p`.
+Non-interactive prompts (`-p`) always run with `auto` permission handling; `default_permission_mode` in `config.toml` does not override this. New prompt sessions are created in `auto` mode. When `-p` resumes a session with `--session` or `--continue`, its saved permission mode is temporarily overridden with `auto` and restored during cleanup. Headless approval requests are approved automatically; question and credential requests return no answer. `--yolo` and `--auto` cannot be combined with `-p`.
 
 ## Next steps
 

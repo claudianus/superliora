@@ -486,6 +486,26 @@ describe('editor-usage-upgrade-settings', () => {
       expect(glance.tokenLine).toContain('$0.150');
       expect(glance.contextLine).toMatch(/42\.0%.*84\.0K.*200\.0K/);
     });
+    it.each([undefined, 0, -1])('omits unknown context when the maximum is %s', (maxContextTokens) => {
+      const glance = loadUsageSettingsGlance({
+        contextUsage: 0,
+        contextTokens: 0,
+        maxContextTokens,
+      });
+      expect(glance.contextLine).toBeUndefined();
+      expect(buildUsageSettingsLines(glance).join('\n')).not.toContain('Context:');
+    });
+
+    it('does not replace an unknown live maximum with a stale cached window', () => {
+      const glance = loadUsageSettingsGlance({
+        status: { contextUsage: 0, contextTokens: 0, maxContextTokens: 0 },
+        contextUsage: 0.5,
+        contextTokens: 100_000,
+        maxContextTokens: 200_000,
+      });
+      expect(glance.hasLiveSession).toBe(true);
+      expect(glance.contextLine).toBeUndefined();
+    });
   });
 
   describe('upgrade glance', () => {
