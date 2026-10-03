@@ -12,7 +12,8 @@
  * `result`, `workspaceDir`) stay on `ToolCallComponent` and are passed in
  * where needed.
  */
-import type { TokenUsage, ToolResultDisplay } from '@superliora/sdk';
+import { Utf8PrefixBuffer, type TokenUsage, type ToolResultDisplay } from '@superliora/sdk';
+import { STREAMING_ARGS_PREVIEW_MAX_BYTES } from '#/tui/constant/streaming';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
@@ -334,6 +335,7 @@ export class ToolCallSubagentState {
     this.ongoingSubCalls.set(call.id, {
       name: call.name,
       args: call.args,
+      ...(existing?.streamingArgsBuffer !== undefined ? { streamingArgsBuffer: existing.streamingArgsBuffer } : {}),
       ...(existing?.streamingArguments !== undefined
         ? { streamingArguments: existing.streamingArguments }
         : {}),
@@ -346,7 +348,9 @@ export class ToolCallSubagentState {
 
   appendSubToolCallDelta(delta: { id: string; name?: string | undefined; argumentsPart: string | null }): void {
     const existing = this.ongoingSubCalls.get(delta.id);
-    const nextArgsText = appendStreamingArgsPreview(existing?.streamingArguments, delta.argumentsPart);
+    const streamingArgsBuffer = existing?.streamingArgsBuffer ?? new Utf8PrefixBuffer(STREAMING_ARGS_PREVIEW_MAX_BYTES);
+    if (existing?.streamingArgsBuffer === undefined) streamingArgsBuffer.append(existing?.streamingArguments ?? '');
+    const nextArgsText = appendStreamingArgsPreview(existing?.streamingArguments, delta.argumentsPart, streamingArgsBuffer);
     const parsed = parseArgsPreview(nextArgsText);
     // Like the main card, decode a Bash command before its JSON string closes.
     // nextArgsText is already bounded by appendStreamingArgsPreview.
@@ -358,6 +362,7 @@ export class ToolCallSubagentState {
       name: delta.name ?? existing?.name ?? 'Tool',
       args: parsed,
       streamingArguments: nextArgsText,
+      streamingArgsBuffer,
     });
     this.upsertSubToolActivity(delta.id, delta.name ?? existing?.name ?? 'Tool', parsed, 'ongoing');
     if (this.phase === undefined || this.phase === 'queued' || this.phase === 'spawning') {

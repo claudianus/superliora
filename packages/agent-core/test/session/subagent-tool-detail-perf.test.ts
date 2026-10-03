@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { utf8Prefix } from '@superliora/protocol';
 
 import {
   describeSubagentToolDetail,
@@ -20,7 +21,8 @@ describe('subagent payload previews', () => {
       operation: 'spawn', description: 'x'.repeat(1000),
     });
     expect(detail).toMatchObject({ kind: 'session', operation: 'spawn' });
-    expect(detail?.kind === 'session' ? detail.description?.length : 0).toBe(120);
+    if (detail?.kind !== 'session') throw new Error('Expected session detail');
+    expect(Buffer.byteLength(detail.description ?? '')).toBe(120);
   });
 
 });
@@ -44,7 +46,7 @@ function referencePreview(value: unknown, maxLength: number): string | undefined
   }
   const flat = text.replaceAll(/\s+/g, ' ').trim();
   if (flat.length === 0) return undefined;
-  return flat.length > maxLength ? `${flat.slice(0, maxLength - 1)}…` : flat;
+  return utf8Prefix(flat, maxLength) !== flat ? `${utf8Prefix(flat, maxLength - 3)}…` : flat;
 }
 
 describe('previewSubagentToolArgs matches the reference flattening', () => {
@@ -167,7 +169,7 @@ describe('bounded parent summaries', () => {
     const command = '  echo\t hi\nthere ' + 'x'.repeat(1_000_000);
     const flat = command.replaceAll(/\s+/g, ' ').trim();
     expect(describeSubagentToolDetail('Bash', { command })).toEqual({
-      kind: 'bash', command: flat.slice(0, 119) + '…',
+      kind: 'bash', command: flat.slice(0, 117) + '…',
     });
     expect(describeSubagentToolDetail('Bash', { command: '\u00A0 echo\t hi \u00A0' }))
       .toEqual({ kind: 'bash', command: 'echo hi' });
@@ -176,6 +178,54 @@ describe('bounded parent summaries', () => {
     expect(previewSubagentToolProgress({ kind: 'stdout', text: ' '.repeat(1_000_000) }))
       .toBeUndefined();
     expect(previewSubagentToolProgress({ kind: 'stderr', text: 'x'.repeat(1_000_000) }))
-      .toEqual({ kind: 'stderr', textPreview: 'x'.repeat(499) + '…' });
+      .toEqual({ kind: 'stderr', textPreview: 'x'.repeat(497) + '…' });
+  });
+});
+
+describe('UTF-8 preview byte budgets', () => {
+  it('bounds source, progress, and detail prefixes including the three-byte ellipsis', () => {
+    const values = [
+      previewSubagentToolArgs('中'.repeat(1000)),
+      previewSubagentToolResult('😀'.repeat(1000)),
+      previewSubagentToolProgress({ kind: 'stdout', text: '中😀'.repeat(1000) })?.textPreview,
+      previewSubagentToolProgress({ kind: 'status', text: ' 😀\n中 '.repeat(1000) })?.textPreview,
+    ];
+    for (const [i, value] of values.entries()) {
+      expect(value?.isWellFormed()).toBe(true);
+      expect(value?.endsWith('…')).toBe(true);
+      expect(Buffer.byteLength(value ?? '')).toBeLessThanOrEqual(i === 0 ? 400 : 500);
+    }
+    expect(values[0]).toBe('中'.repeat(132) + '…');
+    expect(values[1]).toBe('😀'.repeat(124) + '…');
+    const detail = describeSubagentToolDetail('Bash', { command: '😀'.repeat(1000) });
+    expect(detail).toEqual({ kind: 'bash', command: '😀'.repeat(29) + '…' });
+    const session = describeSubagentToolDetail('SessionControl', {
+      operation: '中'.repeat(1000), description: '😀'.repeat(1000),
+    });
+    if (session?.kind !== 'session') throw new Error('Expected session detail');
+    expect(Buffer.byteLength(session.operation)).toBe(120);
+    expect(Buffer.byteLength(session.description ?? '')).toBe(119);
+  });
+
+  it('keeps exact byte limits without unnecessary ellipses or split emoji', () => {
+    expect(previewSubagentToolArgs('😀'.repeat(100))).toBe('😀'.repeat(100));
+    expect(previewSubagentToolResult('😀'.repeat(125))).toBe('😀'.repeat(125));
+    expect(previewSubagentToolArgs('x'.repeat(399) + '😀')).toBe('x'.repeat(397) + '…');
+    expect(previewSubagentToolArgs('x\uD800')).toBe('x');
+  });
+
+  it('caps escaped JSON output bytes, not source characters, without visiting the tail', () => {
+    for (const source of ['中😀'.repeat(1000), '\\"\n\t中😀'.repeat(1000)]) {
+      const payload = {
+        text: source,
+        get tail() { throw new Error('Tail must remain unread'); },
+      };
+      const expected = referencePreview({ text: source }, 400);
+      expect(previewSubagentToolArgs(payload)).toBe(expected);
+      expect(Buffer.byteLength(expected ?? '')).toBeLessThanOrEqual(400);
+      expect(expected?.isWellFormed()).toBe(true);
+    }
+    expect(previewSubagentToolArgs({ text: '\uD800😀' }))
+      .toBe('{"text":"\\ud800😀"}');
   });
 });

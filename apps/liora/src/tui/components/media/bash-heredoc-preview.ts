@@ -1,6 +1,7 @@
+import { utf8Prefix } from '@superliora/sdk';
 /** Bounded display of literal heredoc input, never an assertion that a file was written. */
 import { COMMAND_PREVIEW_LINES } from '#/tui/constant/rendering';
-import { STREAMING_ARGS_PREVIEW_MAX_CHARS } from '#/tui/constant/streaming';
+import { STREAMING_ARGS_PREVIEW_MAX_BYTES } from '#/tui/constant/streaming';
 import { currentTheme } from '#/tui/theme';
 import { highlightLines, langFromPath } from './code-highlight';
 
@@ -15,7 +16,7 @@ export function buildBashHeredocPreview(command: string): {
 } | undefined {
   // A preview recognizer, not a shell interpreter. Leave compound/multiple
   // heredocs and dynamic delimiters to the ordinary bash command renderer.
-  const bounded = command.slice(0, STREAMING_ARGS_PREVIEW_MAX_CHARS);
+  const bounded = utf8Prefix(command, STREAMING_ARGS_PREVIEW_MAX_BYTES);
   const lines = bounded.split('\n');
   const opening = lines.findIndex((line) => /<<-?\s*/.test(line));
   if (opening < 0) return undefined;
@@ -66,7 +67,7 @@ export function buildBashHeredocPreview(command: string): {
     sourceLines: [
       currentTheme.dim(`INPUT · Bash heredoc (${interpreter !== undefined ? 'script input; ' : patchInput ? 'patch input; ' : ''}not execution output)`),
       ...highlighted.map((line, i) => currentTheme.dim(`${String(start + i + 1).padStart(4)}  `) + line),
-      ...(command.length > bounded.length ? [currentTheme.dim('… command preview character limit reached')] : []),
+      ...(command.length > bounded.length ? [currentTheme.dim('… command preview UTF-8 byte limit reached')] : []),
     ],
   };
 }

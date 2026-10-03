@@ -429,6 +429,9 @@ importers:
       '@superliora/oauth':
         specifier: workspace:^
         version: link:../oauth
+      '@superliora/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
   packages/oauth:
     dependencies:

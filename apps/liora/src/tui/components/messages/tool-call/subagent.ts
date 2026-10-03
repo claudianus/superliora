@@ -9,7 +9,7 @@ import {
   projectRendererNonEmptyLineWindow,
   truncateToWidth,
 } from '#/tui/renderer';
-import type { ToolResultDisplay } from '@superliora/sdk';
+import type { Utf8PrefixBuffer, ToolResultDisplay } from '@superliora/sdk';
 
 import { BRAILLE_SPINNER_INTERVAL_MS } from '#/tui/constant/rendering';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
@@ -68,6 +68,7 @@ export interface OngoingSubCall {
   readonly name: string;
   readonly args: Record<string, unknown>;
   readonly streamingArguments?: string | undefined;
+  readonly streamingArgsBuffer?: Utf8PrefixBuffer;
 }
 
 export interface SubToolActivity {

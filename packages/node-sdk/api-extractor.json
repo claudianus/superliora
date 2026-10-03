@@ -6,7 +6,8 @@
     "@superliora/gui-use",
     "@superliora/kaos",
     "@superliora/oauth",
-    "@superliora/kosong"
+    "@superliora/kosong",
+    "@superliora/protocol"
   ],
   "compiler": {
     "tsconfigFilePath": "<projectFolder>/tsconfig.api-extractor.json",

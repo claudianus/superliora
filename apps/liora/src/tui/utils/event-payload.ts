@@ -1,47 +1,53 @@
 import {
   isKimiError,
+  utf8Prefix,
+  Utf8PrefixBuffer,
   type LioraErrorPayload,
 } from '@superliora/sdk';
 
 import {
   STREAMING_ARGS_FIELD_RE,
-  STREAMING_ARGS_PREVIEW_MAX_CHARS,
+  STREAMING_ARGS_PREVIEW_MAX_BYTES,
 } from '#/tui/constant/streaming';
 
+/**
+ * Use a retained buffer for each live stream: the legacy string-only form cannot
+ * retain a pending surrogate or a frozen prefix with unused byte capacity.
+ */
 export function appendStreamingArgsPreview(
   current: string | undefined,
   next: string | null | undefined,
+  buffer?: Utf8PrefixBuffer,
 ): string {
-  const existing = (current ?? '').slice(0, STREAMING_ARGS_PREVIEW_MAX_CHARS);
-  if (next === null || next === undefined || next.length === 0) return existing;
-  const remaining = STREAMING_ARGS_PREVIEW_MAX_CHARS - existing.length;
-  if (remaining <= 0) return existing;
-  return `${existing}${next.slice(0, remaining)}`;
+  if (buffer !== undefined) return buffer.append(next ?? '');
+  const prefix = new Utf8PrefixBuffer(STREAMING_ARGS_PREVIEW_MAX_BYTES);
+  prefix.append(current ?? '');
+  return prefix.append(next ?? '');
 }
 
-function unescapeJsonString(s: string): string {
-  return s.replaceAll(/\\(["\\/bfnrt])/g, (_, ch: string) => {
-    switch (ch) {
-      case 'n':
-        return '\n';
-      case 't':
-        return '\t';
-      case 'r':
-        return '\r';
-      case 'b':
-        return '\b';
-      case 'f':
-        return '\f';
-      case '"':
-        return '"';
-      case '\\':
-        return '\\';
-      case '/':
-        return '/';
-      default:
-        return ch;
+/** Decode only complete escapes; raw stream state remains untouched for the next delta. */
+export function decodePartialJsonString(text: string): string {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch !== '\\') {
+      out += ch;
+      continue;
     }
-  });
+    const next = text[++i];
+    if (next === undefined) break;
+    if (next === 'u') {
+      const hex = text.slice(i + 1, i + 5);
+      if (!/^[0-9a-fA-F]{4}$/.test(hex)) break;
+      // JSON \u escapes encode UTF-16 code units; preserve pairs until the prefix validates them.
+      out += String.fromCodePoint(Number.parseInt(hex, 16));
+      i += 4;
+    } else {
+      const escapes: Record<string, string> = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f' };
+      out += escapes[next] ?? next;
+    }
+  }
+  return utf8Prefix(out, STREAMING_ARGS_PREVIEW_MAX_BYTES);
 }
 
 /**
@@ -58,24 +64,23 @@ const STREAMING_ARGS_CACHE_MAX_ENTRIES = 8;
 const streamingArgsCache = new Map<string, Record<string, unknown>>();
 
 export function parseStreamingArgs(argumentsText: string): Record<string, unknown> {
-  const cached = streamingArgsCache.get(argumentsText);
+  const previewText = utf8Prefix(argumentsText, STREAMING_ARGS_PREVIEW_MAX_BYTES);
+  const complete = previewText === argumentsText;
+  const cacheKey = `${complete ? 'complete' : 'prefix'}:${previewText}`;
+  const cached = streamingArgsCache.get(cacheKey);
   if (cached !== undefined) return cached;
-  const parsed = parseStreamingArgsUncached(argumentsText);
+  const parsed = parseStreamingArgsUncached(previewText, complete);
   if (streamingArgsCache.size >= STREAMING_ARGS_CACHE_MAX_ENTRIES) {
     const oldest = streamingArgsCache.keys().next();
     if (oldest.done !== true) streamingArgsCache.delete(oldest.value);
   }
-  streamingArgsCache.set(argumentsText, parsed);
+  streamingArgsCache.set(cacheKey, parsed);
   return parsed;
 }
 
-function parseStreamingArgsUncached(argumentsText: string): Record<string, unknown> {
-  const previewText = argumentsText.slice(0, STREAMING_ARGS_PREVIEW_MAX_CHARS);
+function parseStreamingArgsUncached(previewText: string, complete: boolean): Record<string, unknown> {
   if (previewText.trim().length === 0) return {};
-  if (
-    argumentsText.length <= STREAMING_ARGS_PREVIEW_MAX_CHARS &&
-    previewText.trimEnd().endsWith('}')
-  ) {
+  if (complete && previewText.trimEnd().endsWith('}')) {
     try {
       const parsed = JSON.parse(previewText) as unknown;
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
@@ -91,7 +96,7 @@ function parseStreamingArgsUncached(argumentsText: string): Record<string, unkno
     const rawValue = match[2];
     if (key === undefined || rawValue === undefined) continue;
     if (!(key in result)) {
-      result[key] = unescapeJsonString(rawValue);
+      result[key] = decodePartialJsonString(rawValue);
     }
   }
   return result;

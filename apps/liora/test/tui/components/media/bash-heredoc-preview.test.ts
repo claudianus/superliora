@@ -9,7 +9,7 @@ import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import { formatBashHeredocPreview } from '#/tui/components/media/bash-heredoc-preview';
 import { highlightLines } from '#/tui/components/media/code-highlight';
 import { COMMAND_PREVIEW_LINES } from '#/tui/constant/rendering';
-import { STREAMING_ARGS_PREVIEW_MAX_CHARS } from '#/tui/constant/streaming';
+import { STREAMING_ARGS_PREVIEW_MAX_BYTES } from '#/tui/constant/streaming';
 import { buildStreamingCallPreviewComponents } from '#/tui/components/messages/tool-call/call-preview-body';
 import { ToolCallSubagentState } from '#/tui/components/messages/tool-call/subagent-state';
 import { ShellExecutionComponent } from '#/tui/components/messages/shell/shell-execution';
@@ -69,10 +69,25 @@ describe('bash heredoc command previews', () => {
     }
   });
 
-  it('bounds preview input and discloses the character cap', () => {
-    const lines = formatBashHeredocPreview(`cat > example.ts <<EOF\n${'x\n'.repeat(STREAMING_ARGS_PREVIEW_MAX_CHARS)}`)!;
+  it('bounds preview input and discloses the byte cap', () => {
+    const lines = formatBashHeredocPreview(`cat > example.ts <<EOF\n${'x\n'.repeat(STREAMING_ARGS_PREVIEW_MAX_BYTES)}`)!;
     expect(lines.length).toBeLessThanOrEqual(COMMAND_PREVIEW_LINES + 2);
-    expect(strip(lines.join('\n'))).toContain('character limit reached');
+    expect(strip(lines.join('\n'))).toContain('UTF-8 byte limit reached');
+  });
+
+  it.each(['界', '😀'])('bounds final heredoc %s source at a whole UTF-8 code point', (scalar) => {
+    const header = 'cat > example.ts <<EOF\n';
+    const unitBytes = Buffer.byteLength(scalar);
+    const count = Math.floor((STREAMING_ARGS_PREVIEW_MAX_BYTES - Buffer.byteLength(header)) / unitBytes);
+    const expected = scalar.repeat(count);
+    const command = header + expected + scalar + 'ASCII_AFTER_CAP';
+    const lines = formatBashHeredocPreview(command)!;
+    const plain = strip(lines.join('\n'));
+    expect(plain).toContain(expected);
+    expect(plain).not.toContain('ASCII_AFTER_CAP');
+    expect(plain).toContain('UTF-8 byte limit reached');
+    expect(plain.isWellFormed()).toBe(true);
+    expect(Buffer.byteLength(header + expected)).toBeLessThanOrEqual(STREAMING_ARGS_PREVIEW_MAX_BYTES);
   });
 
   it('updates main-agent previews before JSON arguments finish, reusing the shell node', () => {
@@ -162,7 +177,7 @@ describe('bash heredoc command previews', () => {
     const command = 'cat > example.ts <<EOF\n' + 'const padding = 1;\n'.repeat(5000) + 'SOURCE_AFTER_CAP';
     const json = JSON.stringify({ command });
     const prefix = appendStreamingArgsPreview(undefined, json);
-    expect(prefix).toHaveLength(STREAMING_ARGS_PREVIEW_MAX_CHARS);
+    expect(prefix).toHaveLength(STREAMING_ARGS_PREVIEW_MAX_BYTES);
     const first = buildStreamingCallPreviewComponents({ toolCall: { id: 'cap', name: 'Bash', args: {} }, streamText: prefix, existingShell: undefined });
     expect(render(first.components)).toContain('const padding');
     expect(render(first.components)).not.toContain('SOURCE_AFTER_CAP');

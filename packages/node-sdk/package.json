@@ -69,6 +69,7 @@
     "@superliora/gui-use": "workspace:^",
     "@superliora/kaos": "workspace:^",
     "@superliora/kosong": "workspace:^",
-    "@superliora/oauth": "workspace:^"
+    "@superliora/oauth": "workspace:^",
+    "@superliora/protocol": "workspace:*"
   }
 }

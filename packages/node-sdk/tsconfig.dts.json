@@ -16,7 +16,8 @@
     "../gui-use/src/**/*.ts",
     "../kaos/src/**/*.ts",
     "../kosong/src/**/*.ts",
-    "../oauth/src/**/*.ts"
+    "../oauth/src/**/*.ts",
+    "../protocol/src/**/*.ts"
   ],
   "exclude": [
     "dist",
@@ -24,6 +25,7 @@
     "examples",
     "test",
     "../*/dist",
-    "../*/test"
+    "../*/test",
+    "../protocol/src/__tests__"
   ]
 }
