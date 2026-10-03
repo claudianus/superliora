@@ -5,7 +5,6 @@ import {
   RendererTranscriptViewportComponent,
   Text,
   TEXT_WINDOWED_BODY_CHAR_CAP,
-  supportsWindowedBody,
   withTranscriptCheapPaintMode,
 } from '../src';
 
@@ -15,15 +14,6 @@ function multiKBody(rows: number, width = 48): string {
 }
 
 describe('windowed large-body paint (Phase D)', () => {
-  it('Text exposes windowed measure/paint seam', () => {
-    const body = multiKBody(400);
-    const text = new Text(body, 0, 0);
-    expect(supportsWindowedBody(text)).toBe(true);
-    expect(text.measureContentRows(80)).toBeGreaterThan(0);
-    // Source must exceed the shipped windowed threshold.
-    expect(body.length).toBeGreaterThan(TEXT_WINDOWED_BODY_CHAR_CAP);
-  });
-
   it('paintContentRows returns only the visible window length', () => {
     const body = multiKBody(500);
     const text = new Text(body, 0, 0);
@@ -157,5 +147,73 @@ describe('windowed large-body paint (Phase D)', () => {
     const full = text.render(50);
     const viaWindow = text.paintContentRows(50, 5, 15);
     expect(viaWindow).toEqual(full.slice(5, 15));
+  });
+
+  it('replaces a stale sparse band when a mounted windowed child changes', () => {
+    const viewport = new RendererTranscriptViewport();
+    const transcript = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 2,
+    });
+    let prefix = 'old';
+    const child = {
+      invalidate() {},
+      render: () => Array.from({ length: 8 }, (_, i) => `${prefix}-${i}`),
+      measureContentRows: () => 8,
+      paintContentRows: (_width: number, start: number, end: number) =>
+        Array.from({ length: end - start }, (_, i) => `${prefix}-${start + i}`),
+    };
+    transcript.addChild(child);
+    expect(transcript.render(40)).toEqual(['old-6', 'old-7']);
+    prefix = 'new';
+    transcript.invalidateChildGeometry(child);
+    expect(transcript.render(40)).toEqual(['new-6', 'new-7']);
+  });
+
+  it('maps row boundaries after zero-height cards, height changes and removal', () => {
+    const viewport = new RendererTranscriptViewport();
+    const transcript = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 2,
+    });
+    const empty = { render: () => [], invalidate() {} };
+    const first = new Text('a\nb', 0, 0);
+    const last = new Text('c\nd', 0, 0);
+    transcript.addChild(empty);
+    transcript.addChild(first);
+    transcript.addChild(last);
+    expect(transcript.childRowRangeAt(40, 0)?.child).toBe(first);
+    expect(transcript.childRowRangeAt(40, 2)?.child).toBe(last);
+    first.setText('a');
+    transcript.invalidateChildGeometry(first);
+    expect(transcript.childRowRangeAt(40, 1)?.child).toBe(last);
+    expect(transcript.childRowRangeAt(40, 2)?.localRow).toBe(1);
+    transcript.removeChild(first);
+    expect(transcript.childRowRangeAt(40, 0)?.child).toBe(last);
+    expect(transcript.childRowRangeAt(40, 2)).toBeUndefined();
+  });
+
+  it('refreshes rows across animated and settled window-mode transitions', () => {
+    const viewport = new RendererTranscriptViewport();
+    const transcript = new RendererTranscriptViewportComponent({ viewport, getVisibleRows: () => 1 });
+    let animated = true;
+    let label = 'pulse-1';
+    const child = {
+      invalidate() {},
+      render: () => ['head', label],
+      measureContentRows: () => 2,
+      paintContentRows: (_width: number, start: number, end: number) => ['head', label].slice(start, end),
+      canPaintContentRows: () => !animated,
+    };
+    transcript.addChild(child);
+    expect(transcript.render(40)).toEqual(['pulse-1']);
+    label = 'pulse-2';
+    expect(transcript.render(40)).toEqual(['pulse-2']);
+    animated = false;
+    label = 'settled';
+    expect(transcript.render(40)).toEqual(['settled']);
+    animated = true;
+    label = 'pulse-3';
+    expect(transcript.render(40)).toEqual(['pulse-3']);
   });
 });

@@ -1,6 +1,6 @@
 import type { Component } from '#/tui/renderer';
-import { visibleWidth } from '#/tui/renderer';
-import { describe, expect, it } from 'vitest';
+import { Container, visibleWidth } from '#/tui/renderer';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ToolOutputViewportComponent } from '#/tui/components/messages/tool-output-viewport';
 import {
@@ -91,5 +91,56 @@ describe('ToolOutputViewportComponent', () => {
     const narrow = component.render(1);
     expect(narrow).toHaveLength(4);
     expect(narrow.every((line) => visibleWidth(line) <= 1)).toBe(true);
+  });
+
+  it('paints only the nested visible window of a huge highlighted body', () => {
+    let state = createToolOutputViewportState();
+    const render = vi.fn(() => {
+      throw new Error('full output paint must not run');
+    });
+    const paintContentRows = vi.fn((_width: number, start: number, end: number) =>
+      Array.from({ length: end - start }, (_, row) =>
+        `\u001B[32mline-${start + row}\u001B[0m`),
+    );
+    const body: Component = {
+      render,
+      invalidate() {},
+      measureContentRows: () => 10_000,
+      paintContentRows,
+    };
+    const nested = new Container();
+    nested.addChild(new LinesComponent(['heading']));
+    nested.addChild(body);
+    const component = new ToolOutputViewportComponent({
+      child: nested,
+      getState: () => state,
+      setState: (next) => { state = next; },
+    });
+    const first = component.render(20);
+    expect(first).toHaveLength(5);
+    expect(first[1]).toContain('\u001B[32mline-0');
+    expect(paintContentRows).toHaveBeenLastCalledWith(19, 0, 4);
+
+    expect(component.scroll(500)).toBe(true);
+    const scrolled = component.render(20);
+    expect(scrolled[0]).toContain('line-499');
+    expect(paintContentRows).toHaveBeenLastCalledWith(19, 499, 504);
+    expect(render).not.toHaveBeenCalled();
+    expect(component.measureContentRows(20)).toBe(5);
+  });
+
+  it('keeps container-subclass presentation rather than flattening its children', () => {
+    class FramedOutput extends Container {
+      override render(): string[] { return ['framed-output']; }
+    }
+    let state = createToolOutputViewportState();
+    const child = new FramedOutput();
+    child.addChild(new LinesComponent(['unframed-body']));
+    const component = new ToolOutputViewportComponent({
+      child,
+      getState: () => state,
+      setState: (next) => { state = next; },
+    });
+    expect(component.render(20)).toEqual(['framed-output']);
   });
 });

@@ -72,6 +72,11 @@ export class RendererTranscriptViewport {
     return this.current;
   }
 
+  pauseFollowOutput(): RendererViewportSnapshot {
+    this.current = this.viewport.pauseFollowOutput();
+    return this.current;
+  }
+
   start(): number {
     return this.current.start;
   }

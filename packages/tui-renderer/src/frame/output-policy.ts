@@ -11,6 +11,7 @@ export type RendererFrameOutputDecisionReason =
   | 'empty'
   | 'cursor-only'
   | 'full-frame'
+  | 'scroll'
   | 'changed-cells'
   | 'output-runs'
   | 'output-cells'
@@ -172,7 +173,9 @@ function resolveFrameOutputMode(
   diff: RendererFrameDiff,
   cursor: RendererCursorState | undefined,
 ): RendererFrameOutputMode {
-  if (diff.changedCells <= 0) return cursor === undefined ? 'empty' : 'cursor-only';
+  if (diff.changedCells <= 0 && (diff.scrollDelta === undefined || diff.scrollDelta === 0)) {
+    return cursor === undefined ? 'empty' : 'cursor-only';
+  }
   // Mode follows actual rewrite coverage, not scan strategy. A forced full-frame
   // scan that only patches a handful of changed cells is still a partial present
   // — treating it as "full" used to wrap sync and overstate output pressure.
@@ -188,6 +191,7 @@ function isLargeFrame(
   policy: ResolvedRendererFrameOutputPolicy,
 ): boolean {
   if (mode === 'empty' || mode === 'cursor-only') return false;
+  if (diff.scrollDelta !== undefined && diff.scrollDelta !== 0) return true;
   if (mode === 'full' && policy.syncFullFrame) return true;
   if (diff.changedCells >= policy.syncMinChangedCells) return true;
   if (rendererOutputRuns(diff) >= policy.syncMinOutputRuns) return true;
@@ -225,6 +229,7 @@ function largeFrameReason(
   policy: ResolvedRendererFrameOutputPolicy,
 ): RendererFrameOutputDecisionReason {
   if (mode === 'full' && policy.syncFullFrame) return 'full-frame';
+  if (diff.scrollDelta !== undefined && diff.scrollDelta !== 0) return 'scroll';
   if (diff.changedCells >= policy.syncMinChangedCells) return 'changed-cells';
   if (rendererOutputRuns(diff) >= policy.syncMinOutputRuns) return 'output-runs';
   if (rendererOutputCells(diff) >= policy.syncMinOutputCells) return 'output-cells';

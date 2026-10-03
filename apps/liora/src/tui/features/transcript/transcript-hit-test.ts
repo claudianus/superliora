@@ -143,7 +143,7 @@ export function getTUIStateNativeTranscriptRect(
   width = state.terminal.columns,
   height = state.terminal.rows,
 ): RendererRect | undefined {
-  return resolveTranscriptHitTestContext(state, width, height)?.rect;
+  return resolveTranscriptLayoutContext(state, width, height)?.rect;
 }
 
 /**
@@ -156,7 +156,7 @@ export function getTUIStateNativeTodoRect(
   width = state.terminal.columns,
   height = state.terminal.rows,
 ): RendererRect | undefined {
-  resolveTranscriptHitTestContext(state, width, height);
+  resolveTranscriptLayoutContext(state, width, height);
   return state.cachedTodoRect;
 }
 
@@ -169,7 +169,7 @@ export function getTUIStateNativeWorkerDockRect(
   width = state.terminal.columns,
   height = state.terminal.rows,
 ): RendererRect | undefined {
-  resolveTranscriptHitTestContext(state, width, height);
+  resolveTranscriptLayoutContext(state, width, height);
   return state.cachedWorkerDockRect;
 }
 
@@ -179,7 +179,7 @@ export function getTUIStateNativeActivityRect(
   width = state.terminal.columns,
   height = state.terminal.rows,
 ): RendererRect | undefined {
-  resolveTranscriptHitTestContext(state, width, height);
+  resolveTranscriptLayoutContext(state, width, height);
   return state.cachedActivityRect;
 }
 

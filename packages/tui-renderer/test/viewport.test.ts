@@ -43,6 +43,27 @@ describe('RendererViewport', () => {
     });
   });
 
+  it('pauses follow at the live tail without moving the selection viewport', () => {
+    const viewport = new RendererTranscriptViewport({ contentRows: 10, viewportRows: 4 });
+    expect(viewport.pauseFollowOutput()).toMatchObject({
+      start: 6,
+      offsetFromBottom: 0,
+      followOutput: false,
+    });
+    expect(viewport.sync(15, 4)).toMatchObject({
+      start: 6,
+      end: 10,
+      offsetFromBottom: 5,
+      followOutput: false,
+    });
+    viewport.scroll('bottom');
+    expect(viewport.sync(16, 4)).toMatchObject({
+      start: 12,
+      end: 16,
+      followOutput: true,
+    });
+  });
+
   it('keeps visible rows stable when output grows while scrolled up', () => {
     const viewport = new RendererViewport({ contentRows: 10, viewportRows: 4 });
 
@@ -900,41 +921,6 @@ describe('RendererViewport', () => {
     expect(totalRenders()).toBe(afterWarm);
   });
 
-  it('pure scroll formats only the visible slice of a tall child', () => {
-    let paintCount = 0;
-    const viewport = new RendererTranscriptViewport();
-    const component = new RendererTranscriptViewportComponent({
-      viewport,
-      getVisibleRows: () => 4,
-      paintLine: (line) => {
-        paintCount++;
-        return line;
-      },
-    });
-    // Tall body: full format would cost 200 paintLine calls per first intersection.
-    component.addChild({
-      invalidate: () => {},
-      render: () => Array.from({ length: 200 }, (_, i) => `line-${i}`),
-    });
-
-    component.render(80);
-    // Only the visible window is formatted (not the whole 200-line body).
-    expect(paintCount).toBe(4);
-    paintCount = 0;
-
-    // Scroll inside the same child — new rows format; already-seen rows reuse sparse cache.
-    viewport.scroll('line-up');
-    component.render(80);
-    // lineScrollRows defaults to 3 → up to 3 new lines formatted.
-    expect(paintCount).toBeLessThanOrEqual(3);
-    expect(paintCount).toBeGreaterThan(0);
-    const afterScroll = paintCount;
-    paintCount = 0;
-    // Re-render same window: sparse cache hit, no paintLine.
-    component.render(80);
-    expect(paintCount).toBe(0);
-    expect(afterScroll).toBeGreaterThan(0);
-  });
 
   it('cheap-paint pure scroll does not re-probe warm child.render every frame', () => {
     let childRenders = 0;

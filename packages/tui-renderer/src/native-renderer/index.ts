@@ -60,7 +60,6 @@ import {
 import { NativeRendererAutoFrameHold } from './auto-frame-hold';
 import { NativeRendererBackpressure } from './backpressure';
 import { NativeRendererSyncProbe } from './sync-probe';
-import { handleNativeRendererTerminalResize } from './resize';
 import {
   createNativeFrameRendererOptions,
   executeNativeRendererFrame,
@@ -129,14 +128,14 @@ export class NativeTerminalRenderer {
       this.options.output,
       this.options.deferFramesDuringBackpressure,
       {
-        now: () => this.loop.now(),
         recordMarker: (name, args) => {
           this.trace.recordMarker({ timestampMs: this.loop.now(), name, args });
         },
-        cancelRegionAnimationFrame: () =>{  this.cancelRegionAnimationFrame(); },
-        loopRequestRender: (cause) =>{  this.loop.requestRender(cause); },
-        loopRequestAnimationFrame: (callback) => this.loop.requestAnimationFrame(callback),
+        suspendFrames: (suspended) => {
+          this.loop.setSuspended(suspended);
+        },
       },
+      this.options.scheduler,
     );
     this.autoFrameHold = new NativeRendererAutoFrameHold(this.options.autoFrameHold, {
       now: () => this.loop.now(),
@@ -146,10 +145,6 @@ export class NativeTerminalRenderer {
       cancelRegionAnimationFrame: () =>{  this.cancelRegionAnimationFrame(); },
       requestRenderDirect: (cause) =>{  this.loop.requestRender(cause); },
       requestAnimationFrameDirect: (callback) => this.loop.requestAnimationFrame(callback),
-      shouldDeferFrameForBackpressure: () => this.backpressure.shouldDefer(),
-      deferRenderCause: (cause) =>{  this.backpressure.deferRenderCause(cause); },
-      deferAnimationFrame: (callback) => this.backpressure.deferAnimationFrame(callback),
-      cancelDeferredAnimationFrame: (id) => this.backpressure.cancelDeferredAnimationFrame(id),
       loopCancelAnimationFrame: (id) =>{  this.loop.cancelAnimationFrame(id); },
     });
     this.syncProbe = new NativeRendererSyncProbe(
@@ -194,6 +189,9 @@ export class NativeTerminalRenderer {
       originX: this.options.originX,
       originY: this.options.originY,
       imageProtocol: this.options.imageProtocol,
+      onBackpressure: () => {
+        if (this.started) this.backpressure.handleBackpressure();
+      },
       onInput: (data) => {
         this.options.onInput?.(data);
         if (
@@ -367,13 +365,18 @@ export class NativeTerminalRenderer {
     this.started = false;
     this.ambientSchedule.dispose();
     this.syncProbe.abort();
+    this.loop.stop();
     this.backpressure.clear();
     this.autoFrameHold.clear();
+    this.cancelRegionAnimationFrame();
     // Drop any bare-ESC timer so a stopped renderer cannot emit late Escape.
     this.inputDecoder.dispose();
-    this.loop.stop();
-    this.frameRenderer.flushTerminalPrefix();
-    this.session.stop();
+    try {
+      this.frameRenderer.flushTerminalPrefix();
+    } finally {
+      // A dead PTY must not leave stdin raw just because a queued write failed.
+      this.session.stop();
+    }
   }
 
   setAmbientSchedule(options: RendererAmbientScheduleOptions | undefined): void {
@@ -468,28 +471,11 @@ export class NativeTerminalRenderer {
   }
 
   private handleResize(size: NativeTerminalSize): void {
-    handleNativeRendererTerminalResize(
-      {
-        screenMode: this.options.screenMode,
-        originX: this.options.originX,
-        originY: this.options.originY,
-        fill: this.options.fill,
-        frameRenderer: this.frameRenderer,
-        compositionCache: this.compositionCache,
-      },
-      size,
-      {
-        now: () => this.loop.now(),
-        recordResize: (resizeSize) => {
-          this.trace.recordResize({
-            timestampMs: this.loop.now(),
-            size: resizeSize,
-          });
-        },
-        onResize: this.options.onResize,
-        requestRender: () =>{  this.loop.requestRender('resize'); },
-      },
-    );
+    // Notifications remain synchronous, but buffer recreation and terminal
+    // prefixes coalesce in the next frame at the latest terminal dimensions.
+    this.trace.recordResize({ timestampMs: this.loop.now(), size });
+    this.options.onResize?.(size);
+    this.loop.requestRender('resize');
   }
 
   private shouldScheduleRegionVfxFrames(): boolean {

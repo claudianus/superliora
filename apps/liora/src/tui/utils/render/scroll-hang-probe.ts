@@ -196,10 +196,6 @@ export function lastScrollHangDumpForTest(): ScrollHangDump | undefined {
   return lastDump;
 }
 
-export function scrollHangRingForTest(): readonly ScrollHangSample[] {
-  return ring;
-}
-
 export function setScrollHangProbeSinkForTest(
   next: ((dump: ScrollHangDump) => void) | undefined,
 ): void {

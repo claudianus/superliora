@@ -19,7 +19,6 @@ import {
 import type { TUIState } from '../../tui-state';
 import {
   buildTUIStateNativeFrame,
-  isNativeFullscreenTakeover,
   normalizeFrameSize,
   type TUIStateNativeFrameChrome,
 } from './native-layout-frame-build';
@@ -39,7 +38,6 @@ import {
   type TUIStateVisibleNativeRendererOptions,
 } from './native-layout-frame-types';
 import { planTUINativeStage } from '#/tui/features/native-layout/native-stage-plan';
-import { shouldHoldTranscriptAnimation } from '#/tui/features/transcript/transcript-selection';
 
 export {
   frameInvalidationIntentToCause,
@@ -136,14 +134,6 @@ export function createTUIStateNativeRenderer(
   nativeRenderer = new NativeTerminalRenderer({
     ...options,
     autoBeginFrame: false,
-    autoFrameHold: options.autoFrameHold ?? (() => {
-      // Fullscreen takeover (splash, tasks browser, approval preview) owns its
-      // own animations — never hold frames based on transcript scroll state.
-      if (isNativeFullscreenTakeover(state)) return false;
-      return shouldHoldTranscriptAnimation({
-        transcriptSelection: state.transcriptSelection,
-      });
-    }),
     fill: options.fill ?? currentTheme.canvasBackgroundCell(),
     eraseLine: options.eraseLine ?? false,
     outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,

@@ -1,4 +1,5 @@
 import {
+  ANSI_END_SYNCHRONIZED_UPDATE,
   ANSI_HIDE_CURSOR,
   ANSI_SHOW_CURSOR,
   type RendererTerminalOutputOptions,
@@ -33,6 +34,8 @@ export interface NativeTerminalInput {
 export interface NativeTerminalOutput extends RendererOutputTarget {
   readonly columns?: number;
   readonly rows?: number;
+  /** Node Writable state; permits recovery from a missed drain, not timed bypass. */
+  readonly writableNeedDrain?: boolean;
   on?(event: 'resize' | 'drain', listener: (...args: unknown[]) => void): unknown;
   off?(event: 'resize' | 'drain', listener: (...args: unknown[]) => void): unknown;
   removeListener?(event: 'resize' | 'drain', listener: (...args: unknown[]) => void): unknown;
@@ -53,6 +56,7 @@ export interface NativeTerminalSessionOptions extends RendererTerminalOutputOpti
   readonly imageProtocol?: RendererInlineImageProtocol;
   readonly onInput?: (data: string | Buffer) => void;
   readonly onResize?: (size: NativeTerminalSize) => void;
+  readonly onBackpressure?: () => void;
 }
 
 export interface NativeTerminalSize {
@@ -199,11 +203,11 @@ export class NativeTerminalSession {
       restore.push(ANSI_POP_KITTY_KEYBOARD_PROTOCOL);
     }
     const sequence = startup.join('');
-    if (flush && sequence.length > 0) output.write(sequence);
+    if (flush && sequence.length > 0) this.write(sequence);
     if (restore.length > 0) {
       const restoreSequence = restore.toReversed().join('');
       this.cleanup.push(() => {
-        output.write(restoreSequence);
+        this.write(restoreSequence);
       });
     }
 
@@ -216,7 +220,19 @@ export class NativeTerminalSession {
     if (!this.started) return;
     this.started = false;
 
-    for (const cleanup of this.cleanup.splice(0).toReversed()) cleanup();
+    const cleanup = this.cleanup;
+    this.cleanup = [];
+    let failed = false;
+    let firstError: unknown;
+    for (let index = cleanup.length - 1; index >= 0; index--) {
+      try {
+        cleanup[index]!();
+      } catch (error) {
+        if (!failed) firstError = error;
+        failed = true;
+      }
+    }
+    if (failed) throw firstError;
   }
 
   /**
@@ -245,9 +261,11 @@ export class NativeTerminalSession {
     }
 
     const sequence =
+      ANSI_END_SYNCHRONIZED_UPDATE +
       ANSI_SHOW_CURSOR +
       ANSI_POP_KITTY_KEYBOARD_PROTOCOL +
       ANSI_DISABLE_SGR_MOUSE_MODE +
+      ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING +
       ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING +
       ANSI_DISABLE_MOUSE_TRACKING +
       ANSI_DISABLE_FOCUS_EVENTS +
@@ -263,7 +281,9 @@ export class NativeTerminalSession {
   }
 
   write(chunk: string): unknown {
-    return this.options.output.write(chunk);
+    const result = this.options.output.write(chunk);
+    if (result === false) this.options.onBackpressure?.();
+    return result;
   }
 
   private startInput(input: NativeTerminalInput): void {

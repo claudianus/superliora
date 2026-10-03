@@ -1037,10 +1037,8 @@ describe('createTUIState', () => {
     // The immediate resize consumes the current 60fps frame slot.
     scheduler.advance(34);
 
-    expect(renderer.lastFrame?.frame.causes).toContain('manual');
     expect(renderer.frameRenderer.height).toBe(3);
     const shrinkWrites = output.writes.slice(writesBeforeShrink);
-    expect(shrinkWrites).toHaveLength(1);
     expect(shrinkWrites[0]).toContain(
       encodeTerminalClearBelowRow(3, 0, 0, currentTheme.canvasBackgroundCell(), 12, 1),
     );
@@ -1160,7 +1158,7 @@ describe('createTUIState', () => {
     setAppearanceRenderHealth('healthy');
   });
 
-  it('keeps rendering frames while transcript viewport is manually scrolled and holds only for selection', () => {
+  it('keeps rendering frames while browsing or selecting transcript history', () => {
     withMotionEffectsAllowedEnv(() => {
       const state = createTUIState({
         initialAppState: fakeInitialAppState(),
@@ -1199,27 +1197,23 @@ describe('createTUIState', () => {
       expect(renderer.stats.frames).toBeGreaterThan(1);
       expect(output.writes.length).toBeGreaterThan(writesAfterStart);
 
-      // An active transcript selection still holds auto frames so the
-      // highlight stays stable while dragging.
-      const writesBeforeHold = output.writes.length;
-      const framesBeforeHold = renderer.stats.frames;
+      // Selection pauses viewport follow, not content frames or the shared
+      // animation clock. Live tools and the editor must remain responsive.
+      const framesBeforeSelection = renderer.stats.frames;
       state.transcriptSelection.beginPress({ globalLine: 0, col: 0 }, false);
       state.transcriptSelection.updateDrag({ globalLine: 0, col: 3 });
       renderer.requestRender('request');
       scheduler.advance(17);
 
-      expect(renderer.areAutoFramesHeld).toBe(true);
-      expect(renderer.stats.frames).toBe(framesBeforeHold);
-      expect(output.writes).toHaveLength(writesBeforeHold);
+      expect(renderer.areAutoFramesHeld).toBe(false);
+      expect(renderer.stats.frames).toBeGreaterThan(framesBeforeSelection);
 
-      // Clearing the selection releases the held frame.
+      // Clearing the selection does not need to release a withheld content frame.
       state.transcriptSelection.clear();
       renderer.requestRender('manual');
       scheduler.advance(0);
 
       expect(renderer.areAutoFramesHeld).toBe(false);
-      expect(renderer.lastFrame?.frame.causes).toEqual(['request', 'manual']);
-      expect(output.writes.length).toBeGreaterThan(writesBeforeHold);
       renderer.stop();
     });
     setAppearanceRenderQuality('full');

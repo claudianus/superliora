@@ -248,6 +248,8 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
     // Real transcript content dismisses the empty-state ambient stage so the
     // scene never competes with user/assistant/tool output.
     if (!isEmptyTranscriptChrome(component)) {
+      const leavingEmptyHero =
+        this.aquariumOverlaySnapshot === undefined && this.isEmptyChromeOnly();
       if (this.aquariumOverlaySnapshot !== undefined) {
         if (this.regionOverlayLocked) {
           // Accumulate under the locked overlay (Timeline) without dismissing.
@@ -261,25 +263,17 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
       } else {
         this.dismissIdleStage();
       }
-      // Empty-chrome pin used jumpToLine(0) (followOutput off). Restore
-      // tail-follow so the first real message is not stuck at the hero.
-      this.viewportState.scroll('bottom');
+      // Only the empty hero pins follow off. History browsing and selections
+      // must stay anchored when later live messages/tool cards arrive.
+      if (leavingEmptyHero) this.viewportState.scroll('bottom');
     }
     if (component instanceof IdleStageComponent) {
       this.idleStageMounted = true;
     }
     super.addChild(component);
-    // Hydrate mounts many children in one sync pass; defer invalidate so we
-    // do not re-render every previous child on each add (O(n²) storm).
-    //
-    // Outside batch mount: drop paint caches only. Geometry (per-child line
-    // counts) reconciles by Component identity on the next resolve — append
-    // remeasures the new slot only. Cascading invalidate() to every prior
-    // sibling would clear their render caches and force a full remeasure
-    // storm on every streaming message.
-    if (this.batchMountDepth === 0) {
-      this.invalidatePaint();
-    }
+    // Renderer append invalidates the new geometry slot while preserving warm
+    // history bands. A whole paint-cache wipe here used to re-cold every visible
+    // history card on each live append, undoing that incremental contract.
   }
 
   override removeChild(component: Component): void {

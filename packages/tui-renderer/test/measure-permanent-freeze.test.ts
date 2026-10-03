@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   Container,
@@ -11,8 +11,6 @@ import {
   RendererTranscriptViewportComponent,
   RendererTruncatedOutputComponent,
 } from '../src';
-import { isInteractiveRenderCause } from '../src/native-renderer/auto-frame-hold';
-import { BACKPRESSURE_STUCK_TIMEOUT_MS } from '../src/native-renderer/backpressure';
 
 /**
  * How much cheaper the measure path must be than the full work it skips.
@@ -171,12 +169,42 @@ describe('permanent freeze guards (measure + interactive scroll)', () => {
     expect(typeof measured.length).toBe('number');
   });
 
-  it('interactive causes include transcript-scroll for backpressure bypass', () => {
-    expect(isInteractiveRenderCause('transcript-scroll')).toBe(true);
-    expect(isInteractiveRenderCause('input')).toBe(true);
-    expect(isInteractiveRenderCause('resize')).toBe(true);
-    expect(isInteractiveRenderCause('request')).toBe(false);
-    expect(isInteractiveRenderCause('animation')).toBe(false);
-    expect(BACKPRESSURE_STUCK_TIMEOUT_MS).toBeGreaterThan(0);
+  it('continues provisional geometry without bypassing the visible paint budget', () => {
+    let now = 0;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    try {
+      const viewport = new RendererTranscriptViewport();
+      const transcript = new RendererTranscriptViewportComponent({
+        viewport,
+        getVisibleRows: () => 100,
+      });
+      let paints = 0;
+      for (let i = 0; i < 50; i++) {
+        transcript.addChild({
+          invalidate() {},
+          measureContentRows: () => {
+            now += 5;
+            return 1;
+          },
+          render: () => {
+            paints += 1;
+            return [`row-${i}`];
+          },
+        });
+      }
+      transcript.render(40);
+      expect(paints).toBeLessThan(50);
+      expect(transcript.needsMaterializeContinue).toBe(true);
+      for (let frame = 0; frame < 60 && transcript.needsMaterializeContinue; frame++) {
+        transcript.render(40);
+      }
+      expect(transcript.needsMaterializeContinue).toBe(false);
+      expect(transcript.render(40)).toEqual(
+        Array.from({ length: 50 }, (_, i) => `row-${i}`),
+      );
+    } finally {
+      clock.mockRestore();
+    }
   });
+
 });

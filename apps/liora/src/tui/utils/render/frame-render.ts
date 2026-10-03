@@ -39,7 +39,7 @@ export function invalidateTUIFrame(state: TUIState, intent: FrameInvalidationInt
     return;
   }
   if (intent === 'layout' && shouldDeferTranscriptHeavyInvalidation()) {
-    scheduleTranscriptScrollSettleRefresh(state);
+    scheduleTranscriptScrollSettleRefresh(state, { intent: 'layout' });
     return;
   }
   state.renderer.invalidateFrame(intent);
@@ -60,7 +60,7 @@ export function requestTUIContentRender(state: TUIState): void {
 export function requestTUILayoutRender(state: TUIState): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
   if (shouldDeferTranscriptHeavyInvalidation()) {
-    scheduleTranscriptScrollSettleRefresh(state);
+    scheduleTranscriptScrollSettleRefresh(state, { intent: 'layout' });
     return;
   }
   state.renderer.invalidateFrame('layout');
@@ -83,7 +83,7 @@ export function requestTUIPaletteRender(state: TUIState): void {
 export function requestTranscriptPaintRefresh(state: TUIState): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
   if (shouldDeferTranscriptHeavyInvalidation()) {
-    scheduleTranscriptScrollSettleRefresh(state);
+    scheduleTranscriptScrollSettleRefresh(state, { refresh: 'paint' });
     return;
   }
   state.transcriptContainer.invalidatePaint();
@@ -97,7 +97,7 @@ export function requestTranscriptPaintRefresh(state: TUIState): void {
 export function requestTranscriptGeometryRefresh(state: TUIState): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
   if (shouldDeferTranscriptHeavyInvalidation()) {
-    scheduleTranscriptScrollSettleRefresh(state);
+    scheduleTranscriptScrollSettleRefresh(state, { refresh: 'geometry' });
     return;
   }
   state.transcriptContainer.invalidateGeometryAndPaint();

@@ -73,17 +73,13 @@ interface RendererTranscriptOverflowRenderCache {
   safeWidth: number;
   childRefs: (Component | undefined)[];
   childRenderRefs: (string[] | undefined)[];
-  /**
-   * Legacy full-height sparse (non-windowed children). Prefer bands for
-   * windowed multi-k bodies.
-   */
-  childFormattedSparse: ((RendererRegionLine | undefined)[] | undefined)[];
   /** Windowed bodies: compact band only (viewport × retain), not geometry. */
   childSparseBands: (RendererTranscriptSparseBand | undefined)[];
 }
 
 interface RendererTranscriptLineCountCacheEntry {
   counts: number[];
+  rowEnds: number[];
   total: number;
 }
 
@@ -99,6 +95,7 @@ interface RendererTranscriptLineCountCacheEntry {
 interface RendererTranscriptGeometryCache {
   childRefs: (Component | undefined)[];
   counts: number[];
+  rowEnds: number[];
   total: number;
 }
 
@@ -108,6 +105,7 @@ interface RendererTranscriptGeometrySnapshot {
   inner: number;
   n: number;
   counts: number[];
+  rowEnds: number[];
   total: number;
 }
 
@@ -120,7 +118,7 @@ const LINE_COUNT_CACHE_CAP = 4;
  */
 /** Keep only this many viewport-heights of off-screen materialize around the window. */
 const OVERFLOW_RETAIN_VIEWPORTS = 2;
-/** Hard cap on how many children keep full line arrays (LRU by last paint). */
+/** Retain ceiling, raised only to fit every card in the current visible window. */
 const OVERFLOW_MAX_RETAINED_CHILDREN = 12;
 /** Exported for unit tests that assert the shipped retain ceiling. */
 export const TRANSCRIPT_OVERFLOW_MAX_RETAINED_CHILDREN = OVERFLOW_MAX_RETAINED_CHILDREN;
@@ -197,8 +195,8 @@ export class RendererTranscriptViewportComponent extends Container {
   private overflowRenderCache: RendererTranscriptOverflowRenderCache | undefined;
   /**
    * Per-frame budget for cold child.render / paintContentRows materializations.
-   * Pure-scroll always forces 0 (cache/placeholder only). Content/settle uses
-   * {@link CONTENT_MATERIALIZE_BUDGET} so progressive fill cannot hitch.
+   * Pure-scroll admits only bounded, measured cards. Content/settle uses
+   * {@link TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET} for progressive fill.
    */
   private coldMaterializeBudget = 0;
   /** Max cold layouts per non-scroll (settle/content) frame — avoids settle hitch. */
@@ -217,6 +215,7 @@ export class RendererTranscriptViewportComponent extends Container {
    * before the cache counts as authoritative.
    */
   private readonly cheapMaterializedChildren = new Set<number>();
+  private readonly windowedMaterializedChildren = new Set<number>();
   /**
    * Incremental present engine on the real visible-window path (Phase C).
    * Stable re-presents skip clean lines; dirty work is frame-budgeted.
@@ -262,6 +261,16 @@ export class RendererTranscriptViewportComponent extends Container {
   override addChild(component: Component): void {
     super.addChild(component);
     registerTranscriptGeometryParent(this, component);
+    // Preserve measured history while a wheel frame sees a new live card.
+    // Only the appended slot is provisional until a content frame measures it.
+    for (const geometry of this.lineCountCache.values()) {
+      if (geometry.counts.length !== this.children.length - 1) continue;
+      geometry.childRefs.push(undefined);
+      geometry.counts.push(1);
+      geometry.total += 1;
+      geometry.rowEnds.push(geometry.total);
+      this.geometryNeedsContinue = true;
+    }
     // Child count changed — snapshot short-circuit must re-check identity.
     this.geometrySnapshot = undefined;
   }
@@ -295,7 +304,7 @@ export class RendererTranscriptViewportComponent extends Container {
       if (this.overflowRenderCache.childRefs[index] === previous) {
         this.overflowRenderCache.childRefs[index] = undefined;
         this.overflowRenderCache.childRenderRefs[index] = undefined;
-        this.overflowRenderCache.childFormattedSparse[index] = undefined;
+        this.overflowRenderCache.childSparseBands[index] = undefined;
       }
     }
     this.geometrySnapshot = undefined;
@@ -323,6 +332,8 @@ export class RendererTranscriptViewportComponent extends Container {
     this.renderCache = undefined;
     this.overflowRenderCache = undefined;
     this.cheapMaterializedChildren.clear();
+    this.windowedMaterializedChildren.clear();
+    this.overflowTouchOrder.length = 0;
   }
 
   /**
@@ -358,7 +369,7 @@ export class RendererTranscriptViewportComponent extends Container {
         if (this.overflowRenderCache.childRefs[i] === child) {
           this.overflowRenderCache.childRefs[i] = undefined;
           this.overflowRenderCache.childRenderRefs[i] = undefined;
-          this.overflowRenderCache.childFormattedSparse[i] = undefined;
+          this.overflowRenderCache.childSparseBands[i] = undefined;
         }
       }
     }
@@ -406,25 +417,18 @@ export class RendererTranscriptViewportComponent extends Container {
     if (!Number.isFinite(logicalRow) || logicalRow < 0) return undefined;
     const row = Math.floor(logicalRow);
     const inner = this.innerWidth(width);
-    const { counts, total } = this.resolveChildLineCounts(inner);
+    const { rowEnds, total } = this.resolveChildLineCounts(inner);
     if (row >= total) return undefined;
-
-    let startRow = 0;
-    for (let childIndex = 0; childIndex < counts.length; childIndex++) {
-      const endRow = startRow + counts[childIndex]!;
-      if (row < endRow) {
-        return {
-          child: this.children[childIndex]!,
-          childIndex,
-          renderWidth: inner,
-          startRow,
-          endRow,
-          localRow: row - startRow,
-        };
-      }
-      startRow = endRow;
-    }
-    return undefined;
+    const childIndex = firstChildEndingAfter(rowEnds, row);
+    const startRow = childIndex === 0 ? 0 : rowEnds[childIndex - 1]!;
+    return {
+      child: this.children[childIndex]!,
+      childIndex,
+      renderWidth: inner,
+      startRow,
+      endRow: rowEnds[childIndex]!,
+      localRow: row - startRow,
+    };
   }
 
   renderWithVisibleRows(width: number, visibleRows: number): string[] {
@@ -446,7 +450,7 @@ export class RendererTranscriptViewportComponent extends Container {
    * rows (that left stale scrolled content + endless progressive content).
    */
   get needsMaterializeContinue(): boolean {
-    return this.materializeContinuePending;
+    return this.materializeContinuePending || this.geometryNeedsContinue;
   }
 
   /**
@@ -503,12 +507,6 @@ export class RendererTranscriptViewportComponent extends Container {
     for (const band of cache.childSparseBands) {
       if (band === undefined) continue;
       for (const slot of band.slots) {
-        if (slot !== undefined) n += 1;
-      }
-    }
-    for (const sparse of cache.childFormattedSparse) {
-      if (sparse === undefined) continue;
-      for (const slot of sparse) {
         if (slot !== undefined) n += 1;
       }
     }
@@ -570,7 +568,7 @@ export class RendererTranscriptViewportComponent extends Container {
     // only place that may render *all* children, and only on geometry miss /
     // identity change; pure scroll and pure paint-epoch frames skip off-screen
     // children entirely once geometry is warm.
-    const { counts: childCounts, total: totalLines } = this.resolveChildLineCounts(inner);
+    const { counts: childCounts, rowEnds, total: totalLines } = this.resolveChildLineCounts(inner);
 
     // Phase 2 — sync the viewport with the total content size.
     const snapshot = this.viewport.sync(totalLines, visibleRows);
@@ -587,7 +585,7 @@ export class RendererTranscriptViewportComponent extends Container {
     // Phase 3 — when the content fits inside the viewport (no overflow) we
     // still need every child, but we can reuse the cached prefixed lines.
     let visibleLines: RendererRegionLine[];
-    if (!snapshot.hasOverflow) {
+    if (!snapshot.hasOverflow && !this.geometryNeedsContinue) {
       // Pure-scroll on non-overflowing transcripts: still avoid re-rendering
       // the full child tree every wheel tick — reuse cache or placeholders.
       if (pureScroll) {
@@ -605,12 +603,15 @@ export class RendererTranscriptViewportComponent extends Container {
         snapshot.start,
         snapshot.end,
         pureScroll,
+        rowEnds,
       );
 
-      // Eviction during pure-scroll causes allocate/free thrash on rapid
-      // up/down (GC freezes). Defer eviction to content/settle frames only.
-      if (!pureScroll) {
-        this.evictOverflowAwayFromWindow(childCounts, snapshot.start, snapshot.end);
+      // Keep scroll memory bounded too. Only inspect the small retained LRU
+      // on wheel frames; walking the entire history is unnecessary.
+      if (pureScroll) {
+        this.trimOverflowRetainedChildren(rowEnds, snapshot.start, snapshot.end);
+      } else {
+        this.evictOverflowAwayFromWindow(rowEnds, snapshot.start, snapshot.end);
       }
 
       // Phase 5 — attach a scrollbar gutter if configured.
@@ -656,20 +657,15 @@ export class RendererTranscriptViewportComponent extends Container {
     if (isTranscriptCheapPaintMode()) {
       const snap = this.geometrySnapshot;
       if (snap !== undefined && snap.inner === inner && snap.n === n) {
-        return { counts: snap.counts, total: snap.total };
+        return snap;
       }
       const geometry = this.lineCountCache.get(inner);
       if (geometry !== undefined && geometry.counts.length === n) {
-        let total = 0;
-        for (let i = 0; i < n; i++) {
-          const c = geometry.counts[i];
-          total += Number.isFinite(c) && (c as number) > 0 ? (c as number) : 1;
-        }
-        return { counts: geometry.counts, total };
+        return geometry;
       }
       // No prior geometry: provisional 1-row stubs (scrollbar jitter until settle).
       const counts = Array.from({ length: n }, () => 1);
-      return { counts, total: n };
+      return { counts, rowEnds: counts.map((_, index) => index + 1), total: n };
     }
 
     if (!cacheEnabled) {
@@ -688,7 +684,7 @@ export class RendererTranscriptViewportComponent extends Container {
       snap.n === n &&
       (!this.geometryNeedsContinue || shouldSkipExpensiveTranscriptFormat())
     ) {
-      return { counts: snap.counts, total: snap.total };
+      return snap;
     }
 
     let geometry = this.lineCountCache.get(inner);
@@ -696,6 +692,7 @@ export class RendererTranscriptViewportComponent extends Container {
       geometry = {
         childRefs: Array.from({ length: n }),
         counts: Array.from({ length: n }),
+        rowEnds: Array.from({ length: n }),
         total: 0,
       };
       this.lineCountCache.set(inner, geometry);
@@ -710,6 +707,7 @@ export class RendererTranscriptViewportComponent extends Container {
       if (geometry.childRefs.length !== n) {
         geometry.childRefs.length = n;
         geometry.counts.length = n;
+        geometry.rowEnds.length = n;
       }
     }
 
@@ -725,16 +723,19 @@ export class RendererTranscriptViewportComponent extends Container {
         typeof performance !== 'undefined' && typeof performance.now === 'function'
           ? performance.now()
           : Date.now();
-      const MEASURE_BUDGET_MS = 12;
+      const MEASURE_BUDGET_MS = 4;
       let total = 0;
       let hitBudget = false;
+      let hasProvisionalCounts = false;
       for (let i = 0; i < n; i++) {
         const child = this.children[i]!;
         if (geometry.childRefs[i] === child && Number.isFinite(geometry.counts[i])) {
           total += geometry.counts[i]!;
+          geometry.rowEnds[i] = total;
           continue;
         }
         if (hitBudget) {
+          hasProvisionalCounts = true;
           const provisional =
             Number.isFinite(geometry.counts[i]) && (geometry.counts[i] ?? 0) > 0
               ? geometry.counts[i]!
@@ -743,12 +744,14 @@ export class RendererTranscriptViewportComponent extends Container {
           // Leave childRefs undefined so a later non-scroll resolve remeasures.
           geometry.childRefs[i] = undefined;
           total += provisional;
+          geometry.rowEnds[i] = total;
           continue;
         }
         const count = measureChildContentRows(child, inner);
         geometry.childRefs[i] = child;
         geometry.counts[i] = count;
         total += count;
+        geometry.rowEnds[i] = total;
         const now =
           typeof performance !== 'undefined' && typeof performance.now === 'function'
             ? performance.now()
@@ -758,16 +761,17 @@ export class RendererTranscriptViewportComponent extends Container {
         }
       }
       geometry.total = total;
-      this.geometryNeedsContinue = hitBudget;
+      this.geometryNeedsContinue = hasProvisionalCounts;
       // Always install snapshot so pure-scroll totals stay O(1) after a budget hit.
       this.geometrySnapshot = {
         generation: this.geometryGeneration,
         inner,
         n,
         counts: geometry.counts,
+        rowEnds: geometry.rowEnds,
         total,
       };
-      return { counts: geometry.counts, total };
+      return geometry;
     });
   }
 
@@ -777,13 +781,15 @@ export class RendererTranscriptViewportComponent extends Container {
   ): RendererTranscriptLineCountCacheEntry {
     return withTranscriptMeasureMode(() => {
       const counts: number[] = Array.from({ length: n });
+      const rowEnds: number[] = Array.from({ length: n });
       let total = 0;
       for (let i = 0; i < n; i++) {
         const count = measureChildContentRows(this.children[i]!, inner);
         counts[i] = count;
         total += count;
+        rowEnds[i] = total;
       }
-      return { counts, total };
+      return { counts, rowEnds, total };
     });
   }
 
@@ -802,12 +808,12 @@ export class RendererTranscriptViewportComponent extends Container {
 
   private clearOverflowChildSlot(childIndex: number): void {
     this.cheapMaterializedChildren.delete(childIndex);
+    this.windowedMaterializedChildren.delete(childIndex);
     const cache = this.overflowRenderCache;
     if (cache === undefined) return;
     const child = cache.childRefs[childIndex];
     cache.childRefs[childIndex] = undefined;
     cache.childRenderRefs[childIndex] = undefined;
-    cache.childFormattedSparse[childIndex] = undefined;
     cache.childSparseBands[childIndex] = undefined;
     // Soft-evict leaf paint caches only. NEVER call full invalidate() —
     // ToolCall/Assistant invalidate rebuilds bodies and dirties geometry.
@@ -828,20 +834,30 @@ export class RendererTranscriptViewportComponent extends Container {
     if (
       this.overflowRenderCache === undefined ||
       this.overflowRenderCache.inner !== inner ||
-      this.overflowRenderCache.safeWidth !== safeWidth ||
-      this.overflowRenderCache.childRefs.length !== childCount
+      this.overflowRenderCache.safeWidth !== safeWidth
     ) {
       this.overflowRenderCache = {
         inner,
         safeWidth,
         childRefs: Array.from({ length: childCount }),
         childRenderRefs: Array.from({ length: childCount }),
-        childFormattedSparse: Array.from({ length: childCount }),
         childSparseBands: Array.from({ length: childCount }),
       };
+      this.overflowTouchOrder.length = 0;
       this.cheapMaterializedChildren.clear();
-    } else if (this.overflowRenderCache.childSparseBands.length !== childCount) {
+      this.windowedMaterializedChildren.clear();
+    } else if (this.overflowRenderCache.childRefs.length !== childCount) {
+      // Appending a live card must not discard the history window's warm cache.
+      this.overflowRenderCache.childRefs.length = childCount;
+      this.overflowRenderCache.childRenderRefs.length = childCount;
       this.overflowRenderCache.childSparseBands.length = childCount;
+      this.overflowTouchOrder = this.overflowTouchOrder.filter((index) => index < childCount);
+      for (const index of this.cheapMaterializedChildren) {
+        if (index >= childCount) this.cheapMaterializedChildren.delete(index);
+      }
+      for (const index of this.windowedMaterializedChildren) {
+        if (index >= childCount) this.windowedMaterializedChildren.delete(index);
+      }
     }
     return this.overflowRenderCache;
   }
@@ -852,7 +868,7 @@ export class RendererTranscriptViewportComponent extends Container {
    * history up and down repeatedly.
    */
   private evictOverflowAwayFromWindow(
-    childCounts: number[],
+    rowEnds: number[],
     startLine: number,
     endLine: number,
   ): void {
@@ -863,28 +879,38 @@ export class RendererTranscriptViewportComponent extends Container {
     const keepStart = startLine - margin;
     const keepEnd = endLine + margin;
 
-    let lineOffset = 0;
-    for (let i = 0; i < childCounts.length; i++) {
-      const childLines = childCounts[i]!;
-      const childStart = lineOffset;
-      const childEnd = lineOffset + childLines;
-      lineOffset = childEnd;
-      if (cache.childRefs[i] === undefined && cache.childRenderRefs[i] === undefined) {
-        continue;
-      }
+    for (let touch = this.overflowTouchOrder.length - 1; touch >= 0; touch--) {
+      const i = this.overflowTouchOrder[touch]!;
+      const childStart = i === 0 ? 0 : rowEnds[i - 1]!;
+      const childEnd = rowEnds[i]!;
       // Fully outside the retain band → drop full line arrays + sparse paint.
       if (childEnd <= keepStart || childStart >= keepEnd) {
         this.clearOverflowChildSlot(i);
-        const touch = this.overflowTouchOrder.indexOf(i);
-        if (touch >= 0) this.overflowTouchOrder.splice(touch, 1);
+        this.overflowTouchOrder.splice(touch, 1);
       }
     }
 
-    // Hard cap: drop oldest touched children beyond the retain limit.
-    while (this.overflowTouchOrder.length > OVERFLOW_MAX_RETAINED_CHILDREN) {
-      const drop = this.overflowTouchOrder.shift();
-      if (drop === undefined) break;
-      this.clearOverflowChildSlot(drop);
+    this.trimOverflowRetainedChildren(rowEnds, startLine, endLine);
+  }
+
+  private trimOverflowRetainedChildren(
+    rowEnds: readonly number[],
+    startLine: number,
+    endLine: number,
+  ): void {
+    const firstVisible = firstChildEndingAfter(rowEnds, startLine);
+    const lastVisible = firstChildEndingAfter(rowEnds, endLine - 1);
+    const limit = Math.max(OVERFLOW_MAX_RETAINED_CHILDREN, lastVisible - firstVisible + 1);
+    const order = this.overflowTouchOrder;
+    while (order.length > limit) {
+      // Evicting visible cards livelocks progressive fill on tall terminals:
+      // each continuation spends its budget repainting the same early cards.
+      const oldestOffscreen = order.findIndex(
+        (index) => index < firstVisible || index > lastVisible,
+      );
+      if (oldestOffscreen < 0) break;
+      const [drop] = order.splice(oldestOffscreen, 1);
+      this.clearOverflowChildSlot(drop!);
     }
   }
 
@@ -908,6 +934,13 @@ export class RendererTranscriptViewportComponent extends Container {
     geometry.counts[childIndex] = next;
     geometry.childRefs[childIndex] = child;
     geometry.total = Math.max(0, geometry.total - old + next);
+    const delta = next - old;
+    if (delta !== 0) {
+      this.materializeContinuePending = true;
+      for (let i = childIndex; i < geometry.rowEnds.length; i++) {
+        geometry.rowEnds[i] = geometry.rowEnds[i]! + delta;
+      }
+    }
     if (
       this.geometrySnapshot !== undefined &&
       this.geometrySnapshot.inner === inner &&
@@ -918,6 +951,7 @@ export class RendererTranscriptViewportComponent extends Container {
         inner,
         n: geometry.counts.length,
         counts: geometry.counts,
+        rowEnds: geometry.rowEnds,
         total: geometry.total,
       };
     }
@@ -1027,12 +1061,14 @@ export class RendererTranscriptViewportComponent extends Container {
     childCounts: number[],
     startLine: number,
     endLine: number,
-    pureScroll = false,
+    pureScroll: boolean,
+    rowEnds: number[],
   ): RendererRegionLine[] {
     const out: RendererRegionLine[] = [];
 
-    let lineOffset = 0;
-    for (let i = 0; i < this.children.length; i++) {
+    const first = firstChildEndingAfter(rowEnds, startLine);
+    let lineOffset = first === 0 ? 0 : rowEnds[first - 1]!;
+    for (let i = first; i < this.children.length; i++) {
       const childLines = childCounts[i]!;
       const childStart = lineOffset;
       const childEnd = lineOffset + childLines;
@@ -1113,7 +1149,9 @@ export class RendererTranscriptViewportComponent extends Container {
       const childCount = this.children.length;
       const cache = this.ensureOverflowCache(inner, safeWidth, childCount);
       const identityMiss =
-        cache.childRefs[childIndex] !== child || this.needsFidelityUpgrade(childIndex);
+        cache.childRefs[childIndex] !== child ||
+        !this.windowedMaterializedChildren.has(childIndex) ||
+        this.needsFidelityUpgrade(childIndex);
 
       if (identityMiss) {
         if (this.coldMaterializeBudget <= 0) {
@@ -1124,8 +1162,8 @@ export class RendererTranscriptViewportComponent extends Container {
         cache.childRefs[childIndex] = child;
         // Critical: do NOT store a full multi-k array in childRenderRefs.
         cache.childRenderRefs[childIndex] = undefined;
-        cache.childFormattedSparse[childIndex] = undefined;
         cache.childSparseBands[childIndex] = undefined;
+        this.windowedMaterializedChildren.add(childIndex);
         this.touchOverflowChild(childIndex);
         this.noteMaterializedFidelity(childIndex);
         this.childPaintCallsThisFrame += 1;
@@ -1207,8 +1245,10 @@ export class RendererTranscriptViewportComponent extends Container {
       this.coldMaterializeBudget -= 1;
       this.childPaintCallsThisFrame += 1;
       lines = child.render(inner);
+      this.windowedMaterializedChildren.delete(childIndex);
       cache.childRefs[childIndex] = child;
       this.noteMaterializedFidelity(childIndex);
+      cache.childSparseBands[childIndex] = undefined;
       // Cap retained full line arrays: multi-k legacy bodies keep only a
       // viewport band of raw lines so flings cannot pin 5k×N string heaps.
       if (lines.length > LEGACY_FULL_LINE_RETAIN_CAP) {
@@ -1227,7 +1267,6 @@ export class RendererTranscriptViewportComponent extends Container {
         return;
       }
       cache.childRenderRefs[childIndex] = lines;
-      cache.childFormattedSparse[childIndex] = undefined;
       cache.childSparseBands[childIndex] = undefined;
       this.touchOverflowChild(childIndex);
       this.reconcileChildGeometry(inner, childIndex, child, lines.length);
@@ -1244,8 +1283,8 @@ export class RendererTranscriptViewportComponent extends Container {
         } else {
           cache.childRenderRefs[childIndex] = lines;
         }
-        cache.childFormattedSparse[childIndex] = undefined;
-        // Keep band; missing slots refilled below.
+        cache.childSparseBands[childIndex] = undefined;
+        this.reconcileChildGeometry(inner, childIndex, child, lines.length);
       }
     }
 
@@ -1316,13 +1355,7 @@ export class RendererTranscriptViewportComponent extends Container {
       return true;
     }
 
-    if (cache.childRenderRefs[childIndex] !== undefined) return true;
-    const sparse = cache.childFormattedSparse[childIndex];
-    if (sparse === undefined) return false;
-    for (let j = sliceStart; j < sliceEnd; j++) {
-      if (sparse[j] === undefined) return false;
-    }
-    return true;
+    return cache.childRenderRefs[childIndex] !== undefined;
   }
 
   /**
@@ -1340,7 +1373,9 @@ export class RendererTranscriptViewportComponent extends Container {
   ): boolean {
     if (this.coldMaterializeBudget <= 0) return false;
     if (supportsWindowedBody(child)) return true;
-    const rows = this.lineCountCache.get(inner)?.counts[childIndex];
+    const geometry = this.lineCountCache.get(inner);
+    if (geometry?.childRefs[childIndex] !== child) return false;
+    const rows = geometry.counts[childIndex];
     return typeof rows === 'number' && Number.isFinite(rows) && rows <= LEGACY_FULL_LINE_RETAIN_CAP;
   }
 
@@ -1391,6 +1426,7 @@ export class RendererTranscriptViewportComponent extends Container {
       this.pushPlaceholders(out, rowCount, safeWidth);
       return;
     }
+    this.touchOverflowChild(childIndex);
 
     // Prefer compact band (windowed + legacy multi-k).
     const band = cache.childSparseBands[childIndex];
@@ -1407,26 +1443,15 @@ export class RendererTranscriptViewportComponent extends Container {
       return;
     }
 
-    // Legacy full raw lines + optional full sparse (pre-band cache).
     const lines = cache.childRenderRefs[childIndex];
-    const sparse = cache.childFormattedSparse[childIndex];
-    if (lines === undefined && sparse === undefined) {
+    if (lines === undefined) {
       this.pushPlaceholders(out, rowCount, safeWidth);
       return;
     }
 
     for (let j = sliceStart; j < sliceEnd; j++) {
-      if (sparse !== undefined && sparse[j] !== undefined) {
-        out.push(sparse[j]!);
-        continue;
-      }
-      if (lines !== undefined) {
-        // Format from cached raw lines without calling child — still O(viewport).
-        out.push(this.formatCanvasLine(lead + (lines[j] ?? ''), safeWidth));
-        continue;
-      }
-      this.materializeContinuePending = true;
-      out.push(this.formatCanvasLine(`${' '.repeat(this.leftPad)}…`, safeWidth));
+      // Format cached raw lines without invoking a child — O(viewport).
+      out.push(this.formatCanvasLine(lead + (lines[j] ?? ''), safeWidth));
     }
   }
 
@@ -1508,6 +1533,18 @@ export class RendererTranscriptViewportComponent extends Container {
     if (glyphs.length === 0) return [...lines];
     return renderRendererRightGutterRegionLines({ lines, width, glyphs });
   }
+}
+
+/** Upper bound handles zero-height children without selecting an empty card. */
+function firstChildEndingAfter(rowEnds: readonly number[], row: number): number {
+  let low = 0;
+  let high = rowEnds.length;
+  while (low < high) {
+    const middle = low + Math.floor((high - low) / 2);
+    if (rowEnds[middle]! <= row) low = middle + 1;
+    else high = middle;
+  }
+  return low;
 }
 
 function regionLineToTranscriptDisplayString(line: RendererRegionLine): string {

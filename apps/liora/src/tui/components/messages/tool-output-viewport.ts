@@ -1,5 +1,5 @@
 import type { Component } from '#/tui/renderer';
-import { isTranscriptMeasureMode, truncateToWidth } from '#/tui/renderer';
+import { Container, isTranscriptMeasureMode, supportsWindowedBody, truncateToWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
   projectToolOutputViewport,
@@ -45,6 +45,34 @@ function measureChildRows(child: Component, width: number): number {
     return child.measureContentRows(width);
   }
   return child.render(width).length;
+}
+
+/** Preserve nested renderer windowing instead of materializing every output row. */
+export function paintToolOutputRows(child: Component, width: number, start: number, end: number): string[] {
+  if (supportsWindowedBody(child)) {
+    return child.paintContentRows(width, start, end);
+  }
+  // Only a plain Container concatenates rows without additional presentation.
+  // Subclasses (shells/cards) must keep their own render transformations.
+  if (child.constructor === Container) {
+    const lines: string[] = [];
+    let offset = 0;
+    for (const nested of (child as Container).children) {
+      const rows = measureChildRows(nested, width);
+      if (offset + rows > start && offset < end) {
+        lines.push(...paintToolOutputRows(
+          nested,
+          width,
+          Math.max(0, start - offset),
+          Math.min(rows, end - offset),
+        ));
+      }
+      offset += rows;
+      if (offset >= end) break;
+    }
+    return lines;
+  }
+  return child.render(width).slice(start, end);
 }
 
 export class ToolOutputViewportComponent implements Component {
@@ -148,27 +176,33 @@ export class ToolOutputViewportComponent implements Component {
       return Array.from({ length: rows }, () => '');
     }
 
-    let lines: string[];
-
-    const revision = childContentRevision(this.child);
+    let state: ToolOutputViewportState;
+    let visible: string[];
     if (
-      this.cachedChildInvalid ||
-      this.cachedChildWidth !== contentWidth ||
-      this.cachedChildRevision !== revision
+      supportsWindowedBody(this.child) ||
+      this.child.constructor === Container
     ) {
-      this.cachedChildLines = this.child.render(contentWidth);
-      this.cachedChildWidth = contentWidth;
-      this.cachedChildRevision = childContentRevision(this.child);
-      this.cachedChildInvalid = false;
+      state = this.syncContentRows(measureChildRows(this.child, contentWidth));
+      const projection = projectToolOutputViewport(state, this.expanded);
+      visible = paintToolOutputRows(this.child, contentWidth, projection.startRow, projection.endRow);
+    } else {
+      const revision = childContentRevision(this.child);
+      if (
+        this.cachedChildInvalid ||
+        this.cachedChildWidth !== contentWidth ||
+        this.cachedChildRevision !== revision
+      ) {
+        this.cachedChildLines = this.child.render(contentWidth);
+        this.cachedChildWidth = contentWidth;
+        this.cachedChildRevision = childContentRevision(this.child);
+        this.cachedChildInvalid = false;
+      }
+      state = this.syncContentRows(this.cachedChildLines.length);
+      const projection = projectToolOutputViewport(state, this.expanded);
+      visible = this.cachedChildLines.slice(projection.startRow, projection.endRow);
     }
-    lines = this.cachedChildLines;
-
-    const state = this.syncContentRows(lines.length);
-
-    const projection = projectToolOutputViewport(state, this.expanded);
-    const visible = lines.slice(projection.startRow, projection.endRow);
     this.lastRenderedRows = visible.length;
-    this.lastOverflow = projection.overflow && safeWidth > 1;
+    this.lastOverflow = projectToolOutputViewport(state, this.expanded).overflow && safeWidth > 1;
 
     if (!this.lastOverflow) {
       return visible.map((line) => truncateToWidth(line, safeWidth, '', false));

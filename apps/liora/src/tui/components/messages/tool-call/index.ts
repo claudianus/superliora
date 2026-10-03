@@ -59,6 +59,7 @@ import {
   type ToolCallSearchSnapshot,
 } from './search-snapshot';
 import { hasToolCallLiveAnimation, tickToolCallRenderClock } from './render-tick';
+import { paintToolOutputRows } from '../tool-output-viewport';
 import {
   appendMainLiveOutputText,
   type SubagentPhase,
@@ -187,6 +188,55 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       invalidate: () =>{  this.invalidate(); },
       requestRender: () => this.ui?.requestRender(),
     };
+  }
+
+  override measureContentRows(width: number): number {
+    if (this.isChainHidden) return 0;
+    const rows = super.measureContentRows(width);
+    return rows + (isCompactQuietChrome(this.detail) && this.isOneLineCollapsed && rows > 0 ? 1 : 0);
+  }
+
+  canPaintContentRows(): boolean {
+    return !hasToolCallLiveAnimation(this.renderTickInput());
+  }
+
+  paintContentRows(width: number, startRow: number, endRow: number): string[] {
+    if (this.isChainHidden || endRow <= startRow) return [];
+    // Active entrance/settle/live effects retain the existing full projection;
+    // settled history paints only the requested rows, including nested output.
+    if (hasToolCallLiveAnimation(this.renderTickInput())) {
+      return this.render(width).slice(startRow, endRow);
+    }
+    if (!areLiveToolTicksSuppressed()) this.syncAnimatedHeader();
+    const lines: string[] = [];
+    let offset = 0;
+    for (const child of this.children) {
+      const rows = child.measureContentRows?.(width) ?? child.render(width).length;
+      if (offset + rows > startRow && offset < endRow) {
+        lines.push(...paintToolOutputRows(
+          child,
+          width,
+          Math.max(0, startRow - offset),
+          Math.min(rows, endRow - offset),
+        ));
+      }
+      offset += rows;
+      if (offset >= endRow) break;
+    }
+    if (isCompactQuietChrome(this.detail)) {
+      const bodyRows = super.measureContentRows(width);
+      if (this.isOneLineCollapsed && bodyRows > 0 && startRow <= bodyRows && endRow > bodyRows) {
+        lines.push('');
+      }
+      return clipCompactTranscriptRows(lines, width);
+    }
+    return lines.map((line) => applyWorkBlockTintLine(
+      line.trim().length === 0
+        ? ''
+        : phaseGutter('tools') + (line.startsWith(' ') ? line.slice(1) : line),
+      width,
+      'tools',
+    ));
   }
 
   override render(width: number): string[] {

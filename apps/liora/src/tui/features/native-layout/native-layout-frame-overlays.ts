@@ -164,8 +164,8 @@ export function createTUIStateNativeRegionVfx(
     readonly width?: number;
   },
 ): ReturnType<typeof createRendererRegionVfx> {
-  // Region VFX keeps running while the transcript is scrolled back; ambient
-  // motion only pauses for an active transcript selection (frame hold).
+  // Browsing history keeps region VFX live. Selection pauses decorative ambient
+  // motion only; the shared clock and live content frames continue.
   if (!motionEffectsAllowed()) return undefined;
   const appearance = getActiveAppearancePreferences();
   // Large-area region VFX: freeze off on classic ConPTY (same tool as the

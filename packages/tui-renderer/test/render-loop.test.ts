@@ -295,6 +295,119 @@ describe('NativeRenderLoop', () => {
     expect(loop.hasPendingFrame).toBe(false);
   });
 
+  it('does not run cancelled callbacks from the current animation batch', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const events: string[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      render: () => events.push('render'),
+    });
+    loop.start();
+    loop.requestAnimationFrame(() => {
+      events.push('first');
+      loop.cancelAnimationFrame(secondId);
+    });
+    const secondId = loop.requestAnimationFrame(() => events.push('cancelled'));
+    scheduler.advance(0);
+    expect(events).toEqual(['first', 'render']);
+    loop.stop();
+  });
+
+  it('does not render after an animation callback stops the loop', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const events: string[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      render: () => events.push('late-render'),
+    });
+    loop.start();
+    loop.requestAnimationFrame(() => {
+      events.push('stop');
+      loop.stop();
+    });
+    loop.requestAnimationFrame(() => events.push('late-animation'));
+    scheduler.advance(0);
+    expect(events).toEqual(['stop']);
+    expect(loop.hasPendingFrame).toBe(false);
+  });
+
+  it('retains coalesced invalidations and cancellable callbacks while suspended', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    let calls = 0;
+    const loop = new NativeRenderLoop({
+      scheduler,
+      render: (frame) => frames.push(frame),
+    });
+    loop.start();
+    const id = loop.requestAnimationFrame(() => {
+      calls++;
+    });
+    loop.setSuspended(true);
+    for (let index = 0; index < 100; index++) {
+      loop.requestRender('input');
+      loop.requestRender('resize');
+      loop.requestRender('transcript-scroll');
+    }
+    scheduler.advance(1_000);
+    expect(frames).toEqual([]);
+    expect(scheduler.activeTimers()).toEqual([]);
+    loop.setSuspended(false);
+    loop.cancelAnimationFrame(id);
+    scheduler.advance(0);
+    expect(calls).toBe(0);
+    expect(frames).toHaveLength(1);
+    expect(frames[0]?.causes).toEqual(expect.arrayContaining(['input', 'resize', 'transcript-scroll']));
+    loop.stop();
+  });
+
+  it('keeps animation moving after a storm of immediate input frames', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      targetFps: 10,
+      render: (frame) => frames.push(frame),
+    });
+    loop.start();
+    loop.requestRender();
+    scheduler.advance(0);
+    for (let index = 0; index < 100; index++) {
+      scheduler.advance(1);
+      loop.requestRender('input');
+      scheduler.advance(0);
+    }
+    loop.requestAnimationFrame(() => {});
+    // Each key used to advance nextTarget by 100ms despite being only 1ms
+    // apart. The spinner then stopped for 10 seconds after typing stopped.
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(200);
+    scheduler.advance(100);
+    expect(frames.at(-1)?.causes).toEqual(['animation']);
+    loop.stop();
+  });
+
+  it('rounds paced timer delays up so integer timers cannot spin before the target', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      targetFps: 60,
+      render: (frame) => frames.push(frame),
+    });
+    loop.start();
+    loop.requestRender();
+    scheduler.advance(0);
+    scheduler.advance(16);
+    loop.requestRender('animation');
+    // setTimeout truncates a fractional sub-ms delay to an immediate callback.
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(17);
+    scheduler.advance(0);
+    expect(frames).toHaveLength(1);
+    scheduler.advance(1);
+    expect(frames).toHaveLength(2);
+    loop.stop();
+  });
+
   it('can unref scheduled timers for CLI shutdown friendliness', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const loop = new NativeRenderLoop({

@@ -32,6 +32,8 @@ export interface RendererComponent {
    * settle never pin full multi-k bodies for off-window rows.
    */
   paintContentRows?(width: number, startRow: number, endRow: number): string[];
+  /** Animated composites may use full rendering until their effects settle. */
+  canPaintContentRows?(): boolean;
 }
 
 /** True when a component can measure/paint without full multi-k line arrays. */
@@ -43,7 +45,8 @@ export function supportsWindowedBody(
 } {
   return (
     typeof component.measureContentRows === 'function' &&
-    typeof component.paintContentRows === 'function'
+    typeof component.paintContentRows === 'function' &&
+    component.canPaintContentRows?.() !== false
   );
 }
 

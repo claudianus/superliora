@@ -101,7 +101,9 @@ export function executeNativeRendererFrame(
     quality: qualityBeforeRender,
   });
   const renderCallbackEndedAt = context.now();
-  const present = renderResult ?? context.frameRenderer.present();
+  const present = renderResult ?? (
+    context.runtime.isStarted ? context.frameRenderer.present() : undefined
+  );
   const endedAt = context.now();
   const metricsBeforeQuality = createFrameMetrics(
     startedAt,
@@ -116,7 +118,7 @@ export function executeNativeRendererFrame(
   if (present?.backpressure) context.onBackpressure();
   const qualityStartedAt = context.now();
   const previousQuality = context.qualityController.snapshot();
-  const quality = context.adaptiveQualityEnabled
+  const quality = context.adaptiveQualityEnabled && context.runtime.isStarted
     ? context.qualityController.record(metricsBeforeQuality)
     : context.qualityController.snapshot();
   const qualityEndedAt = context.now();

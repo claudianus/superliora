@@ -3182,6 +3182,37 @@ describe('terminal output encoder', () => {
     );
   });
 
+  it('holds terminal scrolling and exposed rows in the same synchronized update', () => {
+    const previous = new RendererCellBuffer(6, 3);
+    const next = new RendererCellBuffer(6, 3);
+    next.writeText(0, 2, 'tail');
+    const diff = { ...diffCellBuffers(previous, next), scrollDelta: 1 };
+    const output = encodeTerminalFrame(diff, {
+      synchronized: true,
+      frameWidth: 6,
+      frameHeight: 3,
+    });
+    expect(output.startsWith(ANSI_BEGIN_SYNCHRONIZED_UPDATE + '\u001B[1;3r\u001B[S\u001B[r')).toBe(true);
+    expect(output).toContain('tail');
+    expect(output.endsWith(ANSI_END_SYNCHRONIZED_UPDATE)).toBe(true);
+    expect(output.split(ANSI_BEGIN_SYNCHRONIZED_UPDATE)).toHaveLength(2);
+    expect(output.split(ANSI_END_SYNCHRONIZED_UPDATE)).toHaveLength(2);
+  });
+
+  it('balances a synchronized scroll even when no exposed cells need encoding', () => {
+    const empty = new RendererCellBuffer(6, 3);
+    const diff = { ...diffCellBuffers(empty, empty), scrollDelta: -1 };
+    expect(encodeTerminalFrame(diff, {
+      synchronized: true,
+      frameWidth: 6,
+      frameHeight: 3,
+    })).toBe(
+      ANSI_BEGIN_SYNCHRONIZED_UPDATE +
+      '\u001B[1;3r\u001B[T\u001B[r' +
+      ANSI_END_SYNCHRONIZED_UPDATE,
+    );
+  });
+
   it('uses optimized render runs to avoid extra cursor-addressed jumps', () => {
     const previous = new RendererCellBuffer(6, 1);
     const next = new RendererCellBuffer(6, 1);
@@ -3593,6 +3624,25 @@ describe('renderer frame output policy', () => {
       synchronized: true,
       reason: 'inherited',
     });
+  });
+
+  it('synchronizes scroll-only frames even when the exposed rows match the buffer', () => {
+    const diff = frameDiff({ changedCells: 0, damageRatio: 0, scrollDelta: 1 });
+    expect(resolveRendererFrameOutputPolicy({
+      diff,
+      outputOptions: { synchronized: true },
+      policy: 'balanced',
+    })).toMatchObject({
+      mode: 'partial',
+      synchronized: true,
+      largeFrame: true,
+      reason: 'scroll',
+    });
+    expect(resolveRendererFrameOutputPolicy({
+      diff,
+      outputOptions: { synchronized: true },
+      policy: 'compat',
+    }).synchronized).toBe(false);
   });
 
   it('maps premium, balanced, and compat profiles to synchronized output decisions', () => {
@@ -5155,6 +5205,39 @@ describe('NativeTerminalSession', () => {
 
     expect(input.rawModeCalls).toEqual([true, true]);
   });
+
+  it('releases synchronized output and any-event mouse tracking on emergency restore', () => {
+    const input = new FakeInput();
+    input.isRaw = true;
+    const output = new FakeOutput();
+    NativeTerminalSession.writeRestoreSequencesSync(output, input);
+    const restore = output.writes.join('');
+    expect(input.isRaw).toBe(false);
+    expect(restore.startsWith(ANSI_END_SYNCHRONIZED_UPDATE)).toBe(true);
+    expect(restore).toContain(ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING);
+    expect(restore).toContain(ANSI_DISABLE_SGR_MOUSE_MODE);
+    expect(restore.endsWith(ANSI_EXIT_ALTERNATE_SCREEN)).toBe(true);
+  });
+
+  it('restores raw mode and terminal modes even when an earlier cleanup throws', () => {
+    const input = new FakeInput();
+    const output = new FakeOutput();
+    input.pause = () => {
+      throw new Error('pause failed');
+    };
+    const session = new NativeTerminalSession({
+      input,
+      output,
+      screenMode: 'alternate',
+      hideCursor: true,
+    });
+    session.start();
+    expect(() => session.stop()).toThrow('pause failed');
+    expect(input.rawModeCalls).toEqual([true, false]);
+    expect(input.listenerCount('data')).toBe(0);
+    expect(output.writes.at(-1)).toBe(ANSI_SHOW_CURSOR + ANSI_EXIT_ALTERNATE_SCREEN);
+    session.stop();
+  });
 });
 
 describe('composeRendererRegions', () => {
@@ -5544,6 +5627,7 @@ function frameDiff(diff: Partial<RendererFrameDiff>): RendererFrameDiff {
     outputCells: diff.outputCells,
     bridgedCells: diff.bridgedCells,
     renderRuns: diff.renderRuns,
+    scrollDelta: diff.scrollDelta,
     scannedCells: diff.scannedCells ?? changedCells,
     scannedRows: diff.scannedRows ?? (changedCells > 0 ? 1 : 0),
     dirtyRows: diff.dirtyRows ?? (changedCells > 0 ? 1 : 0),

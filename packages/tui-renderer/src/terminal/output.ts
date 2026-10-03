@@ -170,7 +170,14 @@ export function encodeTerminalFrameWithMetrics(
     const height = options.frameHeight ?? 0;
     if (height > 0) {
       const scrollCmd = encodeScrollRegion(0, height - 1, diff.scrollDelta);
-      return { ...encoded, output: scrollCmd + encoded.output };
+      const output = options.synchronized !== true || scrollCmd.length === 0
+        ? scrollCmd + encoded.output
+        : encoded.output.startsWith(ANSI_BEGIN_SYNCHRONIZED_UPDATE)
+          ? ANSI_BEGIN_SYNCHRONIZED_UPDATE +
+            scrollCmd +
+            encoded.output.slice(ANSI_BEGIN_SYNCHRONIZED_UPDATE.length)
+          : ANSI_BEGIN_SYNCHRONIZED_UPDATE + scrollCmd + encoded.output + ANSI_END_SYNCHRONIZED_UPDATE;
+      return { ...encoded, output };
     }
   }
   return encoded;

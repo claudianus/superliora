@@ -8,10 +8,6 @@ export interface NativeRendererAutoFrameHoldCallbacks {
   readonly cancelRegionAnimationFrame: () => void;
   readonly requestRenderDirect: (cause: NativeRenderCause) => void;
   readonly requestAnimationFrameDirect: (callback: NativeAnimationFrameCallback) => number;
-  readonly shouldDeferFrameForBackpressure: () => boolean;
-  readonly deferRenderCause: (cause: NativeRenderCause) => void;
-  readonly deferAnimationFrame: (callback: NativeAnimationFrameCallback) => number;
-  readonly cancelDeferredAnimationFrame: (id: number) => boolean;
   readonly loopCancelAnimationFrame: (id: number) => void;
 }
 
@@ -21,6 +17,7 @@ export class NativeRendererAutoFrameHold {
   private releasingHeldAutoFrames = false;
   private readonly heldRenderCauses = new Set<NativeRenderCause>();
   private readonly heldAnimationCallbacks = new Map<number, NativeAnimationFrameCallback>();
+  private readonly releasedAnimationFrameIds = new Map<number, number>();
   private nextHeldAnimationFrameId = -1_000_000;
 
   constructor(
@@ -48,16 +45,8 @@ export class NativeRendererAutoFrameHold {
       return;
     }
     this.releaseHeldIfReady();
-    // Interactive navigation must never sit behind stdout backpressure —
-    // deferring transcript-scroll left the viewport stuck for minutes while
-    // drain never fired (or kept thrashing). Ambient/content may still wait.
-    if (
-      this.callbacks.shouldDeferFrameForBackpressure() &&
-      !isInteractiveRenderCause(cause)
-    ) {
-      this.callbacks.deferRenderCause(cause);
-      return;
-    }
+    // Backpressure suspends the loop itself, retaining every cause and callback
+    // without writing stale interactive frames into an already-blocked stream.
     this.callbacks.requestRenderDirect(cause);
   }
 
@@ -69,9 +58,7 @@ export class NativeRendererAutoFrameHold {
       return id;
     }
     this.releaseHeldIfReady();
-    if (this.callbacks.shouldDeferFrameForBackpressure()) {
-      return this.callbacks.deferAnimationFrame(callback);
-    }
+    // The loop owns backpressure suspension, so callback IDs remain stable.
     return this.callbacks.requestAnimationFrameDirect(callback);
   }
 
@@ -80,10 +67,15 @@ export class NativeRendererAutoFrameHold {
       if (this.heldAnimationCallbacks.size === 0) {
         this.heldRenderCauses.delete('animation');
       }
-      if (this.heldRenderCauses.size === 0) this.clear();
+      if (this.heldRenderCauses.size === 0) this.autoFrameHeld = false;
       return;
     }
-    if (this.callbacks.cancelDeferredAnimationFrame(id)) return;
+    const releasedId = this.releasedAnimationFrameIds.get(id);
+    if (releasedId !== undefined) {
+      this.releasedAnimationFrameIds.delete(id);
+      this.callbacks.loopCancelAnimationFrame(releasedId);
+      return;
+    }
     this.callbacks.loopCancelAnimationFrame(id);
   }
 
@@ -95,8 +87,10 @@ export class NativeRendererAutoFrameHold {
 
   releaseHeld(): void {
     const deferredCauses = Array.from(this.heldRenderCauses);
-    const deferredCallbacks = Array.from(this.heldAnimationCallbacks.values());
-    this.clear();
+    const deferredCallbacks = Array.from(this.heldAnimationCallbacks);
+    this.autoFrameHeld = false;
+    this.heldRenderCauses.clear();
+    this.heldAnimationCallbacks.clear();
     if (deferredCauses.length === 0 && deferredCallbacks.length === 0) return;
     this.callbacks.recordMarker('renderer.auto_frame_release', {
       deferredCauses: deferredCauses.join(','),
@@ -104,7 +98,13 @@ export class NativeRendererAutoFrameHold {
     });
     this.releasingHeldAutoFrames = true;
     try {
-      for (const cb of deferredCallbacks) this.requestAnimationFrame(cb);
+      for (const [id, callback] of deferredCallbacks) {
+        const releasedId = this.requestAnimationFrame((frame) => {
+          this.releasedAnimationFrameIds.delete(id);
+          callback(frame);
+        });
+        this.releasedAnimationFrameIds.set(id, releasedId);
+      }
       for (const cause of deferredCauses) {
         if (cause === 'animation') continue;
         this.requestRender(cause);
@@ -118,6 +118,10 @@ export class NativeRendererAutoFrameHold {
     this.autoFrameHeld = false;
     this.heldRenderCauses.clear();
     this.heldAnimationCallbacks.clear();
+    for (const id of this.releasedAnimationFrameIds.values()) {
+      this.callbacks.loopCancelAnimationFrame(id);
+    }
+    this.releasedAnimationFrameIds.clear();
   }
 
   private shouldHoldAutoFrames(): boolean {
@@ -139,9 +143,4 @@ export class NativeRendererAutoFrameHold {
     if (this.shouldHoldAutoFrames()) return;
     this.releaseHeld();
   }
-}
-
-/** Wheel/keys/resize must paint even when stdout is backpressured. */
-export function isInteractiveRenderCause(cause: NativeRenderCause): boolean {
-  return cause === 'input' || cause === 'resize' || cause === 'transcript-scroll';
 }

@@ -39,7 +39,7 @@ function paintClockNowMs(): number {
 }
 
 /** How long after a scroll paint chrome timers should skip refresh. */
-export const TRANSCRIPT_SCROLL_TIMER_HOLD_MS = 180;
+const TRANSCRIPT_SCROLL_TIMER_HOLD_MS = 180;
 /**
  * Hold O(transcript) geometry/paint wipes after pure-scroll. Longer than the
  * storm gap so multi-k rebuilds cannot re-enter while the wheel is hot.

@@ -6,6 +6,7 @@ import {
 } from '#/tui/renderer';
 import {
   requestTUIContentRender,
+  requestTUILayoutRender,
   requestTranscriptGeometryRefresh,
   requestTranscriptPaintRefresh,
 } from '#/tui/utils/render/frame-render';
@@ -45,6 +46,7 @@ describe('content invalidation hold while transcript scroll is hot', () => {
     resetTranscriptScrollActivityForTest();
     resetTranscriptMeasureModeForTest();
     clearTranscriptScrollSettleRefreshForTest();
+    vi.useRealTimers();
   });
 
   it('coalesces content render only during a real pure-scroll storm', () => {
@@ -122,5 +124,40 @@ describe('content invalidation hold while transcript scroll is hot', () => {
     requestTranscriptGeometryRefresh(state);
     expect(invalidateGeometryAndPaint).toHaveBeenCalledOnce();
     expect(invalidateFrame).toHaveBeenCalledWith('content');
+  });
+
+  it('replays deferred geometry and layout once after the wheel quiets', () => {
+    vi.useFakeTimers();
+    vi.advanceTimersByTime(1);
+    const invalidateFrame = vi.fn();
+    const invalidatePaint = vi.fn();
+    const invalidateGeometryAndPaint = vi.fn();
+    const state = fakeState({ invalidateFrame, invalidatePaint, invalidateGeometryAndPaint });
+    withTranscriptPaintMode({ suppressLiveToolTicks: true }, () => {});
+    requestTranscriptPaintRefresh(state);
+    requestTUILayoutRender(state);
+    requestTranscriptGeometryRefresh(state);
+    requestTranscriptPaintRefresh(state);
+    expect(invalidateFrame).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1000);
+    expect(invalidateGeometryAndPaint).toHaveBeenCalledOnce();
+    expect(invalidatePaint).not.toHaveBeenCalled();
+    expect(invalidateFrame).toHaveBeenCalledExactlyOnceWith('layout');
+  });
+
+  it('keeps deferred refreshes independent for distinct TUI states', () => {
+    vi.useFakeTimers();
+    vi.advanceTimersByTime(1);
+    const first = fakeState();
+    const second = fakeState();
+    withTranscriptPaintMode({ suppressLiveToolTicks: true }, () => {});
+    requestTranscriptGeometryRefresh(first);
+    requestTranscriptPaintRefresh(second);
+    vi.advanceTimersByTime(1000);
+    expect(first.transcriptContainer.invalidateGeometryAndPaint).toHaveBeenCalledOnce();
+    expect(second.transcriptContainer.invalidatePaint).toHaveBeenCalledOnce();
+    expect(first.renderer.invalidateFrame).toHaveBeenCalledExactlyOnceWith('content');
+    expect(second.renderer.invalidateFrame).toHaveBeenCalledExactlyOnceWith('content');
   });
 });

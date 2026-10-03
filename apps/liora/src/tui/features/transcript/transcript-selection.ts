@@ -79,14 +79,6 @@ export function createTranscriptSelectionState(): TranscriptSelectionState {
   return new TranscriptSelectionState();
 }
 
-export function shouldHoldTranscriptAnimation(options: {
-  readonly transcriptSelection: TranscriptSelectionState;
-}): boolean {
-  // Ambient animation keeps running while the transcript is scrolled back;
-  // only an active selection/drag holds frames so the highlight stays stable.
-  return options.transcriptSelection.isDragging || options.transcriptSelection.hasSelection;
-}
-
 export function regionLineVisibleLength(line: RendererRegionLine): number {
   return visibleWidth(plainTextFromRegionLine(line));
 }

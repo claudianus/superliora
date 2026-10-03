@@ -54,10 +54,13 @@ export class NativeRenderLoop {
   private readonly targetFrameIntervalMs: number;
   private stabilityFrameIntervalMs: number | undefined;
   private started = false;
+  private suspended = false;
   private scheduledTimer: NativeRenderTimer | undefined;
   private scheduledDelayMs = 0;
   private pendingCauses = new Set<NativeRenderCause>();
   private animationCallbacks = new Map<number, NativeAnimationFrameCallback>();
+  private spareAnimationCallbacks = new Map<number, NativeAnimationFrameCallback>();
+  private runningAnimationCallbacks: Map<number, NativeAnimationFrameCallback> | undefined;
   private nextAnimationFrameId = 1;
   private lastFrameAt: number | undefined;
   private renderedFrames = 0;
@@ -153,8 +156,24 @@ export class NativeRenderLoop {
     }
     this.pendingCauses.clear();
     this.animationCallbacks.clear();
+    this.runningAnimationCallbacks?.clear();
     this.nextTargetTime = undefined;
     this.inputDuringFramePending = false;
+  }
+
+  /** Retain invalidations and callback IDs without rendering into a blocked stream. */
+  setSuspended(suspended: boolean): void {
+    if (this.suspended === suspended) return;
+    this.suspended = suspended;
+    if (suspended && this.scheduledTimer !== undefined) {
+      this.scheduler.clearTimeout(this.scheduledTimer);
+      this.scheduledTimer = undefined;
+      this.scheduledDelayMs = 0;
+    }
+    if (!suspended) {
+      this.nextTargetTime = undefined;
+      this.scheduleNextFrame();
+    }
   }
 
   requestRender(cause: NativeRenderCause = 'request'): void {
@@ -176,7 +195,9 @@ export class NativeRenderLoop {
   }
 
   cancelAnimationFrame(id: number): void {
-    if (!this.animationCallbacks.delete(id)) return;
+    const cancelledPending = this.animationCallbacks.delete(id);
+    const cancelledRunning = this.runningAnimationCallbacks?.delete(id) === true;
+    if (!cancelledPending && !cancelledRunning) return;
     if (this.animationCallbacks.size === 0 && onlyPendingCause(this.pendingCauses, 'animation')) {
       this.pendingCauses.delete('animation');
       this.cancelScheduledFrameIfIdle();
@@ -188,7 +209,7 @@ export class NativeRenderLoop {
   }
 
   private scheduleNextFrame(): void {
-    if (!this.started || this.runningFrame || !this.hasPendingFrame) {
+    if (!this.started || this.suspended || this.runningFrame || !this.hasPendingFrame) {
       return;
     }
 
@@ -212,7 +233,7 @@ export class NativeRenderLoop {
 
     const timer = this.scheduler.setTimeout(() => {
       this.runFrame();
-    }, delayMs);
+    }, Math.ceil(delayMs));
     if (this.options.unrefTimers === true) timer.unref?.();
     this.scheduledTimer = timer;
     this.scheduledDelayMs = delayMs;
@@ -246,16 +267,17 @@ export class NativeRenderLoop {
   }
 
   private runFrame(): void {
-    if (!this.started) return;
+    if (!this.started || this.suspended) return;
 
     this.scheduledTimer = undefined;
     this.scheduledDelayMs = 0;
     this.inputDuringFramePending = false;
     const timestamp = this.scheduler.now();
     const deltaMs = this.lastFrameAt === undefined ? 0 : Math.max(0, timestamp - this.lastFrameAt);
-    const animationCallbacks = Array.from(this.animationCallbacks.values());
-    this.animationCallbacks.clear();
-    const causes = this.consumeFrameCauses(animationCallbacks.length > 0);
+    const animationCallbacks = this.animationCallbacks;
+    this.animationCallbacks = this.spareAnimationCallbacks;
+    this.runningAnimationCallbacks = animationCallbacks;
+    const causes = this.consumeFrameCauses(animationCallbacks.size > 0);
     const frame: NativeRenderFrame = {
       timestamp,
       deltaMs,
@@ -265,35 +287,36 @@ export class NativeRenderLoop {
 
     this.runningFrame = true;
     try {
-      for (const callback of animationCallbacks) callback(frame);
-      this.options.render(frame);
+      for (const callback of animationCallbacks.values()) callback(frame);
+      if (this.started) this.options.render(frame);
     } finally {
+      this.runningAnimationCallbacks = undefined;
+      animationCallbacks.clear();
+      this.spareAnimationCallbacks = animationCallbacks;
       this.runningFrame = false;
       this.lastFrameAt = timestamp;
       this.renderedFrames++;
-      this.advanceTargetTime(timestamp);
+      this.advanceTargetTime(timestamp, causes.includes('input') || causes.includes('resize'));
       this.scheduleNextFrame();
     }
   }
 
-  private advanceTargetTime(timestamp: number): void {
+  private advanceTargetTime(timestamp: number, interactive: boolean): void {
     const interval = this.pacedFrameIntervalMs;
-    if (this.stabilityFrameIntervalMs !== undefined) {
-      // Stability floor: pure rate-limit. The next paced frame sits a full
-      // interval after whatever frame just ran — including immediate input
-      // frames — so bursts of invalidation coalesce instead of cascading.
+    if (this.stabilityFrameIntervalMs !== undefined || interactive) {
+      // Immediate interaction is not an extra paced tick. Advancing the ideal
+      // target for every key pushed the next animation seconds into the future
+      // after input storms; anchor the next paced frame to this actual paint.
       this.nextTargetTime = timestamp + interval;
       return;
     }
-    // Drift-free pacing: advance the ideal target by exactly one interval.
-    // If the target has fallen more than one full interval behind wall-clock
-    // (long GC, tab suspend, heavy render), re-anchor to avoid a burst of
-    // catch-up frames.
+    // Advance the ideal target while on cadence, but skip missed ticks after a
+    // long task instead of issuing delay-0 catch-up frames into a slow terminal.
     if (this.nextTargetTime === undefined) {
       this.nextTargetTime = timestamp + interval;
     } else {
       this.nextTargetTime += interval;
-      if (this.nextTargetTime < timestamp - interval) {
+      if (this.nextTargetTime <= timestamp) {
         this.nextTargetTime = timestamp + interval;
       }
     }

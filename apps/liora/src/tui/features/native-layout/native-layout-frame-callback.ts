@@ -66,6 +66,7 @@ interface TUIStateNativeChromeCache extends TUINativeStageChrome {
    * activity starts/stops so a stale spinner is never reused.
    */
   readonly chromeEpoch: string;
+  readonly viewportEpoch: string;
 }
 
 export function createTUIStateNativeRenderCallback(
@@ -77,6 +78,7 @@ export function createTUIStateNativeRenderCallback(
   let transcriptLineCache: readonly RendererRegionLine[] | undefined;
   let transcriptLineCacheWidth: number | undefined;
   let transcriptLineCacheSelectionKey: string | undefined;
+  let transcriptLineCacheHeight: number | undefined;
   return ({ frame, runtime, size, quality }) => {
     const callbackStartedAt = paintClockNowMs();
     if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
@@ -234,7 +236,7 @@ export function createTUIStateNativeRenderCallback(
       layoutShift.viewportScrolled,
       layoutShift.structuralShift,
     );
-    const reuseChrome = shouldReuseTUIChromeCache({
+    let reuseChrome = shouldReuseTUIChromeCache({
       hasCache: chromeCache !== undefined,
       widthMatches: chromeCache?.width === size.columns,
       stageWidthMatches: chromeCache?.stageWidth === stageProbe.stage.width,
@@ -246,6 +248,18 @@ export function createTUIStateNativeRenderCallback(
     })
       ? chromeCache
       : undefined;
+    const viewport = state.transcriptViewport.snapshot();
+    const viewportEpoch = `${viewport.followOutput}:${viewport.offsetFromBottom}`;
+    if (reuseChrome !== undefined && reuseChrome.viewportEpoch !== viewportEpoch) {
+      // Keep scroll O(visible): refresh only the history/live badge, not the
+      // header, boards, queue and editor chrome tree.
+      reuseChrome = {
+        ...reuseChrome,
+        viewportEpoch,
+        footer: state.footerContainer.render(stageProbe.stage.width),
+      };
+      chromeCache = reuseChrome;
+    }
     // Every cause except resize stays damage-only. Request/manual ticks used
     // to clear:true the whole stack and tear into black bands on ConPTY.
     // Topology changes still beginFrame-clear via the composition cache miss;
@@ -278,7 +292,9 @@ export function createTUIStateNativeRenderCallback(
       pureInputFrame,
       hasCache: transcriptLineCache !== undefined,
       cacheLineCount: transcriptLineCache?.length ?? 0,
-      widthMatches: transcriptLineCacheWidth === size.columns,
+      widthMatches:
+        transcriptLineCacheWidth === stageProbe.stage.width &&
+        transcriptLineCacheHeight === height,
       selectionMatches: transcriptLineCacheSelectionKey === selectionKey,
       splashJustDisposed,
     });
@@ -307,6 +323,7 @@ export function createTUIStateNativeRenderCallback(
         width: size.columns,
         stageWidth: nativeFrame.stageWidth,
         chromeEpoch,
+        viewportEpoch,
         header: nativeFrame.chrome.header,
         activity: nativeFrame.chrome.activity,
         todo: nativeFrame.chrome.todo,
@@ -326,7 +343,8 @@ export function createTUIStateNativeRenderCallback(
       })
     ) {
       transcriptLineCache = nativeFrame.transcriptLines;
-      transcriptLineCacheWidth = size.columns;
+      transcriptLineCacheWidth = nativeFrame.stageWidth;
+      transcriptLineCacheHeight = height;
       transcriptLineCacheSelectionKey = selectionKey;
     }
     // force/clear come from policy (pure input stays incremental). forceCursor
@@ -352,6 +370,28 @@ export function createTUIStateNativeRenderCallback(
         options.postFrameRender?.({ frameRenderer, columns: size.columns, rows: height });
       },
     });
+    if (!fullscreenTakeover) {
+      // Transcript paint synchronizes follow-tail/geometry. Track the painted
+      // position, not the pre-paint offset, or the next content tick mistakes
+      // that synchronization for user scroll and clears a fresh selection.
+      layoutTracking = {
+        ...layoutShift.next,
+        transcriptStart: state.transcriptViewport.start(),
+        transcriptContentRows: state.transcriptViewport.lastContentRows,
+      };
+    }
+    // Budget-limited geometry/materialization must converge even with motion
+    // off. The render scheduler paces this work and lets input preempt it.
+    // Wheel frames wait for their existing quiet-window refresh instead.
+    if (
+      !fullscreenTakeover &&
+      !canReuseTranscript &&
+      !frame.causes.includes('transcript-scroll') &&
+      !isTranscriptScrollSettleArmed(state) &&
+      state.transcriptContainer.needsMaterializeContinue
+    ) {
+      runtime.requestRender('request');
+    }
     // Host-path scroll hang probe: sample after paint so child paint / storm
     // flags reflect this frame. Off for installed users — debug-local / TRACE
     // turns it back on.

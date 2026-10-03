@@ -96,4 +96,25 @@ describe('overflow paint cache eviction (GC freeze class)', () => {
     expect(second).toBeLessThanOrEqual(first);
     expect(first + second).toBeLessThan(30);
   });
+
+  it('bounds retained cards during continuous wheel scrolling before settle', () => {
+    const viewport = new RendererTranscriptViewport();
+    const transcript = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 1,
+    });
+    for (let i = 0; i < 100; i++) {
+      transcript.addChild({ render: () => [`card-${i}`], invalidate() {} });
+    }
+    transcript.render(40);
+    viewport.jumpToLine(0);
+    transcript.render(40);
+    for (let i = 0; i < 100; i++) {
+      viewport.jumpToLine(i);
+      expect(withTranscriptCheapPaintMode(() => transcript.render(40))).toEqual([`card-${i}`]);
+      expect(transcript.overflowRetainedFullLineChildCount).toBeLessThanOrEqual(12);
+    }
+    viewport.jumpToLine(0);
+    expect(transcript.render(40)).toEqual(['card-0']);
+  });
 });

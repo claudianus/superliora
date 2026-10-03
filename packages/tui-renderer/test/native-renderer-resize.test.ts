@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ANSI_CLEAR_SCREEN, encodeTerminalClearBelowRow } from '../src';
-import {
-  clearStaleNativeRendererFrameRows,
-  handleNativeRendererTerminalResize,
-} from '../src/native-renderer/resize';
+import { clearStaleNativeRendererFrameRows } from '../src/native-renderer/resize';
 import type { NativeFrameRenderer } from '../src/native/frame';
 
 function createResizeHarness(size: { width: number; height: number } = { width: 80, height: 24 }) {
@@ -34,11 +31,12 @@ function createResizeHarness(size: { width: number; height: number } = { width: 
 
 const THEME_BG_SGR = '\u001B[0;48;2;17;34;51m';
 
-describe('handleNativeRendererTerminalResize', () => {
+describe('native renderer resize cleanup', () => {
   it('does not queue CSI 2J on alternate-screen grow or shrink', () => {
     const { prefixes, frameRenderer } = createResizeHarness();
+    frameRenderer.resize(120, 40);
 
-    handleNativeRendererTerminalResize(
+    clearStaleNativeRendererFrameRows(
       {
         screenMode: 'alternate',
         originX: 0,
@@ -46,18 +44,15 @@ describe('handleNativeRendererTerminalResize', () => {
         frameRenderer,
         compositionCache: undefined,
       },
-      { columns: 120, rows: 40 },
-      {
-        now: () => 0,
-        recordResize: () => {},
-        requestRender: () => {},
-      },
+      40,
+      24,
     );
 
     expect(prefixes.join('')).not.toContain(ANSI_CLEAR_SCREEN);
     expect(prefixes.some((prefix) => prefix.includes('\u001B[2J'))).toBe(false);
+    frameRenderer.resize(80, 20);
 
-    handleNativeRendererTerminalResize(
+    clearStaleNativeRendererFrameRows(
       {
         screenMode: 'alternate',
         originX: 0,
@@ -65,12 +60,8 @@ describe('handleNativeRendererTerminalResize', () => {
         frameRenderer,
         compositionCache: undefined,
       },
-      { columns: 80, rows: 20 },
-      {
-        now: () => 0,
-        recordResize: () => {},
-        requestRender: () => {},
-      },
+      20,
+      40,
     );
 
     expect(prefixes.join('')).not.toContain(ANSI_CLEAR_SCREEN);
@@ -104,8 +95,9 @@ describe('handleNativeRendererTerminalResize', () => {
   it('theme-bg-fills leftover rows after a height decrease without default-black erase', () => {
     const { prefixes, frameRenderer } = createResizeHarness({ width: 80, height: 24 });
     const fill = { style: { bg: '#112233' } };
+    frameRenderer.resize(80, 20);
 
-    handleNativeRendererTerminalResize(
+    clearStaleNativeRendererFrameRows(
       {
         screenMode: 'main',
         originX: 0,
@@ -114,12 +106,8 @@ describe('handleNativeRendererTerminalResize', () => {
         frameRenderer,
         compositionCache: undefined,
       },
-      { columns: 80, rows: 20 },
-      {
-        now: () => 0,
-        recordResize: () => {},
-        requestRender: () => {},
-      },
+      20,
+      24,
     );
 
     expect(prefixes).toEqual([encodeTerminalClearBelowRow(20, 0, 0, fill, 80, 4)]);

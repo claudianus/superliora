@@ -1,33 +1,34 @@
-import type { NativeAnimationFrameCallback, NativeRenderCause } from '../frame/render-loop';
+import type { NativeRenderLoopScheduler, NativeRenderTimer } from '../frame/render-loop';
 import type { NativeTerminalOutput } from '../terminal/session';
 
 export interface NativeRendererBackpressureCallbacks {
-  readonly now: () => number;
   readonly recordMarker: (name: string, args?: Record<string, string | number | boolean>) => void;
-  readonly cancelRegionAnimationFrame: () => void;
-  readonly loopRequestRender: (cause: NativeRenderCause) => void;
-  readonly loopRequestAnimationFrame: (callback: NativeAnimationFrameCallback) => number;
+  readonly suspendFrames: (suspended: boolean) => void;
 }
 
-/**
- * If `drain` never fires after write() returned false (stuck PTY / terminal),
- * force-clear backpressure so interactive frames are not deferred forever.
- */
-export const BACKPRESSURE_STUCK_TIMEOUT_MS = 250;
+/** Recheck an observable writable state in case its drain notification was lost. */
+export const BACKPRESSURE_STATE_CHECK_INTERVAL_MS = 250;
 
 export class NativeRendererBackpressure {
   private outputBackpressured = false;
   private outputDrainListener: (() => void) | undefined;
-  private stuckTimer: { unref?(): void } | undefined;
-  private readonly deferredRenderCauses = new Set<NativeRenderCause>();
-  private readonly deferredAnimationCallbacks = new Map<number, NativeAnimationFrameCallback>();
-  private nextDeferredAnimationFrameId = -1;
+  private stuckTimer: NativeRenderTimer | undefined;
+  private readonly scheduler: NativeRenderLoopScheduler;
 
   constructor(
     private readonly output: NativeTerminalOutput,
     private readonly deferFramesDuringBackpressure: boolean | undefined,
     private readonly callbacks: NativeRendererBackpressureCallbacks,
-  ) {}
+    scheduler?: NativeRenderLoopScheduler,
+  ) {
+    this.scheduler = scheduler ?? {
+      now: () => performance.now(),
+      setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+      clearTimeout: (timer) => {
+        clearTimeout(timer as NodeJS.Timeout);
+      },
+    };
+  }
 
   get isActive(): boolean {
     return this.outputBackpressured;
@@ -37,31 +38,11 @@ export class NativeRendererBackpressure {
     return this.deferFramesDuringBackpressure !== false && this.outputBackpressured;
   }
 
-  deferRenderCause(cause: NativeRenderCause): void {
-    this.deferredRenderCauses.add(cause);
-  }
-
-  deferAnimationFrame(callback: NativeAnimationFrameCallback): number {
-    const id = this.nextDeferredAnimationFrameId--;
-    this.deferredAnimationCallbacks.set(id, callback);
-    this.deferredRenderCauses.add('animation');
-    return id;
-  }
-
-  cancelDeferredAnimationFrame(id: number): boolean {
-    if (!this.deferredAnimationCallbacks.delete(id)) return false;
-    if (this.deferredAnimationCallbacks.size === 0) {
-      this.deferredRenderCauses.delete('animation');
-    }
-    return true;
-  }
-
   handleBackpressure(): void {
-    if (this.deferFramesDuringBackpressure === false) return;
-    if (this.outputBackpressured) return;
+    if (this.deferFramesDuringBackpressure === false || this.outputBackpressured) return;
     if (this.output.on === undefined) return;
     this.outputBackpressured = true;
-    this.callbacks.cancelRegionAnimationFrame();
+    this.callbacks.suspendFrames(true);
     const listener = () => {
       this.handleDrain();
     };
@@ -82,47 +63,38 @@ export class NativeRendererBackpressure {
       this.outputDrainListener = undefined;
     }
     this.outputBackpressured = false;
-    this.deferredRenderCauses.clear();
-    this.deferredAnimationCallbacks.clear();
+    this.callbacks.suspendFrames(false);
   }
 
   private armStuckWatchdog(): void {
-    this.clearStuckWatchdog();
-    // setTimeout is process-global; prefer it over the render scheduler so a
-    // blocked render loop still recovers when drain never arrives.
-    const timer = setTimeout(() => {
+    // A timeout is not a drain. Resuming writes into a genuinely blocked PTY
+    // queues old frames forever and delays the user's latest scroll position.
+    // Outputs without observable writable state must wait for their drain event.
+    if (this.output.writableNeedDrain === undefined) return;
+    this.stuckTimer = this.scheduler.setTimeout(() => {
       this.stuckTimer = undefined;
       if (!this.outputBackpressured) return;
-      this.callbacks.recordMarker('terminal.output_backpressure_stuck', {
-        timeoutMs: BACKPRESSURE_STUCK_TIMEOUT_MS,
-      });
-      this.handleDrain();
-    }, BACKPRESSURE_STUCK_TIMEOUT_MS);
-    timer.unref?.();
-    this.stuckTimer = timer;
+      if (this.output.writableNeedDrain === false) {
+        this.callbacks.recordMarker('terminal.output_backpressure_recovered', {
+          intervalMs: BACKPRESSURE_STATE_CHECK_INTERVAL_MS,
+        });
+        this.handleDrain();
+      } else {
+        this.armStuckWatchdog();
+      }
+    }, BACKPRESSURE_STATE_CHECK_INTERVAL_MS);
+    this.stuckTimer.unref?.();
   }
 
   private clearStuckWatchdog(): void {
     if (this.stuckTimer === undefined) return;
-    clearTimeout(this.stuckTimer as ReturnType<typeof setTimeout>);
+    this.scheduler.clearTimeout(this.stuckTimer);
     this.stuckTimer = undefined;
   }
 
   private handleDrain(): void {
-    if (!this.outputBackpressured) return;
-    const deferredCauses = Array.from(this.deferredRenderCauses);
-    const deferredCallbacks = Array.from(this.deferredAnimationCallbacks.values());
+    if (!this.outputBackpressured || this.output.writableNeedDrain === true) return;
     this.clear();
-    this.callbacks.recordMarker('terminal.output_drain', {
-      deferredCauses: deferredCauses.join(','),
-      deferredAnimations: deferredCallbacks.length,
-    });
-    for (const callback of deferredCallbacks) {
-      this.callbacks.loopRequestAnimationFrame(callback);
-    }
-    for (const cause of deferredCauses) {
-      if (cause === 'animation') continue;
-      this.callbacks.loopRequestRender(cause);
-    }
+    this.callbacks.recordMarker('terminal.output_drain');
   }
 }

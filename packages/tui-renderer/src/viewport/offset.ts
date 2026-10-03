@@ -78,6 +78,12 @@ export class RendererViewport {
     return this.normalize();
   }
 
+  /** Preserve the current reading position even when it is at the live tail. */
+  pauseFollowOutput(): RendererViewportSnapshot {
+    this.followOutput = false;
+    return this.normalize();
+  }
+
   snapshot(): RendererViewportSnapshot {
     return createRendererViewportSnapshot({
       contentRows: this.contentRows,

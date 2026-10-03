@@ -30,7 +30,6 @@ import { NativeEditorTextInputController } from './features/native-layout/native
 import { createTerminalState, type TerminalState } from './utils/terminal/terminal-state';
 import {
   createTranscriptSelectionState,
-  shouldHoldTranscriptAnimation,
   type TranscriptSelectionState,
 } from './features/transcript/transcript-selection';
 import { TUIToastState } from './utils/ui/toast';
@@ -204,9 +203,6 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
 
   const transcriptViewport = createTranscriptViewportState();
   const transcriptSelection = createTranscriptSelectionState();
-  renderer.setAutoFrameHold(() =>
-    shouldHoldTranscriptAnimation({ transcriptSelection }),
-  );
   const activityContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const workerDockContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);

@@ -112,7 +112,13 @@ describe('idle aquarium black-band regression', () => {
       }),
     );
 
-    const regions = buildTUIStateNativeFrameRegions(state, cols, rows);
+    let regions = buildTUIStateNativeFrameRegions(state, cols, rows);
+    // Geometry and content deliberately fill across bounded frames. Assert the
+    // settled aquarium, not how much a loaded machine completes in one frame.
+    for (let frame = 0; frame < 32 && state.transcriptContainer.needsMaterializeContinue; frame++) {
+      regions = buildTUIStateNativeFrameRegions(state, cols, rows);
+    }
+    expect(state.transcriptContainer.needsMaterializeContinue).toBe(false);
     const transcript = regions.find((r) => r.id === 'transcript');
     expect(transcript).toBeDefined();
     const lines = transcript!.content as readonly (readonly RendererCell[])[];

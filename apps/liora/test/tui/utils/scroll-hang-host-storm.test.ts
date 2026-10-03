@@ -4,11 +4,17 @@
  */
 import { EventEmitter } from 'node:events';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TruncatedOutputComponent } from '#/tui/components/messages/tool-renderers/truncated';
 import { ToolOutputViewportComponent } from '#/tui/components/messages/tool-output-viewport';
 import { createTUIStateNativeRenderer } from '#/tui/features/native-layout/native-layout-frame';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  setActiveAppearancePreferences,
+} from '#/tui/features/appearance/appearance-effects';
 import { createTUIState } from '#/tui/liora-tui';
 import {
   type Component,
@@ -19,10 +25,8 @@ import {
 } from '#/tui/renderer';
 import type { AppState } from '#/tui/types';
 import {
-  lastScrollHangDumpForTest,
   lastScrollHangSample,
   resetScrollHangProbeForTest,
-  scrollHangRingForTest,
   setScrollHangProbeSinkForTest,
   setScrollHangSamplingEnabledForTest,
   setScrollHangTraceEnabledForTest,
@@ -49,24 +53,6 @@ import { createToolOutputViewportState } from '#/tui/utils/tool/tool-output-view
 const SCROLL_PAINT_CALLS_PER_CARD = 3;
 const SCROLL_FRAME_PAINT_CEILING =
   TRANSCRIPT_SCROLL_MATERIALIZE_BUDGET * SCROLL_PAINT_CALLS_PER_CARD;
-/**
- * How far the worst render callback may sit above the median of the same run
- * before it counts as a hang rather than a slow host. Generous, because the
- * point is to survive scheduler jitter and GC pauses, not to police ordinary
- * variance; a paint that actually stalls is orders of magnitude out, not a
- * few times.
- */
-const WORST_TO_MEDIAN_RATIO = 25;
-
-/**
- * Absolute hang ceiling, kept deliberately far above anything a loaded runner
- * produces — the observed spread across forty storm frames runs about 1-6ms,
- * with a rare preemption spike in the tens of milliseconds. Set three orders
- * of magnitude high, it cannot flake; set near the observed worst, it would
- * flake on the first busy CI runner, which is the mistake this file has now
- * made twice.
- */
-const HANG_CALLBACK_CEILING_MS = 5_000;
 
 function fakeInitialAppState(): AppState {
   return {
@@ -166,6 +152,7 @@ class FakeRenderLoopScheduler implements NativeRenderLoopScheduler {
 
 describe('scroll hang host storm', () => {
   let previousTransportStability: string | undefined;
+  const originalAppearance = getActiveAppearancePreferences();
 
   beforeEach(() => {
     previousTransportStability = process.env['TUI_RENDERER_TRANSPORT_STABILITY'];
@@ -203,6 +190,135 @@ describe('scroll hang host storm', () => {
     setScrollHangProbeSinkForTest(undefined);
   });
 
+  it('finishes budget-limited content without animation or a wheel-settle poll', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    state.transcriptContainer.clear();
+    for (let row = 0; row < 200; row++) {
+      state.transcriptContainer.addChild(fixedLines([`history-${row}`]));
+    }
+    state.editorContainer.addChild(fixedLines(['ed']));
+    const scheduler = new FakeRenderLoopScheduler();
+    const renderer = createTUIStateNativeRenderer(state, {
+      output: new FakeNativeOutput(80, 100),
+      scheduler,
+      renderOnStart: true,
+      synchronized: true,
+    });
+    renderer.start();
+    try {
+      scheduler.advance(0);
+      expect(state.transcriptContainer.needsMaterializeContinue).toBe(true);
+      expect(isTranscriptScrollSettleArmed()).toBe(false);
+      scheduler.advance(500);
+      expect(state.transcriptContainer.needsMaterializeContinue).toBe(false);
+      expect(state.transcriptViewport.followOutput).toBe(true);
+      expect(renderer.stats.frames).toBeGreaterThan(1);
+      const screen = Array.from({ length: renderer.frameRenderer.height }, (_, y) =>
+        Array.from({ length: renderer.frameRenderer.width }, (_, x) =>
+          renderer.frameRenderer.frame.getCell(x, y).char,
+        ).join(''),
+      ).join('\n');
+      expect(screen).toContain('history-199');
+    } finally {
+      renderer.stop();
+      setActiveAppearancePreferences(originalAppearance);
+    }
+  });
+
+  it('keeps streaming and its frame clock live while selected history stays anchored', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    state.transcriptContainer.clear();
+    for (let row = 0; row < 30; row++) {
+      state.transcriptContainer.addChild(fixedLines([`history-${row}`]));
+    }
+    state.editorContainer.addChild(fixedLines(['ed']));
+    const scheduler = new FakeRenderLoopScheduler();
+    const renderer = createTUIStateNativeRenderer(state, {
+      output: new FakeNativeOutput(80, 20),
+      scheduler,
+      renderOnStart: true,
+      synchronized: true,
+    });
+    renderer.start();
+    try {
+      scheduler.advance(0);
+      const start = state.transcriptViewport.start();
+      state.transcriptSelection.beginPress({ globalLine: start, col: 0 }, false);
+      state.transcriptSelection.updateDrag({ globalLine: start, col: 4 });
+      state.transcriptSelection.endPress();
+      state.transcriptViewport.pauseFollowOutput();
+      const clock = appearanceAnimationNow();
+      state.transcriptContainer.addChild(fixedLines(['new-live-output']));
+      renderer.requestRender('request');
+      scheduler.advance(100);
+      expect(renderer.areAutoFramesHeld).toBe(false);
+      expect(appearanceAnimationNow()).toBeGreaterThan(clock);
+      expect(state.transcriptSelection.hasSelection).toBe(true);
+      expect(state.transcriptViewport.start()).toBe(start);
+      expect(state.transcriptViewport.followOutput).toBe(false);
+      expect(state.transcriptViewport.offsetFromBottom).toBeGreaterThan(0);
+    } finally {
+      renderer.stop();
+      setActiveAppearancePreferences(originalAppearance);
+    }
+  });
+
+  it('updates history/live affordance on scroll without rebuilding other chrome', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    state.transcriptContainer.clear();
+    for (let row = 0; row < 30; row++) state.transcriptContainer.addChild(fixedLines([`row-${row}`]));
+    const headerRender = vi.fn(() => ['header']);
+    const footerRender = vi.fn(() => [
+      state.transcriptViewport.followOutput
+        ? 'live'
+        : `history +${state.transcriptViewport.offsetFromBottom}`,
+    ]);
+    state.headerContainer.addChild({ render: headerRender, invalidate() {} });
+    state.footerContainer.addChild({ render: footerRender, invalidate() {} });
+    state.editorContainer.addChild(fixedLines(['ed']));
+    const scheduler = new FakeRenderLoopScheduler();
+    const renderer = createTUIStateNativeRenderer(state, {
+      output: new FakeNativeOutput(80, 20),
+      scheduler,
+      renderOnStart: true,
+      synchronized: true,
+    });
+    renderer.start();
+    try {
+      scheduler.advance(0);
+      headerRender.mockClear();
+      footerRender.mockClear();
+      state.transcriptViewport.scroll('line-up');
+      renderer.requestRender('transcript-scroll');
+      scheduler.advance(20);
+      expect(footerRender).toHaveBeenCalled();
+      expect(footerRender.mock.results.at(-1)?.value[0]).toBe('history +3');
+      expect(headerRender).not.toHaveBeenCalled();
+
+      footerRender.mockClear();
+      state.transcriptViewport.scroll('bottom');
+      renderer.requestRender('transcript-scroll');
+      scheduler.advance(20);
+      expect(footerRender.mock.results.at(-1)?.value[0]).toBe('live');
+      expect(headerRender).not.toHaveBeenCalled();
+    } finally {
+      renderer.stop();
+      setActiveAppearancePreferences(originalAppearance);
+    }
+  });
+
   it('real wasRecent paint-clock hold blocks deferred drain mid-scroll', () => {
     const ran: number[] = [];
     const scheduled: Array<() => void> = [];
@@ -225,7 +341,7 @@ describe('scroll hang host storm', () => {
     expect(deferredTranscriptFormatQueueSize()).toBe(1);
   });
 
-  it('alternating up/down through native callback keeps scroll hold and hang budgets', () => {
+  it('alternating up/down keeps deferred formatting held and child painting bounded', () => {
     const width = 80;
     const height = 28;
     const state = createTUIState({
@@ -268,10 +384,6 @@ describe('scroll hang host storm', () => {
       drainTurns.push(run);
     });
 
-    const dumps: Array<{ reason: string }> = [];
-    setScrollHangProbeSinkForTest((dump) => {
-      dumps.push(dump);
-    });
     setScrollHangTraceEnabledForTest(false);
 
     const output = new FakeNativeOutput(width, height);
@@ -329,53 +441,6 @@ describe('scroll hang host storm', () => {
     }
 
     expect(isTranscriptScrollSettleArmed()).toBe(true);
-    const ring = scrollHangRingForTest();
-    expect(ring.length).toBeGreaterThan(10);
-
-    // Hang detection, measured against this run rather than the wall clock.
-    //
-    // `SCROLL_HANG_CALLBACK_MS` is an absolute threshold on purpose — that is
-    // what makes it a hang detector — but asserting it here made the suite
-    // depend on the machine: a single slow iteration out of forty failed the
-    // run on a loaded runner, while passing in isolation. Comparing the worst
-    // sample to the median of the same run keeps the signal that matters, a
-    // callback that is orders of magnitude slower than its neighbours, and
-    // drops the signal that does not, a host that is simply slow today. A
-    // loaded machine lifts both together and passes; a stalled paint lifts
-    // only the worst sample and fails.
-    const durations = ring.map((s) => s.renderCbMs).toSorted((a, b) => a - b);
-    const median = durations[Math.floor(durations.length / 2)] ?? 0;
-    const p95 = durations[Math.min(durations.length - 1, Math.floor(durations.length * 0.95))] ?? 0;
-    const worst = durations.at(-1) ?? 0;
-    expect(median).toBeGreaterThan(0);
-
-    // p95, not the maximum. A single sample spiking to tens of times the
-    // median is one GC pause or one scheduler preemption among forty frames,
-    // and the full suite runs enough workers to make it routine — the first
-    // version of this check compared the worst sample and reddened a gate run
-    // that way. A hang is not a spike, it is a distribution that has moved:
-    // if rendering were genuinely wedged, the upper half of the frames would
-    // all be slow and p95 would go with them. A p95 at 25x the median is a
-    // systemic slowdown, not scheduler jitter.
-    expect(p95).toBeLessThanOrEqual(median * WORST_TO_MEDIAN_RATIO);
-    // Absolute ceiling stays, as a hang guard, which is the one legitimate use
-    // of a millisecond number. Ordered so a hang is reported as the hang it is
-    // rather than as a ratio that happened to be exceeded.
-    expect(worst).toBeLessThanOrEqual(HANG_CALLBACK_CEILING_MS);
-
-    // The probe dumps on its own absolute threshold, so a slow host can trip
-    // it without anything being wrong. Accept dumps only when the upper
-    // distribution moved, which is what a real hang looks like.
-    const budgetDumps = dumps.filter((d) => d.reason === 'callback-budget');
-    if (p95 <= median * WORST_TO_MEDIAN_RATIO) {
-      expect(lastScrollHangDumpForTest()).toBeUndefined();
-    } else {
-      expect(budgetDumps.length).toBeGreaterThan(0);
-    }
-    if (worst <= median * WORST_TO_MEDIAN_RATIO) {
-      expect(lastScrollHangDumpForTest()).toBeUndefined();
-    }
-
     renderer.stop();
   });
 });

@@ -39,31 +39,3 @@ export function clearStaleNativeRendererFrameRows(
   );
   if (prefix) context.frameRenderer.queueTerminalPrefix(prefix);
 }
-
-export function handleNativeRendererTerminalResize(
-  context: NativeRendererResizeContext,
-  size: NativeTerminalSize,
-  callbacks: {
-    readonly now: () => number;
-    readonly recordResize: (size: NativeTerminalSize) => void;
-    readonly onResize?: (size: NativeTerminalSize) => void;
-    readonly requestRender: () => void;
-  },
-): void {
-  const previousRows = context.frameRenderer.height;
-  const previousCols = context.frameRenderer.width;
-  const sizeChanged = size.columns !== previousCols || size.rows !== previousRows;
-  if (sizeChanged) {
-    // The frame buffer is recreated on resize; rows composed into the old
-    // buffer must not be reused (skipped) when composing the new one.
-    context.compositionCache?.reset();
-  }
-  context.frameRenderer.resize(size.columns, size.rows);
-  clearStaleNativeRendererFrameRows(context, size.rows, previousRows);
-  // Mid-session CSI 2J on the alternate screen flashes the whole surface
-  // black. Start still clears once via clearOnStart; later resizes recreate
-  // the soft buffer and paint the new frame without a full wipe.
-  callbacks.recordResize(size);
-  callbacks.onResize?.(size);
-  callbacks.requestRender();
-}

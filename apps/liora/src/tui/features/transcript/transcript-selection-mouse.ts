@@ -52,6 +52,8 @@ function handleTranscriptSelectionMouseEvent(
     const point = context === undefined ? undefined : transcriptPointForMouse(event, context);
     if (point !== undefined) {
       if (event.action === 'drag') {
+        // Detach these source lines, not the renderer/shared motion clock.
+        state.transcriptViewport.pauseFollowOutput();
         selection.updateDrag(point);
         handleIdleFeedMouseInput(state, event, point);
         return true;
@@ -65,6 +67,7 @@ function handleTranscriptSelectionMouseEvent(
 
     // Outside transcript content: keep last head on drag; always end on release.
     if (event.action === 'drag') {
+      state.transcriptViewport.pauseFollowOutput();
       clearIdleFeedPending(state);
       return true;
     }
@@ -95,6 +98,7 @@ function handleTranscriptSelectionMouseEvent(
   }
   if (event.action === 'drag') {
     if (!selection.isDragging) return false;
+    state.transcriptViewport.pauseFollowOutput();
     selection.updateDrag(point);
     handleIdleFeedMouseInput(state, event, point);
     return true;

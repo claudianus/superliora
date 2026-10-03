@@ -4,15 +4,28 @@
  * dirty the parent transcript line-count slot so virtual scroll does not clip
  * grown output.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import {
+  advanceAppearanceAnimationClock,
+  getActiveAppearancePreferences,
+  setActiveAppearancePreferences,
+} from '#/tui/features/appearance/appearance-effects';
+import type { TranscriptDetailLevel } from '#/tui/types';
 import {
   RendererTranscriptViewport,
   RendererTranscriptViewportComponent,
 } from '#/tui/renderer';
 
 describe('ToolCallComponent transcript geometry dirty', () => {
+  const originalAppearance = getActiveAppearancePreferences();
+  afterEach(() => {
+    setActiveAppearancePreferences(originalAppearance);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
   function mountUnderTranscript(tc: ToolCallComponent): RendererTranscriptViewportComponent {
     const viewport = new RendererTranscriptViewport();
     const transcript = new RendererTranscriptViewportComponent({
@@ -106,5 +119,95 @@ describe('ToolCallComponent transcript geometry dirty', () => {
     tc.setExpanded(true);
     const expanded = transcript.contentRowCount(100);
     expect(expanded).toBeGreaterThan(collapsed);
+  });
+
+  it('matches full-render geometry and row slices at every transcript density', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const levels: TranscriptDetailLevel[] = ['minimal', 'compact', 'standard', 'full'];
+    for (const detail of levels) {
+      const tc = new ToolCallComponent(
+        { id: `call-window-${detail}`, name: 'Bash', args: { command: 'output' } },
+        { tool_call_id: `call-window-${detail}`, output: 'one\ntwo\nthree', is_error: false },
+      );
+      tc.setDetail(detail);
+      for (const expanded of [false, true]) {
+        tc.setExpanded(expanded);
+        const full = tc.render(80);
+        expect(tc.measureContentRows(80)).toBe(full.length);
+        for (let start = 0; start < full.length; start++) {
+          expect(tc.paintContentRows(80, start, start + 2)).toEqual(full.slice(start, start + 2));
+        }
+      }
+    }
+  });
+
+  it('paints a settled tall tool without full child materialization', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const tc = new ToolCallComponent(
+      { id: 'call-tall-window', name: 'Bash', args: { command: 'output' } },
+      { tool_call_id: 'call-tall-window', output: 'done', is_error: false },
+    );
+    tc.setDetail('full');
+    const render = vi.fn(() => { throw new Error('full tall tool paint'); });
+    const paintContentRows = vi.fn((_width: number, start: number, end: number) =>
+      Array.from({ length: end - start }, (_, row) => `body-${start + row}`),
+    );
+    tc.children = [{ render, invalidate() {}, measureContentRows: () => 10_000, paintContentRows }];
+    expect(tc.measureContentRows(80)).toBe(10_000);
+    const window = tc.paintContentRows(80, 500, 505);
+    expect(window).toHaveLength(5);
+    expect(window[0]).toContain('body-500');
+    expect(paintContentRows).toHaveBeenCalledExactlyOnceWith(80, 500, 505);
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it('keeps live progress advancing through warm viewport frames before windowing settled output', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    advanceAppearanceAnimationClock(0);
+    const tc = new ToolCallComponent(
+      {
+        id: 'call-viewport-live-clock',
+        name: 'Edit',
+        args: { file_path: 'foo.ts' },
+        streamingArguments: '{"file_path":"foo.ts","old_string":"a',
+        streamingStartedAtMs: 0,
+      },
+      undefined,
+    );
+    tc.setDetail('full');
+    const viewport = new RendererTranscriptViewport();
+    const transcript = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 12,
+      leftPad: 0,
+      rightPad: 0,
+      scrollbar: false,
+    });
+    for (let row = 0; row < 20; row++) {
+      transcript.addChild({ render: () => [`history-${row}`], invalidate() {} });
+    }
+    transcript.addChild(tc);
+    const paintWindow = vi.spyOn(tc, 'paintContentRows');
+    const first = transcript.render(100).join('\n').replaceAll(/\u001B\[[0-9;]*m/g, '');
+    expect(first).toContain('0s elapsed');
+    expect(paintWindow).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1000);
+    advanceAppearanceAnimationClock(1000);
+    const live = transcript.render(100).join('\n').replaceAll(/\u001B\[[0-9;]*m/g, '');
+    expect(live).toContain('1s elapsed');
+    expect(paintWindow).not.toHaveBeenCalled();
+
+    tc.setResult({
+      tool_call_id: 'call-viewport-live-clock',
+      output: 'Replaced 1 occurrence in foo.ts',
+      is_error: false,
+    });
+    const settled = transcript.render(100).join('\n').replaceAll(/\u001B\[[0-9;]*m/g, '');
+    expect(settled).toContain('Used Edit');
+    expect(settled).not.toContain('elapsed');
+    expect(paintWindow).toHaveBeenCalled();
   });
 });

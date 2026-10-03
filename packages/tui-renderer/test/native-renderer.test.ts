@@ -477,6 +477,33 @@ describe('NativeTerminalRenderer', () => {
     renderer.stop();
   });
 
+  it('keeps held animation IDs cancellable after release and during another hold', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeOutput();
+    let calls = 0;
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      autoFrameHold: true,
+      adaptiveQuality: false,
+      render: () => {},
+    });
+    renderer.start();
+    const releasedId = renderer.requestAnimationFrame(() => {
+      calls++;
+    });
+    renderer.releaseHeldAutoFrames();
+    const heldId = renderer.requestAnimationFrame(() => {
+      calls++;
+    });
+    renderer.cancelAnimationFrame(heldId);
+    renderer.cancelAnimationFrame(releasedId);
+    scheduler.advance(50);
+    expect(calls).toBe(0);
+    expect(renderer.loop.frameCount).toBe(0);
+    renderer.stop();
+  });
+
   it('degrades cosmetic region VFX frames when inline synchronized output is unavailable', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const output = new FakeOutput();
@@ -892,7 +919,7 @@ describe('NativeTerminalRenderer', () => {
     });
     scheduler.advance(50);
 
-    expect(animationId).toBeLessThan(0);
+    expect(animationId).toBeGreaterThan(0);
     expect(frames).toEqual([['start']]);
     expect(animatedFrame).toBe(0);
 
@@ -901,7 +928,7 @@ describe('NativeTerminalRenderer', () => {
     scheduler.advance(17);
 
     expect(renderer.isOutputBackpressured).toBe(false);
-    expect(frames.at(-1)).toEqual(['animation', 'quality', 'manual']);
+    expect(frames.at(-1)).toEqual(['quality', 'manual', 'animation']);
     expect(animatedFrame).toBeGreaterThan(0);
     expect(rowText(renderer.frameRenderer.frame, 0).startsWith('second')).toBe(true);
     expect(renderer.traceSnapshot.events).toEqual(expect.arrayContaining([
@@ -911,35 +938,218 @@ describe('NativeTerminalRenderer', () => {
     renderer.stop();
   });
 
-  it('does not defer transcript-scroll frames while output is backpressured', () => {
-    // Permanent freeze: viewport.start moved on wheel but paint was deferred
-    // forever when drain never arrived (or thrash-looped). Interactive scroll
-    // must still schedule a frame.
+  it('coalesces scroll, input and resize storms until a slow terminal drains', () => {
     const scheduler = new FakeRenderLoopScheduler();
+    const input = new FakeInput();
     const output = new FakeBackpressureOutput();
     const frames: Array<readonly string[]> = [];
+    let label = 'first';
+    let inputCount = 0;
     const renderer = new NativeTerminalRenderer({
+      input,
       output,
       scheduler,
+      adaptiveQuality: false,
       renderOnStart: true,
-      render: ({ frame, renderer: frameRenderer }) => {
+      onInput: (data) => {
+        inputCount++;
+        label = String(data);
+        renderer.requestRender('input');
+      },
+      render: ({ frame, renderer: frameRenderer, size }) => {
         frames.push(frame.causes);
-        frameRenderer.writeText(0, 0, `f${String(frame.frame)}`);
+        frameRenderer.writeText(0, 0, `${label}:${size.columns}x${size.rows}`);
       },
     });
 
     renderer.start();
     scheduler.advance(0);
+    const originalBuffer = renderer.frameRenderer.frame;
+    for (let index = 0; index < 100; index++) {
+      input.emit('data', `typed-${index}`);
+      renderer.requestRender('transcript-scroll');
+      output.columns = 80 + index;
+      output.rows = 24 + index;
+      output.emit('resize');
+      scheduler.advance(5);
+    }
+
+    // The old bypass wrote every interactive frame into the slow PTY; its
+    // watchdog also resumed writes after 250ms without observing a drain.
+    expect(inputCount).toBe(100);
     expect(renderer.isOutputBackpressured).toBe(true);
+    expect(output.writes).toHaveLength(1);
     expect(frames).toEqual([['start']]);
+    expect(renderer.frameRenderer.frame).toBe(originalBuffer);
+    output.backpressured = false;
+    output.emit('drain');
+    scheduler.advance(0);
 
-    renderer.requestRender('transcript-scroll');
-    // Scroll is FPS-paced (not deferred forever under backpressure). Advance a
-    // full frame interval so the paced timer fires.
-    scheduler.advance(20);
-
-    expect(frames.at(-1)).toEqual(expect.arrayContaining(['transcript-scroll']));
+    expect(frames).toHaveLength(2);
+    expect(frames[1]).toEqual(['input', 'transcript-scroll', 'resize']);
+    expect(renderer.lastFrame?.size).toEqual({ columns: 179, rows: 123 });
+    expect(rowText(renderer.frameRenderer.frame, 0)).toContain('typed-99:179x123');
+    expect(output.writes).toHaveLength(2);
     renderer.stop();
+  });
+
+  it('recovers a missed drain only after the writable state is actually clear', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeBackpressureOutput();
+    let label = 'first';
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      adaptiveQuality: false,
+      renderOnStart: true,
+      render: ({ renderer: frameRenderer }) => {
+        frameRenderer.writeText(0, 0, label);
+      },
+    });
+    renderer.start();
+    scheduler.advance(0);
+    label = 'latest';
+    renderer.requestRender('transcript-scroll');
+    scheduler.advance(1_000);
+    expect(output.writes).toHaveLength(1);
+    expect(renderer.isOutputBackpressured).toBe(true);
+
+    // No drain event: the observable state lets the watchdog recover safely.
+    output.backpressured = false;
+    scheduler.advance(250);
+    expect(renderer.isOutputBackpressured).toBe(false);
+    expect(output.writes).toHaveLength(2);
+    expect(rowText(renderer.frameRenderer.frame, 0)).toContain('latest');
+    renderer.stop();
+  });
+
+  it('keeps a callback cancellable after drain resumes its pending frame', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeBackpressureOutput();
+    let calls = 0;
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      adaptiveQuality: false,
+      renderOnStart: true,
+      render: ({ renderer: frameRenderer }) => frameRenderer.writeText(0, 0, 'first'),
+    });
+    renderer.start();
+    scheduler.advance(0);
+    const id = renderer.requestAnimationFrame(() => {
+      calls++;
+    });
+    output.backpressured = false;
+    output.emit('drain');
+    renderer.cancelAnimationFrame(id);
+    scheduler.advance(20);
+    expect(calls).toBe(0);
+    expect(output.writes).toHaveLength(1);
+    renderer.stop();
+  });
+
+  it('resumes region motion after drain without requiring another input or content event', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeBackpressureOutput();
+    const animationFrames: number[] = [];
+    const vfx = createRendererRegionVfx({
+      preset: 'loading-shimmer',
+      requested: 'premium',
+      nowMs: 450,
+    });
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      adaptiveQuality: false,
+      renderOnStart: true,
+      synchronized: true,
+      render: ({ runtime, frame, renderer: frameRenderer }) => {
+        frameRenderer.writeText(0, 0, `frame-${frame.frame}`);
+        runtime.requestAnimationFrameForRegions([{ vfx }], (nextFrame) => {
+          animationFrames.push(nextFrame.frame);
+        });
+      },
+    });
+    renderer.start();
+    scheduler.advance(1_000);
+    expect(animationFrames).toEqual([]);
+    expect(output.writes).toHaveLength(1);
+    output.backpressured = false;
+    output.emit('drain');
+    scheduler.advance(0);
+    expect(animationFrames).toEqual([1]);
+    expect(rowText(renderer.frameRenderer.frame, 0)).toContain('frame-1');
+    renderer.stop();
+    scheduler.advance(1_000);
+    expect(animationFrames).toEqual([1]);
+  });
+
+  it('honors startup backpressure before painting and detaches on shutdown', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const input = new FakeInput();
+    const output = new FakeBackpressureOutput();
+    const renderer = new NativeTerminalRenderer({
+      input,
+      output,
+      scheduler,
+      screenMode: 'alternate',
+      renderOnStart: true,
+      render: ({ renderer: frameRenderer }) => frameRenderer.writeText(0, 0, 'first'),
+    });
+    renderer.start();
+    scheduler.advance(1_000);
+    expect(output.writes).toEqual([ANSI_ENTER_ALTERNATE_SCREEN]);
+    expect(renderer.loop.frameCount).toBe(0);
+    expect(output.listenerCount('drain')).toBe(1);
+    renderer.stop();
+    output.backpressured = false;
+    output.emit('drain');
+    scheduler.advance(1_000);
+    expect(output.writes).toEqual([ANSI_ENTER_ALTERNATE_SCREEN, ANSI_EXIT_ALTERNATE_SCREEN]);
+    expect(output.listenerCount('drain')).toBe(0);
+    expect(renderer.loop.hasPendingFrame).toBe(false);
+    expect(input.rawModeCalls).toEqual([true, false]);
+  });
+
+  it('restores raw mode when a deferred startup write fails on a dead PTY', () => {
+    process.env[TRANSPORT_STABILITY_ENV] = 'unstable';
+    const scheduler = new FakeRenderLoopScheduler();
+    const input = new FakeInput();
+    const output = new FakeOutput();
+    const renderer = new NativeTerminalRenderer({
+      input,
+      output,
+      scheduler,
+      screenMode: 'alternate',
+      render: () => {},
+    });
+    renderer.start();
+    output.write = () => {
+      throw new Error('EIO');
+    };
+    expect(() => renderer.stop()).toThrow('EIO');
+    expect(input.rawModeCalls).toEqual([true, false]);
+    expect(output.listenerCount('resize')).toBe(0);
+    expect(renderer.loop.hasPendingFrame).toBe(false);
+  });
+
+  it('does not repaint after the render callback stops and restores the terminal', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeOutput();
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      screenMode: 'alternate',
+      renderOnStart: true,
+      render: ({ runtime, renderer: frameRenderer }) => {
+        frameRenderer.writeText(0, 0, 'late');
+        runtime.stop();
+      },
+    });
+    renderer.start();
+    scheduler.advance(0);
+    expect(output.writes).toEqual([ANSI_ENTER_ALTERNATE_SCREEN, ANSI_EXIT_ALTERNATE_SCREEN]);
+    expect(renderer.loop.hasPendingFrame).toBe(false);
   });
 
   it('keeps renderer trace history bounded and resettable', () => {
@@ -1385,6 +1595,10 @@ class FakeOutput extends EventEmitter {
 
 class FakeBackpressureOutput extends FakeOutput {
   backpressured = true;
+
+  get writableNeedDrain(): boolean {
+    return this.backpressured;
+  }
 
   override write(chunk: string): boolean {
     this.writes.push(chunk);
