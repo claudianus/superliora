@@ -10,7 +10,8 @@ export const coordinatorProjectionSchema = z.object({
     idempotencyKey: z.string().min(1),
     kind: z.enum(['session', 'pipeline']).optional(),
     workerAncestry: workerAncestrySchema.optional(),
-    pipeline: z.object({ planId: z.string(), status: z.enum(['accepted', 'running', 'success', 'failed', 'blocked', 'cancelled', 'interrupted']), result: z.custom<import('../execution/pipeline').PipelineResult>().optional() }).optional(),
+    originAncestry: workerAncestrySchema.optional(),
+    pipeline: z.object({ planId: z.string(), binding: z.object({ version: z.literal(1), fingerprint: z.string().regex(/^[a-f0-9]{64}$/) }).optional(), status: z.enum(['accepted', 'running', 'success', 'failed', 'blocked', 'cancelled', 'interrupted']), result: z.custom<import('../execution/pipeline').PipelineResult>().optional() }).optional(),
     request: z.object({
       prompt: z.string().min(1),
       description: z.string().min(1),

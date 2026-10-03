@@ -17,7 +17,8 @@ export interface CoordinationRecord {
   idempotencyKey: string;
   kind?: 'session' | 'pipeline';
   workerAncestry?: import('@superliora/protocol').WorkerAncestry;
-  pipeline?: { planId: string; status: 'accepted' | 'running' | 'success' | 'failed' | 'blocked' | 'cancelled' | 'interrupted'; result?: import('../execution/pipeline').PipelineResult };
+  originAncestry?: import('@superliora/protocol').WorkerAncestry;
+  pipeline?: { planId: string; binding?: import('./pipeline-binding').PipelineBinding; status: 'accepted' | 'running' | 'success' | 'failed' | 'blocked' | 'cancelled' | 'interrupted'; result?: import('../execution/pipeline').PipelineResult };
   request: IndependentSessionRequest;
   revision: number;
   status: CoordinationStatus;
@@ -80,6 +81,10 @@ export interface CoordinationFact {
   cwd: string;
   sourceRevision?: string;
   workerAncestry?: import('@superliora/protocol').WorkerAncestry;
+  originAncestry?: import('@superliora/protocol').WorkerAncestry;
+  coordinationId?: string;
+  parentAgentId?: string | null;
+  parentSessionId?: string | null;
   pipeline?: { planId: string; status: NonNullable<CoordinationRecord['pipeline']>['status'] };
   verification?: { planId: string; revision: number; status: NonNullable<CoordinationRecord['verification']>['status']; evidencePath?: string; artifactHash?: string };
   lease?: CoordinationRecord['lease'];

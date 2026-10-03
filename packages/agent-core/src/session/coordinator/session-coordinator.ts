@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { isAbsolute, relative, resolve } from 'node:path';
+import { bindPipelinePlan, type BoundPipelinePlan } from './pipeline-binding';
 import { boundedUtf8 } from './preview';
 import type { WorkerAncestry } from '@superliora/protocol';
 import { runTrustedPipeline, type TrustedPipelinePlan } from '../execution/pipeline';
@@ -60,6 +61,11 @@ export class SessionCoordinator {
         coordinator.projection = coordinatorProjectionSchema.parse(projection);
         await coordinator.mutate((draft) => {
           for (const record of draft.records) {
+            if (record.kind === 'pipeline' && record.workerAncestry !== undefined) {
+              record.originAncestry ??= record.workerAncestry;
+              delete record.workerAncestry;
+              record.revision++;
+            }
             if (record.pipeline?.status === 'running') record.pipeline.status = 'interrupted';
             if (record.verification?.status === 'accepted' || record.verification?.status === 'running') { record.verification.status = 'interrupted'; record.revision++; }
             if (record.status === 'admitting' || record.status === 'running' || record.lease !== undefined) {
@@ -110,7 +116,10 @@ export class SessionCoordinator {
       id: record.id, kind: record.kind ?? 'session',
       reusable: record.kind !== 'pipeline' && (record.status === 'idle' || record.status === 'yielded') && record.sessionId !== undefined && this.runtime.resume !== undefined && record.lease === undefined,
       ownerStatus: record.status === 'idle' || record.status === 'yielded' ? record.status : record.status === 'cancel_requested' ? 'settling' : record.status === 'interrupted' ? 'interrupted' : ['accepted', 'admitting', 'running'].includes(record.status) ? 'active' : 'finished',
-      workerAncestry: record.workerAncestry, pipeline: record.pipeline === undefined ? undefined : { planId: record.pipeline.planId, status: record.pipeline.status }, sessionId: record.sessionId, revision: record.revision, status: record.status,
+      coordinationId: record.id, originAncestry: record.originAncestry,
+      parentAgentId: record.kind === 'pipeline' ? record.originAncestry?.agentId ?? null : record.workerAncestry?.parentAgentId,
+      parentSessionId: record.kind === 'pipeline' ? record.originAncestry?.sessionId ?? null : record.workerAncestry?.parentSessionId,
+      workerAncestry: record.kind === 'pipeline' ? undefined : record.workerAncestry, pipeline: record.pipeline === undefined ? undefined : { planId: record.pipeline.planId, status: record.pipeline.status }, sessionId: record.sessionId, revision: record.revision, status: record.status,
       purpose: boundedUtf8(record.request.purpose ?? record.request.description, 256), cwd: record.request.cwd,
       sourceRevision: record.request.sourceRevision, verification: record.verification === undefined ? undefined : { planId: record.verification.planId, revision: record.verification.revision, status: record.verification.status, evidencePath: record.verification.receipt?.evidencePath, artifactHash: record.verification.receipt?.artifactHash }, lease: record.lease,
       mailbox: { pending: record.mailbox.filter((entry) => entry.status === 'pending').length, uncertain: record.mailbox.filter((entry) => entry.status === 'sending').length },
@@ -128,20 +137,21 @@ export class SessionCoordinator {
     const plan = this.trustedPipelinePlans.find((entry) => entry.id === planId);
     if (plan === undefined) throw new Error('Pipeline plan is not registered by the trusted host');
     if (!idempotencyKey.trim() || Buffer.byteLength(idempotencyKey) > 256 || plan.stages.length === 0) throw new Error('Invalid pipeline identity or stages');
-    const ownership = [...new Set(await Promise.all(plan.stages.map((stage) => canonicalPath(stage.repoPath))))].toSorted();
+    const bound = await bindPipelinePlan(plan);
+    const ownership = bound.ownership;
     const roots = await Promise.all(this.policy.authorizedRoots.map(canonicalPath));
     if (!ownership.every((path) => roots.some((root) => containsPath(root, path)))) throw new Error('Pipeline workspace is outside authorized roots');
     const accepted = await this.mutate((draft) => {
       const previous = draft.records.find((entry) => entry.idempotencyKey === idempotencyKey);
       if (previous !== undefined) {
-        if (previous.kind !== 'pipeline' || previous.pipeline?.planId !== planId) throw new Error('Pipeline idempotency key conflict');
+        if (previous.kind !== 'pipeline' || previous.pipeline?.planId !== planId || previous.pipeline.binding?.fingerprint !== bound.binding.fingerprint) throw new Error('Pipeline idempotency key conflict');
         return previous;
       }
       if (draft.records.length >= 128) throw new Error('Coordinator record quota reached; host retention is required');
       const record: CoordinationRecord = {
         id: `coord_${randomUUID()}`, kind: 'pipeline', idempotencyKey, revision: 1, status: 'accepted',
         request: { prompt: 'Trusted host pipeline', description: planId, purpose: planId, cwd: ownership[0]!, ownership },
-        workerAncestry: origin, pipeline: { planId, status: 'accepted' }, mailbox: [],
+        originAncestry: origin, pipeline: { planId, binding: bound.binding, status: 'accepted' }, mailbox: [],
       };
       draft.records.push(record);
       return record;
@@ -326,6 +336,21 @@ export class SessionCoordinator {
     for (const record of this.list()) {
       if (this.closed || this.active.size >= this.policy.maxConcurrent) break;
       if (record.status !== 'accepted') continue;
+      let pipeline: BoundPipelinePlan | undefined;
+      try {
+        await this.authorizePersistedRequest(record.request);
+        if (record.kind === 'pipeline') pipeline = await this.bindAcceptedPipeline(record);
+      } catch (error) {
+        await this.mutate((draft) => {
+          const rejected = this.require(draft, record.id);
+          if (rejected.status !== 'accepted') return;
+          rejected.status = 'failed';
+          if (rejected.pipeline !== undefined) rejected.pipeline.status = 'blocked';
+          rejected.error = String(error);
+          rejected.revision++;
+        });
+        continue;
+      }
       const blocked = this.projection.records.some((other) => other.id !== record.id && holdsOwnership(other) &&
         (record.request.ownership ?? []).some((claim) => (other.request.ownership ?? []).some((held) => overlaps(claim, held) || overlaps(held, claim))));
       if (blocked) continue;
@@ -347,7 +372,19 @@ export class SessionCoordinator {
         if (this.get(record.id)?.status === 'cancelled') continue;
         throw error;
       }
-      void (record.kind === 'pipeline' ? this.runPipelineExecution(record.id, controller) : this.run(record.id, controller)).then(settled.resolve, (error) => {
+      try {
+        const current = this.get(record.id)!;
+        await this.authorizePersistedRequest(current.request);
+        if (pipeline !== undefined) await this.bindAcceptedPipeline(current);
+        controller.signal.throwIfAborted();
+      } catch (error) {
+        await this.finish(record.id, controller.signal.aborted ? 'cancelled' : 'failed', undefined, String(error));
+        if (record.kind === 'pipeline') await this.mutate((draft) => { this.require(draft, record.id).pipeline!.status = 'blocked'; });
+        this.active.delete(record.id);
+        settled.resolve();
+        continue;
+      }
+      void (record.kind === 'pipeline' ? this.runPipelineExecution(record.id, controller, pipeline!) : this.run(record.id, controller)).then(settled.resolve, (error) => {
         this.failure = error;
         settled.resolve();
       }).finally(() => { this.active.delete(record.id); this.schedule(true); });
@@ -371,21 +408,42 @@ export class SessionCoordinator {
     await this.store.close();
   }
 
-  private async runPipelineExecution(id: string, controller: AbortController): Promise<void> {
+  private async authorizePersistedRequest(request: IndependentSessionRequest): Promise<void> {
+    const cwd = await canonicalPath(request.cwd);
+    const ownership = await Promise.all((request.ownership ?? []).map(canonicalPath));
+    const roots = await Promise.all(this.policy.authorizedRoots.map(canonicalPath));
+    if (![cwd, ...ownership].every((path) => roots.some((root) => containsPath(root, path)))) throw new Error('Queued workspace is outside current authorized roots');
+    if (cwd !== request.cwd || ownership.some((path, index) => path !== request.ownership![index])) throw new Error('Queued canonical workspace binding changed');
+  }
+
+  private async bindAcceptedPipeline(record: CoordinationRecord): Promise<BoundPipelinePlan> {
+    if (record.pipeline?.binding === undefined) throw new Error('Queued pipeline has no trusted static binding; explicit redispatch required');
+    const source = this.trustedPipelinePlans.find((entry) => entry.id === record.pipeline!.planId);
+    if (source === undefined) throw new Error('Accepted pipeline plan is no longer registered');
+    const bound = await bindPipelinePlan(source);
+    if (record.pipeline.binding.version !== bound.binding.version || record.pipeline.binding.fingerprint !== bound.binding.fingerprint) throw new Error('Queued trusted pipeline static binding changed');
+    if (JSON.stringify(record.request.ownership) !== JSON.stringify(bound.ownership) || record.request.cwd !== bound.ownership[0]) throw new Error('Queued pipeline ownership does not match bound stage workspaces');
+    return bound;
+  }
+
+  private async runPipelineExecution(id: string, controller: AbortController, bound: BoundPipelinePlan): Promise<void> {
+    const record = this.get(id)!;
+    const planId = record.pipeline!.planId;
     try {
-      const planId = this.get(id)!.pipeline!.planId;
-      const plan = this.trustedPipelinePlans.find((entry) => entry.id === planId);
-      if (plan === undefined) throw new Error('Accepted pipeline plan is no longer registered');
+      const plan = bound.plan;
       await this.mutate((draft) => {
         const record = this.require(draft, id);
         if (record.status !== 'cancel_requested') record.status = 'running';
         record.pipeline!.status = 'running';
         record.revision++;
       });
+      const current = this.get(id)!;
+      await this.authorizePersistedRequest(current.request);
+      await this.bindAcceptedPipeline(current);
       const result = await runTrustedPipeline(plan, { executionSignal: controller.signal });
       await this.mutate((draft) => {
         const record = this.require(draft, id);
-        record.pipeline = { planId, status: result.status, result };
+        record.pipeline = { planId, binding: bound.binding, status: result.status, result };
         record.status = result.status === 'success' ? 'finished' : result.status === 'cancelled' ? 'cancelled' : 'failed';
         delete record.lease;
         record.revision++;
