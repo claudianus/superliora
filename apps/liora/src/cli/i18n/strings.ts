@@ -34,11 +34,11 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.option.addDir':
     'Add an additional workspace directory for this session. Can be repeated.',
   'cli.option.sandbox':
-    'Path sandbox for file tools: off | workspace | read-only (not OS isolation; default off).',
+    'Lexical path checks: off | workspace | read-only (not OS isolation; default off).',
   'cli.option.sandboxEnforcement':
-    'How hard to enforce the path sandbox: lexical (default) or process (Docker when present; Windows Job Object is not an FS jail).',
+    'Sandbox enforcement: lexical (default) or process (native Bash only; Docker required, no host fallback). Host application, plugins, and raw Kaos remain trusted.',
   'cli.option.noProcessSandbox':
-    'Skip process-sandbox wrap (Docker / Job Object). Lexical path guards still apply.',
+    'Disable process wrapping in lexical mode; conflicts with process enforcement. Lexical path checks still apply.',
   'cli.option.debug':
     'Write extra diagnostic logs under ~/.superliora/logs so a later bug report has evidence. Off by default.',
   'cli.option.worktree':
@@ -91,11 +91,11 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.option.showThinking': '프롬프트 텍스트 모드에서 모델의 사고를 stderr로 출력합니다.',
   'cli.option.addDir': '이 세션에 추가 작업 디렉터리를 등록합니다. 여러 번 지정할 수 있습니다.',
   'cli.option.sandbox':
-    '파일 도구 경로 샌드박스: off | workspace | read-only (OS 격리 아님, 기본 off).',
+    '렉시컬 경로 검사: off | workspace | read-only (OS 격리 아님, 기본 off).',
   'cli.option.sandboxEnforcement':
-    '경로 샌드박스 강도: lexical (기본) 또는 process (Docker가 있으면 FS 감옥; Windows Job Object는 FS 감옥이 아님).',
+    '샌드박스 강도: lexical (기본) 또는 process (네이티브 Bash만 격리; Docker 필수, 호스트 대체 실행 없음). 호스트 앱, 플러그인, raw Kaos는 신뢰 대상입니다.',
   'cli.option.noProcessSandbox':
-    '프로세스 샌드박스 래퍼(Docker / Job Object)를 건너뜁니다. 렉시컬 경로 가드는 그대로입니다.',
+    'lexical 모드에서 프로세스 래핑을 끕니다. process 강제 모드와 함께 사용할 수 없습니다. 렉시컬 경로 검사는 유지됩니다.',
   'cli.option.debug':
     '~/.superliora/logs에 진단 로그를 남깁니다. 평소에 켜 두면 나중에 버그를 재현·분석할 증거가 남습니다. 기본 꺼짐.',
   'cli.option.worktree':

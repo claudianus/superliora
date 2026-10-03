@@ -1,3 +1,4 @@
+export { forkKaosExecutionPolicy } from './execution-policy';
 export type { StatResult } from './types';
 export type { KaosProcess } from './process';
 export type { Kaos } from './kaos';

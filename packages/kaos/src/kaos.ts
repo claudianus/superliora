@@ -121,6 +121,12 @@ export interface Kaos {
     options?: { fsyncDir?: boolean },
   ): Promise<void>;
 
+  /**
+   * Return an independently owned execution-policy installation. Cwd/env views
+   * within that installation may share policy updates; other Agents must not.
+   */
+  forkExecutionPolicy?(): Kaos;
+
   // ── Process execution ───────────────────────────────────────────────
 
   /** Spawn a process with the given arguments. */

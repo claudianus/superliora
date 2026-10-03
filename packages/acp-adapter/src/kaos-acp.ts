@@ -22,6 +22,7 @@ import type { AgentSideConnection, ClientCapabilities } from '@agentclientprotoc
 import { RequestError } from '@agentclientprotocol/sdk';
 import {
   KaosError,
+  forkKaosExecutionPolicy,
   type Environment,
   type Kaos,
   type KaosProcess,
@@ -104,6 +105,10 @@ export class AcpKaos implements Kaos {
 
   realpath(path: string): Promise<string> {
     return this.inner.realpath(path);
+  }
+
+  forkExecutionPolicy(): AcpKaos {
+    return new AcpKaos(this.conn, this.sessionId, forkKaosExecutionPolicy(this.inner), this.capabilities, this.envOverlays);
   }
 
   setProcessSandbox(config: unknown): void {

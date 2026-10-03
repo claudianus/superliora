@@ -66,7 +66,7 @@ function cycleKey(s: { dev: number; ino: number }): string | null {
 export function buildLocalSpawnOptions(
   isWindows: boolean,
   cwd: string,
-  env: Record<string, string> | undefined,
+  env: NodeJS.ProcessEnv | undefined,
 ): SpawnOptions {
   return {
     cwd,
@@ -241,6 +241,12 @@ export class LocalKaos implements Kaos {
 
   withEnv(env: Record<string, string>): LocalKaos {
     return new LocalKaos(this.osEnv, this._cwd, [...this._envLayers, env], this._processSandboxState);
+  }
+
+  forkExecutionPolicy(): LocalKaos {
+    const fork = new LocalKaos(this.osEnv, this._cwd, this._envLayers);
+    fork.setProcessSandbox(this._processSandboxState.config);
+    return fork;
   }
 
   setProcessSandbox(config: ProcessSandboxConfig | undefined): void {
@@ -864,13 +870,15 @@ export class LocalKaos implements Kaos {
     extraEnv?: Record<string, string>,
   ): Promise<KaosProcess> {
     const mapped = isWindows ? resolveRuntimeSpawn(command) : { file: command, prefixArgs: [] as const };
+    const execEnv = this._buildExecEnv(extraEnv);
     const wrapped = wrapLocalExecForProcessSandbox({
+      env: execEnv,
       file: mapped.file,
       args: [...mapped.prefixArgs, ...restArgs],
       cwd: this._cwd,
       config: this._processSandboxState.config,
     });
-    const spawnOpts = buildLocalSpawnOptions(isWindows, this._cwd, this._buildExecEnv(extraEnv));
+    const spawnOpts = buildLocalSpawnOptions(isWindows, this._cwd, wrapped.env ?? execEnv);
     const child = spawn(wrapped.file, wrapped.args, spawnOpts);
     await waitForSpawn(child);
     if (child.pid !== undefined) wrapped.afterSpawn?.(child.pid);

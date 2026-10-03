@@ -1,6 +1,6 @@
 import { join } from 'pathe';
 import { generate } from '@superliora/kosong';
-import type { Kaos } from '@superliora/kaos';
+import { forkKaosExecutionPolicy, type Kaos } from '@superliora/kaos';
 import type { RuntimeDegradedEvent } from '@superliora/protocol';
 
 import { normalizeAdditionalDirs } from '../config';
@@ -25,6 +25,7 @@ import { BackgroundManager, BackgroundTaskPersistence } from './background';
 import { CacheFreezeGuard } from './cache';
 import { ToolParallelStatus } from '../loop/tool-parallel-status';
 import type { ExecutableTool } from '../loop';
+import { SessionControlInputSchema, SessionControlTool } from '../tools/builtin/session-control';
 import { FullCompaction } from './compaction';
 import { ConfigState } from './config';
 import { ContextMemory } from './context';
@@ -109,15 +110,23 @@ class SandboxToolManager extends ToolManager {
           return typeof value === 'function' ? value.bind(target) : value;
         }
         return async (input: unknown) => {
-          this.agent.assertSandboxReady(revision);
-          const execution = await target.resolveExecution(input);
-          this.agent.assertSandboxReady(revision);
+          // Only the concrete native lifecycle tool can recover existing work.
+          // Validate and snapshot its input so list cannot mutate into spawn
+          // after approval. Name matching would exempt arbitrary custom tools.
+          const nativeInput = Object.getPrototypeOf(target) === SessionControlTool.prototype
+            ? SessionControlInputSchema.safeParse(input) : undefined;
+          const recovery = nativeInput?.success === true &&
+            (nativeInput.data.operation === 'list' || nativeInput.data.operation === 'wait' || nativeInput.data.operation === 'stop');
+          const resolvedInput = recovery ? Object.freeze(nativeInput.data) : input;
+          if (!recovery) this.agent.assertSandboxReady(revision);
+          const execution = await target.resolveExecution(resolvedInput);
+          if (!recovery) this.agent.assertSandboxReady(revision);
           if (!('execute' in execution)) return execution;
           return {
             ...execution,
             execute: async (...args: Parameters<typeof execution.execute>) => {
               // Recheck after approval / resolution: live updates can arrive there.
-              this.agent.assertSandboxReady(revision);
+              if (!recovery) this.agent.assertSandboxReady(revision);
               return execution.execute(...args);
             },
           };
@@ -194,7 +203,7 @@ export class Agent {
   constructor(options: AgentOptions) {
     this.role = options.role ?? 'worker';
     this.type = options.type ?? 'main';
-    this._kaos = sandboxKaosTarget(options.kaos);
+    this._kaos = forkKaosExecutionPolicy(sandboxKaosTarget(options.kaos));
     this.kimiConfig = options.config;
     this.homedir = options.homedir;
     this.rpc = options.rpc;
@@ -276,7 +285,20 @@ export class Agent {
   }
 
   setKaos(kaos: Kaos): void {
-    this._kaos = sandboxKaosTarget(kaos);
+    try {
+      this._kaos = forkKaosExecutionPolicy(sandboxKaosTarget(kaos));
+    } catch (error) {
+      // A rejected host installation must not leave the old host executable.
+      ++this.sandboxRevision;
+      this.sandboxPending = false;
+      this.processSandboxStatus = undefined;
+      this.sandboxError = new SandboxExecutionError(
+        'sandbox.unavailable', 'Execution host cannot isolate sandbox policy.', error,
+      );
+      this.sandboxRefresh = Promise.reject(this.sandboxError);
+      void this.sandboxRefresh.catch(() => undefined);
+      return;
+    }
     void this.rebuildSandboxTools(this.refreshProcessSandbox());
   }
 

@@ -1,7 +1,9 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createServer } from 'node:net';
+import { readdirSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildDockerSandboxArgs,
@@ -9,6 +11,39 @@ import {
   resolveProcessSandboxBackend,
   wrapLocalExecForProcessSandbox,
 } from '#/process-sandbox';
+
+// setup.ts imports LocalKaos (and this module) before the test's mocks.
+vi.hoisted(() => vi.resetModules());
+
+vi.mock('node:child_process', async importOriginal => ({
+  ...await importOriginal<typeof import('node:child_process')>(),
+  execFileSync: vi.fn(),
+}));
+vi.mock('node:fs', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return { ...actual, readdirSync: vi.fn(actual.readdirSync) };
+});
+
+// kaos shares its module graph between files; do not leak mocked builtins.
+afterAll(() => {
+  vi.doUnmock('node:child_process');
+  vi.doUnmock('node:fs');
+  vi.resetModules();
+});
+
+function contextOutput(endpoint = 'unix:///outside-sandbox/daemon.sock'): string {
+  return JSON.stringify([{ Endpoints: { docker: { Host: endpoint } } }]);
+}
+
+beforeEach(() => {
+  vi.stubEnv('DOCKER_HOST', '');
+  vi.stubEnv('DOCKER_CONTEXT', '');
+  vi.mocked(execFileSync).mockReturnValue(contextOutput());
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.clearAllMocks();
+});
 
 describe('process sandbox helpers', () => {
   it('maps host cwd under workspace and extra dirs', () => {
@@ -127,6 +162,184 @@ describe('process sandbox helpers', () => {
       expect(() => buildDockerSandboxArgs({ workspaceDir: '/ws', cwd: '/ws', command: ['echo'] })).toThrow(/DOCKER_HOST/);
     } finally {
       vi.unstubAllEnvs();
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')('rejects nested custom sockets from the current context with DOCKER_HOST unset, including extra mounts and aliases', () => {
+    vi.stubEnv('DOCKER_HOST', undefined);
+    const temp = mkdtempSync(join(tmpdir(), 'kaos-context-'));
+    const runtime = join(temp, 'runtime');
+    const unrelated = join(temp, 'unrelated');
+    const alias = join(temp, 'alias');
+    try {
+      mkdirSync(runtime);
+      mkdirSync(unrelated);
+      symlinkSync(runtime, alias, 'junction');
+      vi.mocked(execFileSync).mockReturnValue(contextOutput(`unix://${join(alias, 'deep', 'custom.sock')}`));
+      for (const source of [temp, runtime, alias, join(runtime, 'deep')]) {
+        expect(() => buildDockerSandboxArgs({ workspaceDir: source, cwd: source, command: ['echo'] })).toThrow(/socket/);
+        expect(() => buildDockerSandboxArgs({ workspaceDir: unrelated, additionalDirs: [source], cwd: unrelated, readOnly: true, command: ['echo'] })).toThrow(/socket/);
+      }
+      expect(buildDockerSandboxArgs({ workspaceDir: unrelated, cwd: unrelated, command: ['echo'] }).slice(0, 4))
+        .toEqual(['docker', '--host', `unix://${join(realpathSync(runtime), 'deep', 'custom.sock')}`, 'run']);
+      expect(execFileSync).toHaveBeenCalledWith('docker', ['context', 'inspect'], expect.objectContaining({ timeout: 2500, maxBuffer: 65536 }));
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('honors DOCKER_CONTEXT over DOCKER_HOST and inspects with the configured binary', () => {
+    vi.stubEnv('DOCKER_CONTEXT', 'custom');
+    vi.stubEnv('DOCKER_HOST', 'unix:///ws/nested/host.sock');
+    const args = buildDockerSandboxArgs({ workspaceDir: '/ws', cwd: '/ws', command: ['echo'], dockerBin: 'custom-docker' });
+    expect(args.slice(0, 4)).toEqual(['custom-docker', '--host', 'unix:///outside-sandbox/daemon.sock', 'run']);
+    expect(execFileSync).toHaveBeenCalledWith('custom-docker', ['context', 'inspect', 'custom'], expect.any(Object));
+    vi.mocked(execFileSync).mockReturnValue(contextOutput('unix:///ws/deep/context.sock'));
+    expect(() => buildDockerSandboxArgs({ workspaceDir: '/ws', cwd: '/ws', command: ['echo'] })).toThrow(/socket/);
+  });
+
+  it('uses explicit DOCKER_HOST without context inspection and does not cache current context', () => {
+    vi.stubEnv('DOCKER_HOST', 'unix:///elsewhere/custom.sock');
+    expect(buildDockerSandboxArgs({ workspaceDir: '/ws', cwd: '/ws', command: ['echo'] }).slice(0, 3))
+      .toEqual(['docker', '--host', 'unix:///elsewhere/custom.sock']);
+    expect(execFileSync).not.toHaveBeenCalled();
+    vi.stubEnv('DOCKER_HOST', undefined);
+    buildDockerSandboxArgs({ workspaceDir: '/ws', cwd: '/ws', command: ['echo'] });
+    vi.mocked(execFileSync).mockReturnValue(contextOutput('unix:///ws/new.sock'));
+    expect(() => buildDockerSandboxArgs({ workspaceDir: '/ws', cwd: '/ws', command: ['echo'] })).toThrow(/socket/);
+    expect(execFileSync).toHaveBeenCalledTimes(2);
+  });
+
+  it('validates the effective invocation host, not a safe ambient host', () => {
+    vi.stubEnv('DOCKER_HOST', 'unix:///outside-sandbox/ambient.sock');
+    expect(() => buildDockerSandboxArgs({
+      workspaceDir: '/ws', cwd: '/ws', command: ['echo'],
+      env: { DOCKER_HOST: 'unix:///ws/deep/invocation.sock' },
+    })).toThrow(/socket/);
+    expect(() => wrapLocalExecForProcessSandbox({
+      file: 'echo', args: [], cwd: '/ws', config: { backend: 'docker', workspaceDir: '/ws' },
+      env: { DOCKER_HOST: 'unix:///ws/deep/invocation.sock' },
+    })).toThrow(/socket/);
+    expect(execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('inspects the effective context/config env then strips context only from Docker run env', () => {
+    vi.stubEnv('DOCKER_CONTEXT', 'wrong-ambient-context');
+    vi.stubEnv('DOCKER_HOST', 'unix:///ws/ambient.sock');
+    const env = {
+      DOCKER_CONTEXT: 'invocation-context', DOCKER_HOST: 'unix:///ws/ignored-host.sock',
+      DOCKER_CONFIG: '/custom/config', PATH: '/custom/path', KEEP: 'unchanged',
+    };
+    const wrapped = wrapLocalExecForProcessSandbox({
+      file: 'echo', args: [], cwd: '/ws', config: { backend: 'docker', workspaceDir: '/ws' }, env,
+    });
+    expect(execFileSync).toHaveBeenCalledWith('docker', ['context', 'inspect', 'invocation-context'], expect.objectContaining({ env }));
+    expect(wrapped.args.slice(0, 3)).toEqual(['--host', 'unix:///outside-sandbox/daemon.sock', 'run']);
+    expect(wrapped.env).toEqual({
+      DOCKER_HOST: env.DOCKER_HOST, DOCKER_CONFIG: env.DOCKER_CONFIG, PATH: env.PATH, KEEP: env.KEEP,
+    });
+    expect(env.DOCKER_CONTEXT).toBe('invocation-context');
+    expect(process.env['DOCKER_CONTEXT']).toBe('wrong-ambient-context');
+    vi.mocked(execFileSync).mockReturnValue(contextOutput('unix:///ws/deep/context.sock'));
+    expect(() => wrapLocalExecForProcessSandbox({
+      file: 'echo', args: [], cwd: '/ws', config: { backend: 'docker', workspaceDir: '/ws' }, env,
+    })).toThrow(/socket/);
+  });
+
+  it('preserves literal context names for inspection rather than silently trimming them', () => {
+    buildDockerSandboxArgs({ workspaceDir: '/ws', cwd: '/ws', command: ['echo'], env: { DOCKER_CONTEXT: ' custom ' } });
+    expect(execFileSync).toHaveBeenCalledWith('docker', ['context', 'inspect', ' custom '], expect.objectContaining({ env: { DOCKER_CONTEXT: ' custom ' } }));
+  });
+
+  it('treats an explicit empty environment as complete, rather than inheriting ambient Docker selection', () => {
+    vi.stubEnv('DOCKER_HOST', 'unix:///ws/ambient.sock');
+    vi.stubEnv('DOCKER_CONTEXT', 'ambient-context');
+    const wrapped = wrapLocalExecForProcessSandbox({
+      file: 'echo', args: [], cwd: '/ws', config: { backend: 'docker', workspaceDir: '/ws' }, env: {},
+    });
+    expect(execFileSync).toHaveBeenCalledWith('docker', ['context', 'inspect'], expect.objectContaining({ env: {} }));
+    expect(wrapped.env).toEqual({});
+    expect(wrapped.args.slice(0, 3)).toEqual(['--host', 'unix:///outside-sandbox/daemon.sock', 'run']);
+  });
+
+  it('does not change job or unsandboxed environment handling', () => {
+    const env = { DOCKER_CONTEXT: 'keep', KEEP: 'unchanged' };
+    for (const config of [undefined, { backend: 'job' as const, workspaceDir: '/ws' }]) {
+      const wrapped = wrapLocalExecForProcessSandbox({ file: 'echo', args: ['hello'], cwd: '/ws', config, env });
+      expect(wrapped.file).toBe('echo');
+      expect(wrapped.args).toEqual(['hello']);
+      expect(wrapped.env).toBeUndefined();
+    }
+    expect(env).toEqual({ DOCKER_CONTEXT: 'keep', KEEP: 'unchanged' });
+    expect(execFileSync).not.toHaveBeenCalled();
+  });
+
+  it.each(['not JSON', '[]', '[{}, {}]', '{}', '[{}]', contextOutput(''), contextOutput('tcp://example.test:2375'),
+    contextOutput('ssh://example.test'), contextOutput('unix://example.test/socket'), contextOutput('unix:///tmp/socket?query'),
+    contextOutput('unix:///tmp/%00socket'), contextOutput('unix:///tmp/%3Fsocket')])('fails closed on unusable context output: %s', output => {
+    vi.mocked(execFileSync).mockReturnValue(output);
+    expect(() => wrapLocalExecForProcessSandbox({ file: 'echo', args: [], cwd: '/ws', config: { backend: 'docker', workspaceDir: '/ws' } }))
+      .toThrow(/Docker sandbox cannot/);
+  });
+
+  it.each(['ENOENT', 'ETIMEDOUT', 'ENOBUFS', 'EACCES'])('fails closed on context inspection errors: %s', code => {
+    vi.mocked(execFileSync).mockImplementationOnce(() => { throw Object.assign(new Error('inspection failed'), { code }); });
+    expect(() => buildDockerSandboxArgs({ workspaceDir: '/ws', cwd: '/ws', command: ['echo'] })).toThrow(/cannot inspect the effective Docker context/);
+  });
+
+  it.skipIf(process.platform === 'win32')('rejects actual nested Unix sockets and socket symlinks even in read-only mounts', async () => {
+    const temp = mkdtempSync(join(tmpdir(), 'kaos-scan-'));
+    const workspace = join(temp, 'project');
+    const nested = join(workspace, 'deep');
+    const aliasDir = join(temp, 'aliases');
+    mkdirSync(nested, { recursive: true });
+    mkdirSync(aliasDir);
+    const socket = join(nested, 'not-docker.sock');
+    const server = createServer();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(socket, resolve);
+      });
+      symlinkSync(socket, join(aliasDir, 'innocent-name'));
+      for (const source of [workspace, aliasDir]) {
+        expect(() => buildDockerSandboxArgs({ workspaceDir: source, cwd: source, readOnly: true, command: ['echo'] })).toThrow(/socket/);
+        expect(() => buildDockerSandboxArgs({ workspaceDir: '/ws', additionalDirs: [source], cwd: '/ws', command: ['echo'] })).toThrow(/socket/);
+      }
+    } finally {
+      if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('accepts a socket-free nested tree, dangling links and directory symlink loops', () => {
+    const temp = mkdtempSync(join(tmpdir(), 'kaos-safe-tree-'));
+    try {
+      mkdirSync(join(temp, 'nested', 'deep'), { recursive: true });
+      symlinkSync(temp, join(temp, 'nested', 'loop'), 'junction');
+      symlinkSync(join(temp, 'missing'), join(temp, 'dangling'), 'junction');
+      expect(buildDockerSandboxArgs({ workspaceDir: temp, cwd: join(temp, 'nested'), readOnly: true, command: ['echo'] }))
+        .toContain(`type=bind,source=${realpathSync(temp)},target=/workspace,readonly`);
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed on unreadable trees, disappearing entries and the scan entry budget', () => {
+    const temp = mkdtempSync(join(tmpdir(), 'kaos-scan-error-'));
+    try {
+      for (const code of ['EACCES', 'EIO', 'ENOENT']) {
+        vi.mocked(readdirSync).mockImplementationOnce(() => { throw Object.assign(new Error('cannot scan'), { code }); });
+        expect(() => buildDockerSandboxArgs({ workspaceDir: temp, cwd: temp, command: ['echo'] })).toThrow(/socket scan failure/);
+      }
+      vi.mocked(readdirSync).mockReturnValueOnce(['disappeared'] as never);
+      expect(() => buildDockerSandboxArgs({ workspaceDir: temp, cwd: temp, command: ['echo'] })).toThrow(/socket scan failure/);
+      // Repeated existing file names exercise the budget without a huge disk fixture.
+      mkdirSync(join(temp, 'entry'));
+      vi.mocked(readdirSync).mockReturnValueOnce(Array.from({ length: 100_001 }, () => 'entry') as never);
+      expect(() => buildDockerSandboxArgs({ workspaceDir: temp, cwd: temp, command: ['echo'] })).toThrow(/socket scan failure/);
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
     }
   });
 
@@ -277,7 +490,7 @@ describe('process sandbox helpers', () => {
       config: { backend: 'docker', workspaceDir: '/ws' },
     });
     expect(docker.file).toBe('docker');
-    expect(docker.args[0]).toBe('run');
+    expect(docker.args.slice(0, 3)).toEqual(['--host', 'unix:///outside-sandbox/daemon.sock', 'run']);
 
     const job = wrapLocalExecForProcessSandbox({
       file: 'bash',

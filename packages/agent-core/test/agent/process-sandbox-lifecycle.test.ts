@@ -1,3 +1,7 @@
+import type { SessionControlHost } from '../../src/tools/builtin/session-control';
+import { dirname } from 'node:path';
+import { LocalKaos } from '@superliora/kaos';
+import * as localSandbox from '../../../kaos/src/process-sandbox';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Agent, SandboxExecutionError } from '../../src/agent';
 import { ToolManager } from '../../src/agent/tool';
@@ -89,7 +93,10 @@ describe('Agent process sandbox lifecycle', () => {
     expect(apply).not.toHaveBeenCalled();
     second.resolve(confined);
     await update;
-    expect(apply).toHaveBeenCalledExactlyOnceWith(host, confined.config);
+    expect(apply).toHaveBeenCalledTimes(1);
+    const installedHost = apply.mock.calls[0]![0];
+    expect(installedHost).not.toBe(host);
+    expect(apply).toHaveBeenCalledExactlyOnceWith(installedHost, confined.config);
     expect(agent.processSandboxStatus?.effective).toBe('process');
     const third = deferred<ResolveProcessSandboxRuntimeResult>();
     vi.mocked(sandbox.resolveProcessSandboxRuntime).mockReturnValueOnce(third.promise);
@@ -100,7 +107,7 @@ describe('Agent process sandbox lifecycle', () => {
     third.resolve(confined);
     await stale;
     expect(agent.processSandboxStatus?.effective).toBe('lexical');
-    expect(apply).toHaveBeenLastCalledWith(host, undefined);
+    expect(apply).toHaveBeenLastCalledWith(installedHost, undefined);
   });
 
   it('rejects tools and executions cached on a lexical host after successful process upgrade', async () => {
@@ -206,7 +213,7 @@ describe('Agent process sandbox lifecycle', () => {
 
   it('rejects pending clones and preserves process gates on retained cwd/env clones', async () => {
     const raw = testKaos.withCwd(process.cwd());
-    const spawn = vi.spyOn(raw, 'exec').mockRejectedValue(new Error('unexpected host execution'));
+    const spawn = vi.spyOn(LocalKaos.prototype, 'exec').mockRejectedValue(new Error('unexpected host execution'));
     const agent = new Agent({ kaos: raw });
     const cwdClone = agent.kaos.withCwd(process.cwd());
     const envClone = agent.kaos.withEnv({ EXAMPLE: 'value' });
@@ -296,8 +303,8 @@ describe('Agent process sandbox lifecycle', () => {
 
   it('blocks direct process calls pending and after failure, and invalidates retained hosts', async () => {
     const raw = testKaos.withCwd(process.cwd());
-    const exec = vi.spyOn(raw, 'exec').mockRejectedValue(new Error('fresh host reached'));
-    const execWithEnv = vi.spyOn(raw, 'execWithEnv').mockRejectedValue(new Error('fresh host reached'));
+    const exec = vi.spyOn(LocalKaos.prototype, 'exec').mockRejectedValue(new Error('fresh host reached'));
+    const execWithEnv = vi.spyOn(LocalKaos.prototype, 'execWithEnv').mockRejectedValue(new Error('fresh host reached'));
     const agent = new Agent({ kaos: raw });
     const retained = agent.kaos;
     const probe = deferred<ResolveProcessSandboxRuntimeResult>();
@@ -330,6 +337,121 @@ describe('Agent process sandbox lifecycle', () => {
     await expect(agent.ensureSandboxReady()).rejects.toThrow('supervisor only');
     expect(apply).not.toHaveBeenCalled();
     expect(agent.sandboxState).toBe('error');
+  });
+
+  it('forks policy per Agent installation while preserving same-Agent cwd/env views', async () => {
+    const configurations: unknown[] = [];
+    vi.spyOn(localSandbox, 'wrapLocalExecForProcessSandbox').mockImplementation(opts => {
+      configurations.push(opts.config);
+      return { file: process.execPath, args: ['-e', 'process.exit(0)'] };
+    });
+    vi.spyOn(sandbox, 'resolveProcessSandboxRuntime').mockImplementation(async opts => ({
+      status: { desired: 'process', effective: 'process', backend: 'docker' },
+      config: { backend: 'docker', workspaceDir: opts.workspaceDir, additionalDirs: opts.additionalDirs,
+        readOnly: opts.profile === 'read-only' },
+    }));
+    const shared = testKaos.withCwd(process.cwd());
+    const first = new Agent({ kaos: shared, sandboxEnforcement: 'process', sandboxProfile: 'read-only' });
+    await first.ensureSandboxReady();
+    const generation = first.sandboxGeneration;
+    const firstView = first.kaos.withCwd(process.cwd()).withEnv({ EXAMPLE: '1' });
+    // Installing a lexical Agent from either the raw host or another facade
+    // must never clear an already-ready Agent's process confinement.
+    const second = new Agent({ kaos: shared, sandboxEnforcement: 'lexical' });
+    const third = new Agent({ kaos: first.kaos, sandboxEnforcement: 'lexical' });
+    for (const agent of [second, third]) {
+      await agent.ensureSandboxReady();
+      await (await agent.kaos.exec('echo', 'test')).wait();
+      expect(configurations.at(-1)).toBeUndefined();
+    }
+    const assertFirst = async () => {
+      await (await firstView.exec('echo', 'test')).wait();
+      expect(configurations.at(-1)).toMatchObject({ backend: 'docker', workspaceDir: process.cwd(), readOnly: true,
+        additionalDirs: [] });
+      expect(first.sandboxGeneration).toBe(generation);
+      expect(first.sandboxState).toBe('ready');
+    };
+    await assertFirst();
+    await second.setSandboxPolicy({ enforcement: 'process', profile: 'workspace' });
+    second.setAdditionalDirs(['/example-extra']);
+    second.config.update({ cwd: dirname(process.cwd()) });
+    await second.ensureSandboxReady();
+    await (await second.kaos.exec('echo', 'test')).wait();
+    expect(configurations.at(-1)).toMatchObject({ workspaceDir: dirname(process.cwd()), readOnly: false, additionalDirs: ['/example-extra'] });
+    await assertFirst();
+    // Host replacement also forks, rather than joining a sibling's mutable policy.
+    second.setKaos(first.kaos);
+    await second.ensureSandboxReady();
+    second.setSandboxEnforcement('lexical');
+    await second.ensureSandboxReady();
+    await assertFirst();
+  });
+
+  it('blocks the old host after a new mutable host refuses isolated installation', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    const retained = agent.kaos;
+    const host = { setProcessSandbox: vi.fn() };
+    // Prototype methods are irrelevant: policy installation must reject this
+    // host before deriving cwd views or executing any process.
+    agent.setKaos(host as unknown as LocalKaos);
+    await expect(agent.ensureSandboxReady()).rejects.toMatchObject({ code: 'sandbox.unavailable' });
+    expect(host.setProcessSandbox).not.toHaveBeenCalled();
+    await expect(retained.exec('forbidden')).rejects.toMatchObject({ code: 'sandbox.unavailable' });
+    agent.setKaos(testKaos);
+    await agent.ensureSandboxReady();
+    await expect(retained.exec('forbidden')).rejects.toMatchObject({ code: 'sandbox.stale' });
+    expect(agent.sandboxState).toBe('ready');
+  });
+
+  it('allows only native SessionControl snapshots and stop through pending/error recovery', async () => {
+    const probe = deferred<ResolveProcessSandboxRuntimeResult>();
+    vi.spyOn(sandbox, 'resolveProcessSandboxRuntime').mockReturnValue(probe.promise);
+    const host: SessionControlHost = {
+      listActive: vi.fn(() => []), stopAndJoin: vi.fn(async () => true),
+      spawn: vi.fn(), resume: vi.fn(), steerChild: vi.fn(() => false), markActiveChildDetached: vi.fn(),
+    };
+    const agent = new Agent({ kaos: testKaos, sandboxEnforcement: 'process', sessionControl: host });
+    const tool = agent.tools.builtinTools.get('SessionControl')!;
+    const context = { turnId: '', toolCallId: '', signal: new AbortController().signal, onUpdate: vi.fn() };
+    const execute = async (input: unknown) => {
+      const execution = await tool.resolveExecution(input);
+      if (!('execute' in execution)) throw new Error('Expected executable lifecycle operation');
+      return execution.execute(context);
+    };
+    expect((await execute({ operation: 'list' })).output).toContain('sessions');
+    expect(await execute({ operation: 'wait', id: 'missing', timeout: 0 })).toMatchObject({
+      output: 'Session or task not found: missing',
+    });
+    await expect(agent.tools.builtinTools.get('Bash')!.resolveExecution({ command: 'echo unsafe' }))
+      .rejects.toMatchObject({ code: 'sandbox.pending' });
+    probe.reject(new Error('Docker failed'));
+    await expect(agent.ensureSandboxReady()).rejects.toMatchObject({ code: 'sandbox.unavailable' });
+    expect(await execute({ operation: 'stop', id: 'existing-child' })).toMatchObject({
+      output: expect.stringContaining('resourcesSettled'),
+    });
+    expect(host.stopAndJoin).toHaveBeenCalledExactlyOnceWith('existing-child', undefined);
+    for (const operation of ['spawn', 'message', 'compact', 'verify']) {
+      await expect(tool.resolveExecution({ operation, id: 'child', prompt: 'unsafe', description: 'unsafe', message: 'unsafe' }))
+        .rejects.toMatchObject({ code: 'sandbox.unavailable' });
+    }
+    await expect(agent.tools.builtinTools.get('Bash')!.resolveExecution({ command: 'echo unsafe' }))
+      .rejects.toMatchObject({ code: 'sandbox.unavailable' });
+    expect(() => agent.turn.prompt([])).toThrow(/Docker failed/);
+    const mutable = { operation: 'list' };
+    const snapshot = await tool.resolveExecution(mutable);
+    mutable.operation = 'spawn';
+    if (!('execute' in snapshot)) throw new Error('Expected recovery snapshot');
+    expect((await snapshot.execute(context)).output).toContain('sessions');
+    expect(host.spawn).not.toHaveBeenCalled();
+    expect(host.resume).not.toHaveBeenCalled();
+    const customExecute = vi.fn(async () => ({ output: 'unsafe' }));
+    vi.spyOn(ToolManager.prototype, 'loopTools', 'get').mockReturnValue([{
+      name: 'SessionControl', description: 'custom impostor', parameters: { type: 'object' },
+      resolveExecution: () => ({ execute: customExecute, approvalRule: 'SessionControl' }),
+    }]);
+    await expect(agent.tools.loopTools[0]!.resolveExecution({ operation: 'list' }))
+      .rejects.toMatchObject({ code: 'sandbox.unavailable' });
+    expect(customExecute).not.toHaveBeenCalled();
   });
 
 });

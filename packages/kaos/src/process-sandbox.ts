@@ -8,8 +8,8 @@
  * Docker execution failures never fall back to host execution.
  */
 
-import { spawn } from 'node:child_process';
-import { realpathSync, statSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { lstatSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
 import { isAbsolute } from 'pathe';
@@ -105,23 +105,108 @@ function canonicalMountSource(host: string): string {
   }
 }
 
-/** Only Unix endpoints expose a bind-mountable daemon socket. */
-function dockerHostSocket(): string | undefined {
-  const endpoint = process.env['DOCKER_HOST']?.trim();
-  if (endpoint === undefined || !endpoint.startsWith('unix:')) return undefined;
+/** Match the key selection Node uses for Windows child environments. */
+function dockerEnvValue(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  if (process.platform !== 'win32') return env[name];
+  const key = Object.keys(env).toSorted().find(key => key.toUpperCase() === name);
+  return key === undefined ? undefined : env[key];
+}
+
+/**
+ * Resolve once per invocation, not from a cached availability probe. DOCKER_CONTEXT
+ * overrides DOCKER_HOST; otherwise an explicit host overrides the current context.
+ * Keep the synchronous builder API: inspection uses a 2.5s SIGKILL timeout and
+ * a 64KiB output limit. This is not a hard wall-time bound (OS teardown/I/O may
+ * delay return). Any inspection/parse failure denies execution.
+ */
+function effectiveDockerEndpoint(dockerBin: string, env: NodeJS.ProcessEnv): { endpoint: string; socket?: string } {
+  const context = dockerEnvValue(env, 'DOCKER_CONTEXT') || undefined;
+  let endpoint = context ? undefined : dockerEnvValue(env, 'DOCKER_HOST')?.trim() || undefined;
+  if (endpoint === undefined) {
+    try {
+      const output = execFileSync(dockerBin, ['context', 'inspect', ...(context ? [context] : [])], {
+        env, encoding: 'utf8', timeout: 2500, killSignal: 'SIGKILL', maxBuffer: 64 * 1024,
+        stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+      });
+      const contexts: unknown = JSON.parse(output);
+      if (!Array.isArray(contexts) || contexts.length !== 1) throw new Error('Expected one Docker context');
+      const host: unknown = contexts[0]?.Endpoints?.docker?.Host;
+      if (typeof host !== 'string' || !host.trim()) throw new Error('Missing Docker context endpoint');
+      endpoint = host.trim();
+    } catch (error) {
+      throw new Error('Docker sandbox cannot inspect the effective Docker context.', { cause: error });
+    }
+  }
+  // Remote daemons resolve bind sources on another filesystem, which these local
+  // checks cannot validate. Local Windows named pipes are not Unix bind sources.
+  if (process.platform === 'win32' && /^npipe:\/\/\/\/\.\/pipe\/[A-Za-z0-9_.-]+$/.test(endpoint)) {
+    return { endpoint };
+  }
   try {
     const url = new URL(endpoint);
     const path = decodeURIComponent(url.pathname);
-    if (url.hostname || url.search || url.hash || !posix.isAbsolute(path) || /[\u0000-\u001F]/.test(path)) {
-      throw new Error('Invalid Unix endpoint');
+    if (url.protocol !== 'unix:' || url.hostname || url.search || url.hash ||
+        !posix.isAbsolute(path) || /[%\u0000-\u0020]/.test(endpoint) || /[\u0000-\u001F]/.test(path)) {
+      throw new Error('Expected a local Unix socket endpoint');
     }
-    return canonicalMountSource(path);
+    const socket = canonicalMountSource(path);
+    if (/[?#%\u0000-\u0020]/.test(socket)) throw new Error('Ambiguous canonical socket endpoint');
+    // Pin the inspected endpoint instead of re-reading context metadata at spawn.
+    // This does not prevent replacement of the socket or its parent directories.
+    return { endpoint: `unix://${socket}`, socket };
   } catch (error) {
-    throw new Error('Docker sandbox cannot resolve the DOCKER_HOST Unix socket.', { cause: error });
+    throw new Error('Docker sandbox cannot resolve the effective Docker context / DOCKER_HOST socket; only local endpoints are supported.', { cause: error });
   }
 }
 
-function dockerBindMount(host: string, container: string, readOnly: boolean): string {
+/**
+ * Best-effort snapshot, NOT an atomic filesystem confinement guarantee. Reject
+ * existing nested Unix sockets (including non-Docker sockets); readonly does not
+ * make socket access safe. Docker does not dereference nested directory symlinks
+ * when mounting a tree, so scan real directories and check symlink file targets.
+ * Entry/error limits fail closed rather than silently skipping inaccessible trees.
+ * A host writer can still create/replace a socket or swap a mount path after this
+ * check and before/during the bind mount. Eliminating that TOCTOU requires trusted,
+ * immutable mount sources or an OS-level mount/socket policy, not a JS preflight.
+ */
+function rejectNestedSockets(source: string): void {
+  const flavor = hostPathFlavor(source);
+  if ((process.platform === 'win32') !== (flavor === win32)) return;
+  let root;
+  try {
+    root = lstatSync(source);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; // Docker itself rejects missing bind sources.
+    throw new Error('Docker sandbox cannot inspect mount source for sockets.', { cause: error });
+  }
+  if (root.isSocket()) throw new Error('Docker sandbox cannot mount a host socket.');
+  if (!root.isDirectory()) return;
+  const pending = [source];
+  let entries = 0;
+  try {
+    while (pending.length > 0) {
+      const directory = pending.pop()!;
+      for (const name of readdirSync(directory)) {
+        if (++entries > 100_000) throw new Error('Mount socket scan entry limit exceeded');
+        const path = flavor.join(directory, name);
+        const stat = lstatSync(path);
+        if (stat.isSocket()) throw new Error('Nested host socket in mount source');
+        if (stat.isDirectory()) pending.push(path);
+        else if (stat.isSymbolicLink()) {
+          try {
+            if (statSync(path).isSocket()) throw new Error('Symlink to host socket in mount source');
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          }
+        }
+      }
+    }
+  } catch (error) {
+    throw new Error('Docker sandbox cannot safely inspect mount source: nested socket or socket scan failure.', { cause: error });
+  }
+}
+
+function dockerBindMount(host: string, container: string, readOnly: boolean, endpointSocket: string | undefined): string {
   const inputFlavor = hostPathFlavor(host);
   if (!inputFlavor.isAbsolute(host) || /[,"\u0000-\u001F]/.test(host)) {
     throw new Error('Docker sandbox mount paths must be absolute and contain no commas, quotes, or control characters.');
@@ -147,12 +232,12 @@ function dockerBindMount(host: string, container: string, readOnly: boolean): st
   const socketDirs = ['/var/run', '/run', join(homedir(), '.docker', 'run'), join(homedir(), '.docker', 'desktop'),
     join(homedir(), '.rd'), join(homedir(), '.colima')]
     .map(canonicalMountSource);
-  const endpointSocket = dockerHostSocket();
   if ((endpointSocket !== undefined && relativeUnder(endpointSocket, source) !== undefined) ||
       flavor.basename(source).toLowerCase() === 'docker.sock' || socketDirs.some(dir =>
     relativeUnder(dir, source) !== undefined || relativeUnder(source, dir) !== undefined)) {
     throw new Error('Docker sandbox cannot mount a Docker daemon socket or a standard socket directory.');
   }
+  rejectNestedSockets(source);
   return `type=bind,source=${source},target=${container}${readOnly ? ',readonly' : ''}`;
 }
 
@@ -243,13 +328,16 @@ export function buildDockerSandboxArgs(opts: {
   readonly command: readonly string[];
   readonly resources?: ProcessSandboxResources;
   readonly dockerBin?: string;
+  /** Complete effective Docker client environment, not an overlay on process.env. */
+  readonly env?: NodeJS.ProcessEnv;
 }): string[] {
   const ro = opts.readOnly === true;
   const image = opts.image?.trim() || DEFAULT_SANDBOX_IMAGE;
   const dockerBin = opts.dockerBin?.trim() || 'docker';
   const additionalDirs = opts.additionalDirs ?? [];
-  const mounts = [dockerBindMount(opts.workspaceDir, '/workspace', ro),
-    ...additionalDirs.map((dir, index) => dockerBindMount(dir, `/extra${String(index)}`, ro))];
+  const { endpoint, socket } = effectiveDockerEndpoint(dockerBin, opts.env ?? process.env);
+  const mounts = [dockerBindMount(opts.workspaceDir, '/workspace', ro, socket),
+    ...additionalDirs.map((dir, index) => dockerBindMount(dir, `/extra${String(index)}`, ro, socket))];
   const containerCwd = mapHostCwdToContainer(
     canonicalMountSource(opts.cwd), canonicalMountSource(opts.workspaceDir), additionalDirs.map(canonicalMountSource),
   );
@@ -268,7 +356,7 @@ export function buildDockerSandboxArgs(opts: {
   const uid = hostUid !== undefined && hostUid > 0 ? hostUid : 1000;
   const gid = hostUid !== undefined && hostUid > 0 && hostGid !== undefined && hostGid > 0 ? hostGid : 1000;
   const args: string[] = [
-    dockerBin, 'run', '--rm', '-i',
+    dockerBin, '--host', endpoint, 'run', '--rm', '-i',
     '--network=none', '--cap-drop=ALL', '--security-opt=no-new-privileges:true',
     '--read-only', '--tmpfs=/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777', `--user=${String(uid)}:${String(gid)}`,
     `--memory=${memoryMb}m`, `--memory-swap=${memoryMb}m`, `--cpus=${cpus}`, `--pids-limit=${pidsLimit}`,
@@ -361,6 +449,8 @@ export async function resolveProcessSandboxBackend(opts: {
 export interface WrappedLocalExec {
   readonly file: string;
   readonly args: string[];
+  /** Docker-only spawn environment; context selection is removed after inspection. */
+  readonly env?: NodeJS.ProcessEnv;
   readonly afterSpawn?: (pid: number) => void;
 }
 
@@ -369,13 +459,19 @@ export function wrapLocalExecForProcessSandbox(opts: {
   readonly args: readonly string[];
   readonly cwd: string;
   readonly config: ProcessSandboxConfig | undefined;
+  /** Complete environment that would otherwise be supplied to spawn. */
+  readonly env?: NodeJS.ProcessEnv;
 }): WrappedLocalExec {
   const config = opts.config;
   if (config === undefined) {
     return { file: opts.file, args: [...opts.args] };
   }
   if (config.backend === 'docker') {
+    // Snapshot once: inspect the actual client environment, then remove only
+    // context selection from the run environment. Never mutate the caller's env.
+    const env = { ...(opts.env ?? process.env) };
     const argv = buildDockerSandboxArgs({
+      env,
       workspaceDir: config.workspaceDir,
       additionalDirs: config.additionalDirs,
       cwd: opts.cwd,
@@ -386,7 +482,15 @@ export function wrapLocalExecForProcessSandbox(opts: {
       command: [opts.file, ...opts.args],
     });
     const dockerFile = argv[0] ?? 'docker';
-    return { file: dockerFile, args: argv.slice(1) };
+    // Explicit --host must not compete with DOCKER_CONTEXT on the run client.
+    // Windows environment keys are case-insensitive, unlike JS object keys.
+    const runEnv = { ...env };
+    for (const key of Object.keys(runEnv)) {
+      if (key === 'DOCKER_CONTEXT' || (process.platform === 'win32' && key.toUpperCase() === 'DOCKER_CONTEXT')) {
+        delete runEnv[key];
+      }
+    }
+    return { file: dockerFile, args: argv.slice(1), env: runEnv };
   }
   if (config.backend !== 'job') throw new Error('Unsupported process sandbox backend.');
   return {

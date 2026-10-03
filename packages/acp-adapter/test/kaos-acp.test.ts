@@ -576,6 +576,30 @@ describe('AcpKaos', () => {
   });
 
   describe('process sandbox forwarding', () => {
+    it('forks the inner execution policy while retaining ACP file routing', async () => {
+      const originalSetter = vi.fn();
+      const forkSetter = vi.fn();
+      const forkInner = Object.assign(makeMockInner(), { setProcessSandbox: forkSetter });
+      const inner = Object.assign(makeMockInner(), {
+        setProcessSandbox: originalSetter, forkExecutionPolicy: () => forkInner,
+      });
+      const conn = makeMockConn({ readHandler: async () => ({ content: 'editor buffer' }) });
+      const fork = new AcpKaos(conn.asConn(), 's1', inner).forkExecutionPolicy();
+      fork.setProcessSandbox({ backend: 'docker', workspaceDir: '/workspace' });
+      expect(originalSetter).not.toHaveBeenCalled();
+      expect(forkSetter).toHaveBeenCalledExactlyOnceWith({ backend: 'docker', workspaceDir: '/workspace' });
+      expect(await fork.readText('/workspace/notes')).toBe('editor buffer');
+      expect(conn.readCalls).toHaveLength(1);
+    });
+
+    it('rejects policy installation on a mutable host that cannot fork confinement', () => {
+      const setter = vi.fn();
+      const inner = Object.assign(makeMockInner(), { setProcessSandbox: setter });
+      expect(() => new AcpKaos(makeMockConn({}).asConn(), 's1', inner).forkExecutionPolicy())
+        .toThrow(/cannot isolate sandbox policy/);
+      expect(setter).not.toHaveBeenCalled();
+    });
+
     it('rejects confinement on an unsupported inner host instead of silently ignoring it', () => {
       const inner = makeMockInner();
       const kaos = new AcpKaos(makeMockConn({}).asConn(), 's1', inner);
