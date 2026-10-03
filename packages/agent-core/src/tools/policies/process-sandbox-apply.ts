@@ -1,6 +1,6 @@
 /**
  * Resolve desired sandboxEnforcement into a Kaos process-sandbox config.
- * Failures degrade to lexical and never block the CLI.
+ * Explicit process enforcement rejects unavailable confinement and conflicting overrides.
  */
 
 import {
@@ -55,30 +55,15 @@ export async function resolveProcessSandboxRuntime(
     probeDocker: opts.probeDocker,
   });
 
-  if (backendResult.backend === undefined) {
-    return {
-      status: {
-        desired: 'process',
-        effective: 'lexical',
-        warning: backendResult.warning,
-      },
-      coercedProfile,
-    };
+  if (backendResult.backend !== 'docker') {
+    throw new Error('Process sandbox requires Docker confinement; host execution is not permitted.');
   }
-
-  // The Windows Job Object backend is a process-tree cleanup supervisor, not
-  // a confinement sandbox — report it honestly as lexical so the status never
-  // claims process isolation the OS layer does not provide.
-  const isSupervisorOnly = backendResult.backend === 'job';
   return {
     status: {
       desired: 'process',
-      effective: isSupervisorOnly ? 'lexical' : 'process',
+      effective: 'process',
       backend: backendResult.backend,
-      warning: isSupervisorOnly
-        ? (backendResult.warning ??
-          'Windows Job Object backend supervises process-tree cleanup only; it does not confine the process')
-        : backendResult.warning,
+      warning: backendResult.warning,
     },
     config: {
       backend: backendResult.backend,
@@ -94,6 +79,9 @@ export function applyProcessSandboxToKaos(
   kaos: unknown,
   config: ProcessSandboxConfig | undefined,
 ): void {
+  if (config !== undefined && !isProcessSandboxHost(kaos)) {
+    throw new Error('Process sandbox required but this execution host cannot apply confinement.');
+  }
   if (isProcessSandboxHost(kaos)) {
     kaos.setProcessSandbox(config);
   }

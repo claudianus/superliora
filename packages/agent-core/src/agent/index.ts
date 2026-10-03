@@ -24,6 +24,7 @@ import { recoverJobsAfterResume } from '../tools/builtin/job/job-recovery';
 import { BackgroundManager, BackgroundTaskPersistence } from './background';
 import { CacheFreezeGuard } from './cache';
 import { ToolParallelStatus } from '../loop/tool-parallel-status';
+import type { ExecutableTool } from '../loop';
 import { FullCompaction } from './compaction';
 import { ConfigState } from './config';
 import { ContextMemory } from './context';
@@ -50,6 +51,82 @@ import { buildRecordsWriteErrorEvent } from './agent-records-write-error';
 
 export type { AgentRecord } from './records';
 export type { BuiltinTool } from './tool';
+
+// Unwrap only facade-created proxies when installing a host into another Agent.
+const sandboxKaosTargets = new WeakMap<Kaos, Kaos>();
+function sandboxKaosTarget(kaos: Kaos): Kaos {
+  return sandboxKaosTargets.get(kaos) ?? kaos;
+}
+
+export class SandboxExecutionError extends Error {
+  constructor(
+    readonly code: 'sandbox.pending' | 'sandbox.unavailable' | 'sandbox.stale',
+    message: string,
+    cause?: unknown,
+  ) {
+    super(message, { cause });
+    this.name = 'SandboxExecutionError';
+  }
+}
+
+// Keep the execution gates at the facade boundary, including standalone callers.
+class SandboxTurnFlow extends TurnFlow {
+  override prompt(...args: Parameters<TurnFlow['prompt']>) {
+    this.agent.assertSandboxReady();
+    return super.prompt(...args);
+  }
+
+  override steer(...args: Parameters<TurnFlow['steer']>) {
+    this.agent.assertSandboxReady();
+    return super.steer(...args);
+  }
+}
+
+class SandboxToolManager extends ToolManager {
+  override async runShellCommand(...args: Parameters<ToolManager['runShellCommand']>) {
+    this.agent.assertSandboxReady();
+    return super.runShellCommand(...args);
+  }
+
+  override initializeBuiltinTools(): void {
+    super.initializeBuiltinTools();
+    for (const [name, tool] of this.builtinTools) {
+      this.builtinTools.set(name, this.guardTool(tool));
+    }
+  }
+
+  override get loopTools() {
+    return super.loopTools.map((tool) => this.guardTool(tool));
+  }
+
+  private guardTool(tool: ExecutableTool): ExecutableTool {
+    // Preserve prototype-backed tool descriptors and receiver binding.
+    const revision = this.agent.sandboxGeneration;
+    return new Proxy(tool, {
+      get: (target, property) => {
+        if (property !== 'resolveExecution') {
+          const value: unknown = Reflect.get(target, property, target);
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+        return async (input: unknown) => {
+          this.agent.assertSandboxReady(revision);
+          const execution = await target.resolveExecution(input);
+          this.agent.assertSandboxReady(revision);
+          if (!('execute' in execution)) return execution;
+          return {
+            ...execution,
+            execute: async (...args: Parameters<typeof execution.execute>) => {
+              // Recheck after approval / resolution: live updates can arrive there.
+              this.agent.assertSandboxReady(revision);
+              return execution.execute(...args);
+            },
+          };
+        };
+      },
+    });
+  }
+}
+
 export type AgentType = 'main' | 'sub' | 'independent';
 
 export interface AgentOptions {
@@ -107,11 +184,14 @@ export class Agent {
   processSandboxStatus: ProcessSandboxStatus | undefined;
   private additionalDirs: readonly string[];
   private activeProfile: ResolvedAgentProfile | undefined;
-  private sandboxReady: Promise<void>;
+  private sandboxPending = false;
+  private sandboxError: Error | undefined;
+  private sandboxRevision = 0;
+  private sandboxRefresh: Promise<void> = Promise.resolve();
 
   constructor(options: AgentOptions) {
     this.type = options.type ?? 'main';
-    this._kaos = options.kaos;
+    this._kaos = sandboxKaosTarget(options.kaos);
     this.kimiConfig = options.config;
     this.homedir = options.homedir;
     this.rpc = options.rpc;
@@ -140,12 +220,12 @@ export class Agent {
     this.context = new ContextMemory(this);
     this.config = new ConfigState(this);
     configureDiskPressure({ homeDir: this.homedir, workDir: this.config.cwd });
-    this.sandboxReady = this.refreshProcessSandbox();
-    this.turn = new TurnFlow(this);
+    void this.refreshProcessSandbox();
+    this.turn = new SandboxTurnFlow(this);
     this.permission = new PermissionManager(this, options.permission);
     this.usage = new UsageRecorder(this);
     this.background = new BackgroundManager(this, this.homedir === undefined ? undefined : new BackgroundTaskPersistence(this.homedir));
-    this.tools = new ToolManager(this);
+    this.tools = new SandboxToolManager(this);
     if (this.type === 'main' && this.homedir !== undefined) {
       bindJobLedgerCrashMirror(this.tools.getStore(), this.homedir);
       bindWorkspaceSessionCatalog(this.tools.getStore(), { workDir: this.config.cwd, sourceAgentDir: this.homedir });
@@ -156,7 +236,36 @@ export class Agent {
   }
 
   get kaos(): Kaos {
-    return this._kaos;
+    return this.guardKaos(this._kaos, this.sandboxRevision);
+  }
+
+  private guardKaos(kaos: Kaos, revision: number): Kaos {
+    const guarded = new Proxy(kaos, {
+      get: (target, property) => {
+        if (property === 'exec' || property === 'execWithEnv') {
+          return (...args: unknown[]) => {
+            try {
+              this.assertSandboxReady(revision);
+              return Reflect.apply(target[property], target, args);
+            } catch (error) {
+              return Promise.reject(error);
+            }
+          };
+        }
+        if (property === 'withCwd' || property === 'withEnv') {
+          return (...args: unknown[]) => {
+            // Never snapshot an unresolved host configuration into a child.
+            this.assertSandboxReady(revision);
+            const child = Reflect.apply(target[property], target, args) as Kaos;
+            return this.guardKaos(child, revision);
+          };
+        }
+        const value: unknown = Reflect.get(target, property, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    sandboxKaosTargets.set(guarded, kaos);
+    return guarded;
   }
 
   get runtimeConfig(): LioraConfig | undefined {
@@ -164,8 +273,13 @@ export class Agent {
   }
 
   setKaos(kaos: Kaos): void {
-    this._kaos = kaos;
-    this.sandboxReady = this.refreshProcessSandbox();
+    this._kaos = sandboxKaosTarget(kaos);
+    void this.rebuildSandboxTools(this.refreshProcessSandbox());
+  }
+
+  setKaosCwd(cwd: string): Promise<void> {
+    this.setKaos(this._kaos.withCwd(cwd));
+    return this.sandboxRefresh;
   }
 
   getAdditionalDirs(): readonly string[] {
@@ -174,47 +288,138 @@ export class Agent {
 
   setAdditionalDirs(additionalDirs: readonly string[]): void {
     this.additionalDirs = normalizeAdditionalDirs(additionalDirs);
-    this.tools.initializeBuiltinTools();
-    this.sandboxReady = this.refreshProcessSandbox();
+    void this.rebuildSandboxTools(this.refreshProcessSandbox());
   }
 
+  /**
+   * Update the path ceiling and rebuild native tools. Process enforcement,
+   * when requested, is refreshed against the same policy generation.
+   */
   setSandboxProfile(profile: SandboxProfile): void {
-    this.sandboxProfile = profile;
-    this.tools.initializeBuiltinTools();
-    this.sandboxReady = this.refreshProcessSandbox();
+    void this.setSandboxPolicy({ profile });
   }
 
   setSandboxEnforcement(enforcement: SandboxEnforcement): void {
-    this.sandboxEnforcement = enforcement;
-    if (enforcement === 'process' && (this.sandboxProfile === undefined || this.sandboxProfile === 'off')) this.sandboxProfile = 'workspace';
-    this.tools.initializeBuiltinTools();
-    this.sandboxReady = this.refreshProcessSandbox();
+    void this.setSandboxPolicy({ enforcement });
   }
 
-  async ensureSandboxReady(): Promise<void> {
-    await this.sandboxReady;
-    if (this.sandboxEnforcement === 'process' && this.processSandboxStatus?.effective !== 'process') {
-      throw new Error(this.processSandboxStatus?.warning ?? 'Requested process sandbox is unavailable.');
+  /** Apply a combined RPC update without activating an intermediate policy. */
+  setSandboxPolicy(policy: { profile?: SandboxProfile; enforcement?: SandboxEnforcement }): Promise<void> {
+    if (policy.profile !== undefined) {
+      this.sandboxProfile = policy.profile;
+    }
+    if (policy.enforcement !== undefined) {
+      this.sandboxEnforcement = policy.enforcement;
+    }
+    if (this.sandboxEnforcement === 'process' && (this.sandboxProfile === undefined || this.sandboxProfile === 'off')) {
+      this.sandboxProfile = 'workspace';
+    }
+    return this.rebuildSandboxTools(this.refreshProcessSandbox());
+  }
+
+  get sandboxState(): 'pending' | 'error' | 'ready' {
+    return this.sandboxPending ? 'pending' : this.sandboxError !== undefined ? 'error' : 'ready';
+  }
+
+  get sandboxFailure(): unknown {
+    return this.sandboxError;
+  }
+
+  /** Reject rather than run with stale, unresolved, or unavailable confinement. */
+  get sandboxGeneration(): number {
+    return this.sandboxRevision;
+  }
+
+  assertSandboxReady(revision?: number): void {
+    if (this.sandboxPending) {
+      throw new SandboxExecutionError('sandbox.pending', 'Sandbox configuration is pending; execution is blocked.');
+    }
+    if (this.sandboxError !== undefined) throw this.sandboxError;
+    if (revision !== undefined && revision !== this.sandboxRevision) {
+      throw new SandboxExecutionError('sandbox.stale', 'Sandbox policy changed; resolve a fresh tool execution.');
     }
   }
 
-  private async refreshProcessSandbox(): Promise<void> {
+  /** Compatibility entry point for Bash and current hosts. */
+  ensureSandboxReady(): Promise<void> {
+    return this.waitForSandbox();
+  }
+
+  private rebuildSandboxTools(ready: Promise<void>): Promise<void> {
+    this.tools.initializeBuiltinTools();
+    return ready;
+  }
+
+  /** Startup and hosts may await this; ignored setter promises are also observed. */
+  async waitForSandbox(): Promise<void> {
+    let pending: Promise<void>;
+    do {
+      pending = this.sandboxRefresh;
+      try {
+        await pending;
+      } catch (error) {
+        if (pending === this.sandboxRefresh) throw error;
+      }
+    } while (pending !== this.sandboxRefresh);
+    this.assertSandboxReady();
+  }
+
+  private refreshProcessSandbox(): Promise<void> {
+    const revision = ++this.sandboxRevision;
     const desired = this.sandboxEnforcement ?? 'lexical';
-    try {
-      const resolved = await resolveProcessSandboxRuntime({
+    const profile = this.sandboxProfile ?? 'off';
+    const kaos = this._kaos;
+    this.sandboxPending = true;
+    this.sandboxError = undefined;
+    this.processSandboxStatus = undefined;
+
+    const fail = (error: unknown): never => {
+      if (revision === this.sandboxRevision) {
+        this.sandboxError = new SandboxExecutionError(
+          'sandbox.unavailable',
+          `Sandbox activation failed: ${error instanceof Error ? error.message : String(error)}`,
+          error,
+        );
+        this.sandboxPending = false;
+      }
+      throw revision === this.sandboxRevision ? this.sandboxError : error;
+    };
+    // Lexical needs no asynchronous probe. Preserve synchronous standalone startup.
+    if (desired === 'lexical') {
+      try {
+        applyProcessSandboxToKaos(kaos, undefined);
+        this.processSandboxStatus = { desired, effective: 'lexical' };
+        this.sandboxPending = false;
+        this.sandboxRefresh = Promise.resolve();
+      } catch (error) {
+        this.sandboxRefresh = Promise.resolve().then(() => fail(error));
+      }
+    } else {
+      const options = {
         desired,
-        profile: this.sandboxProfile ?? 'off',
+        profile,
         noProcess: isNoProcessSandbox(),
         workspaceDir: this.config.cwd,
         additionalDirs: this.additionalDirs,
-      });
-      this.processSandboxStatus = resolved.status;
-      if (resolved.coercedProfile !== undefined) this.sandboxProfile = resolved.coercedProfile;
-      applyProcessSandboxToKaos(this._kaos, resolved.config);
-    } catch (error) {
-      this.processSandboxStatus = { desired, effective: 'lexical', warning: error instanceof Error ? error.message : String(error) };
-      applyProcessSandboxToKaos(this._kaos, undefined);
+      };
+      this.sandboxRefresh = resolveProcessSandboxRuntime(options).then((resolved) => {
+        // An old Docker probe must never overwrite a newer policy or host.
+        if (revision !== this.sandboxRevision) return;
+        if (resolved.status.effective !== 'process' || resolved.config === undefined) {
+          throw new Error(resolved.status.warning ?? 'Requested process sandbox is unavailable.');
+        }
+        applyProcessSandboxToKaos(kaos, resolved.config);
+        if (resolved.coercedProfile !== undefined && this.sandboxProfile !== resolved.coercedProfile) {
+          this.sandboxProfile = resolved.coercedProfile;
+        }
+        this.tools.initializeBuiltinTools();
+        this.processSandboxStatus = resolved.status;
+        this.sandboxPending = false;
+      }).catch(fail);
     }
+    // Observe startup and legacy void call sites without converting failure to success.
+    void this.sandboxRefresh.catch(() => undefined);
+    return this.sandboxRefresh;
   }
 
   get generate(): typeof generate {
@@ -254,7 +459,9 @@ export class Agent {
   }
 
   async resume(options?: AgentRecordsReplayOptions): Promise<{ warning?: string }> {
+    await this.ensureSandboxReady();
     const result = await this.records.replay(options);
+    await this.ensureSandboxReady();
     this.replayBuilder.postRestoring = true;
     try {
       await this.background.loadFromDisk();

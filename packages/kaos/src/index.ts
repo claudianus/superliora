@@ -40,6 +40,7 @@ export {
   wrapLocalExecForProcessSandbox,
   type ProcessSandboxBackend,
   type ProcessSandboxConfig,
+  type ProcessSandboxResources,
   type ResolveProcessSandboxBackendResult,
 } from './process-sandbox';
 export {

@@ -203,13 +203,13 @@ export class LocalKaos implements Kaos {
   readonly osEnv: Environment;
   private _cwd: string;
   private readonly _envLayers: readonly Record<string, string>[];
-  private _processSandbox: ProcessSandboxConfig | undefined;
+  private readonly _processSandboxState: { config: ProcessSandboxConfig | undefined };
 
   private constructor(
     osEnv: Environment,
     cwd?: string,
     envLayers: readonly Record<string, string>[] = [],
-    processSandbox?: ProcessSandboxConfig,
+    processSandboxState: { config: ProcessSandboxConfig | undefined } = { config: undefined },
   ) {
     // After construction we never touch `process.cwd()` / `process.chdir()`
     // — all path resolution goes through `this._cwd`. The default seeds
@@ -218,7 +218,7 @@ export class LocalKaos implements Kaos {
     this._cwd = normalize(cwd ?? process.cwd());
     this.osEnv = osEnv;
     this._envLayers = envLayers;
-    this._processSandbox = processSandbox;
+    this._processSandboxState = processSandboxState;
   }
 
   /**
@@ -236,15 +236,19 @@ export class LocalKaos implements Kaos {
   }
 
   withCwd(cwd: string): LocalKaos {
-    return new LocalKaos(this.osEnv, cwd, this._envLayers, this._processSandbox);
+    return new LocalKaos(this.osEnv, cwd, this._envLayers, this._processSandboxState);
   }
 
   withEnv(env: Record<string, string>): LocalKaos {
-    return new LocalKaos(this.osEnv, this._cwd, [...this._envLayers, env], this._processSandbox);
+    return new LocalKaos(this.osEnv, this._cwd, [...this._envLayers, env], this._processSandboxState);
   }
 
   setProcessSandbox(config: ProcessSandboxConfig | undefined): void {
-    this._processSandbox = config;
+    this._processSandboxState.config = config === undefined ? undefined : {
+      ...config,
+      additionalDirs: config.additionalDirs === undefined ? undefined : [...config.additionalDirs],
+      resources: config.resources === undefined ? undefined : { ...config.resources },
+    };
   }
 
   private _resolvePath(path: string): string {
@@ -864,29 +868,13 @@ export class LocalKaos implements Kaos {
       file: mapped.file,
       args: [...mapped.prefixArgs, ...restArgs],
       cwd: this._cwd,
-      config: this._processSandbox,
+      config: this._processSandboxState.config,
     });
     const spawnOpts = buildLocalSpawnOptions(isWindows, this._cwd, this._buildExecEnv(extraEnv));
-    try {
-      const child = spawn(wrapped.file, wrapped.args, spawnOpts);
-      await waitForSpawn(child);
-      if (child.pid !== undefined) wrapped.afterSpawn?.(child.pid);
-      return new LocalProcess(child);
-    } catch (error) {
-      if (this._processSandbox?.backend !== 'docker') throw error;
-      // Fail-open is deliberate for the host CLI, but it must never be
-      // silent: report that this command ran without the requested
-      // confinement so operators can tell the sandbox was bypassed.
-      process.emitWarning(
-        `docker process sandbox spawn failed (${
-          error instanceof Error ? error.message : String(error)
-        }); executing ${JSON.stringify(mapped.file)} on the host without confinement`,
-        'SuperLioraSandboxFallback',
-      );
-      const fallback = spawn(mapped.file, [...mapped.prefixArgs, ...restArgs], spawnOpts);
-      await waitForSpawn(fallback);
-      return new LocalProcess(fallback);
-    }
+    const child = spawn(wrapped.file, wrapped.args, spawnOpts);
+    await waitForSpawn(child);
+    if (child.pid !== undefined) wrapped.afterSpawn?.(child.pid);
+    return new LocalProcess(child);
   }
 
   async exec(...args: string[]): Promise<KaosProcess> {

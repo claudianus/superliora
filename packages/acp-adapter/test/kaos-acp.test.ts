@@ -16,7 +16,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import { RequestError } from '@agentclientprotocol/sdk';
 import { KaosError, type Environment, type Kaos, type KaosProcess, type StatResult } from '@superliora/kaos';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AcpKaos } from '../src/kaos-acp';
 
@@ -572,6 +572,36 @@ describe('AcpKaos', () => {
 
       expect(inner.__spy.execCalls).toEqual([['ls', '-la']]);
       expect(inner.__spy.execWithEnvCalls).toEqual([{ args: ['env'], env: { FOO: 'bar' } }]);
+    });
+  });
+
+  describe('process sandbox forwarding', () => {
+    it('rejects confinement on an unsupported inner host instead of silently ignoring it', () => {
+      const inner = makeMockInner();
+      const kaos = new AcpKaos(makeMockConn({}).asConn(), 's1', inner);
+      expect(() => { kaos.setProcessSandbox({ backend: 'docker', workspaceDir: '/workspace' }); })
+        .toThrow(/cannot apply confinement/);
+      expect(() => { kaos.setProcessSandbox(undefined); }).not.toThrow();
+      expect(inner.__spy.execCalls).toEqual([]);
+    });
+
+    it('rejects confinement for ACP client terminals even with a capable inner host', () => {
+      const setProcessSandbox = vi.fn();
+      const inner = Object.assign(makeMockInner(), { setProcessSandbox });
+      const kaos = new AcpKaos(makeMockConn({}).asConn(), 's1', inner, { terminal: true });
+      expect(() => { kaos.setProcessSandbox({ backend: 'docker', workspaceDir: '/workspace' }); })
+        .toThrow(/ACP client terminals cannot apply confinement/);
+      expect(setProcessSandbox).not.toHaveBeenCalled();
+    });
+
+    it('forwards both activation and explicit reset to a capable inner host', () => {
+      const setProcessSandbox = vi.fn();
+      const inner = Object.assign(makeMockInner(), { setProcessSandbox });
+      const kaos = new AcpKaos(makeMockConn({}).asConn(), 's1', inner);
+      const config = { backend: 'docker', workspaceDir: '/workspace' };
+      kaos.setProcessSandbox(config);
+      kaos.setProcessSandbox(undefined);
+      expect(setProcessSandbox.mock.calls).toEqual([[config], [undefined]]);
     });
   });
 

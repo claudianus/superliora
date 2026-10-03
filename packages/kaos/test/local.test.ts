@@ -30,6 +30,34 @@ describe('LocalKaos', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
+  describe('Docker failure isolation', () => {
+    it('applies sandbox updates to existing cwd/env views rather than executing stale host configuration', async () => {
+      const view = kaos.withCwd(tempDir).withEnv({ TEST_SANDBOX_VIEW: '1' });
+      const marker = join(tempDir, 'stale-host-command-ran');
+      kaos.setProcessSandbox({ backend: 'docker', workspaceDir: tempDir, dockerBin: join(tempDir, 'missing-docker') });
+      await expect(view.exec(...nodeArgs(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'unsafe')`)))
+        .rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('rejects a Docker spawn failure without running the host command', async () => {
+      const marker = join(tempDir, 'host-command-ran');
+      kaos.setProcessSandbox({ backend: 'docker', workspaceDir: tempDir, dockerBin: join(tempDir, 'missing-docker') });
+      await expect(kaos.exec(...nodeArgs(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'unsafe')`)))
+        .rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('preserves a Docker command failure without running the host command', async () => {
+      const marker = join(tempDir, 'host-command-ran');
+      // Node cannot interpret Docker's run arguments; it stands in for a failing Docker client.
+      kaos.setProcessSandbox({ backend: 'docker', workspaceDir: tempDir, dockerBin: process.execPath });
+      const child = await kaos.exec(...nodeArgs(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'unsafe')`));
+      await expect(child.wait()).resolves.not.toBe(0);
+      await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+  });
+
   describe('pathClass, gethome, getcwd', () => {
     it('should return posix or win32 pathClass', () => {
       const cls = kaos.pathClass();
