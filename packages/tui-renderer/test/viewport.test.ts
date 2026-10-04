@@ -1498,3 +1498,84 @@ function rowText(buffer: RendererCellBuffer, y: number): string {
   return Array.from({ length: buffer.width }, (_, x) => buffer.getCell(x, y).char).join('');
 }
 
+
+
+describe('transcript structural viewport transitions', () => {
+  it('does no hidden work at height zero and resumes the cold window', () => {
+    const viewport = new RendererTranscriptViewport();
+    let calls = 0;
+    const component = new RendererTranscriptViewportComponent({
+      viewport, getVisibleRows: () => 0, scrollbar: false,
+    });
+    component.addChild({
+      invalidate() {},
+      render: () => { calls += 1; return ['first', 'second']; },
+    });
+    expect(component.renderWithVisibleRows(20, 0)).toEqual([]);
+    expect(calls).toBe(0);
+    expect(component.needsMaterializeContinue).toBe(false);
+    expect(component.renderWithVisibleRows(20, 2)).toEqual(['first', 'second']);
+    expect(viewport.lastContentRows).toBe(2);
+  });
+
+  it('keeps unequal child heights aligned after removal before cheap scroll', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport, getVisibleRows: () => 2, scrollbar: false,
+    });
+    const removed = new Text('a\nb\nc\nd', 0, 0);
+    const retained = new Text('last', 0, 0);
+    component.addChild(removed);
+    component.addChild(retained);
+    component.render(20);
+    component.removeChild(removed);
+    withTranscriptCheapPaintMode(() => {
+      expect(component.contentRowCount(20)).toBe(1);
+      expect(component.childRowRangeAt(20, 0)?.child).toBe(retained);
+      expect(component.childRowRangeAt(20, 1)).toBeUndefined();
+    });
+    expect(component.render(20).map((line) => line.trimEnd())).toEqual(['last']);
+  });
+
+  it('keeps continuation pending when removal leaves provisional survivors', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport, getVisibleRows: () => 2, scrollbar: false,
+    });
+    const removed = new Text('gone', 0, 0);
+    component.addChild(removed);
+    component.addChild(new Text('kept', 0, 0));
+    component.render(20);
+    component.addChild(new Text('a\nb\nc', 0, 0));
+    // oxlint-disable-next-line unicorn/prefer-dom-node-remove
+    component.removeChild(removed);
+    expect(component.needsMaterializeContinue).toBe(true);
+    withTranscriptCheapPaintMode(() => {
+      expect(component.contentRowCount(20)).toBe(2);
+    });
+    expect(component.needsMaterializeContinue).toBe(true);
+    component.render(20);
+    expect(component.contentRowCount(20)).toBe(4);
+    expect(component.needsMaterializeContinue).toBe(false);
+  });
+
+  it('clears retained paint and pending work before mounting a new cold transcript', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport, getVisibleRows: () => 2, scrollbar: false,
+    });
+    component.addChild(new Text('old\nold\nold', 0, 0));
+    component.render(20);
+    // A post-render append leaves a provisional slot awaiting a content frame.
+    component.addChild(new Text('pending', 0, 0));
+    expect(component.needsMaterializeContinue).toBe(true);
+    component.clear();
+    expect(component.overflowRetainedRawLineCount).toBe(0);
+    expect(component.overflowFilledSparseLineCount).toBe(0);
+    expect(component.needsMaterializeContinue).toBe(false);
+    expect(viewport.lastContentRows).toBe(0);
+    expect(component.render(20)).toEqual([]);
+    component.addChild(new Text('new', 0, 0));
+    expect(component.render(20).map((line) => line.trimEnd())).toEqual(['new']);
+  });
+});

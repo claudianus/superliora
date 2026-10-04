@@ -273,3 +273,14 @@ export {
   redactSecretsStatusLine,
 } from './security/status';
 
+
+export * from './session/coordinator';
+
+export * from './session/execution/verification';
+
+export * from './session/execution/pipeline';
+export type { WorkerAncestry } from '@superliora/protocol';
+export { projectIndependentSessionActivity } from './session/independent-activity';
+
+export { applySandboxPolicyToAgents, sandboxPolicyAtLeast } from './session/sandbox-policy-update';
+export type { SandboxPolicyUpdate } from './session/sandbox-policy-update';

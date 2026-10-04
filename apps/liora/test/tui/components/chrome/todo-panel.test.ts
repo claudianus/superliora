@@ -102,8 +102,10 @@ describe('TodoPanelComponent', () => {
     panel.setTodos([todo('wip', 'in_progress'), todo('p1', 'pending')]);
     const held = panel.render(WIDTH);
     expect(held.length).toBe(tallHeight);
-    // Held rows are padded with empty cells rather than real cards.
-    expect(stripAnsi(held.join('\n'))).toContain('No cards');
+    // Only the empty DONE lane gets a label, not filler below real cards.
+    const heldText = stripAnsi(held.join('\n'));
+    expect(heldText.split('No cards').length - 1).toBe(1);
+    expect(heldText).not.toContain('p2');
 
     // Once the hold window elapses the board may shrink.
     advanceAppearanceAnimationClock(200_100 + 1_500);

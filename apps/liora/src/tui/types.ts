@@ -319,6 +319,8 @@ export interface TUIStartupOptions {
 export type TUIStartupState = 'pending' | 'ready' | 'picker';
 
 export interface LioraTUIOptions {
+  /** Interactive conductor opt-in; worker/embedded hosts keep foreground semantics. */
+  readonly sessionRole?: 'worker' | 'interactive-conductor';
   initialAppState: AppState;
   startup: TUIStartupOptions;
   renderer?: TerminalRenderer;
@@ -337,6 +339,7 @@ export interface LoginProgressSpinnerHandle {
 }
 
 export interface LioraTUIStartupInput {
+  readonly sessionRole?: 'worker' | 'interactive-conductor';
   readonly cliOptions: import('#/cli/options').CLIOptions;
   readonly additionalDirs?: readonly string[];
   readonly tuiConfig: import('./config').TuiConfig;

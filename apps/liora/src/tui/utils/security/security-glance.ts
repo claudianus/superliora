@@ -1,6 +1,6 @@
 /**
  * Security settings glance — inventory + path-sandbox copy for SSOT §9.2.
- * Bash path-token guard, not OS isolation.
+ * Lexical Bash path guards or native Bash execution confinement; not a whole-host sandbox.
  */
 
 import type { PermissionMode } from '@superliora/sdk';
@@ -28,15 +28,15 @@ export interface SecurityGlanceInput {
 
 const SANDBOX_PROFILE_TIPS: Readonly<Record<SecuritySandboxProfile, string>> = {
   workspace:
-    'Bash execution stays inside workspace roots (+ /add-dir); absolute paths outside are denied.',
-  'read-only': 'Bash writes are blocked; reads follow workspace root rules.',
+    'Lexical Bash path tokens outside workspace roots (+ /add-dir) are denied; this is not execution isolation.',
+  'read-only': 'Lexical Bash write checks apply; read paths follow workspace root rules (not OS isolation).',
   off: 'Default — absolute paths outside roots are allowed (sensitive paths still blocked).',
 };
 
 const SANDBOX_ENFORCEMENT_TIPS: Readonly<Record<SecuritySandboxEnforcement, string>> = {
   lexical: 'Bash path tokens only (default).',
   process:
-    'Docker filesystem jail when present; otherwise Windows Job Object tree (not an FS jail). Missing backend degrades to lexical.',
+    'Native Bash execution requires Docker; unavailable isolation blocks execution. No host fallback.',
 };
 
 /**
@@ -44,7 +44,7 @@ const SANDBOX_ENFORCEMENT_TIPS: Readonly<Record<SecuritySandboxEnforcement, stri
  * Lexical Bash token guard; not OS isolation.
  */
 export const SECURITY_SANDBOX_TIP =
-  'Path sandbox (not OS isolation): off | workspace | read-only. workspace denies Bash path tokens outside roots; read-only blocks writes; off allows absolute outside paths. Optional process enforcement: Docker when present; Job Object is not an FS jail. Settings → Security · --sandbox · --sandbox-enforcement · /add-dir for extra roots.';
+  'Lexical path sandbox (not OS isolation): off | workspace | read-only. workspace checks Bash path tokens against roots; read-only applies write checks; off allows absolute outside paths. Process enforcement confines native Bash execution only: Docker required, no host fallback. The host application, plugins, and raw Kaos remain trusted; this is not a whole-filesystem or all-tool sandbox. Settings → Security · --sandbox · --sandbox-enforcement · /add-dir for extra roots.';
 
 /** Compact secrets/redaction tip — agent-core SSOT. */
 export const SECURITY_REDACTION_TIP =
@@ -53,7 +53,7 @@ export const SECURITY_REDACTION_TIP =
 
 /** One-line OS-isolation disclaimer for picker footer / glance. */
 export const SECURITY_NOT_OS_SANDBOX =
-  'Not an OS sandbox — lexical Bash path-token guard. Network egress stays out of scope.';
+  'Not an OS sandbox in lexical mode — Bash path-token checks only. Process mode confines native Bash execution only. Host application, plugins, and raw Kaos remain trusted; other tools and host network egress are outside this boundary.';
 
 export function formatPermissionModeLine(
   mode: PermissionMode,
@@ -108,7 +108,7 @@ export function formatWorkspaceSandboxLines(
   lines.push(
     'Change: Settings → Security · config.toml sandboxProfile / sandboxEnforcement · local.toml workspace.sandbox_profile / sandbox_enforcement · --sandbox · --sandbox-enforcement · SUPERLIORA_SANDBOX · SUPERLIORA_SANDBOX_ENFORCEMENT.',
   );
-  lines.push('Extra roots: /add-dir · default is off (vibe-coding friendly). Skip process wrap: --no-process-sandbox.');
+  lines.push('Extra roots: /add-dir · default is off (vibe-coding friendly). --no-process-sandbox conflicts with process enforcement.');
   return lines;
 }
 

@@ -1,3 +1,4 @@
+import type { WorkerAncestry } from '@superliora/protocol';
 import type { PermissionMode } from '#/agent/permission';
 import type { LioraConfig, LioraConfigPatch } from '#/config';
 import type { ResumeSessionResult } from '#/rpc/resumed';
@@ -9,7 +10,7 @@ export type { LioraConfig, LioraConfigPatch };
 
 export type EmptyPayload = {};
 
-export type SessionMetadataPatch = Partial<Omit<SessionMeta, 'agents'>>;
+export type SessionMetadataPatch = Partial<Omit<SessionMeta, 'agents' | 'workerAncestry'>>;
 
 export interface ClientTelemetryInfo {
   readonly id?: string | undefined;
@@ -19,6 +20,8 @@ export interface ClientTelemetryInfo {
 }
 
 export interface CreateSessionPayload {
+  readonly workerAncestry?: WorkerAncestry;
+  readonly role?: 'worker' | 'interactive-conductor';
   readonly id?: string | undefined;
   readonly workDir: string;
   readonly model?: string | undefined;
@@ -38,6 +41,8 @@ export interface ArchiveSessionPayload {
 }
 
 export interface ResumeSessionPayload {
+  readonly workerAncestry?: WorkerAncestry;
+  readonly role?: 'worker' | 'interactive-conductor';
   readonly sessionId: string;
   readonly additionalDirs?: readonly string[];
 }

@@ -89,12 +89,15 @@ export {
   classifyProviderRouteFailure,
 } from './provider-route-classify';
 
+type HostRequestContext = ReturnType<NonNullable<KosongLLMConfig['requestContext']>>;
+
 export class KosongLLM implements LLM {
   readonly systemPrompt: string;
   readonly layeredSystemPrompt: LayeredSystemPrompt | undefined;
   readonly modelName: string;
   readonly capability?: ModelCapability | undefined;
 
+  private readonly requestContext: KosongLLMConfig['requestContext'];
   private readonly provider: ChatProvider;
   private readonly generate: GenerateFn;
   private readonly completionBudgetConfig: CompletionBudgetConfig | undefined;
@@ -106,6 +109,7 @@ export class KosongLLM implements LLM {
   private readonly log: Logger | undefined;
 
   constructor(config: KosongLLMConfig) {
+    this.requestContext = config.requestContext;
     this.provider = config.provider;
     this.modelName = config.provider.modelName;
     this.systemPrompt = config.systemPrompt;
@@ -122,20 +126,23 @@ export class KosongLLM implements LLM {
   }
 
   async chat(params: LLMChatParams): Promise<LLMChatResponse> {
+    // One host projection per request: route failover replays the same view.
+    const hostContext = this.requestContext?.();
     const route = this.route;
     if (route !== undefined && route.candidates.length > 0) {
-      return this.chatWithRoute(params, route);
+      return this.chatWithRoute(params, route, hostContext);
     }
     return this.chatWithCandidate(params, {
       provider: this.provider,
       capability: this.capability,
       completionBudgetConfig: this.completionBudgetConfig,
-    });
+    }, undefined, hostContext);
   }
 
   private async chatWithRoute(
     params: LLMChatParams,
     route: KosongLLMRoute,
+    hostContext: HostRequestContext,
   ): Promise<LLMChatResponse> {
     // A cancelled turn is not a provider failure. Fail fast before the
     // unavailable check could masquerade the cancellation as a rate limit.
@@ -164,7 +171,7 @@ export class KosongLLM implements LLM {
       const attemptStartedAt = Date.now();
       try {
         const startedAt = Date.now();
-        const response = await this.chatWithCandidate(params, candidate, attempt);
+        const response = await this.chatWithCandidate(params, candidate, attempt, hostContext);
         const latencyMs = Math.max(0, Date.now() - startedAt);
         const successChanged =
           this.routeState?.recordSuccess(route, candidate, {
@@ -314,7 +321,8 @@ export class KosongLLM implements LLM {
       readonly capability?: ModelCapability | undefined;
       readonly completionBudgetConfig?: CompletionBudgetConfig | undefined;
     },
-    attempt?: { sawStreamOutput: boolean } | undefined,
+    attempt: { sawStreamOutput: boolean } | undefined,
+    hostContext: HostRequestContext,
   ): Promise<LLMChatResponse> {
     let requestStartedAt = Date.now();
     let requestSentAt: number | undefined;
@@ -358,9 +366,26 @@ export class KosongLLM implements LLM {
       layeredSystemPrompt: this.layeredSystemPrompt,
     };
 
+    const systemPrompt = hostContext === undefined ? this.systemPrompt : `${hostContext.prefix}
+${this.systemPrompt}
+${hostContext.dynamic}`;
+    if (hostContext !== undefined && options.layeredSystemPrompt !== undefined) {
+      const layered = options.layeredSystemPrompt;
+      const role = layered.roleAdditional?.trim() ?? '';
+      options.layeredSystemPrompt = {
+        ...layered,
+        layer1Static: `${hostContext.prefix}
+${layered.layer1Static}`,
+        // Volatile host state rides the trailing uncached block so a snapshot
+        // change never invalidates the cache-controlled system prefix.
+        roleAdditional: role.length === 0 ? hostContext.dynamic : `${layered.roleAdditional}
+${hostContext.dynamic}`,
+      };
+    }
+
     const result = await this.generate(
       effectiveProvider,
-      this.systemPrompt,
+      systemPrompt,
       [...params.tools],
       params.messages,
       callbacks,

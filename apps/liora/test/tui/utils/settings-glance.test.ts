@@ -644,10 +644,12 @@ describe('security-glance', () => {
       expect(lines.some((l) => l.includes('Sandbox profile: read-only'))).toBe(true);
       expect(lines.some((l) => l.includes('/add-dir'))).toBe(true);
       expect(lines.some((l) => l.includes('Not an OS sandbox'))).toBe(true);
-      expect(formatSandboxProfileLine('workspace')).toMatch(/Bash execution stays inside workspace roots/);
-      expect(formatSandboxProfileLine('workspace')).toMatch(/absolute paths outside are denied/);
+      expect(formatSandboxProfileLine('workspace')).toMatch(/Lexical Bash path tokens outside workspace roots/);
+      expect(formatSandboxProfileLine('workspace')).toMatch(/not execution isolation/);
       expect(formatSandboxProfileLine(undefined)).toContain('off');
-      expect(formatSandboxEnforcementLine('process')).toMatch(/Job Object/);
+      expect(formatSandboxEnforcementLine('process')).toContain('Native Bash execution requires Docker');
+      expect(formatSandboxEnforcementLine('process')).toContain('No host fallback');
+      expect(formatSandboxEnforcementLine('process')).not.toMatch(/Job Object|degrades to lexical/);
       expect(formatSandboxEnforcementLine('process', 'Docker Desktop not found')).toContain(
         'Docker Desktop not found',
       );
@@ -668,7 +670,9 @@ describe('security-glance', () => {
       expect(SECURITY_SANDBOX_TIP).toContain('not OS isolation');
       expect(SECURITY_SANDBOX_TIP).toContain('--sandbox');
       expect(SECURITY_SANDBOX_TIP).toContain('read-only');
-      expect(SECURITY_SANDBOX_TIP).toMatch(/Bash/);
+      expect(SECURITY_SANDBOX_TIP).toContain('native Bash execution only');
+      expect(SECURITY_SANDBOX_TIP).toContain('Docker required, no host fallback');
+      expect(SECURITY_SANDBOX_TIP).toContain('not a whole-filesystem or all-tool sandbox');
       expect(SECURITY_NOT_OS_SANDBOX).toContain('Not an OS sandbox');
       expect(SECURITY_REDACTION_TIP).toContain('redactSecretsInText');
     });
@@ -679,7 +683,7 @@ describe('security-glance', () => {
         permissionFromSession: 'auto',
         sandboxProfile: 'workspace',
         sandboxEnforcement: 'process',
-        processSandboxWarning: 'Docker Desktop not found — using a Windows Job Object.',
+        processSandboxWarning: 'Docker unavailable — native Bash execution blocked.',
         workDir: '/workspace/demo',
         additionalDirs: [],
         network: loadNetworkGlance({}),
@@ -689,7 +693,9 @@ describe('security-glance', () => {
       expect(text).toContain('live session confirms');
       expect(text).toContain('Sandbox profile: workspace');
       expect(text).toContain('Sandbox enforcement: process');
-      expect(text).toContain('Job Object');
+      expect(text).toContain('native Bash execution blocked');
+      expect(text).toContain('Host application, plugins, and raw Kaos remain trusted');
+      expect(text).not.toContain('Job Object');
       expect(text).toContain('Not an OS sandbox');
       expect(text).toContain('Network egress');
       expect(text).toContain('/workspace/demo');

@@ -1291,6 +1291,12 @@ describe('security-settings', () => {
         expect(host._setSandboxProfile).toHaveBeenCalledWith('workspace');
         expect(host._setSandboxEnforcement).toHaveBeenCalledWith('process');
       });
+      await vi.waitFor(() => {
+        const status = String((host.showStatus as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] ?? '');
+        expect(status).toContain('Native Bash requires Docker; no host fallback');
+        expect(status).toContain('Host application, plugins, and raw Kaos remain trusted');
+        expect(status).not.toContain('Job Object');
+      });
     });
 
     it('mounts security panel for status action with workspace profile', async () => {

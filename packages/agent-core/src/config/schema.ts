@@ -218,7 +218,7 @@ export const LioraConfigSchema = z.object({
   sandboxProfile: SandboxProfileSchema.optional(),
   /**
    * How hard to enforce the path sandbox: lexical (default) or process
-   * (Docker when present; otherwise Windows Job Object tree — not an FS jail).
+   * (Docker required; unavailable confinement blocks execution without host fallback).
    */
   sandboxEnforcement: SandboxEnforcementSchema.optional(),
   permission: PermissionConfigSchema.optional(),

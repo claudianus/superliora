@@ -4,8 +4,10 @@ import {
   LioraError,
   withTelemetryContext,
   type RuntimeDegradedEvent,
+  type SessionTrace,
 } from '@superliora/agent-core';
 
+import type { QuestionHandler } from '#/session/events';
 import { Session } from '#/session/session';
 import type { LioraAuthFacade } from '#/auth';
 import type { SDKRpcClientBase } from '#/rpc/rpc';
@@ -17,6 +19,9 @@ import type {
   ExportSessionResult,
   ForkSessionInput,
   GetConfigOptions,
+  IndependentSessionActivity,
+  IndependentSessionFact,
+  Unsubscribe,
   LioraConfig,
   LioraConfigPatch,
   KimiHostIdentity,
@@ -39,6 +44,10 @@ export interface LioraHarnessRuntimeOptions {
   readonly telemetry: TelemetryClient;
   readonly ensureConfigFile: () => Promise<void>;
   readonly onClose: () => void | Promise<void>;
+  readonly beforeClose?: () => void | Promise<void>;
+  readonly subscribeIndependentSessionActivity?: (sessionId: string, listener: (activity: IndependentSessionActivity) => void) => Unsubscribe;
+  readonly setIndependentSessionQuestionHandler?: (sessionId: string, handler: QuestionHandler | undefined) => void;
+  readonly getIndependentSessionRecord?: (sessionId: string, independentId: string) => IndependentSessionFact | undefined;
   readonly sessionStartedProperties?: TelemetryProperties;
 }
 
@@ -53,6 +62,11 @@ export class LioraHarness {
   private readonly activeSessions = new Map<string, Session>();
   private readonly ensureConfigFileImpl: () => Promise<void>;
   private readonly closeImpl: () => void | Promise<void>;
+  private readonly subscribeIndependentSessionActivity: LioraHarnessRuntimeOptions['subscribeIndependentSessionActivity'];
+  private readonly setIndependentQuestionHandler: LioraHarnessRuntimeOptions['setIndependentSessionQuestionHandler'];
+  private readonly getIndependentSessionRecord: LioraHarnessRuntimeOptions['getIndependentSessionRecord'];
+  private readonly activitySubscriptions = new Set<Unsubscribe>();
+  private readonly beforeCloseImpl: (() => void | Promise<void>) | undefined;
   private readonly sessionStartedProperties: TelemetryProperties;
 
   constructor(
@@ -67,6 +81,10 @@ export class LioraHarness {
     this.auth = options.auth;
     this.ensureConfigFileImpl = options.ensureConfigFile;
     this.closeImpl = options.onClose;
+    this.beforeCloseImpl = options.beforeClose;
+    this.subscribeIndependentSessionActivity = options.subscribeIndependentSessionActivity;
+    this.getIndependentSessionRecord = options.getIndependentSessionRecord;
+    this.setIndependentQuestionHandler = options.setIndependentSessionQuestionHandler;
     this.sessionStartedProperties = options.sessionStartedProperties ?? {};
   }
 
@@ -113,6 +131,33 @@ export class LioraHarness {
     }
   }
 
+  setIndependentSessionQuestionHandler(sessionId: string, handler: QuestionHandler | undefined): void {
+    this.setIndependentQuestionHandler?.(sessionId, handler);
+  }
+
+  onIndependentSessionActivity(sessionId: string, listener: (activity: IndependentSessionActivity) => void): Unsubscribe {
+    const unsubscribe = this.subscribeIndependentSessionActivity?.(sessionId, listener) ?? (() => {});
+    const dispose = (): void => {
+      this.activitySubscriptions.delete(dispose);
+      unsubscribe();
+    };
+    this.activitySubscriptions.add(dispose);
+    return dispose;
+  }
+
+  async getIndependentSessionTrace(sessionId: string, independentId: string, agentId = 'main'): Promise<SessionTrace> {
+    const record = this.getIndependentSessionRecord?.(sessionId, independentId);
+    if (record?.sessionId === undefined) throw new Error('Independent session has not been admitted');
+    const active = this.activeSessions.get(record.sessionId);
+    const worker = active ?? await this.resumeSession({ id: record.sessionId, role: 'worker' });
+    try {
+      return await this.withInteractiveAgent(agentId, () => worker.getSessionTrace());
+    } finally {
+      // Reading a live worker must not cancel it; only release a replay handle.
+      if (active === undefined) await worker.close();
+    }
+  }
+
   async createSession(options: CreateSessionOptions): Promise<Session> {
     const { kaos, persistenceKaos, sessionStartedProperties, ...coreOptions } = options;
     const summary =
@@ -139,8 +184,10 @@ export class LioraHarness {
     const active = this.activeSessions.get(id);
     const { kaos, persistenceKaos, sessionStartedProperties, ...resumeInput } = input;
     if (active !== undefined) {
-      if (kaos !== undefined || persistenceKaos !== undefined) {
-        const summary = await this.rpc.resumeSessionWithKaos({ ...resumeInput, id }, kaos ?? persistenceKaos as Kaos, persistenceKaos);
+      if (input.workerAncestry !== undefined || input.role !== undefined || kaos !== undefined || persistenceKaos !== undefined) {
+        const summary = kaos === undefined && persistenceKaos === undefined
+          ? await this.rpc.resumeSession({ ...resumeInput, id })
+          : await this.rpc.resumeSessionWithKaos({ ...resumeInput, id }, kaos ?? persistenceKaos as Kaos, persistenceKaos);
         // Reflect the refreshed summary so callers see updated state (e.g.
         // additionalDirs, metadata) after a kaos-backed resume.
         active.updateSummary(summary);
@@ -271,6 +318,11 @@ export class LioraHarness {
   }
 
   async close(): Promise<void> {
+    // Stop detached admissions/executions before closing their session handles.
+    // A failed hook must not leak sessions or the RPC: finish cleanup, then rethrow it.
+    let beforeCloseFailure: { error: unknown } | undefined;
+    try { await this.beforeCloseImpl?.(); } catch (error) { beforeCloseFailure = { error }; }
+    for (const dispose of this.activitySubscriptions) dispose();
     // Use allSettled so one session's close failure does not prevent the
     // remaining sessions from shutting down. Snapshot the array first because
     // each session.close() mutates activeSessions via the onClose callback.
@@ -278,6 +330,7 @@ export class LioraHarness {
     const results = await Promise.allSettled(sessions.map((session) => session.close()));
     const firstRejection = results.find((r) => r.status === 'rejected');
     await this.closeImpl();
+    if (beforeCloseFailure !== undefined) throw beforeCloseFailure.error;
     if (firstRejection !== undefined && firstRejection.status === 'rejected') {
       throw firstRejection.reason;
     }

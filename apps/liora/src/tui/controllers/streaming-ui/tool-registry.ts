@@ -1,3 +1,5 @@
+import { Utf8PrefixBuffer } from '@superliora/sdk';
+import { STREAMING_ARGS_PREVIEW_MAX_BYTES } from '#/tui/constant/streaming';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../../utils/event-payload';
 import type { LivePaneState, ToolCallBlockData, ToolResultBlockData } from '../../types';
 import type { ToolCallComponent } from '../../components/messages/tool-call/index';
@@ -12,7 +14,7 @@ export interface StreamingUIToolRegistryState {
   readonly pendingToolComponents: Map<string, ToolCallComponent>;
   readonly streamingToolCallArguments: Map<
     string,
-    { name?: string; argumentsText: string; startedAtMs: number }
+    { name?: string; argumentsText: string; startedAtMs: number; buffer?: Utf8PrefixBuffer }
   >;
   finalizeLiveTextBuffers(nextMode?: LivePaneState['mode']): void;
   onToolCallStart(toolCall: ToolCallBlockData): void;
@@ -46,10 +48,12 @@ export function accumulateStreamingToolCallDelta(
   argumentsPart: string | null | undefined,
 ): void {
   const existing = state.streamingToolCallArguments.get(id);
-  const argumentsText = appendStreamingArgsPreview(existing?.argumentsText, argumentsPart);
+  const buffer = existing?.buffer ?? new Utf8PrefixBuffer(STREAMING_ARGS_PREVIEW_MAX_BYTES);
+  if (existing?.buffer === undefined) buffer.append(existing?.argumentsText ?? '');
+  const argumentsText = appendStreamingArgsPreview(existing?.argumentsText, argumentsPart, buffer);
   const name = eventName ?? existing?.name ?? state.activeToolCalls.get(id)?.name ?? 'Tool';
   const startedAtMs = existing?.startedAtMs ?? Date.now();
-  state.streamingToolCallArguments.set(id, { name, argumentsText, startedAtMs });
+  state.streamingToolCallArguments.set(id, { name, argumentsText, startedAtMs, buffer });
   state.flushState.pendingToolCallFlushIds.add(id);
   state.flushState.dirtyMarksSinceFlush += 1;
 }
@@ -58,7 +62,7 @@ export function getStreamingToolCallPreviewState(
   state: StreamingUIToolRegistryState,
   id: string,
 ):
-  | { name: string; args: Record<string, unknown>; argumentsText: string; startedAtMs: number }
+  | { name: string; args: Record<string, unknown>; argumentsText: string; startedAtMs: number; buffer?: Utf8PrefixBuffer }
   | undefined {
   const streaming = state.streamingToolCallArguments.get(id);
   if (streaming === undefined) return undefined;

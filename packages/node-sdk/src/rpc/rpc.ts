@@ -15,7 +15,7 @@ import {
 
 import type { ApprovalHandler, CredentialHandler, QuestionHandler } from '#/session/events';
 import { buildSessionStatus } from '#/rpc/rpc-helpers';
-import { SdkEventBridge } from './rpc-event-bridge';
+import { SdkEventBridge, type QuestionAttention } from './rpc-event-bridge';
 import { SDKRpcClientBackgroundMixin } from './rpc-background-mixin';
 import type {
   AddAdditionalDirInput,
@@ -331,6 +331,10 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     return this.eventBridge.onEvent(listener);
   }
 
+  onQuestionAttention(listener: (change: QuestionAttention) => void): Unsubscribe {
+    return this.eventBridge.onQuestionAttention(listener);
+  }
+
   receiveEvent(event: Event): void {
     this.eventBridge.receiveEvent(event);
   }
@@ -360,8 +364,9 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
   async requestQuestion(
     request: QuestionRequest & { sessionId: string; agentId: string },
     options?: RPCCallOptions,
+    fallback?: QuestionHandler,
   ): Promise<QuestionResult> {
-    return this.eventBridge.requestQuestion(request, options);
+    return this.eventBridge.requestQuestion(request, options, fallback);
   }
 
   async requestCredential(

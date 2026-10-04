@@ -99,7 +99,7 @@ export class ConfigState {
 
   private applyCwd(cwd: string): void {
     this._cwd = cwd;
-    this.agent.setKaos(this.agent.kaos.withCwd(cwd));
+    void this.agent.setKaosCwd(cwd);
   }
 
   get cwd(): string {

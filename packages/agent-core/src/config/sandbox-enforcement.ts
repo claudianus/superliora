@@ -2,14 +2,14 @@
  * Optional process-sandbox enforcement (2nd axis).
  *
  * `sandboxProfile` is what is allowed. `sandboxEnforcement` is how hard:
- * lexical (default) vs process (Docker when present, else Windows Job Object
- * tree — not a filesystem jail).
+ * lexical (default, host execution) vs process (Docker required; fail closed).
  *
  * Priority (highest first):
  * CLI / SUPERLIORA_SANDBOX_ENFORCEMENT → local.toml workspace.sandbox_enforcement →
  * user config.toml sandboxEnforcement → session metadata.custom.sandboxEnforcement → lexical
  *
- * SUPERLIORA_NO_PROCESS_SANDBOX / --no-process-sandbox skip process mode.
+ * SUPERLIORA_NO_PROCESS_SANDBOX / --no-process-sandbox conflict with process mode.
+ * Select lexical explicitly to permit host execution; there is no automatic downgrade.
  */
 
 export type SandboxEnforcement = 'lexical' | 'process';
@@ -77,6 +77,9 @@ export function resolveSandboxEnforcementFromSources(
     if (trimmed.length === 0) return undefined;
     const parsed = parseSandboxEnforcement(trimmed);
     if (parsed !== undefined) {
+      if (parsed === 'process' && noProcess) {
+        throw new Error('Process sandbox conflicts with --no-process-sandbox / SUPERLIORA_NO_PROCESS_SANDBOX; explicitly select lexical enforcement for host execution.');
+      }
       return { enforcement: parsed, source, noProcess };
     }
     if (source === 'cli' || source === 'env') {

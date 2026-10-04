@@ -4,7 +4,7 @@ import {
   DEFAULT_SANDBOX_ENFORCEMENT,
   resolveSandboxEnforcementFromSources,
 } from '../../src/config/sandbox-enforcement';
-import { resolveProcessSandboxRuntime } from '../../src/tools/policies/process-sandbox-apply';
+import { applyProcessSandboxToKaos, resolveProcessSandboxRuntime } from '../../src/tools/policies/process-sandbox-apply';
 
 describe('sandbox enforcement resolve', () => {
   it('defaults to lexical', () => {
@@ -29,6 +29,22 @@ describe('sandbox enforcement resolve', () => {
         localToml: 'lexical',
       }).enforcement,
     ).toBe('process');
+  });
+
+  it.each([
+    { cli: 'process', noProcessCli: true },
+    { env: { SUPERLIORA_SANDBOX_ENFORCEMENT: 'process', SUPERLIORA_NO_PROCESS_SANDBOX: 'true' } },
+    { userConfig: 'process', noProcessCli: true },
+    { localToml: 'process', noProcessCli: true },
+    { sessionMetadata: 'process', noProcessCli: true },
+  ])('rejects process and noProcess conflicts from sources %j', sources => {
+    expect(() => resolveSandboxEnforcementFromSources(sources)).toThrow(/conflicts/);
+  });
+
+  it('permits an explicit lexical choice despite a lower-priority process setting', () => {
+    expect(resolveSandboxEnforcementFromSources({
+      cli: 'lexical', userConfig: 'process', noProcessCli: true,
+    })).toMatchObject({ enforcement: 'lexical', source: 'cli', noProcess: true });
   });
 
   it('ignores invalid env and falls through', () => {
@@ -70,33 +86,34 @@ describe('process sandbox runtime', () => {
     });
   });
 
-  it('degrades to lexical when docker is missing on linux', async () => {
-    const result = await resolveProcessSandboxRuntime({
-      desired: 'process',
-      profile: 'workspace',
-      workspaceDir: '/workspace',
-      platform: 'linux',
+  it.each(['linux', 'darwin', 'win32'] as const)('rejects missing confinement on %s', async platform => {
+    await expect(resolveProcessSandboxRuntime({
+      desired: 'process', profile: 'workspace', workspaceDir: '/workspace', platform,
       probeDocker: async () => false,
-    });
-    expect(result.status.effective).toBe('lexical');
-    expect(result.status.warning).toMatch(/no Docker/);
-    expect(result.config).toBeUndefined();
+    })).rejects.toThrow(/Docker is unavailable/);
   });
 
-  it('uses job backend on win32 without docker but reports it as lexical (not a jail)', async () => {
+  it('rejects noProcess with explicit process enforcement', async () => {
+    await expect(resolveProcessSandboxRuntime({
+      desired: 'process', profile: 'workspace', workspaceDir: '/workspace', noProcess: true,
+      probeDocker: async () => true,
+    })).rejects.toThrow(/conflicts/);
+  });
+
+  it('leaves lexical users unaffected by noProcess', async () => {
     const result = await resolveProcessSandboxRuntime({
-      desired: 'process',
-      profile: 'workspace',
-      workspaceDir: 'C:/workspace',
-      platform: 'win32',
-      probeDocker: async () => false,
+      desired: 'lexical', profile: 'off', workspaceDir: '/workspace', noProcess: true,
+      probeDocker: async () => { throw new Error('must not probe'); },
     });
-    // The Job Object is a process-tree cleanup supervisor only — the status
-    // must not claim process confinement the OS layer does not provide.
     expect(result.status.effective).toBe('lexical');
-    expect(result.status.backend).toBe('job');
-    expect(result.status.warning).toMatch(/not a filesystem jail/i);
-    expect(result.config?.backend).toBe('job');
+    expect(result.config).toBeUndefined();
+    expect(result.coercedProfile).toBeUndefined();
+  });
+
+  it('rejects a host that cannot apply requested confinement', () => {
+    expect(() => { applyProcessSandboxToKaos({}, { backend: 'docker', workspaceDir: '/workspace' }); })
+      .toThrow(/cannot apply confinement/);
+    expect(() => { applyProcessSandboxToKaos({}, undefined); }).not.toThrow();
   });
 
   it('coerces process + off to workspace', async () => {

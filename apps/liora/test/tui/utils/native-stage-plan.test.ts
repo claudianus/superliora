@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { Text } from '#/tui/renderer';
+import { WORKER_DOCK_BAND_MAX_ROWS } from '#/tui/components/panes/worker-dock/panel';
+import { emptyConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
 import type { AppState } from '#/tui/types';
 import {
   STAGE_MAX_HEIGHT,
@@ -220,4 +222,35 @@ describe('planTUINativeStage stack panels', () => {
     expect(plan.chrome.queue).toEqual([]);
     expect(plan.chrome.btw).toEqual([]);
   });
+  it.each([24, 30, 40])('reserves the existing editor under populated panels at %i rows', (height) => {
+    const state = createSizedState(80, height);
+    state.editor.setText('keep this input');
+    state.todoPanel.setTodos(Array.from({ length: 30 }, (_, i) => ({
+      title: `card ${i}`, status: 'pending' as const,
+    })));
+    state.todoPanelContainer.addChild(state.todoPanel);
+    // A populated Conductor band that would fill its full 14-row budget.
+    state.workerDockPanel.setView({
+      snapshot: {
+        version: 1,
+        activeCount: 20,
+        totalTokens: 0,
+        ops: [],
+        workers: Array.from({ length: 20 }, (_, i) => ({
+          id: `sa-${i}`, name: `explore-${i}`, kind: 'subagent' as const, status: 'running' as const,
+          runInBackground: false, toolCount: 1, tokens: 10, elapsedMs: 1_000, spawnedAtMs: 1_000, lastActivityAtMs: 1_000,
+        })),
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
+    expect(state.workerDockPanel.render(80)).toHaveLength(WORKER_DOCK_BAND_MAX_ROWS);
+    const regions = buildTUIStateNativeFrameRegions(state, 80, height);
+    const editor = regions.find((region) => region.id === 'editor')?.rect;
+    expect(regions.find((region) => region.id === 'workers')?.rect?.height).toBeGreaterThan(0);
+    expect(editor).toBeDefined();
+    expect(editor!.height).toBeGreaterThanOrEqual(3);
+    expect(editor!.y + editor!.height).toBeLessThanOrEqual(height);
+    expect(state.editor.getText()).toBe('keep this input');
+  });
+
 });

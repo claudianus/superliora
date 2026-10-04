@@ -396,6 +396,9 @@ export class SessionStore {
       agents: rewriteAgentHomedirs(parsed['agents'], sourceDir, targetDir),
       custom: forkCustomMetadata(parsed['custom'], input.metadata),
     };
+    // A fork is a new user-owned session, never the source's admitted worker:
+    // the copied ancestry would name the source id and route to its conductor.
+    delete next['workerAncestry'];
     await writeSessionStateFile(join(targetDir, 'state.json'), next);
     return next;
   }

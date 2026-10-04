@@ -86,6 +86,7 @@ export function wireLioraTUIControllers(
       model: startupInput.cliOptions.model,
       startupNotice: startupInput.startupNotice,
     },
+    sessionRole: startupInput.sessionRole,
     sessionMetadata: startupInput.sessionMetadata,
   };
   Object.assign(tui, { options: tuiOptions });

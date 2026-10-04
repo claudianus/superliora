@@ -8,6 +8,10 @@ import {
 import { CHROME_GUTTER } from '../../constant/rendering';
 import type { TUIState } from '../../tui-state';
 import { planTUINativeStage } from '#/tui/features/native-layout/native-stage-plan';
+import {
+  paintedFrameGeometryFor,
+  type PaintedFrameGeometry,
+} from '#/tui/features/native-layout/painted-frame-geometry';
 import { workerDockBandActive } from '#/tui/features/worker-dock/dock';
 import {
   plainTextFromRegionLine,
@@ -64,6 +68,10 @@ export function resolveTranscriptLayoutContext(
 ): TranscriptLayoutContext | undefined {
   const frameWidth = normalizeFrameSize(width);
   const frameHeight = normalizeFrameSize(height);
+  const painted = paintedFrameGeometryFor(state.paintedFrameGeometry, frameWidth, frameHeight);
+  if (painted !== undefined) return layoutContextFromPaintedFrame(painted);
+  // Before the first frame (or after a resize the renderer has not painted
+  // yet) there is nothing on screen to agree with; plan the stage instead.
   // Cheap editor line-count probe for cache invalidation (same key as the
   // editor rect cache in getTUIStateNativeEditorRect).
   const editorLineCount = state.editor.getNativeLayoutRowCount?.(frameWidth) ?? -1;
@@ -122,11 +130,43 @@ export function resolveTranscriptLayoutContext(
   };
 }
 
+function layoutContextFromPaintedFrame(
+  painted: PaintedFrameGeometry,
+): TranscriptLayoutContext | undefined {
+  const rect = painted.regions.transcript;
+  if (rect === undefined) return undefined;
+  const leftPad = CHROME_GUTTER;
+  const rightPad = CHROME_GUTTER;
+  return {
+    rect,
+    viewportStart: painted.transcriptViewportStart,
+    visibleRows: painted.transcriptVisibleRows,
+    stageWidth: painted.stageWidth,
+    leftPad,
+    rightPad,
+    contentWidth: Math.max(1, painted.stageWidth - leftPad - rightPad),
+  };
+}
+
+/**
+ * Transcript layout plus the visible lines a pointer lands on. Reads the
+ * painted frame — never renders — so it is safe on every mouse event.
+ */
 export function resolveTranscriptHitTestContext(
   state: TUIState,
   width = state.terminal.columns,
   height = state.terminal.rows,
 ): TranscriptHitTestContext | undefined {
+  const painted = paintedFrameGeometryFor(
+    state.paintedFrameGeometry,
+    normalizeFrameSize(width),
+    normalizeFrameSize(height),
+  );
+  if (painted !== undefined) {
+    const layout = layoutContextFromPaintedFrame(painted);
+    if (layout === undefined) return undefined;
+    return { ...layout, visibleLines: painted.transcriptLines };
+  }
   const layout = resolveTranscriptLayoutContext(state, width, height);
   if (layout === undefined) return undefined;
   return {
@@ -156,8 +196,7 @@ export function getTUIStateNativeTodoRect(
   width = state.terminal.columns,
   height = state.terminal.rows,
 ): RendererRect | undefined {
-  resolveTranscriptLayoutContext(state, width, height);
-  return state.cachedTodoRect;
+  return resolvePaintedRegionRect(state, 'todo', width, height);
 }
 
 /**
@@ -169,8 +208,7 @@ export function getTUIStateNativeWorkerDockRect(
   width = state.terminal.columns,
   height = state.terminal.rows,
 ): RendererRect | undefined {
-  resolveTranscriptLayoutContext(state, width, height);
-  return state.cachedWorkerDockRect;
+  return resolvePaintedRegionRect(state, 'workers', width, height);
 }
 
 /** Rect of the turn-status / activity cue row (same stage plan as transcript). */
@@ -179,8 +217,34 @@ export function getTUIStateNativeActivityRect(
   width = state.terminal.columns,
   height = state.terminal.rows,
 ): RendererRect | undefined {
+  return resolvePaintedRegionRect(state, 'activity', width, height);
+}
+
+/**
+ * Rect of one chrome region from the painted frame. Before the first frame it
+ * falls back to the stage plan (layout only — the transcript is not rendered).
+ */
+function resolvePaintedRegionRect(
+  state: TUIState,
+  region: 'todo' | 'workers' | 'activity',
+  width: number,
+  height: number,
+): RendererRect | undefined {
+  const painted = paintedFrameGeometryFor(
+    state.paintedFrameGeometry,
+    normalizeFrameSize(width),
+    normalizeFrameSize(height),
+  );
+  if (painted !== undefined) return painted.regions[region];
   resolveTranscriptLayoutContext(state, width, height);
-  return state.cachedActivityRect;
+  switch (region) {
+    case 'todo':
+      return state.cachedTodoRect;
+    case 'workers':
+      return state.cachedWorkerDockRect;
+    case 'activity':
+      return state.cachedActivityRect;
+  }
 }
 
 export function transcriptPointForMouse(

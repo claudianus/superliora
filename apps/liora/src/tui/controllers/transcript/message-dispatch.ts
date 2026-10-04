@@ -3,7 +3,7 @@ import type { LioraHarness, PromptPart, Session } from '@superliora/sdk';
 import {  LLM_NOT_SET_MESSAGE, MAIN_AGENT_ID } from '../../constant/liora-tui';
 import { slashBusyMessage } from '../../commands/hub/resolve';
 import type { ColorToken } from '../../theme';
-import type { AppState, QueuedMessage, TranscriptEntry } from '../../types';
+import type { AppState, LioraTUIOptions, QueuedMessage, TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { formatErrorMessage } from '../../utils/event-payload';
 import {
@@ -40,6 +40,7 @@ export interface MessageDispatchHost extends PromptInputRuntimeHost {
   deferUserMessages: boolean;
   lastUserInput: string | undefined;
   readonly harness: LioraHarness;
+  readonly options?: Pick<LioraTUIOptions, 'sessionRole'>;
   readonly streamingUI: StreamingUIController;
   readonly btwPanelController: BtwPanelController;
   readonly imageStore: ImageAttachmentStore;
@@ -67,6 +68,14 @@ export interface MessageDispatchHost extends PromptInputRuntimeHost {
  */
 export class MessageDispatchController {
   private lastTurnFailed = false;
+  /** Identifies the newest prompt so a stale rejection cannot reset its live pane. */
+  private sessionRequestSeq = 0;
+
+  private get prioritizesUserInput(): boolean {
+    // A selected worker must retain foreground semantics even in the conductor UI.
+    return this.host.options?.sessionRole === 'interactive-conductor' &&
+      this.host.harness.interactiveAgentId === MAIN_AGENT_ID;
+  }
 
   constructor(private readonly host: MessageDispatchHost) {}
 
@@ -254,6 +263,16 @@ export class MessageDispatchController {
       return;
     }
 
+    if (this.prioritizesUserInput && host.state.appState.streamingPhase !== 'shell') {
+      // The session input policy owns inference preemption. Do not cancel the
+      // session here: accepted independent workers must keep running.
+      this.sendMessageInternal(session, input.join('\n\n'), {
+        ...options,
+        combinedDisplayTexts: options?.combinedDisplayTexts ?? (input.length > 1 ? input : undefined),
+      });
+      return;
+    }
+
     for (const part of input) {
       host.appendTranscriptEntry({
         id: nextTranscriptId(),
@@ -303,11 +322,17 @@ export class MessageDispatchController {
     }
 
     host.beginSessionRequest();
+    const requestSeq = ++this.sessionRequestSeq;
 
     const sdkInput = options?.parts ?? input;
     void session.prompt(sdkInput).catch((error: unknown) => {
       const message = formatErrorMessage(error);
-      host.failSessionRequest(`Failed to send: ${message}`);
+      if (requestSeq === this.sessionRequestSeq) {
+        host.failSessionRequest(`Failed to send: ${message}`);
+      } else {
+        // A newer prompt owns the live pane and streaming phase now.
+        host.showError(`Failed to send: ${message}`);
+      }
       this.enqueueMessage(input, options);
       host.updateQueueDisplay();
     });
@@ -339,7 +364,8 @@ export class MessageDispatchController {
     const { host } = this;
     if (
       host.deferUserMessages ||
-      host.state.appState.streamingPhase !== 'idle' ||
+      (host.state.appState.streamingPhase !== 'idle' &&
+        (!this.prioritizesUserInput || host.state.appState.streamingPhase === 'shell')) ||
       host.state.appState.isCompacting
     ) {
       this.enqueueMessage(input, options);

@@ -1,6 +1,7 @@
 import { join } from 'pathe';
 import { type Kaos } from '@superliora/kaos';
 
+import { workerAncestrySchema, type WorkerAncestry } from '@superliora/protocol';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { getRootLogger, log } from '#/logging/logger';
 import type { SessionLogHandle } from '#/logging/types';
@@ -337,6 +338,19 @@ export class Session {
 
   async readMetadata() {
     this.metadata = await this.metadataPersistence.read(this.metadata);
+    const stored = parseWorkerAncestry(this.metadata.workerAncestry, 'Persisted worker ancestry is invalid');
+    const supplied = parseWorkerAncestry(this.options.workerAncestry, 'Supplied worker ancestry is invalid');
+    // Ancestry is fixed at admission: a resume may only restate it.
+    if (supplied !== undefined && (stored === undefined || JSON.stringify(supplied) !== JSON.stringify(stored))) {
+      throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, 'Cannot reparent an existing independent session');
+    }
+    if (stored !== undefined) {
+      if (stored.agentId !== 'main' || stored.sessionId !== this.options.id) {
+        throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, 'Persisted worker ancestry does not identify this session');
+      }
+      this.metadata.workerAncestry = stored;
+      Object.assign(this.options, { workerAncestry: stored });
+    }
     return this.metadata;
   }
 
@@ -474,3 +488,10 @@ export {
   type FileProvenanceRecorderOptions,
   type ProvenanceMutationContext,
 } from './file-provenance';
+
+function parseWorkerAncestry(value: unknown, message: string): WorkerAncestry | undefined {
+  if (value === undefined) return undefined;
+  const parsed = workerAncestrySchema.safeParse(value);
+  if (!parsed.success) throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, message, { cause: parsed.error });
+  return parsed.data;
+}

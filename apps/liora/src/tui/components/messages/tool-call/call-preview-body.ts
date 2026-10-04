@@ -1,8 +1,9 @@
+import { utf8Prefix } from '@superliora/sdk';
 /** Bash command previews, including partial streamed JSON arguments. */
 
 import { Text, type Component } from '#/tui/renderer';
 import { COMMAND_PREVIEW_LINES } from '#/tui/constant/rendering';
-import { STREAMING_ARGS_PREVIEW_MAX_CHARS } from '#/tui/constant/streaming';
+import { STREAMING_ARGS_PREVIEW_MAX_BYTES } from '#/tui/constant/streaming';
 import { currentTheme } from '#/tui/theme';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
@@ -52,7 +53,7 @@ export function buildStreamingCallPreviewComponents(params: {
 }): { readonly components: Component[]; readonly shell: ShellExecutionComponent | undefined } {
   const { toolCall, streamText, existingShell } = params;
   const name = toolCall.name;
-  const previewText = streamText.slice(0, STREAMING_ARGS_PREVIEW_MAX_CHARS);
+  const previewText = utf8Prefix(streamText, STREAMING_ARGS_PREVIEW_MAX_BYTES);
 
 
   if (name === 'Bash') {

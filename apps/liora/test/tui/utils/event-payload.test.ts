@@ -1,13 +1,18 @@
-import { ErrorCodes, LioraError } from '@superliora/sdk';
-import { describe, expect, it } from 'vitest';
+import { ErrorCodes, LioraError, utf8Prefix } from '@superliora/sdk';
+import { describe, expect, it, vi } from 'vitest';
 
-import { STREAMING_ARGS_PREVIEW_MAX_CHARS } from '#/tui/constant/streaming';
+import { STREAMING_ARGS_PREVIEW_MAX_BYTES } from '#/tui/constant/streaming';
 import {
   appendStreamingArgsPreview,
   formatErrorMessage,
   formatErrorPayload,
   parseStreamingArgs,
 } from '#/tui/utils/event-payload';
+
+vi.mock('@superliora/sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@superliora/sdk')>();
+  return { ...actual, utf8Prefix: vi.fn(actual.utf8Prefix) };
+});
 
 describe('streaming tool argument payload helpers', () => {
   it('parses complete JSON arguments for finalized small previews', () => {
@@ -17,15 +22,37 @@ describe('streaming tool argument payload helpers', () => {
     });
   });
 
+  it('keeps complete-JSON eligibility separate from an oversized bounded cache key', () => {
+    const complete = '{"command":"echo 😀", "count":42}' + ' '.repeat(STREAMING_ARGS_PREVIEW_MAX_BYTES - Buffer.byteLength('{"command":"echo 😀", "count":42}'));
+    expect(parseStreamingArgs(complete)).toEqual({ command: 'echo 😀', count: 42 });
+    expect(parseStreamingArgs(complete + 'discarded')).toEqual({ command: 'echo 😀' });
+    expect(parseStreamingArgs(complete)).toEqual({ command: 'echo 😀', count: 42 });
+  });
+
+  it('isolates callers from the shared parse cache', () => {
+    const text = '{"command":"echo shared"}';
+    const first = parseStreamingArgs(text);
+    first['command'] = 'mutated';
+    expect(parseStreamingArgs(text)).toEqual({ command: 'echo shared' });
+  });
+
+  it('answers repeated flushes of an unchanged buffer without rescanning the prefix', () => {
+    const text = `{"command":"${'y'.repeat(STREAMING_ARGS_PREVIEW_MAX_BYTES / 2)}`;
+    const first = parseStreamingArgs(text);
+    vi.mocked(utf8Prefix).mockClear();
+    expect(parseStreamingArgs(text)).toEqual(first);
+    expect(utf8Prefix).not.toHaveBeenCalled();
+  });
+
   it('caps accumulated streaming preview text', () => {
-    const current = 'a'.repeat(STREAMING_ARGS_PREVIEW_MAX_CHARS - 2);
+    const current = 'a'.repeat(STREAMING_ARGS_PREVIEW_MAX_BYTES - 2);
 
     expect(appendStreamingArgsPreview(current, 'bcdef')).toBe(`${current}bc`);
   });
 
   it('parses only bounded preview fields from oversized streaming arguments', () => {
     const oversized = `{"command":"echo ok","description":"${'x'.repeat(
-      STREAMING_ARGS_PREVIEW_MAX_CHARS + 100,
+      STREAMING_ARGS_PREVIEW_MAX_BYTES + 100,
     )}"}`;
 
     expect(parseStreamingArgs(oversized)).toEqual({ command: 'echo ok' });

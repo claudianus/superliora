@@ -1,4 +1,4 @@
-import type { CompactionPhase } from '@superliora/sdk';
+import type { CompactionPhase, Utf8PrefixBuffer } from '@superliora/sdk';
 
 import type { AgentGroupComponent } from '../../components/messages/agent-group';
 import { AssistantMessageComponent } from '../../components/messages/assistant-message';
@@ -132,7 +132,7 @@ export class StreamingUIController {
   private _activeToolCalls = new Map<string, ToolCallBlockData>();
   private _streamingToolCallArguments = new Map<
     string,
-    { name?: string; argumentsText: string; startedAtMs: number }
+    { name?: string; argumentsText: string; startedAtMs: number; buffer?: Utf8PrefixBuffer }
   >();
   private _pendingToolComponents = new Map<string, ToolCallComponent>();
   private _chainSummary: ChainSummaryState = { active: null, turnIndex: -1 };

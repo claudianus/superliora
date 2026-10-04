@@ -13,6 +13,8 @@ export interface WorkerDockFallbackOptions {
   readonly panel: WorkerDockPanelComponent;
   /** `workerDockBandActive` decision for the current view. */
   readonly visible: () => boolean;
+  /** Row budget for the band (e.g. from the terminal height). */
+  readonly maxRows?: () => number;
 }
 
 export class WorkerDockFallbackComponent implements Component {
@@ -24,6 +26,11 @@ export class WorkerDockFallbackComponent implements Component {
 
   render(width: number): string[] {
     if (!this.options.visible()) return [];
-    return this.options.panel.render(width);
+    const maxRows = this.options.maxRows?.();
+    // A framed band needs at least three rows; hide it rather than exceed the budget.
+    if (maxRows !== undefined && maxRows < 3) return [];
+    return maxRows === undefined
+      ? this.options.panel.render(width)
+      : this.options.panel.renderBand(width, maxRows);
   }
 }

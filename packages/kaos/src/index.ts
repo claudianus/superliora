@@ -1,3 +1,4 @@
+export { forkKaosExecutionPolicy } from './execution-policy';
 export type { StatResult } from './types';
 export type { KaosProcess } from './process';
 export type { Kaos } from './kaos';
@@ -40,6 +41,7 @@ export {
   wrapLocalExecForProcessSandbox,
   type ProcessSandboxBackend,
   type ProcessSandboxConfig,
+  type ProcessSandboxResources,
   type ResolveProcessSandboxBackendResult,
 } from './process-sandbox';
 export {

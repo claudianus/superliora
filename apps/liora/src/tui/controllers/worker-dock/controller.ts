@@ -8,7 +8,7 @@
  * (the bottom band height depends on both).
  */
 
-import type { Event } from '@superliora/sdk';
+import type { Event, IndependentSessionActivity } from '@superliora/sdk';
 
 import type { TUIState } from '../../tui-state';
 import {
@@ -37,6 +37,19 @@ export class WorkerDockController {
     this.pushView();
   }
 
+  /** Independent-session telemetry goes only to task panels, never main chat. */
+  handleIndependentActivity(activity: IndependentSessionActivity): void {
+    if (activity.type === 'attention') {
+      if (this.registry.setWorkerAttention(activity.sessionId, activity.agentId, activity.attention)) this.pushView();
+    } else if (activity.type === 'snapshot') {
+      const metadata = activity.total === undefined || activity.truncated === undefined || activity.counts === undefined
+        ? undefined : { total: activity.total, truncated: activity.truncated, counts: activity.counts };
+      if (this.registry.applyIndependentFacts(activity.conductorSessionId, activity.records, metadata)) this.pushView();
+    } else {
+      if (this.registry.applyIndependentEvent(activity.conductorSessionId, activity.record, activity.event)) this.pushView();
+    }
+  }
+
   /**
    * After resume, seed ghost workers from the job ledger so the Dock shows
    * job titles before live subagent events arrive.
@@ -63,6 +76,7 @@ export class WorkerDockController {
     this.registry.hydrateJobGhosts(jobs.jobs);
     panel.setView({
       snapshot: this.registry.snapshot(),
+      tree: this.registry.treeSnapshot(state.appState.sessionId),
       jobs,
       workDir,
     });

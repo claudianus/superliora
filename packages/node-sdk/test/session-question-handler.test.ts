@@ -23,6 +23,21 @@ describe('SDK native operator questions', () => {
     await expect(bridge.requestQuestion(request)).resolves.toBeNull();
   });
 
+  it('clears pending question attention when the session is cleared and ignores the late completion', async () => {
+    const bridge = new SdkEventBridge();
+    const changes: unknown[] = [];
+    bridge.onQuestionAttention((change) => changes.push(change.attention));
+    const answer = Promise.withResolvers<null>();
+    bridge.setQuestionHandler('operator-session', () => answer.promise);
+    const pending = bridge.requestQuestion(questionRequest('operator-session'));
+    expect(changes).toEqual(['question']);
+    bridge.clearSessionHandlers('operator-session');
+    expect(changes).toEqual(['question', undefined]);
+    answer.resolve(null);
+    await expect(pending).resolves.toBeNull();
+    expect(changes).toEqual(['question', undefined]);
+  });
+
   it('propagates cancellation to the pending host interaction and waits for its response', async () => {
     const bridge = new SdkEventBridge();
     const controller = new AbortController();

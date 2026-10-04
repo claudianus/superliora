@@ -4,7 +4,7 @@ export const STREAMING_ARGS_FIELD_RE =
   /"(path|file_path|command|pattern|query|url|description|title|name)"\s*:\s*"((?:\\.|[^"\\])*)"/g;
 
 // Bounds live tool-argument previews; final tool.call payloads remain complete.
-export const STREAMING_ARGS_PREVIEW_MAX_CHARS = 64 * 1024;
+export const STREAMING_ARGS_PREVIEW_MAX_BYTES = 64 * 1024;
 
 // Coalesces high-frequency model/tool deltas before rebuilding TUI components.
 // Doubles as the floor/default interval for the adaptive flush throttle.

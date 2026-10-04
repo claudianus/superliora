@@ -12,7 +12,7 @@ import { createApprovalRequestHandler } from '../../reverse-rpc/approval/handler
 import type { QuestionController } from '../../reverse-rpc/question/controller';
 import { createQuestionAskHandler } from '../../reverse-rpc/question/handler';
 import type { ColorToken } from '../../theme';
-import type { AppState } from '../../types';
+import type { AppState, LioraTUIOptions } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { cacheMeterFromHitRate } from '../../utils/cache/cache-glance';
 import { formatErrorMessage } from '../../utils/event-payload';
@@ -54,6 +54,7 @@ export interface SessionLifecycleHost extends PromptInputRuntimeHost {
   aborted: boolean;
   lastUserInput: string | undefined;
   readonly harness: LioraHarness;
+  readonly options?: Pick<LioraTUIOptions, 'sessionRole' | 'sessionMetadata'>;
   readonly promptStash: PromptStash;
   readonly sessionEventHandler: SessionEventHandler;
   readonly sessionReplay: SessionReplayRenderer;
@@ -129,7 +130,11 @@ export class SessionLifecycleController {
         host.transcriptRender.appendApprovalTranscriptEntry(request, response);
       }),
     );
-    session.setQuestionHandler(createQuestionAskHandler(host.questionController));
+    const questionHandler = createQuestionAskHandler(host.questionController);
+    session.setQuestionHandler(questionHandler);
+    if (host.options?.sessionRole === 'interactive-conductor') {
+      host.harness.setIndependentSessionQuestionHandler(session.id, questionHandler);
+    }
   }
 
   resetSessionRuntime(): void {
@@ -354,6 +359,7 @@ export class SessionLifecycleController {
     }
     const options: MutableCreateSessionOptions = {
       workDir: host.state.appState.workDir,
+      role: host.options?.sessionRole,
       model,
       thinking:
         host.session === undefined
@@ -366,8 +372,7 @@ export class SessionLifecycleController {
       options.additionalDirs = [...host.state.appState.additionalDirs];
     }
     // Prefer startup sessionMetadata (CLI --sandbox / worktree seed) when present.
-    const startupMeta = (host as { options?: { sessionMetadata?: CreateSessionOptions['metadata'] } })
-      .options?.sessionMetadata;
+    const startupMeta = host.options?.sessionMetadata;
     if (startupMeta !== undefined) {
       options.metadata = {
         ...options.metadata,
@@ -391,6 +396,9 @@ export class SessionLifecycleController {
     host.reverseRpcPanels.clearReverseRpcPanels();
     previous?.setApprovalHandler(undefined);
     previous?.setQuestionHandler(undefined);
+    if (previous !== undefined && host.options?.sessionRole === 'interactive-conductor') {
+      host.harness.setIndependentSessionQuestionHandler(previous.id, undefined);
+    }
     host.reverseRpcPanels.cancelPendingReverseRpc(reason);
     host.session = undefined;
     host.state.toolOutputViewports.clear();

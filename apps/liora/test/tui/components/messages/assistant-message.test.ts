@@ -1,4 +1,10 @@
-import { Markdown, visibleWidth } from '#/tui/renderer';
+import {
+  Markdown,
+  RendererTranscriptViewport,
+  RendererTranscriptViewportComponent,
+  visibleWidth,
+  withTranscriptMeasureMode,
+} from '#/tui/renderer';
 import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +21,8 @@ import {
 } from '#/tui/features/appearance/appearance-effects';
 import { TURN_BOUNDARY_CUE_MS } from '#/tui/features/transcript/transcript-entrance';
 import { setActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
+
+import { withTranscriptPaintMode } from '#/tui/utils/render/transcript-paint-mode';
 
 import { captureProcessWrite } from '../../../helpers/process';
 
@@ -346,6 +354,33 @@ describe('AssistantMessageComponent turn boundary cues', () => {
     for (const [key, value] of Object.entries(previousEnv)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
+    }
+  });
+
+  it('keeps streaming wrap geometry identical across measure, live, and scroll paints', () => {
+    const component = new AssistantMessageComponent();
+    const viewport = new RendererTranscriptViewport();
+    const transcript = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 4,
+    });
+    transcript.addChild(component);
+
+    for (const text of ['abcdefgh', 'abcdefgh ijklmnop', 'abcdefgh ijklmnop qrstuvwx']) {
+      component.updateContent(text, { transient: true });
+      transcript.invalidateChildGeometry(component);
+      const measured = withTranscriptMeasureMode(() => component.render(12));
+      const live = component.render(12);
+      const scroll = withTranscriptPaintMode(
+        { suppressLiveToolTicks: true },
+        () => component.render(12),
+      );
+      expect(live.map(strip).join('\n')).toContain('▌');
+      expect(measured.length).toBe(live.length);
+      expect(scroll.length).toBe(live.length);
+      transcript.render(12);
+      expect(viewport.lastContentRows).toBe(live.length);
+      expect(viewport.start()).toBe(Math.max(0, live.length - 4));
     }
   });
 

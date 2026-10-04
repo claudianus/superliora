@@ -50,6 +50,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   readonly kimiRequestHeaders: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined;
   readonly appVersion: string | undefined;
+  readonly resolveSessionCoordinator: LioraCoreOptions['resolveSessionCoordinator'];
   private readonly uncaughtListener:
     | ((error: Error, origin: NodeJS.UncaughtExceptionOrigin) => void)
     | undefined;
@@ -70,6 +71,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     this.resolveOAuthTokenProvider = options.resolveOAuthTokenProvider;
     this.telemetry = options.telemetry ?? noopTelemetryClient;
     this.appVersion = options.appVersion;
+    this.resolveSessionCoordinator = options.resolveSessionCoordinator;
     ensureLioraHome(this.homeDir);
     // Schema errors degrade (invalid sections are dropped with warnings) so a
     // typo cannot prevent startup, but a file that cannot be used at all —

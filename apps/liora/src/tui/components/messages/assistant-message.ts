@@ -173,7 +173,8 @@ export class AssistantMessageComponent implements Component {
 
     // While streaming (transient) or still washing in, repaint every ambient tick.
     // When finalized and entrance is done, drop the epoch for O(1) cached renders.
-    const streaming = !scrollPaint && this.lastTransient && streamingCaretActive();
+    const caretEnabled = this.lastTransient && streamingCaretActive();
+    const streaming = !scrollPaint && caretEnabled;
     const entranceActive = !scrollPaint && isTranscriptEntranceActive(this.entranceStartedAtMs);
     const cueActive =
       !scrollPaint &&
@@ -196,9 +197,10 @@ export class AssistantMessageComponent implements Component {
                   pace: 'slow',
                 })
             : currentTheme.fg('text', STATUS_BULLET);
-        // Reserve a column for the pulsing caret while streaming so it does not
-        // get truncated off the end of the last content line.
-        const caretReserve = streaming ? 3 : 0;
+        // Reserve the caret trail in geometry and scroll paints too. Suppressing
+        // motion must not change wrapping: the viewport slices live output
+        // using the measured height, even when the caret itself is hidden.
+        const caretReserve = caretEnabled ? 3 : 0;
         const contentWidth = Math.max(
           1,
           measureRendererTranscriptContentWidth({ width: safeWidth, prefix }) - caretReserve,
@@ -262,7 +264,7 @@ export class AssistantMessageComponent implements Component {
         // minimal/compact only collapse thinking + tool/chain chrome — never answers.
         // Trailing breath — answer never sticks to the next user/work block.
         const withBreathing =
-          tinted.length > 0 && tinted[tinted.length - 1] === '' ? tinted : [...tinted, ''];
+          tinted.length > 0 && tinted.at(-1) === '' ? tinted : [...tinted, ''];
 
         if (scrollPaint) return withBreathing;
 

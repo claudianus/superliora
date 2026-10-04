@@ -242,3 +242,12 @@ export type {
   BrowserStatus,
   RuntimeImage,
 } from '@superliora/gui-use';
+
+export * from '#/orchestration/index';
+
+export { sealVerificationArtifact, runArtifactVerification, verificationEnvironment } from '@superliora/agent-core';
+export type { VerificationArtifact, VerificationHostPolicy, VerificationStage, VerificationReceipt, VerificationStageReceipt } from '@superliora/agent-core';
+export { utf8Prefix, Utf8PrefixBuffer } from '@superliora/protocol';
+
+export { runTrustedPipeline } from '@superliora/agent-core';
+export type { TrustedPipelinePlan, TrustedPipelineStage, PipelineContext, PipelineResult, PipelineStageResult, PipelineStatus, WorkerAncestry } from '@superliora/agent-core';

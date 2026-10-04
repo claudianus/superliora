@@ -6,7 +6,7 @@ import {
   measurePlaceholderLines,
   shouldSkipExpensiveTranscriptFormat,
 } from '../transcript/measure-mode';
-import { measureDisplayWidth, splitDisplayClusters } from './metrics';
+import { measureDisplayRunWidth, measureDisplayWidth, splitDisplayClusters } from './metrics';
 
 export interface RendererComponent {
   render(width: number): string[];
@@ -418,15 +418,86 @@ export class Text implements RendererComponent {
   }
 }
 
+/**
+ * Memoized widths for the default tab width. Frames re-measure the same
+ * styled lines (scrollbar gutter, padding, truncation) every tick; V8 caches a
+ * string's hash on the string itself, so a hit is a table read. Cleared
+ * wholesale when full — cheaper than LRU bookkeeping on the hot path.
+ * Retention is bounded by total key characters as well as entry count, so a
+ * run of long styled lines cannot pin more than ~1M chars after their owners
+ * drop them (the entry cap alone allowed 8192 × 4096).
+ */
+const ANSI_WIDTH_CACHE_CAP = 8192;
+const ANSI_WIDTH_CACHE_MAX_TEXT = 4096;
+const ANSI_WIDTH_CACHE_MAX_CHARS = 1 << 20;
+const ansiWidthCache = new Map<string, number>();
+let ansiWidthCacheChars = 0;
+
 export function measureAnsiDisplayWidth(
   text: string,
   options: RendererAnsiTextOptions = {},
 ): number {
+  const tabWidth = normalizeTabWidth(options.tabWidth);
+  if (tabWidth !== 3 || text.length > ANSI_WIDTH_CACHE_MAX_TEXT) {
+    return computeAnsiDisplayWidth(text, tabWidth);
+  }
+  const cached = ansiWidthCache.get(text);
+  if (cached !== undefined) return cached;
+  const width = computeAnsiDisplayWidth(text, tabWidth);
+  if (
+    ansiWidthCache.size >= ANSI_WIDTH_CACHE_CAP ||
+    ansiWidthCacheChars + text.length > ANSI_WIDTH_CACHE_MAX_CHARS
+  ) {
+    ansiWidthCache.clear();
+    ansiWidthCacheChars = 0;
+  }
+  ansiWidthCache.set(text, width);
+  ansiWidthCacheChars += text.length;
+  return width;
+}
+
+/** Same result as summing {@link scanAnsiText} text widths, without allocating. */
+function computeAnsiDisplayWidth(text: string, tabWidth: number): number {
   let width = 0;
-  for (const segment of scanAnsiText(text, normalizeTabWidth(options.tabWidth))) {
-    if (segment.kind === 'text') width += segment.width;
+  let cursor = 0;
+  const length = text.length;
+  while (cursor < length) {
+    if (text.codePointAt(cursor) === 0x1b) {
+      const controlLength = ansiControlLengthAt(text, cursor);
+      if (controlLength > 0) {
+        cursor += controlLength;
+        continue;
+      }
+    }
+    const nextEscape = text.indexOf('\u001B', cursor + 1);
+    const end = nextEscape === -1 ? length : nextEscape;
+    width += measureDisplayRunWidth(text, cursor, end, tabWidth);
+    cursor = end;
   }
   return width;
+}
+
+/** Length of the ANSI control at `index`, or 0 (mirrors {@link readAnsiControlAt}). */
+function ansiControlLengthAt(text: string, index: number): number {
+  const next = text.codePointAt(index + 1);
+  if (next === undefined) return 0;
+  if (next === 0x5b) {
+    for (let cursor = index + 2; cursor < text.length; cursor++) {
+      const code = text.codePointAt(cursor) ?? 0;
+      if (code >= 0x40 && code <= 0x7e) return cursor + 1 - index;
+    }
+    return text.length - index;
+  }
+  if (next === 0x5d || next === 0x50 || next === 0x5e || next === 0x5f) {
+    for (let cursor = index + 2; cursor < text.length; cursor++) {
+      const code = text.codePointAt(cursor);
+      if (code === 0x07) return cursor + 1 - index;
+      if (code === 0x1b && text.codePointAt(cursor + 1) === 0x5c) return cursor + 2 - index;
+    }
+    return text.length - index;
+  }
+  if (next >= 0x40 && next <= 0x5f) return 2;
+  return 0;
 }
 
 export function visibleWidth(text: string): number {

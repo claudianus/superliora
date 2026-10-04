@@ -15,7 +15,7 @@ import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
 import { TodoPanelComponent } from './components/chrome/todo/todo-panel';
 import { ConductorTimelinePanelComponent } from './components/panes/conductor-timeline/timeline-panel';
 import { WorkerDockFallbackComponent } from './components/panes/worker-dock/fallback';
-import { WorkerDockPanelComponent } from './components/panes/worker-dock/panel';
+import { WorkerDockPanelComponent, workerDockBandRowBudget } from './components/panes/worker-dock/panel';
 import { workerDockBandActive } from './features/worker-dock/dock';
 import type { SessionRow } from './components/dialogs/session/session-picker';
 import type { TUIEditor } from './components/editor/editor-contract';
@@ -51,6 +51,7 @@ import {
   type TUIStartupState,
 } from './types';
 import type { CenterModalEntry } from './utils/ui/center-modal';
+import type { PaintedFrameGeometry } from './features/native-layout/painted-frame-geometry';
 import { requestTUIContentRender } from './utils/render/frame-render';
 
 export interface TUIState {
@@ -161,6 +162,11 @@ export interface TUIState {
    */
   cachedActivityRect?: RendererRect;
   /**
+   * Region rects and transcript window of the frame currently on screen.
+   * Pointer hit-tests read this instead of re-planning or re-rendering.
+   */
+  paintedFrameGeometry?: PaintedFrameGeometry;
+  /**
    * User-chosen stage size from a corner/edge drag-resize. When set, the stage
    * holds this size (clamped to the terminal) instead of the responsive reading
    * cap. `undefined` = follow the default cap.
@@ -223,6 +229,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     new WorkerDockFallbackComponent({
       panel: workerDockPanel,
       visible: () => self !== undefined && workerDockBandActive(self),
+      maxRows: () => workerDockBandRowBudget(terminal.rows),
     }),
   );
   const queueContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);

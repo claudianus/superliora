@@ -61,7 +61,7 @@ const ENFORCEMENT_OPTIONS: ReadonlyArray<{
   {
     value: 'enforcement-process',
     label: '강도: process',
-    description: 'Docker가 있으면 FS 감옥 · 없으면 Job Object 트리(FS 감옥 아님) · off면 workspace로 올림',
+    description: '네이티브 Bash만 격리 · Docker 필수 · 호스트 대체 실행 없음 · off면 workspace로 올림',
   },
 ];
 
@@ -279,8 +279,8 @@ async function applySandboxEnforcement(
 
   host.showStatus(
     coerceWorkspace
-      ? 'Sandbox enforcement → process. Profile raised to workspace (process + off is meaningless). Job Object is not an FS jail.'
-      : `Sandbox enforcement → ${enforcement}. Docker is the FS jail when present; Job Object is process-tree only.`,
+      ? 'Sandbox enforcement → process. Profile raised to workspace. Native Bash requires Docker; no host fallback. Host application, plugins, and raw Kaos remain trusted.'
+      : `Sandbox enforcement → ${enforcement}. Process mode confines native Bash only (Docker required; no host fallback). Lexical mode is not OS isolation. Host application, plugins, and raw Kaos remain trusted.`,
     enforcement === 'process' ? 'warning' : 'success',
   );
 }

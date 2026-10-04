@@ -167,6 +167,7 @@ function makeHarness(session = makeSession(), overrides: Record<string, unknown>
       manifest: {},
     })),
     close: vi.fn(async () => {}),
+    onIndependentSessionActivity: vi.fn(() => () => {}),
     track: vi.fn(),
     setTelemetryContext: vi.fn(),
     get interactiveAgentId() {

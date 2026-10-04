@@ -963,3 +963,15 @@ describe('WorkerDockPanelComponent', () => {
   });
 
 });
+
+describe('WorkerDockFallbackComponent row budget', () => {
+  it('hides the band when the budget cannot fit the three-row frame', async () => {
+    const { WorkerDockFallbackComponent } = await import('#/tui/components/panes/worker-dock/fallback');
+    const panel = { renderBand: (_width: number, maxRows: number) => Array.from({ length: Math.max(3, maxRows) }, () => 'row'), render: () => ['row'], invalidate: () => {} };
+    let budget = 2;
+    const band = new WorkerDockFallbackComponent({ panel: panel as never, visible: () => true, maxRows: () => budget });
+    expect(band.render(80)).toEqual([]);
+    budget = 3;
+    expect(band.render(80)).toHaveLength(3);
+  });
+});

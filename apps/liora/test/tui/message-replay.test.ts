@@ -189,6 +189,7 @@ function makeHarness(initialSession: Session) {
     track: vi.fn(),
     setTelemetryContext: vi.fn(),
     getExperimentalFeatures: vi.fn(async () => []),
+    onIndependentSessionActivity: vi.fn(() => () => {}),
     get interactiveAgentId() {
       return interactiveAgentScope.getStore() ?? 'main';
     },

@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 
 import { KaosFileExistsError } from '#/errors';
 import { LocalKaos } from '#/local';
-import { afterEach, beforeEach, describe, expect, it, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest';
+import * as sandbox from '#/process-sandbox';
+import { forkKaosExecutionPolicy } from '#/execution-policy';
 
 // LocalKaos normalizes every path to forward slashes (pathe). Mirror that in
 // path assertions so they hold on Windows, where node:path/node:os produce
@@ -27,7 +29,85 @@ describe('LocalKaos', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     await rm(tempDir, { recursive: true, force: true });
+  });
+
+  describe('Docker failure isolation', () => {
+    beforeEach(() => {
+      // Pin a local endpoint so fake Docker clients reach the run/spawn failure
+      // path without requiring an installed client for context inspection.
+      vi.stubEnv('DOCKER_CONTEXT', undefined);
+      vi.stubEnv('DOCKER_HOST', 'unix:///var/run/docker.sock');
+    });
+
+    it('keeps policy forks independent while cwd/env views share only their owning fork', async () => {
+      const configurations: unknown[] = [];
+      vi.spyOn(sandbox, 'wrapLocalExecForProcessSandbox').mockImplementation(opts => {
+        configurations.push(opts.config);
+        return { file: process.execPath, args: ['-e', 'process.exit(0)'] };
+      });
+      kaos.setProcessSandbox({ backend: 'docker', workspaceDir: tempDir, readOnly: true });
+      const first = forkKaosExecutionPolicy(kaos);
+      const firstView = first.withCwd(tempDir).withEnv({ EXAMPLE: 'value' });
+      const second = forkKaosExecutionPolicy(kaos) as LocalKaos;
+      second.setProcessSandbox(undefined);
+      kaos.setProcessSandbox({ backend: 'docker', workspaceDir: tempDir, additionalDirs: ['/other'], readOnly: false });
+      await (await firstView.exec('echo')).wait();
+      expect(configurations.at(-1)).toMatchObject({ workspaceDir: tempDir, readOnly: true });
+      await (await second.exec('echo')).wait();
+      expect(configurations.at(-1)).toBeUndefined();
+      (first as LocalKaos).setProcessSandbox({ backend: 'docker', workspaceDir: tempDir, readOnly: false });
+      await (await firstView.exec('echo')).wait();
+      expect(configurations.at(-1)).toMatchObject({ workspaceDir: tempDir, readOnly: false });
+      await (await second.exec('echo')).wait();
+      expect(configurations.at(-1)).toBeUndefined();
+    });
+
+    it('applies sandbox updates to existing cwd/env views rather than executing stale host configuration', async () => {
+      const view = kaos.withCwd(tempDir).withEnv({ TEST_SANDBOX_VIEW: '1' });
+      const marker = join(tempDir, 'stale-host-command-ran');
+      kaos.setProcessSandbox({ backend: 'docker', workspaceDir: tempDir, dockerBin: join(tempDir, 'missing-docker') });
+      await expect(view.exec(...nodeArgs(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'unsafe')`)))
+        .rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('passes the effective client environment to inspection and uses the pinned run environment', async () => {
+      const wrapped = vi.spyOn(sandbox, 'wrapLocalExecForProcessSandbox').mockImplementation(opts => ({
+        file: process.execPath,
+        args: ['-e', 'process.stdout.write(process.env.DOCKER_CONTEXT ?? "pinned")'],
+        env: { ...opts.env, DOCKER_CONTEXT: undefined },
+      }));
+      const view = kaos.withEnv({ DOCKER_CONTEXT: 'context-from-layer' });
+      view.setProcessSandbox({ backend: 'docker', workspaceDir: tempDir });
+      const child = await view.execWithEnv(['ignored'], { DOCKER_HOST: 'unix:///example-client.sock' });
+      const chunks: Buffer[] = [];
+      for await (const chunk of child.stdout) chunks.push(Buffer.from(chunk as Uint8Array));
+      await child.wait();
+      expect(wrapped.mock.calls[0]![0].env).toMatchObject({
+        DOCKER_CONTEXT: 'context-from-layer', DOCKER_HOST: 'unix:///example-client.sock',
+      });
+      expect(Buffer.concat(chunks).toString()).toBe('pinned');
+    });
+
+    it('rejects a Docker spawn failure without running the host command', async () => {
+      const marker = join(tempDir, 'host-command-ran');
+      kaos.setProcessSandbox({ backend: 'docker', workspaceDir: tempDir, dockerBin: join(tempDir, 'missing-docker') });
+      await expect(kaos.exec(...nodeArgs(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'unsafe')`)))
+        .rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('preserves a Docker command failure without running the host command', async () => {
+      const marker = join(tempDir, 'host-command-ran');
+      // Node cannot interpret Docker's run arguments; it stands in for a failing Docker client.
+      kaos.setProcessSandbox({ backend: 'docker', workspaceDir: tempDir, dockerBin: process.execPath });
+      const child = await kaos.exec(...nodeArgs(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'unsafe')`));
+      await expect(child.wait()).resolves.not.toBe(0);
+      await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
   });
 
   describe('pathClass, gethome, getcwd', () => {

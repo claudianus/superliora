@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   RendererTranscriptViewport,
   RendererTranscriptViewportComponent,
   type RendererComponent,
+  withTranscriptCheapPaintMode,
 } from '../src';
 
 class CountingComponent implements RendererComponent {
@@ -34,6 +35,131 @@ function createTranscript(lines: string[]): {
 }
 
 describe('RendererTranscriptViewportComponent line-count cache', () => {
+  it.each(['geometry', 'theme'] as const)(
+    'keeps measured heights through a budgeted %s refresh while following or reading history',
+    (refresh) => {
+      let now = 0;
+      let slow = false;
+      const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+      try {
+        const viewport = new RendererTranscriptViewport();
+        const component = new RendererTranscriptViewportComponent({
+          viewport,
+          getVisibleRows: () => 4,
+        });
+        const measureContentRows = () => {
+          if (slow) now += 5;
+          return 10;
+        };
+        for (let i = 0; i < 3; i++) {
+          const lines = Array.from({ length: 10 }, (_, row) => `card-${i}-row-${row}`);
+          component.addChild({
+            invalidate() {},
+            measureContentRows,
+            render: () => lines,
+          });
+        }
+        component.render(40);
+        slow = true;
+        for (const history of [false, true]) {
+          if (history) viewport.jumpToLine(22);
+          const before = viewport.snapshot();
+          const expected = component.render(40);
+          if (refresh === 'geometry') component.invalidateGeometryAndPaint();
+          else component.invalidate();
+          // A wheel frame before settle must not substitute one-row geometry.
+          withTranscriptCheapPaintMode(() => component.render(40));
+          expect(viewport.snapshot()).toEqual(before);
+          // Force only one geometry measurement per frame, deterministically.
+          for (let frame = 0; frame < 3; frame++) {
+            expect(component.render(40)).toEqual(expected);
+            expect(viewport.snapshot()).toEqual(before);
+          }
+          expect(component.needsMaterializeContinue).toBe(false);
+        }
+      } finally {
+        clock.mockRestore();
+      }
+    },
+  );
+
+  it('retains zero-row children during refresh and still resolves actual height changes', () => {
+    let now = 0;
+    let slow = false;
+    let firstRows = 10;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    try {
+      const viewport = new RendererTranscriptViewport();
+      const component = new RendererTranscriptViewportComponent({
+        viewport,
+        getVisibleRows: () => 4,
+      });
+      component.addChild({
+        invalidate() {},
+        measureContentRows() {
+          if (slow) now += 5;
+          return firstRows;
+        },
+        render: () => Array.from({ length: firstRows }, (_, row) => `row-${row}`),
+      });
+      component.addChild(new CountingComponent([]));
+      component.render(40);
+      slow = true;
+      component.invalidateGeometryAndPaint();
+      component.render(40);
+      expect(viewport.lastContentRows).toBe(10);
+      expect(component.needsMaterializeContinue).toBe(true);
+      component.render(40);
+      expect(viewport.lastContentRows).toBe(10);
+      expect(component.needsMaterializeContinue).toBe(false);
+
+      firstRows = 6;
+      component.invalidateGeometryAndPaint();
+      component.render(40);
+      expect(viewport.lastContentRows).toBe(6);
+      expect(viewport.start()).toBe(2);
+      component.render(40);
+      expect(component.needsMaterializeContinue).toBe(false);
+
+      component.clear();
+      component.addChild(new CountingComponent(['new session']));
+      withTranscriptCheapPaintMode(() => component.render(40));
+      expect(viewport.lastContentRows).toBe(1);
+      expect(component.render(40)).toEqual(['new session']);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('keeps remaining geometry slots aligned when a tall earlier card is removed', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 4,
+    });
+    const tall = new CountingComponent(Array.from({ length: 100 }, (_, row) => `tall-${row}`));
+    const middle = new CountingComponent(['m0', 'm1', 'm2', 'm3']);
+    const tail = new CountingComponent(Array.from({ length: 8 }, (_, row) => `tail-${row}`));
+    component.addChild(tall);
+    component.addChild(middle);
+    component.addChild(tail);
+    component.render(40);
+    // Preserve dirty provisional counts too, not only clean identities.
+    component.invalidateChildGeometry(middle);
+    // oxlint-disable-next-line unicorn/prefer-dom-node-remove
+    component.removeChild(tall);
+    withTranscriptCheapPaintMode(() => component.render(40));
+    expect(viewport.lastContentRows).toBe(12);
+    expect(viewport.start()).toBe(8);
+    expect(component.render(40)).toEqual(['tail-4', 'tail-5', 'tail-6', 'tail-7']);
+    expect(component.childRowRangeAt(40, 4)?.child).toBe(tail);
+    expect(component.childRowRangeAt(40, 4)?.localRow).toBe(0);
+    // Removing an unmounted child must not mutate geometry.
+    // oxlint-disable-next-line unicorn/prefer-dom-node-remove
+    component.removeChild(tall);
+    expect(component.contentRowCount(40)).toBe(12);
+  });
+
   it('reuses cached line counts when the width oscillates (LRU, not single slot)', () => {
     const { component, child } = createTranscript(['one', 'two', 'three', 'four', 'five']);
 

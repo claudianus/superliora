@@ -38,7 +38,9 @@ export function openWorkerTranscript(host: SlashCommandHost, workerId: string): 
     panel.currentView.snapshot.workers.find((entry) => entry.id === workerId) ??
     host.workerDock.registry.snapshot().workers.find((entry) => entry.id === workerId);
 
-  if (worker === undefined) {
+  // Fact-only tree rows have no roster telemetry yet but still name a
+  // resolvable session/agent (and durable record) to load a transcript from.
+  if (worker === undefined && host.workerDock.registry.workerTranscriptTarget(workerId) === undefined) {
     host.showStatus(ttui('tui.workerDock.workerNotFound'), 'warning');
     return;
   }
@@ -74,9 +76,15 @@ async function loadWorkerTranscript(
     };
   }
   try {
+    const target = host.workerDock.registry.workerTranscriptTarget(workerId);
+    if (target?.recordId !== undefined) {
+      const trace = await host.harness.getIndependentSessionTrace(host.requireSession().id, target.recordId, target.agentId);
+      const lines = formatJobDeckTraceLines(trace.context.history);
+      return { lines: lines.length > 0 ? lines : buildFallbackLines(host, workerId) };
+    }
     const session = host.requireSession();
     // Interactive agent session when the harness can switch to this agent.
-    const trace = await host.harness.withInteractiveAgent(workerId, () =>
+    const trace = await host.harness.withInteractiveAgent(target?.agentId ?? workerId, () =>
       session.getSessionTrace(),
     );
     const lines = formatJobDeckTraceLines(trace.context.history);

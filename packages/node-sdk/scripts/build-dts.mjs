@@ -11,13 +11,14 @@ const dtsRoot = path.join(tempDir, 'dts');
 const tscBinPath = packageBinPath('typescript', 'bin/tsc');
 const apiExtractorBinPath = packageBinPath('@microsoft/api-extractor', 'bin/api-extractor');
 
-const packageDirs = new Set(['agent-core', 'gui-use', 'kaos', 'kosong', 'node-sdk', 'oauth']);
+const packageDirs = new Set(['agent-core', 'gui-use', 'kaos', 'kosong', 'node-sdk', 'oauth', 'protocol']);
 const workspacePackages = new Map([
   ['@superliora/agent-core', 'agent-core'],
   ['@superliora/gui-use', 'gui-use'],
   ['@superliora/kaos', 'kaos'],
   ['@superliora/oauth', 'oauth'],
   ['@superliora/kosong', 'kosong'],
+  ['@superliora/protocol', 'protocol'],
 ]);
 
 try {
@@ -66,7 +67,7 @@ async function rewriteWorkspaceSpecifiers() {
 
       const text = await readFile(file, 'utf8');
       const updated = text.replaceAll(
-        /(["'])(#\/[^"']+|@superliora\/(?:agent-core|gui-use|kaos|oauth|kosong)(?:\/[^"']+)?)\1/g,
+        /(["'])(#\/[^"']+|@superliora\/(?:agent-core|gui-use|kaos|oauth|kosong|protocol)(?:\/[^"']+)?)\1/g,
         (_match, quote, specifier) => {
           const resolved = resolveSpecifier({
             currentFile: file,

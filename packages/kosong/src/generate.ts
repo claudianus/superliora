@@ -1,6 +1,7 @@
 import { APIEmptyResponseError, APITimeoutError } from './errors';
 import {
   createGenerateAbortScope,
+  createStreamLivenessGuard,
   DEFAULT_LLM_IDLE_TIMEOUT_MS,
   DEFAULT_LLM_OPEN_TIMEOUT_MS,
   openTimeoutError,
@@ -258,11 +259,40 @@ export async function generate(
   });
   const iterator = watchedStream[Symbol.asyncIterator]();
 
+  // Unlike next()-only timers this remains armed across callback backpressure.
+  // It uses the same substantive first-token/idle/total budgets, without pulling
+  // ahead or buffering provider parts while the consumer is busy.
+  const liveness = createStreamLivenessGuard({
+    idleMs: idleTimeoutMs,
+    firstTokenMs: options?.firstTokenTimeoutMs,
+    maxDurationMs: options?.streamMaxDurationMs,
+    label: streamLabel,
+    onTimeout: error => { abortScope.abortWith(error); },
+  });
+  let cancellation: Promise<void> | undefined;
+  const cancelRequest = (): Promise<void> => {
+    if (cancellation === undefined) {
+      cancellation = cancelStream(stream);
+      // Returning the actual iterator releases suspended generator resources.
+      // Do not await it: a provider ignoring the signal can still have a stuck
+      // next(), which would otherwise hide this very timeout during teardown.
+      try { void iterator.return?.().catch(() => {}); } catch {}
+    }
+    return cancellation;
+  };
+  const onStreamAbort = (): void => {
+    liveness.dispose();
+    void cancelRequest();
+  };
+  activeSignal.addEventListener('abort', onStreamAbort, { once: true });
+  if (activeSignal.aborted) onStreamAbort();
+
   try {
     while (true) {
-      const iterResult = await iterator.next();
-      if (iterResult.done) break;
+      const iterResult = await awaitWithAbort(iterator.next(), activeSignal);
+      if (iterResult.done) { liveness.dispose(); break; }
       const part = iterResult.value;
+      if (isSubstantiveStreamPart(part)) liveness.activity();
 
       const arrivedAt = Date.now();
       if (firstPartAt === undefined) {
@@ -272,12 +302,12 @@ export async function generate(
       }
 
       try {
-        await throwIfAborted(activeSignal, stream);
+        await throwIfAborted(activeSignal);
 
         // Notify raw part callback (deep copy to avoid aliasing mutations).
         if (callbacks?.onMessagePart !== undefined) {
-          await callbacks.onMessagePart(deepCopyPart(part));
-          await throwIfAborted(activeSignal, stream);
+          await awaitWithAbort(callbacks.onMessagePart(deepCopyPart(part)), activeSignal);
+          await throwIfAborted(activeSignal);
         }
 
         // Index-based routing for parallel tool call argument deltas.
@@ -320,7 +350,7 @@ export async function generate(
       }
     }
 
-    await throwIfAborted(activeSignal, stream);
+    await throwIfAborted(activeSignal);
     if (firstPartAt !== undefined) {
       serverDecodeMs += Date.now() - lastResumeAt;
     }
@@ -367,8 +397,8 @@ export async function generate(
     // Fire onToolCall for every fully-assembled tool call, in final order.
     if (callbacks?.onToolCall !== undefined) {
       for (const toolCall of message.toolCalls) {
-        await throwIfAborted(activeSignal, stream);
-        await callbacks.onToolCall(toolCall);
+        await throwIfAborted(activeSignal);
+        await awaitWithAbort(callbacks.onToolCall(toolCall), activeSignal);
       }
     }
 
@@ -387,18 +417,48 @@ export async function generate(
     // connection is released promptly rather than lingering until the OS
     // reclaims it.
     if (
+      activeSignal.aborted ||
       error instanceof APITimeoutError ||
       (error instanceof DOMException && error.name === 'AbortError')
     ) {
-      await cancelStream(stream);
+      if (error instanceof APITimeoutError) abortScope.abortWith(error);
+      await cancelRequest();
     }
     // Caller Esc can race the SDK's APIUserAbortError. Coerce back to AbortError
     // so the retry layer does not treat a user cancel as a transport timeout.
     rethrowIfCallerCancelled(options?.signal, abortScope.openTimedOut());
+    if (activeSignal.aborted && activeSignal.reason instanceof APITimeoutError) {
+      throw activeSignal.reason;
+    }
     throw error;
   } finally {
+    liveness.dispose();
+    activeSignal.removeEventListener('abort', onStreamAbort);
     abortScope.dispose();
   }
+}
+
+/** Preserve callback backpressure, but do not let it hide transport cancellation. */
+function awaitWithAbort<T>(pending: T | Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => {
+      signal.removeEventListener('abort', onAbort);
+      // One microtask later: a callback that already settled (e.g. it aborted
+      // synchronously and then returned) keeps its result; only a callback
+      // still pending is cut off.
+      queueMicrotask(() => {
+        reject(signal.reason instanceof Error ? signal.reason : new DOMException('The operation was aborted.', 'AbortError'));
+      });
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    // Attach both handlers even after abort so a late callback rejection is
+    // consumed; it cannot resume merging or deliver subsequent parts.
+    Promise.resolve(pending).then(
+      value => { signal.removeEventListener('abort', onAbort); resolve(value); },
+      error => { signal.removeEventListener('abort', onAbort); reject(error); },
+    );
+    if (signal.aborted) onAbort();
+  });
 }
 
 /** True when a streamed part should reset the idle silence budget. */

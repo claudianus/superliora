@@ -22,6 +22,7 @@ import type { AgentSideConnection, ClientCapabilities } from '@agentclientprotoc
 import { RequestError } from '@agentclientprotocol/sdk';
 import {
   KaosError,
+  forkKaosExecutionPolicy,
   type Environment,
   type Kaos,
   type KaosProcess,
@@ -106,9 +107,22 @@ export class AcpKaos implements Kaos {
     return this.inner.realpath(path);
   }
 
+  forkExecutionPolicy(): AcpKaos {
+    return new AcpKaos(this.conn, this.sessionId, forkKaosExecutionPolicy(this.inner), this.capabilities, this.envOverlays);
+  }
+
   setProcessSandbox(config: unknown): void {
+    if (config !== undefined && this.capabilities.terminal) {
+      throw new Error('Process sandbox required but ACP client terminals cannot apply confinement.');
+    }
     const inner = this.inner as { setProcessSandbox?: (value: unknown) => void };
-    inner.setProcessSandbox?.(config);
+    if (typeof inner.setProcessSandbox !== 'function') {
+      if (config !== undefined) {
+        throw new Error('Process sandbox required but the ACP execution host cannot apply confinement.');
+      }
+      return;
+    }
+    inner.setProcessSandbox(config);
   }
 
   iterdir(path: string): AsyncGenerator<string> {

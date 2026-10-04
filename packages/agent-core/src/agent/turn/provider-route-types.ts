@@ -97,6 +97,7 @@ export interface ProviderRouteSuccessMetrics {
 }
 
 export interface KosongLLMConfig {
+  readonly requestContext?: (() => { prefix: string; dynamic: string } | undefined) | undefined;
   readonly provider: ChatProvider;
   readonly systemPrompt: string;
   /**

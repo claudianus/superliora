@@ -174,6 +174,7 @@ function makeHarness(session = makeSession(), overrides: Record<string, unknown>
     resumeSession: vi.fn(async () => session),
     listSessions: vi.fn(async () => []),
     close: vi.fn(async () => {}),
+    onIndependentSessionActivity: vi.fn(() => () => {}),
     track: vi.fn(),
     setTelemetryContext: vi.fn(),
     removeProvider: vi.fn(async () => {}),

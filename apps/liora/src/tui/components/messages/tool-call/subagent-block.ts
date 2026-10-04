@@ -12,6 +12,7 @@ import {
   renderRendererToolActivityHeader,
   RendererPrefixedWrappedLine,
   Text,
+  truncateToWidth,
   type Component,
 } from '#/tui/renderer';
 import {
@@ -21,8 +22,7 @@ import {
 } from '#/tui/constant/rendering';
 import { BACKGROUND_GLYPH, PENDING_GLYPH, SPINNER_GLYPH } from '#/tui/constant/symbols';
 
-/** Window cap for mounted multi-agent failure bodies (kiloline errors must not freeze the TUI). */
-const SUBAGENT_ERROR_WINDOW_LINES = 24;
+import { formatBashHeredocPreview } from '#/tui/components/media/bash-heredoc-preview';
 import { currentTheme } from '#/tui/theme';
 import type { TokenUsage } from '@superliora/sdk';
 import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
@@ -46,6 +46,9 @@ import {
 import { renderNeatCard } from '../tool-renderers/neat-card';
 import { isGenericToolResult } from '../tool-renderers/registry';
 import { TruncatedOutputComponent } from '../tool-renderers/truncated';
+
+/** Window cap for mounted multi-agent failure bodies (kiloline errors must not freeze the TUI). */
+const SUBAGENT_ERROR_WINDOW_LINES = 24;
 
 function renderSubagentPhaseSpinner(
   label: string,
@@ -303,6 +306,36 @@ function subToolOutputPreview(activity: SubToolActivity): Component[] {
 }
 
 /**
+ * Every repaint of an ongoing sub-tool rebuilds this block; memoize the
+ * heredoc parse + highlight per command (and palette) so an unchanged
+ * command is not re-tokenized each frame.
+ */
+const HEREDOC_PREVIEW_MEMO_MAX = 8;
+const heredocPreviewMemo = new Map<string, { readonly palette: unknown; readonly lines: readonly string[] }>();
+
+function memoizedHeredocPreview(command: string): readonly string[] {
+  const palette = currentTheme.palette;
+  const memo = heredocPreviewMemo.get(command);
+  if (memo !== undefined && memo.palette === palette) return memo.lines;
+  const lines = formatBashHeredocPreview(command) ?? [];
+  if (memo === undefined && heredocPreviewMemo.size >= HEREDOC_PREVIEW_MEMO_MAX) {
+    const oldest = heredocPreviewMemo.keys().next();
+    if (oldest.done !== true) heredocPreviewMemo.delete(oldest.value);
+  }
+  heredocPreviewMemo.set(command, { palette, lines });
+  return lines;
+}
+
+/** One clipped row per source line: a minified heredoc line must not wrap into hundreds of rows. */
+function singleRowLine(line: string, indent: number): Component {
+  const pad = ' '.repeat(indent);
+  return {
+    render: (width) => [pad + truncateToWidth(line, Math.max(1, width - indent * 2), '…')],
+    invalidate: () => {},
+  };
+}
+
+/**
  * Builds the single-`Agent`-tool-call activity tail: recent sub-tool rows
  * (with truncated output previews for Bash/generic tools), then either the
  * full failure text or a two-line thinking/output tail. Mirrors the
@@ -324,6 +357,15 @@ export function buildSingleSubagentBlockComponents(state: SingleSubagentBlockSta
     items.push(
       new Text(formatSubToolActivityRow(`  ${mark} `, verb, activity), 0, 0),
     );
+    // Literal command INPUT only: never infer writes or an applied patch.
+    if (activity.phase === 'ongoing' && activity.name === 'Bash') {
+      const command = activity.args['command'];
+      if (typeof command === 'string') {
+        for (const line of memoizedHeredocPreview(command)) {
+          items.push(singleRowLine(line, SUBAGENT_SUBTOOL_OUTPUT_INDENT));
+        }
+      }
+    }
     items.push(...subToolOutputPreview(activity));
   }
 

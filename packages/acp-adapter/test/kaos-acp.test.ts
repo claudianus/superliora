@@ -16,7 +16,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import { RequestError } from '@agentclientprotocol/sdk';
 import { KaosError, type Environment, type Kaos, type KaosProcess, type StatResult } from '@superliora/kaos';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AcpKaos } from '../src/kaos-acp';
 
@@ -572,6 +572,60 @@ describe('AcpKaos', () => {
 
       expect(inner.__spy.execCalls).toEqual([['ls', '-la']]);
       expect(inner.__spy.execWithEnvCalls).toEqual([{ args: ['env'], env: { FOO: 'bar' } }]);
+    });
+  });
+
+  describe('process sandbox forwarding', () => {
+    it('forks the inner execution policy while retaining ACP file routing', async () => {
+      const originalSetter = vi.fn();
+      const forkSetter = vi.fn();
+      const forkInner = Object.assign(makeMockInner(), { setProcessSandbox: forkSetter });
+      const inner = Object.assign(makeMockInner(), {
+        setProcessSandbox: originalSetter, forkExecutionPolicy: () => forkInner,
+      });
+      const conn = makeMockConn({ readHandler: async () => ({ content: 'editor buffer' }) });
+      const fork = new AcpKaos(conn.asConn(), 's1', inner).forkExecutionPolicy();
+      fork.setProcessSandbox({ backend: 'docker', workspaceDir: '/workspace' });
+      expect(originalSetter).not.toHaveBeenCalled();
+      expect(forkSetter).toHaveBeenCalledExactlyOnceWith({ backend: 'docker', workspaceDir: '/workspace' });
+      expect(await fork.readText('/workspace/notes')).toBe('editor buffer');
+      expect(conn.readCalls).toHaveLength(1);
+    });
+
+    it('rejects policy installation on a mutable host that cannot fork confinement', () => {
+      const setter = vi.fn();
+      const inner = Object.assign(makeMockInner(), { setProcessSandbox: setter });
+      expect(() => new AcpKaos(makeMockConn({}).asConn(), 's1', inner).forkExecutionPolicy())
+        .toThrow(/cannot isolate sandbox policy/);
+      expect(setter).not.toHaveBeenCalled();
+    });
+
+    it('rejects confinement on an unsupported inner host instead of silently ignoring it', () => {
+      const inner = makeMockInner();
+      const kaos = new AcpKaos(makeMockConn({}).asConn(), 's1', inner);
+      expect(() => { kaos.setProcessSandbox({ backend: 'docker', workspaceDir: '/workspace' }); })
+        .toThrow(/cannot apply confinement/);
+      expect(() => { kaos.setProcessSandbox(undefined); }).not.toThrow();
+      expect(inner.__spy.execCalls).toEqual([]);
+    });
+
+    it('rejects confinement for ACP client terminals even with a capable inner host', () => {
+      const setProcessSandbox = vi.fn();
+      const inner = Object.assign(makeMockInner(), { setProcessSandbox });
+      const kaos = new AcpKaos(makeMockConn({}).asConn(), 's1', inner, { terminal: true });
+      expect(() => { kaos.setProcessSandbox({ backend: 'docker', workspaceDir: '/workspace' }); })
+        .toThrow(/ACP client terminals cannot apply confinement/);
+      expect(setProcessSandbox).not.toHaveBeenCalled();
+    });
+
+    it('forwards both activation and explicit reset to a capable inner host', () => {
+      const setProcessSandbox = vi.fn();
+      const inner = Object.assign(makeMockInner(), { setProcessSandbox });
+      const kaos = new AcpKaos(makeMockConn({}).asConn(), 's1', inner);
+      const config = { backend: 'docker', workspaceDir: '/workspace' };
+      kaos.setProcessSandbox(config);
+      kaos.setProcessSandbox(undefined);
+      expect(setProcessSandbox.mock.calls).toEqual([[config], [undefined]]);
     });
   });
 
