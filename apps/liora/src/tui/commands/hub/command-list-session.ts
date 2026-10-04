@@ -272,12 +272,13 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     availability: 'idle-only',
   },
   {
+    // Retired: hidden from help and completion, kept so `/rewind` prints git
+    // rollback guidance instead of reaching the model as a prompt.
     name: 'rewind',
     aliases: [],
     description: slashDesc('rewind'),
-    priority: 80,
-    argumentHint: '[turnId]',
-    availability: 'idle-only',
+    visibility: 'hidden',
+    availability: 'always',
   },
   {
     name: 'retry',

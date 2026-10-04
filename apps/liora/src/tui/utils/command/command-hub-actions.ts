@@ -32,8 +32,6 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'chat.undo':
     case 'now.undo':
       return '/undo';
-    case 'chat.rewind':
-      return '/rewind';
     case 'chat.compact':
     case 'now.compact':
       return '/compact';

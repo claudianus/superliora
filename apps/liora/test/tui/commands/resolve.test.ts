@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { resolveSlashCommandInput, slashCommandBusyReason } from '#/tui/commands/index';
+import {
+  BUILTIN_SLASH_COMMANDS,
+  resolveSlashCommandInput,
+  slashCommandBusyReason,
+  slashCommandsForHelp,
+} from '#/tui/commands/index';
 import { dispatchInput, type SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 function resolve(input: string, busy: { isStreaming?: boolean; isCompacting?: boolean } = {}) {
@@ -40,6 +45,26 @@ describe('normal prompt dispatch', () => {
     const host = { state: { appState: { streamingPhase: phase, isCompacting: false } }, sendNormalUserInput } as unknown as SlashCommandHost;
     dispatchInput(host, 'Implement a new feature');
     expect(sendNormalUserInput).toHaveBeenCalledExactlyOnceWith('Implement a new feature');
+  });
+
+  it.each(['idle', 'running'])('answers retired /rewind with a notice instead of prompting the model while %s', async (phase) => {
+    const sendNormalUserInput = vi.fn();
+    const showNotice = vi.fn();
+    const host = {
+      state: { appState: { streamingPhase: phase, isCompacting: false } },
+      sendNormalUserInput,
+      showNotice,
+      showError: vi.fn(),
+      track: vi.fn(),
+    } as unknown as SlashCommandHost;
+    dispatchInput(host, '/rewind 3');
+    await vi.waitFor(() => expect(showNotice).toHaveBeenCalledOnce());
+    expect(showNotice.mock.calls[0]?.[0]).toContain('/rewind');
+    expect(sendNormalUserInput).not.toHaveBeenCalled();
+    expect(host.showError).not.toHaveBeenCalled();
+    for (const mode of ['primary', 'advanced', 'diagnostics'] as const) {
+      expect(slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, mode).map((command) => command.name)).not.toContain('rewind');
+    }
   });
 
   it('dispatches compact to the real session API with the user instruction', async () => {

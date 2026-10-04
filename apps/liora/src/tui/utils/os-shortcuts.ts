@@ -39,7 +39,6 @@ const PRIMARY_HINT_LETTERS: Readonly<Record<string, string>> = {
   'tui.history.searchToast': 'R',
   'tui.history.waitToast': 'C',
   'tui.model.cannotSwitchStreaming': 'C',
-  'tui.rewind.streamingBlocked': 'C',
   'tui.session.cannotSwitchStreaming': 'C',
   'tui.settings.editor.desc': 'G',
   'tui.slash.editor': 'G',

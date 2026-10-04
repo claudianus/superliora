@@ -398,7 +398,7 @@ export class EditorKeyboardController {
     };
     editor.onCommandHub = () => {
       // Hub is safe mid-turn: buildDefaultCommandHubItems already disables
-      // idle-only actions (undo/rewind/…) while streaming or compacting.
+      // idle-only actions (undo/compact/…) while streaming or compacting.
       // Operators still need Settings, model, help, cancel-adjacent jumps.
       host.showCommandHub();
     };

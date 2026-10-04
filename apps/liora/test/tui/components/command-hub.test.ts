@@ -52,7 +52,6 @@ describe('buildDefaultCommandHubItems', () => {
       'workspace.jobCreate',
       'workspace.jobInbox',
       'workspace.quota',
-      'chat.rewind',
       'start.folder',
       'start.fork',
       'account.logout',
@@ -66,7 +65,6 @@ describe('buildDefaultCommandHubItems', () => {
       'slash command',
     );
     expect(commandHubNestsPicker('workspace.jobOps')).toBe(true);
-    expect(commandHubActionToSlash('chat.rewind')).toBe('/rewind');
   });
 
   it('adds a Now section while streaming and hides Chat undo/compact dupes', () => {
@@ -75,7 +73,6 @@ describe('buildDefaultCommandHubItems', () => {
     );
     expect(items.some((item) => item.id === 'now.steer' && item.section === 'Now')).toBe(true);
     expect(items.some((item) => item.id === 'chat.undo')).toBe(false);
-    expect(items.some((item) => item.id === 'chat.rewind')).toBe(false);
     expect(items.some((item) => item.id === 'now.undo')).toBe(true);
   });
 
