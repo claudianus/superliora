@@ -132,7 +132,7 @@ describe('bounded parent summaries', () => {
 
   it('handles cycles, excessive nesting, throwing accessors, and BigInt safely', () => {
     const cycle: Record<string, unknown> = {};
-    cycle.self = cycle;
+    cycle['self'] = cycle;
     let deep: unknown = 1;
     for (let i = 0; i < 10_000; i++) deep = [deep];
     for (const value of [cycle, deep, { get value() { throw new Error('boom'); } }, { value: 1n }]) {

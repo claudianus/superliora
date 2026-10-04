@@ -4,6 +4,7 @@ import {
   APITimeoutError,
   emptyUsage,
   type ChatProvider,
+  type Message,
   type ModelCapability,
   type StreamedMessagePart,
   type ToolCall,
@@ -2261,7 +2262,7 @@ describe('host conductor request projection', () => {
       return { id: 'reply', message: { role: 'assistant', content: [], toolCalls: [] }, usage: emptyUsage(), finishReason: 'completed', rawFinishReason: 'stop' };
     };
     const llm = new KosongLLM({ provider, systemPrompt: 'Base', layeredSystemPrompt: { layer1Static: 'Static', layer2Session: 'Session', layer3Dynamic: 'Existing dynamic' }, requestContext: () => ({ prefix: 'Stable conductor policy', dynamic: `revision=${revision}` }), generate });
-    const history = [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'Task' }] }];
+    const history: Message[] = [{ role: 'user', content: [{ type: 'text', text: 'Task' }], toolCalls: [] }];
     await llm.chat({ messages: history, tools: [], signal: new AbortController().signal });
     revision++;
     await llm.chat({ messages: history, tools: [], signal: new AbortController().signal });

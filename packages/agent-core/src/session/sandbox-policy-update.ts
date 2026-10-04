@@ -1,6 +1,15 @@
-import type { Agent } from '../agent';
+import type { SandboxEnforcement } from '../config/sandbox-enforcement';
+import type { SandboxProfile } from '../tools/policies/path-access';
 
-export type SandboxPolicyUpdate = Parameters<Agent['setSandboxPolicy']>[0];
+export interface SandboxPolicyUpdate {
+  profile?: SandboxProfile;
+  enforcement?: SandboxEnforcement;
+}
+
+/** The Agent surface this fan-out needs; kept structural so session/ does not import agent/. */
+interface SandboxPolicyHost {
+  setSandboxPolicy(policy: SandboxPolicyUpdate): Promise<void>;
+}
 
 /**
  * Host-side fan-out only: Agent remains standalone and owns no session graph.
@@ -9,7 +18,7 @@ export type SandboxPolicyUpdate = Parameters<Agent['setSandboxPolicy']>[0];
  * RPC callers must await this before acknowledging a metadata policy update.
  */
 export function applySandboxPolicyToAgents(
-  agents: Iterable<Pick<Agent, 'setSandboxPolicy'>>,
+  agents: Iterable<SandboxPolicyHost>,
   policy: SandboxPolicyUpdate,
 ): Promise<void> {
   const updates: Promise<void>[] = [];

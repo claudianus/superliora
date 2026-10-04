@@ -39,7 +39,7 @@ export interface VerificationArtifact {
   readonly stages: readonly VerificationStage[];
   readonly artifactHash: string;
 }
-export interface VerificationEnvironment {
+interface VerificationEnvironment {
   readonly values: Readonly<Record<string, string>>;
   readonly removedKeys: readonly string[];
 }

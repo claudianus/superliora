@@ -183,7 +183,7 @@ describe('Agent process sandbox lifecycle', () => {
   it('rebuilds builtin guards on the current revision after lexical, process, and host updates', async () => {
     const agent = new Agent({ kaos: testKaos });
     const execute = vi.fn(async () => ({ output: 'safe' }));
-    vi.spyOn(ToolManager.prototype, 'initializeBuiltinTools').mockImplementation(function () {
+    vi.spyOn(ToolManager.prototype, 'initializeBuiltinTools').mockImplementation(function (this: ToolManager) {
       this.builtinTools = new Map([['Test', {
         name: 'Test', description: 'test', parameters: { type: 'object', properties: {} },
         resolveExecution: () => ({ approvalRule: 'Test', execute }),

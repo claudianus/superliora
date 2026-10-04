@@ -32,7 +32,7 @@ async function setup(store = new MemoryStore()) {
       signals.set(id, signal);
       signal.addEventListener('abort', () => completion.reject(signal.reason), { once: true });
       if (signal.aborted) completion.reject(signal.reason);
-      return { sessionId: `session-${id}`, completion: completion.promise, message: async (text) => { messages.push(text); } };
+      return { sessionId: `session-${id}`, completion: completion.promise, message: async (text: string) => { messages.push(text); } };
     }),
   };
   const coordinator = await SessionCoordinator.open({ store, runtime, policy: { role: 'conductor', maxConcurrent: 2, authorizedRoots: [tmpdir()] }, now: () => 100 });
