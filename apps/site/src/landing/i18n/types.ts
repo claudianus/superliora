@@ -5,38 +5,40 @@ export interface NavItem {
   href: string;
 }
 
-export interface JobSeed {
-  id: string;
-  kind: string;
-  title: string;
-  state: "queued" | "running" | "needs_user" | "done";
-  model: string;
-  owns: string;
-  progress: number;
-  sha?: string;
-}
+export type DocSlug = "getting-started" | "how-conductor-works" | "jobs" | "control-tower" | "reference";
+
+export type IconName =
+  | "command"
+  | "network"
+  | "git-branch"
+  | "shield"
+  | "box"
+  | "plug"
+  | "gauge"
+  | "history"
+  | "keyboard"
+  | "upload";
 
 export interface Dict {
   meta: { title: string };
   header: {
     nav: NavItem[];
-    version: string;
-    github: string;
     docs: string;
+    github: string;
+    releaseLabel: string;
   };
   hero: {
     eyebrow: string;
     titleA: string;
     titleB: string;
     sub: string;
-    installLabel: string;
-    installCmd: string;
-    copied: string;
+    osTabs: { unix: string; windows: string };
+    installNote: string;
     copy: string;
-    nodeNote: string;
+    copied: string;
     cta1: string;
     cta2: string;
-    platforms: string[];
+    /** `{providers}` is replaced with the rounded models.dev provider count. */
     stats: { k: string; v: string }[];
   };
   tui: {
@@ -44,13 +46,18 @@ export interface Dict {
     hints: string;
     liveTag: string;
     replayNote: string;
+    dock: { running: string; finished: string };
   };
-  flow: {
+  how: {
     eyebrow: string;
     title: string;
     lede: string;
+    you: string;
+    youPrompt: string;
+    conductor: { title: string; body: string };
+    tools: { name: string; tag: string; body: string; sample: string[]; lands: string }[];
+    operator: { label: string; items: { title: string; body: string; icon: IconName }[] };
     steps: { no: string; title: string; body: string; foot: string }[];
-    railLabels: string[];
   };
   demo: {
     eyebrow: string;
@@ -58,15 +65,18 @@ export interface Dict {
     lede: string;
     focusHint: string;
     focusedHint: string;
-    keys: { chord: string; label: string; action: string }[];
+    keys: { chord: string; label: string; note?: string; action: "deck" | "inbox" | "hub" | "quota" | "dock" }[];
+    promptPlaceholder: string;
+    demoReply: string;
+    unknownCommand: string;
     deck: {
       title: string;
       subtitle: string;
-      states: Record<string, string>;
-      owns: string;
-      ledger: string;
-      completion: string;
-      empty: string;
+      groups: { blocked: string; remaining: string; done: string };
+      states: { queued: string; running: string; needs_user: string; done: string };
+      actions: string;
+      worktree: string;
+      answer: string;
     };
     inbox: {
       title: string;
@@ -80,37 +90,36 @@ export interface Dict {
     hub: {
       placeholder: string;
       noMatch: string;
-      groups: Record<string, string>;
-      items: { label: string; hint: string; group: string; kw: string }[];
+      groups: Record<"jobs" | "provider" | "session" | "app", string>;
+      items: { label: string; hint: string; group: "jobs" | "provider" | "session" | "app"; kw: string }[];
     };
     quota: {
       title: string;
       note: string;
       rows: { provider: string; detail: string; pct: number }[];
     };
-    sessions: {
+    dock: {
       title: string;
-      heading: string;
-      items: string[];
-      note: string;
+      modes: { auto: string; pinned: string; hidden: string };
+      hint: string;
     };
     transcriptNote: string;
   };
-  systems: {
+  features: {
     eyebrow: string;
     title: string;
     lede: string;
-    cards: { no: string; title: string; body: string; foot: string; icon: string }[];
-    providersLabel: string;
-    providersNote: string;
-    controls: string[];
-    workflow: { label: string; badge: string; steps: { tag: string; text: string; cls: string }[] };
+    cards: { title: string; body: string; foot: string; icon: IconName }[];
+    lifecycle: { label: string; badge: string; steps: { tag: string; text: string }[] };
+    /** `{providers}`, `{models}`, `{date}` come from the generated models.dev snapshot. */
+    providers: { label: string; note: string; more: string };
   };
   surfaces: {
     eyebrow: string;
     title: string;
     lede: string;
     tabs: string[];
+    cliLabel: string;
     cli: { cmd: string; desc: string }[];
     server: {
       lead: string;
@@ -120,10 +129,12 @@ export interface Dict {
     sdk: {
       lead: string;
       bullets: string[];
+      note: string;
     };
     ide: {
       lead: string;
       bullets: string[];
+      lines: string[];
     };
   };
   install: {
@@ -131,7 +142,6 @@ export interface Dict {
     title: string;
     lede: string;
     tabs: string[];
-    cmds: { label: string; code: string }[];
     notes: { title: string; body: string }[];
     afterTitle: string;
     afterSteps: string[];
@@ -140,7 +150,9 @@ export interface Dict {
   };
   footer: {
     tagline: string;
-    columns: { title: string; links: { label: string; href: string }[] }[];
+    project: { title: string; links: NavItem[] };
+    guides: { title: string; labels: Record<DocSlug, string> };
+    community: { title: string; links: NavItem[] };
     localeNote: string;
     colophon: string;
     license: string;

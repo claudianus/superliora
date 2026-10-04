@@ -20,7 +20,7 @@ const chrome =
   process.env.CHROME_PATH ??
   'C:\\Users\\Administrator\\.cloakbrowser\\chromium-146.0.7680.177.5\\chrome.exe';
 // Landing is mounted once the fixed header and the first scroll-revealed section exist.
-const mountedWait = 'header, #flow, #install';
+const mountedWait = 'header, #how, #install';
 
 mkdirSync(out, { recursive: true });
 

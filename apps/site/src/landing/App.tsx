@@ -1,9 +1,9 @@
 import { LocaleProvider } from "./i18n";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
-import Flow from "./components/Flow";
+import HowItWorks from "./components/HowItWorks";
 import ControlRoom from "./components/ControlRoom";
-import Systems from "./components/Systems";
+import Features from "./components/Features";
 import Surfaces from "./components/Surfaces";
 import Install from "./components/Install";
 import Footer from "./components/Footer";
@@ -15,9 +15,9 @@ export default function App() {
         <Header />
         <main>
           <Hero />
-          <Flow />
+          <HowItWorks />
           <ControlRoom />
-          <Systems />
+          <Features />
           <Surfaces />
           <Install />
         </main>

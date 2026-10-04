@@ -18,7 +18,7 @@ const base = process.env.BASE_URL ?? 'http://127.0.0.1:4176/superliora/';
 mkdirSync(out, { recursive: true });
 
 // The app is mounted once the first scroll-revealed section renders.
-const mountedWait = '#flow, #install, header';
+const mountedWait = '#how, #install, header';
 
 const shots = [
   { name: 'mobile-390.png', w: 390, h: 844 },

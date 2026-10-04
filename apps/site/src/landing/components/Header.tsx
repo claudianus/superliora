@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { BookOpen } from "lucide-react";
 import { useLocale } from "../i18n";
 import { cn } from "../utils/cn";
+import { LIORA_VERSION, RELEASE_URL, REPO_URL, docsHref } from "./shared";
 
 export function GithubIcon({ className }: { className?: string }) {
   return (
@@ -58,7 +60,7 @@ export default function Header() {
           <Wordmark />
         </a>
 
-        <nav className="ml-2 hidden items-center gap-1 md:flex">
+        <nav className="ml-2 hidden items-center gap-1 lg:flex">
           {t.header.nav.map((n) => (
             <a
               key={n.href}
@@ -71,9 +73,23 @@ export default function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2.5">
-          <span className="hidden rounded-full border border-line px-2.5 py-1 font-[family-name:var(--font-mono)] text-[10.5px] text-faint sm:inline">
-            {t.header.version}
-          </span>
+          <a
+            href={RELEASE_URL}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`${t.header.releaseLabel} — v${LIORA_VERSION}`}
+            className="hidden items-center gap-1.5 rounded-full border border-line px-2.5 py-1 font-[family-name:var(--font-mono)] text-[10.5px] text-faint transition-colors hover:border-primary/50 hover:text-ink sm:flex"
+          >
+            <span className="size-1.5 rounded-full bg-mint" />v{LIORA_VERSION}
+          </a>
+
+          <a
+            href={docsHref(locale)}
+            className="hidden items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12.5px] text-dim transition-colors hover:text-ink sm:flex"
+          >
+            <BookOpen className="size-3.5" />
+            {t.header.docs}
+          </a>
 
           {/* locale toggle */}
           <div className="flex items-center rounded-full border border-line p-0.5" role="group" aria-label="language">
@@ -93,7 +109,7 @@ export default function Header() {
           </div>
 
           <a
-            href="https://github.com/claudianus/superliora"
+            href={REPO_URL}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-2 rounded-full border border-line px-3.5 py-1.5 text-[12.5px] text-dim transition-colors hover:border-primary/50 hover:text-ink"
