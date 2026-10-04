@@ -96,7 +96,6 @@ export async function runOneTurnFlow(
 
   try {
     closeAbandonedToolExchangeAtTurnEnd(agent, ended);
-    agent.fileSnapshots?.commitTurn(String(turnId));
   } catch (error) {
     const summary = summarizeTurnError(error, turnId);
     ended = {

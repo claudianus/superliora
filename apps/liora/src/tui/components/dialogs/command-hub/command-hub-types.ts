@@ -14,7 +14,6 @@ export type CommandHubActionId =
   | 'chat.thinking'
   | 'chat.retry'
   | 'chat.undo'
-  | 'chat.rewind'
   | 'chat.compact'
   | 'chat.btw'
   | 'workspace.files'

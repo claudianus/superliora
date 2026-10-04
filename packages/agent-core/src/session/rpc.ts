@@ -5,7 +5,7 @@ import type {
   AddAdditionalDirPayload, AddAdditionalDirResult, AgentAPI, BeginCompactionPayload,
   CancelPayload, CancelShellCommandPayload, ConversationLoopStateData, DetachBackgroundPayload,
   EmptyPayload, GetBackgroundOutputPayload, GetBackgroundPayload, PromptPayload,
-  RenameSessionPayload, RewindFilesPayload, RewindFilesResult, RunShellCommandPayload,
+  RenameSessionPayload, RunShellCommandPayload,
   SessionAPI, SetModelPayload, SetPermissionPayload, SetThinkingPayload, SteerPayload,
   StopBackgroundPayload, StartConversationLoopPayload, StopConversationLoopPayload,
   UndoHistoryPayload, UpdateSessionMetadataPayload,
@@ -95,10 +95,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   addAdditionalDir(payload: AddAdditionalDirPayload): Promise<AddAdditionalDirResult> {
     return this.session.addAdditionalDir(payload.path, payload.persist);
-  }
-
-  rewindFiles(payload: RewindFilesPayload): Promise<RewindFilesResult> {
-    return this.session.rewindFiles({ turnId: payload.turnId });
   }
 
   startConversationLoop(payload: StartConversationLoopPayload): ConversationLoopStateData {

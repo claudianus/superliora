@@ -17,8 +17,6 @@ import { prepareSystemPromptContext, resolveMainAgentProfile, type ResolvedAgent
 import type { TelemetryClient } from '../../telemetry';
 import type { SandboxEnforcement } from '../../config/sandbox-enforcement';
 import type { SandboxProfile } from '../../tools/policies/path-access';
-import { FileSnapshotStore } from '../file-snapshot';
-import type { FileProvenanceRecorder } from '../file-provenance';
 import { ProviderManager } from '../provider/provider-manager';
 import type { Session } from '../index';
 import type {
@@ -34,8 +32,6 @@ export interface SessionAgentLifecycleOptions {
   readonly agents: Map<string, AgentEntry>;
   getMetadata: () => SessionMeta;
   readonly telemetry: TelemetryClient;
-  readonly fileSnapshots: FileSnapshotStore;
-  readonly fileProvenance: FileProvenanceRecorder;
   readonly log: Logger;
   readonly rpc: SDKSessionRPC;
   getToolKaos: () => Kaos;
@@ -100,8 +96,6 @@ export class SessionAgentLifecycle {
       telemetry: this.opts.telemetry,
       log: this.opts.log.createChild({ agentId: id }),
       additionalDirs: config.additionalDirs ?? parentAgent?.getAdditionalDirs() ?? this.opts.getAdditionalDirs(),
-      fileSnapshots: config.fileSnapshots ?? this.opts.fileSnapshots,
-      fileProvenance: config.fileProvenance ?? this.opts.fileProvenance,
       sandboxProfile: sandboxPolicy.profile,
       sandboxEnforcement: sandboxPolicy.enforcement,
     });

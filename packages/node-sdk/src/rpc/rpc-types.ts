@@ -66,18 +66,6 @@ export interface StopConversationLoopRpcInput extends SessionIdRpcInput {
   readonly loopId?: string | undefined;
 }
 
-export interface RewindFilesRpcInput extends SessionIdRpcInput {
-  readonly turnId?: string | undefined;
-}
-
-export interface RewindFilesRpcResult {
-  readonly turnId: string;
-  readonly restored: readonly string[];
-  readonly deleted: readonly string[];
-  readonly skippedSensitive: readonly string[];
-  readonly errors: readonly { path: string; message: string }[];
-}
-
 export interface RunShellCommandRpcInput {
   readonly sessionId: string;
   readonly command: string;

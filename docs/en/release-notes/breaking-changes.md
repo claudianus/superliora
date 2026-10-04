@@ -11,6 +11,7 @@ The model-visible API is exactly **Bash** and **SessionControl**. This is a majo
 - Plan/Goal/Ask modes and their commands; durable Memory; skills and skill commands; plugins, MCP, hooks, persona, capability catalogs, and task-role routing/probing.
 - Specialized file/search/web/media, plan/todo/goal, Memory, Agent/Task, and job model tools. Use Bash for executable work and SessionControl for child/process control.
 - Automatic execution-step/whole-turn/worker retries, strict resends, effect replay, automatic context compaction, and forced verification/review. Native configured provider routes may still handle configured candidates before output; this does not restart a failed worker or replay effects.
+- File rewind and `/blame` AI-attribution markers. Both depended on the removed file tools, so Bash edits never fed them. `/rewind` prints git rollback guidance instead of restoring files, and `/blame` shows plain `git blame`.
 
 **Configuration migration**
 

@@ -253,7 +253,7 @@ export function getSessionMetadata(
 
 export { getSessionWarnings } from './session-agent-methods-discovery';
 export {
-  addAdditionalDir, rewindFiles, startConversationLoop, stopConversationLoop,
+  addAdditionalDir, startConversationLoop, stopConversationLoop,
   listConversationLoops, startBtw,
 } from './session-agent-methods-session';
 export {

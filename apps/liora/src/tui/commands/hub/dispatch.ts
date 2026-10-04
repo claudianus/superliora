@@ -384,7 +384,7 @@ async function handleBuiltInSlashCommand(
       await handleUndoCommand(host, args);
       return;
     case 'rewind':
-      await handleRewindCommand(host, args);
+      handleRewindCommand(host);
       return;
     case 'retry':
       await host.retryLastTurn();

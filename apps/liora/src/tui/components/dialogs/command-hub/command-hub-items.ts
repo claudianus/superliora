@@ -144,13 +144,6 @@ export function buildDefaultCommandHubItems(state: {
         'tui.hub.chat.undo.desc',
       ),
       hub(
-        'chat.rewind',
-        'tui.hub.section.chat',
-        'tui.hub.chat.rewind.label',
-        'tui.hub.chat.rewind.desc',
-        { keywords: ['rewind', 'snapshot', 'restore'] },
-      ),
-      hub(
         'chat.compact',
         'tui.hub.section.chat',
         'tui.hub.chat.compact.label',

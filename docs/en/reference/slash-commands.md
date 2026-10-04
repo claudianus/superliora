@@ -37,7 +37,7 @@ Commands that switch sessions or mutate conversation context require an idle ses
 | `/title <text>` (`/rename`) | Session title |
 | `/compact [instruction]` | Explicit full compaction; retain latest real user request |
 | `/queue clear` | Clear the TUI prompt queue |
-| `/undo`, `/rewind [turnId]` | Conversation undo/rewind; not effect rollback |
+| `/undo` | Conversation undo; not effect rollback |
 | `/retry` | Explicit operator retry of a turn, not automatic recovery |
 | `/reload` | Reload session configuration |
 | `/reload-tui` | Reload UI preferences and active theme |
@@ -54,5 +54,7 @@ Normal prompts run directly in the current workspace. A conversation fork or chi
 ## Removed surfaces
 
 Plan/Goal/Ask modes, `/plan`, `/goal`, `/ask`, `/memory`, skill commands, `/plugins`, `/mcp`, `/mcp-config`, persona/workflow/catalog commands, and experimental orchestration are retired. Do not replace these with aliases. Describe the task, any approval boundary, and required checks in an ordinary prompt. See [Major migration](../release-notes/breaking-changes.md#minimal-autonomous-runtime-major-migration).
+
+File rewind and the AI-attribution markers (`✦`) in `/blame` are retired. Both read per-file records that only the removed Write/Edit/ApplyPatch tools wrote; Bash edits leave no such record. `/rewind` stays reserved so the text is not sent to the model as a prompt, but it only prints rollback guidance: use git (`git diff`, `git restore <path>`, `git stash`) or start risky work with `liora --worktree`. `/blame` shows plain `git blame`. Old `provenance.ndjson` files in session directories are no longer read and can be deleted.
 
 See [Keyboard shortcuts](./keyboard.md), [Interaction and input](../guides/interaction.md), and [Tools](./tools.md).

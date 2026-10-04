@@ -3,8 +3,6 @@ import type {
   AddAdditionalDirResult,
   ConversationLoopStateData,
   EmptyPayload,
-  RewindFilesPayload,
-  RewindFilesResult,
   StartConversationLoopPayload,
   StopConversationLoopPayload,
 } from './core-api';
@@ -22,15 +20,6 @@ export function addAdditionalDir(
   ...payload
 }: SessionScopedPayload<AddAdditionalDirPayload>): Promise<AddAdditionalDirResult> {
   return context.requireSession(sessionId).addAdditionalDir(payload.path, payload.persist);
-}
-
-export function rewindFiles(
-  context: SessionAgentMethodsContext,
-  {
-  sessionId,
-  ...payload
-}: SessionScopedPayload<RewindFilesPayload>): Promise<RewindFilesResult> {
-  return context.sessionApi(sessionId).rewindFiles(payload);
 }
 
 export function startConversationLoop(

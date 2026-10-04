@@ -7,8 +7,6 @@ import { getRootLogger, log } from '#/logging/logger';
 import type { SessionLogHandle } from '#/logging/types';
 import { Agent, type AgentOptions } from '../agent';
 import { type ConversationLoopState } from '../agent/conversation-loop';
-import { FileSnapshotStore } from './file-snapshot';
-import { FileProvenanceRecorder } from './file-provenance';
 import {
   appendWorkspaceAdditionalDir,
   normalizeAdditionalDirs,
@@ -49,10 +47,6 @@ export class Session {
   readonly telemetry: NonNullable<SessionOptions['telemetry']>;
   readonly agents: Map<string, AgentEntry> = new Map();
   readonly log: ReturnType<typeof log.createChild> | typeof log;
-  /** Session-scoped write/edit snapshots shared by all agents for `/rewind`. */
-  readonly fileSnapshots: FileSnapshotStore;
-  /** Session-scoped file-provenance recorder shared by all agents. */
-  readonly fileProvenance: FileProvenanceRecorder;
   private readonly logHandle: SessionLogHandle | undefined;
   private toolKaos: Kaos;
   private persistenceKaos: Kaos;
@@ -93,14 +87,6 @@ export class Session {
     this.toolKaos = options.kaos;
     this.persistenceKaos = options.persistenceKaos ?? options.kaos;
     this.additionalDirs = normalizeAdditionalDirs(options.additionalDirs ?? []);
-    this.fileSnapshots = new FileSnapshotStore({
-      kaos: this.toolKaos,
-      snapshotDir: FileSnapshotStore.snapshotDirForSession(options.homedir),
-    });
-    this.fileProvenance = new FileProvenanceRecorder({
-      filePath: FileProvenanceRecorder.provenancePathForSession(options.homedir),
-      cwd: options.kaos.getcwd(),
-    });
     this.metadataPersistence = new SessionMetadataPersistence({
       sessionHomedir: options.homedir,
       kaos: this.persistenceKaos,
@@ -123,8 +109,6 @@ export class Session {
       agents: this.agents,
       getMetadata: () => this.metadata,
       telemetry: this.telemetry,
-      fileSnapshots: this.fileSnapshots,
-      fileProvenance: this.fileProvenance,
       log: this.log,
       rpc: this.rpc,
       getToolKaos: () => this.toolKaos,
@@ -393,33 +377,6 @@ export class Session {
     }
   }
 
-
-  /**
-   * Restore disk files from a sealed turn snapshot.
-   * When `turnId` is omitted, restores the latest sealed turn.
-   * Does not rewrite conversation history — pair with `undoHistory` when needed.
-   */
-  async rewindFiles(options: { turnId?: string | undefined } = {}): Promise<{
-    readonly turnId: string;
-    readonly restored: readonly string[];
-    readonly deleted: readonly string[];
-    readonly skippedSensitive: readonly string[];
-    readonly errors: readonly { path: string; message: string }[];
-  }> {
-    let turnId = options.turnId;
-    if (turnId === undefined) {
-      const turns = this.fileSnapshots.listTurns();
-      const latest = turns.at(-1);
-      if (latest === undefined) {
-        throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, 'No file snapshots available to rewind');
-      }
-      turnId = latest.turnId;
-    }
-    const result = await this.fileSnapshots.restoreTurn(turnId);
-    this.fileSnapshots.discardFrom(turnId);
-    return { turnId, ...result };
-  }
-
   startConversationLoop(options: {
     prompt: string;
     intervalMs?: number | undefined;
@@ -471,23 +428,6 @@ export class Session {
 }
 
 export * from './subagent/subagent-host';
-export {
-  FileSnapshotStore,
-  type FileSnapshotEntry,
-  type FileSnapshotStoreOptions,
-  type TurnFileSnapshot,
-} from './file-snapshot';
-export {
-  FileProvenanceRecorder,
-  readProvenanceFile,
-  FILE_PROVENANCE_ENV,
-  type FileProvenanceHook,
-  type FileProvenanceMutation,
-  type FileProvenanceOp,
-  type FileProvenanceRecord,
-  type FileProvenanceRecorderOptions,
-  type ProvenanceMutationContext,
-} from './file-provenance';
 
 function parseWorkerAncestry(value: unknown, message: string): WorkerAncestry | undefined {
   if (value === undefined) return undefined;

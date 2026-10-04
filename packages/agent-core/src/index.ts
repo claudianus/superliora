@@ -15,12 +15,6 @@ export type {
 
 export { SESSION_STATE_VERSION } from './session';
 export type { SessionCustomMetadata, SessionMeta } from './session';
-export {
-  FileSnapshotStore,
-  type FileSnapshotEntry,
-  type FileSnapshotStoreOptions,
-  type TurnFileSnapshot,
-} from './session/file-snapshot';
 export { SessionStore } from './session/store';
 export {
   humanizeCollaborationEvent,
