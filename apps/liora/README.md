@@ -54,7 +54,7 @@ Registered in [`src/cli/commands.ts`](./src/cli/commands.ts); `liora <command> -
 | `gc` | Reclaim idle cache and worktree temp files, compress closed sessions |
 | `worktree` | `list`, `rm`, `gc`, and `hygiene` for SuperLiora worktrees |
 | `export` | Zip a session for a bug report |
-| `server` | Run the engine over REST + WebSocket, or install it as an OS service |
+| `server` | `run` the engine over REST + WebSocket as a background daemon; `ps`, `kill`, `rotate-token` |
 | `acp` | Run as an Agent Client Protocol server over stdio (Zed, JetBrains) |
 | `browser-use` / `computer-use` | Install and check the local browser and desktop automation runtimes |
 | `completions` | Print a bash, zsh, or fish completion script |
