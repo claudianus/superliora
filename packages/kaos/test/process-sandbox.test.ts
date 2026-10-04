@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
-import { readdirSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync } from 'node:fs';
+import { lstatSync, readdirSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import {
   buildDockerSandboxArgs,
   mapHostCwdToContainer,
+  preflightProcessSandboxMounts,
   resolveProcessSandboxBackend,
   wrapLocalExecForProcessSandbox,
 } from '#/process-sandbox';
@@ -21,13 +22,24 @@ vi.mock('node:child_process', async importOriginal => ({
 }));
 vi.mock('node:fs', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs')>();
-  return { ...actual, readdirSync: vi.fn(actual.readdirSync) };
+  return { ...actual, readdirSync: vi.fn(actual.readdirSync), lstatSync: vi.fn(actual.lstatSync) };
 });
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...actual, readdir: vi.fn(actual.readdir) };
+});
+
+/** Minimal Dirent stand-in for mocked listings. */
+function dirent(name: string, kind: 'file' | 'unknown' = 'file') {
+  const no = () => false;
+  return { name, isFile: () => kind === 'file', isDirectory: no, isSymbolicLink: no, isSocket: no, isFIFO: no, isCharacterDevice: no, isBlockDevice: no };
+}
 
 // kaos shares its module graph between files; do not leak mocked builtins.
 afterAll(() => {
   vi.doUnmock('node:child_process');
   vi.doUnmock('node:fs');
+  vi.doUnmock('node:fs/promises');
   vi.resetModules();
 });
 
@@ -332,15 +344,137 @@ describe('process sandbox helpers', () => {
         vi.mocked(readdirSync).mockImplementationOnce(() => { throw Object.assign(new Error('cannot scan'), { code }); });
         expect(() => buildDockerSandboxArgs({ workspaceDir: temp, cwd: temp, command: ['echo'] })).toThrow(/socket scan failure/);
       }
-      vi.mocked(readdirSync).mockReturnValueOnce(['disappeared'] as never);
+      // An entry readdir cannot type is lstat'ed; one that vanished fails closed.
+      vi.mocked(readdirSync).mockReturnValueOnce([dirent('disappeared', 'unknown')] as never);
       expect(() => buildDockerSandboxArgs({ workspaceDir: temp, cwd: temp, command: ['echo'] })).toThrow(/socket scan failure/);
       // Repeated existing file names exercise the budget without a huge disk fixture.
-      mkdirSync(join(temp, 'entry'));
-      vi.mocked(readdirSync).mockReturnValueOnce(Array.from({ length: 100_001 }, () => 'entry') as never);
+      vi.mocked(readdirSync).mockReturnValueOnce(Array.from({ length: 100_001 }, () => dirent('entry')) as never);
       expect(() => buildDockerSandboxArgs({ workspaceDir: temp, cwd: temp, command: ['echo'] })).toThrow(/socket scan failure/);
     } finally {
       rmSync(temp, { recursive: true, force: true });
     }
+  });
+
+  describe('socket scan listing cache', () => {
+    let clock = 0;
+    beforeEach(() => {
+      clock = 1_000_000;
+      vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    });
+    afterEach(() => { vi.mocked(performance.now).mockRestore(); });
+    const build = (workspaceDir: string) => buildDockerSandboxArgs({ workspaceDir, cwd: workspaceDir, readOnly: true, command: ['echo'] });
+    // Two identical listings far enough apart confirm a directory's listing.
+    const buildConfirmed = (workspaceDir: string) => { build(workspaceDir); clock += 3_000; build(workspaceDir); clock += 1_000; };
+
+    it.skipIf(process.platform === 'win32')('re-reads only changed directories and still rejects a socket created after a cached scan', async () => {
+      const temp = mkdtempSync(join(tmpdir(), 'kaos-scan-cache-'));
+      const server = createServer();
+      try {
+        mkdirSync(join(temp, 'a', 'deep'), { recursive: true });
+        mkdirSync(join(temp, 'b'));
+        buildConfirmed(temp);
+        vi.mocked(readdirSync).mockClear();
+        build(temp);
+        expect(readdirSync).not.toHaveBeenCalled();
+        await new Promise<void>((resolve, reject) => {
+          server.once('error', reject);
+          server.listen(join(temp, 'a', 'deep', 'late.sock'), resolve);
+        });
+        expect(() => build(temp)).toThrow(/socket/);
+        // Only the directory whose entries changed was listed again.
+        expect(vi.mocked(readdirSync).mock.calls.map(call => call[0])).toEqual([join(realpathSync(temp), 'a', 'deep')]);
+      } finally {
+        if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
+        rmSync(temp, { recursive: true, force: true });
+      }
+    });
+
+    it('does not trust a listing until a much later listing agrees', () => {
+      const temp = mkdtempSync(join(tmpdir(), 'kaos-scan-confirm-'));
+      try {
+        build(temp);
+        clock += 1_000; // Within one coarse timestamp tick: must re-read.
+        vi.mocked(readdirSync).mockClear();
+        build(temp);
+        expect(readdirSync).toHaveBeenCalledTimes(1);
+        clock += 3_000;
+        build(temp);
+        vi.mocked(readdirSync).mockClear();
+        build(temp);
+        expect(readdirSync).not.toHaveBeenCalled();
+      } finally {
+        rmSync(temp, { recursive: true, force: true });
+      }
+    });
+
+    it.skipIf(process.platform === 'win32')('re-resolves symlinks on every exec even when their directory listing is cached', async () => {
+      const temp = mkdtempSync(join(tmpdir(), 'kaos-scan-link-'));
+      const outside = mkdtempSync(join(tmpdir(), 'kaos-scan-outside-'));
+      const server = createServer();
+      try {
+        const workspace = join(temp, 'ws');
+        mkdirSync(workspace);
+        const target = join(outside, 'later.sock');
+        symlinkSync(target, join(workspace, 'link'));
+        buildConfirmed(workspace);
+        await new Promise<void>((resolve, reject) => {
+          server.once('error', reject);
+          server.listen(target, resolve);
+        });
+        expect(() => build(workspace)).toThrow(/socket/);
+      } finally {
+        if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
+        rmSync(temp, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+
+    it('classifies a cached subdirectory that changed type while its parent listing is reused', async () => {
+      const temp = mkdtempSync(join(tmpdir(), 'kaos-scan-swap-'));
+      try {
+        mkdirSync(join(temp, 'swap'));
+        buildConfirmed(temp);
+        const child = join(realpathSync(temp), 'swap');
+        const { lstatSync: realLstat } = await vi.importActual<typeof import('node:fs')>('node:fs');
+        // A same-tick swap leaves the parent's timestamps (and confirmed listing) intact.
+        const swapped = (kind: 'file' | 'socket') => (path: unknown, ...rest: unknown[]) => path === child
+          ? { isDirectory: () => false, isSocket: () => kind === 'socket', isSymbolicLink: () => false }
+          : (realLstat as (...args: unknown[]) => unknown)(path, ...rest);
+        vi.mocked(lstatSync).mockImplementation(swapped('file') as never);
+        vi.mocked(readdirSync).mockClear();
+        expect(build(temp)).toContain(`type=bind,source=${realpathSync(temp)},target=/workspace,readonly`);
+        expect(readdirSync).not.toHaveBeenCalled();
+        vi.mocked(lstatSync).mockImplementation(swapped('socket') as never);
+        expect(() => build(temp)).toThrow(/socket/);
+      } finally {
+        vi.mocked(lstatSync).mockReset();
+        const { lstatSync: realLstat } = await vi.importActual<typeof import('node:fs')>('node:fs');
+        vi.mocked(lstatSync).mockImplementation(realLstat as never);
+        rmSync(temp, { recursive: true, force: true });
+      }
+    });
+
+    it('lets this exec reuse its own preflight listing of a tree beyond the synchronous budget', async () => {
+      const temp = mkdtempSync(join(tmpdir(), 'kaos-scan-preflight-'));
+      try {
+        const { readdir } = await import('node:fs/promises');
+        const many = Array.from({ length: 100_001 }, (_, index) => dirent(`file-${String(index)}`));
+        vi.mocked(readdirSync).mockReturnValueOnce(many as never);
+        expect(() => build(temp)).toThrow(/socket scan failure/);
+        const config = { backend: 'docker' as const, workspaceDir: temp, readOnly: true };
+        vi.mocked(readdir).mockResolvedValueOnce(many as never);
+        const preflight = await preflightProcessSandboxMounts(config);
+        vi.mocked(readdirSync).mockClear();
+        const wrapped = wrapLocalExecForProcessSandbox({ file: 'echo', args: [], cwd: temp, config, preflight });
+        expect(wrapped.args).toContain(`type=bind,source=${realpathSync(temp)},target=/workspace,readonly`);
+        expect(readdirSync).not.toHaveBeenCalled();
+        // A token is single-use, and without this exec's preflight the unconfirmed listing is not reused.
+        vi.mocked(readdirSync).mockReturnValueOnce(many as never);
+        expect(() => wrapLocalExecForProcessSandbox({ file: 'echo', args: [], cwd: temp, config, preflight })).toThrow(/socket scan failure/);
+      } finally {
+        rmSync(temp, { recursive: true, force: true });
+      }
+    });
   });
 
   it('maps a leading literal subdirectory cd without dropping its requested working directory', () => {
