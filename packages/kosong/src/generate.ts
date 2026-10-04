@@ -443,7 +443,12 @@ function awaitWithAbort<T>(pending: T | Promise<T>, signal: AbortSignal): Promis
   return new Promise<T>((resolve, reject) => {
     const onAbort = (): void => {
       signal.removeEventListener('abort', onAbort);
-      reject(signal.reason instanceof Error ? signal.reason : new DOMException('The operation was aborted.', 'AbortError'));
+      // One microtask later: a callback that already settled (e.g. it aborted
+      // synchronously and then returned) keeps its result; only a callback
+      // still pending is cut off.
+      queueMicrotask(() => {
+        reject(signal.reason instanceof Error ? signal.reason : new DOMException('The operation was aborted.', 'AbortError'));
+      });
     };
     signal.addEventListener('abort', onAbort, { once: true });
     // Attach both handlers even after abort so a late callback rejection is
