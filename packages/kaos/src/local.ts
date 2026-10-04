@@ -28,7 +28,7 @@ import { disposeProcessStreams, type KaosProcess } from './process';
 import { resolveRuntimeSpawn, runtimePathPrepend } from './runtime-bins';
 import { realpathLongestExistingPrefix } from './realpath';
 import type { ProcessSandboxConfig } from './process-sandbox';
-import { wrapLocalExecForProcessSandbox } from './process-sandbox';
+import { preflightProcessSandboxMounts, wrapLocalExecForProcessSandbox } from './process-sandbox';
 import type { StatResult } from './types';
 
 const isWindows: boolean = process.platform === 'win32';
@@ -871,12 +871,16 @@ export class LocalKaos implements Kaos {
   ): Promise<KaosProcess> {
     const mapped = isWindows ? resolveRuntimeSpawn(command) : { file: command, prefixArgs: [] as const };
     const execEnv = this._buildExecEnv(extraEnv);
+    const config = this._processSandboxState.config;
+    // Walk large mount trees off the event loop first; the synchronous wrap
+    // below stays the authoritative socket check.
+    await preflightProcessSandboxMounts(config);
     const wrapped = wrapLocalExecForProcessSandbox({
       env: execEnv,
       file: mapped.file,
       args: [...mapped.prefixArgs, ...restArgs],
       cwd: this._cwd,
-      config: this._processSandboxState.config,
+      config,
     });
     const spawnOpts = buildLocalSpawnOptions(isWindows, this._cwd, wrapped.env ?? execEnv);
     const child = spawn(wrapped.file, wrapped.args, spawnOpts);

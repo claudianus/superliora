@@ -10,6 +10,7 @@
 
 import { execFileSync, spawn } from 'node:child_process';
 import { lstatSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { lstat as lstatAsync, readdir as readdirAsync, stat as statAsync } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
 import { isAbsolute } from 'pathe';
@@ -168,45 +169,170 @@ function effectiveDockerEndpoint(dockerBin: string, env: NodeJS.ProcessEnv): { e
  * A host writer can still create/replace a socket or swap a mount path after this
  * check and before/during the bind mount. Eliminating that TOCTOU requires trusted,
  * immutable mount sources or an OS-level mount/socket policy, not a JS preflight.
+ *
+ * Every exec re-checks every directory, but only re-reads a directory whose
+ * identity or mtime/ctime changed since it was listed: creating, renaming or
+ * linking an entry (a socket included) always updates its parent directory.
+ * A directory whose timestamps fall within RACY_WINDOW_MS of its listing is
+ * always re-read, so coarse filesystem clocks cannot hide a change made in the
+ * same tick. Symlinks are re-resolved on every exec because their targets live
+ * outside the listed directory. Mount points are caught by the dev/ino check.
  */
-function rejectNestedSockets(source: string): void {
-  const flavor = hostPathFlavor(source);
-  if ((process.platform === 'win32') !== (flavor === win32)) return;
+interface ListedDirectory {
+  readonly dev: number;
+  readonly ino: number;
+  readonly mtimeMs: number;
+  readonly ctimeMs: number;
+  /** Wall clock taken before the listing started. */
+  readonly listedAt: number;
+  readonly subdirectories: readonly string[];
+  readonly symlinks: readonly string[];
+}
+
+const RACY_WINDOW_MS = 2_000;
+/** Entries read synchronously per exec (cache misses only). */
+const SYNC_SCAN_ENTRY_LIMIT = 100_000;
+/** Entries the non-blocking preflight may read to warm a large tree. */
+const ASYNC_SCAN_ENTRY_LIMIT = 2_000_000;
+/** Directories walked per exec, cached or not. */
+const SCAN_DIRECTORY_LIMIT = 500_000;
+const LISTING_CACHE_LIMIT = 500_000;
+const listingCache = new Map<string, ListedDirectory>();
+
+interface DirectoryStat {
+  readonly dev: number;
+  readonly ino: number;
+  readonly mtimeMs: number;
+  readonly ctimeMs: number;
+}
+
+function trustedListing(path: string, stat: DirectoryStat): ListedDirectory | undefined {
+  const listed = listingCache.get(path);
+  if (listed === undefined || listed.dev !== stat.dev || listed.ino !== stat.ino ||
+      listed.mtimeMs !== stat.mtimeMs || listed.ctimeMs !== stat.ctimeMs) return undefined;
+  const settledBefore = listed.listedAt - RACY_WINDOW_MS;
+  return stat.mtimeMs < settledBefore && stat.ctimeMs < settledBefore ? listed : undefined;
+}
+
+function rememberListing(path: string, listing: ListedDirectory): void {
+  if (listingCache.size >= LISTING_CACHE_LIMIT) listingCache.clear();
+  listingCache.set(path, listing);
+}
+
+/** Classify listed entries; returns false for an entry type readdir could not report. */
+function classifyEntry(
+  entry: { isSocket(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean; isFile(): boolean; isFIFO(): boolean; isCharacterDevice(): boolean; isBlockDevice(): boolean },
+  path: string, subdirectories: string[], symlinks: string[],
+): boolean {
+  if (entry.isSocket()) throw new Error('Nested host socket in mount source');
+  if (entry.isDirectory()) subdirectories.push(path);
+  else if (entry.isSymbolicLink()) symlinks.push(path);
+  else if (!entry.isFile() && !entry.isFIFO() && !entry.isCharacterDevice() && !entry.isBlockDevice()) return false;
+  return true;
+}
+
+function symlinkTargetIsSocketSync(path: string): boolean {
+  try {
+    return statSync(path).isSocket();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return false;
+  }
+}
+
+async function symlinkTargetIsSocket(path: string): Promise<boolean> {
+  try {
+    return (await statAsync(path)).isSocket();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return false;
+  }
+}
+
+/** Returns the directory stat, or undefined when the source needs no tree scan. */
+function scanRootSync(source: string): DirectoryStat | undefined {
   let root;
   try {
     root = lstatSync(source);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; // Docker itself rejects missing bind sources.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined; // Docker itself rejects missing bind sources.
     throw new Error('Docker sandbox cannot inspect mount source for sockets.', { cause: error });
   }
   if (root.isSocket()) throw new Error('Docker sandbox cannot mount a host socket.');
-  if (!root.isDirectory()) return;
+  return root.isDirectory() ? root : undefined;
+}
+
+function rejectNestedSockets(source: string): void {
+  const flavor = hostPathFlavor(source);
+  if ((process.platform === 'win32') !== (flavor === win32)) return;
+  if (scanRootSync(source) === undefined) return;
   const pending = [source];
   let entries = 0;
+  let directories = 0;
   try {
     while (pending.length > 0) {
       const directory = pending.pop()!;
-      for (const name of readdirSync(directory)) {
-        if (++entries > 100_000) throw new Error('Mount socket scan entry limit exceeded');
-        const path = flavor.join(directory, name);
-        const stat = lstatSync(path);
-        if (stat.isSocket()) throw new Error('Nested host socket in mount source');
-        if (stat.isDirectory()) pending.push(path);
-        else if (stat.isSymbolicLink()) {
-          try {
-            if (statSync(path).isSocket()) throw new Error('Symlink to host socket in mount source');
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-          }
+      if (++directories > SCAN_DIRECTORY_LIMIT) throw new Error('Mount socket scan directory limit exceeded');
+      const stat = lstatSync(directory);
+      if (!stat.isDirectory()) throw new Error('Mount source changed during socket scan');
+      let listing = trustedListing(directory, stat);
+      if (listing === undefined) {
+        const listedAt = Date.now();
+        const subdirectories: string[] = [];
+        const symlinks: string[] = [];
+        for (const entry of readdirSync(directory, { withFileTypes: true })) {
+          if (++entries > SYNC_SCAN_ENTRY_LIMIT) throw new Error('Mount socket scan entry limit exceeded');
+          const path = flavor.join(directory, entry.name);
+          if (!classifyEntry(entry, path, subdirectories, symlinks)) classifyEntry(lstatSync(path), path, subdirectories, symlinks);
         }
+        listing = { dev: stat.dev, ino: stat.ino, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, listedAt, subdirectories, symlinks };
+        rememberListing(directory, listing);
       }
+      for (const link of listing.symlinks) {
+        if (symlinkTargetIsSocketSync(link)) throw new Error('Symlink to host socket in mount source');
+      }
+      pending.push(...listing.subdirectories);
     }
   } catch (error) {
+    listingCache.clear();
     throw new Error('Docker sandbox cannot safely inspect mount source: nested socket or socket scan failure.', { cause: error });
   }
 }
 
-function dockerBindMount(host: string, container: string, readOnly: boolean, endpointSocket: string | undefined): string {
+/** Non-blocking walk with a larger budget; only warms the listing cache. */
+async function warmSocketListings(source: string): Promise<void> {
+  const flavor = hostPathFlavor(source);
+  if ((process.platform === 'win32') !== (flavor === win32)) return;
+  const pending = [source];
+  let entries = 0;
+  let directories = 0;
+  while (pending.length > 0) {
+    const directory = pending.pop()!;
+    if (++directories > SCAN_DIRECTORY_LIMIT) return;
+    const stat = await lstatAsync(directory);
+    if (!stat.isDirectory()) return;
+    let listing = trustedListing(directory, stat);
+    if (listing === undefined) {
+      const listedAt = Date.now();
+      const subdirectories: string[] = [];
+      const symlinks: string[] = [];
+      for (const entry of await readdirAsync(directory, { withFileTypes: true })) {
+        if (++entries > ASYNC_SCAN_ENTRY_LIMIT) return;
+        const path = flavor.join(directory, entry.name);
+        if (!classifyEntry(entry, path, subdirectories, symlinks)) classifyEntry(await lstatAsync(path), path, subdirectories, symlinks);
+      }
+      listing = { dev: stat.dev, ino: stat.ino, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, listedAt, subdirectories, symlinks };
+      rememberListing(directory, listing);
+    }
+    for (const link of listing.symlinks) {
+      if (await symlinkTargetIsSocket(link)) return;
+    }
+    pending.push(...listing.subdirectories);
+  }
+}
+
+/** Lexical and identity checks for a bind source; returns its canonical path. */
+function checkedMountSource(host: string, endpointSocket: string | undefined): string {
   const inputFlavor = hostPathFlavor(host);
   if (!inputFlavor.isAbsolute(host) || /[,"\u0000-\u001F]/.test(host)) {
     throw new Error('Docker sandbox mount paths must be absolute and contain no commas, quotes, or control characters.');
@@ -237,8 +363,30 @@ function dockerBindMount(host: string, container: string, readOnly: boolean, end
     relativeUnder(dir, source) !== undefined || relativeUnder(source, dir) !== undefined)) {
     throw new Error('Docker sandbox cannot mount a Docker daemon socket or a standard socket directory.');
   }
+  return source;
+}
+
+function dockerBindMount(host: string, container: string, readOnly: boolean, endpointSocket: string | undefined): string {
+  const source = checkedMountSource(host, endpointSocket);
   rejectNestedSockets(source);
   return `type=bind,source=${source},target=${container}${readOnly ? ',readonly' : ''}`;
+}
+
+/**
+ * Warm the socket-scan listings for a Docker sandbox without blocking the event
+ * loop, so the authoritative synchronous check in {@link buildDockerSandboxArgs}
+ * only re-checks directories. Never throws and never grants anything: a source
+ * this rejects or cannot finish is left to the synchronous check to refuse.
+ */
+export async function preflightProcessSandboxMounts(config: ProcessSandboxConfig | undefined): Promise<void> {
+  if (config?.backend !== 'docker') return;
+  for (const dir of [config.workspaceDir, ...(config.additionalDirs ?? [])]) {
+    try {
+      await warmSocketListings(checkedMountSource(dir, undefined));
+    } catch {
+      // The synchronous check reports the real failure.
+    }
+  }
 }
 
 export function mapHostCwdToContainer(
