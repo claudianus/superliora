@@ -11,7 +11,7 @@ export const INSTALL_CMD =
 
 export const NODE_REQUIREMENT = 'Node.js ≥ 24.15.0';
 
-export const LANDING_SECTION_IDS = ['features', 'usage', 'workflow', 'install'] as const;
+export const LANDING_SECTION_IDS = ['how', 'demo', 'features', 'surfaces', 'install'] as const;
 export type LandingSectionId = (typeof LANDING_SECTION_IDS)[number];
 
 export const USAGE_COMMANDS = [

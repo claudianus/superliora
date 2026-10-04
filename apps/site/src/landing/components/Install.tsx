@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { ArrowRight, Check, Copy } from "lucide-react";
 import { useLocale } from "../i18n";
+import { INSTALL_CMD, INSTALL_PS, INSTALL_SH } from "../../content";
 import { Reveal, SectionHead, useCopy } from "./shared";
+
+/* One-liners come from src/content.ts, the same constants the docs and tests read. */
+const CMDS = [
+  { label: "install.sh", code: INSTALL_SH, prompt: "$" },
+  { label: "install.ps1", code: INSTALL_PS, prompt: ">" },
+  { label: "cmd", code: INSTALL_CMD, prompt: ">" },
+] as const;
 import { cn } from "../utils/cn";
 
 export default function Install() {
@@ -40,10 +48,10 @@ export default function Install() {
             <div className="group mt-5 overflow-hidden rounded-xl border border-line bg-panel transition-colors hover:border-primary/40">
               <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
                 <span className="font-[family-name:var(--font-mono)] text-[10.5px] tracking-wider text-faint uppercase">
-                  {t.install.cmds[tab].label}
+                  {CMDS[tab].label}
                 </span>
                 <button
-                  onClick={() => void copy(t.install.cmds[tab].code)}
+                  onClick={() => void copy(CMDS[tab].code)}
                   className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-[11px] text-dim transition-colors hover:border-primary/50 hover:text-ink"
                 >
                   {copied ? <Check className="size-3 text-mint" /> : <Copy className="size-3" />}
@@ -51,9 +59,9 @@ export default function Install() {
                 </button>
               </div>
               <div className="flex items-start gap-3 px-4 py-4 sm:px-5">
-                <span className="pt-0.5 font-[family-name:var(--font-mono)] text-[13px] text-primary">$</span>
+                <span className="pt-0.5 font-[family-name:var(--font-mono)] text-[13px] text-primary">{CMDS[tab].prompt}</span>
                 <code className="font-[family-name:var(--font-mono)] text-[12px] leading-[1.8] break-all text-ink/90 sm:text-[12.5px]">
-                  {t.install.cmds[tab].code}
+                  {CMDS[tab].code}
                 </code>
               </div>
             </div>

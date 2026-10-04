@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocale } from "../i18n";
-import { buildSession, SPINNER, toneClass, type Chips, type Span, type Step } from "./session";
+import { buildSession, INITIAL_CHIPS, SPINNER, toneClass, type Chips, type Span, type Step } from "./session";
 import { cn } from "../utils/cn";
 
 interface Line {
@@ -14,17 +14,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
    static frame instead of a dead prompt, so the terminal always shows work. */
 function finalFrame(locale: Parameters<typeof buildSession>[0]): { chips: Chips; lines: Span[][] } {
   const steps = buildSession(locale) as Step[];
-  const chips: Chips = {
-    model: "opencode-go/kimi-k3",
-    quota: 82,
-    inbox: 0,
-    latency: "—",
-    branch: "main*",
-  };
+  const chips: Chips = { ...INITIAL_CHIPS };
   const lines: Span[][] = [];
   for (const step of steps) {
-    if (step.k === "chips") Object.assign(chips, step.patch);
+    // The trailing reset clears the dock for the next loop; the still frame keeps it.
+    if (step.k === "chips" && !("dock" in step.patch && step.patch.dock === undefined)) Object.assign(chips, step.patch);
     if (step.k === "line") lines.push(step.spans);
+    if (step.k === "task") lines.push([["  ✓ ", "mint"], ...step.spans]);
   }
   return { chips, lines };
 }
@@ -34,31 +30,20 @@ export default function TuiEmulator({ className }: { className?: string }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [typed, setTyped] = useState("");
   const [phase, setPhase] = useState<"typing" | "run">("typing");
-  const [chips, setChips] = useState<Chips>({
-    model: "opencode-go/kimi-k3",
-    quota: 82,
-    inbox: 0,
-    latency: "—",
-    branch: "main*",
-  });
+  const [chips, setChips] = useState<Chips>(INITIAL_CHIPS);
   const [pending, setPending] = useState<Span[] | null>(null);
   const [spin, setSpin] = useState(0);
-  const [jitter, setJitter] = useState(0);
   const idRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const reducedRef = useRef(false);
 
-  /* spinner + ambient latency jitter (skipped entirely under reduced motion) */
+  /* spinner (skipped entirely under reduced motion) */
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     reducedRef.current = reduced;
     if (reduced) return;
     const iv = setInterval(() => setSpin((s) => (s + 1) % SPINNER.length), 72);
-    const jv = setInterval(() => setJitter(Math.floor(Math.random() * 24)), 1400);
-    return () => {
-      clearInterval(iv);
-      clearInterval(jv);
-    };
+    return () => clearInterval(iv);
   }, []);
 
   /* session runner — paints the session end-state as a static frame when the
@@ -72,7 +57,7 @@ export default function TuiEmulator({ className }: { className?: string }) {
     const run = async () => {
       if (reduced) {
         const { chips: fc, lines: fl } = finalFrame(locale);
-        setChips((c) => ({ ...c, ...fc }));
+        setChips(fc);
         setPending(null);
         setTyped("");
         setPhase("run");
@@ -212,23 +197,41 @@ export default function TuiEmulator({ className }: { className?: string }) {
         )}
       </div>
 
-      {/* status bar */}
+      {/* Worker Dock band (auto mode: visible while a handed-off session exists) */}
+      <div
+        className={cn(
+          "relative overflow-hidden border-t border-line bg-sunken/60 font-[family-name:var(--font-mono)] text-[11px] transition-[max-height,opacity] duration-300",
+          chips.dock ? "max-h-10 opacity-100" : "max-h-0 opacity-0",
+        )}
+        aria-hidden={!chips.dock}
+      >
+        {chips.dock && (
+          <div className="flex items-center gap-2 px-4 py-1.5 sm:px-5">
+            <span className="text-faint">Worker Dock</span>
+            <span className="text-faint">▾</span>
+            <span className={chips.dock.state === "running" ? "text-primary" : "text-mint"}>
+              {chips.dock.state === "running" ? SPINNER[spin] : "✓"}
+            </span>
+            <span className="text-azure">{chips.dock.id}</span>
+            <span className="truncate text-dim">{chips.dock.label}</span>
+            <span className={cn("ml-auto shrink-0", chips.dock.state === "running" ? "text-primary" : "text-mint")}>
+              {t.tui.dock[chips.dock.state]}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* status bar — the real footer slots: mode · model · cwd · git · quota */}
       <div className="relative flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-black/30 px-4 py-2 font-[family-name:var(--font-mono)] text-[10.5px] sm:px-5">
-        <span className="flex items-center gap-1.5 text-primary">
-          <span className="inline-block size-1.5 animate-pulse rounded-full bg-primary" />
-          SESSION
-        </span>
+        <span className="font-semibold text-amber">YOLO</span>
+        <span className="hidden text-ink sm:inline">{chips.model}</span>
+        <span className="text-dim">~/work/paygate</span>
         <span className="text-dim">{chips.branch}</span>
-        <span className="hidden text-faint sm:inline">{chips.model}</span>
         <span className="flex items-center gap-1 text-dim">
           <span className="text-mint">▤</span>
-          {chips.quota}%
+          <span className="tick-num">{chips.quota}%</span>
         </span>
-        {chips.inbox > 0 && (
-          <span className="flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-primary">▣{chips.inbox} inbox</span>
-        )}
-        <span className="tick-num text-faint">{chips.latency === "—" ? `~${38 + jitter}ms` : chips.latency}</span>
-        <span className="ml-auto text-faint">{t.tui.hints}</span>
+        <span className="ml-auto hidden text-faint md:inline">{t.tui.hints}</span>
       </div>
     </div>
   );

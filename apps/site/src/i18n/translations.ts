@@ -252,7 +252,6 @@ export interface Translation {
 }
 
 export const defaultLang: Lang = 'ko';
-export const PRODUCT_VERSION = '0.13.7';
 
 const visualsKo: SiteVisuals = {
   statusRoute: {
@@ -471,7 +470,7 @@ const clustersKo: ClusterItem[] = [
   {
     id: 'see-fleet',
     title: '돌아가는 일이 한눈에',
-    lead: '명시적으로 만든 native Job은 Job Deck·Worker Dock·Kanban에서 봅니다.',
+    lead: '명시적으로 만든 native Job은 Job Deck과 Inbox에서, 넘긴 세션은 Worker Dock에서 봅니다.',
     features: [
       { id: 'worker-dock', title: 'Worker Dock', body: '누가 어떤 도구를 도는지 옆 밴드에서 실시간으로 봅니다.' },
       { id: 'todo-board', title: 'To\u200Bdo Board', body: '하는 중·다음·완료를 보드로 읽습니다.' },
@@ -522,7 +521,7 @@ const clustersEn: ClusterItem[] = [
   {
     id: 'see-fleet',
     title: 'See the fleet',
-    lead: 'Explicit native Jobs appear in the Job Deck, Worker Dock, and Kanban board.',
+    lead: 'Explicit native Jobs appear in the Job Deck and Inbox; handed-off sessions appear in the Worker Dock.',
     features: [
       { id: 'worker-dock', title: 'Worker Dock', body: 'Watch who is running which tool in the side band.' },
       { id: 'todo-board', title: 'To\u200Bdo Board', body: 'Read doing / next / done as a board, not a wall of logs.' },
@@ -780,22 +779,22 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: '설치법',
-            body: `${NODE_REQUIREMENT}. 운영체제에 맞는 한 줄을 실행합니다. 호스트에 Node가 없으면 데이터 홈에 Node.js 24.15.0을 받습니다.`,
+            body: `운영체제에 맞는 한 줄을 실행합니다. 설치 스크립트에는 ${NODE_REQUIREMENT}이 필요하며, 없으면 데이터 홈에 Node.js 24.15.0을 받습니다. 그다음 최신 GitHub Release에서 OS·CPU에 맞는 네이티브 바이너리를 받아 SHA-256을 확인한 뒤 설치합니다.`,
             tabs: [
               { label: 'macOS / Linux', code: INSTALL_SH },
               { label: 'Windows PowerShell', code: INSTALL_PS },
               { label: 'Windows cmd', code: INSTALL_CMD },
             ],
-            note: 'Windows에서 프로필 디스크가 빠듯하면 여유 있는 드라이브(약 100 GB)를 고릅니다. SUPERLIORA_HOME은 모든 OS에서 됩니다. 파이프된 irm | iex는 플래그를 무시합니다. 먼저 $env:SUPERLIORA_HOME을 두거나, 받아서 .\\install.ps1 --home D:\\SuperLiora를 실행하세요. Unix는 install.sh --home 또는 SUPERLIORA_HOME.',
+            note: 'Windows에서 첫 설치 때 프로필 드라이브 여유가 100 GiB 미만이면 넉넉한 드라이브를 고릅니다. SUPERLIORA_HOME은 모든 OS에서 됩니다. 파이프된 irm | iex는 플래그를 무시합니다. 먼저 $env:SUPERLIORA_HOME을 두거나, 받아서 .\\install.ps1 --home D:\\SuperLiora를 실행하세요. Unix는 install.sh --home 또는 SUPERLIORA_HOME.',
           },
           {
             heading: '설치 후',
             body: '설치가 끝나면 아래 순서대로 환경을 맞춥니다.',
             list: [
-              '바탕 화면의 SuperLiora를 더블클릭해 실제 터미널에서 TUI를 엽니다.',
+              '설치 스크립트가 만든 바탕 화면 실행 아이콘(가능한 경우)을 누르거나, 터미널에서 liora를 실행해 TUI를 엽니다.',
               '/host-setup은 확인 목록을 보여 준 뒤 Windows Terminal(Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf를 적용합니다.',
               '클래식 콘솔은 시네마틱 스플래시 없이 에디터·orb·허브 크롬만 움직이고, Windows Terminal은 스플래시까지 풀 TUI 모션입니다.',
-              'GitHub Release가 나오면 liora upgrade 또는 /upgrade로 설치를 갱신합니다. 추적은 공개 Release이고, main 최신은 --main.',
+              'GitHub Release가 나오면 liora upgrade 또는 /upgrade로 설치를 갱신합니다. 추적은 공개 Release이고, --main은 origin/main을 소스에서 빌드합니다.',
               'UI 언어는 SUPERLIORA_LOCALE=ko|en, Settings → Language, 또는 /locale.',
             ],
           },
@@ -823,14 +822,15 @@ export const translations: Record<Lang, Translation> = {
           {
             heading: '두 모델 도구',
             body: 'Bash와 SessionControl이 모델에 공개되는 도구의 전부입니다.',
+            note: 'SessionControl의 verify와 pipeline은 SDK 호스트가 등록한 계획이 있어야 동작하며, TUI는 계획을 등록하지 않습니다. 넘긴 작업마다 리비전이 붙어 낡은 명령은 거부됩니다.',
             list: [
               'Bash로 현재 작업 공간의 파일을 읽고 수정하고 명령을 실행합니다.',
-              'SessionControl로 워커 세션을 spawn·list·message·wait·stop·compact합니다. 워커도 Bash와 SessionControl만 사용합니다.',
+              'SessionControl은 spawn·list·message·wait·stop·compact·yield·finish로 세션을 다룹니다. TUI의 메인 세션은 지휘자 역할이라 긴 작업을 독립 세션(동시 최대 4개)에 넘기고, wait로 출력 스냅샷을 읽습니다. 워커도 같은 두 도구만 씁니다.',
             ],
           },
           {
             heading: '명시적 native Job',
-            body: '/job create는 운영자용 native 제어입니다. 모델 도구와 별개로 백그라운드 작업을 만들고, Job Deck·Worker Dock·Kanban에서 진행을 봅니다.',
+            body: '/job create는 운영자용 native 제어입니다. 모델 도구와 별개로 전용 git worktree에서 도는 백그라운드 작업을 만들고, Job Deck(Alt+J)에서 진행을 보고 Inbox(Alt+I)에서 답합니다.',
           },
           {
             heading: '선택적 격리',
@@ -839,7 +839,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '승인과 직접 검토',
-            body: '/permission으로 실행 승인 방식을 고릅니다. 검사는 요청한 경우 실행하고, 결과와 diff를 직접 확인합니다. 자동 검토·검사 통과를 전제로 land하지 않습니다.',
+            body: '/permission으로 manual·auto·yolo(기본값) 중 실행 승인 방식을 고릅니다. .env·SSH 키 같은 비밀 파일은 어느 모드에서든 Bash가 읽지 못합니다. 검사는 요청한 경우에만 실행하니, 결과와 diff를 직접 확인한 뒤 land하세요.',
           },
         ],
       },
@@ -855,7 +855,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '보기',
-            body: '/jobs로 목록을 보고, Alt+J로 진행 화면을 엽니다.',
+            body: '/jobs로 목록을 보고, Alt+J로 Job Deck을 엽니다. Deck은 결과를 막힘·남음·끝남으로 묶어 보여 줍니다.',
             code: '/jobs\n/jobs deck',
           },
           {
@@ -865,7 +865,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: '검토 후 land',
-            body: 'diff와 검사 결과를 직접 검토합니다. /job review와 /job verify는 명시적으로 요청하는 별도 Job이며, 검토 완료나 검사 통과를 보장하지 않습니다. /job land에서 통합 방식을 선택합니다.',
+            body: 'diff와 검사 결과를 직접 검토합니다. /job review와 /job verify는 명시적으로 요청하는 별도 Job이며, 검토 완료나 검사 통과를 보장하지 않습니다. /job land는 keep(worktree에 그대로)·apply(로컬 main에 병합, push 없음)·PR 중에서 고릅니다.',
             code: '/job review <id>\n/job verify <id> Run the project tests and report results\n/job land <id>\n/job push <id>',
             note: 'land와 push는 별도 운영자 동작입니다. 요청한 검사가 실제로 실행됐는지 결과를 확인하세요.',
           },
@@ -885,14 +885,15 @@ export const translations: Record<Lang, Translation> = {
             heading: '기본',
             body: '처음엔 이 목록만으로 충분합니다.',
             list: [
-              'Alt+J 진행 · Alt+I 질문함 · /sessions 세션 목록',
-              'Ctrl+K Command Hub (macOS는 Cmd)',
-              'Hub는 Ctrl+Space, ?, /help로도 엽니다.',
+              'Alt+J Job Deck · Alt+I Inbox · /sessions 세션 목록',
+              'Ctrl+K Command Hub (macOS는 Cmd). Ctrl+Space, 빈 입력창의 ?, /help로도 엽니다.',
+              '빈 입력창의 Q는 잔량, Ctrl+S는 진행 중인 턴 조향, Ctrl+B는 백그라운드로 보내기.',
             ],
+            note: 'macOS에서 Alt 단축키가 반응하지 않으면 터미널 설정에서 Option 키를 Meta로 쓰도록 켜세요.',
           },
           {
             heading: '실행 승인',
-            body: 'manual / auto / yolo 중 세션의 실행 승인 방식을 고릅니다.',
+            body: 'manual / auto / yolo 중 세션의 실행 승인 방식을 고릅니다. 기본값은 yolo입니다.',
             code: '/permission manual',
           },
           {
@@ -910,7 +911,7 @@ export const translations: Record<Lang, Translation> = {
           {
             heading: '실행',
             body: '세션을 열고, 갱신하고, 점검을 돌립니다.',
-            code: 'liora\nliora --continue\nliora -p "Fix the webhook handler"\nliora --worktree [name]\nliora upgrade\nliora doctor\nliora gc',
+            code: 'liora\nliora --continue\nliora -p "Fix the webhook handler"\nliora --worktree [name]\nliora upgrade\nliora doctor\nliora gc\nliora completions zsh\nliora server run\nliora acp',
           },
           {
             heading: '슬래시',
@@ -1166,22 +1167,22 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: 'Install',
-            body: `${NODE_REQUIREMENT}. Run the one-liner for your OS. If the host has no Node, it downloads Node.js 24.15.0 into the data home.`,
+            body: `Run the one-liner for your OS. The installer needs ${NODE_REQUIREMENT} and downloads Node.js 24.15.0 into the data home if the host has none. It then installs the prebuilt native binary for your OS and CPU from the latest GitHub Release, after checking its SHA-256.`,
             tabs: [
               { label: 'macOS / Linux', code: INSTALL_SH },
               { label: 'Windows PowerShell', code: INSTALL_PS },
               { label: 'Windows cmd', code: INSTALL_CMD },
             ],
-            note: 'On Windows, a tight profile disk picks a roomier drive (~100 GB free). SUPERLIORA_HOME works on every OS. Piped irm | iex ignores flags — set $env:SUPERLIORA_HOME first, or download and run .\\install.ps1 --home D:\\SuperLiora. On Unix, install.sh --home or SUPERLIORA_HOME.',
+            note: 'On a first Windows install, a profile drive with under 100 GiB free gets a roomier drive. SUPERLIORA_HOME works on every OS. Piped irm | iex ignores flags — set $env:SUPERLIORA_HOME first, or download and run .\\install.ps1 --home D:\\SuperLiora. On Unix, install.sh --home or SUPERLIORA_HOME.',
           },
           {
             heading: 'After install',
             body: 'After install, set up the environment in this order.',
             list: [
-              'Double-click SuperLiora on the Desktop to open the TUI in a real terminal.',
+              'Open the TUI from the desktop launcher the installer adds where it can, or run liora in a terminal.',
               'Run /host-setup to see a confirm list, then apply Windows Terminal (Windows), CaskaydiaCove Nerd Font, Oh My Posh, zoxide, and fzf.',
               'Classic consoles keep chrome (editor, orb, hub) moving without the cinematic splash; Windows Terminal keeps full TUI motion (including splash).',
-              'After a GitHub Release, liora upgrade or /upgrade updates the install. That tracks published releases, not arbitrary main commits. Use --main for tip of main.',
+              'After a GitHub Release, liora upgrade or /upgrade updates the install. That tracks published releases, not arbitrary main commits; --main builds origin/main from source.',
               'UI language: SUPERLIORA_LOCALE=ko|en, Settings → Language, or /locale.',
             ],
           },
@@ -1209,14 +1210,15 @@ export const translations: Record<Lang, Translation> = {
           {
             heading: 'Two model tools',
             body: 'Bash and SessionControl are the entire model-facing tool surface.',
+            note: 'The verify and pipeline operations need plans registered by an SDK host; the TUI registers none. Each handoff carries a revision, so stale commands are refused.',
             list: [
               'Bash reads and edits files and executes commands in the current workspace.',
-              'SessionControl supports spawn, list, message, wait, stop, and compact for worker sessions. Workers use the same two tools.',
+              'SessionControl handles sessions with spawn, list, message, wait, stop, compact, yield, and finish. The TUI main session is a conductor: it hands long work to independent sessions (up to four at once) and reads output snapshots with wait. Workers use the same two tools.',
             ],
           },
           {
             heading: 'Explicit native Jobs',
-            body: '/job create is a native operator control, separate from the model tools. Create background work explicitly and monitor it in the Job Deck, Worker Dock, and Kanban board.',
+            body: '/job create is a native operator control, separate from the model tools. It creates background work in its own git worktree; watch it in the Job Deck (Alt+J) and answer it from the Inbox (Alt+I).',
           },
           {
             heading: 'Optional isolation',
@@ -1225,7 +1227,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Approvals and manual review',
-            body: '/permission selects execution approvals. Ask for the checks you want run, then inspect their results and the diff yourself. Land does not imply automatic review or passing checks.',
+            body: '/permission selects manual, auto, or yolo (the default) execution approvals. In every mode Bash is denied secret files such as .env and SSH keys. Checks run only when you ask for them, so inspect their results and the diff yourself before you land.',
           },
         ],
       },
@@ -1241,7 +1243,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Watch',
-            body: 'List with /jobs. Open the live view with Alt+J.',
+            body: 'List with /jobs. Alt+J opens the Job Deck, which groups outcomes into blocked, remaining, and done.',
             code: '/jobs\n/jobs deck',
           },
           {
@@ -1251,7 +1253,7 @@ export const translations: Record<Lang, Translation> = {
           },
           {
             heading: 'Review, then land',
-            body: 'Inspect diffs and check results yourself. /job review and /job verify create separate Jobs only on request; they do not guarantee completed review or passing checks. /job land selects how to integrate the changes.',
+            body: 'Inspect diffs and check results yourself. /job review and /job verify create separate Jobs only on request; they do not guarantee completed review or passing checks. /job land offers keep (leave it in the worktree), apply (merge onto local main without pushing), or PR.',
             code: '/job review <id>\n/job verify <id> Run the project tests and report results\n/job land <id>\n/job push <id>',
             note: 'Land and push are separate operator actions. Confirm that the requested checks actually ran.',
           },
@@ -1271,14 +1273,15 @@ export const translations: Record<Lang, Translation> = {
             heading: 'Basics',
             body: 'This list alone is enough for the first week.',
             list: [
-              'Alt+J progress · Alt+I inbox · /sessions session list',
-              'Ctrl+K hub (Cmd on macOS)',
-              'Command Hub also opens with Ctrl+Space, ?, or /help.',
+              'Alt+J Job Deck · Alt+I Inbox · /sessions session list',
+              'Ctrl+K Command Hub (Cmd on macOS). Ctrl+Space, ? on an empty prompt, or /help open it too.',
+              'Q on an empty prompt shows quota, Ctrl+S steers the running turn, Ctrl+B sends it to the background.',
             ],
+            note: 'On macOS, if Alt shortcuts do nothing, turn on “Use Option as Meta key” in your terminal settings.',
           },
           {
             heading: 'Execution approvals',
-            body: 'Choose manual, auto, or yolo for session execution approvals.',
+            body: 'Choose manual, auto, or yolo for session execution approvals. The default is yolo.',
             code: '/permission manual',
           },
           {
@@ -1296,7 +1299,7 @@ export const translations: Record<Lang, Translation> = {
           {
             heading: 'CLI',
             body: 'Open a session, update the install, or check the machine.',
-            code: 'liora\nliora --continue\nliora -p "Fix the webhook handler"\nliora --worktree [name]\nliora upgrade\nliora doctor\nliora gc',
+            code: 'liora\nliora --continue\nliora -p "Fix the webhook handler"\nliora --worktree [name]\nliora upgrade\nliora doctor\nliora gc\nliora completions zsh\nliora server run\nliora acp',
           },
           {
             heading: 'Slash',

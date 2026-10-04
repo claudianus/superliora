@@ -5,7 +5,7 @@ Run `pnpm -C apps/site run catalog:sync` when the provider numbers look stale, t
 then `node apps/site/scripts/capture-visual-qa.mjs` (or the local `capture-visual-qa-local.mjs` with `BASE_URL=http://127.0.0.1:4176/superliora/`).
 
 Art direction: **Conductor Neon Noir** — the TUI's own default theme on a web stage: cold navy canvas,
-cyan baton accents, live Job-console storytelling (Flow → Control Room demo → Systems → Surfaces → Install).
+cyan baton accents, two-tool storytelling (Hero replay → How it works → Control Room demo → Features → Surfaces → Install).
 Palette SSOT: `apps/liora/src/tui/theme/bundled-themes.ts` → `superliora-neon-noir`, mirrored by the
 `@theme` block in `src/landing/landing.css`; `test/theme-contract.test.ts` pins the hexes so the two
 cannot drift.
@@ -17,11 +17,12 @@ token hexes, header, and footer as the landing.
 
 - [ ] Landing palette: paper `#0d1422` + primary `#00d5ff`, the same hexes the TUI boots with; no Gold Noir left over (`#0a0b0d`, `#f2b94b`) on `/` and `/en/`
 - [ ] First paint: `body` background matches `--color-paper` (no white flash); fixed header with scroll-progress baton under it
-- [ ] Hero: eyebrow + two-line headline + one-line install (copy button works) + Node 24.15.0 note + CTAs `#install`/GitHub + platform row + stats
-- [ ] Nav anchors `#flow #demo #systems #surfaces #install` each land on a rendered section (see `id=` in `src/landing/components/`)
-- [ ] Flow section: numbered score steps with staff-line background
-- [ ] Control Room demo: TUI emulator replays a session; overlays (deck / inbox / hub / quota / plan) switch and are readable
-- [ ] Systems: numbered cards + failover rail render in both locales
+- [ ] Hero: eyebrow + two-line headline + OS-tabbed install line (copy works; Windows UA defaults to PowerShell) + native-binary note + CTAs guide/GitHub + stats
+- [ ] Header version badge equals `apps/liora/package.json` (injected as `__LIORA_VERSION__`) and links to that release tag
+- [ ] Nav anchors `#how #demo #features #surfaces #install` each land on a rendered section (see `id=` in `src/landing/components/`)
+- [ ] How it works: You → conductor → Bash / SessionControl split, operator band, four-step strip; tool cards never overflow at 390
+- [ ] Control Room demo: Alt+J deck (blocked / remaining / done), Alt+I inbox answer flow, Ctrl+K hub, Q on an empty prompt, `/jobs dock` cycles auto → pinned → hidden
+- [ ] Features: nine cards + native Job lifecycle strip render in both locales
 - [ ] Provider strip: names, counts and the `+N more` chip come from `src/data/provider-catalog.generated.ts`
       (`pnpm -C apps/site run catalog:sync` refreshes it); no hand-written provider list in the dictionaries
 - [ ] Surfaces: CLI / Server / SDK / IDE tabs swap content; mono command rows stay on one line

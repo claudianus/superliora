@@ -22,6 +22,7 @@
   --color-primary-deep: #06b6d4; /* gradientStart */
   --color-mint: #36d399; /* success · diffAdded */
   --color-red: #ff5c7a; /* error · diffRemoved */
+  --color-amber: #f5c542; /* warning */
   --color-azure: #22d3ee; /* glow */
   --color-violet: #a78bfa; /* accent · particle */
   --color-line: #334155; /* border */
@@ -38,6 +39,9 @@ html {
 
 html[lang="ko"] {
   --font-display: "Pretendard Variable", Pretendard, "Space Grotesk", -apple-system, sans-serif;
+  /* Korean wraps at word (eojeol) boundaries, not mid-syllable-run. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 body {

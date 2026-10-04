@@ -1,5 +1,46 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
+import { Box, Command, Gauge, GitBranch, History, Keyboard, Network, Plug, ShieldCheck, Upload } from "lucide-react";
+import type { DocSlug, IconName, Locale } from "../i18n/types";
+import { PROVIDER_CATALOG } from "../../data/provider-catalog.generated";
 import { cn } from "../utils/cn";
+
+export const REPO_URL = "https://github.com/claudianus/superliora";
+export const LIORA_VERSION = __LIORA_VERSION__;
+export const RELEASE_URL = `${REPO_URL}/releases/tag/v${LIORA_VERSION}`;
+
+/* Pages-relative guide URL for the current locale (ko at /docs, en at /en/docs). */
+export function docsHref(locale: Locale, slug: DocSlug = "getting-started"): string {
+  return `${import.meta.env.BASE_URL}${locale === "en" ? "en/" : ""}docs/${slug}.html`;
+}
+
+/* Provider count rounded down to the hundred so the claim holds between catalog syncs. */
+export function providerFloor(): string {
+  return `${String(Math.floor(PROVIDER_CATALOG.providerCount / 100) * 100)}+`;
+}
+
+/* Replace `{key}` placeholders; unknown keys stay as written. */
+export function fill(template: string, values: Record<string, string | number>): string {
+  return template
+    .split(/(\{\w+\})/)
+    .map((part) => {
+      const key = part.slice(1, -1);
+      return part.startsWith("{") && key in values ? String(values[key]) : part;
+    })
+    .join("");
+}
+
+export const icons: Record<IconName, ComponentType<{ className?: string }>> = {
+  command: Command,
+  network: Network,
+  "git-branch": GitBranch,
+  shield: ShieldCheck,
+  box: Box,
+  plug: Plug,
+  gauge: Gauge,
+  history: History,
+  keyboard: Keyboard,
+  upload: Upload,
+};
 
 /* Scroll reveal wrapper */
 export function Reveal({
@@ -66,7 +107,7 @@ export function SectionHead({
         </p>
       </Reveal>
       <Reveal i={1}>
-        <h2 className="mt-4 font-[family-name:var(--font-display)] text-4xl leading-[1.06] font-semibold tracking-[-0.02em] text-ink sm:text-5xl">
+        <h2 className="mt-4 font-[family-name:var(--font-display)] text-4xl leading-[1.12] font-semibold tracking-[-0.02em] text-balance break-keep text-ink sm:text-5xl">
           {title}
         </h2>
       </Reveal>

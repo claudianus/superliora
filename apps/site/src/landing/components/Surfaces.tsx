@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Check, TerminalSquare } from "lucide-react";
 import { useLocale } from "../i18n";
 import { Reveal, SectionHead } from "./shared";
@@ -11,51 +11,51 @@ const FN = "text-ink";
 const CM = "text-faint";
 const PL = "text-dim";
 
+const P = ({ c, children }: { c: string; children: ReactNode }) => <span className={c}>{children}</span>;
+
+/* prompt() is an admission ACK; closing before turn.ended would cancel the turn. */
 function SdkCode() {
   return (
-    <pre className="overflow-x-auto font-[family-name:var(--font-mono)] text-[12px] leading-[1.75]">
+    <pre className="overflow-x-auto font-[family-name:var(--font-mono)] text-[11.5px] leading-[1.75]">
       <code>
-        <span className={KW}>import</span> <span className={PL}>{`{ createLioraHarness }`}</span> <span className={KW}>from</span>{" "}
-        <span className={STR}>"@superliora/sdk"</span>
-        <span className={PL}>;</span>
+        <P c={KW}>import</P> <P c={PL}>{"{ createLioraHarness }"}</P> <P c={KW}>from</P> <P c={STR}>"@superliora/sdk"</P>
+        <P c={PL}>;</P>
         {"\n\n"}
-        <span className={KW}>const</span> <span className={FN}>liora</span> <span className={PL}>=</span>{" "}
-        <span className={FN}>createLioraHarness</span>
-        <span className={PL}>({`{ homeDir: `}</span>
-        <span className={TY}>process</span>
-        <span className={PL}>.env.</span>
-        <span className={STR}>SUPERLIORA_HOME</span> <span className={PL}>{`}`});</span>
+        <P c={KW}>const</P> <P c={FN}>liora</P> <P c={PL}>=</P> <P c={FN}>createLioraHarness</P>
+        <P c={PL}>({"{ homeDir: "}</P>
+        <P c={TY}>process</P>
+        <P c={PL}>.env.</P>
+        <P c={STR}>SUPERLIORA_HOME</P>
+        <P c={PL}>{" });"}</P>
+        {"\n"}
+        <P c={KW}>const</P> <P c={FN}>session</P> <P c={PL}>=</P> <P c={KW}>await</P> <P c={FN}>liora.createSession</P>
+        <P c={PL}>({"{ workDir: "}</P>
+        <P c={TY}>process</P>
+        <P c={PL}>{".cwd() });"}</P>
         {"\n\n"}
-        <span className={KW}>try</span> <span className={PL}>{`{`}</span>
+        <P c={KW}>const</P> <P c={FN}>ended</P> <P c={PL}>=</P> <P c={KW}>new</P> <P c={TY}>Promise</P>
+        <P c={PL}>{"<void>((resolve) =>"}</P>
         {"\n  "}
-        <span className={KW}>const</span> <span className={FN}>session</span> <span className={PL}>=</span> <span className={KW}>await</span>{" "}
-        <span className={FN}>liora.createSession</span>
-        <span className={PL}>({`{ workDir: `}</span>
-        <span className={TY}>process</span>
-        <span className={PL}>.cwd() {`}`});</span>
+        <P c={FN}>session.onEvent</P>
+        <P c={PL}>{"((e) => {"}</P>
+        {"\n    "}
+        <P c={KW}>if</P> <P c={PL}>(e.type ===</P> <P c={STR}>"turn.ended"</P> <P c={PL}>&amp;&amp; e.agentId ===</P> <P c={STR}>"main"</P>
+        <P c={PL}>{") resolve();"}</P>
         {"\n  "}
-        <span className={FN}>session.onEvent</span>
-        <span className={PL}>(</span>
-        <span className={FN}>console.log</span>
-        <span className={PL}>);</span>
-        {"\n\n  "}
-        <span className={KW}>await</span>{" "}
-        <span className={FN}>session.prompt</span>
-        <span className={PL}>(</span>
-        <span className={STR}>"Cap the webhook retry backoff"</span>
-        <span className={PL}>);</span>
+        <P c={PL}>{"}),"}</P>
         {"\n"}
-        <span className={PL}>{`}`}</span>{" "}
-        <span className={KW}>finally</span>{" "}
-        <span className={PL}>{`{`}</span>
-        {"\n  "}
-        <span className={KW}>await</span>{" "}
-        <span className={FN}>liora.close</span>
-        <span className={PL}>();</span>
+        <P c={PL}>);</P>
+        {"\n\n"}
+        <P c={KW}>await</P> <P c={FN}>session.prompt</P>
+        <P c={PL}>(</P>
+        <P c={STR}>"Cap the webhook retry backoff"</P>
+        <P c={PL}>);</P> <P c={CM}>// accepted, not finished</P>
         {"\n"}
-        <span className={PL}>{`}`}</span>
+        <P c={KW}>await</P> <P c={FN}>ended</P>
+        <P c={PL}>;</P>
         {"\n"}
-        <span className={CM}>// Bash + SessionControl · current workspace</span>
+        <P c={KW}>await</P> <P c={FN}>liora.close</P>
+        <P c={PL}>();</P>
       </code>
     </pre>
   );
@@ -96,11 +96,11 @@ export default function Surfaces() {
               <div>
                 <p className="mb-6 flex items-center gap-2 font-[family-name:var(--font-mono)] text-[11px] tracking-[0.18em] text-faint uppercase">
                   <TerminalSquare className="size-4 text-primary" />
-                  CLI · interactive commands
+                  {t.surfaces.cliLabel}
                 </p>
                 <div className="divide-y divide-line">
                   {t.surfaces.cli.map((c) => (
-                    <div key={c.cmd} className="grid gap-1 py-3.5 sm:grid-cols-[280px_1fr] sm:gap-6">
+                    <div key={c.cmd} className="grid gap-1 py-3 sm:grid-cols-[300px_1fr] sm:gap-6">
                       <code className="font-[family-name:var(--font-mono)] text-[12.5px] text-primary">{c.cmd}</code>
                       <p className="text-[13.5px] text-dim">{c.desc}</p>
                     </div>
@@ -141,7 +141,7 @@ export default function Surfaces() {
 
             {/* SDK */}
             {tab === 2 && (
-              <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
                 <div>
                   <p className="font-[family-name:var(--font-display)] text-xl font-semibold text-ink">{t.surfaces.sdk.lead}</p>
                   <ul className="mt-7 space-y-4">
@@ -152,8 +152,9 @@ export default function Surfaces() {
                       </li>
                     ))}
                   </ul>
-                  <div className="mt-8 flex flex-wrap gap-2">
-                    {["@superliora/sdk", "LioraHarness", "Session"].map((chip) => (
+                  <p className="mt-6 rounded-lg border border-line bg-black/20 px-3.5 py-2.5 text-[12.5px] leading-6 text-faint">{t.surfaces.sdk.note}</p>
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    {["@superliora/sdk", "createLioraHarness", "Session"].map((chip) => (
                       <span key={chip} className="rounded-md border border-line bg-black/30 px-2.5 py-1.5 font-[family-name:var(--font-mono)] text-[11px] text-azure">
                         {chip}
                       </span>
@@ -186,12 +187,18 @@ export default function Surfaces() {
                       <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-faint">terminal</span>
                     </div>
                     <div className="space-y-1.5 px-4 py-4 font-[family-name:var(--font-mono)] text-[12px]">
-                      <p>
-                        <span className="text-primary">$ </span>
-                        <span className="text-ink">liora acp</span>
-                      </p>
-                      <p className="text-faint">→ acp: listening on stdio · agent-client-protocol v1</p>
-                      <p className="text-faint">→ attach from Zed or JetBrains · same session, same jobs</p>
+                      {t.surfaces.ide.lines.map((line) =>
+                        line.startsWith("$") ? (
+                          <p key={line}>
+                            <span className="text-primary">$ </span>
+                            <span className="text-ink">{line.slice(2)}</span>
+                          </p>
+                        ) : (
+                          <p key={line} className="text-faint">
+                            {line}
+                          </p>
+                        ),
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
