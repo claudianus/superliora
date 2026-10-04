@@ -1,6 +1,6 @@
 # Git commit policy (author + message)
 
-Harness and agent commits use one policy, enforced in code by
+Agent and job commits use one policy, enforced in code by
 `packages/agent-core/src/tools/support/git-commit-policy.ts` (job worktree
 snapshots go through the same helper).
 

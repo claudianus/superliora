@@ -1,4 +1,4 @@
-# Local interactive debug (TUI / harness)
+# Local interactive debug (TUI / headless)
 
 Daily use with evidence: `liora --debug` (source: `pnpm -C apps/liora run dev -- --debug`). Same product, real `~/.superliora` home. Extra logs land under `~/.superliora/logs/` so a later "this broke" report has files to read. Default (no flag) stays light: warn-level session logs, no renderer trace, no stdio persist.
 
@@ -8,7 +8,7 @@ Daily use with evidence: `liora --debug` (source: `pnpm -C apps/liora run dev --
 |---|---|
 | Daily TUI with diagnostic logs | `liora --debug` |
 | Source TUI (uncommitted checkout) | `pnpm -C apps/liora run dev -- --debug` |
-| Headless harness | `liora --debug -p "…"` |
+| Headless run | `liora --debug -p "…"` |
 | Isolated-home sandbox (optional) | `node scripts/debug-local.mjs` |
 
 When a user reports a bug after running with `--debug`, read these before guessing:
