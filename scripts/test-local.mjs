@@ -64,6 +64,8 @@ function ownerWorkspace(file) {
   return match === null ? undefined : `${match[1]}/${match[2]}`;
 }
 
+const ownersOf = (files) => [...new Set(files.map(ownerWorkspace).filter((dir) => dir !== undefined))];
+
 /** Paths no vitest run can observe, so they never widen the scope. */
 function isInertForTests(file) {
   return /^(\.changeset|docs|\.github|\.vscode|meta|\.agents)\//.test(file) || /^[^/]+\.md$/.test(file);
@@ -78,12 +80,18 @@ function testDirFilter(dir) {
 }
 
 /**
- * Changed workspaces *plus their dependents*, straight from pnpm's own graph —
- * a change in `telemetry` has to re-run `agent-core`, `sdk`, and `liora` too.
+ * `owners` *plus their dependents*, straight from pnpm's own graph — a change
+ * in `telemetry` has to re-run `agent-core`, `sdk`, and `liora` too.
  * `undefined` when pnpm cannot answer, which falls back to the full suite.
+ *
+ * Owners come from `changedFiles()`, not pnpm's `...[base]` selector: that one
+ * misses untracked files, and in a worktree nested inside another checkout
+ * (`.claude/worktrees/*`) it finds the outer `.git` and reports no change.
  */
-function changedWorkspaceClosure(base) {
-  const res = spawnSync(pnpmBin, ['--filter', `...[${base}]`, 'list', '--depth', '-1', '--json'], {
+function workspaceDependents(owners) {
+  if (owners.length === 0) return [];
+  const filters = owners.flatMap((dir) => ['--filter', `...{${dir}}`]);
+  const res = spawnSync(pnpmBin, [...filters, 'list', '--depth', '-1', '--json'], {
     cwd: repoRoot,
     encoding: 'utf8',
     shell: process.platform === 'win32',
@@ -96,6 +104,17 @@ function changedWorkspaceClosure(base) {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Workspaces that own `files` plus their dependents. Owners stay in even when
+ * pnpm lists none of them, so an empty pnpm answer can never shrink the run
+ * below the workspaces the diff names. `undefined` when pnpm cannot answer.
+ */
+function affectedWorkspaces(files, dependentsOf) {
+  const owners = ownersOf(files);
+  const dependents = dependentsOf(owners);
+  return dependents === undefined ? undefined : [...new Set([...dependents, ...owners])];
 }
 
 /**
@@ -113,14 +132,13 @@ function decideScope(changed, closureOf, dirHasTests, options = {}) {
   const shared = files.find((file) => ownerWorkspace(file) === undefined);
   if (shared !== undefined) return { kind: 'full', reason: `shared file changed (${shared})` };
   if (direct) {
-    const owners = [...new Set(files.map(ownerWorkspace).filter((dir) => dir !== undefined))];
-    const testable = owners.filter(dirHasTests);
+    const testable = ownersOf(files).filter(dirHasTests);
     if (testable.length === 0) {
       return { kind: 'none', reason: 'no test dir in the changed workspaces' };
     }
     return { kind: 'filters', filters: testable.map(toFilter), reason: `direct: ${testable.join(', ')}` };
   }
-  const closure = closureOf();
+  const closure = affectedWorkspaces(files, closureOf);
   if (closure === undefined) {
     return { kind: 'full', reason: 'pnpm could not resolve the changed graph' };
   }
@@ -139,7 +157,7 @@ function affectedFilters(base, options = {}) {
   if (changed === undefined) {
     return { kind: 'full', reason: `git could not diff against ${base}` };
   }
-  return decideScope(changed, () => changedWorkspaceClosure(base), hasTests, {
+  return decideScope(changed, workspaceDependents, hasTests, {
     ...options,
     toFilter: testDirFilter,
   });
@@ -207,7 +225,7 @@ function relatedScope(base, options = {}) {
     return { kind: 'full', reason: `shared file changed (${files.find((file) => ownerWorkspace(file) === undefined)})` };
   }
   const fallbackToClosure = (reason) => {
-    const closure = changedWorkspaceClosure(base);
+    const closure = affectedWorkspaces(files, workspaceDependents);
     if (closure === undefined) return { kind: 'full', reason: `${reason}; pnpm could not resolve the graph` };
     const testable = closure.filter(hasTests);
     if (testable.length === 0) return { kind: 'none', reason: `${reason}; no test dir in the affected graph` };
@@ -239,6 +257,15 @@ function selfCheck() {
     { files: ['scripts/test-local.mjs'], want: 'all' },
     { files: ['packages/telemetry/src/index.ts', 'meta/test-baseline.yaml'], want: 'packages/agent-core/test,apps/liora/test' },
     { files: ['packages/telemetry/src/index.ts'], closure: () => undefined, want: 'all' },
+    // Dependents are looked up from the diff's owners, not from a git base.
+    {
+      files: ['packages/telemetry/src/index.ts'],
+      closure: (owners) => (owners.join() === 'packages/telemetry' ? ['packages/telemetry', 'apps/liora'] : []),
+      want: 'apps/liora/test',
+    },
+    // pnpm listing nothing (nested worktree, untracked or deleted files) must
+    // still run the workspaces the diff names.
+    { files: ['apps/liora/src/gone.ts', 'packages/agent-core/src/foo.ts'], closure: () => [], want: 'apps/liora/test,packages/agent-core/test' },
     { files: ['packages/agent-core/src/foo.ts'], direct: true, want: 'packages/agent-core/test' },
     { files: ['packages/telemetry/src/index.ts'], direct: true, want: '[]' },
     { files: ['scripts/test-local.mjs'], direct: true, want: 'all' },
