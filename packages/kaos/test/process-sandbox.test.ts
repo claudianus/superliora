@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
-import { readdirSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { lstatSync, readdirSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -22,7 +22,7 @@ vi.mock('node:child_process', async importOriginal => ({
 }));
 vi.mock('node:fs', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs')>();
-  return { ...actual, readdirSync: vi.fn(actual.readdirSync) };
+  return { ...actual, readdirSync: vi.fn(actual.readdirSync), lstatSync: vi.fn(actual.lstatSync) };
 });
 vi.mock('node:fs/promises', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -429,15 +429,27 @@ describe('process sandbox helpers', () => {
       }
     });
 
-    it('accepts a cached subdirectory later replaced by a file', () => {
+    it('classifies a cached subdirectory that changed type while its parent listing is reused', async () => {
       const temp = mkdtempSync(join(tmpdir(), 'kaos-scan-swap-'));
       try {
         mkdirSync(join(temp, 'swap'));
         buildConfirmed(temp);
-        rmSync(join(temp, 'swap'), { recursive: true });
-        writeFileSync(join(temp, 'swap'), 'file');
+        const child = join(realpathSync(temp), 'swap');
+        const { lstatSync: realLstat } = await vi.importActual<typeof import('node:fs')>('node:fs');
+        // A same-tick swap leaves the parent's timestamps (and confirmed listing) intact.
+        const swapped = (kind: 'file' | 'socket') => (path: unknown, ...rest: unknown[]) => path === child
+          ? { isDirectory: () => false, isSocket: () => kind === 'socket', isSymbolicLink: () => false }
+          : (realLstat as (...args: unknown[]) => unknown)(path, ...rest);
+        vi.mocked(lstatSync).mockImplementation(swapped('file') as never);
+        vi.mocked(readdirSync).mockClear();
         expect(build(temp)).toContain(`type=bind,source=${realpathSync(temp)},target=/workspace,readonly`);
+        expect(readdirSync).not.toHaveBeenCalled();
+        vi.mocked(lstatSync).mockImplementation(swapped('socket') as never);
+        expect(() => build(temp)).toThrow(/socket/);
       } finally {
+        vi.mocked(lstatSync).mockReset();
+        const { lstatSync: realLstat } = await vi.importActual<typeof import('node:fs')>('node:fs');
+        vi.mocked(lstatSync).mockImplementation(realLstat as never);
         rmSync(temp, { recursive: true, force: true });
       }
     });
@@ -451,14 +463,14 @@ describe('process sandbox helpers', () => {
         expect(() => build(temp)).toThrow(/socket scan failure/);
         const config = { backend: 'docker' as const, workspaceDir: temp, readOnly: true };
         vi.mocked(readdir).mockResolvedValueOnce(many as never);
-        await preflightProcessSandboxMounts(config);
+        const preflight = await preflightProcessSandboxMounts(config);
         vi.mocked(readdirSync).mockClear();
-        const wrapped = wrapLocalExecForProcessSandbox({ file: 'echo', args: [], cwd: temp, config });
+        const wrapped = wrapLocalExecForProcessSandbox({ file: 'echo', args: [], cwd: temp, config, preflight });
         expect(wrapped.args).toContain(`type=bind,source=${realpathSync(temp)},target=/workspace,readonly`);
         expect(readdirSync).not.toHaveBeenCalled();
-        // Without this exec's preflight, the unconfirmed listing is not reused.
+        // A token is single-use, and without this exec's preflight the unconfirmed listing is not reused.
         vi.mocked(readdirSync).mockReturnValueOnce(many as never);
-        expect(() => wrapLocalExecForProcessSandbox({ file: 'echo', args: [], cwd: temp, config })).toThrow(/socket scan failure/);
+        expect(() => wrapLocalExecForProcessSandbox({ file: 'echo', args: [], cwd: temp, config, preflight })).toThrow(/socket scan failure/);
       } finally {
         rmSync(temp, { recursive: true, force: true });
       }

@@ -876,13 +876,14 @@ export class LocalKaos implements Kaos {
     const config = this._processSandboxState.config;
     // Walk large mount trees off the event loop first; the synchronous wrap
     // below stays the authoritative socket check.
-    await preflightProcessSandboxMounts(config);
+    const preflight = await preflightProcessSandboxMounts(config);
     const wrapped = wrapLocalExecForProcessSandbox({
       env: execEnv,
       file: mapped.file,
       args: [...mapped.prefixArgs, ...restArgs],
       cwd,
       config,
+      preflight,
     });
     const spawnOpts = buildLocalSpawnOptions(isWindows, cwd, wrapped.env ?? execEnv);
     const child = spawn(wrapped.file, wrapped.args, spawnOpts);

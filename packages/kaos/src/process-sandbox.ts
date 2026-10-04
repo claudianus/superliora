@@ -9,6 +9,7 @@
  */
 
 import { execFileSync, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { lstat as lstatAsync, readdir as readdirAsync, stat as statAsync } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -191,6 +192,7 @@ interface ListedDirectory {
   /** Monotonic time taken before the latest listing started. */
   readonly listedAt: number;
   readonly confirmed: boolean;
+  /** Digest of entry names in listing order; a reorder only costs a re-read. */
   readonly names: string;
   readonly subdirectories: readonly string[];
   readonly symlinks: readonly string[];
@@ -231,10 +233,10 @@ function reusableListing(path: string, stat: DirectoryStat, freshSince: number |
 }
 
 /** Record a fresh listing; it is confirmed only by an identical, much earlier one. */
-function rememberListing(path: string, stat: DirectoryStat, startedAt: number, names: string[],
+function rememberListing(path: string, stat: DirectoryStat, startedAt: number, names: NamesDigest,
   subdirectories: readonly string[], symlinks: readonly string[]): ListedDirectory {
   const previous = listingCache.get(path);
-  const key = names.toSorted().join('\u0000');
+  const key = names.digest('base64');
   const matches = sameDirectoryState(previous, stat) && previous.names === key;
   const firstListedAt = matches ? previous.firstListedAt : startedAt;
   const listing: ListedDirectory = { dev: stat.dev, ino: stat.ino, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs,
@@ -243,6 +245,8 @@ function rememberListing(path: string, stat: DirectoryStat, startedAt: number, n
   listingCache.set(path, listing);
   return listing;
 }
+
+type NamesDigest = ReturnType<typeof createHash>;
 
 type EntryKind = { isSocket(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean; isFile(): boolean; isFIFO(): boolean; isCharacterDevice(): boolean; isBlockDevice(): boolean };
 
@@ -312,13 +316,13 @@ function rejectNestedSockets(source: string, freshSince: number | undefined): vo
       let listing = reusableListing(directory, stat, freshSince);
       if (listing === undefined) {
         const startedAt = performance.now();
-        const names: string[] = [];
+        const names = createHash('sha256');
         const subdirectories: string[] = [];
         const symlinks: string[] = [];
         for (const entry of readdirSync(directory, { withFileTypes: true })) {
           if (++entries > SYNC_SCAN_ENTRY_LIMIT) throw new Error('Mount socket scan entry limit exceeded');
           const path = flavor.join(directory, entry.name);
-          names.push(entry.name);
+          names.update(entry.name).update('\u0000');
           if (!classifyEntry(entry, path, subdirectories, symlinks)) classifyEntry(lstatSync(path), path, subdirectories, symlinks);
         }
         listing = rememberListing(directory, stat, startedAt, names, subdirectories, symlinks);
@@ -355,13 +359,13 @@ async function warmSocketListings(source: string): Promise<void> {
       listing = reusableListing(directory, stat, undefined);
       if (listing === undefined) {
         const startedAt = performance.now();
-        const names: string[] = [];
+        const names = createHash('sha256');
         const subdirectories: string[] = [];
         const symlinks: string[] = [];
         for (const entry of await readdirAsync(directory, { withFileTypes: true })) {
           if (++entries > ASYNC_SCAN_ENTRY_LIMIT) return;
           const path = flavor.join(directory, entry.name);
-          names.push(entry.name);
+          names.update(entry.name).update('\u0000');
           if (!classifyEntry(entry, path, subdirectories, symlinks)) classifyEntry(await lstatAsync(path), path, subdirectories, symlinks);
         }
         listing = rememberListing(directory, stat, startedAt, names, subdirectories, symlinks);
@@ -418,19 +422,22 @@ function dockerBindMount(host: string, container: string, readOnly: boolean, end
   return `type=bind,source=${source},target=${container}${readOnly ? ',readonly' : ''}`;
 }
 
+/** Opaque proof of one preflight; only this module can mint or read it. */
+export interface ProcessSandboxPreflight { readonly __brand: 'ProcessSandboxPreflight' }
+const preflightStartedAt = new WeakMap<ProcessSandboxPreflight, number>();
+
 /**
  * Warm the socket-scan listings for a Docker sandbox without blocking the event
  * loop, so the authoritative synchronous check in {@link buildDockerSandboxArgs}
  * only re-checks directories. Never throws and never grants anything: a source
  * this rejects or cannot finish is left to the synchronous check to refuse.
+ * Pass the returned token to the matching wrap so it may reuse listings this
+ * preflight produced; each concurrent exec gets its own token.
  */
-/** Start of the latest preflight per sandbox config, consumed by the next wrap. */
-const preflightStartedAt = new WeakMap<ProcessSandboxConfig, number>();
-
-export async function preflightProcessSandboxMounts(config: ProcessSandboxConfig | undefined): Promise<void> {
-  if (config?.backend !== 'docker') return;
-  // A later preflight for the same config only narrows what its wrap may reuse.
-  preflightStartedAt.set(config, performance.now());
+export async function preflightProcessSandboxMounts(config: ProcessSandboxConfig | undefined): Promise<ProcessSandboxPreflight | undefined> {
+  if (config?.backend !== 'docker') return undefined;
+  const token = Object.freeze({}) as ProcessSandboxPreflight;
+  preflightStartedAt.set(token, performance.now());
   for (const dir of [config.workspaceDir, ...(config.additionalDirs ?? [])]) {
     try {
       await warmSocketListings(checkedMountSource(dir, undefined));
@@ -438,6 +445,7 @@ export async function preflightProcessSandboxMounts(config: ProcessSandboxConfig
       // The synchronous check reports the real failure.
     }
   }
+  return token;
 }
 
 export function mapHostCwdToContainer(
@@ -687,6 +695,8 @@ export function wrapLocalExecForProcessSandbox(opts: {
   readonly config: ProcessSandboxConfig | undefined;
   /** Complete environment that would otherwise be supplied to spawn. */
   readonly env?: NodeJS.ProcessEnv;
+  /** Token from this exec's own {@link preflightProcessSandboxMounts}. */
+  readonly preflight?: ProcessSandboxPreflight;
 }): WrappedLocalExec {
   const config = opts.config;
   if (config === undefined) {
@@ -696,8 +706,8 @@ export function wrapLocalExecForProcessSandbox(opts: {
     // Snapshot once: inspect the actual client environment, then remove only
     // context selection from the run environment. Never mutate the caller's env.
     const env = { ...(opts.env ?? process.env) };
-    const freshSince = preflightStartedAt.get(config);
-    preflightStartedAt.delete(config);
+    const freshSince = opts.preflight === undefined ? undefined : preflightStartedAt.get(opts.preflight);
+    if (opts.preflight !== undefined) preflightStartedAt.delete(opts.preflight);
     const argv = dockerSandboxArgs({
       env,
       workspaceDir: config.workspaceDir,
