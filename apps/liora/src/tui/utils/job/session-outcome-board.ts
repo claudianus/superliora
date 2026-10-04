@@ -2,10 +2,11 @@
  * Session outcome board — groups operator Jobs by their recorded parent.
  *
  * Pure helpers (no TUIState). The Job Deck / Mission Control surfaces call these
- * so the operator sees 끝남 / 남음 / 막힘 instead of a flat ledger dump.
+ * so the operator sees blocked / remaining / done instead of a flat ledger dump.
  */
 
 import type { ColorToken } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { ConductorJobCard } from './job-strip';
 
 /** Outcome-level bucket for the session board. Remaining + blocked first. */
@@ -53,12 +54,18 @@ export interface SessionOutcomeBoard {
 }
 
 
-const STATUS_LABEL: Record<SessionOutcomeStatus, string> = {
-  done: '끝남',
-  cancelled: '취소',
-  running: '진행',
-  waiting: '대기',
-  blocked: '막힘',
+const STATUS_LABEL_KEY: Record<SessionOutcomeStatus, string> = {
+  done: 'tui.jobs.outcomeStatusDone',
+  cancelled: 'tui.jobs.outcomeStatusCancelled',
+  running: 'tui.jobs.outcomeStatusRunning',
+  waiting: 'tui.jobs.outcomeStatusWaiting',
+  blocked: 'tui.jobs.outcomeStatusBlocked',
+};
+
+const BUCKET_LABEL_KEY: Record<SessionOutcomeBucket, string> = {
+  blocked: 'tui.jobs.outcomeBucketBlocked',
+  remaining: 'tui.jobs.outcomeBucketRemaining',
+  done: 'tui.jobs.outcomeBucketDone',
 };
 
 const STATUS_TOKEN: Record<SessionOutcomeStatus, ColorToken> = {
@@ -143,7 +150,7 @@ function classifyOutcome(
     return {
       bucket: 'blocked',
       status: 'blocked',
-      statusLabel: STATUS_LABEL.blocked,
+      statusLabel: ttui(STATUS_LABEL_KEY.blocked),
       token: STATUS_TOKEN.blocked,
       reason: blocker === undefined ? undefined : summarizeBlockedReason(blocker),
     };
@@ -154,7 +161,7 @@ function classifyOutcome(
     return {
       bucket: 'done',
       status,
-      statusLabel: STATUS_LABEL[status],
+      statusLabel: ttui(STATUS_LABEL_KEY[status]),
       token: STATUS_TOKEN[status],
     };
   }
@@ -164,7 +171,7 @@ function classifyOutcome(
     return {
       bucket: 'remaining',
       status: 'running',
-      statusLabel: STATUS_LABEL.running,
+      statusLabel: ttui(STATUS_LABEL_KEY.running),
       token: STATUS_TOKEN.running,
     };
   }
@@ -172,9 +179,9 @@ function classifyOutcome(
   return {
     bucket: 'remaining',
     status: 'waiting',
-    statusLabel: STATUS_LABEL.waiting,
+    statusLabel: ttui(STATUS_LABEL_KEY.waiting),
     token: STATUS_TOKEN.waiting,
-    reason: hasWaiting ? '큐/재개 대기' : undefined,
+    reason: hasWaiting ? ttui('tui.jobs.outcomeWaitingReason') : undefined,
   };
 }
 
@@ -245,26 +252,21 @@ export function buildSessionOutcomeBoard(
   };
 }
 
-/** Flat ordered list for rendering: 막힘 → 남음 → 끝남. */
+/** Flat ordered list for rendering: blocked → remaining → done. */
 export function flattenSessionOutcomes(board: SessionOutcomeBoard): SessionOutcomeRow[] {
   return BUCKET_ORDER.flatMap((bucket) => board[bucket]);
 }
 
 export function sessionOutcomeBucketLabel(bucket: SessionOutcomeBucket): string {
-  switch (bucket) {
-    case 'blocked':
-      return '막힘';
-    case 'remaining':
-      return '남음';
-    case 'done':
-      return '끝남';
-  }
+  return ttui(BUCKET_LABEL_KEY[bucket]);
 }
 
 /** One plain-text line for a row (tests / ANSI-free dump). */
 export function formatSessionOutcomeLine(row: SessionOutcomeRow): string {
   const child =
-    row.collapsedChildCount > 0 ? ` · 자식 ${String(row.collapsedChildCount)}` : '';
+    row.collapsedChildCount > 0
+      ? ` · ${ttui('tui.jobs.outcomeChildCount', { n: row.collapsedChildCount })}`
+      : '';
   const reason = row.reason !== undefined && row.reason.length > 0 ? ` — ${row.reason}` : '';
   return `[${row.statusLabel}] ${row.title}${child}${reason}`;
 }

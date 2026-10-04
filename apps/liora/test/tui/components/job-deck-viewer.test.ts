@@ -114,7 +114,7 @@ describe('JobDeckViewerComponent', () => {
 
     const joined = viewer.render(120).map(stripAnsi).join('\n');
     expect(joined).toContain('finish the shell task');
-    expect(joined).toContain('끝남');
+    expect(joined).toContain('[Done] finish the shell task');
     expect(joined).not.toMatch(/verified|verification passed|검증 통과/i);
   });
 
@@ -139,8 +139,8 @@ describe('JobDeckViewerComponent', () => {
     expect(hintLines[0]).toContain('↑↓ navigate');
     expect(hintLines[0]).toContain('M merge');
     expect(hintLines[0]).toContain('Esc cancel');
-    expect(idleLines.filter((line) => /▸\s*막힘/.test(line))).toEqual([]);
-    expect(idleLines.some((line) => line.includes('막힘 (') && !line.includes('▸'))).toBe(true);
+    expect(idleLines.filter((line) => /▸\s*Blocked/.test(line))).toEqual([]);
+    expect(idleLines.some((line) => line.includes('Blocked (') && !line.includes('▸'))).toBe(true);
 
     for (const ch of 'bill') viewer.handleInput(ch);
     const searching = viewer.render(120);
