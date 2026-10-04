@@ -170,26 +170,34 @@ function effectiveDockerEndpoint(dockerBin: string, env: NodeJS.ProcessEnv): { e
  * check and before/during the bind mount. Eliminating that TOCTOU requires trusted,
  * immutable mount sources or an OS-level mount/socket policy, not a JS preflight.
  *
- * Every exec re-checks every directory, but only re-reads a directory whose
- * identity or mtime/ctime changed since it was listed: creating, renaming or
- * linking an entry (a socket included) always updates its parent directory.
- * A directory whose timestamps fall within RACY_WINDOW_MS of its listing is
- * always re-read, so coarse filesystem clocks cannot hide a change made in the
- * same tick. Symlinks are re-resolved on every exec because their targets live
- * outside the listed directory. Mount points are caught by the dev/ino check.
+ * Every exec re-checks every directory, but skips re-listing a directory whose
+ * listing is confirmed: two listings started more than CONFIRM_AFTER_MS apart
+ * saw the same dev/ino, mtime/ctime and entries. Creating, renaming or linking
+ * an entry (a socket included) updates the parent's timestamps unless it lands
+ * in the same filesystem clock tick as the last update. A tick never spans the
+ * confirmation interval, so any later change must move a timestamp. This uses
+ * only elapsed host time, never a comparison between host and filesystem
+ * clocks, so clock offset (network or VM mounts) cannot hide a change. Symlinks
+ * are re-resolved on every exec because their targets live outside the listed
+ * directory. Mount points are caught by the dev/ino check.
  */
 interface ListedDirectory {
   readonly dev: number;
   readonly ino: number;
   readonly mtimeMs: number;
   readonly ctimeMs: number;
-  /** Wall clock taken before the listing started. */
+  /** Monotonic time taken before the first matching listing started. */
+  readonly firstListedAt: number;
+  /** Monotonic time taken before the latest listing started. */
   readonly listedAt: number;
+  readonly confirmed: boolean;
+  readonly names: string;
   readonly subdirectories: readonly string[];
   readonly symlinks: readonly string[];
 }
 
-const RACY_WINDOW_MS = 2_000;
+/** Longer than the coarsest filesystem timestamp tick (FAT: 2s). */
+const CONFIRM_AFTER_MS = 2_500;
 /** Entries read synchronously per exec (cache misses only). */
 const SYNC_SCAN_ENTRY_LIMIT = 100_000;
 /** Entries the non-blocking preflight may read to warm a large tree. */
@@ -206,24 +214,40 @@ interface DirectoryStat {
   readonly ctimeMs: number;
 }
 
-function trustedListing(path: string, stat: DirectoryStat): ListedDirectory | undefined {
-  const listed = listingCache.get(path);
-  if (listed === undefined || listed.dev !== stat.dev || listed.ino !== stat.ino ||
-      listed.mtimeMs !== stat.mtimeMs || listed.ctimeMs !== stat.ctimeMs) return undefined;
-  const settledBefore = listed.listedAt - RACY_WINDOW_MS;
-  return stat.mtimeMs < settledBefore && stat.ctimeMs < settledBefore ? listed : undefined;
+function sameDirectoryState(listed: ListedDirectory | undefined, stat: DirectoryStat): listed is ListedDirectory {
+  return listed !== undefined && listed.dev === stat.dev && listed.ino === stat.ino &&
+    listed.mtimeMs === stat.mtimeMs && listed.ctimeMs === stat.ctimeMs;
 }
 
-function rememberListing(path: string, listing: ListedDirectory): void {
+/**
+ * A confirmed listing is reusable across execs. An unconfirmed one is reusable
+ * only when it was taken by this exec's own preflight (`freshSince`), which is
+ * no weaker than a synchronous scan that takes as long as the preflight did.
+ */
+function reusableListing(path: string, stat: DirectoryStat, freshSince: number | undefined): ListedDirectory | undefined {
+  const listed = listingCache.get(path);
+  if (!sameDirectoryState(listed, stat)) return undefined;
+  return listed.confirmed || (freshSince !== undefined && listed.listedAt >= freshSince) ? listed : undefined;
+}
+
+/** Record a fresh listing; it is confirmed only by an identical, much earlier one. */
+function rememberListing(path: string, stat: DirectoryStat, startedAt: number, names: string[],
+  subdirectories: readonly string[], symlinks: readonly string[]): ListedDirectory {
+  const previous = listingCache.get(path);
+  const key = names.toSorted().join('\u0000');
+  const matches = sameDirectoryState(previous, stat) && previous.names === key;
+  const firstListedAt = matches ? previous.firstListedAt : startedAt;
+  const listing: ListedDirectory = { dev: stat.dev, ino: stat.ino, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs,
+    firstListedAt, listedAt: startedAt, confirmed: matches && startedAt - firstListedAt > CONFIRM_AFTER_MS, names: key, subdirectories, symlinks };
   if (listingCache.size >= LISTING_CACHE_LIMIT) listingCache.clear();
   listingCache.set(path, listing);
+  return listing;
 }
 
+type EntryKind = { isSocket(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean; isFile(): boolean; isFIFO(): boolean; isCharacterDevice(): boolean; isBlockDevice(): boolean };
+
 /** Classify listed entries; returns false for an entry type readdir could not report. */
-function classifyEntry(
-  entry: { isSocket(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean; isFile(): boolean; isFIFO(): boolean; isCharacterDevice(): boolean; isBlockDevice(): boolean },
-  path: string, subdirectories: string[], symlinks: string[],
-): boolean {
+function classifyEntry(entry: EntryKind, path: string, subdirectories: string[], symlinks: string[]): boolean {
   if (entry.isSocket()) throw new Error('Nested host socket in mount source');
   if (entry.isDirectory()) subdirectories.push(path);
   else if (entry.isSymbolicLink()) symlinks.push(path);
@@ -249,23 +273,28 @@ async function symlinkTargetIsSocket(path: string): Promise<boolean> {
   }
 }
 
-/** Returns the directory stat, or undefined when the source needs no tree scan. */
-function scanRootSync(source: string): DirectoryStat | undefined {
+/** Returns true when the source is a directory that needs a tree scan. */
+function scanRootSync(source: string): boolean {
   let root;
   try {
     root = lstatSync(source);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined; // Docker itself rejects missing bind sources.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; // Docker itself rejects missing bind sources.
     throw new Error('Docker sandbox cannot inspect mount source for sockets.', { cause: error });
   }
   if (root.isSocket()) throw new Error('Docker sandbox cannot mount a host socket.');
-  return root.isDirectory() ? root : undefined;
+  return root.isDirectory();
 }
 
-function rejectNestedSockets(source: string): void {
+function pushAll(target: string[], items: readonly string[]): void {
+  // A spread of a huge listing would exceed the engine's argument limit.
+  for (const item of items) target.push(item);
+}
+
+function rejectNestedSockets(source: string, freshSince: number | undefined): void {
   const flavor = hostPathFlavor(source);
   if ((process.platform === 'win32') !== (flavor === win32)) return;
-  if (scanRootSync(source) === undefined) return;
+  if (!scanRootSync(source)) return;
   const pending = [source];
   let entries = 0;
   let directories = 0;
@@ -274,24 +303,30 @@ function rejectNestedSockets(source: string): void {
       const directory = pending.pop()!;
       if (++directories > SCAN_DIRECTORY_LIMIT) throw new Error('Mount socket scan directory limit exceeded');
       const stat = lstatSync(directory);
-      if (!stat.isDirectory()) throw new Error('Mount source changed during socket scan');
-      let listing = trustedListing(directory, stat);
+      if (!stat.isDirectory()) {
+        // Replaced since its parent was listed: classify it as a fresh listing would.
+        if (stat.isSocket()) throw new Error('Nested host socket in mount source');
+        if (stat.isSymbolicLink() && symlinkTargetIsSocketSync(directory)) throw new Error('Symlink to host socket in mount source');
+        continue;
+      }
+      let listing = reusableListing(directory, stat, freshSince);
       if (listing === undefined) {
-        const listedAt = Date.now();
+        const startedAt = performance.now();
+        const names: string[] = [];
         const subdirectories: string[] = [];
         const symlinks: string[] = [];
         for (const entry of readdirSync(directory, { withFileTypes: true })) {
           if (++entries > SYNC_SCAN_ENTRY_LIMIT) throw new Error('Mount socket scan entry limit exceeded');
           const path = flavor.join(directory, entry.name);
+          names.push(entry.name);
           if (!classifyEntry(entry, path, subdirectories, symlinks)) classifyEntry(lstatSync(path), path, subdirectories, symlinks);
         }
-        listing = { dev: stat.dev, ino: stat.ino, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, listedAt, subdirectories, symlinks };
-        rememberListing(directory, listing);
+        listing = rememberListing(directory, stat, startedAt, names, subdirectories, symlinks);
       }
       for (const link of listing.symlinks) {
         if (symlinkTargetIsSocketSync(link)) throw new Error('Symlink to host socket in mount source');
       }
-      pending.push(...listing.subdirectories);
+      pushAll(pending, listing.subdirectories);
     }
   } catch (error) {
     listingCache.clear();
@@ -299,7 +334,11 @@ function rejectNestedSockets(source: string): void {
   }
 }
 
-/** Non-blocking walk with a larger budget; only warms the listing cache. */
+/**
+ * Non-blocking walk with a larger budget; only warms the listing cache. A path
+ * that vanishes or changes type mid-walk is skipped so one race does not leave
+ * the rest of a large tree cold for the synchronous check.
+ */
 async function warmSocketListings(source: string): Promise<void> {
   const flavor = hostPathFlavor(source);
   if ((process.platform === 'win32') !== (flavor === win32)) return;
@@ -309,25 +348,31 @@ async function warmSocketListings(source: string): Promise<void> {
   while (pending.length > 0) {
     const directory = pending.pop()!;
     if (++directories > SCAN_DIRECTORY_LIMIT) return;
-    const stat = await lstatAsync(directory);
-    if (!stat.isDirectory()) return;
-    let listing = trustedListing(directory, stat);
-    if (listing === undefined) {
-      const listedAt = Date.now();
-      const subdirectories: string[] = [];
-      const symlinks: string[] = [];
-      for (const entry of await readdirAsync(directory, { withFileTypes: true })) {
-        if (++entries > ASYNC_SCAN_ENTRY_LIMIT) return;
-        const path = flavor.join(directory, entry.name);
-        if (!classifyEntry(entry, path, subdirectories, symlinks)) classifyEntry(await lstatAsync(path), path, subdirectories, symlinks);
+    let listing: ListedDirectory | undefined;
+    try {
+      const stat = await lstatAsync(directory);
+      if (!stat.isDirectory()) continue;
+      listing = reusableListing(directory, stat, undefined);
+      if (listing === undefined) {
+        const startedAt = performance.now();
+        const names: string[] = [];
+        const subdirectories: string[] = [];
+        const symlinks: string[] = [];
+        for (const entry of await readdirAsync(directory, { withFileTypes: true })) {
+          if (++entries > ASYNC_SCAN_ENTRY_LIMIT) return;
+          const path = flavor.join(directory, entry.name);
+          names.push(entry.name);
+          if (!classifyEntry(entry, path, subdirectories, symlinks)) classifyEntry(await lstatAsync(path), path, subdirectories, symlinks);
+        }
+        listing = rememberListing(directory, stat, startedAt, names, subdirectories, symlinks);
       }
-      listing = { dev: stat.dev, ino: stat.ino, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, listedAt, subdirectories, symlinks };
-      rememberListing(directory, listing);
+      // A socket found here is reported by the synchronous check.
+      for (const link of listing.symlinks) await symlinkTargetIsSocket(link);
+    } catch {
+      // Vanished, retyped or socket-bearing: the synchronous check decides.
+      continue;
     }
-    for (const link of listing.symlinks) {
-      if (await symlinkTargetIsSocket(link)) return;
-    }
-    pending.push(...listing.subdirectories);
+    pushAll(pending, listing.subdirectories);
   }
 }
 
@@ -366,9 +411,10 @@ function checkedMountSource(host: string, endpointSocket: string | undefined): s
   return source;
 }
 
-function dockerBindMount(host: string, container: string, readOnly: boolean, endpointSocket: string | undefined): string {
+function dockerBindMount(host: string, container: string, readOnly: boolean, endpointSocket: string | undefined,
+  freshSince: number | undefined): string {
   const source = checkedMountSource(host, endpointSocket);
-  rejectNestedSockets(source);
+  rejectNestedSockets(source, freshSince);
   return `type=bind,source=${source},target=${container}${readOnly ? ',readonly' : ''}`;
 }
 
@@ -378,8 +424,13 @@ function dockerBindMount(host: string, container: string, readOnly: boolean, end
  * only re-checks directories. Never throws and never grants anything: a source
  * this rejects or cannot finish is left to the synchronous check to refuse.
  */
+/** Start of the latest preflight per sandbox config, consumed by the next wrap. */
+const preflightStartedAt = new WeakMap<ProcessSandboxConfig, number>();
+
 export async function preflightProcessSandboxMounts(config: ProcessSandboxConfig | undefined): Promise<void> {
   if (config?.backend !== 'docker') return;
+  // A later preflight for the same config only narrows what its wrap may reuse.
+  preflightStartedAt.set(config, performance.now());
   for (const dir of [config.workspaceDir, ...(config.additionalDirs ?? [])]) {
     try {
       await warmSocketListings(checkedMountSource(dir, undefined));
@@ -491,7 +542,11 @@ function sandboxUser(workspaceDir: string): { uid: number; gid: number } {
   return { uid: 1000, gid: 1000 };
 }
 
-export function buildDockerSandboxArgs(opts: {
+export function buildDockerSandboxArgs(opts: DockerSandboxArgsOptions): string[] {
+  return dockerSandboxArgs(opts, undefined);
+}
+
+interface DockerSandboxArgsOptions {
   readonly workspaceDir: string;
   readonly additionalDirs?: readonly string[];
   readonly cwd: string;
@@ -502,14 +557,16 @@ export function buildDockerSandboxArgs(opts: {
   readonly dockerBin?: string;
   /** Complete effective Docker client environment, not an overlay on process.env. */
   readonly env?: NodeJS.ProcessEnv;
-}): string[] {
+}
+
+function dockerSandboxArgs(opts: DockerSandboxArgsOptions, freshSince: number | undefined): string[] {
   const ro = opts.readOnly === true;
   const image = opts.image?.trim() || DEFAULT_SANDBOX_IMAGE;
   const dockerBin = opts.dockerBin?.trim() || 'docker';
   const additionalDirs = opts.additionalDirs ?? [];
   const { endpoint, socket } = effectiveDockerEndpoint(dockerBin, opts.env ?? process.env);
-  const mounts = [dockerBindMount(opts.workspaceDir, '/workspace', ro, socket),
-    ...additionalDirs.map((dir, index) => dockerBindMount(dir, `/extra${String(index)}`, ro, socket))];
+  const mounts = [dockerBindMount(opts.workspaceDir, '/workspace', ro, socket, freshSince),
+    ...additionalDirs.map((dir, index) => dockerBindMount(dir, `/extra${String(index)}`, ro, socket, freshSince))];
   const containerCwd = mapHostCwdToContainer(
     canonicalMountSource(opts.cwd), canonicalMountSource(opts.workspaceDir), additionalDirs.map(canonicalMountSource),
   );
@@ -639,7 +696,9 @@ export function wrapLocalExecForProcessSandbox(opts: {
     // Snapshot once: inspect the actual client environment, then remove only
     // context selection from the run environment. Never mutate the caller's env.
     const env = { ...(opts.env ?? process.env) };
-    const argv = buildDockerSandboxArgs({
+    const freshSince = preflightStartedAt.get(config);
+    preflightStartedAt.delete(config);
+    const argv = dockerSandboxArgs({
       env,
       workspaceDir: config.workspaceDir,
       additionalDirs: config.additionalDirs,
@@ -649,7 +708,7 @@ export function wrapLocalExecForProcessSandbox(opts: {
       dockerBin: config.dockerBin,
       resources: config.resources,
       command: [opts.file, ...opts.args],
-    });
+    }, freshSince);
     const dockerFile = argv[0] ?? 'docker';
     // Explicit --host must not compete with DOCKER_CONTEXT on the run client.
     // Windows environment keys are case-insensitive, unlike JS object keys.

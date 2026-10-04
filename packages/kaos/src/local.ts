@@ -871,6 +871,8 @@ export class LocalKaos implements Kaos {
   ): Promise<KaosProcess> {
     const mapped = isWindows ? resolveRuntimeSpawn(command) : { file: command, prefixArgs: [] as const };
     const execEnv = this._buildExecEnv(extraEnv);
+    // Snapshot before awaiting: a concurrent chdir() must not move this command.
+    const cwd = this._cwd;
     const config = this._processSandboxState.config;
     // Walk large mount trees off the event loop first; the synchronous wrap
     // below stays the authoritative socket check.
@@ -879,10 +881,10 @@ export class LocalKaos implements Kaos {
       env: execEnv,
       file: mapped.file,
       args: [...mapped.prefixArgs, ...restArgs],
-      cwd: this._cwd,
+      cwd,
       config,
     });
-    const spawnOpts = buildLocalSpawnOptions(isWindows, this._cwd, wrapped.env ?? execEnv);
+    const spawnOpts = buildLocalSpawnOptions(isWindows, cwd, wrapped.env ?? execEnv);
     const child = spawn(wrapped.file, wrapped.args, spawnOpts);
     await waitForSpawn(child);
     if (child.pid !== undefined) wrapped.afterSpawn?.(child.pid);
