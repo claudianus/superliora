@@ -2,7 +2,7 @@
 
 Reply in the same language as the user.
 
-Hot-path only: package map, hard constraints, and release/workflow gates every task may hit. Package-local detail lives in the nearest nested `AGENTS.md`; TUI work uses `.agents/skills/write-tui/SKILL.md`.
+Hot-path only: package map, hard constraints, and release/workflow gates every task may hit. Package-local detail lives in the nearest nested `AGENTS.md`; TUI work uses `.agents/skills/write-tui/SKILL.md`. Detail that is not needed on every task lives in `.agents/reference/` — read a file there only when the task touches that area.
 
 ## Working Principles
 
@@ -58,65 +58,19 @@ Package boundaries stay as in Project Map. Inside a package:
 | When | Command | Cost |
 |---|---|---|
 | One file / one case | `node scripts/test-local.mjs <path> -t "case"` | ~5s |
-| Default: tests related to your diff | `node scripts/test-local.mjs` (or `pnpm run test:local`) | seconds — see below |
+| Default: tests related to your diff | `node scripts/test-local.mjs` (or `pnpm run test:local`) | seconds (scope rules in reference) |
 | Workspace granularity (no name matching) | `node scripts/test-local.mjs --closure` / `--direct` | seconds–1 min |
 | Fast pre-commit gate (no package rebuild) | `pnpm run gate:fast` — lint + `typecheck:fast` + related tests | skips `build:packages` |
 | Before every push | `pnpm run gate` — lint + typecheck + related tests | Linux CI a few minutes; Windows workstation minutes |
 | Whole suite | `pnpm run test:all` | ~2.5 min on Linux/macOS, ~15 min on Windows; CI runs it on every PR |
 
-The default mode selects tests from the changed files' reverse import graph
-(`scripts/test-scope.mjs`): a test runs when its module chain reaches a changed
-file, or when it imports an export name the change can influence — so editing a
-leaf module runs only the tests that actually use it instead of every importer
-of the package barrel. Deleted files and package meta (`package.json`,
-`vitest.config.ts`, `tsconfig*`) widen to the workspace closure; a shared file
-(root config, `scripts/`) widens to the full suite; unresolvable states always
-fail open toward *more* coverage. Known blind spots: tests that reach a module
-only through runtime `import()` indirection or string-based lookup are not
-graph-visible — run `pnpm run test:all` after sweeping refactors, and GitHub CI
-runs the full suite on every PR as the backstop. `--scope` prints the decision
-without running, `--all` forces everything.
+- **Always run tests through `scripts/test-local.mjs`, not bare `vitest`** (bare `pnpm exec vitest` is for `--watch` only). Run `pnpm run test:all` after sweeping refactors.
+- Tests must hold under the runner's parity env (UTC clock, no ambient git config, pinned motion, no wall-clock perf budgets). No existence/`typeof`/literal-only tests.
+- Scope-selection rules, blind spots, and the full parity-env checklist: `.agents/reference/testing.md`.
 
-**Always run tests through `scripts/test-local.mjs`, not bare `vitest`.** A dev shell is not a runner: `NO_COLOR` / `TERM=dumb` silently disable TUI motion, a local timezone hides UTC clock assertions, `init.defaultBranch=main` hides bare-repo HEAD assumptions, and provider keys in your shell let network paths pass that CI cannot reach. The runner strips that state; `node scripts/test-local.mjs --env` prints exactly what it changes. Bare `pnpm exec vitest` is for `--watch` only, and its green result proves nothing about CI.
+## Local interactive debug
 
-Tests you write must hold under that parity env:
-
-- No hardcoded local clock strings — derive the expected label from the same formatter (`TZ=UTC` in the runner).
-- Pin appearance/motion (`profile: 'off'`) when asserting cached line identity or plain-substring output; ambient effects re-render and interleave SGR runs.
-- Never rely on ambient git config: set `user.email` / `user.name` and pass `--initial-branch` in fixtures that create repos.
-- No wall-clock perf budgets. Measure the cheap path against the expensive one it replaces, not against an absolute millisecond number.
-
-Debt rule: a test that only asserts an export exists, a constant equals its own literal, or `typeof x === 'function'` is noise — do not add one, and delete the ones you find. Runtime behavior or nothing.
-
-## Local interactive debug (TUI / harness)
-
-Daily use with evidence: `liora --debug` (source: `pnpm -C apps/liora run dev -- --debug`). Same product, real `~/.superliora` home. Extra logs land under `~/.superliora/logs/` so a later "this broke" report has files to read. Default (no flag) stays light: warn-level session logs, no renderer trace, no stdio persist.
-
-`test-local` is the CI-parity **test** runner. It sets `CI` and strips `TERM`/`NO_COLOR`, so it is the wrong tool for judging motion or a real session. Installed `liora.exe` (SEA) is a published cut and will not contain your checkout — use source `dev -- --debug` for unreleased TUI work.
-
-| When | Command |
-|---|---|
-| Daily TUI with diagnostic logs | `liora --debug` |
-| Source TUI (uncommitted checkout) | `pnpm -C apps/liora run dev -- --debug` |
-| Headless harness | `liora --debug -p "…"` |
-| Isolated-home sandbox (optional) | `node scripts/debug-local.mjs` |
-
-When a user reports a bug after running with `--debug`, read these before guessing:
-
-- `~/.superliora/logs/debug-local.ndjson` — session attach / TUI start failure
-- `~/.superliora/logs/tui-stdio.log` — diverted stdout/stderr (capped)
-- `~/.superliora/logs/startup-trace.log` — boot stalls
-- `~/.superliora/logs/liora.log` — process log (`info`: start, LLM request/response, warn/error)
-- `<sessionDir>/logs/liora.log` — per-session log
-- `~/.superliora/updates/rollout.log` — passive update decisions (debug only)
-- `~/.superliora/logs/scroll-hang-*.json` — only when `SUPERLIORA_TUI_SCROLL_TRACE=1`
-
-Rules:
-
-- `--debug` keeps the operator home and login. Do not isolate `SUPERLIORA_HOME` unless they asked for `debug-local.mjs`.
-- Use `writeDebugLog` from `#/utils/debug-session` for new diagnostic breadcrumbs — no ad-hoc localhost ingest, no secrets.
-- Leave `SUPERLIORA_TUI_OUTPUT_TAP`, `SUPERLIORA_TUI_SCROLL_TRACE`, and `SUPERLIORA_NATIVE_RENDERER_DIAGNOSTICS` unset unless you need that exact probe — they change pixels or flood the worktree.
-- A green `test-local` run does not prove motion or footer layout.
+Use `liora --debug` (source: `pnpm -C apps/liora run dev -- --debug`); `test-local` is not a motion/session judge. Log locations and debug rules: `.agents/reference/local-debug.md`.
 
 ## Workflow
 
@@ -128,36 +82,9 @@ Rules:
   - **Never write `major` without explicit user approval.** Default `minor`, else `patch` if impact is unclear.
 - **Release train (automated):** landing a `@superliora/liora` changeset and getting a green CI run on `main` ships it — `.github/workflows/auto-release.yml` versions the pending changesets, commits `chore(liora): release X.Y.Z`, tags `vX.Y.Z`, and dispatches `publish-native-release.yml`. No manual release cut or reminder is needed. Intervene only when the Auto Release run fails (re-run it via its `workflow_dispatch` after fixing). `major` still requires explicit user approval in the changeset, and pushing a `v*` tag yourself still triggers a publish — do that only when the user explicitly asks.
 
-## Git commit policy (author + message)
+## Git commits
 
-Harness and agent commits use one policy, enforced in code by
-`packages/agent-core/src/tools/support/git-commit-policy.ts` (job worktree
-snapshots go through the same helper).
-
-### Author
-
-1. Prefer repository / user `git config` (`user.name` + `user.email`).
-2. If either is missing, use only the documented SuperLiora bot identity:
-   - name: `SuperLiora`
-   - email: `superliora@localhost`
-3. Do not invent per-worker names or emails, and do not rotate identity across jobs.
-4. Keep `Co-authored-by:` trailers when a human co-author policy applies; never replace the primary author with a worker label.
-
-### Message (conventional commits)
-
-Format: `type(scope): subject`
-
-- **type**: `feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert`
-- **scope**: optional (`tui`, `agent-core`, `job`, …)
-- **subject**: imperative mood, ≤72 characters, no trailing period
-- **body** (optional): blank line after subject; explain why / what changed
-- **Job id**: may appear in the body (`Job-Id: job_…`), never as the sole subject
-
-**Reject / rewrite** empty subjects and vague ones: `update`, `wip`, `fix stuff`,
-`misc`, bare `fix`/`test`, or a subject that is only a job id.
-
-Helpers: `validateCommitMessage`, `autoFixCommitMessage`,
-`buildJobSnapshotCommitMessage`, `resolveCommitAuthor`.
+Author and message policy is enforced by `packages/agent-core/src/tools/support/git-commit-policy.ts`: prefer `git config` identity (else `SuperLiora <superliora@localhost>`), Conventional Commits `type(scope): subject` ≤72 chars, no vague subjects. Full rules: `.agents/reference/git-commit-policy.md`.
 
 ## Source-install gate
 
@@ -174,30 +101,10 @@ Upstream ports (e.g. Kimi Code): split imports by ownership (`@superliora/sdk` v
 
 ## Versioning
 
-Two independent lines:
-
-| Line | Where | Role |
-|---|---|---|
-| Release | `@superliora/liora` in `apps/liora/package.json` | User-facing (`liora --version`); bump via changesets on SuperLiora impact |
-| Upstream baseline | `meta/upstream.lock.yaml` (+ generated CLI embed) | Last ported Kimi Code snapshot; **not** tied to liora semver |
-
-- Do not copy upstream semver onto `@superliora/liora`.
-- Upstream-port PRs update `meta/upstream.lock.yaml`, refresh via `pnpm -C apps/liora run prebuild` (or `build`), and mention baseline in the changeset when user-visible.
-- SuperLiora-only work leaves `meta/upstream.lock.yaml` alone.
-- Internal package versions stay internal; only `@superliora/liora` is the release number. `/status` may show the baseline; `--version` stays short.
-- Changesets land as inventory; the auto-release train consumes only files added after the last `chore(liora): release` commit, so long-lived unconsumed `.changeset/` files (older inventory) stay dormant until deliberately released. Pending `.changeset/` files ≠ a new `liora --version`.
+`@superliora/liora` (`apps/liora/package.json`) is the only release number; `meta/upstream.lock.yaml` is the upstream Kimi Code baseline and is not tied to liora semver. Do not copy upstream semver; SuperLiora-only work leaves the lock alone. Details: `.agents/reference/versioning.md`.
 
 ## Nested guides
 
 Directory-specific rules override this file when both apply: `apps/liora/AGENTS.md`, `packages/server/AGENTS.md`, `packages/server-e2e/AGENTS.md`, `packages/agent-core/AGENTS.md`, `packages/agent-core/src/services/AGENTS.md`, `docs/AGENTS.md`.
 
-## Cursor Cloud specific instructions
-
-Durable notes for Cloud Agent VMs. Standard commands live in this file's tables and the root `package.json` scripts — use those; the notes below only cover non-obvious environment caveats.
-
-- **Node 24 is provided via PATH shims, not the base image.** The base VM's default `node` (`/exec-daemon/node`) is v22, but `.npmrc` sets `engine-strict=true` and the repo requires Node `24.15.0`, so v22 would refuse `pnpm install`. Node 24.15.0 is installed under `~/.nvm` and symlinked (`node`/`npm`/`npx`/`corepack`/`pnpm`) into `/usr/local/cargo/bin`, which is first on `PATH`, so plain `node`/`pnpm`/`corepack` already resolve to 24. Both the shims and `~/.nvm` persist in the VM snapshot. Do not "fix" a v22 result from `/exec-daemon/node` — check `node --version` (should be `v24.15.0`) instead.
-- **Startup dependency refresh:** the update script runs `corepack pnpm install` (idempotent; no-op when the lockfile already matches). Nothing else is auto-run at boot.
-- **Building is not done at startup.** Before running the built CLI or the source-install gate, build first: `corepack pnpm run build:packages` (workspace libs) and, for the CLI bundle, `corepack pnpm -C apps/liora run build`. See "Source-install gate" above.
-- **Running the product:** the shippable product is the `apps/liora` CLI/TUI; it runs the agent engine in-process via the SDK and does **not** need `packages/server`. Launch dev mode with `corepack pnpm dev:cli` (or `pnpm -C apps/liora run dev -- --debug`). The TUI needs a real PTY — run it inside `tmux` or a terminal emulator (`xfce4-terminal` is installed), not a bare piped shell.
-- **An LLM provider credential is required for any real agent turn.** No provider key/login is present by default; the TUI opens a "Connect a provider" dialog on first run. To exercise the core coding loop, set a provider secret (e.g. `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) or `/login` in the TUI. Everything except an actual model call (build, lint, full test suite, TUI navigation) works without it.
-- **Test suite runtime:** `pnpm test:all` (whole monorepo via `scripts/test-local.mjs`) runs ~16.5k tests and takes ~10 min on Cloud VMs — budget accordingly rather than assuming a few minutes on a fast Linux host. Always run tests through `scripts/test-local.mjs` (see "Local test gate").
+Cursor Cloud VM caveats: `.agents/reference/cursor-cloud.md`.
