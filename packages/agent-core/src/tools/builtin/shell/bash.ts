@@ -23,6 +23,7 @@
  */
 
 import type { Kaos, KaosProcess } from '@superliora/kaos';
+import { resolve } from 'pathe';
 
 import { ProcessBackgroundTask, type BackgroundManager } from '../../../agent/background';
 import { DeferredProcessBackgroundTask } from '../../../agent/background/deferred-process-task';
@@ -402,7 +403,8 @@ export class BashTool implements BuiltinTool<BashInput> {
       return { isError: true, output: 'description is required when run_in_background is true.' };
     }
     const command = this.isWindowsBash ? rewriteWindowsNullRedirect(args.command) : args.command;
-    const cwd = args.cwd ?? this.cwd;
+    // Ownership guards compare absolute paths; never record a relative cwd.
+    const cwd = args.cwd === undefined ? this.cwd : resolve(this.cwd, args.cwd);
     const description = args.description.trim();
     const task = new DeferredProcessBackgroundTask(command, description, cwd, async (ownedSignal) => {
       await this.ensureSandboxReady?.();

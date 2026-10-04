@@ -10,12 +10,12 @@ describe('independent activity previews', () => {
     const projected = projectIndependentSessionActivity(raw);
     expect(projected).toMatchObject({ ...scope, type: 'subagent.tool_call', subagentId: 'main', name: 'Bash' });
     if (projected?.type !== 'subagent.tool_call') throw new Error('Expected tool preview');
-    expect(projected.argsPreview!.length).toBeLessThanOrEqual(401);
+    expect(Buffer.byteLength(projected.argsPreview!)).toBeLessThanOrEqual(400);
     expect('args' in projected).toBe(false);
     expect(raw.type).toBe('tool.call.started');
-    const result = projectIndependentSessionActivity({ ...scope, type: 'tool.result', turnId: 0, toolCallId: 'call', output: 'y'.repeat(100000) });
+    const result = projectIndependentSessionActivity({ ...scope, type: 'tool.result', turnId: 0, toolCallId: 'call', output: '한'.repeat(100000) });
     if (result?.type !== 'subagent.tool_result') throw new Error('Expected result preview');
-    expect(result.resultPreview!.length).toBeLessThanOrEqual(501);
+    expect(Buffer.byteLength(result.resultPreview!)).toBeLessThanOrEqual(500);
     expect('output' in result).toBe(false);
   });
 

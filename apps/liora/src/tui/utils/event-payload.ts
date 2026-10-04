@@ -25,6 +25,8 @@ export function appendStreamingArgsPreview(
   return prefix.append(next ?? '');
 }
 
+const JSON_SIMPLE_ESCAPES: Readonly<Record<string, string>> = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f' };
+
 /** Decode only complete escapes; raw stream state remains untouched for the next delta. */
 export function decodePartialJsonString(text: string): string {
   let out = '';
@@ -43,8 +45,7 @@ export function decodePartialJsonString(text: string): string {
       out += String.fromCodePoint(Number.parseInt(hex, 16));
       i += 4;
     } else {
-      const escapes: Record<string, string> = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f' };
-      out += escapes[next] ?? next;
+      out += JSON_SIMPLE_ESCAPES[next] ?? next;
     }
   }
   return utf8Prefix(out, STREAMING_ARGS_PREVIEW_MAX_BYTES);
@@ -61,22 +62,32 @@ export function decodePartialJsonString(text: string): string {
  * prefix; the bounded size keeps it from retaining dead 64 KiB buffers.
  */
 const STREAMING_ARGS_CACHE_MAX_ENTRIES = 8;
+/**
+ * Keyed by the raw text: the parse is a pure function of it, so a hit skips
+ * the UTF-8 prefix scan. Raw text longer than the byte cap (UTF-16 units never
+ * exceed UTF-8 bytes) is truncated anyway and keys the separate prefix cache,
+ * which keeps every retained key within the cap (in UTF-16 units).
+ */
 const streamingArgsCache = new Map<string, Record<string, unknown>>();
+const streamingArgsPrefixCache = new Map<string, Record<string, unknown>>();
 
 export function parseStreamingArgs(argumentsText: string): Record<string, unknown> {
-  const previewText = utf8Prefix(argumentsText, STREAMING_ARGS_PREVIEW_MAX_BYTES);
-  const complete = previewText === argumentsText;
-  const cacheKey = `${complete ? 'complete' : 'prefix'}:${previewText}`;
+  const oversized = argumentsText.length > STREAMING_ARGS_PREVIEW_MAX_BYTES;
   // Callers get their own record: a mutated result must not poison the
   // shared entry other consumers (and later flushes) read back.
-  const cached = streamingArgsCache.get(cacheKey);
+  const rawHit = oversized ? undefined : streamingArgsCache.get(argumentsText);
+  if (rawHit !== undefined) return { ...rawHit };
+  const previewText = utf8Prefix(argumentsText, STREAMING_ARGS_PREVIEW_MAX_BYTES);
+  const cache = oversized ? streamingArgsPrefixCache : streamingArgsCache;
+  const cacheKey = oversized ? previewText : argumentsText;
+  const cached = oversized ? cache.get(cacheKey) : undefined;
   if (cached !== undefined) return { ...cached };
-  const parsed = parseStreamingArgsUncached(previewText, complete);
-  if (streamingArgsCache.size >= STREAMING_ARGS_CACHE_MAX_ENTRIES) {
-    const oldest = streamingArgsCache.keys().next();
-    if (oldest.done !== true) streamingArgsCache.delete(oldest.value);
+  const parsed = parseStreamingArgsUncached(previewText, previewText === argumentsText);
+  if (cache.size >= STREAMING_ARGS_CACHE_MAX_ENTRIES) {
+    const oldest = cache.keys().next();
+    if (oldest.done !== true) cache.delete(oldest.value);
   }
-  streamingArgsCache.set(cacheKey, parsed);
+  cache.set(cacheKey, parsed);
   return { ...parsed };
 }
 

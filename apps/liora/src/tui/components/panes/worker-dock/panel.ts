@@ -124,6 +124,15 @@ export {
 
 /** In-stage bottom band never grows past this many rows. */
 export const WORKER_DOCK_BAND_MAX_ROWS = 14;
+/**
+ * Band rows for a terminal height: a third of the screen, capped at
+ * {@link WORKER_DOCK_BAND_MAX_ROWS}, so a populated band never pushes the
+ * editor out of short terminals.
+ */
+export function workerDockBandRowBudget(terminalRows: number): number {
+  if (!Number.isFinite(terminalRows) || terminalRows <= 0) return WORKER_DOCK_BAND_MAX_ROWS;
+  return Math.min(WORKER_DOCK_BAND_MAX_ROWS, Math.floor(terminalRows / 3));
+}
 /** @deprecated Use {@link WORKER_DOCK_BAND_MAX_ROWS}. */
 export const MISSION_BAND_MAX_ROWS = WORKER_DOCK_BAND_MAX_ROWS;
 /** @deprecated Use {@link WORKER_DOCK_BAND_MAX_ROWS}. */
@@ -136,6 +145,10 @@ const JOB_ROWS_FULL = 2;
 const TERMINAL_FLASH_MS = 2_000;
 /** Hot window for a just-settled MOVES row (checkmark / error pop). */
 const OPS_SETTLE_FLASH_MS = 1_400;
+/** Tree caret settle flashes are done well before this; older stamps are pruned. */
+const TREE_SETTLE_RETAIN_MS = 1_400;
+/** Tree band frame threshold; narrower bands render frameless content rows. */
+const TREE_MIN_BOX_WIDTH = 24;
 /** Action row still "hot" after lastActivity — shimmer the → line. */
 const ACTION_HOT_MS = 900;
 /** Worker name column cap so intent keeps room on narrow docks. */
@@ -217,6 +230,8 @@ export class WorkerDockPanelComponent implements Component {
   private revealTreeSelection = false;
   private readonly treeSettleAt = new Map<string, number>();
   private readonly lastTreeCaretMap = new Map<number, { id: string; column: number; group: boolean }>();
+  /** Painted rows above the first tree content row (top border when framed). */
+  private lastTreeContentRowOffset = 1;
   /** `pinned` mode keeps the panel mounted with an idle placeholder. */
   private pinned = false;
   /** Window start into the sorted worker roster (densemode / NOW). */
@@ -281,9 +296,13 @@ export class WorkerDockPanelComponent implements Component {
       this.focused = false;
     }
     if (view.tree !== undefined) {
+      const now = appearanceAnimationNow();
+      for (const [id, at] of this.treeSettleAt) {
+        if (now - at >= TREE_SETTLE_RETAIN_MS) this.treeSettleAt.delete(id);
+      }
       const previous = new Map(this.view.tree?.nodes.map(node => [node.id, node.phase]));
       for (const node of view.tree.nodes) {
-        if (previous.has(node.id) && previous.get(node.id) !== node.phase) this.treeSettleAt.set(node.id, appearanceAnimationNow());
+        if (previous.has(node.id) && previous.get(node.id) !== node.phase) this.treeSettleAt.set(node.id, now);
       }
     }
     this.view = view;
@@ -555,6 +574,11 @@ export class WorkerDockPanelComponent implements Component {
   /** In-stage bottom band (full stage reading width). */
   render(width: number): string[] {
     return this.renderFitted(width, WORKER_DOCK_BAND_MAX_ROWS);
+  }
+
+  /** In-stage band bounded by `maxRows` (never above {@link WORKER_DOCK_BAND_MAX_ROWS}). */
+  renderBand(width: number, maxRows: number): string[] {
+    return this.renderFitted(width, Math.min(WORKER_DOCK_BAND_MAX_ROWS, Math.max(0, maxRows)));
   }
 
   /**
@@ -855,7 +879,7 @@ export class WorkerDockPanelComponent implements Component {
 
   /** Caret clicks toggle without opening a transcript or touching the editor. */
   handleTreePointer(localX: number, localY: number): boolean {
-    const hit = this.lastTreeCaretMap.get(localY - 1);
+    const hit = this.lastTreeCaretMap.get(localY - this.lastTreeContentRowOffset);
     if (hit === undefined) return false;
     if (Math.abs(localX - hit.column) <= 1 && this.toggleTreeNode(hit.id)) return true;
     // Non-openable rows (leaf pipelines included) consume the click as selection.
@@ -893,6 +917,10 @@ export class WorkerDockPanelComponent implements Component {
     this.revealTreeSelection = false;
     const rowMap = new Map<number, string>();
     this.lastTreeCaretMap.clear();
+    // renderRoundedPanel drops the border and side padding below its box width.
+    const framed = width >= TREE_MIN_BOX_WIDTH;
+    this.lastTreeContentRowOffset = framed ? 1 : 0;
+    const caretBase = CHROME_BAND_LEFT_MARGIN + (framed ? 1 + CHROME_BAND_SIDE_PADDING : 0) + 2;
     const selectedPath = new Set<string>();
     let pathId = this.selectedWorkerId;
     for (let i = 0; pathId !== undefined && i <= WORKER_TREE_MAX_LEVELS; i++) { selectedPath.add(pathId); pathId = projection.parents.get(pathId); }
@@ -917,7 +945,7 @@ export class WorkerDockPanelComponent implements Component {
       const nameBudget = Math.max(8, Math.min(32, interior - visibleWidth(prefix) - visibleWidth(aggregate) - (activity ? 12 : 0)));
       content.push(truncateToWidth(prefix + truncateToWidth(name, nameBudget) + currentTheme.fg('textDim', aggregate + activity), interior));
       rowMap.set(index, row.id);
-      if (row.expandable || row.kind !== 'worker' || row.role === 'pipeline') this.lastTreeCaretMap.set(index, { id: row.id, column: CHROME_BAND_LEFT_MARGIN + CHROME_BAND_SIDE_PADDING + 1 + 2 + visibleWidth(row.connector), group: row.kind !== 'worker' || row.role === 'pipeline' });
+      if (row.expandable || row.kind !== 'worker' || row.role === 'pipeline') this.lastTreeCaretMap.set(index, { id: row.id, column: caretBase + visibleWidth(row.connector), group: row.kind !== 'worker' || row.role === 'pipeline' });
     }
     if (detailRows > 0) {
       const selected = projection.rows.find(row => row.id === this.selectedWorkerId);
@@ -928,7 +956,7 @@ export class WorkerDockPanelComponent implements Component {
     }
     this.lastWorkerRowMap = rowMap;
     this.lastHeaderRow = 0;
-    return renderRoundedPanel({ width, leftMargin: CHROME_BAND_LEFT_MARGIN, sidePadding: CHROME_BAND_SIDE_PADDING, minBoxWidth: 24, fillWidth: true,
+    return renderRoundedPanel({ width, leftMargin: CHROME_BAND_LEFT_MARGIN, sidePadding: CHROME_BAND_SIDE_PADDING, minBoxWidth: TREE_MIN_BOX_WIDTH, fillWidth: true,
       title: ` ${workerDockProductName()} · Session tree `, content: content.slice(0, contentBudget), borderToken: this.borderToken(appearanceAnimationNow()) });
   }
 
@@ -996,7 +1024,11 @@ export class WorkerDockPanelComponent implements Component {
   }
 
   private borderToken(now: number): ColorToken {
-    return missionDockBorderToken(this.visibleWorkers(now), this.view.jobs);
+    const token = missionDockBorderToken(this.visibleWorkers(now), this.view.jobs);
+    if (token !== 'border') return token;
+    // Tree-only workers (facts without roster telemetry) are live work too.
+    const tree = this.view.tree;
+    return tree?.nodes.some(node => node.id !== tree.rootAgentId && node.phase === 'running') === true ? 'primary' : token;
   }
 
   private buildContent(mode: LayoutMode, width: number, budget: number, now: number): string[] {

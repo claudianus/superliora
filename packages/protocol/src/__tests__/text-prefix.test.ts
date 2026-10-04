@@ -37,6 +37,19 @@ describe('UTF-8 prefixes', () => {
     expect(buffer.frozen).toBe(true);
   });
 
+  it('reports frozen once input is rejected after an exact fill', () => {
+    const exact = new Utf8PrefixBuffer(3);
+    expect(exact.append('abc')).toBe('abc');
+    expect(exact.isFull).toBe(true);
+    expect(exact.frozen).toBe(false);
+    expect(exact.append('d')).toBe('abc');
+    expect(exact.frozen).toBe(true);
+
+    const midDelta = new Utf8PrefixBuffer(3);
+    expect(midDelta.append('abcd')).toBe('abc');
+    expect(midDelta.frozen).toBe(true);
+  });
+
   it('normalizes lone surrogates, including unresolved high surrogates', () => {
     const buffer = new Utf8PrefixBuffer(20);
     expect(buffer.append('\uD800')).toBe('');

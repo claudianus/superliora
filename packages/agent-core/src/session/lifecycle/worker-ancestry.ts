@@ -32,7 +32,8 @@ export function resolveWorkerAncestry(options: Pick<SessionOptions, 'id' | 'role
   };
   return {
     ...base, rootAgentId: root, rootSessionId: sessionId,
-    ...(options.role === 'interactive-conductor' ? { conductorAgentId: root, conductorSessionId: sessionId } : {}),
+    // Only `main` holds the conductor role; another root is not a conductor.
+    ...(options.role === 'interactive-conductor' && root === 'main' ? { conductorAgentId: root, conductorSessionId: sessionId } : {}),
     status: parent === null ? 'root' : 'linked',
   };
 }

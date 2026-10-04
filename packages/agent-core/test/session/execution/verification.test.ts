@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connect } from 'node:net';
@@ -100,6 +100,52 @@ describe('revision sealed verification', () => {
     expect(receipt.stages[0]?.exitCode).not.toBe(0);
     expect(await readFile(receipt.stages[0]!.stdoutPath, 'utf8')).toContain('started');
     expect(JSON.parse(await readFile(receipt.evidencePath, 'utf8'))).toEqual(receipt);
+  });
+
+  it.skipIf(process.platform === 'win32')('settles cancellation when a detached descendant keeps stdout open', async () => {
+    const f = await fixture();
+    const marker = join(f.root, 'escaped-pid');
+    // setsid()-style escape: the descendant leaves the stage process group, so the
+    // group kill cannot reach it, yet it still holds the inherited stdout pipe.
+    const escaped = "require('fs').writeFileSync(" + JSON.stringify(`${marker}.tmp`) + ", String(process.pid)); require('fs').renameSync(" +
+      JSON.stringify(`${marker}.tmp`) + ", " + JSON.stringify(marker) + "); setInterval(() => {}, 1000)";
+    const script = "require('child_process').spawn(process.execPath, ['-e', " + JSON.stringify(escaped) + "], {stdio: 'inherit', detached: true}).unref(); " +
+      "setInterval(() => {}, 1000)";
+    const artifact = await f.seal([stage('escaped', script)]);
+    const controller = new AbortController();
+    const pending = runArtifactVerification({ hostPolicy, repoPath: f.root, artifact,
+      evidenceRoot: join(f.root, 'evidence'), currentRequirementsHash: () => requirementsHash, signal: controller.signal });
+    const pid = await vi.waitFor(async () => Number(await readFile(marker, 'utf8')), { timeout: 10_000, interval: 10 })
+      .catch(async (error: unknown) => { controller.abort(error); await pending; throw error; });
+    try {
+      controller.abort(new Error('operator stop'));
+      const receipt = await pending;
+      expect(receipt.status).toBe('cancelled');
+      expect(receipt.stages[0]?.cancelled).toBe(true);
+      expect(JSON.parse(await readFile(receipt.evidencePath, 'utf8'))).toEqual(receipt);
+    } finally {
+      try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')('never runs workspace git hooks while preparing the sealed checkout', async () => {
+    const f = await fixture();
+    const marker = join(f.root, 'hook-ran');
+    const hooks = join(f.root, 'workspace-hooks');
+    await mkdir(hooks);
+    await writeFile(join(hooks, 'post-checkout'), `#!/bin/sh\ntouch ${JSON.stringify(marker)}\n`);
+    await chmod(join(hooks, 'post-checkout'), 0o755);
+    // Workspace-controlled repository config; ignored files keep the producer tree clean.
+    git(f.root, 'config', 'core.hooksPath', hooks);
+    await writeFile(join(f.root, '.git', 'info', 'exclude'), 'workspace-hooks/\nhook-ran\nprobe/\n');
+    // Sanity: the fixture hook is live for an ordinary worktree checkout.
+    git(f.root, 'worktree', 'add', '--detach', join(f.root, 'probe'), 'HEAD');
+    await stat(marker);
+    git(f.root, 'worktree', 'remove', '--force', join(f.root, 'probe'));
+    await rm(marker);
+    const receipt = await f.run([stage('test', 'process.exit(0)')]);
+    expect(receipt.status).toBe('passed');
+    await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('records a pre-aborted verification without starting any stage', async () => {

@@ -23,6 +23,7 @@ import { buildWorktreeMetadata, createSessionWorktree } from '../session/worktre
 import type { ProviderManager } from '../session/provider/provider-manager';
 import { SessionAPIImpl } from '../session/rpc';
 import type { SessionStore } from '../session/store/index';
+import { readOptionalState } from '../session/store/session-store-helpers';
 import { resolveConfiguredSessionRoute } from '../agent/routing';
 import {
   withTelemetryContext,
@@ -272,21 +273,24 @@ export async function resumeSessionWithOverrides(
     ...(active?.getAdditionalDirs() ?? []),
     ...callerAdditionalDirs,
   ]);
-  const role = input.role ?? active?.options.role ?? 'worker';
   const workerAncestry = input.workerAncestry === undefined ? undefined : workerAncestrySchema.parse(input.workerAncestry);
   if (workerAncestry !== undefined && (workerAncestry.sessionId !== summary.id || workerAncestry.agentId !== 'main')) {
     throw new Error('Worker ancestry must identify the resumed main agent and session');
   }
+  const bound = active === undefined
+    ? (await readOptionalState(summary.sessionDir))?.workerAncestry
+    : active.options.workerAncestry ?? active.metadata.workerAncestry;
+  // An admitted independent worker reports to its original conductor; opening
+  // it as a conductor would split its lineage between two coordinators.
+  const role = bound !== undefined || workerAncestry !== undefined
+    ? 'worker'
+    : input.role ?? active?.options.role ?? 'worker';
   if (active !== undefined && role !== (active.options.role ?? 'worker') && active.hasActiveTurn) {
     throw new LioraError(ErrorCodes.TURN_AGENT_BUSY, 'Cannot change a session role during an active turn');
   }
-  if (active !== undefined && workerAncestry !== undefined) {
-    const bound = active.options.workerAncestry ?? active.metadata.workerAncestry;
-    if (bound !== undefined && JSON.stringify(workerAncestrySchema.parse(bound)) !== JSON.stringify(workerAncestry)) {
-      throw new Error('Cannot reparent an existing independent session');
-    }
-    Object.assign(active.options, { workerAncestry });
-    active.metadata.workerAncestry = workerAncestry;
+  if (active !== undefined && workerAncestry !== undefined
+    && (bound === undefined || JSON.stringify(workerAncestrySchema.parse(bound)) !== JSON.stringify(workerAncestry))) {
+    throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, 'Cannot reparent an existing independent session');
   }
   const coordination = role === 'interactive-conductor'
     ? await context.resolveSessionCoordinator?.(summary.id, { workDir: summary.workDir, additionalDirs }) : undefined;

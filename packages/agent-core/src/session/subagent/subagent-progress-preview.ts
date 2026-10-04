@@ -110,11 +110,14 @@ function lazyJsonPrefix(value: unknown, maxLength: number): string | undefined {
       const toJSON = (node as { toJSON?: unknown }).toJSON;
       if (typeof toJSON === 'function') node = toJSON.call(node, key);
     }
-    // Preserve JSON unboxing for local boxed primitives.
-    // eslint-disable-next-line unicorn/no-instanceof-builtins
-    if (node instanceof Number || node instanceof String || node instanceof Boolean || node instanceof BigInt) {
-      node = node.valueOf();
-    }
+    // Unbox exactly as JSON.stringify does: Number/String go through
+    // ToNumber/ToString, Boolean/BigInt read their internal slot.
+    /* eslint-disable unicorn/no-instanceof-builtins */
+    if (node instanceof Number) node = Number(node);
+    else if (node instanceof String) node = String(node);
+    else if (node instanceof Boolean) node = Boolean.prototype.valueOf.call(node);
+    else if (node instanceof BigInt) node = BigInt.prototype.valueOf.call(node);
+    /* eslint-enable unicorn/no-instanceof-builtins */
     switch (typeof node) {
       case 'undefined':
       case 'function':

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { canonicalPath } from '../../../src/session/coordinator/authorized-path';
-import { FileCoordinatorStore, SessionCoordinator, type CoordinatorProjection } from '../../../src/session/coordinator';
+import { FileCoordinatorStore, SessionCoordinator, type CoordinatorProjection, type CoordinatorStore } from '../../../src/session/coordinator';
 import type { TrustedPipelinePlan, TrustedPipelineStage } from '../../../src/session/execution/pipeline';
 
 const roots: string[] = [];
@@ -199,6 +199,26 @@ describe('restored pipeline authority is bound to its accepted static configurat
     expect(restored.coordinator.get(accepted.id)).toMatchObject({ status: 'failed', pipeline: { status: 'blocked' }, error: expect.stringContaining('no trusted static binding') });
     expect(f.produce).not.toHaveBeenCalled();
     expect(restored.coordinator.get(accepted.id)?.lease).toBeUndefined();
+  });
+
+  it('keeps a pipeline stopped during admission preflight cancelled rather than blocked', async () => {
+    const f = await fixture();
+    let projection: CoordinatorProjection | undefined;
+    // In-memory commits settle in microtasks, so the stop lands before the
+    // filesystem-backed preflight can observe the lease.
+    const store: CoordinatorStore = { load: async () => structuredClone(projection), save: async (value) => { projection = structuredClone(value); }, close: async () => {} };
+    const coordinator = await SessionCoordinator.open({ store, runtime: f.runtime, policy: { role: 'conductor', maxConcurrent: 1, authorizedRoots: [f.a] }, trustedPipelinePlans: [{ id: 'host-plan', stages: [f.stage] }] });
+    coordinators.push(coordinator);
+    const record = await coordinator.startPipeline('host-plan', 'operation');
+    let stopping: Promise<unknown> | undefined;
+    coordinator.onChange((snapshot) => {
+      if (stopping === undefined && snapshot.records.some((card) => card.status === 'admitting')) stopping = coordinator.stop(record.id, coordinator.get(record.id)!.revision);
+    });
+    await coordinator.tick();
+    await stopping;
+    await vi.waitFor(() => { expect(coordinator.get(record.id)?.lease).toBeUndefined(); });
+    expect(coordinator.get(record.id)).toMatchObject({ status: 'cancelled', pipeline: { status: 'cancelled' } });
+    expect(f.produce).not.toHaveBeenCalled();
   });
 
   it('does not re-read a changed plan for callbacks after the accepted ownership lease is persisted', async () => {

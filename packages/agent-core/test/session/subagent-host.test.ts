@@ -54,6 +54,7 @@ function workerFixture(id: string) {
     rawGenerate: vi.fn(),
     kaos: testKaos.withCwd(config.cwd),
     setKaos: vi.fn((kaos: Kaos) => { agent.kaos = kaos; }),
+    waitForSandbox: vi.fn(async () => {}),
     getAdditionalDirs: () => [],
     useProfile: vi.fn(),
     background: {

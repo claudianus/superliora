@@ -50,6 +50,15 @@ describe('Session RPC sandbox metadata fan-out', () => {
     expect(host.writeMetadata).not.toHaveBeenCalled();
   });
 
+  it('rejects an explicit undefined workerAncestry instead of clearing host-owned ancestry', async () => {
+    const ancestry = { agentId: 'main', sessionId: 'worker' };
+    const host = { ...session([]), metadata: { ...session([]).metadata, workerAncestry: ancestry } };
+    const api = new SessionAPIImpl(host as unknown as Session);
+    await expect(api.updateSessionMetadata({ metadata: { title: 'renamed', workerAncestry: undefined } as never })).rejects.toThrow('host-owned');
+    expect(host.metadata.workerAncestry).toBe(ancestry);
+    expect(host.writeMetadata).not.toHaveBeenCalled();
+  });
+
   it('does not let an independent worker RPC metadata change weaken its host minimum or newly created children', async () => {
     const agents = [new Agent({ kaos: testKaos }), new Agent({ kaos: testKaos, type: 'sub' })];
     const host = { ...session(agents), options: { sandboxMinimum: { profile: 'read-only' as const, enforcement: 'lexical' as const } } };

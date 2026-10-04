@@ -1,5 +1,5 @@
-import { ErrorCodes, LioraError } from '@superliora/sdk';
-import { describe, expect, it } from 'vitest';
+import { ErrorCodes, LioraError, utf8Prefix } from '@superliora/sdk';
+import { describe, expect, it, vi } from 'vitest';
 
 import { STREAMING_ARGS_PREVIEW_MAX_BYTES } from '#/tui/constant/streaming';
 import {
@@ -8,6 +8,11 @@ import {
   formatErrorPayload,
   parseStreamingArgs,
 } from '#/tui/utils/event-payload';
+
+vi.mock('@superliora/sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@superliora/sdk')>();
+  return { ...actual, utf8Prefix: vi.fn(actual.utf8Prefix) };
+});
 
 describe('streaming tool argument payload helpers', () => {
   it('parses complete JSON arguments for finalized small previews', () => {
@@ -29,6 +34,14 @@ describe('streaming tool argument payload helpers', () => {
     const first = parseStreamingArgs(text);
     first['command'] = 'mutated';
     expect(parseStreamingArgs(text)).toEqual({ command: 'echo shared' });
+  });
+
+  it('answers repeated flushes of an unchanged buffer without rescanning the prefix', () => {
+    const text = `{"command":"${'y'.repeat(STREAMING_ARGS_PREVIEW_MAX_BYTES / 2)}`;
+    const first = parseStreamingArgs(text);
+    vi.mocked(utf8Prefix).mockClear();
+    expect(parseStreamingArgs(text)).toEqual(first);
+    expect(utf8Prefix).not.toHaveBeenCalled();
   });
 
   it('caps accumulated streaming preview text', () => {

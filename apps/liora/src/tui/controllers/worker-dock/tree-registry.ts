@@ -52,6 +52,26 @@ export class WorkerTreeRegistry {
       if (changed) this.totalsByConductor.set(conductorSessionId, { ...totals, counts: { ...totals.counts, byStatus: { ...totals.counts.byStatus } } });
     }
     for (const record of records) changed = this.applyFact(conductorSessionId, record) || changed;
+    if (totals !== undefined) changed = this.settleOmittedRecords(conductorSessionId, records, totals.truncated) || changed;
+    return changed;
+  }
+  /**
+   * Snapshots are a bounded, active-first window. A record left out of a
+   * complete window, or ranked below a settled record, cannot still be live,
+   * so it must not keep showing the running/queued phase of an older fact.
+   */
+  private settleOmittedRecords(conductorSessionId: string, records: readonly DockIndependentFact[], truncated: boolean): boolean {
+    const prefix = `record:${conductorSessionId}:`;
+    const live = (phase: WorkerTreePhase): boolean => phase === 'running' || phase === 'queued';
+    const included = new Set(records.map((record) => `${prefix}${record.id}`));
+    const windowHasSettled = [...included].some((id) => { const node = this.nodes.get(id); return node !== undefined && !live(node.phase); });
+    if (truncated && !windowHasSettled) return false;
+    let changed = false;
+    for (const [id, node] of this.nodes) {
+      if (!id.startsWith(prefix) || included.has(id) || !live(node.phase)) continue;
+      this.nodes.set(id, { ...node, phase: node.reusable === true ? 'idle' : 'completed' });
+      changed = true;
+    }
     return changed;
   }
   applyFact(conductorSessionId: string, record: DockIndependentFact): boolean {

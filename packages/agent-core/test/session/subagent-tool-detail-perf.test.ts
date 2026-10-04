@@ -46,7 +46,8 @@ function referencePreview(value: unknown, maxLength: number): string | undefined
   }
   const flat = text.replaceAll(/\s+/g, ' ').trim();
   if (flat.length === 0) return undefined;
-  return utf8Prefix(flat, maxLength) !== flat ? `${utf8Prefix(flat, maxLength - 3)}…` : flat;
+  // Byte overflow decides truncation; utf8Prefix also sanitizes lone surrogates.
+  return Buffer.byteLength(flat) > maxLength ? `${utf8Prefix(flat, maxLength - 3)}…` : utf8Prefix(flat, maxLength);
 }
 
 describe('previewSubagentToolArgs matches the reference flattening', () => {
@@ -84,6 +85,14 @@ describe('previewSubagentToolArgs matches the reference flattening', () => {
       { num: 42, bool: true, nil: null, arr: [1, [2, [3]]] },
       { uni: '한글'.repeat(2_000) },
       { esc: '\\"\n\t'.repeat(2_000) },
+      // An in-budget lone surrogate is sanitized, not truncated.
+      'lone \uD800 surrogate',
+      // Boxed primitives unbox like JSON.stringify, including overridden hooks.
+      /* eslint-disable no-new-wrappers, unicorn/new-for-builtins -- boxed inputs are the subject */
+      { flag: Object.assign(new Boolean(true), { valueOf: () => false }) },
+      { count: Object.assign(new Number(1), { valueOf: () => 7 }) },
+      { label: Object.assign(new String('real'), { toString: () => 'shown' }) },
+      /* eslint-enable no-new-wrappers, unicorn/new-for-builtins */
     ];
 
     for (const value of cases) {

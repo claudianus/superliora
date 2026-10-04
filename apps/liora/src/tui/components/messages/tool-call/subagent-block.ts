@@ -305,6 +305,27 @@ function subToolOutputPreview(activity: SubToolActivity): Component[] {
   return card === undefined ? [body] : [...card, body];
 }
 
+/**
+ * Every repaint of an ongoing sub-tool rebuilds this block; memoize the
+ * heredoc parse + highlight per command (and palette) so an unchanged
+ * command is not re-tokenized each frame.
+ */
+const HEREDOC_PREVIEW_MEMO_MAX = 8;
+const heredocPreviewMemo = new Map<string, { readonly palette: unknown; readonly lines: readonly string[] }>();
+
+function memoizedHeredocPreview(command: string): readonly string[] {
+  const palette = currentTheme.palette;
+  const memo = heredocPreviewMemo.get(command);
+  if (memo !== undefined && memo.palette === palette) return memo.lines;
+  const lines = formatBashHeredocPreview(command) ?? [];
+  if (memo === undefined && heredocPreviewMemo.size >= HEREDOC_PREVIEW_MEMO_MAX) {
+    const oldest = heredocPreviewMemo.keys().next();
+    if (oldest.done !== true) heredocPreviewMemo.delete(oldest.value);
+  }
+  heredocPreviewMemo.set(command, { palette, lines });
+  return lines;
+}
+
 /** One clipped row per source line: a minified heredoc line must not wrap into hundreds of rows. */
 function singleRowLine(line: string, indent: number): Component {
   const pad = ' '.repeat(indent);
@@ -340,7 +361,7 @@ export function buildSingleSubagentBlockComponents(state: SingleSubagentBlockSta
     if (activity.phase === 'ongoing' && activity.name === 'Bash') {
       const command = activity.args['command'];
       if (typeof command === 'string') {
-        for (const line of formatBashHeredocPreview(command) ?? []) {
+        for (const line of memoizedHeredocPreview(command)) {
           items.push(singleRowLine(line, SUBAGENT_SUBTOOL_OUTPUT_INDENT));
         }
       }

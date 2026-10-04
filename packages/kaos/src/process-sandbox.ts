@@ -321,6 +321,28 @@ function mapLiteralCdPrefix(script: string, workspaceDir: string, additionalDirs
   return mappedPrefixes.join('') + rest;
 }
 
+/**
+ * The container never runs as root. A root host process maps to the workspace
+ * owner when that owner is a non-root account, so the bind mount stays writable;
+ * otherwise (root-owned or unreadable workspace) it falls back to 1000:1000.
+ */
+function sandboxUser(workspaceDir: string): { uid: number; gid: number } {
+  const hostUid = process.getuid?.();
+  const hostGid = process.getgid?.();
+  if (hostUid !== undefined && hostUid > 0) {
+    return { uid: hostUid, gid: hostGid !== undefined && hostGid > 0 ? hostGid : 1000 };
+  }
+  if (hostUid === 0) {
+    try {
+      const owner = statSync(canonicalMountSource(workspaceDir));
+      if (owner.uid > 0) return { uid: owner.uid, gid: owner.gid > 0 ? owner.gid : 1000 };
+    } catch {
+      // Fall through to the unprivileged default.
+    }
+  }
+  return { uid: 1000, gid: 1000 };
+}
+
 export function buildDockerSandboxArgs(opts: {
   readonly workspaceDir: string;
   readonly additionalDirs?: readonly string[];
@@ -353,10 +375,7 @@ export function buildDockerSandboxArgs(opts: {
   const memoryMb = resourceLimit(opts.resources?.memoryMb, 1024, 'memoryMb', true);
   const cpus = resourceLimit(opts.resources?.cpus, 2, 'cpus');
   const pidsLimit = resourceLimit(opts.resources?.pidsLimit, 256, 'pidsLimit', true);
-  const hostUid = process.getuid?.();
-  const hostGid = process.getgid?.();
-  const uid = hostUid !== undefined && hostUid > 0 ? hostUid : 1000;
-  const gid = hostUid !== undefined && hostUid > 0 && hostGid !== undefined && hostGid > 0 ? hostGid : 1000;
+  const { uid, gid } = sandboxUser(opts.workspaceDir);
   const args: string[] = [
     dockerBin, '--host', endpoint, 'run', '--rm', '-i',
     '--network=none', '--cap-drop=ALL', '--security-opt=no-new-privileges:true',

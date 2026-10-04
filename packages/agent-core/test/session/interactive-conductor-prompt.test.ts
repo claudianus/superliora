@@ -105,10 +105,14 @@ describe('interactive conductor prompt admission', () => {
     vi.spyOn(ctx.agent.turn, 'cancel').mockImplementation((...args) => { cancel(...args); cancelled.resolve(); });
     let admitted = false;
     const next = new SessionAPIImpl(session).prompt(input('follow-up')).then(() => { admitted = true; });
-    await cancelled;
-    expect(admitted).toBe(false);
-    expect(ctx.agent.turn.currentId).toBe(0);
-    release.resolve();
+    try {
+      await cancelled;
+      expect(admitted).toBe(false);
+      expect(ctx.agent.turn.currentId).toBe(0);
+    } finally {
+      // Never leave the abort-ignoring turn blocked for teardown.
+      release.resolve();
+    }
     await next;
     expect(ctx.agent.turn.currentId).toBe(1);
     await ctx.agent.turn.waitForCurrentTurn();

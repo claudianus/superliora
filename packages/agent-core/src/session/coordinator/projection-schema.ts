@@ -72,6 +72,7 @@ export const coordinatorProjectionSchema = z.object({
     mailbox: z.array(z.object({ id: z.string().min(1), text: z.string().min(1), status: z.enum(['pending', 'sending', 'delivered']) })),
     verification: z.object({ planId: z.string(), revision: z.number().int(), status: z.enum(['accepted', 'running', 'passed', 'failed', 'stale', 'source_changed', 'interrupted', 'cancelled']), cancelRequested: z.boolean().optional(), receipt: receiptSchema.optional(), error: z.string().optional() }).optional(),
     resumePrompt: z.string().optional(),
+    resumeMessageId: z.string().optional(),
     result: z.string().optional(),
     error: z.string().optional(),
   })),

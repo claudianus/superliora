@@ -206,6 +206,7 @@ export class WorkerDockRegistry {
   private readonly ops: DockOpsEntry[] = [];
   private version = 0;
   private readonly treeRegistry = new WorkerTreeRegistry();
+  private treeSnapshotMemo: { readonly version: number; readonly conductorSessionId: string; readonly rootAgentId: string; readonly tree: WorkerDockTreeInput } | undefined;
 
   /**
    * Roster timestamps share the motion time base (PREMIUM.md §7.1), because the
@@ -374,8 +375,16 @@ export class WorkerDockRegistry {
     }
   }
 
+  /**
+   * Every tree mutation bumps `version`, so an unchanged tree keeps its object
+   * identity and the panel's `setView` identity guard can short-circuit.
+   */
   treeSnapshot(conductorSessionId: string, rootAgentId = MAIN_AGENT_ID): WorkerDockTreeInput {
-    return this.treeRegistry.snapshot(conductorSessionId, rootAgentId);
+    const memo = this.treeSnapshotMemo;
+    if (memo?.version === this.version && memo.conductorSessionId === conductorSessionId && memo.rootAgentId === rootAgentId) return memo.tree;
+    const tree = this.treeRegistry.snapshot(conductorSessionId, rootAgentId);
+    this.treeSnapshotMemo = { version: this.version, conductorSessionId, rootAgentId, tree };
+    return tree;
   }
 
   apply(event: Event): boolean {

@@ -216,7 +216,8 @@ export class SessionCoordinator {
     if (!idempotencyKey.trim() || !request.prompt.trim() || !request.description.trim() || !isAbsolute(request.cwd)) {
       throw new Error('Dispatch requires idempotencyKey, prompt, description and absolute cwd');
     }
-    if (request.timeoutMs !== undefined && (!Number.isFinite(request.timeoutMs) || request.timeoutMs < 0)) throw new Error('Invalid timeout');
+    // setTimeout clamps delays above the signed 32-bit limit to 1ms.
+    if (request.timeoutMs !== undefined && (!Number.isFinite(request.timeoutMs) || request.timeoutMs < 0 || request.timeoutMs > 2_147_483_647)) throw new Error('Invalid timeout');
     if (Buffer.byteLength(request.prompt) > 64 * 1024 || Buffer.byteLength(request.description) > 256 || Buffer.byteLength(request.purpose ?? '') > 256 || Buffer.byteLength(request.sourceRevision ?? '') > 128 || Buffer.byteLength(request.model ?? '') > 128 || Buffer.byteLength(idempotencyKey) > 256 || (request.ownership?.length ?? 0) > 64 || request.ownership?.some((path) => Buffer.byteLength(path) > 4096)) throw new Error('Independent request exceeds input quotas');
     const roots = await Promise.all(this.policy.authorizedRoots.map(canonicalPath));
     const cwd = await canonicalPath(request.cwd);
@@ -270,8 +271,10 @@ export class SessionCoordinator {
       if (record.status === 'idle' || record.status === 'yielded') {
         if (this.runtime.resume === undefined || record.sessionId === undefined) throw new Error('Runtime does not support explicit idle session resume');
         record.resumePrompt = text;
+        record.resumeMessageId = messageId;
         record.status = 'accepted';
-        record.mailbox.push({ id: messageId, text, status: 'delivered' });
+        // Not delivered until runtime.resume hands the prompt to the session.
+        record.mailbox.push({ id: messageId, text, status: 'pending' });
         record.revision++;
         return record;
       }
@@ -380,7 +383,8 @@ export class SessionCoordinator {
         controller.signal.throwIfAborted();
       } catch (error) {
         await this.finish(record.id, controller.signal.aborted ? 'cancelled' : 'failed', undefined, String(error));
-        if (record.kind === 'pipeline') await this.mutate((draft) => { this.require(draft, record.id).pipeline!.status = 'blocked'; });
+        const pipelineStatus = controller.signal.aborted ? 'cancelled' : 'blocked';
+        if (record.kind === 'pipeline') await this.mutate((draft) => { this.require(draft, record.id).pipeline!.status = pipelineStatus; });
         this.active.delete(record.id);
         settled.resolve();
         continue;
@@ -464,8 +468,20 @@ export class SessionCoordinator {
       const request = this.get(id)!.request;
       if ((request.timeoutMs ?? 0) > 0) timeout = setTimeout(() => controller.abort(new Error('Independent session deadline exceeded')), request.timeoutMs);
       const record = this.get(id)!;
-      const handle = record.resumePrompt !== undefined && record.sessionId !== undefined
-        ? await this.runtime.resume!(record.sessionId, { ...request, prompt: record.resumePrompt }, controller.signal)
+      const resuming = record.resumePrompt !== undefined && record.sessionId !== undefined;
+      // The resume prompt's mailbox entry is in flight (reported uncertain) while
+      // runtime.resume runs; it becomes delivered only once a handle is returned.
+      if (resuming) {
+        await this.mutate((draft) => {
+          const current = this.require(draft, id);
+          const entry = current.mailbox.find((candidate) => candidate.id === current.resumeMessageId);
+          if (entry?.status !== 'pending') return;
+          entry.status = 'sending';
+          current.revision++;
+        });
+      }
+      const handle = resuming
+        ? await this.runtime.resume!(record.sessionId!, { ...request, prompt: record.resumePrompt! }, controller.signal)
         : await this.runtime.admit(id, request, controller.signal);
       // Observe completion immediately, even if persistence or mailbox delivery fails.
       const completion = handle.completion.then((result) => ({ result }), (error: unknown) => ({ error }));
@@ -479,7 +495,10 @@ export class SessionCoordinator {
             record.request.workerAncestry = record.workerAncestry;
           }
           if (record.status !== 'cancel_requested' && record.status !== 'cancelled') record.status = 'running';
+          const resumed = record.mailbox.find((entry) => entry.id === record.resumeMessageId);
+          if (resuming && resumed?.status === 'sending') resumed.status = 'delivered';
           delete record.resumePrompt;
+          delete record.resumeMessageId;
           record.revision++;
         });
         if (!controller.signal.aborted) await this.deliver(id, handle);

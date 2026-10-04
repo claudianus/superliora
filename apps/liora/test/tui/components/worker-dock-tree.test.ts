@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Event } from '@superliora/sdk';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
@@ -7,6 +7,7 @@ import { projectWorkerTree, type WorkerDockTreeInput, type WorkerTreeNode } from
 import { WorkerDockRegistry, type DockWorker } from '#/tui/controllers/worker-dock/registry';
 import { type DockWorkerAncestry, type DockIndependentFact } from '#/tui/controllers/worker-dock/tree-registry';
 import { emptyConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
+import { currentTheme } from '#/tui/theme';
 
 const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 const render = (panel: WorkerDockPanelComponent): string[] => panel.render(120).map(strip);
@@ -107,6 +108,40 @@ describe('explicit worker ancestry tree', () => {
     panel.setView({ tree, snapshot: { version: 2, workers: [worker('c', 'tests 10/12')], activeCount: 1, totalTokens: 0, ops: [] }, jobs: emptyConductorJobsSnapshot() });
     expect(render(panel).join('\n')).toContain('tests 10/12');
     expect(render(panel).join('\n')).toContain('▸ a');
+  });
+
+  it('maps caret clicks onto the frameless narrow tree band', () => {
+    const panel = panelFor(input([node('a', 'session:main'), node('b', 'a')]));
+    const lines = panel.render(20).map(strip);
+    expect(lines.some(line => line.includes('╭'))).toBe(false);
+    const y = lines.findIndex(line => line.includes('▸ a'));
+    expect(y).toBeGreaterThanOrEqual(0);
+    expect(panel.handleTreePointer(lines[y]!.indexOf('▸'), y)).toBe(true);
+    expect(panel.render(20).map(strip).some(line => line.includes('▾ a'))).toBe(true);
+  });
+
+  it('paints the active border for running tree-only workers without roster telemetry', () => {
+    const borderToken = (phase: WorkerTreeNode['phase']) => {
+      const fg = vi.spyOn(currentTheme, 'fg');
+      try {
+        panelFor(input([node('a', 'session:main', phase)])).render(80);
+        return fg.mock.calls.find(([, text]) => text.startsWith('╭'))?.[0];
+      } finally {
+        fg.mockRestore();
+      }
+    };
+    expect(borderToken('running')).toBe('primary');
+    expect(borderToken('completed')).toBe('border');
+  });
+
+  it('keeps the tree snapshot identity until the registry changes', () => {
+    const registry = new WorkerDockRegistry(() => 1);
+    const fact: DockIndependentFact = { id: 'a', status: 'running', workerAncestry: ancestry('a', 'main', 'session', 'main') };
+    registry.applyIndependentFacts('session', [fact]);
+    const first = registry.treeSnapshot('session');
+    expect(registry.treeSnapshot('session')).toBe(first);
+    registry.applyIndependentFacts('session', [{ ...fact, status: 'finished' }]);
+    expect(registry.treeSnapshot('session')).not.toBe(first);
   });
 
   it('keeps a deep settled chain reachable even though each settled node adds a group level', () => {
@@ -266,6 +301,24 @@ describe('real registry ancestry and attention adapters', () => {
     const text = render(panel).join('\n');
     expect(text).toContain('Visible · Run 1');
     expect(text).toContain('Coordinator: 42 records · partial tree · 1 attention');
+  });
+
+  it('settles a live record that falls out of the bounded active-first snapshot window', () => {
+    const registry = new WorkerDockRegistry(() => 1);
+    const phaseOf = (id: string) => registry.treeSnapshot('session').nodes.find(item => item.id === `record:session:${id}`)?.phase;
+    const fact = (id: string, status: string): DockIndependentFact => ({ id, status, workerAncestry: ancestry(id, 'main', 'session', 'main') });
+    const counts = { byStatus: {}, attention: 0 };
+    registry.applyIndependentFacts('session', [fact('a', 'running'), fact('b', 'running')], { total: 2, truncated: false, counts });
+    // Only live records fill the truncated window: an omitted one may still run.
+    registry.applyIndependentFacts('session', [fact('b', 'running')], { total: 3, truncated: true, counts });
+    expect(phaseOf('a')).toBe('running');
+    // A settled record in the window ranks every omitted record below live work.
+    registry.applyIndependentFacts('session', [fact('b', 'running'), fact('c', 'idle')], { total: 3, truncated: true, counts });
+    expect(phaseOf('a')).toBe('completed');
+    expect(phaseOf('b')).toBe('running');
+    // A complete window omitting a record proves it is no longer live.
+    registry.applyIndependentFacts('session', [fact('c', 'idle')], { total: 1, truncated: false, counts });
+    expect(phaseOf('b')).toBe('completed');
   });
 
   it('qualifies separate sessions and actual immediate parent tuples, never names', () => {

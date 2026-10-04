@@ -15,7 +15,7 @@ import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
 import { TodoPanelComponent } from './components/chrome/todo/todo-panel';
 import { ConductorTimelinePanelComponent } from './components/panes/conductor-timeline/timeline-panel';
 import { WorkerDockFallbackComponent } from './components/panes/worker-dock/fallback';
-import { WorkerDockPanelComponent } from './components/panes/worker-dock/panel';
+import { WorkerDockPanelComponent, workerDockBandRowBudget } from './components/panes/worker-dock/panel';
 import { workerDockBandActive } from './features/worker-dock/dock';
 import type { SessionRow } from './components/dialogs/session/session-picker';
 import type { TUIEditor } from './components/editor/editor-contract';
@@ -229,6 +229,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     new WorkerDockFallbackComponent({
       panel: workerDockPanel,
       visible: () => self !== undefined && workerDockBandActive(self),
+      maxRows: () => workerDockBandRowBudget(terminal.rows),
     }),
   );
   const queueContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);

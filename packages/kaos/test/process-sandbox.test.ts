@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
-import { readdirSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { readdirSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -466,6 +466,26 @@ describe('process sandbox helpers', () => {
     const user = args.find(arg => arg.startsWith('--user='));
     expect(user).toMatch(/^--user=[1-9]\d*:[1-9]\d*$/);
     expect(args.some(arg => /^(?:-e$|--env(?:=|$)|--env-file(?:=|$))/.test(arg))).toBe(false);
+  });
+
+  it.skipIf(process.platform === 'win32')('maps a root host to the non-root workspace owner, never to root', () => {
+    const temp = mkdtempSync(join(tmpdir(), 'kaos-root-owner-'));
+    const getuid = vi.spyOn(process, 'getuid').mockReturnValue(0);
+    const getgid = vi.spyOn(process, 'getgid').mockReturnValue(0);
+    try {
+      const owner = statSync(temp);
+      const expected = owner.uid > 0
+        ? `--user=${String(owner.uid)}:${String(owner.gid > 0 ? owner.gid : 1000)}`
+        : '--user=1000:1000';
+      expect(buildDockerSandboxArgs({ workspaceDir: temp, cwd: temp, command: ['echo'] })).toContain(expected);
+      // Missing workspace: unprivileged default, not root.
+      const missing = join(temp, 'missing');
+      expect(buildDockerSandboxArgs({ workspaceDir: missing, cwd: missing, command: ['echo'] })).toContain('--user=1000:1000');
+    } finally {
+      getuid.mockRestore();
+      getgid.mockRestore();
+      rmSync(temp, { recursive: true, force: true });
+    }
   });
 
   it('passes configured resource limits through the wrapper', () => {

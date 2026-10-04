@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildBuiltinTools } from '../../src/agent/tool/builtin-tools';
+import { runShellCommand } from '../../src/agent/tool/shell-command';
 import { createBackgroundManager } from './background/helpers';
 import { executeTool } from '../tools/fixtures/execute-tool';
 
@@ -27,6 +28,21 @@ describe('standalone conductor tool capability policy', () => {
     readiness.reject(new Error('Denied by sandbox'));
     await agent.background.waitForActiveTasks(() => true, { timeoutMs: 1000 });
     expect(agent.background.getTask(task.taskId)?.status).toBe('failed');
+  });
+
+  it('keeps a user-issued host shell command in the foreground with streamed output', async () => {
+    const { agent } = createBackgroundManager();
+    Object.defineProperty(agent, 'role', { value: 'interactive-conductor' });
+    const builtinTools = buildBuiltinTools({ agent });
+    const result = await runShellCommand({ agent, builtinTools, shellCommandControllers: new Map() }, 'echo host-foreground', 'cmd-1');
+    expect(result).toMatchObject({ isError: false });
+    expect(result.backgrounded).toBeUndefined();
+    expect(result.stdout).toContain('host-foreground');
+    expect(agent.background.list(false)).toHaveLength(0);
+    // The model-facing tool is still forced through detached admission.
+    const modelCall = await executeTool(builtinTools.get('Bash')!, { args: { command: 'echo model', description: 'model task' }, signal: new AbortController().signal, turnId: 'turn', toolCallId: 'model-call' });
+    expect(modelCall.output).toContain('execution_phase: accepted');
+    await agent.background.waitForActiveTasks(() => true, { timeoutMs: 5000 });
   });
 
   it('keeps accepting distinct conductor command ids past the replay dedupe window', async () => {

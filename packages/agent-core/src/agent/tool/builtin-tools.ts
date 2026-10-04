@@ -9,10 +9,19 @@ import type { BuiltinTool } from './types';
 /** Recent tool-call ids kept for turn-replay dedupe; older ids are evicted. */
 const ACCEPTED_IDENTITY_LIMIT = 128;
 
+/** User `!` commands: the host already owns these, so they keep foreground streaming. */
+const hostShellInputs = new WeakSet<BashInput>();
+
+export function hostShellInput(args: BashInput): BashInput {
+  hostShellInputs.add(args);
+  return args;
+}
+
 class ConductorBashTool extends BashTool {
   private readonly accepted = new Map<string, { identity: string; result: Promise<ExecutableToolResult> }>();
 
   override resolveExecution(args: BashInput): ToolExecution {
+    if (hostShellInputs.has(args)) return super.resolveExecution(args);
     const normalized = { ...args, run_in_background: true, description: args.description ?? 'Conductor command' };
     const execution = super.resolveExecution(normalized);
     if (!('execute' in execution)) return execution;

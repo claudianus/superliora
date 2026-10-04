@@ -68,6 +68,8 @@ export interface MessageDispatchHost extends PromptInputRuntimeHost {
  */
 export class MessageDispatchController {
   private lastTurnFailed = false;
+  /** Identifies the newest prompt so a stale rejection cannot reset its live pane. */
+  private sessionRequestSeq = 0;
 
   private get prioritizesUserInput(): boolean {
     // A selected worker must retain foreground semantics even in the conductor UI.
@@ -320,11 +322,17 @@ export class MessageDispatchController {
     }
 
     host.beginSessionRequest();
+    const requestSeq = ++this.sessionRequestSeq;
 
     const sdkInput = options?.parts ?? input;
     void session.prompt(sdkInput).catch((error: unknown) => {
       const message = formatErrorMessage(error);
-      host.failSessionRequest(`Failed to send: ${message}`);
+      if (requestSeq === this.sessionRequestSeq) {
+        host.failSessionRequest(`Failed to send: ${message}`);
+      } else {
+        // A newer prompt owns the live pane and streaming phase now.
+        host.showError(`Failed to send: ${message}`);
+      }
       this.enqueueMessage(input, options);
       host.updateQueueDisplay();
     });

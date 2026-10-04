@@ -79,7 +79,8 @@ async function loadWorkerTranscript(
     const target = host.workerDock.registry.workerTranscriptTarget(workerId);
     if (target?.recordId !== undefined) {
       const trace = await host.harness.getIndependentSessionTrace(host.requireSession().id, target.recordId, target.agentId);
-      return { lines: formatJobDeckTraceLines(trace.context.history) };
+      const lines = formatJobDeckTraceLines(trace.context.history);
+      return { lines: lines.length > 0 ? lines : buildFallbackLines(host, workerId) };
     }
     const session = host.requireSession();
     // Interactive agent session when the harness can switch to this agent.

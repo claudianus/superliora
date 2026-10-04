@@ -353,8 +353,9 @@ export class ToolCallSubagentState {
     const nextArgsText = appendStreamingArgsPreview(existing?.streamingArguments, delta.argumentsPart, streamingArgsBuffer);
     const parsed = parseArgsPreview(nextArgsText);
     // Like the main card, decode a Bash command before its JSON string closes.
-    // nextArgsText is already bounded by appendStreamingArgsPreview.
-    if ((delta.name ?? existing?.name) === 'Bash') {
+    // nextArgsText is already bounded by appendStreamingArgsPreview. A parsed
+    // command already matches what Bash receives (JSON keeps the last key).
+    if ((delta.name ?? existing?.name) === 'Bash' && typeof parsed['command'] !== 'string') {
       const command = extractPartialStringField(nextArgsText, 'command');
       if (command !== undefined) parsed['command'] = command;
     }

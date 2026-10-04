@@ -2267,8 +2267,43 @@ describe('host conductor request projection', () => {
     revision++;
     await llm.chat({ messages: history, tools: [], signal: new AbortController().signal });
     expect(systems).toEqual(['Stable conductor policy\nBase\nrevision=1', 'Stable conductor policy\nBase\nrevision=2']);
-    expect(layers).toEqual([{ layer1Static: 'Stable conductor policy\nStatic', layer2Session: 'Session', layer3Dynamic: 'Existing dynamic\nrevision=1' }, { layer1Static: 'Stable conductor policy\nStatic', layer2Session: 'Session', layer3Dynamic: 'Existing dynamic\nrevision=2' }]);
+    // The cache-controlled layers stay byte-identical; volatile state rides the trailing uncached block.
+    expect(layers).toEqual([{ layer1Static: 'Stable conductor policy\nStatic', layer2Session: 'Session', layer3Dynamic: 'Existing dynamic', roleAdditional: 'revision=1' }, { layer1Static: 'Stable conductor policy\nStatic', layer2Session: 'Session', layer3Dynamic: 'Existing dynamic', roleAdditional: 'revision=2' }]);
     expect(histories).toEqual([history, history]);
     expect(history).toHaveLength(1);
+  });
+
+  it('keeps an existing role block ahead of the volatile state', async () => {
+    const layers: unknown[] = [];
+    const generate: GenerateFn = async (_provider, _system, _tools, _history, _callbacks, options) => {
+      layers.push(options?.layeredSystemPrompt);
+      return { id: 'reply', message: { role: 'assistant', content: [], toolCalls: [] }, usage: emptyUsage(), finishReason: 'completed', rawFinishReason: 'stop' };
+    };
+    const llm = new KosongLLM({ provider: makeProvider('conductor-role', 'role-model'), systemPrompt: 'Base', layeredSystemPrompt: { layer1Static: 'Static', layer2Session: 'Session', layer3Dynamic: 'Dynamic', roleAdditional: 'Role' }, requestContext: () => ({ prefix: 'Policy', dynamic: 'state' }), generate });
+    await llm.chat({ messages: [], tools: [], signal: new AbortController().signal });
+    expect(layers).toEqual([{ layer1Static: 'Policy\nStatic', layer2Session: 'Session', layer3Dynamic: 'Dynamic', roleAdditional: 'Role\nstate' }]);
+  });
+
+  it('projects host state once per request and reuses it across route failover', async () => {
+    let revision = 0;
+    const primary = makeProvider('conductor-primary', 'conductor-primary-model');
+    const backup = makeProvider('conductor-backup', 'conductor-backup-model');
+    const systems: string[] = [];
+    const generate: GenerateFn = async (provider, system) => {
+      systems.push(system);
+      if (provider === primary) throw new APIProviderRateLimitError('rate limited', 'req-429');
+      return { id: 'reply', message: { role: 'assistant', content: [], toolCalls: [] }, usage: emptyUsage(), finishReason: 'completed', rawFinishReason: 'stop' };
+    };
+    const requestContext = vi.fn(() => ({ prefix: 'Policy', dynamic: `revision=${++revision}` }));
+    const llm = new KosongLLM({
+      provider: primary, systemPrompt: 'Base', generate, requestContext,
+      route: { key: 'conductor-route', strategy: 'fallback', candidates: [
+        { modelAlias: 'conductor-primary', providerName: 'conductor-primary', provider: primary },
+        { modelAlias: 'conductor-backup', providerName: 'conductor-backup', provider: backup },
+      ] },
+    });
+    await llm.chat({ messages: [], tools: [], signal: new AbortController().signal });
+    expect(requestContext).toHaveBeenCalledTimes(1);
+    expect(systems).toEqual(['Policy\nBase\nrevision=1', 'Policy\nBase\nrevision=1']);
   });
 });

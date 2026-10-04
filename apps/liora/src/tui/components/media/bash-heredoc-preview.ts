@@ -20,8 +20,10 @@ export function buildBashHeredocPreview(command: string, maxLines: number | 'all
 } | undefined {
   // A preview recognizer, not a shell interpreter. Leave compound/multiple
   // heredocs and dynamic delimiters to the ordinary bash command renderer.
-  const bounded = utf8Prefix(command, STREAMING_ARGS_PREVIEW_MAX_BYTES);
-  const lines = bounded.split('\n');
+  // Past the byte cap the delimiter and any later shell command are
+  // unverified, so a source-only preview could hide what actually runs.
+  if (utf8Prefix(command, STREAMING_ARGS_PREVIEW_MAX_BYTES).length < command.length) return undefined;
+  const lines = command.split('\n');
   const opening = lines.findIndex((line) => /<<-?\s*/.test(line));
   if (opening < 0) return undefined;
   const header = lines[opening]!;
@@ -53,9 +55,9 @@ export function buildBashHeredocPreview(command: string, maxLines: number | 'all
     const normalized = stripTabs ? line.replace(/^\t+/, '') : line;
     if (normalized === delimiter) {
       // A source-only preview must never hide a later shell command. Keep
-      // compound scripts (or an unknown suffix beyond the cap) on the normal
-      // shell path rather than presenting only their first heredoc.
-      if (command.length > bounded.length || lines.slice(index + 1).some((suffix) => suffix.trim().length > 0)) {
+      // compound scripts on the normal shell path rather than presenting
+      // only their first heredoc.
+      if (lines.slice(index + 1).some((suffix) => suffix.trim().length > 0)) {
         return undefined;
       }
       break;
@@ -71,7 +73,6 @@ export function buildBashHeredocPreview(command: string, maxLines: number | 'all
     sourceLines: [
       currentTheme.dim(`INPUT · Bash heredoc (${interpreter !== undefined ? 'script input; ' : patchInput ? 'patch input; ' : ''}not execution output)`),
       ...highlighted.map((line, i) => currentTheme.dim(`${String(start + i + 1).padStart(4)}  `) + line),
-      ...(command.length > bounded.length ? [currentTheme.dim('… command preview UTF-8 byte limit reached')] : []),
     ],
   };
 }

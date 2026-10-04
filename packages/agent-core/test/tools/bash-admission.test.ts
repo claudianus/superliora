@@ -37,8 +37,8 @@ function fixture(options: {
     ...(options.workspace ? { workspace: { workspaceDir: '/workspace', additionalDirs: [], sandboxProfile: 'workspace' as const } } : {}),
   });
   const inference = new AbortController();
-  const run = (command = 'echo hello') => executeTool(tool, {
-    args: { command, run_in_background: true, description: 'owned execution' },
+  const run = (command = 'echo hello', cwd?: string) => executeTool(tool, {
+    args: { command, run_in_background: true, description: 'owned execution', ...(cwd === undefined ? {} : { cwd }) },
     signal: inference.signal,
     turnId: 'turn-test', toolCallId: 'call-test',
   });
@@ -133,6 +133,17 @@ describe('Bash accepted-before-start admission', () => {
     expect(f.ready).not.toHaveBeenCalled();
     expect(f.spawn).not.toHaveBeenCalled();
     expect(f.manager.list()).toEqual([]);
+  });
+
+  it('guards the effective absolute cwd when the caller passes a relative one', async () => {
+    const gate = Promise.withResolvers<void>();
+    const f = fixture({ ready: () => gate.promise });
+    const id = taskId(toolContentString(await f.run('echo nested', 'nested/worktree')));
+    expect(isSessionWorktreeOwned('/workspace/nested/worktree', '/workspace')).toBe(true);
+    expect(isSessionWorktreeOwned('/workspace/other', '/workspace')).toBe(false);
+    gate.resolve();
+    expect(await f.manager.wait(id)).toMatchObject({ status: 'completed', resourcesSettled: true });
+    expect(isSessionWorktreeOwned('/workspace/nested/worktree', '/workspace')).toBe(false);
   });
 
   it('preserves workspace gates for deferred execution', async () => {

@@ -1,6 +1,7 @@
 import type { ToolUpdate } from '../../loop';
 import type { BuiltinTool } from './types';
 import type { Agent } from '..';
+import { hostShellInput } from './builtin-tools';
 import { SHELL_FOREGROUND_TIMEOUT_S } from './constants';
 
 export interface ShellCommandHost {
@@ -27,7 +28,7 @@ export async function runShellCommand(
   const controller = new AbortController();
   if (commandId !== undefined) host.shellCommandControllers.set(commandId, controller);
   try {
-    const execution = await bash.resolveExecution({ command, timeout: SHELL_FOREGROUND_TIMEOUT_S });
+    const execution = await bash.resolveExecution(hostShellInput({ command, timeout: SHELL_FOREGROUND_TIMEOUT_S }));
     if (!('execute' in execution)) {
       const output =
         typeof execution.output === 'string' ? execution.output : 'Command failed.';

@@ -29,7 +29,13 @@ export class Utf8PrefixBuffer {
   get isFull(): boolean { return this.stopped || this.usedBytes === this.maxBytes; }
 
   append(delta: string): string {
-    if (this.isFull || delta.length === 0) return this.value;
+    if (this.stopped || delta.length === 0) return this.value;
+    if (this.usedBytes === this.maxBytes) {
+      // Exactly full: any nonempty delta holds a scalar that cannot fit.
+      this.stopped = true;
+      this.pendingHigh = '';
+      return this.value;
+    }
     let i = 0;
     const parts: string[] = [];
     const emit = (scalar: string, size: number): boolean => {
@@ -52,7 +58,7 @@ export class Utf8PrefixBuffer {
         emit('\uFFFD', 3);
       }
     }
-    while (i < delta.length && !this.isFull) {
+    while (i < delta.length && !this.stopped) {
       const unit = delta.charCodeAt(i);
       if (unit >= 0xD800 && unit <= 0xDBFF) {
         if (i + 1 === delta.length) {

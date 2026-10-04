@@ -108,6 +108,7 @@ interface CommandResult {
   stdout: Buffer; stderr: Buffer; exitCode: number | null; signal: string | null;
   timedOut: boolean; cancelled: boolean; outputTruncated: boolean; failure?: string;
 }
+const PIPE_SETTLE_GRACE_MS = 2_000;
 /** Bounded output and process-group timeout; no implicit retries. */
 function execute(command: readonly string[], cwd: string, env: Readonly<Record<string, string>>, timeoutMs: number, signal?: AbortSignal): Promise<CommandResult> {
   return new Promise(resolveResult => {
@@ -127,8 +128,13 @@ function execute(command: readonly string[], cwd: string, env: Readonly<Record<s
     child.stdout.on('data', (chunk: Buffer) => { collect('stdout', chunk); });
     child.stderr.on('data', (chunk: Buffer) => { collect('stderr', chunk); });
     let termination: Promise<void> | undefined;
+    let pipeSettlement: NodeJS.Timeout | undefined;
     const stop = (): void => {
       if (!child.pid || termination) return;
+      // A descendant that left the process group (setsid/daemonize) can keep the
+      // inherited pipes open forever, so `close` would never fire. After a kill
+      // grace period, stop reading so the stage settles and a receipt is written.
+      pipeSettlement = setTimeout(() => { child.stdout.destroy(); child.stderr.destroy(); }, PIPE_SETTLE_GRACE_MS);
       if (process.platform === 'win32') {
         termination = new Promise<void>(settled => {
           const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { env, stdio: 'ignore' });
@@ -151,6 +157,7 @@ function execute(command: readonly string[], cwd: string, env: Readonly<Record<s
     child.on('error', error => { result.failure = error.message; });
     child.once('close', (code, exitSignal) => {
       timer[Symbol.dispose]();
+      if (pipeSettlement) clearTimeout(pipeSettlement);
       signal?.removeEventListener('abort', onAbort);
       result.exitCode = result.failure ? null : code;
       result.signal = exitSignal;
@@ -162,8 +169,15 @@ function execute(command: readonly string[], cwd: string, env: Readonly<Record<s
     });
   });
 }
+/**
+ * Repository-local config is workspace-controlled. Override settings that make
+ * git run workspace programs (hooks such as post-checkout, fsmonitor) so no
+ * workspace code executes outside the host-authorized stage plan. Command-line
+ * `-c` takes precedence over repository config.
+ */
+const TRUSTED_GIT_CONFIG = ['-c', `core.hooksPath=${process.platform === 'win32' ? 'NUL' : '/dev/null'}`, '-c', 'core.fsmonitor=false'];
 async function git(repo: string, args: readonly string[], signal?: AbortSignal): Promise<string> {
-  const result = await execute(['git', '--no-pager', '-C', repo, ...args], repo, verificationEnvironment(repo).values, 60_000, signal);
+  const result = await execute(['git', '--no-pager', ...TRUSTED_GIT_CONFIG, '-C', repo, ...args], repo, verificationEnvironment(repo).values, 60_000, signal);
   if (result.cancelled) throw new Error('Verification cancelled');
   if (result.exitCode !== 0 || result.timedOut || result.outputTruncated) throw new Error(result.failure ?? (result.stderr.toString('utf8') || 'Git verification operation failed'));
   return result.stdout.toString('utf8').trim();

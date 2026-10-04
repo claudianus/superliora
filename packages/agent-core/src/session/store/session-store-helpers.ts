@@ -21,6 +21,8 @@ export const SessionSummaryStateSchema = z.object({
   /** Agent id → { homedir, … } map used to locate each agent's wire.jsonl. */
   agents: z.record(z.string(), z.unknown()).optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
+  /** Host-admitted independent worker lineage; validated by the session on open. */
+  workerAncestry: z.unknown().optional(),
 });
 
 export const FORKED_SESSION_DROPPED_FILES = [

@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorCodes } from '../../src/errors';
 import { createSession, resumeSession, type SessionLifecycleContext } from '../../src/rpc/session-lifecycle';
-import type { Session } from '../../src/session';
+import { Session } from '../../src/session';
+import { noopTelemetryClient } from '../../src/telemetry';
+import { SessionStore } from '../../src/session/store';
 import { testKaos } from '../fixtures/test-kaos';
 
 let workDir: string | undefined;
@@ -43,7 +45,7 @@ describe('session lifecycle admission ordering', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('rejects a busy role change before attributing supplied worker ancestry', async () => {
+  it('rejects attaching supplied worker ancestry to a live unbound session without mutating it', async () => {
     workDir = await mkdtemp(join(tmpdir(), 'liora-lifecycle-resume-'));
     const options: Record<string, unknown> = { role: 'worker' };
     const metadata: Record<string, unknown> = {};
@@ -59,9 +61,45 @@ describe('session lifecycle admission ordering', () => {
       coordinationId: 'coord_one', status: 'linked' as const,
     };
     await expect(resumeSession(ctx, { sessionId: 'session-busy', role: 'interactive-conductor', workerAncestry: ancestry }))
-      .rejects.toMatchObject({ code: ErrorCodes.TURN_AGENT_BUSY });
+      .rejects.toMatchObject({ code: ErrorCodes.SESSION_STATE_INVALID });
     expect(options['workerAncestry']).toBeUndefined();
     expect(metadata['workerAncestry']).toBeUndefined();
     expect(ctx.resolveSessionCoordinator).not.toHaveBeenCalled();
+  });
+
+  it('keeps an admitted independent worker in the worker role when a client asks for a conductor', async () => {
+    workDir = await mkdtemp(join(tmpdir(), 'liora-lifecycle-worker-role-'));
+    const store = new SessionStore(workDir);
+    const summary = await store.create({ id: 'admitted', workDir });
+    const ancestry = {
+      agentId: 'main', sessionId: 'admitted', parentAgentId: 'main', parentSessionId: 'conductor',
+      rootAgentId: 'main', rootSessionId: 'conductor', conductorAgentId: 'main', conductorSessionId: 'conductor',
+      coordinationId: 'coord_admitted', status: 'linked' as const,
+    };
+    const rpc = {
+      emitEvent: vi.fn(async () => {}), requestApproval: vi.fn(async () => ({ decision: 'cancelled' as const })),
+      requestQuestion: vi.fn(async () => null), requestCredential: vi.fn(async () => null),
+    };
+    const seeded = new Session({ id: 'admitted', workerAncestry: ancestry, kaos: testKaos, homedir: summary.sessionDir, rpc });
+    seeded.metadata = { ...seeded.metadata, workerAncestry: ancestry };
+    await seeded.createMain();
+    await seeded.flushMetadata();
+    await seeded.close();
+
+    const sessions = new Map<string, Session>();
+    const ctx = context({ sessions, telemetry: noopTelemetryClient, sessionStore: store, sdk: Promise.resolve(rpc as never), resolveSessionCoordinator: vi.fn() });
+    await resumeSession(ctx, { sessionId: 'admitted', role: 'interactive-conductor' });
+    const reopened = sessions.get('admitted')!;
+    try {
+      expect(reopened.options.role).toBe('worker');
+      expect(reopened.options.workerAncestry).toEqual(ancestry);
+      expect(ctx.resolveSessionCoordinator).not.toHaveBeenCalled();
+      // A live reopen keeps the same role instead of promoting it.
+      await resumeSession(ctx, { sessionId: 'admitted', role: 'interactive-conductor' });
+      expect(sessions.get('admitted')).toBe(reopened);
+      expect(reopened.options.role).toBe('worker');
+    } finally {
+      await reopened.close();
+    }
   });
 });

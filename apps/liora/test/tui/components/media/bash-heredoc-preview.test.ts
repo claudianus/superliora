@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
@@ -14,6 +14,16 @@ import { buildStreamingCallPreviewComponents } from '#/tui/components/messages/t
 import { ToolCallSubagentState } from '#/tui/components/messages/tool-call/subagent-state';
 import { ShellExecutionComponent } from '#/tui/components/messages/shell/shell-execution';
 import { buildSingleSubagentBlockComponents } from '#/tui/components/messages/tool-call/subagent-block';
+
+vi.mock('#/tui/components/media/code-highlight', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/components/media/code-highlight')>();
+  return { ...actual, highlightLines: vi.fn(actual.highlightLines) };
+});
+
+vi.mock('#/tui/components/media/code-highlight', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/components/media/code-highlight')>();
+  return { ...actual, highlightLines: vi.fn(actual.highlightLines) };
+});
 
 const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 const render = (components: { render(width: number): string[] }[]): string =>
@@ -69,25 +79,20 @@ describe('bash heredoc command previews', () => {
     }
   });
 
-  it('bounds preview input and discloses the byte cap', () => {
-    const lines = formatBashHeredocPreview(`cat > example.ts <<EOF\n${'x\n'.repeat(STREAMING_ARGS_PREVIEW_MAX_BYTES)}`)!;
-    expect(lines.length).toBeLessThanOrEqual(COMMAND_PREVIEW_LINES + 2);
-    expect(strip(lines.join('\n'))).toContain('UTF-8 byte limit reached');
+  it('leaves commands whose heredoc delimiter lies past the byte cap on the shell rendering path', () => {
+    expect(formatBashHeredocPreview(`cat > example.ts <<EOF\n${'x\n'.repeat(STREAMING_ARGS_PREVIEW_MAX_BYTES)}EOF\nrm -rf build`)).toBeUndefined();
+    expect(formatBashHeredocPreview(`cat > example.ts <<EOF\n${'x\n'.repeat(STREAMING_ARGS_PREVIEW_MAX_BYTES)}`)).toBeUndefined();
   });
 
-  it.each(['界', '😀'])('bounds final heredoc %s source at a whole UTF-8 code point', (scalar) => {
+  it.each(['界', '😀'])('keeps a heredoc of %s source that fits the UTF-8 byte cap exactly', (scalar) => {
     const header = 'cat > example.ts <<EOF\n';
     const unitBytes = Buffer.byteLength(scalar);
     const count = Math.floor((STREAMING_ARGS_PREVIEW_MAX_BYTES - Buffer.byteLength(header)) / unitBytes);
     const expected = scalar.repeat(count);
-    const command = header + expected + scalar + 'ASCII_AFTER_CAP';
-    const lines = formatBashHeredocPreview(command)!;
-    const plain = strip(lines.join('\n'));
+    const plain = strip(formatBashHeredocPreview(header + expected)!.join('\n'));
     expect(plain).toContain(expected);
-    expect(plain).not.toContain('ASCII_AFTER_CAP');
-    expect(plain).toContain('UTF-8 byte limit reached');
     expect(plain.isWellFormed()).toBe(true);
-    expect(Buffer.byteLength(header + expected)).toBeLessThanOrEqual(STREAMING_ARGS_PREVIEW_MAX_BYTES);
+    expect(formatBashHeredocPreview(header + expected + scalar + 'ASCII_AFTER_CAP')).toBeUndefined();
   });
 
   it('updates main-agent previews before JSON arguments finish, reusing the shell node', () => {
@@ -127,6 +132,37 @@ describe('bash heredoc command previews', () => {
     expect(output).toContain('not execution output');
     expect(output).toContain('const child = 1;');
   });
+  it('does not re-tokenize an unchanged ongoing subagent heredoc on each repaint', () => {
+    const state = new ToolCallSubagentState();
+    state.appendSubToolCallDelta({ id: 'child', name: 'Bash', argumentsPart: JSON.stringify({ command: "cat > memo.ts <<'EOF'\nconst memo = 1;" }).slice(0, -2) });
+    const build = () => render(buildSingleSubagentBlockComponents({
+      toolCallId: 'parent', workspaceDir: undefined,
+      activities: [...state.subToolActivities.values()],
+      derivedSubagentPhase: 'running', subagentError: undefined, subagentText: '', subagentThinkingText: '',
+    }));
+    const first = build();
+    vi.mocked(highlightLines).mockClear();
+    expect(build()).toBe(first);
+    expect(highlightLines).not.toHaveBeenCalled();
+    state.appendSubToolCallDelta({ id: 'child', argumentsPart: '\\nconst next = 2;' });
+    expect(build()).toContain('const next = 2;');
+    expect(highlightLines).toHaveBeenCalledOnce();
+  });
+  it('does not re-tokenize an unchanged subagent heredoc on every repaint', () => {
+    const state = new ToolCallSubagentState();
+    state.appendSubToolCallDelta({ id: 'memo', name: 'Bash', argumentsPart: JSON.stringify({ command: "cat > memo.ts <<'EOF'\nconst memo = 1;" }).slice(0, -2) });
+    const build = () => render(buildSingleSubagentBlockComponents({
+      toolCallId: 'parent', workspaceDir: undefined,
+      activities: [...state.subToolActivities.values()],
+      derivedSubagentPhase: 'running', subagentError: undefined, subagentText: '', subagentThinkingText: '',
+    }));
+    const first = build();
+    vi.mocked(highlightLines).mockClear();
+    expect(build()).toBe(first);
+    expect(highlightLines).not.toHaveBeenCalled();
+    expect(first).toContain('const memo = 1;');
+  });
+
   it('clips each subagent heredoc source line to one row instead of wrapping it', () => {
     const state = new ToolCallSubagentState();
     const minified = 'const minified = [' + '1,'.repeat(4000) + '];';
@@ -235,6 +271,12 @@ describe('bash heredoc command previews', () => {
     expect(state.subToolActivities.get('escaped')?.args['command']).toBe('cat > example.ts <<EOF\nconst word = "');
     state.appendSubToolCallDelta({ id: 'escaped', argumentsPart: 'bb\\";\\nconst next = 2;' });
     expect(state.subToolActivities.get('escaped')?.args['command']).toBe('cat > example.ts <<EOF\nconst word = "λ";\nconst next = 2;');
+  });
+
+  it('keeps the command Bash receives when completed arguments repeat the command key', () => {
+    const state = new ToolCallSubagentState();
+    state.appendSubToolCallDelta({ id: 'dup', name: 'Bash', argumentsPart: '{"command":"echo first","command":"echo last"}' });
+    expect(state.subToolActivities.get('dup')?.args['command']).toBe('echo last');
   });
 
   it('falls back to shell rendering rather than hiding commands after the delimiter', () => {

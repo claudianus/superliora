@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { Text } from '#/tui/renderer';
+import { WORKER_DOCK_BAND_MAX_ROWS } from '#/tui/components/panes/worker-dock/panel';
+import { emptyConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
 import type { AppState } from '#/tui/types';
 import {
   STAGE_MAX_HEIGHT,
@@ -227,10 +229,24 @@ describe('planTUINativeStage stack panels', () => {
       title: `card ${i}`, status: 'pending' as const,
     })));
     state.todoPanelContainer.addChild(state.todoPanel);
-    // A populated Conductor band uses its existing bounded four-row surface.
-    state.workerDockContainer.addChild(new Text('workers\nactive\nqueued\ncompleted', 0, 0));
+    // A populated Conductor band that would fill its full 14-row budget.
+    state.workerDockPanel.setView({
+      snapshot: {
+        version: 1,
+        activeCount: 20,
+        totalTokens: 0,
+        ops: [],
+        workers: Array.from({ length: 20 }, (_, i) => ({
+          id: `sa-${i}`, name: `explore-${i}`, kind: 'subagent' as const, status: 'running' as const,
+          runInBackground: false, toolCount: 1, tokens: 10, elapsedMs: 1_000, spawnedAtMs: 1_000, lastActivityAtMs: 1_000,
+        })),
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
+    expect(state.workerDockPanel.render(80)).toHaveLength(WORKER_DOCK_BAND_MAX_ROWS);
     const regions = buildTUIStateNativeFrameRegions(state, 80, height);
     const editor = regions.find((region) => region.id === 'editor')?.rect;
+    expect(regions.find((region) => region.id === 'workers')?.rect?.height).toBeGreaterThan(0);
     expect(editor).toBeDefined();
     expect(editor!.height).toBeGreaterThanOrEqual(3);
     expect(editor!.y + editor!.height).toBeLessThanOrEqual(height);

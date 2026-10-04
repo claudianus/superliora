@@ -1,4 +1,4 @@
-import { mkdtemp, rm, readFile, writeFile, readdir, mkdir, symlink } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, readFile, writeFile, readdir, mkdir, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -173,6 +173,30 @@ describe('exclusive file projection', () => {
   });
 });
 
+describe('uncertain file commits', () => {
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('fails the store closed when the directory sync fails after the rename', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'conductor-store-'));
+    const path = join(directory, 'coordination.json');
+    const store = await FileCoordinatorStore.open(path);
+    const committed: CoordinatorProjection = { version: 1, records: [] };
+    try {
+      // Write+search without read: rename still succeeds, opening the directory to fsync it fails.
+      await chmod(directory, 0o300);
+      await expect(store.save(committed)).rejects.toMatchObject({ code: 'EACCES' });
+      await chmod(directory, 0o700);
+      expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(committed);
+      await expect(store.save({ version: 1, records: [] })).rejects.toThrow('unacknowledged commit');
+      await store.close();
+      const reopened = await FileCoordinatorStore.open(path);
+      expect(await reopened.load()).toEqual(committed);
+      await reopened.close();
+    } finally {
+      await chmod(directory, 0o700);
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('conductor acceptance capability bounds', () => {
   it('reuses an explicitly selected idle session, yields it, and distinguishes finished', async () => {
     const { coordinator, runtime, completions } = await setup();
@@ -189,11 +213,38 @@ describe('conductor acceptance capability bounds', () => {
     await coordinator.tick();
     await flush();
     expect(runtime.resume).toHaveBeenCalledWith(`session-${accepted.id}`, expect.objectContaining({ prompt: 'Repair the failing assertion', purpose: 'Compiler', sourceRevision: 'revision-a' }), expect.any(AbortSignal));
+    expect(coordinator.get(accepted.id)?.mailbox).toEqual([{ id: 'repair-1', text: 'Repair the failing assertion', status: 'delivered' }]);
     completions.get(`session-${accepted.id}`)!.resolve('Repair turn ended');
     await flush();
     await coordinator.park(accepted.id, 'finished', coordinator.get(accepted.id)!.revision);
     expect(coordinator.fact(accepted.id)).toMatchObject({ reusable: false, ownerStatus: 'finished' });
     await expect(coordinator.message(accepted.id, 'Implicit extra turn', 'extra', coordinator.get(accepted.id)!.revision)).rejects.toThrow('no implicit continuation');
+  });
+
+  it('does not count a resume prompt as delivered when the runtime resume fails', async () => {
+    const { coordinator, runtime, completions } = await setup();
+    const accepted = await coordinator.dispatch(request, 'work');
+    await coordinator.tick();
+    await flush();
+    completions.get(accepted.id)!.resolve('Observed turn result');
+    await flush();
+    const resume = Promise.withResolvers<never>();
+    runtime.resume = vi.fn(async () => resume.promise);
+    await coordinator.message(accepted.id, 'Repair the failing assertion', 'repair-1', coordinator.get(accepted.id)!.revision);
+    expect(coordinator.get(accepted.id)?.mailbox[0]?.status).toBe('pending');
+    await coordinator.tick();
+    await flush();
+    expect(runtime.resume).toHaveBeenCalledTimes(1);
+    expect(coordinator.fact(accepted.id)?.mailbox).toEqual({ pending: 0, uncertain: 1 });
+    resume.reject(new Error('resume refused'));
+    await flush();
+    expect(coordinator.get(accepted.id)).toMatchObject({ status: 'failed', mailbox: [{ id: 'repair-1', status: 'sending' }] });
+  });
+
+  it('rejects session deadlines beyond the platform timer range', async () => {
+    const { coordinator } = await setup();
+    await expect(coordinator.dispatch({ ...request, timeoutMs: 2_147_483_648 }, 'too-long')).rejects.toThrow('Invalid timeout');
+    expect((await coordinator.dispatch({ ...request, timeoutMs: 2_147_483_647 }, 'longest')).status).toBe('accepted');
   });
 
   it('acknowledges stop while runtime admission never settles and retains the lease', async () => {

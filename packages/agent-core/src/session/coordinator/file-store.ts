@@ -54,6 +54,8 @@ async function releaseRecovery(path: string, token: string): Promise<void> {
 
 export class FileCoordinatorStore implements CoordinatorStore {
   private closed = false;
+  /** Set when a save failed after its rename may have published the projection. */
+  private uncertainCommit: unknown;
   private constructor(private readonly path: string, private readonly token: string) {}
 
   static async open(path: string): Promise<FileCoordinatorStore> {
@@ -102,6 +104,7 @@ export class FileCoordinatorStore implements CoordinatorStore {
 
   async save(projection: CoordinatorProjection): Promise<void> {
     await this.assertOwner();
+    if (this.uncertainCommit !== undefined) throw new Error('Coordinator store has an unacknowledged commit; reopen to reconcile', { cause: this.uncertainCommit });
     const temp = `${this.path}.${randomUUID()}.tmp`;
     try {
       const file = await open(temp, 'wx', 0o600);
@@ -109,9 +112,18 @@ export class FileCoordinatorStore implements CoordinatorStore {
       finally { await file.close(); }
       await this.assertOwner();
       await rename(temp, this.path);
-      if (process.platform !== 'win32') {
-        const directory = await open(dirname(this.path), 'r');
-        try { await directory.sync(); } finally { await directory.close(); }
+      try {
+        if (process.platform !== 'win32') {
+          const directory = await open(dirname(this.path), 'r');
+          try { await directory.sync(); } finally { await directory.close(); }
+        }
+      } catch (error) {
+        // The rename already installed this projection, but the caller will treat
+        // the save as failed and keep its previous in-memory state. Fail closed so
+        // a later save cannot silently overwrite the published update; reopening
+        // reloads the on-disk projection.
+        this.uncertainCommit = error;
+        throw error;
       }
     } finally {
       await unlink(temp).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; });

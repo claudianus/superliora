@@ -27,6 +27,8 @@ export interface CoordinationRecord {
   mailbox: { id: string; text: string; status: 'pending' | 'sending' | 'delivered' }[];
   verification?: { planId: string; revision: number; status: 'accepted' | 'running' | 'passed' | 'failed' | 'stale' | 'source_changed' | 'interrupted' | 'cancelled'; cancelRequested?: boolean; receipt?: import('../execution/verification').VerificationReceipt; error?: string };
   resumePrompt?: string;
+  /** Mailbox entry carried by `resumePrompt`; delivered only once resume returns a handle. */
+  resumeMessageId?: string;
   result?: string;
   error?: string;
 }

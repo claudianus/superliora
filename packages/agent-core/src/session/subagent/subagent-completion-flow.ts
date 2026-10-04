@@ -30,6 +30,10 @@ export async function runPromptTurn(
 ): Promise<SubagentCompletion> {
   options.signal.throwIfAborted();
   emitSubagentStarted(parent, childId, options);
+  // Configuration may have started a process-sandbox refresh; Git and the turn
+  // both execute in the child, so join that gate first.
+  await child.waitForSandbox();
+  options.signal.throwIfAborted();
   const workSnapshot = await snapshotChildWork(child, options.signal);
   options.signal.throwIfAborted();
   const turnId = child.turn.prompt([{ type: 'text', text: options.prompt }], SUBAGENT_PROMPT_ORIGIN);

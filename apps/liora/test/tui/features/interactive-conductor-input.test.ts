@@ -59,6 +59,23 @@ describe('interactive conductor user priority', () => {
     expect(host.session.cancel).not.toHaveBeenCalled();
   });
 
+  it('does not let an older rejection reset the live state of a newer prompt', async () => {
+    const host = fakeDispatchHost({ sessionRole: 'interactive-conductor', streamingPhase: 'running' });
+    let rejectOlder: (error: Error) => void = () => {};
+    host.session.prompt
+      .mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { rejectOlder = reject; }))
+      .mockImplementationOnce(neverSettles);
+    const dispatch = controller(host);
+    dispatch.sendNormalUserInput('older');
+    dispatch.sendNormalUserInput('newer');
+    rejectOlder(new Error('admission unavailable'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(host.failSessionRequest).not.toHaveBeenCalled();
+    expect(host.showError).toHaveBeenCalledWith('Failed to send: admission unavailable');
+    expect(host.state.queuedMessages.map((item) => item.text)).toEqual(['older']);
+  });
+
   it.each([
     { deferUserMessages: true, streamingPhase: 'running' as const },
     { streamingPhase: 'shell' as const },
