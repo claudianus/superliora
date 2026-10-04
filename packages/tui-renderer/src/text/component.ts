@@ -423,10 +423,15 @@ export class Text implements RendererComponent {
  * styled lines (scrollbar gutter, padding, truncation) every tick; V8 caches a
  * string's hash on the string itself, so a hit is a table read. Cleared
  * wholesale when full — cheaper than LRU bookkeeping on the hot path.
+ * Retention is bounded by total key characters as well as entry count, so a
+ * run of long styled lines cannot pin more than ~1M chars after their owners
+ * drop them (the entry cap alone allowed 8192 × 4096).
  */
 const ANSI_WIDTH_CACHE_CAP = 8192;
 const ANSI_WIDTH_CACHE_MAX_TEXT = 4096;
+const ANSI_WIDTH_CACHE_MAX_CHARS = 1 << 20;
 const ansiWidthCache = new Map<string, number>();
+let ansiWidthCacheChars = 0;
 
 export function measureAnsiDisplayWidth(
   text: string,
@@ -439,8 +444,15 @@ export function measureAnsiDisplayWidth(
   const cached = ansiWidthCache.get(text);
   if (cached !== undefined) return cached;
   const width = computeAnsiDisplayWidth(text, tabWidth);
-  if (ansiWidthCache.size >= ANSI_WIDTH_CACHE_CAP) ansiWidthCache.clear();
+  if (
+    ansiWidthCache.size >= ANSI_WIDTH_CACHE_CAP ||
+    ansiWidthCacheChars + text.length > ANSI_WIDTH_CACHE_MAX_CHARS
+  ) {
+    ansiWidthCache.clear();
+    ansiWidthCacheChars = 0;
+  }
   ansiWidthCache.set(text, width);
+  ansiWidthCacheChars += text.length;
   return width;
 }
 

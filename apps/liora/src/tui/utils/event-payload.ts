@@ -67,15 +67,17 @@ export function parseStreamingArgs(argumentsText: string): Record<string, unknow
   const previewText = utf8Prefix(argumentsText, STREAMING_ARGS_PREVIEW_MAX_BYTES);
   const complete = previewText === argumentsText;
   const cacheKey = `${complete ? 'complete' : 'prefix'}:${previewText}`;
+  // Callers get their own record: a mutated result must not poison the
+  // shared entry other consumers (and later flushes) read back.
   const cached = streamingArgsCache.get(cacheKey);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) return { ...cached };
   const parsed = parseStreamingArgsUncached(previewText, complete);
   if (streamingArgsCache.size >= STREAMING_ARGS_CACHE_MAX_ENTRIES) {
     const oldest = streamingArgsCache.keys().next();
     if (oldest.done !== true) streamingArgsCache.delete(oldest.value);
   }
   streamingArgsCache.set(cacheKey, parsed);
-  return parsed;
+  return { ...parsed };
 }
 
 function parseStreamingArgsUncached(previewText: string, complete: boolean): Record<string, unknown> {

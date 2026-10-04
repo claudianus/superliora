@@ -47,6 +47,8 @@ describe('independent SDK execution uses terminal events and physical close', ()
     await flush();
     f.closed.reject(new Error('Process remains live'));
     await failure;
+    const unsettled = await pending.catch((error: unknown) => error) as Error;
+    expect((unsettled.cause as AggregateError).errors.map((entry: Error) => entry.message)).toEqual(['Host policy denied', 'Process remains live']);
     expect(f.rpc.prompt).not.toHaveBeenCalled();
   });
 

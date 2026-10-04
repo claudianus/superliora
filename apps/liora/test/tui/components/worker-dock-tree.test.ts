@@ -109,6 +109,39 @@ describe('explicit worker ancestry tree', () => {
     expect(render(panel).join('\n')).toContain('▸ a');
   });
 
+  it('keeps a deep settled chain reachable even though each settled node adds a group level', () => {
+    const nodes = Array.from({ length: 30 }, (_, i) => node(`s${i}`, i === 0 ? 'session:main' : `s${i - 1}`, 'completed'));
+    const projection = projectWorkerTree(input(nodes), [], new Map(), 's29');
+    const deepest = projection.rows.find(row => row.id === 's29');
+    expect(deepest?.depth).toBe(60);
+    expect(projection.rows.find(row => row.id === 's0')?.expanded).toBe(true);
+  });
+
+  it('treats the session root as structure: Enter toggles it instead of opening a worker transcript', () => {
+    const panel = panelFor(input([node('a', 'session:main')]));
+    expect(panel.selectWorker('session:main')).toBe(true);
+    expect(panel.handleSelectionKey('enter')).toEqual({ handled: true });
+    expect(render(panel).join('\n')).toContain('▸ Session · Main');
+  });
+
+  it('keeps arrows inside a focused dock at the edges of tree-only rows without roster workers', () => {
+    const panel = panelFor(input([node('a', 'session:main'), node('b', 'session:main')]));
+    panel.selectWorker('b');
+    expect(panel.handleSelectionKey('down').handled).toBe(true);
+    panel.selectWorker('session:main');
+    expect(panel.handleSelectionKey('up').handled).toBe(true);
+  });
+
+  it('consumes a leaf pipeline dot click as selection instead of falling through to open it', () => {
+    const panel = panelFor(input([{ ...node('op', 'session:main'), role: 'pipeline', label: 'Verify release' }]));
+    const lines = render(panel);
+    const y = lines.findIndex(line => line.includes('· Verify release'));
+    const x = lines[y]!.indexOf('· Verify release');
+    expect(panel.handleTreePointer(x, y)).toBe(true);
+    expect(panel.selectedWorker).toBe('op');
+    expect(panel.handleSelectionKey('enter')).toEqual({ handled: true });
+  });
+
   it('keeps selected IDs and focus stable through ordinary roster additions and stream updates', () => {
     const panel = panelFor(input([node('b', 'session:main')]));
     panel.selectWorker('b'); panel.focused = false;
@@ -151,6 +184,19 @@ describe('real registry ancestry and attention adapters', () => {
     registry.applyIndependentFacts('session', [{ id: 'owner', status, ownerStatus, reusable, workerAncestry: ancestry('owner', 'main', 'session', 'main') }]);
     expect(registry.treeSnapshot('session').nodes[0]?.phase).toBe(phase);
     if (phase === 'error') expect(registry.treeSnapshot('session').nodes[0]?.attention).toBe('error');
+  });
+
+  it('clears fact-derived verification attention on a newer fact but keeps explicit attention', () => {
+    const registry = new WorkerDockRegistry(() => 1);
+    const base: DockIndependentFact = { id: 'owner', status: 'running', workerAncestry: ancestry('owner', 'main', 'session', 'main') };
+    const owner = () => registry.treeSnapshot('session').nodes.find(item => item.id === 'record:session:owner');
+    registry.applyIndependentFacts('session', [{ ...base, revision: 1, verification: { status: 'failed' } }]);
+    expect(owner()).toMatchObject({ phase: 'running', attention: 'error' });
+    registry.applyIndependentFacts('session', [{ ...base, revision: 2, verification: { status: 'passed' } }]);
+    expect(owner()?.attention).toBeUndefined();
+    registry.setWorkerAttention('owner', 'main', 'error');
+    registry.applyIndependentFacts('session', [{ ...base, revision: 3, verification: { status: 'passed' } }]);
+    expect(owner()?.attention).toBe('error');
   });
 
   it('keeps cross-session main without direct metadata an orphan instead of borrowing owner ancestry', () => {

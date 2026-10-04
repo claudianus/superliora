@@ -10,7 +10,7 @@ export type { LioraConfig, LioraConfigPatch };
 
 export type EmptyPayload = {};
 
-export type SessionMetadataPatch = Partial<Omit<SessionMeta, 'agents'>>;
+export type SessionMetadataPatch = Partial<Omit<SessionMeta, 'agents' | 'workerAncestry'>>;
 
 export interface ClientTelemetryInfo {
   readonly id?: string | undefined;

@@ -295,6 +295,7 @@ export class SessionCoordinator {
       }
       if (record.status === 'interrupted') throw new Error('Interrupted execution requires external resource reconciliation');
       if (record.status === 'accepted' || record.status === 'admitting' || record.status === 'running') {
+        if (record.status === 'accepted' && record.pipeline?.status === 'accepted') record.pipeline.status = 'cancelled';
         record.status = record.status === 'accepted' ? 'cancelled' : 'cancel_requested';
         record.revision++;
       }
@@ -443,8 +444,11 @@ export class SessionCoordinator {
       const result = await runTrustedPipeline(plan, { executionSignal: controller.signal });
       await this.mutate((draft) => {
         const record = this.require(draft, id);
-        record.pipeline = { planId, binding: bound.binding, status: result.status, result };
-        record.status = result.status === 'success' ? 'finished' : result.status === 'cancelled' ? 'cancelled' : 'failed';
+        // A stop committed after the pipeline returned still wins over its outcome.
+        const stopped = record.status === 'cancel_requested' || record.status === 'cancelled';
+        const status = stopped && result.status === 'success' ? 'cancelled' : result.status;
+        record.pipeline = { planId, binding: bound.binding, status, result };
+        record.status = stopped || status === 'cancelled' ? 'cancelled' : status === 'success' ? 'finished' : 'failed';
         delete record.lease;
         record.revision++;
       });
@@ -527,7 +531,12 @@ export class SessionCoordinator {
         return true;
       });
       if (!claimed) continue;
-      await handle.message(message.text);
+      try { await handle.message(message.text); }
+      catch {
+        // Delivery outcome is unknown: keep the entry 'sending' (reported as
+        // uncertain) rather than retrying or failing the shared scheduler.
+        return;
+      }
       await this.mutate((draft) => {
         const record = this.require(draft, id);
         record.mailbox.find((entry) => entry.id === message.id)!.status = 'delivered';

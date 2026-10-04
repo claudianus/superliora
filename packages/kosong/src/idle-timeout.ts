@@ -440,8 +440,10 @@ export function createStreamLivenessGuard(options: {
   const arm = (): void => {
     if (timer !== undefined) clearTimeout(timer);
     const idleBudget = idleMs > 0 ? idleMs : Number.POSITIVE_INFINITY;
-    const silenceBudget = !sawActivity && firstTokenMs !== undefined && firstTokenMs > 0
-      ? Math.min(firstTokenMs, idleBudget) : idleBudget;
+    // First-token governs only while it is the tighter silence budget.
+    const firstTokenGoverns = !sawActivity && firstTokenMs !== undefined && firstTokenMs > 0 &&
+      firstTokenMs <= idleBudget;
+    const silenceBudget = firstTokenGoverns ? firstTokenMs : idleBudget;
     const totalDeadline = maxDurationMs > 0 ? startedAt + maxDurationMs : Number.POSITIVE_INFINITY;
     const deadline = Math.min(lastActivityAt + silenceBudget, totalDeadline);
     // All deadlines disabled: neither a timer nor transport abort is introduced.
@@ -450,7 +452,7 @@ export function createStreamLivenessGuard(options: {
       dispose();
       const description = Date.now() >= totalDeadline
         ? `Stream duration timeout: stream exceeded ${String(maxDurationMs)}ms total.`
-        : !sawActivity && firstTokenMs !== undefined && firstTokenMs > 0
+        : firstTokenGoverns
           ? `Stream first-token timeout: no first token for ${String(firstTokenMs)}ms.`
           : `Stream idle timeout: no data received for ${String(idleMs)}ms.`;
       options.onTimeout(new APITimeoutError(description + formatLabel(options.label)));

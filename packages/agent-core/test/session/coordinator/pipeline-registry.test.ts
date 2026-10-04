@@ -27,6 +27,40 @@ async function fixture() {
 }
 
 describe('coordinator consumes trusted dependency plans', () => {
+  it('keeps a stop committed after the pipeline returned success instead of publishing finished', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'coordinator-pipeline-race-'));
+    const repo = join(directory, 'repo');
+    execFileSync('git', ['init', '--initial-branch=main', repo], { stdio: 'ignore' });
+    const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
+    git('config', 'user.name', 'Test User'); git('config', 'user.email', 'test@example.test');
+    await writeFile(join(repo, 'source.txt'), 'initial'); git('add', '.'); git('commit', '-m', 'test: create source');
+    let coordinator!: SessionCoordinator;
+    let id = '';
+    let revisionProbes = 0;
+    const stopped = Promise.withResolvers<void>();
+    const stage: TrustedPipelineStage = {
+      id: 'build', dependencies: [], maxRepairAttempts: 0, repoPath: repo, evidenceRoot: join(directory, 'evidence'),
+      verificationStages: [{ id: 'check', command: [process.execPath, '-e', 'process.exit(0)'], scope: '.', timeoutMs: 10000 }],
+      hostPolicy: { authorize: () => {} }, currentRequirementsHash: () => createHash('sha256').update('requirements').digest('hex'),
+      // Probes 1-4 gate the stage itself; probe 5 is the final publication refresh, after
+      // which the pipeline returns without further I/O. The stop's durable write cannot
+      // finish (and abort) before the pipeline result is queued for commit.
+      currentRevision: () => {
+        if (++revisionProbes === 5) void coordinator.stop(id, coordinator.get(id)!.revision).then(() => { stopped.resolve(); }, stopped.reject);
+        return git('rev-parse', 'HEAD');
+      },
+      produce: async () => git('rev-parse', 'HEAD'),
+    };
+    coordinator = await SessionCoordinator.open({ store: await FileCoordinatorStore.open(join(directory, 'projection.json')), policy: { role: 'conductor', maxConcurrent: 1, authorizedRoots: [directory] }, trustedPipelinePlans: [{ id: 'host-pipeline', stages: [stage] }], runtime: { admit: async () => { throw new Error('Pipeline must not invoke session runtime'); } } });
+    try {
+      id = (await coordinator.startPipeline('host-pipeline', 'pipeline')).id;
+      await stopped.promise;
+      await vi.waitFor(() => { expect(coordinator.get(id)?.lease).toBeUndefined(); }, { timeout: 10000 });
+      expect(revisionProbes).toBe(5);
+      expect(coordinator.get(id)).toMatchObject({ status: 'cancelled', pipeline: { status: 'cancelled', result: { status: 'success' } } });
+    } finally { await coordinator.close(); await rm(directory, { recursive: true, force: true }); }
+  });
+
   it('persists acceptance by plan ID before callbacks, gates dependent stages on receipts, and bounds repair', async () => {
     const f = await fixture();
     try {

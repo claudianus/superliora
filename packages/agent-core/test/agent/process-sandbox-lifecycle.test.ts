@@ -307,6 +307,7 @@ describe('Agent process sandbox lifecycle', () => {
     const execWithEnv = vi.spyOn(LocalKaos.prototype, 'execWithEnv').mockRejectedValue(new Error('fresh host reached'));
     const agent = new Agent({ kaos: raw });
     const retained = agent.kaos;
+    expect(agent.kaos).toBe(retained);
     const probe = deferred<ResolveProcessSandboxRuntimeResult>();
     vi.spyOn(sandbox, 'resolveProcessSandboxRuntime').mockReturnValue(probe.promise);
     agent.setSandboxEnforcement('process');
@@ -322,6 +323,8 @@ describe('Agent process sandbox lifecycle', () => {
     agent.setSandboxEnforcement('lexical');
     await agent.waitForSandbox();
     await expect(retained.exec('forbidden')).rejects.toMatchObject({ code: 'sandbox.stale' });
+    expect(agent.kaos).not.toBe(retained);
+    expect(agent.kaos).toBe(agent.kaos);
     await expect(agent.kaos.exec('fresh')).rejects.toThrow('fresh host reached');
     await expect(agent.kaos.execWithEnv(['fresh'])).rejects.toThrow('fresh host reached');
     expect(exec).toHaveBeenCalledExactlyOnceWith('fresh');

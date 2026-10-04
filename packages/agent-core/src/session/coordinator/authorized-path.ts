@@ -1,4 +1,4 @@
-import { realpath } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 export async function canonicalPath(path: string): Promise<string> {
@@ -9,6 +9,13 @@ export async function canonicalPath(path: string): Promise<string> {
     catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       if (dirname(parent) === parent) throw error;
+      // An entry that exists but cannot be resolved is a dangling link; its
+      // eventual target is unknown, so it cannot be treated as a missing suffix.
+      const exists = await lstat(parent).then(() => true, (error_: NodeJS.ErrnoException) => {
+        if (error_.code === 'ENOENT') return false;
+        throw error_;
+      });
+      if (exists) throw new Error(`Unresolvable path component: ${parent}`, { cause: error });
       suffix.push(basename(parent));
       parent = dirname(parent);
     }

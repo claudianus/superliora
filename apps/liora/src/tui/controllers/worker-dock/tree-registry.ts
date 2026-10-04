@@ -39,7 +39,9 @@ export class WorkerTreeRegistry {
   private readonly aliases = new Map<string, string>();
   private readonly totalsByConductor = new Map<string, WorkerCoordinatorTotals>();
   private readonly ownersByCoordination = new Map<string, { id: string; agentId: string }>();
-  reset(): void { this.nodes.clear(); this.revisions.clear(); this.aliases.clear(); this.ownersByCoordination.clear(); this.totalsByConductor.clear(); }
+  /** Nodes whose error attention came from fact state, so a newer fact may clear it. */
+  private readonly factAttention = new Set<string>();
+  reset(): void { this.nodes.clear(); this.revisions.clear(); this.aliases.clear(); this.ownersByCoordination.clear(); this.totalsByConductor.clear(); this.factAttention.clear(); }
 
   applyFacts(conductorSessionId: string, records: readonly DockIndependentFact[], totals?: WorkerCoordinatorTotals): boolean {
     let changed = false;
@@ -85,7 +87,7 @@ export class WorkerTreeRegistry {
           : record.status === 'finished' || record.status === 'completed' ? 'completed'
             : record.status === 'running' || record.status === 'cancel_requested' || record.ownerStatus === 'active' || record.ownerStatus === 'settling' ? 'running' : 'completed';
     const attention = ['failed', 'stale', 'source_changed', 'interrupted'].includes(record.verification?.status ?? '') || ['failed', 'blocked', 'interrupted'].includes(record.pipeline?.status ?? '') || phase === 'error' ? 'error' as const : undefined;
-    return this.put(key, ancestry, { attention, label: record.purpose?.trim() || 'Independent worker', role: record.role ?? (record.kind === 'pipeline' ? 'pipeline' : 'worker'), phase, reusable: record.reusable, recordId: record.id }, operationParent) || aliasChanged;
+    return this.put(key, ancestry, { attention, label: record.purpose?.trim() || 'Independent worker', role: record.role ?? (record.kind === 'pipeline' ? 'pipeline' : 'worker'), phase, reusable: record.reusable, recordId: record.id }, operationParent, true) || aliasChanged;
   }
   applyEvent(event: Event, fallback?: DockIndependentFact): { readonly event: Event; readonly changed: boolean } {
     const subject = 'subagentId' in event && typeof event.subagentId === 'string' ? event.subagentId : event.agentId;
@@ -129,6 +131,8 @@ export class WorkerTreeRegistry {
       this.nodes.set(id, { id, label: 'Worker needing attention', phase: attention === 'error' ? 'error' : 'running', attention });
       return true;
     }
+    // Explicit attention now owns the field; later facts must not clear it.
+    this.factAttention.delete(id);
     if (previous.attention === attention) return false;
     this.nodes.set(id, { ...previous, attention }); return true;
   }
@@ -138,11 +142,19 @@ export class WorkerTreeRegistry {
     return { rootAgentId: dockAgentKey(conductorSessionId, rootAgentId), rootAgentRawId: rootAgentId, sessionId: conductorSessionId,
       sessionLabel: 'Session · Main', coordinatorTotals: this.totalsByConductor.get(conductorSessionId), nodes: [...this.nodes.values()].map(node => ({ ...node, parentAgentId: node.parentAgentId == null ? node.parentAgentId : this.aliases.get(node.parentAgentId) ?? node.parentAgentId })) };
   }
-  private put(id: string, ancestry: DockWorkerAncestry | undefined, data: Omit<WorkerTreeNode, 'id' | 'parentAgentId'>, operationParent?: string): boolean {
+  private put(id: string, ancestry: DockWorkerAncestry | undefined, data: Omit<WorkerTreeNode, 'id' | 'parentAgentId'>, operationParent?: string, fromFact = false): boolean {
     const parentAgentId = operationParent ?? ( ancestry?.status === 'root' ? null : ancestry?.status === 'linked' && ancestry.parentSessionId != null && ancestry.parentAgentId != null
       ? dockAgentKey(ancestry.parentSessionId, ancestry.parentAgentId) : undefined);
-    const next: WorkerTreeNode = { id, parentAgentId, ...data, label: utf8Prefix(data.label, 160).split('\n', 1)[0]?.trim() || 'Worker', role: data.role === undefined ? undefined : utf8Prefix(data.role, 64), attention: data.attention ?? (data.phase === 'error' ? 'error' : this.nodes.get(id)?.attention === 'error' && this.nodes.get(id)?.phase === 'error' ? undefined : this.nodes.get(id)?.attention), agentId: ancestry?.agentId, sessionId: ancestry?.sessionId };
     const prev = this.nodes.get(id);
+    // A fact-derived error clears with the next fact (verification passed,
+    // pipeline recovered) or when the phase leaves error; explicit attention stays.
+    const staleError = prev?.attention === 'error' && (prev.phase === 'error' || (fromFact && this.factAttention.has(id)));
+    const attention = data.attention ?? (data.phase === 'error' ? 'error' : staleError ? undefined : prev?.attention);
+    if (fromFact) {
+      if (data.attention === 'error') this.factAttention.add(id);
+      else this.factAttention.delete(id);
+    }
+    const next: WorkerTreeNode = { id, parentAgentId, ...data, label: utf8Prefix(data.label, 160).split('\n', 1)[0]?.trim() || 'Worker', role: data.role === undefined ? undefined : utf8Prefix(data.role, 64), attention, agentId: ancestry?.agentId, sessionId: ancestry?.sessionId };
     if (prev !== undefined && prev.parentAgentId === next.parentAgentId && prev.label === next.label && prev.role === next.role && prev.phase === next.phase && prev.reusable === next.reusable && prev.agentId === next.agentId && prev.sessionId === next.sessionId && prev.recordId === next.recordId && prev.attention === next.attention) return false;
     this.nodes.set(id, next); return true;
   }

@@ -50,10 +50,9 @@ describe('independent session task visibility', () => {
       type: 'snapshot', conductorSessionId: 'conductor', records: [{ ...fact, revision: 2, status: 'completed' }],
     });
     expect(controller.registry.treeSnapshot('conductor').nodes.find((node) => node.recordId === 'coord_one')?.phase).toBe('completed');
-    expect(controller.getIndependentRecord('record:conductor:coord_one')?.revision).toBe(2);
     expect(host.state.workerDockPanel.setView).toHaveBeenCalled();
     controller.reset();
-    expect(controller.getIndependentRecord('record:conductor:coord_one')).toBeUndefined();
+    expect(controller.registry.treeSnapshot('conductor').nodes).toEqual([]);
   });
 
   it('keeps two independent main agents distinct even when their tool IDs match', () => {

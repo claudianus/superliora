@@ -1537,6 +1537,28 @@ describe('transcript structural viewport transitions', () => {
     expect(component.render(20).map((line) => line.trimEnd())).toEqual(['last']);
   });
 
+  it('keeps continuation pending when removal leaves provisional survivors', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport, getVisibleRows: () => 2, scrollbar: false,
+    });
+    const removed = new Text('gone', 0, 0);
+    component.addChild(removed);
+    component.addChild(new Text('kept', 0, 0));
+    component.render(20);
+    component.addChild(new Text('a\nb\nc', 0, 0));
+    // oxlint-disable-next-line unicorn/prefer-dom-node-remove
+    component.removeChild(removed);
+    expect(component.needsMaterializeContinue).toBe(true);
+    withTranscriptCheapPaintMode(() => {
+      expect(component.contentRowCount(20)).toBe(2);
+    });
+    expect(component.needsMaterializeContinue).toBe(true);
+    component.render(20);
+    expect(component.contentRowCount(20)).toBe(4);
+    expect(component.needsMaterializeContinue).toBe(false);
+  });
+
   it('clears retained paint and pending work before mounting a new cold transcript', () => {
     const viewport = new RendererTranscriptViewport();
     const component = new RendererTranscriptViewportComponent({
@@ -1544,6 +1566,9 @@ describe('transcript structural viewport transitions', () => {
     });
     component.addChild(new Text('old\nold\nold', 0, 0));
     component.render(20);
+    // A post-render append leaves a provisional slot awaiting a content frame.
+    component.addChild(new Text('pending', 0, 0));
+    expect(component.needsMaterializeContinue).toBe(true);
     component.clear();
     expect(component.overflowRetainedRawLineCount).toBe(0);
     expect(component.overflowFilledSparseLineCount).toBe(0);

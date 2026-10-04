@@ -34,3 +34,28 @@ it('opens nested independent traces using the registry-authoritative record and 
   expect(getIndependentSessionTrace).toHaveBeenCalledExactlyOnceWith('conductor', 'durable-record', 'nested-reviewer');
   expect(withInteractiveAgent).not.toHaveBeenCalled();
 });
+
+it('opens fact-only tree rows that have a transcript target but no roster worker yet', async () => {
+  captured.options = undefined;
+  const rowId = 'record:conductor:fact-only';
+  const getIndependentSessionTrace = vi.fn(async () => ({ context: { history: [] } }));
+  const showStatus = vi.fn();
+  const host = {
+    session: {}, requireSession: () => ({ id: 'conductor' }), showStatus,
+    state: { appState: {}, workerDockPanel: { currentView: { snapshot: { workers: [] } } }, renderer: { requestRender: vi.fn() } },
+    workerDock: { registry: {
+      snapshot: () => ({ workers: [], ops: [] }),
+      workerTranscriptTarget: vi.fn((id: string) => id === rowId ? { sessionId: 'fact-only', agentId: 'main', recordId: 'fact-only' } : undefined),
+    } },
+    harness: { getIndependentSessionTrace, withInteractiveAgent: vi.fn() },
+  } as unknown as SlashCommandHost;
+  openWorkerTranscript(host, rowId);
+  expect(showStatus).not.toHaveBeenCalled();
+  await captured.options!.loadTranscript(rowId);
+  expect(getIndependentSessionTrace).toHaveBeenCalledExactlyOnceWith('conductor', 'fact-only', 'main');
+
+  captured.options = undefined;
+  openWorkerTranscript(host, 'record:conductor:unknown');
+  expect(captured.options).toBeUndefined();
+  expect(showStatus).toHaveBeenCalledOnce();
+});

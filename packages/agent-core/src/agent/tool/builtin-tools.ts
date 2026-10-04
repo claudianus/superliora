@@ -6,6 +6,9 @@ import { BashTool, SessionControlTool } from '../../tools/builtin';
 import type { ExecutableToolResult, ToolExecution } from '../../loop/types';
 import type { BuiltinTool } from './types';
 
+/** Recent tool-call ids kept for turn-replay dedupe; older ids are evicted. */
+const ACCEPTED_IDENTITY_LIMIT = 128;
+
 class ConductorBashTool extends BashTool {
   private readonly accepted = new Map<string, { identity: string; result: Promise<ExecutableToolResult> }>();
 
@@ -18,7 +21,7 @@ class ConductorBashTool extends BashTool {
       context.signal.throwIfAborted();
       const prior = this.accepted.get(context.toolCallId);
       if (prior !== undefined) return prior.identity === identity ? prior.result : { isError: true, output: 'Conductor command identity conflict.' };
-      if (this.accepted.size >= 128) return { isError: true, output: 'Conductor command identity quota reached.' };
+      if (this.accepted.size >= ACCEPTED_IDENTITY_LIMIT) this.accepted.delete(this.accepted.keys().next().value!);
       const result = Promise.resolve(execution.execute(context));
       this.accepted.set(context.toolCallId, { identity, result });
       return result;

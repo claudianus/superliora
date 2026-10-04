@@ -86,20 +86,21 @@ describe('ShellExecutionComponent', () => {
     expect(output).toContain('step20');
   });
 
-  it('renders recognized heredoc context once and only the capped source tail, even expanded', () => {
+  it('renders recognized heredoc context once: the capped source tail collapsed, every line expanded', () => {
     const source = Array.from({ length: 20 }, (_, i) => `const value${i} = ${i};`);
-    const component = new ShellExecutionComponent({
-      command: `echo setup\ncat > example.ts <<'EOF'\n${source.join('\n')}\nEOF`,
-      showCommand: true,
-      commandPreviewLines: undefined,
-    });
-    const output = component.render(120).map(strip).join('\n');
+    const command = `echo setup\ncat > example.ts <<'EOF'\n${source.join('\n')}\nEOF`;
+    const collapsed = new ShellExecutionComponent({ command, showCommand: true, commandPreviewLines: COMMAND_PREVIEW_LINES })
+      .render(120).map(strip).join('\n');
+    expect(collapsed.match(/cat > example.ts/g)).toHaveLength(1);
+    expect(collapsed.match(/const value\d+/g)).toHaveLength(COMMAND_PREVIEW_LINES);
+    expect(collapsed).not.toContain('const value0');
+    const output = new ShellExecutionComponent({ command, showCommand: true, commandPreviewLines: undefined })
+      .render(120).map(strip).join('\n');
     expect(output.match(/echo setup/g)).toHaveLength(1);
     expect(output.match(/cat > example.ts/g)).toHaveLength(1);
-    expect(output.match(/const value\d+/g)).toHaveLength(COMMAND_PREVIEW_LINES);
-    expect(output).not.toContain('const value0');
+    expect(output.match(/const value\d+ =/g)).toHaveLength(source.length);
     expect(output.indexOf('cat > example.ts')).toBeLessThan(output.indexOf('INPUT · Bash heredoc'));
-    expect(output.indexOf('INPUT · Bash heredoc')).toBeLessThan(output.indexOf('const value19'));
+    expect(output.indexOf('INPUT · Bash heredoc')).toBeLessThan(output.indexOf('const value0'));
   });
 
   it('keeps unrecognized heredocs on the original shell command preview path', () => {

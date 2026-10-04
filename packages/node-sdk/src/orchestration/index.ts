@@ -61,7 +61,7 @@ export function createIndependentSessionRuntime(
     try { await prepareSession?.(session); return session; }
     catch (error) {
       try { await session.close(); }
-      catch (error) { throw new IndependentSessionUnsettledError('Sandbox preparation cleanup failed', { cause: new AggregateError([error, error]) }); }
+      catch (closeError) { throw new IndependentSessionUnsettledError('Sandbox preparation cleanup failed', { cause: new AggregateError([error, closeError], 'Preparation failed and cleanup did not settle') }); }
       throw error;
     }
   }

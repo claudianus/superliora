@@ -8,7 +8,7 @@
  * (the bottom band height depends on both).
  */
 
-import type { Event, IndependentSessionActivity, IndependentSessionFact } from '@superliora/sdk';
+import type { Event, IndependentSessionActivity } from '@superliora/sdk';
 
 import type { TUIState } from '../../tui-state';
 import {
@@ -28,7 +28,6 @@ export interface WorkerDockHost {
 
 export class WorkerDockController {
   readonly registry = new WorkerDockRegistry();
-  private readonly independentRecords = new Map<string, IndependentSessionFact>();
 
   constructor(private readonly host: WorkerDockHost) {}
 
@@ -38,22 +37,15 @@ export class WorkerDockController {
     this.pushView();
   }
 
-  getIndependentRecord(workerId: string): IndependentSessionFact | undefined {
-    const recordId = this.registry.workerTranscriptTarget(workerId)?.recordId;
-    return recordId === undefined ? undefined : this.independentRecords.get(recordId);
-  }
-
   /** Independent-session telemetry goes only to task panels, never main chat. */
   handleIndependentActivity(activity: IndependentSessionActivity): void {
     if (activity.type === 'attention') {
       if (this.registry.setWorkerAttention(activity.sessionId, activity.agentId, activity.attention)) this.pushView();
     } else if (activity.type === 'snapshot') {
-      for (const record of activity.records) this.independentRecords.set(record.id, record);
       const metadata = activity.total === undefined || activity.truncated === undefined || activity.counts === undefined
         ? undefined : { total: activity.total, truncated: activity.truncated, counts: activity.counts };
       if (this.registry.applyIndependentFacts(activity.conductorSessionId, activity.records, metadata)) this.pushView();
     } else {
-      this.independentRecords.set(activity.record.id, activity.record);
       if (this.registry.applyIndependentEvent(activity.conductorSessionId, activity.record, activity.event)) this.pushView();
     }
   }
@@ -139,7 +131,6 @@ export class WorkerDockController {
 
   /** Session close: drop the roster so the next session starts clean. */
   reset(): void {
-    this.independentRecords.clear();
     this.registry.reset();
     this.pushView();
   }

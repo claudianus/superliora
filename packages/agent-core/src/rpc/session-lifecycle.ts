@@ -117,6 +117,9 @@ export async function createSessionWithOverrides(
     ...localWorkspaceDirs.additionalDirs,
     ...callerAdditionalDirs,
   ]);
+  // Resolve before indexing so a refused coordinator leaves no session record.
+  const coordination = options.role === 'interactive-conductor'
+    ? await context.resolveSessionCoordinator?.(id, { workDir, additionalDirs }) : undefined;
   const summary = await context.sessionStore.create({
     id,
     workDir,
@@ -136,8 +139,7 @@ export async function createSessionWithOverrides(
   const session = new Session({
     role: options.role,
     workerAncestry,
-    coordination: options.role === 'interactive-conductor'
-      ? await context.resolveSessionCoordinator?.(id, { workDir, additionalDirs }) : undefined,
+    coordination,
     kaos: sessionKaos,
     persistenceKaos,
     config,
@@ -275,6 +277,9 @@ export async function resumeSessionWithOverrides(
   if (workerAncestry !== undefined && (workerAncestry.sessionId !== summary.id || workerAncestry.agentId !== 'main')) {
     throw new Error('Worker ancestry must identify the resumed main agent and session');
   }
+  if (active !== undefined && role !== (active.options.role ?? 'worker') && active.hasActiveTurn) {
+    throw new LioraError(ErrorCodes.TURN_AGENT_BUSY, 'Cannot change a session role during an active turn');
+  }
   if (active !== undefined && workerAncestry !== undefined) {
     const bound = active.options.workerAncestry ?? active.metadata.workerAncestry;
     if (bound !== undefined && JSON.stringify(workerAncestrySchema.parse(bound)) !== JSON.stringify(workerAncestry)) {
@@ -282,9 +287,6 @@ export async function resumeSessionWithOverrides(
     }
     Object.assign(active.options, { workerAncestry });
     active.metadata.workerAncestry = workerAncestry;
-  }
-  if (active !== undefined && role !== (active.options.role ?? 'worker') && active.hasActiveTurn) {
-    throw new LioraError(ErrorCodes.TURN_AGENT_BUSY, 'Cannot change a session role during an active turn');
   }
   const coordination = role === 'interactive-conductor'
     ? await context.resolveSessionCoordinator?.(summary.id, { workDir: summary.workDir, additionalDirs }) : undefined;

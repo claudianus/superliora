@@ -101,4 +101,20 @@ describe('width fast-path and cache regressions', () => {
     expect(measureAnsiDisplayWidth(long)).toBe(12_000);
     expect(measureAnsiDisplayWidth(long)).toBe(12_000);
   });
+
+  it('evicts by retained characters before the entry cap when lines are long', () => {
+    const styled = '\u001B[36mchar-budget e\u0301👩‍💻\u001B[0m';
+    const segment = vi.spyOn(Intl.Segmenter.prototype, 'segment');
+    try {
+      const width = measureAnsiDisplayWidth(styled);
+      let calls = segment.mock.calls.length;
+      expect(measureAnsiDisplayWidth(styled)).toBe(width);
+      expect(segment.mock.calls.length).toBe(calls);
+      // 300 long lines stay far below the 8192-entry cap but exceed ~1M chars.
+      for (let i = 0; i < 300; i++) measureAnsiDisplayWidth(`${String(i).padStart(4, '0')}${'x'.repeat(4_000)}`);
+      calls = segment.mock.calls.length;
+      expect(measureAnsiDisplayWidth(styled)).toBe(width);
+      expect(segment.mock.calls.length).toBeGreaterThan(calls);
+    } finally { segment.mockRestore(); }
+  });
 });

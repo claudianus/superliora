@@ -87,7 +87,7 @@ import {
   paintWorkerRowChrome,
   workerHoverPaintPending,
 } from '#/tui/features/worker-dock/worker-row-paint';
-import { projectWorkerTree, type WorkerDockTreeInput, type WorkerTreeProjection } from './worker-tree';
+import { projectWorkerTree, WORKER_TREE_MAX_LEVELS, type WorkerDockTreeInput, type WorkerTreeProjection } from './worker-tree';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 export type DockWorkerScrollAction =
@@ -515,9 +515,9 @@ export class WorkerDockPanelComponent implements Component {
       case 'right':
         return { handled: this.navigateTree(key) };
       case 'up':
-        return { handled: this.moveSelection(-1) || this.visibleWorkers(appearanceAnimationNow()).length > 0 };
+        return { handled: this.moveSelection(-1) || this.hasSelectableRows() };
       case 'down':
-        return { handled: this.moveSelection(1) || this.visibleWorkers(appearanceAnimationNow()).length > 0 };
+        return { handled: this.moveSelection(1) || this.hasSelectableRows() };
       case 'pageup':
         return { handled: this.scrollWorkers('page-up') };
       case 'pagedown':
@@ -839,17 +839,26 @@ export class WorkerDockPanelComponent implements Component {
     return true;
   }
 
+  /** Tree mode navigates projected rows, which exist even without roster workers. */
+  private hasSelectableRows(): boolean {
+    return this.view.tree === undefined
+      ? this.visibleWorkers(appearanceAnimationNow()).length > 0
+      : this.treeProjection().rows.length > 0;
+  }
+
+  /** Root, group and pipeline rows are structure, not roster workers with transcripts. */
   private treeSelectionOpens(): boolean {
     if (this.view.tree === undefined) return true;
     const row = this.treeProjection().rows.find(item => item.id === this.selectedWorkerId);
-    return row !== undefined && row.kind !== 'group' && row.role !== 'pipeline';
+    return row !== undefined && row.kind === 'worker' && row.role !== 'pipeline';
   }
 
   /** Caret clicks toggle without opening a transcript or touching the editor. */
   handleTreePointer(localX: number, localY: number): boolean {
     const hit = this.lastTreeCaretMap.get(localY - 1);
     if (hit === undefined) return false;
-    if (Math.abs(localX - hit.column) <= 1) return this.toggleTreeNode(hit.id);
+    if (Math.abs(localX - hit.column) <= 1 && this.toggleTreeNode(hit.id)) return true;
+    // Non-openable rows (leaf pipelines included) consume the click as selection.
     if (hit.group) { this.selectWorker(hit.id); return true; }
     return false;
   }
@@ -886,7 +895,7 @@ export class WorkerDockPanelComponent implements Component {
     this.lastTreeCaretMap.clear();
     const selectedPath = new Set<string>();
     let pathId = this.selectedWorkerId;
-    for (let i = 0; pathId !== undefined && i < 52; i++) { selectedPath.add(pathId); pathId = projection.parents.get(pathId); }
+    for (let i = 0; pathId !== undefined && i <= WORKER_TREE_MAX_LEVELS; i++) { selectedPath.add(pathId); pathId = projection.parents.get(pathId); }
     const start = Math.max(1, this.workerScrollOffset);
     const visibleRows = projection.rows.length === 0 ? [] : [projection.rows[0]!, ...projection.rows.slice(start, start + slots)];
     for (const row of visibleRows) {
@@ -908,7 +917,7 @@ export class WorkerDockPanelComponent implements Component {
       const nameBudget = Math.max(8, Math.min(32, interior - visibleWidth(prefix) - visibleWidth(aggregate) - (activity ? 12 : 0)));
       content.push(truncateToWidth(prefix + truncateToWidth(name, nameBudget) + currentTheme.fg('textDim', aggregate + activity), interior));
       rowMap.set(index, row.id);
-      if (row.expandable || row.kind === 'group' || row.role === 'pipeline') this.lastTreeCaretMap.set(index, { id: row.id, column: CHROME_BAND_LEFT_MARGIN + CHROME_BAND_SIDE_PADDING + 1 + 2 + visibleWidth(row.connector), group: row.kind === 'group' || row.role === 'pipeline' });
+      if (row.expandable || row.kind !== 'worker' || row.role === 'pipeline') this.lastTreeCaretMap.set(index, { id: row.id, column: CHROME_BAND_LEFT_MARGIN + CHROME_BAND_SIDE_PADDING + 1 + 2 + visibleWidth(row.connector), group: row.kind !== 'worker' || row.role === 'pipeline' });
     }
     if (detailRows > 0) {
       const selected = projection.rows.find(row => row.id === this.selectedWorkerId);

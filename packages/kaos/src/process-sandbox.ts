@@ -270,6 +270,8 @@ function literalCd(script: string): { target: string; rest: string } | undefined
   let target = '';
   let sawWord = false;
   while (i < script.length && !/\s/.test(script[i]!)) {
+    // `&&` ends the word even without preceding whitespace (`cd /ws&& pwd`).
+    if (script.startsWith('&&', i)) break;
     const char = script[i++]!;
     sawWord = true;
     if (char === "'") {
@@ -296,7 +298,7 @@ function literalCd(script: string): { target: string; rest: string } | undefined
     }
   }
   if (!sawWord) return undefined;
-  const separator = /^\s+&&\s+/.exec(script.slice(i));
+  const separator = /^\s*&&\s*/.exec(script.slice(i));
   if (separator === null) return undefined;
   const rest = script.slice(i + separator[0].length);
   if (!rest) return undefined;

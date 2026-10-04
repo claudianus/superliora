@@ -33,4 +33,13 @@ describe('independent activity previews', () => {
     if (delta?.type !== 'assistant.delta') throw new Error('Expected inference delta');
     expect(Buffer.byteLength(delta.delta)).toBeLessThanOrEqual(2000);
   });
+
+  it('caps completed worker file lists and each path', () => {
+    const filesChanged = Array.from({ length: 5000 }, (_, index) => `src/${'d'.repeat(4096)}/${String(index)}.ts`);
+    const completed = projectIndependentSessionActivity({ ...scope, type: 'subagent.completed', subagentId: 'main', resultSummary: 'done', filesChanged });
+    if (completed?.type !== 'subagent.completed') throw new Error('Expected completion');
+    expect(completed.filesChanged).toHaveLength(64);
+    expect(completed.filesChanged!.every((path) => Buffer.byteLength(path) <= 1024)).toBe(true);
+    expect(filesChanged).toHaveLength(5000);
+  });
 });

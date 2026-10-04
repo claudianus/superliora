@@ -284,17 +284,22 @@ export class RendererTranscriptViewportComponent extends Container {
     super.removeChild(component);
     // Keep counts aligned with their children on the cheap-scroll path too.
     // Truncation alone would attribute the removed child's height to its successor.
+    let survivorsProvisional = false;
     for (const geometry of this.lineCountCache.values()) {
       geometry.childRefs.splice(index, 1);
       geometry.counts.splice(index, 1);
       let total = 0;
       geometry.rowEnds = geometry.counts.map((count) => (total += count));
       geometry.total = total;
+      if (!survivorsProvisional) survivorsProvisional = geometry.childRefs.includes(undefined);
     }
     this.invalidatePaint();
     this.geometrySnapshot = undefined;
     this.lastPaintedStart = undefined;
     this.bumpGeometryGeneration();
+    // Cheap scroll reuses the spliced counts as-is; keep hosts scheduling the
+    // content frame that remeasures any surviving provisional slots.
+    this.geometryNeedsContinue = survivorsProvisional;
   }
 
   /**

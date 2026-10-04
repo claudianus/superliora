@@ -1,7 +1,11 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'pathe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Agent } from '../../src/agent';
-import type { Session } from '../../src/session';
+import type { SDKSessionRPC } from '../../src/rpc';
+import { Session } from '../../src/session';
 import { SessionAPIImpl } from '../../src/session/rpc';
 import * as sandbox from '../../src/tools/policies/process-sandbox-apply';
 import type { ResolveProcessSandboxRuntimeResult } from '../../src/tools/policies/process-sandbox-apply';
@@ -26,16 +30,17 @@ describe('Session RPC sandbox metadata fan-out', () => {
     vi.spyOn(sandbox, 'resolveProcessSandboxRuntime').mockReturnValueOnce(main.promise).mockReturnValueOnce(child.promise);
     const host = session(agents);
     const api = new SessionAPIImpl(host as unknown as Session);
-    let acknowledged = false;
+    let settled = false;
     const update = api.updateSessionMetadata({ metadata: { custom: { sandboxProfile: 'read-only', sandboxEnforcement: 'process' } } });
     const failed = expect(update).rejects.toThrow('one or more Agents');
-    void update.then(() => { acknowledged = true; }, () => {});
+    void update.then(() => { settled = true; }, () => { settled = true; });
 
     expect(agents.map((agent) => agent.sandboxState)).toEqual(['pending', 'pending']);
     for (const kaos of retained) await expect(kaos.exec('forbidden')).rejects.toMatchObject({ code: 'sandbox.pending' });
     main.reject(new Error('Main activation failed'));
-    await Promise.resolve();
-    expect(acknowledged).toBe(false);
+    // Drain the macrotask queue: the main failure must not settle the update early.
+    await new Promise<void>((resolve) => { setImmediate(resolve); });
+    expect(settled).toBe(false);
     expect(host.writeMetadata).not.toHaveBeenCalled();
     expect(agents[1]?.sandboxState).toBe('pending');
     child.reject(new Error('Child activation failed'));
@@ -52,6 +57,28 @@ describe('Session RPC sandbox metadata fan-out', () => {
     expect(agents.map((agent) => agent.sandboxProfile)).toEqual(['read-only', 'read-only']);
     expect(host.metadata.custom).toEqual({ sandboxProfile: 'read-only', sandboxEnforcement: 'lexical' });
     expect(host.writeMetadata).toHaveBeenCalledTimes(1);
+  });
+
+  it('admits a child created after a weakening metadata update at the host minimum', async () => {
+    const homedir = await mkdtemp(join(tmpdir(), 'liora-sandbox-minimum-'));
+    const rpc: SDKSessionRPC = {
+      emitEvent: vi.fn(async () => {}),
+      requestApproval: vi.fn(async () => ({ decision: 'cancelled' as const })),
+      requestQuestion: vi.fn(async () => null),
+      requestCredential: vi.fn(async () => null),
+    };
+    const real = new Session({
+      kaos: testKaos.withCwd(homedir), homedir, rpc,
+      sandboxMinimum: { profile: 'read-only', enforcement: 'lexical' },
+    });
+    try {
+      await new SessionAPIImpl(real).updateSessionMetadata({ metadata: { custom: { sandboxProfile: 'off', sandboxEnforcement: 'lexical' } } });
+      const { agent } = await real.createAgent({ type: 'sub' }, { persistMetadata: false });
+      expect(agent.sandboxProfile).toBe('read-only');
+    } finally {
+      await real.close();
+      await rm(homedir, { recursive: true, force: true });
+    }
   });
 
   it('applies the combined policy exactly once per agent and persists only after successful activation', async () => {

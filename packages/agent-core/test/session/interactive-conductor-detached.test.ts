@@ -71,9 +71,14 @@ describe('product conductor independent dispatch and preemption', () => {
       const oldTurn = agent.turn.waitForCurrentTurn();
       await inferenceEntered;
       expect(projection?.records[0]?.request.description, JSON.stringify(agent.context.messages)).toBe('Held worker');
+      const acceptedId = coordinator.list()[0]!.id;
+      const reachedPhase = createControlledPromise<void>();
+      const unsubscribe = coordinator.onChange(() => { if (coordinator.get(acceptedId)?.status === phase) reachedPhase.resolve(); });
       await coordinator.tick();
       await admissionEntered;
-      const acceptedId = coordinator.list()[0]!.id;
+      if (coordinator.get(acceptedId)?.status === phase) reachedPhase.resolve();
+      await reachedPhase;
+      unsubscribe();
       // Admission/completion do not resolve until the fixture cleanup below.
       // No timing budget: reaching the new answer proves neither was joined.
       await new SessionAPIImpl(session).prompt({ agentId: 'main', input: [{ type: 'text', text: 'Answer me immediately' }] });
@@ -81,7 +86,7 @@ describe('product conductor independent dispatch and preemption', () => {
       expect((await oldTurn).event.reason).toBe('cancelled');
       expect(requests).toBe(3);
       expect(workerSignal?.aborted).toBe(false);
-      expect(['admitting', 'running']).toContain(coordinator.get(acceptedId)?.status);
+      expect(coordinator.get(acceptedId)?.status).toBe(phase);
       expect(agent.context.messages.at(-1)?.content).toEqual([{ type: 'text', text: 'User answer while independent work continues' }]);
     } finally {
       admission.resolve(handle);

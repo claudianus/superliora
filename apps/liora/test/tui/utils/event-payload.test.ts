@@ -24,6 +24,13 @@ describe('streaming tool argument payload helpers', () => {
     expect(parseStreamingArgs(complete)).toEqual({ command: 'echo 😀', count: 42 });
   });
 
+  it('isolates callers from the shared parse cache', () => {
+    const text = '{"command":"echo shared"}';
+    const first = parseStreamingArgs(text);
+    first['command'] = 'mutated';
+    expect(parseStreamingArgs(text)).toEqual({ command: 'echo shared' });
+  });
+
   it('caps accumulated streaming preview text', () => {
     const current = 'a'.repeat(STREAMING_ARGS_PREVIEW_MAX_BYTES - 2);
 

@@ -231,6 +231,7 @@ describe('request-lifetime deadline accounting', () => {
     expect(onTimeout).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(onTimeout).toHaveBeenCalledTimes(1);
+    expect((onTimeout.mock.calls[0]?.[0] as Error).message).toContain('idle timeout: no data received for 10ms');
     guard.dispose();
     const disposed = createStreamLivenessGuard({ idleMs: 10, firstTokenMs: 10, maxDurationMs: 20, onTimeout });
     disposed.dispose();

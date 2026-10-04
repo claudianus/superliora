@@ -11,6 +11,9 @@ export class DeferredProcessBackgroundTask implements BackgroundTask {
   private processTask: ProcessBackgroundTask | undefined;
   private phase: 'accepted' | 'preparing' | 'running' = 'accepted';
   private settled = false;
+  // The manager escalates at most once; a spawn still pending at that moment
+  // must receive the escalation when its process is adopted.
+  private forceStopRequested = false;
   private readonly releaseOwnership: () => void;
 
   constructor(
@@ -45,7 +48,9 @@ export class DeferredProcessBackgroundTask implements BackgroundTask {
       // A stop during spawn must still adopt and join the returned process.
       this.processTask = new ProcessBackgroundTask(proc, this.command, this.description, this.cwd);
       this.phase = 'running';
-      await this.processTask.start(sink);
+      const started = this.processTask.start(sink);
+      if (this.forceStopRequested) await this.processTask.forceStop().catch(() => undefined);
+      await started;
     } finally {
       this.settled = true;
       if (this.resourcesSettled) this.releaseOwnership();
@@ -53,6 +58,7 @@ export class DeferredProcessBackgroundTask implements BackgroundTask {
   }
 
   async forceStop(): Promise<void> {
+    this.forceStopRequested = true;
     await this.processTask?.forceStop();
     if (this.resourcesSettled) this.releaseOwnership();
   }

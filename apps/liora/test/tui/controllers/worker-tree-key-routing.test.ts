@@ -35,11 +35,10 @@ function key(direction: 'left' | 'right', overrides: Partial<NativeInputEvent> =
 }
 
 describe('Worker Dock tree disclosure key routing', () => {
-  it.each(['left', 'right'] as const)('routes bare %s to a focused dock without changing selection or stealing editor input elsewhere', (direction) => {
+  it.each(['left', 'right'] as const)('routes bare %s to a focused dock without stealing editor input elsewhere', (direction) => {
     const focused = setup();
     expect(focused.route(key(direction))).toBe(true);
     expect(focused.panel.handleSelectionKey).toHaveBeenCalledExactlyOnceWith(direction);
-    expect(focused.panel.selectedWorker).toBe('worker-node');
     const editor = setup(false);
     expect(editor.route(key(direction))).toBe(false);
     expect(editor.panel.handleSelectionKey).not.toHaveBeenCalled();

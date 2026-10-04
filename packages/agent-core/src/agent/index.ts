@@ -199,6 +199,7 @@ export class Agent {
   private sandboxError: Error | undefined;
   private sandboxRevision = 0;
   private sandboxRefresh: Promise<void> = Promise.resolve();
+  private kaosView: { readonly target: Kaos; readonly revision: number; readonly guarded: Kaos } | undefined;
 
   constructor(options: AgentOptions) {
     this.role = options.role ?? 'worker';
@@ -248,7 +249,12 @@ export class Agent {
   }
 
   get kaos(): Kaos {
-    return this.guardKaos(this._kaos, this.sandboxRevision);
+    // Stable identity per host + revision so `agent.kaos === agent.kaos` holds.
+    const cached = this.kaosView;
+    if (cached?.target === this._kaos && cached.revision === this.sandboxRevision) return cached.guarded;
+    const guarded = this.guardKaos(this._kaos, this.sandboxRevision);
+    this.kaosView = { target: this._kaos, revision: this.sandboxRevision, guarded };
+    return guarded;
   }
 
   private guardKaos(kaos: Kaos, revision: number): Kaos {

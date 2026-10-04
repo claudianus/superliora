@@ -319,7 +319,9 @@ export class LioraHarness {
 
   async close(): Promise<void> {
     // Stop detached admissions/executions before closing their session handles.
-    await this.beforeCloseImpl?.();
+    // A failed hook must not leak sessions or the RPC: finish cleanup, then rethrow it.
+    let beforeCloseFailure: { error: unknown } | undefined;
+    try { await this.beforeCloseImpl?.(); } catch (error) { beforeCloseFailure = { error }; }
     for (const dispose of this.activitySubscriptions) dispose();
     // Use allSettled so one session's close failure does not prevent the
     // remaining sessions from shutting down. Snapshot the array first because
@@ -328,6 +330,7 @@ export class LioraHarness {
     const results = await Promise.allSettled(sessions.map((session) => session.close()));
     const firstRejection = results.find((r) => r.status === 'rejected');
     await this.closeImpl();
+    if (beforeCloseFailure !== undefined) throw beforeCloseFailure.error;
     if (firstRejection !== undefined && firstRejection.status === 'rejected') {
       throw firstRejection.reason;
     }

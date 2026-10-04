@@ -224,8 +224,28 @@ describe('conductor acceptance capability bounds', () => {
     try {
       await expect(coordinator.dispatch({ ...request, cwd: outside }, 'outside')).rejects.toThrow('authorized roots');
       await expect(coordinator.dispatch({ ...request, cwd: root, ownership: ['escape/new-file.ts'] }, 'escape')).rejects.toThrow('authorized roots');
+      await symlink(join(outside, 'missing'), join(root, 'dangling'), process.platform === 'win32' ? 'junction' : 'dir');
+      await expect(coordinator.dispatch({ ...request, cwd: root, ownership: ['dangling/new-file.ts'] }, 'dangling')).rejects.toThrow('Unresolvable path component');
       expect((await coordinator.dispatch({ ...request, cwd: root, ownership: ['src/new-file.ts'] }, 'inside')).status).toBe('accepted');
     } finally { await coordinator.close(); await rm(directory, { recursive: true, force: true }); }
+  });
+
+  it('keeps the scheduler usable when a mailbox delivery throws and reports the entry as uncertain', async () => {
+    const { coordinator, runtime } = await setup();
+    vi.mocked(runtime.admit).mockImplementationOnce(async (id, _request, signal) => {
+      const completion = Promise.withResolvers<string>();
+      signal.addEventListener('abort', () => completion.reject(signal.reason), { once: true });
+      return { sessionId: `session-${id}`, completion: completion.promise, message: async () => { throw new Error('steer refused'); } };
+    });
+    const accepted = await coordinator.dispatch(request, 'request');
+    await coordinator.tick();
+    await flush();
+    await coordinator.message(accepted.id, 'New input', 'message', coordinator.get(accepted.id)!.revision);
+    await expect(coordinator.tick()).resolves.toBeUndefined();
+    expect(coordinator.lastError).toBeUndefined();
+    expect(coordinator.get(accepted.id)?.mailbox[0]?.status).toBe('sending');
+    expect(coordinator.fact(accepted.id)?.mailbox).toEqual({ pending: 0, uncertain: 1 });
+    expect((await coordinator.dispatch({ ...request, ownership: ['other'] }, 'after-failure')).status).toBe('accepted');
   });
 
   it('returns UTF-8 bounded fact cards without prompts or mailbox text', async () => {
@@ -257,6 +277,26 @@ describe('coordinator stale-owner recovery', () => {
     } finally { await rm(directory, { recursive: true, force: true }); }
   });
 
+  it('reclaims a recovery marker left by a dead process but refuses a live recovery holder', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'conductor-recovery-marker-'));
+    const path = join(directory, 'projection.json');
+    try {
+      const owner = { pid: 2147483646, token: 'dead-token', createdAt: 1 };
+      await writeFile(`${path}.lock`, JSON.stringify(owner));
+      await writeFile(`${path}.recovery`, JSON.stringify({ pid: process.pid, token: 'in-progress' }));
+      await expect(FileCoordinatorStore.recover(path, { expectedToken: owner.token, confirmResourcesReconciled: () => true })).rejects.toThrow('already in progress');
+      expect(JSON.parse(await readFile(`${path}.recovery`, 'utf8')).token).toBe('in-progress');
+      await writeFile(`${path}.recovery`, JSON.stringify({ pid: 2147483647, token: 'crashed' }));
+      const liveness = vi.spyOn(process, 'kill').mockImplementation(() => { throw Object.assign(new Error('dead'), { code: 'ESRCH' }); });
+      try {
+        const store = await FileCoordinatorStore.recover(path, { expectedToken: owner.token, confirmResourcesReconciled: () => true });
+        expect((await FileCoordinatorStore.inspectOwner(path)).token).not.toBe(owner.token);
+        await store.close();
+      } finally { liveness.mockRestore(); }
+      expect((await readdir(directory)).filter((entry) => entry.includes('.recovery'))).toEqual([]);
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+
   it('does not recover a live PID or delete a replaced owner token', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'conductor-owner-'));
     const path = join(directory, 'projection.json');
@@ -285,6 +325,20 @@ describe('coordinator stale-owner recovery', () => {
       expect((await readdir(directory)).filter((entry) => entry.endsWith('.tmp'))).toEqual([]);
       await reopened.close();
     } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+});
+
+describe('persisted evidence validation', () => {
+  it.each([
+    ['verification receipt', { verification: { planId: 'plan', revision: 1, status: 'passed', receipt: { evidencePath: 42 } } }],
+    ['pipeline result', { pipeline: { planId: 'plan', status: 'success', result: { planId: 'plan', status: 'success', stages: [{ stageId: 'build' }] } } }],
+  ])('rejects a malformed persisted %s at startup', async (_label, corruption) => {
+    const store = new MemoryStore();
+    const { coordinator } = await setup(store);
+    await coordinator.dispatch(request, 'request');
+    await coordinator.close();
+    Object.assign(store.projection!.records[0]!, corruption);
+    await expect(SessionCoordinator.open({ store, runtime: { admit: async () => { throw new Error('not called'); } }, policy: { role: 'conductor', maxConcurrent: 1, authorizedRoots: [tmpdir()] } })).rejects.toThrow();
   });
 });
 

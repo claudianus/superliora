@@ -135,7 +135,7 @@ describe('bounded parent summaries', () => {
     cycle['self'] = cycle;
     let deep: unknown = 1;
     for (let i = 0; i < 10_000; i++) deep = [deep];
-    for (const value of [cycle, deep, { get value() { throw new Error('boom'); } }, { value: 1n }]) {
+    for (const value of [cycle, deep, { get value() { throw new Error('boom'); } }, { value: 1n }, { value: new Object(1n) }]) {
       expect(previewSubagentToolArgs(value)).toBe('[unserializable]');
     }
   });

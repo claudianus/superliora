@@ -174,6 +174,21 @@ describe('trusted dependency pipeline', () => {
     expect(f.produce).not.toHaveBeenCalled();
   });
 
+  it('does not start production when cancellation arrives during the freshness probe', async () => {
+    const f = await fixture();
+    const controller = new AbortController();
+    let probes = 0;
+    const result = await runTrustedPipeline({ id: 'host-plan', stages: [{ ...f.stage, currentRequirementsHash: () => {
+      // Probe 1 captures the requirements; probe 2 is the pre-production freshness check.
+      if (++probes === 2) controller.abort();
+      return requirementsHash;
+    } }] }, { executionSignal: controller.signal });
+    expect(probes).toBe(2);
+    expect(result.status).toBe('cancelled');
+    expect(result.stages[0]).toMatchObject({ status: 'cancelled', attempts: 0 });
+    expect(f.produce).not.toHaveBeenCalled();
+  });
+
   it('blocks a dependency that goes stale before its consumer becomes ready', async () => {
     const f = await fixture();
     let live = f.revision;

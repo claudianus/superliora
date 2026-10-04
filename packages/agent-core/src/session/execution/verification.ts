@@ -104,20 +104,25 @@ function validateStages(stages: readonly VerificationStage[]): void {
 }
 
 interface CommandResult {
-  stdout: string; stderr: string; exitCode: number | null; signal: string | null;
+  /** Raw retained bytes; decoding per chunk would corrupt split UTF-8 sequences. */
+  stdout: Buffer; stderr: Buffer; exitCode: number | null; signal: string | null;
   timedOut: boolean; cancelled: boolean; outputTruncated: boolean; failure?: string;
 }
 /** Bounded output and process-group timeout; no implicit retries. */
 function execute(command: readonly string[], cwd: string, env: Readonly<Record<string, string>>, timeoutMs: number, signal?: AbortSignal): Promise<CommandResult> {
   return new Promise(resolveResult => {
-    const result: CommandResult = { stdout: '', stderr: '', exitCode: null, signal: null, timedOut: false, cancelled: false, outputTruncated: false };
+    const result: CommandResult = { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), exitCode: null, signal: null, timedOut: false, cancelled: false, outputTruncated: false };
     if (signal?.aborted) { result.cancelled = true; resolveResult(result); return; }
     const child = spawn(command[0]!, command.slice(1), { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    const retained = { stdout: [] as Buffer[], stderr: [] as Buffer[] };
+    const retainedBytes = { stdout: 0, stderr: 0 };
     const collect = (key: 'stdout' | 'stderr', chunk: Buffer): void => {
-      const text = chunk.toString('utf8');
-      const remaining = Math.max(0, 1_048_576 - result[key].length);
-      result[key] += text.slice(0, remaining);
-      if (text.length > remaining) result.outputTruncated = true;
+      const remaining = Math.max(0, 1_048_576 - retainedBytes[key]);
+      if (chunk.length > remaining) result.outputTruncated = true;
+      const kept = chunk.subarray(0, remaining);
+      if (kept.length === 0) return;
+      retained[key].push(kept);
+      retainedBytes[key] += kept.length;
     };
     child.stdout.on('data', (chunk: Buffer) => { collect('stdout', chunk); });
     child.stderr.on('data', (chunk: Buffer) => { collect('stderr', chunk); });
@@ -149,6 +154,8 @@ function execute(command: readonly string[], cwd: string, env: Readonly<Record<s
       signal?.removeEventListener('abort', onAbort);
       result.exitCode = result.failure ? null : code;
       result.signal = exitSignal;
+      result.stdout = Buffer.concat(retained.stdout);
+      result.stderr = Buffer.concat(retained.stderr);
       // Cancellation acknowledgement is not resource settlement. Wait for the
       // Windows tree-kill helper as well as the owned command close event.
       void (termination ?? Promise.resolve()).then(() => { resolveResult(result); });
@@ -158,8 +165,8 @@ function execute(command: readonly string[], cwd: string, env: Readonly<Record<s
 async function git(repo: string, args: readonly string[], signal?: AbortSignal): Promise<string> {
   const result = await execute(['git', '--no-pager', '-C', repo, ...args], repo, verificationEnvironment(repo).values, 60_000, signal);
   if (result.cancelled) throw new Error('Verification cancelled');
-  if (result.exitCode !== 0 || result.timedOut || result.outputTruncated) throw new Error(result.failure ?? (result.stderr || 'Git verification operation failed'));
-  return result.stdout.trim();
+  if (result.exitCode !== 0 || result.timedOut || result.outputTruncated) throw new Error(result.failure ?? (result.stderr.toString('utf8') || 'Git verification operation failed'));
+  return result.stdout.toString('utf8').trim();
 }
 
 /** Seal only a full commit id, never HEAD/a branch or uncommitted files. */

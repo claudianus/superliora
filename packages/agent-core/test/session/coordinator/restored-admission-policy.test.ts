@@ -129,6 +129,19 @@ describe('restored pipeline authority is bound to its accepted static configurat
     expect(f.produce).not.toHaveBeenCalled();
   });
 
+  it('blocks a queued pipeline when the host bumps its callback version', async () => {
+    const f = await fixture();
+    const source = await f.open([f.a, f.b], [{ id: 'host-plan', callbackVersion: 'v1', stages: [f.stage] }]);
+    const accepted = await source.coordinator.startPipeline('host-plan', 'queued-operation');
+    await source.coordinator.close();
+    const changedProduce = vi.fn(async () => 'c'.repeat(40));
+    const restored = await f.open([f.a, f.b], [{ id: 'host-plan', callbackVersion: 'v2', stages: [{ ...f.stage, produce: changedProduce }] }]);
+    await restored.coordinator.tick();
+    expect(restored.coordinator.get(accepted.id)).toMatchObject({ status: 'failed', pipeline: { status: 'blocked' }, error: expect.stringContaining('static binding changed') });
+    expect(restored.coordinator.get(accepted.id)?.lease).toBeUndefined();
+    expect(f.produce).not.toHaveBeenCalled(); expect(changedProduce).not.toHaveBeenCalled();
+  });
+
   it('binds dependency edges even when stage IDs and workspace claims are unchanged', async () => {
     const f = await fixture();
     const dependent = { ...f.stage, id: 'dependent', dependencies: ['build'] };
@@ -157,6 +170,7 @@ describe('restored pipeline authority is bound to its accepted static configurat
     expect(restored.coordinator.fact(record.id)).toMatchObject({ coordinationId: record.id, originAncestry: origin, parentAgentId: 'main', parentSessionId: 'conductor-session' });
     await restored.coordinator.stop(record.id, restored.coordinator.get(record.id)!.revision);
     expect(restored.coordinator.fact(record.id)?.coordinationId).toBe(record.id);
+    expect(restored.coordinator.fact(record.id)).toMatchObject({ status: 'cancelled', pipeline: { planId: 'host-plan', status: 'cancelled' } });
     expect(f.produce).not.toHaveBeenCalled();
   });
 

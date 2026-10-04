@@ -11,7 +11,6 @@ import { Container, Text, projectRendererLineWindow } from '#/tui/renderer';
 
 import { buildBashHeredocPreview } from '#/tui/components/media/bash-heredoc-preview';
 import { formatShellCommandPreview } from '#/tui/components/media/code-highlight';
-import { COMMAND_PREVIEW_LINES } from '#/tui/constant/rendering';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
 import type { ResultRenderer } from '../tool-renderers/types';
@@ -89,12 +88,9 @@ export class ShellExecutionComponent extends Container {
   private addCommandPreview(command: string, previewLines: number | undefined): void {
     if (command.length === 0) return;
     // Highlight binary / flags / strings / redirects; dim only the `$ ` prompt.
-    const heredoc = buildBashHeredocPreview(command);
+    const heredoc = buildBashHeredocPreview(command, previewLines ?? 'all');
     const highlighted = command.length === 0 ? [] : formatShellCommandPreview(heredoc?.commandContext ?? command);
-    const lines = projectRendererLineWindow({
-      lines: highlighted,
-      maxLines: heredoc === undefined ? previewLines : COMMAND_PREVIEW_LINES,
-    }).lines;
+    const lines = projectRendererLineWindow({ lines: highlighted, maxLines: previewLines }).lines;
     for (const line of lines) {
       const text = new Text(line, 2, 0);
       this.commandPreviewTexts.push(text);
@@ -131,12 +127,9 @@ export class ShellExecutionComponent extends Container {
    * visible flicker during Bash command streaming.
    */
   setCommand(command: string, previewLines: number | undefined): void {
-    const heredoc = buildBashHeredocPreview(command);
+    const heredoc = buildBashHeredocPreview(command, previewLines ?? 'all');
     const highlighted = command.length === 0 ? [] : formatShellCommandPreview(heredoc?.commandContext ?? command);
-    const lines = projectRendererLineWindow({
-      lines: highlighted,
-      maxLines: heredoc === undefined ? previewLines : COMMAND_PREVIEW_LINES,
-    }).lines;
+    const lines = projectRendererLineWindow({ lines: highlighted, maxLines: previewLines }).lines;
     for (const [i, line] of lines.entries()) {
       const existing = this.commandPreviewTexts[i];
       if (existing !== undefined) {

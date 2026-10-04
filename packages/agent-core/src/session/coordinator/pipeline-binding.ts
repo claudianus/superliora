@@ -12,13 +12,13 @@ export interface BoundPipelinePlan {
 
 export async function bindPipelinePlan(source: TrustedPipelinePlan): Promise<BoundPipelinePlan> {
   const snapshot: TrustedPipelinePlan = {
-    id: source.id,
+    id: source.id, ...(source.callbackVersion === undefined ? {} : { callbackVersion: source.callbackVersion }),
     stages: source.stages.map((stage) => ({
       ...stage, dependencies: [...stage.dependencies], verificationStages: stage.verificationStages.map((check) => ({ id: check.id, command: [...check.command], scope: check.scope, timeoutMs: check.timeoutMs })),
       hostPolicy: Object.freeze({ authorize: stage.hostPolicy.authorize.bind(stage.hostPolicy) }),
     })),
   };
-  if (!snapshot.id || snapshot.stages.length === 0 || snapshot.stages.length > 64) throw new Error('Invalid trusted pipeline plan');
+  if (!snapshot.id || snapshot.stages.length === 0 || snapshot.stages.length > 64 || (snapshot.callbackVersion !== undefined && typeof snapshot.callbackVersion !== 'string')) throw new Error('Invalid trusted pipeline plan');
   const ids = new Set<string>();
   for (const stage of snapshot.stages) {
     if (!/^[a-zA-Z0-9_-]+$/.test(stage.id) || ids.has(stage.id)) throw new Error('Invalid or duplicate pipeline stage');
@@ -45,7 +45,8 @@ export async function bindPipelinePlan(source: TrustedPipelinePlan): Promise<Bou
     ...stage, repoPath: await canonicalPath(stage.repoPath), evidenceRoot: await canonicalPath(stage.evidenceRoot),
   })));
   const descriptor = {
-    version: 1, id: snapshot.id,
+    // Absent callbackVersion is omitted by JSON.stringify, keeping prior fingerprints stable.
+    version: 1, id: snapshot.id, callbackVersion: snapshot.callbackVersion,
     stages: stages.map((stage) => ({
       id: stage.id, dependencies: stage.dependencies, maxRepairAttempts: stage.maxRepairAttempts,
       repoPath: stage.repoPath, evidenceRoot: stage.evidenceRoot, verificationStages: stage.verificationStages,
@@ -58,6 +59,6 @@ export async function bindPipelinePlan(source: TrustedPipelinePlan): Promise<Bou
     Object.freeze(stage.verificationStages);
     Object.freeze(stage);
   }
-  const plan = Object.freeze({ id: snapshot.id, stages: Object.freeze(stages) });
+  const plan = Object.freeze({ ...snapshot, stages: Object.freeze(stages) });
   return { binding, plan, ownership: [...new Set(stages.map((stage) => stage.repoPath))].toSorted() };
 }

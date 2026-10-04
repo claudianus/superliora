@@ -95,7 +95,13 @@ export class SdkEventBridge {
   clearSessionHandlers(sessionId: string): void {
     this.approvalHandlers.delete(sessionId);
     this.questionHandlers.delete(sessionId);
-    for (const [key, state] of this.questionStates) if (state.sessionId === sessionId) this.questionStates.delete(key);
+    for (const [key, state] of this.questionStates) {
+      if (state.sessionId !== sessionId) continue;
+      // Deleting the entry invalidates any late completion of this state.
+      this.questionStates.delete(key);
+      const [, agentId] = JSON.parse(key) as [string, string];
+      this.notifyQuestionAttention({ sessionId, agentId, attention: undefined });
+    }
     this.credentialHandlers.delete(sessionId);
   }
 
@@ -135,14 +141,17 @@ export class SdkEventBridge {
         emitEvent: (event) => {
           state.error = true;
           this.receiveEvent(event);
-          this.notifyQuestionAttention({ ...scope, attention: 'error' });
+          if (this.questionStates.get(key) === state) this.notifyQuestionAttention({ ...scope, attention: 'error' });
         },
       });
     } finally {
       state.pending--;
-      const attention = state.error ? 'error' : state.pending > 0 ? 'question' : undefined;
-      this.notifyQuestionAttention({ ...scope, attention });
-      if (attention === undefined) this.questionStates.delete(key);
+      // A cleared session already published its final attention; stay silent.
+      if (this.questionStates.get(key) === state) {
+        const attention = state.error ? 'error' : state.pending > 0 ? 'question' : undefined;
+        this.notifyQuestionAttention({ ...scope, attention });
+        if (attention === undefined) this.questionStates.delete(key);
+      }
     }
   }
 

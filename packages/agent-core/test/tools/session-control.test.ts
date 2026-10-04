@@ -362,6 +362,22 @@ describe('conductor legacy task control remains nonblocking', () => {
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
+  it('reports an already-settled task as settled instead of a pending stop', async () => {
+    const { agent, manager } = createBackgroundManager();
+    const host = { ...childHost(Promise.resolve(result)), role: 'interactive-conductor' as const };
+    const task = { taskId: 'bg_done', agentId: 'legacy-child', kind: 'agent' as const, subagentType: 'agent' as const, description: 'Done work', status: 'completed' as const, startedAt: 1, endedAt: 2 };
+    vi.spyOn(manager, 'getTask').mockReturnValue(task);
+    const stop = vi.spyOn(manager, 'stop');
+    const tool = new SessionControlTool(agent, manager, host);
+    expect(output((await executeTool(tool, context({ operation: 'stop', id: task.taskId }))).output))
+      .toEqual({ taskId: 'bg_done', status: 'completed', cancelRequested: false, resourcesSettled: true });
+    expect(stop).not.toHaveBeenCalled();
+    vi.mocked(manager.getTask).mockReturnValue({ ...task, resourcesSettled: false });
+    stop.mockImplementation(() => new Promise(() => {}));
+    expect(output((await executeTool(tool, context({ operation: 'stop', id: task.taskId }))).output)).toMatchObject({ cancelRequested: true, resourcesSettled: false });
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
   it('never awaits old child spawn/admission in conductor mode and acknowledges known live child stop', async () => {
     const { agent, manager } = createBackgroundManager();
     const host = { ...childHost(Promise.resolve(result)), role: 'interactive-conductor' as const };

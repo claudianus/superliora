@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FileCoordinatorStore, SessionCoordinator, type TrustedVerificationPlan } from '../../../src/session/coordinator';
 import { sealVerificationArtifact } from '../../../src/session/execution/verification';
 
-async function fixture(script: string) {
+async function fixture(script: string | ((directory: string) => string)) {
   const directory = await mkdtemp(join(tmpdir(), 'conductor-verification-'));
   const repoPath = join(directory, 'producer');
   const git = (...args: string[]) => execFileSync('git', ['-C', repoPath, ...args], { encoding: 'utf8' }).trim();
@@ -16,7 +16,7 @@ async function fixture(script: string) {
   await writeFile(join(repoPath, 'source.txt'), 'source'); git('add', '.'); git('commit', '-m', 'test: seal source');
   const revision = git('rev-parse', 'HEAD');
   const requirementsHash = createHash('sha256').update('requirements').digest('hex');
-  const stages = [{ id: 'check', command: [process.execPath, '-e', script], scope: '.', timeoutMs: 10000 }];
+  const stages = [{ id: 'check', command: [process.execPath, '-e', typeof script === 'string' ? script : script(directory)], scope: '.', timeoutMs: 10000 }];
   const hostPolicy = { authorize: vi.fn(() => {}) };
   const artifact = await sealVerificationArtifact({ repoPath, sourceRevision: revision, requirementsHash, stages, hostPolicy });
   const plan: TrustedVerificationPlan = { id: 'trusted-check', hostPolicy, repoPath, artifact, evidenceRoot: join(directory, 'evidence'), currentRequirementsHash: () => requirementsHash };
@@ -44,14 +44,16 @@ describe('trusted verification registry is a real coordinator consumer', () => {
   });
 
   it('acknowledges cancellation separately and stores cancelled only after physical verification settlement', async () => {
-    const f = await fixture("setInterval(() => {}, 1000)");
+    const f = await fixture((directory) => `require('fs').writeFileSync(${JSON.stringify(join(directory, 'started'))}, 'ready'); setInterval(() => {}, 1000)`);
     try {
       await f.coordinator.verify(f.id, f.plan.id, f.coordinator.get(f.id)!.revision);
-      await vi.waitFor(() => expect(f.coordinator.get(f.id)?.verification?.status).toBe('running'));
+      // Synchronize to the verification command actually running, not coordinator bookkeeping.
+      await vi.waitFor(() => readFile(join(f.directory, 'started')), { timeout: 10000, interval: 10 });
       const acknowledged = await f.coordinator.stop(f.id, f.coordinator.get(f.id)!.revision);
       expect(acknowledged.verification?.cancelRequested).toBe(true);
       await vi.waitFor(() => expect(f.coordinator.get(f.id)?.verification?.status).toBe('cancelled'));
       expect(f.coordinator.get(f.id)?.verification?.receipt?.status).toBe('cancelled');
+      expect(f.coordinator.get(f.id)?.verification?.receipt?.stages[0]).toMatchObject({ stageId: 'check', cancelled: true, timedOut: false });
     } finally { await f.coordinator.close(); await rm(f.directory, { recursive: true, force: true }); }
   });
 });

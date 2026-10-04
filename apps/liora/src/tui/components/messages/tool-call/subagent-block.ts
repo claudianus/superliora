@@ -12,6 +12,7 @@ import {
   renderRendererToolActivityHeader,
   RendererPrefixedWrappedLine,
   Text,
+  truncateToWidth,
   type Component,
 } from '#/tui/renderer';
 import {
@@ -304,6 +305,15 @@ function subToolOutputPreview(activity: SubToolActivity): Component[] {
   return card === undefined ? [body] : [...card, body];
 }
 
+/** One clipped row per source line: a minified heredoc line must not wrap into hundreds of rows. */
+function singleRowLine(line: string, indent: number): Component {
+  const pad = ' '.repeat(indent);
+  return {
+    render: (width) => [pad + truncateToWidth(line, Math.max(1, width - indent * 2), '…')],
+    invalidate: () => {},
+  };
+}
+
 /**
  * Builds the single-`Agent`-tool-call activity tail: recent sub-tool rows
  * (with truncated output previews for Bash/generic tools), then either the
@@ -331,7 +341,7 @@ export function buildSingleSubagentBlockComponents(state: SingleSubagentBlockSta
       const command = activity.args['command'];
       if (typeof command === 'string') {
         for (const line of formatBashHeredocPreview(command) ?? []) {
-          items.push(new Text(line, SUBAGENT_SUBTOOL_OUTPUT_INDENT, 0));
+          items.push(singleRowLine(line, SUBAGENT_SUBTOOL_OUTPUT_INDENT));
         }
       }
     }

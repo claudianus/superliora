@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import type { FullCompaction } from '../../agent/compaction';
 import type { ContextMemory } from '../../agent/context';
-import { AgentBackgroundTask, type BackgroundManager, type BackgroundTaskInfo } from '../../agent/background';
+import { AgentBackgroundTask, isBackgroundTaskTerminal, type BackgroundManager, type BackgroundTaskInfo } from '../../agent/background';
 import type { BuiltinTool } from '../../agent/tool';
 import { ToolAccesses } from '../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../loop/types';
@@ -144,6 +144,9 @@ export class SessionControlTool implements BuiltinTool<SessionControlInput> {
         const task = this.taskFor(args.id!);
         if (task !== undefined) {
           if (conductor) {
+            if (isBackgroundTaskTerminal(task.status) && task.resourcesSettled !== false) {
+              return { output: JSON.stringify({ taskId: task.taskId, status: task.status, cancelRequested: false, resourcesSettled: true }) };
+            }
             this.observeStop(task.taskId, this.manager.stop(task.taskId, args.reason));
             return { output: JSON.stringify({ taskId: task.taskId, cancelRequested: true, resourcesSettled: false }) };
           }

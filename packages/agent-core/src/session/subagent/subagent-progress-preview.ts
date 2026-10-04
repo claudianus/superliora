@@ -112,7 +112,7 @@ function lazyJsonPrefix(value: unknown, maxLength: number): string | undefined {
     }
     // Preserve JSON unboxing for local boxed primitives.
     // eslint-disable-next-line unicorn/no-instanceof-builtins
-    if (node instanceof Number || node instanceof String || node instanceof Boolean) {
+    if (node instanceof Number || node instanceof String || node instanceof Boolean || node instanceof BigInt) {
       node = node.valueOf();
     }
     switch (typeof node) {

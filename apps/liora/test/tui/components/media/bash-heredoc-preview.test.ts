@@ -127,6 +127,21 @@ describe('bash heredoc command previews', () => {
     expect(output).toContain('not execution output');
     expect(output).toContain('const child = 1;');
   });
+  it('clips each subagent heredoc source line to one row instead of wrapping it', () => {
+    const state = new ToolCallSubagentState();
+    const minified = 'const minified = [' + '1,'.repeat(4000) + '];';
+    state.appendSubToolCallDelta({ id: 'child', name: 'Bash', argumentsPart: JSON.stringify({ command: `cat > example.js <<'EOF'\n${minified}` }).slice(0, -2) });
+    const lines = buildSingleSubagentBlockComponents({
+      toolCallId: 'parent', workspaceDir: undefined,
+      activities: [...state.subToolActivities.values()],
+      derivedSubagentPhase: 'running', subagentError: undefined, subagentText: '', subagentThinkingText: '',
+    }).flatMap((component) => component.render(80)).map(strip);
+    const source = lines.filter((line) => line.includes('const minified'));
+    expect(source).toHaveLength(1);
+    expect(source[0]).toContain('…');
+    expect(lines.every((line) => line.length <= 80)).toBe(true);
+  });
+
   it('reuses source Text nodes and removes them without moving actual output', () => {
     const shell = new ShellExecutionComponent({ command: 'cat > example.ts <<EOF\nconst first = 1;', showCommand: true });
     shell.setResultOutput('ACTUAL OUTPUT');

@@ -1,4 +1,4 @@
-import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
+import { link, mkdir, open, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { CoordinatorProjection, CoordinatorStore } from './contracts';
@@ -10,6 +10,46 @@ async function readOwner(path: string): Promise<CoordinatorLockOwner> {
   if (typeof owner !== 'object' || owner === null || !('pid' in owner) || !('token' in owner) || !('createdAt' in owner) ||
     !Number.isInteger(owner.pid) || (owner.pid as number) <= 0 || typeof owner.token !== 'string' || typeof owner.createdAt !== 'number') throw new Error('Invalid coordinator lock; manual investigation required');
   return owner as CoordinatorLockOwner;
+}
+
+const isDead = (pid: number): boolean => {
+  try { process.kill(pid, 0); return false; }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return true;
+    throw error;
+  }
+};
+
+/**
+ * Exclusive recovery marker. It is published with its holder PID in one atomic
+ * link, so a marker left by a crashed recovery is always attributable and can
+ * be reclaimed once that PID is gone; a live or unknown holder fails closed.
+ */
+async function acquireRecovery(path: string): Promise<string> {
+  const marker = `${path}.recovery`;
+  const token = randomUUID();
+  const staged = `${marker}.${token}.tmp`;
+  await writeFile(staged, JSON.stringify({ pid: process.pid, token }), { flag: 'wx', mode: 0o600 });
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try { await link(staged, marker); return token; }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || attempt > 0) throw error;
+        const holder: unknown = JSON.parse(await readFile(marker, 'utf8'));
+        if (typeof holder !== 'object' || holder === null || !('pid' in holder) || !Number.isInteger(holder.pid) || (holder.pid as number) <= 0) {
+          throw new Error('Invalid coordinator recovery marker; manual investigation required', { cause: error });
+        }
+        if (!isDead(holder.pid as number)) throw new Error('Coordinator recovery already in progress', { cause: error });
+        await unlink(marker);
+      }
+    }
+  } finally { await unlink(staged); }
+}
+
+async function releaseRecovery(path: string, token: string): Promise<void> {
+  const marker = `${path}.recovery`;
+  const holder = JSON.parse(await readFile(marker, 'utf8')) as { token?: unknown };
+  if (holder.token === token) await unlink(marker);
 }
 
 export class FileCoordinatorStore implements CoordinatorStore {
@@ -37,19 +77,17 @@ export class FileCoordinatorStore implements CoordinatorStore {
     expectedToken: string;
     confirmResourcesReconciled: (owner: CoordinatorLockOwner) => boolean | Promise<boolean>;
   }): Promise<FileCoordinatorStore> {
-    const recovery = await open(`${path}.recovery`, 'wx', 0o600);
+    const recovery = await acquireRecovery(path);
     try {
       const owner = await readOwner(path);
       if (owner.token !== options.expectedToken) throw new Error('Coordinator recovery token changed');
-      try { process.kill(owner.pid, 0); throw new Error('Coordinator owner may still be live; refusing recovery'); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+      if (!isDead(owner.pid)) throw new Error('Coordinator owner may still be live; refusing recovery');
       if (!await options.confirmResourcesReconciled(structuredClone(owner))) throw new Error('Coordinator execution resources have not been reconciled');
       if ((await readOwner(path)).token !== owner.token) throw new Error('Coordinator lock changed during reconciliation');
       await unlink(`${path}.lock`);
       return await FileCoordinatorStore.open(path);
     } finally {
-      await recovery.close();
-      await unlink(`${path}.recovery`);
+      await releaseRecovery(path, recovery);
     }
   }
 

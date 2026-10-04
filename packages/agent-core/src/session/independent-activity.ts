@@ -8,6 +8,8 @@ import {
   previewSubagentToolResult,
 } from './subagent/subagent-progress-preview';
 
+const MAX_FILES_CHANGED = 64;
+
 /**
  * Bounded independent-worker activity for task surfaces. The source session's
  * ordinary event stream and persisted conversation remain unchanged. No
@@ -48,7 +50,13 @@ export function projectIndependentSessionActivity(event: Event): Event | undefin
     case 'subagent.spawned':
       return { ...event, subagentName: boundedUtf8(event.subagentName, 1024), description: event.description === undefined ? undefined : boundedUtf8(event.description, 1024) };
     case 'subagent.completed':
-      return { ...event, resultSummary: boundedUtf8(event.resultSummary, 2000, true) };
+      return {
+        ...event,
+        resultSummary: boundedUtf8(event.resultSummary, 2000, true),
+        ...(event.filesChanged === undefined ? {} : {
+          filesChanged: event.filesChanged.slice(0, MAX_FILES_CHANGED).map((path) => boundedUtf8(path, 1024)),
+        }),
+      };
     case 'subagent.failed':
       return { ...event, error: boundedUtf8(event.error, 2000) };
     case 'subagent.started':

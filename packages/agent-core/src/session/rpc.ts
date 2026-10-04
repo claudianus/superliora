@@ -50,7 +50,8 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   }
 
   async updateSessionMetadata(payload: UpdateSessionMetadataPayload): Promise<void> {
-    if (payload.metadata.workerAncestry !== undefined) {
+    // Untyped wire callers can still send it; the patch type already excludes it.
+    if ((payload.metadata as { workerAncestry?: unknown }).workerAncestry !== undefined) {
       throw new Error('Worker ancestry is host-owned session admission metadata');
     }
     const nextCustom =

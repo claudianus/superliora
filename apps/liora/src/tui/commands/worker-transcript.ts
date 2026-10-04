@@ -38,7 +38,9 @@ export function openWorkerTranscript(host: SlashCommandHost, workerId: string): 
     panel.currentView.snapshot.workers.find((entry) => entry.id === workerId) ??
     host.workerDock.registry.snapshot().workers.find((entry) => entry.id === workerId);
 
-  if (worker === undefined) {
+  // Fact-only tree rows have no roster telemetry yet but still name a
+  // resolvable session/agent (and durable record) to load a transcript from.
+  if (worker === undefined && host.workerDock.registry.workerTranscriptTarget(workerId) === undefined) {
     host.showStatus(ttui('tui.workerDock.workerNotFound'), 'warning');
     return;
   }

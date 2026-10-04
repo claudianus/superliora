@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { connect } from 'node:net';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runArtifactVerification, sealVerificationArtifact, verificationEnvironment, type VerificationStage, type VerificationHostPolicy } from '../../../src/session/execution/verification';
 
 const roots: string[] = [];
@@ -70,24 +71,28 @@ describe('revision sealed verification', () => {
   it('cancels an owned running process tree and resolves only with settled evidence', async () => {
     const f = await fixture();
     const marker = join(f.root, 'started-marker');
-    const script = "require('child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {stdio: 'inherit'}); " +
-      "console.log('started'); require('fs').writeFileSync(" + JSON.stringify(marker) + ", 'ready'); setInterval(() => {}, 1000)";
+    // The grandchild inherits stdout and owns a listening socket, so the receipt can
+    // only settle after the whole tree is gone and the socket is observably closed.
+    const grandchild = "const s = require('net').createServer().listen(0, '127.0.0.1', () => { const fs = require('fs'); " +
+      "fs.writeFileSync(" + JSON.stringify(`${marker}.tmp`) + ", String(s.address().port)); fs.renameSync(" + JSON.stringify(`${marker}.tmp`) + ", " + JSON.stringify(marker) + "); })";
+    const script = "require('child_process').spawn(process.execPath, ['-e', " + JSON.stringify(grandchild) + "], {stdio: 'inherit'}); " +
+      "console.log('started'); setInterval(() => {}, 1000)";
     const artifact = await f.seal([stage('owned_tree', script), stage('later', "throw new Error('must not run')")]);
     const controller = new AbortController();
-    let settled = false;
     const pending = runArtifactVerification({ hostPolicy, repoPath: f.root, artifact,
       evidenceRoot: join(f.root, 'evidence'), currentRequirementsHash: () => requirementsHash,
-      signal: controller.signal }).then(receipt => { settled = true; return receipt; });
-    // Synchronize to command readiness, not elapsed runtime.
-    while (true) {
-      try { await readFile(marker); break; } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-    }
+      signal: controller.signal });
+    // Synchronize to command readiness, bounded so a broken command aborts instead of hanging.
+    const port = await vi.waitFor(async () => Number(await readFile(marker, 'utf8')), { timeout: 10_000, interval: 10 })
+      .catch(async (error: unknown) => { controller.abort(error); await pending; throw error; });
     controller.abort(new Error('operator stop'));
-    expect(settled).toBe(false); // Request acknowledgement is not settlement.
     const receipt = await pending;
+    const refused = await new Promise<NodeJS.ErrnoException | undefined>(resolve => {
+      const socket = connect(port, '127.0.0.1');
+      socket.once('connect', () => { socket.destroy(); resolve(undefined); });
+      socket.once('error', resolve);
+    });
+    expect(refused?.code).toBe('ECONNREFUSED');
     expect(receipt.status).toBe('cancelled');
     expect(receipt.stages).toHaveLength(1);
     expect(receipt.stages[0]?.cancelled).toBe(true);
@@ -182,6 +187,17 @@ describe('revision sealed verification', () => {
     const stdout = await readFile(result.stdoutPath);
     expect(stdout.length).toBe(1_048_576);
     expect(result.stdoutHash).toBe(createHash('sha256').update(stdout).digest('hex'));
+  });
+
+  it('retains multi-byte output split across chunks and caps evidence by bytes', async () => {
+    const f = await fixture();
+    const split = await f.run([stage('split', "process.stdout.write(Buffer.from([0xe2, 0x82])); setTimeout(() => process.stdout.write(Buffer.from([0xac])), 50)")]);
+    expect(await readFile(split.stages[0]!.stdoutPath, 'utf8')).toBe('€');
+    const wide = await f.run([stage('wide', "process.stdout.write('€'.repeat(400000))")]);
+    expect(wide.stages[0]?.outputTruncated).toBe(true);
+    const stdout = await readFile(wide.stages[0]!.stdoutPath);
+    expect(stdout.length).toBe(1_048_576);
+    expect(wide.stages[0]?.stdoutHash).toBe(createHash('sha256').update(stdout).digest('hex'));
   });
 
   it('requires trusted host authorization before any native execution or evidence writes', async () => {

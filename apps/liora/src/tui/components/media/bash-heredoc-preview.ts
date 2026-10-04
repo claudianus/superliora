@@ -9,8 +9,12 @@ export function formatBashHeredocPreview(command: string): string[] | undefined 
   return buildBashHeredocPreview(command)?.sourceLines;
 }
 
-/** Separate shell context from source so the main card never paints the body twice. */
-export function buildBashHeredocPreview(command: string): {
+/**
+ * Separate shell context from source so the main card never paints the body twice.
+ * `maxLines` bounds both the context and source tails; `'all'` keeps the
+ * whole command (an expanded card must show everything that ran).
+ */
+export function buildBashHeredocPreview(command: string, maxLines: number | 'all' = COMMAND_PREVIEW_LINES): {
   readonly commandContext: string;
   readonly sourceLines: string[];
 } | undefined {
@@ -59,11 +63,11 @@ export function buildBashHeredocPreview(command: string): {
     body.push(normalized);
   }
   if (body.every((line) => line.length === 0)) return undefined;
-  const start = Math.max(0, body.length - COMMAND_PREVIEW_LINES);
+  const start = maxLines === 'all' ? 0 : Math.max(0, body.length - maxLines);
   // Tokenize only the visible slice. Unknown languages stay plain.
   const highlighted = highlightLines(body.slice(start).join('\n'), language);
   return {
-    commandContext: lines.slice(Math.max(0, opening - COMMAND_PREVIEW_LINES + 1), opening + 1).join('\n'),
+    commandContext: lines.slice(maxLines === 'all' ? 0 : Math.max(0, opening - maxLines + 1), opening + 1).join('\n'),
     sourceLines: [
       currentTheme.dim(`INPUT · Bash heredoc (${interpreter !== undefined ? 'script input; ' : patchInput ? 'patch input; ' : ''}not execution output)`),
       ...highlighted.map((line, i) => currentTheme.dim(`${String(start + i + 1).padStart(4)}  `) + line),

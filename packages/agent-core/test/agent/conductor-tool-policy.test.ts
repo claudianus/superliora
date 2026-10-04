@@ -28,4 +28,20 @@ describe('standalone conductor tool capability policy', () => {
     await agent.background.waitForActiveTasks(() => true, { timeoutMs: 1000 });
     expect(agent.background.getTask(task.taskId)?.status).toBe('failed');
   });
+
+  it('keeps accepting distinct conductor command ids past the replay dedupe window', async () => {
+    const { agent } = createBackgroundManager();
+    Object.defineProperty(agent, 'role', { value: 'interactive-conductor' });
+    vi.spyOn(agent, 'ensureSandboxReady').mockRejectedValue(new Error('Denied by sandbox'));
+    const bash = buildBuiltinTools({ agent }).get('Bash')!;
+    const signal = new AbortController().signal;
+    for (let index = 0; index < 130; index++) {
+      const result = await executeTool(bash, { args: { command: `echo ${String(index)}`, description: `task ${String(index)}` }, signal, turnId: 'turn', toolCallId: `call-${String(index)}` });
+      expect(result.isError, result.output as string).toBe(false);
+    }
+    const replayed = await executeTool(bash, { args: { command: 'echo 129', description: 'task 129' }, signal, turnId: 'turn', toolCallId: 'call-129' });
+    expect(replayed.isError).toBe(false);
+    await agent.background.waitForActiveTasks(() => true, { timeoutMs: 5000 });
+    expect(agent.background.list(false)).toHaveLength(130);
+  });
 });

@@ -53,6 +53,12 @@ export interface WorkerTreeProjection {
 }
 const GROUP_PREFIX = '\u0000worker-tree:';
 const MAX_DEPTH = 48;
+/**
+ * Painted levels below the root: every node may sit under its own settled
+ * group, and an orphan chain adds one more group. Traversals must use this,
+ * not MAX_DEPTH, or a valid settled chain loses its tail.
+ */
+export const WORKER_TREE_MAX_LEVELS = MAX_DEPTH * 2 + 2;
 interface Entry {
   id: string; parentId?: string; kind: WorkerTreeRow['kind']; label: string;
   node?: WorkerTreeNode; children: string[]; active: number; queued: number; attention: boolean;
@@ -133,7 +139,7 @@ export function projectWorkerTree(
   for (const entry of entries.values()) entry.children.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
   const visited = new Set<string>();
   const aggregate = (id: string, depth: number): void => {
-    if (visited.has(id) || depth > MAX_DEPTH + 2) return;
+    if (visited.has(id) || depth > WORKER_TREE_MAX_LEVELS) return;
     visited.add(id);
     const entry = entries.get(id)!;
     for (const childId of entry.children) {
@@ -148,12 +154,12 @@ export function projectWorkerTree(
   aggregate(rootId, 0);
   const selectedPath = new Set<string>();
   let selected = selectedId;
-  for (let i = 0; selected !== undefined && i <= MAX_DEPTH + 2; i++) {
+  for (let i = 0; selected !== undefined && i <= WORKER_TREE_MAX_LEVELS; i++) {
     selectedPath.add(selected); selected = parents.get(selected);
   }
   const rows: WorkerTreeRow[] = [];
   const paint = (id: string, depth: number, continuation: readonly boolean[], last: boolean, path: readonly string[]): void => {
-    if (depth > MAX_DEPTH + 2) return;
+    if (depth > WORKER_TREE_MAX_LEVELS) return;
     const entry = entries.get(id)!;
     const ownActive = entry.node !== undefined && isActive(entry.node) ? 1 : 0;
     const expandable = entry.children.length > 0;

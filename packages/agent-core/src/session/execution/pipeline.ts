@@ -31,6 +31,12 @@ export interface TrustedPipelineStage {
 }
 export interface TrustedPipelinePlan {
   readonly id: string;
+  /**
+   * Host-controlled version of the stage callbacks (produce, repair, policy,
+   * revision/requirements probes). Functions cannot be fingerprinted, so bump
+   * this when their behavior changes to invalidate accepted-but-queued runs.
+   */
+  readonly callbackVersion?: string;
   readonly stages: readonly TrustedPipelineStage[];
 }
 export type PipelineStatus = 'success' | 'failed' | 'blocked' | 'cancelled';
@@ -114,6 +120,8 @@ async function runStage(stage: TrustedPipelineStage, executionSignal?: AbortSign
     for (let attempt = 0; attempt <= stage.maxRepairAttempts; attempt++) {
       if (cancelled()) return result('cancelled');
       if (!await fresh(revision)) return result('blocked', 'Requirements or revision changed');
+      // Cancellation may arrive while the freshness probes await.
+      if (cancelled()) return result('cancelled');
       const context: PipelineContext = { stageId: stage.id, attempt, requirementsHash, executionSignal };
       revision = attempt === 0 ? await stage.produce(context) :
         await stage.repair!({ ...context, receipt: structuredClone(receipts.at(-1)!) });
