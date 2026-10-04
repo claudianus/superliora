@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
-import type { Kaos } from '@superliora/kaos';
+import { forkKaosExecutionPolicy, type Kaos } from '@superliora/kaos';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SDKSessionRPC } from '../../src/rpc';
@@ -79,6 +79,8 @@ describe('Session native agents', () => {
       get(target, prop, receiver) {
         if (prop === 'readText') return async () => { throw new Error('Tool filesystem unavailable'); };
         if (prop === 'withCwd') return (cwd: string) => rejectReads(target.withCwd(cwd));
+        // Agents fork the execution policy per installation; derived hosts keep the wrapper.
+        if (prop === 'forkExecutionPolicy') return () => rejectReads(forkKaosExecutionPolicy(target));
         return Reflect.get(target, prop, receiver);
       },
     });
