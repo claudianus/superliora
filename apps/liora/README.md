@@ -1,31 +1,16 @@
 # SuperLiora CLI
 
-> Terminal application package for the SuperLiora AI coding agent.
+The `liora` terminal app: an interactive TUI and headless CLI for the SuperLiora coding agent.
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](../../LICENSE) [![Site](https://img.shields.io/badge/site-online-blue)](https://claudianus.github.io/superliora/en/)
 
 ## What this package contains
 
-This package builds the terminal CLI/TUI application used by SuperLiora. It provides the `liora` source-install workflow, interactive terminal interface, provider commands, ACP stdio entrypoint, theme system, and long-task command surfaces.
+This package builds the `liora` command. The model gets two tools: **Bash** to inspect and change your project, and **SessionControl** to spawn, message, wait for, stop, or compact worker sessions. Requests run directly in the current workspace. Use `--worktree`, or a native Job (`/jobs`, `Alt+J`), when you want the edits isolated.
 
-SuperLiora is designed for software work where provider availability, route health, context quality, research evidence, and verification all matter during the same session.
-
-## Capabilities
-
-| Area | Capability |
-| --- | --- |
-| Source install | Builds from the repository source and installs the local `liora` command. |
-| Provider operations | Supports multi-provider catalogs, custom endpoints, API-key/OAuth pools, labels, and secret-safe status. |
-| Routing | Supports `auto`, `fallback`, `fill_first`, `round_robin`, `weighted_round_robin`, `least_used`, `lowest_latency`, `rate_limit_aware`, and `random`. |
-| Quota handling | Classifies auth, quota, rate-limit, timeout, server, connection, and empty-response failures, then cools down unhealthy candidates. |
-| Long context | Uses Context OS compaction, structured working memory, repair, and bounded rehydration. |
-| Memory | Uses one canonical SQLite Liora Memory store for fact, event, procedure, task, and rule records; operate it with `/memory inspect|remember|recall|reflect|forget`. |
-| Workflow | Runs the Conductor harness — outcome briefs become Jobs in isolated git worktrees, with verify chains and deterministic land-to-main. |
-| TUI | Provides premium themes, bundled terminal palettes, syntax-aware colors, and clearer status surfaces. |
+Since 1.0.0, plans, goals, memory, skills, plugins, and MCP are retired. See "Major migration" in the [root README](../../README.md) for what changed and how to clean up old configuration.
 
 ## Install
-
-The recommended path builds SuperLiora from this GitHub source repository. It requires Git and Node.js 24.15.0 or later.
 
 **macOS / Linux**
 
@@ -39,48 +24,47 @@ curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.
 irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex
 ```
 
-**Windows cmd**
+The installer downloads the prebuilt binary for your platform from the latest GitHub Release, checks its SHA-256 against the release `manifest.json`, and puts `liora` in `~/.local/bin` (Windows: `%LOCALAPPDATA%\SuperLiora\bin`). It needs Node.js 24.15.0 to run and downloads one into the SuperLiora home if your machine doesn't have it.
 
-```bat
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"
-```
+To build from source instead, pass `--main` (tip of `origin/main`) or `--prefer-source` (the `--ref` branch or tag), e.g. `curl -fsSL …/install.sh | bash -s -- --main`. `--help` lists every option. On Windows, `irm | iex` ignores flags, so download `install.ps1` and run it directly.
 
-Open a new terminal session and verify:
+Check the install with `liora --version`. Update later with `liora upgrade`.
 
-```sh
-liora --version
-```
-
-## Quick start
-
-Open a project and start the interactive UI:
+## Usage
 
 ```sh
-cd your-project
-liora
+liora                    # interactive session in the current folder
+liora --continue         # resume the last session for this folder
+liora --worktree [name]  # run the session in a new git worktree
+liora -p "fix the failing login test"   # one request, no TUI
 ```
 
-Connect providers and route candidates:
+Inside the app, use `/login` and `/model` to connect a provider and pick a model.
 
-```sh
-liora provider catalog add anthropic --api-key-env ANTHROPIC_API_KEY
-liora provider key add openai --api-key-env OPENAI_BACKUP_KEY --label backup --auto-route
-liora provider route preview <modelAlias>
-liora provider route status <sessionId>
-```
+## Commands
 
-Run a task headless (describe the outcome; no TUI):
+Registered in [`src/cli/commands.ts`](./src/cli/commands.ts); `liora <command> --help` lists the options.
 
-```sh
-liora -p "Fix the failing login test and verify the suite passes."
-```
+| Command | Purpose |
+| --- | --- |
+| `upgrade` / `update` | Install the latest release (`--main` builds `origin/main`) |
+| `login` | Device-code login |
+| `provider` | Manage providers, custom endpoints, API keys, and the default model |
+| `doctor` | Validate `config.toml` / `tui.toml`; `--storage` reports disk use |
+| `gc` | Reclaim idle cache and worktree temp files, compress closed sessions |
+| `worktree` | `list`, `rm`, `gc`, and `hygiene` for SuperLiora worktrees |
+| `export` | Zip a session for a bug report |
+| `server` | Run the engine over REST + WebSocket, or install it as an OS service |
+| `acp` | Run as an Agent Client Protocol server over stdio (Zed, JetBrains) |
+| `browser-use` / `computer-use` | Install and check the local browser and desktop automation runtimes |
+| `completions` | Print a bash, zsh, or fish completion script |
 
 ## Links
 
 - Site: https://claudianus.github.io/superliora/en/
 - Source: https://github.com/claudianus/superliora
 - Issues: https://github.com/claudianus/superliora/issues
-- Security: see `SECURITY.md` in the main repository
+- Security: [SECURITY.md](../../SECURITY.md)
 
 ## License
 
