@@ -157,20 +157,6 @@ export interface AddAdditionalDirResult {
   readonly persisted: boolean;
 }
 
-/** Restore disk files from a sealed turn snapshot (`/rewind`). */
-export interface RewindFilesPayload {
-  /** Turn id to restore; omit to use the latest sealed turn. */
-  readonly turnId?: string | undefined;
-}
-
-export interface RewindFilesResult {
-  readonly turnId: string;
-  readonly restored: readonly string[];
-  readonly deleted: readonly string[];
-  readonly skippedSensitive: readonly string[];
-  readonly errors: readonly { path: string; message: string }[];
-}
-
 export interface StartConversationLoopPayload {
   readonly prompt: string;
   readonly intervalMs?: number | undefined;

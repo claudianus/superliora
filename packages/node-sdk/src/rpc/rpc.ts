@@ -34,7 +34,6 @@ import type {
 import {
   type CancelSessionRpcInput,
   type ConversationLoopState,
-  type RewindFilesRpcResult,
   type RunShellCommandRpcInput,
   type RunShellCommandRpcResult,
   type SessionIdRpcInput,
@@ -50,7 +49,6 @@ import {
 export type {
   CancelSessionRpcInput,
   ConversationLoopState,
-  RewindFilesRpcResult,
   RunShellCommandRpcInput,
   RunShellCommandRpcResult,
   SessionIdRpcInput,
@@ -233,14 +231,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       count: input.count,
-    });
-  }
-
-  async rewindFiles(input: SessionIdRpcInput & { turnId?: string | undefined }): Promise<RewindFilesRpcResult> {
-    const rpc = await this.getRpc();
-    return rpc.rewindFiles({
-      sessionId: input.sessionId,
-      ...(input.turnId !== undefined ? { turnId: input.turnId } : {}),
     });
   }
 

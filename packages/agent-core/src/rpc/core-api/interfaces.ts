@@ -13,8 +13,7 @@ import type {
   AddAdditionalDirPayload, AddAdditionalDirResult, ArchiveSessionPayload, CloseSessionPayload,
   ConversationLoopStateData, CoreInfo, CreateSessionPayload, EmptyPayload, ExportSessionPayload,
   ExportSessionResult, ForkSessionPayload, ListSessionsPayload, ReloadSessionPayload,
-  RenameSessionPayload, ResumeSessionPayload, RewindFilesPayload, RewindFilesResult,
-  SessionSummary, StartConversationLoopPayload, StopConversationLoopPayload, UpdateSessionMetadataPayload,
+  RenameSessionPayload, ResumeSessionPayload, SessionSummary, StartConversationLoopPayload, StopConversationLoopPayload, UpdateSessionMetadataPayload,
 } from './payloads-session';
 import type {
   BeginCompactionPayload, CancelPayload, CancelShellCommandPayload, DetachBackgroundPayload,
@@ -93,7 +92,6 @@ export interface SessionAPI extends WithAgentId<AgentAPI> {
   getSessionWarnings: (payload: EmptyPayload) => readonly SessionWarning[];
   addAdditionalDir: (payload: AddAdditionalDirPayload) => AddAdditionalDirResult;
   getSessionTrace: (payload: EmptyPayload & { readonly agentId: string }) => Promise<SessionTrace>;
-  rewindFiles: (payload: RewindFilesPayload) => RewindFilesResult;
   startConversationLoop: (payload: StartConversationLoopPayload) => ConversationLoopStateData;
   stopConversationLoop: (payload: StopConversationLoopPayload) => ConversationLoopStateData | undefined;
   listConversationLoops: (payload: EmptyPayload) => readonly ConversationLoopStateData[];

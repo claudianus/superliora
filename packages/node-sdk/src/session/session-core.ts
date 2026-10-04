@@ -297,24 +297,6 @@ export abstract class SessionCore {
     await this.rpc.undoHistory({ sessionId: this.id, count });
   }
 
-  /**
-   * Restore disk files from a sealed turn snapshot (`/rewind`).
-   * Does not rewrite conversation history — pair with `undoHistory` when needed.
-   */
-  async rewindFiles(options: { turnId?: string | undefined } = {}): Promise<{
-    readonly turnId: string;
-    readonly restored: readonly string[];
-    readonly deleted: readonly string[];
-    readonly skippedSensitive: readonly string[];
-    readonly errors: readonly { path: string; message: string }[];
-  }> {
-    this.ensureOpen();
-    return this.rpc.rewindFiles({
-      sessionId: this.id,
-      ...(options.turnId !== undefined ? { turnId: options.turnId } : {}),
-    });
-  }
-
   async getContext(): Promise<AgentContextData> {
     this.ensureOpen();
     return this.rpc.getContext({ sessionId: this.id });

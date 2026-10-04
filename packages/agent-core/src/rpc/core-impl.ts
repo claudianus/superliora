@@ -221,7 +221,6 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   getSessionMetadata = delegateContextMethod(sessionAgentMethods.getSessionMetadata);
   getSessionWarnings = delegateContextMethod(sessionAgentMethods.getSessionWarnings);
   addAdditionalDir = delegateContextMethod(sessionAgentMethods.addAdditionalDir);
-  rewindFiles = delegateContextMethod(sessionAgentMethods.rewindFiles);
   startConversationLoop = delegateContextMethod(sessionAgentMethods.startConversationLoop);
   stopConversationLoop = delegateContextMethod(sessionAgentMethods.stopConversationLoop);
   listConversationLoops = delegateContextMethod(sessionAgentMethods.listConversationLoops);

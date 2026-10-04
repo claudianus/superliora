@@ -8,8 +8,6 @@ import { log } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
 import type { AgentAPI, AgentEvent, CircuitBreakerStatus, LioraConfig, ProviderRouteStatus, SDKAgentRPC } from '#/rpc';
 import type { PreparedSystemPromptContext, ResolvedAgentProfile } from '../profile';
-import type { FileSnapshotStore } from '../session/file-snapshot';
-import type { FileProvenanceRecorder } from '../session/file-provenance';
 import type { ModelProvider } from '../session/provider/provider-manager';
 import type { SessionControlHost } from '../tools/builtin/session-control';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
@@ -154,8 +152,6 @@ export interface AgentOptions {
   readonly telemetry?: TelemetryClient;
   readonly replay?: ReplayBuilderOptions;
   readonly additionalDirs?: readonly string[];
-  readonly fileSnapshots?: FileSnapshotStore;
-  readonly fileProvenance?: FileProvenanceRecorder;
   readonly sandboxProfile?: SandboxProfile;
   readonly sandboxEnforcement?: SandboxEnforcement;
 }
@@ -188,8 +184,6 @@ export class Agent {
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;
   readonly circuitBreakerRegistry: CircuitBreakerRegistry;
-  readonly fileSnapshots: FileSnapshotStore | undefined;
-  readonly fileProvenance: FileProvenanceRecorder | undefined;
   sandboxProfile: SandboxProfile | undefined;
   sandboxEnforcement: SandboxEnforcement | undefined;
   processSandboxStatus: ProcessSandboxStatus | undefined;
@@ -214,8 +208,6 @@ export class Agent {
     this.log = options.log ?? log;
     this.telemetry = options.telemetry ?? noopTelemetryClient;
     this.additionalDirs = normalizeAdditionalDirs(options.additionalDirs ?? []);
-    this.fileSnapshots = options.fileSnapshots;
-    this.fileProvenance = options.fileProvenance;
     this.sandboxProfile = options.sandboxProfile;
     this.sandboxEnforcement = options.sandboxEnforcement;
     this.llmRequestLogger = new LlmRequestLogger(this.log);
