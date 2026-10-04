@@ -1,5 +1,28 @@
 # @superliora/liora
 
+## 1.1.0
+
+### Minor Changes
+
+- Carry actual worker ancestry and reusable-session state into live activity, and accept trusted dependency pipelines with revision-bound verification and bounded repair.
+- Add durable independent session dispatch, bounded snapshot control, and revision-guarded session reuse for interactive conductors.
+- Chat input stays responsive while independent workers run, and worker activity shows in the Worker Dock instead of the chat transcript. Use `/job dock` to pin or hide the dock.
+- Show Worker Dock sessions and nested workers as a collapsible tree with separate owner-state counts and live summaries on collapsed branches. Left/Right or the row carets expand and collapse rows, and Enter opens the existing transcript viewer.
+
+### Patch Changes
+
+- Show bounded, syntax-highlighted Bash heredoc input previews during main and worker tool streaming, separate from execution output.
+- Bound compact worker tool-summary conversion so large Bash source arguments do not block live progress updates.
+- Measure Korean, Japanese, Chinese and other standalone BMP text without grapheme segmentation, and memoize styled line widths, so scrolling non-ASCII transcripts stays responsive.
+- Keep each Agent’s sandbox policy separate, apply host policy updates to all ready workers, and reject mounts exposing host sockets.
+- Block queued work when workspace permission is revoked, and reject restored pipelines whose trusted configuration no longer matches their accepted ownership.
+- Keep pipeline operations separate from their caller's worker identity.
+- Abort stalled model streams even when a streaming callback is blocked, while preserving callback backpressure.
+- Add revision-bound verification receipts with command results and retained evidence for deterministic execution stages.
+- Require Docker for explicit native Bash process confinement and reject execution while sandbox policy is pending or stale. Lexical enforcement remains a host-execution option.
+- Keep transcript scrolling and pointer targets aligned with the painted viewport without collapsing cached history during live updates.
+- Enforce UTF-8 byte limits on streaming Bash input and compact worker previews without splitting Unicode characters or losing emoji across deltas.
+
 ## 1.0.0
 
 ### Major Changes
