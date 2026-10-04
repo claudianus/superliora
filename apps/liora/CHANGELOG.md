@@ -1,5 +1,16 @@
 # @superliora/liora
 
+## 1.2.0
+
+### Minor Changes
+
+- Retire file rewind and the AI-attribution markers in /blame, which stopped working once the agent began editing files only through Bash. /rewind now prints git rollback guidance instead of restoring files, and /blame shows plain git blame.
+
+### Patch Changes
+
+- Bump the bundled server's `fastify` dependency from 5.12.1 to 5.12.5.
+- Show Job Deck outcome buckets, row statuses, and child counts in the active UI language instead of always in Korean.
+
 ## 1.1.2
 
 ### Patch Changes
