@@ -32,7 +32,12 @@ export async function runPromptTurn(
   emitSubagentStarted(parent, childId, options);
   // Configuration may have started a process-sandbox refresh; Git and the turn
   // both execute in the child, so join that gate first.
-  await child.waitForSandbox();
+  await new Promise<void>((resolve, reject) => {
+    // A deadline or stop must not wait for a slow sandbox refresh to settle.
+    const onAbort = (): void => { reject(options.signal.reason); };
+    options.signal.addEventListener('abort', onAbort, { once: true });
+    child.waitForSandbox().then(resolve, reject).finally(() => { options.signal.removeEventListener('abort', onAbort); });
+  });
   options.signal.throwIfAborted();
   const workSnapshot = await snapshotChildWork(child, options.signal);
   options.signal.throwIfAborted();

@@ -95,10 +95,15 @@ export class SdkEventBridge {
   clearSessionHandlers(sessionId: string): void {
     this.approvalHandlers.delete(sessionId);
     this.questionHandlers.delete(sessionId);
+    // Delete first (invalidating late completions), then notify: a listener that
+    // reopens a question cannot extend this loop.
+    const cleared: string[] = [];
     for (const [key, state] of this.questionStates) {
       if (state.sessionId !== sessionId) continue;
-      // Deleting the entry invalidates any late completion of this state.
       this.questionStates.delete(key);
+      cleared.push(key);
+    }
+    for (const key of cleared) {
       const [, agentId] = JSON.parse(key) as [string, string];
       this.notifyQuestionAttention({ sessionId, agentId, attention: undefined });
     }

@@ -34,7 +34,10 @@ describe('standalone conductor tool capability policy', () => {
     const { agent } = createBackgroundManager();
     Object.defineProperty(agent, 'role', { value: 'interactive-conductor' });
     const builtinTools = buildBuiltinTools({ agent });
+    const emitted = vi.spyOn(agent, 'emitEvent');
     const result = await runShellCommand({ agent, builtinTools, shellCommandControllers: new Map() }, 'echo host-foreground', 'cmd-1');
+    expect(emitted).toHaveBeenCalledWith(expect.objectContaining({ type: 'shell.output', commandId: 'cmd-1',
+      update: expect.objectContaining({ kind: 'stdout', text: expect.stringContaining('host-foreground') }) }));
     expect(result).toMatchObject({ isError: false });
     expect(result.backgrounded).toBeUndefined();
     expect(result.stdout).toContain('host-foreground');

@@ -27,6 +27,8 @@ export class WorkerDockFallbackComponent implements Component {
   render(width: number): string[] {
     if (!this.options.visible()) return [];
     const maxRows = this.options.maxRows?.();
+    // A framed band needs at least three rows; hide it rather than exceed the budget.
+    if (maxRows !== undefined && maxRows < 3) return [];
     return maxRows === undefined
       ? this.options.panel.render(width)
       : this.options.panel.renderBand(width, maxRows);

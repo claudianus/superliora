@@ -40,4 +40,21 @@ describe('worker turn sandbox admission', () => {
     expect(runGit).not.toHaveBeenCalled();
     expect(child.turn.prompt).not.toHaveBeenCalled();
   });
+
+  it('stops waiting for a pending sandbox refresh when the worker is aborted', async () => {
+    vi.mocked(runGit).mockClear();
+    const child = {
+      kaos: {}, config: { cwd: '/work' },
+      waitForSandbox: vi.fn(() => new Promise<void>(() => {})),
+      turn: { prompt: vi.fn() },
+    } as unknown as Agent;
+    const parent = { emitEvent: vi.fn() } as unknown as Agent;
+    const controller = new AbortController();
+    const options = { prompt: 'work', signal: controller.signal } as unknown as RunSubagentOptions;
+    const run = runPromptTurn(parent, 'child', child, 'agent', options);
+    controller.abort(new Error('worker deadline'));
+    await expect(run).rejects.toThrow('worker deadline');
+    expect(runGit).not.toHaveBeenCalled();
+    expect(child.turn.prompt).not.toHaveBeenCalled();
+  });
 });

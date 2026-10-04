@@ -20,11 +20,6 @@ vi.mock('#/tui/components/media/code-highlight', async (importOriginal) => {
   return { ...actual, highlightLines: vi.fn(actual.highlightLines) };
 });
 
-vi.mock('#/tui/components/media/code-highlight', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#/tui/components/media/code-highlight')>();
-  return { ...actual, highlightLines: vi.fn(actual.highlightLines) };
-});
-
 const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 const render = (components: { render(width: number): string[] }[]): string =>
   components.flatMap((component) => component.render(160)).map(strip).join('\n');

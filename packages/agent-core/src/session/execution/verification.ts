@@ -176,8 +176,31 @@ function execute(command: readonly string[], cwd: string, env: Readonly<Record<s
  * `-c` takes precedence over repository config.
  */
 const TRUSTED_GIT_CONFIG = ['-c', `core.hooksPath=${process.platform === 'win32' ? 'NUL' : '/dev/null'}`, '-c', 'core.fsmonitor=false'];
+
+/**
+ * Filter drivers (smudge/clean/process) selected by .gitattributes run during
+ * checkout and status. Neutralize every driver defined in workspace-controlled
+ * (local or worktree) config: empty commands make git skip the conversion.
+ * Drivers only in global/system config belong to the operator and stay.
+ */
+async function workspaceFilterOverrides(repo: string, signal?: AbortSignal): Promise<string[]> {
+  const result = await execute(['git', '--no-pager', ...TRUSTED_GIT_CONFIG, '-C', repo, 'config', '--show-scope', '--get-regexp', String.raw`^filter\..*\.(smudge|clean|process|required)$`],
+    repo, verificationEnvironment(repo).values, 60_000, signal);
+  if (result.cancelled) throw new Error('Verification cancelled');
+  // Exit 1 means no matching keys.
+  if (result.exitCode === 1) return [];
+  if (result.exitCode !== 0 || result.timedOut || result.outputTruncated) throw new Error(result.failure ?? (result.stderr.toString('utf8') || 'Git verification operation failed'));
+  const names = new Set<string>();
+  for (const line of result.stdout.toString('utf8').split('\n')) {
+    const match = /^(\S+)\tfilter\.(.+)\.(?:smudge|clean|process|required)(?: |$)/.exec(line);
+    if (match !== null && match[1] !== 'global' && match[1] !== 'system') names.add(match[2]!);
+  }
+  return [...names].flatMap(name => ['-c', `filter.${name}.smudge=`, '-c', `filter.${name}.clean=`, '-c', `filter.${name}.process=`, '-c', `filter.${name}.required=false`]);
+}
+
 async function git(repo: string, args: readonly string[], signal?: AbortSignal): Promise<string> {
-  const result = await execute(['git', '--no-pager', ...TRUSTED_GIT_CONFIG, '-C', repo, ...args], repo, verificationEnvironment(repo).values, 60_000, signal);
+  const filters = await workspaceFilterOverrides(repo, signal);
+  const result = await execute(['git', '--no-pager', ...TRUSTED_GIT_CONFIG, ...filters, '-C', repo, ...args], repo, verificationEnvironment(repo).values, 60_000, signal);
   if (result.cancelled) throw new Error('Verification cancelled');
   if (result.exitCode !== 0 || result.timedOut || result.outputTruncated) throw new Error(result.failure ?? (result.stderr.toString('utf8') || 'Git verification operation failed'));
   return result.stdout.toString('utf8').trim();

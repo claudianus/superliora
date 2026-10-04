@@ -27,6 +27,8 @@ async function fixture() {
     runArtifactVerification({ hostPolicy, repoPath: root, artifact: await seal(stages), evidenceRoot: await mkdtemp(join(tmpdir(), 'verification-evidence-')).then(path => { roots.push(path); return path; }), currentRequirementsHash });
   return { root, revision, seal, run };
 }
+/** POSIX single-quote a value for embedding in a fixture shell script. */
+const shellQuote = (value: string): string => `'${value.replaceAll("'", String.raw`'\''`)}'`;
 const stage = (id: string, script: string, timeoutMs = 10_000): VerificationStage => ({ id, command: [process.execPath, '-e', script], scope: '.', timeoutMs });
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
@@ -133,7 +135,7 @@ describe('revision sealed verification', () => {
     const marker = join(f.root, 'hook-ran');
     const hooks = join(f.root, 'workspace-hooks');
     await mkdir(hooks);
-    await writeFile(join(hooks, 'post-checkout'), `#!/bin/sh\ntouch ${JSON.stringify(marker)}\n`);
+    await writeFile(join(hooks, 'post-checkout'), `#!/bin/sh\ntouch ${shellQuote(marker)}\n`);
     await chmod(join(hooks, 'post-checkout'), 0o755);
     // Workspace-controlled repository config; ignored files keep the producer tree clean.
     git(f.root, 'config', 'core.hooksPath', hooks);
@@ -145,6 +147,32 @@ describe('revision sealed verification', () => {
     await rm(marker);
     const receipt = await f.run([stage('test', 'process.exit(0)')]);
     expect(receipt.status).toBe('passed');
+    await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it.skipIf(process.platform === 'win32')('never runs workspace filter drivers while sealing or preparing the checkout', async () => {
+    const f = await fixture();
+    const marker = join(f.root, 'filter-ran');
+    // A workspace-configured driver that would run on checkout (smudge) or status (clean).
+    git(f.root, 'config', 'filter.evil.smudge', `touch ${shellQuote(marker)}; cat`);
+    git(f.root, 'config', 'filter.evil.clean', `touch ${shellQuote(marker)}; cat`);
+    git(f.root, 'config', 'filter.evil.required', 'true');
+    await writeFile(join(f.root, '.gitattributes'), 'source.txt filter=evil\n');
+    await writeFile(join(f.root, '.git', 'info', 'exclude'), 'filter-ran\nprobe/\n');
+    git(f.root, 'add', '.gitattributes');
+    git(f.root, 'commit', '-m', 'test: select workspace filter');
+    // Sanity: the fixture driver is live for an ordinary worktree checkout.
+    git(f.root, 'worktree', 'add', '--detach', join(f.root, 'probe'), 'HEAD');
+    await stat(marker);
+    git(f.root, 'worktree', 'remove', '--force', join(f.root, 'probe'));
+    await rm(marker);
+    const revision = git(f.root, 'rev-parse', 'HEAD');
+    const artifact = await sealVerificationArtifact({ hostPolicy, repoPath: f.root, sourceRevision: revision, requirementsHash,
+      stages: [stage('read', "console.log(require('fs').readFileSync('source.txt','utf8'))")] });
+    const receipt = await runArtifactVerification({ hostPolicy, repoPath: f.root, artifact,
+      evidenceRoot: join(f.root, 'evidence'), currentRequirementsHash: () => requirementsHash });
+    expect(receipt.status).toBe('passed');
+    expect(await readFile(receipt.stages[0]!.stdoutPath, 'utf8')).toBe('sealed source\n');
     await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
