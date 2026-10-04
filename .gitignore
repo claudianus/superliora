@@ -77,3 +77,7 @@ skills-lock.json
 
 .agents/skills/caveman*/
 .agents/skills/cavecrew/
+
+# Leftover external skill catalog from pre-1.0 builds; the loader was removed
+# in 1.0.0 and nothing reads this directory. Keep it out of commits.
+packages/agent-core/src/skill/
