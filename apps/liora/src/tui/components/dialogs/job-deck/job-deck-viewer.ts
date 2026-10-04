@@ -420,7 +420,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     return truncateToWidth(` ${parts.join(theme.fg('textMuted', ' · '))}`, width);
   }
 
-  /** Outcome bucket counts: 막힘 · 남음 · 끝남 (jobs≥2 only). */
+  /** Outcome bucket counts: blocked · remaining · done (jobs≥2 only). */
   private renderOutcomeStrip(width: number): string {
     if (this.snapshot.jobs.length < 2) return '';
     const theme = currentTheme;

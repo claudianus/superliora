@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { setCliLocale } from '#/cli/i18n';
 import type { ConductorJobCard } from '#/tui/utils/job/job-strip';
-import { buildSessionOutcomeBoard, flattenSessionOutcomes, formatSessionOutcomeLine, isOutcomeChild, summarizeBlockedReason } from '#/tui/utils/job/session-outcome-board';
+import { buildSessionOutcomeBoard, flattenSessionOutcomes, formatSessionOutcomeLine, isOutcomeChild, sessionOutcomeBucketLabel, summarizeBlockedReason } from '#/tui/utils/job/session-outcome-board';
 function card(partial: Partial<ConductorJobCard> & Pick<ConductorJobCard, 'id' | 'status'>): ConductorJobCard {
   return { title: partial.id, kind: 'task', priority: 0, updatedAtMs: 1000, ...partial };
 }
@@ -43,12 +44,29 @@ describe('recorded session Job outcomes', () => {
     ]);
     expect(board.done).toHaveLength(2);
     expect(board.done.every((row) => row.status === 'cancelled')).toBe(true);
-    expect(board.done.every((row) => row.statusLabel === '취소' && row.token === 'textDim')).toBe(true);
+    expect(board.done.every((row) => row.statusLabel === 'Cancelled' && row.token === 'textDim')).toBe(true);
   });
   it('shows recorded reasons without inventing host diagnoses or merging failures', () => {
     const failure = card({ id: 'a', status: 'failed', resultSummary: 'spawn EINVAL' });
     expect(summarizeBlockedReason(failure)).toBe('spawn EINVAL');
     expect(summarizeBlockedReason(card({ id: 'empty', status: 'blocked' }))).toBeUndefined();
     expect(buildSessionOutcomeBoard([failure, card({ ...failure, id: 'b' })]).blocked).toHaveLength(2);
+  });
+  it('labels buckets, statuses, and child counts in English by default', () => {
+    const board = buildSessionOutcomeBoard([
+      card({ id: 'parent', title: 'Fix login', status: 'queued' }),
+      card({ id: 'child', status: 'queued', parentJobId: 'parent' }),
+    ]);
+    expect((['blocked', 'remaining', 'done'] as const).map(sessionOutcomeBucketLabel)).toEqual(['Blocked', 'Remaining', 'Done']);
+    expect(formatSessionOutcomeLine(board.remaining[0]!)).toBe('[Waiting] Fix login · children 1 — queued or waiting to resume');
+  });
+  it('labels buckets, statuses, and child counts in Korean under the ko locale', () => {
+    setCliLocale('ko');
+    const board = buildSessionOutcomeBoard([
+      card({ id: 'parent', title: 'Fix login', status: 'queued' }),
+      card({ id: 'child', status: 'queued', parentJobId: 'parent' }),
+    ]);
+    expect((['blocked', 'remaining', 'done'] as const).map(sessionOutcomeBucketLabel)).toEqual(['막힘', '남음', '끝남']);
+    expect(formatSessionOutcomeLine(board.remaining[0]!)).toBe('[대기] Fix login · 자식 1 — 큐/재개 대기');
   });
 });
