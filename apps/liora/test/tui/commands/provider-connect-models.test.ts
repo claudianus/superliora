@@ -21,11 +21,20 @@ vi.mock('@superliora/oauth', async (importOriginal) => {
   };
 });
 
+vi.mock('@superliora/sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@superliora/sdk')>();
+  return {
+    ...actual,
+    fetchDevinModels: vi.fn(),
+  };
+});
+
 const { loadCatalog } = await import('#/utils/catalog-cache');
 const { fetchCursorAvailableModels, fetchGitHubCopilotModels, OAuthProviderManager } = await import(
   '@superliora/oauth'
 );
 const { resolveOAuthProviderModels } = await import('#/tui/commands/provider-connect/oauth');
+const { fetchDevinModels } = await import('@superliora/sdk');
 
 const XAI_PRESETS = [
   { id: 'grok-4.5', displayName: 'Grok 4.5', maxContextSize: 500000, capabilities: ['thinking', 'tool_use', 'image_in'] },
@@ -170,5 +179,49 @@ describe('resolveOAuthProviderModels', () => {
 
     expect(result?.map((m) => m.model)).toEqual(['gpt-4.1']);
     expect(fetchGitHubCopilotModels).toHaveBeenCalled();
+  });
+
+  it('prefers live Devin GetCliModelConfigs discovery over presets', async () => {
+    vi.mocked(fetchDevinModels).mockResolvedValue([
+      {
+        id: 'swe-1-6',
+        name: 'SWE-1.6',
+        contextWindow: 200_000,
+        maxTokens: 64_000,
+        reasoning: false,
+        supportsImages: false,
+        supportsTools: true,
+        isRouter: false,
+      },
+    ]);
+
+    const result = await resolveOAuthProviderModels(
+      'devin',
+      [{ id: 'adaptive', displayName: 'Devin Adaptive (router)', maxContextSize: 200_000 }],
+      { accessToken: 'jwt' },
+    );
+
+    expect(result?.map((m) => m.model)).toEqual(['swe-1-6']);
+    expect(result?.[0]?.provider).toBe('devin');
+    expect(result?.[0]?.capabilities).toEqual(['tool_use']);
+  });
+
+  it('falls back to Devin presets and reports when live discovery returns nothing', async () => {
+    vi.mocked(fetchDevinModels).mockClear();
+    vi.mocked(fetchDevinModels).mockResolvedValue(null);
+    const onLiveDiscoveryFailed = vi.fn();
+
+    const result = await resolveOAuthProviderModels(
+      'devin',
+      [
+        { id: 'adaptive', displayName: 'Devin Adaptive (router)', maxContextSize: 200_000 },
+        { id: 'swe-1-6', displayName: 'SWE-1.6', maxContextSize: 200_000 },
+      ],
+      { accessToken: 'jwt', onLiveDiscoveryFailed },
+    );
+
+    expect(result?.map((m) => m.model)).toEqual(['adaptive', 'swe-1-6']);
+    expect(fetchDevinModels).toHaveBeenCalledTimes(2);
+    expect(onLiveDiscoveryFailed).toHaveBeenCalledOnce();
   });
 });

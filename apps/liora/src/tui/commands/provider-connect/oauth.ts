@@ -1,6 +1,7 @@
 import {
   catalogModelToAlias,
   catalogProviderModels,
+  type DevinDiscoveredModel,
   factoryDroidModels,
   fetchDevinModels,
   log,
@@ -403,6 +404,7 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
     // Resolve the model list from a live catalog when possible (models.dev for
     // most OAuth providers; Cursor AvailableModels for cursor-oauth; Copilot
     // /models after session exchange), falling back to the profile preset.
+    let liveDiscoveryError: unknown;
     const resolvedModels = await resolveOAuthProviderModels(providerId, profile.models, {
       accessToken,
       storageKey,
@@ -411,6 +413,9 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
         copilotSessionToken === undefined || copilotApiBaseUrl === undefined
           ? undefined
           : { token: copilotSessionToken, apiBaseUrl: copilotApiBaseUrl },
+      onLiveDiscoveryFailed: (error) => {
+        liveDiscoveryError = error;
+      },
     });
     if (resolvedModels !== undefined && resolvedModels.length > 0) {
       if (providerId === CURSOR_OAUTH_PROVIDER_ID) {
@@ -460,6 +465,17 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
       host.showStatus(ttui('tui.provider.xaiRouteSelected', { route: xaiRouteLabel }));
     }
     host.showNotice(ttui('tui.provider.mediaHint'));
+
+    // Live discovery misses must be visible — otherwise the picker opens on a
+    // small preset list and looks broken rather than degraded.
+    if (liveDiscoveryError !== undefined) {
+      host.showNotice(
+        ttui('tui.provider.liveModelsFallback', {
+          name: profile.displayName,
+          message: formatErrorMessage(liveDiscoveryError),
+        }),
+      );
+    }
 
     // Offer the model picker so the user can choose a default.
     if (resolvedModels !== undefined && resolvedModels.length > 0) {
@@ -515,6 +531,27 @@ export interface ResolveOAuthProviderModelsOptions {
    * use the same key instead of the provider default.
    */
   readonly storageKey?: string;
+  /**
+   * Invoked when a provider's preferred live discovery fails and resolution
+   * falls back to catalog/preset models, so the caller can warn instead of
+   * silently opening a stub picker.
+   */
+  readonly onLiveDiscoveryFailed?: (error: unknown) => void;
+}
+
+/**
+ * Live Devin discovery gets a longer budget plus one retry — the 5s default
+ * loses races on a cold connection right after the browser round-trip.
+ */
+const DEVIN_DISCOVERY_TIMEOUT_MS = 15_000;
+
+async function fetchDevinModelsWithRetry(
+  liveToken: string,
+): Promise<readonly DevinDiscoveredModel[] | null> {
+  const attempt = (): Promise<readonly DevinDiscoveredModel[] | null> =>
+    fetchDevinModels({ apiKey: liveToken, timeoutMs: DEVIN_DISCOVERY_TIMEOUT_MS });
+  const first = await attempt();
+  return first === null ? attempt() : first;
 }
 
 /**
@@ -531,7 +568,7 @@ export async function resolveOAuthProviderModels(
   const liveToken = options.accessToken?.trim();
   if (providerId === DEVIN_PROVIDER_ID && liveToken !== undefined && liveToken.length > 0) {
     try {
-      const live = await fetchDevinModels({ apiKey: liveToken });
+      const live = await fetchDevinModelsWithRetry(liveToken);
       if (live !== null && live.length > 0) {
         return live.map((model) =>
           presetModelToAlias(providerId, {
@@ -546,11 +583,13 @@ export async function resolveOAuthProviderModels(
           }),
         );
       }
+      options.onLiveDiscoveryFailed?.(new Error('GetCliModelConfigs returned no usable models'));
     } catch (error) {
       log.warn(
         `Failed to load Devin model configs for "${providerId}", using preset.`,
         formatErrorMessage(error),
       );
+      options.onLiveDiscoveryFailed?.(error);
     }
   }
 
@@ -658,6 +697,7 @@ export async function resolveOAuthProviderModels(
   } catch (error) {
     // Catalog fetch is best-effort; the preset below keeps the provider usable.
     log.warn(`Failed to load models.dev catalog for "${providerId}", using preset.`, formatErrorMessage(error));
+    options.onLiveDiscoveryFailed?.(error);
   }
   if (presets !== undefined && presets.length > 0) {
     return presets.map((preset) => presetModelToAlias(providerId, preset));
@@ -732,7 +772,7 @@ function promptManagedAccountAction(
           description: ttui('tui.provider.addAccountAddDesc'),
         },
       ],
-      currentValue: 'add',
+      currentValue: 'refresh',
       onSelect: (value) => {
         host.restoreEditor();
         resolve(value === 'add' ? 'add' : 'refresh');

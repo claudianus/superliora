@@ -232,6 +232,8 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.provider.authorizing': 'Authorizing with {name}',
   'tui.provider.connected': 'Connected: {name}',
   'tui.provider.alreadyLoggedIn': 'Already logged in. Model configuration refreshed.',
+  'tui.provider.liveModelsFallback':
+    'Live {name} model discovery failed ({message}); showing the built-in list only. Retry /login to refresh.',
   'tui.provider.addAccountTitle': 'Managed SuperLiora account',
   'tui.provider.addAccountProviderTitle': '{name} account',
   'tui.provider.addAccountRefresh': 'Refresh current account',
@@ -603,6 +605,8 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.provider.authorizing': '{name}(으)로 인증 중',
   'tui.provider.connected': '연결됨: {name}',
   'tui.provider.alreadyLoggedIn': '이미 로그인되어 있습니다. 모델 설정을 새로고침했습니다.',
+  'tui.provider.liveModelsFallback':
+    '실시간 {name} 모델 조회 실패({message}); 내장 목록만 표시합니다. /login을 다시 실행해 새로고침하세요.',
   'tui.provider.addAccountTitle': 'Managed SuperLiora 계정',
   'tui.provider.addAccountProviderTitle': '{name} 계정',
   'tui.provider.addAccountRefresh': '현재 계정 새로고침',

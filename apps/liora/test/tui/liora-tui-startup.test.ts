@@ -1127,11 +1127,12 @@ describe('LioraTUI startup', () => {
         onDeviceCode: expect.any(Function),
       }),
     );
+    // The account-action picker defaults to refreshing the existing account.
     expect(harness.track).toHaveBeenCalledWith('login', {
       provider: 'managed:kimi-api',
       method: 'oauth',
       already_logged_in: true,
-      add_account: true,
+      add_account: false,
     });
   });
 
