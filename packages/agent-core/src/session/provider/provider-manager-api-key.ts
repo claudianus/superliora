@@ -45,7 +45,10 @@ export function providerApiKeyCredentials(provider: ProviderConfig): ApiKeyCrede
       ]);
     case 'code-assist':
     case 'codewhisperer':
-      // Google Code Assist / Kiro are OAuth-only; no credential pool to build.
+    case 'devin':
+    case 'factory-droid':
+      // Google Code Assist / Kiro / Devin / Factory Droid are OAuth-only; no
+      // credential pool to build.
       return [];
     case 'vertexai':
       return uniqueApiKeyCredentials([
@@ -150,7 +153,9 @@ function hasLegacyApiKeySource(provider: ProviderConfig): boolean {
       return nonEmptyString(provider.env?.['GOOGLE_API_KEY']) !== undefined;
     case 'code-assist':
     case 'codewhisperer':
-      // Google Code Assist / Kiro are OAuth-only; no static API-key source exists.
+    case 'devin':
+    case 'factory-droid':
+      // OAuth-only providers; no static API-key source exists.
       return false;
     case 'vertexai':
       return (
@@ -252,7 +257,9 @@ export function hasConfiguredApiKeySource(provider: ProviderConfig): boolean {
       return nonEmptyString(provider.env?.['GOOGLE_API_KEY']) !== undefined;
     case 'code-assist':
     case 'codewhisperer':
-      // Google Code Assist / Kiro are OAuth-only; no static API-key source exists.
+    case 'devin':
+    case 'factory-droid':
+      // OAuth-only providers; no static API-key source exists.
       return false;
     case 'vertexai':
       return (

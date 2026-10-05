@@ -23,6 +23,9 @@ export const DELETE_CONFIG_FIELD_PATHS = new Set<DeleteConfigFieldPath>([
 ]);
 const CONFIG_PATH_SEGMENT = /^[A-Za-z][A-Za-z0-9]*$/;
 const MODELS_PATH_PREFIX = 'models.';
+const PROVIDERS_PATH_PREFIX = 'providers.';
+/** Provider-scoped leaf fields that may be deleted via deleteConfigFields. */
+const PROVIDER_DELETABLE_FIELDS = new Set(['serviceTier']);
 
 // ---------------------------------------------------------------------------
 // deleteConfigFields
@@ -55,6 +58,25 @@ export function validateDeleteConfigFields(
         ErrorCodes.CONFIG_INVALID,
         'Config field deletion paths must be dot-delimited strings.',
       );
+    }
+
+    // `providers.<id>.<leaf>` allows whitelisted provider fields to be cleared;
+    // ids carry dashes, so only the leaf is charset-validated.
+    if (path.startsWith(PROVIDERS_PATH_PREFIX)) {
+      const providerPart = path.slice(PROVIDERS_PATH_PREFIX.length);
+      const lastDot = providerPart.lastIndexOf('.');
+      const providerId = lastDot === -1 ? providerPart : providerPart.slice(0, lastDot);
+      const leaf = lastDot === -1 ? '' : providerPart.slice(lastDot + 1);
+      const unquoted = providerId.replace(/^"(.*)"$/, '$1').trim();
+      if (
+        unquoted.length === 0 ||
+        unquoted.includes('__proto__') ||
+        unquoted.includes('constructor') ||
+        !PROVIDER_DELETABLE_FIELDS.has(leaf)
+      ) {
+        throw new LioraError(ErrorCodes.CONFIG_INVALID, `Unknown config field path "${path}".`);
+      }
+      return path as DeleteConfigFieldPath;
     }
 
     // `models.*` allows arbitrary alias keys (including slashes/dashes) — validate separately.
@@ -98,6 +120,17 @@ export function validateDeleteConfigFields(
 }
 
 function deleteConfigField(config: LioraConfig, path: DeleteConfigFieldPath): boolean {
+  if (path.startsWith(PROVIDERS_PATH_PREFIX)) {
+    const providerPart = path.slice(PROVIDERS_PATH_PREFIX.length);
+    const lastDot = providerPart.lastIndexOf('.');
+    const providerId = providerPart.slice(0, lastDot).replace(/^"(.*)"$/, '$1');
+    const leaf = providerPart.slice(lastDot + 1);
+    const provider = config.providers[providerId];
+    if (provider === undefined || !Object.hasOwn(provider, leaf)) return false;
+    delete provider[leaf as keyof typeof provider];
+    return true;
+  }
+
   if (path.startsWith(MODELS_PATH_PREFIX)) {
     const aliasPart = path.slice(MODELS_PATH_PREFIX.length);
     const alias = aliasPart.replace(/^"(.*)"$/, '$1');

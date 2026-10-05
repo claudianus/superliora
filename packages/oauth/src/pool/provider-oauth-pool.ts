@@ -90,6 +90,12 @@ export function mergeProviderOAuthLogin(
     readonly customHeaders?: Readonly<Record<string, string>> | undefined;
     /** Code Assist project id (Google Code Assist logins). */
     readonly project?: string | undefined;
+    /** Code Assist client identity marker (e.g. `antigravity`). */
+    readonly clientIdentity?: string | undefined;
+    /** Org id for org-scoped providers (Factory Droid `X-Factory-Org-Id`). */
+    readonly orgId?: string | undefined;
+    /** Account residency region selecting the API host (Factory Droid). */
+    readonly region?: string | undefined;
   } = {},
 ): Record<string, unknown> {
   const existing = isRecord(existingProvider) ? { ...existingProvider } : {};
@@ -125,6 +131,21 @@ export function mergeProviderOAuthLogin(
     next['project'] = options.project;
   } else {
     delete next['project'];
+  }
+  if (options.clientIdentity !== undefined) {
+    next['clientIdentity'] = options.clientIdentity;
+  } else {
+    delete next['clientIdentity'];
+  }
+  if (options.orgId !== undefined) {
+    next['orgId'] = options.orgId;
+  } else {
+    delete next['orgId'];
+  }
+  if (options.region !== undefined) {
+    next['region'] = options.region;
+  } else {
+    delete next['region'];
   }
   if (options.customHeaders !== undefined) {
     next['customHeaders'] = { ...options.customHeaders };

@@ -25,6 +25,20 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   zai: 'Z.AI',
   'github-copilot': 'GitHub Copilot',
   github_copilot: 'GitHub Copilot',
+  'google-gemini-cli': 'Gemini CLI',
+  'google-antigravity': 'Antigravity',
+  'gitlab-duo': 'GitLab Duo',
+  'glm-zcode': 'GLM ZCode',
+  kiro: 'Kiro',
+  'qwen-oauth': 'Qwen',
+  'minimax-oauth': 'MiniMax',
+  'minimax-oauth-cn': 'MiniMax (China)',
+  nous: 'Nous',
+  'openrouter-oauth': 'OpenRouter',
+  devin: 'Devin',
+  'muse-code': 'Muse Code',
+  kilo: 'Kilo',
+  'factory-droid': 'Factory Droid',
 };
 
 const PROVIDER_SHORT_NAMES: Readonly<Record<string, string>> = {
@@ -45,6 +59,20 @@ const PROVIDER_SHORT_NAMES: Readonly<Record<string, string>> = {
   zai: 'Z.AI',
   'github-copilot': 'Copilot',
   github_copilot: 'Copilot',
+  'google-gemini-cli': 'Gemini',
+  'google-antigravity': 'AG',
+  'gitlab-duo': 'Duo',
+  'glm-zcode': 'GLM',
+  kiro: 'Kiro',
+  'qwen-oauth': 'Qwen',
+  'minimax-oauth': 'MM',
+  'minimax-oauth-cn': 'MM',
+  nous: 'Nous',
+  'openrouter-oauth': 'OR',
+  devin: 'Devin',
+  'muse-code': 'Muse',
+  kilo: 'Kilo',
+  'factory-droid': 'Droid',
 };
 
 const SUBSCRIPTION_KEYS = new Set([
@@ -56,6 +84,20 @@ const SUBSCRIPTION_KEYS = new Set([
   'cursor-oauth',
   'github-copilot',
   'github_copilot',
+  'google-gemini-cli',
+  'google-antigravity',
+  'gitlab-duo',
+  'glm-zcode',
+  'kiro',
+  'qwen-oauth',
+  'minimax-oauth',
+  'minimax-oauth-cn',
+  'nous',
+  'openrouter-oauth',
+  'devin',
+  'muse-code',
+  'kilo',
+  'factory-droid',
 ]);
 
 const CREDITS_KEYS = new Set(['openrouter', 'deepseek', 'cline-pass', 'zai', 'zai-coding-plan']);

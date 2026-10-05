@@ -63,6 +63,16 @@ export type {
 export { packageForWire, registerWireProfile, resolveWireFromPackage, wireProfiles } from './providers/wire-registry';
 export type { WireProfile } from './providers/wire-registry';
 
+// Devin account provider: live model discovery (`GetCliModelConfigs`) is
+// surfaced for the OAuth connect flow; the chat provider itself is selected
+// via `createProvider` (type `devin`).
+export { fetchDevinModels } from './providers/devin';
+export type { DevinDiscoveredModel } from './providers/devin';
+// Factory Droid: no model-listing endpoint — the shipped registry is the
+// catalog the connect flow persists as model aliases.
+export { factoryDroidModels } from './providers/factory-droid';
+export type { FactoryDroidModelRoute } from './providers/factory-droid';
+
 // Core functions
 export {
   generate,

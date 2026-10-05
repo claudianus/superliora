@@ -281,8 +281,13 @@ describe('parseOAuthCallbackInput', () => {
     expect(result).toEqual({ code: 'abc123XYZ7890', state: 'xyz' });
   });
 
-  it('rejects a bare code without expectedState', () => {
-    expect(() => parseOAuthCallbackInput('abc123XYZ7890')).toThrow(/Could not parse/);
+  it('accepts a bare code for stateless flows (no expectedState issued)', () => {
+    // OpenRouter-style key mints return ?code= only; a manual paste of just
+    // the code is the legitimate SSH/remote path.
+    expect(parseOAuthCallbackInput('abc123XYZ7890')).toEqual({
+      code: 'abc123XYZ7890',
+      state: '',
+    });
   });
 
   it('rejects a mismatched state', () => {

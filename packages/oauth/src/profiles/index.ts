@@ -57,6 +57,16 @@ import {
   cursorAuthHeaders,
   resolveCursorClientVersion,
 } from './cursor';
+import {
+  DEVIN_API_BASE_URL,
+  DEVIN_PROFILE,
+  DEVIN_PROVIDER_ID,
+} from './devin';
+import {
+  FACTORY_DROID_PROFILE,
+  FACTORY_DROID_PROVIDER_ID,
+} from './factory-droid';
+import { KILO_PROFILE, KILO_PROVIDER_ID } from './kilo';
 import { KIMI_PROFILE } from './kimi';
 import {
   classifyGhAuthStatus,
@@ -74,10 +84,28 @@ import {
 } from './gitlab-duo';
 import { GLM_ZCODE_PROFILE } from './glm-zcode';
 import {
+  GOOGLE_ANTIGRAVITY_PROFILE,
+  GOOGLE_ANTIGRAVITY_PROVIDER_ID,
+} from './google-antigravity';
+import {
   GOOGLE_GEMINI_CLI_PROFILE,
   GOOGLE_GEMINI_CLI_PROVIDER_ID,
 } from './google-gemini-cli';
 import { KIRO_PROFILE, KIRO_PROVIDER_ID } from './kiro';
+import {
+  MINIMAX_OAUTH_CN_PROFILE,
+  MINIMAX_OAUTH_CN_PROVIDER_ID,
+  MINIMAX_OAUTH_PROFILE,
+  MINIMAX_OAUTH_PROVIDER_ID,
+} from './minimax-oauth';
+import { MUSE_CODE_PROFILE, MUSE_CODE_PROVIDER_ID } from './muse-code';
+import { NOUS_PROFILE, NOUS_PROVIDER_ID } from './nous';
+import { OPENROUTER_OAUTH_PROFILE, OPENROUTER_OAUTH_PROVIDER_ID } from './openrouter-oauth';
+import {
+  QWEN_OAUTH_PROFILE,
+  QWEN_OAUTH_PROVIDER_ID,
+  qwenResourceUrlToBaseUrl,
+} from './qwen-oauth';
 import { isOpenCodeZenBaseUrl, opencodeSessionHeaders } from './opencode';
 import { OPENAI_PROFILE } from './openai';
 import type { OAuthProviderId, ProviderProfile } from './provider-profile';
@@ -139,13 +167,35 @@ export const PROVIDER_PROFILES: readonly ProviderProfile[] = [
  * the matching flag is enabled, so the implementation ships ahead of any
  * policy/availability change without exposing it to users.
  */
-export const EXPERIMENTAL_PROVIDER_PROFILES: readonly { readonly profile: ProviderProfile; readonly flag: string }[] = [
+export interface ExperimentalProviderProfileEntry {
+  readonly profile: ProviderProfile;
+  readonly flag: string;
+  /**
+   * When true, the profile stays hidden unless the user explicitly sets the
+   * flag to on. Used for providers with third-party account-risk policies
+   * (GitHub Copilot manual-paste login, Google Antigravity).
+   */
+  readonly offByDefault?: boolean;
+}
+
+export const EXPERIMENTAL_PROVIDER_PROFILES: readonly ExperimentalProviderProfileEntry[] = [
   { profile: ANTHROPIC_PROFILE, flag: 'anthropic_oauth' },
   { profile: CURSOR_PROFILE, flag: 'cursor_oauth' },
-  { profile: GITHUB_COPILOT_PROFILE, flag: 'github_copilot' },
+  { profile: GITHUB_COPILOT_PROFILE, flag: 'github_copilot', offByDefault: true },
   { profile: GLM_ZCODE_PROFILE, flag: 'glm_zcode_oauth' },
   { profile: GOOGLE_GEMINI_CLI_PROFILE, flag: 'google_gemini_cli_oauth' },
+  // Google has banned accounts for third-party Antigravity logins — opt-in only.
+  { profile: GOOGLE_ANTIGRAVITY_PROFILE, flag: 'google_antigravity_oauth', offByDefault: true },
   { profile: KIRO_PROFILE, flag: 'kiro_oauth' },
+  { profile: DEVIN_PROFILE, flag: 'devin_oauth' },
+  { profile: QWEN_OAUTH_PROFILE, flag: 'qwen_oauth' },
+  { profile: MINIMAX_OAUTH_PROFILE, flag: 'minimax_oauth' },
+  { profile: MINIMAX_OAUTH_CN_PROFILE, flag: 'minimax_oauth' },
+  { profile: NOUS_PROFILE, flag: 'nous_oauth' },
+  { profile: OPENROUTER_OAUTH_PROFILE, flag: 'openrouter_oauth' },
+  { profile: MUSE_CODE_PROFILE, flag: 'muse_code_oauth' },
+  { profile: KILO_PROFILE, flag: 'kilo_oauth' },
+  { profile: FACTORY_DROID_PROFILE, flag: 'factory_droid_oauth' },
 ];
 
 /** All profiles (always-on + experimental), for id-based lookup. */
@@ -232,11 +282,33 @@ export {
   GITLAB_DUO_OAUTH_HOST,
   GITLAB_DUO_PROFILE,
   GITLAB_DUO_SCOPE,
+  DEVIN_API_BASE_URL,
+  DEVIN_PROFILE,
+  DEVIN_PROVIDER_ID,
+  FACTORY_DROID_PROFILE,
+  FACTORY_DROID_PROVIDER_ID,
+  KILO_PROFILE,
+  KILO_PROVIDER_ID,
+  MUSE_CODE_PROFILE,
+  MUSE_CODE_PROVIDER_ID,
   GLM_ZCODE_PROFILE,
+  GOOGLE_ANTIGRAVITY_PROFILE,
+  GOOGLE_ANTIGRAVITY_PROVIDER_ID,
   GOOGLE_GEMINI_CLI_PROFILE,
   GOOGLE_GEMINI_CLI_PROVIDER_ID,
   KIRO_PROFILE,
   KIRO_PROVIDER_ID,
+  MINIMAX_OAUTH_CN_PROFILE,
+  MINIMAX_OAUTH_CN_PROVIDER_ID,
+  MINIMAX_OAUTH_PROFILE,
+  MINIMAX_OAUTH_PROVIDER_ID,
+  NOUS_PROFILE,
+  NOUS_PROVIDER_ID,
+  OPENROUTER_OAUTH_PROFILE,
+  OPENROUTER_OAUTH_PROVIDER_ID,
+  QWEN_OAUTH_PROFILE,
+  QWEN_OAUTH_PROVIDER_ID,
+  qwenResourceUrlToBaseUrl,
   isOpenCodeZenBaseUrl,
   isXaiGrokApiBaseUrl,
   isXaiGrokBuildBaseUrl,

@@ -235,8 +235,10 @@ export async function startCallbackServer(
       // forged request must not be able to cancel a legitimate attempt.
       res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Unexpected OAuth state.');
-    } else if (code !== null && state !== null) {
-      pendingResolve?.({ code, state });
+    } else if (code !== null && (state !== null || expectedState === undefined)) {
+      // Stateless providers (OpenRouter's PKCE key mint) redirect with only
+      // `?code=` — accept code-only callbacks when no state was issued.
+      pendingResolve?.({ code, state: state ?? '' });
       pendingResolve = undefined;
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(SUCCESS_PAGE);
@@ -356,6 +358,9 @@ export function parseOAuthCallbackInput(
     if (code === null || code.length === 0) return undefined;
     const state = params.get('state') ?? expectedState;
     if (state === undefined || state.length === 0) {
+      // Providers that don't echo `state` (OpenRouter key mint) still allow a
+      // bare `?code=` callback paste when this login issued no state.
+      if (expectedState === undefined) return { code, state: '' };
       throw new OAuthError(
         'Pasted OAuth callback is missing state. Paste the full callback URL.',
       );
@@ -388,17 +393,12 @@ export function parseOAuthCallbackInput(
     if (parsed !== undefined) return parsed;
   }
 
-  // Bare authorization code. Requires the expected state from the local flow.
-  // Keep this strict so free-form invalid pastes re-prompt instead of being
-  // treated as a code: no whitespace / query markers, and a minimum length.
-  if (
-    expectedState !== undefined &&
-    expectedState.length > 0 &&
-    trimmed.length >= 12 &&
-    !/\s/.test(trimmed) &&
-    !/[?&=]/.test(trimmed)
-  ) {
-    return { code: trimmed, state: expectedState };
+  // Bare authorization code. Requires the expected state from the local flow
+  // (or a stateless flow). Keep this strict so free-form invalid pastes
+  // re-prompt instead of being treated as a code: no whitespace / query
+  // markers, and a minimum length.
+  if (trimmed.length >= 12 && !/\s/.test(trimmed) && !/[?&=]/.test(trimmed)) {
+    return { code: trimmed, state: expectedState ?? '' };
   }
 
   throw new OAuthError(

@@ -103,6 +103,78 @@ describe('buildProviderCatalogOptions', () => {
     }
   });
 
+  it('exposes the new subscription OAuth providers behind on-by-default flags', () => {
+    const values = buildProviderCatalogOptions(makeCatalog()).map((o) => o.value);
+    for (const id of [
+      'oauth:qwen-oauth',
+      'oauth:minimax-oauth',
+      'oauth:minimax-oauth-cn',
+      'oauth:nous',
+      'oauth:openrouter-oauth',
+    ]) {
+      expect(values).toContain(id);
+    }
+    // Antigravity defaults off — Google restricts third-party logins.
+    expect(values).not.toContain('oauth:google-antigravity');
+  });
+
+  it('makes Antigravity selectable only with explicit opt-in', () => {
+    for (const value of ['1', 'true', 'yes', ' ON ']) {
+      vi.stubEnv('SUPERLIORA_EXPERIMENTAL_GOOGLE_ANTIGRAVITY_OAUTH', value);
+      const values = buildProviderCatalogOptions(makeCatalog()).map((o) => o.value);
+      expect(values).toContain('oauth:google-antigravity');
+      expect(resolveProviderSelection('oauth:google-antigravity')).toEqual({
+        kind: 'oauth',
+        providerId: 'google-antigravity',
+      });
+    }
+    for (const value of [undefined, '0', 'false', 'no', ' OFF ']) {
+      vi.stubEnv('SUPERLIORA_EXPERIMENTAL_GOOGLE_ANTIGRAVITY_OAUTH', value);
+      const values = buildProviderCatalogOptions(makeCatalog()).map((o) => o.value);
+      expect(values).not.toContain('oauth:google-antigravity');
+    }
+  });
+
+  it('maps OAuth rows onto their catalog ids for model counts', () => {
+    const catalog = {
+      ...makeCatalog(),
+      openrouter: {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        api: 'https://openrouter.ai/api/v1',
+        env: ['OPENROUTER_API_KEY'],
+        models: {
+          'anthropic/claude-sonnet-4.5': {
+            id: 'anthropic/claude-sonnet-4.5',
+            limit: { context: 1000000 },
+          },
+          'openai/gpt-5.2': { id: 'openai/gpt-5.2', limit: { context: 400000 } },
+        },
+      },
+      minimax: {
+        id: 'minimax',
+        name: 'MiniMax',
+        api: 'https://api.minimax.io/anthropic/v1',
+        env: ['MINIMAX_API_KEY'],
+        models: {
+          'MiniMax-M3': { id: 'MiniMax-M3', limit: { context: 1048576 } },
+        },
+      },
+    };
+    const options = buildProviderCatalogOptions(catalog as unknown as Catalog);
+    // Profile presets carry the picker count; catalog mapping governs the
+    // connect-time model list (resolveOAuthProviderModels prefers catalog).
+    const openrouter = options.find((o) => o.value === 'oauth:openrouter-oauth');
+    expect(openrouter?.modelCount).toBe(3);
+    const minimax = options.find((o) => o.value === 'oauth:minimax-oauth');
+    expect(minimax?.modelCount).toBe(2);
+    // No catalog entry: presets carry the count.
+    const qwen = options.find((o) => o.value === 'oauth:qwen-oauth');
+    expect(qwen?.modelCount).toBe(4);
+    const nous = options.find((o) => o.value === 'oauth:nous');
+    expect(nous?.modelCount).toBe(2);
+  });
+
   it('merges OAuth providers, catalog providers, and escape hatches', () => {
     const options = buildProviderCatalogOptions(makeCatalog());
     const values = options.map((o) => o.value);

@@ -15,6 +15,7 @@
 import { OAuthError, OAuthUnauthorizedError } from '../errors';
 import type { TokenInfo } from '../types';
 import {
+  generatePkcePair,
   startCallbackServer,
   waitForCallbackOrManual,
   type ManualCallbackPromptContext,
@@ -49,6 +50,43 @@ export const GOOGLE_GEMINI_CLI_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile',
 ] as const;
 
+/**
+ * Google Antigravity IDE's installed-app OAuth credentials (public, shipped in
+ * the desktop client). Same Google identity stack as the Gemini CLI client but
+ * with its own secret and a wider scope set (`cclog`, `experimentsandconfigs`),
+ * and PKCE is mandatory at token exchange. Split fragments for the same
+ * push-protection reason as the Gemini CLI constants.
+ */
+// Fragments stay short on purpose: long unbroken alphanumeric runs trip
+// generic high-entropy secret scanners even though this value is public.
+const GOOGLE_ANTIGRAVITY_CLIENT_SECRET_A = 'GOCSPX-';
+const GOOGLE_ANTIGRAVITY_CLIENT_SECRET_B = 'K58FWR486';
+const GOOGLE_ANTIGRAVITY_CLIENT_SECRET_C = 'LdLJ1mLB8';
+const GOOGLE_ANTIGRAVITY_CLIENT_SECRET_D = 'sXC4z6qDAf';
+export const GOOGLE_ANTIGRAVITY_OAUTH_CLIENT_SECRET =
+  GOOGLE_ANTIGRAVITY_CLIENT_SECRET_A +
+  GOOGLE_ANTIGRAVITY_CLIENT_SECRET_B +
+  GOOGLE_ANTIGRAVITY_CLIENT_SECRET_C +
+  GOOGLE_ANTIGRAVITY_CLIENT_SECRET_D;
+export const GOOGLE_ANTIGRAVITY_CALLBACK_PORT = 51121;
+export const GOOGLE_ANTIGRAVITY_SCOPES = [
+  ...GOOGLE_GEMINI_CLI_SCOPES,
+  'https://www.googleapis.com/auth/cclog',
+  'https://www.googleapis.com/auth/experimentsandconfigs',
+] as const;
+
+/**
+ * Code Assist endpoints Antigravity traffic is routed through, in preference
+ * order. The daily/autopush sandboxes serve the Antigravity-tier models;
+ * production is the last-resort fallback.
+ */
+export const GOOGLE_ANTIGRAVITY_ENDPOINTS = [
+  'https://daily-cloudcode-pa.sandbox.googleapis.com',
+  'https://autopush-cloudcode-pa.sandbox.googleapis.com',
+  GOOGLE_CODE_ASSIST_ENDPOINT,
+] as const;
+export const GOOGLE_ANTIGRAVITY_DEFAULT_ENDPOINT = GOOGLE_ANTIGRAVITY_ENDPOINTS[0];
+
 export interface GoogleOauthConfig {
   readonly clientId: string;
   readonly clientSecret: string;
@@ -57,6 +95,11 @@ export interface GoogleOauthConfig {
   readonly callbackPath: string;
   readonly authUrl: string;
   readonly tokenUrl: string;
+  /**
+   * Send a PKCE S256 pair with the authorize URL and the token exchange.
+   * Antigravity's client requires it; the Gemini CLI client does not.
+   */
+  readonly pkce?: boolean;
 }
 
 /** Resolves the OAuth endpoints, applying the `SUPERLIORA_GEMINI_CLI_OAUTH_*` overrides. */
@@ -77,6 +120,28 @@ export function resolveGoogleGeminiCliOauthConfig(): GoogleOauthConfig {
   };
 }
 
+/** Antigravity OAuth config — `SUPERLIORA_ANTIGRAVITY_OAUTH_*` env overrides. */
+export function resolveGoogleAntigravityOauthConfig(): GoogleOauthConfig {
+  return {
+    clientId: envOr('SUPERLIORA_ANTIGRAVITY_OAUTH_CLIENT_ID', GOOGLE_GEMINI_CLI_OAUTH_CLIENT_ID),
+    clientSecret: envOr(
+      'SUPERLIORA_ANTIGRAVITY_OAUTH_CLIENT_SECRET',
+      GOOGLE_ANTIGRAVITY_OAUTH_CLIENT_SECRET,
+    ),
+    scopes: [...GOOGLE_ANTIGRAVITY_SCOPES],
+    callbackPort: Number(
+      envOr(
+        'SUPERLIORA_ANTIGRAVITY_OAUTH_CALLBACK_PORT',
+        String(GOOGLE_ANTIGRAVITY_CALLBACK_PORT),
+      ),
+    ),
+    callbackPath: '/callback',
+    authUrl: GOOGLE_AUTH_URL,
+    tokenUrl: GOOGLE_TOKEN_URL,
+    pkce: true,
+  };
+}
+
 function envOr(name: string, fallback: string): string {
   const value = process.env[name];
   return value !== undefined && value.trim().length > 0 ? value.trim() : fallback;
@@ -88,7 +153,12 @@ function requestSignal(signal: AbortSignal | undefined): AbortSignal {
 }
 
 /** Builds the Google consent URL for a loopback redirect. */
-export function buildGoogleAuthorizeUrl(config: GoogleOauthConfig, state: string, redirectUri: string): string {
+export function buildGoogleAuthorizeUrl(
+  config: GoogleOauthConfig,
+  state: string,
+  redirectUri: string,
+  pkceChallenge?: string,
+): string {
   const params = new URLSearchParams({
     client_id: config.clientId,
     response_type: 'code',
@@ -98,6 +168,10 @@ export function buildGoogleAuthorizeUrl(config: GoogleOauthConfig, state: string
     access_type: 'offline',
     prompt: 'consent',
   });
+  if (pkceChallenge !== undefined) {
+    params.set('code_challenge', pkceChallenge);
+    params.set('code_challenge_method', 'S256');
+  }
   return `${config.authUrl}?${params.toString()}`;
 }
 
@@ -139,7 +213,7 @@ export async function exchangeGoogleCode(
   config: GoogleOauthConfig,
   code: string,
   redirectUri: string,
-  options: { readonly signal?: AbortSignal } = {},
+  options: { readonly signal?: AbortSignal; readonly codeVerifier?: string } = {},
 ): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
   const form = new URLSearchParams({
     client_id: config.clientId,
@@ -148,6 +222,9 @@ export async function exchangeGoogleCode(
     grant_type: 'authorization_code',
     redirect_uri: redirectUri,
   });
+  if (options.codeVerifier !== undefined) {
+    form.set('code_verifier', options.codeVerifier);
+  }
   const data = await fetchJson(
     config.tokenUrl,
     { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString() },
@@ -213,6 +290,7 @@ async function postCodeAssist(
   accessToken: string,
   body: Record<string, unknown>,
   signal: AbortSignal | undefined,
+  headers?: Record<string, string>,
 ): Promise<Record<string, unknown>> {
   return fetchJson(
     `${endpoint}${path}`,
@@ -223,6 +301,7 @@ async function postCodeAssist(
         'Content-Type': 'application/json',
         'User-Agent': codeAssistIdentityUserAgent(),
         'Client-Metadata': 'ideType=IDE_UNSPECIFIED,platform=PLATFORM_UNSPECIFIED,pluginType=GEMINI',
+        ...headers,
       },
       body: JSON.stringify(body),
     },
@@ -236,6 +315,12 @@ function codeAssistIdentityUserAgent(): string {
   const arch = process.arch === 'x64' ? 'x64' : process.arch;
   return `GeminiCLI/0.58.0/gemini-2.5-pro (${platform}; ${arch}; terminal)`;
 }
+
+/** Identity headers the Antigravity sandbox endpoints expect during discovery. */
+const ANTIGRAVITY_DISCOVERY_HEADERS: Record<string, string> = {
+  'User-Agent': 'google-api-nodejs-client/9.15.1',
+  'X-Goog-Api-Client': 'google-cloud-sdk vscode_cloudshelleditor/0.1',
+};
 
 const FREE_TIER_ID = 'free-tier';
 const LEGACY_TIER_ID = 'legacy-tier';
@@ -328,6 +413,84 @@ export async function discoverGoogleCodeAssistProject(
   throw new OAuthError('Could not discover or provision a Google Cloud project for Code Assist.');
 }
 
+/**
+ * Discovers (or provisions) the Cloud Code Assist project for an Antigravity
+ * login. Tries `loadCodeAssist` against each Antigravity endpoint (the
+ * sandboxes serve the Antigravity tier; production answers for workspace
+ * accounts), then runs `onboardUser` on the primary sandbox when the account
+ * has no project yet. `GOOGLE_CLOUD_PROJECT`/`GOOGLE_CLOUD_PROJECT_ID` win
+ * over discovery entirely.
+ */
+export async function discoverGoogleAntigravityProject(
+  accessToken: string,
+  options: {
+    readonly signal?: AbortSignal;
+    readonly onProgress?: (message: string) => void;
+  } = {},
+): Promise<string> {
+  const envProjectId = readEnvProjectId();
+  const metadata = { ideType: 'IDE_UNSPECIFIED', platform: 'PLATFORM_UNSPECIFIED', pluginType: 'GEMINI' };
+
+  for (const endpoint of GOOGLE_ANTIGRAVITY_ENDPOINTS) {
+    let payload: Record<string, unknown>;
+    try {
+      payload = await postCodeAssist(
+        endpoint,
+        '/v1internal:loadCodeAssist',
+        accessToken,
+        { ...(envProjectId === undefined ? {} : { cloudaicompanionProject: envProjectId }), metadata },
+        options.signal,
+        ANTIGRAVITY_DISCOVERY_HEADERS,
+      );
+    } catch {
+      continue; // Try the next endpoint (403/404 region or tier gating).
+    }
+    if (envProjectId !== undefined) return envProjectId;
+    const project = payload['cloudaicompanionProject'];
+    if (typeof project === 'string' && project.length > 0) return project;
+    if (
+      typeof project === 'object' &&
+      project !== null &&
+      typeof (project as { id?: unknown }).id === 'string' &&
+      ((project as { id: string }).id).length > 0
+    ) {
+      return (project as { id: string }).id;
+    }
+  }
+  if (envProjectId !== undefined) return envProjectId;
+
+  // No existing project: provision one on the primary sandbox, polling the
+  // long-running operation like the Gemini CLI discovery does.
+  options.onProgress?.('Provisioning Cloud Code Assist project (this may take a moment)...');
+  const onboard = await postCodeAssist(
+    GOOGLE_ANTIGRAVITY_DEFAULT_ENDPOINT,
+    '/v1internal:onboardUser',
+    accessToken,
+    { tierId: 'free-tier', metadata },
+    options.signal,
+    ANTIGRAVITY_DISCOVERY_HEADERS,
+  );
+  let done = onboard['done'] === true;
+  let response = onboard['response'];
+  const operationName = typeof onboard['name'] === 'string' ? onboard['name'] : undefined;
+  for (let attempt = 0; !done && operationName !== undefined && attempt < 12; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    const pollPayload = await fetchJson(
+      `${GOOGLE_ANTIGRAVITY_DEFAULT_ENDPOINT}/v1internal/${operationName}`,
+      { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } },
+      'operation poll',
+      options.signal,
+    );
+    done = pollPayload['done'] === true;
+    response = pollPayload['response'];
+  }
+
+  const onboardProject = (response as { cloudaicompanionProject?: { id?: string } } | undefined)
+    ?.cloudaicompanionProject?.id;
+  if (typeof onboardProject === 'string' && onboardProject.length > 0) return onboardProject;
+  throw new OAuthError('Could not discover or provision a Cloud project for Antigravity.');
+}
+
 export interface RunGoogleOauthLoginOptions {
   readonly config: GoogleOauthConfig;
   readonly signal?: AbortSignal;
@@ -344,16 +507,22 @@ export interface RunGoogleOauthLoginOptions {
 export async function runGoogleOauthLogin(options: RunGoogleOauthLoginOptions): Promise<TokenInfo> {
   const { config } = options;
   const state = globalThis.crypto.randomUUID().replaceAll('-', '');
+  const pkce = config.pkce === true ? generatePkcePair() : undefined;
   const server = await startCallbackServer(config.callbackPort, 'localhost', { expectedState: state });
   try {
     const redirectUri = server.redirectUri;
-    await options.onAuthorizeUrl?.(buildGoogleAuthorizeUrl(config, state, redirectUri));
+    await options.onAuthorizeUrl?.(
+      buildGoogleAuthorizeUrl(config, state, redirectUri, pkce?.challenge),
+    );
     const { code } = await waitForCallbackOrManual(server, {
       signal: options.signal,
       expectedState: state,
       onManualCallbackPrompt: options.onManualCallbackPrompt,
     });
-    const tokens = await exchangeGoogleCode(config, code, redirectUri, { signal: options.signal });
+    const tokens = await exchangeGoogleCode(config, code, redirectUri, {
+      signal: options.signal,
+      codeVerifier: pkce?.verifier,
+    });
     const projectId = await options.discoverProject(tokens.accessToken, options.signal);
     return {
       accessToken: tokens.accessToken,

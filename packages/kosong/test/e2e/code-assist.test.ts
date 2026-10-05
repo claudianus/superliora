@@ -56,6 +56,52 @@ describe('CodeAssistChatProvider', () => {
     expect(body.request.systemInstruction.parts[0]?.text).toBe('You are helpful.');
   });
 
+  it('emits the Antigravity agent envelope when clientIdentity is antigravity', async () => {
+    const fetchMock = vi.fn(async () => sseResponse([geminiChunk('ok')]));
+    const provider = new CodeAssistChatProvider({
+      model: 'gemini-3-pro-high',
+      clientIdentity: 'antigravity',
+      clientFactory: () => ({
+        baseUrl: 'https://daily-cloudcode-pa.example.test',
+        project: 'ag-proj',
+        fetch: fetchMock as unknown as typeof fetch,
+      }),
+    });
+    const streamed = await provider.generate('sys', [], [
+      { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+    ], { auth: { apiKey: 'oauth-tok' } });
+    for await (const part of streamed) void part;
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body['requestType']).toBe('agent');
+    expect(body['userAgent']).toBe('antigravity');
+    expect(String(body['requestId'])).toMatch(/^agent-/);
+    expect(body['project']).toBe('ag-proj');
+  });
+
+  it('omits the agent envelope for the production Code Assist path', async () => {
+    const fetchMock = vi.fn(async () => sseResponse([geminiChunk('ok')]));
+    const provider = new CodeAssistChatProvider({
+      model: 'gemini-2.5-pro',
+      clientFactory: () => ({
+        baseUrl: 'https://cloudcode-pa.example.test',
+        project: 'proj-1',
+        fetch: fetchMock as unknown as typeof fetch,
+      }),
+    });
+    const streamed = await provider.generate('sys', [], [
+      { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+    ], { auth: { apiKey: 'oauth-tok' } });
+    for await (const part of streamed) void part;
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body['requestType']).toBeUndefined();
+    expect(body['userAgent']).toBeUndefined();
+    expect(body['requestId']).toBeUndefined();
+  });
+
   it('throws a descriptive error on non-200 responses', async () => {
     const provider = new CodeAssistChatProvider({
       model: 'gemini-2.5-pro',

@@ -13,6 +13,8 @@ import { GoogleGenAIChatProvider, type GoogleGenAIOptions } from './google-genai
 import { KimiChatProvider, type LioraOptions } from './kimi';
 import { KiroCodeWhispererChatProvider, type KiroCodeWhispererOptions } from './kiro/codewhisperer';
 import { CursorChatProvider, type CursorOptions } from '#/providers/cursor/index';
+import { DevinChatProvider, type DevinOptions } from './devin';
+import { FactoryDroidChatProvider, type FactoryDroidOptions } from './factory-droid';
 import { OpenAILegacyChatProvider, type OpenAILegacyOptions } from '#/providers/openai-legacy/index';
 import { OpenAIResponsesChatProvider, type OpenAIResponsesOptions } from './openai-responses';
 import { VertexClaudeChatProvider, type VertexClaudeOptions } from './vertex-claude';
@@ -28,7 +30,9 @@ export type ProviderConfig =
   | ({ type: 'codewhisperer' } & KiroCodeWhispererOptions)
   | ({ type: 'bedrock' } & BedrockOptions)
   | ({ type: 'vertex_claude' } & VertexClaudeOptions)
-  | ({ type: 'cursor' } & CursorOptions);
+  | ({ type: 'cursor' } & CursorOptions)
+  | ({ type: 'devin' } & DevinOptions)
+  | ({ type: 'factory-droid' } & FactoryDroidOptions);
 
 export type ProviderType = ProviderConfig['type'];
 
@@ -56,6 +60,10 @@ export function createProvider(config: ProviderConfig): ChatProvider {
       return new VertexClaudeChatProvider(config);
     case 'cursor':
       return new CursorChatProvider(config);
+    case 'devin':
+      return new DevinChatProvider(config);
+    case 'factory-droid':
+      return new FactoryDroidChatProvider(config);
     default: {
       const exhaustive: never = config;
       throw new Error(`Unknown provider type: ${String(exhaustive)}`);
@@ -88,7 +96,10 @@ export function getModelCapability(wire: ProviderType, modelName: string): Model
     case 'kimi':
     case 'cursor':
     case 'codewhisperer':
-      // Host catalogs (models.dev / Cursor AvailableModels) own these wires.
+    case 'devin':
+    case 'factory-droid':
+      // Host catalogs (models.dev / Cursor AvailableModels / Devin CLI model
+      // configs / Factory's shipped roster) own these wires.
       return UNKNOWN_CAPABILITY;
     default: {
       const exhaustive: never = wire;

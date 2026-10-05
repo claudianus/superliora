@@ -38,6 +38,8 @@ export {
   registerWireProfile,
   resolveWireFromPackage,
   wireProfiles,
+  factoryDroidModels,
+  fetchDevinModels,
 } from '#/catalog';
 export type {
   ApplyCatalogProviderOptions,
@@ -47,6 +49,8 @@ export type {
   CatalogProviderEntry,
   CatalogReasoningOption,
   CatalogWireGroup,
+  DevinDiscoveredModel,
+  FactoryDroidModelRoute,
   WireProfile,
 } from '#/catalog';
 

@@ -20,6 +20,7 @@ import {
 } from './completion-specs';
 import { transcriptArgumentCompletions } from '../session/transcript';
 import { neatArgumentCompletions } from '../session/neat';
+import { fastArgumentCompletions } from '../config/fast';
 
 function slashDesc(name: string): string {
   return ttui(`tui.slash.${name}`);
@@ -41,6 +42,15 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     priority: 100,
     argumentHint: '[off|on|low|medium|high|xhigh|max]',
     completeArgs: thinkingArgumentCompletions,
+    availability: 'idle-only',
+  },
+  {
+    name: 'fast',
+    aliases: [],
+    description: slashDesc('fast'),
+    priority: 70,
+    argumentHint: '[on|off|status]',
+    completeArgs: fastArgumentCompletions,
     availability: 'idle-only',
   },
   {

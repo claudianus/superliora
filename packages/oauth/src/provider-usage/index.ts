@@ -121,7 +121,7 @@ async function fetchProviderUsageUncached(
   if (providerKey === 'cursor-oauth') {
     return fetchCursorUsage(providerKey, accessToken, baseUrl, opts);
   }
-  if (providerKey === 'openrouter') {
+  if (providerKey === 'openrouter' || providerKey === 'openrouter-oauth') {
     return fetchOpenRouterUsage(providerKey, accessToken, baseUrl, opts);
   }
   if (providerKey === 'deepseek') {

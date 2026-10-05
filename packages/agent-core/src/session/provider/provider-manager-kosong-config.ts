@@ -76,7 +76,12 @@ export function toKosongProviderConfig(
         apiKey: providerApiKey(provider),
         reasoningKey,
         // Sticky prompt-cache routing for OpenAI-compatible endpoints (xAI Grok).
-        generationKwargs: { prompt_cache_key: promptCacheKey },
+        generationKwargs: {
+          prompt_cache_key: promptCacheKey,
+          ...(provider.serviceTier !== undefined && provider.serviceTier.length > 0
+            ? { service_tier: provider.serviceTier }
+            : {}),
+        },
         ...defaultHeadersField(openaiProviderHeaders(provider, model, promptCacheKey)),
       };
     case 'kimi':
@@ -107,6 +112,9 @@ export function toKosongProviderConfig(
         ...(typeof provider.project === 'string' && provider.project.length > 0
           ? { project: provider.project }
           : {}),
+        ...(typeof provider.clientIdentity === 'string' && provider.clientIdentity.length > 0
+          ? { clientIdentity: provider.clientIdentity }
+          : {}),
         ...defaultHeadersField(provider.customHeaders),
       };
     case 'openai_responses': {
@@ -118,7 +126,12 @@ export function toKosongProviderConfig(
         model,
         baseUrl,
         apiKey: providerApiKey(provider),
-        generationKwargs: { prompt_cache_key: promptCacheKey },
+        generationKwargs: {
+          prompt_cache_key: promptCacheKey,
+          ...(provider.serviceTier !== undefined && provider.serviceTier.length > 0
+            ? { service_tier: provider.serviceTier }
+            : {}),
+        },
         ...defaultHeadersField(
           withOpenCodeSessionHeaders([baseUrl, provider.baseUrl], promptCacheKey, provider.customHeaders),
         ),
@@ -184,6 +197,30 @@ export function toKosongProviderConfig(
           firstCredentialBaseUrlWhenPrimary(provider) ??
           providerValue(provider.baseUrl, provider.env, 'CURSOR_AGENT_BASE_URL', 'provider base_url'),
         apiKey: providerApiKey(provider),
+        ...defaultHeadersField(provider.customHeaders),
+      };
+    case 'devin':
+      return {
+        type: 'devin',
+        model,
+        baseUrl: providerValue(provider.baseUrl, provider.env, 'DEVIN_BASE_URL', 'provider base_url'),
+        apiKey: providerApiKey(provider),
+        ...(maxOutputSize !== undefined ? { defaultMaxTokens: maxOutputSize } : {}),
+      };
+    case 'factory-droid':
+      return {
+        type: 'factory-droid',
+        model,
+        apiKey: providerApiKey(provider),
+        ...(provider.baseUrl !== undefined && provider.baseUrl.length > 0
+          ? { baseUrl: provider.baseUrl }
+          : {}),
+        ...(provider.region !== undefined && provider.region.length > 0
+          ? { region: provider.region }
+          : {}),
+        ...(provider.orgId !== undefined && provider.orgId.length > 0
+          ? { orgId: provider.orgId }
+          : {}),
         ...defaultHeadersField(provider.customHeaders),
       };
     default: {
