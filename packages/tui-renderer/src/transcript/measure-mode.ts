@@ -145,7 +145,7 @@ export function estimateTranscriptWrappedRowCount(
         // CSI: ESC [ + params (0x30–0x3F) + intermediates (0x20–0x2F) + final.
         i += 1;
         while (i < text.length) {
-          const c = text.codePointAt(i);
+          const c = text.codePointAt(i) ?? -1;
           i += 1;
           if (c >= 0x40 && c <= 0x7e) break;
         }
@@ -153,7 +153,7 @@ export function estimateTranscriptWrappedRowCount(
         // OSC: ESC ] + payload + BEL or ST (ESC \).
         i += 1;
         while (i < text.length) {
-          const c = text.codePointAt(i);
+          const c = text.codePointAt(i) ?? -1;
           i += 1;
           if (c === 0x07) break;
           if (c === 0x1b && i < text.length && text.codePointAt(i) === 0x5c) {
@@ -164,7 +164,7 @@ export function estimateTranscriptWrappedRowCount(
       } else {
         // Fe/nF escape: intermediates (0x20–0x2F)* then one final byte.
         while (i < text.length) {
-          const c = text.codePointAt(i);
+          const c = text.codePointAt(i) ?? -1;
           if (c >= 0x20 && c <= 0x2f) {
             i += 1;
             continue;
