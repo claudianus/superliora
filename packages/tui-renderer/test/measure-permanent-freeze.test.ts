@@ -30,6 +30,8 @@ import {
  */
 const MEASURE_MUST_BE_AT_LEAST = 10;
 
+const gradientChar = (c: string) => `\x1B[0;1;38;2;61;155;255;48;2;11;15;20m${c}`;
+
 function measureMustBeatFull(measureMs: number, fullMs: number): void {
   expect(measureMs).toBeLessThan(fullMs / MEASURE_MUST_BE_AT_LEAST);
 }
@@ -55,6 +57,45 @@ describe('permanent freeze guards (measure + interactive scroll)', () => {
     const heavierMs = performance.now() - h0;
     mustScaleSubQuadratically(ms, heavierMs);
     expect(measurePlaceholderLines(rows).length).toBe(rows);
+  });
+
+  it('estimateTranscriptWrappedRowCount skips CSI params, not just the introducer', () => {
+    // Regression: ESC [ already ends the escape-scan range, so parameter bytes
+    // like `38;2;…m` were counted as visible columns. Per-char styled labels
+    // (gradient loaders carrying a URL) measure ~30x tall — enough phantom
+    // rows to push the painted window off every real transcript row.
+    const label = 'Opening browser to authorize\nvisit:\n' + 'x'.repeat(200);
+    const styled = label.split('').map(gradientChar).join('') + '\x1B[0m';
+    expect(styled.length).toBeGreaterThan(8_000);
+
+    const truth = new Text(styled, 0, 0).render(100).length;
+    const estimate = estimateTranscriptWrappedRowCount(styled, 100, 0);
+    expect(estimate).toBeLessThanOrEqual(truth + 2);
+    expect(estimate).toBeGreaterThanOrEqual(truth);
+
+    // OSC hyperlinks terminate on BEL / ST — payload must not count either.
+    const linked = `\x1B]8;;https://example.com\x1B\\link text\x1B]8;;\x1B\\`;
+    expect(estimateTranscriptWrappedRowCount(linked, 40, 0)).toBe(1);
+  });
+
+  it('viewport does not scroll past ANSI-heavy children whose measure is short', () => {
+    const label = 'Opening browser to authorize\nvisit:\n' + 'x'.repeat(200);
+    const styled = label.split('').map(gradientChar).join('') + '\x1B[0m';
+
+    const viewport = new RendererTranscriptViewport();
+    const transcript = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 10,
+    });
+    transcript.addChild(new Text('head', 0, 0));
+    transcript.addChild(new Text(styled, 0, 0));
+    transcript.addChild(new Text('tail-visible', 0, 0));
+
+    const painted = transcript.render(60);
+    // Phantom geometry used to pin the follow-bottom window inside the
+    // inflated child slot — every painted row came out blank.
+    expect(painted.some((line) => line.includes('tail-visible'))).toBe(true);
+    expect(transcript.contentRowCount(60)).toBeLessThanOrEqual(10);
   });
 
   it('Text under measure mode does not full-wrap multi-k bodies', () => {

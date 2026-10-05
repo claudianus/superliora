@@ -125,20 +125,55 @@ export function estimateTranscriptWrappedRowCount(
   let rows = 0;
   let lineLen = 0;
   for (let i = 0; i < text.length; i++) {
-    const ch = text.charCodeAt(i);
+    const ch = text.codePointAt(i);
     if (ch === 10 /* \n */) {
       rows += Math.max(1, Math.ceil(lineLen / width));
       lineLen = 0;
       continue;
     }
-    // Skip CSI-ish escapes roughly so ANSI dumps do not inflate estimates.
+    // Skip ANSI escapes so styled bodies do not inflate estimates. The skip
+    // must consume the sequence introducer itself: for CSI (`ESC [`) the `[`
+    // is already inside the final-byte range [0x40,0x7E], so scanning for the
+    // first in-range byte stops on `[` and counts every parameter byte as
+    // visible text. Per-char styled labels (gradient loaders with URLs) are
+    // ~30x raw-to-visible — they measured as 100+ phantom rows and pushed the
+    // real paint window off the transcript entirely.
     if (ch === 0x1b) {
       i += 1;
-      while (i < text.length) {
-        const c = text.charCodeAt(i);
-        if (c >= 0x40 && c <= 0x7e) break;
+      const intro = i < text.length ? text.codePointAt(i) : -1;
+      if (intro === 0x5b) {
+        // CSI: ESC [ + params (0x30–0x3F) + intermediates (0x20–0x2F) + final.
         i += 1;
+        while (i < text.length) {
+          const c = text.codePointAt(i);
+          i += 1;
+          if (c >= 0x40 && c <= 0x7e) break;
+        }
+      } else if (intro === 0x5d) {
+        // OSC: ESC ] + payload + BEL or ST (ESC \).
+        i += 1;
+        while (i < text.length) {
+          const c = text.codePointAt(i);
+          i += 1;
+          if (c === 0x07) break;
+          if (c === 0x1b && i < text.length && text.codePointAt(i) === 0x5c) {
+            i += 1;
+            break;
+          }
+        }
+      } else {
+        // Fe/nF escape: intermediates (0x20–0x2F)* then one final byte.
+        while (i < text.length) {
+          const c = text.codePointAt(i);
+          if (c >= 0x20 && c <= 0x2f) {
+            i += 1;
+            continue;
+          }
+          if (c >= 0x30 && c <= 0x7e) i += 1;
+          break;
+        }
       }
+      i -= 1;
       continue;
     }
     lineLen += 1;
