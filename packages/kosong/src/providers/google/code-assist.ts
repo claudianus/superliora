@@ -32,6 +32,12 @@ export interface CodeAssistOptions {
   readonly baseUrl?: string;
   /** Cloud Code Assist project id discovered during OAuth login. */
   readonly project?: string;
+  /**
+   * Code Assist client identity. `'antigravity'` emits the Antigravity IDE's
+   * request envelope (`requestType`, `userAgent`, `requestId`) so the sandbox
+   * endpoints route the call to the Antigravity tier.
+   */
+  readonly clientIdentity?: string;
   readonly stream?: boolean;
   readonly defaultMaxTokens?: number;
   readonly defaultHeaders?: Record<string, string>;
@@ -74,6 +80,7 @@ export class CodeAssistChatProvider implements ChatProvider {
   private _project: string | undefined;
   private _defaultMaxTokens: number;
   private _defaultHeaders: Record<string, string> | undefined;
+  private _clientIdentity: string | undefined;
   private _generationKwargs: GoogleGenAIGenerationKwargs;
   private _clientFactory: ((auth: ProviderRequestAuth) => CodeAssistClient) | undefined;
 
@@ -82,6 +89,7 @@ export class CodeAssistChatProvider implements ChatProvider {
     this._apiKey = options.apiKey;
     this._baseUrl = (options.baseUrl ?? CODE_ASSIST_DEFAULT_BASE_URL).replace(/\/+$/, '');
     this._project = options.project;
+    this._clientIdentity = options.clientIdentity;
     this._defaultMaxTokens = options.defaultMaxTokens ?? 8192;
     this._defaultHeaders = options.defaultHeaders;
     this._generationKwargs = {};
@@ -151,10 +159,20 @@ export class CodeAssistChatProvider implements ChatProvider {
     }
 
     const client = this._createClient(options?.auth);
+    const antigravity = this._clientIdentity === 'antigravity';
     const body: Record<string, unknown> = {
       model: this._model,
       request,
       ...(client.project === undefined ? {} : { project: client.project }),
+      // The Antigravity sandbox endpoints expect the IDE's agent envelope
+      // fields; the production Code Assist path omits them entirely.
+      ...(antigravity
+        ? {
+            requestType: 'agent',
+            userAgent: 'antigravity',
+            requestId: `agent-${globalThis.crypto.randomUUID()}`,
+          }
+        : {}),
     };
 
     const url = `${client.baseUrl}/v1internal:streamGenerateContent?alt=sse`;
@@ -248,6 +266,7 @@ export class CodeAssistChatProvider implements ChatProvider {
       ...(this._apiKey === undefined ? {} : { apiKey: this._apiKey }),
       baseUrl: this._baseUrl,
       project: this._project,
+      ...(this._clientIdentity === undefined ? {} : { clientIdentity: this._clientIdentity }),
       defaultMaxTokens: this._defaultMaxTokens,
       ...(this._defaultHeaders === undefined ? {} : { defaultHeaders: this._defaultHeaders }),
       ...(this._clientFactory === undefined ? {} : { clientFactory: this._clientFactory }),

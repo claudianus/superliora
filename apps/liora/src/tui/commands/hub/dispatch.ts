@@ -38,6 +38,7 @@ import { handleLocaleCommand } from '../config/locale/locale';
 import { handleCompactCommand } from '../session/compact';
 import { handleEditorCommand, handleThemeCommand } from '../config/appearance/editor-theme';
 import { handleModelCommand } from '../config/model/model';
+import { handleFastCommand } from '../config/fast';
 import { handleThinkingCommand } from '../config/thinking/thinking';
 import { showSettingsSelector } from '../config/settings';
 import { handleJobCommand, handleJobsCommand } from '../jobs';
@@ -300,6 +301,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'thinking':
       await handleThinkingCommand(host, args);
+      return;
+    case 'fast':
+      await handleFastCommand(host, args);
       return;
     case 'permission':
       void handlePermissionCommand(host, args);

@@ -28,6 +28,7 @@ export {
   resolveWireFromPackage,
   wireProfiles,
 } from '@superliora/kosong';
+export { fetchDevinModels, factoryDroidModels } from '@superliora/kosong';
 export type {
   Catalog,
   CatalogModel,
@@ -37,6 +38,7 @@ export type {
   CatalogWireGroup,
   WireProfile,
 } from '@superliora/kosong';
+export type { DevinDiscoveredModel, FactoryDroidModelRoute } from '@superliora/kosong';
 
 export const DEFAULT_CATALOG_URL = 'https://models.dev/api.json';
 

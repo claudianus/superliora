@@ -30,11 +30,18 @@ import {
   requestKiroDeviceAuthorization,
 } from './oauth-flow-kiro';
 import {
+  discoverGoogleAntigravityProject,
   discoverGoogleCodeAssistProject,
   refreshGoogleToken,
+  resolveGoogleAntigravityOauthConfig,
   resolveGoogleGeminiCliOauthConfig,
   runGoogleOauthLogin,
 } from './oauth-flow-google';
+import { refreshDeviceCodeToken, runDeviceCodeFlow } from './oauth-flow-device';
+import { runDevinPkceFlow } from './oauth-flow-devin';
+import { runKiloDeviceFlow } from './oauth-flow-kilo';
+import { refreshMinimaxToken, runMinimaxUserCodeFlow } from './oauth-flow-minimax';
+import { runOpenRouterKeyFlow } from './oauth-flow-openrouter';
 import {
   generateState,
   refreshPkceToken,
@@ -196,6 +203,16 @@ export class OAuthProviderManager {
         return this.loginCodePaste(profile, callbacks, options);
       case 'google_oauth':
         return this.loginGoogleOauth(profile, callbacks, options);
+      case 'device_code':
+        return this.loginDeviceCode(profile, callbacks, options);
+      case 'user_code':
+        return this.loginUserCode(profile, callbacks, options);
+      case 'pkce_api_key':
+        return this.loginPkceApiKey(profile, callbacks, options);
+      case 'devin_pkce':
+        return this.loginDevinPkce(profile, callbacks, options);
+      case 'kilo_device':
+        return this.loginKiloDevice(profile, callbacks, options);
     }
   }
 
@@ -373,14 +390,98 @@ export class OAuthProviderManager {
     callbacks: ProviderLoginCallbacks,
     options: ProviderLoginOptions,
   ): Promise<TokenInfo> {
-    void profile;
+    // Two Google login variants share the kind: the Gemini CLI client (Code
+    // Assist production) and the Antigravity IDE client (sandbox endpoints,
+    // wider scopes, mandatory PKCE). Branch on the declared profile id, never
+    // on host strings.
+    const isAntigravity = profile.id === 'google-antigravity';
     const token = await runGoogleOauthLogin({
-      config: resolveGoogleGeminiCliOauthConfig(),
+      config: isAntigravity
+        ? resolveGoogleAntigravityOauthConfig()
+        : resolveGoogleGeminiCliOauthConfig(),
       signal: options.signal,
       onAuthorizeUrl: callbacks.onAuthorizeUrl,
       onManualCallbackPrompt: callbacks.onManualCallbackPrompt,
-      discoverProject: (accessToken, signal) =>
-        discoverGoogleCodeAssistProject(accessToken, { signal }),
+      discoverProject: isAntigravity
+        ? (accessToken, signal) => discoverGoogleAntigravityProject(accessToken, { signal })
+        : (accessToken, signal) => discoverGoogleCodeAssistProject(accessToken, { signal }),
+    });
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, token);
+    return token;
+  }
+
+  /** Generic RFC 8628 device flow (Qwen PKCE, Nous Portal). */
+  private async loginDeviceCode(
+    profile: ProviderProfile,
+    callbacks: ProviderLoginCallbacks,
+    options: ProviderLoginOptions,
+  ): Promise<TokenInfo> {
+    const token = await runDeviceCodeFlow(profile.flow, {
+      onDeviceCode: callbacks.onDeviceCode,
+      signal: options.signal,
+    });
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, token);
+    return token;
+  }
+
+  /** MiniMax `user_code` grant: portal URL + code, poll for the token. */
+  private async loginUserCode(
+    profile: ProviderProfile,
+    callbacks: ProviderLoginCallbacks,
+    options: ProviderLoginOptions,
+  ): Promise<TokenInfo> {
+    const token = await runMinimaxUserCodeFlow(profile.flow, {
+      onDeviceCode: callbacks.onDeviceCode,
+      signal: options.signal,
+    });
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, token);
+    return token;
+  }
+
+  /** Kilo device authorization: show the code + URL, poll until approved. */
+  private async loginKiloDevice(
+    profile: ProviderProfile,
+    callbacks: ProviderLoginCallbacks,
+    options: ProviderLoginOptions,
+  ): Promise<TokenInfo> {
+    const token = await runKiloDeviceFlow(profile.flow, {
+      onDeviceCode: callbacks.onDeviceCode,
+      signal: options.signal,
+    });
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, token);
+    return token;
+  }
+
+  /** Devin CLI login: PKCE loopback + JSON token exchange, session JWT. */
+  private async loginDevinPkce(
+    profile: ProviderProfile,
+    callbacks: ProviderLoginCallbacks,
+    options: ProviderLoginOptions,
+  ): Promise<TokenInfo> {
+    const token = await runDevinPkceFlow(profile.flow, {
+      onAuthorizeUrl: callbacks.onAuthorizeUrl,
+      onManualCallbackPrompt: callbacks.onManualCallbackPrompt,
+      signal: options.signal,
+    });
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, token);
+    return token;
+  }
+
+  /** OpenRouter PKCE consent that mints a durable API key. */
+  private async loginPkceApiKey(
+    profile: ProviderProfile,
+    callbacks: ProviderLoginCallbacks,
+    options: ProviderLoginOptions,
+  ): Promise<TokenInfo> {
+    const token = await runOpenRouterKeyFlow(profile.flow, {
+      onAuthorizeUrl: callbacks.onAuthorizeUrl,
+      onManualCallbackPrompt: callbacks.onManualCallbackPrompt,
+      signal: options.signal,
     });
     const storageKey = options.storageKey ?? this.storageName(profile.id);
     await this.storage.save(storageKey, token);
@@ -517,9 +618,39 @@ async function refreshForFlow(
       // Re-provisions the Z.AI API key from the stored upstream token.
       return refreshGlmZcodeToken(refreshToken);
     case 'google_oauth':
-      return refreshGoogleToken(resolveGoogleGeminiCliOauthConfig(), refreshToken);
+      // Antigravity refreshes with its own client secret; everything else is
+      // the Gemini CLI client config.
+      return providerId === 'google-antigravity'
+        ? refreshGoogleToken(resolveGoogleAntigravityOauthConfig(), refreshToken)
+        : refreshGoogleToken(resolveGoogleGeminiCliOauthConfig(), refreshToken);
     case 'device_code_kiro':
       return refreshKiroToken(refreshToken);
+    case 'device_code':
+      // Factory's org/region live in the provider config written at connect,
+      // so the refresh does not re-run the scope hook; an org change needs a
+      // fresh login.
+      return refreshDeviceCodeToken(flow, refreshToken);
+    case 'kilo_device':
+      // Kilo's device grant mints a ~1-year gateway token with no refresh
+      // grant — an expired credential must re-run the login flow.
+      throw new OAuthError(
+        `Kilo session expired for "${providerId}". Run /connect again to sign in.`,
+      );
+    case 'user_code':
+      return refreshMinimaxToken(flow, refreshToken);
+    case 'pkce_api_key': {
+      // OpenRouter's minted key is durable (no token endpoint): the stored
+      // credential re-wraps itself, preserving `refreshToken` (the key) so the
+      // next expiry check still sees a credential instead of an empty string.
+      const wrapped = staticPasteTokenInfo(refreshToken);
+      return { ...wrapped, refreshToken };
+    }
+    case 'devin_pkce':
+      // Devin issues no refresh token: the ~1-year session JWT cannot be
+      // renewed silently, so an expired session must re-run the login flow.
+      throw new OAuthError(
+        `Devin session expired for "${providerId}". Run /connect again to sign in.`,
+      );
   }
 }
 

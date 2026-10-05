@@ -445,6 +445,8 @@ export function providerDefaultApiKeyEnv(
       return 'GOOGLE_API_KEY';
     case 'code-assist':
     case 'codewhisperer':
+    case 'devin':
+    case 'factory-droid':
       // OAuth-only wires; the access token resolves at request time.
       return undefined;
     case 'vertexai':

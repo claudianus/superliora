@@ -21,7 +21,8 @@ export type DeleteConfigFieldPath =
   | 'defaultThinking'
   | `thinking.${'mode' | 'effort'}`
   | `models.${string}`
-  | `models."${string}"`;
+  | `models."${string}"`
+  | `providers.${string}`;
 
 export interface DeleteConfigFieldsPayload {
   readonly paths: readonly DeleteConfigFieldPath[];

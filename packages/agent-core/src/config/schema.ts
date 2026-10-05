@@ -14,6 +14,8 @@ export const ProviderTypeSchema = z.enum([
   'bedrock',
   'vertex_claude',
   'cursor',
+  'devin',
+  'factory-droid',
 ]);
 
 export type ProviderType = z.infer<typeof ProviderTypeSchema>;
@@ -48,6 +50,26 @@ export const ProviderConfigSchema = z.object({
   defaultModel: z.string().optional(),
   /** Cloud Code Assist project id (Google Code Assist OAuth logins). */
   project: z.string().optional(),
+  /**
+   * Code Assist client identity marker (e.g. `antigravity`). The wire uses it
+   * to emit the provider's expected request envelope fields.
+   */
+  clientIdentity: z.string().optional(),
+  /**
+   * OpenAI service tier (e.g. `fast`, `priority`, `flex`, `default`) sent as
+   * `service_tier` on OpenAI-family requests — Codex Fast mode.
+   */
+  serviceTier: z.string().optional(),
+  /**
+   * Organization id for org-scoped providers (Factory Droid's
+   * `X-Factory-Org-Id`), captured by the OAuth identity exchange.
+   */
+  orgId: z.string().optional(),
+  /**
+   * Account residency region for multi-region providers (Factory Droid `eu` |
+   * `global`); selects the API host.
+   */
+  region: z.string().optional(),
   oauth: OAuthRefSchema.optional(),
   oauths: z.array(OAuthRefSchema).optional(),
   env: StringRecordSchema.optional(),

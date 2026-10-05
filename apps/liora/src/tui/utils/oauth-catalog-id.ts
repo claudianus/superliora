@@ -13,5 +13,14 @@ export function oauthProviderCatalogId(id: string): string {
   if (id === 'glm-zcode') return 'zai';
   // Code Assist login speaks the same Gemini model catalog.
   if (id === 'google-gemini-cli') return 'google';
+  // The OAuth-minted OpenRouter key unlocks the full router catalog.
+  if (id === 'openrouter-oauth') return 'openrouter';
+  // MiniMax Coding Plan logins serve the public MiniMax model family.
+  if (id === 'minimax-oauth') return 'minimax';
+  if (id === 'minimax-oauth-cn') return 'minimax-cn';
+  // `qwen-oauth`, `nous`, `google-antigravity`, `devin`, `muse-code`, `kilo`,
+  // `factory-droid` have no models.dev entry — they resolve from profile
+  // presets and each provider's live discovery (Devin GetCliModelConfigs,
+  // Nous /models, Kilo gateway, Meta catalog).
   return id;
 }

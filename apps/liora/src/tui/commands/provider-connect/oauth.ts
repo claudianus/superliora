@@ -1,6 +1,8 @@
 import {
   catalogModelToAlias,
   catalogProviderModels,
+  factoryDroidModels,
+  fetchDevinModels,
   log,
   type CatalogModel,
   type ModelAlias,
@@ -11,9 +13,11 @@ import {
   applyCursorOAuthModelAliases,
   CURSOR_OAUTH_PROVIDER_ID,
   cursorModelsToPresets,
+  DEVIN_PROVIDER_ID,
   ensureGitHubCopilotSession,
+  FACTORY_DROID_PROVIDER_ID,
   fetchCursorAvailableModels,
-  GOOGLE_GEMINI_CLI_PROVIDER_ID,
+  GOOGLE_ANTIGRAVITY_PROVIDER_ID,
   GITHUB_COPILOT_PROVIDER_ID,
   GITHUB_COPILOT_TOKEN_ENVS,
   getProviderProfile,
@@ -25,6 +29,7 @@ import {
   fetchGitHubCopilotModels,
   readGitHubCopilotEnvToken,
   readGitHubCopilotGhCliToken,
+  qwenResourceUrlToBaseUrl,
   xaiGrokProviderRouteFields,
   type ProviderModelPreset,
 } from '@superliora/oauth';
@@ -223,7 +228,7 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
     }
 
     spinner = host.showProgressSpinner(`Authorizing with ${profile.displayName}`);
-    await manager.login(
+    const loginToken = await manager.login(
       providerId,
       {
         onDeviceCode: (auth) => {
@@ -335,7 +340,12 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
     let accessToken: string | undefined;
     let copilotSessionToken: string | undefined;
     let copilotApiBaseUrl: string | undefined;
-    if (providerId === CURSOR_OAUTH_PROVIDER_ID) {
+    if (providerId === DEVIN_PROVIDER_ID) {
+      // The just-minted session token skips a storage round-trip; Devin's
+      // session JWT is non-refreshable so ensureFresh would throw on expiry
+      // anyway.
+      accessToken = loginToken.accessToken;
+    } else if (providerId === CURSOR_OAUTH_PROVIDER_ID || profile.liveModels === true) {
       try {
         accessToken = await manager.ensureFresh(providerId, { storageKey });
       } catch {
@@ -356,10 +366,16 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
         // Keep the individual-host default when the cached session cannot be read.
       }
     }
-    // Google Code Assist stores the discovered Cloud project id with the
-    // token; the runtime needs it in every request envelope.
-    let codeAssistProject: string | undefined;
-    if (providerId === GOOGLE_GEMINI_CLI_PROVIDER_ID) {
+    // Device flows may return a per-account inference endpoint
+    // (`resource_url` — Qwen assigns the subscription's portal host). Adopt it
+    // as the provider baseUrl so requests follow the assigned endpoint.
+    if (loginToken.resourceUrl !== undefined) {
+      routeBaseUrl = qwenResourceUrlToBaseUrl(loginToken.resourceUrl) ?? routeBaseUrl;
+    }
+    // Code Assist logins (Gemini CLI, Antigravity) store the discovered Cloud
+    // project id with the token; the runtime needs it in every request envelope.
+    let codeAssistProject = loginToken.projectId;
+    if (codeAssistProject === undefined && profile.wire === 'code-assist') {
       try {
         codeAssistProject = (await manager.loadToken(providerId, storageKey))?.projectId;
       } catch {
@@ -375,6 +391,11 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
         baseUrl: routeBaseUrl,
         ...(routeCustomHeaders !== undefined ? { customHeaders: routeCustomHeaders } : {}),
         ...(codeAssistProject === undefined ? {} : { project: codeAssistProject }),
+        ...(providerId === GOOGLE_ANTIGRAVITY_PROVIDER_ID ? { clientIdentity: 'antigravity' } : {}),
+        // Factory Droid's whoami exchange resolves the org scope + residency
+        // region onto the token; the runtime sends them on every request.
+        ...(loginToken.orgId === undefined ? {} : { orgId: loginToken.orgId }),
+        ...(loginToken.region === undefined ? {} : { region: loginToken.region }),
       },
     );
     freshConfig.providers[providerId] = mergedProvider as (typeof freshConfig.providers)[string];
@@ -385,6 +406,7 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
     const resolvedModels = await resolveOAuthProviderModels(providerId, profile.models, {
       accessToken,
       storageKey,
+      liveModelsBaseUrl: profile.liveModels === true ? profile.apiBaseUrl : undefined,
       copilotSession:
         copilotSessionToken === undefined || copilotApiBaseUrl === undefined
           ? undefined
@@ -479,6 +501,12 @@ function presetModelToAlias(providerId: string, preset: ProviderModelPreset): Mo
 export interface ResolveOAuthProviderModelsOptions {
   /** Fresh access token; used for Cursor AvailableModels discovery. */
   readonly accessToken?: string;
+  /**
+   * When set (and `accessToken` is present), fetch `{baseUrl}/models` and
+   * prefer the live OpenAI-style list over catalog/presets. Used by
+   * aggregators whose catalog churns daily (Nous Portal).
+   */
+  readonly liveModelsBaseUrl?: string;
   /** Copilot session token + API host after `ensureGitHubCopilotSession`. */
   readonly copilotSession?: { readonly token: string; readonly apiBaseUrl: string };
   /**
@@ -500,6 +528,65 @@ export async function resolveOAuthProviderModels(
   presets: readonly ProviderModelPreset[] | undefined,
   options: ResolveOAuthProviderModelsOptions = {},
 ): Promise<readonly ModelAlias[] | undefined> {
+  const liveToken = options.accessToken?.trim();
+  if (providerId === DEVIN_PROVIDER_ID && liveToken !== undefined && liveToken.length > 0) {
+    try {
+      const live = await fetchDevinModels({ apiKey: liveToken });
+      if (live !== null && live.length > 0) {
+        return live.map((model) =>
+          presetModelToAlias(providerId, {
+            id: model.id,
+            displayName: model.name,
+            maxContextSize: model.contextWindow,
+            capabilities: [
+              ...(model.supportsTools ? ['tool_use'] : []),
+              ...(model.supportsImages ? ['image_in'] : []),
+              ...(model.reasoning ? ['thinking'] : []),
+            ],
+          }),
+        );
+      }
+    } catch (error) {
+      log.warn(
+        `Failed to load Devin model configs for "${providerId}", using preset.`,
+        formatErrorMessage(error),
+      );
+    }
+  }
+
+  // Factory has no model-listing endpoint; first-party clients ship the
+  // roster — the kosong registry doubles as the model catalog here.
+  if (providerId === FACTORY_DROID_PROVIDER_ID) {
+    const roster = factoryDroidModels();
+    return Object.entries(roster).map(([id, route]) =>
+      presetModelToAlias(providerId, {
+        id,
+        displayName: route.displayName,
+        maxContextSize: route.contextWindow,
+        capabilities: [
+          'tool_use',
+          ...(route.supportsImages ? ['image_in'] : []),
+          ...(route.reasoning ? ['thinking'] : []),
+        ],
+      }),
+    );
+  }
+
+  const liveBaseUrl = options.liveModelsBaseUrl?.replace(/\/+$/, '');
+  if (liveBaseUrl !== undefined && liveToken !== undefined && liveToken.length > 0) {
+    try {
+      const live = await fetchOpenAiModelPresets(liveBaseUrl, liveToken);
+      if (live.length > 0) {
+        return live.map((preset) => presetModelToAlias(providerId, preset));
+      }
+    } catch (error) {
+      log.warn(
+        `Failed to load live /models list for "${providerId}", using preset.`,
+        formatErrorMessage(error),
+      );
+    }
+  }
+
   if (providerId === GITHUB_COPILOT_PROVIDER_ID && options.copilotSession !== undefined) {
     try {
       const live = await fetchGitHubCopilotModels({
@@ -576,6 +663,54 @@ export async function resolveOAuthProviderModels(
     return presets.map((preset) => presetModelToAlias(providerId, preset));
   }
   return undefined;
+}
+
+/**
+ * Fetches an OpenAI-compatible `GET {baseUrl}/models` listing and maps it to
+ * model presets. Models carry no context-size metadata on this endpoint, so
+ * the alias inherits the profile's declared default (128k is the safe floor
+ * for aggregator-hosted frontier models; users can bump it in config).
+ */
+async function fetchOpenAiModelPresets(
+  baseUrl: string,
+  accessToken: string,
+): Promise<readonly ProviderModelPreset[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, 15_000);
+  try {
+    const response = await fetch(`${baseUrl}/models`, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`GET ${baseUrl}/models failed (HTTP ${String(response.status)})`);
+    }
+    const payload = (await response.json()) as { data?: unknown };
+    const list = Array.isArray(payload.data) ? payload.data : [];
+    const presets: ProviderModelPreset[] = [];
+    for (const entry of list) {
+      if (typeof entry !== 'object' || entry === null) continue;
+      const id = (entry as { id?: unknown }).id;
+      if (typeof id !== 'string' || id.length === 0) continue;
+      const contextLength = (entry as { context_length?: unknown }).context_length;
+      presets.push({
+        id,
+        displayName: id,
+        maxContextSize:
+          typeof contextLength === 'number' && Number.isFinite(contextLength) && contextLength > 0
+            ? contextLength
+            : 131072,
+      });
+    }
+    return presets;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function promptManagedAccountAction(

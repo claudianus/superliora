@@ -111,7 +111,7 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
       ? true
       : raw === '0' || raw === 'false' || raw === 'no' || raw === 'off'
         ? false
-        : entry.flag !== 'github_copilot';
+        : entry.offByDefault !== true;
     if (!enabled) continue;
     options.push({
       value: `oauth:${entry.profile.id}`,

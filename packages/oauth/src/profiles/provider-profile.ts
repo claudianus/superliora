@@ -32,7 +32,9 @@ export type OAuthProviderWire =
   | 'codewhisperer'
   | 'vertexai'
   | 'bedrock'
-  | 'vertex_claude';
+  | 'vertex_claude'
+  | 'devin'
+  | 'factory-droid';
 
 /** The OAuth authorization strategy a provider uses. */
 export type OAuthFlowKind =
@@ -42,6 +44,28 @@ export type OAuthFlowKind =
   | 'device_code_openai'
   /** AWS SSO OIDC device-code grant (Kiro / Amazon Q). */
   | 'device_code_kiro'
+  /**
+   * Generic RFC 8628 device-code grant against explicit `deviceCodeUrl` /
+   * `tokenUrl` endpoints. Optional PKCE (`pkce: true`) sends the
+   * `code_challenge` on the device request and the `code_verifier` on the
+   * token poll (Qwen). A `resource_url` in the token response is captured
+   * onto the stored token so the connect flow can adopt the account's
+   * assigned inference endpoint.
+   */
+  | 'device_code'
+  /**
+   * MiniMax-style user-code grant: `POST {oauthHost}/oauth/code` issues a
+   * `user_code` + portal URL; the client polls `{oauthHost}/oauth/token`
+   * with `grant_type=urn:ietf:params:oauth:grant-type:user_code` and the
+   * PKCE `code_verifier`.
+   */
+  | 'user_code'
+  /**
+   * OpenRouter-style PKCE consent that mints a durable API key instead of
+   * OAuth tokens: loopback `?code=` → `POST {tokenUrl}` `{code,
+   * code_verifier}` → `{key}`. Stored as a non-expiring token bundle.
+   */
+  | 'pkce_api_key'
   /** OAuth 2.0 PKCE authorization-code with a loopback browser callback. */
   | 'pkce_browser'
   /** Cursor deep-link PKCE: open login URL, poll `/auth/poll` (no loopback). */
@@ -58,7 +82,20 @@ export type OAuthFlowKind =
    * the user pastes the final redirect URL (or bare code) and a
    * provider-specific exchange runs on it (GLM ZCode).
    */
-  | 'code_paste';
+  | 'code_paste'
+  /**
+   * Devin CLI login: PKCE loopback (`127.0.0.1:59653/callback`) with a JSON
+   * token exchange `{code, code_verifier}` returning `{ token }`. The session
+   * JWT is long-lived; expiry comes from its `exp` claim (1-year fallback).
+   */
+  | 'devin_pkce'
+  /**
+   * Kilo Gateway device authorization: `POST {oauthHost}/api/device-auth/codes`
+   * returns `{code, verificationUrl, expiresIn}`; the client polls
+   * `GET /api/device-auth/codes/{code}` until `{status: 'approved', token}`.
+   * The minted token is a gateway API key, not an OAuth grant — no refresh.
+   */
+  | 'kilo_device';
 
 /**
  * Which implementation runs a `pkce_browser` flow. Providers sharing the
@@ -103,6 +140,42 @@ export interface ProviderFlowConfig extends OAuthFlowConfig {
   readonly authorizeUrl?: string;
   /** Token exchange URL. */
   readonly tokenUrl?: string;
+  /** Device authorization endpoint for `device_code` / `user_code` flows. */
+  readonly deviceCodeUrl?: string;
+  /**
+   * Attach a PKCE S256 pair to `device_code`/`user_code` flows: the challenge
+   * rides the code request, the verifier the token exchange. Required by Qwen
+   * and MiniMax.
+   */
+  readonly pkce?: boolean;
+  /**
+   * Provider-specific header that carries the refresh token on refresh
+   * requests (e.g. Nous Portal's `x-nous-refresh-token`). The form body still
+   * carries `refresh_token` for RFC compliance.
+   */
+  readonly refreshTokenHeader?: string;
+  /**
+   * Extra headers sent on both the device-code request and the token poll
+   * (e.g. Meta OIDC's `x-api-version`). Applied on top of the defaults.
+   */
+  readonly requestHeaders?: Readonly<Record<string, string>>;
+  /**
+   * Token expiry handling for providers that omit `expires_in`:
+   * `jwt_or_never` reads the JWT `exp` claim when present and otherwise marks
+   * the token non-expiring (`expiresAt: 0`). Default requires `expires_in` or
+   * a JWT `exp`.
+   */
+  readonly tokenExpiry?: 'jwt_or_never';
+  /**
+   * Post-exchange hook run on the freshly granted token before it is stored.
+   * `muse_key` mints the Muse Code model API key (`api.meta.ai/muse-code/key`)
+   * and stores `{ accessToken: apiKey, refreshToken: oauthToken }` — model
+   * requests authenticate with the minted key while the Meta account token is
+   * retained for re-minting. `factory_region` resolves the Factory Droid
+   * account scope (`/api/cli/whoami` → org id, residency, inference region)
+   * onto the stored token.
+   */
+  readonly postExchange?: 'muse_key' | 'factory_region';
   /** OIDC discovery document URL (when the provider exposes one). */
   readonly discoveryUrl?: string;
   /** User-agent sent with OAuth HTTP requests. */
@@ -148,6 +221,12 @@ export interface ProviderProfile {
    * `{providerId}/{modelId}` model alias.
    */
   readonly models?: readonly ProviderModelPreset[];
+  /**
+   * When true, the connect flow fetches `{apiBaseUrl}/models` with the fresh
+   * access token and prefers the live list over `models` presets (aggregators
+   * like Nous Portal whose catalog churns daily).
+   */
+  readonly liveModels?: boolean;
 }
 
 /** A model alias preset for an OAuth provider. */
@@ -170,7 +249,17 @@ export const OAUTH_PROVIDER_IDS = [
   'github-copilot',
   'gitlab-duo',
   'glm-zcode',
+  'google-antigravity',
   'google-gemini-cli',
   'kiro',
+  'minimax-oauth',
+  'minimax-oauth-cn',
+  'nous',
+  'openrouter-oauth',
+  'qwen-oauth',
+  'devin',
+  'muse-code',
+  'kilo',
+  'factory-droid',
 ] as const;
 export type OAuthProviderId = (typeof OAUTH_PROVIDER_IDS)[number];

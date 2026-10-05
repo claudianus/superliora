@@ -4,6 +4,7 @@
 export const STRINGS_TUI_HUB_EN: Readonly<Record<string, string>> = {
   'tui.slash.model': "Switch LLM model",
   'tui.slash.thinking': "Set thinking effort for the current session",
+  'tui.slash.fast': "Toggle the OpenAI Fast service tier (Codex fast mode)",
   'tui.slash.btw': "Ask a forked side agent a question",
   'tui.slash.transcript': "Set transcript detail density (minimal, compact, standard, full)",
   'tui.slash.neat': "Toggle structured tool result cards instead of raw output",
@@ -74,6 +75,7 @@ export const STRINGS_TUI_HUB_EN: Readonly<Record<string, string>> = {
 export const STRINGS_TUI_HUB_KO: Readonly<Record<string, string>> = {
   'tui.slash.model': "LLM 모델 전환",
   'tui.slash.thinking': "현재 세션의 사고 노력 설정",
+  'tui.slash.fast': "OpenAI Fast 서비스 티어 토글 (Codex fast 모드)",
   'tui.slash.btw': "분기된 사이드 에이전트에 질문",
   'tui.slash.transcript': "트랜스크립트 상세 밀도 설정 (minimal, compact, standard, full)",
   'tui.slash.neat': "원시 출력 대신 구조화된 도구 결과 카드 토글",

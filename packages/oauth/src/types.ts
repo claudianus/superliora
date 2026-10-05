@@ -25,6 +25,29 @@ export interface TokenInfo {
    * id). Optional so every existing producer stays valid.
    */
   readonly projectId?: string;
+  /**
+   * Per-account inference base URL returned by some device flows (Qwen's
+   * `resource_url`). When present, connect writes it as the provider's
+   * `baseUrl` so requests follow the account's assigned endpoint.
+   */
+  readonly resourceUrl?: string;
+  /**
+   * Organization id the credential is scoped to (Factory Droid's
+   * `X-Factory-Org-Id`, resolved from the WorkOS `external_org_id` claim or
+   * the `/api/cli/whoami` exchange).
+   */
+  readonly orgId?: string;
+  /**
+   * Account residency region (Factory Droid `eu` | `global`); selects the API
+   * host. Connect persists it as the provider's `region` config.
+   */
+  readonly region?: string;
+  /**
+   * Inference-serving region resolved by the provider's identity exchange
+   * (Factory Droid `global` | `eu` | `us`); independent from `region`
+   * residency — an EU-host account can serve global inference.
+   */
+  readonly inferenceRegion?: string;
 }
 
 /** RFC 8628 §3.2 device authorization response. */
@@ -68,6 +91,10 @@ export interface TokenInfoWire {
   readonly token_type: string;
   readonly expires_in: number;
   readonly project_id?: string;
+  readonly resource_url?: string;
+  readonly org_id?: string;
+  readonly region?: string;
+  readonly inference_region?: string;
 }
 
 export function tokenToWire(token: TokenInfo): TokenInfoWire {
@@ -79,6 +106,10 @@ export function tokenToWire(token: TokenInfo): TokenInfoWire {
     token_type: token.tokenType,
     expires_in: token.expiresIn,
     ...(token.projectId === undefined ? {} : { project_id: token.projectId }),
+    ...(token.resourceUrl === undefined ? {} : { resource_url: token.resourceUrl }),
+    ...(token.orgId === undefined ? {} : { org_id: token.orgId }),
+    ...(token.region === undefined ? {} : { region: token.region }),
+    ...(token.inferenceRegion === undefined ? {} : { inference_region: token.inferenceRegion }),
   };
 }
 
@@ -92,6 +123,16 @@ export function tokenFromWire(wire: Partial<TokenInfoWire>): TokenInfo {
     expiresIn: typeof wire.expires_in === 'number' ? wire.expires_in : 0,
     ...(typeof wire.project_id === 'string' && wire.project_id.length > 0
       ? { projectId: wire.project_id }
+      : {}),
+    ...(typeof wire.resource_url === 'string' && wire.resource_url.length > 0
+      ? { resourceUrl: wire.resource_url }
+      : {}),
+    ...(typeof wire.org_id === 'string' && wire.org_id.length > 0 ? { orgId: wire.org_id } : {}),
+    ...(typeof wire.region === 'string' && wire.region.length > 0
+      ? { region: wire.region }
+      : {}),
+    ...(typeof wire.inference_region === 'string' && wire.inference_region.length > 0
+      ? { inferenceRegion: wire.inference_region }
       : {}),
   };
 }

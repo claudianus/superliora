@@ -303,6 +303,16 @@ export const API_KEY_PROVIDERS: readonly ApiKeyProviderDefinition[] = [
     defaultBaseUrl: 'https://qianfan.baidubce.com/v2',
   },
   {
+    // Nous Research inference gateway — not in the models.dev catalog; the
+    // OAuth login (`nous`) mints a portal token that works here too.
+    id: 'nous',
+    displayName: 'Nous Research',
+    wire: 'openai',
+    envVars: ['NOUS_API_KEY'],
+    docUrl: 'https://portal.nousresearch.com',
+    defaultBaseUrl: 'https://inference-api.nousresearch.com/v1',
+  },
+  {
     id: 'sglang',
     displayName: 'SGLang server (local)',
     wire: 'openai',
