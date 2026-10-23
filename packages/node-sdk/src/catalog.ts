@@ -95,7 +95,17 @@ export function catalogModelToAlias(providerId: string, model: CatalogModel): Mo
       : {}),
     displayName: model.name,
     reasoningKey: model.reasoningKey,
-    cost: model.cost,
+    // Catalog pricing can include tiers and provider-specific fields that the
+    // persisted config does not support. Copy only its supported base rates.
+    cost:
+      model.cost === undefined
+        ? undefined
+        : {
+            input: model.cost.input,
+            output: model.cost.output,
+            cache_read: model.cost.cache_read,
+            cache_write: model.cost.cache_write,
+          },
   };
 }
 

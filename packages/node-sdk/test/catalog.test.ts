@@ -1,4 +1,5 @@
-import type { LioraConfig } from '@superliora/agent-core';
+import type { LioraConfig, ModelAlias } from '@superliora/agent-core';
+import { ModelAliasSchema } from '@superliora/agent-core/config/schema';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -79,6 +80,59 @@ describe('catalogModelToAlias', () => {
       supportEfforts: ['low', 'high', 'max'],
       capabilities: ['image_in', 'thinking', 'tool_use', 'always_thinking'],
     });
+  });
+});
+
+describe('catalog pricing config compatibility', () => {
+  it.each(['alias', 'provider'] as const)(
+    'imports only supported prices through the %s path without changing the catalog',
+    (path) => {
+      const expectedCost = { input: 0, output: 14, cache_read: 0, cache_write: 1.25 };
+      const rawCost = {
+        ...expectedCost,
+        tiers: [{ tier: { type: 'context', size: 200000 }, input: 5, output: 28 }],
+        context_over_200k: { input: 5, output: 28 },
+      };
+      const originalCost = structuredClone(rawCost);
+      const models = catalogProviderModels({
+        id: 'openai',
+        models: {
+          'gpt-codex': {
+            id: 'gpt-codex',
+            name: 'Codex',
+            limit: { context: 400000, output: 32000 },
+            cost: rawCost,
+          },
+        },
+      });
+      const catalogModel = models[0]!;
+      let alias: ModelAlias | undefined;
+      if (path === 'alias') {
+        alias = catalogModelToAlias('openai-codex', catalogModel);
+      } else {
+        const config = { providers: {} } as LioraConfig;
+        applyCatalogProvider(config, {
+          providerId: 'openai',
+          wire: 'openai_responses',
+          apiKey: 'YOUR_API_KEY',
+          models,
+          selectedModelId: catalogModel.id,
+          thinking: false,
+        });
+        alias = config.models?.['openai/gpt-codex'];
+      }
+      expect(ModelAliasSchema.parse(alias).cost).toEqual(expectedCost);
+      expect(alias?.cost).toEqual(expectedCost);
+      expect(alias?.cost).not.toBe(rawCost);
+      expect(rawCost).toEqual(originalCost);
+      expect(catalogModel.cost).toEqual(originalCost);
+    },
+  );
+
+  it('keeps a model without catalog pricing valid without inventing prices', () => {
+    const alias = catalogModelToAlias('openai-codex', model);
+    expect(ModelAliasSchema.parse(alias).cost).toBeUndefined();
+    expect(alias.cost).toBeUndefined();
   });
 });
 
